@@ -168,6 +168,12 @@ export type Activity = {
    * (a continuation, or a call that resumes it).
    */
   readonly files: readonly string[]
+  /**
+   * The path the running turn wrote last, root and subagents, even once `files` is full
+   * or the path is one it already holds; same lifetime as `files`. Only a turn that runs
+   * reports it: after its end it is no cursor, and a report of a late write leaves it.
+   */
+  readonly wrote: string | null
   readonly lastTurn: LastTurn | null
 }
 
@@ -289,6 +295,7 @@ export const started = (at: number, wakes = true, records = true): Activity => (
   skips: 0,
   listed: false,
   files: [],
+  wrote: null,
   lastTurn: null,
 })
 
@@ -725,9 +732,15 @@ export const apply = (
         : -1
       const pending = asked < 0 ? activity.pending : activity.pending.toSpliced(asked, 1)
       const files = withFile(activity.files, event.path)
-      return files || asked >= 0
-        ? { ...activity, pending, files: files ?? activity.files }
-        : undefined
+      const wrote =
+        event.path.length > 0 && event.path.length <= maxTurnFilePath ? event.path : null
+      if (!files && asked < 0 && (!wrote || wrote === activity.wrote)) return undefined
+      return {
+        ...activity,
+        pending,
+        files: files ?? activity.files,
+        wrote: wrote ?? activity.wrote,
+      }
     }
     case "tool-called":
       // Counted by the messaging loop guard alone: it changes nothing here.
@@ -927,6 +940,7 @@ export const apply = (
             : event.cause === "call"
               ? (activity.lastTurn?.files ?? activity.files)
               : [],
+        wrote: activity.state === "working" || event.cause === "call" ? activity.wrote : null,
         lastTurn: null,
       }
     case "turn-continued":
@@ -1160,6 +1174,7 @@ export const summary = ({
   shells,
   running,
   listed,
+  wrote,
   lastTurn,
 }: Activity): AgentActivity => {
   const detached = pending.length - blocking(pending).length
@@ -1188,6 +1203,8 @@ export const summary = ({
     },
     ...shellsOf(shells),
     subagents: subagents.map(({ id, type }) => ({ id: subagentRef(id), type })),
+    // Only while its turn itself runs, not while subagents it left do.
+    ...(state === "working" && wrote !== null && { wrote }),
     lastTurn:
       state === "working" || !lastTurn
         ? null

@@ -12,11 +12,16 @@ export const workLimits = { files: 300, path: 4096, branch: 256, conflicts: 32 }
 
 const count = z.number().int().min(0)
 
-// A file the work changes: its lines added and removed against main, the part of them the
-// person hasn't read (what changed since they last looked; all of it before a first look),
-// and whether merging it is where a conflict is.
+// A file the work changes: how it changed (a renamed one with its old path as `from`), when the
+// runner first saw it as it is now (`changedAt`, epoch milliseconds, which a later change to it
+// moves and a restart of the runner resets), its lines added and removed against main, the part
+// of them the person hasn't read (what changed since they last looked; all of it before a first
+// look), and whether merging it is where a conflict is.
 export const workFile = z.strictObject({
   path: z.string().min(1).max(workLimits.path),
+  status: z.enum(["modified", "added", "deleted", "renamed"]),
+  from: z.string().min(1).max(workLimits.path).optional(),
+  changedAt: z.number(),
   added: count,
   removed: count,
   unreadAdded: count,
@@ -40,11 +45,18 @@ export const workConflict = z.discriminatedUnion("with", [
 // now; `branch` its branch, null when detached;
 // `base` the main branch it's measured against (as `main` or `origin/main`); `firstSeenAt`
 // when it first differed from main, which orders the panel; the totals are its files' sums,
-// the unread ones what the person hasn't read. `merged` when nothing differs from main and the
-// worktree has commits of its own that main holds, so its work was merged (a worktree just made
-// differs from nothing too, and is not). `fetchedAt` is when its repository's origin was
+// the unread ones what the person hasn't read. `merged` when its work is in main: nothing differs
+// from main and the worktree has commits of its own that main holds (a worktree just made
+// differs from nothing too, and is not), or it conflicts with main and main's first-parent line
+// has a commit merging it into changes nothing (main changed the same lines again since). A
+// merged work lists no files. `fetchedAt` is when its repository's origin was
 // last fetched, so main is as old as that; absent when it never was. `truncated` when more files changed than
-// `files` lists.
+// `files` lists. `folder` is where the project's folder and the repository's top share a place,
+// `/`-separated with no leading or trailing slash, at most one of the two non-empty (both empty
+// where they are the same folder): `repo` is the project's folder as a path from the repository's
+// top (a file path outside it is not in the project; the rest is stripped of it), `project` the
+// repository's top as a path from the project's folder (a file path is prefixed with it).
+// Absent where the repository's top is neither inside nor above the project's folder.
 export const work = z.strictObject({
   root: directory,
   terminalId: id.nullable(),
@@ -61,6 +73,12 @@ export const work = z.strictObject({
   unreadRemoved: count,
   files: z.array(workFile).max(workLimits.files),
   truncated: z.boolean(),
+  folder: z
+    .strictObject({
+      repo: z.string().max(workLimits.path),
+      project: z.string().max(workLimits.path),
+    })
+    .optional(),
   conflicts: z.array(workConflict).max(workLimits.conflicts),
 })
 
@@ -90,9 +108,65 @@ export const workClosing = z.discriminatedUnion("closed", [
   z.strictObject({ closed: z.literal(false), holds: z.string().min(1).max(512) }),
 ])
 
+// One work's change to a file as it carries onto main's copy, in main's line numbers: where
+// it starts (`at`, from 1; for a change that only adds lines, the line they go before, one
+// past main's last for the end), how many of main's lines it replaces or removes, and the
+// lines it puts there. `applies` is false where main has rewritten those lines since the
+// worktree branched, which merging the work onto main would conflict on: `lines` is then
+// the worktree's version, which main's own lines stand in for.
+export const previewLimits = { text: 512 * 1024, hunks: 500, lines: 4096, line: 4096 } as const
+
+export const previewHunk = z.strictObject({
+  at: z.int().min(1),
+  removed: count,
+  lines: z.array(z.string().max(previewLimits.line)).max(previewLimits.lines),
+  applies: z.boolean(),
+})
+
+// What one work does to a file: how it changed it, when the runner first saw it so (the
+// file's `changedAt`, 0 where the work lists no such file yet), and its hunks, in order. A work
+// that renamed the file to this path (which main lacks) says `renamedFrom`, the path main has,
+// whose lines its hunks are against; its hunks are none where it only renamed it.
+export const workPreviewWork = z.strictObject({
+  root: directory,
+  terminalId: id.nullable(),
+  branch: z.string().min(1).max(workLimits.branch).nullable(),
+  status: z.enum(["modified", "added", "deleted"]),
+  changedAt: z.number(),
+  renamedFrom: z.string().min(1).max(workLimits.path).optional(),
+  hunks: z.array(previewHunk).max(previewLimits.hunks),
+})
+
+// A work that renamed the previewed file, which main has, to another path of the project (`to`,
+// from the project's folder).
+export const previewRename = z.strictObject({
+  root: directory,
+  terminalId: id.nullable(),
+  branch: z.string().min(1).max(workLimits.branch).nullable(),
+  to: z.string().min(1).max(workLimits.path),
+})
+
+// `works.preview`: a file of a project as it would be once its works merge onto main. `main`
+// is main's text, null where main has no such file; `works` the project's works that change
+// it, each read as it is on disk now. `unavailable` says why nothing is told of it: it may hold
+// secrets, is binary, or is too large; there are then no works either. Where the file is one
+// main lacks because a work renamed another to it, `main` is the old file's text, which the
+// works' hunks are against, and the other works' changes to the old file are carried onto it;
+// `renames` are the works that renamed the file itself.
+export const workPreview = z.strictObject({
+  main: z.string().max(previewLimits.text).nullable(),
+  unavailable: z.enum(["secret", "binary", "big"]).optional(),
+  works: z.array(workPreviewWork).max(workLimits.conflicts),
+  renames: z.array(previewRename).max(workLimits.conflicts),
+})
+
 export type WorkFile = z.infer<typeof workFile>
 export type WorkConflict = z.infer<typeof workConflict>
 export type Work = z.infer<typeof work>
 export type WorkChange = z.infer<typeof workChange>
 export type WorkMade = z.infer<typeof workMade>
 export type WorkClosing = z.infer<typeof workClosing>
+export type PreviewHunk = z.infer<typeof previewHunk>
+export type PreviewRename = z.infer<typeof previewRename>
+export type WorkPreviewWork = z.infer<typeof workPreviewWork>
+export type WorkPreview = z.infer<typeof workPreview>

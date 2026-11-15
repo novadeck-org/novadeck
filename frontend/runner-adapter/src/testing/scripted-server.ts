@@ -286,6 +286,7 @@ export const scriptedRunner = ({
       look: api.works.look.handler(unplayed("works.look")),
       show: api.works.show.handler(unplayed("works.show")),
       close: api.works.close.handler(unplayed("works.close")),
+      preview: api.works.preview.handler(unplayed("works.preview")),
     },
     companions: {
       list: api.companions.list.handler(() => ({ items: [], windows: [] })),

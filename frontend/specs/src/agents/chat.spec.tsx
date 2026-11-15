@@ -687,8 +687,9 @@ describe("A request that waits on the person", () => {
       await openChatDemo()
       const chat = await openChat("Checkout review")
       const card = requestCard(chat, /^Needs your permission/)
-      await card.getByRole("button", { name: /^No, and tell Codex/ }).click()
+      // The option is a field in its row: a click puts the person in it.
       const field = card.getByRole("textbox", { name: "No, and tell Codex what to do differently" })
+      await field.click()
       await expect.element(field).toHaveFocus()
       await userEvent.type(field, "Run only the unit tests")
       await userEvent.keyboard("{Enter}")
@@ -704,7 +705,6 @@ describe("A request that waits on the person", () => {
       await openChatDemo()
       const chat = await openChat("Checkout implementation")
       const card = requestCard(chat, /^Plan to review/)
-      await card.getByRole("button", { name: /^No, and tell Claude/ }).click()
       await userEvent.type(
         card.getByRole("textbox", { name: "No, and tell Claude what to change" }),
         "Skip the payment step",

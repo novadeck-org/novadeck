@@ -48,9 +48,39 @@ const row = (subject: RegExp | string) => {
 }
 const sheet = (title: string) => page.getByRole("dialog", { name: title })
 const confirmation = () => page.getByRole("status").filter({ hasText: /\w/ })
-// A row of an open sheet's numbered menu, by its words.
+// A row of an open sheet's numbered menu, by its words: a button, as the chat's rows are.
 const answer = (open: ReturnType<typeof sheet>, name: RegExp | string) =>
-  open.getByRole("menuitem", { name })
+  open.getByRole("button", { name })
+// The open sheet's card, once it stands still: the agent's context over it comes in late and
+// moves it, and a click on it is held back for a moment after it moved, as aimed at where a
+// row was.
+const cardStill = async (): Promise<void> => {
+  const top = () =>
+    document.querySelector(".inbox-sheet .request-card")?.getBoundingClientRect().top
+  let last: number | undefined = Number.NaN
+  await expect
+    .poll(
+      async () => {
+        const before = last
+        last = top()
+        await new Promise((resolve) => setTimeout(resolve, 450))
+        return before === last && top() === last
+      },
+      { timeout: 10_000, interval: 0 },
+    )
+    .toBe(true)
+}
+// The agent's context on an open sheet: your last words and its latest steps.
+const whereItWas = (open: ReturnType<typeof sheet>) =>
+  open.getByRole("region", { name: "Where it was" })
+// Presses a row of an open sheet's menu, as the person would once the card stands still.
+const press = async (open: ReturnType<typeof sheet>, name: RegExp | string): Promise<void> => {
+  await cardStill()
+  await answer(open, name).click()
+}
+// A row that takes the person's own words: the field in its place, named by the row's words.
+const ownWords = (open: ReturnType<typeof sheet>, name: string) =>
+  open.getByRole("textbox", { name, exact: true })
 afterEach(() => {
   history.replaceState(null, "", "/")
 })
@@ -73,7 +103,7 @@ describe("The agents demo's Inbox", () => {
     await expect.element(row("Which approach should I take?")).toBeVisible()
 
     await row("Run pnpm test").click()
-    await answer(sheet("Checkout review"), "Allow").click()
+    await press(sheet("Checkout review"), "Yes, proceed")
 
     await expect.element(confirmation()).toMatchTextContent("Allowed @crow's command.")
     await sidebarPanel("Terminals").click()
@@ -220,13 +250,19 @@ describe("An Inbox entry's sheet", () => {
       await userEvent.keyboard("{Enter}")
       await expectStaysAbsent(confirmation())
 
-      // Past the head's three buttons (Snooze, Show terminal, Close), Tab reaches the menu,
-      // on Allow.
+      // Past the head's three buttons (Snooze, Show terminal, Close), Tab reaches the agent's
+      // context, the tool lines that open as the chat's do, then the card's menu, on its first
+      // option, in Codex's own words.
       await userEvent.tab()
       await userEvent.tab()
       await userEvent.tab()
       await userEvent.tab()
-      await expect.element(answer(open, "Allow")).toHaveFocus()
+      const lines = whereItWas(open).getByRole("button")
+      await expect.element(lines.first()).toHaveFocus()
+      for (const _ of lines.elements())
+        // eslint-disable-next-line no-await-in-loop -- Tab moves one stop at a time.
+        await userEvent.tab()
+      await expect.element(answer(open, "Yes, proceed")).toHaveFocus()
       await userEvent.keyboard("{Enter}")
       await expect.element(confirmation()).toMatchTextContent("Allowed @crow's command.")
     })
@@ -261,7 +297,10 @@ describe("An Inbox entry's sheet", () => {
       await row("Run pnpm add").click()
       row("Run pnpm add").element().focus()
       await userEvent.tab()
-      await expect.element(answer(sheet("Checkout review"), "Allow")).toHaveFocus()
+      // The sheet's page, from its first control: the agent's context over the card.
+      await expect
+        .element(whereItWas(sheet("Checkout review")).getByRole("button").first())
+        .toHaveFocus()
 
       await userEvent.tab({ shift: true })
       await expect
@@ -290,7 +329,7 @@ describe("An Inbox entry's sheet", () => {
     it("moves on to what asks next, with a receipt, keeping its row answered until the sheet closes", async () => {
       await openInbox()
       await row("Run pnpm add").click()
-      await answer(sheet("Checkout review"), "Allow").click()
+      await press(sheet("Checkout review"), "Yes, proceed")
 
       // The most urgent that remains: trouble that stopped an agent.
       await expect.element(sheet("Runtime")).toBeVisible()
@@ -311,15 +350,11 @@ describe("An Inbox entry's sheet", () => {
   })
 
   context("when denying a command", () => {
-    it("takes the person's words in place of its row, and sends them with Codex's own option for words", async () => {
+    it("takes the person's words in place of Codex's own option for words, and sends them with it", async () => {
       await openInbox()
       await row("Run pnpm add").click()
       const open = sheet("Checkout review")
-      await answer(open, "Deny, with your words").click()
-      await userEvent.type(
-        open.getByRole("textbox", { name: /what Codex should do instead/i }),
-        "Use npm.",
-      )
+      await userEvent.type(ownWords(open, "No, and tell Codex what to do differently"), "Use npm.")
       await userEvent.keyboard("{Enter}")
 
       await expect
@@ -329,15 +364,14 @@ describe("An Inbox entry's sheet", () => {
   })
 
   context("when sending a plan back", () => {
-    it("takes the person's words in place of its row, named as Novadeck names it", async () => {
+    it("takes the person's words in place of Claude's own option for them", async () => {
       await openInbox("/?demo=agents")
       // storefront's plan waits on the terminal the demo opens on, which may hold it back.
       await lookAway()
       await row(/Approve the plan\?.*storefront/).click()
       const open = page.getByRole("dialog")
-      await answer(open, "Send it back, with your words").click()
       await userEvent.type(
-        open.getByRole("textbox", { name: /what Claude should do instead/i }),
+        ownWords(open, "No, and tell Claude what to change"),
         "Add a rollback step.",
       )
       await userEvent.keyboard("{Enter}")
@@ -359,11 +393,11 @@ describe("An Inbox entry's sheet", () => {
         .toMatchTextContent("Do you want to make this edit to CartSummary.tsx?")
       await expect
         .element(open)
-        .toMatchTextContent(
-          "Novadeck can't answer this prompt from here. Answer it in the terminal.",
-        )
-      await expect.element(answer(open, "Allow")).not.toBeInTheDocument()
-      await answer(open, "Go to terminal").click()
+        .toMatchTextContent("Novadeck can't answer this dialog. Answer it in the terminal.")
+      // As the chat's card: no menu, and the key to the terminal in its head.
+      await expect.element(open.getByRole("group", { name: "Answers" })).not.toBeInTheDocument()
+      await cardStill()
+      await open.getByRole("button", { name: "Answer in terminal" }).click()
 
       await expect.element(open).not.toBeInTheDocument()
       await expect.element(terminal("Runtime")).toBeVisible()
@@ -379,10 +413,10 @@ describe("An Inbox entry's sheet", () => {
 
       await expect.element(open).toMatchTextContent("Hard to undo: This sets the database schema")
       await expect.element(open.getByText("its pick")).toBeVisible()
-      await answer(open, /Our own retries/).click()
+      await press(open, /Our own retries/)
       await expect.element(answer(open, /Our own retries/)).toMatchTextContent("↵ again to send it")
       await expectStaysAbsent(confirmation())
-      await answer(open, /Our own retries/).click()
+      await press(open, /Our own retries/)
 
       await expect.element(confirmation()).toMatchTextContent("Reply queued for @fox.")
     })
@@ -395,19 +429,8 @@ describe("An Inbox entry's sheet", () => {
       await expect.element(rows()).toHaveLength(settledRows)
       await row("How should failed payment webhooks retry").click()
       const open = sheet("Dev server")
-      const box = open.getByRole("textbox", { name: /Reply to Codex/ })
-      // The press opens the box in its row's place. Twice on Windows it didn't come, and
-      // `type` waits for its box with no time limit of its own (each click has one), so the
-      // test only timed out: it is pressed until the box is there.
-      await expect
-        .poll(
-          async () => {
-            if (box.query() === null) await answer(open, "Reply in your own words").click()
-            return box.query() !== null
-          },
-          { interval: 500, timeout: 15_000 },
-        )
-        .toBe(true)
+      // The row is the field, typed into in place.
+      const box = ownWords(open, "Reply in your own words")
       await userEvent.type(box, "Let me think")
       await userEvent.keyboard("{Escape}")
       await userEvent.keyboard("{Escape}")
@@ -421,12 +444,12 @@ describe("An Inbox entry's sheet", () => {
       await openInbox(`${inbox}&inboxAnswer=failed`)
       await row("How should failed payment webhooks retry").click()
       const open = sheet("Dev server")
-      await answer(open, /Our own retries/).click()
-      await answer(open, /Our own retries/).click()
+      await press(open, /Our own retries/)
+      await press(open, /Our own retries/)
       await expect.element(open.getByRole("alert")).toMatchTextContent("Try again")
       await expectStaysAbsent(confirmation())
-      await answer(open, /Our own retries/).click()
-      await answer(open, /Our own retries/).click()
+      await press(open, /Our own retries/)
+      await press(open, /Our own retries/)
       await expect.element(confirmation()).toMatchTextContent("Reply queued for @fox.")
     })
 
@@ -435,7 +458,7 @@ describe("An Inbox entry's sheet", () => {
       await lookAway()
       await row("Should the preview show test or sample products").click()
       const open = sheet("Checkout implementation")
-      const box = open.getByRole("textbox", { name: "Reply to Claude" })
+      const box = ownWords(open, "Reply")
       await userEvent.type(box, "Samples.")
       await userEvent.keyboard("{Enter}")
       await expect
@@ -452,10 +475,7 @@ describe("An Inbox entry's sheet", () => {
       await lookAway()
       await row("Should the preview show test or sample products").click()
       const open = sheet("Checkout implementation")
-      await userEvent.type(
-        open.getByRole("textbox", { name: "Reply to Claude" }),
-        "Sample products.",
-      )
+      await userEvent.type(ownWords(open, "Reply"), "Sample products.")
       await userEvent.keyboard("{Enter}")
       await expect.element(confirmation()).toMatchTextContent("Reply queued for @moth.")
       await userEvent.keyboard("{Escape}")
@@ -473,15 +493,17 @@ describe("An Inbox entry's sheet", () => {
   })
 
   context("when an agent's own question is on screen", () => {
-    it("strips the recommended mark and tags it as the agent's pick", async () => {
+    it("asks it as the chat does: a page of its options, in the agent's own words", async () => {
       await openInbox()
       await row("Which date library").click()
       const open = sheet("Tests")
 
-      // A question of one pick is a menu of radios, the picked one marked.
-      await expect.element(open.getByRole("menuitemradio", { name: /^date-fns/ })).toBeVisible()
-      await expect.element(open.getByText("(Recommended)")).not.toBeInTheDocument()
-      await expect.element(open.getByText("its pick")).toBeVisible()
+      // A question of one pick is a page of options to pick from, the agent's mark kept.
+      await expect.element(open.getByRole("tab", { name: "Dates", selected: true })).toBeVisible()
+      await expect
+        .element(open.getByRole("radio", { name: "date-fns (Recommended)" }))
+        .not.toBeChecked()
+      await expect.element(open.getByRole("textbox", { name: /^Other: / })).toBeInTheDocument()
     })
   })
 
@@ -496,7 +518,7 @@ describe("An Inbox entry's sheet", () => {
         .toMatchTextContent(
           "@owl and @moth kept messaging while neither did any work, so Novadeck holds their thread.",
         )
-      await answer(open, /^Release/).click()
+      await press(open, /^Release/)
 
       await expect.element(confirmation()).toMatchTextContent("Released @owl's message to @moth.")
     })
@@ -510,11 +532,7 @@ describe("An Inbox entry's sheet", () => {
 
       await expect.element(open).toMatchTextContent("×3")
       await expect.element(open).toMatchTextContent("You've hit the same failure 3 times.")
-      await answer(open, "Nudge it in your own words").click()
-      await userEvent.type(
-        open.getByRole("textbox", { name: /should try/ }),
-        "Read the test first.",
-      )
+      await userEvent.type(ownWords(open, "Nudge it in your own words"), "Read the test first.")
       await userEvent.keyboard("{Enter}")
 
       await expect.element(confirmation()).toMatchTextContent("Nudged @kite with your words.")
@@ -526,9 +544,10 @@ describe("An Inbox entry's sheet", () => {
       await openInbox()
       await row("Hit Claude's 5-hour limit").click()
       const open = sheet("Build")
-      const resume = open.getByRole("menuitemcheckbox", { name: /Resume automatically at/ })
+      const resume = open.getByRole("checkbox", { name: /Resume automatically at/ })
 
       await expect.element(resume).toBeChecked()
+      await cardStill()
       await resume.click()
       await expect.element(resume).not.toBeChecked()
       await expect.element(row("Hit Claude's 5-hour limit")).toBeVisible()
@@ -541,10 +560,7 @@ describe("An Inbox entry's sheet", () => {
       await lookAway()
       await row("Should the preview show test or sample products").click()
       const open = sheet("Checkout implementation")
-      await userEvent.type(
-        open.getByRole("textbox", { name: "Reply to Claude" }),
-        "Sample products.",
-      )
+      await userEvent.type(ownWords(open, "Reply"), "Sample products.")
       await userEvent.keyboard("{Enter}")
 
       await expect.element(confirmation()).toMatchTextContent("Reply queued for @moth.")
@@ -559,7 +575,7 @@ describe("An Inbox entry's sheet", () => {
       const open = page.getByRole("dialog")
 
       await expect.element(open.getByRole("button", { name: "Copy command" })).toBeVisible()
-      await answer(open, "I've logged in").click()
+      await press(open, "I've logged in")
 
       await expect.element(confirmation()).toMatchTextContent(/^Told @\w+ it's done\.$/)
     })
@@ -573,7 +589,7 @@ describe("An Inbox entry's sheet", () => {
 
       await expect.element(open).toMatchTextContent(/^Update/)
       await expect.element(open).toMatchTextContent("Rebuilt the index for all 412 pages")
-      await answer(open, "Mark read").click()
+      await press(open, "Mark read")
 
       await expect.element(confirmation()).toMatchTextContent(/^Marked @\w+'s update read\.$/)
     })

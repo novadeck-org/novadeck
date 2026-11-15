@@ -1,4 +1,3 @@
-import type { Picks } from "@novadeck/core/conversation/picks"
 import {
   rowKey,
   type Inbox,
@@ -6,6 +5,7 @@ import {
   type InboxRow,
   type InboxState,
 } from "@novadeck/core/inbox"
+import { drafted, untouched, type DialogDraft } from "@novadeck/requests/drafts"
 import {
   createContext,
   useCallback,
@@ -46,25 +46,21 @@ export type Sent = { readonly row: InboxRow; readonly note: string }
 // agent's handle (`note`), for the row `from`.
 export type Receipt = { readonly from: string; readonly note: string }
 
-// What the person has started to answer with and not sent: their words, the option they
-// picked on an agent's own ask, and the picks on a dialog's questions, with the questions
-// (of several picks) whose written words are unticked: kept, but left out of the answer.
+// What the person has started to answer with and not sent: their words to an agent's own ask,
+// the option they picked on it, and what they put into a request's dialog (its card's draft:
+// words typed into its options, picks on its questions and the page they're on, a form's
+// entries).
 export type Draft = {
   readonly text: string
   readonly option: number | null
-  readonly picks: Picks | null
-  readonly leftOut: readonly string[]
+  readonly request: DialogDraft | null
 }
-export const noDraft: Draft = { text: "", option: null, picks: null, leftOut: [] }
+export const noDraft: Draft = { text: "", option: null, request: null }
 
 // Whether there is anything in a draft worth a "Draft" on the row.
 export const started = (draft: Draft | undefined): boolean =>
   draft !== undefined &&
-  (draft.text.trim() !== "" ||
-    draft.option !== null ||
-    Object.values(draft.picks ?? {}).some(
-      (pick) => pick.options.length > 0 || pick.text.trim() !== "",
-    ))
+  (draft.text.trim() !== "" || draft.option !== null || drafted(draft.request ?? undefined))
 
 export type InboxContextValue = {
   readonly state: InboxState
@@ -353,7 +349,9 @@ export const InboxProvider = ({
     setDrafts((record) => {
       const merged = { ...(record[key] ?? noDraft), ...patch }
       const { [key]: _gone, ...rest } = record
-      return started(merged) ? { ...rest, [key]: merged } : rest
+      // A dialog's draft is kept while it holds anything at all (a space typed first, the page
+      // a dialog of questions is on), though only words, picks and entries make it a Draft.
+      return started(merged) || !untouched(merged.request) ? { ...rest, [key]: merged } : rest
     })
   }, [])
 

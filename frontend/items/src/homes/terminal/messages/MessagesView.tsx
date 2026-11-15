@@ -4,6 +4,7 @@ import { useShown } from "@novadeck/toolkit/shown"
 import { Switch } from "@novadeck/toolkit/Switch"
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react"
 import {
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -326,12 +327,16 @@ const Chat = ({
   self,
   peers,
   links,
+  takesFocus,
   onBack,
 }: {
   conversation: Conversation
   self: string
   peers: Readonly<Record<string, MessagePeer>>
   links: MessageLinks
+  // The person opened it here: focus goes to its Back. Opened again as messages are built
+  // again, it leaves focus where the person has it.
+  takesFocus: boolean
   onBack: () => void
 }): React.JSX.Element => {
   const peer = peers[conversation.key]
@@ -343,7 +348,10 @@ const Chat = ({
   const scroll = useRef<HTMLDivElement>(null)
   const atEnd = useRef(true)
   const back = useRef<HTMLButtonElement>(null)
-  useEffect(() => back.current?.focus({ preventScroll: true }), [])
+  const focusing = useRef(takesFocus)
+  useEffect(() => {
+    if (focusing.current) back.current?.focus({ preventScroll: true })
+  }, [])
   // At its end as lines come, unless the person scrolled up.
   useLayoutEffect(() => {
     const element = scroll.current
@@ -447,7 +455,19 @@ export const MessagesView = ({
 }): React.JSX.Element => {
   const label = useId()
   const hint = useId()
-  const [open, setOpen] = useState<string | null>(null)
+  // Where the person left it, built again (another tab shown meanwhile, or the pane let go
+  // out of sight); whether they opened the one open now here, which then takes focus.
+  const { lastOpen, keepOpen } = messagesHandle
+  const [open, setOpenState] = useState(lastOpen)
+  const [openedHere, setOpenedHere] = useState(false)
+  const setOpen = useCallback(
+    (conversation: string | null) => {
+      keepOpen(conversation)
+      setOpenState(conversation)
+      setOpenedHere(conversation !== null)
+    },
+    [keepOpen],
+  )
   const list = useRef<HTMLUListElement>(null)
   const returnTo = useRef<string | null>(null)
   const conversations = useMemo(
@@ -455,6 +475,11 @@ export const MessagesView = ({
     [messagesHandle.threads],
   )
   const opened = conversations.find((each) => each.key === open)
+  // One left open that's gone from the list since isn't kept, so it never opens again by
+  // itself should a conversation by its key come back.
+  useEffect(() => {
+    if (open !== null && messagesHandle.threads && !opened) keepOpen(null)
+  }, [open, opened, messagesHandle.threads, keepOpen])
   const latest = opened ? latestOf(opened) : 0
   const peers = usePeers(links)
   const { seen } = messagesHandle
@@ -518,6 +543,7 @@ export const MessagesView = ({
           self={messagesHandle.threads.terminalId}
           peers={peers}
           links={links}
+          takesFocus={openedHere}
           onBack={() => {
             returnTo.current = opened.key
             setOpen(null)

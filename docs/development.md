@@ -116,10 +116,14 @@ which; on macOS, passkeys saved in iCloud Keychain don't show yet. Each gets an 
 several of a kind (images, files, pages, or plans) stacked under one; only Messages
 never stack. A markdown file the agent shows reads as a document, formatted like a plan
 with its outline, but read-only: it's the agent's file, not a plan to edit or note (the
-demo's Codex has shown `docs/brand-voice.md`). The pane stacks what's open as a desktop
-stacks windows: it shows the last thing opened, by you or by the agent when you asked
-for it, and the rest wait behind it, the nearest two peeking out above it: click one to bring it
-forward. The mark under
+demo's Codex has shown `docs/brand-voice.md`). The pane shows one icon's worth at a time:
+the last thing opened, by you or by the agent when you asked for it, and for a stack the
+rest of that icon's things as tabs under its header, each with its ×, Delete closing the
+tab with focus. The arrow keys, Home and End move along the tabs, and Ctrl+PageDown and
+Ctrl+PageUp step through them from anywhere in the pane; neither opens something that may
+hold secrets until you pick it. Every other icon with something open waits behind it as a
+thin card edge above the pane, as in a file drawer: the one under the pointer lifts to its
+label, and a click brings its icon forward. The mark under
 an icon says whether it's new, showing, open behind, or seen: something new gets a dot,
 quietly, and nothing opens on its own unless you asked for it. Something the agent opens
 for you opens at once only on the terminal you're on, so the view never moves under you:
@@ -131,9 +135,10 @@ opens in its window at once and the toast still tells you. Opening, peeking at, 
 closing or moving it yourself first ends the wait, as does putting it away in Grid, which nothing keeps across a restart. Hover an icon to peek: a
 card per thing behind it, each a preview, its name and the same mark, with no copy. Once
 you've peeked, what was new is seen, without opening it. Click an icon or a card to open
-it on top. Click the showing icon again, or the pane's minimize button, to minimize it,
-uncovering what's behind; press Escape to hide the whole pane, which keeps what's open in
-it for when the pane comes back. Close from the pane's header, a card's corner button or the icon's
+it on top; a stack's icon brings all of it forward, as tabs. Click the showing icon again,
+or the pane's minimize button, to minimize it with the rest of its icon, uncovering what's
+behind; press Escape to hide the whole pane, which keeps what's open in
+it for when the pane comes back. Close from the pane's header, a tab's ×, a card's corner button or the icon's
 right-click, which uncovers what's behind too. Closing a plan or Messages on its own terminal's bar hides it: the
 plan comes back with the agent's next version of it, Messages with the next message,
 last on the bar each time. Closing anything else deletes it, with the window it's in;
@@ -440,7 +445,8 @@ Agents:
   terminal (Crow otherwise): the row pulses and its cursor moves, or goes; the second only
   clears the cursor, and the agent's turn is ended with the Agent group's states. "Third agent
   edits Checkout.tsx" adds the storefront's third terminal's agent (`owl`) to a row that
-  already shows Moth and Crow, folding the chips into "+1". "Agent creates a file in a folder"
+  already shows Moth and Crow, folding the chips into "+1". "Agent writes Checkout.tsx" has the
+  selected storefront agent write that file at once (see "File preview" below). "Agent creates a file in a folder"
   adds `src/api/payments.ts`, so a folded `src/api` pulses and shows Crow's chip. "A folder can't
   be read", "A folder lists only part" and "The project's files can't be read" make the next
   reads of `src/cart`, of `src/components` and of the root fail, list two files, and fail (the
@@ -457,6 +463,29 @@ Agents:
   stands only while its lead has work too (else its workers are solo chips), and an agent in
   two teams sits in the first squad that names it. The `agents`, `inbox` and try demos have no
   team, so their strips are solo chips.
+- **File preview:** in the `agents`, `messages` and `inbox` variants, double-click
+  `src/checkout/Checkout.tsx` in the Source panel (or click it under a selected row of the Changes
+  panel) to open the project window as the file would be once the agents' work merges onto main:
+  Moth's and Crow's changes carried onto main's copy (`frontend/demo/src/preview.ts`), each under a
+  head naming the agent, a clash at the line that submits the order (the last writer shown, a
+  picker on its right), the merge set in the summary line (each agent a toggle, everyone merged
+  each time it is opened), and the lines Moth removed folded into "5 lines of main removed". It
+  needs agent worktrees on (the App section's "Agent worktrees and Changes" group: "On, with
+  Changes"). The Source group's "Agent writes Checkout.tsx" (and the agents' own writes) grow the
+  selected agent's change by a line, pulse it and put the agent's cursor after it, which becomes a
+  trail once "Agent stops writing (Source only)" runs; a clash follows the agent that wrote last.
+  The File preview group's "Third agent clashes with the others" adds `owl` over the same line (a
+  third version in the clash), "A change doesn't apply" a change of `owl`'s to a line main has
+  rewritten since (a red box saying so, with Show, and "1 change doesn't apply" in the summary),
+  and "Third agent leaves the file preview" takes it away. Lighting an agent in the Source strip
+  dims the others' changes in the preview. Two more files are previewed: `src/checkout/OrderSummary.tsx`,
+  which main lacks and Moth adds (the whole file as added lines under Moth's head; "Crow adds
+  OrderSummary.tsx too" makes a whole-file clash, the last writer shown), and
+  `src/checkout/PaymentStep.tsx`: "Crow renames PaymentStep.tsx, moth edits it" puts a note at the
+  top of PaymentStep.tsx saying crow renames it to `PaymentForm.tsx` (Open shows that file's
+  preview: main's PaymentStep with crow's head "renamed from", crow's edit and Moth's change to
+  the old file carried onto it); "Crow's add and rename end" takes both away. Other files and
+  projects have no preview, so they open as main's copy.
 - **Agent connections:** make the next connect in Preferences fail, refresh the agents, or
   connect Antigravity with the note Preferences shows where its own status line keeps
   Novadeck's out, as on Windows.
@@ -468,11 +497,12 @@ App:
   command permission, an unreadable dialog, a held message, a decision with options, a
   detected question, an ask while its agent keeps working, a login request, the 5-hour limit, a usage limit Novadeck can't resume (no switch), a request whose dialog never read, a
   failed turn with no error, a held message whose sender is gone, a plan approval
-  (its bypass-permissions yes a quiet link; in the agents and Inbox demos it brings its long
+  (its options in Claude's own words, as the chat's card shows them, the bypass-permissions yes
+  armed before it sends; in the agents and Inbox demos it brings its long
   checkout plan, shown again on storefront's terminal 6 as a harness shows the plan it asks
   about; "Plan still loading" keeps that plan's box on Loading, and "Plan not found" shows no
   plan, so the box waits five seconds and the dialog's own words stand in), a failed turn, a free-text ask, a permission
-  whose Deny is a plain no, messages held long behind what keeps the doorbell from an idle
+  whose no is a plain no, messages held long behind what keeps the doorbell from an idle
   agent, a heads-up and an agent's done report. "Several asks at once" adds four asks from four
   projects together, so three toasts stack with a "+1 more" pill behind (the page needs focus
   and the Inbox panel closed, and a row from the selected terminal never lands until you look away: with
@@ -491,9 +521,13 @@ App:
   buries a line under blank lines and spaces; its box counts the lines and marks what draws
   as nothing. "Long command" adds a permission for a 12-line script, every line in a box that
   scrolls. "Pick several, with your own words" adds Claude's question that takes several picks
-  and words: numbers and Space tick, the last row opens a box, and Enter sends the picks with
-  the words. "Plan with a change field" adds Claude Code 2.1.287's plan, whose only way
-  back is "Tell Claude what to change": that row opens a box that must say what. Answering any
+  and words, on the chat's pages: numbers tick, "Something else…" takes words in place, and the
+  Review page sends them. "Plan with a change field" adds Claude Code 2.1.287's plan, whose only
+  way back is "Tell Claude what to change": that row is a field that must say what. "Form from
+  an MCP server" adds the form an MCP server asks Claude Code to fill in, answered in the card as
+  the chat's is (a text, a choice, a number and a yes/no; Submit or Decline). A request's sheet
+  is the chat's own card, and its draft (the words in its options, its picks and page, a form's
+  entries) stays with its row. Answering any
   row moves the sheet on to the next that needs you (updates skipped) with a one-line receipt,
   and closes it once nothing is left; "Decision with options" is hard to undo, so its first
   press only arms the answer. "A new row
@@ -554,6 +588,14 @@ App:
   terminals attaching over about 3 s; "Welcome dialog" opens the first-run dialog for
   connecting agents again (no reboot); "App error" makes a view throw as it draws, for the
   crash screen that stands in for the app, whose Reload boots the demo again.
+- **Agent installs:** an agent that isn't installed offers Install in the welcome dialog, with the
+  command it will run, and the demo plays what the runner does: a terminal titled "Install ..."
+  that shows the installer and is busy for 2.5 s, then the agent shows installed, is connected,
+  and starts in a terminal of its own. "Nothing installed" opens the dialog with Claude Code, Codex
+  and Antigravity each offering Install; "Hold next install" keeps the next one running until
+  "Finish held install"; "Fail next install" ends the next in a network error in its terminal and
+  leaves the agent not installed (nothing starts). The address does the same for a spec:
+  `&agentInstall=held` holds the first install, `&agentInstall=fails` fails it.
 - **Boot failures:** each fails the first attempt as the runner would, so a transient one
   retries on its own and the others wait for Retry (an incompatible runner, or a workspace
   a newer Novadeck has used, only for Quit). Each hint carries the error code, so the search
@@ -576,6 +618,12 @@ App:
   dashed line through its middle, 20 px past each side, both 1 px and half see-through
   (`--icon-guide-color` changes them), for checking how icons line up with their text;
   it stays on through the demo's boots and reloads in this tab.
+- **Pane turns:** "Hold panes' turns" keeps every companion pane coming into sight (a view
+  switch, a pan, a terminal picked in Focus) on its stand-in, its icon and name, in place of what
+  it holds, until pressed again; panes otherwise build one a frame (`frontend/items/src/pane-turns.ts`).
+  "Sketch panes' pictures" has each pane in sight a second pictured as a sketch of its layout,
+  where the desktop app takes a picture of it (`frontend/items/src/pane-pictures.ts`): with turns
+  held too, a pane coming back at the size it was pictured shows that in place of its icon and name.
 - **Portable:** boot again as a portable copy, which never updates itself and is the way to
   install the app that does. Its corner card, the update bar's size and place, comes up by
   itself once per boot and then only from the footer chip, which Escape or × folds it back
@@ -741,6 +789,7 @@ atlas.
 | `frontend/toolkit`        | The controls every feature draws with: Ark UI wrappers, shared recipes, the sidebar item.  |
 | `frontend/items`          | The items package: kinds, store, taskbar, peek, plan editor, messages, bar drag and homes. |
 | `frontend/chat`           | The chat view: transcript, requests and composer, with the chat's own store and commands.  |
+| `frontend/requests`       | An agent's request drawn and answered: the card, one menu, pages, form and detail.         |
 | `frontend/runner-adapter` | The UI's backend for a runner, over a WebSocket or the desktop app.                        |
 | `frontend/terminal-views` | The xterm mount both backends draw terminals with.                                         |
 | `frontend/demo`           | The demo backend: a scripted workspace and simulated terminals.                            |
@@ -854,7 +903,7 @@ backend-only tests.
 ### Working on the UI
 
 The UI is split into packages: `frontend/core`, `frontend/ui`, `frontend/toolkit`,
-`frontend/items`, `frontend/chat`, `frontend/runner-adapter`, `frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit`,
+`frontend/items`, `frontend/chat`, `frontend/requests`, `frontend/runner-adapter`, `frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit`,
 `frontend/specs` and `frontend/chat-contract`, and the apps `apps/desktop`, `apps/try` and `apps/previews`. `frontend/ui`
 holds the page's layers, each a folder of its `src/`; the rest are packages of their own. In
 the table a path that starts with `frontend/` or `apps/` is a package, and any other is a
@@ -893,6 +942,7 @@ folder of `frontend/ui/src/`:
 | `frontend/items/src/`                                           | Items: `store/`, `bar/` (taskbar, peek, drag), `registry.ts`, `kinds/<kind>/` (one folder per kind), `document/` and `homes/`. |
 | `frontend/items/src/bar/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.                                               |
 | `frontend/chat/src/`                                            | The agent's chat: its blocks, tool rows, requests and the composer, and the chat's own store (`state.ts`) and commands.        |
+| `frontend/requests/src/`                                        | An agent's request drawn and answered (`RequestCard`, `RequestDialog`, `Menu`, `Detail`, forms), and `requests.css`.           |
 | `layouts/canvas/`, `grid/`, `focus/`                            | View adapters and colocated library styles.                                                                                    |
 | `layouts/` (top level)                                          | Helpers shared by views: view transitions, background gestures, visibility.                                                    |
 | `inbox/`                                                        | The Inbox: what agents ask of the person, its sidebar rows and the sheet that answers.                                         |
@@ -927,7 +977,7 @@ of its own, `frontend/demo-debug`, the one with React and Lucide. `interaction/`
 the core and imports no packages;
 features add `frontend/toolkit`; `layouts/` may use
 `terminals/`; the items package, which holds the companion pane, is a package of its own, `frontend/items`, built on the
-core, the toolkit and the viewers and never on the UI, which composes it, as it does the chat, another package, `frontend/chat`, built on the core and the toolkit and never on the UI or the items package; no feature
+core, the toolkit and the viewers and never on the UI, which composes it, as it does the chat, another package, `frontend/chat`, built on the core and the toolkit and never on the UI or the items package, which draws its requests with `frontend/requests`, a package built on the core and the toolkit and never on the chat, the UI or the items package, whose card the Inbox's sheets draw too; no feature
 (`inbox/`, `preferences/`, `projects/`,
 `search/`, `sidebar/` or `voice/`) imports another, only the base and itself, and none reaches the
 chat or the items package; `shell/` may use `layouts/`, `projects/`,

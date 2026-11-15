@@ -1,5 +1,11 @@
-import { emptyCompanions, isOnBar, type Companions, type ItemContent } from "@novadeck/core/items"
-import { emptyBar, messagesKey } from "@novadeck/core/items/companion-bar"
+import {
+  emptyCompanions,
+  isOnBar,
+  type Companions,
+  type Item,
+  type ItemContent,
+} from "@novadeck/core/items"
+import { emptyBar, messagesKey, type BarKey } from "@novadeck/core/items/companion-bar"
 import {
   noMessages,
   type AgentMessage,
@@ -8,14 +14,27 @@ import {
   type Messages,
 } from "@novadeck/core/messages"
 import { activeSession, workspaceReducer, type WorkspaceAction } from "@novadeck/core/state"
-import { createStore, createWorkspaceStore, type WorkspaceStore } from "@novadeck/core/store"
+import {
+  createStore,
+  createWorkspaceStore,
+  type Store,
+  type WorkspaceStore,
+} from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 import type { Workspace } from "@novadeck/core/types"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement, useSyncExternalStore, type ComponentProps } from "react"
-import { afterEach, vi } from "vitest"
+import { afterEach, beforeEach, vi } from "vitest"
 
 import { createDragSession, DragSessionContext } from "../../bar/drag-session"
+import { firstMs, pageLook, PanePicturesContext, type PanePictures } from "../../pane-pictures"
+import {
+  createPaneTurns,
+  PaneTurnsContext,
+  restMs,
+  type Pace,
+  type PaneTurns,
+} from "../../pane-turns"
 import { createItemStore, type ItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
 import { followMessages, noLinks } from "./messages/messages"
@@ -61,8 +80,10 @@ const commandsOf = (workspace: WorkspaceStore): ItemCommands => ({
   markSeen: () => {},
   openBarTab: (terminalId, barKey) =>
     void workspace.dispatch({ type: "bar/open", target, terminalId, key: barKey }),
-  minimizeOnBar: (terminalId, barKey) =>
-    void workspace.dispatch({ type: "bar/minimize", target, terminalId, key: barKey }),
+  minimizeOnBar: (terminalId, barKeys) => {
+    for (const barKey of barKeys)
+      void workspace.dispatch({ type: "bar/minimize", target, terminalId, key: barKey })
+  },
   closeBarPane: (terminalId) => void workspace.dispatch({ type: "bar/close", target, terminalId }),
   hideOnBar: (terminalId, barKey) =>
     void workspace.dispatch({ type: "bar/hide", target, terminalId, key: barKey }),
@@ -74,11 +95,15 @@ const Terminal = ({
   workspace,
   itemStore,
   messages,
+  screen,
 }: {
   workspace: WorkspaceStore
   itemStore: ItemStore
   messages: Messages | undefined
+  // Whether its window is on screen, as its view tells.
+  screen: Store<boolean>
 }) => {
+  const onScreen = useSyncExternalStore(screen.subscribe, screen.getSnapshot)
   const state = useSyncExternalStore(
     workspace.subscribe,
     () => activeSession(workspace.getSnapshot())!.state,
@@ -89,6 +114,7 @@ const Terminal = ({
     links: noLinks,
     terminalKey: key,
     view: "focus",
+    onScreen,
     bar: state.bars["01"] ?? emptyBar,
     items: state.items.filter((item) => isOnBar(item, "01")),
     fresh: state.fresh,
@@ -104,14 +130,33 @@ const renderTerminal = (
   initial: Workspace,
   messages?: Messages,
   companions: Companions = emptyCompanions(),
-): { container: HTMLElement; workspace: WorkspaceStore; itemStore: ItemStore } => {
+  // The panes' turns, as the workspace paces them, and whether its window is on screen.
+  // And the pictures they stand in as.
+  {
+    turns,
+    onScreen = true,
+    pictures,
+  }: { turns?: PaneTurns; onScreen?: boolean; pictures?: PanePictures } = {},
+): {
+  container: HTMLElement
+  workspace: WorkspaceStore
+  itemStore: ItemStore
+  // Its window goes off screen or comes back, as its view tells.
+  onScreen: (next: boolean) => void
+} => {
   const workspace = createWorkspaceStore(initial)
   const itemStore = createItemStore({ companions, workspace })
+  const screen = createStore(onScreen)
+  const terminal = createElement(Terminal, { workspace, itemStore, messages, screen })
   const { container, unmount } = render(
     createElement(
       DragSessionContext,
       { value: createDragSession() },
-      createElement(Terminal, { workspace, itemStore, messages }),
+      createElement(
+        PanePicturesContext,
+        { value: pictures },
+        turns ? createElement(PaneTurnsContext, { value: turns }, terminal) : terminal,
+      ),
     ),
   )
   unmounts.push(unmount)
@@ -120,7 +165,12 @@ const renderTerminal = (
     unmounts.push(itemStore.connect())
     if (messages) unmounts.push(followMessages(workspace, messages))
   })
-  return { container, workspace, itemStore }
+  return {
+    container,
+    workspace,
+    itemStore,
+    onScreen: (next) => act(() => void screen.update(() => next)),
+  }
 }
 
 // A message for the terminal from its peer, and the terminal's messages holding them.
@@ -194,6 +244,239 @@ describe("a pane beside its terminal", () => {
       pointer("pointermove", 600)
       expect(ratio()).toBe("40")
     })
+  })
+})
+
+describe("a pane in the workspace", () => {
+  // Turns that come as the test steps.
+  const stepped = () => {
+    const queue: (() => void)[] = []
+    const pace: Pace = (next) => {
+      queue.push(next)
+      return () => {
+        const at = queue.indexOf(next)
+        if (at >= 0) queue.splice(at, 1)
+      }
+    }
+    return {
+      turns: createPaneTurns(pace),
+      step: () => act(() => queue.shift()?.()),
+      pending: () => queue.length,
+    }
+  }
+  const poster = itemFixture("poster", "01", {
+    kind: "image",
+    name: "poster.png",
+    path: "/p/poster.png",
+  })
+  const opened = (barKey: BarKey, ...items: Item[]) =>
+    workspaceReducer(
+      items.reduce((each, item) => workspaceReducer(each, shown(item)), workspaceFixture()),
+      { type: "bar/open", target, terminalId: "01", key: barKey },
+    )
+  const sheet = (container: HTMLElement) => container.querySelector<HTMLElement>(".pane-sheet")!
+  // What the pane shows, built: anything on its sheet but the stand-in.
+  const built = (container: HTMLElement) =>
+    sheet(container).querySelector(":scope > :not(.pane-stand-in)")
+  const standIn = (container: HTMLElement) => sheet(container).querySelector(".pane-stand-in")
+
+  it("stands in as its icon and name until its turn, then shows what it holds", () => {
+    const { turns, step } = stepped()
+    const { container } = renderTerminal(opened(hero.id, hero), undefined, undefined, { turns })
+    expect(sheet(container).dataset.waiting).toBe("true")
+    expect(standIn(container)?.getAttribute("aria-label")).toBe("Opening hero.png")
+    expect(built(container)).toBeNull()
+    step()
+    expect(sheet(container).dataset.waiting).toBeUndefined()
+    expect(standIn(container)).toBeNull()
+    expect(built(container)).not.toBeNull()
+  })
+
+  it("asks no turn while its window is off screen", () => {
+    const { turns, pending } = stepped()
+    const { container } = renderTerminal(opened(hero.id, hero), undefined, undefined, {
+      turns,
+      onScreen: false,
+    })
+    expect(pending()).toBe(0)
+    expect(standIn(container)).not.toBeNull()
+  })
+
+  context("out of sight a while", () => {
+    beforeEach(() => vi.useFakeTimers())
+    afterEach(() => vi.useRealTimers())
+
+    it("lets what it shows go, and stands in for it until its turn once back", () => {
+      const { turns, step } = stepped()
+      const { container, onScreen } = renderTerminal(opened(hero.id, hero), undefined, undefined, {
+        turns,
+      })
+      step()
+      onScreen(false)
+      act(() => vi.advanceTimersByTime(restMs))
+      expect(built(container)).toBeNull()
+      onScreen(true)
+      expect(standIn(container)).not.toBeNull()
+      step()
+      expect(built(container)).not.toBeNull()
+    })
+
+    it("keeps following what it held, so it shows at once when built again", () => {
+      const { turns, step } = stepped()
+      let following = 0
+      const companions: Companions = {
+        ...emptyCompanions(),
+        follow: () => {
+          following += 1
+          return () => void (following -= 1)
+        },
+      }
+      const { onScreen } = renderTerminal(opened(hero.id, hero), undefined, companions, { turns })
+      step()
+      onScreen(false)
+      // Past its rest, and long past the while the store keeps what nothing shows.
+      act(() => vi.advanceTimersByTime(restMs * 3))
+      expect(following).toBe(1)
+    })
+
+    it("keeps a page, which rests as its picture on its own", () => {
+      const { turns, step } = stepped()
+      const { container, onScreen } = renderTerminal(
+        opened(notes.id, notes),
+        undefined,
+        undefined,
+        {
+          turns,
+        },
+      )
+      step()
+      onScreen(false)
+      act(() => vi.advanceTimersByTime(restMs * 2))
+      expect(built(container)).not.toBeNull()
+    })
+  })
+
+  context("pictured", () => {
+    beforeEach(() => vi.useFakeTimers())
+    afterEach(() => vi.useRealTimers())
+
+    // Pictures taken as the pane asks, each of `size` (a test's document lays everything out
+    // at 0 by 0).
+    const picturing = (size = { width: 0, height: 0 }) => {
+      const taken: HTMLElement[] = []
+      const pictures: PanePictures = {
+        can: () => true,
+        take: async (element) => {
+          taken.push(element)
+          const image = document.createElement("img")
+          image.src = "data:image/jpeg;base64,AAAA"
+          return { image, ...size, look: pageLook() }
+        },
+      }
+      return { pictures, taken }
+    }
+    const picture = (container: HTMLElement) =>
+      standIn(container)?.querySelector<HTMLImageElement>(".pane-stand-in-picture")
+
+    it("stands in as its picture once back, taken a moment after it was laid out", async () => {
+      const { turns, step } = stepped()
+      const { pictures, taken } = picturing()
+      const { container, onScreen } = renderTerminal(opened(hero.id, hero), undefined, undefined, {
+        turns,
+        pictures,
+      })
+      step()
+      await act(async () => void vi.advanceTimersByTime(firstMs))
+      expect(taken).toEqual([sheet(container)])
+      onScreen(false)
+      onScreen(true)
+      expect(picture(container)?.getAttribute("src")).toBe("data:image/jpeg;base64,AAAA")
+      expect(standIn(container)?.getAttribute("data-pictured")).toBe("true")
+      expect(standIn(container)?.getAttribute("aria-label")).toBe("Opening hero.png")
+      step()
+      expect(standIn(container)).toBeNull()
+    })
+
+    it("stands in as its icon and name where it is another size than its picture", async () => {
+      const { turns, step } = stepped()
+      const { pictures } = picturing({ width: 640, height: 480 })
+      const { container, onScreen } = renderTerminal(opened(hero.id, hero), undefined, undefined, {
+        turns,
+        pictures,
+      })
+      step()
+      await act(async () => void vi.advanceTimersByTime(firstMs))
+      onScreen(false)
+      onScreen(true)
+      expect(standIn(container)).not.toBeNull()
+      expect(picture(container)).toBeNull()
+      expect(standIn(container)?.hasAttribute("data-pictured")).toBe(false)
+    })
+
+    it("stands in as its icon and name where the page's look changed since its picture", async () => {
+      const { turns, step } = stepped()
+      const { pictures } = picturing()
+      const { container, onScreen } = renderTerminal(opened(hero.id, hero), undefined, undefined, {
+        turns,
+        pictures,
+      })
+      step()
+      await act(async () => void vi.advanceTimersByTime(firstMs))
+      onScreen(false)
+      document.documentElement.dataset.theme = "other"
+      try {
+        onScreen(true)
+        expect(standIn(container)).not.toBeNull()
+        expect(picture(container)).toBeNull()
+      } finally {
+        delete document.documentElement.dataset.theme
+      }
+    })
+
+    it("doesn't stand in as a picture of something else it showed", async () => {
+      const { turns, step } = stepped()
+      const { pictures } = picturing()
+      const { container, onScreen, workspace } = renderTerminal(
+        opened(hero.id, hero, poster),
+        undefined,
+        undefined,
+        { turns, pictures },
+      )
+      step()
+      await act(async () => void vi.advanceTimersByTime(firstMs))
+      onScreen(false)
+      act(() => {
+        workspace.dispatch({ type: "bar/open", target, terminalId: "01", key: poster.id })
+      })
+      onScreen(true)
+      expect(standIn(container)).not.toBeNull()
+      expect(picture(container)).toBeNull()
+    })
+
+    it("takes no picture of a page, whose live view the app draws outside the page", async () => {
+      const { turns, step } = stepped()
+      const { pictures, taken } = picturing()
+      renderTerminal(opened(notes.id, notes), undefined, undefined, { turns, pictures })
+      step()
+      await act(async () => void vi.advanceTimersByTime(firstMs * 10))
+      expect(taken).toEqual([])
+    })
+  })
+
+  it("shows something else at once once it has had its turn", () => {
+    const { turns, step } = stepped()
+    const { container, workspace } = renderTerminal(
+      opened(hero.id, hero, poster),
+      undefined,
+      undefined,
+      { turns },
+    )
+    step()
+    act(() => {
+      workspace.dispatch({ type: "bar/open", target, terminalId: "01", key: poster.id })
+    })
+    expect(standIn(container)).toBeNull()
+    expect(built(container)).not.toBeNull()
   })
 })
 
@@ -520,6 +803,203 @@ describe("a terminal's taskbar", () => {
       )
       expect(icon(container, "hero.png")?.getAttribute("data-state")).toBe("behind")
       expect(icon(container, "notes")?.getAttribute("data-state")).toBe("behind")
+    })
+  })
+
+  context("when the pane shows one of a stack", () => {
+    const about = itemFixture("about", "01", {
+      kind: "image",
+      name: "about.png",
+      path: "/p/about.png",
+    })
+    // `open`, in order, the last on top, with hero.png, about.png and notes on the bar.
+    const opening = (...open: readonly Item[]): Workspace =>
+      open.reduce(
+        (workspace, item) =>
+          workspaceReducer(workspace, { type: "bar/open", target, terminalId: "01", key: item.id }),
+        [hero, about, notes].reduce(
+          (workspace, item) => workspaceReducer(workspace, shown(item)),
+          workspaceFixture(),
+        ),
+      )
+    const tabs = (container: HTMLElement) =>
+      [...container.querySelectorAll<HTMLButtonElement>(".pane-tabs [role='tab']")].map(
+        (tab) => `${tab.textContent}${tab.getAttribute("aria-selected") === "true" ? " *" : ""}`,
+      )
+    const tab = (container: HTMLElement, name: string) =>
+      [...container.querySelectorAll<HTMLButtonElement>(".pane-tabs [role='tab']")].find(
+        (each) => each.textContent === name,
+      )
+
+    it("shows each of the stack as a tab, the one shown selected", () => {
+      const { container } = renderTerminal(opening(hero))
+      expect(tabs(container)).toEqual(["hero.png *", "about.png"])
+    })
+
+    it("shows no tabs for something alone on its icon", () => {
+      const { container } = renderTerminal(opening(notes))
+      expect(container.querySelector(".pane-tabs")).toBeNull()
+    })
+
+    it("shows another tab on a click, as it is, without coming forward", async () => {
+      const { container } = renderTerminal(opening(hero))
+      await act(async () => tab(container, "about.png")?.click())
+      expect(tabs(container)).toEqual(["hero.png", "about.png *"])
+      expect(container.querySelector(".pane-sheet")?.hasAttribute("data-entry")).toBe(false)
+    })
+
+    it("steps along the tabs with the arrow keys, the tab it lands on keeping focus", async () => {
+      const { container } = renderTerminal(opening(hero))
+      tab(container, "hero.png")?.focus()
+      await act(async () =>
+        tab(container, "hero.png")?.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+        ),
+      )
+      expect(tabs(container)).toEqual(["hero.png", "about.png *"])
+      expect(document.activeElement).toBe(tab(container, "about.png"))
+    })
+
+    const ids = (workspace: WorkspaceStore) =>
+      activeSession(workspace.getSnapshot())!.state.items.map((item) => item.id)
+
+    it("closes a tab with its ×, showing the one beside it as it is", async () => {
+      const { container, workspace } = renderTerminal(opening(notes, hero))
+      await act(async () =>
+        container.querySelector<HTMLElement>(".pane-tab-close[title='Close hero.png']")?.click(),
+      )
+      expect(ids(workspace)).toEqual([about.id, notes.id])
+      expect(icon(container, "about.png")?.getAttribute("data-state")).toBe("open")
+      expect(container.querySelector(".pane-sheet")?.hasAttribute("data-entry")).toBe(false)
+    })
+
+    it("closes the tab with focus on Delete, the list holding only tabs", async () => {
+      const { container, workspace } = renderTerminal(opening(hero))
+      expect(
+        [...container.querySelectorAll(".pane-tabs button, .pane-tabs [tabindex]")].every(
+          (each) => each.getAttribute("role") === "tab",
+        ),
+      ).toBe(true)
+      tab(container, "about.png")?.focus()
+      await act(async () =>
+        tab(container, "about.png")?.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Delete", bubbles: true }),
+        ),
+      )
+      expect(ids(workspace)).toEqual([hero.id, notes.id])
+    })
+
+    it("only moves to a tab that may hold secrets with the arrow keys, showing it on Enter", async () => {
+      const held = itemFixture("held", "01", {
+        kind: "image",
+        name: "held.png",
+        path: "/p/held.png",
+        secret: true,
+      })
+      const { container } = renderTerminal(workspaceReducer(opening(hero), shown(held)))
+      tab(container, "hero.png")?.focus()
+      await act(async () =>
+        tab(container, "hero.png")?.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "End", bubbles: true }),
+        ),
+      )
+      expect(tabs(container)).toEqual(["hero.png *", "about.png", "held.png"])
+      expect(document.activeElement).toBe(tab(container, "held.png"))
+      await act(async () => tab(container, "held.png")?.click())
+      expect(tabs(container)).toEqual(["hero.png", "about.png", "held.png *"])
+    })
+
+    it("steps through the tabs from anywhere in the pane on Ctrl+PageDown and Ctrl+PageUp, past one that may hold secrets", async () => {
+      const held = itemFixture("held", "01", {
+        kind: "image",
+        name: "held.png",
+        path: "/p/held.png",
+        secret: true,
+      })
+      const { container } = renderTerminal(workspaceReducer(opening(hero), shown(held)))
+      const press = (name: string, init: KeyboardEventInit = { ctrlKey: true }) =>
+        act(async () =>
+          (document.activeElement ?? document.body).dispatchEvent(
+            new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true, ...init }),
+          ),
+        )
+      container.querySelector<HTMLElement>(".pane-reader")?.focus()
+      await press("PageDown")
+      expect(tabs(container)).toEqual(["hero.png", "about.png *", "held.png"])
+      expect(document.activeElement).toBe(tab(container, "about.png"))
+      await press("PageDown")
+      expect(tabs(container)).toEqual(["hero.png *", "about.png", "held.png"])
+      await press("PageUp")
+      expect(tabs(container)).toEqual(["hero.png", "about.png *", "held.png"])
+      await press("PageUp", {})
+      expect(tabs(container)).toEqual(["hero.png", "about.png *", "held.png"])
+    })
+
+    it("steps through the tabs on Ctrl+PageDown from a card behind the pane too", async () => {
+      const { container } = renderTerminal(opening(notes, hero))
+      const card = container.querySelector<HTMLElement>(".pane-stack-sheet")
+      card?.focus()
+      await act(async () =>
+        card?.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "PageDown", ctrlKey: true, bubbles: true }),
+        ),
+      )
+      expect(tabs(container)).toEqual(["hero.png", "about.png *"])
+      expect(document.activeElement).toBe(tab(container, "about.png"))
+    })
+
+    it("labels the stack once it's behind with its kind, its count and the one in front", () => {
+      const { container } = renderTerminal(opening(about, hero, notes))
+      expect(
+        [...container.querySelectorAll(".pane-stack-sheet")].map((each) => [
+          each.getAttribute("aria-label"),
+          each.textContent,
+        ]),
+      ).toEqual([["Bring forward 2 images, hero.png in front", "Images2· hero.png"]])
+    })
+
+    it("shows every icon open behind it as a sheet, the nearest last", () => {
+      const readme = itemFixture("readme", "01", {
+        kind: "file",
+        name: "README.md",
+        path: "/p/README.md",
+      })
+      const diff = itemFixture("diff", "01", { kind: "changes", name: "changes", path: "/p" })
+      const { container } = renderTerminal(
+        [readme, diff, notes, hero].reduce(
+          (workspace, item) =>
+            workspaceReducer(workspace, {
+              type: "bar/open",
+              target,
+              terminalId: "01",
+              key: item.id,
+            }),
+          [readme, diff].reduce(
+            (workspace, item) => workspaceReducer(workspace, shown(item)),
+            opening(),
+          ),
+        ),
+      )
+      expect(
+        [...container.querySelectorAll<HTMLElement>(".pane-stack-sheet")].map((each) => [
+          each.getAttribute("aria-label"),
+          each.style.getPropertyValue("--_depth"),
+        ]),
+      ).toEqual([
+        ["Bring forward README.md", "2"],
+        ["Bring forward changes", "1"],
+        ["Bring forward notes", "0"],
+      ])
+    })
+
+    it("minimizes everything open of the stack from its icon, uncovering what's behind it", async () => {
+      const { container } = renderTerminal(opening(notes, about, hero))
+      await act(async () =>
+        icon(container, "2 images")?.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      )
+      expect(icon(container, "notes")?.getAttribute("data-state")).toBe("open")
+      expect(icon(container, "2 images")?.getAttribute("data-state")).toBe("seen")
+      expect(container.querySelectorAll(".pane-stack-sheet")).toHaveLength(0)
     })
   })
 

@@ -130,6 +130,7 @@ export const scripted = ({
   create = () => new Promise<TerminalSummary>(() => {}),
   saveSettings = async () => {},
   connect = async (agent: string, connected: boolean) => ({ agent, available: true, connected }),
+  listAgents = async () => [],
   companions = { items: [], windows: [] },
   respond = async () => undefined,
   content = () => channel<never>().iterator,
@@ -154,6 +155,8 @@ export const scripted = ({
   create?: () => Promise<TerminalSummary>
   saveSettings?: () => Promise<void>
   connect?: (agent: string, connected: boolean) => Promise<unknown>
+  // What the runner says of its agents when asked again (`agents.list`).
+  listAgents?: (options?: { fresh?: boolean }) => Promise<readonly unknown[]>
   // What the shown session's terminals hold as the runner lists it.
   companions?: ListedCompanions
   // How the runner answers each change to an item or window, by the call's name.
@@ -223,7 +226,7 @@ export const scripted = ({
       clear: unused,
     },
     agents: {
-      list: async () => [],
+      list: listAgents as never,
       // No agent is followed here; `prompt`, `interrupt` and `answer` are noted and take.
       detail: () => channel<never>().iterator,
       transcript: () => channel<never>().iterator,

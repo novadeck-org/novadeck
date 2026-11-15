@@ -43,7 +43,9 @@ import { folderProject, newWorkspaceSession } from "./sessions"
 import { createShellCommands, shellEdits, type ShellCommands } from "./shell"
 import { createSourceCommands, type SourceCommands } from "./source"
 
-type AddTerminalOptions = { fromKeyboard?: boolean }
+// `title` and `command` open the terminal named so, running the command at its first prompt,
+// as an installer is (see `preferences/installs.ts`).
+type AddTerminalOptions = { fromKeyboard?: boolean; title?: string; command?: string }
 
 // Workspace operations shared by the pointer UI and keyboard shortcuts. Each reads the
 // latest stores when it runs, so several in one event keep one another's changes.
@@ -502,13 +504,18 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         shell.setKeyboardFocus({ id, view: currentState(workspace.getSnapshot()).view })
       select(id)
     },
-    add: ({ fromKeyboard = false } = {}) => {
+    add: ({ fromKeyboard = false, title, command } = {}) => {
       recent.setSwitcher(null)
       const snapshot = workspace.getSnapshot()
       const project = activeProject(snapshot)!
       const { view } = currentState(snapshot)
       const target = currentTarget(snapshot)
-      const terminal = newTerminal({ target, directory: project.directory })
+      const terminal = newTerminal({
+        target,
+        directory: project.directory,
+        ...(title !== undefined && { title }),
+        ...(command !== undefined && { launch: { command } }),
+      })
       const active = rename.activeRename()
       if (active) rename.finishRename(active, true)
       markCreated({ context: currentContext(snapshot), id: terminal.id })

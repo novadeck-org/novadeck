@@ -199,7 +199,7 @@ export const inboxGroups = (
         },
         {
           label: "Pick several, with your own words",
-          hint: "Ask row with Claude's question that takes several picks and the person's words: numbers and Space tick, the last row opens a box, Enter sends the picks and the words together",
+          hint: "Unblock row with Claude's question that takes several picks and the person's words, as the chat's card asks it: numbers tick, Something else… takes words in place, Enter goes on to Submit",
           run: () => {
             const row = fresh(demoInboxIds.questions)
             if (row?.kind !== "request" || row.request.dialog?.type !== "questions") return
@@ -217,7 +217,7 @@ export const inboxGroups = (
         },
         {
           label: "Plan with a change field",
-          hint: "Unblock row with Claude Code 2.1.287's plan: no plain way back, so Send it back, with your words needs words that say what to change",
+          hint: "Unblock row with Claude Code 2.1.287's plan: no plain way back, so Tell Claude what to change is a field that needs words",
           run: () => {
             const row = fresh(demoInboxIds.plan)
             if (row?.kind !== "request" || row.request.dialog?.type !== "choices") return
@@ -231,6 +231,65 @@ export const inboxGroups = (
                     { id: "1", label: "Yes, auto-accept edits", text: null },
                     { id: "2", label: "Yes, manually approve edits", text: null },
                     { id: "3", label: "Tell Claude what to change", text: "field" },
+                  ],
+                },
+              },
+            })
+          },
+        },
+        {
+          label: "Form from an MCP server",
+          hint: "Unblock row with the form an MCP server asks Claude Code to fill in, answered in its card as the chat's: a text, a choice, a number and a yes/no, Submit or Decline",
+          run: () => {
+            const row = fresh(demoInboxIds.rawDialog)
+            if (row?.kind !== "request") return
+            inbox.add({
+              ...row,
+              // Claude Code is the harness whose adapter reads an MCP server's form.
+              source: { ...row.source, agent: "claude" },
+              request: {
+                ...row.request,
+                id: "demo-claude-form",
+                kind: "question",
+                tool: "mcp_deploy_configure_target",
+                subject: null,
+                dialog: {
+                  type: "form",
+                  id: "demo-claude-form:f",
+                  message: "Configure the deploy target",
+                  fields: [
+                    {
+                      id: "target",
+                      label: "Target name",
+                      description: "As it is named in the deploy config",
+                      kind: "text",
+                      choices: [],
+                      required: true,
+                    },
+                    {
+                      id: "environment",
+                      label: "Environment",
+                      description: null,
+                      kind: "choice",
+                      choices: ["staging", "production"],
+                      required: true,
+                    },
+                    {
+                      id: "replicas",
+                      label: "Replicas",
+                      description: null,
+                      kind: "number",
+                      choices: [],
+                      required: false,
+                    },
+                    {
+                      id: "dryRun",
+                      label: "Dry run first",
+                      description: "Shows what would change without deploying",
+                      kind: "boolean",
+                      choices: [],
+                      required: false,
+                    },
                   ],
                 },
               },

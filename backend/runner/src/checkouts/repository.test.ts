@@ -14,6 +14,9 @@ import { join } from "node:path"
 
 import { describe, expect, it as base } from "../test.js"
 import {
+  landedIn,
+  landingCandidates,
+  landingTries,
   mainBranch,
   mergeTrees,
   parseMerge,
@@ -352,5 +355,76 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
     const head = git(root, "rev-parse", "HEAD")
     expect(await mergeTrees(root, head, head)).toMatchObject({ state: "clean" })
     expect(await mergeTrees(root, head, `${head}^{tree}`)).toEqual({ state: "unknown" })
+  })
+})
+
+describe("where a branch's work landed in main", () => {
+  const commitFile = (root: string, file: string, text: string, message: string): string => {
+    writeFileSync(join(root, file), text)
+    git(root, "add", "-A")
+    git(root, "commit", "--quiet", "-m", message)
+    return git(root, "rev-parse", "HEAD")
+  }
+  const mainOf = (root: string) => ({
+    name: "main",
+    commit: git(root, "rev-parse", "main"),
+    tree: git(root, "rev-parse", "main^{tree}"),
+  })
+
+  it("lists the commits that touch a file of the work once every one has been touched", () => {
+    const log = [
+      "\x01c1 t1",
+      "\na.ts",
+      "x.ts",
+      "\x01c2 t2",
+      "\nx.ts",
+      "\x01c3 t3",
+      "\nb.ts",
+      "\x01c4 t4",
+      "\x01c5 t5",
+      "\na.ts",
+      "",
+    ].join("\0")
+    expect(landingCandidates(log, new Set(["a.ts", "b.ts"]))).toEqual([
+      { commit: "c3", tree: "t3" },
+      { commit: "c5", tree: "t5" },
+    ])
+    expect(landingCandidates(log, new Set(["z.ts"]))).toEqual([])
+  })
+
+  it.skipIf(!hasGit)(
+    "finds the squash a branch landed in after main changed its files again",
+    async ({ root }) => {
+      commitFile(root, "base", "0\n", "first")
+      git(root, "checkout", "--quiet", "-b", "feature")
+      commitFile(root, "a", "one\n", "one")
+      commitFile(root, "b", "b\n", "two")
+      git(root, "checkout", "--quiet", "main")
+      commitFile(root, "other", "o\n", "main's own")
+      git(root, "merge", "--quiet", "--squash", "feature")
+      git(root, "commit", "--quiet", "-m", "squash")
+      const squash = git(root, "rev-parse", "HEAD")
+      commitFile(root, "a", "changed\n", "main changes it again")
+      const main = mainOf(root)
+      // Today's main and the old branch conflict.
+      expect(await mergeTrees(root, main.commit, "feature")).toMatchObject({ state: "conflict" })
+      expect(await landedIn(root, main, "feature")).toBe(squash)
+      git(root, "checkout", "--quiet", "-b", "unmerged", "feature~1")
+      commitFile(root, "c", "c\n", "never merged")
+      expect(await landedIn(root, main, "unmerged")).toBeUndefined()
+      // A branch with nothing of its own since it parted landed nowhere.
+      expect(await landedIn(root, main, "main~1")).toBeUndefined()
+    },
+  )
+
+  it.skipIf(!hasGit)("gives up past its tries", async ({ root }) => {
+    commitFile(root, "base", "0\n", "first")
+    git(root, "checkout", "--quiet", "-b", "feature")
+    commitFile(root, "a", "feature\n", "feature")
+    git(root, "checkout", "--quiet", "main")
+    // Every one of main's commits touches the file, none to what the branch has.
+    for (let at = 0; at <= landingTries; at += 1) commitFile(root, "a", `${at}\n`, `main ${at}`)
+    commitFile(root, "a", "feature\n", "at last")
+    expect(await landedIn(root, mainOf(root), "feature")).toBeUndefined()
   })
 })

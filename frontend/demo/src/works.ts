@@ -2,9 +2,28 @@ import type { Backend, TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import { createStore, type Store } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
-import type { Work, WorkConflict, WorkFile, Works, WorksState } from "@novadeck/core/works"
+import type {
+  Work,
+  WorkConflict,
+  WorkFile,
+  Works,
+  WorkPreview,
+  WorksState,
+} from "@novadeck/core/works"
 
 import type { DemoTurns } from "./agents/turns"
+import { demoHandle } from "./handles"
+import {
+  addedPath,
+  createDemoPreview,
+  previewPath,
+  renamedPath,
+  renamedTo,
+  type DemoPreview,
+  type OwlChange,
+  type PreviewScenario,
+} from "./preview"
+import { isDemoSource, terminalOfHandle } from "./source"
 
 // The demo's Changes: each tracked worktree's work against main, from fixtures planned per demo
 // (`WorkPlan`) and kept by the demo's own store, standing in for the runner, which reads the
@@ -20,6 +39,8 @@ export type FilePlan = {
   readonly path: string
   readonly added: number
   readonly removed: number
+  // How it changed; modified when left out.
+  readonly status?: WorkFile["status"]
   // Read: none of its lines are unread. Otherwise `unread` is the share of them that is
   // (all of them by default).
   readonly read?: true
@@ -55,10 +76,12 @@ export type WorkPlan = {
   readonly working?: true
 }
 
-const fileOf = (plan: FilePlan): WorkFile => {
+const fileOf = (plan: FilePlan, changedAt: number): WorkFile => {
   const share = plan.read ? 0 : (plan.unread ?? 1)
   return {
     path: plan.path,
+    status: plan.status ?? "modified",
+    changedAt,
     added: plan.added,
     removed: plan.removed,
     unreadAdded: Math.round(plan.added * share),
@@ -162,9 +185,10 @@ export const worksFromPlans = (
         unreadRemoved: 0,
         files: [],
         truncated: false,
+        folder: { repo: "", project: "" },
         conflicts,
       },
-      plan.files.map(fileOf),
+      plan.files.map((file) => fileOf(file, now - plan.minutesAgo * minute)),
     )
   })
 }
@@ -182,6 +206,8 @@ export const gained = (work: Work, lines: number): Work => {
       }
     : {
         path: "NOTES.md",
+        status: "added",
+        changedAt: work.firstSeenAt,
         added: lines,
         removed: 0,
         unreadAdded: lines,
@@ -199,6 +225,8 @@ export const spread = (work: Work, count: number): Work => ({
       const lines = 6 + ((index * 7) % 23)
       return {
         path: `src/generated/part-${work.files.length + index + 1}.ts`,
+        status: "added",
+        changedAt: work.firstSeenAt,
         added: lines,
         removed: index % 3,
         unreadAdded: lines,
@@ -290,6 +318,21 @@ export type DemoWorksControl = {
   readonly orphan: (root: string) => void
   // Its owner is closed, in History: the row still names an owner, no terminal of the project.
   readonly ownerClosed: (root: string) => void
+  // The work of the terminal changes `path` (as it did when `at`): added to its files where
+  // it had none, else its time moved on, as a runner's does at each new write.
+  readonly touchFile: (
+    terminalId: string,
+    path: string,
+    at: number,
+    extra?: Partial<WorkFile>,
+  ) => void
+  // The storefront's third agent changes src/checkout/Checkout.tsx, as the file preview shows
+  // it, in a clash with the others or in lines main has rewritten since; or no longer.
+  readonly previewOwl: (change: OwlChange | undefined) => void
+  // Crow adds src/checkout/OrderSummary.tsx too (which Moth adds), or renames
+  // src/checkout/PaymentStep.tsx to src/checkout/PaymentForm.tsx (which Moth modifies), or no
+  // longer.
+  readonly previewScenario: (which: PreviewScenario, on: boolean) => void
   // The terminal's worktree differs from nothing but has `count` commits main lacks, as one
   // squash-merged does.
   readonly commitsMainLacks: (at: Placed, count: number) => void
@@ -337,9 +380,17 @@ export const createDemoWorks = (
     // The item a work shows as, on the terminal's bar; null where the demo has no companion
     // pane that can.
     readonly show?: (work: Work, terminalId: string) => Promise<string | null>
+    // What a file previews as; a backend with none previews nothing.
+    readonly preview?: DemoPreview
+    // Has the Source panel show an agent's change to a file, by its handle, or no longer.
+    readonly mark?: (
+      handle: string,
+      path: string,
+      kind: "modified" | "added" | "deleted" | undefined,
+    ) => void
   } = {},
 ): DemoWorks => {
-  const { now = Date.now, show } = options
+  const { now = Date.now, show, preview, mark } = options
   const state = createStore<WorksState>({ works: initial, synced: true, reported: true })
   // How many worktrees were made since the demo began, which the Changes toggle flares for.
   const made = createStore(0)
@@ -377,11 +428,40 @@ export const createDemoWorks = (
       unreadRemoved: 0,
       files: [],
       truncated: false,
+      folder: { repo: "", project: "" },
       conflicts: [],
     }
     state.update((current) => ({ ...current, works: [...current.works, fresh] }))
     made.update((count) => count + 1)
     return fresh
+  }
+  const touchFile = (
+    terminalId: string,
+    path: string,
+    at: number,
+    extra: Partial<WorkFile> = {},
+  ): void => {
+    const own = ownedBy(terminalId)
+    if (!own) return
+    const file: WorkFile = {
+      path,
+      status: "modified",
+      changedAt: at,
+      added: 1,
+      removed: 1,
+      unreadAdded: 1,
+      unreadRemoved: 1,
+      conflict: false,
+      ...extra,
+    }
+    change(own.root, (work) =>
+      summed(
+        work,
+        work.files.some((each) => each.path === path)
+          ? work.files.map((each) => (each.path === path ? { ...each, changedAt: at } : each))
+          : [...work.files, file],
+      ),
+    )
   }
   // The work of a terminal, made at its first change.
   const ensure = (at: Placed): Work => ownedBy(at.terminalId) ?? make(at)
@@ -396,6 +476,65 @@ export const createDemoWorks = (
       // The terminal the panel names: the owner's, or the selected one's where the owner is closed.
       const on = terminalId ?? work?.terminalId ?? undefined
       return work && show && on !== undefined ? show(work, on) : Promise.resolve(null)
+    },
+    preview: async (projectId, path): Promise<WorkPreview> =>
+      preview
+        ? preview.read(state.getSnapshot().works, projectId, path)
+        : { main: null, works: [], renames: [] },
+    touchFile,
+    previewScenario: (which, on) => {
+      if (!preview) return
+      const at = now()
+      preview.scenario(which, on, at)
+      // Crow's files, and Moth's, which only come with the rename and stay after it.
+      const crow: [string, Partial<WorkFile>, "added" | "deleted"][] =
+        which === "added"
+          ? [[addedPath, { status: "added" }, "added"]]
+          : [
+              [renamedTo, { status: "renamed", from: renamedPath }, "added"],
+              [renamedPath, { status: "deleted" }, "deleted"],
+            ]
+      // Moth edits the old file, which Crow then renames away: deleted shows over modified.
+      if (on && which === "rename") {
+        touchFile(preview.mothTerminal, renamedPath, at)
+        mark?.(demoHandle(1), renamedPath, "modified")
+      }
+      const handle = demoHandle(4)
+      for (const [path, extra, kind] of crow) {
+        // The old path is Moth's file too: Crow's rename is no file of its own in the work.
+        const listed = which === "rename" && path === renamedPath ? undefined : extra
+        if (on) {
+          if (listed) touchFile(preview.crowTerminal, path, at, listed)
+          mark?.(handle, path, kind)
+        } else {
+          const own = ownedBy(preview.crowTerminal)
+          if (own && listed)
+            change(own.root, (work) =>
+              summed(
+                work,
+                work.files.filter((file) => file.path !== path),
+              ),
+            )
+          mark?.(handle, path, undefined)
+        }
+      }
+    },
+    previewOwl: (kind) => {
+      if (!preview) return
+      const at = now()
+      preview.owl(kind, at)
+      if (kind) touchFile(preview.owlTerminal, previewPath, at)
+      else {
+        // Back as it was: the work no longer lists the file.
+        const own = ownedBy(preview.owlTerminal)
+        if (own)
+          change(own.root, (work) =>
+            summed(
+              work,
+              work.files.filter((file) => file.path !== previewPath),
+            ),
+          )
+      }
     },
     close: async (root, force = false) => {
       const work = find(root)
@@ -535,11 +674,32 @@ export const withWorks = (
 ): Backend => {
   const { plans = [], turns, show } = options
   let latest: Workspace | undefined
+  const preview = createDemoPreview(Date.now())
+  const source = isDemoSource(backend.source) ? backend.source : undefined
   const works = createDemoWorks(worksFromPlans(backend.seed, plans, Date.now()), {
+    preview,
+    ...(source && { mark: source.mark }),
     ...(show && {
       show: (work: Work, terminalId: string) => show(work, terminalId, latest),
     }),
   })
+  // A write by an agent to the previewed file grows its change there and moves its time on, as a
+  // runner's works do at each new blob; the Source's `touched` says who wrote.
+  if (backend.source) {
+    const { state } = backend.source
+    let before = state.getSnapshot().projects["storefront"]?.changes[previewPath]?.touched ?? {}
+    state.subscribe(() => {
+      const touched =
+        state.getSnapshot().projects["storefront"]?.changes[previewPath]?.touched ?? {}
+      for (const [handle, at] of Object.entries(touched)) {
+        const terminalId = terminalOfHandle(handle)
+        if (terminalId === undefined || at <= (before[handle] ?? Number.NEGATIVE_INFINITY)) continue
+        preview.wrote(terminalId, at)
+        works.touchFile(terminalId, previewPath, at)
+      }
+      before = touched
+    })
+  }
   // The agents that work now, so a turn adds its lines once as it starts.
   const working = new Set<string>()
   turns?.watchStatus((key: TerminalKey, agent) => {

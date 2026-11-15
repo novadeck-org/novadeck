@@ -7,11 +7,17 @@ import type { Store } from "./store"
 // Nothing here repeats what Terminals (the agent's state) or the Inbox (what asks for
 // attention) say: only what the code says.
 
-// A file the work changes: lines added and removed against main, the part of them the person
-// hasn't read (what changed since they last looked; all of it before a first look), and
-// whether it is where a conflict is.
+// A file the work changes: how it changed, lines added and removed against main, the part of
+// them the person hasn't read (what changed since they last looked; all of it before a first
+// look), and whether it is where a conflict is.
 export type WorkFile = {
   readonly path: string
+  readonly status: "modified" | "added" | "deleted" | "renamed"
+  // Where a renamed file was; absent otherwise.
+  readonly from?: string | undefined
+  // When the backend first saw the file as it is now, in milliseconds since the epoch: a later
+  // change to it moves it, and a backend that restarts stamps what it finds anew.
+  readonly changedAt: number
   readonly added: number
   readonly removed: number
   readonly unreadAdded: number
@@ -53,6 +59,13 @@ export type Work = {
   readonly files: readonly WorkFile[]
   // More files changed than `files` lists.
   readonly truncated: boolean
+  // Where the project's folder and the repository's top share a place, `/`-separated with no
+  // leading or trailing slash, at most one of the two non-empty (both empty where they are the
+  // same folder). `repo` is the project's folder as a path from the repository's top: a file
+  // path outside it is not in the project, and the rest is stripped of it. `project` is the
+  // repository's top as a path from the project's folder: a file path is prefixed with it.
+  // Absent where the repository's top is neither inside nor above the project's folder.
+  readonly folder?: { readonly repo: string; readonly project: string } | undefined
   readonly conflicts: readonly WorkConflict[]
 }
 
@@ -92,6 +105,54 @@ export type Works = {
   // refuses (git couldn't be read, the owner's agent is working in it); a worktree already
   // closed rejects with code NOT_FOUND.
   readonly close: (root: string, force?: boolean) => Promise<WorkClosing>
+  // A file of the project, by its path from the project's folder, as it would be once the
+  // project's works merge onto main, read now: main's copy and what each work carries onto it.
+  // Rejects when the backend cannot say.
+  readonly preview: (projectId: string, path: string) => Promise<WorkPreview>
+}
+
+// One work's change to a file as it carries onto main's copy, in main's line numbers: where it
+// starts (from 1; for a change that only adds lines, the line they go before), how many of
+// main's lines it replaces or removes, and the lines it puts there. `applies` is false where
+// main has rewritten those lines since the worktree branched: `lines` are then the worktree's
+// version, which main's own lines stand in for.
+export type PreviewHunk = {
+  readonly at: number
+  readonly removed: number
+  readonly lines: readonly string[]
+  readonly applies: boolean
+}
+
+// What one work does to a file: how, when the backend first saw it so (0 where unknown), and
+// its hunks in order.
+export type WorkPreviewWork = {
+  readonly root: string
+  readonly terminalId: string | null
+  readonly branch: string | null
+  readonly status: "modified" | "added" | "deleted"
+  readonly changedAt: number
+  // Where the work renamed the file to this path, the path main has, whose lines its hunks are
+  // against.
+  readonly renamedFrom?: string | undefined
+  readonly hunks: readonly PreviewHunk[]
+}
+
+// A work that renamed the previewed file, which main has, to another path of the project.
+export type PreviewRename = {
+  readonly root: string
+  readonly terminalId: string | null
+  readonly branch: string | null
+  readonly to: string
+}
+
+// A file as it would be once its works merge: main's text (null where main has no such file)
+// and each work that changes it. `unavailable` says why the file is not told of (it may hold
+// secrets, is binary, or is too large).
+export type WorkPreview = {
+  readonly main: string | null
+  readonly unavailable?: "secret" | "binary" | "big" | undefined
+  readonly works: readonly WorkPreviewWork[]
+  readonly renames: readonly PreviewRename[]
 }
 
 // What closing a worktree comes to: it closed, with the ref its uncommitted work (and commits

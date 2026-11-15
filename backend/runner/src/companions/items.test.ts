@@ -620,6 +620,24 @@ describe("the project window", () => {
     ).resolves.toMatchObject({ item: { name: "a.ts", detail: "a.ts" } })
   })
 
+  it("opens an absolute path outside the project's folder, as an agent's copy of a file main lacks is", async ({
+    fixture,
+  }) => {
+    const elsewhere = mkdtempSync(join(tmpdir(), "novadeck-copy-"))
+    try {
+      writeFileSync(join(elsewhere, "new.ts"), "new\n")
+      const opened = await fixture.items.openInProject({
+        sessionId: fixture.sessionId,
+        path: join(elsewhere, "new.ts"),
+        windowId: randomUUID(),
+      })
+      expect(opened.item).toMatchObject({ kind: "file", name: "new.ts", secret: false })
+      expect(opened.item.path).toContain("new.ts")
+    } finally {
+      rmSync(elsewhere, { recursive: true, force: true })
+    }
+  })
+
   it("points its one item at the next file, keeping its id", async ({ fixture }) => {
     writeFileSync(join(fixture.directory, "a.ts"), "alpha\n")
     writeFileSync(join(fixture.directory, "b.ts"), "bravo\n")

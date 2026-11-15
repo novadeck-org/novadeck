@@ -368,9 +368,11 @@ type Harness = {
   readonly plugin: string
   /** Program names that identify it in the foreground or behind a launcher. */
   readonly programs: readonly string[]
-  /** Where its installer puts the program when it is not on PATH. */
-  readonly fallback?: (home: string) => string
-  /** Its own home, whose presence says it is installed. */
+  /** Where its installers put the program when it is not on PATH, the one found first used. */
+  readonly fallbacks?: (install: Install) => readonly string[]
+  /** The one-line command that installs it on a platform, which works in any shell Novadeck starts. */
+  readonly installer: (platform: NodeJS.Platform) => string
+  /** Its own home, whose presence says it has run here; its program found says it is installed. */
   readonly home: (install: Install) => string
   /** Whether its configuration lists Novadeck's plugin as installed. */
   readonly connected: (install: Install) => Promise<boolean>
@@ -442,7 +444,7 @@ export const claude = { id: "claude", … } satisfies Harness
 export const harnesses: { readonly [agent in AgentName]: Harness } = { claude, codex, agy }
 ```
 
-Step 1 implements `plugin`, `fallback`, `home`, `connected`, `connect`, `disconnect`,
+Step 1 implements `plugin`, `fallbacks`, `installer`, `home`, `connected`, `connect`, `disconnect`,
 `hook`, `files`, `shims`, `resume` and `continuity`. The other fields arrive with
 the features that need them.
 

@@ -26,14 +26,14 @@ const openHistory = async () => {
 
 describe("The History panel", () => {
   context("where the backend keeps closed terminals", () => {
-    it("has a rail toggle after Sessions, and lists the project's rows with a count", async () => {
+    it("has the rail's last toggle, and lists the project's rows with a count", async () => {
       await openHistory()
       const toggles = page
         .getByRole("radiogroup", { name: "Sidebar actions" })
         .getByRole("radio")
         .elements()
         .map((each) => each.getAttribute("aria-label"))
-      expect(toggles.indexOf("History")).toBe(toggles.indexOf("Sessions") + 1)
+      expect(toggles.at(-1)).toBe("History")
       await expect.element(page.getByRole("button", { name: "Restore Coupon codes" })).toBeVisible()
       await expect.element(page.getByRole("heading", { name: /^History 14$/ })).toBeVisible()
     })

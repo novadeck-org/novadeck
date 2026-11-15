@@ -314,8 +314,11 @@ export type BackendFields = {
     readonly state: Store<readonly AgentConnection[]>
     // Connects or disconnects the agent; the state shows the change as it goes.
     readonly set: (agent: AgentName, connected: boolean) => void
-    // Looks again at which agents are installed and connected.
-    readonly refresh: () => void
+    // Looks again at which agents are installed and connected; resolves once the state
+    // shows what it found (also where it found nothing new, or could not look). With `fresh`
+    // the backend reads the person's login environment again first, which spawns a shell:
+    // for the look after an install, so a program just installed shows.
+    readonly refresh: (options?: { readonly fresh?: boolean }) => Promise<void>
     // Whether to offer connecting them when the app opens for the first time.
     readonly welcome: Store<boolean>
     readonly finishWelcome: () => void
@@ -444,6 +447,11 @@ export type BackendFields = {
   // own document, it stays focused while focus is inside a frame of the page, as a page
   // in the companion pane. Absent where nothing surrounds the page, as in a browser.
   readonly windowFocus?: (listener: (focused: boolean) => void) => () => void
+  // Optional. A picture of a part of the page as it's drawn now, `rect` in CSS pixels of
+  // its viewport, as a JPEG `data:` address one pixel to each CSS pixel, or undefined where
+  // the window draws nothing: a companion pane, whose picture stands in where it builds
+  // again. Absent where nothing surrounds the page, as in a browser.
+  readonly panePicture?: (rect: PaneRect) => Promise<string | undefined>
   // Optional. The desktop app's self-updates: `onOffer` hears each update the app learns
   // of, at once when one already waits and again for each newer one, and returns the
   // stop. A `ready` offer is downloaded and installs when the app next quits. An
@@ -529,6 +537,14 @@ export type BackendFields = {
 
 export type Backend = BackendFields & TerminalPort
 
+// A part of the page in CSS pixels of its viewport; see `Backend.panePicture`.
+export type PaneRect = {
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+}
+
 // How the page looks, for the window around it: the scheme its native parts use
 // (`system` while the page follows the system, so the page keeps seeing the system's
 // own), and the ground, `--color-canvas` as `#rrggbb`, that the window shows before
@@ -563,6 +579,9 @@ export type AgentConnection = {
   readonly error?: string
   // What keeps its messaging from working whole while connected, as the runner says.
   readonly limited?: "own-status-line" | undefined
+  // While it is not `available`: the command that installs it where the backend runs, as a
+  // terminal would run it for the person.
+  readonly installer?: string | undefined
 }
 
 // "unavailable" means the backend gave up reconnecting.

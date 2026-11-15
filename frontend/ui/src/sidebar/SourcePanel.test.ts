@@ -102,6 +102,7 @@ const mount = async (
   agents: { roster: string[]; squads: string[][] } = { roster: [], squads: [] },
   reads: Reads = backend(),
   onOpenFile: (path: string) => Promise<void> = () => Promise.resolve(),
+  watch?: () => () => void,
 ) => {
   let visible = true
   let turn = 0
@@ -109,6 +110,7 @@ const mount = async (
     project: next,
     list: reads.list,
     turn,
+    watch,
     onOpenFile,
     selectedHandle: handle,
     roster: agents.roster,
@@ -159,6 +161,22 @@ const mount = async (
 }
 
 describe("The Source panel", () => {
+  context("when its changes come from the works", () => {
+    it("follows them while it shows, and lets go while it is hidden", async () => {
+      const released = vi.fn<() => void>()
+      const watch = vi.fn<() => () => void>(() => released)
+      const panel = await mount(undefined, undefined, undefined, undefined, undefined, watch)
+      expect(watch).toHaveBeenCalledTimes(1)
+      expect(released).not.toHaveBeenCalled()
+
+      await panel.show(false)
+      expect(released).toHaveBeenCalledTimes(1)
+
+      await panel.show(true)
+      expect(watch).toHaveBeenCalledTimes(2)
+    })
+  })
+
   context("when it first shows a project", () => {
     it("opens the folders with a changed file and leaves the rest shut", async () => {
       const panel = await mount(work())
@@ -313,13 +331,18 @@ describe("The Source panel", () => {
       Array.from(
         panel.view.container.querySelectorAll(".source-row[data-dim=true][data-folder=false]"),
       ).map((el) => el.querySelector(".source-name")?.textContent ?? "")
+    const fileRows = (panel: Awaited<ReturnType<typeof mount>>): string[] =>
+      Array.from(panel.view.container.querySelectorAll(".source-row[data-folder=false]")).map(
+        (el) => el.querySelector(".source-name")?.textContent ?? "",
+      )
+    const everyFile = ["readme.md", "Cart.tsx", "new.ts", "useCart.ts", "package.json"]
     const hover = (el: Element, type: "pointerover" | "pointerout"): void =>
       act(() => void el.dispatchEvent(new MouseEvent(type, { bubbles: true })))
 
     it("shows a chip for each, a squad in a labelled track with its lead first", async () => {
       const panel = await mountTeam()
 
-      const strip = panel.view.container.querySelector("[aria-label='Light agents']")!
+      const strip = panel.view.container.querySelector(`[aria-label="Show agents' work"]`)!
       expect(strip.getAttribute("role")).toBe("group")
       expect(
         Array.from(strip.querySelectorAll(".source-agent")).map((el) => el.textContent),
@@ -341,20 +364,31 @@ describe("The Source panel", () => {
       panel.view.unmount()
     })
 
-    it("lights the union of the agents kept, and releases one on a second click", async () => {
+    it("shows only the work of the agents kept, and releases one on a second click", async () => {
       const panel = await mountTeam()
+      const folders = (): string[] =>
+        Array.from(panel.view.container.querySelectorAll(".source-row[data-folder=true]")).map(
+          (el) => el.querySelector(".source-name")?.textContent ?? "",
+        )
+      expect(fileRows(panel)).toEqual(everyFile)
 
       press(panel, "wren")
-      expect(dimmed(panel)).toEqual(["readme.md", "Cart.tsx", "new.ts", "useCart.ts"])
+      expect(fileRows(panel)).toEqual(["package.json"])
+      expect(folders()).toEqual([])
       press(panel, "crow")
 
       expect(pressed(panel)).toEqual(["@wren", "@crow"])
-      expect(dimmed(panel)).toEqual(["Cart.tsx", "new.ts"])
+      expect(fileRows(panel)).toEqual(["readme.md", "useCart.ts", "package.json"])
+      expect(folders()).toEqual(["docs", "src", "cart"])
+      expect(dimmed(panel)).toEqual([])
       expect(
         panel.view.container.querySelector("[role=tree]")?.getAttribute("aria-description"),
-      ).toBe("The work of @wren and @crow is lit; files and folders they did not touch are dimmed.")
+      ).toBe("Only the work of @wren and @crow is shown.")
       press(panel, "wren")
       expect(pressed(panel)).toEqual(["@crow"])
+      expect(fileRows(panel)).toEqual(["readme.md", "useCart.ts"])
+      press(panel, "crow")
+      expect(fileRows(panel)).toEqual(everyFile)
       await nextFrame()
       panel.view.unmount()
     })
@@ -363,10 +397,11 @@ describe("The Source panel", () => {
       const panel = await mountTeam()
 
       // Nothing marks a lead, so its hint names the squad.
-      expect(chip(panel, "moth").getAttribute("title")).toBe("Keep @moth's squad lit")
-      expect(chip(panel, "crow").getAttribute("title")).toBe("Keep @crow lit")
+      expect(chip(panel, "moth").getAttribute("title")).toBe("Show only @moth's squad's work")
+      expect(chip(panel, "crow").getAttribute("title")).toBe("Show only @crow's work")
       press(panel, "moth")
       expect(chip(panel, "moth").getAttribute("title")).toBe("Let @moth's squad go")
+      expect(chip(panel, "wren").getAttribute("title")).toBe("Show @wren's work too")
       expect(pressed(panel)).toEqual(["@moth", "@crow"])
       expect(panel.view.container.querySelector(".source-squad")?.getAttribute("data-kept")).toBe(
         "true",
@@ -390,7 +425,8 @@ describe("The Source panel", () => {
       expect(dimmed(panel)).toEqual(["readme.md", "Cart.tsx", "new.ts", "useCart.ts"])
       press(panel, "crow")
       expect(chip(panel, "wren").getAttribute("data-following")).toBe("false")
-      expect(dimmed(panel)).toEqual(["Cart.tsx", "new.ts", "package.json"])
+      expect(fileRows(panel)).toEqual(["readme.md", "useCart.ts"])
+      expect(dimmed(panel)).toEqual([])
 
       act(() => {
         chip(panel, "crow").dispatchEvent(
@@ -399,6 +435,7 @@ describe("The Source panel", () => {
       })
 
       expect(pressed(panel)).toEqual([])
+      expect(fileRows(panel)).toEqual(everyFile)
       expect(dimmed(panel)).toEqual(["readme.md", "Cart.tsx", "new.ts", "useCart.ts"])
       await nextFrame()
       panel.view.unmount()
@@ -449,14 +486,21 @@ describe("The Source panel", () => {
       panel.view.unmount()
     })
 
-    it("lets go of a kept agent that leaves the project, so nothing stays dimmed for it", async () => {
+    it("lets go of a kept agent that leaves the project, so every file shows again", async () => {
       const panel = await mountTeam()
       press(panel, "wren")
-      expect(dimmed(panel)).not.toEqual([])
+      expect(fileRows(panel)).toEqual(["package.json"])
 
       await panel.update(work())
 
       expect(pressed(panel)).toEqual([])
+      expect(fileRows(panel)).toEqual([
+        "readme.md",
+        "Cart.tsx",
+        "new.ts",
+        "useCart.ts",
+        "package.json",
+      ])
       expect(dimmed(panel)).toEqual([])
       await nextFrame()
       panel.view.unmount()
@@ -510,6 +554,63 @@ describe("The Source panel", () => {
       expect(dimmed(panel)).toEqual(["Cart.tsx", "package.json"])
       expect(order()).toEqual(before)
       hover(chip(panel, "moth"), "pointerout")
+
+      expect(dimmed(panel)).toEqual([])
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("still reads again the open folders that the kept agents' work leaves out", async () => {
+      const reads = backend()
+      const panel = await mount(team(), undefined, agents, reads)
+      press(panel, "wren")
+      expect(panel.rows()).toEqual(["package.json"])
+      reads.folders.length = 0
+
+      await panel.endTurn()
+
+      expect(reads.folders.toSorted()).toEqual(["", "docs", "src", "src/cart"])
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("steps the keyboard over the rows the kept agents' work leaves out", async () => {
+      const panel = await mountTeam()
+      press(panel, "crow")
+      const focused = (): string | null | undefined =>
+        document.activeElement?.querySelector(".source-name")?.textContent
+      const key = (name: string): void =>
+        act(() => {
+          document.activeElement!.dispatchEvent(
+            new KeyboardEvent("keydown", { key: name, bubbles: true }),
+          )
+        })
+      act(() => panel.row("readme.md").querySelector<HTMLElement>("[role=treeitem]")!.focus())
+
+      key("ArrowDown")
+      expect(focused()).toBe("src")
+      key("End")
+      expect(focused()).toBe("useCart.ts")
+      key("ArrowUp")
+      expect(focused()).toBe("cart")
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("dims, among the kept agents' work, what a chip pointed at did not touch", async () => {
+      const panel = await mountTeam()
+      press(panel, "wren")
+      press(panel, "crow")
+
+      hover(chip(panel, "wren"), "pointerover")
+      expect(fileRows(panel)).toEqual(["readme.md", "useCart.ts", "package.json"])
+      expect(dimmed(panel)).toEqual(["readme.md", "useCart.ts"])
+      expect(
+        panel.view.container.querySelector("[role=tree]")?.getAttribute("aria-description"),
+      ).toBe(
+        "Only the work of @wren and @crow is shown. Of that, the work of @wren is lit; the rest is dimmed.",
+      )
+      hover(chip(panel, "wren"), "pointerout")
 
       expect(dimmed(panel)).toEqual([])
       await nextFrame()

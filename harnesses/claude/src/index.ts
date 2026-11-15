@@ -16,6 +16,7 @@ import { conversation, conversations } from "./conversation.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { claudeHome } from "./home.js"
+import { fallbacks, installer } from "./install.js"
 import { models } from "./models.js"
 import { connect, connected, disconnect, files, hook, hookDialect } from "./plugin.js"
 import { conversational, shapes } from "./shapes.js"
@@ -130,8 +131,8 @@ const sessionCommands = new Set(["attach", "ultrareview"])
 export const claude = {
   id: "claude",
   plugin: "claude",
-  // Claude Code's local install is an alias in the person's rc file, not on PATH.
-  fallback: (home) => join(home, ".claude", "local", "claude"),
+  installer,
+  fallbacks,
   conversation,
   conversations,
   home: claudeHome,

@@ -54,6 +54,7 @@ import {
   shallowEqual,
 } from "./selectors"
 import { switchOffWorktrees } from "./ui-store"
+import { useInstalls } from "./useInstalls"
 
 // Rendered beside a deferred dialog, so it mounts only once the dialog's view has loaded.
 const Loaded = ({
@@ -281,6 +282,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const hibernation = useHibernation(backend.hibernation)
   const worktrees = useWorktrees(backend.worktrees)
   const agents = useAgents(backend.agents)
+  const installAgent = useInstalls(backend.agents)
   const approval = useApproval(backend.approvals)
   const voice = useVoice(backend.voice)
   const murmur = useMurmur(backend.murmur)
@@ -345,6 +347,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           open={agents.welcome}
           agents={agents.list}
           onChange={backend.agents.set}
+          onInstall={installAgent}
           transcripts={transcripts}
           onDone={backend.agents.finishWelcome}
         />

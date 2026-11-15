@@ -12,6 +12,7 @@ import { useEffect, useState, type ComponentType, type ReactNode } from "react"
 import type { ItemProps, ViewProps } from "./registration"
 import type { ItemStore } from "./store/item-store"
 import { useContent } from "./store/use-item-store"
+import { UnderHeaderSlot } from "./under-header"
 
 // What the artifact kinds share: the chrome around what an agent showed beside its terminal
 // (the states of what hasn't loaded or can't show, and why), and the two components that
@@ -82,16 +83,19 @@ const reasonText = (reason: UnavailableReason, name: string, size: number | null
 
 // The header every viewer has: what it shows and what's known about it, wrapping onto more
 // lines as it must, then `actions`, which stay at the end of its first line however long
-// what it shows is named.
+// what it shows is named. Under it, what the place showing it puts there (under-header.tsx).
 export const ArtifactMeta = ({
   className,
   children,
   actions,
 }: Actions & { className?: string; children: ReactNode }): React.JSX.Element => (
-  <div className={className ? `artifact-meta ${className}` : "artifact-meta"}>
-    <div className="artifact-meta-info">{children}</div>
-    {actions}
-  </div>
+  <>
+    <div className={className ? `artifact-meta ${className}` : "artifact-meta"}>
+      <div className="artifact-meta-info">{children}</div>
+      {actions}
+    </div>
+    <UnderHeaderSlot />
+  </>
 )
 
 // A path at the start of a viewer's header, whole on hover: too long for the header, it
@@ -142,18 +146,22 @@ export const Unavailable = ({
   size: number | null
   onReveal?: (() => void) | undefined
 }): React.JSX.Element => (
-  <div className="artifact-unavailable" data-reason={reason}>
-    <p>{reasonText(reason, item.name, size)}</p>
-    <div className="artifact-unavailable-actions">
-      {reason === "secret" && onReveal && (
-        <button type="button" className="artifact-open" onClick={onReveal}>
-          Show it
-        </button>
-      )}
-      {pathOf(item) !== null && <CopyText text={pathOf(item)!} label="Copy path" />}
-      {actions}
+  <>
+    {/* No header: what goes under one goes at its top. */}
+    <UnderHeaderSlot />
+    <div className="artifact-unavailable" data-reason={reason}>
+      <p>{reasonText(reason, item.name, size)}</p>
+      <div className="artifact-unavailable-actions">
+        {reason === "secret" && onReveal && (
+          <button type="button" className="artifact-open" onClick={onReveal}>
+            Show it
+          </button>
+        )}
+        {pathOf(item) !== null && <CopyText text={pathOf(item)!} label="Copy path" />}
+        {actions}
+      </div>
     </div>
-  </div>
+  </>
 )
 
 // The pane's body for an artifact kind, once the kind's `Body` has its content: loads and
@@ -196,7 +204,10 @@ export const artifactView = <K extends ShownKind>(
         ) : (
           // Nothing yet, or content of another kind than the item's, as while the runner
           // reclassifies a persisted item: busy until what fits it arrives.
-          <div className="artifact-status" />
+          <>
+            <UnderHeaderSlot />
+            <div className="artifact-status" />
+          </>
         )}
       </div>
     )

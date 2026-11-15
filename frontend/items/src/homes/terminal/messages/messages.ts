@@ -13,6 +13,7 @@ import {
 import type { WorkspaceAction } from "@novadeck/core/state"
 import type { Store, WorkspaceStore } from "@novadeck/core/store"
 import { type TerminalKey, terminalKeyPath, terminalKeyOfPath } from "@novadeck/core/types"
+import { createKept, type Kept } from "@novadeck/viewers"
 import { useCallback, useEffect, useSyncExternalStore } from "react"
 
 import { conversationsOf, youKey } from "./conversations"
@@ -48,6 +49,10 @@ export const useHasMessages = (messages: Messages | undefined, key: TerminalKey)
 
 // A terminal's messages as its companion pane uses them.
 export type MessagesHandle = {
+  // The conversation the person last left open in the terminal's messages, for messages
+  // built again to open where they were; and keeping the one open now.
+  readonly lastOpen: () => string | null
+  readonly keepOpen: (conversation: string | null) => void
   readonly threads: TerminalThreads | undefined
   readonly paused: boolean
   // A pause or resume is on its way to the backend.
@@ -63,6 +68,19 @@ export type MessagesHandle = {
   // they saw it up to `at`.
   readonly seenAt: (conversation: string, handle?: string) => number
   readonly seen: (conversation: string, at: number) => void
+}
+
+// The conversations left open, by terminal, kept by the session's messages for as long as
+// they live, so messages built again open where the person left them.
+const opens = new WeakMap<object, Kept<string | null>>()
+const noMessagesYet = {}
+const openIn = (messages: Messages | undefined): Kept<string | null> => {
+  const scope = messages ?? noMessagesYet
+  const known = opens.get(scope)
+  if (known) return known
+  const made = createKept<string | null>(64)
+  opens.set(scope, made)
+  return made
 }
 
 export const useMessages = (messages: Messages | undefined, key: TerminalKey): MessagesHandle => {
@@ -90,6 +108,8 @@ export const useMessages = (messages: Messages | undefined, key: TerminalKey): M
     [store, id],
   )
   return {
+    lastOpen: () => openIn(messages).get(id) ?? null,
+    keepOpen: (conversation) => openIn(messages).keep(id, conversation),
     threads,
     paused,
     pending,

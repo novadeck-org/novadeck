@@ -1,6 +1,15 @@
+import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
-import { workLimits, type Work, type WorkChange, type WorkMade } from "@novadeck/protocol"
+import {
+  previewLimits,
+  workLimits,
+  type Work,
+  type WorkChange,
+  type WorkMade,
+  type WorkPreview,
+  type WorkPreviewWork,
+} from "@novadeck/protocol"
 import { KeyedChanges } from "@novadeck/wire/server"
 
 import { waitAfter } from "../checkouts/git.js"
@@ -8,6 +17,7 @@ import { listChanges, type Listed } from "../checkouts/listing.js"
 import {
   branchOf,
   commonDir,
+  landedIn,
   mainBranch,
   mergeBase,
   mergeTrees,
@@ -16,14 +26,25 @@ import {
   type Main,
   type Merge,
 } from "../checkouts/repository.js"
+import type { Held } from "../checkouts/repository.js"
 import type { Snapshot, Snapshots } from "../checkouts/snapshots.js"
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
-import { conflictsOf, listFiles, mayConflict, type Lines } from "./lines.js"
+import { folderOf, projectPathOf, repoPath } from "./folder.js"
+import { conflictsOf, listFiles, mayConflict, type Detail, type Lines } from "./lines.js"
 import { loadRemembered, RememberedSaves, type Remembered } from "./memory.js"
 import { mergedWork } from "./merged.js"
+import { carry, oversized, textAt } from "./preview.js"
 
 const log = logs.for("works")
+
+/** What a preview answers of a file it does not read. */
+const unreadable = (unavailable: "secret" | "binary" | "big"): WorkPreview => ({
+  main: null,
+  unavailable,
+  works: [],
+  renames: [],
+})
 
 /** A git worktree Novadeck tracks, which is a work: its folder, its project, its owner if any. */
 export type Tracked = {
@@ -83,6 +104,13 @@ export type WorksOptions = {
    * not kept.
    */
   readonly memory?: string
+  /**
+   * A project's folder, for the work's `folder`; undefined where the project is unknown (its
+   * works then name no folder).
+   */
+  readonly projectFolder?: (projectId: string) => string | undefined
+  /** Which files (by full path) may hold secrets: a preview never reads them. */
+  readonly held?: () => Held
   /** How often each checkout is read, in milliseconds. */
   readonly everyMs?: number
   /**
@@ -112,6 +140,8 @@ type Read = {
   /** Nothing differs and it has commits of its own that main holds: its work was merged. */
   readonly merged: boolean
   readonly changed: ReadonlyMap<string, Lines>
+  /** How each changed file changed, and the object it is on the later side (see `Stamp`). */
+  readonly kinds: ReadonlyMap<string, Kind>
   /** The paths it touches: each file's, and a renamed one's old path too. */
   readonly touched: ReadonlySet<string>
   readonly unread: ReadonlyMap<string, Lines> | undefined
@@ -123,6 +153,32 @@ type Read = {
   /** Where the snapshot's objects are, which later git runs on it need. */
   readonly env: NodeJS.ProcessEnv | undefined
 }
+
+/** How a changed file changed, and its object on the later side of the listing. */
+type Kind = {
+  readonly status: Detail["status"]
+  readonly from?: string
+  readonly blob: string
+}
+
+/** When a file was first seen as the object it is now. */
+type Stamp = { readonly blob: string; readonly at: number }
+
+/**
+ * The stamps after a read: a file keeps its stamp while its object stays, gets `now` when it is
+ * new to the work or its object changed, and loses it when the work no longer changes it.
+ */
+const restamped = (
+  stamps: ReadonlyMap<string, Stamp>,
+  kinds: ReadonlyMap<string, Kind>,
+  now: number,
+): Map<string, Stamp> =>
+  new Map(
+    [...kinds].map(([path, { blob }]) => {
+      const before = stamps.get(path)
+      return [path, before?.blob === blob ? before : { blob, at: now }]
+    }),
+  )
 
 /** What is remembered, without the marks of files the work no longer changes. */
 const withoutUnchanged = (
@@ -136,6 +192,19 @@ const withoutUnchanged = (
   return kept.length === 0 ? rest : { ...rest, read: Object.fromEntries(kept) }
 }
 
+/** How each file of a listing changed. */
+const kindsOf = (listed: readonly Listed[]): Map<string, Kind> =>
+  new Map(
+    listed.map(({ path, status, oldPath, blob }) => [
+      path,
+      {
+        status,
+        ...(status === "renamed" && oldPath ? { from: oldPath } : {}),
+        blob,
+      },
+    ]),
+  )
+
 /** The lines of each file a listing has. */
 const linesOf = (listed: readonly Listed[]): Map<string, Lines> =>
   new Map(listed.map(({ path, added, removed }) => [path, { added, removed }]))
@@ -143,6 +212,8 @@ const linesOf = (listed: readonly Listed[]): Map<string, Lines> =>
 type RootState = {
   remembered: Remembered | undefined
   read: Read | undefined
+  /** When each changed file was first seen as it is; kept in memory only. */
+  stamps: ReadonlyMap<string, Stamp>
   /** Not read again before this time. */
   nextAt: number
 }
@@ -194,7 +265,7 @@ export class Works {
         ? Promise.resolve()
         : loadRemembered(options.memory).then((roots) => {
             for (const [root, remembered] of roots)
-              this.roots.set(root, { remembered, read: undefined, nextAt: 0 })
+              this.roots.set(root, { remembered, read: undefined, stamps: new Map(), nextAt: 0 })
             this.saved = this.serialized()
           })
     // A rebuilt object folder keeps the trees the works were last read as.
@@ -289,6 +360,116 @@ export class Works {
     for (const [watcher, owner] of this.watchers) if (owner === ownerId) watcher.finish()
   }
 
+  /**
+   * A file of a project (`path`, from its folder) as it would be once the project's works merge
+   * onto main: main's copy and, for each work that changes the file, its hunks carried onto it,
+   * read from the worktree as it is on disk now. Nothing of a file that may hold secrets, is
+   * binary or is too large (`unavailable`), and `main: null` and no works where no work lists it.
+   */
+  async preview(projectId: string, path: string): Promise<WorkPreview> {
+    if (!this.polling()) await this.scan(true)
+    const nothing: WorkPreview = { main: null, works: [], renames: [] }
+    const mine = [...this.published.values()].flatMap((work) => {
+      const name = work.folder === undefined ? undefined : repoPath(work.folder, path)
+      return work.projectId === projectId && work.folder !== undefined && name !== undefined
+        ? [{ work, folder: work.folder, name }]
+        : []
+    })
+    // A file main lacks because a work renamed another to it is read as the old file, which
+    // that work's changes are against, and what other works did to the old file goes with it.
+    const renamer = mine.flatMap(({ work, name }) => {
+      const file = work.files.find((each) => each.path === name && each.status === "renamed")
+      return file?.from === undefined ? [] : [{ work, file, from: file.from }]
+    })[0]
+    const source = renamer?.from ?? mine[0]?.name
+    if (source === undefined) return nothing
+    const listing = mine.flatMap(({ work, folder, name }) => {
+      const own = work.files.find((each) => each.path === name)
+      const old = source === name ? undefined : work.files.find((each) => each.path === source)
+      const file = own ?? (old?.status === "renamed" ? undefined : old)
+      if (!file) return []
+      // The path the work's copy has, and the path main's merge base has it at.
+      const there = file.path
+      const was = file.status === "renamed" ? (file.from ?? file.path) : file.path
+      return [{ work, folder, file, there, was }]
+    })
+    // The works that renamed the file itself, which main has, to another path.
+    const renames = mine.flatMap(({ work, folder, name }) => {
+      const file = work.files.find((each) => each.from === name && each.status === "renamed")
+      const to = file === undefined ? undefined : projectPathOf(folder, file.path)
+      return to === undefined
+        ? []
+        : [{ root: work.root, terminalId: work.terminalId, branch: work.branch, to }]
+    })
+    const first =
+      listing[0]?.work ??
+      mine.find(({ work }) => renames.some((each) => each.root === work.root))?.work
+    if (!first) return nothing
+    const held = this.options.held?.()
+    if (
+      held &&
+      [...listing.map(({ work, there }) => join(work.root, there)), join(first.root, source)].some(
+        held,
+      )
+    )
+      return unreadable("secret")
+    const main = await mainBranch(first.root)
+    if (!main) return nothing
+    const mainText = await textAt(first.root, `${main.commit}:${source}`)
+    if (mainText === undefined) throw new DomainError("NOT_FOUND", "Main's copy can't be read.")
+    const results = await Promise.all(
+      listing.map(({ work, folder, file, there, was }) =>
+        this.options.snapshots
+          .use(work.root, async (checkout) => {
+            const snapshot = await checkout.take(true)
+            if (!snapshot || snapshot.head === "") return undefined
+            const base = await mergeBase(work.root, main.commit, snapshot.head, snapshot.env)
+            const [theirs, before] = await Promise.all([
+              textAt(work.root, `${snapshot.tree}:${there}`, snapshot.env),
+              base === undefined ? null : textAt(work.root, `${base}:${was}`, snapshot.env),
+            ])
+            if (theirs === undefined || before === undefined) return undefined
+            const texts = [mainText, theirs, before]
+            if (texts.some((text) => text !== null && text.includes("\0"))) return "binary" as const
+            if (texts.some((text) => text !== null && text.length > previewLimits.text))
+              return "big" as const
+            const hunks = await carry(work.root, {
+              main: mainText ?? "",
+              base: before ?? "",
+              theirs: theirs ?? "",
+            })
+            if (!hunks) return undefined
+            if (oversized(hunks)) return "big" as const
+            const from =
+              file.status === "renamed" && file.from !== undefined
+                ? projectPathOf(folder, file.from)
+                : undefined
+            const found: WorkPreviewWork = {
+              root: work.root,
+              terminalId: work.terminalId,
+              branch: work.branch,
+              status: theirs === null ? "deleted" : before === null ? "added" : "modified",
+              changedAt: file.changedAt,
+              ...(from !== undefined && { renamedFrom: from }),
+              hunks,
+            }
+            return found
+          })
+          .catch(() => undefined),
+      ),
+    )
+    const refused = results.find((each) => each === "binary" || each === "big")
+    if (typeof refused === "string") return unreadable(refused)
+    return {
+      main: mainText,
+      works: results
+        .filter((each): each is WorkPreviewWork => typeof each === "object")
+        .filter((each) => each.hunks.length > 0 || each.renamedFrom !== undefined)
+        .slice(0, workLimits.conflicts),
+      renames: renames.slice(0, workLimits.conflicts),
+    }
+  }
+
   /** The person has read the work at `root` as it is now; NOT_FOUND without one. */
   async look(root: string): Promise<void> {
     const work = await this.workOf(root)
@@ -371,7 +552,7 @@ export class Works {
     // what it remembers from what is there when it ends, this mark too.
     let state = this.roots.get(root)
     if (!state) {
-      state = { remembered: undefined, read: undefined, nextAt: 0 }
+      state = { remembered: undefined, read: undefined, stamps: new Map(), nextAt: 0 }
       this.roots.set(root, state)
     }
     const remembered = state.remembered ?? { firstSeenAt: this.now(), watermark: null }
@@ -476,7 +657,7 @@ export class Works {
   private async readRoot(root: string, start: string | undefined): Promise<void> {
     let state = this.roots.get(root)
     if (!state) {
-      state = { remembered: undefined, read: undefined, nextAt: 0 }
+      state = { remembered: undefined, read: undefined, stamps: new Map(), nextAt: 0 }
       this.roots.set(root, state)
     }
     const started = this.now()
@@ -486,6 +667,7 @@ export class Works {
         // Not told by this read (git was slow, or failed): what was told stands.
       } else {
         state.read = outcome ?? undefined
+        state.stamps = restamped(state.stamps, outcome?.kinds ?? new Map(), started)
         // Nothing differs: merged, squashed in or just made. What was remembered starts over.
         if (outcome && outcome.changed.size === 0) state.remembered = undefined
         else if (outcome) {
@@ -554,25 +736,28 @@ export class Works {
   ): Promise<Read | "keep"> {
     const commit = await snapshotCommit(root, snapshot.tree, snapshot.head, snapshot.env)
     if (!commit) return "keep"
+    // Differs from nothing: merged, squashed in or just made.
+    const quiet = async (merged: boolean): Promise<Read> => ({
+      key,
+      commit,
+      tree: snapshot.tree,
+      branch,
+      base: main.name,
+      merged,
+      changed: new Map(),
+      kinds: new Map(),
+      touched: new Set(),
+      unread: undefined,
+      conflicts: [],
+      skipped: snapshot.skipped,
+      common: await commonDir(root),
+      env: snapshot.env,
+    })
     const nothing = async (): Promise<Read | "keep"> => {
       const merged = await mergedWork(root, main, snapshot.head, start)
       // Git failing is not an answer: what was told stands, and the next pass reads it again.
       if (merged === undefined) return "keep"
-      return {
-        key,
-        commit,
-        tree: snapshot.tree,
-        branch,
-        base: main.name,
-        merged,
-        changed: new Map(),
-        touched: new Set(),
-        unread: undefined,
-        conflicts: [],
-        skipped: snapshot.skipped,
-        common: await commonDir(root),
-        env: snapshot.env,
-      }
+      return quiet(merged)
     }
     const merge = await mergeTrees(root, main.commit, commit, snapshot.env)
     if (merge.state === "clean" && merge.tree === main.tree) return nothing()
@@ -583,6 +768,14 @@ export class Works {
     const changed = linesOf(listed)
     // Nothing differs from where it left main (or this git can't merge, and nothing differs).
     if (changed.size === 0) return nothing()
+    // It conflicts with main, but its work, uncommitted files and all, landed in main, which has
+    // changed the same lines again since (a squash merge, then more of main's own): merged. Work
+    // that merges cleanly but would change main is not: main reverted it, or it never landed.
+    if (
+      merge.state === "conflict" &&
+      (await landedIn(root, main, commit, snapshot.env)) !== undefined
+    )
+      return quiet(true)
     let unread: ReadonlyMap<string, Lines> | undefined
     if (watermark !== null) {
       const since = await listChanges(root, watermark, snapshot.tree, snapshot.env)
@@ -602,6 +795,7 @@ export class Works {
       base: main.name,
       merged: false,
       changed,
+      kinds: kindsOf(listed),
       touched: new Set(listed.flatMap(({ path, oldPath }) => (oldPath ? [path, oldPath] : [path]))),
       unread,
       conflicts:
@@ -621,19 +815,48 @@ export class Works {
       .map((row) => ({
         ...row,
         read: this.roots.get(row.root)?.read,
+        stamps: this.roots.get(row.root)?.stamps,
         remembered: this.roots.get(row.root)?.remembered,
       }))
       .filter((each): each is typeof each & { read: Read } => each.read !== undefined)
     const between = await this.between(reads)
     const owners = new Map(reads.map(({ root, terminalId }) => [root, terminalId]))
+    const folders = new Map(
+      await Promise.all(
+        reads.map(
+          async ({ root, projectId, read }) =>
+            [root, await folderOf(this.options.projectFolder?.(projectId), read.common)] as const,
+        ),
+      ),
+    )
     const found = new Map<string, Work>()
-    for (const { root, terminalId, projectId, createdAt, fetchedAt, read, remembered } of reads) {
+    for (const {
+      root,
+      terminalId,
+      projectId,
+      createdAt,
+      fetchedAt,
+      read,
+      remembered,
+      stamps,
+    } of reads) {
       const mine = between.get(root) ?? new Map<string, Set<string>>()
       const conflicting = new Set([
         ...(read.conflicts ?? []),
         ...[...mine.values()].flatMap((f) => [...f]),
       ])
-      const listed = listFiles(read.changed, read.unread, conflicting)
+      const details = new Map<string, Detail>(
+        [...read.kinds].map(([path, { status, from }]) => [
+          path,
+          {
+            status,
+            ...(from !== undefined && { from }),
+            changedAt: stamps?.get(path)?.at ?? 0,
+          },
+        ]),
+      )
+      const listed = listFiles(read.changed, read.unread, conflicting, details)
+      const folder = folders.get(root)
       found.set(root, {
         root,
         terminalId,
@@ -655,6 +878,7 @@ export class Works {
         unreadRemoved: listed.totalUnread.removed,
         files: listed.files,
         truncated: listed.truncated || read.skipped,
+        ...(folder !== undefined && { folder }),
         conflicts: conflictsOf(
           (read.conflicts?.length ?? 0) > 0,
           [...mine.keys()].map((other) => ({ root: other, terminalId: owners.get(other) ?? null })),

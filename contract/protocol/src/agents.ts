@@ -3,6 +3,7 @@ import { z } from "zod"
 import { requestDialog } from "./dialogs.js"
 import { directory, id } from "./fields.js"
 import { agentNames } from "./harnesses.js"
+import { singleLine } from "./text.js"
 
 // Agents whose sessions Novadeck identifies and can resume once connected: Claude Code,
 // Codex and Antigravity. An agent session id is what the agent itself names its
@@ -137,6 +138,10 @@ export const agentActivity = z.strictObject({
       }),
     )
     .max(agentLimits.subagents),
+  // The absolute path its write/edit tools (root or a subagent) wrote last in the turn that
+  // runs now, updated by each write, one already written again included. Absent while no
+  // turn runs, and until the turn writes something.
+  wrote: z.string().min(1).max(maxTurnFilePath).optional(),
   // How its latest turn ended: `completed` as its harness said, `failed` on an error,
   // `interrupted` by the person (Escape, or a request they refused, as its hooks or records
   // tell), or `unknown` when it only went idle, as an Escape or a refusal shows in
@@ -324,6 +329,15 @@ export const agentIntegration = z.strictObject({
   // `own-status-line`, Antigravity on Windows running the person's own status line, which
   // keeps Novadeck's out, so it is never seen Ready at its first prompt.
   limited: z.enum(["own-status-line"]).optional(),
+  // The command that installs the agent here, as a terminal runs it at its first prompt, for
+  // an agent that is not `available`: what the person sees before choosing to run it. Absent
+  // from a runner from before it, and once the agent is installed.
+  installer: z
+    .string()
+    .min(1)
+    .max(4096)
+    .regex(singleLine, "A command must be one line, without control characters.")
+    .optional(),
 })
 
 /**

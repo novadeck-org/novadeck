@@ -36,6 +36,11 @@ const slots = [
   { handle: crow, terminalId: demoTerminalId(session, 4) },
 ]
 
+// The storefront terminal of the agent with the handle, if it is one that changes files.
+export const terminalOfHandle = (handle: string): string | undefined =>
+  slots.find((slot) => slot.handle === handle)?.terminalId ??
+  (handle === sourceThird ? demoTerminalId(session, 3) : undefined)
+
 // The handles of the storefront agents that work, asking nothing of the person, as the seed
 // opens them: the ones that write by themselves (Moth and Crow).
 export const workingInSeed = (seed: WorkspaceSeed): readonly string[] =>
@@ -137,6 +142,35 @@ export const writeTo = (
     ...project,
     changes: { ...project.changes, [path]: file(kind, { ...was?.touched, [handle]: at }) },
     writing: { ...project.writing, [handle]: path },
+  }
+}
+
+// The project with `handle`'s change to `path` as `kind` (at `at`), or, with no kind, with it
+// no longer changing it: the file is as the others' changes leave it, and gone from the changes
+// when nobody is left.
+export const markIn = (
+  project: SourceProject,
+  handle: string,
+  path: string,
+  kind: SourceFile["kind"] | undefined,
+  at: number,
+): SourceProject => {
+  const was = project.changes[path]
+  if (kind !== undefined)
+    return {
+      ...project,
+      changes: { ...project.changes, [path]: file(kind, { ...was?.touched, [handle]: at }) },
+    }
+  if (!was || !(handle in was.touched)) return project
+  const { [handle]: _, ...touched } = was.touched
+  const { [path]: gone, ...rest } = project.changes
+  void gone
+  return {
+    ...project,
+    changes:
+      Object.keys(touched).length === 0
+        ? rest
+        : { ...rest, [path]: file(entries.includes(path) ? "modified" : "added", touched) },
   }
 }
 
@@ -352,6 +386,8 @@ export type DemoSource = Source & {
   readonly degrade: (folder: string, fault: SourceFault | undefined) => void
   // Has `handle` write a file now, `path` or else the one it would next, as its turn goes on.
   readonly write: (handle: string, path?: string) => void
+  // Has `handle` change `path` as `kind` without writing it now, or no longer change it.
+  readonly mark: (handle: string, path: string, kind: SourceFile["kind"] | undefined) => void
   // Drops `handle`'s cursor: it is writing nothing until it writes again. Its agent's turn
   // is not touched.
   readonly endTurn: (handle: string) => void
@@ -401,6 +437,8 @@ export const createDemoSource = (
       ),
     )
   const endTurn = (handle: string): void => change((project) => endTurnIn(project, handle))
+  const mark = (handle: string, path: string, kind: SourceFile["kind"] | undefined): void =>
+    change((project) => markIn(project, handle, path, kind, clock.now()))
 
   const faults = new Map<string, SourceFault>()
   const degrade = (folder: string, fault: SourceFault | undefined): void => {
@@ -494,7 +532,7 @@ export const createDemoSource = (
     }
   }
 
-  return { state, list, degrade, write, endTurn, start, close, halt }
+  return { state, list, degrade, write, mark, endTurn, start, close, halt }
 }
 
 // A backend with the demo's Source for the storefront project.

@@ -184,10 +184,12 @@ describe("an Inbox row's agent context", () => {
         box: null,
       }))
     })
-    expect(seen.at(-1)).toEqual({
+    expect(seen.at(-1)).toMatchObject({
       said: { text: "run the suite and report", at: 9 },
       steps: [{ kind: "run", tool: "Bash", arg: "pnpm test", result: "Tests  48 passed (48)" }],
     })
+    // The call its step came from, as the chat draws it.
+    expect(seen.at(-1)?.entries.map((entry) => entry.run?.detail)).toEqual(["pnpm test"])
     unmount()
   })
 

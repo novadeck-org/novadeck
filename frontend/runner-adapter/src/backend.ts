@@ -126,6 +126,7 @@ export type RunnerBackendOptions = {
   // Where the app shows the Inbox count on the app icon.
   readonly badge?: Backend["badge"]
   readonly windowFocus?: Backend["windowFocus"]
+  readonly panePicture?: Backend["panePicture"]
   // Where the app offers the update it has downloaded.
   readonly updates?: Backend["updates"]
   readonly version?: Backend["version"]
@@ -2028,6 +2029,7 @@ export const runnerBackend = (
     ...(options.notices ? { notices: options.notices } : {}),
     ...(options.badge ? { badge: options.badge } : {}),
     ...(options.windowFocus ? { windowFocus: options.windowFocus } : {}),
+    ...(options.panePicture ? { panePicture: options.panePicture } : {}),
     ...(options.updates ? { updates: options.updates } : {}),
     ...(options.version ? { version: options.version } : {}),
     ...(options.openLogs ? { openLogs: options.openLogs } : {}),

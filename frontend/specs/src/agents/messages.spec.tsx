@@ -168,9 +168,9 @@ describe("A terminal's messages", () => {
       expect(reply.getBoundingClientRect().left).toBeGreaterThanOrEqual(bounds.left)
       expect(reply.getBoundingClientRect().right).toBeLessThanOrEqual(bounds.right)
       await chat.getByRole("button", { name: "Answer: Where should the empty cart link?" }).click()
-      await expect
-        .element(page.getByRole("heading", { name: "Where should the empty cart link?" }))
-        .toBeVisible()
+      // Its sheet's card, headed as the chat's, with what it asks under its title.
+      const card = page.getByRole("dialog").getByRole("article", { name: /^Has a question/ })
+      await expect.element(card.getByText("Where should the empty cart link?")).toBeVisible()
     })
   })
 })

@@ -56,6 +56,7 @@ import {
   pageLookChannel,
   pagePictureChannel,
   pagePhoneChannel,
+  panePictureChannel,
   portableChannel,
   rendererPoolChannel,
   quitAppChannel,
@@ -402,6 +403,19 @@ const bridge = {
       width,
       forLook === true,
     )
+    return typeof picture === "string" && picture.startsWith("data:image/jpeg;base64,")
+      ? picture
+      : undefined
+  },
+  // Only the rectangle's four numbers cross, and only a JPEG picture comes back; the main
+  // process checks the rectangle again.
+  panePicture: async (rect) => {
+    const picture: unknown = await ipcRenderer.invoke(panePictureChannel, {
+      x: Number(rect?.x),
+      y: Number(rect?.y),
+      width: Number(rect?.width),
+      height: Number(rect?.height),
+    })
     return typeof picture === "string" && picture.startsWith("data:image/jpeg;base64,")
       ? picture
       : undefined

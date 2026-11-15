@@ -30,15 +30,18 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
   sidebarPanel: PanelId
   sidebarVisible: boolean
   // Where the backend has a source: what its agents changed in the project, if it says, how to
-  // read a folder, when an agent's turn last ended, how to open a file, the handle of the
-  // selected terminal, and the session's agents for the strip: every terminal's handle in roster
-  // order, and the teams as handles, each lead first. Left out, there is no Source panel.
+  // read a folder, when an agent's turn last ended, how to follow the works the changes come
+  // from while the panel shows, if they do, how to open a file, the handle of the selected
+  // terminal, and the session's agents for the strip: every terminal's handle in roster order,
+  // and the teams as handles, each lead first. Left out, there is no Source panel.
   source:
     | {
         project: SourceProject | undefined
         list: (folder: string) => Promise<SourceListing>
         turn: number
+        watch: (() => () => void) | undefined
         onOpenFile: (path: string) => Promise<void>
+        onLit?: ((lit: ReadonlySet<string>) => void) | undefined
         selectedHandle: string | undefined
         roster: readonly string[]
         squads: readonly (readonly string[])[]
@@ -71,6 +74,10 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
         projects: ReadonlyMap<string, string>
         selectedId: string | undefined
         onSelect: (work: Work, on: string | undefined) => Promise<void>
+        // Whether a file of a work can be opened so: it is in the open project.
+        canOpenFile: (work: Work, path: string) => boolean
+        // Opens a file of a work in the project window as a preview of what the works merge to.
+        onOpenFile: (work: Work, path: string) => void
         onCloseWork: (root: string, force: boolean) => Promise<WorkClosing>
       }
     | undefined
@@ -127,7 +134,9 @@ export const WorkspaceSidebar = ({
         project={source.project}
         list={source.list}
         turn={source.turn}
+        watch={source.watch}
         onOpenFile={source.onOpenFile}
+        onLit={source.onLit}
         selectedHandle={source.selectedHandle}
         roster={source.roster}
         squads={source.squads}

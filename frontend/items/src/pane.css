@@ -7,14 +7,24 @@
    the agent's changes (`.plan-changes-toggle`, toned as a warning) and its hints
    (`.pane-meta-hint`), and under it the notice for edits that can't be saved
    (`.plan-notice`); an item placed from another terminal
-   sits under a line saying whose it is (`.placed-from`).
+   sits under a line saying whose it is (`.placed-from`). Under the header of what the
+   terminal's pane shows of a stack, the stack's tabs (`.pane-tabs`), each a `.pane-tab`
+   holding its button (`.pane-tab-open`, its name in `.pane-tab-name`) and its close
+   (`.pane-tab-close`, an `.icon-button`); above the reader, the icons open behind it
+   (`.pane-stack`), each a `.pane-stack-sheet`, an edge that lifts to its label. Until its
+   turn to be built and laid out (pane-turns.ts), what the pane shows stands in as its
+   icon and name (`.pane-stand-in`, its name in `.pane-stand-in-name`), or a picture of the
+   pane as it was last drawn (`.pane-stand-in-picture`, the stand-in data-pictured).
 
    Hooks: on the split's pane, data-state="open" | "closed" as
    they come and go; on what it shows (`.pane-sheet`), data-entry="forward" |
-   "arrive" as it comes to the top, and on a sheet behind, data-entry="tuck" as it goes
-   there; on the reader's body, data-outline="false" without headings; on an
-   outline entry, data-changed="true" where the agent's changes are; on the changes
-   toggle, aria-pressed="true" while the changes show.
+   "arrive" as it comes to the top and data-waiting while it waits its turn, and on a
+   sheet behind, data-entry="tuck" as it goes there, and data-state="new" while its
+   icon holds something new; on a tab, data-state="open" for the one shown and "new"
+   for something new, and on its button aria-selected; on the reader's body,
+   data-outline="false" without headings; on an outline entry, data-changed="true"
+   where the agent's changes are; on the changes toggle, aria-pressed="true" while the
+   changes show.
 
    Tokens, each optional (its fallback in brackets):
    --pane-bg (paper): the reader and an undocked window.
@@ -24,6 +34,13 @@
    the pane shows, under the pointer.
    --pane-stack-shadow-color (shadow, 16% in light and 55% in dark): what each sheet in
    front casts on the one behind it.
+   --pane-stack-fg (muted), --pane-stack-name-fg (ink): a sheet's label, and its kind or
+   name.
+   --pane-tabs-bg (shell), --pane-tabs-border-color (line): the tab row.
+   --pane-tab-fg (muted), --pane-tab-hover-bg (soft), --pane-tab-hover-fg (ink): a tab.
+   --pane-tab-open-bg (paper), --pane-tab-open-fg (ink), --pane-tab-open-mark-bg (ink):
+   the tab shown, and the line along its top.
+   --pane-tab-new-bg (ink): the dot of a tab with something new.
    --spine-bg (shell), --spine-border-color (line): the outline.
    --spine-label-fg (muted): its label.
    --spine-fg (muted), --spine-hover-bg (soft), --spine-hover-fg (ink): an entry.
@@ -31,6 +48,7 @@
    --spine-changed-bg (warning-fg): the dot by a changed entry.
    --pane-meta-hint-fg (warning-fg): what keeps an item from saving, or reading whole.
    --plan-changes-action-bg (paper): the changes toggle's Show or Hide.
+   --pane-stand-in-fg (muted): what stands in for what the pane shows until its turn.
    --placed-from-bg (shell), --placed-from-fg (muted), --placed-from-border-color (line):
    whose a placed item is. */
 
@@ -165,30 +183,55 @@
   }
 }
 
-/* What's open behind what the pane shows peeks out above it (`.pane-stack`): a card's
-   top edge for each of one or two (`.pane-stack-sheet`), each further back narrower and
-   fainter, as cards stacked behind one another are, the nearest last. What's shown
-   sits under them, an edge of its own just clear of the window's header while nothing's
-   behind. */
+/* The icons open behind what the pane shows peek out above it (`.pane-stack`, `--_count` of
+   them) as the cards of a file drawer do: a thin edge for each (`.pane-stack-sheet`,
+   `--_depth` 0 the nearest, the nearest last), each further back narrower and fainter.
+   The one under the pointer lifts out of the row to show its label, the one behind it rises
+   a little and the one in front comes clearer, so running the pointer along them leafs
+   through them. The row keeps its height, with room above for a lifted card and the one
+   behind it, and cards only rise up out of it, so neither what's shown nor the card under
+   the pointer moves, wherever on its edge the pointer comes in. What's shown sits under
+   them, an edge of its own just clear of the window's header while nothing's behind. */
 .pane-stack {
+  --_rest: 9px;
+  --_lift: 20px;
+  --_nudge: 5px;
   display: flex;
   flex: none;
   flex-direction: column;
   justify-content: flex-end;
   align-items: center;
 }
+.pane-stack:not(:empty) {
+  box-sizing: content-box;
+  height: calc(
+    var(--_lift) + min(var(--_count, 0) - 1, 1) * var(--_nudge) + var(--_count, 0) * var(--_rest)
+  );
+  /* Keeps the reach of the card furthest back to the row. */
+  overflow: hidden;
+}
 .pane-split-reader > .pane-stack {
   /* Clear of the window's header, with nothing behind too. */
   padding-top: 4px;
 }
 .pane-stack-sheet {
-  --_inset: 6px;
-  --_fade: 0.8;
+  /* Narrower to the fourth back, so a long row keeps each card wide enough to read. */
+  --_inset: calc(6px + min(var(--_depth, 0), 4) * 8px);
+  --_fade: max(0.4, 0.9 - var(--_depth, 0) * 0.25);
   position: relative;
-  display: block;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
   width: calc(100% - 2 * var(--_inset));
-  height: 4px;
-  padding: 0;
+  height: var(--_rest);
+  padding: 0 10px;
+  overflow: hidden;
+  border-radius: var(--radius-control) var(--radius-control) 0 0;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  white-space: nowrap;
+  color: var(--pane-stack-fg, var(--color-muted));
   /* Edged as what the pane shows is. */
   border: var(--border-width) solid var(--pane-border-color, var(--color-line));
   border-bottom: none;
@@ -196,28 +239,73 @@
   opacity: var(--_fade);
   cursor: pointer;
   transition:
+    height var(--motion-feedback) var(--ease-interface),
     opacity var(--motion-feedback) var(--ease-interface),
-    border-color var(--motion-feedback) var(--ease-interface);
+    border-color var(--motion-feedback) var(--ease-interface),
+    box-shadow var(--motion-feedback) var(--ease-interface);
 }
-/* Under the pointer it comes clear and its edge darkens, staying where it is. */
-.pane-stack-sheet:hover {
+.pane-stack-sheet > * {
+  opacity: 0;
+  transition: opacity var(--motion-feedback) var(--ease-interface);
+}
+/* Under the pointer, or focused, it lifts to its label, comes clear and its edge darkens,
+   casting further onto the one behind it. */
+.pane-stack-sheet:is(:hover, :focus-visible) {
+  height: calc(var(--_rest) + var(--_lift));
   opacity: 1;
   border-color: var(--pane-stack-hover-border-color, var(--color-line-strong));
+  box-shadow: 0 -2px 6px -2px var(--_cast);
 }
-/* Thin as it is, the pointer finds the furthest back a little above it too, where nothing
-   else is. */
-.pane-stack-sheet:first-child::before {
+/* The one behind it rises a little, and the one in front comes clearer, as a finger
+   leafing through parts them. The one in front keeps its height, which would push the one
+   lifted out from under the pointer. */
+.pane-stack-sheet:has(+ .pane-stack-sheet:is(:hover, :focus-visible)) {
+  height: calc(var(--_rest) + var(--_nudge));
+  opacity: calc(var(--_fade) + 0.1);
+}
+.pane-stack-sheet:is(:hover, :focus-visible) + .pane-stack-sheet {
+  opacity: calc(var(--_fade) + 0.1);
+}
+.pane-stack-sheet:is(:hover, :focus-visible) > * {
+  opacity: 1;
+}
+/* Without a pointer to lift them, each shows its label. */
+@media (hover: none) {
+  .pane-stack {
+    --_rest: 22px;
+    --_lift: 0px;
+    --_nudge: 0px;
+  }
+  .pane-stack-sheet > * {
+    opacity: 1;
+  }
+}
+.pane-stack-sheet svg {
+  flex-shrink: 0;
+}
+.pane-stack-sheet b {
+  font-weight: var(--font-weight-medium);
+  color: var(--pane-stack-name-fg, var(--color-ink));
+}
+.pane-stack-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Its icon holds something new: a dot at its end, as the taskbar marks it. */
+.pane-stack-sheet[data-state="new"]::after {
+  flex-shrink: 0;
+  width: 4px;
+  height: 4px;
+  margin-left: auto;
+  border-radius: 50%;
+  background-color: var(--pane-tab-new-bg, var(--color-ink));
   content: "";
-  position: absolute;
-  inset: -3px 0 0;
-}
-.pane-stack-sheet:first-child:not(:last-child) {
-  --_inset: 12px;
-  --_fade: 0.5;
 }
 .pane-stack-sheet:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
-  outline-offset: 1px;
+  /* Inside, as the row clips what's outside it. */
+  outline-offset: calc(-1 * var(--focus-ring-width));
 }
 /* What's shown covers the sheets behind it, as one tucking in slides from under it. */
 .pane-stack + .pane-reader {
@@ -244,6 +332,105 @@
 }
 .pane-split-reader > .pane-stack:not(:empty) + .pane-reader {
   box-shadow: 0 -2px 5px -2px var(--_cast);
+}
+
+/* The tabs of a stack, under the header of what the pane shows: one row, scrolling sideways
+   under a thin bar when there are more than fit, the one shown joined to what's under it. */
+.pane-tabs {
+  display: flex;
+  flex: none;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  border-bottom: var(--border-width) solid var(--pane-tabs-border-color, var(--color-line));
+  background-color: var(--pane-tabs-bg, var(--color-shell));
+}
+.pane-tab {
+  --_bg: transparent;
+  --_fg: var(--pane-tab-fg, var(--color-muted));
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  max-width: 220px;
+  margin-bottom: calc(var(--border-width) * -1);
+  border-right: var(--border-width) solid var(--pane-tabs-border-color, var(--color-line));
+  background-color: var(--_bg);
+  color: var(--_fg);
+  transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    color var(--motion-feedback) var(--ease-interface);
+}
+.pane-tab:hover {
+  --_bg: var(--pane-tab-hover-bg, var(--color-soft));
+  --_fg: var(--pane-tab-hover-fg, var(--color-ink));
+}
+.pane-tab[data-state="open"] {
+  --_bg: var(--pane-tab-open-bg, var(--pane-bg, var(--color-paper)));
+  --_fg: var(--pane-tab-open-fg, var(--color-ink));
+}
+.pane-tab[data-state="open"]::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background-color: var(--pane-tab-open-mark-bg, var(--color-ink));
+  content: "";
+}
+.pane-tab-open {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 34px;
+  padding: 0 4px 0 12px;
+  color: inherit;
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
+}
+.pane-tab-open svg {
+  flex-shrink: 0;
+}
+.pane-tab-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pane-tab[data-state="new"] .pane-tab-name::after {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background-color: var(--pane-tab-new-bg, var(--color-ink));
+  vertical-align: 2px;
+  content: "";
+}
+.pane-tab-open:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+/* Its close, the pointer's, shows on the tab shown, and on any under the pointer or
+   holding focus. */
+.pane-tab-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  margin-right: 6px;
+  padding: 0;
+  opacity: 0;
+}
+.pane-tab:is([data-state="open"], :hover, :focus-within) .pane-tab-close {
+  opacity: 1;
+}
+@media (hover: none) {
+  .pane-tab-close {
+    opacity: 1;
+  }
 }
 
 /* A sheet just shown, tucking in behind what took its place: it slides up from under it
@@ -273,6 +460,45 @@
 }
 .pane-sheet[data-entry="arrive"] {
   animation: pane-sheet-arrive var(--motion-state) var(--ease-interface);
+}
+/* Waiting its turn: what it shows, once built, keeps its state but isn't laid out or
+   painted, and its stand-in shows over its place. */
+.pane-sheet[data-waiting] {
+  position: relative;
+}
+.pane-sheet[data-waiting] > :not(.pane-stand-in) {
+  content-visibility: hidden;
+}
+.pane-stand-in {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  color: var(--pane-stand-in-fg, var(--color-muted));
+}
+.pane-stand-in-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A picture of the pane as it was last drawn, where there is one at its size, over its icon
+   and name, which hold its place for whoever reads it. */
+.pane-stand-in-picture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.pane-stand-in[data-pictured] > :not(.pane-stand-in-picture) {
+  visibility: hidden;
 }
 @keyframes pane-sheet-forward {
   from {

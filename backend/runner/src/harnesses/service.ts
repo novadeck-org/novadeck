@@ -123,9 +123,10 @@ const loginEnvironment = (
     : loginShellEnvironment(env, signal, timeoutMs)
 
 /**
- * The program to run, by its absolute path: the one on PATH, or where the harness's installer
- * puts it otherwise. Never one in the runner's working folder, which Windows would search
- * first (see `findProgram`); undefined where there is none.
+ * The program to run, by its absolute path: the one on PATH, or where the harness's installers
+ * put it otherwise (see `Harness.fallbacks`), which a PATH read before the install lacks.
+ * Never one in the runner's working folder, which Windows would search first (see
+ * `findProgram`); undefined where there is none.
  */
 export const locate = async (
   program: string,
@@ -134,9 +135,20 @@ export const locate = async (
 ): Promise<string | undefined> => {
   const found = findProgram(program, { env: install.env, platform: install.platform })
   if (found) return found
-  const fallback = program === harness.id ? harness.fallback?.(install.home) : undefined
-  return fallback && (await exists(fallback)) ? fallback : undefined
+  if (program !== harness.id) return undefined
+  for (const fallback of harness.fallbacks?.(install) ?? [])
+    // eslint-disable-next-line no-await-in-loop -- The first that is there wins.
+    if (await exists(fallback)) return fallback
+  return undefined
 }
+
+/**
+ * Whether the harness is installed here: its home is there, or its program can be found.
+ * A program freshly installed and never run has no home yet.
+ */
+const installedIn = async (harness: Harness, install: Install): Promise<boolean> =>
+  (await exists(harness.home(install))) ||
+  (await locate(harness.id, harness, install)) !== undefined
 
 /** How an agent's commands run: in `cwd`, the person's home, with `env`, for `timeoutMs` at most. */
 type Settings = {
@@ -231,11 +243,14 @@ const steps = async (
 const state = async (harness: Harness, install: Install): Promise<AgentIntegration> => {
   const connected = await harness.connected(install)
   const limited = connected ? await harness.limited?.(install).catch(() => undefined) : undefined
+  const available = await installedIn(harness, install)
   return {
     agent: harness.id,
-    available: await exists(harness.home(install)),
+    available,
     connected,
     ...(limited !== undefined && { limited }),
+    // What the person can run to get it, while it is missing.
+    ...(!available && { installer: harness.installer(install.platform) }),
   }
 }
 
@@ -258,20 +273,40 @@ export const createHarnesses = (
   let latest: NodeJS.ProcessEnv | undefined
   // The same with the tools' variables as the shell has them, for `environment` alone.
   let person: NodeJS.ProcessEnv | undefined
-  const lookUp = () =>
-    (options.login === false
-      ? Promise.resolve(base)
-      : loginEnvironment(base, platform, relay, closing.signal, options.loginTimeoutMs ?? 10_000)
-    ).then((found) => {
-      person = found
-      latest = forAgents(found, base)
-      return latest
-    })
+  // The lookup under way, which callers that ask meanwhile share: one shell answers them all.
+  let looking: Promise<NodeJS.ProcessEnv> | undefined
+  const lookUp = (): Promise<NodeJS.ProcessEnv> =>
+    (looking ??= (
+      options.login === false
+        ? Promise.resolve(base)
+        : loginEnvironment(base, platform, relay, closing.signal, options.loginTimeoutMs ?? 10_000)
+    )
+      .then((found) => {
+        person = found
+        latest = forAgents(found, base)
+        return latest
+      })
+      .finally(() => {
+        looking = undefined
+      }))
   void lookUp()
-  // Where each harness lives, once the shell files say where its plugin is.
-  const installs = async (fresh = false) => {
+  // A lookup begun after it is asked for, as a look after an install needs: one under way
+  // may have started before the install changed the startup files, so it waits that one
+  // out and asks the shell again. Fresh looks asked for together share that one shell.
+  let renewing: Promise<NodeJS.ProcessEnv> | undefined
+  const lookAfresh = (): Promise<NodeJS.ProcessEnv> =>
+    (renewing ??= (looking ?? Promise.resolve())
+      .catch(() => {})
+      .then(lookUp)
+      .finally(() => {
+        renewing = undefined
+      }))
+  // Where each harness lives, once the shell files say where its plugin is. `shared` waits
+  // for the lookup under way, or starts one; `fresh` for one begun after it is asked for.
+  const installs = async (look: "latest" | "shared" | "fresh" = "latest") => {
     const shell = await paths()
-    const env = fresh ? await lookUp() : (latest ?? base)
+    const env =
+      look === "fresh" ? await lookAfresh() : look === "shared" ? await lookUp() : (latest ?? base)
     return (
       shell &&
       ((agent: AgentName): Install => ({ env, home, platform, plugin: shell.plugins[agent] }))
@@ -291,13 +326,13 @@ export const createHarnesses = (
   }
   // Installs or removes the plugin in the agent, as `set` does, in its turn.
   const apply = async (agent: AgentName, connected: boolean): Promise<AgentIntegration> => {
-    const install = await installs(true)
+    const install = await installs("shared")
     const env = latest ?? base
     const settings = { cwd: home, env, platform, timeoutMs }
     if (!install) throw new DomainError("AGENT_SETUP_FAILED", "Shell integration is unavailable.")
     const harness = harnesses[agent]
     const where = install(agent)
-    if (!(await exists(harness.home(where))))
+    if (!(await installedIn(harness, where)))
       throw new DomainError("AGENT_SETUP_FAILED", `${agent} is not installed here.`)
     const settle = async (step: "apply" | "revert") => {
       try {
@@ -342,7 +377,7 @@ export const createHarnesses = (
       try {
         const where = (await installs())?.(agent)
         const harness = harnesses[agent]
-        if (!where || !(await exists(harness.home(where)))) return []
+        if (!where || !(await installedIn(harness, where))) return []
         return await harness.launch.models(where)
       } catch (error) {
         log.warn("harnesses.models-failed", `Novadeck could not list ${agent}'s models`, {
@@ -394,8 +429,16 @@ export const createHarnesses = (
       )
       return shimmed.filter((_, index) => connected[index])
     },
-    list: async (): Promise<AgentIntegration[]> => {
-      const install = await installs()
+    /**
+     * Where each agent stands, by the login environment already read. With `fresh` it is
+     * read again first, so a program the person has just installed shows once their PATH
+     * says where it is; that spawns their login shell, so only the look after an install
+     * asks for it.
+     */
+    list: async (look?: { readonly fresh?: boolean | undefined }): Promise<AgentIntegration[]> => {
+      const install = await installs(
+        look?.fresh === true && !closing.signal.aborted ? "fresh" : "latest",
+      )
       if (!install) return agents.map((agent) => ({ agent, available: false, connected: false }))
       return Promise.all(agents.map((agent) => state(harnesses[agent], install(agent))))
     },

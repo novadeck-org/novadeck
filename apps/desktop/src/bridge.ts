@@ -179,6 +179,13 @@ export const openLogsChannel = "novadeck:open-logs"
 export const pagePictureChannel = "novadeck:page-picture"
 
 /**
+ * Renderer-to-main request for a picture of a part of the app's own page, `{ x, y, width,
+ * height }` in CSS pixels of its viewport, as a companion pane is drawn there now; answers a
+ * JPEG `data:` address or undefined. See `picturePane`.
+ */
+export const panePictureChannel = "novadeck:pane-picture"
+
+/**
  * Renderer-to-main request for a look at a page loaded afresh, out of sight, `{ url, layout }`;
  * answers a `DesktopPageLook`. See the viewers' `createLooker`.
  */

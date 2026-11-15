@@ -19,6 +19,8 @@ const file = (
   extra: Partial<WorkFile> = {},
 ): WorkFile => ({
   path,
+  status: "modified",
+  changedAt: 1,
   added,
   removed,
   unreadAdded: added,
@@ -85,7 +87,7 @@ describe("the Changes panel's rows", () => {
     expect(alone[0]?.project).toBeUndefined()
   })
 
-  it("marks a merged work, unless it conflicts, which wins", () => {
+  it("marks a merged work, which wins over a conflict", () => {
     const rows = changeRows(
       [
         work("a", 1, { merged: true, files: [] }),
@@ -96,7 +98,7 @@ describe("the Changes panel's rows", () => {
     )
     expect(rows.map((row) => [row.merged, row.conflict])).toEqual([
       [true, false],
-      [false, true],
+      [true, false],
       [false, false],
     ])
   })

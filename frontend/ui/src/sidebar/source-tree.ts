@@ -1,5 +1,14 @@
-import type { SourceChange, SourceListing, SourceProject } from "@novadeck/core/source"
+import {
+  trailGone,
+  trailLifeMs,
+  trailOpacity,
+  type SourceChange,
+  type SourceListing,
+  type SourceProject,
+} from "@novadeck/core/source"
 import { handleText } from "@novadeck/core/terminals/handle"
+
+import { dimmedBy } from "./source-agents"
 
 // The Source panel's rules, apart from how it draws: the tree the project's folders and an
 // agent's work grow in, which agents a row names, which row a write lights up, and how long a
@@ -208,25 +217,32 @@ export const initialOpen = (tree: readonly SourceNode[]): ReadonlySet<string> =>
 }
 
 // The lines on screen, top to bottom: a folder's children follow it while it is open, then a
-// note of what its listing lacks; `rootTruncated` ends the root's with one too.
+// note of what its listing lacks; `rootTruncated` ends the root's with one too. With agents in
+// `only`, the tree holds just their work: the files they touched or are writing and the folders
+// those are in. What a listing lacks doesn't matter then, as their files are there whether or not
+// it lists them, so no notes.
 export const visibleLines = (
   tree: readonly SourceNode[],
   open: ReadonlySet<string>,
   rootTruncated = false,
+  only: ReadonlySet<string> = new Set(),
 ): readonly SourceLine[] => {
   const lines: SourceLine[] = []
+  const filtered = only.size > 0
   const visit = (node: SourceNode, depth: number): void => {
+    if (dimmedBy(node, only)) return
     const isOpen = expandable(node) && open.has(node.path)
     lines.push({ node, depth, open: isOpen })
     if (!isOpen) return
     node.children.forEach((child) => visit(child, depth + 1))
+    if (filtered) return
     if (node.read === "failed") lines.push({ note: "failed", path: node.path, depth: depth + 1 })
     else if (node.truncated) lines.push({ note: "truncated", path: node.path, depth: depth + 1 })
     else if (node.read === "read" && node.children.length === 0)
       lines.push({ note: "empty", path: node.path, depth: depth + 1 })
   }
   tree.forEach((node) => visit(node, 0))
-  if (rootTruncated) lines.push({ note: "truncated", path: "", depth: 0 })
+  if (rootTruncated && !filtered) lines.push({ note: "truncated", path: "", depth: 0 })
   return lines
 }
 
@@ -382,15 +398,8 @@ export const rowShowing = (path: string, open: ReadonlySet<string>): string => {
   return path
 }
 
-// How a file's trail fades: from this opacity, by this much every `trailTimeMs`, gone below
-// `trailGone`. The panel's CSS keyframes (source.css) follow the same curve.
-const trailStart = 0.7
-const trailTimeMs = 150_000
-export const trailGone = 0.04
-export const trailLifeMs = trailTimeMs * Math.log(trailStart / trailGone)
-
-export const trailOpacity = (ageMs: number): number =>
-  trailStart * Math.exp(-Math.max(0, ageMs) / trailTimeMs)
+// How a file's trail fades lives in core (`trailOpacity`), as the file preview's trails follow it.
+export { trailGone, trailLifeMs, trailOpacity }
 
 // The time of a node's latest write, or 0 for none.
 export const latestWrite = (node: SourceNode): number => Math.max(0, ...Object.values(node.touched))

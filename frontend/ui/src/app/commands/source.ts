@@ -8,8 +8,15 @@ export type SourceCommands = {
   // Opens a file of the active project, by its path from the project's root, in the
   // session's project window: re-pointed to it when it is open, made when it is not, and
   // selected, with or without a terminal. Nothing happens where the backend can't open
-  // files there. Rejects when the backend can't open the file.
-  readonly openSourceFile: (path: string) => Promise<void>
+  // files there. Rejects when the backend can't open the file. With `preview` the window shows
+  // the file as it would be once the agents' work merges onto main, which starts over (everyone
+  // merged) each time; without, as it is in main.
+  // A file main lacks (an agent added it) opens at `copy` instead, an absolute path of an agent's
+  // own copy, which `openInProject` takes wherever it is.
+  readonly openSourceFile: (
+    path: string,
+    options?: { readonly preview?: boolean; readonly copy?: string | undefined },
+  ) => Promise<void>
 }
 
 type SourceDependencies = {
@@ -30,10 +37,10 @@ const sessionState = (workspace: Workspace, target: WorkspaceTarget): WorkspaceS
     ?.history.find((session) => session.id === target.workspaceSessionId)?.state
 
 export const createSourceCommands = (
-  { workspace, navigation, effects, companions }: CommandContext,
+  { workspace, navigation, effects, companions, ui }: CommandContext,
   { markCreated, pulse }: SourceDependencies,
 ): SourceCommands => ({
-  openSourceFile: async (path) => {
+  openSourceFile: async (path, options) => {
     const open = companions?.openInProject
     if (!open) return
     const before = workspace.getSnapshot()
@@ -41,11 +48,17 @@ export const createSourceCommands = (
     const known = sessionState(before, target)?.roster.windows
     const had = known?.find((each) => each.home === "project")
     const asked = effects.newId()
+    let backed = false
     const { item, window } = await open(
       target,
       absolutePath(activeProject(before)!.directory, path),
       asked,
-    )
+    ).catch((error: unknown) => {
+      // Main has no such file: an agent's copy of it stands behind the window.
+      if (options?.copy === undefined) throw error
+      backed = true
+      return open(target, options.copy, asked)
+    })
     const snapshot = workspace.getSnapshot()
     const state = sessionState(snapshot, target)
     // The person closed the window meanwhile, and the backend's close, queued behind this
@@ -53,6 +66,26 @@ export const createSourceCommands = (
     // backend made anew, as when another client closed that one, is a different window.
     if (had && window.id === had.id && !state?.roster.windows.some((each) => each.id === had.id))
       return
+    // Whether the window previews the file or shows main's copy, kept by the session.
+    const context = `${target.projectId}/${target.workspaceSessionId}`
+    ui.update((now) => {
+      const { [context]: _was, ...rest } = now.filePreviews
+      return {
+        ...now,
+        filePreviews: options?.preview
+          ? {
+              ...rest,
+              [context]: {
+                itemId: item.id,
+                projectId: target.projectId,
+                path,
+                backed,
+                opened: effects.newId(),
+              },
+            }
+          : rest,
+      }
+    })
     // Made by this open, not by what the watch reported first: whichever came first, it is
     // placed the same. It is the window this open asked for the id of; where two opens began
     // with no window, the second is answered with the first's.

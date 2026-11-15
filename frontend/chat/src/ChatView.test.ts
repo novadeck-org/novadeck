@@ -256,12 +256,12 @@ describe("a chat whose answer's words didn't reach the agent", () => {
       answer: () => new Promise<void>((_resolve, reject) => failures.push(reject)),
     })
     const { container } = chat
-    press(container, "No, and tell")
-    set(container.querySelector("textarea.chat-field")!, "use pnpm")
+    // The option that takes words is a field in its row.
+    set(container.querySelector("textarea.request-field")!, "use pnpm")
     press(container, "Send answer")
     // The runner marks the request done: the card goes, then the failure arrives.
     act(() => store.update((conversation) => ({ ...conversation, requests: [] })))
-    expect(container.querySelector(".chat-request")).toBeNull()
+    expect(container.querySelector(".request-card")).toBeNull()
     await act(async () => failures[0]!(new WordsLost()))
     expect(chat.draft()).toBe("use pnpm")
     expect(container.querySelector(".chat-lost")?.textContent).toContain("They're in the box")
@@ -281,8 +281,8 @@ describe("a chat whose answer's words didn't reach the agent", () => {
       answer: () => new Promise<void>((_resolve, reject) => failures.push(reject)),
     })
     const answerWith = (words: string): void => {
-      press(container, "No, and tell")
-      set(container.querySelector("textarea.chat-field")!, words)
+      // The option that takes words is a field in its row.
+      set(container.querySelector("textarea.request-field")!, words)
       press(container, "Send answer")
     }
     answerWith("one")
@@ -847,7 +847,7 @@ describe("a chat about the agent's question, where its words go on as a prompt",
     expect(chat.answered).toHaveBeenCalledWith("r1", { type: "chat", dialog: "q1" })
     about.focus()
     await act(async () => finishers[0]!())
-    expect(container.querySelector(".chat-request")).not.toBeNull()
+    expect(container.querySelector(".request-card")).not.toBeNull()
     expect(document.activeElement).toBe(box(container))
   })
 })
@@ -872,17 +872,17 @@ describe("a message sent over the agent's question", () => {
       send: () => new Promise<SendResult>((resolve) => goes.push(resolve)),
     })
     const { container } = chat
-    expect(container.querySelector(".chat-request")).not.toBeNull()
+    expect(container.querySelector(".request-card")).not.toBeNull()
     await send(container)
     expect(chat.setAside).toEqual([["r1"]])
     expect(chat.draft()).toBe("")
-    expect(container.querySelector(".chat-request")).toBeNull()
+    expect(container.querySelector(".request-card")).toBeNull()
     expect(bubbles(container)).toEqual([["Do this instead", "sending", "sending"]])
     await act(async () => goes[0]!({ tracked: true }))
-    expect(container.querySelector(".chat-request")).toBeNull()
+    expect(container.querySelector(".request-card")).toBeNull()
     // The runner set it aside: the request goes, and the card stays gone.
     act(() => store.update((conversation) => ({ ...conversation, requests: [] })))
-    expect(container.querySelector(".chat-request")).toBeNull()
+    expect(container.querySelector(".request-card")).toBeNull()
     expect(container.querySelector('[role="alert"]')).toBeNull()
   })
 
@@ -894,9 +894,9 @@ describe("a message sent over the agent's question", () => {
     })
     const { container } = chat
     await send(container)
-    expect(container.querySelector(".chat-request")).toBeNull()
+    expect(container.querySelector(".request-card")).toBeNull()
     await act(async () => fails[0]!(new Error("The agent isn't ready for a message yet.")))
-    expect(container.querySelector(".chat-request")).not.toBeNull()
+    expect(container.querySelector(".request-card")).not.toBeNull()
     expect(chat.draft()).toBe("Do this instead")
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("isn't ready")
     expect(bubbles(container)).toEqual([])
@@ -925,14 +925,14 @@ describe("a message sent over the agent's question", () => {
     })
     await send(chat.container)
     expect(chat.setAside).toEqual([undefined])
-    expect(chat.container.querySelector(".chat-request")).not.toBeNull()
+    expect(chat.container.querySelector(".request-card")).not.toBeNull()
   })
 
   it("never sets a permission aside", async () => {
     const chat = inApp(createStore<Conversation>(asking), { draft: "Go on" })
     await send(chat.container)
     expect(chat.setAside).toEqual([undefined])
-    expect(chat.container.querySelector(".chat-request")).not.toBeNull()
+    expect(chat.container.querySelector(".request-card")).not.toBeNull()
   })
 })
 

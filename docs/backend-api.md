@@ -798,7 +798,7 @@ marks it read, `works.show({ root, terminalId? })` shows it as a changes item on
 (`terminalId` names the bar for a work with no owner), and `works.close({ root, force? })` closes the
 worktree as the person asks, through the worktrees service: it answers `{ closed: true, kept?, keptHead?, branchDeleted }`, or, without `force`
 and with the worktree holding uncommitted files or commits main lacks (squash- and rebase-merged
-work does not count), `{ closed: false, holds }` for the person to confirm before `force`. It
+work does not count, also once main has changed its files again), `{ closed: false, holds }` for the person to confirm before `force`. It
 refuses with `CONFLICT` and the reason while its owner's agent is working in it (checked afresh in
 the service's queue), when git status can't be read or the worktree has submodules (even with
 `force`), and answers `NOT_FOUND` for a root that is no work. These work with the Experimental switch off.
@@ -870,9 +870,15 @@ one from an earlier runner.
   the agent reported no session, a session another terminal is running or resumed and
   has not closed, and a shell without the integration.
 - `agents.list()` answers, for `claude`, `codex` and `agy`, whether the agent is
-  installed where the runner runs (its home: `CLAUDE_CONFIG_DIR` or `~/.claude`,
-  `CODEX_HOME` or `~/.codex`, `~/.gemini/antigravity-cli`) and whether Novadeck's plugin
-  is installed into it, read from the agent's own configuration.
+  installed where the runner runs (its home exists: `CLAUDE_CONFIG_DIR` or `~/.claude`,
+  `CODEX_HOME` or `~/.codex`, `~/.gemini/antigravity-cli`; or its program is found, on
+  PATH or where its installer puts it, so one installed and never run counts) and whether
+  Novadeck's plugin is installed into it, read from the agent's own configuration. For an
+  agent that is not installed it also gives `installer`, the one-line command that installs
+  it on the runner's platform, which a client opens a terminal with (`terminals.create`'s
+  `command`) when the person asks. A list uses the login shell's environment already read and
+  starts no shell; `agents.list({ fresh: true })` reads it again first (the look after an
+  install, so a program just installed shows), and fresh looks asked for together share one read. A new shell's PATH gets last the folder of each agent found only where its installer puts it (as macOS' PATH lacks `~/.local/bin`), so typing the agent's name starts it, through Novadeck's shim once connected.
   `agents.set({ agent, connected })` installs or removes the plugin with the agent's
   own commands (`claude plugin marketplace add` + `plugin install`, `codex plugin
   marketplace add` + `plugin add`, `agy plugin install`, and their removals). They run

@@ -8,8 +8,8 @@
    `.changes-empty`. The row's × is
    `.terminal-tab-revealed`, shown under the pointer as a tab's Rename.
 
-   Hooks: on a row, data-conflict while it conflicts with main or another work, data-merged
-   once its work is merged (not while it conflicts); on a `.changes-file`, data-conflict.
+   Hooks: on a row, data-merged once its work is merged, data-conflict while it conflicts with
+   main or another work and is not merged; on a `.changes-file`, data-conflict.
 
    Tokens: none of its own; it reads the palette's (ink, muted, success-fg, danger-fg). */
 
@@ -58,6 +58,21 @@
 /* The unfolded rows use the row's full width. */
 .changes-branches > span > span > span {
   padding-right: 2px;
+}
+
+/* A file main has opens in the project window, as a preview of what the works merge to. */
+.changes-file-open {
+  padding: 0 2px 0 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.changes-file-open:hover .changes-file {
+  text-decoration: underline;
 }
 
 /* The detail line holds the project and branch, which stay while the files unfold under it. */

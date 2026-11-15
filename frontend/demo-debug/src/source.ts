@@ -34,6 +34,12 @@ export const sourceGroups = (source: DemoSource | undefined): readonly DemoActio
               run: ({ selected, workspace }) => source.write(handleOf(selected(), workspace())),
             },
             {
+              label: "Agent writes Checkout.tsx",
+              hint: "Open Source and double-click src/checkout/Checkout.tsx (agents demo): the file preview's change of the selected storefront agent (Crow's if none) grows by a line, pulsing cyan, with its cursor at the end of it, and the Source row pulses the same; an agent that isn't working loses the cursor again at the workspace's next change",
+              run: ({ selected, workspace }) =>
+                source.write(handleOf(selected(), workspace()), sourcePaths.checkout),
+            },
+            {
               label: "Agent stops writing (Source only)",
               hint: "Open Source: the selected storefront agent's cursor goes, its changes stay; only the Source cursor changes, the agent's turn is not (use the Agent group to end or rest it; Crow if none)",
               run: ({ selected, workspace }) => source.endTurn(handleOf(selected(), workspace())),

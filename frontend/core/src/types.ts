@@ -9,11 +9,11 @@ export type ViewMode = "focus" | "grid" | "canvas"
 // The sidebar's panels, each with a toggle on the rail.
 export const sidebarPanels = [
   "terminals",
-  "source",
-  "sessions",
-  "history",
   "inbox",
+  "sessions",
   "changes",
+  "source",
+  "history",
 ] as const
 export type SidebarPanel = (typeof sidebarPanels)[number]
 export type WindowedView = Exclude<ViewMode, "focus">
@@ -73,6 +73,9 @@ export type AgentStatus = {
   // The background shells it started that run on, and the last few that ended (see
   // `AgentShell`), oldest first; absent while it has none.
   readonly shells?: readonly AgentShell[]
+  // The absolute path its running turn's edit tools wrote last, root or a subagent, as it is
+  // written; absent once the turn ends and until it writes something.
+  readonly wrote?: string
   // How its latest turn ended, once none runs, with the start of its last reply where its
   // harness tells it (see `AgentTurnEnd`).
   readonly lastTurn?: AgentTurnEnd

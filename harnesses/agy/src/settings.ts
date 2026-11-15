@@ -1,6 +1,7 @@
 import {
   chmod,
   lstat,
+  mkdir,
   readFile,
   readlink,
   realpath,
@@ -116,6 +117,8 @@ const write = async (file: string, value: unknown): Promise<void> => {
   )
   const temporary = `${real}.${process.pid}.novadeck`
   try {
+    // Antigravity makes its home when it first runs, which a connection can come before.
+    await mkdir(dirname(real), { recursive: true })
     await writeFile(temporary, json(value), { mode })
     // Past the umask, which `writeFile`'s mode is not.
     await chmod(temporary, mode)

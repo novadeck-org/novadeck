@@ -42,6 +42,17 @@ const pluginNote = (names: readonly string[]): string =>
 
 const headline = "Room to build."
 
+// The command that installs an agent that isn't here, where the backend knows one.
+const installerOf = ({ available, installer }: AgentSwitch): string | undefined =>
+  available ? undefined : installer
+
+// What an agent that is not installed offers in place of a choice: the command that installs it,
+// shown whole beside its name, and the button that runs it.
+type Installable = {
+  readonly command: string
+  readonly onInstall: () => void
+}
+
 // One choice as a card: the icon tile takes the brand tile once chosen.
 const ChoiceCard = ({
   icon: Icon,
@@ -53,6 +64,7 @@ const ChoiceCard = ({
   value,
   checked,
   disabled = false,
+  installable,
   onChange,
 }: {
   readonly icon: LucideIcon | ComponentType<{ size?: number; strokeWidth?: number }>
@@ -64,53 +76,84 @@ const ChoiceCard = ({
   readonly value: string
   readonly checked: boolean
   readonly disabled?: boolean
+  // Given, the card offers installing instead of choosing, and `note` is left out.
+  readonly installable?: Installable | undefined
   readonly onChange: (checked: boolean) => void
-}): React.JSX.Element => (
-  <label
-    className={`choice-card solid flex min-h-[60px] items-center gap-3 px-3 py-2.5 ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
-    data-state={checked ? "checked" : "unchecked"}
-    data-disabled={disabled || undefined}
-  >
-    <span
-      className="choice-card-tile relative flex size-[38px] flex-none items-center justify-center"
-      aria-hidden="true"
+}): React.JSX.Element => {
+  const Card = installable ? "div" : "label"
+  return (
+    <Card
+      className={`choice-card solid flex min-h-[60px] min-w-0 items-center gap-3 px-3 py-2.5 ${disabled ? "cursor-not-allowed" : installable ? "" : "cursor-pointer"}`}
+      data-state={checked ? "checked" : "unchecked"}
+      data-disabled={disabled || undefined}
     >
-      <Icon size={20} strokeWidth={1.4} />
-    </span>
-    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-      <span className="text-body font-medium">{label}</span>
-      {note && (
-        <span
-          id={noteId}
-          className="settings-note text-caption leading-4.5"
-          data-tone={error ? "danger" : undefined}
-          role={error ? "alert" : undefined}
+      <span
+        className="choice-card-tile relative flex size-[38px] flex-none items-center justify-center"
+        aria-hidden="true"
+      >
+        <Icon size={20} strokeWidth={1.4} />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="text-body font-medium">{label}</span>
+        {installable ? (
+          <span id={noteId} className="settings-note text-caption leading-4.5">
+            Not installed. Install runs
+            {/* Whole, so nothing it will do is hidden; a long one is cut to the card, and
+              the title and the description reading it out hold all of it. */}
+            <code className="welcome-command mt-0.5 block truncate" title={installable.command}>
+              {installable.command}
+            </code>
+          </span>
+        ) : (
+          note && (
+            <span
+              id={noteId}
+              className="settings-note text-caption leading-4.5"
+              data-tone={error ? "danger" : undefined}
+              role={error ? "alert" : undefined}
+            >
+              {note}
+            </span>
+          )
+        )}
+      </span>
+      {installable ? (
+        <button
+          type="button"
+          className="button min-h-8 shrink-0 px-3 text-control"
+          aria-label={`Install ${label}`}
+          aria-describedby={noteId}
+          disabled={disabled}
+          onClick={installable.onInstall}
         >
-          {note}
-        </span>
+          Install
+        </button>
+      ) : (
+        <Checkbox
+          name={name}
+          value={value}
+          checked={checked}
+          disabled={disabled}
+          aria-label={label}
+          aria-describedby={note ? noteId : undefined}
+          onChange={onChange}
+        />
       )}
-    </span>
-    <Checkbox
-      name={name}
-      value={value}
-      checked={checked}
-      disabled={disabled}
-      aria-label={label}
-      aria-describedby={note ? noteId : undefined}
-      onChange={onChange}
-    />
-  </label>
-)
+    </Card>
+  )
+}
 
 const WelcomeForm = ({
   agents,
   onChange,
+  onInstall,
   transcripts,
   onDone,
   heading,
 }: {
   readonly agents: readonly AgentSwitch[]
   readonly onChange: (agent: AgentSwitch["agent"], connected: boolean) => void
+  readonly onInstall?: ((agent: AgentSwitch["agent"], command: string) => void) | undefined
   readonly transcripts?: TranscriptsSetting | undefined
   readonly onDone: () => void
   readonly heading: RefObject<HTMLHeadingElement | null>
@@ -120,7 +163,9 @@ const WelcomeForm = ({
   const [keepTranscripts, setKeepTranscripts] = useState(true)
   const offerTranscripts = transcripts?.available === true
 
-  const submit = (): void => {
+  // As "Let’s build something" applies the choices; `install` then also starts installing
+  // an agent that isn't here, whose terminal opens as the dialog closes.
+  const submit = (install?: { agent: AgentSwitch["agent"]; command: string }): void => {
     for (const toggle of agents) {
       const connected = choices[toggle.agent]
       if (toggle.available && !toggle.busy && connected !== toggle.connected) {
@@ -130,6 +175,7 @@ const WelcomeForm = ({
     if (transcripts?.available && keepTranscripts !== transcripts.enabled)
       transcripts.onChange(keepTranscripts)
     onDone()
+    if (install) onInstall?.(install.agent, install.command)
   }
 
   return (
@@ -200,7 +246,8 @@ const WelcomeForm = ({
 
           <fieldset className="settings-fieldset welcome-enter m-0 min-w-0 p-0" style={at(750)}>
             <legend className="sr-only">Agents</legend>
-            <div className="grid gap-2">
+            {/* One column that may be narrower than a command, which is cut to it. */}
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
               {agents.map((toggle) => {
                 const note = agentNote(toggle)
                 return (
@@ -214,7 +261,18 @@ const WelcomeForm = ({
                     name="agents"
                     value={toggle.agent}
                     checked={choices[toggle.agent]}
-                    disabled={!toggle.available || toggle.busy}
+                    disabled={
+                      toggle.busy || (!toggle.available && !(installerOf(toggle) && onInstall))
+                    }
+                    installable={
+                      installerOf(toggle) && onInstall
+                        ? {
+                            command: installerOf(toggle)!,
+                            onInstall: () =>
+                              submit({ agent: toggle.agent, command: installerOf(toggle)! }),
+                          }
+                        : undefined
+                    }
                     onChange={(checked) =>
                       setChoices((current) => ({ ...current, [toggle.agent]: checked }))
                     }
@@ -281,12 +339,14 @@ export const WelcomeDialog = ({
   open,
   agents,
   onChange,
+  onInstall,
   transcripts,
   onDone,
 }: {
   readonly open: boolean
   readonly agents: readonly AgentSwitch[]
   readonly onChange: (agent: AgentSwitch["agent"], connected: boolean) => void
+  readonly onInstall?: ((agent: AgentSwitch["agent"], command: string) => void) | undefined
   readonly transcripts?: TranscriptsSetting | undefined
   readonly onDone: () => void
 }): React.JSX.Element => {
@@ -307,6 +367,7 @@ export const WelcomeDialog = ({
       <WelcomeForm
         agents={agents}
         onChange={onChange}
+        onInstall={onInstall}
         transcripts={transcripts}
         onDone={onDone}
         heading={heading}

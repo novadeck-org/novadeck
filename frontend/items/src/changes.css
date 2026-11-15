@@ -515,3 +515,153 @@ button.changes-fold:hover {
 .changes-fold::after {
   content: " ┄┄";
 }
+
+/* The file preview (kinds/changes/preview): a file as it would be once the agents' work merges
+   onto main, in the pane's own parts. Only what the pane has no part for is here. The summary
+   holds the merge set, each agent a `.preview-merge` toggle (struck through when left out). A
+   block of an agent the person lit Source for another of is `data-dim`: its ground and token
+   marks go and its head quiets, its lines stay. A clash (`data-clash`) has a warning head with
+   `.preview-picks` on its right; a change that doesn't apply is the pane's `.changes-clip` in
+   the danger colour (`.preview-stale`, its count `.preview-stale-count`); lines an agent
+   removed fold under `.preview-cut` in the remove colour. A write pulses the lines it changed
+   (`data-pulse`), cyan over the row's ground, and the agent's `.source-cursor` or
+   `.source-trail` (Source's own, source.css) follows its last line. */
+.changes-file-view[data-preview] .changes-head {
+  padding-left: 16px;
+}
+.preview-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  white-space: pre-wrap;
+}
+.preview-merge {
+  height: 20px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--color-soft);
+  color: var(--color-ink);
+  font: inherit;
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+.preview-merge[aria-pressed="false"] {
+  background: none;
+  color: var(--color-muted);
+  text-decoration: line-through;
+}
+.preview-stale-count {
+  color: var(--color-danger-fg);
+}
+.changes-hunk-head .changes-scope {
+  font-weight: normal;
+  color: var(--color-muted);
+}
+.changes-hunk-head .handle-chip {
+  font-size: var(--text-caption);
+}
+.preview-hidden {
+  display: inline-flex;
+  align-items: baseline;
+}
+.changes-block[data-clash] .changes-hunk-head {
+  background: color-mix(in srgb, var(--color-warning) 16%, var(--_ground));
+  box-shadow: inset 2px 0 0 var(--color-warning-fg);
+}
+.preview-clash-word {
+  color: var(--color-warning-fg);
+  font-weight: var(--font-weight-medium);
+}
+.preview-picks {
+  display: inline-flex;
+  margin-left: auto;
+  gap: 2px;
+}
+.preview-pick {
+  height: 20px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--color-muted);
+  font: inherit;
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+.preview-pick[aria-pressed="true"] {
+  background: var(--color-soft);
+  color: var(--color-ink);
+}
+.changes-fold.preview-cut {
+  color: var(--_remove);
+  opacity: 1;
+}
+.changes-fold.preview-cut[data-open="true"] {
+  color: var(--color-muted);
+}
+.changes-clip.preview-stale {
+  height: auto;
+  min-height: 28px;
+  border-color: color-mix(in srgb, var(--color-danger-fg) 60%, transparent);
+  color: var(--color-ink);
+  text-align: left;
+}
+.changes-clip.preview-stale .handle-chip {
+  color: var(--color-danger-fg);
+}
+.changes-block[data-dim] .diff-row[data-kind="add"] {
+  background: var(--_ground);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--_add) 35%, transparent);
+}
+.changes-block[data-dim] .diff-row .changes-tok {
+  background: none;
+}
+.changes-block[data-dim] .changes-hunk-head {
+  opacity: 0.6;
+}
+.diff-row[data-pulse] {
+  animation: preview-pulse 1.4s ease-out;
+}
+@keyframes preview-pulse {
+  from {
+    background-color: color-mix(in srgb, var(--color-strong) 30%, var(--_add-bg));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .diff-row[data-pulse] {
+    animation: none;
+  }
+}
+/* Source's cursor and trail, after a line's text or a chip. */
+.changes-text .source-cursor,
+.changes-text .source-trail {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-left: 3px;
+}
+.preview-hidden .source-cursor,
+.preview-hidden .source-trail {
+  margin: 0 2px 0 4px;
+  align-self: center;
+}
+/* A neutral note at the top of a file an agent renamed away: the pane's clip, in the quiet
+   colours, its Open a button of its own. */
+.changes-clip.preview-note {
+  height: auto;
+  min-height: 28px;
+  border-style: solid;
+  color: var(--color-ink);
+  text-align: left;
+}
+.changes-clip.preview-note code {
+  font-family: var(--font-mono);
+}
+.changes-clip.preview-note .changes-clip-show {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+}

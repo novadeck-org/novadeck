@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest"
 
-import { work, workChange, workClosing, workConflict, workMade } from "./works.js"
+import {
+  previewHunk,
+  work,
+  workChange,
+  workClosing,
+  workConflict,
+  workMade,
+  workPreview,
+} from "./works.js"
 
 const id = "11111111-1111-4111-8111-111111111111"
 const base = {
@@ -25,6 +33,30 @@ describe("a work", () => {
   it("is keyed by its root, and may have no owner", () => {
     expect(work.parse(base).root).toBe(base.root)
     expect(work.parse({ ...base, terminalId: null }).terminalId).toBeNull()
+  })
+
+  it("lists how each file changed and when, and where the project's folder lies in the repository", () => {
+    const file = {
+      path: "b.ts",
+      status: "renamed",
+      from: "a.ts",
+      changedAt: 5,
+      added: 1,
+      removed: 1,
+      unreadAdded: 1,
+      unreadRemoved: 1,
+      conflict: false,
+    }
+    const folder = { repo: "app", project: "" }
+    expect(work.parse({ ...base, files: [file], folder }).folder).toEqual(folder)
+    expect(work.parse({ ...base, files: [{ ...file, from: undefined }] }).folder).toBeUndefined()
+    expect(() => work.parse({ ...base, files: [{ ...file, status: "copied" }] })).toThrow(
+      /invalid|expected|required/i,
+    )
+    expect(() => work.parse({ ...base, files: [{ ...file, changedAt: undefined }] })).toThrow(
+      /invalid|expected|required/i,
+    )
+    expect(() => work.parse({ ...base, folder: "app" })).toThrow(/invalid|expected|required/i)
   })
 
   it("needs to say whether its owner's agent is working in it", () => {
@@ -83,5 +115,36 @@ describe("a made worktree", () => {
     expect(workMade.safeParse({ root: base.root, projectId: id, terminalId: id }).success).toBe(
       false,
     )
+  })
+})
+
+describe("a file's preview", () => {
+  const hunk = { at: 3, removed: 1, lines: ["three"], applies: true }
+
+  it("is main's text and each work's hunks of it, in main's lines", () => {
+    const preview = {
+      main: "a\nb\nc\n",
+      renames: [{ root: base.root, terminalId: null, branch: "x", to: "src/b.ts" }],
+      works: [
+        {
+          root: base.root,
+          terminalId: null,
+          branch: null,
+          status: "added",
+          changedAt: 5,
+          hunks: [hunk],
+        },
+      ],
+    }
+    expect(workPreview.parse(preview)).toEqual(preview)
+    expect(
+      workPreview.parse({ main: null, unavailable: "secret", works: [], renames: [] }).unavailable,
+    ).toBe("secret")
+  })
+
+  it("starts a hunk at a line of main, from 1, and says whether it applies", () => {
+    expect(previewHunk.parse(hunk)).toEqual(hunk)
+    expect(previewHunk.safeParse({ ...hunk, at: 0 }).success).toBe(false)
+    expect(previewHunk.safeParse({ at: 1, removed: 0, lines: [] }).success).toBe(false)
   })
 })

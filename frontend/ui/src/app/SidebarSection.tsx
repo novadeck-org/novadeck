@@ -2,22 +2,31 @@ import { allTeams, sameTeams } from "@novadeck/core/derivations"
 import type { ClosedTerminal, HistoryState } from "@novadeck/core/history"
 import { itemIdOf } from "@novadeck/core/items"
 import { orderedTiles } from "@novadeck/core/roster"
-import type { SourceState } from "@novadeck/core/source"
 import { activeProject } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
 import type { WorkspaceSession } from "@novadeck/core/types"
-import type { Work, WorksState } from "@novadeck/core/works"
+import type { Work } from "@novadeck/core/works"
 import { memo, useCallback, useMemo, useSyncExternalStore } from "react"
 
 import { useDesktop } from "../shell/desktop"
 import { sidebarVisible } from "../shell/shell-state"
 import { WorkspaceSidebar } from "../shell/WorkspaceSidebar"
 import { latestTurnEnd } from "../sidebar/source-turns"
+import { projectPath, sourceOfWorks } from "../sidebar/source-works"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useStoreSelector } from "./controller/useStoreSelector"
 import { useMoving, useTabsAway } from "./move-to"
 import { historyShown, sourceShown } from "./routing"
 import { currentState, currentTarget, sameItems, sameTarget } from "./selectors"
+import {
+  copyOf,
+  noSource,
+  noWorks,
+  ownersOf,
+  previewFiles,
+  sameOwners,
+  sameWorks,
+} from "./source-feed"
 import { useReorderTiles } from "./team-fold"
 import { useChangesShown } from "./use-changes-shown"
 import { useSessionMarks } from "./useSessionMarks"
@@ -39,25 +48,17 @@ const sameSessions = (a: readonly WorkspaceSession[], b: readonly WorkspaceSessi
 const sameHandles = (a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean =>
   a.size === b.size && [...a].every(([id, handle]) => b.get(id) === handle)
 
-// What a backend without a source reads in its place; its panel isn't drawn.
-const noSource = createStore<SourceState>({ projects: {} })
-
 // What a backend without History reads in its place; its panel isn't drawn.
 const noHistory = createStore<HistoryState>({ rows: [] })
-// What a backend without works reads in its place; its panel isn't drawn.
-const noWorks = createStore<WorksState>({ works: [], synced: true, reported: true })
 const noAgents: readonly never[] = []
 const always = (): (() => void) => () => {}
 
 const sameRows = (a: readonly ClosedTerminal[], b: readonly ClosedTerminal[]): boolean =>
   a.length === b.length && a.every((row, index) => Object.is(row, b[index]))
 
-const sameWorks = (a: readonly Work[], b: readonly Work[]): boolean =>
-  a.length === b.length && a.every((work, index) => Object.is(work, b[index]))
-
 // The sidebar wired to the workspace: terminal tabs and workspace sessions.
 export const SidebarSection = memo((): React.JSX.Element => {
-  const { commands, backend } = useWorkspaceServices()
+  const { commands, backend, ui } = useWorkspaceServices()
   const { switchSession, startFresh, hideSidebar, add } = commands
   const reorderTiles = useReorderTiles()
   const { renameSession, moveSession, removeSession } = commands
@@ -114,20 +115,66 @@ export const SidebarSection = memo((): React.JSX.Element => {
       ),
     [teams, handles],
   )
+  // The Changes panel shows where the backend reports the terminals' work, while agent
+  // worktrees are on; see `useChangesShown`.
+  const worksFeed = useChangesShown() ? backend.works : undefined
+  // Every project's works: the panel lists them all, naming each row's project.
+  const allWorks = useStoreSelector(worksFeed?.state ?? noWorks, (state) => state.works, sameWorks)
+  // The terminals of every session of the project that may own its worktrees, by id.
+  const owners = useWorkspaceState(
+    (workspace) => ownersOf(activeProject(workspace)!.history),
+    sameOwners,
+  )
+  // Where the backend tells no changes of its own, the Source panel lays the project's works
+  // over its files while the Changes panel shows, and follows them while it shows.
+  const worksOverlay = useMemo(
+    () => (worksFeed && !sourceProject ? sourceOfWorks(allWorks, projectId, owners) : undefined),
+    [worksFeed, sourceProject, allWorks, projectId, owners],
+  )
+  const watchWorks = sourceProject ? undefined : worksFeed?.watch
+  // A file some work of the project changes opens as a preview of what the works merge to, while
+  // the works are shown; any other as it is in main.
+  const onOpenFile = useCallback(
+    (path: string) =>
+      commands.openSourceFile(path, {
+        preview: worksFeed !== undefined && previewFiles(allWorks, projectId, path).length > 0,
+        copy: copyOf(allWorks, projectId, path),
+      }),
+    [commands, worksFeed, allWorks, projectId],
+  )
+  const onLit = useCallback(
+    (lit: ReadonlySet<string>) =>
+      ui.update((state) => (state.sourceLit === lit ? state : { ...state, sourceLit: lit })),
+    [ui],
+  )
   const source = useMemo(
     () =>
       sourceFeed
         ? {
-            project: sourceProject,
+            project: sourceProject ?? worksOverlay,
             list,
             turn,
-            onOpenFile: commands.openSourceFile,
+            watch: watchWorks,
+            onOpenFile,
+            onLit,
             selectedHandle,
             roster,
             squads,
           }
         : undefined,
-    [sourceFeed, sourceProject, list, turn, commands, selectedHandle, roster, squads],
+    [
+      sourceFeed,
+      sourceProject,
+      worksOverlay,
+      list,
+      turn,
+      watchWorks,
+      onOpenFile,
+      onLit,
+      selectedHandle,
+      roster,
+      squads,
+    ],
   )
   // The History panel shows where the backend keeps closed terminals; see `historyShown`.
   const historyFeed = historyShown(backend) ? backend.history : undefined
@@ -163,11 +210,6 @@ export const SidebarSection = memo((): React.JSX.Element => {
   )
   const moving = useMoving()
   const away = useTabsAway()
-  // The Changes panel shows where the backend reports the terminals' work, while agent
-  // worktrees are on; see `useChangesShown`.
-  const worksFeed = useChangesShown() ? backend.works : undefined
-  // Every project's works: the panel lists them all, naming each row's project.
-  const allWorks = useStoreSelector(worksFeed?.state ?? noWorks, (state) => state.works, sameWorks)
   const worksReported = useStoreSelector(worksFeed?.state ?? noWorks, (state) => state.reported)
   // Titles of every project's terminals, in every session of it, for the rows to name.
   const titles = useWorkspaceState(
@@ -201,6 +243,32 @@ export const SidebarSection = memo((): React.JSX.Element => {
     },
     [worksFeed, revealTerminal, openBarTab, projectId],
   )
+  // A file of a work, opened in the project window as a preview: only a file of the open project
+  // that main has (the window shows main's checkout, which it can only point at).
+  const inOpenProject = useCallback(
+    (work: Work, path: string): string | undefined =>
+      work.folder === undefined || work.projectId !== projectId
+        ? undefined
+        : projectPath(work.folder, path),
+    [projectId],
+  )
+  const canOpenWorkFile = useCallback(
+    (work: Work, path: string): boolean => inOpenProject(work, path) !== undefined,
+    [inOpenProject],
+  )
+  const openWorkFile = useCallback(
+    (work: Work, path: string): void => {
+      const inProject = inOpenProject(work, path)
+      if (inProject !== undefined)
+        commands
+          .openSourceFile(inProject, {
+            preview: true,
+            copy: copyOf(allWorks, projectId, inProject),
+          })
+          .catch(() => {})
+    },
+    [commands, inOpenProject, allWorks, projectId],
+  )
   const changes = useMemo(
     () =>
       worksFeed
@@ -212,10 +280,22 @@ export const SidebarSection = memo((): React.JSX.Element => {
             projects: projectNames,
             selectedId,
             onSelect: showWork,
+            canOpenFile: canOpenWorkFile,
+            onOpenFile: openWorkFile,
             onCloseWork: worksFeed.close,
           }
         : undefined,
-    [worksFeed, allWorks, worksReported, titles, projectNames, selectedId, showWork],
+    [
+      worksFeed,
+      allWorks,
+      worksReported,
+      titles,
+      projectNames,
+      selectedId,
+      showWork,
+      canOpenWorkFile,
+      openWorkFile,
+    ],
   )
   const sidebarPanel = useUiState((state) => state.location.route.panel)
   const visible = useUiState((state) => sidebarVisible(state.shell, desktop))

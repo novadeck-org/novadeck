@@ -1,9 +1,7 @@
-import { Tooltip } from "@novadeck/toolkit/Tooltip"
 /* oxlint-disable react/no-array-index-key -- Parts are read from text that has no ids; they never reorder. */
-import { Check, ChevronDown, Copy } from "lucide-react"
-import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from "react"
+import { ChevronDown } from "lucide-react"
+import { Fragment, useId, useState, type ReactNode } from "react"
 
-import { commandView, markText } from "./command-view"
 import { codeParts } from "./inbox-text"
 
 // The small parts the sheets are made of.
@@ -34,10 +32,10 @@ export const Disclosure = ({
   const [open, setOpen] = useState(false)
   const id = useId()
   return (
-    <div className="inbox-disclosure">
+    <div className="request-disclosure">
       <button
         type="button"
-        className="inbox-disclose text-caption"
+        className="request-key request-disclose nodrag nopan"
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen(!open)}
@@ -50,100 +48,14 @@ export const Disclosure = ({
   )
 }
 
-// A command, word for word, in the sheet's mono box, with the folder it runs in where the
-// sheet says so and a Copy for what the person runs themselves. Whatever in it draws as
-// nothing shows as a mark (`command-view.ts`), a command of more than one line says how many,
-// and a long one scrolls in its box, so nothing Copy copies or Allow runs is out of reach.
-export const CommandBox = ({
-  command,
-  folder = null,
-  copy,
-}: {
-  readonly command: string
-  readonly folder?: string | null
-  readonly copy?: boolean
-}): React.JSX.Element => {
-  const view = commandView(command)
-  // One line can run as far as many: a chain of commands wraps past what the box holds.
-  const long = view.lines > 8 || command.length > 1200
-  return (
-    <div className="console-box console-command" data-long={long || undefined}>
-      {(folder || view.lines > 1 || copy) && (
-        <span className="console-path">
-          <span>
-            {folder}
-            {folder && view.lines > 1 && " · "}
-            {view.lines > 1 && `${view.lines} lines`}
-          </span>
-          {copy && <CopyButton text={command} label="Copy command" />}
-        </span>
-      )}
-      <div
-        className="console-code"
-        tabIndex={long ? 0 : undefined}
-        aria-label={long ? "The command" : undefined}
-      >
-        {view.lines === 1 && (
-          <span className="console-dollar" aria-hidden="true">
-            ${" "}
-          </span>
-        )}
-        {view.parts.map((part, index) =>
-          part.type === "text" ? (
-            <Fragment key={index}>{part.text}</Fragment>
-          ) : (
-            <span key={index} className="console-mark" data-mark={part.type}>
-              {markText(part)}
-            </span>
-          ),
-        )}
-      </div>
-    </div>
-  )
-}
-
-export const CopyButton = ({
-  text,
-  label,
-}: {
-  readonly text: string
-  readonly label: string
-}): React.JSX.Element => {
-  const [copied, setCopied] = useState(false)
-  const timer = useRef<number | undefined>(undefined)
-  useEffect(() => () => window.clearTimeout(timer.current), [])
-  return (
-    <Tooltip content={copied ? "Copied" : "Copy"}>
-      <button
-        type="button"
-        className="icon-button small dim inbox-copy"
-        aria-label={label}
-        onClick={() => {
-          navigator.clipboard
-            ?.writeText(text)
-            .then(() => {
-              setCopied(true)
-              window.clearTimeout(timer.current)
-              timer.current = window.setTimeout(() => setCopied(false), 1500)
-            })
-            // A page that may not write the clipboard simply doesn't copy.
-            .catch(() => {})
-        }}
-      >
-        {copied ? <Check size={12} /> : <Copy size={12} />}
-      </button>
-    </Tooltip>
-  )
-}
-
-// Why an answer didn't take.
+// Why an answer didn't take, as a request's card says it.
 export const Failure = ({
   message,
 }: {
   readonly message: string | undefined
 }): React.JSX.Element | null =>
   message ? (
-    <p className="inbox-failure" role="alert">
+    <p className="chat-error request-error" role="alert">
       {message}
     </p>
   ) : null

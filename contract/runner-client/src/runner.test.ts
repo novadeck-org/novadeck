@@ -245,6 +245,24 @@ describe("Works", () => {
   const projectId = "22222222-2222-4222-8222-222222222222"
   const root = "/home/me/.novadeck/worktrees/p/x/web"
 
+  it("asks for a project's file as it would be once its works merge", async () => {
+    const asked: unknown[] = []
+    const { runner } = await fakeRunner({
+      works: {
+        preview: api.works.preview.handler(({ input }) => {
+          asked.push(input)
+          return { main: "a\n", works: [], renames: [] }
+        }),
+      },
+    })
+    expect(await runner.works.preview(projectId, "src/a.ts")).toEqual({
+      main: "a\n",
+      works: [],
+      renames: [],
+    })
+    expect(asked).toEqual([{ projectId, path: "src/a.ts" }])
+  })
+
   it("follows works from a reset to synced, and looks at, shows and closes one by its root", async () => {
     const looked: string[] = []
     const shown: unknown[] = []

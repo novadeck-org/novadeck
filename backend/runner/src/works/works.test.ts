@@ -6,6 +6,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
@@ -159,6 +160,8 @@ const open = (
     plain?: readonly { terminalId: string; root: string }[]
     show?: (terminalId: string, root: string) => Promise<string>
     onMade?: (listener: (made: WorkMade) => void) => () => void
+    projectFolder?: (projectId: string) => string | undefined
+    held?: () => (path: string) => boolean
   } = {},
 ) => {
   const shown: [string, string][] = []
@@ -184,6 +187,8 @@ const open = (
         return { ok: true, branchDeleted: false }
       }),
     ...(options.onMade && { onMade: options.onMade }),
+    ...(options.projectFolder && { projectFolder: options.projectFolder }),
+    ...(options.held && { held: options.held }),
     everyMs: 20,
     firstMs: everything,
     snapshots: snapshotsFor(options.memory, options.repackAfter),
@@ -517,6 +522,123 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
     expect(after.files[0]).toMatchObject({ unreadAdded: 2, unreadRemoved: 1 })
   })
 
+  it("tells how each file changed: modified, added, deleted, renamed with its old path", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    main.write("a.txt", ten.replace("line 1\n", "one\n"))
+    main.write("new.txt", "new\n")
+    main.git("rm", "--quiet", "b.txt")
+    main.git("mv", "a.txt", "moved.txt")
+    const { works } = open(() => [{ terminalId: terminal(1), root: main.root }])
+    resources.defer(() => works.close())
+    const work = (await current(works)).get(main.root)!
+    expect(work.files.map(({ path, status, from }) => [path, status, from])).toEqual([
+      ["b.txt", "deleted", undefined],
+      ["moved.txt", "renamed", "a.txt"],
+      ["new.txt", "added", undefined],
+    ])
+    expect(work.files.find((file) => file.status !== "renamed")).not.toHaveProperty("from")
+  })
+
+  it("keeps when a file was first seen as it is across reads, and moves it when its content changes", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    let now = 1_000
+    main.write("a.txt", ten.replace("line 1\n", "one\n"))
+    main.write("b.txt", "x\n")
+    const works = new Works({
+      tracked: () => [tracked({ terminalId: terminal(1), root: main.root })],
+      presences: async () => [],
+      show: async () => "item",
+      remove: async () => ({ ok: true, branchDeleted: false }),
+      now: () => now,
+      firstMs: everything,
+      snapshots: snapshotsFor(),
+    })
+    resources.defer(() => works.close())
+    const times = async () =>
+      Object.fromEntries(
+        [...(await current(works)).get(main.root)!.files].map((file) => [
+          file.path,
+          file.changedAt,
+        ]),
+      )
+    expect(await times()).toEqual({ "a.txt": 1_000, "b.txt": 1_000 })
+    now = 5_000
+    main.write("b.txt", "y\n")
+    expect(await times()).toEqual({ "a.txt": 1_000, "b.txt": 5_000 })
+    // The file leaves the work and comes back: it is new to it again.
+    now = 7_000
+    main.git("checkout", "--", "b.txt")
+    expect(await times()).toEqual({ "a.txt": 1_000 })
+    now = 9_000
+    main.write("b.txt", "y\n")
+    expect(await times()).toEqual({ "a.txt": 1_000, "b.txt": 9_000 })
+  })
+
+  it("tells a change of a file's status or time as a change of the work", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    main.write("b.txt", "x\n")
+    const { works } = open(() => [{ terminalId: terminal(1), root: main.root }])
+    resources.defer(() => works.close())
+    const stop = new AbortController()
+    resources.defer(() => stop.abort())
+    const seen: string[] = []
+    void (async () => {
+      for await (const change of works.watch("owner", stop.signal))
+        if (change.type === "changed") seen.push(change.work.files.map((f) => f.status).join())
+    })()
+    await vi.waitFor(() => expect(seen.at(-1)).toBe("modified"))
+    main.git("rm", "--quiet", "-f", "b.txt")
+    await vi.waitFor(() => expect(seen.at(-1)).toBe("deleted"))
+  })
+
+  it("places the project's folder in the repository: the same folder, above it, inside it, or neither", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main, holder } = fixture
+    main.write("app/x.txt", "x\n")
+    let place: string | undefined = main.root
+    const { works } = open(() => [{ terminalId: terminal(1), root: main.root }], {
+      projectFolder: () => place,
+    })
+    resources.defer(() => works.close())
+    const folder = async () => (await current(works)).get(main.root)!.folder
+    expect(await folder()).toEqual({ repo: "", project: "" })
+    place = join(main.root, "app")
+    expect(await folder()).toEqual({ repo: "app", project: "" })
+    place = holder
+    expect(await folder()).toEqual({ repo: "", project: "repo" })
+    place = join(holder, "elsewhere")
+    mkdirSync(place)
+    expect(await folder()).toBeUndefined()
+    place = undefined
+    expect(await folder()).toBeUndefined()
+  })
+
+  it("places a linked worktree by its main checkout, through a symlinked project folder", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main, holder } = fixture
+    const linked = fixture.worktree("linked")
+    const link = join(holder, "link")
+    symlinkSync(main.root, link, "dir")
+    const { works } = open(() => [{ terminalId: terminal(1), root: linked.root }], {
+      projectFolder: () => link,
+    })
+    resources.defer(() => works.close())
+    expect((await current(works)).get(linked.root)!.folder).toEqual({ repo: "", project: "" })
+  })
+
   it("keeps when it first saw the work until nothing differs from main", async ({
     fixture,
     resources,
@@ -621,6 +743,68 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
     expect(after.get(merging.root)).toMatchObject({ files: [], merged: true })
     expect(after.get(stays.root)).toMatchObject({ merged: false })
     expect(after.get(stays.root)?.files).toHaveLength(1)
+  })
+
+  it("calls a work merged that was squash-merged before main changed its files again", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const start = main.git("rev-parse", "HEAD").trim()
+    const commit = (name: string, file: string, text: string) => {
+      const each = fixture.worktree(name)
+      each.write(file, text)
+      each.git("add", "-A")
+      each.git("commit", "--quiet", "-m", name)
+      return each
+    }
+    const landed = commit("landed", "c.txt", "one\n")
+    // The same file, never merged: it conflicts with main, and stays so.
+    const rival = commit("rival", "c.txt", "other\n")
+    const { works } = open(() =>
+      [landed, rival].map((each, at) => ({
+        terminalId: terminal(at + 1),
+        root: each.root,
+        base: start,
+      })),
+    )
+    resources.defer(() => works.close())
+    main.git("merge", "--quiet", "--squash", "landed")
+    main.git("commit", "--quiet", "-m", "squash")
+    main.write("c.txt", "two\n")
+    main.git("add", "-A")
+    main.git("commit", "--quiet", "-m", "main changes it again")
+    const after = await current(works)
+    // Merging the old branch into today's main conflicts, but at the squash it changed nothing.
+    expect(after.get(landed.root)).toMatchObject({ files: [], merged: true, conflicts: [] })
+    expect(after.get(rival.root)).toMatchObject({ merged: false })
+    expect(after.get(rival.root)?.conflicts).toContainEqual({ with: "main" })
+    // Work added after the squash is not in main: it is not merged any more.
+    landed.write("d.txt", "more\n")
+    const more = await current(works)
+    expect(more.get(landed.root)).toMatchObject({ merged: false })
+    expect(more.get(landed.root)?.files.map((file) => file.path)).toContain("d.txt")
+  })
+
+  it("does not call a work merged that main took in and then reverted", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const start = main.git("rev-parse", "HEAD").trim()
+    const reverted = fixture.worktree("reverted")
+    reverted.write("c.txt", "one\n")
+    reverted.git("add", "-A")
+    reverted.git("commit", "--quiet", "-m", "reverted")
+    const { works } = open(() => [{ terminalId: terminal(1), root: reverted.root, base: start }])
+    resources.defer(() => works.close())
+    main.git("merge", "--quiet", "--squash", "reverted")
+    main.git("commit", "--quiet", "-m", "squash")
+    main.git("revert", "--no-edit", "HEAD")
+    // It landed once, but merging it now would bring it back: it is work main lacks.
+    const after = (await current(works)).get(reverted.root)
+    expect(after).toMatchObject({ merged: false })
+    expect(after?.files.map((file) => file.path)).toEqual(["c.txt"])
   })
 
   it("does not call a worktree merged that is behind its start, or took main in with no work of its own", async ({
@@ -1209,6 +1393,217 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
       })
       expect(removed).toEqual([])
     })
+  })
+})
+
+describe.skipIf(!hasGit)("a file's preview", { timeout: 60_000 }, () => {
+  const lines = (...numbers: number[]) => numbers.map((n) => `line ${n}\n`).join("")
+
+  it("carries each work's changes onto main's copy in main's own lines, uncommitted ones too", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const feature = fixture.worktree("feature")
+    const other = fixture.worktree("other")
+    feature.write("a.txt", ten.replace("line 8\n", "eight\nand more\n"))
+    feature.git("commit", "--quiet", "-am", "feature")
+    // Not committed.
+    other.write("a.txt", ten.replace("line 2\n", ""))
+    // Main moved on after they branched: three lines on top.
+    main.write("a.txt", `new 1\nnew 2\nnew 3\n${ten}`)
+    main.git("commit", "--quiet", "-am", "main moved")
+    const { works } = open(
+      () => [
+        { terminalId: terminal(1), root: feature.root },
+        { terminalId: terminal(2), root: other.root },
+      ],
+      { projectFolder: () => main.root },
+    )
+    resources.defer(() => works.close())
+    const preview = await works.preview(project, "a.txt")
+    expect(preview.main).toBe(`new 1\nnew 2\nnew 3\n${ten}`)
+    const by = new Map(preview.works.map((each) => [each.terminalId, each]))
+    expect(by.get(terminal(1))).toMatchObject({
+      root: feature.root,
+      branch: "feature",
+      status: "modified",
+      hunks: [{ at: 11, removed: 1, lines: ["eight", "and more"], applies: true }],
+    })
+    expect(by.get(terminal(2))?.hunks).toEqual([{ at: 5, removed: 1, lines: [], applies: true }])
+  })
+
+  it("tells a change main has rewritten since as not applying, and what still does", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const feature = fixture.worktree("feature")
+    feature.write("a.txt", ten.replace("line 5\n", "feature five\n").replace("line 9\n", "nine\n"))
+    feature.git("commit", "--quiet", "-am", "feature")
+    main.write("a.txt", ten.replace("line 5\n", "main five\n"))
+    main.git("commit", "--quiet", "-am", "main moved")
+    const { works } = open(() => [{ terminalId: terminal(1), root: feature.root }], {
+      projectFolder: () => main.root,
+    })
+    resources.defer(() => works.close())
+    const [only] = (await works.preview(project, "a.txt")).works
+    expect(only!.hunks).toEqual([
+      { at: 5, removed: 1, lines: ["feature five"], applies: false },
+      { at: 9, removed: 1, lines: ["nine"], applies: true },
+    ])
+  })
+
+  it("tells a file the work added and one it deleted, with main's copy where it has one", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const feature = fixture.worktree("feature")
+    feature.write("new.txt", lines(1, 2))
+    feature.git("rm", "--quiet", "-f", "b.txt")
+    const { works } = open(() => [{ terminalId: terminal(1), root: feature.root }], {
+      projectFolder: () => main.root,
+    })
+    resources.defer(() => works.close())
+    const added = await works.preview(project, "new.txt")
+    expect(added.main).toBeNull()
+    expect(added.works[0]).toMatchObject({
+      status: "added",
+      hunks: [{ at: 1, removed: 0, lines: ["line 1", "line 2"], applies: true }],
+    })
+    const deleted = await works.preview(project, "b.txt")
+    expect(deleted.main).toBe("b\n")
+    expect(deleted.works[0]).toMatchObject({
+      status: "deleted",
+      hunks: [{ at: 1, removed: 1, lines: [], applies: true }],
+    })
+  })
+
+  it("says a file is too big where a change passes what the protocol carries", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const feature = fixture.worktree("feature")
+    feature.write("a.txt", ten.replace("line 3\n", `${"x".repeat(5000)}\n`))
+    const { works } = open(() => [{ terminalId: terminal(1), root: feature.root }], {
+      projectFolder: () => main.root,
+    })
+    resources.defer(() => works.close())
+    expect(await works.preview(project, "a.txt")).toEqual({
+      main: null,
+      unavailable: "big",
+      works: [],
+      renames: [],
+    })
+  })
+
+  it("tells a file two works add as two whole-file insertions at its first line", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const first = fixture.worktree("first")
+    const second = fixture.worktree("second")
+    first.write("new.txt", lines(1, 2))
+    second.write("new.txt", lines(1, 3))
+    const { works } = open(
+      () => [
+        { terminalId: terminal(1), root: first.root },
+        { terminalId: terminal(2), root: second.root },
+      ],
+      { projectFolder: () => main.root },
+    )
+    resources.defer(() => works.close())
+    const preview = await works.preview(project, "new.txt")
+    expect(preview.main).toBeNull()
+    expect(preview.works.map((each) => each.hunks)).toEqual([
+      [{ at: 1, removed: 0, lines: ["line 1", "line 2"], applies: true }],
+      [{ at: 1, removed: 0, lines: ["line 1", "line 3"], applies: true }],
+    ])
+  })
+
+  it("follows a rename: the new path is main's old file with the renamer's edits and others' changes to the old one", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const renamer = fixture.worktree("renamer")
+    const editor = fixture.worktree("editor")
+    const mover = fixture.worktree("mover")
+    renamer.git("mv", "a.txt", "c.txt")
+    renamer.write("c.txt", ten.replace("line 9\n", "nine\n"))
+    editor.write("a.txt", ten.replace("line 3\n", "three\n"))
+    mover.git("mv", "a.txt", "d.txt")
+    const { works } = open(
+      () => [
+        { terminalId: terminal(1), root: renamer.root },
+        { terminalId: terminal(2), root: editor.root },
+        { terminalId: terminal(3), root: mover.root },
+      ],
+      { projectFolder: () => main.root },
+    )
+    resources.defer(() => works.close())
+    // The new path: main lacks it, so main's old file stands for it.
+    const moved = await works.preview(project, "c.txt")
+    expect(moved.main).toBe(ten)
+    const by = new Map(moved.works.map((each) => [each.terminalId, each]))
+    expect(by.get(terminal(1))).toMatchObject({
+      renamedFrom: "a.txt",
+      hunks: [{ at: 9, removed: 1, lines: ["nine"], applies: true }],
+    })
+    expect(by.get(terminal(2))).toMatchObject({
+      hunks: [{ at: 3, removed: 1, lines: ["three"], applies: true }],
+    })
+    expect(by.has(terminal(3))).toBe(false)
+    expect(moved.renames).toEqual([])
+    // The old path: main has it; the works that renamed it are told, one each, with no hunks.
+    const old = await works.preview(project, "a.txt")
+    expect(old.main).toBe(ten)
+    expect(old.works.map((each) => each.terminalId)).toEqual([terminal(2)])
+    expect(old.renames.map((each) => [each.terminalId, each.to]).toSorted()).toEqual(
+      [
+        [terminal(1), "c.txt"],
+        [terminal(3), "d.txt"],
+      ].toSorted(),
+    )
+  })
+
+  it("shows a pure rename as a work with no hunks", async ({ fixture, resources }) => {
+    const { main } = fixture
+    const renamer = fixture.worktree("renamer")
+    renamer.git("mv", "a.txt", "c.txt")
+    const { works } = open(() => [{ terminalId: terminal(1), root: renamer.root }], {
+      projectFolder: () => main.root,
+    })
+    resources.defer(() => works.close())
+    const preview = await works.preview(project, "c.txt")
+    expect(preview.works).toMatchObject([{ renamedFrom: "a.txt", hunks: [] }])
+  })
+
+  it("reads nothing of a file that may hold secrets or is binary, nor of one no work changes", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const feature = fixture.worktree("feature")
+    feature.write("key.txt", "secret\n")
+    feature.write("blob.bin", "a\0b\n")
+    feature.write("a.txt", ten.replace("line 3\n", "three\n"))
+    const { works } = open(() => [{ terminalId: terminal(1), root: feature.root }], {
+      projectFolder: () => main.root,
+      held: () => (path) => path.endsWith("key.txt"),
+    })
+    resources.defer(() => works.close())
+    expect(await works.preview(project, "key.txt")).toEqual({
+      main: null,
+      unavailable: "secret",
+      works: [],
+      renames: [],
+    })
+    expect(await works.preview(project, "blob.bin")).toMatchObject({ unavailable: "binary" })
+    expect(await works.preview(project, "b.txt")).toEqual({ main: null, works: [], renames: [] })
   })
 })
 

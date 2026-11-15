@@ -416,7 +416,11 @@ describe("Connecting agents", () => {
       await dialog.getByRole("button", { name: "Canvas", exact: true }).click()
       await expect.element(dialog.getByText("Spread out on a zoomable canvas.")).toBeVisible()
       await expect.element(agentChoice(dialog, "Claude Code")).toBeChecked()
-      await expect.element(agentChoice(dialog, "Antigravity")).toBeDisabled()
+      // Not installed, it offers installing instead.
+      expect(agentChoice(dialog, "Antigravity").query()).toBeNull()
+      await expect
+        .element(dialog.getByRole("button", { name: "Install Antigravity" }))
+        .toBeVisible()
     })
 
     it("chooses every installed agent, connects the chosen ones, and does not ask again", async () => {
@@ -424,7 +428,9 @@ describe("Connecting agents", () => {
       await expect.element(welcome()).toBeVisible()
       await expect.element(agentChoice(welcome(), "Claude Code")).toBeChecked()
       await expect.element(agentChoice(welcome(), "Codex")).toBeChecked()
-      await expect.element(agentChoice(welcome(), "Antigravity")).not.toBeChecked()
+      await expect
+        .element(welcome().getByRole("button", { name: "Install Antigravity" }))
+        .toBeVisible()
       await agentChoice(welcome(), "Codex").click()
       await welcome().getByRole("button", { name: "Let’s build something" }).click()
       await expect.element(welcome()).not.toBeInTheDocument()

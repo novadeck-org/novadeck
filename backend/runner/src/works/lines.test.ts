@@ -1,7 +1,7 @@
 import { workLimits } from "@novadeck/protocol"
 
 import { describe, expect, it } from "../test.js"
-import { conflictsOf, listFiles, mayConflict, type Lines } from "./lines.js"
+import { conflictsOf, listFiles, mayConflict, type Detail, type Lines } from "./lines.js"
 
 const lines = (added: number, removed: number): Lines => ({ added, removed })
 
@@ -12,10 +12,12 @@ describe("the files of a work", () => {
   ])
 
   it("lists them in path order with every line unread before a first look", () => {
-    const listed = listFiles(changed, undefined, new Set())
+    const listed = listFiles(changed, undefined, new Set(), new Map())
     expect(listed.files.map((file) => file.path)).toEqual(["a.ts", "b.ts"])
     expect(listed.files[0]).toEqual({
       path: "a.ts",
+      status: "modified",
+      changedAt: 0,
       added: 5,
       removed: 3,
       unreadAdded: 5,
@@ -26,8 +28,32 @@ describe("the files of a work", () => {
     expect(listed.totalUnread).toEqual(lines(7, 3))
   })
 
+  it("tells how each file changed and when, a renamed one from where", () => {
+    const listed = listFiles(
+      changed,
+      undefined,
+      new Set(),
+      new Map<string, Detail>([
+        ["a.ts", { status: "renamed", from: "old.ts", changedAt: 7 }],
+        ["b.ts", { status: "deleted", changedAt: 9 }],
+      ]),
+    )
+    expect(
+      listed.files.map(({ path, status, from, changedAt }) => ({ path, status, from, changedAt })),
+    ).toEqual([
+      { path: "a.ts", status: "renamed", from: "old.ts", changedAt: 7 },
+      { path: "b.ts", status: "deleted", from: undefined, changedAt: 9 },
+    ])
+    expect(listed.files[1]).not.toHaveProperty("from")
+  })
+
   it("counts as unread only what changed since the last look, none for a file that didn't", () => {
-    const listed = listFiles(changed, new Map([["b.ts", lines(1, 0)]]), new Set(["b.ts"]))
+    const listed = listFiles(
+      changed,
+      new Map([["b.ts", lines(1, 0)]]),
+      new Set(["b.ts"]),
+      new Map(),
+    )
     expect(listed.files.map((file) => [file.path, file.unreadAdded, file.conflict])).toEqual([
       ["a.ts", 0, false],
       ["b.ts", 1, true],
@@ -39,7 +65,7 @@ describe("the files of a work", () => {
     const many = new Map(
       Array.from({ length: workLimits.files + 5 }, (_, at) => [`f${at}`, lines(1, 1)] as const),
     )
-    const listed = listFiles(many, undefined, new Set())
+    const listed = listFiles(many, undefined, new Set(), new Map())
     expect(listed.files).toHaveLength(workLimits.files)
     expect(listed.truncated).toBe(true)
     expect(listed.total).toEqual(lines(workLimits.files + 5, workLimits.files + 5))
@@ -51,7 +77,7 @@ describe("the files of a work", () => {
     )
     many.set("z-huge", lines(900, 100))
     many.set("zz-conflict", lines(1, 0))
-    const listed = listFiles(many, undefined, new Set(["zz-conflict"]))
+    const listed = listFiles(many, undefined, new Set(["zz-conflict"]), new Map())
     const paths = listed.files.map((file) => file.path)
     expect(paths).toHaveLength(workLimits.files)
     expect(paths).toContain("zz-conflict")

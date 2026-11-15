@@ -44,6 +44,13 @@ export type UiState = {
   }
   // The terminal created last, highlighted briefly in its session.
   readonly created: { readonly context: string; readonly id: string } | null
+  // The file each session's project window shows as a preview of what the agents' work merges to
+  // (the Source tree and the Changes panel open files so), by session context; a session
+  // without one shows the file as it is in main. Never persisted.
+  readonly filePreviews: Readonly<Record<string, FilePreviewRequest>>
+  // The agents the Source panel lights while it shows, by handle: the kept ones, else the
+  // selected terminal's: what the file preview emphasizes. Never persisted.
+  readonly sourceLit: ReadonlySet<string>
   // A close waiting for the person to confirm it, since a program runs in the terminal.
   readonly closing: { readonly context: string; readonly id: string } | null
   // A terminal on its way to another session while the person picks where (`move-state.ts`).
@@ -111,6 +118,18 @@ export type UiState = {
   readonly flags: FeatureFlags
 }
 
+// A file the project window was opened on to preview: the window's item, the project and the
+// file's path from the project's folder. `opened` is new each time it is opened, which has the
+// preview start over (everyone merged).
+export type FilePreviewRequest = {
+  readonly itemId: string
+  readonly projectId: string
+  readonly path: string
+  // The window points at an agent's copy of the file in its worktree, as main lacks it.
+  readonly backed: boolean
+  readonly opened: string
+}
+
 export type HistoryDrop = {
   readonly title: string
   // The handle of the agent that closed it; null when the person did.
@@ -125,6 +144,8 @@ export type UiLocation = {
 }
 
 export type UiStore = MutableStore<UiState>
+
+const noLit: ReadonlySet<string> = new Set()
 
 export const createUiStore = (initial: UiState): UiStore => createStore(initial)
 
@@ -148,6 +169,8 @@ export const initialUi = ({
   rename: null,
   recent: { switcher: null, byContext: {} },
   created: null,
+  filePreviews: {},
+  sourceLit: noLit,
   closing: null,
   moving: null,
   moveAsk: null,

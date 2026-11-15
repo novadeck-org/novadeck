@@ -86,7 +86,7 @@ describe("the debug panel's Inbox group", () => {
     const inbox = createDemoInbox(1, [])
     const notes: string[] = []
     // Lifecycle controls and variants change or add rows rather than adding a kind.
-    const kinds = inboxGroups(inbox, seed)[0]!.actions.length - 16
+    const kinds = inboxGroups(inbox, seed)[0]!.actions.length - 17
     for (let each = 0; each < kinds; each += 1) run(inbox, "A new row arrives", notes)
     expect(inbox.state.getSnapshot().items).toHaveLength(kinds)
     run(inbox, "A new row arrives", notes)

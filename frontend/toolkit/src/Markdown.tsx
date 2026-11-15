@@ -1,4 +1,5 @@
 /* oxlint-disable react/no-array-index-key -- The nodes are read from text that has no ids; they never reorder. */
+import { createKept } from "@novadeck/viewers"
 import { highlightLines, type HighlightedLine } from "@novadeck/viewers/code"
 import {
   fenceLanguage,
@@ -82,29 +83,60 @@ const InlineNodes = ({
   </>
 )
 
-// The lines of a fenced block coloured, once the parser for its language has loaded: the
-// lines of this text in this language, never another's while the new ones load.
+// What was lately read and coloured, so text shown again (a chat drawn again as its view
+// changes) is drawn whole in one go: blocks by their text, a code block's lines by its language
+// and text. Bounded by the characters they were read from, and only text under a size past which
+// keeping it costs more than reading it again.
+const keptSize = 20_000
+type Read<Value> = { readonly value: Value; readonly size: number }
+const parsed = createKept<Read<readonly MarkdownBlock[]>>(2_000_000, ({ size }) => size)
+const coloured = createKept<Read<readonly HighlightedLine[]>>(500_000, ({ size }) => size)
+
+const parsedOf = (text: string): readonly MarkdownBlock[] => {
+  const kept = parsed.get(text)
+  if (kept) return kept.value
+  const blocks = parseMarkdown(text)
+  if (text.length <= keptSize) parsed.keep(text, { value: blocks, size: text.length })
+  return blocks
+}
+
+// The lines a code block shows for a key: those kept for it, or none yet.
+type Colours = { readonly of: string | null; readonly lines: readonly HighlightedLine[] | null }
+const colouredOf = (key: string | null): Colours => ({
+  of: key,
+  lines: key === null ? null : (coloured.get(key)?.value ?? null),
+})
+
+// The lines of a fenced block coloured, at once where they were lately, else once the parser for
+// its language has loaded: the lines of this text in this language, never another's while the new
+// ones load.
 const useHighlighted = (lang: string, text: string): readonly HighlightedLine[] | null => {
-  const [highlighted, setHighlighted] = useState<{
-    readonly of: string
-    readonly language: string
-    readonly lines: readonly HighlightedLine[]
-  } | null>(null)
   const language = fenceLanguage(lang)
+  const key = language ? `${language}\n${text}` : null
+  const [shown, setShown] = useState(() => colouredOf(key))
+  // Other text or another language: what was kept of it, in this same render.
+  let current = shown
+  if (shown.of !== key) {
+    current = colouredOf(key)
+    setShown(current)
+  }
+  const ready = current.lines !== null
   useEffect(() => {
-    if (!language) return
-    let current = true
+    if (!language || key === null || ready) return
+    let live = true
     highlightLines(language, text.split("\n"))
       .then((lines) => {
-        if (current && lines) setHighlighted({ of: text, language, lines })
+        if (!lines) return
+        if (text.length <= keptSize) coloured.keep(key, { value: lines, size: text.length })
+        if (live) setShown({ of: key, lines })
       })
       // Plain text is still readable.
       .catch(() => {})
     return () => {
-      current = false
+      live = false
     }
-  }, [language, text])
-  return highlighted?.of === text && highlighted.language === language ? highlighted.lines : null
+  }, [language, text, key, ready])
+  return current.lines
 }
 
 const CodeBlock = ({
@@ -288,7 +320,7 @@ export const Markdown = ({
   readonly text: string
   readonly mention?: Mention | undefined
 }): React.JSX.Element => {
-  const blocks = useMemo(() => parseMarkdown(text), [text])
+  const blocks = useMemo(() => parsedOf(text), [text])
   return (
     <div className="markdown">
       <Blocks blocks={blocks} mention={mention} />

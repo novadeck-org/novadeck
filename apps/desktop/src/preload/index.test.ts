@@ -24,6 +24,7 @@ import {
   restartToUpdateChannel,
   pageLookChannel,
   pagePictureChannel,
+  panePictureChannel,
   pagePhoneChannel,
   portableChannel,
   portableStateChannel,
@@ -284,6 +285,26 @@ describe("a picture of a live page", () => {
     const pictures = answers.map((answer) => {
       electron.answer = answer
       return electron.exposed.pagePicture?.(7)
+    })
+    expect(await Promise.all(pictures)).toEqual(answers.map(() => undefined))
+  })
+})
+
+describe("a picture of one of the page's panes", () => {
+  it("is asked for by its rectangle alone, and comes back as a JPEG address", async () => {
+    electron.answer = "data:image/jpeg;base64,AAAA"
+    const rect = { x: 10, y: 20, width: 300, height: 200, extra: "dropped" }
+    expect(await electron.exposed.panePicture?.(rect)).toBe("data:image/jpeg;base64,AAAA")
+    expect(electron.messages).toEqual([
+      [panePictureChannel, { x: 10, y: 20, width: 300, height: 200 }],
+    ])
+  })
+
+  it("is nothing for anything else the main process answers", async () => {
+    const answers = [undefined, "data:text/html,<script>", "https://example.com/a.jpg", 7]
+    const pictures = answers.map((answer) => {
+      electron.answer = answer
+      return electron.exposed.panePicture?.({ x: 0, y: 0, width: 1, height: 1 })
     })
     expect(await Promise.all(pictures)).toEqual(answers.map(() => undefined))
   })

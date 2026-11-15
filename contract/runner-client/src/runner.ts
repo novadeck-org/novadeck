@@ -48,6 +48,7 @@ import {
   type WorkChange,
   type WorkMade,
   type WorkClosing,
+  type WorkPreview,
   type WorkspaceSession,
 } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
@@ -319,7 +320,11 @@ export type Runner = {
     ): Promise<AttachedTerminal>
   }
   readonly agents: {
-    list(): Promise<AgentIntegration[]>
+    /**
+     * Where each agent stands. With `fresh` the runner reads the person's login environment
+     * again first (it spawns their shell), for the look after an install.
+     */
+    list(options?: { readonly fresh?: boolean }): Promise<AgentIntegration[]>
     /**
      * Follows what the agent in a terminal does, in detail: a snapshot, then another on
      * each change, across reconnections, with a fresh one when the stream is opened again. It
@@ -467,6 +472,12 @@ export type Runner = {
      * or it has submodules.
      */
     close(root: string, force?: boolean): Promise<WorkClosing>
+    /**
+     * A file of a project (its path from the project's folder) as it would be once the project's
+     * works merge onto main: main's copy and each work's hunks of it, read as the worktrees
+     * are on disk now.
+     */
+    preview(projectId: string, path: string): Promise<WorkPreview>
   }
   /**
    * What agents show and the person attaches beside terminals: items, each held by a
@@ -796,7 +807,7 @@ export const connectRunner = async (
         attachTerminal(connection, terminalId, mode),
     },
     agents: {
-      list: () => call((client) => client.agents.list()),
+      list: (look) => call((client) => client.agents.list(look)),
       detail: (terminalId) =>
         followRestarting(connection, (client, signal) =>
           client.agents.detail({ terminalId }, { signal }),
@@ -860,6 +871,7 @@ export const connectRunner = async (
         ),
       close: (root, force) =>
         call((client) => client.works.close({ root, ...(force && { force }) })),
+      preview: (projectId, path) => call((client) => client.works.preview({ projectId, path })),
     },
     companions: {
       list: (input) => call((client) => client.companions.list(input)),

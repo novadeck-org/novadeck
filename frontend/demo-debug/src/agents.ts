@@ -1,5 +1,6 @@
 import type { AgentConnection } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
+import { missingAgent } from "@novadeck/demo/agents/installs"
 
 import type { DemoStates } from "./types"
 
@@ -10,7 +11,7 @@ const connectMs = 800
 const sampleAgents: readonly AgentConnection[] = [
   { agent: "claude", available: true, connected: false, busy: false },
   { agent: "codex", available: true, connected: false, busy: false },
-  { agent: "agy", available: false, connected: false, busy: false },
+  missingAgent("agy"),
 ]
 
 const withoutError = (connection: AgentConnection): AgentConnection => {
@@ -25,6 +26,7 @@ export const connectError = "Could not change the agent's settings: permission d
 export const createDemoAgents = (): {
   readonly agents: DemoStates["agents"]
   readonly openWelcome: () => void
+  readonly openWelcomeBare: () => void
   readonly failNext: () => void
   readonly limitAntigravity: () => void
 } => {
@@ -53,11 +55,19 @@ export const createDemoAgents = (): {
           connectMs,
         )
       },
-      refresh: () => state.update((list) => list.map(withoutError)),
+      refresh: () => {
+        state.update((list) => list.map(withoutError))
+        return Promise.resolve()
+      },
       welcome,
       finishWelcome: () => welcome.update(() => false),
     },
     openWelcome: () => welcome.update(() => true),
+    // As on a computer with none of them: each offers its installer.
+    openWelcomeBare: () => {
+      state.update((list) => list.map(({ agent }) => missingAgent(agent)))
+      welcome.update(() => true)
+    },
     failNext: () => {
       failing = true
     },

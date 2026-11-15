@@ -1,5 +1,7 @@
+import type { AgentName } from "@novadeck/core/harnesses"
 import { viewModes } from "@novadeck/core/state"
 import type { ViewMode } from "@novadeck/core/types"
+import { AntigravityIcon } from "@novadeck/toolkit/icons/AntigravityIcon"
 import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
 import { views as layouts, type ViewPresentation } from "@novadeck/toolkit/views"
@@ -78,7 +80,7 @@ const Status = ({ connected }: { readonly connected?: boolean }): React.JSX.Elem
 export const WelcomePreview = ({
   connected,
 }: {
-  readonly connected: { readonly claude: boolean; readonly codex: boolean }
+  readonly connected: Readonly<Record<AgentName, boolean>>
 }): React.JSX.Element => {
   const [view, setView] = useState<View>(canvas)
   const [step, setStep] = useState<number | undefined>(() =>
@@ -186,6 +188,23 @@ export const WelcomePreview = ({
             )}
           </div>
           {connected.codex && <i className="welcome-scan" />}
+        </div>
+        <div className="welcome-terminal agy">
+          <div className={barClasses}>
+            <AntigravityIcon size={13} />
+            <span>Planner</span>
+            <Status connected={connected.agy} />
+          </div>
+          <div className={codeClasses}>
+            {typed(
+              [
+                { text: "❯ Plan the release", kind: "prompt" },
+                { text: "Every step, in order.", kind: "response" },
+              ],
+              1750,
+            )}
+          </div>
+          {connected.agy && <i className="welcome-scan" />}
         </div>
         <div className="welcome-terminal server">
           <div className={barClasses}>

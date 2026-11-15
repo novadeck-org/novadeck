@@ -1,4 +1,4 @@
-import type { Work, WorkClosing } from "@novadeck/core/works"
+import type { Work, WorkClosing, WorkFile } from "@novadeck/core/works"
 import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
@@ -23,7 +23,16 @@ const work = (name: string, extra: Partial<Work> = {}): Work => ({
   unreadAdded: 4,
   unreadRemoved: 1,
   files: [
-    { path: "a.ts", added: 4, removed: 1, unreadAdded: 4, unreadRemoved: 1, conflict: false },
+    {
+      path: "a.ts",
+      status: "modified",
+      changedAt: 1,
+      added: 4,
+      removed: 1,
+      unreadAdded: 4,
+      unreadRemoved: 1,
+      conflict: false,
+    },
   ],
   truncated: false,
   conflicts: [],
@@ -31,8 +40,10 @@ const work = (name: string, extra: Partial<Work> = {}): Work => ({
 })
 
 // A file of 4 lines added and 1 removed, with `unreadAdded` and `unreadRemoved` as given.
-const file = (unreadAdded: number, unreadRemoved: number) => ({
+const file = (unreadAdded: number, unreadRemoved: number): WorkFile => ({
   path: "a.ts",
+  status: "modified",
+  changedAt: 1,
   added: 4,
   removed: 1,
   unreadAdded,
@@ -53,6 +64,8 @@ const show = (
     selectedId?: string
     // The projects' names by id; the one project of the works' by default.
     projects?: ReadonlyMap<string, string>
+    // The open project, whose files open as previews; the one project of the works' by default.
+    openProject?: string
     // Whether the backend has reported the works yet; it has by default.
     reported?: boolean
   } = {},
@@ -60,6 +73,7 @@ const show = (
   const onSelect = vi.fn<(work: Work, on: string | undefined) => Promise<void>>(
     options.select ?? (async () => {}),
   )
+  const onOpenFile = vi.fn<(work: Work, path: string) => void>()
   const onCloseWork = vi.fn<(root: string, force: boolean) => Promise<WorkClosing>>(
     options.close ?? (async () => ({ closed: true, branchDeleted: false })),
   )
@@ -81,6 +95,8 @@ const show = (
       watching: true,
       onClose: () => {},
       onSelect,
+      canOpenFile: (each: Work) => each.projectId === (options.openProject ?? "p"),
+      onOpenFile,
       onCloseWork,
     }),
   )
@@ -90,7 +106,7 @@ const show = (
     page.container.querySelector<HTMLElement>(`[data-changes-row="/w/${name}"]`)!
   const cross = (name: string) =>
     row(name).querySelector<HTMLButtonElement>(".sidebar-item-actions button")!
-  return { page, rows, row, cross, onSelect, onCloseWork }
+  return { page, rows, row, cross, onSelect, onOpenFile, onCloseWork }
 }
 
 const dialog = () => document.querySelector<HTMLElement>("[role=alertdialog]")
@@ -98,6 +114,23 @@ const answer = (name: string) =>
   [...(dialog()?.querySelectorAll("button") ?? [])].find((item) => item.textContent === name)!
 
 describe("the Changes panel's rows", () => {
+  it("opens a file, added ones too, as a preview, without selecting the row", () => {
+    const added: WorkFile = { ...file(0, 0), path: "new.ts", status: "added" }
+    const { row, onOpenFile, onSelect } = show([work("a", { files: [file(0, 0), added] })])
+    const open = row("a").querySelectorAll<HTMLButtonElement>(".changes-file-open")
+    expect(open).toHaveLength(2)
+    // Beside the row's select button, not inside it.
+    expect(open[0]!.closest("button:not(.changes-file-open)")).toBeNull()
+    open[0]!.click()
+    expect(onOpenFile).toHaveBeenCalledWith(expect.objectContaining({ root: "/w/a" }), "a.ts")
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it("offers no preview of the files of another project's work", () => {
+    const { row } = show([work("a")], { openProject: "elsewhere" })
+    expect(row("a").querySelector(".changes-file-open")).toBeNull()
+  })
+
   it("names a row by its owner's title, with its branch on the detail line", () => {
     const { row } = show([work("a")])
     expect(row("a").querySelector("strong")?.textContent).toBe("Title t-a")
@@ -198,12 +231,12 @@ describe("a merged work's row", () => {
     expect(label(page)).not.toContain("merged")
   })
 
-  it("lets a conflict win over merged", () => {
+  it("lets merged win over a conflict", () => {
     const { row, page } = show([work("c", { merged: true, conflicts: [{ with: "main" }] })])
-    expect(row("c").dataset.merged).toBeUndefined()
-    expect(row("c").dataset.conflict).toBe("true")
-    expect(label(page)).toContain("conflicts with main")
-    expect(label(page)).not.toContain("merged")
+    expect(row("c").dataset.merged).toBe("true")
+    expect(row("c").dataset.conflict).toBeUndefined()
+    expect(label(page)).toContain("merged")
+    expect(label(page)).not.toContain("conflicts with main")
   })
 })
 

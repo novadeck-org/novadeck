@@ -307,10 +307,72 @@ describe("the words an agent was given", () => {
   })
 
   it("are none with nothing said, and the steps are the last of all", () => {
-    expect(agentContext("claude", [...ran("pnpm build", "built in 2s")])).toEqual({
-      said: null,
-      steps: [{ kind: "run", tool: "Bash", arg: "pnpm build", result: "built in 2s" }],
-    })
+    const found = agentContext("claude", [...ran("pnpm build", "built in 2s")])
+    expect(found.said).toBeNull()
+    expect(found.steps).toEqual([
+      { kind: "run", tool: "Bash", arg: "pnpm build", result: "built in 2s" },
+    ])
+    expect(found.entries.map((entry) => entry.run?.detail)).toEqual(["pnpm build"])
+  })
+})
+
+describe("the calls an agent's steps came from", () => {
+  const drawn = (agent: string, items: readonly ChatItem[]): readonly (string | null)[] =>
+    agentContext(agent, items).entries.map((entry) => `${entry.tool} ${entry.run?.detail ?? ""}`)
+  const poll = (session: number, output: string) =>
+    called("write_stdin", { session_id: session, chars: "" }, "", output)
+  const started = (session: number, command: string) =>
+    called(
+      "exec_command",
+      { cmd: command },
+      command,
+      `Chunk ID: 1\nWall time: 10.0 seconds\nProcess running with session ID ${session}\nOutput:\nstarted`,
+    )
+  const exited = "Chunk ID: 2\nWall time: 3 seconds\nProcess exited with code 0\nOutput:\ndone"
+
+  it("are the steps' own, without the reads between them", () => {
+    const items = [
+      user("run the tests and the linter please"),
+      ...ran("pnpm test", "ok"),
+      ...read("src/a.ts"),
+      ...ran("pnpm lint", "ok"),
+    ]
+    expect(drawn("claude", items)).toEqual(["Bash pnpm test", "Bash pnpm lint"])
+  })
+
+  it("draw a Codex poll with the command it polled, as the chat does, not the polls between", () => {
+    const items = [
+      user("build the release binary please"),
+      ...started(7, "cargo build --release"),
+      ...poll(7, "Chunk ID: 2\nWall time: 30 seconds\nProcess running with session ID 7"),
+      ...poll(7, exited),
+    ]
+    expect(drawn("codex", items)).toEqual(["exec_command cargo build --release", "write_stdin "])
+  })
+
+  it("keep the calls made inside a script with its call", () => {
+    const items = [
+      user("check the build for me please"),
+      ...called("exec", "tools.exec_command({cmd: 'make'})", "make", "Script completed"),
+      ...called("exec_command", { cmd: "make" }, "make", "ok").map((each) => ({
+        ...each,
+        scripted: true,
+      })),
+    ]
+    expect(drawn("codex", items)).toEqual(["exec make", "exec_command make"])
+  })
+
+  it("keep to three lines, the latest step's always among them", () => {
+    const items = [
+      user("build both binaries please"),
+      ...ran("pnpm test", "ok"),
+      ...started(7, "cargo build -p a"),
+      ...poll(7, exited),
+      ...started(8, "cargo build -p b"),
+      ...poll(8, exited),
+    ]
+    expect(agentContext("codex", items).steps).toHaveLength(3)
+    expect(drawn("codex", items)).toEqual(["exec_command cargo build -p b", "write_stdin "])
   })
 })
 

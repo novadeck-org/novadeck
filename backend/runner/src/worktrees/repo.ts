@@ -3,7 +3,14 @@ import { tmpdir } from "node:os"
 import { basename, dirname, join, resolve } from "node:path"
 
 import { git, type Run } from "../checkouts/git.js"
-import { commonDir, mainBranch, mergeBase, mergeTrees, type Main } from "../checkouts/repository.js"
+import {
+  commonDir,
+  landedIn,
+  mainBranch,
+  mergeBase,
+  mergeTrees,
+  type Main,
+} from "../checkouts/repository.js"
 
 // Git, run for the worktrees agents open, take and close.
 
@@ -178,13 +185,16 @@ export const standingOf = async (path: string): Promise<Standing> => {
 }
 
 /**
- * Whether merging `ref` into the main branch would change nothing: the same test the Changes
- * panel's Works uses (`merge-tree` is clean and gives the main branch's own tree). That is so
- * for a branch merged by any means, squash and rebase merges included.
+ * Whether merging `ref` into the main branch would change nothing, or, where it conflicts, would
+ * have at the commit its work landed in: the same test the Changes panel's Works uses
+ * (`merge-tree` is clean and gives main's own tree, else a conflict and `landedIn`). That is so
+ * for a branch merged by any means, squash and rebase merges included, also once main has
+ * changed the same lines again; not for work main reverted, which merges cleanly.
  */
 const mergedInto = async (folder: string, ref: string, main: Main): Promise<boolean> => {
   const merge = await mergeTrees(folder, main.commit, ref)
-  return merge.state === "clean" && merge.tree === main.tree
+  if (merge.state === "clean") return merge.tree === main.tree
+  return merge.state === "conflict" && (await landedIn(folder, main, ref)) !== undefined
 }
 
 /** Whether the worktree has submodules checked out, whose commits a removal would lose. */

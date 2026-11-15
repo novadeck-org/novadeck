@@ -45,6 +45,8 @@ const messagesOf = (waits: MessageWaits | null, paused = false): MessagesHandle 
     ],
   }
   return {
+    lastOpen: () => null,
+    keepOpen: () => {},
     threads,
     paused,
     pending: false,

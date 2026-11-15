@@ -12,6 +12,7 @@ export type FileView = {
   readonly path: string
   readonly name: string
   readonly conflict: boolean
+  readonly status: WorkFile["status"]
   readonly added: number
   readonly removed: number
 }
@@ -35,10 +36,12 @@ export type ChangeRow = {
   // The branch, or "detached".
   readonly branch: string
   readonly close: CloseMode
+  // It conflicts, and was not merged.
   readonly conflict: boolean
   // What the conflict is with, in words ("Conflicts with main"), or none.
   readonly conflictWords: string | undefined
-  // The work was merged ("Merged" in words); a conflict wins over it.
+  // The work was merged ("Merged" in words); it wins over a conflict, which a merged work's
+  // old branch may still have with what main changed since.
   readonly merged: boolean
   // How old the main branch it is measured against is ("main as of 12 min ago"), or none where
   // its repository's origin was never fetched.
@@ -53,6 +56,7 @@ const view = (file: WorkFile): FileView => ({
   path: file.path,
   name: baseName(file.path),
   conflict: file.conflict,
+  status: file.status,
   added: file.added,
   removed: file.removed,
 })
@@ -161,7 +165,7 @@ export const changeRows = (
 ): readonly ChangeRow[] =>
   orderedWorks(works).map((work) => {
     const files = orderedFiles(work.files)
-    const words = conflictWords(work, titles, works)
+    const words = work.merged ? undefined : conflictWords(work, titles, works)
     return {
       work,
       title: ownerTitle(work.terminalId, titles),
@@ -170,7 +174,7 @@ export const changeRows = (
       close: closeMode(work),
       conflict: words !== undefined,
       conflictWords: words,
-      merged: work.merged && words === undefined,
+      merged: work.merged,
       mainWords: mainWords(work.fetchedAt, now),
       files,
       branches: branchViews(files, work.truncated),

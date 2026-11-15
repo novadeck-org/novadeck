@@ -1,14 +1,17 @@
 import { randomBytes, randomUUID } from "node:crypto"
 import { constants, rmSync, writeFileSync } from "node:fs"
 import { access, realpath, stat } from "node:fs/promises"
-import { delimiter, isAbsolute, join, resolve as resolvePath } from "node:path"
+import { delimiter, dirname, isAbsolute, join, resolve as resolvePath, win32 } from "node:path"
 
+import type { Install } from "@novadeck/harness-core/harness"
 import type { AgentName } from "@novadeck/protocol"
 import { TerminalError } from "@novadeck/terminal"
 import type { RunSpec, Terminal } from "@novadeck/terminal/host"
 import { pathKey, refreshPath, startsCommands, type ShellLaunch } from "@novadeck/terminal/shell"
 
 import { DomainError } from "../errors.js"
+import { agents, harnesses } from "../harnesses/registry.js"
+import { locate } from "../harnesses/service.js"
 import { captureVariable, prepareCaptureFolder } from "../shell/capture.js"
 import type { InstalledShell } from "../shell/install.js"
 import { shellLaunch } from "../shell/integration.js"
@@ -40,6 +43,31 @@ export const startedIn = (started: Started, start: () => Terminal): Terminal => 
   }
 }
 
+/**
+ * `env` with each of `folders` last on its PATH, unless PATH has it: Windows' names have no
+ * case and may end in a separator, so there "C:\\Tools\\" and "c:\\tools" are one folder.
+ */
+export const withFolders = (
+  env: NodeJS.ProcessEnv,
+  folders: readonly string[],
+  platform: NodeJS.Platform,
+): NodeJS.ProcessEnv => {
+  const windows = platform === "win32"
+  const separator = windows ? ";" : ":"
+  const same = (folder: string): string =>
+    windows ? folder.replace(/[\\/]+$/, "").toLowerCase() : folder
+  const key = pathKey(env)
+  const have = new Set((env[key] ?? "").split(separator).map(same))
+  const added: string[] = []
+  for (const folder of folders)
+    if (!have.has(same(folder))) {
+      have.add(same(folder))
+      added.push(folder)
+    }
+  if (added.length === 0) return env
+  return { ...env, [key]: [env[key], ...added].filter(Boolean).join(separator) }
+}
+
 export type LauncherOptions = {
   readonly shell: string
   readonly shellArgs: readonly string[] | undefined
@@ -53,6 +81,8 @@ export type LauncherOptions = {
   readonly shims: () => Promise<readonly AgentName[]>
   /** Whether Novadeck's plugin is installed into the harness. */
   readonly connected: (agent: AgentName) => Promise<boolean>
+  /** Where each harness lives, which says where its installer puts the program. */
+  readonly install: (agent: AgentName) => Promise<Install | undefined>
 }
 
 export type LauncherHost = {
@@ -142,11 +172,35 @@ export class Launcher {
 
   /**
    * The environment a new shell starts from: the runner's, with PATH read anew where
-   * `freshPath` asks for it, as a Windows app keeps the PATH it was started with.
+   * `freshPath` asks for it, as a Windows app keeps the PATH it was started with, and with
+   * the folders of the agents it only finds beside PATH (see `programFolders`) put last.
    */
   async environment(): Promise<NodeJS.ProcessEnv> {
-    if (!this.options.freshPath) return this.options.env
-    return refreshPath(this.options.env, { relay: this.options.relay })
+    const env = this.options.freshPath
+      ? await refreshPath(this.options.env, { relay: this.options.relay })
+      : this.options.env
+    return withFolders(env, await this.programFolders(env), process.platform)
+  }
+
+  /**
+   * The folders of the agents' programs that `env`'s PATH lacks, as the installers leave them
+   * (`Harness.fallbacks`): `claude` typed in a new shell, or the shim that starts it, then
+   * finds the program an install just put in `~/.local/bin`, where macOS' PATH has none.
+   */
+  private async programFolders(env: NodeJS.ProcessEnv): Promise<readonly string[]> {
+    const found = await Promise.all(
+      agents.map(async (agent) => {
+        try {
+          const install = await this.options.install(agent)
+          const program = install && (await locate(agent, harnesses[agent], { ...install, env }))
+          if (!program) return undefined
+          return install.platform === "win32" ? win32.dirname(program) : dirname(program)
+        } catch {
+          return undefined
+        }
+      }),
+    )
+    return found.filter((folder) => folder !== undefined)
   }
 
   /** The shell's program, a name found on the PATH the new shell gets, as `environment`. */

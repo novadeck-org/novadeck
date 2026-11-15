@@ -68,10 +68,19 @@ const mount = (
     paused = false,
     seenAt = 0,
     shown = true,
-  }: { paused?: boolean; seenAt?: number; shown?: boolean } = {},
+    kept = { open: null },
+  }: {
+    paused?: boolean
+    seenAt?: number
+    shown?: boolean
+    // Where the terminal's messages were left, as the session keeps it.
+    kept?: { open: string | null }
+  } = {},
 ) => {
   const did = { goTo: [] as string[], answer: [] as string[], seen: [] as [string, number][] }
   const handle: MessagesHandle = {
+    lastOpen: () => kept.open,
+    keepOpen: (conversation) => void (kept.open = conversation),
     threads: { terminalId: "01", handle: "moth", agent: true, threads },
     paused,
     pending: false,
@@ -182,6 +191,37 @@ describe("an open conversation", () => {
       const { open, did } = mount(threads, { shown: false })
       open("03")
       expect(did.seen).toEqual([])
+    })
+
+    it("opens where it was left once built again, as after its pane let it go", () => {
+      const kept = { open: null }
+      const first = mount(threads, { kept })
+      first.open("03")
+      first.view.unmount()
+      const again = mount(threads, { kept })
+      expect(again.$(".message-chat-name")?.textContent).toBe("Tests@owl")
+      act(() => again.$(".message-back")!.click())
+      again.view.unmount()
+      expect(mount(threads, { kept }).rows()).toHaveLength(1)
+    })
+
+    it("takes focus to its Back only when the person opens it, not when built again", () => {
+      const kept = { open: null }
+      const first = mount(threads, { kept })
+      first.open("03")
+      expect(document.activeElement).toBe(first.$(".message-back"))
+      first.view.unmount()
+      const input = document.body.appendChild(document.createElement("input"))
+      input.focus()
+      mount(threads, { kept })
+      expect(document.activeElement).toBe(input)
+      input.remove()
+    })
+
+    it("forgets one left open that's gone from the list", () => {
+      const kept = { open: "09" as string | null }
+      mount(threads, { kept })
+      expect(kept.open).toBeNull()
     })
 
     it("goes to the other agent's terminal, and back to the list onto its row", () => {

@@ -13,6 +13,7 @@ import { conversation, conversations } from "./conversation.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { codexHome } from "./home.js"
+import { fallbacks, installer } from "./install.js"
 import { readModels } from "./models.js"
 import { connect, connected, disconnect, files, hook, hookDialect } from "./plugin.js"
 import { followRollout, followSubagent, rolloutPlans } from "./rollout.js"
@@ -182,6 +183,8 @@ const launch: LaunchProfile = {
 export const codex = {
   id: "codex",
   plugin: "codex",
+  installer,
+  fallbacks,
   conversation,
   conversations,
   home: codexHome,

@@ -160,6 +160,52 @@ describe("The Source tree", () => {
     })
   })
 
+  context("when only some agents' work is shown", () => {
+    const tree = buildTree(
+      new Map([
+        ...folderListings(["src/a.ts", "src/b.ts", "docs/c.md", "d.json"]),
+        ["docs", { entries: [], truncated: true }],
+      ]),
+      project({
+        changes: {
+          "src/a.ts": { kind: "modified", touched: { moth: 1 } },
+          "docs/c.md": { kind: "modified", touched: { crow: 1 } },
+        },
+        writing: { wren: "src/b.ts" },
+      }),
+    )
+    const open = new Set(["src", "docs"])
+    const shown = (only: string[]) =>
+      visibleLines(tree, open, true, new Set(only)).map((line) =>
+        isNote(line) ? `note:${line.path}` : line.node.path,
+      )
+
+    it("leaves out the files and folders none of them touched or is writing", () => {
+      expect(shown(["moth"])).toEqual(["src", "src/a.ts"])
+      expect(shown(["moth", "wren"])).toEqual(["src", "src/a.ts", "src/b.ts"])
+      expect(shown(["crow"])).toEqual(["docs", "docs/c.md"])
+    })
+
+    it("shows a folder of their work closed without what is inside", () => {
+      expect(visibleLines(tree, new Set(), false, new Set(["moth"]))).toMatchObject([
+        { node: { path: "src" }, open: false },
+      ])
+    })
+
+    it("shows everything, notes too, while nobody is named", () => {
+      expect(shown([])).toEqual([
+        "docs",
+        "docs/c.md",
+        "note:docs",
+        "src",
+        "src/a.ts",
+        "src/b.ts",
+        "d.json",
+        "note:",
+      ])
+    })
+  })
+
   context("when keeping the listings of the folders still there", () => {
     const listing = (names: string[]) => ({
       entries: names.map((name) => ({ name, folder: true, ignored: false })),

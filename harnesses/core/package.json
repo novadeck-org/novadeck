@@ -63,6 +63,11 @@
       "types": "./dist/hook-command.d.ts",
       "default": "./dist/hook-command.js"
     },
+    "./installer": {
+      "development": "./src/installer.ts",
+      "types": "./dist/installer.d.ts",
+      "default": "./dist/installer.js"
+    },
     "./items": {
       "development": "./src/items.ts",
       "types": "./dist/items.d.ts",

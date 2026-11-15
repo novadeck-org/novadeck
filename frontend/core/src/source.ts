@@ -4,8 +4,9 @@ import type { Store } from "./store"
 // folder one folder at a time (`list`), as the person opens them. On a demo backend, the
 // files its agents change come on top (`state`): who changed each file, how, and which
 // file each agent is writing in its current turn. Each agent there works in its own
-// worktree, so every write in that worktree is that agent's. A runner has no changes to
-// tell yet: its state stays empty, and the panel shows the plain tree.
+// worktree, so every write in that worktree is that agent's. A runner tells none of its
+// own: its state stays empty, and while agent worktrees are on the app lays each tracked
+// worktree's work (`works`) over the files in its place.
 
 // How an agent changed a file, against the branch its worktree came from.
 export type SourceChange = "modified" | "added" | "deleted"
@@ -55,3 +56,14 @@ export type Source = {
   // of the project's directory.
   readonly list: (projectId: string, folder: string) => Promise<SourceListing>
 }
+
+// How an agent's trail fades once it stops writing a file: from this opacity, by this much every
+// `trailTimeMs`, gone below `trailGone`. The panel's CSS keyframes (source.css) follow the same
+// curve, in the Source tree and the file preview alike.
+const trailStart = 0.7
+const trailTimeMs = 150_000
+export const trailGone = 0.04
+export const trailLifeMs = trailTimeMs * Math.log(trailStart / trailGone)
+
+export const trailOpacity = (ageMs: number): number =>
+  trailStart * Math.exp(-Math.max(0, ageMs) / trailTimeMs)

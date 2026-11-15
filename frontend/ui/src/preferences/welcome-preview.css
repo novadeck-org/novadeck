@@ -1,5 +1,5 @@
-/* The welcome-preview recipe: a miniature workspace in the welcome dialog. Three
-   terminals (`.welcome-terminal`, as `.agent`, `.review` and `.server`) lie on a
+/* The welcome-preview recipe: a miniature workspace in the welcome dialog. Four
+   terminals (`.welcome-terminal`, as `.agent`, `.review`, `.agy` and `.server`) lie on a
    dotted `.welcome-stage`, laid out by the stage's data-view="focus" | "grid" |
    "canvas"; buttons under it (`.segment`s, see segmented.css) switch the layout. Each
    terminal has a title bar (`.welcome-terminal-bar`) with a `.welcome-status`, and
@@ -106,6 +106,15 @@
     transform 650ms var(--ease-interface),
     translate 500ms cubic-bezier(0.16, 1, 0.3, 1);
 }
+/* A title bar keeps its icon and status whole; a long title gives way to them. */
+.welcome-terminal-bar > svg {
+  flex: none;
+}
+.welcome-terminal-bar > span:not(.welcome-status) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .welcome-terminal-bar {
   border-bottom: var(--border-width) solid
     var(--welcome-terminal-bar-border-color, var(--color-line));
@@ -173,10 +182,10 @@
   --_deal-y: 4px;
   --_depth: 5;
   z-index: 3;
-  top: 38px;
-  left: 5%;
+  top: 14px;
+  left: 4%;
   width: 58%;
-  height: 158px;
+  height: 124px;
   transform: rotate(-3deg);
 }
 .welcome-terminal.review {
@@ -190,18 +199,35 @@
   height: 132px;
   transform: rotate(3deg);
 }
+.welcome-terminal.agy {
+  --_deal-x: 120px;
+  --_deal-y: -70px;
+  --_depth: 7;
+  z-index: 5;
+  /* Above the zoom control in the stage's corner, over only the foot of Claude's card. */
+  top: 134px;
+  left: 3%;
+  width: 46%;
+  height: 74px;
+  transform: rotate(-2deg);
+}
 .welcome-terminal.server {
   --_deal-x: -90px;
   --_deal-y: -62px;
   --_depth: 9;
   z-index: 4;
   top: 132px;
-  left: 48%;
+  left: 52%;
   width: 44%;
   height: 91px;
   transform: rotate(1deg);
 }
 
+/* Four cards share the Canvas stage, so their output sits tighter. */
+.welcome-stage[data-view="canvas"] .welcome-code {
+  gap: 4px;
+  padding: 10px;
+}
 .welcome-stage[data-view="grid"] .welcome-terminal,
 .welcome-stage[data-view="focus"] .welcome-terminal {
   --_depth: 0;
@@ -211,29 +237,39 @@
 .welcome-stage[data-view="grid"] .welcome-terminal.agent {
   top: 31px;
   left: 3%;
-  width: 51%;
-  height: calc(100% - 46px);
+  width: 45%;
+  height: calc(50% - 21px);
 }
 .welcome-stage[data-view="grid"] .welcome-terminal.review {
   top: 31px;
-  left: 56%;
-  width: 41%;
-  height: calc(50% - 26px);
+  left: 52%;
+  width: 45%;
+  height: calc(50% - 21px);
+}
+.welcome-stage[data-view="grid"] .welcome-terminal.agy {
+  top: calc(50% + 18px);
+  left: 3%;
+  width: 45%;
+  height: calc(50% - 33px);
 }
 .welcome-stage[data-view="grid"] .welcome-terminal.server {
-  top: calc(50% + 11px);
-  left: 56%;
-  width: 41%;
-  height: calc(50% - 26px);
+  top: calc(50% + 18px);
+  left: 52%;
+  width: 45%;
+  height: calc(50% - 33px);
 }
 .welcome-stage[data-view="grid"] .welcome-code {
   font-size: 7px;
-  gap: 5px;
-  padding: 8px;
+  gap: 3px;
+  padding: 7px;
 }
 .welcome-stage[data-view="grid"] .welcome-zoom,
 .welcome-stage[data-view="focus"] .welcome-zoom {
   opacity: 0;
+}
+/* A Grid tile has no room for the prompt waiting under Claude's checks. */
+.welcome-stage[data-view="grid"] .welcome-cursor {
+  visibility: hidden;
 }
 .welcome-stage[data-view="focus"] .welcome-terminal.agent {
   top: 31px;
@@ -245,7 +281,7 @@
   font-size: 10px;
   gap: 9px;
 }
-.welcome-stage[data-view="focus"] .welcome-terminal:is(.review, .server) {
+.welcome-stage[data-view="focus"] .welcome-terminal:is(.review, .agy, .server) {
   opacity: 0;
   transform: translateX(60px) scale(0.9);
 }
@@ -257,12 +293,19 @@
 
 @media (max-width: 819px) {
   .welcome-stage {
-    height: 215px;
+    height: 232px;
     max-width: 470px;
     margin-inline: auto;
   }
   .welcome-terminal.server {
     top: 114px;
+  }
+  .welcome-terminal.agent {
+    top: 8px;
+  }
+  .welcome-terminal.agy {
+    top: 134px;
+    height: 72px;
   }
 }
 
@@ -272,6 +315,9 @@
   }
   .welcome-terminal.server {
     animation-delay: 650ms;
+  }
+  .welcome-terminal.agy {
+    animation-delay: 980ms;
   }
   .welcome-terminal.agent {
     animation-delay: 760ms;

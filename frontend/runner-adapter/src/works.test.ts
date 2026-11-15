@@ -1,4 +1,4 @@
-import type { Work, WorkClosing, WorkMade } from "@novadeck/protocol"
+import type { Work, WorkClosing, WorkMade, WorkPreview } from "@novadeck/protocol"
 import type { WorkWatchItem } from "@novadeck/runner-client"
 import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
@@ -33,6 +33,7 @@ const followed = (
   calls: {
     look?: (root: string) => Promise<void>
     close?: (root: string, force?: boolean) => Promise<WorkClosing>
+    preview?: (projectId: string, path: string) => Promise<WorkPreview>
   } = {},
 ) => {
   const stream = channel<WorkWatchItem>()
@@ -48,6 +49,7 @@ const followed = (
       { itemId: `item-${at}` }
     ),
     close: calls.close ?? (async () => ({ closed: true as const, branchDeleted: false })),
+    preview: calls.preview ?? (async () => ({ main: null, works: [], renames: [] })),
   })
   const release = works.watch()
   const ids = () =>
@@ -139,6 +141,7 @@ describe("Works, as the runner reports them", () => {
       look: async () => {},
       show: async () => ({ itemId: "x" }),
       close: async () => ({ closed: true as const, branchDeleted: false }),
+      preview: async () => ({ main: null, works: [], renames: [] }),
     })
     expect(watches).toBe(0)
   })
@@ -171,6 +174,7 @@ describe("reading the works once, as the backend starts", () => {
       look: async () => {},
       show: async () => ({ itemId: "x" }),
       close: async () => ({ closed: true as const, branchDeleted: false }),
+      preview: async () => ({ main: null, works: [], renames: [] }),
     })
     const state = () => runner.works.state.getSnapshot()
     return { ...runner, stream, state, watches: () => watches }
@@ -237,6 +241,8 @@ describe("looking at and showing a work", () => {
     const { works, stream } = followed({ look: () => new Promise(() => {}) })
     const file = {
       path: "src/a.ts",
+      status: "modified" as const,
+      changedAt: 1,
       added: 3,
       removed: 1,
       unreadAdded: 3,
@@ -281,6 +287,16 @@ describe("looking at and showing a work", () => {
     const { works, shown } = followed()
     await works.show(root(3), id(7))
     expect(shown).toEqual([`${root(3)} on ${id(7)}`])
+  })
+
+  it("asks the runner what a project's file would be once its works merge", async () => {
+    const asked: [string, string][] = []
+    const preview = { main: "a\n", works: [], renames: [] }
+    const { works } = followed({
+      preview: async (project, path) => (asked.push([project, path]), preview),
+    })
+    expect(await works.preview("p", "src/a.ts")).toEqual(preview)
+    expect(asked).toEqual([["p", "src/a.ts"]])
   })
 
   it("closes a worktree by its root and says what was kept, or passes the runner's refusal on", async () => {

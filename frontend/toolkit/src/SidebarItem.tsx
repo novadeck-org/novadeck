@@ -30,6 +30,7 @@ export const SidebarItem = ({
   wideIcon = false,
   detail,
   below,
+  after,
   selected,
   selectLabel,
   tooltip,
@@ -54,6 +55,8 @@ export const SidebarItem = ({
   readonly detail: ReactNode
   // Under the detail line, such as rows of what the item runs.
   readonly below?: ReactNode
+  // Under the whole row, outside its select button, so it may hold buttons of its own.
+  readonly after?: ReactNode
   readonly selected: boolean
   readonly selectLabel: string
   // On hover, where a row has more to say than it shows.
@@ -115,7 +118,7 @@ export const SidebarItem = ({
     <div
       {...attributes}
       ref={ref}
-      className={`${sidebarItemClasses} ${editing ? "flex-col" : ""} ${className}`}
+      className={`${sidebarItemClasses} ${editing || after ? "flex-col" : ""} ${className}`}
       data-selected={selected}
     >
       {tooltip ? (
@@ -130,6 +133,7 @@ export const SidebarItem = ({
           {description}
         </span>
       )}
+      {after}
       {editor}
       {actions && (
         <div className="sidebar-item-actions absolute right-2 bottom-[9px] flex h-6 shrink-0 items-center">

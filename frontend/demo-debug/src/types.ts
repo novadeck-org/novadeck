@@ -78,6 +78,8 @@ export type DemoStates = {
   readonly agents: NonNullable<Backend["agents"]>
   // Opens the first-run dialog for connecting agents again.
   readonly openWelcome: () => void
+  // Opens it with no agent installed, each offering its installer.
+  readonly openWelcomeBare: () => void
   readonly notices: NonNullable<Backend["notices"]>
   readonly updates: NonNullable<Backend["updates"]>
   // What the desktop app says is new after an update, as the Updates group plays it.

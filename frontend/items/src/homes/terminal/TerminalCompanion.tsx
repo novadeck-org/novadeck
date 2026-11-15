@@ -5,17 +5,22 @@ import type { Messages } from "@novadeck/core/messages"
 import type { AgentShell, TerminalKey, ViewMode } from "@novadeck/core/types"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 import { usePresence, type Presence } from "@novadeck/toolkit/presence"
+import { Shown, useShown } from "@novadeck/toolkit/shown"
 import { SubjectBar, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
 import type { CompanionActions } from "../../actions"
 import {
   barMembers,
+  behindGroups,
   behindTab,
   composeBar,
   dropOutcome,
+  isSecret,
+  openOfGroup,
   shownTab,
   slotKeys,
+  slotOf,
   type BarMember,
 } from "../../bar/bar"
 import { useDrag, type BarDrag } from "../../bar/drag-session"
@@ -46,19 +51,23 @@ const clamp = (value: number): number => Math.min(0.7, Math.max(0.22, value))
 // Terminal left, pane right, inside the terminal's own window. The divider drags. Where the
 // window is too narrow for both the pane covers the terminal, which keeps its size beneath;
 // its keys then uncover it (cover-keys.ts).
+// The pane is in sight while its window is shown and on screen, as its view tells.
 const SplitPane = ({
   view: shown,
   owner,
   terminalView,
   presence,
+  onScreen,
   children,
 }: {
   view: PaneView
   owner: string
   terminalView: ViewMode
   presence: Presence
+  onScreen: boolean
   children: ReactNode
 }): React.JSX.Element => {
+  const inSight = useShown() && onScreen
   const [ratio, setRatio] = useState(terminalView === "focus" ? 0.36 : 0.42)
   const frame = useRef<HTMLDivElement>(null)
   const { leaving, onHide } = shown
@@ -145,7 +154,9 @@ const SplitPane = ({
         className="pane-split-reader nodrag nopan nowheel"
         data-companion-of={owner}
       >
-        <CompanionPane {...shown} />
+        <Shown value={inSight}>
+          <CompanionPane {...shown} />
+        </Shown>
       </div>
     </div>
   )
@@ -174,6 +185,8 @@ export const TerminalCompanion = ({
   links,
   terminalKey,
   view,
+  onScreen = true,
+  selected = false,
   children,
   bar,
   items,
@@ -189,6 +202,10 @@ export const TerminalCompanion = ({
   links: MessageLinks
   terminalKey: TerminalKey
   view: ViewMode
+  // Whether its window is on screen in its view, as Grid and Canvas tell of a tile in sight
+  // whose turn has come, and whether its terminal is the selected one.
+  onScreen?: boolean
+  selected?: boolean
   children: ReactNode
   // The bar as the person arranged it, the items on it, and which of them are new.
   bar: Bar
@@ -246,12 +263,12 @@ export const TerminalCompanion = ({
   const [lastShown, setLastShown] = useState<BarKey | null>(showing)
   if (showing !== null && showing !== lastShown) setLastShown(showing)
   const paneTab = open ? tab : members.some((each) => each.key === lastShown) ? lastShown : null
-  // What's open in the pane behind what it shows, nearest first, counted against what it
-  // shows even as it hides, so its sheets stay as they were while it animates out.
-  const behind = behindTab(bar, members, paneTab)
-    .toReversed()
-    .flatMap((key) => members.filter((each) => each.key === key))
+  // The icons open in the pane behind what it shows, nearest first, counted against what
+  // it shows even as it hides, so its sheets stay as they were while it animates out.
+  const behind = behindGroups(slots, paneTab, behindTab(bar, members, paneTab).toReversed())
   const member = members.find((each) => each.key === paneTab)
+  // What it shows is one of a stack: the stack's things are its tabs.
+  const tabs = slotOf(slots, paneTab)?.members ?? []
   // Who showed what's here, by its main plan's agent.
   const agent =
     items.find((item) => item.kind === "plan" && item.plan?.role === "root")?.plan?.agent ??
@@ -277,6 +294,18 @@ export const TerminalCompanion = ({
     picked(key)
     commands.openBarTab(terminal, key)
   }
+  // Whether closing it asks first: a plan placed here whose edits can't reach its files,
+  // which closing loses. On its own terminal's bar a plan only hides, keeping its edits.
+  const asksFirst = (each: BarMember): boolean => {
+    if (each.kind !== "item" || each.item.kind !== "plan" || !each.item.from) return false
+    if (isOnBar(each.item, each.item.from.terminalId)) return false
+    const { plans: edits, content } = itemStore.store.getSnapshot()
+    const plan = edits[each.key]
+    return plan !== undefined && stuckEdits(plan, content[each.key])
+  }
+  // Minimizing what the pane shows minimizes everything open of its icon with it.
+  const minimizeShown = (key: BarKey): void =>
+    commands.minimizeOnBar(terminal, openOfGroup(slots, key, bar.stack))
   const undockMember = (each: BarMember, place?: WindowPlace): void => {
     if (each.kind !== "item" || each.placed) return
     picked(each.key)
@@ -287,22 +316,14 @@ export const TerminalCompanion = ({
     stacked: bar.stack,
     draw: terminalDrawing({ itemStore, target, messagesHandle, links, plans, shells }),
     originOf,
-    // Clicking what the pane is showing minimizes it, as a taskbar does the active window;
-    // anything else comes to the top.
-    activate: (key) => (key === showing ? commands.minimizeOnBar(terminal, key) : openPicked(key)),
+    // Clicking what the pane is showing minimizes it, with the rest of its icon, as a
+    // taskbar does the active window; anything else comes to the top.
+    activate: (key) => (key === showing ? minimizeShown(key) : openPicked(key)),
     open: openPicked,
     seen: (itemIds) => commands.markSeen(itemIds),
     close: (each) => {
       if (each.kind === "messages") return commands.hideOnBar(terminal, messagesKey)
-      // On its own terminal's bar a plan only hides, keeping its edits.
-      const plan = itemStore.store.getSnapshot().plans[each.key]
-      if (
-        each.item.kind === "plan" &&
-        each.item.from &&
-        !isOnBar(each.item, each.item.from.terminalId) &&
-        plan &&
-        stuckEdits(plan, itemStore.store.getSnapshot().content[each.key])
-      )
+      if (asksFirst(each))
         return setClosing((queue) =>
           queue.some((queued) => queued.id === each.key) ? queue : [...queue, each.item],
         )
@@ -357,6 +378,7 @@ export const TerminalCompanion = ({
   const paneView: PaneView = {
     member,
     leaving: !open,
+    tabs,
     behind,
     itemStore,
     target,
@@ -366,16 +388,31 @@ export const TerminalCompanion = ({
     plans,
     originOf,
     onUndock: actions.undock,
-    onMinimize: (each) => commands.minimizeOnBar(terminal, each.key),
+    onMinimize: (each) => minimizeShown(each.key),
     onHide: () => commands.closeBarPane(terminal),
-    onClose: actions.close,
+    // Closing what the pane shows shows the tab beside it, as an editor's tabs do, unless
+    // that may hold secrets, which shows only once picked, or the close asks first.
+    onClose: (each) => {
+      const at = tabs.findIndex((other) => other.key === each.key)
+      const next = tabs[at + 1] ?? tabs[at - 1]
+      if (each.key === showing && at >= 0 && next && !isSecret(next) && !asksFirst(each))
+        commands.openBarTab(terminal, next.key)
+      actions.close(each)
+    },
     onRaise: (each) => openPicked(each.key),
+    first: selected,
   }
   return (
     <TellContext.Provider value={tell}>
       <div ref={within} className="terminal-companion" data-view={view}>
         {shown.mounted ? (
-          <SplitPane view={paneView} owner={terminal} terminalView={view} presence={shown}>
+          <SplitPane
+            view={paneView}
+            owner={terminal}
+            terminalView={view}
+            presence={shown}
+            onScreen={onScreen}
+          >
             {children}
           </SplitPane>
         ) : (
