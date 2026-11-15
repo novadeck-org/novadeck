@@ -18,8 +18,13 @@ import { claudeHello, openssl, standIn } from "./stand-in.js"
 // harness has both; the way the person gets there differs, as each case says. Each holds
 // alike where Novadeck opened the agent and where the person typed it in a plain shell.
 
-/** How the agent starts: Novadeck opens it, or the person types it in a shell of its own. */
-const launches = ["opened", "typed"] as const
+/**
+ * How the agent starts: Novadeck opens it, the person types it in a shell of its own, or they
+ * type a script of their own that starts it, which no platform names after the agent. Typed
+ * either way, Novadeck's shim tells Novadeck as it starts the session, which is all that
+ * names a typed agent on Windows (ConPTY tells only the shell) and a scripted one anywhere.
+ */
+const launches = ["opened", "typed", "scripted"] as const
 type Launch = (typeof launches)[number]
 
 const launch = async (run: E2E, how: Launch, command: string): Promise<DeckTerminal> => {
@@ -29,23 +34,20 @@ const launch = async (run: E2E, how: Launch, command: string): Promise<DeckTermi
   return terminal
 }
 
-const typed = (how: Launch): string => (how === "typed" ? ", typed in its shell" : "")
+const typed = (how: Launch): string =>
+  how === "typed"
+    ? ", typed in its shell"
+    : how === "scripted"
+      ? ", started by a script typed in its shell"
+      : ""
 
 /**
- * Why a typed agent with no session bound can't be found here: Windows names no terminal's
- * foreground program (ConPTY tells only the shell), so one typed there is known only once its
- * session binds. Undefined where it can be.
- */
-const unnamed = (how: Launch): string | undefined =>
-  how === "typed" && process.platform === "win32"
-    ? "Windows names no foreground program, so a typed agent is found only once it binds"
-    : undefined
-
-/**
- * A program named after `agent`, so Novadeck expects it, that starts the agent on PATH with
- * its environment changed: each of `env` set, or unset where null. Opened, it is started by
+ * A program that starts the agent on PATH with its environment changed: each of `env` set, or
+ * unset where null. Opened, it is named after `agent`, so Novadeck expects it, and started by
  * its full path; typed, it lies in the project and is typed by a short relative one, as a
- * long path wraps on a narrow screen and its echo can't be told whole.
+ * long path wraps on a narrow screen and its echo can't be told whole. Scripted, it is named
+ * as the person's own (`my-<agent>`) and starts the agent as its child, so the terminal's
+ * foreground program is the script.
  */
 const wrapped = async (
   run: E2E,
@@ -55,10 +57,11 @@ const wrapped = async (
 ): Promise<string> => {
   const folder =
     how === "opened" ? join(run.sandbox.root, "wrapped") : join(run.sandbox.project, ".bare")
+  const program = how === "scripted" ? `my-${agent}` : agent
   await mkdir(folder, { recursive: true })
   const entries = Object.entries(env)
   if (process.platform === "win32") {
-    const script = join(folder, `${agent}.cmd`)
+    const script = join(folder, `${program}.cmd`)
     // A name is one to cmd whatever its case, yet the environment it was given may hold it
     // twice (the sandbox's HTTPS_PROXY and https_proxy): each is cleared before it is set.
     const names = new Map(entries.map(([name, value]) => [name.toUpperCase(), value]))
@@ -68,16 +71,17 @@ const wrapped = async (
       ...(value === null ? [] : [`@set "${name}=${value}"`]),
     ])
     await writeFile(script, [...lines, `@call ${agent} %*`, ""].join("\r\n"))
-    return how === "opened" ? script : `.bare\\${agent}`
+    return how === "opened" ? script : `.bare\\${program}`
   }
-  const script = join(folder, agent)
+  const script = join(folder, program)
   const lines = entries.map(([name, value]) =>
     value === null ? `unset ${name}` : `export ${name}='${value.replaceAll("'", "'\\''")}'`,
   )
-  await writeFile(script, ["#!/bin/sh", ...lines, `exec ${agent} "$@"`, ""].join("\n"), {
+  const start = how === "scripted" ? `${agent} "$@"` : `exec ${agent} "$@"`
+  await writeFile(script, ["#!/bin/sh", ...lines, start, ""].join("\n"), {
     mode: 0o755,
   })
-  return how === "opened" ? script : `.bare/${agent}`
+  return how === "opened" ? script : `.bare/${program}`
 }
 
 const held = (terminal: DeckTerminal, why: string) =>
@@ -122,11 +126,15 @@ const hooksOff: { readonly [agent in AgentName]: (run: E2E) => Promise<void> } =
 for (const setup of setups) {
   describe.skipIf(!supported)(`${setup.name}, Novadeck's hooks off`, () => {
     for (const how of launches)
-      gated(e2e.seeded({ hooksTrusted: false }, setup), unnamed(how))(
+      e2e.seeded({ hooksTrusted: false }, setup)(
         `reads as held by them at its prompt, and at its review where it has one${typed(how)}`,
         async ({ e2e: run }) => {
           await hooksOff[setup.agent](run)
-          const t = await launch(run, how, setup.agent)
+          const t = await launch(
+            run,
+            how,
+            how === "scripted" ? await wrapped(run, how, setup.agent, {}) : setup.agent,
+          )
           const review = setup.trust?.hooks
           if (review) {
             await t.until(review.shows, 60_000)
@@ -199,23 +207,25 @@ const signedOut: {
   readonly [agent in AgentName]: (setup: AgentSetup, how: Launch) => void
 } = {
   claude: (setup, how) => {
-    e2e(setup)(
-      `reads its prompt saying it isn't signed in as waiting to sign in${typed(how)}`,
-      async ({ e2e: run }) => {
-        const t = await launch(
-          run,
-          how,
-          await wrapped(run, how, "claude", { ANTHROPIC_API_KEY: null }),
-        )
-        await t.until(/Not logged in · Run \/login/, 60_000)
-        await held(t, "its prompt to read as signed out")
-        // A session bound, at a prompt whose first prompt would fail.
-        expect(t.summary()).toMatchObject({
-          agent: "claude",
-          startup: { agent: "claude", screen: "sign-in" },
-        })
-      },
-    )
+    // Bound, it is found by its session however it started.
+    if (how !== "scripted")
+      e2e(setup)(
+        `reads its prompt saying it isn't signed in as waiting to sign in${typed(how)}`,
+        async ({ e2e: run }) => {
+          const t = await launch(
+            run,
+            how,
+            await wrapped(run, how, "claude", { ANTHROPIC_API_KEY: null }),
+          )
+          await t.until(/Not logged in · Run \/login/, 60_000)
+          await held(t, "its prompt to read as signed out")
+          // A session bound, at a prompt whose first prompt would fail.
+          expect(t.summary()).toMatchObject({
+            agent: "claude",
+            startup: { agent: "claude", screen: "sign-in" },
+          })
+        },
+      )
 
     // Its sign-in screen comes only at a first run, past a connectivity check the sandbox
     // refuses: a stand-in answers it, under a scratch authority only this Claude Code trusts.
@@ -254,44 +264,38 @@ const signedOut: {
   // backend, and keeps the sandbox's empty copy of the curated plugins: without one, Codex
   // fetches an archive of them from chatgpt.com, which the fake model's proxy refuses.
   codex: (setup, how) => {
-    gated(e2e(setup), unnamed(how))(
-      `names its sign-in screen${typed(how)}`,
-      async ({ e2e: run }) => {
-        const home = join(run.sandbox.home, ".codex-bare")
-        await mkdir(home, { recursive: true })
-        await writeFile(
-          join(home, "config.toml"),
-          `chatgpt_base_url = ${JSON.stringify(`${run.model.url}/backend-api/`)}\n` +
-            'check_for_update_on_startup = false\ncli_auth_credentials_store = "file"\n',
-        )
-        await cp(join(run.sandbox.home, ".codex", ".tmp"), join(home, ".tmp"), { recursive: true })
-        const t = await launch(
-          run,
-          how,
-          await wrapped(run, how, "codex", { OPENAI_API_KEY: null, CODEX_HOME: home }),
-        )
-        await t.until(/Sign in with ChatGPT/, 60_000)
-        await held(t, "its sign-in screen to count")
-        expect(t.summary().startup).toEqual({ agent: "codex", screen: "sign-in" })
-      },
-    )
+    e2e(setup)(`names its sign-in screen${typed(how)}`, async ({ e2e: run }) => {
+      const home = join(run.sandbox.home, ".codex-bare")
+      await mkdir(home, { recursive: true })
+      await writeFile(
+        join(home, "config.toml"),
+        `chatgpt_base_url = ${JSON.stringify(`${run.model.url}/backend-api/`)}\n` +
+          'check_for_update_on_startup = false\ncli_auth_credentials_store = "file"\n',
+      )
+      await cp(join(run.sandbox.home, ".codex", ".tmp"), join(home, ".tmp"), { recursive: true })
+      const t = await launch(
+        run,
+        how,
+        await wrapped(run, how, "codex", { OPENAI_API_KEY: null, CODEX_HOME: home }),
+      )
+      await t.until(/Sign in with ChatGPT/, 60_000)
+      await held(t, "its sign-in screen to count")
+      expect(t.summary().startup).toEqual({ agent: "codex", screen: "sign-in" })
+    })
   },
   // Its status line says `authenticating` behind its login screen, and its text says so too.
   agy: (setup, how) => {
-    gated(e2e(setup), unnamed(how))(
-      `names its sign-in screen${typed(how)}`,
-      async ({ e2e: run }) => {
-        await merge(
-          join(run.sandbox.home, ".gemini", "antigravity-cli", "settings.json"),
-          (settings) => {
-            delete settings.modelProvider
-          },
-        )
-        const t = await launch(run, how, await wrapped(run, how, "agy", { GEMINI_API_KEY: null }))
-        await t.until(/Select login method/, 60_000)
-        await held(t, "its sign-in screen to count")
-        expect(t.summary().startup).toEqual({ agent: "agy", screen: "sign-in" })
-      },
-    )
+    e2e(setup)(`names its sign-in screen${typed(how)}`, async ({ e2e: run }) => {
+      await merge(
+        join(run.sandbox.home, ".gemini", "antigravity-cli", "settings.json"),
+        (settings) => {
+          delete settings.modelProvider
+        },
+      )
+      const t = await launch(run, how, await wrapped(run, how, "agy", { GEMINI_API_KEY: null }))
+      await t.until(/Select login method/, 60_000)
+      await held(t, "its sign-in screen to count")
+      expect(t.summary().startup).toEqual({ agent: "agy", screen: "sign-in" })
+    })
   },
 }

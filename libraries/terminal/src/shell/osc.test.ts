@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { osc7Directory, osc9Directory } from "./osc.js"
+import { launchOf, osc7Directory, osc9Directory } from "./osc.js"
 
 const posix = process.platform !== "win32"
 
@@ -36,5 +36,24 @@ describe("OSC 9;9 directory reports", () => {
     expect(osc9Directory("Build finished")).toBeUndefined()
     expect(osc9Directory("4;1;50")).toBeUndefined()
     expect(osc9Directory("9;relative\\path")).toBeUndefined()
+  })
+})
+
+describe("launch reports", () => {
+  it("reads the terminal and the program it starts", () => {
+    expect(launchOf("launch;00000000-0000-4000-8000-000000000001;claude")).toEqual({
+      terminal: "00000000-0000-4000-8000-000000000001",
+      program: "claude",
+    })
+  })
+
+  it("ignores other messages, missing or extra fields, and names no program has", () => {
+    expect(launchOf("start;t1;claude")).toBeUndefined()
+    expect(launchOf("launch;t1")).toBeUndefined()
+    expect(launchOf("launch;;claude")).toBeUndefined()
+    expect(launchOf("launch;t1;claude;more")).toBeUndefined()
+    expect(launchOf("launch;t1;Claude")).toBeUndefined()
+    expect(launchOf("launch;t 1;claude")).toBeUndefined()
+    expect(launchOf(`launch;${"t".repeat(65)};claude`)).toBeUndefined()
   })
 })

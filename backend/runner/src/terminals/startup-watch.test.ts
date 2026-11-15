@@ -34,6 +34,9 @@ const walk = (looks: readonly (readonly [StartupLook, string])[], start = freshT
 const still = (count: number, text = "Trust?") =>
   Array.from({ length: count }, () => ["screen", text] as const)
 
+/** A run's pty, which the watch only compares. */
+const ptyOf = (run: number) => ({ run }) as unknown as WatchedRecord["terminal"]["pty"]
+
 describe("the startup watch", () => {
   describe("reading each harness's probed screens", () => {
     const probed: readonly (readonly [AgentName, readonly string[]])[] = [
@@ -183,18 +186,24 @@ describe("the startup watch", () => {
     let answers: boolean
     const record: {
       summary: WatchedRecord["summary"]
-      terminal: { run: number }
+      terminal: WatchedRecord["terminal"]
       startupScreen?: WatchedRecord["startupScreen"]
       bound: WatchedRecord["bound"]
       signedOut?: WatchedRecord["signedOut"]
+      promptedAt: number | null
     } = {
       summary: { id: "t", startup: null } as WatchedRecord["summary"],
-      terminal: { run: 1 },
+      terminal: { run: 1, pty: ptyOf(1) },
       bound: null,
+      promptedAt: null,
     }
     let watch: StartupWatch<WatchedRecord>
     const claudeScreens = loadProbe<Record<string, ScreenText>>(
       adapterFolder("claude"),
+      "startup.probe.json",
+    )
+    const codexScreens = loadProbe<Record<string, ScreenText>>(
+      adapterFolder("codex"),
       "startup.probe.json",
     )
     const watching = (screenNow: () => Promise<ScreenText | undefined>, delay: number) => {
@@ -239,7 +248,8 @@ describe("the startup watch", () => {
       stood = []
       answers = true
       record.summary = { ...record.summary, startup: null }
-      record.terminal = { run: 1 }
+      record.terminal = { run: 1, pty: ptyOf(1) }
+      record.promptedAt = null
       record.startupScreen = undefined
       record.bound = null
       record.signedOut = undefined
@@ -309,7 +319,7 @@ describe("the startup watch", () => {
       await pass(7000)
       expect(record.summary.startup).not.toBeNull()
       record.summary = { ...record.summary, startup: null }
-      record.terminal = { run: 2 }
+      record.terminal = { run: 2, pty: ptyOf(2) }
       drawn = shown(["Loading"], false)
       await pass(1000)
       expect(record.summary.startup).toBeNull()
@@ -436,6 +446,87 @@ describe("the startup watch", () => {
         watch.noticed(record)
         await pass(8000)
         expect(stood).toEqual(["claude"])
+      })
+    })
+
+    describe("an agent a shim said it starts, where no foreground program is named", () => {
+      const launch = (program = "claude", terminal = "t") => ({ terminal, program })
+      beforeEach(() => {
+        expected = null
+        drawn = claudeScreens.prompt
+      })
+
+      it("is watched as one typed, until the shell's prompt shows again", async () => {
+        await pass(2000)
+        expect(vi.getTimerCount()).toBe(0)
+        watch.launched(record, record.terminal.pty, launch())
+        await pass(8000)
+        expect(stood).toEqual(["claude"])
+        hooksOff = "claude"
+        await pass(1000)
+        expect(record.summary.startup).toEqual({ agent: "claude", screen: "hooks" })
+        // It exits, and the shell's prompt shows.
+        record.promptedAt = clock
+        hooksOff = undefined
+        await pass(1000)
+        expect(record.summary.startup).toBeNull()
+        expect(vi.getTimerCount()).toBe(0)
+        watch.noticed(record)
+        expect(vi.getTimerCount()).toBe(0)
+      })
+
+      it("is ignored when meant for another terminal or run, not an agent, or a session is bound", async () => {
+        await pass(2000)
+        watch.launched(record, record.terminal.pty, launch("claude", "other"))
+        watch.launched(record, ptyOf(0), launch())
+        watch.launched(record, record.terminal.pty, launch("vim"))
+        record.bound = {
+          binding: { agent: "codex", sessionId: "s" },
+        } as NonNullable<WatchedRecord["bound"]>
+        watch.launched(record, record.terminal.pty, launch())
+        record.bound = null
+        await pass(8000)
+        expect(stood).toEqual([])
+        expect(vi.getTimerCount()).toBe(0)
+      })
+
+      it("takes only the first since the prompt, as its tool shell may start another", async () => {
+        watch.launched(record, record.terminal.pty, launch("claude"))
+        watch.launched(record, record.terminal.pty, launch("codex"))
+        await pass(8000)
+        expect(stood).toEqual(["claude"])
+      })
+
+      it("takes one in the prompt's own moment, as typed ahead", async () => {
+        record.promptedAt = clock
+        watch.launched(record, record.terminal.pty, launch())
+        await pass(8000)
+        expect(stood).toEqual(["claude"])
+      })
+
+      it("gives way to another agent the foreground program names, whose mark then counts", async () => {
+        watch.launched(record, record.terminal.pty, launch("claude"))
+        drawn = shown(["Loading"])
+        await pass(3000)
+        // Claude Code ended in a nested shell, which shows no prompt, and Codex starts there.
+        record.summary = {
+          ...record.summary,
+          process: { name: "codex", argv: ["codex"] },
+        } as WatchedRecord["summary"]
+        watch.launched(record, record.terminal.pty, launch("codex"))
+        // Where its program then goes unnamed, the watch still looks for Codex.
+        record.summary = { ...record.summary, process: null }
+        drawn = codexScreens.prompt
+        await pass(8000)
+        expect(stood).toEqual(["codex"])
+      })
+
+      it("ends with its run, as the terminal restarts", async () => {
+        watch.launched(record, record.terminal.pty, launch())
+        record.terminal = { run: 2, pty: ptyOf(2) }
+        await pass(8000)
+        expect(stood).toEqual([])
+        expect(vi.getTimerCount()).toBe(0)
       })
     })
 

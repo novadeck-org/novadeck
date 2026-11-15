@@ -766,6 +766,41 @@ Novadeck call goes through the shim.
   Windows shim is there whenever Antigravity is connected, no longer only beside the worktrees
   folder.
 
+### Launch marks
+
+Each shim says when it starts a session: just before it runs the real program, on the session
+path only, it sends the terminal a private OSC naming the terminal and the agent,
+`ESC ] 6973 ; launch ; <NOVADECK_TERMINAL_ID> ; <agent> ESC \` (`posixLaunch` and `cmdLaunch`
+in `harnesses/core/src/launch-mark.ts`). The terminal's host reads it (`launchOf` in
+`libraries/terminal/src/shell/osc.ts`) and tells the runner (`launched`), whose startup watch
+takes it as the typed agent until the shell's prompt shows again, where the foreground program
+names no other (see
+[Agent messaging](agent-messaging.md#startup-screens)). It names an agent where nothing else
+does: on Windows ConPTY names only the shell as a terminal's foreground program, macOS names
+an installed Claude Code by its version, and anywhere a script of the person's own that
+starts one is named after itself.
+
+- A harness's other commands send nothing (Claude Code's `mcp`, Codex's `agents` and
+  `--remote`, Antigravity's `plugin`), nor does a harness that isn't connected, as its shim then
+  runs it as it is: with no hooks of Novadeck's, there is nothing for the mark to report.
+- The POSIX shims write it to `/dev/tty`, never to stdout, which a pipe may be reading, and only
+  while stdin is a terminal, as an agent's own tool shell mostly has none. Where it has one, as
+  Codex gives its commands a terminal of its own, the mark goes there, into that command's
+  output, never to Novadeck's terminal. The cmd shims write it to `con` with `set /p`, which
+  adds no line break; cmd can't tell whose input it has, so the runner takes only the first mark
+  after a prompt, as an agent may start another in its tool shell, unless the foreground program
+  names another agent, as one started after the last ended in a nested shell.
+- The runner takes a mark only for its own terminal's id, from the terminal's current run, with
+  no session bound. A program that prints one in the terminal does no more than a program named
+  after that agent would: the watch reads that terminal's screen and may ask its harness, reading
+  settings only, whether Novadeck's hooks run. Printed ahead of an agent's own mark, it stands in
+  for that agent until the prompt, where the foreground program doesn't name it.
+- In tmux the shim runs, but tmux keeps the mark to itself, so an agent there is found once its
+  session binds.
+- `backend/runner/src/shell/launch-mark.test.ts` runs each shim in a real pty, through the
+  ConPTY Novadeck ships on Windows; `e2e/startup.e2e.ts` starts each agent opened, typed and from
+  a script of the person's own.
+
 ## Screen readers
 
 Two adapter fields read a harness's TUI off the screen, and shared code knows no marker,

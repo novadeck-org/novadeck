@@ -184,19 +184,23 @@ describe("a terminal's output", () => {
     expect(text(terminal.screen)).not.toContain("OLD")
   })
 
-  it("reports the title, the prompt's directory and a full reset, with the run they came from", async () => {
+  it("reports the title, a launch, the prompt's directory and a full reset, with the run they came from", async () => {
     const { terminal, program, settled } = terminalOf()
     const seen: unknown[] = []
     terminal.on("title", (title, run) => seen.push(["title", title, run === terminal.pty]))
     terminal.on("cwd", (cwd, run) => seen.push(["cwd", cwd, run === terminal.pty]))
     terminal.on("reset", () => seen.push(["reset"]))
+    terminal.on("launched", (launch, run) => seen.push(["launched", launch, run === terminal.pty]))
     program.draw("\u001b]0;Hello\u0007")
+    program.draw("\u001b]6973;launch;t1;codex\u001b\\")
+    program.draw("\u001b]6973;nothing\u001b\\")
     program.draw("\u001b]7;file:///tmp/here\u001b\\")
     program.draw('\u001b]9;9;"/srv/there"\u001b\\')
     program.draw("\u001bc")
     await settled()
     expect(seen).toEqual([
       ["title", "Hello", true],
+      ["launched", { terminal: "t1", program: "codex" }, true],
       ["cwd", "/tmp/here", true],
       ["cwd", "/srv/there", true],
       ["reset"],

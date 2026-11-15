@@ -14,7 +14,7 @@ import {
 
 import { TerminalError, type Exit, type TerminalEvent } from "../contract.js"
 import { spawnPty, type Disposable, type Pty, type PtyExit, type PtyOptions } from "../pty/pty.js"
-import { osc7Directory, osc9Directory } from "../shell/osc.js"
+import { launchCode, launchOf, osc7Directory, osc9Directory, type Launch } from "../shell/osc.js"
 import { splitReports } from "./reports.js"
 import { Subscription } from "./subscription.js"
 
@@ -140,6 +140,8 @@ type Listeners = {
   title: (title: string, run: Pty) => void
   /** The shell's prompt reported its directory: OSC 7 for this machine, or OSC 9;9. */
   cwd: (cwd: string, run: Pty) => void
+  /** A program said it is starting another in the foreground (see `launchCode`). */
+  launched: (launch: Launch, run: Pty) => void
   /** A full reset (ESC c) cleared the screen. */
   reset: () => void
   /** Keys that count as the person's, just before they are written (see `input`). */
@@ -280,6 +282,7 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
     resized: new Set(),
     title: new Set(),
     cwd: new Set(),
+    launched: new Set(),
     reset: new Set(),
     keys: new Set(),
   }
@@ -489,6 +492,12 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
         const cwd = osc9Directory(data)
         if (cwd === undefined) return false
         fire("cwd", cwd, pty)
+        return true
+      }),
+      // Taken whole, so the screen never acts on it, read or not.
+      screen.parser.registerOscHandler(launchCode, (data) => {
+        const launch = launchOf(data)
+        if (launch !== undefined) fire("launched", launch, pty)
         return true
       }),
     ]

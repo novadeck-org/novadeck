@@ -48,6 +48,11 @@
       "types": "./dist/header.d.ts",
       "default": "./dist/header.js"
     },
+    "./launch-mark": {
+      "development": "./src/launch-mark.ts",
+      "types": "./dist/launch-mark.d.ts",
+      "default": "./dist/launch-mark.js"
+    },
     "./shim-root": {
       "development": "./src/shim-root.ts",
       "types": "./dist/shim-root.d.ts",

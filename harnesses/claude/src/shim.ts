@@ -1,4 +1,5 @@
 import { header } from "@novadeck/harness-core/header"
+import { cmdLaunch, posixLaunch } from "@novadeck/harness-core/launch-mark"
 import { cmdAdd, posixAdd } from "@novadeck/harness-core/shim-root"
 
 // Claude Code's commands other than a session, which a status line has no part in.
@@ -97,7 +98,8 @@ export const allowNovadeck = "--allowed-tools=mcp__plugin_novadeck_novadeck"
 // where agents' worktrees live, once that exists, so the session may write there as in its
 // own folder, and lets the session run Novadeck's own tools without asking (`allowNovadeck`),
 // fresh at every start and resume; it never passes a second --settings, which would replace
-// the first. Its other commands, and anything outside Novadeck's shells, run unchanged.
+// the first. As a session starts, it tells Novadeck so (`posixLaunch` and `cmdLaunch`). Its
+// other commands, and anything outside Novadeck's shells, run unchanged.
 export const posixShim = (root?: string): string => `#!/bin/sh
 ${header("#", "shim for claude")}
 # Runs the real claude with Novadeck's status line, which passes on the person's own, with
@@ -149,6 +151,7 @@ for novadeck_arg in "$@"; do
     *) break ;;
   esac
 done
+${posixLaunch("claude")}
 exec "$novadeck_real" \${novadeck_settings:+--settings "$novadeck_settings"} \${novadeck_add:+"$novadeck_add"} ${allowNovadeck} "$@"
 `
 
@@ -229,6 +232,7 @@ shift
 goto more
 :session
 set "novadeck_arg="
+${cmdLaunch("claude")}
 "%novadeck_real%" %novadeck_with% %novadeck_add% ${allowNovadeck} %*
 exit /b %ERRORLEVEL%
 :plain

@@ -6,6 +6,7 @@ import {
   type TerminalSummary,
 } from "@novadeck/protocol"
 import type { Terminal } from "@novadeck/terminal/host"
+import type { Launch } from "@novadeck/terminal/shell"
 import type { BoxProfile } from "@novadeck/tui-input/box"
 
 import { harnesses } from "../harnesses/registry.js"
@@ -14,8 +15,11 @@ import type { Record } from "./record.js"
 import { programOf } from "./sampling.js"
 
 /** What the watch reads of a terminal's record, and what it keeps there. */
-export type WatchedRecord = Pick<Record, "summary" | "startupScreen" | "bound" | "signedOut"> & {
-  readonly terminal: Pick<Terminal, "run">
+export type WatchedRecord = Pick<
+  Record,
+  "summary" | "startupScreen" | "bound" | "signedOut" | "promptedAt"
+> & {
+  readonly terminal: Pick<Terminal, "run" | "pty">
 }
 
 /** How often the terminals expecting an agent are looked at, in milliseconds. */
@@ -138,12 +142,9 @@ export const nextTrack = (
 
 const trackKey = ({ summary, terminal }: WatchedRecord): string => `${summary.id}/${terminal.run}`
 
-/**
- * The agent a terminal's foreground program is, with no session bound: one the person typed
- * in its shell, which Novadeck didn't launch and so expects nowhere.
- */
-const typedAgent = ({ bound, summary }: WatchedRecord): AgentName | undefined => {
-  const program = !bound && summary.process ? programOf(summary.process) : undefined
+/** The agent a terminal's foreground program is (see `typedAgent`). */
+const foregroundAgent = ({ summary }: WatchedRecord): AgentName | undefined => {
+  const program = summary.process ? programOf(summary.process) : undefined
   return isAgentName(program) ? program : undefined
 }
 
@@ -207,6 +208,8 @@ export class StartupWatch<R extends WatchedRecord> {
   private tracks = new Map<string, Track>()
   /** The tracks whose harness answered whether Novadeck's hooks run there. */
   private answered = new Set<string>()
+  /** By terminal and run: the agent a shim there said it starts, and when. */
+  private launches = new Map<string, { readonly agent: AgentName; readonly at: number }>()
   private readonly schedule = coalesced(
     () => this.tick(),
     "Novadeck's startup watch failed:",
@@ -236,6 +239,23 @@ export class StartupWatch<R extends WatchedRecord> {
     if (wanted) this.start()
   }
 
+  /**
+   * A shim in the terminal's shell said it starts `launch.program`'s session (see `launchCode`
+   * in libraries/terminal): that agent is the one typed there until the shell's prompt shows
+   * again, where the platform doesn't name its program. Only one meant for this terminal, from
+   * its current run, with no session bound; and only the first since the prompt, as an agent's
+   * own tool shell may start another, which a cmd shim can't tell from the person's. Where the
+   * foreground program names another agent, the last one ended with no prompt to say so, as in
+   * a nested shell, and the next one counts.
+   */
+  launched(record: R, run: unknown, launch: Launch): void {
+    const { program } = launch
+    if (run !== record.terminal.pty || launch.terminal !== record.summary.id) return
+    if (record.bound || !isAgentName(program) || this.liveLaunch(record) !== undefined) return
+    this.launches.set(trackKey(record), { agent: program, at: this.now() })
+    this.noticed(record)
+  }
+
   /** An agent is expected in some terminal. */
   start(): void {
     if (this.timer || this.host.stopping()) return
@@ -247,6 +267,7 @@ export class StartupWatch<R extends WatchedRecord> {
     this.pause()
     this.tracks.clear()
     this.answered.clear()
+    this.launches.clear()
   }
 
   private pause(): void {
@@ -291,6 +312,7 @@ export class StartupWatch<R extends WatchedRecord> {
       }
       this.tracks = tracks
       for (const key of this.answered) if (!tracks.has(key)) this.answered.delete(key)
+      this.forgetLaunches()
       this.settle()
     } finally {
       this.looking = false
@@ -316,7 +338,36 @@ export class StartupWatch<R extends WatchedRecord> {
   // The agent the watch looks for in a terminal: the one Novadeck expects there, else one the
   // person typed in its shell.
   private agentIn(record: R): AgentName | undefined {
-    return this.host.messaging().expected(record.summary.id) ?? typedAgent(record)
+    return this.host.messaging().expected(record.summary.id) ?? this.typedAgent(record)
+  }
+
+  /**
+   * The agent the person typed in a terminal's shell, which Novadeck didn't launch and so
+   * expects nowhere, with no session bound: its foreground program, where the platform names
+   * that, else the one its shim said it starts.
+   */
+  private typedAgent(record: R): AgentName | undefined {
+    return record.bound ? undefined : (foregroundAgent(record) ?? this.liveLaunch(record))
+  }
+
+  /**
+   * The agent a shim said it starts in the terminal's run, unless the shell's prompt showed
+   * since (a launch in the prompt's own moment, typed ahead, still counts), or the foreground
+   * program names another agent.
+   */
+  private liveLaunch(record: R): AgentName | undefined {
+    const launch = this.launches.get(trackKey(record))
+    if (!launch || launch.at < (record.promptedAt ?? -Infinity)) return undefined
+    const foreground = foregroundAgent(record)
+    return foreground === undefined || foreground === launch.agent ? launch.agent : undefined
+  }
+
+  // A launch ends with its run, once the shell's prompt shows again, or once another agent runs.
+  private forgetLaunches(): void {
+    const live = new Set<string>()
+    for (const record of this.host.records())
+      if (this.liveLaunch(record) !== undefined) live.add(trackKey(record))
+    for (const key of this.launches.keys()) if (!live.has(key)) this.launches.delete(key)
   }
 
   private async look(

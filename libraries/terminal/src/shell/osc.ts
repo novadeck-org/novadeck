@@ -50,3 +50,22 @@ export const osc9Directory = (data: string): string | undefined => {
   const unquoted = path.length >= 2 && path.startsWith('"') && path.endsWith('"')
   return usable(unquoted ? path.slice(1, -1) : path)
 }
+
+/**
+ * The private OSC a program sends just before it starts another in the terminal's foreground,
+ * as Novadeck's shims do for an agent: `OSC 6973 ; launch ; <terminal id> ; <program> ST`. It
+ * names the program where the platform names no foreground process (ConPTY names only the
+ * shell), and the terminal id says which terminal it was meant for.
+ */
+export const launchCode = 6973
+
+/** What a launch report says: the terminal it was meant for and the program it starts. */
+export type Launch = { readonly terminal: string; readonly program: string }
+
+const launchReport = /^launch;([A-Za-z0-9-]{1,64});([a-z][a-z0-9-]{0,31})$/
+
+/** The launch in an OSC 6973 report's data, after its code; undefined for anything else. */
+export const launchOf = (data: string): Launch | undefined => {
+  const match = launchReport.exec(data)
+  return match ? { terminal: match[1] as string, program: match[2] as string } : undefined
+}

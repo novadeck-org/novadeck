@@ -1779,15 +1779,14 @@ export class Terminals {
     })
     terminal.on("exit", () => this.exited(record))
     // Its summary's size is the terminal's own, drawn now.
-    terminal.on("resized", () => {
-      this.announce(record)
-    })
+    terminal.on("resized", () => this.announce(record))
     // A harness may tell by the title it sets that its prompt shows.
     terminal.on("title", (title, child) => {
       record.title = title
       this.shown.screenTitled(record, child, title)
     })
     terminal.on("cwd", (cwd, child) => this.prompted(record, child, cwd))
+    terminal.on("launched", (launch, child) => this.startups.launched(record, child, launch))
     // No marker keeps a line that is no longer the one it marked.
     terminal.on("reset", () => forgetPrompts(record))
     // What the person's keys did, once they count.

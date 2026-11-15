@@ -1,9 +1,10 @@
 // Shell integration: the files and launch that make a shell report its directory, keep a
 // folder first on PATH and run a startup command; Windows' registry PATH, the locale a
-// shell starts in and the length of its line.
+// shell starts in, the length of its line, and the launch a program in it reports.
 export { shellLaunch, startsCommands, type ShellLaunch } from "./shell/launch.js"
 export { afterKeys, emptyLine, type Line } from "./shell/line.js"
 export { withLocale } from "./shell/locale.js"
+export { launchCode, launchOf, type Launch } from "./shell/osc.js"
 export { cmdQuote, shQuote } from "./shell/quote.js"
 export {
   shellScriptPaths,

@@ -1,5 +1,6 @@
 import type { Machine } from "@novadeck/harness-core/harness"
 import { header } from "@novadeck/harness-core/header"
+import { cmdLaunch, posixLaunch } from "@novadeck/harness-core/launch-mark"
 import { cmdAdd, posixAdd, shQuote } from "@novadeck/harness-core/shim-root"
 
 import { titleSetting } from "./title.js"
@@ -18,7 +19,8 @@ import { titleSetting } from "./title.js"
 // terminal names a folder to capture to (NOVADECK_CAPTURE), the shim has Codex give its commands
 // Novadeck's capture (backend/runner/src/shell/capture.ts): on Linux and macOS through the
 // environment their shell starts with (BASH_ENV, ZDOTDIR, with the person's own passed on), on
-// Windows through Novadeck's PowerShell first on PATH, as Codex finds its shell there.
+// Windows through Novadeck's PowerShell first on PATH, as Codex finds its shell there. As a
+// session starts, with or without --no-daemon, it tells Novadeck so (`posixLaunch`, `cmdLaunch`).
 
 /**
  * What lets a session run Novadeck's own tools without asking, a word for `-c`: its plugin's
@@ -94,6 +96,7 @@ for novadeck_arg in "$@"; do
     --no-daemon) novadeck_daemon= ;;
   esac
 done${capture ? posixCapture(capture) : ""}
+${posixLaunch("codex")}
 exec "$novadeck_real" \${novadeck_daemon:+"$novadeck_daemon"} \${novadeck_add:+"$novadeck_add"} -c "${titleSetting}" -c ${approveNovadeck} "$@"
 `
 
@@ -149,10 +152,12 @@ if /i "%novadeck_arg%"=="--no-daemon" goto titled
 goto words
 :session
 set "novadeck_arg="
+${cmdLaunch("codex")}
 ${launchLine(`--no-daemon %novadeck_add% -c "${titleSetting}" -c ${approveNovadeck}`, pwshShimDir, "session")}
 exit /b %ERRORLEVEL%
 rem Already without the shared server: only the title is added.
 :titled
+${cmdLaunch("codex")}
 ${launchLine(`%novadeck_add% -c "${titleSetting}" -c ${approveNovadeck}`, pwshShimDir, "titled")}
 exit /b %ERRORLEVEL%
 :plain

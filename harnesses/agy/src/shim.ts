@@ -1,4 +1,5 @@
 import { header } from "@novadeck/harness-core/header"
+import { cmdLaunch, posixLaunch } from "@novadeck/harness-core/launch-mark"
 import { cmdAdd, posixAdd } from "@novadeck/harness-core/shim-root"
 
 /**
@@ -68,7 +69,8 @@ export const valued = [
 // shim, which passes --add-dir for the folder where agents' worktrees live, once that exists,
 // so a session may write there as in its own folder, under the person's own permission mode,
 // and the person's allow rules with Novadeck's own tools added (`allowNovadeck`).
-// Its commands, and anything outside Novadeck's shells, run unchanged.
+// As a session starts, it tells Novadeck so (`posixLaunch`, and `cmdLaunch` on Windows). Its
+// commands, and anything outside Novadeck's shells, run unchanged.
 export const posixShim = (root?: string): string => `#!/bin/sh
 ${header("#", "shim for agy")}
 # Runs the real agy with access to the folder where agents' worktrees live, and with
@@ -118,6 +120,7 @@ if [ -n "\${HOME:-}" ] && novadeck_dir=$(cd "$(dirname "$0")/.." && pwd); then
   "$novadeck_dir/novadeck-relay" allow "$HOME/.gemini/antigravity-cli/settings.json" '${allowNovadeck}' "$novadeck_settings" >/dev/null 2>&1 ||
     novadeck_settings=
 fi
+${posixLaunch("agy")}
 exec "$novadeck_real" \${novadeck_add:+"$novadeck_add"} \${novadeck_settings:+--settings "$novadeck_settings"} "$@"
 `
 
@@ -165,6 +168,7 @@ ${cmdAdd(root)}${cmdShimDir === undefined ? "" : `\nset "PATH=${cmdShimDir};%PAT
 set "novadeck_settings=%~dp0..\\${allowFolder}\\%NOVADECK_TERMINAL_ID%.json"
 set "novadeck_with="
 "%~dp0..\\novadeck-relay.exe" allow "%USERPROFILE%\\.gemini\\antigravity-cli\\settings.json" "${allowNovadeck}" "%novadeck_settings%" >nul 2>nul && set novadeck_with=--settings "%novadeck_settings%"
+${cmdLaunch("agy")}
 "%novadeck_real%" %novadeck_add% %novadeck_with% %*
 exit /b %ERRORLEVEL%
 :plain
