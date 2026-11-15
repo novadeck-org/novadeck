@@ -12,7 +12,8 @@
    `.changes-text`, a changed token a `.changes-tok`), a long change clipped by
    `.changes-clip` and an unchanged stretch folded by `.changes-fold`. Labels are quiet kind
    words (`.changes-word`) and names in code; an edit's tokens are `.changes-was` and
-   `.changes-now`.
+   `.changes-now`. The header's `.changes-pull` is the work's pull request ("PR #812"), the
+   page item's own `.artifact-open` link, before the item's actions.
 
    Hooks: on a layer, data-on when selected, data-start and data-end where its rail begins
    and ends (joined to the selected rows above and below), data-kind="uncommitted" |
@@ -26,6 +27,10 @@
    --changes-remove-fg (success-fg, danger-fg): its bar, sign, number and counts; a changed
    token is that ink at 24%. --changes-rail-fg (strong): the selection's rail.
    --pane-bg (paper): the ground of every view. */
+/* The 26px link on the header's 22px line, centred on it. */
+.artifact-meta .changes-pull {
+  margin-block: -2px;
+}
 .changes-host {
   --_ground: var(--pane-bg, var(--color-paper));
   --_add: var(--changes-add-fg, var(--color-success-fg));

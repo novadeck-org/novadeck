@@ -4,8 +4,9 @@ import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { createDragSession, DragSessionContext } from "@novadeck/items/drag-session"
 import { followMessages } from "@novadeck/items/messages"
+import { PullRequestsContext } from "@novadeck/items/pull-requests"
 import { createItemStore } from "@novadeck/items/store"
-import { createRef, useEffect, useState, type ReactNode } from "react"
+import { createRef, useEffect, useMemo, useState, type ReactNode } from "react"
 import { useLocation, useNavigate, useNavigationType, type Location } from "react-router"
 
 import type { CanvasHandle } from "../layouts/canvas/types"
@@ -27,6 +28,7 @@ import { landInbox, noLanding } from "./inbox-landing"
 import { noticeBoard, watchBellRings, watchInboxPings } from "./inbox-pings"
 import { nameFinished, watchFinishes } from "./murmur-offer"
 import { watchPageFocus } from "./page-focus"
+import { pullRequestsOf } from "./pull-requests"
 import { availablePanels, historyShown, resolveRoute, sourceShown, worksShown } from "./routing"
 import {
   createUiStore,
@@ -214,9 +216,13 @@ export const WorkspaceProvider = ({
   }, [services])
   useEffect(() => services.backend.inbox?.bind?.({ workspace: services.workspace }), [services])
   useRouteSync(sync, { location, navigationType, navigate })
+  // The works' pull requests, for the changes items wherever they show.
+  const pullRequests = useMemo(() => pullRequestsOf(services.backend), [services])
   return (
     <WorkspaceServicesContext value={services}>
-      <DragSessionContext value={services.drag}>{children}</DragSessionContext>
+      <DragSessionContext value={services.drag}>
+        <PullRequestsContext value={pullRequests}>{children}</PullRequestsContext>
+      </DragSessionContext>
     </WorkspaceServicesContext>
   )
 }

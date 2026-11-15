@@ -4,21 +4,14 @@ import { pagesPartition } from "@novadeck/core/items/pages"
 import { useShown } from "@novadeck/toolkit/shown"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { mountBrowser, type Load, type Place, type Trouble } from "@novadeck/viewers/browser"
-import { ArrowLeft, ArrowRight, ExternalLink, RotateCw, Smartphone } from "lucide-react"
+import { ArrowLeft, ArrowRight, RotateCw, Smartphone } from "lucide-react"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
 import type { ArtifactBodyProps } from "../../ArtifactViewer"
 import { useAwake } from "../../awake"
+import { OpenInBrowser } from "../../OpenInBrowser"
 import { UnderHeaderSlot } from "../../under-header"
 import { useViewerSlot } from "../../ViewerSlot"
-
-const OpenInBrowser = ({ url }: { url: string }): React.JSX.Element => (
-  // The desktop app opens a new window's http(s) address in the person's browser.
-  <a className="artifact-open" href={url} target="_blank" rel="noreferrer">
-    <ExternalLink size={14} aria-hidden="true" />
-    Open in browser
-  </a>
-)
 
 /** Whether two addresses share an origin: scheme, host and port. */
 const sameOrigin = (a: string, b: string): boolean => {

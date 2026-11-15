@@ -22,6 +22,7 @@
     "./peek.css": "./src/peek.css",
     "./ProjectWindow": "./src/homes/project/ProjectWindow.tsx",
     "./prose.css": "./src/prose.css",
+    "./pull-requests": "./src/kinds/changes/pull-requests.ts",
     "./registry": "./src/registry.ts",
     "./shells": "./src/kinds/shells/tails.ts",
     "./shells.css": "./src/shells.css",

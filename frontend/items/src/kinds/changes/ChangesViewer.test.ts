@@ -1,3 +1,4 @@
+import type { PullRequest } from "@novadeck/core/forges"
 import type {
   ChangedFile,
   ChangeFileDiff,
@@ -6,7 +7,7 @@ import type {
   Companions,
 } from "@novadeck/core/items"
 import { workspaceReducer } from "@novadeck/core/state"
-import { createWorkspaceStore } from "@novadeck/core/store"
+import { createStore, createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
@@ -15,6 +16,7 @@ import { afterEach, beforeEach } from "vitest"
 import { createItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
 import { changes as registration } from "./index"
+import { PullRequestsContext, type PullRequests } from "./pull-requests"
 import { filesOf } from "./tree"
 
 const unmounts: (() => void)[] = []
@@ -110,11 +112,13 @@ const cookieDiff: ChangeFileDiff = {
 }
 
 // The pane's body for the change, loading what `content` holds through a fake backend, which
-// answers a file's diff with `diffs` by path and notes what it was asked.
+// answers a file's diff with `diffs` by path and notes what it was asked; `pulls` is where it
+// reads its work's pull request, where the app gives one.
 const show = (
   content: ChangesContent,
   diffs: Record<string, ChangeFileDiff> = { "src/auth/cookies.ts": cookieDiff },
   withDiffs = true,
+  pulls?: PullRequests,
 ) => {
   const asked: { path: string; layers: readonly string[] }[] = []
   // The files the pane told the backend were read.
@@ -146,8 +150,10 @@ const show = (
   )
   const itemStore = createItemStore({ companions, workspace })
   unmounts.push(itemStore.connect())
-  const pane = () =>
-    createElement(registration.View, { item, itemStore, target, actions: undefined })
+  const pane = () => {
+    const view = createElement(registration.View, { item, itemStore, target, actions: undefined })
+    return pulls ? createElement(PullRequestsContext, { value: pulls }, view) : view
+  }
   const rendered = render(pane())
   unmounts.push(rendered.unmount)
   const { container } = rendered
@@ -217,7 +223,102 @@ const show = (
   }
 }
 
+// The app's works, with the work at the change's root carrying `pull`, and how often the item
+// asked the backend to follow them and let go.
+const worksWith = (pull: PullRequest | undefined) => {
+  const work = {
+    root: "/repo",
+    terminalId: null,
+    projectId: "p",
+    working: false,
+    branch: "agent/checkout",
+    base: "main",
+    firstSeenAt: 1,
+    merged: false,
+    added: 1,
+    removed: 0,
+    unreadAdded: 0,
+    unreadRemoved: 0,
+    files: [],
+    truncated: false,
+    conflicts: [],
+  }
+  const state = createStore({
+    works: [{ ...work, ...(pull && { pullRequest: pull }) }],
+    synced: true,
+    reported: true,
+  })
+  const follows = { asked: 0, released: 0 }
+  const pulls: PullRequests = {
+    state,
+    follow: () => {
+      follows.asked += 1
+      return () => {
+        follows.released += 1
+      }
+    },
+  }
+  const set = (next: PullRequest | undefined) =>
+    act(() => {
+      state.update((now) => ({
+        ...now,
+        works: [{ ...work, ...(next && { pullRequest: next }) }],
+      }))
+    })
+  return { pulls, follows, set }
+}
+const pullRequest: PullRequest = {
+  number: 812,
+  url: "https://github.com/acme/shop/pull/812",
+  title: "Check session expiry in one place",
+  state: "open",
+}
+
 describe("a change beside a terminal", () => {
+  context("with its work's pull request", () => {
+    it("links it in the header, as a page's Open in browser, to open in the browser", () => {
+      const { pulls, follows } = worksWith(pullRequest)
+      const { container } = show(change(), undefined, true, pulls)
+      const link = container.querySelector<HTMLAnchorElement>(".artifact-meta a.changes-pull")!
+      expect(link.textContent).toBe("PR #812")
+      expect(link.classList.contains("artifact-open")).toBe(true)
+      expect(link.href).toBe(pullRequest.url)
+      expect(link.target).toBe("_blank")
+      expect(link.getAttribute("aria-label")).toBe("PR #812, open, opens in your browser")
+      // While it shows, the item has the backend follow the works.
+      expect(follows).toEqual({ asked: 1, released: 0 })
+    })
+
+    it("follows the works' changes to it, and lets them go when it closes", async () => {
+      const { pulls, follows, set } = worksWith(pullRequest)
+      const { container, unmount } = show(change(), undefined, true, pulls)
+      const link = () => container.querySelector<HTMLAnchorElement>("a.changes-pull")
+      await set({ ...pullRequest, state: "merged" })
+      expect(link()?.getAttribute("aria-label")).toBe("PR #812, merged, opens in your browser")
+      await set(undefined)
+      expect(link()).toBeNull()
+      unmount()
+      expect(follows).toEqual({ asked: 1, released: 1 })
+    })
+
+    it("links none for a work without one, or a page that isn't on the web", () => {
+      const none = show(change(), undefined, true, worksWith(undefined).pulls)
+      expect(none.container.querySelector(".changes-pull")).toBeNull()
+      const odd = show(
+        change(),
+        undefined,
+        true,
+        worksWith({ ...pullRequest, url: "javascript:alert(1)" }).pulls,
+      )
+      expect(odd.container.querySelector(".changes-pull")).toBeNull()
+    })
+
+    it("links none outside the workspace, where there are no works", () => {
+      const { container } = show(change())
+      expect(container.querySelector(".changes-pull")).toBeNull()
+    })
+  })
+
   it("is registered as Changes", () => {
     expect(registration.kind).toBe("changes")
     expect(registration.names).toEqual({ one: "change", many: "Changes" })

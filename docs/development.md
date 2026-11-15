@@ -629,8 +629,10 @@ App:
   reboot. In the demo, Sign in and Install close Preferences and run in a terminal that plays the
   command, then flips the host to Signed in, or the forge to installed (Install lists the command
   first). The "Pull request" actions (No pull request, draft, open, merged, closed) set the mark on
-  the selected terminal's worktree, or the project's first (one is made if it has none): the row shows
-  "Draft #812" and so on beside its ×, a link to the pull request's page.
+  the selected terminal's worktree, or the project's first (one is made if it has none): the row's
+  detail line ends in its state's glyph and "#812" beside its ×, a link to the pull request's page,
+  and the work's changes item (in the showcase with "On, with Changes", select its row) has
+  "PR #812" in its header, which opens the page in the browser.
 - **Guides:** "Toggle icon guides" draws a dashed box over every icon (`svg.lucide`) and a
   dashed line through its middle, 20 px past each side, both 1 px and half see-through
   (`--icon-guide-color` changes them), for checking how icons line up with their text;

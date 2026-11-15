@@ -275,22 +275,26 @@ describe("a row's pull request mark", () => {
     state,
   })
 
-  it("reads state and number, and says in words what it opens", () => {
+  it("reads its number, and says in words its state and what it opens", () => {
     expect(pullMark(request("draft"))).toEqual({
       state: "draft",
-      text: "Draft #812",
-      label: "Draft #812, pull request, opens in browser",
+      text: "#812",
+      label: "#812, draft pull request, opens in browser",
       url: "https://github.com/acme/shop/pull/812",
     })
     expect(
-      (["open", "merged", "closed"] as const).map((state) => pullMark(request(state)).text),
-    ).toEqual(["Open #812", "Merged #812", "Closed #812"])
+      (["open", "merged", "closed"] as const).map((state) => pullMark(request(state)).label),
+    ).toEqual([
+      "#812, open pull request, opens in browser",
+      "#812, merged pull request, opens in browser",
+      "#812, closed pull request, opens in browser",
+    ])
   })
 
   it("opens only a web page", () => {
     const mark = pullMark({ ...request("open"), url: "javascript:alert(1)" })
     expect(mark.url).toBeUndefined()
-    expect(mark.label).toBe("Open #812, pull request")
+    expect(mark.label).toBe("#812, open pull request")
   })
 
   it("is on the row of a work that has one, beside its git-based merged state", () => {
@@ -298,7 +302,7 @@ describe("a row's pull request mark", () => {
       [work("a", 1, { merged: true, pullRequest: request("open") }), work("b", 2)],
       new Map(),
     )
-    expect(with_?.pullRequest?.text).toBe("Open #812")
+    expect(with_?.pullRequest?.text).toBe("#812")
     expect(with_?.merged).toBe(true)
     expect(without?.pullRequest).toBeUndefined()
   })

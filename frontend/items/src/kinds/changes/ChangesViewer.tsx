@@ -1,10 +1,13 @@
+import type { PullRequest } from "@novadeck/core/forges"
 import { type ChangesContent, type Item } from "@novadeck/core/items"
 import { useCallback, useMemo, type KeyboardEvent } from "react"
 
 import { ArtifactMeta, type ArtifactBodyProps } from "../../ArtifactViewer"
+import { OpenInBrowser } from "../../OpenInBrowser"
 import { FileTree } from "./FileTree"
 import { FileView } from "./FileView"
 import { LayerList } from "./LayerList"
+import { usePullRequest } from "./pull-requests"
 import { alone, idsOf, pick, selectedOf, selectionName } from "./selection"
 import { filesOf, filesOfRange, rowsOf } from "./tree"
 import { useDrillDown } from "./use-drill-down"
@@ -16,6 +19,26 @@ import { useChangesView } from "./view-state"
 // are the backend's, kept until each changes again.
 
 const noun = (count: number): string => `${count} ${count === 1 ? "file" : "files"}`
+
+const stateWords: Readonly<Record<PullRequest["state"], string>> = {
+  draft: "draft",
+  open: "open",
+  merged: "merged",
+  closed: "closed",
+}
+
+// The work's pull request, opened in the browser as a page item's own link is: "PR #812". Only a
+// web page's address is linked.
+const PullRequestLink = ({ pull }: { pull: PullRequest }): React.JSX.Element | null =>
+  /^https?:\/\//i.test(pull.url) ? (
+    <OpenInBrowser
+      url={pull.url}
+      className="changes-pull"
+      label={`PR #${pull.number}, ${stateWords[pull.state]}, opens in your browser`}
+    >
+      PR #{pull.number}
+    </OpenInBrowser>
+  ) : null
 
 // What the whole change comes to, from its own list of files (the net against main).
 const sums = (
@@ -61,6 +84,7 @@ export const ChangesViewer = ({
     [rows],
   )
   const all = useMemo(() => sums(content), [content])
+  const pull = usePullRequest(content.root)
 
   // A file opened is read: grayed at once, until the content comes again with the backend's word.
   const markRead = useCallback(
@@ -111,7 +135,14 @@ export const ChangesViewer = ({
 
   return (
     <>
-      <ArtifactMeta actions={actions}>
+      <ArtifactMeta
+        actions={
+          <>
+            {pull && <PullRequestLink pull={pull} />}
+            {actions}
+          </>
+        }
+      >
         <code className="artifact-meta-name" title={item.name}>
           {item.name}
         </code>

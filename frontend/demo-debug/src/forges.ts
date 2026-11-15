@@ -76,27 +76,27 @@ const states: readonly {
   {
     label: "No pull request",
     state: undefined,
-    hint: "Open Changes: the row's pull request mark is gone",
+    hint: "Open Changes: the row has no #812 at its detail line's end, and its work's changes item no PR #812 link",
   },
   {
     label: "Pull request: draft",
     state: "draft",
-    hint: "Open Changes: the row has a muted Draft #812 mark on its own line under the row's detail; click it to open the page, Tab reaches it",
+    hint: "Open Changes: the row's detail line ends in a muted dashed glyph and #812, a link Tab reaches; select the row to open its changes item, whose header has PR #812 to open in the browser",
   },
   {
     label: "Pull request: open",
     state: "open",
-    hint: "Open Changes: the row's mark reads Open #812 in the text color",
+    hint: "Open Changes: the row's detail line ends in #812 in the text color; its changes item's header has PR #812",
   },
   {
     label: "Pull request: merged",
     state: "merged",
-    hint: "Open Changes: the row's mark reads Merged #812 in green, while the row's own merged icon follows git as before",
+    hint: "Open Changes: the row's #812 has a merge glyph, while the row's own merged icon follows git as before",
   },
   {
     label: "Pull request: closed",
     state: "closed",
-    hint: "Open Changes: the row's mark reads Closed #812 in red",
+    hint: "Open Changes: the row's #812 has a closed glyph, muted",
   },
 ]
 

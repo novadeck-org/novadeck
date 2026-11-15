@@ -5,8 +5,9 @@
    `.changes-project`, `.changes-sep` and `.changes-branch` (the row's project, where there are
    several, the dot after it, and branch), `.changes-refusal`, `.changes-kept`,
    `.changes-branches` and `.changes-trail` (a file's lines, right-aligned in its row),
-   `.changes-empty`, `.changes-pr` (the work's pull request: a link to its page, data-state its
-   state, under the row's detail line). The row's × is
+   `.changes-empty`, `.changes-pr` (the work's pull request: "#812" after its state's glyph, a
+   link to its page, data-state its state, at the end of the row's detail line beside the ×).
+   The row's × is
    `.terminal-tab-revealed`, shown under the pointer as a tab's Rename.
 
    Hooks: on a row, data-merged once its work is merged, data-conflict while it conflicts with
@@ -49,20 +50,18 @@
   color: var(--color-danger-fg);
 }
 
-/* The pull request's mark: a small outlined chip by state, in the palette's tones (draft muted,
-   open ink, merged success, closed danger), on a line of its own under the row's detail, in the
-   text's column, so the branch above keeps its room. */
+/* The pull request's mark: its state's glyph and "#812" in the caption's mono, muted, an open
+   one in ink; under the pointer it underlines. It sits in the row's actions, before the ×. */
 .changes-pr {
-  align-self: flex-start;
-  margin: -2px 0 8px 32px;
-  --_pr-tone: var(--color-muted);
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
+  gap: 3px;
   height: 20px;
-  padding: 0 6px;
-  border: var(--border-width) solid color-mix(in srgb, var(--_pr-tone) 55%, transparent);
+  margin-right: 2px;
+  padding: 0 4px;
   border-radius: var(--radius-control, 4px);
-  color: var(--_pr-tone);
+  color: var(--color-muted);
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 18px;
@@ -70,19 +69,14 @@
   text-decoration: none;
 }
 .changes-pr[data-state="open"] {
-  --_pr-tone: var(--color-ink);
-}
-.changes-pr[data-state="merged"] {
-  --_pr-tone: var(--color-success-fg);
-}
-.changes-pr[data-state="closed"] {
-  --_pr-tone: var(--color-danger-fg);
+  color: var(--color-ink);
 }
 a.changes-pr:hover {
-  background: color-mix(in srgb, var(--_pr-tone) 12%, transparent);
+  color: var(--color-ink);
+  text-decoration: underline;
 }
 a.changes-pr:focus-visible {
-  outline: 2px solid var(--_pr-tone);
+  outline: 2px solid var(--focus-ring-color, var(--color-ink));
   outline-offset: 1px;
 }
 

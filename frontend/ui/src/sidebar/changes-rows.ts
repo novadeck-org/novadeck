@@ -28,10 +28,9 @@ export type BranchView =
 // mid-turn in it. Whether to ask is the runner's to say, not the row's files.
 export type CloseMode = "close" | "busy"
 
-// A work's pull request as its row's mark shows it: "Draft #812", the words a screen reader gets
-// ("Draft #812, pull request, opens in browser": its visible words first, so voice control finds
-// it) and the page it opens; none for an address that
-// is not a web page.
+// A work's pull request as its row's mark shows it: "#812" after a glyph of its state, the words
+// a screen reader gets ("#812, draft pull request, opens in browser": its visible words first, so
+// voice control finds it) and the page it opens; none for an address that is not a web page.
 export type PullMark = {
   readonly state: PullRequest["state"]
   readonly text: string
@@ -39,19 +38,12 @@ export type PullMark = {
   readonly url: string | undefined
 }
 
-const stateWords: Readonly<Record<PullRequest["state"], string>> = {
-  draft: "Draft",
-  open: "Open",
-  merged: "Merged",
-  closed: "Closed",
-}
-
 export const pullMark = ({ number, state, url }: PullRequest): PullMark => {
   const web = /^https?:\/\//i.test(url)
   return {
     state,
-    text: `${stateWords[state]} #${number}`,
-    label: `${stateWords[state]} #${number}, pull request${web ? ", opens in browser" : ""}`,
+    text: `#${number}`,
+    label: `#${number}, ${state} pull request${web ? ", opens in browser" : ""}`,
     url: web ? url : undefined,
   }
 }

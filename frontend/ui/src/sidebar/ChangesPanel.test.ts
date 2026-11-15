@@ -126,7 +126,7 @@ describe("the Changes panel's rows", () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
-  it("marks a work's pull request with a link to its page, beside the row's select button", () => {
+  it("marks a work's pull request with a link to its page, among the row's actions", () => {
     const pullRequest = {
       number: 812,
       url: "https://github.com/acme/shop/pull/812",
@@ -135,13 +135,19 @@ describe("the Changes panel's rows", () => {
     }
     const { row, onSelect } = show([work("a", { pullRequest }), work("b")])
     const link = row("a").querySelector<HTMLAnchorElement>("a.changes-pr")!
-    expect(link.textContent).toBe("Draft #812")
-    expect(link.getAttribute("aria-label")).toBe("Draft #812, pull request, opens in browser")
+    expect(link.textContent).toBe("#812")
+    expect(link.getAttribute("aria-label")).toBe("#812, draft pull request, opens in browser")
     expect(link.href).toBe(pullRequest.url)
     expect(link.target).toBe("_blank")
     expect(link.rel).toBe("noopener noreferrer")
-    // Not inside the select button, so it is a control of its own, reached by Tab.
+    // Not inside the select button, so it is a control of its own, reached by Tab; on the
+    // detail line's end, before the ×, which keeps its place at the row's end.
     expect(link.closest("button")).toBeNull()
+    expect(link.closest(".sidebar-item-actions")).not.toBeNull()
+    expect(link.nextElementSibling?.matches("button.terminal-tab-action")).toBe(true)
+    // The detail line keeps room for it; a row without one keeps the usual room.
+    expect(row("a").style.getPropertyValue("--_sidebar-actions-space")).toBe("calc(4ch + 46px)")
+    expect(row("b").style.getPropertyValue("--_sidebar-actions-space")).toBe("")
     expect(row("a").dataset.pullRequest).toBe("draft")
     link.addEventListener("click", (event) => event.preventDefault())
     link.click()
@@ -149,7 +155,7 @@ describe("the Changes panel's rows", () => {
     expect(row("b").querySelector(".changes-pr")).toBeNull()
   })
 
-  it("marks each state in words, and keeps a merged work's own merged state", () => {
+  it("marks each state by its glyph, and keeps a merged work's own merged state", () => {
     const state = (name: "open" | "merged" | "closed") => ({
       number: 7,
       url: "https://example.dev/7",
@@ -161,8 +167,17 @@ describe("the Changes panel's rows", () => {
       work("b", { merged: true, pullRequest: state("merged") }),
       work("c", { pullRequest: state("closed") }),
     ])
-    const mark = (name: string) => row(name).querySelector(".changes-pr")?.textContent
-    expect([mark("a"), mark("b"), mark("c")]).toEqual(["Open #7", "Merged #7", "Closed #7"])
+    const glyph = (name: string) =>
+      row(name)
+        .querySelector(".changes-pr svg")
+        ?.getAttribute("class")
+        ?.match(/lucide-git-[a-z-]+/)?.[0]
+    expect([glyph("a"), glyph("b"), glyph("c")]).toEqual([
+      "lucide-git-pull-request",
+      "lucide-git-merge",
+      "lucide-git-pull-request-closed",
+    ])
+    expect(row("a").querySelector(".changes-pr")?.textContent).toBe("#7")
     expect(row("b").dataset.merged).toBe("true")
   })
 

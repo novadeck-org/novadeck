@@ -3,8 +3,16 @@ import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 import { SidebarItem, sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import { SubjectBar, SubjectDetail, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { GitCompare, GitMerge, X } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import {
+  GitCompare,
+  GitMerge,
+  GitPullRequest,
+  GitPullRequestClosed,
+  GitPullRequestDraft,
+  X,
+  type LucideIcon,
+} from "lucide-react"
+import { useEffect, useMemo, useState, type CSSProperties } from "react"
 
 import {
   changeRows,
@@ -135,11 +143,25 @@ const BranchLine = ({ row }: { row: ChangeRow }): React.JSX.Element => (
   </>
 )
 
-// The work's pull request, a link to its page on a line under the row's detail, outside its select
-// button (a link inside it would be a control in a control), so it is reached by Tab and a click
-// does not select the row.
+// The glyph of a pull request's state, as the forges draw them.
+const pullGlyphs: Readonly<Record<PullMark["state"], LucideIcon>> = {
+  draft: GitPullRequestDraft,
+  open: GitPullRequest,
+  merged: GitMerge,
+  closed: GitPullRequestClosed,
+}
+
+// The work's pull request, "#812" after its state's glyph: a link to its page at the end of the
+// row's detail line, among the row's actions rather than in its select button (a link inside it
+// would be a control in a control), so it is reached by Tab and a click does not select the row.
 const PullMarkLink = ({ mark }: { mark: PullMark }): React.JSX.Element => {
-  const body = <span className="changes-pr-text">{mark.text}</span>
+  const Glyph = pullGlyphs[mark.state]
+  const body = (
+    <>
+      <Glyph size={12} strokeWidth={1.5} aria-hidden />
+      <span className="changes-pr-text">{mark.text}</span>
+    </>
+  )
   return mark.url ? (
     <a
       className="changes-pr"
@@ -203,12 +225,7 @@ const ChangeItem = ({
         )
       }
       detail={<BranchLine row={row} />}
-      after={
-        <>
-          {row.pullRequest && <PullMarkLink mark={row.pullRequest} />}
-          <Branches row={row} canOpen={canOpen} onOpenFile={onOpenFile} />
-        </>
-      }
+      after={<Branches row={row} canOpen={canOpen} onOpenFile={onOpenFile} />}
       badge={
         work.added + work.removed > 0 ? (
           <span className="terminal-tab-kinds changes-size">
@@ -221,6 +238,7 @@ const ChangeItem = ({
       {...(tooltip ? { tooltip } : {})}
       actions={
         <div className="terminal-tab-actions flex items-center">
+          {row.pullRequest && <PullMarkLink mark={row.pullRequest} />}
           <Tooltip content={closeTip(row)}>
             <button
               className="terminal-tab-action icon-button small dim quiet terminal-tab-revealed"
@@ -242,6 +260,14 @@ const ChangeItem = ({
       data-conflict={row.conflict || undefined}
       data-merged={row.merged || undefined}
       data-pull-request={row.pullRequest?.state}
+      // The detail line keeps room for the mark beside the ×: its glyph and gaps, and its text.
+      style={
+        row.pullRequest
+          ? ({
+              "--_sidebar-actions-space": `calc(${row.pullRequest.text.length}ch + 46px)`,
+            } as CSSProperties)
+          : undefined
+      }
     />
   )
 }
