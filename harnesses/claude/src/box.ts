@@ -13,6 +13,8 @@ import {
   type TurnStatus,
 } from "@novadeck/tui-input/box"
 
+import { signedOut } from "./startup.js"
+
 /** The markers leading its box's first row: `❯` as a prompt, `!` in its shell mode. */
 const markers: Markers = { prompt: "❯", shell: "!" }
 
@@ -284,6 +286,8 @@ export const box: BoxProfile = {
 export const slice: SliceProfile = {
   agent: "claude",
   side: (screen) => (screen.alternate ? "above" : "below"),
+  // Signed out, its footer says so beside an empty box: the person has a sign-in to do.
+  notice: signedOut,
   // Whole across rows, as a narrow screen wraps it.
   secret: (rows) =>
     rows

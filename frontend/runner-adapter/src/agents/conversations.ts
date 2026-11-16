@@ -123,6 +123,11 @@ export const retryMaxMs = 15_000
 // lost: until then it is loading, as the runner may not yet know where the transcript is.
 export const failuresToLoaded = 3
 
+// How long a turn may run before its session counts as having turned with no item to show for
+// it, in milliseconds: the transcript's first line takes a moment to follow a prompt typed in
+// the terminal.
+export const turnGraceMs = 5000
+
 type Stream<T> = AsyncIterableIterator<T, undefined>
 
 const end = (stream: Stream<unknown> | undefined): void => {
@@ -519,6 +524,27 @@ const read = (
     })()
   }
 
+  // Whether the agent has a turn running, since when, and whether one has ended, as `detail` last
+  // said; `turned` is the store's word on it, which a running turn earns after its grace.
+  let working: number | null = null
+  let ended = false
+  let turning: ReturnType<typeof setTimeout> | undefined
+  const turnedNow = (): boolean =>
+    ended || (working !== null && Date.now() - working >= turnGraceMs)
+  const setTurned = (): void => {
+    const turned = turnedNow()
+    store.update((current) => (current.turned === turned ? current : { ...current, turned }))
+  }
+  const watchTurn = (activity: AgentDetail["activity"]): void => {
+    const running = activity?.state === "working"
+    working = running ? (working ?? Date.now()) : null
+    ended = activity?.lastTurn != null
+    clearTimeout(turning)
+    turning = undefined
+    if (working !== null && !ended)
+      turning = setTimeout(setTurned, Math.max(0, working + turnGraceMs - Date.now()))
+  }
+
   const apply = (snapshot: AgentDetail): void => {
     const session = snapshot.agent === null ? null : snapshot.sessionId
     const root = rootOf(snapshot)
@@ -538,9 +564,9 @@ const read = (
     const prompts = promptsOf(snapshot, changed ? [] : store.getSnapshot().prompts)
     const box = snapshot.box ?? null
     // Whether a turn of this session was seen, as its hooks and records tell.
-    const turned =
-      snapshot.activity !== null &&
-      (snapshot.activity.state === "working" || snapshot.activity.lastTurn !== null)
+    if (changed) working = null
+    watchTurn(snapshot.activity)
+    const turned = turnedNow()
     store.update((current) => {
       const same =
         !changed &&
@@ -606,6 +632,7 @@ const read = (
     end(transcript)
     transcript = undefined
     clearTimeout(settling)
+    clearTimeout(turning)
     stopRetrying()
     store.update((now) => ({ ...noConversation, doorbell: now.doorbell }))
   })()
@@ -618,6 +645,7 @@ const read = (
       end(transcript)
       transcript = undefined
       clearTimeout(settling)
+      clearTimeout(turning)
       stopRetrying()
     },
   }

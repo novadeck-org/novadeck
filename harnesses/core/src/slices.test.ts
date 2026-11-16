@@ -241,6 +241,12 @@ describe("readSlice's idle", () => {
     expect(read(atRest, atRest, { waiting: true }).idle).toBe(false)
   })
 
+  it("does not idle beside a notice of the harness's own the person is to act on", () => {
+    const noticed = profile({ notice: (rows) => rows.includes("Not logged in") })
+    expect(read(atRest, atRest, { profile: noticed }).idle).toBe(true)
+    expect(read(["Not logged in", ...atRest], atRest, { profile: noticed }).idle).toBe(false)
+  })
+
   it("does not idle on a box that holds blank lines only", () => {
     const blanks = box({
       read: () => ({ text: "", mode: "prompt", first: 5, last: 6, blanks: true }),

@@ -13,6 +13,11 @@ export type SliceProfile = {
   readonly side: (screen: ScreenText) => "above" | "below"
   /** Whether a view may show under a box that stays: more rows there than at rest, box empty. */
   readonly viewsUnder?: boolean
+  /**
+   * Whether the screen holds a notice of the harness's own beside an empty box that the person
+   * is to act on (Claude Code's "Not logged in"): drawn there, it is no idle.
+   */
+  readonly notice?: (rows: readonly string[]) => boolean
   /** Whether the rows are a prompt for a secret, as far as it can tell. */
   readonly secret: (rows: readonly string[]) => boolean
 }
@@ -164,6 +169,6 @@ export const readSlice = (input: {
   return {
     bounds: undefined,
     resting: { rows: screen.rows, columns: screen.columns, under },
-    idle: read.text === "" && read.blanks !== true,
+    idle: read.text === "" && read.blanks !== true && !profile.notice?.(screen.rows),
   }
 }

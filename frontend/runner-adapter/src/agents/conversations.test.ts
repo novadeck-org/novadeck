@@ -23,6 +23,7 @@ import {
   retryMaxMs,
   retryMs,
   settleMs,
+  turnGraceMs,
   type ConversationStreams,
 } from "./conversations"
 
@@ -184,7 +185,7 @@ describe("the runner's conversations", () => {
       expect(store.getSnapshot()).toMatchObject({ loaded: true, records: { state: "absent" } })
     })
 
-    it("tells a turn of the session from the agent's activity", async () => {
+    it("tells a turn of the session from the agent's activity, a running one only after its grace", async () => {
       const { details, store } = setup()
       store.subscribe(() => {})
       details.push(detail())
@@ -202,7 +203,47 @@ describe("the runner's conversations", () => {
       details.push(detail({ activity: idle }))
       await settle()
       expect(store.getSnapshot().turned).toBe(false)
+      // A prompt typed in the terminal: its first line is still on its way.
       details.push(detail({ activity: { ...idle, state: "working" } }))
+      await settle()
+      await vi.advanceTimersByTimeAsync(turnGraceMs - 1)
+      expect(store.getSnapshot().turned).toBe(false)
+      // Another snapshot of the same turn doesn't start its grace again.
+      details.push(detail({ activity: { ...idle, state: "working" } }))
+      await settle()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(store.getSnapshot().turned).toBe(true)
+    })
+
+    it("counts a turn that ended as one at once, and a turn that stopped inside its grace as none", async () => {
+      const { details, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      const idle = {
+        state: "idle" as const,
+        background: null,
+        waiting: null,
+        attention: { pending: 0, kind: null },
+        planning: false,
+        subagents: [],
+        lastTurn: null,
+      }
+      details.push(detail({ activity: { ...idle, state: "working" } }))
+      await settle()
+      details.push(detail({ activity: idle }))
+      await settle()
+      await vi.advanceTimersByTimeAsync(turnGraceMs * 2)
+      expect(store.getSnapshot().turned).toBe(false)
+      const lastTurn = {
+        outcome: "completed" as const,
+        reply: null,
+        at: 1,
+        error: null,
+        limit: null,
+        files: [],
+      }
+      details.push(detail({ activity: { ...idle, lastTurn } }))
       await settle()
       expect(store.getSnapshot().turned).toBe(true)
     })

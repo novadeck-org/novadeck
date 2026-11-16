@@ -955,7 +955,7 @@ one from an earlier runner.
   `TERMINAL_NOT_FOUND`.
   Each change also says `rest`: whether the harness sits at its own idle (`readSlice`'s
   `idle`): at rest, its input box empty, no request holding it, nothing else of its own
-  drawn. A dialog drawn where the box reader takes it for the box has text in it (as Codex's
+  drawn (Claude Code's "Not logged in" footer is drawn: `SliceProfile.notice`). A dialog drawn where the box reader takes it for the box has text in it (as Codex's
   question panel does), so it is no idle. The first snapshot comes with the first look, so
   it always says; a look that read no screen says `rest: false`. With `screen: true` in the
   call, each change carries the whole screen as a `view`-shaped slice too, which the chat

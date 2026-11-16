@@ -91,6 +91,11 @@ describe("Claude Code's idle", () => {
       expect(idlesOn(startup[screen]!, box, slice), screen).toBe(false)
   })
 
+  it("does not idle where it says it is not logged in, though its box is empty", () => {
+    expect(box.read(startup.signedOut!)?.text).toBe("")
+    expect(idlesOn(startup.signedOut!, box, slice)).toBe(false)
+  })
+
   it("does not idle on a dialog, whatever frame it is drawn in", () => {
     const { scenarios } = loadProbe<{
       scenarios: { [name: string]: { screens?: { [size: string]: ScreenText } } }
