@@ -509,7 +509,7 @@ App:
   projects together, so three toasts stack with a "+1 more" pill behind (the page needs focus
   and the Inbox panel closed, and a row from the selected terminal lands quietly, with no toast: with
   storefront's terminal 4 selected you get three toasts and no pill). "Fail the next answer" makes
-  the next answer to any row fail, so its sheet shows why and keeps the row and draft for retry. Ask, Tell and Your reply
+  the next answer to any row fail (not an update read by seeing it), so its sheet shows why and keeps the row and draft for retry. Ask, Tell and Your reply
   also appear in the terminal's Messages pane, in the conversation You; replies show queued and delivered states.
   "Stale next answer" makes the next answer report that the ask is no longer available,
   keeping the draft. "Ask withdrawn" removes the sample preview ask from the Inbox, as its
