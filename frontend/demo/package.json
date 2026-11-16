@@ -12,6 +12,7 @@
     "./address": "./src/address.ts",
     "./agents/installs": "./src/agents/installs.ts",
     "./agents/link": "./src/agents/link.ts",
+    "./agents/screens": "./src/agents/screens.ts",
     "./agents/turns": "./src/agents/turns.ts",
     "./feedback": "./src/feedback.ts",
     "./forges": "./src/forges.ts",

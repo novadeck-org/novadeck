@@ -1,12 +1,7 @@
-import type {
-  ChatRecords,
-  ChatSlice,
-  ChatSliceRun,
-  Conversation,
-  Conversations,
-} from "@novadeck/core/conversation"
+import type { ChatRecords, Conversation, Conversations } from "@novadeck/core/conversation"
 import type { Store } from "@novadeck/core/store"
 import { terminalKeyId } from "@novadeck/core/terminals/registry"
+import { idleScreen as idle, unreadDialogScreen as dialog } from "@novadeck/demo/agents/screens"
 
 import type { DemoAction } from "./types"
 
@@ -18,44 +13,6 @@ import type { DemoAction } from "./types"
 type Facts = Pick<Conversation, "records" | "rest" | "turned" | "screen" | "slice">
 
 const read: ChatRecords = { state: "read", lines: 0, unread: 0 }
-
-const plain = (text: string, width: number): ChatSliceRun => ({
-  text,
-  width,
-  fg: null,
-  bg: null,
-  bold: false,
-  dim: false,
-  italic: false,
-  underline: false,
-  inverse: false,
-})
-
-// A dialog of the agent's own that no adapter reads, as it stands on the screen.
-const dialogRows = [
-  "Do you trust the files in this folder?",
-  "",
-  "❯ 1. Yes, proceed",
-  "  2. No, exit",
-  "",
-  "Enter to confirm · Esc to cancel",
-]
-const dialog: ChatSlice = {
-  reason: "view",
-  columns: 60,
-  rows: dialogRows.map((text) => [plain(text, 60)]),
-  cursor: null,
-  secret: false,
-}
-
-// The agent's screen at its idle, where there is nothing else to see.
-const idle: ChatSlice = {
-  reason: "view",
-  columns: 60,
-  rows: ["Welcome to the agent.", "", "❯ "].map((text) => [plain(text, 60)]),
-  cursor: null,
-  secret: false,
-}
 
 const states: readonly {
   readonly label: string
