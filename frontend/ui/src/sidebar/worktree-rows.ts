@@ -170,12 +170,13 @@ export const conflictWords = (
   work: Work,
   titles: ReadonlyMap<string, string>,
   works: readonly Work[] = [],
+  main = "main",
 ): string | undefined => {
   if (work.conflicts.length === 0) return undefined
   const names = [
     ...new Set(
       work.conflicts.map((conflict) => {
-        if (conflict.with === "main") return "main"
+        if (conflict.with === "main") return main
         if (conflict.terminalId !== null && titles.has(conflict.terminalId))
           return titles.get(conflict.terminalId)!
         return works.find((other) => other.root === conflict.root)?.branch ?? "another worktree"
@@ -191,8 +192,7 @@ const conflictFact = (
   work: Work,
   titles: ReadonlyMap<string, string>,
   works: readonly Work[],
-): string | undefined =>
-  conflictWords(work, titles, works)?.replace(/(?<=^Conflicts with |, )main(?=,|$)/, work.base)
+): string | undefined => conflictWords(work, titles, works, work.base)
 
 const plural = (count: number, one: string, many: string): string =>
   `${count} ${count === 1 ? one : many}`
@@ -332,7 +332,8 @@ export const changeRows = (
 ): readonly ChangeRow[] =>
   orderedWorks(works).map((work) => {
     const files = orderedFiles(work.files)
-    const words = work.merged ? undefined : conflictWords(work, titles, works)
+    // Done (merged, or its pull request closed) wins over a conflict, as its group and icon say.
+    const words = groupOf(work) === "done" ? undefined : conflictWords(work, titles, works)
     return {
       work,
       title: ownerTitle(work.terminalId, titles),
@@ -345,7 +346,7 @@ export const changeRows = (
       close: closeMode(work),
       conflict: words !== undefined,
       conflictWords: words,
-      merged: work.merged,
+      merged: work.merged || work.pullRequest?.state === "merged",
       mainWords: mainWords(work.fetchedAt, now),
       pullRequest: work.pullRequest ? pullMark(work.pullRequest) : undefined,
       files,

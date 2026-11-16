@@ -512,10 +512,57 @@ describe("the Worktrees panel's groups", () => {
     })
     act(() => page.container.querySelector<HTMLButtonElement>(".worktrees-sweep")!.click())
     await eventually(() => expect(dialog()).not.toBeNull())
-    act(() => answer("Trash them").click())
+    expect(dialog()!.textContent).toContain("Its branch stays.")
+    act(() => answer("Trash it").click())
     await eventually(() =>
       expect(page.container.querySelector("[role=alert]")?.textContent).toContain(
         "stays: it holds 1 uncommitted or untracked path.",
+      ),
+    )
+  })
+})
+
+describe("Trash N safe, while it works", () => {
+  const sweep = (page: Rendered) =>
+    page.container.querySelector<HTMLButtonElement>(".worktrees-sweep")
+
+  it("leaves out a safe row whose agent is working in it", () => {
+    const { page } = show([
+      clean("a", { merged: true, safe: true }),
+      clean("b", { merged: true, safe: true, working: true }),
+    ])
+    expect(sweep(page)?.textContent).toBe("Trash 1 safe")
+  })
+
+  it("takes the rows it closes out of its count until they are closed", async () => {
+    let finish: () => void = () => {}
+    const { page } = show([clean("a", { merged: true, safe: true })], {
+      close: () =>
+        new Promise((resolve) => {
+          finish = () => resolve({ closed: true, branchDeleted: false })
+        }),
+    })
+    act(() => sweep(page)!.click())
+    await eventually(() => expect(dialog()).not.toBeNull())
+    act(() => answer("Trash it").click())
+    await eventually(() => expect(sweep(page)).toBeNull())
+    await act(async () => finish())
+  })
+
+  it("names every row that stayed, with the first one's reason", async () => {
+    const { page } = show(
+      [
+        clean("a", { firstSeenAt: 2, merged: true, safe: true }),
+        clean("b", { firstSeenAt: 1, merged: true, safe: true }),
+      ],
+      { close: async () => ({ closed: false, holds: "1 uncommitted or untracked path" }) },
+    )
+    act(() => sweep(page)!.click())
+    await eventually(() => expect(dialog()).not.toBeNull())
+    act(() => answer("Trash them").click())
+    await eventually(() =>
+      expect(page.container.querySelector("[role=alert]")?.textContent).toBe(
+        "Title t-a (feat/a), Title t-b (feat/b) stay: it holds 1 uncommitted or untracked path.",
       ),
     )
   })
@@ -617,6 +664,17 @@ describe("the panel's origin line", () => {
     expect(line.dataset.stale).toBe("true")
     act(() => line.querySelector<HTMLButtonElement>("button")!.click())
     expect(fetch).toHaveBeenCalledOnce()
+  })
+
+  it("says when a fetch failed, and offers it again", async () => {
+    const { page } = show(
+      [work("a", { base: "origin/main", fetchedAt: Date.now() - 5 * 60_000 })],
+      { fetch: async () => Promise.reject(new Error("Could not resolve host")) },
+    )
+    const line = page.container.querySelector<HTMLElement>(".worktrees-origin")!
+    act(() => line.querySelector<HTMLButtonElement>("button")!.click())
+    await eventually(() => expect(line.textContent).toContain("fetch failed"))
+    expect(line.querySelector("button")?.textContent).toBe("Retry")
   })
 
   it("isn't drawn where nothing was fetched", () => {

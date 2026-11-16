@@ -199,7 +199,9 @@ const Facts = ({
       }}
     >
       {row.facts.map((fact, index) => {
-        const Glyph = index > 0 && fact.glyph ? factGlyphs[fact.glyph] : undefined
+        // The icon says the first fact already, unless it is only the branch's.
+        const said = index === 0 && row.standing !== "branch"
+        const Glyph = !said && fact.glyph ? factGlyphs[fact.glyph] : undefined
         return (
           <span key={fact.text} className="worktrees-fact" data-tone={fact.tone}>
             {Glyph && <Glyph size={11} strokeWidth={1.75} aria-hidden />}
@@ -430,10 +432,15 @@ const OriginLine = ({
   onFetch: (() => Promise<void>) | undefined
 }): React.JSX.Element => {
   const [fetching, setFetching] = useState(false)
+  // Why the last fetch failed, until the next one: the age stays as it was.
+  const [failed, setFailed] = useState<string | null>(null)
   return (
     <div className="worktrees-origin" data-stale={origin.stale || undefined}>
       <RefreshCw size={11} strokeWidth={1.75} aria-hidden />
-      <span className="min-w-0 truncate">{origin.text}</span>
+      <span className="min-w-0 truncate" {...(failed ? { title: failed } : {})}>
+        {origin.text}
+        {failed && " · fetch failed"}
+      </span>
       {onFetch && (
         <button
           type="button"
@@ -441,12 +448,15 @@ const OriginLine = ({
           disabled={fetching}
           onClick={() => {
             setFetching(true)
+            setFailed(null)
             onFetch()
-              .catch(() => {})
+              .catch((error: unknown) =>
+                setFailed(error instanceof Error ? error.message : "Novadeck could not fetch."),
+              )
               .finally(() => setFetching(false))
           }}
         >
-          {fetching ? "Fetching…" : "Fetch"}
+          {fetching ? "Fetching…" : failed ? "Retry" : "Fetch"}
         </button>
       )}
     </div>
@@ -585,6 +595,8 @@ export const WorktreesPanel = ({
   const [doneFolded, setDoneFolded] = useState(readDoneFolded)
   // The safe rows Trash N safe would close, while its dialog asks.
   const [sweeping, setSweeping] = useState<readonly ChangeRow[] | null>(null)
+  // The rows Trash N safe is closing now.
+  const [sweepingRoots, setSweepingRoots] = useState<ReadonlySet<string>>(() => new Set())
   // Both go with their row: once another project is open, or the worktree closed meanwhile,
   // they would name a row the list no longer has. Settled as the works change, during render.
   const [seen, setSeen] = useState(works)
@@ -615,29 +627,37 @@ export const WorktreesPanel = ({
       },
     )
   }
-  // Closes every safe row, unforced: the runner closes a safe worktree without asking, and one
-  // that has stopped being safe since stays, saying why above the list.
+  // Closes every safe row, unforced: the runner closes a safe worktree without asking. While they
+  // close they leave Trash N safe, so a second click doesn't close them again. Any that stopped
+  // being safe since stay, named together above the list with the first one's reason.
   const sweep = (safe: readonly ChangeRow[]): void => {
     setRefusal(null)
-    for (const row of safe)
-      onCloseWork(row.work.root, false).then(
-        (closing) => {
-          if (!closing.closed)
-            setRefusal({
-              root: row.work.root,
-              title: named(row),
-              text: `stays: it holds ${closing.holds}.`,
-            })
-        },
-        (error: unknown) => {
-          if ((error as { code?: unknown } | null)?.code === "NOT_FOUND") return
-          setRefusal({
-            root: row.work.root,
-            title: named(row),
-            text: `stays: ${error instanceof Error ? error.message : "Novadeck could not close it."}`,
-          })
-        },
-      )
+    const roots = safe.map((row) => row.work.root)
+    setSweepingRoots((was) => new Set([...was, ...roots]))
+    void Promise.all(
+      safe.map((row) =>
+        onCloseWork(row.work.root, false).then(
+          (closing): { row: ChangeRow; why: string } | undefined =>
+            closing.closed ? undefined : { row, why: `it holds ${closing.holds}` },
+          (error: unknown): { row: ChangeRow; why: string } | undefined =>
+            (error as { code?: unknown } | null)?.code === "NOT_FOUND"
+              ? undefined
+              : {
+                  row,
+                  why: error instanceof Error ? error.message : "Novadeck could not close it",
+                },
+        ),
+      ),
+    ).then((answers) => {
+      setSweepingRoots((was) => new Set([...was].filter((root) => !roots.includes(root))))
+      const stayed = answers.filter((answer) => answer !== undefined)
+      if (stayed.length === 0) return
+      setRefusal({
+        root: stayed[0]!.row.work.root,
+        title: stayed.map(({ row }) => named(row)).join(", "),
+        text: `${stayed.length === 1 ? "stays" : "stay"}: ${stayed[0]!.why}.`,
+      })
+    })
   }
   const show = (work: Work, row: ChangeRow): void => {
     // The owner's bar, but a closed owner (in History) has none: the selected terminal's.
@@ -689,7 +709,10 @@ export const WorktreesPanel = ({
           {groups.map(({ key, title }) => {
             const members = rows.filter((row) => row.group === key)
             if (members.length === 0) return null
-            const safe = members.filter((row) => row.safe)
+            // A row whose agent is working waits, as its own trash button does.
+            const safe = members.filter(
+              (row) => row.safe && row.close !== "busy" && !sweepingRoots.has(row.work.root),
+            )
             const folded = key === "done" ? doneFolded : undefined
             return (
               <section
@@ -754,8 +777,8 @@ export const WorktreesPanel = ({
         title={(each) => `Trash ${each.length} ${each.length === 1 ? "worktree" : "worktrees"}?`}
         description={sweepDescription}
         body={sweepBody}
-        confirmLabel="Trash them"
-        cancelLabel="Keep them"
+        confirmLabel={sweeping?.length === 1 ? "Trash it" : "Trash them"}
+        cancelLabel={sweeping?.length === 1 ? "Keep it" : "Keep them"}
         onConfirm={() => {
           if (sweeping) sweep(sweeping)
           setSweeping(null)

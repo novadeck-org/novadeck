@@ -248,10 +248,11 @@ export const SidebarSection = memo((): React.JSX.Element => {
       ),
     sameHandles,
   )
-  // Whether pull requests are looked for: a forge is on. A backend without forges (a demo's)
+  // Whether pull requests are looked for: a forge is on and its tool installed. A backend without
+  // forges (a demo's)
   // has its works say so themselves.
   const forgesOn = useStoreSelector(backend.forges?.state ?? noForges, (forges) =>
-    backend.forges ? forges.some((forge) => forge.enabled) : true,
+    backend.forges ? forges.some((forge) => forge.enabled && forge.available) : true,
   )
   const fetchOrigin = useMemo(
     () => (worksFeed?.fetch ? () => worksFeed.fetch!(projectId) : undefined),

@@ -358,3 +358,27 @@ describe("the origin line", () => {
     expect(originOf([work("a", 1)], now)).toBeUndefined()
   })
 })
+
+describe("a done row's conflict", () => {
+  it("is not said where its pull request merged or closed, and a terminal called main stays so", () => {
+    const pull = (state: "merged" | "closed") => ({
+      number: 1,
+      url: "https://github.com/acme/app/pull/1",
+      title: "Work",
+      state,
+    })
+    const [merged, closed, open] = changeRows(
+      [
+        work("a", 3, { pullRequest: pull("merged"), conflicts: [{ with: "main" }] }),
+        work("b", 2, { pullRequest: pull("closed"), conflicts: [{ with: "main" }] }),
+        work("c", 1, {
+          base: "origin/main",
+          conflicts: [{ with: "work", root: "/r/m", terminalId: "t-m" }],
+        }),
+      ],
+      new Map([["t-m", "main"]]),
+    )
+    expect([merged?.conflict, merged?.merged, closed?.conflict]).toEqual([false, true, false])
+    expect(open?.facts[0]?.text).toBe("Conflicts with main")
+  })
+})
