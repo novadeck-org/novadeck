@@ -21,7 +21,7 @@
   @apply grid;
 }
 :where(.app-footer) {
-  @apply flex;
+  @apply grid;
 }
 :where(.sidebar-tools) {
   @apply flex;

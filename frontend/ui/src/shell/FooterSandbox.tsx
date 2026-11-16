@@ -61,12 +61,12 @@ export type FooterSandboxProps = {
   readonly onOpenChange: (open: boolean) => void
 }
 
-// Novadeck running without Electron's security sandbox, beside the footer's status: a
+// Novadeck running without Electron's security sandbox, in the footer's middle: a
 // chip, "No sandbox", and the notice above it, which says what happened and gives the one
 // command that fixes it. Quiet like the update's chip: it never opens by itself, and the
 // notice is a plain panel that takes no focus until the person opens it from the chip,
-// where Escape closes it and returns. Opening it closes the update's notice, which shares
-// its place, and it waits behind any dialog, menu or popover.
+// where Escape closes it and returns. Opening it closes the update's notice, which waits
+// while it is open, and it waits behind any dialog, menu or popover.
 export const FooterSandbox = ({
   sandbox,
   hidden,

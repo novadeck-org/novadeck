@@ -13,13 +13,13 @@ import { WhatsNew, type WhatsNewProps } from "./WhatsNew"
 
 // The terminal counts under the workspace. The runner's link isn't reported here: each
 // terminal says so over its screen, and a crash loop asks in a dialog; dismissed, it
-// leaves a chip at the end, "Restart terminals", to try again. An update downloading floats a bar above its right end (UpdateProgress.tsx); one it can't install
+// leaves a chip at the right end, "Restart terminals", to try again. An update downloading floats a bar above its right end (UpdateProgress.tsx); one it can't install
 // itself is a chip, "Update available", that opens the release page (UpdateAvailable.tsx).
 // One downloaded and waiting for the next quit is a chip, "Restart to update", whose card checks
 // what a restart would do and offers it (RestartToUpdate.tsx).
 // A portable copy has a chip there instead, "Install Novadeck" or "Update available", in
 // the bar's own colours, which opens its notice (PortableInstall.tsx). Without the security
-// sandbox, a chip before it says so (FooterSandbox.tsx). After an update, a card says what
+// sandbox, a chip in the footer's middle says so (FooterSandbox.tsx). After an update, a card says what
 // is new until it is dismissed (WhatsNew.tsx); it waits while a download's bar
 // shows, since notices there don't stack.
 export const WorkspaceFooter = ({
@@ -65,18 +65,19 @@ export const WorkspaceFooter = ({
   readonly available?: AvailableUpdate | undefined
   // What is new in the version the app updated to, as the card above the right end.
   readonly whatsNew?: WhatsNewProps | undefined
-  // Whether a notice is open above the footer's right end, where the bar would cover it.
+  // Whether the sandbox notice is open: the bar and the cards above the right end wait for it,
+  // so only one notice shows at a time.
   readonly noticeOpen?: boolean
-  // Set while the app runs without its security sandbox: a chip beside the update's
+  // Set while the app runs without its security sandbox: a chip in the footer's middle
   // opens the notice that says so.
   readonly sandbox?: FooterSandboxProps | undefined
   // Murmur's install under way or just ended, beside the update's chip.
   readonly murmur?: FooterMurmurProps | undefined
-  // The account's subscriptions, at its end before the status.
+  // The account's subscriptions, at the right end before its buttons.
   readonly usage?: ReactNode
-  // The feedback button, after the subscriptions; only a backend that takes feedback has one.
+  // The feedback button, at the very end; only a backend that takes feedback has one.
   readonly feedback?: ReactNode
-  // The Help button, after the feedback button.
+  // The Help button, after the feedback button, in the corner.
   readonly help?: ReactNode
 }): React.JSX.Element => {
   // Murmur's sheet, in the place the download's bar would cover.
@@ -97,9 +98,9 @@ export const WorkspaceFooter = ({
   return (
     <footer
       hidden={hidden}
-      className="app-footer max-[701px]:px-3 max-[701px]:text-[8px] max-[701px]:leading-3 h-7 shrink-0 items-center justify-between px-4 text-caption"
+      className="app-footer max-[701px]:px-3 max-[701px]:text-[8px] max-[701px]:leading-3 h-7 shrink-0 grid-cols-[1fr_auto_1fr] items-center px-4 text-caption"
     >
-      <span className="flex items-center gap-2">
+      <span className="flex items-center gap-2 justify-self-start">
         <span>
           {count} {count === 1 ? "terminal" : "terminals"}
         </span>
@@ -117,42 +118,52 @@ export const WorkspaceFooter = ({
           </span>
         )}
       </span>
-      <span className="flex items-center gap-4">
-        {usage}
-        {feedback}
-        {help}
+      {/* The middle: what the person should notice whichever end they look at. */}
+      <span className="footer-middle flex items-center">
         <FooterSandbox sandbox={sandbox} hidden={hidden} />
-        <FooterMurmur murmur={murmur} hidden={hidden} onSheetChange={setMurmurSheet} />
-        <PortableInstall portable={portable} hidden={hidden} />
-        <WhatsNew card={card} hidden={hidden} />
-        <RestartToUpdate
-          restart={
-            restart && {
-              ...restart,
-              blocked: restart.blocked || noticeOpen || murmurSheet || barActive || whatsNewShown,
+      </span>
+      {/* Two groups: the subscriptions, then the buttons and chips (`.footer-misc`), set
+          apart only while both show something (region.css). */}
+      <span className="footer-end flex items-center justify-self-end">
+        {usage}
+        <span className="footer-misc flex items-center gap-1">
+          {/* Most pressing first, nearest the middle: the crash loop's restart, Murmur's
+              install, then the update's chip under its card at the corner; the feedback and
+              Help buttons, always there, hold the edge so nothing else moves them. */}
+          {onRetry && (
+            <button
+              type="button"
+              className="footer-update footer-chip cursor-pointer"
+              aria-label="Restart terminals"
+              title="Restart terminals"
+              onClick={onRetry}
+            >
+              <RotateCcw size={12} strokeWidth={1.75} aria-hidden="true" />
+              <span className="footer-chip-text max-[701px]:hidden">Restart terminals</span>
+            </button>
+          )}
+          <FooterMurmur murmur={murmur} hidden={hidden} onSheetChange={setMurmurSheet} />
+          <PortableInstall portable={portable} hidden={hidden} />
+          <WhatsNew card={card} hidden={hidden} />
+          <RestartToUpdate
+            restart={
+              restart && {
+                ...restart,
+                blocked: restart.blocked || noticeOpen || murmurSheet || barActive || whatsNewShown,
+              }
             }
-          }
-          hidden={hidden}
-        />
-        <UpdateAvailable available={available} />
-        {/* A download has the corner from its start until its bar fades; the card waits. */}
-        <UpdateProgress
-          offer={progress}
-          hidden={hidden || noticeOpen || murmurSheet}
-          onActive={setBarActive}
-        />
-        {onRetry && (
-          <button
-            type="button"
-            className="footer-update footer-chip cursor-pointer"
-            aria-label="Restart terminals"
-            title="Restart terminals"
-            onClick={onRetry}
-          >
-            <RotateCcw size={12} strokeWidth={1.75} aria-hidden="true" />
-            <span className="footer-chip-text max-[701px]:hidden">Restart terminals</span>
-          </button>
-        )}
+            hidden={hidden}
+          />
+          <UpdateAvailable available={available} />
+          {/* A download has the corner from its start until its bar fades; the card waits. */}
+          <UpdateProgress
+            offer={progress}
+            hidden={hidden || noticeOpen || murmurSheet}
+            onActive={setBarActive}
+          />
+          {feedback}
+          {help}
+        </span>
       </span>
     </footer>
   )

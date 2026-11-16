@@ -1127,7 +1127,7 @@ describe("the footer without the security sandbox", () => {
 })
 
 describe("the footer's feedback slot", () => {
-  it("shows what it is given after the usage readout, and nothing without", () => {
+  it("shows what it is given at the end, after the usage readout, and nothing without", () => {
     const page = render(
       createElement(WorkspaceFooter, {
         hidden: false,
@@ -1135,11 +1135,17 @@ describe("the footer's feedback slot", () => {
         running: 0,
         usage: createElement("span", { id: "usage" }),
         feedback: createElement("button", { id: "feedback" }),
+        help: createElement("button", { id: "help" }),
       }),
     )
     mounted.push(page)
+    // Last in the group of buttons that follows the subscriptions' group, with Help after it in
+    // the corner.
     const usage = page.container.querySelector("#usage")!
-    expect(usage.nextElementSibling?.id).toBe("feedback")
+    const misc = usage.nextElementSibling
+    expect(misc?.classList.contains("footer-misc")).toBe(true)
+    expect(misc?.lastElementChild?.id).toBe("help")
+    expect(misc?.lastElementChild?.previousElementSibling?.id).toBe("feedback")
     expect(show().bar().querySelector("#feedback")).toBeNull()
   })
 })

@@ -5,7 +5,9 @@
    copy's with its `.update-card`, a downloaded update's restart card (`.restart-card`),
    the floating `.update-progress` bar of an update downloading, the `.whats-new` card of one just
    installed, and
-   the account's subscriptions, `.footer-usage`, a pill each with its `.usage-popover`), the rail of sidebar toggles (`.sidebar-tools`) and the sidebar
+   the account's subscriptions, `.footer-usage`, a pill each with its `.usage-popover`, and
+   the group of buttons after them, `.footer-misc`, both in `.footer-end`; between the two
+   ends, `.footer-middle`, for the sandbox's chip), the rail of sidebar toggles (`.sidebar-tools`) and the sidebar
    (`.sidebar`), which on narrow screens opens as a `.sidebar-drawer`. Each region is a
    ground with an edge toward the workspace.
 
@@ -118,8 +120,18 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  /* Twice the footer's gap before the buttons after it, setting the subscriptions apart. */
-  margin-inline-end: 16px;
+}
+/* The footer's end, two groups: the subscriptions (`.footer-usage`), then the buttons and
+   chips (`.footer-misc`), each spaced as the pills are. Its last item's padding hangs past
+   the bar's inset, so its icon or word sits as far from the right edge as the counts do from
+   the left. */
+.footer-end {
+  margin-inline-end: -6px;
+}
+/* The groups' gap, only while the buttons' group shows a button: its live regions and
+   floating cards, out of the flow, are there even when it shows none. */
+.footer-usage + .footer-misc:has(.footer-update) {
+  margin-inline-start: 16px;
 }
 .footer-usage-pill {
   display: inline-flex;
@@ -240,12 +252,13 @@
   grid-column: 2 / 4;
 }
 
-/* The sandbox notice (FooterSandbox.tsx), a `.floating` surface: a plain panel above the footer's right end, not
-   a layer, so it never takes keys or focus. Its title, text and the action, which always
-   stay in view. */
+/* The sandbox notice (FooterSandbox.tsx), a `.floating` surface: a plain panel above the
+   footer's middle, over its chip, not a layer, so it never takes keys or focus. Its title,
+   text and the action, which always stay in view. */
 .sandbox-panel {
   position: absolute;
-  right: 12px;
+  left: 50%;
+  translate: -50% 0;
   bottom: calc(100% + 8px);
   z-index: 30;
   display: flex;
