@@ -15,7 +15,7 @@ type Classes = { readonly asking: readonly string[]; readonly other: readonly st
 
 const lists: { readonly [agent in AgentName]: Classes } = {
   // Recorded from Claude Code 2.1.304 and the latest of 2026-10-29 (Monitor), and checked on
-  // 2.1.316 (the pin, 2026-10-31); on Windows it offers Glob and Grep too (seen in CI,
+  // 2.1.316 and 2.1.325 (the pin, 2026-11-16); on Windows it offers Glob and Grep too (seen in CI,
   // 2026-10-29).
   // EnterPlanMode and EnterWorktree ask the person to approve them, through its ordinary permission prompt, which Novadeck reads for
   // every tool; they are not questions of their own.
@@ -50,7 +50,7 @@ const lists: { readonly [agent in AgentName]: Classes } = {
       "Write",
     ],
   },
-  // Recorded from Codex 0.163.0, and checked on 0.167.0 (the pin, 2026-11-06), with the fake
+  // Recorded from Codex 0.163.0, and checked on 0.167.0 and 0.169.0 (the pin, 2026-11-16), with the fake
   // model's catalog entry as OpenAI's gives its models (agents/codex.ts).
   // 0.167.0 offers mcp__codex_tui to a TUI without a daemon, where 0.166.0 offered only
   // mcp__codex_worktrees. create_thread, send_message_to_thread and fork_thread ask the
@@ -95,7 +95,7 @@ const lists: { readonly [agent in AgentName]: Classes } = {
       "write_stdin",
     ],
   },
-  // Recorded from Antigravity 1.4.3, and checked on 1.5.7 (the pin, 2026-11-13).
+  // Recorded from Antigravity 1.4.3, and checked on 1.5.7 and 1.5.9 (the pin, 2026-11-16).
   agy: {
     asking: ["ask_question"],
     other: [
@@ -109,6 +109,11 @@ const lists: { readonly [agent in AgentName]: Classes } = {
       "read_file",
       "read_resource",
       "run_command",
+      // Runs a Python script that orchestrates agents and tool calls, in the background unless
+      // it ends within WaitMsBeforeAsync. Never asks the person itself: its schema (read from
+      // the request 1.5.9 sends) takes only the script, its arguments, its folder and the wait,
+      // as Claude Code's Workflow does. Added in 1.5.9.
+      "run_workflow",
       "schedule",
       "search_web",
       "send_message",
