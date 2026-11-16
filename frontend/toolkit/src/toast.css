@@ -158,7 +158,10 @@
   color: var(--toast-close-hover-fg, var(--color-ink));
 }
 
-/* The line along the foot runs out in the toast's own time, and holds with its timer. */
+/* The line along the foot runs out in the toast's own time, and holds with its timer. It
+   shrinks by transform, which the compositor runs alone: an animated width would lay the
+   page out on every frame, and resize the toast's child, which Ark measures the toast's
+   height for on each resize, so a showing toast cost a layout per frame. */
 .toast-countdown {
   position: absolute;
   bottom: 0;
@@ -167,11 +170,12 @@
   height: 2px;
   border-bottom-left-radius: var(--_radius);
   background-color: var(--toast-countdown-bg, var(--color-line-strong));
+  transform-origin: left center;
   animation: toast-countdown var(--_life, 30s) linear forwards;
 }
 @keyframes toast-countdown {
   to {
-    width: 0;
+    transform: scaleX(0);
   }
 }
 .toast[data-paused] .toast-countdown {
