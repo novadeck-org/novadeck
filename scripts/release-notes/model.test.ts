@@ -208,7 +208,6 @@ describe("the model call", () => {
   it("keeps the rules of the notes in the prompt", () => {
     const prompt = systemPrompt().replaceAll(/\s+/g, " ")
     for (const rule of [
-      "chat view",
       "try.novadeck.dev",
       `${askedLine} characters`,
       `${askedTitle} characters`,

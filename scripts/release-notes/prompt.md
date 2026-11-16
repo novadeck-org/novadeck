@@ -18,9 +18,7 @@ there.
 Write only what a person using the app can see or feel. Leave out anything internal:
 refactors, packaging, dependencies, tests, CI, the release pipeline, the website, the try
 demo and the try.novadeck.dev deploy, docs, and tooling for contributors. If a change has no
-visible effect, leave it out. If every change is like that, answer with empty lists. The chat
-view is behind a flag and is never announced: leave out anything about it. The Messages pane,
-where a conversation reads as a chat, is not the chat view, and is announced. Early and experimental builds
+visible effect, leave it out. If every change is like that, answer with empty lists. Early and experimental builds
 and the update channels are for contributors only: describe updates without naming them. So are
 Preferences' Experimental switch, its Experimental tab and every feature behind them: leave
 them out.

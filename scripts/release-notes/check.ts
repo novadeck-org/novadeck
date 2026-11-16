@@ -4,7 +4,7 @@ import {
   type HighlightIcon,
   type NoteArea,
 } from "../../contract/protocol/src/release-notes.ts"
-import { chat, demo } from "./commits.ts"
+import { demo } from "./commits.ts"
 import { type ModelOutput } from "./model.ts"
 
 // What the prompt asks for, and the most the check takes. A model can run past the asked length
@@ -56,11 +56,10 @@ const markup = /[*~\\`[<>]/
 const autolinked = /\S+@\S+\.\w+|#\d+/
 const structural = /^\s*(?:#|\d+\. )/
 
-// What is not for the notes: the chat view ships behind a flag, experimental builds and the
+// What is not for the notes: experimental builds and the
 // Experimental switch that turns them on, with its tab, are for contributors and never
 // offered to people, and the demo, the website and the pipeline are not the app. A line that mentions one is dropped, the rest stands.
 const excluded: readonly RegExp[] = [
-  chat,
   /\b(?:early|experimental|beta|nightly|canary)\s+(?:access\s+)?(?:builds?|channels?|releases?|updates?|versions?)\b/i,
   /\bupdate channels?\b/i,
   /\bprereleases?\b/i,

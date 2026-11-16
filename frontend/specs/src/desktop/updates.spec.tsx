@@ -200,14 +200,14 @@ describe("the Experimental switch in Preferences", () => {
     await expect.element(experimental()).toHaveAttribute("aria-checked", "false")
   })
 
-  it("shows the Experimental tab, with the chat view, while it is on", async () => {
+  it("shows the Experimental tab, with agent avatars, while it is on", async () => {
     await openWorkspace("/?update=ready")
     await openPreferencesOn("About")
     expect(experimentalTab().query()).toBeNull()
     await experimental().click()
     await experimentalTab().click()
     await expect
-      .element(preferencesDialog().getByRole("switch", { name: "Chat view" }))
+      .element(preferencesDialog().getByRole("switch", { name: "Agent avatars" }))
       .toBeVisible()
     await preferencesDialog().getByRole("tab", { name: "About" }).click()
     await experimental().click()

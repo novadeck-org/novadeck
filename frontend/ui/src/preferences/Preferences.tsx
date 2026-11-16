@@ -281,7 +281,7 @@ export const Preferences = ({
   // them has no tab for it.
   const hasAbout =
     version !== undefined || experimental !== undefined || !!logs || !!tour || !!uninstall
-  // The Experimental tab, with the chat view, is there only while its switch is on.
+  // The Experimental tab is there only while its switch is on.
   const hasExperimental = experimental?.on === true
   const hidden = (id: PreferencesTab): boolean =>
     (id === "addons" && !hasAddons) ||
@@ -290,16 +290,6 @@ export const Preferences = ({
   const shown = hidden(tab) ? "general" : tab
   // The Experimental tab's switches, one row each.
   const experimentalToggles = [
-    {
-      id: "chat-view",
-      label: "Chat view",
-      description: chat
-        ? "Read and reply to agents in a chat instead of their terminal. When the chat can't handle something, answer in the terminal."
-        : "Not available here.",
-      checked: value.chatView,
-      onToggle: (chatView: boolean) => onChange({ ...value, chatView }),
-      disabled: !chat,
-    },
     {
       id: "agent-avatars",
       label: "Agent avatars",
@@ -647,7 +637,7 @@ export const Preferences = ({
                 </div>
               </div>
             </Section>
-            {(agents || hibernation) && (
+            {(agents || hibernation || chat) && (
               <Section title="Agents" {...(agents ? { description: agentsExplanation } : {})}>
                 {agents && (
                   <AgentSwitches
@@ -657,22 +647,40 @@ export const Preferences = ({
                     installing={agents.installing}
                   />
                 )}
-                {hibernation && (
+                {(chat || hibernation) && (
                   <div className={settingsCardClasses}>
-                    <Select
-                      className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
-                      label="Stop idle agents after"
-                      items={idleChoices}
-                      // A saved wait the list doesn't have shows as it is, without being chosen.
-                      value={idleChoice(hibernation.minutes)}
-                      placeholder={`${hibernation.minutes} minutes`}
-                      onValueChange={(choice) =>
-                        hibernation.onChange(choice === "off" ? null : Number(choice))
-                      }
-                      open={open && shown === "general" && openSelect === "idle-agents"}
-                      onOpenChange={(expanded) => setOpenSelect(expanded ? "idle-agents" : null)}
-                      portalContainer={dialog}
-                    />
+                    {chat && (
+                      <div className={`preference-row ${settingRowClasses}`}>
+                        <SettingText
+                          id="chat-view-label"
+                          label="Chat view"
+                          description="Read and reply to agents in a chat instead of their terminal. When the chat can't handle something, answer in the terminal."
+                          descriptionId="chat-view-description"
+                        />
+                        <Switch
+                          checked={value.chatView}
+                          onChange={(chatView) => onChange({ ...value, chatView })}
+                          labelledBy="chat-view-label"
+                          describedBy="chat-view-description"
+                        />
+                      </div>
+                    )}
+                    {hibernation && (
+                      <Select
+                        className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
+                        label="Stop idle agents after"
+                        items={idleChoices}
+                        // A saved wait the list doesn't have shows as it is, without being chosen.
+                        value={idleChoice(hibernation.minutes)}
+                        placeholder={`${hibernation.minutes} minutes`}
+                        onValueChange={(choice) =>
+                          hibernation.onChange(choice === "off" ? null : Number(choice))
+                        }
+                        open={open && shown === "general" && openSelect === "idle-agents"}
+                        onOpenChange={(expanded) => setOpenSelect(expanded ? "idle-agents" : null)}
+                        portalContainer={dialog}
+                      />
+                    )}
                   </div>
                 )}
               </Section>

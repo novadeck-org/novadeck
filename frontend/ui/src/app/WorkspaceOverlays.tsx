@@ -396,6 +396,15 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           onChange={backend.agents.set}
           onInstall={installs.install}
           transcripts={transcripts}
+          {...(backend.conversations
+            ? {
+                chatView: {
+                  enabled: preferences.chatView,
+                  onChange: (chatView: boolean) =>
+                    updatePreferences({ ...ui.getSnapshot().preferences, chatView }),
+                },
+              }
+            : {})}
           onDone={backend.agents.finishWelcome}
           {...(tour ? { onTour: tour.offer } : {})}
         />

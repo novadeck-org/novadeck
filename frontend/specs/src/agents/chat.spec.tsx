@@ -33,9 +33,9 @@ import { context, describe, expect, it } from "../test"
 const answerMs = 400
 const answeredMs = 500
 
-// Turns the chat view on or off in Preferences → Experimental, and closes Preferences.
+// Turns the chat view on or off in Preferences → General, and closes Preferences.
 const setChatView = async (on: boolean): Promise<void> => {
-  await openPreferencesOn("Experimental")
+  await openPreferencesOn("General")
   const dialog = preferencesDialog()
   const chatView = dialog.getByRole("switch", { name: "Chat view" })
   await chatView.click()
@@ -60,15 +60,8 @@ describe("The chat view", () => {
     await expect.element(chatOf("Build")).not.toBeInTheDocument()
   })
 
-  it("shows no chat without Experimental, though it was turned on", async () => {
-    await openChatDemo("/", { experimental: false })
-    await terminalTab("Build").click()
-    await expect.element(commandInput("Build")).toBeVisible()
-    await expectStaysAbsent(chatOf("Build"))
-  })
-
-  it("goes back to the terminal's output once Experimental is turned off", async () => {
-    await openChatDemo()
+  it("stays once Experimental is turned off, as it isn't one of the experimental features", async () => {
+    await openChatDemo("/", { experimental: true })
     await openChat("Build")
     await openPreferencesOn("About")
     const dialog = preferencesDialog()
@@ -77,11 +70,12 @@ describe("The chat view", () => {
     await experimental.click()
     await expect.element(dialog.getByRole("tab", { name: "Experimental" })).not.toBeInTheDocument()
     await userEvent.keyboard("{Escape}")
-    await expect.element(chatOf("Build")).not.toBeInTheDocument()
-    await expect.poll(() => terminalText("Build")).toContain("Added the order summary")
+    await expect.element(dialog).not.toBeInTheDocument()
+    await expectStaysAbsent(commandInput("Build"))
+    await expect.element(chatOf("Build")).toBeVisible()
   })
 
-  it("turns on from Preferences → Experimental, and off again back to the terminal's output", async () => {
+  it("turns on from Preferences → General, and off again back to the terminal's output", async () => {
     await openChatDemo("/", { chatView: false })
     await terminalTab("Build").click()
     await setChatView(true)
@@ -515,9 +509,7 @@ describe("Focus coming back to the chat's box", () => {
 describe("A chat beside what its agent showed", () => {
   it("takes focus back into its box once a click on the taskbar opens a pane", async () => {
     localStorage.setItem("novadeck.preferences", JSON.stringify({ chatView: true }))
-    await openWorkspace(
-      "/projects/studio/sessions/initial/focus?demo=showcase&channel=experimental",
-    )
+    await openWorkspace("/projects/studio/sessions/initial/focus?demo=showcase")
     const chat = await openChat("Build Studio")
     await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
     await expect.element(companionPane("Build Studio")).toBeVisible()

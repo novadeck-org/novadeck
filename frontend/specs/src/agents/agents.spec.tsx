@@ -480,6 +480,42 @@ describe("Connecting agents", () => {
         .toHaveAttribute("aria-checked", "false")
     })
 
+    it("turns the chat view on as it starts, unless unchecked", async () => {
+      await openWorkspace("/?demo=welcome")
+      const choice = welcome().getByRole("checkbox", { name: "Chat view" })
+      await expect.element(choice).toBeChecked()
+      await expect
+        .element(choice)
+        .toHaveAccessibleDescription(/in a chat instead of their terminal/)
+      await welcome().getByRole("button", { name: "Let’s build something" }).click()
+      await expect.element(welcome()).not.toBeInTheDocument()
+      await openPreferences()
+      await expect
+        .element(preferencesDialog().getByRole("switch", { name: "Chat view" }))
+        .toHaveAttribute("aria-checked", "true")
+    })
+
+    it("leaves the chat view off when unchecked", async () => {
+      await openWorkspace("/?demo=welcome")
+      await welcome().getByRole("checkbox", { name: "Chat view" }).click()
+      await welcome().getByRole("button", { name: "Let’s build something" }).click()
+      await expect.element(welcome()).not.toBeInTheDocument()
+      await openPreferences()
+      await expect
+        .element(preferencesDialog().getByRole("switch", { name: "Chat view" }))
+        .toHaveAttribute("aria-checked", "false")
+    })
+
+    it("leaves the chat view off when skipped", async () => {
+      await openWorkspace("/?demo=welcome")
+      await welcome().getByRole("button", { name: "Skip for now" }).click()
+      await expect.element(welcome()).not.toBeInTheDocument()
+      await openPreferences()
+      await expect
+        .element(preferencesDialog().getByRole("switch", { name: "Chat view" }))
+        .toHaveAttribute("aria-checked", "false")
+    })
+
     it("leaves the transcripts choice out where they cannot be kept encrypted", async () => {
       await openWorkspace("/?demo=welcome&transcripts=unavailable")
       await expect.element(welcome()).toBeVisible()

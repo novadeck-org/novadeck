@@ -26,7 +26,7 @@ describe("The terminal behind a chat", () => {
       onTestFinished(() => page.viewport(1440, 900))
       await page.viewport(1000, 650)
       localStorage.setItem("novadeck.preferences", JSON.stringify({ chatView: true, fontSize }))
-      await openWorkspace("/?demo=agents&channel=experimental")
+      await openWorkspace("/?demo=agents")
       await chooseView("Grid")
       if (project) await switchProject(project)
       const chat = await openChat(name)
@@ -53,7 +53,7 @@ describe("The terminal behind a chat", () => {
       if (project) await expect.element(card).toBeVisible()
       await expect.poll(() => rowsOf(name)).toBeGreaterThanOrEqual(40)
 
-      await openPreferencesOn("Experimental")
+      await openPreferencesOn("General")
       await preferencesDialog().getByRole("switch", { name: "Chat view" }).click()
       await userEvent.keyboard("{Escape}")
       await expect.element(chatOf(name)).not.toBeInTheDocument()

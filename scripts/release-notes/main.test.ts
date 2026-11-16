@@ -99,7 +99,7 @@ describe("the command", () => {
   it("prints the count and reason of dropped lines but never their text", async () => {
     const out = scratch()
     const printed: string[] = []
-    const secret = "Chat view shows secret plans."
+    const secret = "The demo shows secret plans."
     const reply = JSON.stringify({
       highlights: [],
       changes: [

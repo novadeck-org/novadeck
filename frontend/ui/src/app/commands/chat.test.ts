@@ -15,7 +15,6 @@ const open = (agent?: AgentStatus, conversations?: Conversations, chatView = tru
   app.ui.update((state) => ({
     ...state,
     preferences: { ...state.preferences, chatView },
-    flags: { ...state.flags, IS_EXPERIMENTAL: true },
   }))
   const status = (next: AgentStatus | undefined) =>
     app.workspace.dispatch({
@@ -128,18 +127,16 @@ describe("chat commands", () => {
       ])
     })
 
-    it("shows no chat once IS_EXPERIMENTAL turns off, and every chat afresh once it is back", () => {
-      const app = open(waiting)
+    it("changes neither the chat nor the answers as IS_EXPERIMENTAL turns on or off", () => {
+      const app = open({ working: false })
       app.commands.showTerminal("01")
-      const off = frames(app, () => app.commands.setFeatureFlag("IS_EXPERIMENTAL", false))
-      expect(off.every((frame) => !frame.shown)).toBe(true)
-      expect(app.chat.store.getSnapshot().answering).toEqual({})
-      app.commands.showTerminal("01")
+      const { answering } = app.chat.store.getSnapshot()
+      const before = frames(app, () => app.ui.update((state) => ({ ...state })))
       const on = frames(app, () => app.commands.setFeatureFlag("IS_EXPERIMENTAL", true))
-      expect(on).toEqual([
-        { shown: false, answered: false },
-        { shown: true, answered: false },
-      ])
+      const off = frames(app, () => app.commands.setFeatureFlag("IS_EXPERIMENTAL", false))
+      expect(on).toEqual(before)
+      expect(off).toEqual(before)
+      expect(app.chat.store.getSnapshot().answering).toBe(answering)
     })
 
     it("leaves the answers be where the preference is saved unchanged", () => {

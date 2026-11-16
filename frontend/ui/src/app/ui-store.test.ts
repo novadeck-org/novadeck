@@ -494,12 +494,10 @@ describe("the IS_EXPERIMENTAL flag", () => {
     expect(flag(ui)).toBe(false)
   })
 
-  it("holds the chat view back while it is off", () => {
+  it("shows the chat view as its preference says, whatever Experimental says", () => {
     const { preferences } = initial()
-    const on = { ...preferences, chatView: true }
-    expect(chatViewOn({ preferences: on, flags: { IS_EXPERIMENTAL: false } })).toBe(false)
-    expect(chatViewOn({ preferences: on, flags: { IS_EXPERIMENTAL: true } })).toBe(true)
-    expect(chatViewOn({ preferences, flags: { IS_EXPERIMENTAL: true } })).toBe(false)
+    expect(chatViewOn({ preferences: { ...preferences, chatView: true } })).toBe(true)
+    expect(chatViewOn({ preferences })).toBe(false)
   })
 
   it("holds agent avatars back while it is off", () => {

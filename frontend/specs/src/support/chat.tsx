@@ -7,14 +7,13 @@ import { openWorkspace, terminal, terminalTab } from "./workspace"
 // what waits on the person.
 
 /**
- * Opens the agents demo, whose agents have conversations, in an
- * app that follows experimental builds, so the experimental chat view is there; with it on, as
- * Preferences → Experimental turns it on, unless `chatView` is false. With `experimental`
- * false, the app has no update channel, as the browser's, so the flag stays off.
+ * Opens the agents demo, whose agents have conversations, with the chat view on, as
+ * Preferences → General turns it on, unless `chatView` is false. With `experimental`, the app
+ * follows experimental builds, so IS_EXPERIMENTAL is on and Preferences has its switch.
  */
 export const openChatDemo = async (
   route = "/",
-  { chatView = true, experimental = true, gap = false } = {},
+  { chatView = true, experimental = false, gap = false } = {},
 ): Promise<void> => {
   localStorage.setItem("novadeck.preferences", JSON.stringify({ chatView }))
   await openWorkspace(

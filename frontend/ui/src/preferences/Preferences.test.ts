@@ -49,11 +49,37 @@ describe("the preferences of a backend with no addons", () => {
     expect(document.querySelector('[role="tabpanel"][aria-labelledby$="addons"]')).toBeNull()
   })
 
-  it("has no Addons tab for the chat view, which is in Experimental", async () => {
+  it("has no Addons tab for the chat view, which is in General", async () => {
     await show({ chat: true })
 
     expect(tabs()).not.toContain("Addons")
     expect(selected()).toBe("General")
+  })
+})
+
+describe("the chat view switch", () => {
+  const chatSwitch = (): HTMLElement | null =>
+    document.querySelector('[role="switch"][aria-labelledby="chat-view-label"]')
+
+  it("sits under General's Agents, without Experimental, and saves the preference", async () => {
+    const saved: boolean[] = []
+    await show({
+      tab: "general",
+      chat: true,
+      onChange: ({ chatView }) => saved.push(chatView),
+    })
+
+    expect(tabs()).not.toContain("Experimental")
+    const panel = document.querySelector('[role="tabpanel"][aria-labelledby$="general"]')
+    expect(panel?.contains(chatSwitch())).toBe(true)
+    chatSwitch()!.click()
+    expect(saved).toEqual([true])
+  })
+
+  it("is absent where the backend reads no conversations", async () => {
+    await show({ tab: "general" })
+
+    expect(chatSwitch()).toBeNull()
   })
 })
 
@@ -102,15 +128,13 @@ describe("the Experimental tab", () => {
     expect(tabs()).not.toContain("Experimental")
   })
 
-  it("shows, last, while the switch is on, with the chat view and agent avatars", async () => {
+  it("shows, last, while the switch is on, with agent avatars but not the chat view", async () => {
     await show({ tab: "experimental", chat: true, experimental: experimental(true) })
 
     expect(tabs().at(-1)).toBe("Experimental")
     expect(selected()).toBe("Experimental")
     const panel = document.querySelector('[role="tabpanel"][aria-labelledby$="experimental"]')
-    expect(
-      panel?.querySelector('[role="switch"][aria-labelledby="chat-view-label"]'),
-    ).not.toBeNull()
+    expect(panel?.querySelector('[role="switch"][aria-labelledby="chat-view-label"]')).toBeNull()
     expect(
       panel?.querySelector('[role="switch"][aria-labelledby="agent-avatars-label"]'),
     ).not.toBeNull()

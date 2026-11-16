@@ -88,7 +88,7 @@ export type WorkspaceCommands = ShellCommands &
     readonly select: (id: string, fit?: boolean) => void
     readonly setSelected: (terminal: string) => void
     readonly updatePreferences: (next: PreferencesValue) => void
-    // Turns a feature flag on or off; IS_EXPERIMENTAL also shows or hides the chat view.
+    // Turns a feature flag on or off.
     readonly setFeatureFlag: (flag: FeatureFlag, on: boolean) => void
     readonly changeView: (next: ViewMode) => void
     // From Focus, back to the windowed view with this terminal selected.
@@ -481,7 +481,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     },
     setFeatureFlag: (flag, on) => {
       if (ui.getSnapshot().flags[flag] === on) return
-      changeChatView((state) => ({ ...state, flags: { ...state.flags, [flag]: on } }))
+      ui.update((state) => ({ ...state, flags: { ...state.flags, [flag]: on } }))
     },
     changeView: (next) => {
       const { enabledViews } = preferences()

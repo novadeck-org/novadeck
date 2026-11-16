@@ -353,10 +353,9 @@ export const watchUpdates = (updates: Backend["updates"], ui: UiStore): (() => v
     }))
   }) ?? (() => {})
 
-// Whether terminals show their agents' chat: the person turned the chat view on, and it is
-// one of the experimental features, so it shows only while IS_EXPERIMENTAL is on.
-export const chatViewOn = (state: Pick<UiState, "preferences" | "flags">): boolean =>
-  state.flags.IS_EXPERIMENTAL && state.preferences.chatView
+// Whether terminals show their agents' chat: the person turned the chat view on.
+export const chatViewOn = (state: Pick<UiState, "preferences">): boolean =>
+  state.preferences.chatView
 
 // Whether tabs and window headers show terminals' critters: the person turned Agent avatars
 // on, one of the experimental features, so they show only while IS_EXPERIMENTAL is on.

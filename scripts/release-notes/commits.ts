@@ -17,8 +17,7 @@ export type Commit = {
 
 // The scopes of changes that are not the app: the try demo, the wire between processes, the
 // atlas, the release pipeline, CI, tests and dependencies, and the scripts and harness
-// adapters around the product. The chat view ships behind a flag, so anything scoped to it is
-// never announced.
+// adapters around the product.
 export const excludedScopes: ReadonlySet<string> = new Set([
   "demo",
   "wire",
@@ -26,7 +25,6 @@ export const excludedScopes: ReadonlySet<string> = new Set([
   "release",
   "scripts",
   "harnesses",
-  "chat",
   "ci",
   "test",
   "tests",
@@ -46,16 +44,9 @@ export const maxWhat = 700
 /** The longest `## Why`: the reason, not the case for it. */
 export const maxWhy = 400
 
-/**
- * The chat view ships behind a flag, and the try demo is not the app: neither is announced.
- * The chat view is told by its names, not by every chat: the Messages pane opens a conversation
- * as a chat, and that pane is announced (#429's "conversations and chats" went unsaid). So "the
- * chat", "chat with", "a chat view", "a chat's box" and "a chat-approved" are the view; "a
- * chat" and "chats" are not.
- */
-export const chat = /\bchat(?:'s|-\w|[ -]?(?:views?|box(?:es)?)\b)|(?<!\ba )\bchat\b/i
+/** The try demo is not the app, so it is never announced. */
 export const demo = /\bdemos?\b/i
-const unannounced = (text: string): boolean => chat.test(text) || demo.test(text)
+const unannounced = (text: string): boolean => demo.test(text)
 
 // A list item or a numbered one starts a block of its own.
 const itemStart = /^\s*(?:[-*+]|\d+\.)\s/

@@ -6,11 +6,11 @@ import { commit, commits } from "./fixtures.ts"
 describe("the commits a release is written from", () => {
   it("keeps the features, fixes and speedups that are the app's, each with its pull request", () => {
     expect(parseCommits(commits).map((each) => each.pr)).toEqual([
-      181, 188, 195, 330, 328, 203, 198, 261, 282, 126,
+      181, 188, 195, 330, 328, 203, 198, 100, 261, 282, 126,
     ])
   })
 
-  it("drops other types and the scopes of the demo, wire, atlas, release, scripts, harnesses, chat and CI", () => {
+  it("drops other types and the scopes of the demo, wire, atlas, release, scripts, harnesses and CI", () => {
     const dropped = commits.filter((raw) => !parseCommit(raw))
     expect(dropped.map((raw) => raw.subject.replace(/:.*/, ""))).toEqual([
       "refactor(runner)",
@@ -18,7 +18,6 @@ describe("the commits a release is written from", () => {
       "fix(harnesses)",
       "feat(demo)",
       "feat(wire)",
-      "feat(chat)",
       "fix(ci)",
       "feat(release)",
     ])
@@ -31,19 +30,30 @@ describe("the commits a release is written from", () => {
       ).toBeUndefined()
   })
 
-  it("drops a commit whose subject names the chat, and the sentences of a What that do", () => {
+  it("keeps a commit about the chat view, and the sentences of a What that name it", () => {
     expect(
       parseCommit({ sha: "a", subject: "feat(ui): chat shows plans (#1)", body: "" }),
-    ).toBeUndefined()
+    ).toMatchObject({ pr: 1 })
+    expect(
+      parseCommit({ sha: "a", subject: "feat(chat): reply from a chat (#6)", body: "" }),
+    ).toMatchObject({
+      scope: "chat",
+      pr: 6,
+    })
+    expect(
+      parseCommit({ sha: "a", subject: "feat(ui,chat): a thing (#7)", body: "" }),
+    ).toMatchObject({ pr: 7 })
     const what = parseCommit({
       sha: "a",
       subject: "feat(ui): plans open beside the terminal (#2)",
       body: "## What\n\nPlans open on their own. The chat view shows them too. They can be edited.\n- The chat renders it.\n- Notes work.\n\n## Why\n\nx",
     })!.what
-    expect(what).toBe("Plans open on their own. They can be edited.\n- Notes work.")
+    expect(what).toBe(
+      "Plans open on their own. The chat view shows them too. They can be edited.\n- The chat renders it.\n- Notes work.",
+    )
   })
 
-  it("removes a whole sentence about the chat or demos from a hard-wrapped What, plurals included", () => {
+  it("removes a whole sentence about the demos from a hard-wrapped What, plurals included", () => {
     const what = parseCommit({
       sha: "a",
       subject: "feat(ui): answer agents from the Inbox (#3)",
@@ -56,7 +66,7 @@ describe("the commits a release is written from", () => {
         "- The demos show the same rows",
         "  on a fake runner.",
         "- Held messages wait for the agent.",
-        "1. Open the Inbox. The chat stays out of it.",
+        "1. Open the Inbox. The demo stays out of it.",
         "",
         "## Why",
         "",
@@ -64,38 +74,14 @@ describe("the commits a release is written from", () => {
       ].join("\n"),
     })!.what
     expect(what).toBe(
-      "Agents are answered from the Inbox. Rows clear themselves.\n\n- Held messages wait for the agent.\n1. Open the Inbox.",
+      "Agents are answered from the Inbox. A permission can also be answered from the chat box, without switching terminals. Rows clear themselves.\n\n- Held messages wait for the agent.\n1. Open the Inbox.",
     )
-    expect(
-      parseCommit({ sha: "a", subject: "feat(ui): the chat side by side (#4)", body: "" }),
-    ).toBeUndefined()
     expect(
       parseCommit({ sha: "a", subject: "fix(ui): demos load faster (#5)", body: "" }),
     ).toBeUndefined()
   })
 
-  it("keeps the Messages pane's chats: a chat, or chats, is a conversation, not the chat view", () => {
-    const raw = {
-      sha: "a",
-      subject: "feat(messages): the Messages pane as conversations and chats (#429)",
-      body: [
-        "## What",
-        "",
-        "The Messages pane is redesigned. It shows one list of the terminal's conversations,",
-        "and opening one reads it as a chat. The chat view shows them too.",
-        "",
-        "## Why",
-        "",
-        "x",
-      ].join("\n"),
-    }
-    expect(parseCommit(raw)).toMatchObject({
-      pr: 429,
-      what: "The Messages pane is redesigned. It shows one list of the terminal's conversations, and opening one reads it as a chat.",
-    })
-  })
-
-  it('drops a sentence naming the chat view after "a", as #282\'s did', () => {
+  it("keeps sentences naming a chat or the chat view, as #282's did", () => {
     const what = whatOf(
       [
         "## What",
@@ -105,7 +91,9 @@ describe("the commits a release is written from", () => {
         "open in a chat view. A chat box opens. Done.",
       ].join("\n"),
     )
-    expect(what).toBe("Shortcuts work from a terminal. Done.")
+    expect(what).toBe(
+      "Shortcuts work from a terminal. From terminal input (but not a chat's box), the keymap's layers run in the capture phase. A chat-approved permission rings. Rows open in a chat view. A chat box opens. Done.",
+    )
   })
 
   it("strips URLs from the What, and keeps the words around them", () => {
@@ -175,11 +163,6 @@ describe("the commits a release is written from", () => {
     })
   })
 
-  it("drops a commit that merely names the chat view among several scopes", () => {
-    const raw = { sha: "a", subject: "feat(ui,chat): a thing (#1)", body: "" }
-    expect(parseCommit(raw)).toBeUndefined()
-  })
-
   it("keeps a subject without a pull request number, and drops one that is not conventional", () => {
     expect(
       parseCommit({ sha: "a", subject: "fix(ui): refine workspace header", body: "" }),
@@ -211,7 +194,7 @@ describe("the commits a release is written from", () => {
       ),
     ).toBe("You couldn't tell which went together.")
     expect(whyOf("## What\n\nA thing.")).toBe("")
-    expect(whyOf("## Why\n\nA chat view thing. A real reason.")).toBe("A real reason.")
+    expect(whyOf("## Why\n\nThe demo needs it. A real reason.")).toBe("A real reason.")
     expect(whyOf("## Why\n\nBuilds on #373, which split it. Closes #383. A real reason.")).toBe(
       "A real reason.",
     )
@@ -234,7 +217,7 @@ describe("parseCommit and the scopes", () => {
   })
 
   it("never keeps what is not announced", () => {
-    expect(parseCommit(raw("fix(chat): x (#1)"))).toBeUndefined()
+    expect(parseCommit(raw("fix(chat): x (#1)"))).toMatchObject({ pr: 1 })
     expect(parseCommit(raw("fix(demo): x (#1)"))).toBeUndefined()
   })
 })

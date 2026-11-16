@@ -64,3 +64,39 @@ describe("an agent that is not installed, in the welcome dialog", () => {
     expect(checkbox("claude")?.disabled).toBe(false)
   })
 })
+
+describe("the chat view, in the welcome dialog", () => {
+  const chatView = (): HTMLInputElement | null =>
+    document.querySelector('input[type="checkbox"][name="chat-view"]')
+  const button = (text: string): HTMLButtonElement | undefined =>
+    [...document.querySelectorAll("button")].find((each) => each.textContent?.includes(text))
+
+  it("isn't offered where the backend reads no conversations", () => {
+    show({})
+    expect(chatView()).toBeNull()
+  })
+
+  it("starts chosen, and turns the chat view on as the person starts", () => {
+    const changes: boolean[] = []
+    show({ chatView: { enabled: false, onChange: (on) => changes.push(on) } })
+    expect(chatView()?.checked).toBe(true)
+    button("Let’s build something")!.click()
+    expect(changes).toEqual([true])
+  })
+
+  it("leaves it off when the person unchecks it", () => {
+    const changes: boolean[] = []
+    show({ chatView: { enabled: false, onChange: (on) => changes.push(on) } })
+    chatView()!.click()
+    expect(chatView()?.checked).toBe(false)
+    button("Let’s build something")!.click()
+    expect(changes).toEqual([])
+  })
+
+  it("changes nothing when the person skips", () => {
+    const changes: boolean[] = []
+    show({ chatView: { enabled: false, onChange: (on) => changes.push(on) } })
+    button("Skip for now")!.click()
+    expect(changes).toEqual([])
+  })
+})

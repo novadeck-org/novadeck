@@ -268,13 +268,15 @@ describe("the checks on a model's answer", () => {
     expect(droppedFor(withChange("Two demos load faster."))).toHaveLength(1)
   })
 
-  it("keeps the Messages pane's chats, which are conversations, not the chat view", () => {
-    for (const line of ["Each conversation reads as a chat.", "Read messages as chats"])
+  it("keeps lines and titles about the chat view and chats", () => {
+    for (const line of [
+      "A new chat view for agents.",
+      "You can chat with an agent.",
+      "Answer a permission from a chat's request card.",
+      "Each conversation reads as a chat.",
+    ])
       expect(droppedFor(withChange(line)), line).toEqual([])
-    const titled = {
-      ...good,
-      highlights: [{ ...good.highlights[0]!, title: "Read messages as chats" }],
-    }
+    const titled = { ...good, highlights: [{ ...good.highlights[0]!, title: "Chat view" }] }
     expect(droppedFor(titled)).toEqual([])
   })
 
@@ -284,12 +286,6 @@ describe("the checks on a model's answer", () => {
 
   it("drops a line on an excluded topic, and says which pattern, not which line", () => {
     for (const line of [
-      "A new chat view for agents.",
-      "You can chat with an agent.",
-      "Answer it from the chat.",
-      "A chat view for agents.",
-      "Reply from a chat box under an agent.",
-      "Answer a permission from a chat's request card.",
       "The demo shows real terminals.",
       "Open it at try.novadeck.dev.",
       "The website explains pins.",
@@ -312,7 +308,7 @@ describe("the checks on a model's answer", () => {
   })
 
   it("drops a highlight on an excluded topic and keeps a promotion valid with none left", () => {
-    const output = { ...good, highlights: [{ ...good.highlights[0]!, title: "Chat" }] }
+    const output = { ...good, highlights: [{ ...good.highlights[0]!, title: "Demo" }] }
     expect(check(output)).toMatchObject({
       ok: true,
       output: { highlights: [] },

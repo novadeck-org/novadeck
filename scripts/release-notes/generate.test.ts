@@ -168,7 +168,7 @@ describe("the notes of a prerelease", () => {
         highlights: [],
         changes: [
           ...released.changes,
-          { area: "Look & feel", line: "The chat view shows plans.", prs: [261] },
+          { area: "Look & feel", line: "The demo shows plans.", prs: [261] },
         ],
       }),
     )
@@ -345,11 +345,11 @@ describe("the notes of a promotion", () => {
       repo,
     )
     expect(none.notes.highlights).toEqual([])
-    const chat = {
-      highlights: [{ title: "Chat view", line: "Talk to agents.", prs: [181] }],
+    const demo = {
+      highlights: [{ title: "Demo", line: "Try it in a browser.", prs: [181] }],
       changes: [],
     }
-    const dropped = await generatePromote("v0.0.152", sources("v0.0.148"), answer(chat), repo)
+    const dropped = await generatePromote("v0.0.152", sources("v0.0.148"), answer(demo), repo)
     expect(dropped.notes.highlights).toEqual([])
     expect(dropped.dropped).toHaveLength(1)
   })
