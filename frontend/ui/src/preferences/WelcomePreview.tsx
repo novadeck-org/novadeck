@@ -6,7 +6,7 @@ import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
 import { views as layouts, type ViewPresentation } from "@novadeck/toolkit/views"
 import { Check, Plug, Terminal } from "lucide-react"
-import { useEffect, useId, useRef, useState, type CSSProperties } from "react"
+import { useEffect, useId, useRef, useState, type ComponentType, type CSSProperties } from "react"
 
 import { prefersReducedMotion } from "../interaction/reduced-motion"
 
@@ -22,6 +22,12 @@ type View = ViewPresentation & { readonly id: ViewMode; readonly caption: string
 const present = (id: ViewMode): View => ({ id, ...layouts[id], caption: captions[id] })
 const views = viewModes.map(present)
 const canvas = present("canvas")
+
+// What the chat view's choice shows, as it changes.
+const chatCaptions = {
+  on: "Agents read as a chat: your words, their replies and steps.",
+  off: "Agents keep their own terminal screens.",
+}
 
 // Until the person picks a layout, the preview shows each one in turn, once, and
 // settles back on Canvas. Hovering or focusing the preview holds the current step.
@@ -77,16 +83,137 @@ const Status = ({ connected }: { readonly connected?: boolean }): React.JSX.Elem
   </span>
 )
 
+// What each agent's card holds: the person's prompt, the agent's reply, and the steps it took,
+// which its terminal shows as checks.
+type AgentCard = {
+  readonly agent: AgentName
+  readonly className: string
+  readonly icon: ComponentType<{ size?: number }>
+  readonly title: string
+  readonly harness: string
+  readonly prompt: string
+  readonly replies: readonly string[]
+  readonly steps: readonly string[]
+  // When its lines type in, ms after the dialog opens.
+  readonly at: number
+}
+
+const agentCards: readonly AgentCard[] = [
+  {
+    agent: "claude",
+    className: "agent",
+    icon: ClaudeIcon,
+    title: "Build something great",
+    harness: "Claude Code",
+    prompt: "Let’s bring this idea to life.",
+    replies: ["I’ll start with the big picture."],
+    steps: ["A place for every project", "Room for every possibility"],
+    at: 1300,
+  },
+  {
+    agent: "codex",
+    className: "review",
+    icon: CodexIcon,
+    title: "A fresh perspective",
+    harness: "Codex",
+    prompt: "Review the changes",
+    replies: ["A second pair of eyes,", "right beside your work."],
+    steps: [],
+    at: 1450,
+  },
+  {
+    agent: "agy",
+    className: "agy",
+    icon: AntigravityIcon,
+    title: "Planner",
+    harness: "Antigravity",
+    prompt: "Plan the release",
+    replies: ["Every step, in order."],
+    steps: [],
+    at: 1750,
+  },
+]
+
+// An agent's card as its terminal shows it: a prompt, the reply, the checks, and Claude's
+// prompt waiting under them.
+const TerminalOutput = ({ card, from }: { card: AgentCard; from: number }): React.JSX.Element => (
+  <div className={codeClasses}>
+    {typed(
+      [
+        { text: `❯ ${card.prompt}`, kind: "prompt" },
+        ...card.replies.map((text) => ({ text, kind: "response" as const })),
+        ...card.steps.map((text) => ({ text, kind: "check" as const })),
+      ],
+      from,
+    )}
+    {card.agent === "claude" && (
+      <span className="welcome-cursor flex items-center gap-1.5">
+        ❯ <i className="block h-[9px] w-1" />
+      </span>
+    )}
+  </div>
+)
+
+// The same card as the chat view draws it: the person's words by their mark, the reply by
+// the agent's, its steps as dim lines on a rule, and the box to write in under a hairline.
+const ChatOutput = ({ card, from }: { card: AgentCard; from: number }): React.JSX.Element => {
+  const lines = [card.prompt, ...card.replies, ...card.steps]
+  const at = (text: string): number => from + lines.indexOf(text) * 200
+  const line = (text: string, className: string, mark?: boolean): React.JSX.Element => (
+    <span
+      key={text}
+      className={`welcome-chat-line welcome-typed ${className}`}
+      style={{ "--_chars": text.length + 2, "--_at": `${at(text)}ms` } as CSSProperties}
+    >
+      {mark && <i className="welcome-chat-mark" />}
+      {text}
+    </span>
+  )
+  return (
+    <div className="welcome-chat flex min-h-0 flex-col" data-agent={card.agent}>
+      <div className="welcome-chat-log flex min-h-0 flex-1 flex-col overflow-hidden">
+        {line(card.prompt, "user", true)}
+        {card.replies.map((text, index) => line(text, "reply", index === 0))}
+        {card.steps.length > 0 && (
+          <span className="welcome-chat-steps flex flex-col">
+            {card.steps.map((text) => line(text, "step"))}
+          </span>
+        )}
+      </div>
+      <span className="welcome-chat-composer flex flex-none items-center">
+        <i className="welcome-chat-mark" />
+        Message {card.harness}…
+      </span>
+    </div>
+  )
+}
+
 export const WelcomePreview = ({
   connected,
+  chat = false,
+  spotlight = false,
 }: {
   readonly connected: Readonly<Record<AgentName, boolean>>
+  // Whether agents' cards show as the chat view draws them, and whether the chat view's choice
+  // is being looked at, which marks the cards it changes.
+  readonly chat?: boolean
+  readonly spotlight?: boolean
 }): React.JSX.Element => {
   const [view, setView] = useState<View>(canvas)
   const [step, setStep] = useState<number | undefined>(() =>
     prefersReducedMotion() ? undefined : -1,
   )
   const [held, setHeld] = useState(false)
+  // Once the chat view's choice changes, the caption tells what it changed, until a layout is
+  // picked or shown, and the cards type their lines again at once rather than after the opening.
+  const [chatChanged, setChatChanged] = useState(false)
+  const [lastChat, setLastChat] = useState(chat)
+  const [swapped, setSwapped] = useState(false)
+  if (chat !== lastChat) {
+    setLastChat(chat)
+    setSwapped(true)
+    setChatChanged(true)
+  }
   const stage = useRef<HTMLDivElement>(null)
   const caption = useId()
   // The tour ends as it reaches its last layout.
@@ -100,6 +227,7 @@ export const WelcomePreview = ({
         const id = tour[next]
         if (id) setView(views.find((item) => item.id === id) ?? canvas)
         setStep(next)
+        setChatChanged(false)
       },
       step === -1 ? tourStart : tourStep,
     )
@@ -109,7 +237,9 @@ export const WelcomePreview = ({
   const choose = (item: View): void => {
     setStep(undefined)
     setView(item)
+    setChatChanged(false)
   }
+  const captionText = chatChanged ? chatCaptions[chat ? "on" : "off"] : view.caption
 
   // The dot grid brightens around the pointer and Canvas terminals drift with it;
   // written straight to the stage so moving the pointer never re-renders the preview.
@@ -145,67 +275,34 @@ export const WelcomePreview = ({
         ref={stage}
         className="welcome-stage relative isolate overflow-hidden"
         data-view={view.id}
+        data-spotlight={spotlight ? "chat" : undefined}
         aria-hidden="true"
         onPointerMove={follow}
         onPointerLeave={settle}
       >
-        <div className="welcome-terminal agent">
-          <div className={barClasses}>
-            <ClaudeIcon size={13} />
-            <span>Build something great</span>
-            <Status connected={connected.claude} />
-          </div>
-          <div className={codeClasses}>
-            {typed(
-              [
-                { text: "❯ Let’s bring this idea to life.", kind: "prompt" },
-                { text: "I’ll start with the big picture.", kind: "response" },
-                { text: "A place for every project", kind: "check" },
-                { text: "Room for every possibility", kind: "check" },
-              ],
-              1300,
-            )}
-            <span className="welcome-cursor flex items-center gap-1.5">
-              ❯ <i className="block h-[9px] w-1" />
-            </span>
-          </div>
-          {connected.claude && <i className="welcome-scan" />}
-        </div>
-        <div className="welcome-terminal review">
-          <div className={barClasses}>
-            <CodexIcon size={13} />
-            <span>A fresh perspective</span>
-            <Status connected={connected.codex} />
-          </div>
-          <div className={codeClasses}>
-            {typed(
-              [
-                { text: "❯ Review the changes", kind: "prompt" },
-                { text: "A second pair of eyes,", kind: "response" },
-                { text: "right beside your work.", kind: "response" },
-              ],
-              1450,
-            )}
-          </div>
-          {connected.codex && <i className="welcome-scan" />}
-        </div>
-        <div className="welcome-terminal agy">
-          <div className={barClasses}>
-            <AntigravityIcon size={13} />
-            <span>Planner</span>
-            <Status connected={connected.agy} />
-          </div>
-          <div className={codeClasses}>
-            {typed(
-              [
-                { text: "❯ Plan the release", kind: "prompt" },
-                { text: "Every step, in order.", kind: "response" },
-              ],
-              1750,
-            )}
-          </div>
-          {connected.agy && <i className="welcome-scan" />}
-        </div>
+        {agentCards.map((card) => {
+          const Icon = card.icon
+          const from = swapped ? 120 : card.at
+          return (
+            <div
+              key={card.agent}
+              className={`welcome-terminal ${card.className}`}
+              data-chat={chat || undefined}
+            >
+              <div className={barClasses}>
+                <Icon size={13} />
+                <span>{card.title}</span>
+                <Status connected={connected[card.agent]} />
+              </div>
+              {chat ? (
+                <ChatOutput key="chat" card={card} from={from} />
+              ) : (
+                <TerminalOutput key="terminal" card={card} from={from} />
+              )}
+              {connected[card.agent] && <i className="welcome-scan" />}
+            </div>
+          )
+        })}
         <div className="welcome-terminal server">
           <div className={barClasses}>
             <Terminal size={13} />
@@ -267,8 +364,8 @@ export const WelcomePreview = ({
         aria-live={touring ? "off" : "polite"}
         aria-atomic="true"
       >
-        <p key={view.id} className="welcome-caption m-0 text-body text-balance">
-          {view.caption}
+        <p key={captionText} className="welcome-caption m-0 text-body text-balance">
+          {captionText}
         </p>
       </div>
     </section>

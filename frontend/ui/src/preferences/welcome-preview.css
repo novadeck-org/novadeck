@@ -6,7 +6,15 @@
    output (`.welcome-code`) whose `.welcome-line`s are a `.prompt`, a `.response` or a
    `.check`. Its terminals read the window's tokens, so a theme's windows show in it.
 
-   Hooks: data-view on the stage; data-connected on a status. The component sets the
+   With the chat view chosen, an agent's card (data-chat) holds `.welcome-chat` in place of its
+   output, drawn as the chat draws it: a log (`.welcome-chat-log`) of `.welcome-chat-line`s, the
+   person's (`.user`) and the agent's (`.reply`), each starting by its `.welcome-chat-mark` in a
+   gutter, and its steps (`.welcome-chat-steps`, a dim `.step` each on a rule), over the box to
+   write in (`.welcome-chat-composer`) under a hairline. It reads the chat's tokens.
+
+   Hooks: data-view on the stage, and data-spotlight="chat" while the chat view's choice is
+   looked at, which marks the agents' cards and dims the rest; data-connected on a status;
+   data-chat on an agent's card, and data-agent on its `.welcome-chat`. The component sets the
    pointer's place on the stage (--_mx, --_my, and --_px, --_py from -1 to 1), each
    line's length and start (--_chars, --_at) and the tour's step (--_step).
 
@@ -25,7 +33,10 @@
    --welcome-status-bg (line-strong), --welcome-status-connected-bg (strong): the dot
    that says whether its agent is connected.
    --welcome-cursor-bg (strong), --welcome-progress-bg (strong): the cursor, and the
-   tour's timer under its layout button. */
+   tour's timer under its layout button.
+   --chat-font (mono), --chat-accent (strong), --chat-muted-fg (muted), --chat-line-color
+   (line): an agent's card drawn as a chat, as the chat reads them; the accent also marks the
+   cards the chat view changes. */
 
 /* The stage's height and the output's type, which narrow screens and the views
    override. */
@@ -103,6 +114,7 @@
     width 650ms var(--ease-interface),
     height 650ms var(--ease-interface),
     opacity 300ms ease,
+    border-color var(--motion-state) var(--ease-interface),
     transform 650ms var(--ease-interface),
     translate 500ms cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -223,10 +235,96 @@
   transform: rotate(1deg);
 }
 
+/* An agent's card as the chat view draws it, filling the card under its title bar. */
+.welcome-chat {
+  height: calc(100% - 28px);
+  font-family: var(--chat-font, var(--font-mono));
+  font-size: 8px;
+  line-height: 1.4;
+}
+.welcome-chat-log {
+  gap: 6px;
+  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 3) 6px;
+}
+.welcome-chat-line {
+  position: relative;
+  width: fit-content;
+  padding-left: 9px;
+  white-space: nowrap;
+  color: var(--color-ink);
+}
+.welcome-chat-line.user {
+  font-weight: 600;
+}
+.welcome-chat-steps {
+  gap: 3px;
+  margin-left: 9px;
+  border-left: var(--border-width) solid var(--chat-line-color, var(--color-line));
+}
+.welcome-chat-line.step {
+  padding-left: 6px;
+  color: var(--chat-muted-fg, var(--color-muted));
+}
+/* The person's mark is a bar in the accent; the agent's, where its reply starts, a dot. */
+.welcome-chat-mark {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 3px;
+  height: 7px;
+  border-radius: 1px;
+  translate: 0 -50%;
+  background-color: var(--chat-accent, var(--color-strong));
+}
+.welcome-chat-line.reply .welcome-chat-mark {
+  left: 0.5px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background-color: var(--chat-muted-fg, var(--color-muted));
+}
+.welcome-chat-composer {
+  position: relative;
+  padding: 6px calc(var(--spacing) * 3) 6px calc(var(--spacing) * 3 + 9px);
+  border-top: var(--border-width) solid var(--chat-line-color, var(--color-line));
+  color: var(--chat-muted-fg, var(--color-muted));
+  white-space: nowrap;
+}
+.welcome-chat-composer .welcome-chat-mark {
+  left: calc(var(--spacing) * 3);
+}
+
+/* Looking at the chat view's choice marks the cards it changes, the agents', and dims the
+   plain terminal it leaves be. */
+.welcome-stage[data-spotlight="chat"] .welcome-terminal:is(.agent, .review, .agy) {
+  border-color: var(--chat-accent, var(--color-strong));
+}
+/* A veil, not opacity, so the cards under it never show through. */
+.welcome-terminal.server::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  background-color: var(--workspace-bg, var(--color-canvas));
+  transition: opacity var(--motion-state) var(--ease-interface);
+}
+.welcome-stage[data-spotlight="chat"] .welcome-terminal.server::after {
+  opacity: 0.6;
+}
+
 /* Four cards share the Canvas stage, so their output sits tighter. */
 .welcome-stage[data-view="canvas"] .welcome-code {
   gap: 4px;
   padding: 10px;
+}
+.welcome-stage[data-view="canvas"] .welcome-chat-log {
+  gap: 4px;
+  padding: 9px 10px 5px;
+}
+.welcome-stage[data-view="canvas"] .welcome-chat-composer {
+  padding-block: 5px;
 }
 .welcome-stage[data-view="grid"] .welcome-terminal,
 .welcome-stage[data-view="focus"] .welcome-terminal {
@@ -263,6 +361,19 @@
   gap: 3px;
   padding: 7px;
 }
+.welcome-stage[data-view="grid"] .welcome-chat {
+  font-size: 7px;
+}
+.welcome-stage[data-view="grid"] .welcome-chat-log {
+  gap: 3px;
+  padding: 7px 7px 4px;
+}
+.welcome-stage[data-view="grid"] .welcome-chat-composer {
+  padding: 4px 7px 4px 16px;
+}
+.welcome-stage[data-view="grid"] .welcome-chat-composer .welcome-chat-mark {
+  left: 7px;
+}
 .welcome-stage[data-view="grid"] .welcome-zoom,
 .welcome-stage[data-view="focus"] .welcome-zoom {
   opacity: 0;
@@ -279,6 +390,12 @@
 }
 .welcome-stage[data-view="focus"] .welcome-terminal.agent .welcome-code {
   font-size: 10px;
+  gap: 9px;
+}
+.welcome-stage[data-view="focus"] .welcome-terminal.agent .welcome-chat {
+  font-size: 10px;
+}
+.welcome-stage[data-view="focus"] .welcome-terminal.agent .welcome-chat-log {
   gap: 9px;
 }
 .welcome-stage[data-view="focus"] .welcome-terminal:is(.review, .agy, .server) {

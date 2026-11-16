@@ -495,9 +495,12 @@ describe("Connecting agents", () => {
         .toHaveAttribute("aria-checked", "true")
     })
 
-    it("leaves the chat view off when unchecked", async () => {
+    it("leaves the chat view off when unchecked, as its preview says", async () => {
       await openWorkspace("/?demo=welcome")
       await welcome().getByRole("checkbox", { name: "Chat view" }).click()
+      await expect
+        .element(welcome().getByText("Agents keep their own terminal screens."))
+        .toBeVisible()
       await welcome().getByRole("button", { name: "Let’s build something" }).click()
       await expect.element(welcome()).not.toBeInTheDocument()
       await openPreferences()
