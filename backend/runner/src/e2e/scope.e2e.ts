@@ -16,7 +16,8 @@ const cgroupFolder = (pid: number): string =>
 
 /**
  * The scope's CPU weight, where its slice gives its apps the CPU controller: undefined where
- * the user's systemd delegates none, as before systemd 252, and the weight is left unset.
+ * it has none to give, as with a `Delegate=` that leaves out cpu or cgroup v1, and the weight
+ * is left unset.
  */
 const cpuWeightOf = (pid: number): number | undefined => {
   const folder = cgroupFolder(pid)
