@@ -115,3 +115,38 @@ export type DialogAdapter = {
    */
   readonly screenRequest?: (rows: readonly string[]) => ScreenRequest | undefined
 }
+
+/**
+ * Why a read refused, for the log. An adapter's rejections `return refuse("question.footer")`
+ * where they used to return undefined bare: the call notes the code in the trace that
+ * `explain` opened, if one is open, and returns undefined, so a read behaves as it did and
+ * costs a null check where nobody listens. Codes are static string literals of the form
+ * `<dialog>.<step>.<n>`, never built from the screen or the request, so they are safe to
+ * log. A guard test (`refusals.test.ts` in each harness) keeps adapters to that.
+ */
+let trace: string[] | undefined
+
+/** Most codes one `explain` keeps: a read tries a few readers, each noting where it stopped. */
+const maxRefusals = 32
+
+/** Notes `code` in the open trace, if any, and returns undefined to refuse with. */
+export const refuse = (code: string): undefined => {
+  if (trace && trace.length < maxRefusals && trace[trace.length - 1] !== code) trace.push(code)
+  return undefined
+}
+
+/**
+ * Runs `fn`, which reads a screen, and gives its result with the codes of every refusal it
+ * noted, in order: the last is usually the one that decided. Not reentrant: a nested call
+ * traces its own run and hands back to the outer one.
+ */
+export const explain = <T>(fn: () => T): { result: T; refusals: string[] } => {
+  const outer = trace
+  const own: string[] = []
+  trace = own
+  try {
+    return { result: fn(), refusals: own }
+  } finally {
+    trace = outer
+  }
+}

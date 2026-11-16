@@ -1,3 +1,4 @@
+import { refuse } from "@novadeck/harness-core/dialogs"
 import type { KeyStep } from "@novadeck/harness-core/dialogs"
 
 // What Antigravity's dialogs share: how its screen reads, and how a key's effect is awaited.
@@ -34,7 +35,7 @@ export const optionsFrom = (rows: readonly string[], from: number): Option[] | u
       })
     } else {
       const last = options.at(-1)
-      if (!last || rule(row)) return undefined
+      if (!last || rule(row)) return refuse("screen.optionsFrom.1")
       last.label = `${last.label} ${row.trim()}`
     }
   }

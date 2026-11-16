@@ -1,3 +1,4 @@
+import { refuse } from "@novadeck/harness-core/dialogs"
 import type { KeyStep, RequestFacts } from "@novadeck/harness-core/dialogs"
 import { fieldsOf } from "@novadeck/harness-core/fields"
 
@@ -21,18 +22,21 @@ type Question = {
 /** The questions a `request_user_input` call asks, or undefined for any shape not understood. */
 const questionsOf = (input: unknown): readonly Question[] | undefined => {
   const list = fieldsOf(input)?.questions
-  if (!Array.isArray(list) || list.length === 0 || list.length > 8) return undefined
+  if (!Array.isArray(list) || list.length === 0 || list.length > 8)
+    return refuse("question.questionsOf.1")
   const questions: Question[] = []
   for (const entry of list) {
     const each = fieldsOf(entry)
-    if (!each || typeof each.id !== "string" || typeof each.question !== "string") return undefined
+    if (!each || typeof each.id !== "string" || typeof each.question !== "string")
+      return refuse("question.questionsOf.2")
     if (!Array.isArray(each.options) || each.options.length === 0 || each.options.length > 8) {
-      return undefined
+      return refuse("question.questionsOf.3")
     }
     const options: Question["options"][number][] = []
     for (const raw of each.options) {
       const option = fieldsOf(raw)
-      if (!option || typeof option.label !== "string" || option.label === "") return undefined
+      if (!option || typeof option.label !== "string" || option.label === "")
+        return refuse("question.questionsOf.4")
       options.push({
         label: option.label,
         description: typeof option.description === "string" ? option.description : null,
@@ -45,7 +49,9 @@ const questionsOf = (input: unknown): readonly Question[] | undefined => {
       options,
     })
   }
-  return new Set(questions.map(({ id }) => id)).size === questions.length ? questions : undefined
+  return new Set(questions.map(({ id }) => id)).size === questions.length
+    ? questions
+    : refuse("question.questionsOf.5")
 }
 
 const otherLabel = "None of the above"
@@ -57,7 +63,7 @@ const headerOf = (
 ): { readonly at: number; readonly k: number; readonly of: number } | undefined => {
   const at = lines.findLastIndex((line) => questionHeader.test(line))
   const found = at < 0 ? null : questionHeader.exec(lines[at]!)
-  return found ? { at, k: Number(found[1]), of: Number(found[2]) } : undefined
+  return found ? { at, k: Number(found[1]), of: Number(found[2]) } : refuse("question.headerOf.1")
 }
 
 /**
@@ -72,24 +78,26 @@ const questionRows = (
   k: number,
 ): readonly Row[] | undefined => {
   const header = headerOf(lines)
-  if (header?.k !== k + 1 || header.of !== questions.length) return undefined
+  if (header?.k !== k + 1 || header.of !== questions.length)
+    return refuse("question.questionRows.1")
   const first = firstOption(lines, header.at + 1)
-  if (first < 0) return undefined
+  if (first < 0) return refuse("question.questionRows.2")
   const question = questions[k]!
   if (squash(lines.slice(header.at + 1, first).join("")) !== squash(question.question)) {
-    return undefined
+    return refuse("question.questionRows.3")
   }
   const { rows, next } = optionsAt(lines, first)
   const count = question.options.length
-  if (rows.length !== count && rows.length !== count + 1) return undefined
+  if (rows.length !== count && rows.length !== count + 1) return refuse("question.questionRows.4")
   if (!question.options.every((option, i) => named(rows[i]!, option.label))) {
-    return undefined
+    return refuse("question.questionRows.5")
   }
-  if (rows.length > count && !named(rows[count]!, otherLabel)) return undefined
+  if (rows.length > count && !named(rows[count]!, otherLabel))
+    return refuse("question.questionRows.6")
   // Words already typed in its notes, or anything else after the options, is not a screen
   // whose digits answer.
   if (lines.slice(next).some((line) => /^\s*›/.test(line) || /clear notes/.test(line))) {
-    return undefined
+    return refuse("question.questionRows.7")
   }
   return rows
 }
@@ -115,10 +123,11 @@ const notesStart = (rows: readonly string[], text: string): boolean => {
  * words go in the notes of the row they belong to.
  */
 export const questions = (lines: readonly string[], facts: RequestFacts): Parsed | undefined => {
-  if (facts.kind !== "question" || facts.tool !== "request_user_input") return undefined
+  if (facts.kind !== "question" || facts.tool !== "request_user_input")
+    return refuse("question.questions.1")
   const asked = questionsOf(facts.input)
   const rows = asked && questionRows(lines, asked, 0)
-  if (!asked || !rows) return undefined
+  if (!asked || !rows) return refuse("question.questions.2")
   const other = rows.length === asked[0]!.options.length + 1
   const highlighted = Math.max(
     0,

@@ -113,6 +113,16 @@
       "types": "./dist/slices.d.ts",
       "default": "./dist/slices.js"
     },
+    "./testing/refusal-guard": {
+      "development": "./src/testing/refusal-guard.ts",
+      "types": "./dist/testing/refusal-guard.d.ts",
+      "default": "./dist/testing/refusal-guard.js"
+    },
+    "./testing/dialog-record": {
+      "development": "./src/testing/dialog-record.ts",
+      "types": "./dist/testing/dialog-record.d.ts",
+      "default": "./dist/testing/dialog-record.js"
+    },
     "./testing/dialogs": {
       "development": "./src/testing/dialogs.ts",
       "types": "./dist/testing/dialogs.d.ts",

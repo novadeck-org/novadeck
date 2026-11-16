@@ -1,3 +1,4 @@
+import { refuse } from "@novadeck/harness-core/dialogs"
 import type { AnswerableDialog, DialogRead, RequestFacts } from "@novadeck/harness-core/dialogs"
 
 import {
@@ -76,9 +77,10 @@ const aloneInTurn = (lines: readonly string[], heading: number): boolean => {
 const confirmation = (rows: readonly string[]): Confirmation | undefined => {
   const lines = rows.map((row) => row.trimEnd())
   const ask = only(rowsLike(lines, /^(Run this command\?|Allow [^?]+\?|Accept this file edit\?)$/))
-  if (ask === undefined) return undefined
+  if (ask === undefined) return refuse("permission.confirmation.1")
   const options = optionsFrom(lines, ask + 1)
-  if (!options || footerAfter(lines, ask + 1) === undefined) return undefined
+  if (!options || footerAfter(lines, ask + 1) === undefined)
+    return refuse("permission.confirmation.2")
   const question = lines[ask]!.trim()
   if (question === "Run this command?") {
     const start = lines.findLastIndex(
@@ -105,7 +107,7 @@ const confirmation = (rows: readonly string[]): Confirmation | undefined => {
       width: Math.max(0, ...lines.filter(rule).map((row) => row.trim().length)),
     }
     return shown === ""
-      ? undefined
+      ? refuse("permission.confirmation.3")
       : {
           question,
           options,
@@ -121,14 +123,16 @@ const confirmation = (rows: readonly string[]): Confirmation | undefined => {
   const ruleAt = lines.findLastIndex((row, index) => index < ask && rule(row))
   const header = ruleAt > 0 ? lines[ruleAt - 1]!.trim() : ""
   const tools = toolsByHeader[header]
-  if (tools === undefined) return undefined
+  if (tools === undefined) return refuse("permission.confirmation.4")
   // Its edit's hint about auto-approval is no part of what it asks.
   const shown = lines
     .slice(ruleAt + 1, ask)
     .filter((row) => !row.trim().startsWith("shift+tab to auto-approve"))
     .join("\n")
     .trim()
-  return shown === "" ? undefined : { question, options, shown, command: false, tools }
+  return shown === ""
+    ? refuse("permission.confirmation.5")
+    : { question, options, shown, command: false, tools }
 }
 
 // The tools each file confirmation's header means (only what was probed): 1.4's, which
@@ -160,7 +164,7 @@ const shownStart = (shown: string): string | undefined => {
   const rows = shown.split("\n")
   const last = rows.at(-1)!.trim()
   if (hidden.test(last)) return rows.slice(0, -1).join("\n")
-  return dots.test(last) ? shown.replace(dots, "") : undefined
+  return dots.test(last) ? shown.replace(dots, "") : refuse("permission.shownStart.1")
 }
 
 // Whether a confirmation cut short is `command`'s, by the start it shows.
@@ -262,12 +266,15 @@ const progressed = (before: string | undefined, now: string | undefined): boolea
 
 const ownCommand = (read: Confirmation, input: unknown): string | undefined => {
   const command = toolCall(input)?.args.CommandLine
-  if (!read.command || !read.drawn || typeof command !== "string") return undefined
+  if (!read.command || !read.drawn || typeof command !== "string")
+    return refuse("permission.ownCommand.1")
   if (read.headed && drawnAs(read.drawn, command.replaceAll("\t", drawnTab))) return command
   // The status line names no call, so the request's is only the latest: unless nothing else
   // goes on beside it, the dialog may be about another that starts alike, and shows as the
   // TUI words it, cut short and saying so.
-  return read.alone === true && sameStart(read, command) ? command : undefined
+  return read.alone === true && sameStart(read, command)
+    ? command
+    : refuse("permission.ownCommand.2")
 }
 
 export const permission = (
@@ -275,9 +282,9 @@ export const permission = (
   request: RequestFacts,
 ): DialogRead | undefined => {
   const read = confirmation(rows)
-  if (!read || !matches(read, request.input)) return undefined
+  if (!read || !matches(read, request.input)) return refuse("permission.permission.1")
   const keyed = read.options.map(({ number }) => digit(number))
-  if (keyed.includes(undefined)) return undefined
+  if (keyed.includes(undefined)) return refuse("permission.permission.2")
   const dialog: AnswerableDialog = {
     type: "choices",
     title: read.question,

@@ -1,5 +1,6 @@
 import { posix, win32 } from "node:path"
 
+import { refuse } from "@novadeck/harness-core/dialogs"
 import type { DialogRead, RequestFacts } from "@novadeck/harness-core/dialogs"
 import { fieldsOf } from "@novadeck/harness-core/fields"
 
@@ -70,14 +71,14 @@ const nameKey = (text: string): string => text.toLowerCase().replace(/[^a-z0-9]/
  */
 const shows = (rows: readonly string[], title: number, facts: RequestFacts): string | undefined => {
   const input = fieldsOf(facts.input)
-  if (!input) return undefined
+  if (!input) return refuse("permission.shows.1")
   // The three rows above a block, where its header is.
   const header = (open: number): string[] =>
     rows.slice(Math.max(0, open - 3), open).map((each) => each.trim())
   switch (facts.tool) {
     case "Bash": {
       const command = nonBlank(input.command)
-      if (!command) return undefined
+      if (!command) return refuse("permission.shows.2")
       const shown = ruled(rows, title)
       // Taller than the screen: its header and first rule have scrolled away, so every row
       // above its closing rule is its own, and they end as the request's command does.
@@ -87,48 +88,52 @@ const shows = (rows: readonly string[], title: number, facts: RequestFacts): str
         return body.every((each) => each === "" || quoteRow.test(each)) &&
           wrapsEnd(quoted(body), command)
           ? command
-          : undefined
+          : refuse("permission.shows.3")
       }
       // Its header is on screen unless the command only just fits.
       const cutHeader = shown.open < 3 && !rows.slice(0, shown.open).some((row) => rule.test(row))
-      if (!cutHeader && !header(shown.open).includes("Bash command")) return undefined
+      if (!cutHeader && !header(shown.open).includes("Bash command"))
+        return refuse("permission.shows.4")
       // Nothing but the command between its rules; the detail is the request's own command,
       // as it will run, not the screen's wrapped rows.
-      return wraps(quoted(shown.body), command) ? command : undefined
+      return wraps(quoted(shown.body), command) ? command : refuse("permission.shows.5")
     }
     case "WebFetch": {
       const url = nonBlank(input.url)
       const shown = ruled(rows, title)
-      if (!url || !shown || !header(shown.open).includes("Fetch")) return undefined
+      if (!url || !shown || !header(shown.open).includes("Fetch"))
+        return refuse("permission.shows.6")
       const prompt = nonBlank(input.prompt)
       const expected = `url: ${url}${prompt ? ` prompt: ${prompt}` : ""}`
-      return wraps(quoted(shown.body), expected) ? quoted(shown.body).join("\n") : undefined
+      return wraps(quoted(shown.body), expected)
+        ? quoted(shown.body).join("\n")
+        : refuse("permission.shows.7")
     }
     case "Read": {
       // `Read(<path>)` between rules, under a "Read file" header.
       const path = nonBlank(input.file_path)
       const shown = ruled(rows, title)
-      if (!path || Object.keys(input).length !== 1 || !shown) return undefined
-      if (!header(shown.open).includes("Read file")) return undefined
+      if (!path || Object.keys(input).length !== 1 || !shown) return refuse("permission.shows.8")
+      if (!header(shown.open).includes("Read file")) return refuse("permission.shows.9")
       const body = quoted(shown.body)
-      return wraps(body, `Read(${path})`) ? body.join("\n") : undefined
+      return wraps(body, `Read(${path})`) ? body.join("\n") : refuse("permission.shows.10")
     }
     case "Write":
     case "Edit": {
       const path = nonBlank(input.file_path)?.replaceAll("\\", "/")
       const close = rows.slice(0, title).findLastIndex((each) => dashed.test(each))
-      if (!path || close < 1) return undefined
+      if (!path || close < 1) return refuse("permission.shows.11")
       // A screen cannot show that every occurrence changed, only that one did.
-      if (input.replace_all === true) return undefined
+      if (input.replace_all === true) return refuse("permission.shows.12")
       const open = rows.slice(0, close).findLastIndex((each) => dashed.test(each))
       // The block's top, its header and its subtitle (the file, as Claude Code writes it
       // relative to its folder), must be on screen: a tall diff scrolls them away, and the
       // question names only the file's own name.
-      if (open < 2) return undefined
+      if (open < 2) return refuse("permission.shows.13")
       const asked = /^Do you want to (create|overwrite|make this edit to) (.+)\?$/.exec(
         rows[title]!.trim(),
       )
-      if (!asked) return undefined
+      if (!asked) return refuse("permission.shows.14")
       const named = rows[open - 1]!.trim().replaceAll("\\", "/")
       const over = asked[1] === "overwrite"
       // The header and the question's verb agree with the tool, the question names the
@@ -136,23 +141,25 @@ const shows = (rows: readonly string[], title: number, facts: RequestFacts): str
       const label = rows[open - 2]?.trim()
       const expected = facts.tool === "Edit" ? "Edit file" : over ? "Overwrite file" : "Create file"
       if (label !== expected || (facts.tool === "Edit") !== (asked[1] === "make this edit to")) {
-        return undefined
+        return refuse("permission.shows.15")
       }
       if (named === "" || asked[2]!.replaceAll("\\", "/") !== named.split("/").pop())
-        return undefined
-      if (!samePath(path, named, cwdOf(facts))) return undefined
+        return refuse("permission.shows.16")
+      if (!samePath(path, named, cwdOf(facts))) return refuse("permission.shows.17")
       const diff = rows.slice(open + 1, close)
-      if (!diffIs(diff, facts.tool, over, input, rows[close]!.length)) return undefined
+      if (!diffIs(diff, facts.tool, over, input, rows[close]!.length))
+        return refuse("permission.shows.18")
       return [named, ...quoted(diff)].join("\n")
     }
     default: {
       const mcp = /^mcp__(.+)__([^_].*)$/.exec(facts.tool)
-      if (!mcp) return undefined
+      if (!mcp) return refuse("permission.shows.19")
       const at = rows.findIndex((each, index) => index < title && each.endsWith("(MCP)"))
       const named = /^ (.+?) — (.+?) Tool: \(MCP\)$/.exec(rows[at] ?? "")
-      if (!named || at < 1 || rows[at - 1]!.trim() !== "Tool use") return undefined
+      if (!named || at < 1 || rows[at - 1]!.trim() !== "Tool use")
+        return refuse("permission.shows.20")
       if (nameKey(named[1]!) !== nameKey(mcp[1]!) || nameKey(named[2]!) !== nameKey(mcp[2]!)) {
-        return undefined
+        return refuse("permission.shows.21")
       }
       // The arguments, one `name: value` row each, between ╌ rules; none, no rules.
       const entries = Object.entries(input).map(
@@ -161,13 +168,15 @@ const shows = (rows: readonly string[], title: number, facts: RequestFacts): str
       const after = rows.slice(at + 1, title)
       const open = after.findIndex((each) => dashed.test(each))
       if (entries.length === 0) {
-        return open < 0 && !after.some((each) => dashed.test(each)) ? "" : undefined
+        return open < 0 && !after.some((each) => dashed.test(each))
+          ? ""
+          : refuse("permission.shows.22")
       }
-      if (open !== 0) return undefined
+      if (open !== 0) return refuse("permission.shows.23")
       const close = after.findIndex((each, index) => index > 0 && dashed.test(each))
-      if (close < 0) return undefined
+      if (close < 0) return refuse("permission.shows.24")
       const args = quoted(after.slice(1, close))
-      return wraps(args, entries.join(" ")) ? args.join("\n") : undefined
+      return wraps(args, entries.join(" ")) ? args.join("\n") : refuse("permission.shows.25")
     }
   }
 }
@@ -178,16 +187,16 @@ export const permission = (
   rows: readonly string[],
   facts: RequestFacts,
 ): DialogRead | undefined => {
-  if (facts.kind !== "permission") return undefined
+  if (facts.kind !== "permission") return refuse("permission.permission.1")
   const at = rows.findLastIndex((each) => permissionTitle.test(each))
-  if (at < 0) return undefined
+  if (at < 0) return refuse("permission.permission.2")
   const read = numbered(rows, at + 1, permissionOption, permissionContinuation)
-  if (!read) return undefined
+  if (!read) return refuse("permission.permission.3")
   if (read.rest.length > 1 || (read.rest.length === 1 && !permissionFooter.test(read.rest[0]!))) {
-    return undefined
+    return refuse("permission.permission.4")
   }
   const detail = shows(rows, at, facts)
-  if (detail === undefined) return undefined
+  if (detail === undefined) return refuse("permission.permission.5")
   const title = permissionTitle.exec(rows[at]!)![1]!
   // "No" interrupts the turn and Claude Code asks "What should Claude do instead?": the
   // person's next prompt is the answer (probed 2.1.287 and 2.1.291). Where the dialog says

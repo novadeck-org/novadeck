@@ -1,3 +1,4 @@
+import { refuse } from "@novadeck/harness-core/dialogs"
 import type { KeyStep, RequestFacts } from "@novadeck/harness-core/dialogs"
 import { fieldsOf } from "@novadeck/harness-core/fields"
 import type { RequestAnswer } from "@novadeck/protocol"
@@ -27,16 +28,19 @@ type AsyncQuestion = {
  */
 const asyncQuestionsOf = (input: unknown): readonly AsyncQuestion[] | undefined => {
   const list = fieldsOf(input)?.questions
-  if (!Array.isArray(list) || list.length === 0 || list.length > 8) return undefined
+  if (!Array.isArray(list) || list.length === 0 || list.length > 8)
+    return refuse("async-question.asyncQuestionsOf.1")
   const questions: AsyncQuestion[] = []
   for (const entry of list) {
     const each = fieldsOf(entry)
-    if (!each || typeof each.title !== "string" || each.title.trim() === "") return undefined
+    if (!each || typeof each.title !== "string" || each.title.trim() === "")
+      return refuse("async-question.asyncQuestionsOf.2")
     const given = each.options
     if (given !== undefined && given !== null) {
-      if (!Array.isArray(given) || given.length === 0 || given.length > 8) return undefined
+      if (!Array.isArray(given) || given.length === 0 || given.length > 8)
+        return refuse("async-question.asyncQuestionsOf.3")
       if (!given.every((option) => typeof option === "string" && option.trim() !== "")) {
-        return undefined
+        return refuse("async-question.asyncQuestionsOf.4")
       }
     }
     questions.push({
@@ -75,21 +79,22 @@ type Picker = {
  * its numbered options or `Type your answer`.
  */
 const pickerOf = (lines: readonly string[]): Picker | undefined => {
-  if (lines.length === 0 || !asyncFooter.test(lines.at(-1)!)) return undefined
+  if (lines.length === 0 || !asyncFooter.test(lines.at(-1)!))
+    return refuse("async-question.pickerOf.1")
   const heading = lines.findLastIndex((line) => queuedHeading.test(line))
-  if (heading < 0) return undefined
+  if (heading < 0) return refuse("async-question.pickerOf.2")
   let at = heading + 1
   const count = /^\s*1 of (\d+)\s*$/.exec(lines[at] ?? "")
   if (count) at += 1
   const start = at
   const first = firstOption(lines, start)
   const free = lines.findIndex((line, i) => i >= start && /^\s*Type your answer\s*$/.test(line))
-  if (first >= 0 && free >= 0) return undefined
+  if (first >= 0 && free >= 0) return refuse("async-question.pickerOf.3")
   const end = first >= 0 ? first : free
-  if (end <= start) return undefined
+  if (end <= start) return refuse("async-question.pickerOf.4")
   const { rows, next } = first >= 0 ? optionsAt(lines, first) : { rows: [], next: free + 1 }
   // Nothing but the footer follows the options.
-  if (next !== lines.length - 1) return undefined
+  if (next !== lines.length - 1) return refuse("async-question.pickerOf.5")
   return {
     title: squash(lines.slice(start, end).join("")),
     rows,
@@ -152,8 +157,9 @@ const wordsShown = (lines: readonly string[], question: AsyncQuestion, text: str
  */
 const panelOf = (lines: readonly string[]): number | undefined => {
   const at = lines.findLastIndex((line) => asyncPanel.test(line))
-  if (at < 0 || lines.findLastIndex((line) => queuedHeading.test(line)) !== at - 1) return undefined
-  if (!asyncOpens.test(lines[at + 1] ?? "")) return undefined
+  if (at < 0 || lines.findLastIndex((line) => queuedHeading.test(line)) !== at - 1)
+    return refuse("async-question.panelOf.1")
+  if (!asyncOpens.test(lines[at + 1] ?? "")) return refuse("async-question.panelOf.2")
   return Number(asyncPanel.exec(lines[at]!)![1])
 }
 
@@ -195,14 +201,15 @@ export const asyncQuestions = (
   lines: readonly string[],
   facts: RequestFacts,
 ): Parsed | undefined => {
-  if (facts.kind !== "question" || facts.tool !== asyncTool) return undefined
+  if (facts.kind !== "question" || facts.tool !== asyncTool)
+    return refuse("async-question.asyncQuestions.1")
   const asked = asyncQuestionsOf(facts.input)
-  if (!asked) return undefined
+  if (!asked) return refuse("async-question.asyncQuestions.2")
   // Codex takes each question's answer on its own: those answered already are gone from
   // its panel and picker, and what remains is what the dialog asks.
   const answered = new Set(facts.answered ?? [])
   const questions = asked.filter((_, index) => !answered.has(index))
-  if (questions.length === 0) return undefined
+  if (questions.length === 0) return refuse("async-question.asyncQuestions.3")
   const [first] = questions
   const picker = pickerOf(lines)
   const panel = panelOf(lines)
@@ -213,18 +220,19 @@ export const asyncQuestions = (
   // they have gone too, and the answer goes as the next prompt. Neither alone tells: a
   // status row the width cuts reads like any line of the turn's, and the person's Escape
   // that only closed the picker reads to Novadeck as the turn's end while it runs on.
-  if ((picker || panel !== undefined) && facts.turnEnded && !working(lines)) return undefined
+  if ((picker || panel !== undefined) && facts.turnEnded && !working(lines))
+    return refuse("async-question.asyncQuestions.4")
   // Where the answer goes: the panel's or picker's keys while the turn runs, a prompt after.
   let opening: readonly KeyStep[] | undefined
   if (picker) {
     // The picker is open on this request's first question, with all of them still to answer.
-    if (!pickerOn(picker, first!)) return undefined
+    if (!pickerOn(picker, first!)) return refuse("async-question.asyncQuestions.5")
     if (picker.of !== undefined ? picker.of !== questions.length : questions.length !== 1) {
-      return undefined
+      return refuse("async-question.asyncQuestions.6")
     }
     opening = []
   } else if (panel !== undefined) {
-    if (panel !== questions.length) return undefined
+    if (panel !== questions.length) return refuse("async-question.asyncQuestions.7")
     opening = [
       { press: "\x1b[1;2D" },
       {
@@ -238,7 +246,7 @@ export const asyncQuestions = (
   // After the turn the questions are dropped, and the answer is the next prompt, which
   // quotes each on a line of its own: one that runs over lines quotes as nothing.
   if (gone && (!idle(lines) || questions.some(({ title }) => /[\r\n]/.test(title.trim()))))
-    return undefined
+    return refuse("async-question.asyncQuestions.8")
 
   return {
     dialog: {
