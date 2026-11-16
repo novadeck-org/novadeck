@@ -1,28 +1,193 @@
 /* The Worktrees panel's rows (WorktreesPanel.tsx): each work is drawn as a terminal's tab (the
    `.terminal-tab` of tabs.css, so its size, name line, detail line and the unfold of its rows
-   are the tab's own), and this adds what differs. Parts: `.worktrees-row`, `.worktrees-size` (the
-   work's `+N −N`, in the tab's item marks' place), `.worktrees-file` (a file's name, wherever it is),
-   `.worktrees-branch` (the row's branch), `.worktrees-refusal`, `.worktrees-kept`,
-   `.worktrees-branches` and `.worktrees-trail` (a file's lines, right-aligned in its row),
-   `.worktrees-empty`, `.worktrees-pr` (the work's pull request: "#812" after its state's glyph, a
-   link to its page, data-state its state, at the end of the row's detail line beside the trash button).
-   The row's trash button is
-   `.terminal-tab-revealed`, shown under the pointer as a tab's Rename.
+   are the tab's own), and this adds what differs. The rows stand in groups, each a
+   `.worktrees-group` with a `.worktrees-group-heading` (`.worktrees-group-title`, its
+   `.worktrees-group-count`, Done's `.worktrees-group-fold` and `.worktrees-sweep`, Trash N
+   safe) over its `.worktrees-group-rows`, under the panel's `.worktrees-origin` line (how old
+   the remote's main is, with `.worktrees-fetch`). Parts of a row: `.worktrees-row`,
+   `.worktrees-size` (the work's `+N −N`, in the tab's item marks' place, neutral),
+   `.worktrees-handle` and `.worktrees-branch` (its owner's handle and its branch, the detail
+   line), `.worktrees-facts` (what it says in words, a `.worktrees-fact` each, data-tone
+   bad | ink | muted | warn | ok), `.worktrees-file` (a file's name, wherever it is),
+   `.worktrees-refusal`, `.worktrees-kept`, `.worktrees-branches` and `.worktrees-trail` (a
+   file's lines, right-aligned in its row), `.worktrees-empty`, `.worktrees-pr` (the work's pull
+   request: "#812" after its state's glyph, a link to its page, data-state its state, beside the
+   trash button on the facts' line). The row's trash button is `.terminal-tab-revealed`, shown
+   under the pointer as a tab's Rename, and at rest on a safe row.
 
-   Hooks: on a row, data-merged once its work is merged, data-conflict while it conflicts with
-   main or another work and is not merged; on a `.worktrees-file`, data-conflict.
+   Hooks: on a row, data-standing (conflict | ci-failing | working | merged | closed | ready |
+   draft | branch: its icon), data-safe, data-merged once its work is merged, data-conflict
+   while it conflicts with main or another work and is not merged; on a `.worktrees-file`,
+   data-conflict; on `.worktrees-origin`, data-stale once main is an hour old.
 
-   Tokens: none of its own; it reads the palette's (ink, muted, success-fg, danger-fg). */
+   Tokens: none of its own; it reads the palette's (ink, muted, line, soft, success-fg,
+   danger-fg, warning-fg). Red is only for what needs the person. */
 
-/* Fine: the icon gray. Merged: success. Conflict: red. */
+/* The icon says where it stands: red for what needs the person, green for a safe one done,
+   ink for a pull request ready for review, gray otherwise. */
 .worktrees-row .sidebar-item-icon {
   color: var(--color-muted);
 }
-.worktrees-row[data-merged="true"] .sidebar-item-icon {
+.worktrees-row:is([data-standing="conflict"], [data-standing="ci-failing"]) .sidebar-item-icon {
+  color: var(--color-danger-fg);
+}
+.worktrees-row[data-safe="true"] .sidebar-item-icon {
   color: var(--color-success-fg);
 }
-.worktrees-row[data-conflict="true"] .sidebar-item-icon {
+.worktrees-row[data-standing="ready"] .sidebar-item-icon {
+  color: var(--color-ink);
+}
+
+/* The detail line: the handle, then the branch whole as far as it fits. */
+.worktrees-handle {
+  font-family: var(--font-mono);
+  color: var(--color-muted);
+}
+
+/* What it says in words, under the branch, wrapping when long. The trash button and the pull
+   request's mark sit at its end, so the detail line above keeps its full width. */
+.worktrees-row:has(.worktrees-facts) {
+  --_sidebar-actions-space: 0px;
+}
+.worktrees-row:has(.worktrees-facts) .sidebar-item-actions {
+  top: 55px;
+}
+.worktrees-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  padding-right: var(--_worktrees-actions-space, 30px);
+  font-size: var(--text-caption);
+  line-height: 16px;
+}
+.worktrees-fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.worktrees-fact svg {
+  flex-shrink: 0;
+}
+.worktrees-fact[data-tone="bad"] {
   color: var(--color-danger-fg);
+}
+.worktrees-fact[data-tone="ink"] {
+  color: var(--color-ink);
+}
+.worktrees-fact[data-tone="muted"] {
+  color: var(--color-muted);
+}
+.worktrees-fact[data-tone="warn"] {
+  color: var(--color-warning-fg);
+}
+.worktrees-fact[data-tone="ok"] {
+  color: var(--color-success-fg);
+}
+
+/* A safe row's trash button shows at rest, in the colour that says so. */
+.worktrees-row[data-safe="true"] .icon-button.terminal-tab-revealed {
+  opacity: 1;
+  color: var(--color-success-fg);
+}
+
+/* The groups, each a heading over its rows. */
+.worktrees-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.worktrees-group + .worktrees-group {
+  margin-top: 8px;
+}
+.worktrees-group-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 4px 0 10px;
+}
+.worktrees-group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.worktrees-group-heading[data-group="needs"] .worktrees-group-title {
+  color: var(--color-danger-fg);
+}
+.worktrees-group-fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: -15px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+.worktrees-group-fold:focus-visible,
+.worktrees-sweep:focus-visible,
+.worktrees-fetch:focus-visible {
+  outline: 2px solid var(--focus-ring-color, var(--color-ink));
+  outline-offset: 1px;
+}
+.worktrees-sweep,
+.worktrees-fetch {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  margin-left: auto;
+  padding: 0 8px;
+  border: var(--border-width) solid var(--color-line);
+  border-radius: var(--radius-control, 4px);
+  background: none;
+  color: var(--color-ink);
+  font-size: var(--text-caption);
+  cursor: pointer;
+}
+.worktrees-sweep svg {
+  color: var(--color-success-fg);
+}
+.worktrees-sweep:hover,
+.worktrees-fetch:hover:not(:disabled) {
+  background: var(--color-soft);
+}
+.worktrees-fetch:disabled {
+  color: var(--color-muted);
+  cursor: default;
+}
+
+/* How old the remote's main is, over the groups: amber once an hour old. */
+.worktrees-origin {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  margin: 8px 4px 0 10px;
+  font-size: var(--text-caption);
+  color: var(--color-muted);
+}
+.worktrees-origin svg {
+  flex-shrink: 0;
+}
+.worktrees-origin[data-stale="true"] {
+  color: var(--color-warning-fg);
+}
+.worktrees-origin + .worktrees-list {
+  margin-top: 4px;
 }
 
 .worktrees-size,
@@ -40,13 +205,10 @@
   gap: 4px;
   font-size: 11px;
 }
-.worktrees-size .diff-added,
-.worktrees-trail .diff-added {
-  color: var(--color-success-fg);
-}
-.worktrees-size .diff-removed,
-.worktrees-trail .diff-removed {
-  color: var(--color-danger-fg);
+/* Sizes are neutral: red is for what needs the person, green for what is safe. */
+.worktrees-size :is(.diff-added, .diff-removed),
+.worktrees-trail :is(.diff-added, .diff-removed) {
+  color: var(--color-muted);
 }
 
 /* The pull request's mark: its state's glyph and "#812" in the caption's mono, muted, an open
@@ -108,7 +270,8 @@ a.worktrees-pr:focus-visible {
 
 /* The detail line holds the branch, which stays while the files unfold under it. */
 .worktrees-branch {
-  color: var(--color-muted);
+  font-family: var(--font-mono);
+  color: var(--color-ink);
 }
 
 /* Why a close was refused, above the list. */

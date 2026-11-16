@@ -1,9 +1,11 @@
 import { allTeams, sameTeams } from "@novadeck/core/derivations"
+import type { ForgeConnection } from "@novadeck/core/forges"
 import type { ClosedTerminal, HistoryState } from "@novadeck/core/history"
 import { itemIdOf } from "@novadeck/core/items"
 import { orderedTiles } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
+import { handleText } from "@novadeck/core/terminals/handle"
 import type { WorkspaceSession } from "@novadeck/core/types"
 import type { Work, WorksState } from "@novadeck/core/works"
 import { memo, useCallback, useMemo, useSyncExternalStore } from "react"
@@ -44,6 +46,9 @@ const sameSessions = (a: readonly WorkspaceSession[], b: readonly WorkspaceSessi
       session.state.roster.terminals === other.state.roster.terminals
     )
   })
+
+// What a backend without forges reads in their place.
+const noForges = createStore<readonly ForgeConnection[]>([])
 
 const sameHandles = (a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean =>
   a.size === b.size && [...a].every(([id, handle]) => b.get(id) === handle)
@@ -229,6 +234,29 @@ export const SidebarSection = memo((): React.JSX.Element => {
       ),
     sameHandles,
   )
+  // Handles of every project's terminals, as people see them, for the rows to say whose they are.
+  const workHandles = useWorkspaceState(
+    (workspace) =>
+      new Map(
+        workspace.projects.flatMap((project) =>
+          project.history.flatMap((session) =>
+            session.state.roster.terminals.flatMap((terminal) =>
+              terminal.handle ? [[terminal.id, handleText(terminal.handle)] as const] : [],
+            ),
+          ),
+        ),
+      ),
+    sameHandles,
+  )
+  // Whether pull requests are looked for: a forge is on. A backend without forges (a demo's)
+  // has its works say so themselves.
+  const forgesOn = useStoreSelector(backend.forges?.state ?? noForges, (forges) =>
+    backend.forges ? forges.some((forge) => forge.enabled) : true,
+  )
+  const fetchOrigin = useMemo(
+    () => (worksFeed?.fetch ? () => worksFeed.fetch!(projectId) : undefined),
+    [worksFeed, projectId],
+  )
   const selectedId = useWorkspaceState((workspace) => currentState(workspace).selected)
   const { revealTerminal, openBarTab } = commands
   // A work is shown on the bar of the terminal the panel names (its owner's, or the selected
@@ -280,6 +308,9 @@ export const SidebarSection = memo((): React.JSX.Element => {
             canOpenFile: canOpenWorkFile,
             onOpenFile: openWorkFile,
             onCloseWork: worksFeed.close,
+            handles: workHandles,
+            forges: forgesOn,
+            ...(fetchOrigin ? { onFetch: fetchOrigin } : {}),
           }
         : undefined,
     [
@@ -287,6 +318,9 @@ export const SidebarSection = memo((): React.JSX.Element => {
       projectWorks,
       worksReported,
       titles,
+      workHandles,
+      forgesOn,
+      fetchOrigin,
       selectedId,
       showWork,
       canOpenWorkFile,
