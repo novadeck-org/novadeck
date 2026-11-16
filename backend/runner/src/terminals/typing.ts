@@ -976,8 +976,8 @@ export class Typing {
       },
       answered: (terminalId, ref) => this.dialogs.answered(terminalId).has(ref),
       raw: (terminalId, ref) => this.dialogs.shown(terminalId, ref)?.type === "raw",
-      lock: (terminalId, ref, reason, rows) => {
-        this.dialogs.lock(terminalId, ref, reason, rows)
+      lock: (terminalId, ref, reason, rows, why) => {
+        this.dialogs.lock(terminalId, ref, reason, rows, why)
         if (reason === "failed") this.astray(terminalId)
       },
       done: (terminalId, ref) => {
@@ -1066,6 +1066,7 @@ export class Typing {
         const { binding, activity } = bound
         return {
           agent: binding.agent,
+          version: binding.version ?? null,
           requests: activity.pending.map((request) => ({
             ref: requestRef(binding, request),
             actor: request.actor,

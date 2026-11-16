@@ -18,6 +18,7 @@ import {
 
 import { logs } from "../log.js"
 import { cut } from "../text.js"
+import { DialogDiagnostics, type RawWhy, type Subject } from "./dialog-diagnostics.js"
 
 const log = logs.for("dialogs")
 
@@ -40,9 +41,14 @@ export type DialogsHost = {
    * The agent bound there and the requests it has waiting; undefined with none bound or
    * once the terminal is gone.
    */
-  readonly pending: (
-    terminalId: string,
-  ) => { readonly agent: AgentName; readonly requests: readonly Waiting[] } | undefined
+  readonly pending: (terminalId: string) =>
+    | {
+        readonly agent: AgentName
+        /** The harness's version, where the runner knows it. */
+        readonly version?: string | null
+        readonly requests: readonly Waiting[]
+      }
+    | undefined
   /** How the agent's TUI answers dialogs; undefined where it has no way to. */
   readonly adapter: (agent: AgentName) => DialogAdapter | undefined
   /** The screen once it has drawn all pending output; undefined once the terminal is gone. */
@@ -182,6 +188,7 @@ type State = {
   text: string
   since: number
   rows: readonly string[]
+  columns: number
   /** What each request's dialog said as last announced. */
   announced: Map<string, string>
   timer: NodeJS.Timeout | undefined
@@ -231,12 +238,14 @@ export class Dialogs {
   private readonly rawStillMs: number
   private readonly rawAgeMs: number
   private readonly rawLatestMs: number
+  private readonly diagnostics: DialogDiagnostics
 
   constructor(
     private readonly host: DialogsHost,
     options: DialogsOptions = {},
   ) {
     this.now = options.now ?? Date.now
+    this.diagnostics = new DialogDiagnostics(log, this.now)
     this.throttleMs = options.throttleMs ?? 100
     this.settleMs = options.settleMs ?? 500
     this.rawStillMs = options.rawStillMs ?? 1_500
@@ -293,8 +302,14 @@ export class Dialogs {
     ref: string,
     reason: "unrecognized" | "failed",
     rows?: readonly string[],
+    why?: string,
   ): void {
     const state = this.state(terminalId)
+    const subject = this.subject(terminalId, state, ref, rows)
+    if (subject) {
+      this.diagnostics.unread(subject, reason)
+      if (why !== undefined) this.diagnostics.answerFailed(subject, reason === "failed", why)
+    }
     const text = rawText(rows ?? state.rows)
     state.entries.set(ref, {
       dialog: { type: "raw", text, reason },
@@ -328,6 +343,36 @@ export class Dialogs {
     if (!state || state.answering > 0) return
     clearTimeout(state.timer)
     this.states.delete(terminalId)
+    this.diagnostics.prune(terminalId)
+  }
+
+  /** What the log is told of a request, with the screen it was looked for on. */
+  private subject(
+    terminalId: string,
+    state: State,
+    ref: string,
+    rows: readonly string[] = state.rows,
+  ): Subject | undefined {
+    const info = this.host.pending(terminalId)
+    const request = info?.requests.find((each) => each.ref === ref)
+    if (!info || !request) return undefined
+    return {
+      terminalId,
+      agent: info.agent,
+      version: info.version ?? null,
+      ref,
+      facts: request.facts,
+      askedAt: request.askedAt,
+      adapter: this.host.adapter(info.agent),
+      rows,
+      columns: state.columns,
+    }
+  }
+
+  /** Tells the log of a request whose dialog turned raw, once for the request. */
+  private unread(terminalId: string, state: State, ref: string, why: RawWhy): void {
+    const subject = this.subject(terminalId, state, ref)
+    if (subject) this.diagnostics.unread(subject, why)
   }
 
   private state(terminalId: string): State {
@@ -338,6 +383,7 @@ export class Dialogs {
         text: "",
         since: this.now(),
         rows: [],
+        columns: 80,
         announced: new Map(),
         timer: undefined,
         lastLook: 0,
@@ -414,6 +460,7 @@ export class Dialogs {
       state.since = now
     }
     state.rows = rows
+    state.columns = screen.columns
     if (state.answering > 0) return
     const settled = now - state.since >= this.settleMs
     let waiting = false
@@ -441,6 +488,7 @@ export class Dialogs {
     const requests = this.host.pending(terminalId)?.requests ?? []
     const live = new Set(requests.map(({ ref }) => ref))
     for (const ref of state.entries.keys()) if (!live.has(ref)) state.entries.delete(ref)
+    this.diagnostics.prune(terminalId, live)
     const reads: { request: Waiting; read: DialogRead }[] = []
     const unread: Waiting[] = []
     for (const request of requests) {
@@ -471,12 +519,24 @@ export class Dialogs {
         twin(request, keyed[0]!.request) &&
         identified(read.dialog)?.id === identified(keyed[0]!.read.dialog)?.id,
     )
-    for (const { request, read } of reads)
+    for (const { request, read } of reads) {
+      const clear = read.prompt ? keyed.length === 0 : alike
       state.entries.set(request.ref, {
-        dialog: (read.prompt ? keyed.length === 0 : alike)
+        dialog: clear
           ? identified(read.dialog)!
           : { type: "raw", text: rawText(rows), reason: "unrecognized" },
       })
+      if (!clear) this.unread(terminalId, state, request.ref, "clash")
+      else if (before)
+        this.diagnostics.readLate({
+          terminalId,
+          agent: before.agent,
+          version: before.version ?? null,
+          ref: request.ref,
+          facts: request.facts,
+          askedAt: request.askedAt,
+        })
+    }
     for (const request of unread) {
       const entry = state.entries.get(request.ref)
       // Another request's dialog is the one on screen: this one's is not (yet).
@@ -509,6 +569,7 @@ export class Dialogs {
         },
         taken: now,
       })
+      this.unread(terminalId, state, request.ref, adapter ? "unrecognized" : "unsupported")
     }
     this.announce(terminalId, state)
     if (waiting) wake = Math.max(wake, state.since + this.settleMs)

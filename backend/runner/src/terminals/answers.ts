@@ -70,6 +70,8 @@ export type AnswersHost = {
     ref: string,
     reason: "unrecognized" | "failed",
     rows: readonly string[],
+    /** Why the answer failed, in the driver's own words, for the log. */
+    why: string,
   ) => void
   /** The request was answered. */
   readonly done: (terminalId: string, ref: string) => void
@@ -499,7 +501,13 @@ export class Answers {
       else hold?.settle()
       if (!(error instanceof Failed)) throw error
       // Whatever the dialog was, nothing is pressed for the request again.
-      this.host.lock(terminalId, ref, error.pressed ? "failed" : "unrecognized", rows)
+      this.host.lock(
+        terminalId,
+        ref,
+        error.pressed ? "failed" : "unrecognized",
+        rows,
+        error.message,
+      )
       throw new DomainError(error.pressed ? "ANSWER_FAILED" : "CONFLICT", error.message)
     } finally {
       this.host.busy(terminalId, false)
@@ -684,7 +692,13 @@ export class Answers {
     }
     // A dialog that showed, or raw text, is no longer what it was: it stays raw.
     if (locks && rows.length > 0 && this.host.shown(terminalId, ref))
-      this.host.lock(terminalId, ref, "unrecognized", rows)
+      this.host.lock(
+        terminalId,
+        ref,
+        "unrecognized",
+        rows,
+        "The request's dialog isn't on the agent's screen.",
+      )
     throw new DomainError("CONFLICT", "The request's dialog isn't on the agent's screen.")
   }
 
