@@ -32,6 +32,8 @@ const log = logs.for("forges")
 export const lookEveryMs = 5 * 60 * 1000
 /** A repository with an open pull request whose checks are running is looked up this often. */
 export const lookWhileRunningMs = 60 * 1000
+/** The quick look stops after this long without a pull request's checks changing. */
+export const quickLookForMs = 30 * 60 * 1000
 /** A repository that keeps failing is tried this seldom at the most. */
 const longestWaitMs = 60 * 60 * 1000
 /** A token this close to its end is asked for again. */
@@ -92,6 +94,8 @@ type Look = {
   fetchedAt: number | undefined
   branches: string
   requests: ReadonlyMap<string, PullRequest>
+  /** Since when checks have been running with the same standings, for the quick look's cap. */
+  quick?: { readonly since: number; readonly standing: string } | undefined
 }
 
 const order = forgeName.options
@@ -384,9 +388,15 @@ export class Forges {
       look.requests = found
       look.failures = 0
       look.blockedUntil = 0
-      // Checks still running are looked at again sooner, to see them end.
+      // Checks still running are looked at again sooner, to see them end, but not for ever: a
+      // check that never reports (a required one nobody runs) is left to the slow look once
+      // 30 minutes have passed with no pull request's checks changing.
       const running = [...found.values()].some((pull) => pull.ci === "running")
-      look.nextAt = at + (running ? Math.min(this.every, lookWhileRunningMs) : this.every)
+      const standing = [...found].map(([branch, pull]) => `${branch}:${pull.ci}`).join("\0")
+      if (!running) look.quick = undefined
+      else if (look.quick?.standing !== standing) look.quick = { since: at, standing }
+      const quick = running && at - (look.quick?.since ?? at) < quickLookForMs
+      look.nextAt = at + (quick ? Math.min(this.every, lookWhileRunningMs) : this.every)
       return
     }
     // What was found before stands: it is never told "no pull request" for a failed lookup.

@@ -554,7 +554,9 @@ with every safety check again at that time:
   its checks stand on the latest commit (GitHub's `statusCheckRollup` in the one GraphQL query; GitLab's
   `head_pipeline` from one more request per open merge request; Azure DevOps' build policy evaluations
   and statuses, two more), and a repository is looked up every 5 minutes, or every minute while any
-  of its open pull requests has `ci: running`.
+  of its open pull requests has `ci: running` (given up after 30 minutes with no pull request's
+  checks changing, until one does). Azure DevOps counts only each status context's newest post and each
+  policy's current evaluation.
   A work also carries `fetchedAt`, when the runner last fetched its repository's origin (absent when
   it never has), so a row's tooltip can say "main as of 12 min ago": a PR merged on the remote shows
   as merged here only after the next fetch (see "Worktrees": cleanup and fetching). Worktrees the
