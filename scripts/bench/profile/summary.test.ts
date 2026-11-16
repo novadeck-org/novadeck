@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest"
 import {
   markdown,
   compared,
-  pageNumbers,
   summarize,
   throttledPhases,
   triggers,
@@ -17,6 +16,7 @@ const part = (share: number) => ({ ms: share * 150, share })
 
 const breakdown = (busy: number, tracks?: number): Breakdown => ({
   windowMs: 15_000,
+  frames: { count: 100, fps: 60 - busy / 10, over33ms: busy },
   mainThread: {
     ...part(busy),
     scripting: {
@@ -82,9 +82,7 @@ const phase = (
   phase: name,
   trace: `traces/${name}.json.gz`,
   breakdown: breakdown(busy),
-  fps: 60 - busy / 10,
-  frames: 100,
-  framesOver33ms: busy,
+  askedFps: 60,
   longTasks: 0,
   switches: [],
   visible: true,
@@ -106,18 +104,6 @@ const run = (
   phases,
   problems: [],
   ...extra,
-})
-
-describe("pageNumbers", () => {
-  it("gives frames a second over the gaps' time, and the gaps over 33 ms", () => {
-    expect(pageNumbers([16, 16, 50, 18], [60, 70])).toEqual({
-      fps: 40,
-      frames: 4,
-      framesOver33ms: 1,
-      longTasks: 2,
-    })
-    expect(pageNumbers([], [])).toEqual({ fps: 0, frames: 0, framesOver33ms: 0, longTasks: 0 })
-  })
 })
 
 describe("summarize", () => {
@@ -158,7 +144,7 @@ describe("summarize", () => {
     ])
     const switches = summary.production?.timing?.phases.switches
     expect(switches?.mainThread?.values).toEqual([20])
-    expect(switches?.fps?.values).toEqual([60, 58])
+    expect(switches?.fps?.values).toEqual([58])
     expect(switches?.switchP50Ms?.values).toEqual([30])
     expect(switches?.switchesTimedOut?.values).toEqual([1, 0])
   })
@@ -194,22 +180,34 @@ describe("throttled phases", () => {
         phase("grid", 40),
         {
           ...phase("focus", 2),
-          fps: 1,
+          askedFps: 1,
           breakdown: { ...breakdown(2), compositorFps: 1 },
         },
       ]),
-      // Slow but drawing: a main thread too busy for its own frames, the compositor still
-      // drawing, isn't throttled.
-      run("heavy", 3, [{ ...phase("grid", 99), fps: 0, frames: 0 }, phase("focus", 30)]),
+      // Slow but drawing: a main thread too busy to answer a frame asked of it, the
+      // compositor still drawing, isn't throttled.
+      run("heavy", 3, [
+        {
+          ...phase("grid", 99),
+          askedFps: 0,
+          breakdown: { ...breakdown(99), compositorFps: 40 },
+        },
+        phase("focus", 30),
+      ]),
+      // Quiet: the compositor draws nothing, the page draws when asked, isn't throttled.
+      run("heavy", 5, [
+        { ...phase("grid", 5), breakdown: { ...breakdown(5), compositorFps: 0 } },
+        phase("focus", 5),
+      ]),
     ]
     const summary = summarize(runs).production?.heavy
     // The second run's Grid counts, its Focus doesn't.
-    expect(summary?.phases.grid?.mainThread?.values).toEqual([80, 40, 99])
-    expect(summary?.phases.focus?.mainThread?.values).toEqual([20, 30])
-    expect(summary?.triggers.transportOfBusy?.values).toHaveLength(2)
+    expect(summary?.phases.grid?.mainThread?.values).toEqual([80, 40, 99, 5])
+    expect(summary?.phases.focus?.mainThread?.values).toEqual([20, 30, 5])
+    expect(summary?.triggers.transportOfBusy?.values).toHaveLength(3)
     expect(throttledPhases(runs)).toEqual(["heavy, production, run 2: focus"])
-    // Without a trace, the page's own frames tell.
-    const { breakdown: _, ...untraced } = { ...phase("grid", 0), fps: 1 }
+    // Without a trace, the frames the page draws when asked tell.
+    const { breakdown: _, ...untraced } = { ...phase("grid", 0), askedFps: 1 }
     expect(throttledPhases([run("heavy", 4, [untraced])])).toEqual([
       "heavy, production, run 4: grid",
     ])

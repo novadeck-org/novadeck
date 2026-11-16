@@ -1,8 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process"
 import {
   cpSync,
-  createReadStream,
-  createWriteStream,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -12,9 +10,7 @@ import {
 } from "node:fs"
 import { cpus, hostname, release, totalmem, type as system } from "node:os"
 import { join, relative, resolve } from "node:path"
-import { pipeline } from "node:stream/promises"
 import { parseArgs } from "node:util"
-import { createGzip } from "node:zlib"
 
 import { openApp, packaged, type AppRun, type Machine } from "./app.ts"
 import { sourceMapped } from "./attribute.ts"
@@ -33,7 +29,6 @@ import { memoryMarkdown, type MemorySample } from "./memory.ts"
 import {
   compared,
   markdown,
-  pageNumbers,
   summarize,
   throttledFps,
   throttledPhases,
@@ -41,7 +36,8 @@ import {
   type RunResult,
   type Variant,
 } from "./summary.ts"
-import { breakdown, type Attribution, type TraceEvent } from "./trace.ts"
+import { breakdown, type Attribution } from "./trace.ts"
+import { readTrace } from "./tracing.ts"
 
 // `pnpm bench:profile [--machine <name>] [--runs <n>] [--scenario timing|heavy]…
 // [--variant production|profiling]… [--terminals <n>] [--window <width>x<height>]
@@ -205,12 +201,7 @@ const traceMachine = (metadata: unknown): Record<string, unknown> =>
     ),
   )
 
-const gzip = async (file: string) => {
-  await pipeline(createReadStream(file), createGzip(), createWriteStream(`${file}.gz`))
-  rmSync(file)
-}
-
-/** Reads each phase's trace into its numbers, then gzips the trace. */
+/** Reads each phase's trace into its numbers. */
 const analyze = async (
   recorded: readonly Recorded[],
   attribution: Attribution,
@@ -220,25 +211,21 @@ const analyze = async (
   for (const one of recorded) {
     const common = {
       phase: one.phase,
-      trace: relative(output, `${one.trace}.gz`),
-      ...pageNumbers(one.frameGaps, one.longTasks),
+      trace: relative(output, one.trace),
+      askedFps: one.askedFps,
+      longTasks: one.longTasks.length,
       switches: one.switches,
       gl: one.gl,
       visible: one.visible,
       focused: one.focused,
     }
     try {
-      const parsed = JSON.parse(readFileSync(one.trace, "utf8")) as {
-        traceEvents?: TraceEvent[]
-        metadata?: unknown
-      }
+      const parsed = readTrace(one.trace)
       seen.metadata ??= traceMachine(parsed.metadata)
       results.push({ ...common, breakdown: breakdown(parsed.traceEvents ?? [], attribution) })
     } catch (cause) {
       results.push({ ...common, traceError: describe(cause) })
     }
-    // eslint-disable-next-line no-await-in-loop -- One trace in memory at a time.
-    await gzip(one.trace)
   }
   return results
 }
@@ -323,7 +310,7 @@ const write = (complete: boolean) => {
     ...(throttledPhases(results).length > 0
       ? [
           "",
-          `**Throttled, left out:** phases whose compositor drew under ${throttledFps} frames a second, as Chromium draws a page whose screen has gone dark (the desktop's idle blanking or a lock does it), measure the throttling, not the app. Their numbers are left out, and their runs out of the triggers:`,
+          `**Throttled, left out:** phases in which both the compositor and a page asked for a frame every time drew under ${throttledFps} frames a second, as Chromium draws a page whose screen has gone dark (the desktop's idle blanking or a lock does it), measure the throttling, not the app. Their numbers are left out, and their runs out of the triggers:`,
           ...throttledPhases(results).map((one) => `- ${one}`),
         ]
       : []),

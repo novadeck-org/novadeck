@@ -21,6 +21,8 @@ export type TraceEvent = {
   readonly ts: number
   readonly dur?: number
   readonly id?: string
+  /** An async event's id, as Chromium's JSON gives it when it is local to a process. */
+  readonly id2?: { readonly local?: string }
   readonly args?: Record<string, unknown>
 }
 
@@ -148,12 +150,64 @@ export type Breakdown = {
   /** Busy time on the other threads that draw: the renderer's compositor and raster, the GPU process. */
   readonly threads: Readonly<Record<string, Part>>
   /**
+   * The page's frames: the main thread's own, each a `BeginMainThreadFrame` the compositor
+   * asked of it. A page with nothing to draw has none, and the profile asks for none itself.
+   */
+  readonly frames: Frames
+  /**
    * Frames the renderer's compositor drew, a second; absent where the trace names no
    * compositor thread.
    */
   readonly compositorFps?: number
   /** The event names whose self time went to other, longest first. */
   readonly otherNames: readonly { readonly name: string; readonly ms: number }[]
+}
+
+/** The page's main-thread frames over the window. */
+export type Frames = {
+  readonly count: number
+  /** Frames a second. */
+  readonly fps: number
+  /**
+   * Frames the main thread took over 33 ms to answer, from the compositor asking for them
+   * (`SendBeginMainFrameToCommit`) to their commit: two vsyncs at 60 Hz, as a gap that long
+   * between a page's frames was counted before. Time spent with no frame asked for isn't one.
+   */
+  readonly over33ms: number
+}
+
+const slowFrameMs = 33
+
+/** The page's frames: asked of the main thread in the window, and how many took too long. */
+const pageFrames = (
+  events: readonly TraceEvent[],
+  main: { pid: number; tid: number },
+  from: number,
+  to: number,
+): Frames => {
+  const inside = (ts: number) => ts >= from && ts < to
+  const count = events.filter(
+    (event) =>
+      event.name === "BeginMainThreadFrame" &&
+      event.pid === main.pid &&
+      event.tid === main.tid &&
+      inside(event.ts),
+  ).length
+  const begun = new Map<string, number>()
+  let over33ms = 0
+  for (const event of events) {
+    if (event.name !== "SendBeginMainFrameToCommit" || event.pid !== main.pid) continue
+    const id = String(event.id ?? event.id2?.local ?? "")
+    if (event.ph === "b") begun.set(id, event.ts)
+    else if (event.ph === "e") {
+      const start = begun.get(id)
+      begun.delete(id)
+      if (start !== undefined && inside(start) && (event.ts - start) / 1000 > slowFrameMs)
+        over33ms += 1
+    }
+  }
+  const seconds = (to - from) / 1e6
+  return { count, fps: seconds > 0 ? count / seconds : 0, over33ms }
 }
 
 type Span = { readonly name: string; readonly start: number; readonly end: number }
@@ -341,7 +395,7 @@ const measured = (
   const open = new Map<string, number>()
   for (const event of events) {
     if (event.name !== name || event.pid !== main.pid) continue
-    const id = String(event.id ?? (event as { id2?: { local?: string } }).id2?.local ?? "")
+    const id = String(event.id ?? event.id2?.local ?? "")
     if (event.ph === "X" && event.dur !== undefined)
       intervals.push({ start: event.ts, end: event.ts + event.dur })
     else if (event.ph === "b") open.set(id, event.ts)
@@ -511,6 +565,7 @@ export const breakdown = (events: readonly TraceEvent[], attribution: Attributio
       Object.entries(sampled.bySource).map(([source, ms]) => [source, scriptPart(ms)]),
     ) as Record<Group | "garbageCollection", Part>,
     sampled,
+    frames: pageFrames(events, main, from, to),
     ...(react && {
       reactTracks: { render: part(react.render, windowUs), commit: part(react.commit, windowUs) },
     }),

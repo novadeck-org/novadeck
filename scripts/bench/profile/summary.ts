@@ -22,11 +22,11 @@ export type PhaseResult = {
   readonly breakdown?: Breakdown
   /** Why the trace couldn't be read, should it not be. */
   readonly traceError?: string
-  /** Frames a second the page's animation frames ran at, and their gaps over 33 ms. */
-  readonly fps: number
-  /** The page's animation frames over the window. */
-  readonly frames: number
-  readonly framesOver33ms: number
+  /**
+   * Frames a second the page drew in a short probe after the window, when asked for a frame
+   * every time: what tells a page throttled (see `throttledFps`).
+   */
+  readonly askedFps: number
   readonly longTasks: number
   readonly switches: readonly Switch[]
   readonly visible: boolean
@@ -134,9 +134,11 @@ export const metrics = {
   // What a frame costs the main thread, which still moves once it is saturated, when its
   // busy share can't.
   busyMsPerFrame: (one: PhaseResult) =>
-    one.breakdown && one.frames > 0 ? one.breakdown.mainThread.ms / one.frames : undefined,
-  fps: (one: PhaseResult) => one.fps,
-  framesOver33ms: (one: PhaseResult) => one.framesOver33ms,
+    one.breakdown && one.breakdown.frames.count > 0
+      ? one.breakdown.mainThread.ms / one.breakdown.frames.count
+      : undefined,
+  fps: (one: PhaseResult) => one.breakdown?.frames.fps,
+  framesOver33ms: (one: PhaseResult) => one.breakdown?.frames.over33ms,
   longTasks: (one: PhaseResult) => one.longTasks,
   compositorFps: (one: PhaseResult) => one.breakdown?.compositorFps,
   compositorThread: (one: PhaseResult) => one.breakdown?.threads.Compositor?.share,
@@ -233,20 +235,6 @@ export const triggers = {
 
 export type Trigger = keyof typeof triggers
 
-/** The phase's numbers from what the page recorded; the trace's come with `breakdown`. */
-export const pageNumbers = (
-  frameGaps: readonly number[],
-  longTasks: readonly number[],
-): Pick<PhaseResult, "fps" | "frames" | "framesOver33ms" | "longTasks"> => {
-  const total = frameGaps.reduce((sum, gap) => sum + gap, 0)
-  return {
-    fps: total > 0 ? frameGaps.length / (total / 1000) : 0,
-    frames: frameGaps.length,
-    framesOver33ms: frameGaps.filter((gap) => gap > 33).length,
-    longTasks: longTasks.length,
-  }
-}
-
 /** One scenario on one build: each phase's numbers, and its runs' together. */
 export type ScenarioSummary = {
   readonly phases: Partial<Record<PhaseName, Partial<Record<Metric, Spread>>>>
@@ -266,15 +254,17 @@ const spreadOf = <T>(items: readonly T[], read: (item: T) => number | undefined)
 /**
  * Frames a second under which a phase ran throttled, as Chromium runs a page whose screen has
  * gone dark, as the desktop's idle blanking does: its numbers measure the throttling, not the
- * app. It's the compositor's frames that tell: they go on while the main thread is busy, even
- * saturated, and only slow to about one a second once the screen is dark. Without a trace,
- * the page's own animation frames stand in.
+ * app. A page with nothing to draw draws nothing either, so two readings tell a dark screen
+ * from a quiet page: the compositor's frames in the window, which go on while the main thread
+ * is busy, even saturated, and the frames the page draws when asked for one every time, in a
+ * probe after the window, which a quiet page draws at its display's rate. Both slow to about
+ * one a second once the screen is dark; either at `throttledFps` or more clears the phase.
  */
 export const throttledFps = 5
 
 /** Whether the phase ran throttled (see `throttledFps`). */
 export const throttled = (one: PhaseResult): boolean =>
-  (one.breakdown?.compositorFps ?? one.fps) < throttledFps
+  (one.breakdown?.compositorFps ?? 0) < throttledFps && one.askedFps < throttledFps
 
 /** Each run's phases that ran throttled, as `<scenario>, <variant>, run <n>: <phase>`. */
 export const throttledPhases = (runs: readonly RunResult[]): readonly string[] =>
@@ -400,7 +390,7 @@ const labels: Readonly<Record<Metric, string>> = {
   paintCompositeOfBusy: "Paint and composite, of busy",
   transportOfBusy: "Transport, of busy",
   busyMsPerFrame: "Main thread busy a frame (ms)",
-  fps: "fps (animation frames)",
+  fps: "Frames a second (main thread)",
   framesOver33ms: "Frames over 33 ms",
   longTasks: "Long tasks",
   compositorFps: "Frames drawn a second (compositor)",

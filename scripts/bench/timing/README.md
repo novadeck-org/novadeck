@@ -73,6 +73,12 @@ and the run exits 1.
 - **`mainThreadShare`** is Chromium's TaskDuration over its own clock between two readings: a
   saturated main thread reads about 100.
 - **`framesOver33ms`** counts frame gaps over 33 ms: at 60 Hz a single dropped frame is one.
+- The frame counter is an animation frame requested all the time, which makes Chromium run a
+  full main-thread frame at every vsync even with nothing to draw, so it adds to
+  `mainThreadShare` and `longTasks` of a quiet window (Focus's especially). The timing run keeps
+  it, so its trend stays comparable with its history; the real-hardware profile
+  (`../profile/README.md`), which reads the main thread's time on its own, leaves it out
+  (`probe`'s `frames: false`) and reads its frames from its traces.
 - On a shared machine the numbers move run to run; compare runs from the same machine.
 
 ## The sandbox's limits

@@ -285,3 +285,50 @@ describe("breakdown", () => {
     expect(breakdown(marks(0, 1000), none).threads.raster).toEqual({ ms: 0, share: 0 })
   })
 })
+
+describe("the page's frames", () => {
+  const asked = (id: string, start: number, ms: number): TraceEvent[] => [
+    { name: "SendBeginMainFrameToCommit", ph: "b", ts: at(start), id2: { local: id }, ...main },
+    {
+      name: "SendBeginMainFrameToCommit",
+      ph: "e",
+      ts: at(start + ms),
+      id2: { local: id },
+      ...main,
+    },
+  ]
+  const begun = (start: number, where = main): TraceEvent => ({
+    name: "BeginMainThreadFrame",
+    ph: "I",
+    ts: at(start),
+    ...where,
+  })
+
+  it("counts the frames the main thread was asked for in the window, and those it was slow to answer", () => {
+    const result = breakdown(
+      [
+        ...marks(1000, 2000),
+        begun(500),
+        begun(1100),
+        begun(1300),
+        begun(1500),
+        begun(1900),
+        // Another thread's isn't the page's.
+        begun(1600, { pid: 10, tid: 99 }),
+        ...asked("a", 1100, 5),
+        ...asked("b", 1300, 33),
+        ...asked("c", 1500, 80),
+        // Asked before the window opened.
+        ...asked("d", 900, 400),
+      ],
+      none,
+    ).frames
+    expect(result.count).toBe(4)
+    expect(result.fps).toBe(4)
+    expect(result.over33ms).toBe(1)
+  })
+
+  it("has none where the page asked for none: a quiet window isn't slow", () => {
+    expect(breakdown(marks(0, 2000), none).frames).toEqual({ count: 0, fps: 0, over33ms: 0 })
+  })
+})

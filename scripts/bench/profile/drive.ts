@@ -1,5 +1,4 @@
-import { copyFileSync, rmSync } from "node:fs"
-import { join } from "node:path"
+import type { Page } from "playwright"
 
 import {
   boot,
@@ -20,6 +19,7 @@ import type { Switch } from "../timing/report.ts"
 import type { OpenedApp } from "./app.ts"
 import { readGl, type GlReport } from "./gpu.ts"
 import { sampleMemory, type MemoryPoint, type MemorySample } from "./memory.ts"
+import { startTrace, type TraceConfig } from "./tracing.ts"
 
 // The profile's scenarios, each the timing run's (see ../timing/drive.ts) in the desktop
 // app: 13 terminals by default, Grid then Focus on agent 1, a steady window in each after a
@@ -61,7 +61,11 @@ export type PhaseName = "grid" | "focus" | "switches"
 export type Recorded = {
   readonly phase: PhaseName
   readonly trace: string
-  readonly frameGaps: readonly number[]
+  /**
+   * Frames a second the page drew when asked for one every frame, in a short probe once the
+   * traced window had ended: a screen gone dark draws about one, however idle the page.
+   */
+  readonly askedFps: number
   readonly longTasks: readonly number[]
   readonly switches: readonly Switch[]
   /** Whether the page was shown and focused at the phase's end, as a throttled one isn't. */
@@ -72,10 +76,9 @@ export type Recorded = {
 }
 
 // What the traces record: the timeline DevTools shows, frames, and V8's CPU samples.
-export const traceConfig: Electron.TraceConfig = {
-  recording_mode: "record-until-full",
-  trace_buffer_size_in_kb: 1024 * 1024,
-  included_categories: [
+export const traceConfig: TraceConfig = {
+  traceBufferSizeInKb: 1024 * 1024,
+  includedCategories: [
     "__metadata",
     "toplevel",
     "devtools.timeline",
@@ -98,8 +101,41 @@ export type Options = {
   readonly raisedCap: boolean
 }
 
+/** How long the throttling probe asks for frames. */
+const askedMs = 1000
+
 /**
- * Plays `name` in the opened app, saving each phase's trace as `<prefix>-<phase>.json` and
+ * Frames a second the page draws when it asks for one every frame, over `askedMs`. It runs
+ * outside the traced windows, as an animation frame requested all the time makes Chromium
+ * draw one at every vsync, which would load the main thread the windows measure.
+ */
+const askedFramesPerSecond = (page: Page): Promise<number> =>
+  page.evaluate(
+    (ms) =>
+      new Promise<number>((resolve) => {
+        const start = performance.now()
+        let frames = 0
+        // A page that draws no frames at all ends the probe by the clock instead.
+        const giveUp = setTimeout(
+          () => resolve(frames / ((performance.now() - start) / 1000)),
+          ms * 3,
+        )
+        const step = (time: number) => {
+          frames += 1
+          if (time - start < ms) {
+            requestAnimationFrame(step)
+            return
+          }
+          clearTimeout(giveUp)
+          resolve(frames / ((time - start) / 1000))
+        }
+        requestAnimationFrame(step)
+      }),
+    askedMs,
+  )
+
+/**
+ * Plays `name` in the opened app, saving each phase's trace as `<prefix>-<phase>.json.gz` and
  * adding what it recorded to `recorded` as it goes, so a run that fails part way keeps what
  * it got. `agentPhases` gets the agents' rows' phases once they are busy, and `memory` the
  * memory sampled at the start and after each phase.
@@ -113,9 +149,10 @@ export const play = async (
   memory: MemorySample[],
   options: Options,
 ): Promise<void> => {
-  const { app, page } = opened
+  const { page } = opened
   const { terminals, agents } = scenarioFor(name, options.terminals)
-  await page.evaluate(probe)
+  // Long tasks only: the page's frames are read from each trace.
+  await page.evaluate(probe, { frames: false })
   await boot(page)
   await layout(page, "Focus")
   memory.push(await sampleMemory(opened, "boot", 0))
@@ -136,30 +173,23 @@ export const play = async (
   agentPhases.push(...(await phases()))
 
   const traced = async (phase: PhaseName, during: () => Promise<readonly Switch[]>) => {
-    await app.evaluate(
-      ({ contentTracing }, config) => contentTracing.startRecording(config),
-      traceConfig,
-    )
+    const recording = await startTrace(page, traceConfig)
     // Tracing settles in every process before the window opens.
     await sleep(500)
     const from = await startRecording(page)
     await page.evaluate(() => performance.mark("profile-start"))
     const switches = await during()
     await page.evaluate(() => performance.mark("profile-end"))
-    const frames = await stopRecording(page, from)
+    const { longTasks } = await stopRecording(page, from)
     const state = await page.evaluate(() => ({
       visible: document.visibilityState === "visible",
       focused: document.hasFocus(),
     }))
     const gl = await readGl(page)
-    const written = await app.evaluate(
-      ({ contentTracing }, path) => contentTracing.stopRecording(path),
-      join(opened.scratch, `${phase}.json`),
-    )
-    const trace = `${prefix}-${phase}.json`
-    copyFileSync(written, trace)
-    rmSync(written, { force: true })
-    recorded.push({ phase, trace, ...frames, switches, ...state, gl })
+    const trace = `${prefix}-${phase}.json.gz`
+    await recording.stop(trace)
+    const askedFps = await askedFramesPerSecond(page)
+    recorded.push({ phase, trace, askedFps, longTasks, switches, ...state, gl })
     lost(gl)
   }
   // Memory is read outside the phases, as its dumps would load their main thread.

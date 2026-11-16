@@ -31,9 +31,18 @@ export type Probe = {
   benchSwitch: { clicked: number; painted: number | undefined }
 }
 
-// In the page, before the app loads or once it has: long tasks as they happen, and each
-// animation frame's time while a window records.
-export const probe = (): void => {
+/**
+ * What the probe keeps. A page that always has an animation frame requested makes Chromium
+ * run a full main-thread frame (style, layout, pre-paint, commit) at every vsync, even with
+ * nothing to draw, so `frames` costs the page what it measures: the timing run keeps it, its
+ * numbers a trend on its own history, and the profile, whose steady windows are read for
+ * their main-thread time, leaves it off and reads its frames from its trace instead.
+ */
+export type ProbeOptions = { readonly frames: boolean }
+
+// In the page, before the app loads or once it has: long tasks as they happen, and, with
+// `frames`, each animation frame's time while a window records.
+export const probe = (options: ProbeOptions = { frames: true }): void => {
   const timing: Probe["benchTiming"] = { longTasks: [], frames: [], recording: false }
   ;(window as unknown as Probe).benchTiming = timing
   try {
@@ -43,6 +52,7 @@ export const probe = (): void => {
   } catch {
     // No long tasks to observe: the window reports none.
   }
+  if (!options.frames) return
   // eslint-disable-next-line unicorn/consistent-function-scoping -- Sent to the page as source.
   const loop = (time: number) => {
     if (timing.recording) timing.frames.push(time)
@@ -317,7 +327,7 @@ export const drive = async (
   launched(browser.version())
   try {
     const page = await browser.newPage({ viewport: scenario.viewport })
-    await page.addInitScript(probe)
+    await page.addInitScript(probe, { frames: true })
     const cdp = await page.context().newCDPSession(page)
     await cdp.send("Performance.enable")
     await page.goto(stack.url, { waitUntil: "load" })

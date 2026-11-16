@@ -66,10 +66,12 @@ sleep in Lock Screen settings): the run's input is synthetic, Playwright's, whic
 doesn't count as activity, so the screen blanks and locks a few minutes in, and Chromium then
 draws the page at about a frame a second, though it still reads as visible and focused. A lock
 started by hand does the same. The app can't hold the screen awake itself, as the sandbox gives
-it no session bus. A phase whose compositor drew under 5 frames a second (its page's animation
-frames, where its trace couldn't be read) is marked throttled: its numbers are left out of the
-summary, its run out of the triggers, and profile.md lists it. The compositor tells a dark
-screen from a busy page, as it draws on while the main thread is saturated; a screen that goes
+it no session bus. A phase in which neither the compositor (its frames in the traced window) nor the page, asked for
+a frame every time in a one-second probe after the window, drew 5 frames a second is marked
+throttled: its numbers are left out of the
+summary, its run out of the triggers, and profile.md lists it. A quiet page draws no frames, so
+the compositor alone can't tell a dark screen from it, and the probe alone can't tell one from a
+saturated main thread, which answers few frames; a dark screen is slow in both. A screen that goes
 dark partway through a phase isn't caught, so the run is best left alone with blanking off.
 
 ## A smoke test under a virtual display
@@ -176,9 +178,17 @@ In the output folder:
   may not have come up) and the trace (Chromium's own CPU, GPU and OS) record it, the scenarios, the
   trace's categories, the comparisons, the throttled phases, the options (terminals, window,
   contexts), every run's memory samples, and `problems`;
-- `traces/<scenario>-<variant>-<run>-<phase>.json.gz`: each phase's trace, of every process the
-  app runs, which Chrome DevTools' Performance panel and ui.perfetto.dev open;
+- `traces/<scenario>-<variant>-<run>-<phase>.json.gz`: each phase's trace, gzipped Chrome trace
+  JSON, of every process the app runs, which Chrome DevTools' Performance panel and
+  ui.perfetto.dev open;
 - `maps/<variant>/`: each build of the UI the source maps came from.
+
+The traces (`tracing.ts`, the phases' and the memory samples') are recorded through the
+DevTools protocol's `Tracing.start` on the page's session, with `streamFormat: "json"`, which
+records every process the app runs, as the Performance panel does, and are saved gzipped as they
+stream, so nothing here downloads or pins a trace reader. Not Electron's `contentTracing`: since
+Electron 45 it writes Perfetto's protobuf whatever the file's name, which the bench can't read
+(the traces then failed with `SyntaxError: Unexpected token`).
 
 `problems` should always be empty: anything there means the sandbox leaked, a build or a split
 couldn't be made, a run didn't stop cleanly, or a trace couldn't be read (one past about 512 MB,
@@ -254,11 +264,25 @@ time.
   and remaining-effects entries cover. The profiling build costs something of its own, which
   profile.md shows as each phase's busy share and busy time a frame on both builds; once step
   1.3a has landed, that cost includes the store listener spans.
-- **Main thread busy a frame** is the main thread's busy time over the page's animation frames
-  in the window. A saturated main thread's busy share can't grow, as what a change costs or
+- **The page's frames** are read from the trace, never counted by a probe in the page: a page
+  that always has an animation frame requested makes Chromium run a full main-thread frame (style,
+  layout, pre-paint, commit) at every vsync, even with nothing to draw, which loads the very
+  thread the windows measure (the timing run's counter did, and counted about 58 frames a second
+  in a Focus window the app itself drew 16 in). So the profile's page keeps long tasks alone, and
+  the traced windows hold only the frames the app asked for. A frame is a `BeginMainThreadFrame`
+  on the page's main thread, which the compositor sends when something needs drawing; an idle
+  page has none. The one probe that does ask for a frame every time, to tell a throttled screen,
+  runs for a second after each window has ended and its trace has been saved.
+- **Main thread busy a frame** is the main thread's busy time over the page's frames in the
+  window. A saturated main thread's busy share can't grow, as what a change costs or
   saves goes into fewer or more frames; its time a frame still moves.
-- **fps** and **frames over 33 ms** are the page's animation frames, as the timing run counts
-  them; **frames drawn a second** are the frames the renderer's compositor drew.
+- **fps** is the page's frames a second. **Frames over 33 ms** are the frames the main thread
+  took over 33 ms to answer, from the compositor's request to their commit
+  (`SendBeginMainFrameToCommit`): a main thread blocked by a long task is late on the frame
+  waiting for it, which is what a gap over 33 ms between a counted page's frames measured, but
+  time with no frame asked for, a quiet page's, isn't counted. **Frames drawn a second** are the
+  frames the renderer's compositor drew, and the compositor's presented frames include
+  those the page didn't change (scrolls, compositor animations).
 - **The other threads that draw**: the renderer's compositor thread, its raster tasks, which run
   on its pool workers (each worker's time summed, so they may pass 100%), and the GPU process's viz
   compositor and main threads, each by its busy time.

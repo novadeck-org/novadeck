@@ -6,6 +6,7 @@ import type { OpenedApp } from "./app.ts"
 import { readGl, type GlReport } from "./gpu.ts"
 import { spread, type RunResult, type Spread } from "./summary.ts"
 import type { TraceEvent } from "./trace.ts"
+import { readTrace, startTrace, type TraceConfig } from "./tracing.ts"
 
 // The app's memory, read outside the timed phases, as they would otherwise carry the cost of the
 // dumps. A sample is a short Chromium trace of the `disabled-by-default-memory-infra` category
@@ -21,11 +22,10 @@ const dumpEveryMs = 500
 // takes a good part of a second.
 const sampleMs = 3000
 
-const memoryTrace: Electron.TraceConfig = {
-  recording_mode: "record-until-full",
-  trace_buffer_size_in_kb: 256 * 1024,
-  included_categories: ["__metadata", "disabled-by-default-memory-infra"],
-  memory_dump_config: { triggers: [{ mode: "detailed", periodic_interval_ms: dumpEveryMs }] },
+const memoryTrace: TraceConfig = {
+  traceBufferSizeInKb: 256 * 1024,
+  includedCategories: ["__metadata", "disabled-by-default-memory-infra"],
+  memoryDumpConfig: { triggers: [{ mode: "detailed", periodic_interval_ms: dumpEveryMs }] },
 }
 
 /** A dump node's own numbers in MB; effective is Chromium's, which counts shared memory once. */
@@ -192,21 +192,14 @@ export const sampleMemory = async (
   terminals: number,
 ): Promise<MemorySample> => {
   const gl = await readGl(opened.page)
-  const path = join(opened.scratch, `memory-${point}.json`)
+  const path = join(opened.scratch, `memory-${point}.json.gz`)
   let dumped: readonly ProcessMemory[] = []
   let error: string | undefined
   try {
-    await opened.app.evaluate(
-      ({ contentTracing }, config) => contentTracing.startRecording(config),
-      memoryTrace,
-    )
+    const recording = await startTrace(opened.page, memoryTrace)
     await sleep(sampleMs)
-    const written = await opened.app.evaluate(
-      ({ contentTracing }, where) => contentTracing.stopRecording(where),
-      path,
-    )
-    const parsed = JSON.parse(readFileSync(written, "utf8")) as { traceEvents?: TraceEvent[] }
-    dumped = lastDumps(parsed.traceEvents ?? [])
+    await recording.stop(path)
+    dumped = lastDumps(readTrace(path).traceEvents ?? [])
     if (dumped.length === 0) error = "no complete memory dump in the trace"
   } catch (cause) {
     error = cause instanceof Error ? cause.message : String(cause)
