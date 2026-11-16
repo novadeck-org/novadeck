@@ -578,4 +578,16 @@ describe("Claude Code's box where it draws no colour or dim", () => {
       'Try "edit foo" and then more',
     )
   })
+
+  it("reads the suggestion's shape as the person's own where colour is on", () => {
+    // Its footer hint drawn dim, as it is with colour: the box's bright `Try "…"` was typed.
+    const bright = fresh.bright.map((row, at) => (at === 40 ? "" : row))
+    const typed = { ...fresh, bright }
+    expect(box.read(typed)?.text).toBe('Try "edit <filepath> to..."')
+  })
+
+  it("reads the suggestion's shape as text where the cursor stands past the box's start", () => {
+    const along = { ...fresh, cursor: { row: 37, column: 10 } }
+    expect(box.read(along)?.text).toBe('Try "edit <filepath> to..."')
+  })
 })

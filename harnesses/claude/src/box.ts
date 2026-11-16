@@ -143,10 +143,13 @@ const still = (rows: readonly string[]): readonly string[] =>
  * at all (the environment's NO_COLOR, or a CI variable, turns colour off): then the suggestion
  * reads as a draft and no ring is ever typed. Where the cursor stands at the start of a row
  * that is exactly a suggestion's shape, it is one; a draft the person moved the cursor home in
- * must also be that shape to read as empty, and anything else in the box is theirs. Probed
- * 2026-11-16, 2.1.325 (fixtures/monochrome-prompt.probe.json).
+ * must also be that shape to read as empty, and anything else in the box is theirs. Only where
+ * nothing on the screen is dim: with colour on, the suggestion is dim and already left out, so
+ * that shape in bright text is the person's own. Probed 2026-11-16, 2.1.325
+ * (fixtures/monochrome-prompt.probe.json).
  */
 const suggestion = (box: InputBox, screen: ScreenText): boolean =>
+  screen.rows.every((row, at) => row === screen.bright[at]) &&
   box.mode === "prompt" &&
   box.first === box.last &&
   screen.cursor.row === box.first &&
