@@ -75,9 +75,21 @@ export const scopePrefix = (cgroup: string): string => {
 }
 
 /**
+ * A terminal's share of the CPU beside the app's own scope, whose weight is systemd's
+ * default of 100. Agents' builds and test runs in many terminals at once otherwise
+ * starve the app's window: inside the desktop's `app.slice` every thread weighs the
+ * same, so the window waited for a CPU longer than it ran, and every hover, key and
+ * scroll lagged. At a tenth, the window comes first while the CPU is short, and the
+ * terminals still have all of it while the window is idle.
+ */
+export const terminalCpuWeight = 10
+
+/**
  * The user's systemd manager's call that starts `unit`, a transient scope, with process
  * `pid` moved into it. Its `OOMPolicy` is `continue`: what the kernel kills for memory is
- * the one program, as outside a scope, not the shell and the agent that started it.
+ * the one program, as outside a scope, not the shell and the agent that started it. Its
+ * `CPUWeight` puts the app's window ahead of the terminal's programs while the CPU is
+ * short; where systemd has no CPU controller to give, it is left unset.
  */
 export const startScope = (unit: string, pid: number): readonly string[] => [
   "--user",
@@ -91,7 +103,7 @@ export const startScope = (unit: string, pid: number): readonly string[] => [
   "ssa(sv)a(sa(sv))",
   unit,
   "fail",
-  "4",
+  "5",
   "PIDs",
   "au",
   "1",
@@ -102,6 +114,9 @@ export const startScope = (unit: string, pid: number): readonly string[] => [
   "OOMPolicy",
   "s",
   "continue",
+  "CPUWeight",
+  "t",
+  String(terminalCpuWeight),
   "Description",
   "s",
   "Novadeck terminal",

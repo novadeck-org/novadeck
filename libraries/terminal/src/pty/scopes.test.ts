@@ -65,7 +65,7 @@ describe("a scope's name", () => {
 })
 
 describe("starting a terminal's scope", () => {
-  it("moves the shell's process into a transient scope that keeps it on a program's OOM kill", () => {
+  it("moves the shell's process into a transient scope that keeps it on a program's OOM kill and yields the CPU to the app", () => {
     expect(startScope("app-novadeck-term42.scope", 42)).toEqual([
       "--user",
       "--quiet",
@@ -78,7 +78,7 @@ describe("starting a terminal's scope", () => {
       "ssa(sv)a(sa(sv))",
       "app-novadeck-term42.scope",
       "fail",
-      "4",
+      "5",
       "PIDs",
       "au",
       "1",
@@ -89,6 +89,9 @@ describe("starting a terminal's scope", () => {
       "OOMPolicy",
       "s",
       "continue",
+      "CPUWeight",
+      "t",
+      "10",
       "Description",
       "s",
       "Novadeck terminal",

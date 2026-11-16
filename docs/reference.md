@@ -147,6 +147,16 @@ move, about a quarter of a second at most on a calm machine, then runs either wa
 the person's own startup files start doesn't wait. Without a user bus (no systemd, a container, WSL without systemd),
 shells run in the app's scope as before. macOS and Windows are unchanged.
 
+A terminal's scope also asks for `CPUWeight=10` (`terminalCpuWeight`), a tenth of the
+app's scope's default 100. Inside the desktop's `app.slice` every thread otherwise weighs
+the same, so agents' builds and test runs in many terminals at once starved the app's
+window: measured on a 22-core machine at load 52, its main thread waited 1.1 s for a CPU
+in every 10 s, about 1 ms on each wakeup, and every hover, key and scroll lagged. Weighted
+like this, the wait fell about fourfold at the same load. The weight only matters while
+the CPU is short; idle, a terminal's programs have all of it. Where the user's systemd has
+no CPU controller to give its apps, the weight is left unset, and terminals share the CPU
+with the app as before.
+
 While a program holds the foreground, its profile decides how the terminal looks.
 `frontend/ui/src/terminals/processes/profiles.ts` maps program names to a tab and
 header icon and a body around the terminal's content; programs it does not list,
