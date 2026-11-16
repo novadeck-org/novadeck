@@ -414,7 +414,7 @@ export const createSpecBackend = (): ReturnType<typeof createDemoBackend> => {
     arrange: async () => {},
     // Keeps what it reports to, so a spec can report a change the demo makes on its own.
     start: (sink) => {
-      started.push({ sink, seed: backend.seed })
+      started.push({ sink, seed: backend.seed, backend })
       return backend.start?.(sink) ?? (() => {})
     },
   }
@@ -422,7 +422,11 @@ export const createSpecBackend = (): ReturnType<typeof createDemoBackend> => {
 
 // Every backend the page started and what it reports to: StrictMode makes two and keeps one,
 // and a change a spec reports reaches whichever the app kept.
-const started: { readonly sink: BackendSink; readonly seed: Backend["seed"] }[] = []
+const started: {
+  readonly sink: BackendSink
+  readonly seed: Backend["seed"]
+  readonly backend: Backend
+}[] = []
 
 /** The backend reports that the terminal named `name` now works for the one named `lead`, in
  * the session that has both: it joins that lead's team, or forms one with it. */
@@ -537,4 +541,25 @@ export const forgetEarlierPages = (): void => {
   made.length = 0
   desktops.length = 0
   babciaCues.length = 0
+}
+
+/** The backend opens a new terminal that works for the one named `lead`, in its session, as an
+ * agent opens a teammate: it comes with its own tab and tile already in the team. */
+export const addTeammate = (lead: string): void => {
+  for (const { sink, seed, backend } of started)
+    for (const project of seed.projects)
+      for (const session of project.sessions) {
+        const leader = session.terminals.find((each) => each.name === lead)
+        if (!leader) continue
+        const target = { projectId: project.id, workspaceSessionId: session.id }
+        const terminal = backend.newTerminal({ target, directory: "~" })
+        sink.dispatch([
+          {
+            type: "terminal/add",
+            target,
+            terminal: { ...terminal, ledBy: leader.id },
+            select: false,
+          },
+        ])
+      }
 }

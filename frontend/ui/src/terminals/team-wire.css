@@ -9,7 +9,8 @@
    The wires are drawn in the Terminals list's room (`.team-wire-view`, which clips them) on a
    `.team-wire-track` that the list's scroll timeline moves with the list, on the compositor,
    so a scroll measures and redraws nothing. Each team has a
-   `.team-wire-shape`, with data-lead (its lead's id), data-lit while it is the selected terminal's, data-entering while its
+   `.team-wire-shape`, with data-lead (its lead's id), data-path (the lit way up through a
+   lead, over its resting wire), data-lit while it is the selected terminal's, data-entering while its
    team has just formed, data-folded while the
    person folded its teammates out of the list, data-faded while that leaves no teammate's tab
    showing ("wire": its segment and ticks fade out) or its lead folds away under a lead above
@@ -92,7 +93,7 @@
   position: absolute;
   inset: 0 0 auto;
 }
-@supports (animation-timeline: scroll()) {
+@supports (animation-timeline: scroll()) and (timeline-scope: --team-wire-list) {
   .team-wire-track {
     animation: team-wire-follow linear both;
     animation-timeline: --team-wire-list;
@@ -111,6 +112,13 @@
 }
 .team-wire-shape[data-lit] {
   z-index: 1;
+}
+/* The lit way up through a lead comes and goes with the selection over that lead's resting
+   wire: it fades in, as the rest lights. */
+@starting-style {
+  .team-wire-shape[data-path] > i {
+    opacity: 0;
+  }
 }
 .team-wire-shape[data-entering] > .team-wire-segment {
   animation: team-wire-grow 220ms var(--ease-interface) both;

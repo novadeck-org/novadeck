@@ -1,7 +1,7 @@
 import { afterEach } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
-import { joinTeam } from "../support/backend"
+import { addTeammate, joinTeam } from "../support/backend"
 import { near } from "../support/canvas"
 import { windowMenu } from "../support/companions"
 import { jump } from "../support/keyboard"
@@ -1017,6 +1017,17 @@ describe("Grid view's team wire", () => {
     await expectSelected("Checkout implementation")
     await expect.poll(lit).toBe(1)
     await expectStaysTrue(() => !played(), "nothing plays as the team's wire lights")
+  })
+
+  it("reaches out the tick of a teammate opened in a tile of its own, the sidebar showing it too", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout implementation").click()
+    await chooseView("Grid")
+    await expect.poll(ticks).toBe(1)
+    const joined = recordAppearance(".grid-team-wire-tick[data-joining]")
+    addTeammate("Checkout implementation")
+    await expect.poll(ticks, { timeout: 4000 }).toBe(2)
+    await expect.poll(joined, { timeout: 4000 }).toBe(true)
   })
 
   it("reaches out the tick of a teammate who joins", async () => {

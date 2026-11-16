@@ -21,7 +21,9 @@ const sameDrawing = (a: Drawing, b: Drawing) => JSON.stringify(a) === JSON.strin
 // Where the engine has no scroll timelines, a scroll listener moves it instead.
 const scrollTimeline = "--team-wire-list"
 const followsOnCompositor = () =>
-  typeof CSS !== "undefined" && CSS.supports?.("animation-timeline", "scroll()") === true
+  typeof CSS !== "undefined" &&
+  CSS.supports?.("animation-timeline", "scroll()") === true &&
+  CSS.supports("timeline-scope", scrollTimeline)
 
 // Nested teams (a teammate that leads its own): each level's wire runs in its own lane, a
 // lane's width further from the rail's border than its lead's lead's, and a nested team's
@@ -138,8 +140,10 @@ const measureWires = (
   const railRect = rail.getBoundingClientRect()
   const layerRect = layer.getBoundingClientRect()
   const listRect = list.getBoundingClientRect()
-  const top = listRect.top + list.clientTop
-  const origin = { left: layerRect.left, top: top - list.scrollTop }
+  // The list's room, on a whole pixel of the layer, which the wires are measured from too, so
+  // they keep landing on whole pixels as they did on the layer.
+  const frameTop = Math.round(listRect.top + list.clientTop - layerRect.top)
+  const origin = { left: layerRect.left, top: layerRect.top + frameTop - list.scrollTop }
   const view = { top: 0, bottom: list.scrollHeight }
   const wires = teams.flatMap((team, index) => {
     const measured = measureWire(
@@ -154,7 +158,7 @@ const measureWires = (
     return measured ? [{ lead: team.lead, ...measured }] : []
   })
   const frame = {
-    top: Math.round(top - layerRect.top),
+    top: frameTop,
     height: list.clientHeight,
     range: Math.max(0, list.scrollHeight - list.clientHeight),
   }
@@ -413,6 +417,7 @@ export const TeamWire = ({
           ))}
           {path.map((wire) => (
             <Wire
+              path
               key={`path:${wire.lead}`}
               wire={wire}
               lit
@@ -471,6 +476,7 @@ const never = () => false
 
 const Wire = ({
   wire: { lead, shape, ghost, ghostWidth },
+  path = false,
   lit,
   folded,
   faded,
@@ -481,6 +487,8 @@ const Wire = ({
   joining,
 }: {
   wire: Measured & { readonly lead: string }
+  // The lit way up through a lead above the selected terminal, drawn over its resting wire.
+  path?: boolean
   lit: boolean
   folded: boolean
   // Its segment and ticks faded out, as its team is folded and no teammate shows ("wire"), or
@@ -497,6 +505,7 @@ const Wire = ({
   <div
     className="team-wire-shape"
     data-lead={lead}
+    data-path={path || undefined}
     data-lit={lit || undefined}
     data-folded={folded || undefined}
     data-faded={faded}

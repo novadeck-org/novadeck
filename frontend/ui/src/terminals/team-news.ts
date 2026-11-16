@@ -40,30 +40,47 @@ export const newPieces = (before: Crews | undefined, teams: readonly Team[]): re
           : [teamPiece(lead)]
       })
 
-// How soon after one view starts a piece's entrance another view drawing the same piece plays
-// it too, as the rail and Grid do side by side; later, it is old news.
+// How soon after one view starts a piece's entrance another view drawing the same piece for the
+// first time plays it too, as the rail and Grid do side by side.
 const togetherMs = 150
+
+// How long news is kept for a view that was showing before it came but couldn't draw it at once,
+// as Grid while its tiles settle around a new teammate's tile; later, it is old news.
+const keptMs = 5000
 
 export type TeamNews = {
   // Notes that a view draws the current session's teams as they are at `now`, and says which
-  // pieces enter there: those new since the session's teams were last drawn anywhere, and
-  // those another view began to play a moment ago.
-  readonly draw: (teams: readonly Team[], now: number) => ReadonlySet<string>
+  // pieces enter there: those new since the session's teams were last drawn anywhere, those
+  // another view began to play a moment ago, and those that came since this view last drew
+  // (`since`, none for a view drawing for the first time).
+  readonly draw: (teams: readonly Team[], now: number, since?: number) => ReadonlySet<string>
 }
 
 // One per App: `session` names the session the views show now.
 export const createTeamNews = (session: () => string): TeamNews => {
   const drawn = new Map<string, Crews>()
-  const started = new Map<string, ReadonlyMap<string, number>>()
+  const came = new Map<string, ReadonlyMap<string, number>>()
   return {
-    draw: (teams, now) => {
+    draw: (teams, now, since) => {
       const key = session()
-      const recent = [...(started.get(key) ?? [])].filter(([, at]) => now - at < togetherMs)
+      const pieces = new Set(
+        teams.flatMap(({ lead, workers }) => [
+          teamPiece(lead),
+          ...workers.map((worker) => memberPiece(lead, worker)),
+        ]),
+      )
+      const kept = [...(came.get(key) ?? [])].filter(
+        ([piece, at]) => now - at < keptMs && pieces.has(piece),
+      )
       const fresh = newPieces(drawn.get(key), teams).map((piece) => [piece, now] as const)
       drawn.set(key, crewsOf(teams))
-      const entering = new Map([...recent, ...fresh])
-      started.set(key, entering)
-      return new Set(entering.keys())
+      const news = new Map([...kept, ...fresh])
+      came.set(key, news)
+      return new Set(
+        [...news]
+          .filter(([, at]) => now - at < togetherMs || (since !== undefined && at > since))
+          .map(([piece]) => piece),
+      )
     },
   }
 }
@@ -86,9 +103,13 @@ export const useEnteringPieces = (teams: readonly Team[], shows: boolean): Reado
   const entering = useSyncExternalStore(view.subscribe, view.getSnapshot)
   // Ends the entrances: kept as they play, however often the teams are handed over anew.
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  // When this view last drew: news that came since, while it couldn't, plays as it draws again.
+  const drew = useRef<number | undefined>(undefined)
   useLayoutEffect(() => {
     if (!news || !shows) return
-    const pieces = news.draw(teams, performance.now())
+    const now = performance.now()
+    const pieces = news.draw(teams, now, drew.current)
+    drew.current = now
     if (!pieces.size) return
     view.update((current) => new Set([...current, ...pieces]))
     clearTimeout(timer.current)

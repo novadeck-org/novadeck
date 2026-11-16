@@ -67,6 +67,24 @@ describe("the team news the views share", () => {
       expect([...news.draw([team("a", "b", "c")], 1500)]).toEqual([])
     })
 
+    it("plays it in a view that couldn't draw it at once, as Grid while its tiles settle", () => {
+      const { news } = sessions()
+      news.draw([team("a", "b")], 0)
+      // The rail draws the news at once; Grid, which last drew at 0, draws 400ms later.
+      expect([...news.draw([team("a", "b", "c")], 1000)]).toEqual([memberPiece("a", "c")])
+      expect([...news.draw([team("a", "b", "c")], 1400, 0)]).toEqual([memberPiece("a", "c")])
+      // Once drawn there, no more.
+      expect([...news.draw([team("a", "b", "c")], 1600, 1400)]).toEqual([])
+    })
+
+    it("plays old news in no view that comes to it later", () => {
+      const { news } = sessions()
+      news.draw([team("a", "b")], 0)
+      news.draw([team("a", "b", "c")], 1000)
+      expect([...news.draw([team("a", "b", "c")], 1400)]).toEqual([])
+      expect([...news.draw([team("a", "b", "c")], 9000, 0)]).toEqual([])
+    })
+
     it("plays a change made in another session once the person looks at it", () => {
       const { news, open } = sessions()
       news.draw([team("a", "b")], 0)
