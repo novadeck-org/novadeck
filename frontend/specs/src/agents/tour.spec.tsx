@@ -26,10 +26,10 @@ const expectTourOpen = async (): Promise<void> => {
 }
 
 // Offers the tour from the footer's Help menu; with `connect`, Claude Code is connected first,
-// in Preferences' General (the demo starts with none).
+// in Preferences' Agents (the demo starts with none).
 const offerFromHelp = async ({ connect = true } = {}): Promise<void> => {
   if (connect) {
-    await openPreferencesOn("General")
+    await openPreferencesOn("Agents")
     const claude = preferencesDialog().getByRole("switch", { name: "Claude Code" })
     await claude.click()
     await expect.element(claude).toHaveAttribute("aria-checked", "true")

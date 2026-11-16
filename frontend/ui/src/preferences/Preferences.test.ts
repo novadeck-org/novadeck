@@ -49,7 +49,7 @@ describe("the preferences of a backend with no addons", () => {
     expect(document.querySelector('[role="tabpanel"][aria-labelledby$="addons"]')).toBeNull()
   })
 
-  it("has no Addons tab for the chat view, which is in General", async () => {
+  it("has no Addons tab for the chat view, which is in Appearance", async () => {
     await show({ chat: true })
 
     expect(tabs()).not.toContain("Addons")
@@ -57,29 +57,122 @@ describe("the preferences of a backend with no addons", () => {
   })
 })
 
-describe("the chat view switch", () => {
-  const chatSwitch = (): HTMLElement | null =>
-    document.querySelector('[role="switch"][aria-labelledby="chat-view-label"]')
+describe("a tab the narrow window's list has scrolled out of sight", () => {
+  it("is brought into view when it opens", async () => {
+    const brought: (string | null)[] = []
+    const scrollIntoView = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = function (this: Element) {
+      brought.push(this.textContent)
+    }
+    try {
+      await show({ tab: "about", version: "0.4.2" })
+    } finally {
+      Element.prototype.scrollIntoView = scrollIntoView
+    }
 
-  it("sits under General's Agents, without Experimental, and saves the preference", async () => {
-    const saved: boolean[] = []
+    expect(brought).toContain("About")
+  })
+})
+
+describe("the Agents tab", () => {
+  const agent = (name: "claude" | "codex" | "agy") => ({
+    agent: name,
+    available: true,
+    connected: false,
+    busy: false,
+  })
+  const panel = (): Element | null =>
+    document.querySelector('[role="tabpanel"][aria-labelledby$="agents"]')
+
+  it("comes first, and a URL naming it opens it", async () => {
     await show({
-      tab: "general",
+      tab: "agents",
+      agents: { list: [agent("claude")], onChange: () => {} },
+    })
+
+    expect(tabs().slice(0, 3)).toEqual(["Agents", "Appearance", "General"])
+    expect(selected()).toBe("Agents")
+  })
+
+  it("holds the agents' switches and when to stop the idle ones", async () => {
+    await show({
+      tab: "agents",
+      agents: { list: [agent("claude"), agent("codex"), agent("agy")], onChange: () => {} },
+      hibernation: { minutes: 60, onChange: () => {} },
+    })
+
+    expect(panel()?.querySelectorAll('ul[aria-label="Agents"] [role=switch]')).toHaveLength(3)
+    expect(panel()?.textContent).toContain("Stop idle agents after")
+    const general = document.querySelector('[role="tabpanel"][aria-labelledby$="general"]')
+    expect(general?.textContent).not.toContain("Stop idle agents after")
+    expect(general?.querySelector('ul[aria-label="Agents"]')).toBeNull()
+  })
+
+  it("is absent where the backend has neither agents nor a wait, and a URL naming it opens General", async () => {
+    await show({ tab: "agents" })
+
+    expect(tabs()).not.toContain("Agents")
+    expect(selected()).toBe("General")
+  })
+
+  it("is there for the idle wait alone", async () => {
+    await show({ tab: "agents", hibernation: { minutes: null, onChange: () => {} } })
+
+    expect(selected()).toBe("Agents")
+    expect(panel()?.textContent).toContain("Stop idle agents after")
+  })
+})
+
+describe("the Agent Chat choice", () => {
+  const choice = (label: "Chat" | "Terminal"): HTMLInputElement | null =>
+    [...document.querySelectorAll<HTMLInputElement>('input[name="agent-presentation"]')].find(
+      (input) => input.closest("label")?.textContent === label,
+    ) ?? null
+
+  it("sits under Appearance's Layout, without Experimental, and shows the saved choice", async () => {
+    await show({
+      tab: "appearance",
       chat: true,
-      onChange: ({ chatView }) => saved.push(chatView),
+      value: { ...readPreferences(), chatView: true },
     })
 
     expect(tabs()).not.toContain("Experimental")
-    const panel = document.querySelector('[role="tabpanel"][aria-labelledby$="general"]')
-    expect(panel?.contains(chatSwitch())).toBe(true)
-    chatSwitch()!.click()
-    expect(saved).toEqual([true])
+    const panel = document.querySelector('[role="tabpanel"][aria-labelledby$="appearance"]')
+    expect(panel?.contains(choice("Chat"))).toBe(true)
+    expect(panel?.textContent).toContain("Agent Chat")
+    expect(choice("Chat")?.checked).toBe(true)
+    expect(choice("Terminal")?.checked).toBe(false)
+  })
+
+  it("saves Terminal as the chat view off, and Chat as it on", async () => {
+    const saved: boolean[] = []
+    await show({
+      tab: "appearance",
+      chat: true,
+      value: { ...readPreferences(), chatView: true },
+      onChange: ({ chatView }) => saved.push(chatView),
+    })
+
+    choice("Terminal")!.click()
+    expect(saved).toEqual([false])
+    mounted.splice(0).forEach((page) => page.unmount())
+
+    await show({
+      tab: "appearance",
+      chat: true,
+      value: { ...readPreferences(), chatView: false },
+      onChange: ({ chatView }) => saved.push(chatView),
+    })
+    choice("Chat")!.click()
+    expect(saved).toEqual([false, true])
   })
 
   it("is absent where the backend reads no conversations", async () => {
-    await show({ tab: "general" })
+    await show({ tab: "appearance" })
 
-    expect(chatSwitch()).toBeNull()
+    expect(choice("Chat")).toBeNull()
+    expect(document.body.textContent).not.toContain("Agent Chat")
+    expect(document.body.textContent).toContain("View modes")
   })
 })
 
@@ -134,7 +227,7 @@ describe("the Experimental tab", () => {
     expect(tabs().at(-1)).toBe("Experimental")
     expect(selected()).toBe("Experimental")
     const panel = document.querySelector('[role="tabpanel"][aria-labelledby$="experimental"]')
-    expect(panel?.querySelector('[role="switch"][aria-labelledby="chat-view-label"]')).toBeNull()
+    expect(panel?.querySelector('input[name="agent-presentation"]')).toBeNull()
     expect(
       panel?.querySelector('[role="switch"][aria-labelledby="agent-avatars-label"]'),
     ).not.toBeNull()
@@ -193,23 +286,52 @@ describe("the Appearance tab", () => {
   const panel = (): Element | null =>
     document.querySelector('[role="tabpanel"][aria-labelledby$="appearance"]')
 
-  it("comes right after General, and a URL naming it opens it", async () => {
+  it("comes second, and a URL naming it opens it", async () => {
     await show({ tab: "appearance" })
 
-    expect(tabs().slice(0, 2)).toEqual(["General", "Appearance"])
+    expect(tabs().slice(0, 2)).toEqual(["Appearance", "General"])
     expect(selected()).toBe("Appearance")
   })
 
-  it("holds the theme alone where the backend shows no desktop notifications", async () => {
-    await show({ tab: "appearance" })
+  it("holds the theme, the layout and the text, and no bell", async () => {
+    await show({ tab: "appearance", notices: true })
 
     expect(panel()?.textContent).toContain("Theme")
+    expect(panel()?.textContent).toContain("View modes")
+    expect(panel()?.textContent).toContain("Text size")
+    expect(panel()?.textContent).toContain("Ligatures")
+    expect(panel()?.textContent).not.toContain("Bell")
+    expect(panel()?.textContent).not.toContain("Hear it")
+  })
+})
+
+describe("the General tab", () => {
+  const panel = (): Element | null =>
+    document.querySelector('[role="tabpanel"][aria-labelledby$="general"]')
+
+  it("holds the notifications and the transcripts, and none of the text or agents", async () => {
+    await show({
+      tab: "general",
+      transcripts: { enabled: true, available: true, onChange: () => {} },
+      agents: { list: [], onChange: () => {} },
+    })
+
+    expect(panel()?.textContent).toContain("Notify when an agent needs you")
+    expect(panel()?.textContent).toContain("Notify when an agent finishes")
+    expect(panel()?.textContent).toContain("Transcripts")
+    expect(panel()?.textContent).not.toContain("Text size")
+    expect(panel()?.textContent).not.toContain("View modes")
+  })
+
+  it("holds no bell where the backend shows no desktop notifications", async () => {
+    await show({ tab: "general" })
+
     expect(panel()?.textContent).not.toContain("Bell")
     expect(panel()?.textContent).not.toContain("Hear it")
   })
 
-  it("holds the sound, led by the theme's own, where it does", async () => {
-    await show({ tab: "appearance", notices: true })
+  it("holds the bell, led by the theme's own sound, where it does", async () => {
+    await show({ tab: "general", notices: true })
 
     expect(panel()?.textContent).toContain("Ring the bell")
     expect(panel()?.textContent).toContain("Theme's bell (Felt)")
@@ -218,7 +340,7 @@ describe("the Appearance tab", () => {
 
   it("names the sound of the theme in effect", async () => {
     await show({
-      tab: "appearance",
+      tab: "general",
       notices: true,
       value: {
         ...readPreferences(),
@@ -240,7 +362,7 @@ describe("coming from a row that needs an agent connected", () => {
       busy: false,
     })
     await show({
-      tab: "general",
+      tab: "agents",
       agents: { list: [agent("claude"), agent("codex")], onChange: () => {} },
       focusAgent: "codex",
       onFocusedAgent: () => done++,
@@ -272,7 +394,7 @@ describe("an agent that is not installed, in Preferences", () => {
   it("offers Install with its command in place of its switch", async () => {
     const asked: [string, string][] = []
     await show({
-      tab: "general",
+      tab: "agents",
       agents: {
         list: [missing],
         onChange: () => {},
@@ -290,7 +412,7 @@ describe("an agent that is not installed, in Preferences", () => {
   it("reads as installing, and takes no clicks, while its installer runs", async () => {
     let asked = 0
     await show({
-      tab: "general",
+      tab: "agents",
       agents: {
         list: [missing],
         onChange: () => {},
@@ -308,7 +430,7 @@ describe("an agent that is not installed, in Preferences", () => {
   })
 
   it("keeps a disabled switch where nothing can install it", async () => {
-    await show({ tab: "general", agents: { list: [missing], onChange: () => {} } })
+    await show({ tab: "agents", agents: { list: [missing], onChange: () => {} } })
 
     expect(install()).toBeNull()
     expect(
@@ -319,7 +441,7 @@ describe("an agent that is not installed, in Preferences", () => {
 
   it("is focused by its Install from a row that needs it connected", async () => {
     await show({
-      tab: "general",
+      tab: "agents",
       agents: { list: [missing], onChange: () => {}, onInstall: () => {} },
       focusAgent: "claude",
       onFocusedAgent: () => {},

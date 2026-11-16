@@ -11,7 +11,7 @@ import { Select } from "@novadeck/toolkit/Select"
 import { Switch } from "@novadeck/toolkit/Switch"
 import { Tabs, TabList, Tab, TabPanel } from "@novadeck/toolkit/Tabs"
 import { views } from "@novadeck/toolkit/views"
-import { X } from "lucide-react"
+import { MessagesSquare, SquareTerminal, X } from "lucide-react"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import { shortcutGroups } from "../interaction/keymap"
@@ -50,10 +50,18 @@ const idleChoices = [
   { label: "4 hours", value: "240" },
 ]
 
+// How agents show: in the chat, or as the terminal.
+const agentPresentations = [
+  { chatView: true, label: "Chat", icon: MessagesSquare },
+  { chatView: false, label: "Terminal", icon: SquareTerminal },
+] as const
+
 const fontSizes = [12, 13, 15].map((size) => ({ label: `${size}px`, value: String(size) }))
 
 // Section titles match the sidebar's panel titles.
 const sectionTitleClasses = "section-label m-0 text-label font-medium"
+// A group inside a section, as Layout's two sets of choices.
+const groupTitleClasses = "text-body font-medium"
 const sectionDescriptionClasses = "settings-description m-0 mt-1.5 text-control leading-5"
 const panelClasses =
   "preferences-panel col-start-1 row-start-1 flex flex-col gap-6 px-6 py-5 data-[state=open]:visible data-[state=open]:opacity-100 data-[state=closed]:invisible data-[state=closed]:pointer-events-none data-[state=closed]:opacity-0 max-[480px]:px-4"
@@ -279,11 +287,22 @@ export const Preferences = ({
   const hasAbout = version !== undefined || experimental !== undefined || !!logs || !!uninstall
   // The Experimental tab is there only while its switch is on.
   const hasExperimental = experimental?.on === true
+  // Agents holds the agents and when to stop the idle ones; a backend with neither, as the
+  // website's demo, has no tab for them.
+  const hasAgentsTab = hasAgents || hibernation !== undefined
   const hidden = (id: PreferencesTab): boolean =>
+    (id === "agents" && !hasAgentsTab) ||
     (id === "addons" && !hasAddons) ||
     (id === "about" && !hasAbout) ||
     (id === "experimental" && !hasExperimental)
   const shown = hidden(tab) ? "general" : tab
+  // A tab the list has scrolled out of sight, on a phone, is brought back into view when it opens.
+  useEffect(() => {
+    if (!open) return
+    dialog.current
+      ?.querySelector<HTMLElement>(`[role="tab"][id$="-${shown}"]`)
+      ?.scrollIntoView?.({ block: "nearest", inline: "nearest" })
+  }, [open, shown])
   // The Experimental tab's switches, one row each.
   const experimentalToggles = [
     {
@@ -352,9 +371,11 @@ export const Preferences = ({
             </button>
           </div>
           <TabList
-            className="preferences-tabs mt-3 flex gap-5"
+            // On a phone the tabs are wider than the dialog: the list scrolls, and its bottom
+            // padding keeps the indicator inside it.
+            className="preferences-tabs mt-3 flex gap-5 max-[480px]:overflow-x-auto max-[480px]:pb-px max-[480px]:[scrollbar-width:none]"
             label="Preference sections"
-            indicatorClassName="bottom-[-1px] h-0.5"
+            indicatorClassName="bottom-[-1px] h-0.5 max-[480px]:bottom-0"
           >
             {preferencesTabs
               .filter(({ id }) => !hidden(id))
@@ -366,6 +387,38 @@ export const Preferences = ({
           </TabList>
         </div>
         <div ref={panels} className="preferences-panels grid min-h-0 flex-1 overflow-y-auto">
+          <TabPanel value="agents" className={panelClasses}>
+            {(agents || hibernation) && (
+              <Section title="Agents" {...(agents ? { description: agentsExplanation } : {})}>
+                {agents && (
+                  <AgentSwitches
+                    agents={agents.list}
+                    onChange={agents.onChange}
+                    onInstall={agents.onInstall}
+                    installing={agents.installing}
+                  />
+                )}
+                {hibernation && (
+                  <div className={settingsCardClasses}>
+                    <Select
+                      className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
+                      label="Stop idle agents after"
+                      items={idleChoices}
+                      // A saved wait the list doesn't have shows as it is, without being chosen.
+                      value={idleChoice(hibernation.minutes)}
+                      placeholder={`${hibernation.minutes} minutes`}
+                      onValueChange={(choice) =>
+                        hibernation.onChange(choice === "off" ? null : Number(choice))
+                      }
+                      open={open && shown === "agents" && openSelect === "idle-agents"}
+                      onOpenChange={(expanded) => setOpenSelect(expanded ? "idle-agents" : null)}
+                      portalContainer={dialog}
+                    />
+                  </div>
+                )}
+              </Section>
+            )}
+          </TabPanel>
           <TabPanel value="appearance" className={panelClasses}>
             <Section title="Theme">
               <div className={settingsCardClasses}>
@@ -421,6 +474,170 @@ export const Preferences = ({
                 </fieldset>
               </div>
             </Section>
+            <Section title="Layout">
+              <fieldset
+                className="view-preferences settings-fieldset m-0 min-w-0 p-0"
+                aria-describedby="view-modes-description"
+              >
+                <legend className="float-left mb-1.5 w-full p-0 px-0.5">
+                  <span className={`block ${groupTitleClasses}`}>View modes</span>
+                </legend>
+                <p
+                  id="view-modes-description"
+                  className={`clear-both px-0.5 ${sectionDescriptionClasses}`}
+                >
+                  Layouts shown in the header. At least one stays on; with one, the header has no
+                  switch.
+                </p>
+                <div className="view-preference-options mt-2.5 grid grid-cols-3 gap-2 max-[360px]:gap-1.5">
+                  {viewModes.map((mode) => {
+                    const { label, icon: Icon } = views[mode]
+                    const checked = value.enabledViews.includes(mode)
+                    const locked = checked && lastView
+                    return (
+                      <label
+                        key={mode}
+                        className={`choice-card relative flex min-h-[76px] min-w-0 flex-col justify-between gap-3 p-3 text-body ${locked ? "cursor-not-allowed" : "cursor-pointer"}`}
+                        data-state={checked ? "checked" : "unchecked"}
+                        data-disabled={locked || undefined}
+                      >
+                        <Icon aria-hidden="true" className="shrink-0" size={16} strokeWidth={1.5} />
+                        <span>{label}</span>
+                        <Checkbox
+                          className="absolute top-2.5 right-2.5"
+                          checked={checked}
+                          disabled={locked}
+                          onChange={() =>
+                            onChange({
+                              ...value,
+                              enabledViews: viewModes.filter((item) =>
+                                item === mode ? !checked : value.enabledViews.includes(item),
+                              ),
+                            })
+                          }
+                        />
+                      </label>
+                    )
+                  })}
+                </div>
+              </fieldset>
+              {/* Only where the backend reads agents' conversations. */}
+              {chat && (
+                <fieldset
+                  className="agent-chat-preferences settings-fieldset m-0 mt-2.5 min-w-0 p-0"
+                  aria-describedby="agent-chat-description"
+                >
+                  <legend className="float-left mb-1.5 w-full p-0 px-0.5">
+                    <span className={`block ${groupTitleClasses}`}>Show agents as</span>
+                  </legend>
+                  <p
+                    id="agent-chat-description"
+                    className={`clear-both px-0.5 ${sectionDescriptionClasses}`}
+                  >
+                    Agent Chat: read and reply to agents in a chat instead of their terminal. When
+                    the chat can't handle something, answer in the terminal.
+                  </p>
+                  <div className="mt-2.5 grid grid-cols-3 gap-2 max-[360px]:gap-1.5">
+                    {agentPresentations.map(({ chatView, label, icon: Icon }) => {
+                      const checked = value.chatView === chatView
+                      return (
+                        <label
+                          key={label}
+                          className="choice-card relative flex min-h-[76px] min-w-0 cursor-pointer flex-col justify-between gap-3 p-3 text-body"
+                          data-state={checked ? "checked" : "unchecked"}
+                        >
+                          <Icon
+                            aria-hidden="true"
+                            className="shrink-0"
+                            size={16}
+                            strokeWidth={1.5}
+                          />
+                          <span>{label}</span>
+                          <input
+                            type="radio"
+                            name="agent-presentation"
+                            className="absolute inset-0 m-0 size-full cursor-[inherit] opacity-0"
+                            checked={checked}
+                            onChange={() => onChange({ ...value, chatView })}
+                          />
+                        </label>
+                      )
+                    })}
+                  </div>
+                </fieldset>
+              )}
+            </Section>
+            <Section title="Text">
+              <div className={settingsCardClasses}>
+                <Select
+                  className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
+                  label="Text size"
+                  items={fontSizes}
+                  value={String(value.fontSize)}
+                  onValueChange={(size) => onChange({ ...value, fontSize: Number(size) })}
+                  open={open && shown === "appearance" && openSelect === "font-size"}
+                  onOpenChange={(expanded) => setOpenSelect(expanded ? "font-size" : null)}
+                  portalContainer={dialog}
+                />
+                <div className={`preference-row ${settingRowClasses}`}>
+                  <SettingText
+                    id="ligatures-label"
+                    label="Ligatures"
+                    description="Join pairs such as => and != into one symbol in terminals and code."
+                    descriptionId="ligatures-description"
+                  />
+                  <Switch
+                    checked={value.ligatures}
+                    onChange={(ligatures) => onChange({ ...value, ligatures })}
+                    labelledBy="ligatures-label"
+                    describedBy="ligatures-description"
+                  />
+                </div>
+              </div>
+            </Section>
+          </TabPanel>
+          <TabPanel value="general" className={panelClasses}>
+            <Section title="Notifications">
+              <div className={settingsCardClasses}>
+                <div className={`preference-row ${settingRowClasses}`}>
+                  <SettingText
+                    id="notify-needs-label"
+                    label="Notify when an agent needs you"
+                    description={
+                      notices
+                        ? "A toast in the corner while you're in Novadeck, or a desktop notification while it's in the background, for a question, an approval or trouble that stopped an agent. Clicking either opens the Inbox."
+                        : "A toast in the corner for a question, an approval or trouble that stopped an agent. Clicking it opens the Inbox."
+                    }
+                    descriptionId="notify-needs-description"
+                  />
+                  <Switch
+                    checked={value.notifyNeeds}
+                    onChange={(notifyNeeds) => onChange({ ...value, notifyNeeds })}
+                    labelledBy="notify-needs-label"
+                    describedBy="notify-needs-description"
+                  />
+                </div>
+                <div className={`preference-row ${settingRowClasses}`}>
+                  <SettingText
+                    id="notify-finished-label"
+                    label="Notify when an agent finishes"
+                    description={
+                      notices
+                        ? "A desktop notification when an agent reports its task done (its subject) or a turn fails, while Novadeck is in the background."
+                        : "Only in the desktop app."
+                    }
+                    descriptionId="notify-finished-description"
+                  />
+                  <Switch
+                    checked={value.notifyFinished}
+                    onChange={(notifyFinished) => onChange({ ...value, notifyFinished })}
+                    labelledBy="notify-finished-label"
+                    describedBy="notify-finished-description"
+                    disabled={!notices}
+                  />
+                </div>
+              </div>
+            </Section>
             {/* Only where Novadeck rings through desktop notifications. */}
             {notices && (
               <Section title="Bell">
@@ -453,7 +670,7 @@ export const Preferences = ({
                           // Picking a sound plays it, as the system's own sound settings do.
                           hearSound?.(value.soundVolume, soundInEffect(chosen))
                         }}
-                        open={open && shown === "appearance" && openSelect === "sound"}
+                        open={open && shown === "general" && openSelect === "sound"}
                         onOpenChange={(expanded) => setOpenSelect(expanded ? "sound" : null)}
                         portalContainer={dialog}
                       />
@@ -499,81 +716,9 @@ export const Preferences = ({
                 </div>
               </Section>
             )}
-          </TabPanel>
-          <TabPanel value="general" className={panelClasses}>
-            <fieldset
-              className="view-preferences settings-fieldset m-0 min-w-0 p-0"
-              aria-describedby="view-modes-description"
-            >
-              <legend className="float-left mb-1.5 w-full p-0 px-0.5">
-                <span className={`block ${sectionTitleClasses}`}>View modes</span>
-              </legend>
-              <p
-                id="view-modes-description"
-                className={`clear-both px-0.5 ${sectionDescriptionClasses}`}
-              >
-                Layouts shown in the header. At least one stays on; with one, the header has no
-                switch.
-              </p>
-              <div className="view-preference-options mt-2.5 grid grid-cols-3 gap-2 max-[360px]:gap-1.5">
-                {viewModes.map((mode) => {
-                  const { label, icon: Icon } = views[mode]
-                  const checked = value.enabledViews.includes(mode)
-                  const locked = checked && lastView
-                  return (
-                    <label
-                      key={mode}
-                      className={`choice-card relative flex min-h-[76px] min-w-0 flex-col justify-between gap-3 p-3 text-body ${locked ? "cursor-not-allowed" : "cursor-pointer"}`}
-                      data-state={checked ? "checked" : "unchecked"}
-                      data-disabled={locked || undefined}
-                    >
-                      <Icon aria-hidden="true" className="shrink-0" size={16} strokeWidth={1.5} />
-                      <span>{label}</span>
-                      <Checkbox
-                        className="absolute top-2.5 right-2.5"
-                        checked={checked}
-                        disabled={locked}
-                        onChange={() =>
-                          onChange({
-                            ...value,
-                            enabledViews: viewModes.filter((item) =>
-                              item === mode ? !checked : value.enabledViews.includes(item),
-                            ),
-                          })
-                        }
-                      />
-                    </label>
-                  )
-                })}
-              </div>
-            </fieldset>
-            <Section title="Terminals">
-              <div className={settingsCardClasses}>
-                <Select
-                  className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
-                  label="Text size"
-                  items={fontSizes}
-                  value={String(value.fontSize)}
-                  onValueChange={(size) => onChange({ ...value, fontSize: Number(size) })}
-                  open={open && shown === "general" && openSelect === "font-size"}
-                  onOpenChange={(expanded) => setOpenSelect(expanded ? "font-size" : null)}
-                  portalContainer={dialog}
-                />
-                <div className={`preference-row ${settingRowClasses}`}>
-                  <SettingText
-                    id="ligatures-label"
-                    label="Ligatures"
-                    description="Join pairs such as => and != into one symbol in terminals and code."
-                    descriptionId="ligatures-description"
-                  />
-                  <Switch
-                    checked={value.ligatures}
-                    onChange={(ligatures) => onChange({ ...value, ligatures })}
-                    labelledBy="ligatures-label"
-                    describedBy="ligatures-description"
-                  />
-                </div>
-                {transcripts && (
+            {transcripts && (
+              <Section title="Storage">
+                <div className={settingsCardClasses}>
                   <div className={`preference-row ${settingRowClasses}`}>
                     <SettingText
                       id="transcripts-label"
@@ -593,92 +738,7 @@ export const Preferences = ({
                       disabled={!transcripts.available}
                     />
                   </div>
-                )}
-                <div className={`preference-row ${settingRowClasses}`}>
-                  <SettingText
-                    id="notify-needs-label"
-                    label="Notify when an agent needs you"
-                    description={
-                      notices
-                        ? "A toast in the corner while you're in Novadeck, or a desktop notification while it's in the background, for a question, an approval or trouble that stopped an agent. Clicking either opens the Inbox."
-                        : "A toast in the corner for a question, an approval or trouble that stopped an agent. Clicking it opens the Inbox."
-                    }
-                    descriptionId="notify-needs-description"
-                  />
-                  <Switch
-                    checked={value.notifyNeeds}
-                    onChange={(notifyNeeds) => onChange({ ...value, notifyNeeds })}
-                    labelledBy="notify-needs-label"
-                    describedBy="notify-needs-description"
-                  />
                 </div>
-                <div className={`preference-row ${settingRowClasses}`}>
-                  <SettingText
-                    id="notify-finished-label"
-                    label="Notify when an agent finishes"
-                    description={
-                      notices
-                        ? "A desktop notification when an agent reports its task done (its subject) or a turn fails, while Novadeck is in the background."
-                        : "Only in the desktop app."
-                    }
-                    descriptionId="notify-finished-description"
-                  />
-                  <Switch
-                    checked={value.notifyFinished}
-                    onChange={(notifyFinished) => onChange({ ...value, notifyFinished })}
-                    labelledBy="notify-finished-label"
-                    describedBy="notify-finished-description"
-                    disabled={!notices}
-                  />
-                </div>
-              </div>
-            </Section>
-            {(agents || hibernation || chat) && (
-              <Section title="Agents" {...(agents ? { description: agentsExplanation } : {})}>
-                {agents && (
-                  <AgentSwitches
-                    agents={agents.list}
-                    onChange={agents.onChange}
-                    onInstall={agents.onInstall}
-                    installing={agents.installing}
-                  />
-                )}
-                {(chat || hibernation) && (
-                  <div className={settingsCardClasses}>
-                    {chat && (
-                      <div className={`preference-row ${settingRowClasses}`}>
-                        <SettingText
-                          id="chat-view-label"
-                          label="Agent Chat"
-                          description="Read and reply to agents in a chat instead of their terminal. When the chat can't handle something, answer in the terminal."
-                          descriptionId="chat-view-description"
-                        />
-                        <Switch
-                          checked={value.chatView}
-                          onChange={(chatView) => onChange({ ...value, chatView })}
-                          labelledBy="chat-view-label"
-                          describedBy="chat-view-description"
-                        />
-                      </div>
-                    )}
-                    {hibernation && (
-                      <Select
-                        className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
-                        label="Stop idle agents after"
-                        items={idleChoices}
-                        // A saved wait the list doesn't have shows as it is, without being chosen.
-                        value={idleChoice(hibernation.minutes)}
-                        placeholder={`${hibernation.minutes} minutes`}
-                        onValueChange={(choice) =>
-                          hibernation.onChange(choice === "off" ? null : Number(choice))
-                        }
-                        open={open && shown === "general" && openSelect === "idle-agents"}
-                        onOpenChange={(expanded) => setOpenSelect(expanded ? "idle-agents" : null)}
-                        portalContainer={dialog}
-                      />
-                    )}
-                  </div>
-                )}
               </Section>
             )}
           </TabPanel>

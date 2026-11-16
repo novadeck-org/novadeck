@@ -507,6 +507,7 @@ describe("workspace commands", () => {
       app.commands.openAgentSettings("codex")
       expect(app.ui.getSnapshot().agentFocus).toBe("codex")
       expect(app.ui.getSnapshot().location.route.dialog).toBe("preferences")
+      expect(app.ui.getSnapshot().location.route.section).toBe("agents")
     })
 
     it("does not take an agent that ran and left for one that runs", () => {

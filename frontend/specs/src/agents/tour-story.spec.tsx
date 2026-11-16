@@ -35,10 +35,10 @@ const coachSays = (words: string, timeout = 15_000): Promise<void> =>
   expect.poll(() => coach().query()?.textContent ?? "", { timeout }).toContain(words)
 
 // Starts the tour from the footer's Help menu with Claude Code, and Codex for a mixed team,
-// connected first in Preferences' General.
+// connected first in Preferences' Agents.
 const startTour = async (): Promise<void> => {
   await openWorkspace("/?channel=experimental")
-  await openPreferencesOn("General")
+  await openPreferencesOn("Agents")
   for (const name of ["Claude Code", "Codex"]) {
     const agent = preferencesDialog().getByRole("switch", { name })
     // eslint-disable-next-line no-await-in-loop -- One switch at a time, as a person flips them.

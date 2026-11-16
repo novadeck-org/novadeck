@@ -1,6 +1,6 @@
 import { page } from "vitest/browser"
 
-import { closePreferences, openPreferences } from "../support/keyboard"
+import { closePreferences, openPreferencesOn } from "../support/keyboard"
 import { focusView, gridView } from "../support/layouts"
 import {
   chooseView,
@@ -22,7 +22,7 @@ import {
 import { context, describe, expect, it } from "../test"
 
 const disableView = async (name: "Focus" | "Grid" | "Canvas"): Promise<void> => {
-  await openPreferences()
+  await openPreferencesOn("Appearance")
   await page.getByRole("group", { name: "View modes" }).getByRole("checkbox", { name }).click()
   await closePreferences()
 }

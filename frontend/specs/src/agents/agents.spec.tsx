@@ -1,7 +1,12 @@
 import { onTestFinished } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
-import { escapeFrom, openPreferences, preferencesDialog } from "../support/keyboard"
+import {
+  escapeFrom,
+  openPreferences,
+  openPreferencesOn,
+  preferencesDialog,
+} from "../support/keyboard"
 import { workspaceSwitcher } from "../support/sessions"
 import {
   chooseView,
@@ -374,7 +379,7 @@ describe("Connecting agents", () => {
   context("in Preferences", () => {
     it("offers each installed agent switched off, and Install for the ones missing", async () => {
       await openWorkspace()
-      await openPreferences()
+      await openPreferencesOn("Agents")
       const dialog = preferencesDialog()
       await expect
         .element(agentSwitch(dialog, "Claude Code"))
@@ -388,7 +393,7 @@ describe("Connecting agents", () => {
 
     it("connects and disconnects an agent", async () => {
       await openWorkspace()
-      await openPreferences()
+      await openPreferencesOn("Agents")
       const claude = agentSwitch(preferencesDialog(), "Claude Code")
       await claude.click()
       await expect.element(claude).toHaveAttribute("aria-checked", "true")
@@ -434,7 +439,7 @@ describe("Connecting agents", () => {
       await agentChoice(welcome(), "Codex").click()
       await welcome().getByRole("button", { name: "Let’s build something" }).click()
       await expect.element(welcome()).not.toBeInTheDocument()
-      await openPreferences()
+      await openPreferencesOn("Agents")
       await expect
         .element(agentSwitch(preferencesDialog(), "Claude Code"))
         .toHaveAttribute("aria-checked", "true")
@@ -449,7 +454,7 @@ describe("Connecting agents", () => {
       await expect.element(agentChoice(welcome(), "Codex")).toBeChecked()
       await escapeFrom(welcome())
       await expect.element(welcome()).not.toBeInTheDocument()
-      await openPreferences()
+      await openPreferencesOn("Agents")
       await expect
         .element(agentSwitch(preferencesDialog(), "Codex"))
         .toHaveAttribute("aria-checked", "false")
@@ -460,7 +465,7 @@ describe("Connecting agents", () => {
       await expect.element(agentChoice(welcome(), "Claude Code")).toBeChecked()
       await welcome().getByRole("button", { name: "Skip for now" }).click()
       await expect.element(welcome()).not.toBeInTheDocument()
-      await openPreferences()
+      await openPreferencesOn("Agents")
       await expect
         .element(agentSwitch(preferencesDialog(), "Claude Code"))
         .toHaveAttribute("aria-checked", "false")
@@ -489,10 +494,8 @@ describe("Connecting agents", () => {
         .toHaveAccessibleDescription(/Chat with agents instead of a terminal/)
       await welcome().getByRole("button", { name: "Let’s build something" }).click()
       await expect.element(welcome()).not.toBeInTheDocument()
-      await openPreferences()
-      await expect
-        .element(preferencesDialog().getByRole("switch", { name: "Agent Chat" }))
-        .toHaveAttribute("aria-checked", "true")
+      await openPreferencesOn("Appearance")
+      await expect.element(preferencesDialog().getByRole("radio", { name: "Chat" })).toBeChecked()
     })
 
     it("leaves the chat view off when unchecked, as its preview says", async () => {
@@ -503,20 +506,20 @@ describe("Connecting agents", () => {
         .toBeVisible()
       await welcome().getByRole("button", { name: "Let’s build something" }).click()
       await expect.element(welcome()).not.toBeInTheDocument()
-      await openPreferences()
+      await openPreferencesOn("Appearance")
       await expect
-        .element(preferencesDialog().getByRole("switch", { name: "Agent Chat" }))
-        .toHaveAttribute("aria-checked", "false")
+        .element(preferencesDialog().getByRole("radio", { name: "Terminal" }))
+        .toBeChecked()
     })
 
     it("leaves the chat view off when skipped", async () => {
       await openWorkspace("/?demo=welcome")
       await welcome().getByRole("button", { name: "Skip for now" }).click()
       await expect.element(welcome()).not.toBeInTheDocument()
-      await openPreferences()
+      await openPreferencesOn("Appearance")
       await expect
-        .element(preferencesDialog().getByRole("switch", { name: "Agent Chat" }))
-        .toHaveAttribute("aria-checked", "false")
+        .element(preferencesDialog().getByRole("radio", { name: "Terminal" }))
+        .toBeChecked()
     })
 
     it("changes the scheme at once, and keeps it when skipped", async () => {

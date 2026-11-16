@@ -33,13 +33,13 @@ import { context, describe, expect, it } from "../test"
 const answerMs = 400
 const answeredMs = 500
 
-// Turns the chat view on or off in Preferences → General, and closes Preferences.
+// Chooses how agents show in Preferences → Appearance, Chat or Terminal, and closes Preferences.
 const setChatView = async (on: boolean): Promise<void> => {
-  await openPreferencesOn("General")
+  await openPreferencesOn("Appearance")
   const dialog = preferencesDialog()
-  const chatView = dialog.getByRole("switch", { name: "Agent Chat" })
-  await chatView.click()
-  await expect.element(chatView).toHaveAttribute("aria-checked", String(on))
+  const choice = dialog.getByRole("radio", { name: on ? "Chat" : "Terminal" })
+  await choice.click()
+  await expect.element(choice).toBeChecked()
   await userEvent.keyboard("{Escape}")
   await expect.element(dialog).not.toBeInTheDocument()
 }
@@ -75,7 +75,7 @@ describe("The chat view", () => {
     await expect.element(chatOf("Build")).toBeVisible()
   })
 
-  it("turns on from Preferences → General, and off again back to the terminal's output", async () => {
+  it("turns on from Preferences → Appearance, and off again back to the terminal's output", async () => {
     await openChatDemo("/", { chatView: false })
     await terminalTab("Build").click()
     await setChatView(true)

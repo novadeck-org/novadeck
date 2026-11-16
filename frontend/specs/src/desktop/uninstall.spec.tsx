@@ -5,7 +5,7 @@ import { openPreferencesOn, preferencesDialog } from "../support/keyboard"
 import { expectStaysAbsent, openWorkspace } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
-const tab = (name: "General" | "About"): Locator => preferencesDialog().getByRole("tab", { name })
+const tab = (name: "Agents" | "About"): Locator => preferencesDialog().getByRole("tab", { name })
 
 const about = (): Locator => preferencesDialog().getByRole("tabpanel", { name: "About" })
 const row = (): Locator => about().getByRole("button", { name: "Uninstall…" })
@@ -56,7 +56,7 @@ describe("Preferences' Uninstall Novadeck", () => {
     it("disconnects the connected agents, shows Removing…, then offers Quit", async () => {
       await openWorkspace("/?uninstall=removed")
       await openPreferencesOn("About")
-      await tab("General").click()
+      await tab("Agents").click()
       const claude = preferencesDialog().getByRole("switch", { name: "Claude Code" })
       await claude.click()
       await expect.element(claude, slow).toHaveAttribute("aria-checked", "true")

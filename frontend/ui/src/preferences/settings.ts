@@ -1,7 +1,8 @@
 // The sections of Preferences, in the order its tabs show them.
 export const preferencesTabs = [
-  { id: "general", label: "General" },
+  { id: "agents", label: "Agents" },
   { id: "appearance", label: "Appearance" },
+  { id: "general", label: "General" },
   { id: "addons", label: "Addons" },
   { id: "shortcuts", label: "Shortcuts" },
   { id: "about", label: "About" },

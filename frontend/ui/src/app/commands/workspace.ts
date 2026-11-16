@@ -656,7 +656,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     openAgentSettings: (agent) => {
       recent.setSwitcher(null)
       ui.update((state) => ({ ...state, agentFocus: agent }))
-      go({ dialog: "preferences", section: "general" })
+      go({ dialog: "preferences", section: "agents" })
     },
     reveal,
     close: (terminalId) => {

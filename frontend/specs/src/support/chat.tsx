@@ -8,7 +8,7 @@ import { openWorkspace, terminal, terminalTab } from "./workspace"
 
 /**
  * Opens the agents demo, whose agents have conversations, with the chat view on, as
- * Preferences → General turns it on, unless `chatView` is false. With `experimental`, the app
+ * Preferences → Appearance turns it on, unless `chatView` is false. With `experimental`, the app
  * follows experimental builds, so IS_EXPERIMENTAL is on and Preferences has its switch.
  */
 export const openChatDemo = async (

@@ -34,10 +34,10 @@ const barSays = (words: string): Promise<void> =>
 const coachSays = (words: string): Promise<void> =>
   expect.poll(() => coach().query()?.textContent ?? "").toContain(words)
 
-// Starts the tour from the footer's Help menu with Claude Code, connected first in Preferences' General.
+// Starts the tour from the footer's Help menu with Claude Code, connected first in Preferences' Agents.
 const startTour = async (address = offered): Promise<void> => {
   await openWorkspace(address)
-  await openPreferencesOn("General")
+  await openPreferencesOn("Agents")
   const claude = preferencesDialog().getByRole("switch", { name: "Claude Code" })
   await claude.click()
   await expect.element(claude).toHaveAttribute("aria-checked", "true")

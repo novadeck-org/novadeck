@@ -178,7 +178,7 @@ entry, with its own body if needed, and a launcher entry in `frontend/core/src/t
 runs as a Node script. Profiles are presentation only: per-program behaviour goes beside
 `programName` in `frontend/core/src/terminals/process.ts`, as `frontend/runner-adapter/src/terminals/resumable.ts` names the agents whose sessions resume.
 
-With **Agent Chat** on (Preferences → General → Agents, or the welcome dialog), a terminal
+With **Agent Chat** on (Preferences → Appearance → Layout, or the welcome dialog), a terminal
 running an agent (Claude Code, Codex or Antigravity) has a **Chat** button in
 its window header wherever the backend reads the agents' transcripts
 (`backend.conversations`). Chat shows the agent's own conversation as it records it,

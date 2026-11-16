@@ -1111,7 +1111,9 @@ so links work with the packaged `file://` UI and static hosting. For example:
 
 The path selects a project, workspace session, and view. Query parameters select
 the terminal, sidebar panel, and dialog (`dialog=search` or `dialog=preferences`);
-Preferences also accepts `section=shortcuts`. Back and Forward restore navigation
+Preferences also takes `section=` a tab's id (`agents`, `appearance`, `general`, `addons`,
+`shortcuts`, `about`, `experimental`); an unknown name, or a tab the backend has none of, opens
+General. Back and Forward restore navigation
 without discarding terminal drafts or output. Sidebar visibility, search text,
 canvas gestures, and other temporary controls stay out of the URL.
 

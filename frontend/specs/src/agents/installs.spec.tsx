@@ -1,7 +1,7 @@
 import { afterEach } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
-import { openPreferences, preferencesDialog } from "../support/keyboard"
+import { openPreferencesOn, preferencesDialog } from "../support/keyboard"
 import { expectSelected, openWorkspace, terminalTab, terminalTabNames } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
@@ -56,7 +56,7 @@ describe("An agent that is not installed, in the welcome dialog", () => {
       await expectSelected("agy")
       expect(terminalTab("Install Antigravity").query()).not.toBeNull()
 
-      await openPreferences()
+      await openPreferencesOn("Agents")
       await expect.element(agentSwitch("Antigravity")).toHaveAttribute("aria-checked", "true")
       await expect.element(agentSwitch("Claude Code")).toHaveAttribute("aria-checked", "true")
       await expect.element(agentSwitch("Codex")).toHaveAttribute("aria-checked", "false")
@@ -73,7 +73,7 @@ describe("An agent that is not installed, in the welcome dialog", () => {
       await new Promise((resolve) => setTimeout(resolve, 4_000))
       expect(terminalTabNames()).not.toContain("agy")
       await expectSelected("Install Antigravity")
-      await openPreferences()
+      await openPreferencesOn("Agents")
       // Still not installed, Preferences offers to install it again.
       await expect.element(preferencesInstall("Antigravity")).toBeEnabled()
       expect(agentSwitch("Antigravity").query()).toBeNull()
@@ -102,7 +102,7 @@ describe("An agent that is not installed, in the welcome dialog", () => {
       await openWorkspace("/?demo=plain")
       await expect.poll(terminalTabNames, installTime).toContain("claude")
       await expectSelected("claude")
-      await openPreferences()
+      await openPreferencesOn("Agents")
       await expect.element(agentSwitch("Claude Code")).toHaveAttribute("aria-checked", "true")
     })
 
@@ -118,7 +118,7 @@ describe("An agent that is not installed, in the welcome dialog", () => {
 describe("An agent that is not installed, in Preferences", () => {
   it("offers to install it, with the command that will run, in place of its switch", async () => {
     await openWorkspace("/?demo=plain")
-    await openPreferences()
+    await openPreferencesOn("Agents")
     await expect
       .element(preferencesInstall("Antigravity"))
       .toHaveAccessibleDescription(
@@ -130,23 +130,23 @@ describe("An agent that is not installed, in Preferences", () => {
 
   it("closes Preferences, installs in a terminal, then connects the agent and starts it", async () => {
     await openWorkspace("/?demo=plain")
-    await openPreferences()
+    await openPreferencesOn("Agents")
     await preferencesInstall("Antigravity").click()
     await expect.element(preferencesDialog()).not.toBeInTheDocument()
     await expectSelected("Install Antigravity")
 
     await expect.poll(terminalTabNames, installTime).toContain("agy")
     await expectSelected("agy")
-    await openPreferences()
+    await openPreferencesOn("Agents")
     await expect.element(agentSwitch("Antigravity")).toHaveAttribute("aria-checked", "true")
   })
 
   it("reads as installing while its installer runs", async () => {
     await openWorkspace("/?demo=plain&agentInstall=held")
-    await openPreferences()
+    await openPreferencesOn("Agents")
     await preferencesInstall("Antigravity").click()
     await expectSelected("Install Antigravity")
-    await openPreferences()
+    await openPreferencesOn("Agents")
     const installing = preferencesDialog().getByRole("button", { name: "Installing Antigravity" })
     await expect.element(installing).toHaveAttribute("aria-disabled", "true")
     await expect.element(installing).toHaveTextContent("Installing…")
