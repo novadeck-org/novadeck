@@ -1,4 +1,5 @@
 import { appearance, workspaceFixture, workspaceWithWindow } from "@novadeck/core/testing"
+import type { SidebarPanel } from "@novadeck/core/types"
 import { afterEach, vi } from "vitest"
 
 import {
@@ -34,9 +35,18 @@ const nowhere: KeyTarget = {
 }
 
 // The app's key handling on other platforms, over real stores and commands.
-const openKeys = (options?: CommandsOptions & { dictation?: Dictation }) => {
+const openKeys = (
+  options?: CommandsOptions & {
+    dictation?: Dictation
+    panelShown?: (panel: SidebarPanel) => boolean
+  },
+) => {
   const app = openCommands(options)
-  const withVoice = { ...app.context, dictation: options?.dictation }
+  const withVoice = {
+    ...app.context,
+    dictation: options?.dictation,
+    panelShown: options?.panelShown,
+  }
   const keys = createKeyCommands(app.commands, withVoice)
   const bindings = keymapFor("other")
   const send = (phase: KeyPhase, { target, ...press }: Press): "handled" | "passed" => {
@@ -507,6 +517,22 @@ describe("key commands", () => {
       app.keydown({ key: "S", ctrlKey: true, shiftKey: true })
       expect(app.shell().zen).toBeNull()
       expect(app.ui.getSnapshot().location.route.panel).toBe("sessions")
+    })
+  })
+
+  context("when pressing a panel's key", () => {
+    const chord = (key: string) => ({ key, ctrlKey: true, shiftKey: true })
+
+    it("shows the panel where the rail has its toggle", () => {
+      const app = openKeys()
+      expect(app.keydown(chord("F"))).toBe("handled")
+      expect(app.ui.getSnapshot().location.route.panel).toBe("files")
+    })
+
+    it("lets the key through where the rail has no toggle for the panel", () => {
+      const app = openKeys({ panelShown: (panel) => panel !== "worktrees" })
+      expect(app.keydown(chord("G"))).toBe("passed")
+      expect(app.ui.getSnapshot().location.route.panel).toBe("terminals")
     })
   })
 

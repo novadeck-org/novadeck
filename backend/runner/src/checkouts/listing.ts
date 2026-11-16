@@ -2,7 +2,7 @@ import type { ChangedFile } from "@novadeck/protocol"
 
 import { git, type Run } from "./git.js"
 
-// The files two commits or trees differ by, counted one way for the Changes panel and the
+// The files two commits or trees differ by, counted one way for the Worktrees panel and the
 // changes item alike: renames found, lines counted ignoring whitespace, and the lines that
 // only changed whitespace counted apart (`reindented`), so a work's row says what its pane says.
 

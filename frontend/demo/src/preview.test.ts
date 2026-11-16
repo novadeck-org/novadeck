@@ -1,3 +1,4 @@
+import { createDemoFiles } from "./files"
 import { plainDemo } from "./index"
 import {
   addedPath,
@@ -8,7 +9,6 @@ import {
   renamedTo,
 } from "./preview"
 import { demoTerminalId } from "./samples"
-import { createDemoSource } from "./source"
 import { context, describe, expect, it } from "./test"
 import { storefrontPlans } from "./work-plans"
 import { createDemoWorks, worksFromPlans } from "./works"
@@ -120,9 +120,9 @@ describe("the demo's file previews", () => {
     expect(after.renames).toEqual([])
   })
 
-  it("has the Source panel show Crow's add and rename as they come and go, Moth's change staying", async () => {
+  it("has the Files panel show Crow's add and rename as they come and go, Moth's change staying", async () => {
     const now = 1_000_000_000
-    const source = createDemoSource(now, undefined, [])
+    const source = createDemoFiles(now, undefined, [])
     const works = createDemoWorks(worksFromPlans(plainDemo("plain").seed, storefrontPlans, now), {
       now: () => now,
       preview: createDemoPreview(now),

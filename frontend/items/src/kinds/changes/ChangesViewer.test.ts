@@ -386,7 +386,7 @@ describe("a change beside a terminal", () => {
         "Files4 files · everything",
       )
       expect(
-        [...container.querySelectorAll(".changes-tree > [role='none'] .source-name")].map(
+        [...container.querySelectorAll(".changes-tree > [role='none'] .files-name")].map(
           (each) => each.textContent,
         ),
       ).toEqual(["src", "auth", "components"])

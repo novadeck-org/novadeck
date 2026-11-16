@@ -2,10 +2,10 @@ import type { Backend, ThemeSource } from "@novadeck/core/port"
 
 import { agentTranscripts } from "../agents/transcripts"
 import { demoTurns } from "../agents/turns"
+import { withFiles } from "../files"
 import { withHistory } from "../history"
 import { demoBackend, withConversations, withInbox } from "../index"
 import { lessMotion, stillRequested } from "../motion"
-import { withSource } from "../source"
 import { createDemoEngine } from "../terminals/engine"
 import { visitorPlans } from "../work-plans"
 import { withWorks } from "../works"
@@ -59,7 +59,7 @@ export const visitorDemo = ({
   const storied = story.wrap(withConversations(base, story.transcripts, turns, story.converse))
   const backend = withWorks(
     withHistory(
-      withSource(withInbox(ambient && !still ? life.wrap(storied) : storied, turns), turns),
+      withFiles(withInbox(ambient && !still ? life.wrap(storied) : storied, turns), turns),
     ),
     { plans: visitorPlans, turns },
   )
@@ -73,7 +73,7 @@ export const visitorDemo = ({
     ...(backend.companions && { companions: backend.companions }),
     ...(backend.start && { start: backend.start }),
     ...(backend.inbox && { inbox: backend.inbox }),
-    ...(backend.source && { source: backend.source }),
+    ...(backend.files && { files: backend.files }),
     ...(backend.history && { history: backend.history }),
     ...(backend.works && { works: backend.works }),
     visitor: true,

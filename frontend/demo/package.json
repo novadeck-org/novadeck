@@ -24,7 +24,7 @@
     "./showcase/agents": "./src/showcase/agents.ts",
     "./showcase/demo": "./src/showcase/demo.ts",
     "./showcase/simulation": "./src/showcase/simulation.ts",
-    "./source": "./src/source.ts",
+    "./files": "./src/files.ts",
     "./terminals/runtime": "./src/terminals/runtime.ts",
     "./terminals/wakes": "./src/terminals/wakes.ts",
     "./tour": "./src/tour.ts",

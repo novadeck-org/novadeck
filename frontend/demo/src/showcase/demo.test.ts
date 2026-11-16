@@ -58,10 +58,10 @@ const plans = [
 ] as const
 
 describe("the showcase demo", () => {
-  it("is marked as the demo, though it has no Source to show", () => {
+  it("is marked as the demo, though it has no files to show", () => {
     const backend = createDemo("showcase", undefined, demoTurns())
     expect(backend.demo).toBe(true)
-    expect(backend.source).toBeUndefined()
+    expect(backend.files).toBeUndefined()
   })
 })
 

@@ -215,8 +215,7 @@ describe("the Experimental switch in Preferences", () => {
   })
 
   it("turns agent worktrees off with it, so they never stay on without their toggle", async () => {
-    const worktrees = () =>
-      preferencesDialog().getByRole("switch", { name: "Agent worktrees and Changes" })
+    const worktrees = () => preferencesDialog().getByRole("switch", { name: "Agent worktrees" })
     await openWorkspace("/?update=ready")
     await openPreferencesOn("About")
     await experimental().click()
@@ -231,51 +230,49 @@ describe("the Experimental switch in Preferences", () => {
     await expect.element(worktrees()).toHaveAttribute("aria-checked", "false")
   })
 
-  it("shows the Changes panel only while agent worktrees are on", async () => {
-    const worktrees = () =>
-      preferencesDialog().getByRole("switch", { name: "Agent worktrees and Changes" })
-    // A stable launch turns agent worktrees off, so a link to the Changes panel opens Terminals.
-    await openWorkspace("/projects/storefront/sessions/initial/focus?update=ready&panel=changes")
-    await expect.element(sidebar()).toHaveAccessibleName("Terminal sessions")
-    await expectStaysAbsent(sidebarPanel("Changes"))
+  it("shows the Worktrees panel only while agent worktrees are on", async () => {
+    const worktrees = () => preferencesDialog().getByRole("switch", { name: "Agent worktrees" })
+    // A stable launch turns agent worktrees off, so a link to the Worktrees panel opens Terminals.
+    await openWorkspace("/projects/storefront/sessions/initial/focus?update=ready&panel=worktrees")
+    await expect.element(sidebar()).toHaveAccessibleName("Terminals")
+    await expectStaysAbsent(sidebarPanel("Worktrees"))
     await openPreferencesOn("About")
     await experimental().click()
     await experimentalTab().click()
     await worktrees().click()
     await closePreferences()
-    await expect.element(sidebarPanel("Changes")).toBeVisible()
-    await sidebarPanel("Changes").click()
-    await expect.element(sidebar()).toHaveAccessibleName("Changes")
-    // Turning them off again, with Changes open, takes the panel away and goes back to Terminals.
+    await expect.element(sidebarPanel("Worktrees")).toBeVisible()
+    await sidebarPanel("Worktrees").click()
+    await expect.element(sidebar()).toHaveAccessibleName("Worktrees")
+    // Turning them off again, with Worktrees open, takes the panel away and goes back to Terminals.
     await openPreferencesOn("About")
     await experimental().click()
     await closePreferences()
-    await expect.element(sidebarPanel("Changes")).not.toBeInTheDocument()
-    await expect.element(sidebar()).toHaveAccessibleName("Terminal sessions")
+    await expect.element(sidebarPanel("Worktrees")).not.toBeInTheDocument()
+    await expect.element(sidebar()).toHaveAccessibleName("Terminals")
   })
 
-  it("forgets a step back to the Changes panel once it is gone", async () => {
+  it("forgets a step back to the Worktrees panel once it is gone", async () => {
     await openWorkspace("/?update=ready")
     await openPreferencesOn("About")
     await experimental().click()
     await experimentalTab().click()
-    await preferencesDialog().getByRole("switch", { name: "Agent worktrees and Changes" }).click()
+    await preferencesDialog().getByRole("switch", { name: "Agent worktrees" }).click()
     await closePreferences()
-    await sidebarPanel("Changes").click()
+    await sidebarPanel("Worktrees").click()
     await sidebarPanel("Inbox").click()
     await expect.element(sidebar()).toHaveAccessibleName("Inbox")
     await openPreferencesOn("About")
     await experimental().click()
     await closePreferences()
-    await expect.element(sidebarPanel("Changes")).not.toBeInTheDocument()
-    // The Inbox's toggle, with no Changes to go back to, hides the sidebar.
+    await expect.element(sidebarPanel("Worktrees")).not.toBeInTheDocument()
+    // The Inbox's toggle, with no Worktrees to go back to, hides the sidebar.
     await sidebarPanel("Inbox").click()
     await expect.element(sidebar()).not.toBeInTheDocument()
   })
 
   it("turns agent worktrees off when Preferences opens again and the channel reads stable", async () => {
-    const worktrees = () =>
-      preferencesDialog().getByRole("switch", { name: "Agent worktrees and Changes" })
+    const worktrees = () => preferencesDialog().getByRole("switch", { name: "Agent worktrees" })
     await openWorkspace("/?update=ready")
     await openPreferencesOn("About")
     await experimental().click()

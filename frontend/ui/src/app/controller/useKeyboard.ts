@@ -19,6 +19,7 @@ import {
 import { currentPlatform } from "../../interaction/shortcuts"
 import type { Dictation } from "../../voice/dictation-control"
 import { createKeyCommands, keyState, runKey } from "../commands/keys"
+import { panelShownOn } from "../routing"
 import { currentState } from "../selectors"
 import { useWorkspaceServices } from "./context"
 import { domEffects } from "./effects"
@@ -77,6 +78,7 @@ export const useKeyboard = (dictation?: Dictation): void => {
       canvas,
       effects: domEffects,
       dictation,
+      panelShown: panelShownOn(backend),
     })
     const bindings = keymapFor(currentPlatform())
     const dispatch = (phase: KeyPhase, event: Event, input: KeyInput): void => {

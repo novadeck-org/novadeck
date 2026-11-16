@@ -431,7 +431,7 @@ export type Runner = {
      */
     set(agent: AgentName, connected: boolean): Promise<AgentIntegration>
   }
-  /** The forges whose pull requests the Changes panel shows (Experimental). */
+  /** The forges whose pull requests the Worktrees panel shows (Experimental). */
   readonly forges: {
     /**
      * Where each forge stands. With `fresh` the runner reads the person's login environment
@@ -458,7 +458,7 @@ export type Runner = {
      */
     watch(): AsyncIterableIterator<HistoryWatchItem, undefined>
   }
-  /** Each tracked git worktree against its repository's main branch (Changes panel). */
+  /** Each tracked git worktree against its repository's main branch (Worktrees panel). */
   readonly works: {
     /**
      * Follows every work on the runner, as `history.watch()` follows closed terminals: each

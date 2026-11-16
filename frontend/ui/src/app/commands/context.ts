@@ -75,5 +75,7 @@ export type CommandContext = {
   readonly murmur?: Pick<Murmur, "noteOffered"> | undefined
   // Voice input, where the backend transcribes.
   readonly dictation?: Dictation | undefined
+  // Whether the rail shows the panel now, where the app knows; left out, every panel is.
+  readonly panelShown?: ((panel: SidebarPanel) => boolean) | undefined
   readonly effects: CommandEffects
 }

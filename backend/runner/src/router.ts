@@ -116,7 +116,7 @@ export const createRouter = (options: {
   items: CompanionItems
   /** Closed terminals; without it History is empty. */
   history?: History
-  /** Each terminal's work against main; without it the Changes panel is empty. */
+  /** Each terminal's work against main; without it the Worktrees panel is empty. */
   works?: Works
   agents: Harnesses
   /** The forges pull requests come from; without it none is offered. */

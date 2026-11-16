@@ -40,4 +40,4 @@ export const hostLine = ({ host, state, fix }: ForgeHost): HostLine => ({
 
 // What the section is, above the rows.
 export const forgesExplanation =
-  "Show each worktree's pull request in Changes. Novadeck reads them with the signed-in command-line tool of the forge (gh, glab or az), and never asks for a password or token."
+  "Show each worktree's pull request in the Worktrees panel. Novadeck reads them with the signed-in command-line tool of the forge (gh, glab or az), and never asks for a password or token."

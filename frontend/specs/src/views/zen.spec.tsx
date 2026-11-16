@@ -458,14 +458,14 @@ describe("Leaving Zen", () => {
     it("restores the sidebar panel that was open", async () => {
       await openWorkspace()
       await sidebarPanel("Sessions").click()
-      await expect.element(sidebar()).toHaveAccessibleName("Workspace sessions")
+      await expect.element(sidebar()).toHaveAccessibleName("Sessions")
       await enterZen().click()
       await expectInZen()
 
       await exitZen().click()
 
       await expectOutOfZen()
-      await expect.element(sidebar()).toHaveAccessibleName("Workspace sessions")
+      await expect.element(sidebar()).toHaveAccessibleName("Sessions")
       await expect.element(sidebarPanel("Sessions")).toBeChecked()
       await expect.element(enterZen()).toHaveFocus()
     })
@@ -497,7 +497,7 @@ describe("Leaving Zen", () => {
       await pressShortcut("terminals")
 
       await expectOutOfZen()
-      await expect.element(sidebar()).toHaveAccessibleName("Terminal sessions")
+      await expect.element(sidebar()).toHaveAccessibleName("Terminals")
       await expect.element(sidebarPanel("Terminals")).toBeChecked()
     })
 
@@ -509,7 +509,7 @@ describe("Leaving Zen", () => {
       await pressShortcut("sessions")
 
       await expectOutOfZen()
-      await expect.element(sidebar()).toHaveAccessibleName("Workspace sessions")
+      await expect.element(sidebar()).toHaveAccessibleName("Sessions")
     })
 
     it("leaves Zen showing Terminals when the sidebar was hidden", async () => {
@@ -522,7 +522,7 @@ describe("Leaving Zen", () => {
       await pressShortcut("terminals")
 
       await expectOutOfZen()
-      await expect.element(sidebar()).toHaveAccessibleName("Terminal sessions")
+      await expect.element(sidebar()).toHaveAccessibleName("Terminals")
     })
   })
 
@@ -538,7 +538,7 @@ describe("Leaving Zen", () => {
       await page.getByRole("button", { name: "Browse sessions" }).click()
 
       await expectOutOfZen()
-      await expect.element(sidebar()).toHaveAccessibleName("Workspace sessions")
+      await expect.element(sidebar()).toHaveAccessibleName("Sessions")
     })
   })
 })

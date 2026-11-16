@@ -8,6 +8,7 @@ import {
 } from "@novadeck/core/state"
 import type { WorkspaceTransaction } from "@novadeck/core/store"
 import {
+  panelNamed,
   sidebarPanels,
   type PreferencesValue,
   type SidebarPanel,
@@ -58,34 +59,46 @@ export const workspaceRoute = (workspace: Workspace): WorkspaceRoute => ({
 const sectionOf = (name: string | null): PreferencesTab =>
   preferencesTabs.find(({ id }) => id === name)?.id ?? "general"
 
-// Whether the app shows the Source panel: where the backend has the project's files to show.
-export const sourceShown = (backend: Pick<Backend, "source">): boolean =>
-  backend.source !== undefined
+// Whether the app shows the Files panel: where the backend has the project's files to show.
+export const filesShown = (backend: Pick<Backend, "files">): boolean => backend.files !== undefined
 
 // Whether the app shows the History panel: where the backend keeps the terminals closed.
 export const historyShown = (backend: Pick<Backend, "history">): boolean =>
   backend.history !== undefined
 
-// Whether the app shows the Changes panel: where the backend reports each terminal's work.
-export const worksShown = (backend: Pick<Backend, "works">): boolean => backend.works !== undefined
+// Whether the backend reports each tracked worktree's work, which the Worktrees panel lists.
+export const reportsWorks = (backend: Pick<Backend, "works">): boolean =>
+  backend.works !== undefined
 
-// The panels a backend can show: Source only where it has a source, History only where it
-// keeps closed terminals, Changes only where it reports the terminals' work.
+// The panels a backend can show: Files only where it reads the projects' files, History only
+// where it keeps closed terminals, Worktrees only where it reports the worktrees' work.
 export const availablePanels = (
-  hasSource: boolean,
+  hasFiles: boolean,
   hasHistory = false,
-  hasChanges = false,
+  hasWorktrees = false,
 ): readonly SidebarPanel[] =>
   sidebarPanels.filter(
     (panel) =>
-      (hasSource || panel !== "source") &&
+      (hasFiles || panel !== "files") &&
       (hasHistory || panel !== "history") &&
-      (hasChanges || panel !== "changes"),
+      (hasWorktrees || panel !== "worktrees"),
   )
 
+// Whether the rail shows the panel now: one the backend has, and Worktrees only while the person
+// has agent worktrees on (see `useWorktreesShown`).
+export const panelShownOn =
+  (backend: Pick<Backend, "files" | "history" | "works" | "worktrees">) =>
+  (panel: SidebarPanel): boolean =>
+    availablePanels(filesShown(backend), historyShown(backend), reportsWorks(backend)).includes(
+      panel,
+    ) &&
+    (panel !== "worktrees" || (backend.worktrees?.enabled.getSnapshot() ?? false))
+
 // The sidebar panel a URL names, Terminals for anything else, or for one the backend lacks.
-const panelOf = (name: string | null, panels: readonly SidebarPanel[]): SidebarPanel =>
-  panels.find((panel) => panel === name) ?? "terminals"
+const panelOf = (name: string | null, panels: readonly SidebarPanel[]): SidebarPanel => {
+  const named = name === null ? undefined : panelNamed(name)
+  return named !== undefined && panels.includes(named) ? named : "terminals"
+}
 
 export const routeUrl = (route: WorkspaceRoute): string => {
   const search = new URLSearchParams()

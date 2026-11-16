@@ -22,26 +22,30 @@ import {
 import { useCallback, useLayoutEffect, useRef, useState, type ComponentProps } from "react"
 
 import { shortcutBindings, type ShortcutName } from "../interaction/shortcuts"
+import { panelLabels } from "../sidebar/panel-labels"
 import { BellDot } from "./BellDot"
 import { FlareDot, recentDropMs, useRecentDrop } from "./HistoryDot"
 import type { InboxBadge } from "./inbox-badge"
 import { movedPanel } from "./rail-order"
 import { stepBack, type SidebarStep } from "./shell-state"
 
-const panels = {
-  terminals: { label: "Terminals", icon: TerminalIcon },
-  source: { label: "Source", icon: FolderGit2 },
-  sessions: { label: "Sessions", icon: Layers2 },
-  history: { label: "History", icon: History },
-  inbox: { label: "Inbox", icon: Inbox },
-  changes: { label: "Changes", icon: GitCompare },
-} as const satisfies Record<SidebarPanel, { label: string; icon: unknown }>
+const panelIcons = {
+  terminals: TerminalIcon,
+  inbox: Inbox,
+  sessions: Layers2,
+  worktrees: GitCompare,
+  files: FolderGit2,
+  history: History,
+} as const satisfies Record<SidebarPanel, unknown>
 
-// The panels with a key of their own.
-const panelShortcuts: Partial<Record<SidebarPanel, ShortcutName>> = {
+// Each panel's key.
+const panelShortcuts: Readonly<Record<SidebarPanel, ShortcutName>> = {
   terminals: "terminals",
-  sessions: "sessions",
   inbox: "inbox",
+  sessions: "sessions",
+  worktrees: "worktrees",
+  files: "files",
+  history: "history",
 }
 
 // A toggle's tooltip: its panel, what it holds for the person, and, while its panel is open,
@@ -59,13 +63,12 @@ export const railTooltip = ({
 }): string => {
   const action = open
     ? back && back !== panel
-      ? `back to ${panels[back].label}`
+      ? `back to ${panelLabels[back]}`
       : "hide sidebar"
     : undefined
-  const shortcut = panelShortcuts[panel]
   // Its keys joined by no-break spaces, so a wrapping tooltip keeps them on one line.
-  const keys = shortcut ? shortcutBindings()[shortcut].display.join("\u00a0") : undefined
-  return [panels[panel].label, detail, action, keys].filter(Boolean).join(" · ")
+  const keys = shortcutBindings()[panelShortcuts[panel]].display.join("\u00a0")
+  return [panelLabels[panel], detail, action, keys].filter(Boolean).join(" · ")
 }
 
 // Dragging the toggles: from 6px of movement with a mouse, a quarter second's press on
@@ -112,9 +115,9 @@ export const SidebarRail = ({
   lastDrop,
   worksMade,
   sessionsAsk,
-  hasSource = false,
+  hasFiles = false,
   hasHistory = false,
-  hasChanges = false,
+  hasWorktrees = false,
   order = sidebarPanels,
   onOrder,
   toggleSidebar,
@@ -132,18 +135,18 @@ export const SidebarRail = ({
   // and, in words, the one that landed last, which its tooltip names for a while.
   historyDrops?: number
   lastDrop?: string | undefined
-  // How many worktrees the backend began tracking in the open project, which the Changes
+  // How many worktrees the backend began tracking in the open project, which the Worktrees
   // toggle's dot flares for; another project's count is not news, so a switch flares nothing.
   worksMade?: WorksMadeIn
   // What the sessions other than the open one ask of the person, in words, while any does: the
   // Sessions toggle's dot, name and tooltip.
   sessionsAsk?: string | undefined
-  // Whether the backend has a Source panel to toggle.
-  hasSource?: boolean
+  // Whether the backend has a Files panel to toggle.
+  hasFiles?: boolean
   // Whether the backend keeps closed terminals, which the History panel lists.
   hasHistory?: boolean
-  // Whether the backend reports each terminal's work against main, which the Changes panel lists.
-  hasChanges?: boolean
+  // Whether the backend reports each terminal's work against main, which the Worktrees panel lists.
+  hasWorktrees?: boolean
   // Every panel, the ones this backend doesn't show included, in the person's order.
   order?: readonly SidebarPanel[]
   onOrder?: (order: readonly SidebarPanel[]) => void
@@ -151,9 +154,9 @@ export const SidebarRail = ({
 }): React.JSX.Element => {
   const shown = order.filter(
     (id) =>
-      (hasSource || id !== "source") &&
+      (hasFiles || id !== "files") &&
       (hasHistory || id !== "history") &&
-      (hasChanges || id !== "changes"),
+      (hasWorktrees || id !== "worktrees"),
   )
   const toggleId = (id: SidebarPanel): string => `${mobile ? "mobile-" : ""}${id}-toggle`
   const [dragging, setDragging] = useState(false)
@@ -203,7 +206,7 @@ export const SidebarRail = ({
             badge={id === "inbox" ? badge : undefined}
             bellRings={bellRings}
             drops={id === "history" ? { count: historyDrops, last: lastDrop } : undefined}
-            flares={id === "changes" ? (worksMade ?? noneMadeIn) : undefined}
+            flares={id === "worktrees" ? (worksMade ?? noneMadeIn) : undefined}
             sessionsAsk={id === "sessions" ? sessionsAsk : undefined}
             dragging={dragging}
             focusRequest={focusRequest}
@@ -250,7 +253,7 @@ const RailToggle = ({
   bellRings: number
   // On the History toggle, how many closed terminals landed there and the last one, in words.
   drops: { count: number; last: string | undefined } | undefined
-  // On the Changes toggle, how many worktrees were made in the open project, which its dot
+  // On the Worktrees toggle, how many worktrees were made in the open project, which its dot
   // flares for.
   flares: WorksMadeIn | undefined
   // What the other sessions ask of the person, on the Sessions toggle.
@@ -278,7 +281,8 @@ const RailToggle = ({
     })
     return () => cancelAnimationFrame(frame)
   }, [focusRequest, value, isDragSource, onFocused])
-  const { label, icon: Icon } = panels[value]
+  const label = panelLabels[value]
+  const Icon = panelIcons[value]
   // A landing is named in the tooltip for a while; while History shows, the row says it.
   const recentDrop = useRecentDrop(drops?.count ?? 0, recentDropMs) && !open
   return (

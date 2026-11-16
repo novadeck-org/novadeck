@@ -15,6 +15,7 @@ import {
 } from "@novadeck/core/works"
 
 import type { DemoTurns } from "./agents/turns"
+import { isDemoFiles, terminalOfHandle } from "./files"
 import { demoHandle } from "./handles"
 import {
   addedPath,
@@ -26,9 +27,8 @@ import {
   type OwlChange,
   type PreviewScenario,
 } from "./preview"
-import { isDemoSource, terminalOfHandle } from "./source"
 
-// The demo's Changes: each tracked worktree's work against main, from fixtures planned per demo
+// The demo's works: each tracked worktree's work against main, from fixtures planned per demo
 // (`WorkPlan`) and kept by the demo's own store, standing in for the runner, which reads the
 // worktrees its table tracks. A work has an owner terminal or none. Looking at a work reads
 // it; closing one removes it (refusing while its owner's agent works in it, or when the
@@ -405,7 +405,7 @@ export const createDemoWorks = (
     readonly show?: (work: Work, terminalId: string) => Promise<string | null>
     // What a file previews as; a backend with none previews nothing.
     readonly preview?: DemoPreview
-    // Has the Source panel show an agent's change to a file, by its handle, or no longer.
+    // Has the Files panel show an agent's change to a file, by its handle, or no longer.
     readonly mark?: (
       handle: string,
       path: string,
@@ -415,7 +415,7 @@ export const createDemoWorks = (
 ): DemoWorks => {
   const { now = Date.now, show, preview, mark } = options
   const state = createStore<WorksState>({ works: initial, synced: true, reported: true })
-  // How many worktrees were made since the demo began, by project, which the Changes toggle
+  // How many worktrees were made since the demo began, by project, which the Worktrees toggle
   // flares for while their project is open.
   const made = createStore<WorksMade>(new Map())
   // How many extra worktrees the debug panel made, to name each one apart.
@@ -688,7 +688,7 @@ export const createDemoWorks = (
   }
 }
 
-// A backend with the demo's Changes. A demo agent that starts a turn gains lines in the first
+// A backend with the demo's works. A demo agent that starts a turn gains lines in the first
 // work it owns, once per turn, and holds it busy until the turn ends; one that owns none
 // changes nothing. `show` is what a work shows as.
 export const withWorks = (
@@ -706,18 +706,18 @@ export const withWorks = (
   const { plans = [], turns, show } = options
   let latest: Workspace | undefined
   const preview = createDemoPreview(Date.now())
-  const source = isDemoSource(backend.source) ? backend.source : undefined
+  const files = isDemoFiles(backend.files) ? backend.files : undefined
   const works = createDemoWorks(worksFromPlans(backend.seed, plans, Date.now()), {
     preview,
-    ...(source && { mark: source.mark }),
+    ...(files && { mark: files.mark }),
     ...(show && {
       show: (work: Work, terminalId: string) => show(work, terminalId, latest),
     }),
   })
   // A write by an agent to the previewed file grows its change there and moves its time on, as a
-  // runner's works do at each new blob; the Source's `touched` says who wrote.
-  if (backend.source) {
-    const { state } = backend.source
+  // runner's works do at each new blob; the files' `touched` says who wrote.
+  if (backend.files) {
+    const { state } = backend.files
     let before = state.getSnapshot().projects["storefront"]?.changes[previewPath]?.touched ?? {}
     state.subscribe(() => {
       const touched =

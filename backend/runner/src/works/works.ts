@@ -244,7 +244,7 @@ const keptAbandoned = 32
 const pairsPerPass = 24
 
 /**
- * The works: each tracked worktree against the repository's main branch, as the Changes panel
+ * The works: each tracked worktree against the repository's main branch, as the Worktrees panel
  * lists it, whoever owns it (or no one) and whether or not agent worktrees are on. A worktree
  * is read every few seconds while someone watches (longer after a slow read, and as soon as that
  * wait is over), by taking its working tree as a tree of git's own without touching the person's

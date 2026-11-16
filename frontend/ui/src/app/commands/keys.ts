@@ -44,7 +44,7 @@ const handled = (run: () => void) => (): "handled" => {
 // What each key binding does, over the same commands the pointer UI uses.
 export const createKeyCommands = (
   commands: WorkspaceCommands,
-  { workspace, ui, navigation, canvas, effects, dictation }: CommandContext,
+  { workspace, ui, navigation, canvas, effects, dictation, panelShown }: CommandContext,
 ): Record<CommandId, KeyCommand> => {
   const state = () => currentState(workspace.getSnapshot())
   const panel = () => ui.getSnapshot().location.route.panel
@@ -127,7 +127,9 @@ export const createKeyCommands = (
       return "handled"
     },
   })
+  // A panel's key, where its toggle is on the rail; elsewhere the key goes on unprevented.
   const sidebar = (next: SidebarPanel): KeyCommand => ({
+    available: () => panelShown?.(next) ?? true,
     run: handled(() => {
       commands.setSwitcher(null)
       commands.toggleSidebar(next)
@@ -156,6 +158,9 @@ export const createKeyCommands = (
     "sidebar.terminals": sidebar("terminals"),
     "sidebar.sessions": sidebar("sessions"),
     "sidebar.inbox": sidebar("inbox"),
+    "sidebar.worktrees": sidebar("worktrees"),
+    "sidebar.files": sidebar("files"),
+    "sidebar.history": sidebar("history"),
     "recent.next": recent(1),
     "recent.previous": recent(-1),
     "view.toggleFocus": {

@@ -463,6 +463,15 @@ describe("keymap", () => {
           expect(keydown(platform, { ...modifier, shiftKey: true, key: "B" })).toEqual([
             "sidebar.inbox",
           ])
+          expect(keydown(platform, { ...modifier, shiftKey: true, key: "G" })).toEqual([
+            "sidebar.worktrees",
+          ])
+          expect(keydown(platform, { ...modifier, shiftKey: true, key: "F" })).toEqual([
+            "sidebar.files",
+          ])
+          expect(keydown(platform, { ...modifier, shiftKey: true, key: "H" })).toEqual([
+            "sidebar.history",
+          ])
         })
 
         it("requires exact modifiers and rejects Alt", () => {
@@ -621,6 +630,9 @@ describe("keymap", () => {
             "sidebar.terminals",
             "sidebar.sessions",
             "sidebar.inbox",
+            "sidebar.worktrees",
+            "sidebar.files",
+            "sidebar.history",
             "view.toggleFocus",
             "terminal.new",
             "zen.toggle",
@@ -653,9 +665,12 @@ describe("keymap", () => {
           "Toggle Zen mode: Ctrl Shift Z",
           "New terminal: Ctrl Shift T",
           "New session: Ctrl Shift N",
-          "Toggle terminal sidebar: Ctrl Shift E",
-          "Toggle session sidebar: Ctrl Shift S",
+          "Toggle Terminals: Ctrl Shift E",
+          "Toggle Sessions: Ctrl Shift S",
           "Toggle Inbox: Ctrl Shift B",
+          "Toggle Worktrees: Ctrl Shift G",
+          "Toggle Files: Ctrl Shift F",
+          "Toggle History: Ctrl Shift H",
           "Open preferences: Ctrl ,",
           "Navigate the workspace: Shift Esc",
           "Hold to dictate: Ctrl Shift M",
@@ -674,9 +689,12 @@ describe("keymap", () => {
           "Toggle Zen mode: ⌘ Shift Z",
           "New terminal: ⌘ T",
           "New session: ⌘ Shift N",
-          "Toggle terminal sidebar: ⌘ Shift E",
-          "Toggle session sidebar: ⌘ Shift S",
+          "Toggle Terminals: ⌘ Shift E",
+          "Toggle Sessions: ⌘ Shift S",
           "Toggle Inbox: ⌘ Shift B",
+          "Toggle Worktrees: ⌘ Shift G",
+          "Toggle Files: ⌘ Shift F",
+          "Toggle History: ⌘ Shift H",
           "Open preferences: ⌘ ,",
           "Navigate the workspace: Shift Esc",
           "Hold to dictate: Ctrl Shift M",

@@ -97,7 +97,7 @@ const ignoredNames = (directory: string, entries: Found[]): Promise<Set<string>>
   })
 
 /**
- * Folders first, then by name without case or a leading dot, as the Source panel orders
+ * Folders first, then by name without case or a leading dot, as the Files panel orders
  * them, so `.github` sits among the g's; names alike that way go by their exact letters.
  */
 const sortKey = (name: string): string => name.replace(/^\./, "").toLowerCase()

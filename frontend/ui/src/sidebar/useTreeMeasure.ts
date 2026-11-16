@@ -1,6 +1,6 @@
 import { useLayoutEffect, useState } from "react"
 
-import { forgetWidths, fontsOf, noFonts, sameFonts, type Fonts } from "./source-fonts"
+import { forgetWidths, fontsOf, noFonts, sameFonts, type Fonts } from "./files-fonts"
 
 // The tree's width and the fonts, which decide how many chips a row has room for; the sidebar is
 // resizable, so a ResizeObserver follows the width. Unknown (nothing folds) until measured, and

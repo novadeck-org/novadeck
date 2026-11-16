@@ -121,11 +121,11 @@ export const shellGroups = ({
     },
     {
       section: "App",
-      title: "Agent worktrees and Changes",
+      title: "Agent worktrees",
       actions: [
         {
-          label: "On, with Changes",
-          hint: "Boots on the experimental channel with agent worktrees on: the rail has the Changes toggle, and Preferences > Experimental shows the Agent worktrees and Changes row on. On the page's default stable channel the setting is off and the rail has no Changes toggle, as in a stable build",
+          label: "On, with Worktrees",
+          hint: "Boots on the experimental channel with agent worktrees on: the rail has the Worktrees toggle, and Preferences > Experimental shows the Agent worktrees row on. On the page's default stable channel the setting is off and the rail has no Worktrees toggle, as in a stable build",
           reboots: true,
           run: () => {
             pageUpdateChannel.channel = "experimental"
@@ -134,13 +134,13 @@ export const shellGroups = ({
         },
         {
           label: "Not offered",
-          hint: "Preferences > Experimental shows the Agent worktrees and Changes row disabled, reading Not available here, as on a runner without the setting; the rail has no Changes toggle",
+          hint: "Preferences > Experimental shows the Agent worktrees row disabled, reading Not available here, as on a runner without the setting; the rail has no Worktrees toggle",
           reboots: true,
           run: () => launch.setWorktrees(false),
         },
         {
           label: "Offered",
-          hint: "The Agent worktrees and Changes row switches again",
+          hint: "The Agent worktrees row switches again",
           reboots: true,
           run: () => launch.setWorktrees(true),
         },

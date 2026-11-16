@@ -1,0 +1,164 @@
+/* The Worktrees panel's rows (WorktreesPanel.tsx): each work is drawn as a terminal's tab (the
+   `.terminal-tab` of tabs.css, so its size, name line, detail line and the unfold of its rows
+   are the tab's own), and this adds what differs. Parts: `.worktrees-row`, `.worktrees-size` (the
+   work's `+N −N`, in the tab's item marks' place), `.worktrees-file` (a file's name, wherever it is),
+   `.worktrees-branch` (the row's branch), `.worktrees-refusal`, `.worktrees-kept`,
+   `.worktrees-branches` and `.worktrees-trail` (a file's lines, right-aligned in its row),
+   `.worktrees-empty`, `.worktrees-pr` (the work's pull request: "#812" after its state's glyph, a
+   link to its page, data-state its state, at the end of the row's detail line beside the ×).
+   The row's × is
+   `.terminal-tab-revealed`, shown under the pointer as a tab's Rename.
+
+   Hooks: on a row, data-merged once its work is merged, data-conflict while it conflicts with
+   main or another work and is not merged; on a `.worktrees-file`, data-conflict.
+
+   Tokens: none of its own; it reads the palette's (ink, muted, success-fg, danger-fg). */
+
+/* Fine: the icon gray. Merged: success. Conflict: red. */
+.worktrees-row .sidebar-item-icon {
+  color: var(--color-muted);
+}
+.worktrees-row[data-merged="true"] .sidebar-item-icon {
+  color: var(--color-success-fg);
+}
+.worktrees-row[data-conflict="true"] .sidebar-item-icon {
+  color: var(--color-danger-fg);
+}
+
+.worktrees-size,
+.worktrees-trail {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  line-height: 18px;
+  white-space: nowrap;
+}
+.worktrees-size {
+  gap: 6px;
+}
+.worktrees-trail {
+  display: inline-flex;
+  gap: 4px;
+  font-size: 11px;
+}
+.worktrees-size .diff-added,
+.worktrees-trail .diff-added {
+  color: var(--color-success-fg);
+}
+.worktrees-size .diff-removed,
+.worktrees-trail .diff-removed {
+  color: var(--color-danger-fg);
+}
+
+/* The pull request's mark: its state's glyph and "#812" in the caption's mono, muted, an open
+   one in ink; under the pointer it underlines. It sits in the row's actions, before the ×. */
+.worktrees-pr {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  margin-right: 2px;
+  padding: 0 4px;
+  border-radius: var(--radius-control, 4px);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.worktrees-pr[data-state="open"] {
+  color: var(--color-ink);
+}
+a.worktrees-pr:hover {
+  color: var(--color-ink);
+  text-decoration: underline;
+}
+a.worktrees-pr:focus-visible {
+  outline: 2px solid var(--focus-ring-color, var(--color-ink));
+  outline-offset: 1px;
+}
+
+/* Files: bright, red where the conflict is. */
+.worktrees-file {
+  color: var(--color-ink);
+}
+.worktrees-file[data-conflict="true"] {
+  color: var(--color-danger-fg);
+}
+/* The unfolded rows use the row's full width. */
+.worktrees-branches > span > span > span {
+  padding-right: 2px;
+}
+
+/* A file main has opens in the project window, as a preview of what the works merge to. */
+.worktrees-file-open {
+  padding: 0 2px 0 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.worktrees-file-open:hover .worktrees-file {
+  text-decoration: underline;
+}
+
+/* The detail line holds the branch, which stays while the files unfold under it. */
+.worktrees-branch {
+  color: var(--color-muted);
+}
+
+/* Why a close was refused, above the list. */
+.worktrees-refusal {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 8px 0;
+  padding: 8px 10px;
+  border: var(--border-width) solid var(--color-danger-fg);
+  border-radius: var(--radius-control, 4px);
+  color: var(--color-ink);
+}
+.worktrees-refusal p {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* What closing keeps, in the dialog. */
+.worktrees-kept {
+  margin: 0;
+  padding-left: 1.2em;
+  color: var(--color-muted);
+  list-style: disc;
+}
+
+.worktrees-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: auto;
+  padding: 40px 16px;
+  color: var(--color-muted);
+  text-align: center;
+}
+.worktrees-empty h3 {
+  margin: 0;
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.worktrees-empty p {
+  max-width: 30ch;
+  margin: 0;
+}
+
+/* A × that waits (the owner's agent is working in the worktree) stays in its place, dimmed. */
+.worktrees-row .terminal-tab-action[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.35;
+}

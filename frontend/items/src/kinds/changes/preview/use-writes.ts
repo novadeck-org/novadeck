@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 
 import { sigsOf, writtenSince, type Agent } from "./layout"
 
-// How long a write's pulse plays, as the Source tree's does.
+// How long a write's pulse plays, as the Files tree's does.
 export const pulseMs = 1400
 
 /** What follows an agent's latest write: its cursor while its turn runs, then its trail. */

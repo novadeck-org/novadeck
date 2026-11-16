@@ -16,8 +16,8 @@ import { isDemoVoice } from "@novadeck/demo/addons/voice"
 import { createDemoInstalls } from "@novadeck/demo/agents/installs"
 import { demoTurns } from "@novadeck/demo/agents/turns"
 import { isDemoFeedback } from "@novadeck/demo/feedback"
+import { isDemoFiles } from "@novadeck/demo/files"
 import { isDemoInbox } from "@novadeck/demo/inbox"
-import { isDemoSource } from "@novadeck/demo/source"
 import { demoTour, isDemoTour } from "@novadeck/demo/tour"
 import { createDemo, type DemoVariant } from "@novadeck/demo/variants"
 import { babciaCuesOf } from "@novadeck/demo/videos/babcia"
@@ -34,6 +34,7 @@ import { createDemoUninstall, type DemoUninstall } from "./desktop/uninstall"
 import { updatesGroup, type DemoUpdates } from "./desktop/updates"
 import { doorbellGroups } from "./doorbell"
 import { feedbackGroups } from "./feedback"
+import { filesGroups } from "./files"
 import { forgesGroups } from "./forges"
 import { historyGroups } from "./history"
 import { inboxGroups } from "./inbox"
@@ -42,7 +43,6 @@ import { launchGroups } from "./launch"
 import { messageGroups } from "./messages"
 import { murmurGroups } from "./murmur"
 import { planGroups } from "./plans"
-import { sourceGroups } from "./source"
 import { createDemoStates } from "./states"
 import { sessionTarget } from "./terminals"
 import { tourGroups } from "./tour"
@@ -297,7 +297,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           ...murmurGroups(isDemoMurmur(inner.murmur) ? inner.murmur : undefined),
           ...voiceGroups(isDemoVoice(inner.voice) ? inner.voice : undefined),
           ...historyGroups(inner.history),
-          ...sourceGroups(isDemoSource(inner.source) ? inner.source : undefined),
+          ...filesGroups(isDemoFiles(inner.files) ? inner.files : undefined),
           ...worksGroups(inner.works),
           ...forgesGroups(launch, inner),
         ],

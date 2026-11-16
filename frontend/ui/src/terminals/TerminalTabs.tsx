@@ -185,7 +185,7 @@ export const TerminalTabs = ({
           {terminals.map((terminal, index) => renderTab(terminal, index))}
         </Fragment>
         {!terminals.length && (
-          <p className="terminal-tab-empty px-3 py-3 text-control">No open sessions</p>
+          <p className="terminal-tab-empty px-3 py-3 text-control">No open terminals</p>
         )}
       </div>
     </DragDropProvider>

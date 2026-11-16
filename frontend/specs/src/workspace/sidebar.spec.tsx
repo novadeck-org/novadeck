@@ -39,7 +39,7 @@ describe("sidebar settings", () => {
       await sidebarPanel("Inbox").click()
       await expect.element(sidebar()).toHaveAccessibleName("Inbox")
       await sidebarPanel("Sessions").click()
-      await expect.element(sidebar()).toHaveAccessibleName("Workspace sessions")
+      await expect.element(sidebar()).toHaveAccessibleName("Sessions")
 
       await sidebarPanel("Sessions").click()
 
@@ -52,6 +52,53 @@ describe("sidebar settings", () => {
       await expect.element(sidebar()).toHaveAccessibleName("Inbox")
       await pressShortcut("inbox")
       await expect.element(sidebar()).not.toBeInTheDocument()
+    })
+  })
+
+  context("when a panel's key is pressed", () => {
+    it("shows Files, Worktrees and History by their keys", async () => {
+      // The agents demo has the storefront's files and agent worktrees on.
+      await openWorkspace("/?demo=agents")
+      await pressShortcut("files")
+      await expect.element(sidebar()).toHaveAccessibleName("Files")
+      await pressShortcut("worktrees")
+      await expect.element(sidebar()).toHaveAccessibleName("Worktrees")
+      await pressShortcut("history")
+      await expect.element(sidebar()).toHaveAccessibleName("History")
+    })
+
+    it("leaves a key alone where the rail has no toggle for its panel", async () => {
+      // The plain demo has no files to show.
+      await openWorkspace()
+      await sidebarPanel("Inbox").click()
+      await expect.element(sidebar()).toHaveAccessibleName("Inbox")
+
+      await pressShortcut("files")
+
+      await expectStaysTrue(
+        () => sidebar().element().getAttribute("aria-label") === "Inbox",
+        "the Inbox stays",
+      )
+    })
+  })
+
+  context("when the project has more than one session", () => {
+    it("names the open session after the Terminals heading's count", async () => {
+      await openWorkspace()
+      const heading = () => sidebar().getByRole("heading", { name: /^Terminals/ })
+      const scope = () =>
+        document.querySelector("#terminals-panel .sidebar-panel-scope")?.textContent ?? null
+      await expect.element(heading()).toBeVisible()
+      expect(scope()).toBeNull()
+
+      await sidebarPanel("Sessions").click()
+      await page.getByRole("button", { name: "New session" }).click()
+
+      await expect.element(sidebar()).toHaveAccessibleName("Terminals")
+      await expect.element(heading()).toBeVisible()
+      // A fresh session is named after the minute it started, such as "Nov 16, 14:05", with a
+      // number after it where another of that minute has the name.
+      await expect.poll(scope).toMatch(/^\w{3} \d{1,2}, \d{2}:\d{2}( \(\d+\))?$/)
     })
   })
 

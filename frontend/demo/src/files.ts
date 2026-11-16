@@ -1,0 +1,598 @@
+import type {
+  ProjectFiles,
+  FolderEntry,
+  TouchedFile,
+  FolderListing,
+  FilesProject,
+  FilesState,
+} from "@novadeck/core/files"
+import type { Backend } from "@novadeck/core/port"
+import type { WorkspaceSeed } from "@novadeck/core/seed"
+import { createStore } from "@novadeck/core/store"
+import type { Workspace } from "@novadeck/core/types"
+
+import type { DemoTurns } from "./agents/turns"
+import { demoHandle } from "./handles"
+import { lessMotion, stillRequested } from "./motion"
+import { demoTerminalId } from "./samples"
+import { terminalOf } from "./workspace"
+
+// The demo's Files panel: the storefront project's files, listed a folder at a time from
+// fixtures, as its agents change them. Each agent notionally works in its own worktree, so every write is its handle's.
+// Moth's changes are history, from the plan it waits on. An agent writes only while it
+// works: its terminal's agent status says it works and asks nothing of the person. Then it
+// writes while the page is in view, a file every few seconds, now and then resting between
+// turns; waiting on the person or at rest, it writes nothing and shows no cursor.
+
+const projectId = "storefront"
+const session = { projectId, workspaceSessionId: "initial" }
+
+// The agents in the storefront project that change files, by the handle of their slot.
+const moth = demoHandle(1)
+const crow = demoHandle(4)
+// The agents that write by themselves, by the terminal of their slot.
+const slots = [
+  { handle: moth, terminalId: demoTerminalId(session, 1) },
+  { handle: crow, terminalId: demoTerminalId(session, 4) },
+]
+
+// The storefront terminal of the agent with the handle, if it is one that changes files.
+export const terminalOfHandle = (handle: string): string | undefined =>
+  slots.find((slot) => slot.handle === handle)?.terminalId ??
+  (handle === filesThird ? demoTerminalId(session, 3) : undefined)
+
+// The handles of the storefront agents that work, asking nothing of the person, as the seed
+// opens them: the ones that write by themselves (Moth and Crow).
+export const workingInSeed = (seed: WorkspaceSeed): readonly string[] =>
+  seed.projects
+    .filter((project) => project.id === projectId)
+    .flatMap((project) => project.sessions.flatMap((each) => each.terminals))
+    .flatMap((terminal) =>
+      terminal.state === "running" &&
+      terminal.agent?.working &&
+      !terminal.agent.attention &&
+      (terminal.handle === moth || terminal.handle === crow)
+        ? [terminal.handle]
+        : [],
+    )
+
+// The handle of a third storefront agent, which the debug panel has change a file Moth and
+// Crow did, so a row has three: the third terminal, Claude Code in the agents demos.
+export const filesThird = demoHandle(3)
+
+const minute = 60_000
+
+// Paths the debug panel and the specs name.
+export const demoPaths = {
+  checkout: "src/checkout/Checkout.tsx",
+  checkoutTest: "src/checkout/Checkout.test.tsx",
+  payments: "src/api/payments.ts",
+} as const
+
+// The storefront's tree before any agent's work, which `list` serves a folder at a time. An
+// entry ending in `/` is a folder with nothing in it.
+const entries: readonly string[] = [
+  ".env.local",
+  ".github/workflows/ci.yml",
+  ".gitignore",
+  "README.md",
+  "index.html",
+  "node_modules/",
+  "package.json",
+  "pnpm-lock.yaml",
+  "public/favicon.svg",
+  "src/App.tsx",
+  "src/api/client.ts",
+  "src/api/orders.ts",
+  "src/cart/CartItem.tsx",
+  "src/cart/CartSummary.tsx",
+  "src/cart/useCart.ts",
+  demoPaths.checkoutTest,
+  "src/checkout/AddressForm.tsx",
+  demoPaths.checkout,
+  "src/checkout/PaymentStep.tsx",
+  "src/components/Button.tsx",
+  "src/components/Price.tsx",
+  "src/main.tsx",
+  "vite.config.ts",
+  "vitest.config.ts",
+]
+
+const ignored: readonly string[] = ["node_modules/", ".env.local"]
+
+const file = (kind: TouchedFile["kind"], touched: TouchedFile["touched"]): TouchedFile => ({
+  kind,
+  touched,
+})
+
+// What the agents changed before the page opened, `now` being when it did.
+const history = (now: number): FilesProject["changes"] => ({
+  "src/cart/CartSummary.tsx": file("modified", { [moth]: now - 6 * minute }),
+  "src/cart/useCart.ts": file("modified", { [moth]: now - 7 * minute }),
+  "src/checkout/OrderSummary.tsx": file("added", { [moth]: now - 9 * minute }),
+  "src/checkout/OrderSummary.test.tsx": file("added", { [moth]: now - 10 * minute }),
+  "package.json": file("modified", { [moth]: now - 14 * minute }),
+  "pnpm-lock.yaml": file("modified", { [moth]: now - 14 * minute }),
+  [demoPaths.checkout]: file("modified", { [moth]: now - 10 * minute, [crow]: now - minute }),
+  [demoPaths.checkoutTest]: file("modified", { [crow]: now - 20_000 }),
+  "src/checkout/LegacyCheckout.tsx": file("deleted", { [crow]: now - 3 * minute }),
+})
+
+// `working` is who works as the page opens: Crow, with its test in hand, where it does.
+export const storefrontFiles = (
+  now: number,
+  working: readonly string[] = [crow],
+): FilesProject => ({
+  changes: history(now),
+  writing: working.includes(crow) ? { [crow]: demoPaths.checkoutTest } : {},
+})
+
+// The project with `handle`'s write to `path` at `at`: the file is changed by it, a
+// new one added, an existing one modified, and it is the file the agent is writing now.
+export const writeTo = (
+  project: FilesProject,
+  handle: string,
+  path: string,
+  at: number,
+): FilesProject => {
+  const was = project.changes[path]
+  const kind =
+    was && was.kind !== "deleted" ? was.kind : entries.includes(path) || was ? "modified" : "added"
+  return {
+    ...project,
+    changes: { ...project.changes, [path]: file(kind, { ...was?.touched, [handle]: at }) },
+    writing: { ...project.writing, [handle]: path },
+  }
+}
+
+// The project with `handle`'s change to `path` as `kind` (at `at`), or, with no kind, with it
+// no longer changing it: the file is as the others' changes leave it, and gone from the changes
+// when nobody is left.
+export const markIn = (
+  project: FilesProject,
+  handle: string,
+  path: string,
+  kind: TouchedFile["kind"] | undefined,
+  at: number,
+): FilesProject => {
+  const was = project.changes[path]
+  if (kind !== undefined)
+    return {
+      ...project,
+      changes: { ...project.changes, [path]: file(kind, { ...was?.touched, [handle]: at }) },
+    }
+  if (!was || !(handle in was.touched)) return project
+  const { [handle]: _, ...touched } = was.touched
+  const { [path]: gone, ...rest } = project.changes
+  void gone
+  return {
+    ...project,
+    changes:
+      Object.keys(touched).length === 0
+        ? rest
+        : { ...rest, [path]: file(entries.includes(path) ? "modified" : "added", touched) },
+  }
+}
+
+// The project with `handle`'s turn over: it is writing nothing.
+export const endTurnIn = (project: FilesProject, handle: string): FilesProject => {
+  if (!(handle in project.writing)) return project
+  const { [handle]: _, ...writing } = project.writing
+  return { ...project, writing }
+}
+
+const trimmed = (path: string): string => (path.endsWith("/") ? path.slice(0, -1) : path)
+
+// A project's tree, as the fixtures hold it: an entry ending in `/` is a folder with nothing in
+// it, and `ignored` names what the project's VCS ignores.
+type Tree = { readonly entries: readonly string[]; readonly ignored: readonly string[] }
+
+const storefront: Tree = { entries, ignored }
+
+// The other sample projects' trees, small and generic to their names; a project the visitor adds
+// has the plain one.
+const trees: Readonly<Record<string, Tree>> = {
+  "api-service": {
+    entries: [
+      ".gitignore",
+      "Dockerfile",
+      "README.md",
+      "node_modules/",
+      "package.json",
+      "src/db/client.ts",
+      "src/routes/orders.ts",
+      "src/routes/users.ts",
+      "src/server.ts",
+      "test/orders.test.ts",
+    ],
+    ignored: ["node_modules/"],
+  },
+  "docs-site": {
+    entries: [
+      "README.md",
+      "astro.config.mjs",
+      "docs/getting-started.md",
+      "docs/guides/config.md",
+      "docs/guides/install.md",
+      "docs/index.md",
+      "node_modules/",
+      "package.json",
+      "public/logo.svg",
+    ],
+    ignored: ["node_modules/"],
+  },
+  "mobile-app": {
+    entries: [
+      "App.tsx",
+      "README.md",
+      "app.json",
+      "assets/icon.png",
+      "node_modules/",
+      "package.json",
+      "src/components/Button.tsx",
+      "src/screens/Home.tsx",
+      "src/screens/Profile.tsx",
+    ],
+    ignored: ["node_modules/"],
+  },
+  "design-system": {
+    entries: [
+      "README.md",
+      "node_modules/",
+      "package.json",
+      "src/Button.tsx",
+      "src/Card.tsx",
+      "src/index.ts",
+      "stories/Button.stories.tsx",
+      "tokens/colors.json",
+      "tokens/spacing.json",
+    ],
+    ignored: ["node_modules/"],
+  },
+  infra: {
+    entries: [
+      ".terraform/",
+      "README.md",
+      "envs/prod.tfvars",
+      "envs/staging.tfvars",
+      "main.tf",
+      "modules/cluster/main.tf",
+      "modules/network/main.tf",
+      "modules/network/variables.tf",
+      "variables.tf",
+    ],
+    ignored: [".terraform/"],
+  },
+  dotfiles: {
+    entries: [
+      ".config/git/ignore",
+      ".config/nvim/init.lua",
+      ".gitconfig",
+      ".zshrc",
+      "README.md",
+      "bin/setup.sh",
+    ],
+    ignored: [],
+  },
+}
+
+const plain: Tree = {
+  entries: [".gitignore", "README.md", "package.json", "src/index.ts"],
+  ignored: [],
+}
+
+const treeOf = (id: string): Tree => (id === projectId ? storefront : (trees[id] ?? plain))
+
+// What `folder` of a tree lists: its files, and the folders that hold the paths below. Ignored
+// folders hold only ignored files, which the panel carries down.
+const listFixture = (tree: Tree, folder: string): readonly FolderEntry[] => {
+  const found = new Map<string, FolderEntry>()
+  const ignoredPaths = new Set(tree.ignored.map(trimmed))
+  for (const entry of tree.entries) {
+    const path = trimmed(entry)
+    const prefix = folder === "" ? "" : `${folder}/`
+    if (!path.startsWith(prefix) || path === folder) continue
+    const [name = ""] = path.slice(prefix.length).split("/")
+    const full = `${prefix}${name}`
+    const isFolder = full !== path || entry.endsWith("/")
+    found.set(name, { name, folder: isFolder, ignored: ignoredPaths.has(full) })
+  }
+  return [...found.values()]
+}
+
+// How the debug panel has a folder read: it fails, lists only some of what it holds, or (the
+// root) holds nothing. "" is the project's root; the faults apply to every project.
+export type FilesFault = "fail" | "truncate" | "empty"
+
+// What a truncated folder still lists.
+const truncatedTo = 2
+
+// What an agent writes: the files it keeps coming back to, and ones it creates, each the
+// first time only.
+type Pool = { readonly files: readonly string[]; readonly fresh: readonly string[] }
+
+const pools: Readonly<Record<string, Pool>> = {
+  [moth]: {
+    files: [
+      "src/cart/CartSummary.tsx",
+      "src/cart/useCart.ts",
+      "src/checkout/OrderSummary.tsx",
+      "src/checkout/OrderSummary.test.tsx",
+    ],
+    fresh: [],
+  },
+  [crow]: {
+    files: [
+      demoPaths.checkoutTest,
+      demoPaths.checkout,
+      "src/checkout/PaymentStep.tsx",
+      "src/checkout/AddressForm.tsx",
+    ],
+    fresh: ["src/checkout/PaymentForm.tsx", demoPaths.payments],
+  },
+}
+
+// Any other agent writes as Crow's pool.
+const poolOf = (handle: string): Pool => pools[handle] ?? pools[crow]!
+
+// The file an agent writes next, by a roll of `random`: mostly the one it is on, sometimes
+// another of its pool, and now and then one it creates, if it has not yet.
+export const nextFile = (
+  project: FilesProject,
+  handle: string,
+  random: number,
+  pick: number,
+): string => {
+  const { files, fresh } = poolOf(handle)
+  const current = project.writing[handle] ?? files[0]!
+  const created = fresh.find((path) => !project.changes[path])
+  if (created && random < 0.12) return created
+  const others = files.filter((path) => path !== current)
+  if (random < 0.35 && others.length > 0) return others[Math.floor(pick * others.length)]!
+  return current
+}
+
+// When the demo's time and scheduling come from, which a test replaces.
+export type FilesClock = {
+  readonly now: () => number
+  readonly random: () => number
+  // Runs `run` after `ms`, until the returned function is called.
+  readonly after: (ms: number, run: () => void) => () => void
+  readonly hidden: () => boolean
+}
+
+const realClock: FilesClock = {
+  now: Date.now,
+  random: Math.random,
+  after: (ms, run) => {
+    const timer = setTimeout(run, ms)
+    return () => clearTimeout(timer)
+  },
+  hidden: () => typeof document !== "undefined" && document.hidden,
+}
+
+// The time between an agent's writes, how many it makes in a turn, and how long it rests
+// between turns, in milliseconds.
+const writeMs = { min: 3000, max: 7000 }
+const turnWrites = { min: 4, max: 8 }
+const restMs = { min: 10_000, max: 20_000 }
+
+const between = (range: { min: number; max: number }, roll: number): number =>
+  range.min + Math.floor(roll * (range.max - range.min + 1))
+
+export type DemoFiles = ProjectFiles & {
+  // Has the next reads of `folder` go as `fault` says, or normally for none. The panel reads
+  // a folder again when it is shown again or an agent's turn ends.
+  readonly degrade: (folder: string, fault: FilesFault | undefined) => void
+  // Has `handle` write a file now, `path` or else the one it would next, as its turn goes on.
+  readonly write: (handle: string, path?: string) => void
+  // Has `handle` change `path` as `kind` without writing it now, or no longer change it.
+  readonly mark: (handle: string, path: string, kind: TouchedFile["kind"] | undefined) => void
+  // Drops `handle`'s cursor: it is writing nothing until it writes again. Its agent's turn
+  // is not touched.
+  readonly endTurn: (handle: string) => void
+  // Has Moth and Crow write on their own while their agents work, as `turns` reports them,
+  // until stopped; stopping drops every cursor. Where the visitor asked for less motion, or
+  // held the page still, nothing moves, though an agent that stops working still loses its
+  // cursor.
+  // Starts the agents that work writing: those `works` says work now, else the ones it was
+  // made with, as the seed opens them.
+  readonly start: (turns?: DemoTurns, works?: (terminalId: string) => boolean) => () => void
+  // Stops the agent in a terminal writing for good: its terminal closed, or its project went.
+  readonly close: (terminalId: string) => void
+  // Stops the agent in a terminal writing because its terminal no longer shows it working,
+  // however that came about; it writes again when its agent is reported working.
+  readonly halt: (terminalId: string) => void
+}
+
+// Whether a backend's files are the demo's, which the debug panel writes to.
+export const isDemoFiles = (files: ProjectFiles | undefined): files is DemoFiles =>
+  files !== undefined && "write" in files && "endTurn" in files
+
+export const createDemoFiles = (
+  now: number = Date.now(),
+  clock: FilesClock = realClock,
+  working: readonly string[] = [crow],
+): DemoFiles => {
+  // Held still, the page shows no agent writing at all: a cursor would blink.
+  const state = createStore<FilesState>({
+    projects: { [projectId]: storefrontFiles(now, stillRequested() ? [] : working) },
+  })
+  // A change that leaves the project as it was leaves the store as it was, so the per-commit
+  // check on idle agents tells nobody anything.
+  const change = (apply: (project: FilesProject) => FilesProject): void => {
+    state.update((was) => {
+      const project = was.projects[projectId]
+      const next = project && apply(project)
+      return next && next !== project ? { projects: { ...was.projects, [projectId]: next } } : was
+    })
+  }
+  const write = (handle: string, path?: string): void =>
+    change((project) =>
+      writeTo(
+        project,
+        handle,
+        path ?? nextFile(project, handle, clock.random(), clock.random()),
+        clock.now(),
+      ),
+    )
+  const endTurn = (handle: string): void => change((project) => endTurnIn(project, handle))
+  const mark = (handle: string, path: string, kind: TouchedFile["kind"] | undefined): void =>
+    change((project) => markIn(project, handle, path, kind, clock.now()))
+
+  const faults = new Map<string, FilesFault>()
+  const degrade = (folder: string, fault: FilesFault | undefined): void => {
+    if (fault) faults.set(folder, fault)
+    else faults.delete(folder)
+  }
+  const list = async (id: string, folder: string): Promise<FolderListing> => {
+    const fault = faults.get(folder)
+    if (fault === "fail") throw new Error("This folder can't be read")
+    if (fault === "empty") return { entries: [], truncated: false }
+    const tree = treeOf(id)
+    const known = tree.entries.some(
+      (path) => trimmed(path) === folder || path.startsWith(`${folder}/`),
+    )
+    if (folder !== "" && !known) throw new Error("There is no such folder")
+    const all = listFixture(tree, folder)
+    return fault === "truncate"
+      ? { entries: all.slice(0, truncatedTo), truncated: true }
+      : { entries: all, truncated: false }
+  }
+
+  // One agent's turns, a write every few seconds and a rest between them, until stopped.
+  const work = (handle: string): (() => void) => {
+    let cancel: (() => void) | undefined
+    const turn = (left: number): void => {
+      if (left === 0) {
+        endTurn(handle)
+        cancel = clock.after(between(restMs, clock.random()), () =>
+          turn(between(turnWrites, clock.random())),
+        )
+        return
+      }
+      cancel = clock.after(between(writeMs, clock.random()), () => {
+        // Nothing is written while the page is out of view, so there is no catching up.
+        if (clock.hidden()) return turn(left)
+        write(handle)
+        turn(left - 1)
+      })
+    }
+    turn(between(turnWrites, clock.random()))
+    return () => cancel?.()
+  }
+
+  // Agents whose terminal closed, which never write again.
+  const closed = new Set<string>()
+  // How a started simulation stops one agent; before it starts, dropping the cursor is all.
+  let stopWriting = (handle: string): void => endTurn(handle)
+  const close = (terminalId: string): void => {
+    const slot = slots.find((each) => each.terminalId === terminalId)
+    if (!slot) return
+    closed.add(slot.handle)
+    stopWriting(slot.handle)
+  }
+
+  const halt = (terminalId: string): void => {
+    const slot = slots.find((each) => each.terminalId === terminalId)
+    if (slot) stopWriting(slot.handle)
+  }
+
+  const start = (turns?: DemoTurns, works?: (terminalId: string) => boolean): (() => void) => {
+    // Held still or with less motion, no agent writes; the statuses are still followed, so an
+    // agent that stops working loses the cursor it started with.
+    const moving = !lessMotion() && !stillRequested()
+    // Each writing agent's turns, while its agent works.
+    const running = new Map<string, () => void>()
+    const setWorking = (handle: string, on: boolean): void => {
+      if (on && moving && !closed.has(handle) && !running.has(handle))
+        running.set(handle, work(handle))
+      if (on) return
+      running.get(handle)?.()
+      running.delete(handle)
+      endTurn(handle)
+    }
+    stopWriting = (handle) => setWorking(handle, false)
+    // Started again, an agent writes only if it still works: it may wait on the person now.
+    slots.forEach(({ handle, terminalId }) => {
+      if (works ? works(terminalId) : working.includes(handle)) setWorking(handle, true)
+    })
+    const unwatch = turns?.watchStatus((key, agent) => {
+      if (key.projectId !== projectId || key.workspaceSessionId !== session.workspaceSessionId)
+        return
+      const slot = slots.find((each) => each.terminalId === key.terminalId)
+      if (slot) setWorking(slot.handle, agent.working && !agent.attention)
+    })
+    return () => {
+      unwatch?.()
+      running.forEach((stop) => stop())
+      stopWriting = (handle) => endTurn(handle)
+      // No cursor is left blinking.
+      change((project) => ({ ...project, writing: {} }))
+    }
+  }
+
+  return { state, list, degrade, write, mark, endTurn, start, close, halt }
+}
+
+// A backend with the demo's files for the storefront project.
+export const withFiles = (
+  backend: Backend,
+  turns?: DemoTurns,
+  files = createDemoFiles(Date.now(), undefined, workingInSeed(backend.seed)),
+): Backend => {
+  let latest: Workspace | undefined
+  // Whether the agent in that storefront terminal works now, asking nothing.
+  const works = (terminalId: string): boolean => {
+    const terminal = terminalOf(latest, { ...session, terminalId })
+    const agent = terminal?.state === "running" ? terminal.agent : undefined
+    return agent?.working === true && !agent.attention
+  }
+  return {
+    ...backend,
+    files,
+    commit: (workspace, actions) => {
+      latest = workspace
+      backend.commit(workspace, actions)
+      // A closed terminal's agent writes no more, nor those of a storefront the workspace no
+      // longer has (the reducer keeps the last project).
+      for (const action of actions) {
+        if (action.type === "terminal/close" && action.target.projectId === projectId)
+          files.close(action.terminalId)
+        if (
+          action.type === "project/remove" &&
+          action.projectId === projectId &&
+          !workspace.projects.some((project) => project.id === projectId)
+        )
+          slots.forEach((slot) => files.close(slot.terminalId))
+        if (
+          action.type === "session/remove" &&
+          action.projectId === projectId &&
+          action.workspaceSessionId === session.workspaceSessionId &&
+          workspace.projects.some(
+            (project) =>
+              project.id === projectId &&
+              !project.history.some((each) => each.id === session.workspaceSessionId),
+          )
+        )
+          slots.forEach((slot) => files.close(slot.terminalId))
+      }
+      // Whatever stopped an agent, a verb or a status dispatched directly (the debug panel's
+      // terminal states, a crash), a terminal that no longer shows it working has it write no more.
+      slots.forEach((slot) => {
+        const terminal = terminalOf(workspace, { ...session, terminalId: slot.terminalId })
+        const agent = terminal?.state === "running" ? terminal.agent : undefined
+        if (!agent?.working || agent.attention) files.halt(slot.terminalId)
+      })
+    },
+    start: (sink) => {
+      const stop = backend.start?.(sink)
+      // Before the first commit, the seed says who works.
+      const stopSource = files.start(turns, latest ? works : undefined)
+      return () => {
+        stop?.()
+        stopSource()
+      }
+    },
+  }
+}

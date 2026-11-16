@@ -8,7 +8,7 @@ import { gitEnv, gitPath } from "../git.js"
 import { killTree } from "../programs.js"
 import { ellipsized } from "../text.js"
 
-// Git, run for what a checkout holds: the Changes panel's works, the changes item's layers and
+// Git, run for what a checkout holds: the Worktrees panel's works, the changes item's layers and
 // the snapshots both read.
 
 /**

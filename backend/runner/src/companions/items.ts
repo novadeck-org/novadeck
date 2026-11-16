@@ -104,11 +104,11 @@ type CompanionOptions = {
   /** How long an agent's look waits for the client's picture, in milliseconds. */
   readonly lookMs?: number
   /**
-   * What takes checkouts' working trees as trees, shared with the Changes panel; one of the
+   * What takes checkouts' working trees as trees, shared with the Worktrees panel; one of the
    * items' own (closed with them) where omitted.
    */
   readonly snapshots?: Snapshots
-  /** Where the files of a change the person read are kept (the Changes panel's memory). */
+  /** Where the files of a change the person read are kept (the Worktrees panel's memory). */
   readonly reads?: {
     readonly marks: ReadMarks
     readonly mark: (root: string, path: string, blob: string) => Promise<void>

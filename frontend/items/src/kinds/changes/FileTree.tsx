@@ -17,7 +17,7 @@ import { Branches } from "./Branches"
 import { Counts } from "./Parts"
 import type { TreeFile, TreeRow } from "./tree"
 
-// The files the selected layers changed, as the Source panel draws its tree: a row each, in
+// The files the selected layers changed, as the Files panel draws its tree: a row each, in
 // folders with guides, its name coloured by how it changed and its lines on the right. A file
 // the person opened is gray, until it changes. One click unfolds what the file changed under
 // its row, one file at a time; a double click, or Enter, opens it.
@@ -35,7 +35,7 @@ const guides = (depth: number): React.JSX.Element[] =>
   Array.from({ length: depth }, (_, level) => (
     <span
       key={level}
-      className="source-guide"
+      className="files-guide"
       aria-hidden="true"
       style={{ left: 12 + indent * level }}
     />
@@ -97,7 +97,7 @@ export const FileTree = ({
   }, [])
   return (
     <div
-      className="source-tree changes-tree"
+      className="files-tree changes-tree"
       role="tree"
       aria-label="Files changed"
       onKeyDown={move}
@@ -109,7 +109,7 @@ export const FileTree = ({
             <div
               key={`d:${row.path}`}
               role="none"
-              className="item source-row"
+              className="item files-row"
               data-folder="true"
               data-kind={undefined}
               data-selected="false"
@@ -118,23 +118,23 @@ export const FileTree = ({
               <button
                 type="button"
                 role="treeitem"
-                className="source-row-select"
+                className="files-row-select"
                 style={{ paddingLeft: 6 + indent * row.depth }}
                 aria-level={row.depth + 1}
                 aria-expanded={open}
                 onClick={() => onFold(row.path)}
               >
-                <span className="source-twisty" aria-hidden="true">
+                <span className="files-twisty" aria-hidden="true">
                   <ChevronRight size={12} strokeWidth={1.5} data-open={open} />
                 </span>
-                <span className="source-icon" aria-hidden="true">
+                <span className="files-icon" aria-hidden="true">
                   {open ? (
                     <FolderOpen size={14} strokeWidth={1.5} />
                   ) : (
                     <Folder size={14} strokeWidth={1.5} />
                   )}
                 </span>
-                <span className="source-name text-body">{row.name}</span>
+                <span className="files-name text-body">{row.name}</span>
               </button>
             </div>
           )
@@ -146,7 +146,7 @@ export const FileTree = ({
           <div key={`f:${file.path}`} className="changes-item" data-open={open || undefined}>
             <div
               role="none"
-              className="item source-row diff-file"
+              className="item files-row diff-file"
               data-kind={kindOf(file.status)}
               data-folder="false"
               data-selected={open}
@@ -157,7 +157,7 @@ export const FileTree = ({
               <button
                 type="button"
                 role="treeitem"
-                className="source-row-select"
+                className="files-row-select"
                 style={{ paddingLeft: 6 + indent * row.depth }}
                 aria-level={row.depth + 1}
                 aria-expanded={open}
@@ -171,11 +171,11 @@ export const FileTree = ({
                   onOpen(file.path)
                 }}
               >
-                <span className="source-twisty" aria-hidden="true" />
-                <span className="source-icon" aria-hidden="true">
+                <span className="files-twisty" aria-hidden="true" />
+                <span className="files-icon" aria-hidden="true">
                   <Icon size={14} strokeWidth={1.5} />
                 </span>
-                <span className="source-name text-body">{file.name}</span>
+                <span className="files-name text-body">{file.name}</span>
               </button>
               <Counts
                 added={file.added}

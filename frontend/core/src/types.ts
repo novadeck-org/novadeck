@@ -11,11 +11,22 @@ export const sidebarPanels = [
   "terminals",
   "inbox",
   "sessions",
-  "changes",
-  "source",
+  "worktrees",
+  "files",
   "history",
 ] as const
 export type SidebarPanel = (typeof sidebarPanels)[number]
+// The ids panels had before they were renamed, which a person's stored rail order or a saved
+// URL may still hold.
+const formerPanels: Readonly<Record<string, SidebarPanel>> = {
+  source: "files",
+  changes: "worktrees",
+}
+// The panel a stored or linked name means, under its own id or a former one; undefined for
+// any other name.
+export const panelNamed = (name: string): SidebarPanel | undefined =>
+  sidebarPanels.find((panel) => panel === name) ??
+  (Object.hasOwn(formerPanels, name) ? formerPanels[name] : undefined)
 export type WindowedView = Exclude<ViewMode, "focus">
 export type PreferencesValue = {
   fontSize: number

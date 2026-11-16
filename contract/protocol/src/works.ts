@@ -4,7 +4,7 @@ import { directory, id } from "./fields.js"
 import { pullRequest } from "./forges.js"
 
 // Works: each tracked git worktree against its repository's main branch, for the sidebar's
-// Changes panel. A work is a worktree Novadeck tracks (one an agent opened or took), keyed by
+// Worktrees panel. A work is a worktree Novadeck tracks (one an agent opened or took), keyed by
 // its root: everything merging it into main would change, committed or not, which is nothing
 // for a worktree just made or already merged. It lives as long as the worktree is tracked.
 

@@ -1,6 +1,7 @@
 /* The sidebar's panels and what they add to their rows. A `.sidebar-panel` slides in when
    it becomes the active one; its title is a `.section-label` (the label recipe) over the
-   panel, with a `.sidebar-panel-count` beside it. Rows are `.sidebar-item`s, whose own looks
+   panel, with a `.sidebar-panel-count` beside it and, where the list needs it, a
+   `.sidebar-panel-scope` after that. Rows are `.sidebar-item`s, whose own looks
    (and hooks and tokens) are @novadeck/toolkit's sidebar-item.css. The create button at the
    top of a panel is a `.button.sidebar-create`, ruled as quietly as the rows' edges.
 
@@ -23,6 +24,17 @@
 /* A count with nothing to say, such as the Inbox's while nothing waits, takes no room. */
 .sidebar-panel-count:empty {
   display: none;
+}
+/* The scope after the count, such as the open session over the Terminals list: after a dot, in
+   the narrower body face whatever the label's, so a session's name fits beside the title at the
+   sidebar's usual width, and the first to give up its room. */
+.sidebar-panel-scope {
+  font-family: var(--font-sans);
+  letter-spacing: normal;
+  text-transform: none;
+}
+.sidebar-panel-scope::before {
+  content: "· ";
 }
 
 .button.sidebar-create {

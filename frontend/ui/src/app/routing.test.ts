@@ -9,7 +9,7 @@ import {
   historyShown,
   resolveRoute,
   routeUrl,
-  sourceShown,
+  filesShown,
   workspaceRoute,
 } from "./routing"
 
@@ -111,15 +111,31 @@ describe("route reconciliation", () => {
     )
   })
 
-  it("shows the Source panel only where the backend has a source", () => {
+  it("shows the Files panel only where the backend reads the projects' files", () => {
     const pathname = "/projects/project/sessions/initial/grid"
-    const location = { pathname, search: "?terminal=01&panel=source" }
+    const location = { pathname, search: "?terminal=01&panel=files" }
 
     const without = resolveRoute(fixture(), location, preferences, 1, availablePanels(false))
-    const withSource = resolveRoute(fixture(), location, preferences, 1, availablePanels(true))
+    const withFiles = resolveRoute(fixture(), location, preferences, 1, availablePanels(true))
 
     expect(without.route.panel).toBe("terminals")
-    expect(withSource.route.panel).toBe("source")
+    expect(withFiles.route.panel).toBe("files")
+  })
+
+  it("opens a panel a URL names by its former id under its new one", () => {
+    const pathname = "/projects/project/sessions/initial/grid"
+    const panels = availablePanels(true, false, true)
+    const at = (panel: string) =>
+      resolveRoute(
+        fixture(),
+        { pathname, search: `?terminal=01&panel=${panel}` },
+        preferences,
+        1,
+        panels,
+      ).route.panel
+
+    expect(at("source")).toBe("files")
+    expect(at("changes")).toBe("worktrees")
   })
 
   it("shows the History panel only where the backend keeps closed terminals", () => {
@@ -145,18 +161,18 @@ describe("route reconciliation", () => {
     ).toBe(true)
   })
 
-  describe("deciding whether the app shows the Source panel", () => {
-    const source = {
+  describe("deciding whether the app shows the Files panel", () => {
+    const files = {
       state: createStore({ projects: {} }),
       list: () => Promise.resolve({ entries: [], truncated: false }),
     }
 
-    it("shows it on a backend that has a source", () => {
-      expect(sourceShown({ source })).toBe(true)
+    it("shows it on a backend that reads the projects' files", () => {
+      expect(filesShown({ files })).toBe(true)
     })
 
     it("hides it on a backend without one", () => {
-      expect(sourceShown({})).toBe(false)
+      expect(filesShown({})).toBe(false)
     })
   })
 

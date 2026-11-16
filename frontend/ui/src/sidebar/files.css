@@ -1,0 +1,315 @@
+/* The Files panel (FilesPanel.tsx): the project's files as a tree, each file an item (the
+   item recipe) with who changed it and how. A `.files-tree` holds `.files-row`s; a row has a
+   `.files-row-select` button (the `.files-twisty`, `.files-icon`, `.files-name` and the
+   file's marks) beside its `.files-chips`, and a `.files-guide` for each open folder it
+   sits inside. A file's marks are a `.files-cursor` for each agent writing it now, or else a
+   `.files-trail` fading from its latest write. A panel with no tree shows `.files-empty`; an open folder
+   that could not be read in full, or holds nothing, ends with a `.files-note` (in a
+   `.files-note-row`, which carries the guides).
+
+   Hooks: on a row, data-kind="modified" | "added" | "deleted" (absent: untouched),
+   data-folder, data-ignored, data-dim (an agent is lit and did not touch it), data-pulse="a" |
+   "b" (a write just landed; the two names restart the animation) and, being an item,
+   data-selected. On a chip, data-writing (it is writing that row now) and data-lit. On the
+   tree, data-lit="<handle>" while an agent is lit.
+
+   Tokens, each optional (its fallback in brackets):
+   --files-modified-fg (warning-fg), --files-added-fg (success-fg): a changed file's icon
+   and name; a deleted one's are muted. --files-guide-color (line): the guide under an
+   open folder. --files-ignored-opacity (0.5), --files-dim-opacity (0.3): ignored rows,
+   and the rows a lit agent did not touch. --files-pulse-bg (the strong colour at 14%): a
+   row as a write lands. --files-cursor-bg (strong): the cursor, its glow
+   --item-selected-indicator-shadow (none); the trail's edge follows it. --files-chip-fg
+   (muted), --files-chip-writing-fg (ink): an agent's chip, and one writing the row.
+
+   The agents strip above the tree is a `.files-strip` of `.files-agent` buttons, wrapping onto
+   as many lines as it needs. A squad's buttons sit together in a `.files-squad` track. On a
+   button, aria-pressed="true" is kept, data-kept="true" that it wears the kept tint itself (not
+   so in a squad kept whole, whose track wears it: data-kept on the `.files-squad`), and
+   data-following="true" that nothing is kept and its terminal is selected: strong text only.
+   Compact mono text, muted, a soft background on hover; the kept tint is the strong colour at
+   16%, with the strong colour as text. The track is --files-squad-bg (the text colour at 7% on
+   a dark sidebar, 13% on a light one). */
+.files-row {
+  display: flex;
+  height: 26px;
+  flex-shrink: 0;
+  align-items: center;
+  transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    border-color var(--motion-feedback) var(--ease-interface),
+    box-shadow var(--motion-feedback) var(--ease-interface),
+    opacity var(--motion-state) var(--ease-interface);
+}
+.files-row:focus-within {
+  --_bg: var(--item-hover-bg, var(--color-soft));
+}
+.files-row[data-ignored="true"] {
+  opacity: var(--files-ignored-opacity, 0.5);
+}
+.files-row[data-dim="true"] {
+  opacity: var(--files-dim-opacity, 0.3);
+}
+.files-row-select {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  padding-right: 4px;
+  border-radius: inherit;
+  color: inherit;
+  text-align: left;
+}
+.files-row-select:focus-visible {
+  outline-offset: -2px;
+}
+.files-guide {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 1px;
+  background-color: var(--files-guide-color, var(--color-line));
+  pointer-events: none;
+}
+.files-twisty {
+  display: inline-flex;
+  width: 12px;
+  flex: none;
+  justify-content: center;
+  color: var(--_icon-fg);
+}
+.files-twisty svg {
+  transition: transform var(--motion-feedback) var(--ease-interface);
+}
+.files-twisty svg[data-open="true"] {
+  transform: rotate(90deg);
+}
+.files-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--_icon-fg);
+}
+.files-name {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.files-row[data-kind="modified"] :is(.files-icon, .files-name) {
+  color: var(--files-modified-fg, var(--color-warning-fg));
+}
+.files-row[data-kind="added"] :is(.files-icon, .files-name) {
+  color: var(--files-added-fg, var(--color-success-fg));
+}
+.files-row[data-kind="deleted"] :is(.files-icon, .files-name) {
+  color: var(--color-muted);
+}
+.files-row[data-kind="deleted"] .files-name {
+  text-decoration: line-through;
+}
+
+/* Who worked a row, in the quiet metadata voice; the agent writing it now is in ink. */
+.files-chips {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding-right: 8px;
+}
+.files-chip {
+  border-radius: var(--radius-control, 4px);
+  color: var(--files-chip-fg, var(--color-muted));
+  opacity: 0.8;
+}
+.files-chip .handle-chip {
+  color: inherit;
+}
+.files-chip[data-writing="true"],
+.files-chip[data-lit="true"] {
+  color: var(--files-chip-writing-fg, var(--color-ink));
+  opacity: 1;
+}
+.files-more {
+  color: var(--files-chip-fg, var(--color-muted));
+  font-family: var(--window-metadata-font, var(--font-mono));
+  opacity: 0.6;
+}
+
+/* An agent writing a file shows as a terminal's cursor after its name. */
+.files-cursor {
+  width: 6px;
+  height: 13px;
+  flex: none;
+  background-color: var(--files-cursor-bg, var(--color-strong));
+  box-shadow: var(--item-selected-indicator-shadow, none);
+  animation: files-blink 1.06s infinite;
+}
+@keyframes files-blink {
+  from,
+  49.9% {
+    opacity: 1;
+  }
+  50%,
+  to {
+    opacity: 0;
+  }
+}
+
+/* Once it stops, a hollow block fades by the curve of trailOpacity (files-tree.ts), 0.7
+   down to 0.04 over --files-trail-life, and on to nothing at its end. The delay starts it as far along as the write is
+   old, so the page never redraws it as time passes. One too old to show is `visibility: hidden`
+   (the panel sets it), keeping its box so a row's room does not depend on the time. */
+.files-trail {
+  box-sizing: border-box;
+  width: 6px;
+  height: 13px;
+  flex: none;
+  border: 1.5px solid var(--files-cursor-bg, var(--color-strong));
+  opacity: var(--files-trail-opacity);
+  animation: files-trail var(--files-trail-life) linear var(--files-trail-delay) 1 both;
+}
+@keyframes files-trail {
+  0% {
+    opacity: 0.7;
+  }
+  12.5% {
+    opacity: 0.489;
+  }
+  25% {
+    opacity: 0.342;
+  }
+  37.5% {
+    opacity: 0.239;
+  }
+  50% {
+    opacity: 0.167;
+  }
+  62.5% {
+    opacity: 0.117;
+  }
+  75% {
+    opacity: 0.082;
+  }
+  87.5% {
+    opacity: 0.057;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* A write lands on its row, or on the closed folder that hides it. The two names are the
+   same animation; a row switches between them to play it again while it still runs. The panel
+   clears the attribute on a timer, as a hidden panel's animation never ends. */
+.files-row[data-pulse="a"] {
+  animation: files-pulse-a 1.4s ease-out;
+}
+.files-row[data-pulse="b"] {
+  animation: files-pulse-b 1.4s ease-out;
+}
+@keyframes files-pulse-a {
+  from {
+    background-color: var(
+      --files-pulse-bg,
+      color-mix(in srgb, var(--color-strong) 14%, transparent)
+    );
+  }
+}
+@keyframes files-pulse-b {
+  from {
+    background-color: var(
+      --files-pulse-bg,
+      color-mix(in srgb, var(--color-strong) 14%, transparent)
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .files-cursor {
+    animation: none;
+  }
+  .files-trail {
+    animation: none;
+  }
+  .files-row[data-pulse] {
+    animation: none;
+  }
+}
+
+.files-empty {
+  margin: 0;
+  padding: 12px 2px;
+  color: var(--color-muted);
+}
+
+.files-note-row {
+  position: relative;
+  display: flex;
+  height: 26px;
+  flex-shrink: 0;
+  align-items: center;
+  border: 1px solid transparent;
+}
+.files-note {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  padding-right: 8px;
+  color: var(--color-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-strip {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+}
+.files-squad {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 1px;
+  border-radius: var(--radius-control, 6px);
+  background-color: var(
+    --files-squad-bg,
+    color-mix(in srgb, currentColor var(--_track, 7%), transparent)
+  );
+}
+:root[data-scheme="light"] .files-squad {
+  --_track: 13%;
+}
+.files-squad[data-kept="true"] {
+  background-color: color-mix(in srgb, var(--color-strong) 16%, transparent);
+}
+.files-agent {
+  height: 24px;
+  padding: 0 6px;
+  border-radius: var(--radius-control, 4px);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    color var(--motion-feedback) var(--ease-interface);
+}
+.files-agent:hover {
+  background-color: var(--color-soft);
+}
+.files-agent[data-following="true"],
+.files-agent[data-kept="true"],
+.files-agent[aria-pressed="true"] {
+  color: var(--color-strong);
+}
+.files-agent[data-kept="true"] {
+  background-color: color-mix(in srgb, var(--color-strong) 16%, transparent);
+}
+.files-agent:focus-visible {
+  outline: 2px solid var(--color-strong);
+  outline-offset: -2px;
+}

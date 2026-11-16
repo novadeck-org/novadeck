@@ -30,6 +30,9 @@ export const shortcut = {
   terminals: (): Chord => commandShift("E"),
   sessions: (): Chord => commandShift("S"),
   inbox: (): Chord => commandShift("B"),
+  worktrees: (): Chord => commandShift("G"),
+  files: (): Chord => commandShift("F"),
+  history: (): Chord => commandShift("H"),
   preferences: (): Chord =>
     isMac()
       ? { label: "Cmd+,", keys: "{Meta>},{/Meta}" }

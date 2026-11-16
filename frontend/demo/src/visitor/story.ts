@@ -184,7 +184,7 @@ export const visitorStory = (
       start: (next) => {
         sink = next
         const stop = backend.start?.(next)
-        // What the person opens from the Source panel lands on the bar through it.
+        // What the person opens from the Files panel lands on the bar through it.
         const stopShowcase = showcase.start(next.dispatch, () =>
           latest ? itemsOf(latest) : showcase.items,
         )

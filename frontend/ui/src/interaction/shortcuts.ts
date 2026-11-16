@@ -27,6 +27,9 @@ export type ShortcutName =
   | "terminals"
   | "sessions"
   | "inbox"
+  | "worktrees"
+  | "files"
+  | "history"
   | "preferences"
   | "navigate"
   | "voice"
@@ -94,7 +97,7 @@ export const shortcutBindings = (
       display: [mac ? "⌘" : "Ctrl", "Shift", "N"],
     },
     terminals: {
-      label: "Toggle terminal sidebar",
+      label: "Toggle Terminals",
       key: "e",
       ctrl: !mac,
       meta: mac,
@@ -102,7 +105,7 @@ export const shortcutBindings = (
       display: [mac ? "⌘" : "Ctrl", "Shift", "E"],
     },
     sessions: {
-      label: "Toggle session sidebar",
+      label: "Toggle Sessions",
       key: "s",
       ctrl: !mac,
       meta: mac,
@@ -117,6 +120,31 @@ export const shortcutBindings = (
       meta: mac,
       shift: true,
       display: [mac ? "⌘" : "Ctrl", "Shift", "B"],
+    },
+    // G for git, whose worktrees the panel lists; W closes the window.
+    worktrees: {
+      label: "Toggle Worktrees",
+      key: "g",
+      ctrl: !mac,
+      meta: mac,
+      shift: true,
+      display: [mac ? "⌘" : "Ctrl", "Shift", "G"],
+    },
+    files: {
+      label: "Toggle Files",
+      key: "f",
+      ctrl: !mac,
+      meta: mac,
+      shift: true,
+      display: [mac ? "⌘" : "Ctrl", "Shift", "F"],
+    },
+    history: {
+      label: "Toggle History",
+      key: "h",
+      ctrl: !mac,
+      meta: mac,
+      shift: true,
+      display: [mac ? "⌘" : "Ctrl", "Shift", "H"],
     },
     preferences: {
       label: "Open preferences",

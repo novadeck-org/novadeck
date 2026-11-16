@@ -76,31 +76,31 @@ const states: readonly {
   {
     label: "No pull request",
     state: undefined,
-    hint: "Open Changes: the row has no #812 at its detail line's end, and its work's changes item no PR #812 link",
+    hint: "Open Worktrees: the row has no #812 at its detail line's end, and its work's changes item no PR #812 link",
   },
   {
     label: "Pull request: draft",
     state: "draft",
-    hint: "Open Changes: the row's detail line ends in a muted dashed glyph and #812, a link Tab reaches; select the row to open its changes item, whose header has PR #812 to open in the browser",
+    hint: "Open Worktrees: the row's detail line ends in a muted dashed glyph and #812, a link Tab reaches; select the row to open its changes item, whose header has PR #812 to open in the browser",
   },
   {
     label: "Pull request: open",
     state: "open",
-    hint: "Open Changes: the row's detail line ends in #812 in the text color; its changes item's header has PR #812",
+    hint: "Open Worktrees: the row's detail line ends in #812 in the text color; its changes item's header has PR #812",
   },
   {
     label: "Pull request: merged",
     state: "merged",
-    hint: "Open Changes: the row's #812 has a merge glyph, while the row's own merged icon follows git as before",
+    hint: "Open Worktrees: the row's #812 has a merge glyph, while the row's own merged icon follows git as before",
   },
   {
     label: "Pull request: closed",
     state: "closed",
-    hint: "Open Changes: the row's #812 has a closed glyph, muted",
+    hint: "Open Worktrees: the row's #812 has a closed glyph, muted",
   },
 ]
 
-// The panel's group for the forge integrations: Preferences' section and the Changes rows' pull
+// The panel's group for the forge integrations: Preferences' section and the Worktrees rows' pull
 // request marks. Nothing for a backend whose forges and works aren't the demo's.
 export const forgesGroups = (
   launch: DemoLaunch,

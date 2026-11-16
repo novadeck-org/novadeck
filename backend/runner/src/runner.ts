@@ -221,7 +221,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   // as voice and murmur keep theirs; kept only for a runner that keeps a database.
   const memory =
     options.database === undefined ? undefined : join(dirname(options.database), "works.json")
-  // The checkouts' working trees as trees, for the Changes panel and the changes items alike;
+  // The checkouts' working trees as trees, for the Worktrees panel and the changes items alike;
   // the object folders live beside the memory, which names trees in them.
   const snapshots = new Snapshots({
     held: () => secrets(agents.environment()),

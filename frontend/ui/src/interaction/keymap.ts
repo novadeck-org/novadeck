@@ -32,6 +32,9 @@ export type CommandId =
   | "sidebar.terminals"
   | "sidebar.sessions"
   | "sidebar.inbox"
+  | "sidebar.worktrees"
+  | "sidebar.files"
+  | "sidebar.history"
   | "recent.next"
   | "recent.previous"
   | "view.toggleFocus"
@@ -407,6 +410,24 @@ export const keymapFor = (platform: Platform): readonly KeyBinding[] => {
       layer: "app",
       keys: { shortcut: chord.inbox },
       command: "sidebar.inbox",
+      repeat: "swallow",
+    },
+    {
+      layer: "app",
+      keys: { shortcut: chord.worktrees },
+      command: "sidebar.worktrees",
+      repeat: "swallow",
+    },
+    {
+      layer: "app",
+      keys: { shortcut: chord.files },
+      command: "sidebar.files",
+      repeat: "swallow",
+    },
+    {
+      layer: "app",
+      keys: { shortcut: chord.history },
+      command: "sidebar.history",
       repeat: "swallow",
     },
     { layer: "app", keys: { shortcut: chord.recent }, command: "recent.next", repeat: "run" },

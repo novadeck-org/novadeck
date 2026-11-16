@@ -7,7 +7,7 @@ import { demoTerminalId } from "./samples"
 // submits the order, which is a clash); each write one of them makes grows its live change by a
 // line; the debug panel has a third agent, Owl, change it too, in a clash or in lines main has
 // since rewritten (a change that doesn't apply). The agents are the storefront's terminals by
-// slot, as the demo's Source names them.
+// slot, as the demo's files names them.
 
 const projectId = "storefront"
 const session = { projectId, workspaceSessionId: "initial" }

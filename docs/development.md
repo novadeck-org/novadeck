@@ -288,7 +288,7 @@ Terminals:
   marks land on the others as you look away. Its shell an agent opened and its shell an agent
   exited from keep their handles on their tabs; its other plain shells show none. Also a
   burst of 30, a quick failure, a spawn failure and the terminal limit.
-- **Changes:** acts on the selected terminal's first worktree in the Changes panel, which lists the
+- **Worktrees:** acts on the selected terminal's first worktree in the Worktrees panel, which lists the
   open project's worktrees (every demo seeds a few from its own terminals, in several projects, so
   switching projects switches the list: one in conflict with main, two with each other, one
   merged; the plain demos' storefront also has one with no owner, one just made and one its owner is
@@ -307,10 +307,10 @@ Terminals:
   with no count and no empty state, as before the runner first reports the worktrees. Refuse the
   next close shows the refusal above the list. Close every worktree closes the selected project's, leaving the list empty with
   what appears there; other projects keep theirs. The demo starts with Agent worktrees off
-  (Preferences > Experimental), which hides Changes until it is turned on. New worktree adds another clean worktree to the selected
-  terminal's, and the Changes toggle in the rail flares the History toggle's dot and ring for a
-  moment (close Changes first: it shows nothing while Changes is open); any first change that makes a
-  terminal's worktree flares it too. "Every state in Changes"
+  (Preferences > Experimental), which hides Worktrees until it is turned on. New worktree adds another clean worktree to the selected
+  terminal's, and the Worktrees toggle in the rail flares the History toggle's dot and ring for a
+  moment (close Worktrees first: it shows nothing while Worktrees is open); any first change that makes a
+  terminal's worktree flares it too. "Every state in Worktrees"
   gives the session's first four terminals a worktree each. In the showcase, selecting a row shows its work as a changes item on the terminal's
   bar (see Changes below); in the other demos there is no pane to show it in.
 - **Projects and sessions:** mark the selected terminal running, then start a fresh
@@ -431,19 +431,19 @@ Agents:
   `frontend/demo/src/showcase/changes.ts`: each is a small history of file texts
   (`history.ts`, a small git for the demo), from which the layers, their counts and every
   file's hunks and sides are read, as the runner reads them from git, so the facts the pane shows
-  are real. Selecting a row in the Changes panel shows that terminal's work as one such change
+  are real. Selecting a row in the Worktrees panel shows that terminal's work as one such change
   (a layer of work not committed yet). A file opened is kept read, as the runner keeps it
   (`companions.changeRead`), for as long as the demo runs.
-- **Source:** the Source panel shows the current project's files, read one folder at a time as
+- **Files:** the Files panel shows the current project's files, read one folder at a time as
   folders open, and read again when the panel is shown again or an agent's turn ends in the
   project. The runner has no changes to tell yet, so there the panel is the plain tree. In the
-  `agents`, `messages` and `inbox` variants (and the try demo), the Source panel shows the
+  `agents`, `messages` and `inbox` variants (and the try demo), the Files panel shows the
   storefront project's files with what its agents changed: Moth's work as history, and Moth and Crow writing on
   their own, a file every 3 to 7 s, resting 10 to 20 s between turns, only while their
   terminal's agent works and asks nothing of the person (a permission, question or plan stops
   the writing and its cursor; nothing moves under `?still` or reduced motion). The `plain` and
-  `welcome` variants have no Source, as their storefront terminals are plain shells. "Agent
-  writes a file" and "Agent stops writing (Source only)" act on the selected storefront agent
+  `welcome` variants have no Files panel, as their storefront terminals are plain shells. "Agent
+  writes a file" and "Agent stops writing (Files only)" act on the selected storefront agent
   terminal (Crow otherwise): the row pulses and its cursor moves, or goes; the second only
   clears the cursor, and the agent's turn is ended with the Agent group's states. "Third agent
   edits Checkout.tsx" adds the storefront's third terminal's agent (`owl`) to a row that
@@ -455,7 +455,7 @@ Agents:
   panel reads again when it is shown again, so switch panels and back): a muted "Can't read this
   folder" row, a muted "More not shown" row, and a line in place of the tree. "The project's folder
   is empty" and "The project lists only part" make the root hold nothing (the line "This project's
-  folder is empty.") or two entries and a "More not shown" row; "Source reads normally again"
+  folder is empty.") or two entries and a "More not shown" row; "Files read normally again"
   ends them all. Every sample project has a small tree of its own. `node_modules` is the demo's
   empty folder: it opens onto a muted "Empty" row.
   A strip of agent chips above the tree lists the agents with work in the project, in the
@@ -466,20 +466,20 @@ Agents:
   two teams sits in the first squad that names it. The `agents`, `inbox` and try demos have no
   team, so their strips are solo chips.
 - **File preview:** in the `agents`, `messages` and `inbox` variants, double-click
-  `src/checkout/Checkout.tsx` in the Source panel (or click it under a selected row of the Changes
+  `src/checkout/Checkout.tsx` in the Files panel (or click it under a selected row of the Worktrees
   panel) to open the project window as the file would be once the agents' work merges onto main:
   Moth's and Crow's changes carried onto main's copy (`frontend/demo/src/preview.ts`), each under a
   head naming the agent, a clash at the line that submits the order (the last writer shown, a
   picker on its right), the merge set in the summary line (each agent a toggle, everyone merged
   each time it is opened), and the lines Moth removed folded into "5 lines of main removed". It
-  needs agent worktrees on (the App section's "Agent worktrees and Changes" group: "On, with
-  Changes"). The Source group's "Agent writes Checkout.tsx" (and the agents' own writes) grow the
+  needs agent worktrees on (the App section's "Agent worktrees" group: "On, with
+  Worktrees"). The Files group's "Agent writes Checkout.tsx" (and the agents' own writes) grow the
   selected agent's change by a line, pulse it and put the agent's cursor after it, which becomes a
-  trail once "Agent stops writing (Source only)" runs; a clash follows the agent that wrote last.
+  trail once "Agent stops writing (Files only)" runs; a clash follows the agent that wrote last.
   The File preview group's "Third agent clashes with the others" adds `owl` over the same line (a
   third version in the clash), "A change doesn't apply" a change of `owl`'s to a line main has
   rewritten since (a red box saying so, with Show, and "1 change doesn't apply" in the summary),
-  and "Third agent leaves the file preview" takes it away. Lighting an agent in the Source strip
+  and "Third agent leaves the file preview" takes it away. Lighting an agent in the Files strip
   dims the others' changes in the preview. Two more files are previewed: `src/checkout/OrderSummary.tsx`,
   which main lacks and Moth adds (the whole file as added lines under Moth's head; "Crow adds
   OrderSummary.tsx too" makes a whole-file clash, the last writer shown), and
@@ -641,15 +641,15 @@ App:
 - **Sandbox:** boot as a desktop app running without Electron's sandbox, for the footer's No
   sandbox chip and its fix command; "No sandbox, no fix" as one with no command to offer;
   and "Sandboxed" back to normal.
-- **Agent worktrees and Changes:** the page's update channel starts stable, which turns the
-  setting off, so the rail has no Changes toggle, as in a stable build. "On, with Changes" boots on
-  the experimental channel with the setting on, for the Changes panel and the Changes group's
+- **Agent worktrees:** the page's update channel starts stable, which turns the
+  setting off, so the rail has no Worktrees toggle, as in a stable build. "On, with Worktrees" boots on
+  the experimental channel with the setting on, for the Worktrees panel and the Worktrees group's
   actions. "Not offered" boots a backend without the setting, so Preferences > Experimental shows
-  the Agent worktrees and Changes row disabled, reading "Not available here."; "Offered" boots
+  the Agent worktrees row disabled, reading "Not available here."; "Offered" boots
   back to normal.
 - **Forges:** the App section's group for the forge integrations (Preferences > Experimental >
   Forge integrations, which needs the experimental channel, and the pull request marks in
-  Changes). The demo starts with GitHub signed in on github.com, GitLab installed but signed out on
+  Worktrees). The demo starts with GitHub signed in on github.com, GitLab installed but signed out on
   gitlab.com, and Azure DevOps not installed, offering an install; the storefront's worktrees carry
   a draft, an open, a merged and a closed pull request. "Offered, experimental channel" boots on
   the experimental channel with the forges offered; "Not offered" boots a backend without them, so
@@ -660,7 +660,7 @@ App:
   first). The "Pull request" actions (No pull request, draft, open, merged, closed) set the mark on
   the selected terminal's worktree, or the project's first (one is made if it has none): the row's
   detail line ends in its state's glyph and "#812" beside its ×, a link to the pull request's page,
-  and the work's changes item (in the showcase with "On, with Changes", select its row) has
+  and the work's changes item (in the showcase with "On, with Worktrees", select its row) has
   "PR #812" in its header, which opens the page in the browser.
 - **Guides:** "Toggle icon guides" draws a dashed box over every icon (`svg.lucide`) and a
   dashed line through its middle, 20 px past each side, both 1 px and half see-through
@@ -984,7 +984,7 @@ folder of `frontend/ui/src/`:
 | `frontend/core/src/messages.ts`                                 | The contract for agents' messages: threads, states, the pause, and a tab's count.                                              |
 | `frontend/core/src/conversation.ts`                             | The contract for an agent's conversation: transcript items, requests, the port.                                                |
 | `frontend/core/src/inbox.ts`                                    | The contract for the Inbox: rows by source, their type, how they ended, answers, the port.                                     |
-| `frontend/core/src/source.ts`                                   | The contract for the Source panel: a project's folders, listed one at a time, and what its agents changed.                     |
+| `frontend/core/src/source.ts`                                   | The contract for the Files panel: a project's folders, listed one at a time, and what its agents changed.                      |
 | `frontend/core/src/conversation/picks.ts`                       | What the person has picked and written for a dialog's questions, and the answer it makes.                                      |
 | `frontend/core/src/conversation/turns.ts`                       | A conversation grouped into blocks, the turn's status.                                                                         |
 | `frontend/core/src/roster.ts`                                   | A session's terminals and undocked windows, laid out as tiles, their order and status.                                         |

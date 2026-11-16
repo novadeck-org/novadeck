@@ -175,7 +175,7 @@ describe("a project's folder", () => {
     }
   })
 
-  it("orders names as the Source panel does, so a cut listing drops the last ones", async ({
+  it("orders names as the Files panel does, so a cut listing drops the last ones", async ({
     resources,
   }) => {
     const root = project(resources)

@@ -192,7 +192,7 @@ export const standingOf = async (path: string): Promise<Standing> => {
 
 /**
  * Whether merging `ref` into the main branch would change nothing, or, where it conflicts, would
- * have at the commit its work landed in: the same test the Changes panel's Works uses
+ * have at the commit its work landed in: the same test the Worktrees panel's Works uses
  * (`merge-tree` is clean and gives main's own tree, else a conflict and `landedIn`). That is so
  * for a branch merged by any means, squash and rebase merges included, also once main has
  * changed the same lines again; not for work main reverted, which merges cleanly.

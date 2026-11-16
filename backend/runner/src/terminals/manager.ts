@@ -1408,7 +1408,7 @@ export class Terminals {
     return this.companion.place(terminalId)
   }
 
-  /** The git checkout each open terminal works in now, for the Changes panel. */
+  /** The git checkout each open terminal works in now, for the Worktrees panel. */
   checkouts(): Promise<Checkout[]> {
     return this.companion.checkouts(this.list())
   }

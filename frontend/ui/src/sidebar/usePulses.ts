@@ -1,7 +1,7 @@
-import type { SourceProject } from "@novadeck/core/source"
+import type { FilesProject } from "@novadeck/core/files"
 import { useEffect, useRef, useState } from "react"
 
-import { rowShowing, writtenPaths, type SourceRow } from "./source-tree"
+import { rowShowing, writtenPaths, type FilesRow } from "./files-tree"
 
 // How long a write's pulse plays; the panel clears it by this timer, not by the animation, which
 // never ends while the panel is hidden.
@@ -12,8 +12,8 @@ export const pulseMs = 1400
 // panel starts with none, and a timer forgets each pulse once it has played. `end` forgets them
 // all, as the panel hides.
 export const usePulses = (
-  changes: SourceProject["changes"] | undefined,
-  rows: readonly SourceRow[],
+  changes: FilesProject["changes"] | undefined,
+  rows: readonly FilesRow[],
   open: ReadonlySet<string>,
   showing: boolean,
 ): { readonly pulses: Readonly<Record<string, number>>; readonly end: () => void } => {

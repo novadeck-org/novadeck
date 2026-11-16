@@ -76,9 +76,9 @@
 @import "./shell/empty-state.css" layer(components);
 @import "@novadeck/toolkit/sidebar-item.css" layer(components);
 @import "./sidebar/sidebar.css" layer(components);
-@import "./sidebar/source.css" layer(components);
+@import "./sidebar/files.css" layer(components);
 @import "./sidebar/history.css" layer(components);
-@import "./sidebar/changes.css" layer(components);
+@import "./sidebar/worktrees.css" layer(components);
 @import "./inbox/inbox.css" layer(components);
 @import "./inbox/inbox-toast.css" layer(components);
 @import "./projects/project-status.css" layer(components);

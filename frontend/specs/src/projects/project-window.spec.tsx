@@ -4,7 +4,7 @@ import { windowMenu } from "../support/companions"
 import { openWorkspace, sidebarPanel, terminal, terminalTab } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
-// The agents demo has the storefront's files in a Source panel. A file opened there lands in
+// The agents demo has the storefront's files in a Files panel. A file opened there lands in
 // the session's project window: the person's, one at a time, named by the file.
 const storefront = (view: "focus" | "grid" | "canvas"): string =>
   `/projects/storefront/sessions/initial/${view}?demo=agents`
@@ -13,17 +13,17 @@ const storefront = (view: "focus" | "grid" | "canvas"): string =>
 const row = (name: string) =>
   page.getByRole("treeitem", { name: new RegExp(`^${name.replace(".", "\\.")}(,|$)`) })
 
-const openSource = async (view: "focus" | "grid" | "canvas" = "grid"): Promise<void> => {
+const openFiles = async (view: "focus" | "grid" | "canvas" = "grid"): Promise<void> => {
   await openWorkspace(storefront(view))
-  await sidebarPanel("Source").click()
+  await sidebarPanel("Files").click()
   await expect.element(page.getByRole("tree", { name: "Project files" })).toBeVisible()
 }
 
 describe("The project window", () => {
   for (const view of ["focus", "grid", "canvas"] as const) {
     context(`in the ${view} view`, () => {
-      it("opens on a double-click on a file in Source, and the sidebar lists it by the file's name", async () => {
-        await openSource(view)
+      it("opens on a double-click on a file in Files, and the sidebar lists it by the file's name", async () => {
+        await openFiles(view)
 
         await row("package.json").dblClick()
 
@@ -35,7 +35,7 @@ describe("The project window", () => {
   }
 
   it("opens on Enter on a file too", async () => {
-    await openSource()
+    await openFiles()
 
     row("package.json").element().focus()
     await userEvent.keyboard("{Enter}")
@@ -43,8 +43,8 @@ describe("The project window", () => {
     await expect.element(terminal("package.json")).toBeVisible()
   })
 
-  it("leaves keyboard focus in the Source tree after Enter, so the next file opens from the keys", async () => {
-    await openSource()
+  it("leaves keyboard focus in the Files tree after Enter, so the next file opens from the keys", async () => {
+    await openFiles()
     const tree = page.getByRole("tree", { name: "Project files" }).element()
 
     row("package.json").element().focus()
@@ -58,7 +58,7 @@ describe("The project window", () => {
   })
 
   it("is re-pointed by the next file opened: still one window, with the new file in it", async () => {
-    await openSource()
+    await openFiles()
     await row("package.json").dblClick()
     await expect.element(terminal("package.json")).toBeVisible()
 
@@ -78,14 +78,14 @@ describe("The project window", () => {
         .element()
         .closest("[data-terminal-tab-id]")!
         .querySelector(".terminal-tab-process")!.textContent
-    await openSource()
+    await openFiles()
     await row("CartItem.tsx").dblClick()
     await expect.element(terminal("CartItem.tsx")).toBeVisible()
     await sidebarPanel("Terminals").click()
     await expect.element(terminalTab("CartItem.tsx")).toBeVisible()
     await expect.poll(() => line("CartItem.tsx")).toBe("src/cart")
 
-    await sidebarPanel("Source").click()
+    await sidebarPanel("Files").click()
     await row("package.json").dblClick()
     await sidebarPanel("Terminals").click()
     await expect.element(terminalTab("package.json")).toBeVisible()
@@ -93,7 +93,7 @@ describe("The project window", () => {
   })
 
   it("reads a Markdown file as a document labelled by the file's name", async () => {
-    await openSource()
+    await openFiles()
 
     await row("README.md").dblClick()
 
@@ -104,7 +104,7 @@ describe("The project window", () => {
   })
 
   it("holds back a file that looks like a secret behind the gate", async () => {
-    await openSource()
+    await openFiles()
 
     await row(".env.local").dblClick()
 
@@ -114,7 +114,7 @@ describe("The project window", () => {
   })
 
   it("is made again by the next open once it has been closed", async () => {
-    await openSource()
+    await openFiles()
     await row("package.json").dblClick()
     await expect.element(terminal("package.json")).toBeVisible()
     await sidebarPanel("Terminals").click()
@@ -122,14 +122,14 @@ describe("The project window", () => {
     await menu.getByRole("menuitem", { name: "Close" }).click()
     await expect.element(terminal("package.json")).not.toBeInTheDocument()
 
-    await sidebarPanel("Source").click()
+    await sidebarPanel("Files").click()
     await row("index.html").dblClick()
 
     await expect.element(terminal("index.html")).toBeVisible()
   })
 
   it("offers only Close in its menu: no rename, no dock back", async () => {
-    await openSource()
+    await openFiles()
     await row("package.json").dblClick()
     await sidebarPanel("Terminals").click()
 

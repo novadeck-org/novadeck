@@ -12,6 +12,7 @@ export const SidebarPanel = ({
   titleHint,
   titleExtra,
   count,
+  scope,
   active,
   onClose,
   actions,
@@ -24,6 +25,8 @@ export const SidebarPanel = ({
   titleExtra?: ReactNode
   // How many, or an element that says it; an element that renders nothing hides it.
   count?: ReactNode
+  // What the list is of, where the heading alone can't say: the open session over its terminals.
+  scope?: string | undefined
   active: boolean
   onClose: () => void
   // Quiet buttons beside the close button.
@@ -39,6 +42,7 @@ export const SidebarPanel = ({
       >
         {title}
         {count !== undefined && <span className="sidebar-panel-count">{count}</span>}
+        {scope && <span className="sidebar-panel-scope min-w-0 truncate">{scope}</span>}
       </h2>
     </Tooltip>
   )

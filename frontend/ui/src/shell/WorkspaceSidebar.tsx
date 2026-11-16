@@ -1,7 +1,7 @@
+import type { FolderListing, FilesProject } from "@novadeck/core/files"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { ClosedTerminal } from "@novadeck/core/history"
 import type { AgentConnection } from "@novadeck/core/port"
-import type { SourceListing, SourceProject } from "@novadeck/core/source"
 import type { SidebarPanel as PanelId, Tile, WorkspaceSession } from "@novadeck/core/types"
 import type { Work, WorkClosing } from "@novadeck/core/works"
 import { Plus } from "lucide-react"
@@ -10,14 +10,14 @@ import type { ComponentProps } from "react"
 import { HeldPill, InboxCount, InboxList } from "../inbox/InboxList"
 import { shortcutBindings } from "../interaction/shortcuts"
 import { sessionGlance, type SessionMark } from "../projects/session-marks"
-import { ChangesPanel } from "../sidebar/ChangesPanel"
+import { FilesPanel } from "../sidebar/FilesPanel"
 import { HistoryPanel } from "../sidebar/HistoryPanel"
+import { panelLabels } from "../sidebar/panel-labels"
 import { SessionsPanel, type SessionsMove } from "../sidebar/SessionsPanel"
 import { SidebarPanel, sidebarCreateClasses } from "../sidebar/SidebarPanel"
-import { SourcePanel } from "../sidebar/SourcePanel"
+import { WorktreesPanel } from "../sidebar/WorktreesPanel"
 import { programIcon } from "../terminals/processes/profiles"
 import { TerminalTabs } from "../terminals/TerminalTabs"
-import { panelLabels } from "./panels"
 
 type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
   projectId: string
@@ -29,15 +29,15 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
   ordered: readonly Tile[]
   sidebarPanel: PanelId
   sidebarVisible: boolean
-  // Where the backend has a source: what its agents changed in the project, if it says, how to
+  // Where the backend reads the projects' files: what its agents changed in the project, if it says, how to
   // read a folder, when an agent's turn last ended, how to follow the works the changes come
   // from while the panel shows, if they do, how to open a file, the handle of the selected
   // terminal, and the session's agents for the strip: every terminal's handle in roster order,
-  // and the teams as handles, each lead first. Left out, there is no Source panel.
-  source:
+  // and the teams as handles, each lead first. Left out, there is no Files panel.
+  files:
     | {
-        project: SourceProject | undefined
-        list: (folder: string) => Promise<SourceListing>
+        project: FilesProject | undefined
+        list: (folder: string) => Promise<FolderListing>
         turn: number
         watch: (() => () => void) | undefined
         onOpenFile: (path: string) => Promise<void>
@@ -62,8 +62,8 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
     | undefined
   // Where the backend reports each tracked worktree's work against main: the open project's
   // works, the terminals' titles by id, the selected terminal, what a row's click does and what
-  // its × does. Left out, there is no Changes panel.
-  changes:
+  // its × does. Left out, there is no Worktrees panel.
+  worktrees:
     | {
         works: readonly Work[]
         // The backend has reported every work at least once: until then no works isn't none.
@@ -105,9 +105,9 @@ export const WorkspaceSidebar = ({
   ordered,
   sidebarPanel,
   sidebarVisible,
-  source,
+  files,
   history,
-  changes,
+  worktrees,
   onSessionSelect,
   onSessionRename,
   onSessionMove,
@@ -127,26 +127,26 @@ export const WorkspaceSidebar = ({
     aria-hidden={!sidebarVisible}
     inert={!sidebarVisible}
   >
-    {source && (
-      <SourcePanel
+    {files && (
+      <FilesPanel
         key={projectId}
-        project={source.project}
-        list={source.list}
-        turn={source.turn}
-        watch={source.watch}
-        onOpenFile={source.onOpenFile}
-        onLit={source.onLit}
-        selectedHandle={source.selectedHandle}
-        roster={source.roster}
-        squads={source.squads}
-        active={sidebarPanel === "source"}
+        project={files.project}
+        list={files.list}
+        turn={files.turn}
+        watch={files.watch}
+        onOpenFile={files.onOpenFile}
+        onLit={files.onLit}
+        selectedHandle={files.selectedHandle}
+        roster={files.roster}
+        squads={files.squads}
+        active={sidebarPanel === "files"}
         visible={sidebarVisible}
         onHide={onHide}
       />
     )}
     <SidebarPanel
       id="sessions-panel"
-      title="Sessions"
+      title={panelLabels.sessions}
       count={workspaceSessions.length}
       active={sidebarPanel === "sessions"}
       onClose={onHide}
@@ -185,9 +185,15 @@ export const WorkspaceSidebar = ({
     )}
     <SidebarPanel
       id="terminals-panel"
-      title="Terminals"
+      title={panelLabels.terminals}
       titleHint={`Recent · ${shortcutBindings().recent.display.join(" ")}`}
       count={terminalCount}
+      // Which session's terminals these are, once the project has others to tell it from.
+      scope={
+        workspaceSessions.length > 1
+          ? workspaceSessions.find((session) => session.id === workspaceSessionId)?.name
+          : undefined
+      }
       active={sidebarPanel === "terminals"}
       onClose={onHide}
     >
@@ -211,18 +217,18 @@ export const WorkspaceSidebar = ({
         away={away}
       />
     </SidebarPanel>
-    {changes && (
-      <ChangesPanel
-        key="changes"
-        {...changes}
-        active={sidebarPanel === "changes"}
-        watching={sidebarVisible && sidebarPanel === "changes"}
+    {worktrees && (
+      <WorktreesPanel
+        key="worktrees"
+        {...worktrees}
+        active={sidebarPanel === "worktrees"}
+        watching={sidebarVisible && sidebarPanel === "worktrees"}
         onClose={onHide}
       />
     )}
     <SidebarPanel
       id="inbox-panel"
-      title="Inbox"
+      title={panelLabels.inbox}
       count={<InboxCount />}
       titleExtra={<HeldPill />}
       active={sidebarPanel === "inbox"}

@@ -7,6 +7,7 @@ import type { SandboxState } from "./desktop/sandbox"
 import type { UninstallPlan, UninstallResult } from "./desktop/uninstall"
 import type { UpdateChannel, UpdateOffer, WhatsNew } from "./desktop/update"
 import type { Feedback } from "./feedback"
+import type { ProjectFiles } from "./files"
 import type { Forges } from "./forges"
 import type { AgentName } from "./harnesses"
 import type { History } from "./history"
@@ -15,7 +16,6 @@ import type { Companions } from "./items"
 import type { Messages } from "./messages"
 import type { WorkspaceSeed } from "./seed"
 import type { NoticeSound } from "./sounds"
-import type { Source } from "./source"
 import type { WorkspaceAction } from "./state"
 import type { Store } from "./store"
 import type {
@@ -354,7 +354,7 @@ export type BackendFields = {
     readonly enabled: Store<boolean>
     readonly set: (enabled: boolean) => void
   }
-  // Optional. The forges whose pull requests the Changes panel shows on works, an
+  // Optional. The forges whose pull requests the Worktrees panel shows on works, an
   // Experimental feature kept by the runner. Absent where the backend has none.
   readonly forges?: Forges
   // Optional. The agents whose sessions resume after a restart once connected: each
@@ -431,14 +431,14 @@ export type BackendFields = {
     undo?: TerminalMoveUndo,
   ) => Promise<TerminalMoveResult>
   // Optional. Each project's files, folder by folder, and on a demo backend what its agents
-  // change in them, for the sidebar's Source panel (see core's `source`). Absent where the
+  // change in them, for the sidebar's Files panel (see core's `files`). Absent where the
   // backend can't read the projects' folders: the panel isn't drawn.
-  readonly source?: Source
+  readonly files?: ProjectFiles
   // Optional. The terminals closed in the last 7 days, per project, to list and restore
   // (see core's `history`). Absent where the backend keeps none: closing is then final.
   readonly history?: History
   // Optional. Each terminal's work that differs from its repository's main branch, for the
-  // sidebar's Changes panel (see core's `works`). Absent where the backend can't read the
+  // sidebar's Worktrees panel (see core's `works`). Absent where the backend can't read the
   // terminals' checkouts: the panel isn't drawn.
   readonly works?: Works
   // Optional. Feedback for the people building Novadeck (see core's `feedback`): the
@@ -585,7 +585,7 @@ export type BackendFields = {
   readonly visitor?: true
   // Optional. Marks a demo backend: fixtures and simulated agents, as the try demo and the
   // previews have, never the runner. Features still being designed show only here: today the
-  // sidebar's Source panel and feedback.
+  // sidebar's Files panel and feedback.
   readonly demo?: true
 }
 

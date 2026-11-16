@@ -53,7 +53,7 @@ describe("the demo works' pull requests", () => {
   })
 })
 
-describe("the demo's Changes seeds", () => {
+describe("the demo's worktree seeds", () => {
   for (const [name, make, plans] of setups) {
     context(`in the ${name} demo`, () => {
       const backend = make()
@@ -345,7 +345,7 @@ describe("the demo's works", () => {
   })
 })
 
-describe("the showcase's Changes", () => {
+describe("the showcase's worktrees", () => {
   it("shows a work as a changes item on its terminal's bar", async () => {
     const backend = showcaseDemo()
     const work = stateOf(backend).find((each) => unread(each))!

@@ -7,8 +7,8 @@ describe("the rail's order", () => {
       "terminals",
       "inbox",
       "sessions",
-      "changes",
-      "source",
+      "worktrees",
+      "files",
       "history",
     ])
   })
@@ -18,8 +18,8 @@ describe("the rail's order", () => {
       "inbox",
       "terminals",
       "sessions",
-      "changes",
-      "source",
+      "worktrees",
+      "files",
       "history",
     ])
   })
@@ -29,44 +29,66 @@ describe("the rail's order", () => {
       "inbox",
       "sessions",
       "terminals",
-      "changes",
-      "source",
+      "worktrees",
+      "files",
       "history",
     ])
   })
 
-  it("puts Changes and History after the panels a person saved before they existed", () => {
-    expect(railOrder(["inbox", "sessions", "source", "terminals"])).toEqual([
+  it("puts Worktrees and History after the panels a person saved before they existed", () => {
+    expect(railOrder(["inbox", "sessions", "files", "terminals"])).toEqual([
       "inbox",
       "sessions",
-      "source",
+      "files",
       "terminals",
-      "changes",
+      "worktrees",
       "history",
     ])
   })
 
   it("keeps an order saved under the rail's former default as it was", () => {
-    const former = ["terminals", "source", "sessions", "history", "inbox", "changes"]
+    const former = ["terminals", "files", "sessions", "history", "inbox", "worktrees"]
     expect(railOrder(former)).toEqual(former)
+  })
+
+  it("reads a panel stored under its former id in its place", () => {
+    expect(railOrder(["inbox", "changes", "terminals", "source"])).toEqual([
+      "inbox",
+      "worktrees",
+      "terminals",
+      "files",
+      "sessions",
+      "history",
+    ])
+  })
+
+  it("keeps a panel stored under both its ids once, where it first stands", () => {
+    expect(railOrder(["source", "inbox", "files"])).toEqual([
+      "files",
+      "inbox",
+      "terminals",
+      "sessions",
+      "worktrees",
+      "history",
+    ])
   })
 
   it("moves a panel among those shown", () => {
     const order = railOrder([])
     expect(movedPanel(order, order, 4, 0)).toEqual([
-      "source",
+      "files",
       "terminals",
       "inbox",
       "sessions",
-      "changes",
+      "worktrees",
       "history",
     ])
     expect(movedPanel(order, order, 0, 2)).toEqual([
       "inbox",
       "sessions",
       "terminals",
-      "changes",
-      "source",
+      "worktrees",
+      "files",
       "history",
     ])
   })
@@ -74,14 +96,14 @@ describe("the rail's order", () => {
   it("leaves a panel the backend doesn't show where it was", () => {
     const order = railOrder([])
     const shown = order.filter(
-      (panel) => panel !== "source" && panel !== "history" && panel !== "changes",
+      (panel) => panel !== "files" && panel !== "history" && panel !== "worktrees",
     )
     expect(movedPanel(order, shown, 2, 0)).toEqual([
       "sessions",
       "terminals",
       "inbox",
-      "changes",
-      "source",
+      "worktrees",
+      "files",
       "history",
     ])
   })

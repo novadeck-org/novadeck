@@ -1,7 +1,7 @@
-import type { SourceListing } from "@novadeck/core/source"
+import type { FolderListing } from "@novadeck/core/files"
 import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from "react"
 
-import { sameRead, type FolderRead, type Listings } from "./source-tree"
+import { sameRead, type FolderRead, type Listings } from "./files-tree"
 
 // How long a folder may take to read before the panel says it can't.
 export const readTimeoutMs = 15_000
@@ -10,7 +10,7 @@ export const readTimeoutMs = 15_000
 // runs once more as that lands. A read that never answers is given up on, so its folder isn't
 // stuck.
 export const useFolderReader = (
-  list: (folder: string) => Promise<SourceListing>,
+  list: (folder: string) => Promise<FolderListing>,
   setListings: Dispatch<SetStateAction<Listings>>,
 ): { readonly read: (folder: string) => void; readonly isReading: (folder: string) => boolean } => {
   const alive = useRef(true)

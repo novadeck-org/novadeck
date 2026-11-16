@@ -42,7 +42,7 @@ const setup = (plans = storefrontPlans) => {
   return { works, run, work, rootOf, notes }
 }
 
-describe("the debug panel's Changes group", () => {
+describe("the debug panel's Worktrees group", () => {
   it("is absent where the backend's works aren't the demo's", () => {
     expect(worksGroups(undefined)).toEqual([])
     expect(
@@ -60,7 +60,7 @@ describe("the debug panel's Changes group", () => {
   it("gives every action a hint that names what appears", () => {
     const [group] = worksGroups(createDemoWorks([]))
     for (const action of group!.actions)
-      expect(action.hint, action.label).toMatch(/^(Open|Close) Changes/)
+      expect(action.hint, action.label).toMatch(/^(Open|Close) Worktrees/)
   })
 
   context("on a terminal with no work", () => {
@@ -188,7 +188,7 @@ describe("the debug panel's Changes group", () => {
 
   it("puts a spread of works in the session at once", () => {
     const { run, work, rootOf } = setup([])
-    run("Every state in Changes", 0)
+    run("Every state in Worktrees", 0)
     expect(work(0)!.files.length).toBeGreaterThan(work(1)!.files.length)
     expect(work(2)?.conflicts).toEqual([{ with: "main" }])
     expect(work(3)?.conflicts).toEqual([

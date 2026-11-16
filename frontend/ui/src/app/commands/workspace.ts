@@ -35,13 +35,13 @@ import { chatViewOn, notePortableCardShown, type UiState } from "../ui-store"
 import { createChatCommands, type ChatCommands } from "./chat"
 import { createCompanionCommands, type CompanionCommands } from "./companion"
 import type { CommandContext } from "./context"
+import { createFileCommands, type FileCommands } from "./files"
 import { createLayoutCommands, type LayoutCommands } from "./layout"
 import { createMoveCommands, type MoveCommands } from "./moves"
 import { createRecentCommands, type RecentCommands } from "./recent"
 import { createRenameCommands, type RenameCommands } from "./rename"
 import { folderProject, newWorkspaceSession } from "./sessions"
 import { createShellCommands, shellEdits, type ShellCommands } from "./shell"
-import { createSourceCommands, type SourceCommands } from "./source"
 
 // `title` and `command` open the terminal named so, running the command at its first prompt,
 // as an installer is (see `preferences/installs.ts`).
@@ -52,7 +52,7 @@ type AddTerminalOptions = { fromKeyboard?: boolean; title?: string; command?: st
 export type WorkspaceCommands = ShellCommands &
   CompanionCommands &
   MoveCommands &
-  SourceCommands &
+  FileCommands &
   ChatCommands &
   RenameCommands &
   RecentCommands &
@@ -319,7 +319,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     ...recent,
     ...createLayoutCommands(ctx),
     ...createChatCommands(ctx),
-    ...createSourceCommands(ctx, { markCreated, pulse }),
+    ...createFileCommands(ctx, { markCreated, pulse }),
     ...createMoveCommands(ctx, {
       peek: shell.peek,
       showTerminals: shell.showTerminals,

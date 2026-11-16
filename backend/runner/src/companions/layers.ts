@@ -251,7 +251,7 @@ export type ReadMarks = (root: string) => ReadonlyMap<string, string>
 
 /**
  * Reads checkouts' changes and files' diffs, one read at a time per checkout (its snapshots
- * share a private index), through the snapshots it shares with the Changes panel.
+ * share a private index), through the snapshots it shares with the Worktrees panel.
  */
 export class LayerReader {
   private closed = false

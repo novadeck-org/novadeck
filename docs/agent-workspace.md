@@ -283,7 +283,7 @@ descriptions are what last; a lasting injection is a gap to probe.
 
 What is shown is a companion item: a pointer to a file, a page or a plan, never a copy,
 held by exactly one terminal's bar, one undocked window, or the session's project window,
-which holds the one file the person opened from the Source tree and is re-pointed at the
+which holds the one file the person opened from the Files tree and is re-pointed at the
 next; no agent's show lands there, and it can't be moved to a bar or undocked. The runner
 keeps items and windows (`companions.*`, see [Backend API](backend-api.md)), so they
 survive restarts.
@@ -299,7 +299,7 @@ port's optional `companions` capability (`frontend/core/src/items.ts`):
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `follow(target, itemId, { reveal }, on)`    | What an item holds now, then again as it changes: ready with a stamp, or why not                             |
 | `save(target, itemId, text, basedOn)`       | The user's edit written to the plan file, unless it changed since stamp `basedOn`                            |
-| `openInProject?(target, path, windowId)`    | A file the person opened from Source, in the project window; absent where it can't be                        |
+| `openInProject?(target, path, windowId)`    | A file the person opened from Files, in the project window; absent where it can't be                         |
 | `changeFile?(target, itemId, path, layers)` | One file of a change for the layers selected: its diff and both sides' text; absent where it can't be        |
 | `changeRead?(target, itemId, path)`         | The person read a file of a change: the content's `read` names it until it changes; absent where it can't be |
 
@@ -309,7 +309,7 @@ they asked for: the item re-pointed to another file reads `secret` again.
 A change (the `changes` item kind) is read-only and has two views, in `frontend/items/src/kinds/changes/`,
 on the pane's own ground (`--pane-bg`). The **list view** is where it opens: a row for the work
 not committed yet ("Uncommitted") and one for each commit since the merge base with main, newest
-first (short hash, subject, time, `+N −N`), then a "Files" tree, as the Source panel draws its
+first (short hash, subject, time, `+N −N`), then a "Files" tree, as the Files panel draws its
 own, of what the selected rows changed together (their counts added up, names coloured by how the
 file changed, folders with guides), and a hint line saying what a click does. All rows are
 selected to start; the selection is a 2px `--color-strong` rail on a row's left edge, joined across
@@ -479,19 +479,19 @@ with every safety check again at that time:
   `git diff main...HEAD`.
 
   One snapshot service (`backend/runner/src/checkouts/snapshots.ts`) takes the working tree for
-  both the changes item and the Changes panel (Works), so a checkout both read is taken once:
+  both the changes item and the Worktrees panel (Works), so a checkout both read is taken once:
   a snapshot younger than 1.5 seconds serves whoever asks next (an agent's show and a look
   take their own). Each checkout has one private index file, and each repository one private
   object folder for all of its worktrees, which the objects a snapshot or an in-memory merge
   writes go to (with the repository's own as an alternate, quoted in
   `GIT_ALTERNATE_OBJECT_DIRECTORIES` so a path with `:` or `;` in it reads), never the person's
-  store. The folders live beside the Changes panel's memory file (`works-objects/`, one per git
+  store. The folders live beside the Worktrees panel's memory file (`works-objects/`, one per git
   common dir) and are rebuilt every 300 snapshots, once nothing is using them, to what the
   trees the works were last read as reach, so the read marker survives a restart. The panel
   counts a work's files as the item does (renames found, whitespace ignored, re-indented lines
   apart), so a row's `+N −N` is its pane's.
 
-  **The Changes panel** lists **works**, and a work is a tracked git worktree: a row of the
+  **The Worktrees panel** lists **works**, and a work is a tracked git worktree: a row of the
   `worktrees` table (see "Worktrees"), keyed by its root, whatever the Preferences switch says
   (with it off, the worktrees already tracked still show; terminals' plain checkouts are not works).
   Each work is `{ root, terminalId | null, projectId, working, branch, base, firstSeenAt, merged, files, … }`:
@@ -533,15 +533,15 @@ with every safety check again at that time:
   status unreadable, submodules) shows above the list, as does a work that can't be shown; a
   worktree an agent closed meanwhile counts as closed. A work whose owner is closed (in History)
   shows on the selected terminal's bar. With no works the list says what appears there. The panel
-  and its rail toggle show only while Preferences → Experimental → Agent worktrees and Changes is
-  on (`useChangesShown`), so a stable build, which turns that setting off, has no Changes panel; a
+  and its rail toggle show only while Preferences → Experimental → Agent worktrees is
+  on (`useWorktreesShown`), so a stable build, which turns that setting off, has no Worktrees panel; a
   link naming it then opens Terminals. A closed worktree's memory goes with it (`works.json` and its snapshot).
   A work also carries `fetchedAt`, when the runner last fetched its repository's origin (absent when
   it never has), so a row's tooltip can say "main as of 12 min ago": a PR merged on the remote shows
   as merged here only after the next fetch (see "Worktrees": cleanup and fetching). Worktrees the
   runner removes by itself drop out of the list like one the person closed.
 
-  The Changes toggle flares the History toggle's dot and ring once for every worktree the runner
+  The Worktrees toggle flares the History toggle's dot and ring once for every worktree the runner
   starts tracking in the open project (an agent's `open_worktree`, or `take_worktree` adopting one;
   not a worktree changing hands); a switch to another project flares nothing for the worktrees
   made there before. The panel's feed is followed only while it shows, so a separate stream,
@@ -693,7 +693,7 @@ with every safety check again at that time:
 - **Worktrees** come from the same server's `open_worktree`, `take_worktree`, `close_worktree`
   and `give_worktree` (`backend/runner/src/worktrees/`, called from `terminals/calls.ts`). They
   are experimental: listed (the tool listing asks the runner, with the `worktrees` call) and
-  allowed only while the person has Preferences → Experimental → Agent worktrees and Changes on
+  allowed only while the person has Preferences → Experimental → Agent worktrees on
   (`runnerSettings.worktrees`); the listing doesn't refresh mid-session, so a call made while
   it is off is refused with a sentence that says how to turn it on. A worktree lives at
   `~/.novadeck/worktrees/<project id>/<group>/<repo folder>` (`worktrees/root.ts`); `group`
@@ -751,7 +751,7 @@ with every safety check again at that time:
     `force`, before the rows cascade away. Nothing here watches git for worktrees made
     another way.
   - **Cleanup** (`worktrees/cleanup.ts`) removes worktrees nobody needs, in the service's queue
-    and whatever the switch says. _Merged_ is the Changes panel's test (HEAD in main, or merging it
+    and whatever the switch says. _Merged_ is the Worktrees panel's test (HEAD in main, or merging it
     changes nothing, into main or, where that conflicts, the commit its work landed in, so squash
     and rebase merges count) with no uncommitted or untracked file.
     A merged worktree stays while its owner is open (running, or asleep or hibernated). Once the

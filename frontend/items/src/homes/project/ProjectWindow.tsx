@@ -5,7 +5,7 @@ import type { ComponentType, ReactNode } from "react"
 import { registrationOf } from "../../registry"
 import type { ItemStore } from "../../store/item-store"
 
-// The session's project window: the one file the person opened from Source, drawn as its
+// The session's project window: the one file the person opened from Files, drawn as its
 // kind draws it, code, a Markdown document, an image or the secrets gate. It is theirs, so
 // it has no bar to dock back to and no actions of an agent's: only the body. A file opened
 // to preview what the agents' work merges to is drawn by `Preview` instead, which is given

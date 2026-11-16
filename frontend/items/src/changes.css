@@ -2,8 +2,8 @@
    own ground (`.changes-host`, painting --pane-bg like every other item). The list view
    (`.changes-list-view`) is the change's layers (`.changes-layers`, a `.changes-layer` each:
    short hash, the `.changes-subject-cell` holding the `.changes-subject` and a merge's
-   `.changes-layer-note`, time, lines), the files they changed as the Source panel's tree (a
-   `.source-tree` of `.source-row`s, `.changes-tree`, each file's row in a `.changes-item` with
+   `.changes-layer-note`, time, lines), the files they changed as the Files panel's tree (a
+   `.files-tree` of `.files-row`s, `.changes-tree`, each file's row in a `.changes-item` with
    its `.diff-branches` unfolded by the terminal tab's own fold) and a hint. The file view
    (`.changes-file-view`) is a heading (`.changes-head`: `.changes-back`, `.changes-crumbs`
    with the folder `.changes-dir` and the name `.changes-name`, the lines, `.changes-steps`),
@@ -240,7 +240,7 @@
 .changes-tree {
   padding: 2px 8px 10px;
 }
-.changes-tree .source-row-select {
+.changes-tree .files-row-select {
   flex: 1;
 }
 .diff-file {
@@ -252,7 +252,7 @@
   margin: 0 8px 0 6px;
 }
 /* A file the person opened is read: gray, until it changes. */
-.diff-file[data-read][data-kind] :is(.source-icon, .source-name) {
+.diff-file[data-read][data-kind] :is(.files-icon, .files-name) {
   color: var(--color-muted);
 }
 .diff-file[data-read] .changes-pm > span {
@@ -531,13 +531,13 @@ button.changes-fold:hover {
 /* The file preview (kinds/changes/preview): a file as it would be once the agents' work merges
    onto main, in the pane's own parts. Only what the pane has no part for is here. The summary
    holds the merge set, each agent a `.preview-merge` toggle (struck through when left out). A
-   block of an agent the person lit Source for another of is `data-dim`: its ground and token
+   block of an agent the person lit in Files for another of is `data-dim`: its ground and token
    marks go and its head quiets, its lines stay. A clash (`data-clash`) has a warning head with
    `.preview-picks` on its right; a change that doesn't apply is the pane's `.changes-clip` in
    the danger colour (`.preview-stale`, its count `.preview-stale-count`); lines an agent
    removed fold under `.preview-cut` in the remove colour. A write pulses the lines it changed
-   (`data-pulse`), cyan over the row's ground, and the agent's `.source-cursor` or
-   `.source-trail` (Source's own, source.css) follows its last line. */
+   (`data-pulse`), cyan over the row's ground, and the agent's `.files-cursor` or
+   `.files-trail` (the Files panel's own, files.css) follows its last line. */
 .changes-file-view[data-preview] .changes-head {
   padding-left: 16px;
 }
@@ -646,15 +646,15 @@ button.changes-fold:hover {
     animation: none;
   }
 }
-/* Source's cursor and trail, after a line's text or a chip. */
-.changes-text .source-cursor,
-.changes-text .source-trail {
+/* The Files panel's cursor and trail, after a line's text or a chip. */
+.changes-text .files-cursor,
+.changes-text .files-trail {
   display: inline-block;
   vertical-align: -2px;
   margin-left: 3px;
 }
-.preview-hidden .source-cursor,
-.preview-hidden .source-trail {
+.preview-hidden .files-cursor,
+.preview-hidden .files-trail {
   margin: 0 2px 0 4px;
   align-self: center;
 }

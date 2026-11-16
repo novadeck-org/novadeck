@@ -685,9 +685,12 @@ leave Zen to show the requested panel. Zen is temporary and resets on reload.
 | Terminal in that direction, typing there          | `Cmd+Option+↑↓←→`  | `Ctrl+Shift+↑↓←→`                |
 | New terminal                                      | `Cmd+T`            | `Ctrl+Shift+T`                   |
 | New session in the current project                | `Cmd+Shift+N`      | `Ctrl+Shift+N`                   |
-| Toggle terminal sidebar                           | `Cmd+Shift+E`      | `Ctrl+Shift+E`                   |
-| Toggle session sidebar                            | `Cmd+Shift+S`      | `Ctrl+Shift+S`                   |
+| Toggle Terminals                                  | `Cmd+Shift+E`      | `Ctrl+Shift+E`                   |
+| Toggle Sessions                                   | `Cmd+Shift+S`      | `Ctrl+Shift+S`                   |
 | Toggle Inbox                                      | `Cmd+Shift+B`      | `Ctrl+Shift+B`                   |
+| Toggle Worktrees (with agent worktrees on)        | `Cmd+Shift+G`      | `Ctrl+Shift+G`                   |
+| Toggle Files                                      | `Cmd+Shift+F`      | `Ctrl+Shift+F`                   |
+| Toggle History                                    | `Cmd+Shift+H`      | `Ctrl+Shift+H`                   |
 | Switch to pinned project 1 to 9                   | `Cmd+1` to `Cmd+9` | `Ctrl+Shift+1` to `Ctrl+Shift+9` |
 | Open preferences                                  | `Cmd+,`            | `Ctrl+,`                         |
 | Navigate the workspace                            | `Shift+Esc`        | `Shift+Esc`                      |

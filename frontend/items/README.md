@@ -8,7 +8,7 @@ terminal, a view or out into a window.
 
 An item lives in a home, a place that shows it. There are three: the companion pane beside a
 terminal (`src/homes/terminal/`), the window an item is undocked into (`src/homes/undocked/`)
-and a session's project window, which the Source panel opens files in (`src/homes/project/`).
+and a session's project window, which the Files panel opens files in (`src/homes/project/`).
 The kinds live in `src/kinds/<kind>/`, one folder each. What more than one home will use sits
 outside `homes/`: the kinds' registry and the item view at the top of `src/`, the item store
 (`src/store/`), the Markdown document (`src/document/`), and the bar, taskbar, peek and bar

@@ -2,7 +2,7 @@ import type { PullRequest } from "./forges"
 import type { Store } from "./store"
 
 // Works: each git worktree Novadeck tracks (one an agent opened or took) against its
-// repository's main branch, for the sidebar's Changes panel. A backend that tracks worktrees
+// repository's main branch, for the sidebar's Worktrees panel. A backend that tracks worktrees
 // reports every work (`state`), keyed by the worktree's root, from the worktree's first being
 // tracked until it is closed: a worktree that differs from nothing is a work with no files.
 // Nothing here repeats what Terminals (the agent's state) or the Inbox (what asks for
@@ -96,7 +96,7 @@ export type Works = {
   // How many worktrees the backend began tracking since this backend began, by project id (an
   // agent's new one or one it adopted; a worktree changing hands is not one), counted whether
   // or not anyone watches. It says only that one more was made in a project, for the sidebar's
-  // Changes toggle to flare while that project is open; the new work itself arrives through
+  // Worktrees toggle to flare while that project is open; the new work itself arrives through
   // `state`. Absent where a backend makes none.
   readonly made?: Store<WorksMade>
   // Asks the backend to follow the works for as long as someone watches: it starts with the

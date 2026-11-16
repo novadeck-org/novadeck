@@ -87,7 +87,7 @@ const remotes: Record<string, string> = {
 }
 
 // The service over fake forges and the repositories `repositories` names, with a clock the
-// test moves, a watched Changes panel, and every tool installed.
+// test moves, a watched Worktrees panel, and every tool installed.
 const setup = (
   options: {
     enabled?: ForgeName[]

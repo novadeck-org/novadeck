@@ -13,7 +13,7 @@ import {
   type Taken,
 } from "./repository.js"
 
-// One service that takes checkouts' working trees as trees, for the Changes panel (works) and
+// One service that takes checkouts' working trees as trees, for the Worktrees panel (works) and
 // the changes item (layers) alike, so a checkout both read is taken once, not once for each:
 // a snapshot younger than `freshMs` serves whoever asks next. Each checkout has a private index
 // file; each repository one private object folder (its worktrees' snapshots are merged with

@@ -20,7 +20,7 @@ export const useRecentDrop = (drops: number, forMs: number): boolean => {
 }
 
 // The dot on a rail toggle that says something just arrived in its panel: a closed terminal in
-// History, a new worktree in Changes. The Inbox bell's dot and ring (attention-dot.css), but
+// History, a new worktree in Worktrees. The Inbox bell's dot and ring (attention-dot.css), but
 // only for a moment, as nothing there waits on the person. `drops` counts the arrivals, and
 // each mounts a fresh dot, so one that arrives while another plays flares again; with reduced
 // motion the dot shows still for as long, without its ring.

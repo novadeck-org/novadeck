@@ -31,6 +31,7 @@ import { withShellItems } from "./agents/shell-items"
 import { agentTranscripts, type DemoTranscript } from "./agents/transcripts"
 import { demoTurns, type DemoTurns } from "./agents/turns"
 import { withFeedback } from "./feedback"
+import { withFiles } from "./files"
 import { createDemoForges } from "./forges"
 import { demoHandle } from "./handles"
 import { withHistory } from "./history"
@@ -50,7 +51,6 @@ import {
 } from "./samples"
 import { createShowcase } from "./showcase/simulation"
 import { checkoutPlan, storefrontArtifacts } from "./showcase/storefront"
-import { withSource } from "./source"
 import { createDemoEngine, type DemoEngine } from "./terminals/engine"
 import {
   createDemoTerminals,
@@ -104,7 +104,7 @@ export const demoBackend = (
   const transcripts = createStore(true)
   // Idle agents are stopped after an hour unless the person chooses otherwise, as in the app.
   const hibernateAfter = createStore<number | null>(60)
-  // Agent worktrees start on, so the demo shows the Changes panel they bring; a stable update
+  // Agent worktrees start on, so the demo shows the Worktrees panel they bring; a stable update
   // channel (the debug demo's page starts on one) turns them off as the app does.
   const worktrees = createStore(true)
   const agents = createStore(sampleAgents)
@@ -278,7 +278,7 @@ export const withMessages = (backend: Backend, now: number): Backend => {
       backend.commit(workspace, actions)
     },
     // Its terminals show nothing in the pane but their messages, and what the person opens
-    // from the Source panel.
+    // from the Files panel.
     companions: showcase,
     messages: createDemoMessages(checkoutMessages(now, targets)),
     resetTitle: (key) => {
@@ -448,7 +448,7 @@ export const withInbox = (
 }
 
 // The agents demo's storefront terminals hold what their agents showed, on their bars,
-// to open, peek at and move. What the person opens from the Source panel joins them.
+// to open, peek at and move. What the person opens from the Files panel joins them.
 const withStorefrontArtifacts = (backend: Backend): Backend => {
   let latest: Workspace | undefined
   const session = { projectId: "storefront", workspaceSessionId: "initial" }
@@ -639,7 +639,7 @@ const withFinishes = (backend: Backend, turns: DemoTurns): Backend => ({
 // first-run welcome dialog open, and Chirp's, Babcia's and Launch's, one-offs for videos (see
 // `videos/chirp.ts`, `videos/babcia.ts` and `videos/launch.ts`). Each has
 // the Inbox its agents make; the Inbox demo shows the hardcoded rows of every kind over theirs.
-// The agents', messages' and Inbox demos have the Source of the storefront project (see
+// The agents', messages' and Inbox demos have the files of the storefront project (see
 // `source.ts`), as the try demo does: the others have no agents there to change files.
 export type PlainVariant =
   | "plain"
@@ -744,7 +744,7 @@ const plainBackend = (
   if (variant === "messages")
     return withChanges(
       withHistory(
-        withSource(
+        withFiles(
           withInbox(
             withConversations(
               withFinishes(withMessages({ ...backend, seed: demoSeed(now, true) }, now), turns),
@@ -779,10 +779,10 @@ const plainBackend = (
   if (variant === "plain" || variant === "welcome")
     return withChanges(withHistory(withInbox(conversing, turns)))
   if (variant === "agents")
-    return withChanges(withHistory(withSource(withPlanShows(withInbox(conversing, turns)), turns)))
+    return withChanges(withHistory(withFiles(withPlanShows(withInbox(conversing, turns)), turns)))
   return withChanges(
     withHistory(
-      withSource(
+      withFiles(
         withPlanShows(
           withInbox(
             {

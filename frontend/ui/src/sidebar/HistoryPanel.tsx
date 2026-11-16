@@ -23,6 +23,7 @@ import {
   summaryExcerpt,
   type RowView,
 } from "./history-rows"
+import { panelLabels } from "./panel-labels"
 import { SidebarPanel } from "./SidebarPanel"
 
 // A row's accessible name: what its click does, and for a row that does nothing, what it is.
@@ -212,7 +213,7 @@ export const HistoryPanel = ({
   return (
     <SidebarPanel
       id="history-panel"
-      title="History"
+      title={panelLabels.history}
       count={rows.length === 0 ? "" : searching ? `${matches.length}/${rows.length}` : rows.length}
       active={active}
       onClose={onClose}

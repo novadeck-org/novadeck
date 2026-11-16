@@ -1,6 +1,6 @@
 import { fileLines, ready, svg, type SampleArtifact } from "./artifacts"
 
-// What the demo shows of a file the person opened from the Source panel that no agent showed:
+// What the demo shows of a file the person opened from the Files panel that no agent showed:
 // a short stand-in made from its path, so the pane has something plausible to read.
 
 const imageTypes = /\.(png|jpe?g|gif|webp|svg)$/i
@@ -14,7 +14,7 @@ export const looksSecret = (path: string): boolean => {
   return secretNames.some((pattern) => pattern.test(name))
 }
 
-// The path below the project's folder, as the Source panel names it; the file's own name where
+// The path below the project's folder, as the Files panel names it; the file's own name where
 // the folder isn't known.
 const relativeTo = (path: string, directory: string | undefined): string =>
   directory && path.startsWith(`${directory}/`)

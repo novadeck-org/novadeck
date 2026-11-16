@@ -47,7 +47,7 @@ export const folderOf = async (
 
 /**
  * A path from the project's folder as a path from the repository's top (a work's files are named
- * so), or undefined where it is outside the repository: the inverse of how the Source panel
+ * so), or undefined where it is outside the repository: the inverse of how the Files panel
  * lays a work's file over the project's tree.
  */
 export const repoPath = (folder: Folder, file: string): string | undefined => {

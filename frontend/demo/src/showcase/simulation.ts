@@ -57,7 +57,7 @@ export type Showcase = Companions & {
   // `revised` is called once the revision is written.
   readonly told: (key: TerminalKey, input: string, revised?: () => void) => void
   // Shows a sample on a terminal's bar, as an agent would show it (a change the person asked
-  // to see, for the Changes panel): updating what it showed of the same item, or anew.
+  // to see, for the Worktrees panel): updating what it showed of the same item, or anew.
   // Resolves to the item's id.
   readonly present: (key: TerminalKey, handle: string, artifact: SampleArtifact) => string
   // The terminal closed: its agent is gone.

@@ -268,7 +268,7 @@ describe("sessions sidebar", () => {
 
       await sidebarPanel("Sessions").click()
 
-      await expect.element(sidebar()).toHaveAccessibleName("Workspace sessions")
+      await expect.element(sidebar()).toHaveAccessibleName("Sessions")
       await expect
         .element(savedSessions().getByRole("listitem").getByText("6 terminals", { exact: true }))
         .toBeVisible()
@@ -293,7 +293,7 @@ describe("sessions sidebar", () => {
       await page.getByRole("button", { name: "New session" }).click()
 
       await expect.element(emptyWorkspace()).toBeVisible()
-      await expect.element(sidebar()).toHaveAccessibleName("Terminal sessions")
+      await expect.element(sidebar()).toHaveAccessibleName("Terminals")
       await expect.element(sidebarPanel("Terminals")).toBeChecked()
       await expect.element(sidebar().getByRole("button", { name: "New terminal" })).toHaveFocus()
       await sidebarPanel("Sessions").click()
@@ -320,7 +320,7 @@ describe("sessions sidebar", () => {
 
       await expect.element(emptyWorkspace()).toBeVisible()
       await expect.element(sidebarPanel("Terminals")).toBeChecked()
-      await expect.element(sidebar()).toHaveAccessibleName("Terminal sessions")
+      await expect.element(sidebar()).toHaveAccessibleName("Terminals")
       await expect.element(sidebar().getByRole("button", { name: "New terminal" })).toHaveFocus()
       await sidebarPanel("Sessions").click()
       await expect.poll(() => savedSessions().getByRole("listitem").elements()).toHaveLength(2)
@@ -574,7 +574,7 @@ describe("sessions sidebar", () => {
 
       await page.getByRole("button", { name: "Browse sessions" }).click()
 
-      await expect.element(sidebar()).toHaveAccessibleName("Workspace sessions")
+      await expect.element(sidebar()).toHaveAccessibleName("Sessions")
       await expect.element(sidebarPanel("Sessions")).toBeChecked()
     })
   })
@@ -643,7 +643,7 @@ describe("narrow screens", () => {
       await phone()
       await openWorkspace()
       await sidebarPanel("Terminals").click()
-      const drawer = page.getByRole("dialog", { name: "Terminal sessions" })
+      const drawer = page.getByRole("dialog", { name: "Terminals" })
       await expect.element(drawer).toBeVisible()
       const toggles = drawer.getByRole("radio")
       const place = () =>
@@ -670,7 +670,7 @@ describe("narrow screens", () => {
 
       await sidebarPanel("Terminals").click()
 
-      const drawer = page.getByRole("dialog", { name: "Terminal sessions" })
+      const drawer = page.getByRole("dialog", { name: "Terminals" })
       await expect.element(drawer).toBeVisible()
 
       await drawer.getByRole("button", { name: labelled("Select ", "Runtime") }).click()
@@ -685,13 +685,13 @@ describe("narrow screens", () => {
 
       await sidebarPanel("Sessions").click()
 
-      const drawer = page.getByRole("dialog", { name: "Workspace sessions" })
+      const drawer = page.getByRole("dialog", { name: "Sessions" })
       await expect.element(drawer.getByRole("list", { name: "Saved sessions" })).toBeVisible()
       const original = await currentSessionName()
 
       await drawer.getByRole("button", { name: "New session" }).click()
 
-      const terminals = page.getByRole("dialog", { name: "Terminal sessions" })
+      const terminals = page.getByRole("dialog", { name: "Terminals" })
       await expect.element(terminals).toBeVisible()
       await expect.element(terminals.getByRole("button", { name: "New terminal" })).toHaveFocus()
       await escapeFrom(terminals)

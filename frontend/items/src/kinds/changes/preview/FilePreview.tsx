@@ -1,4 +1,4 @@
-import { trailGone, trailLifeMs, trailOpacity } from "@novadeck/core/source"
+import { trailGone, trailLifeMs, trailOpacity } from "@novadeck/core/files"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { highlightLines, languageOf, type HighlightedLine } from "@novadeck/viewers/code"
 import type { FileFacts } from "@novadeck/viewers/facts"
@@ -95,7 +95,7 @@ const useFacts = (
   return facts
 }
 
-// A hollow block fading from a write by Source's own curve, started part-way by a negative
+// A hollow block fading from a write by the Files panel's own curve, started part-way by a negative
 // delay so nothing renders again as time passes; one too old to show keeps its box, hidden.
 const Trail = ({ at }: { at: number }): React.JSX.Element => {
   const start = useCallback(
@@ -103,18 +103,18 @@ const Trail = ({ at }: { at: number }): React.JSX.Element => {
       if (!element) return
       const age = Math.max(0, Date.now() - at)
       element.style.visibility = trailOpacity(age) < trailGone ? "hidden" : ""
-      element.style.setProperty("--source-trail-delay", `${-age}ms`)
-      element.style.setProperty("--source-trail-life", `${trailLifeMs}ms`)
-      element.style.setProperty("--source-trail-opacity", String(trailOpacity(age)))
+      element.style.setProperty("--files-trail-delay", `${-age}ms`)
+      element.style.setProperty("--files-trail-life", `${trailLifeMs}ms`)
+      element.style.setProperty("--files-trail-opacity", String(trailOpacity(age)))
     },
     [at],
   )
-  return <span ref={start} className="source-trail" aria-hidden="true" />
+  return <span ref={start} className="files-trail" aria-hidden="true" />
 }
 
 const MarkView = ({ mark }: { mark: Mark }): React.JSX.Element =>
   mark.cursor ? (
-    <span className="source-cursor" aria-hidden="true" />
+    <span className="files-cursor" aria-hidden="true" />
   ) : (
     <Trail key={mark.at} at={mark.at} />
   )
@@ -378,7 +378,7 @@ export const FilePreview = ({
   // Main's text; null where main has no such file.
   main: string | null
   agents: readonly Agent[]
-  // The handles Source lights: emphasis only, never what the preview holds.
+  // The handles Files lights: emphasis only, never what the preview holds.
   lit: ReadonlySet<string>
   // The handles of the agents writing this file now.
   writing: ReadonlySet<string>

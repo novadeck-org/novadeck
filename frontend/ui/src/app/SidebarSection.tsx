@@ -11,24 +11,24 @@ import { memo, useCallback, useMemo, useSyncExternalStore } from "react"
 import { useDesktop } from "../shell/desktop"
 import { sidebarVisible } from "../shell/shell-state"
 import { WorkspaceSidebar } from "../shell/WorkspaceSidebar"
-import { latestTurnEnd } from "../sidebar/source-turns"
-import { projectPath, sourceOfWorks } from "../sidebar/source-works"
+import { latestTurnEnd } from "../sidebar/files-turns"
+import { projectPath, filesOfWorks } from "../sidebar/files-works"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useStoreSelector } from "./controller/useStoreSelector"
-import { useMoving, useTabsAway } from "./move-to"
-import { historyShown, sourceShown } from "./routing"
-import { currentState, currentTarget, sameItems, sameTarget } from "./selectors"
 import {
   copyOf,
-  noSource,
+  noFiles,
   noWorks,
   ownersOf,
   previewFiles,
   sameOwners,
   sameWorks,
-} from "./source-feed"
+} from "./files-feed"
+import { useMoving, useTabsAway } from "./move-to"
+import { historyShown, filesShown } from "./routing"
+import { currentState, currentTarget, sameItems, sameTarget } from "./selectors"
 import { useReorderTiles } from "./team-fold"
-import { useChangesShown } from "./use-changes-shown"
+import { useWorktreesShown } from "./use-worktrees-shown"
 import { useSessionMarks } from "./useSessionMarks"
 import { renderTab } from "./WorkspaceTab"
 
@@ -74,15 +74,15 @@ export const SidebarSection = memo((): React.JSX.Element => {
     (workspace) => orderedTiles(currentState(workspace).roster),
     sameItems,
   )
-  // The Source panel shows where the backend has a source; see `sourceShown`.
-  const sourceFeed = sourceShown(backend) ? backend.source : undefined
-  const sourceProject = useStoreSelector(
-    sourceFeed?.state ?? noSource,
+  // The Files panel shows where the backend reads the projects' files; see `filesShown`.
+  const filesFeed = filesShown(backend) ? backend.files : undefined
+  const filesProject = useStoreSelector(
+    filesFeed?.state ?? noFiles,
     (state) => state.projects[projectId],
   )
   const list = useCallback(
-    (folder: string) => sourceFeed!.list(projectId, folder),
-    [sourceFeed, projectId],
+    (folder: string) => filesFeed!.list(projectId, folder),
+    [filesFeed, projectId],
   )
   // Its folders are read again when an agent's turn ends in the project.
   const turn = useWorkspaceState((workspace) => latestTurnEnd(activeProject(workspace)!))
@@ -115,12 +115,12 @@ export const SidebarSection = memo((): React.JSX.Element => {
       ),
     [teams, handles],
   )
-  // The Changes panel shows where the backend reports the terminals' work, while agent
-  // worktrees are on; see `useChangesShown`.
-  const worksFeed = useChangesShown() ? backend.works : undefined
-  // Every project's works, for the Source panel and previews to pick the open project's from.
+  // The Worktrees panel shows where the backend reports the terminals' work, while agent
+  // worktrees are on; see `useWorktreesShown`.
+  const worksFeed = useWorktreesShown() ? backend.works : undefined
+  // Every project's works, for the Files panel and previews to pick the open project's from.
   const allWorks = useStoreSelector(worksFeed?.state ?? noWorks, (state) => state.works, sameWorks)
-  // The open project's works: the Changes panel lists only these.
+  // The open project's works: the Worktrees panel lists only these.
   const ofProject = useCallback(
     (state: WorksState) => state.works.filter((work) => work.projectId === projectId),
     [projectId],
@@ -131,18 +131,18 @@ export const SidebarSection = memo((): React.JSX.Element => {
     (workspace) => ownersOf(activeProject(workspace)!.history),
     sameOwners,
   )
-  // Where the backend tells no changes of its own, the Source panel lays the project's works
-  // over its files while the Changes panel shows, and follows them while it shows.
+  // Where the backend tells no changes of its own, the Files panel lays the project's works
+  // over its files while the Worktrees panel shows, and follows them while it shows.
   const worksOverlay = useMemo(
-    () => (worksFeed && !sourceProject ? sourceOfWorks(allWorks, projectId, owners) : undefined),
-    [worksFeed, sourceProject, allWorks, projectId, owners],
+    () => (worksFeed && !filesProject ? filesOfWorks(allWorks, projectId, owners) : undefined),
+    [worksFeed, filesProject, allWorks, projectId, owners],
   )
-  const watchWorks = sourceProject ? undefined : worksFeed?.watch
+  const watchWorks = filesProject ? undefined : worksFeed?.watch
   // A file some work of the project changes opens as a preview of what the works merge to, while
   // the works are shown; any other as it is in main.
   const onOpenFile = useCallback(
     (path: string) =>
-      commands.openSourceFile(path, {
+      commands.openProjectFile(path, {
         preview: worksFeed !== undefined && previewFiles(allWorks, projectId, path).length > 0,
         copy: copyOf(allWorks, projectId, path),
       }),
@@ -150,14 +150,14 @@ export const SidebarSection = memo((): React.JSX.Element => {
   )
   const onLit = useCallback(
     (lit: ReadonlySet<string>) =>
-      ui.update((state) => (state.sourceLit === lit ? state : { ...state, sourceLit: lit })),
+      ui.update((state) => (state.filesLit === lit ? state : { ...state, filesLit: lit })),
     [ui],
   )
-  const source = useMemo(
+  const files = useMemo(
     () =>
-      sourceFeed
+      filesFeed
         ? {
-            project: sourceProject ?? worksOverlay,
+            project: filesProject ?? worksOverlay,
             list,
             turn,
             watch: watchWorks,
@@ -169,8 +169,8 @@ export const SidebarSection = memo((): React.JSX.Element => {
           }
         : undefined,
     [
-      sourceFeed,
-      sourceProject,
+      filesFeed,
+      filesProject,
       worksOverlay,
       list,
       turn,
@@ -259,7 +259,7 @@ export const SidebarSection = memo((): React.JSX.Element => {
       const inProject = inOpenProject(work, path)
       if (inProject !== undefined)
         commands
-          .openSourceFile(inProject, {
+          .openProjectFile(inProject, {
             preview: true,
             copy: copyOf(allWorks, projectId, inProject),
           })
@@ -267,7 +267,7 @@ export const SidebarSection = memo((): React.JSX.Element => {
     },
     [commands, inOpenProject, allWorks, projectId],
   )
-  const changes = useMemo(
+  const worktrees = useMemo(
     () =>
       worksFeed
         ? {
@@ -305,9 +305,9 @@ export const SidebarSection = memo((): React.JSX.Element => {
       ordered={ordered}
       sidebarPanel={sidebarPanel}
       sidebarVisible={visible}
-      source={source}
+      files={files}
       history={history}
-      changes={changes}
+      worktrees={worktrees}
       onSessionSelect={switchSession}
       onSessionRename={renameSession}
       onSessionMove={moveSession}

@@ -134,7 +134,7 @@ describe("a file's preview", () => {
     const other = await shown([crow], ["moth"])
     expect(other.querySelector("[data-dim]")).not.toBeNull()
     expect(texts(other)).toContain("crow's three")
-    expect(root.querySelector(".diff-row .source-cursor")).not.toBeNull()
+    expect(root.querySelector(".diff-row .files-cursor")).not.toBeNull()
   })
 
   context("with a file renamed away or added", () => {

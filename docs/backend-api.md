@@ -1680,7 +1680,7 @@ one from an earlier runner.
     every 2 seconds while followed (less often after slow reads, keeping the last good
     content through a failed read or two), and `reveal` has no effect on it; a repository that is
     gone is `missing`, and a failing git `unreadable`. A checkout is read through a private
-    index: the person's own is never written. Its snapshot is shared with the Changes panel
+    index: the person's own is never written. Its snapshot is shared with the Worktrees panel
     (`works.watch`): one taken in the last 1.5 seconds serves both. A `shells` item is the
     `agent` and the `shells` its terminal's bound agent lists now, in the order it lists them, each
     with its `id`, `command`, `since`, `exit` and `output`: `ready` with the last 400 lines
@@ -1711,7 +1711,7 @@ one from an earlier runner.
     that may hold secrets is never hashed.
   - `companions.changeRead({ itemId, path })` marks a file of a changes item read, by the path
     its content lists it under: the item's content names it in `read` until the file changes
-    again, across restarts (the runner keeps it beside the Changes panel's memory). A file the
+    again, across restarts (the runner keeps it beside the Worktrees panel's memory). A file the
     change as a whole did not list when last read is not marked. An unknown item, or one that is
     no change, is `NOT_FOUND`.
   - `companions.save({ itemId, text, basedOn })` writes the person's edit to a plan kept in

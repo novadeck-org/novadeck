@@ -179,7 +179,7 @@ export const Preferences = ({
     readonly enabled: boolean
     readonly onChange: (enabled: boolean) => void
   }
-  // The forges whose pull requests Changes shows, an Experimental feature the backend keeps;
+  // The forges whose pull requests the Worktrees panel shows, an Experimental feature the backend keeps;
   // absent where the backend has none.
   forges?: {
     readonly list: readonly ForgeSwitch[]
@@ -311,9 +311,9 @@ export const Preferences = ({
     },
     {
       id: "agent-worktrees",
-      label: "Agent worktrees and Changes",
+      label: "Agent worktrees",
       description: worktrees
-        ? "Agents work in their own git worktrees, and the sidebar gets a Changes panel that lists each one with what it changed since main. Novadeck cleans a worktree up once it's merged or its terminal is closed."
+        ? "Agents work in their own git worktrees, and the sidebar gets a Worktrees panel that lists each one with what it changed since main. Novadeck cleans a worktree up once it's merged or its terminal is closed."
         : "Not available here.",
       checked: worktrees?.enabled ?? false,
       onToggle: (enabled: boolean) => worktrees?.onChange(enabled),

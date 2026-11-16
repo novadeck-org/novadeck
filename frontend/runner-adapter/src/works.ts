@@ -16,7 +16,7 @@ import { consume } from "./streams"
 
 export type RunnerWorks = {
   readonly works: Works
-  // Reads the works once, as the backend starts, so the Changes panel lists them as soon as it
+  // Reads the works once, as the backend starts, so the Worktrees panel lists them as soon as it
   // opens instead of after the runner's first read of every worktree: follows them until the
   // runner has reported every one, then lets go. The panel's own watch brings them up to date.
   readonly readOnce: () => void

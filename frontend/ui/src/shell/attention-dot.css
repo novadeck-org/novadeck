@@ -8,8 +8,8 @@
    The bell's `.bell-dot-ring`, which BellDot mounts afresh for each new item the bell rings
    for, rings out twice and is dropped once played; not at all with reduced motion.
 
-   The History and Changes toggles' `.flare-dot` (FlareDot) is the bell's dot and ring for a
-   moment, when a closed terminal lands in History or a new worktree in Changes: the ring
+   The History and Worktrees toggles' `.flare-dot` (FlareDot) is the bell's dot and ring for a
+   moment, when a closed terminal lands in History or a new worktree in Worktrees: the ring
    flares once and the dot fades with it. */
 .attention-dot {
   position: absolute;

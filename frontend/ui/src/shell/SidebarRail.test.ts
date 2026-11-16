@@ -76,7 +76,13 @@ describe("the rail's tooltips", () => {
     expect(railTooltip({ panel: "inbox", detail: "2 waiting", open: true, back: "inbox" })).toBe(
       `Inbox · 2 waiting · hide sidebar · ${keys("B")}`,
     )
-    expect(railTooltip({ panel: "history", open: true, back: null })).toBe("History · hide sidebar")
+    expect(railTooltip({ panel: "history", open: true, back: null })).toBe(
+      `History · hide sidebar · ${keys("H")}`,
+    )
+    expect(railTooltip({ panel: "worktrees", open: false, back: null })).toBe(
+      `Worktrees · ${keys("G")}`,
+    )
+    expect(railTooltip({ panel: "files", open: false, back: null })).toBe(`Files · ${keys("F")}`)
   })
 })
 
@@ -108,78 +114,78 @@ describe("the rail's History dot", () => {
   })
 })
 
-describe("the rail's Changes dot", () => {
-  const changesRail = (count: number, open = false, mobile = false, projectId = "p") =>
+describe("the rail's Worktrees dot", () => {
+  const worktreesRail = (count: number, open = false, mobile = false, projectId = "p") =>
     createElement(SidebarRail, {
       mobile,
       sidebarVisible: open,
-      sidebarPanel: open ? "changes" : "terminals",
+      sidebarPanel: open ? "worktrees" : "terminals",
       zen: false,
       badge: undefined,
       bellRings: 0,
-      hasChanges: true,
+      hasWorktrees: true,
       hasHistory: true,
       worksMade: { count, projectId },
       toggleSidebar: () => {},
     })
 
-  it("flares for each worktree made, but not for the count at mount, nor while Changes shows", () => {
-    const { container, rerender, unmount } = render(changesRail(4))
+  it("flares for each worktree made, but not for the count at mount, nor while Worktrees shows", () => {
+    const { container, rerender, unmount } = render(worktreesRail(4))
     unmounts.push(unmount)
-    const dot = () => container.querySelector("#changes-toggle .flare-dot")
+    const dot = () => container.querySelector("#worktrees-toggle .flare-dot")
     expect(dot()).toBeNull()
-    rerender(changesRail(5))
+    rerender(worktreesRail(5))
     expect(dot()).not.toBeNull()
     expect(dot()?.querySelector(".bell-dot-ring")).not.toBeNull()
     // History's toggle has none of it.
     expect(container.querySelector("#history-toggle .flare-dot")).toBeNull()
-    rerender(changesRail(6, true))
+    rerender(worktreesRail(6, true))
     expect(dot()).toBeNull()
-    rerender(changesRail(6))
+    rerender(worktreesRail(6))
     expect(dot()).toBeNull()
   })
 
   it("flares for nothing at a switch to a project that made worktrees, then for its next", () => {
-    const { container, rerender, unmount } = render(changesRail(1))
+    const { container, rerender, unmount } = render(worktreesRail(1))
     unmounts.push(unmount)
-    const dot = () => container.querySelector("#changes-toggle .flare-dot")
-    rerender(changesRail(4, false, false, "q"))
+    const dot = () => container.querySelector("#worktrees-toggle .flare-dot")
+    rerender(worktreesRail(4, false, false, "q"))
     expect(dot()).toBeNull()
-    rerender(changesRail(1))
+    rerender(worktreesRail(1))
     expect(dot()).toBeNull()
-    rerender(changesRail(2))
+    rerender(worktreesRail(2))
     expect(dot()).not.toBeNull()
   })
 
   it("flares afresh for a worktree made while another plays, on the phone's rail too", () => {
-    const { container, rerender, unmount } = render(changesRail(0, false, true))
+    const { container, rerender, unmount } = render(worktreesRail(0, false, true))
     unmounts.push(unmount)
-    const dot = () => container.querySelector("#mobile-changes-toggle .flare-dot")
-    rerender(changesRail(1, false, true))
+    const dot = () => container.querySelector("#mobile-worktrees-toggle .flare-dot")
+    rerender(worktreesRail(1, false, true))
     const first = dot()
     expect(first).not.toBeNull()
-    rerender(changesRail(2, false, true))
+    rerender(worktreesRail(2, false, true))
     expect(dot()).not.toBe(first)
   })
 })
 
-describe("the rail's Changes toggle", () => {
-  const changesRail = (hasChanges: boolean) =>
+describe("the rail's Worktrees toggle", () => {
+  const worktreesRail = (hasWorktrees: boolean) =>
     createElement(SidebarRail, {
       sidebarVisible: false,
       sidebarPanel: "terminals",
       zen: false,
       badge: undefined,
       bellRings: 0,
-      hasChanges,
+      hasWorktrees,
       toggleSidebar: () => {},
     })
 
   it("shows only where the backend reports the terminals' work", () => {
-    const { container, rerender, unmount } = render(changesRail(false))
+    const { container, rerender, unmount } = render(worktreesRail(false))
     unmounts.push(unmount)
-    expect(container.querySelector("#changes-toggle")).toBeNull()
-    rerender(changesRail(true))
-    expect(container.querySelector("#changes-toggle")).not.toBeNull()
+    expect(container.querySelector("#worktrees-toggle")).toBeNull()
+    rerender(worktreesRail(true))
+    expect(container.querySelector("#worktrees-toggle")).not.toBeNull()
   })
 })

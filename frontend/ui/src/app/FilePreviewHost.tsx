@@ -3,19 +3,19 @@ import { FilePreview } from "@novadeck/items/FilePreview"
 import type { Agent, Rename } from "@novadeck/items/FilePreview"
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 
-import { sourceOfWorks } from "../sidebar/source-works"
+import { filesOfWorks } from "../sidebar/files-works"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useStoreSelector } from "./controller/useStoreSelector"
-import { currentTarget, sameTarget } from "./selectors"
 import {
   copyOf,
-  noSource,
+  noFiles,
   noWorks,
   ownersOf,
   previewFiles,
   sameOwners,
   sameWorks,
-} from "./source-feed"
+} from "./files-feed"
+import { currentTarget, sameTarget } from "./selectors"
 import type { FilePreviewRequest } from "./ui-store"
 
 // How often an open preview is read again while an agent writes the file: the works come every
@@ -63,13 +63,13 @@ const Reading = ({
       ownersOf(workspace.projects.find((project) => project.id === projectId)?.history ?? []),
     sameOwners,
   )
-  const sourced = useStoreSelector(
-    backend.source?.state ?? noSource,
+  const filesProject = useStoreSelector(
+    backend.files?.state ?? noFiles,
     (state) => state.projects[projectId],
   )
   const project = useMemo(
-    () => sourced ?? sourceOfWorks(projectWorks, projectId, owners),
-    [sourced, projectWorks, projectId, owners],
+    () => filesProject ?? filesOfWorks(projectWorks, projectId, owners),
+    [filesProject, projectWorks, projectId, owners],
   )
   const writing = useMemo(
     () =>
@@ -80,7 +80,7 @@ const Reading = ({
       ),
     [project, path],
   )
-  const lit = useUiState((state) => state.sourceLit)
+  const lit = useUiState((state) => state.filesLit)
 
   // What changes the preview: a work that changes the file, or lines of it, anew.
   const changed = useMemo(
@@ -155,7 +155,7 @@ const Reading = ({
   // Where main has the file by now, the window goes back to it; where it still doesn't it stays.
   const repoint = shouldRepoint(request, preview)
   useEffect(() => {
-    if (repoint) commands.openSourceFile(path).catch(() => {})
+    if (repoint) commands.openProjectFile(path).catch(() => {})
   }, [repoint, commands, path])
   const renames = useMemo(
     (): readonly Rename[] =>
@@ -182,7 +182,7 @@ const Reading = ({
       // The file it was renamed to has its own preview, backed by the renamer's copy where main lacks it.
       onOpen={(to) =>
         void commands
-          .openSourceFile(to, { preview: true, copy: copyOf(projectWorks, projectId, to) })
+          .openProjectFile(to, { preview: true, copy: copyOf(projectWorks, projectId, to) })
           .catch(() => {})
       }
     />
