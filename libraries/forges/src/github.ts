@@ -174,7 +174,7 @@ const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) 
       const nodes = record(data[`p${index}`])?.["nodes"]
       if (!Array.isArray(nodes)) return
       const pull = choose(
-        nodes.flatMap((node, at) => candidate(node, blind.has(`p${index}/${at}`)) ?? []),
+        nodes.flatMap((node, nth) => candidate(node, blind.has(`p${index}/${nth}`)) ?? []),
       )
       if (pull !== undefined) found.set(branch, pull)
     })

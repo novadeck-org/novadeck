@@ -164,6 +164,8 @@ const combine = (signals: readonly Ci[], complete: boolean): Ci | undefined => {
   return complete ? (worst ?? "none") : undefined
 }
 
+const count = (value: unknown): number => (typeof value === "number" ? value : 0)
+
 const part = (text: string): string => encodeURIComponent(text)
 
 // An open pull request's checks: its build policies' evaluations and its statuses. Never fails
@@ -225,8 +227,7 @@ const ciOf = async (
     const report = record(item)
     const context = record(report?.["context"])
     const key = `${String(context?.["genre"] ?? "")}/${String(context?.["name"] ?? "")}`
-    const number = (value: unknown): number => (typeof value === "number" ? value : 0)
-    const order: [number, number] = [number(report?.["iterationId"]), number(report?.["id"])]
+    const order: [number, number] = [count(report?.["iterationId"]), count(report?.["id"])]
     const known = newest.get(key)
     if (
       known === undefined ||

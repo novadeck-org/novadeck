@@ -191,6 +191,8 @@ const open = (
     onMade?: (listener: (made: WorkMade) => void) => () => void
     projectFolder?: (projectId: string) => string | undefined
     held?: () => (path: string) => boolean
+    /** Which untracked files the snapshots leave out as secrets. */
+    snapshotHeld?: () => (path: string) => boolean
   } = {},
 ) => {
   const shown: [string, string][] = []
@@ -222,7 +224,7 @@ const open = (
     ...(options.held && { held: options.held }),
     everyMs: 20,
     firstMs: everything,
-    snapshots: snapshotsFor(options.memory, options.repackAfter, options.held),
+    snapshots: snapshotsFor(options.memory, options.repackAfter, options.snapshotHeld),
     ...(options.memory !== undefined && { memory: options.memory }),
   })
   return { works, shown, removed }
@@ -1925,7 +1927,7 @@ describe.skipIf(!hasGit)("what a work holds that lives only in its worktree", ()
     main.git("commit", "--quiet", "-m", "squash")
     main.git("push", "--quiet", "origin", "main")
     const { works } = open(() => [{ terminalId: terminal(1), root: squashed.root, base: start }], {
-      held: () => (path) => path.endsWith(".env.local"),
+      snapshotHeld: () => (path) => path.endsWith(".env.local"),
     })
     resources.defer(() => works.close())
     expect((await current(works)).get(squashed.root)).toMatchObject({ uncommitted: 0, safe: true })
