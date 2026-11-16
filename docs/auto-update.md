@@ -140,8 +140,9 @@ GitHub with the request, which is harmless.
 
 A request that goes quiet fails after a minute: a check or download, through the website or
 GitHub, that hears no response, redirect or byte of its body for 60 seconds is aborted
-and fails like any other. A stalled check falls back as a failed one does, and a stalled
-download is a failed download (see "Installing and telling"). electron-updater's own
+and fails like any other. A stalled check falls back as a failed one does. A stalled
+differential download falls back to a full one, its bar starting again from the beginning,
+and a stalled full download is a failed download (see "Installing and telling"). electron-updater's own
 timeout never armed under Electron's `net`: builder-util-runtime hooks
 `request.on("socket")` (`httpExecutor.js`), which Electron's `ClientRequest` lacks. A dead
 connection then held a check, or a download and its progress bar, for the rest of the run,
