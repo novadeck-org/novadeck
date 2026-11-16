@@ -160,7 +160,8 @@ entry, with its own body if needed, and a launcher entry in `frontend/core/src/t
 runs as a Node script. Profiles are presentation only: per-program behaviour goes beside
 `programName` in `frontend/core/src/terminals/process.ts`, as `frontend/runner-adapter/src/terminals/resumable.ts` names the agents whose sessions resume.
 
-A terminal running an agent (Claude Code, Codex or Antigravity) has a **Chat** button in
+With **Agent Chat** on (Preferences → General → Agents, or the welcome dialog), a terminal
+running an agent (Claude Code, Codex or Antigravity) has a **Chat** button in
 its window header wherever the backend reads the agents' transcripts
 (`backend.conversations`). Chat shows the agent's own conversation as it records it,
 read from its session's transcript rather than a second agent process: your messages,
@@ -526,12 +527,12 @@ agent.
   touches your rc files.
 - **Connecting agents.** The first-run welcome dialog includes an interactive preview
   of Focus, Grid, and Canvas, which shows each layout once until you pick one (never with
-  reduced motion), plus a choice of agents, with every installed one chosen, of the chat
-  view, on, and of transcripts, on. A chosen agent's preview terminal shows it connected,
-  and with the chat view chosen the agents' preview terminals show as their chat, while a
+  reduced motion), plus a choice of agents, with every installed one chosen, of Agent
+  Chat, on, and of transcripts, on. A chosen agent's preview terminal shows it connected,
+  and with Agent Chat chosen the agents' preview terminals show as their chat, while a
   plain terminal stays as it is. “Let’s build something” applies those choices; skipping,
   Escape, or clicking outside dismisses the dialog without connecting agents or changing
-  the chat view or transcripts. Its scheme picker (System, Light, Dark; left out for a theme
+  Agent Chat or transcripts. Its scheme picker (System, Light, Dark; left out for a theme
   drawn in one scheme) applies at once and stays however the dialog closes, as Preferences →
   Appearance's does. The preview is illustrative and starts no terminals. Preferences offers the same agents as immediate switches.
   An agent that is not installed offers Install instead, in both places, with the command

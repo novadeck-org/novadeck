@@ -54,7 +54,7 @@ describe("The terminal behind a chat", () => {
       await expect.poll(() => rowsOf(name)).toBeGreaterThanOrEqual(40)
 
       await openPreferencesOn("General")
-      await preferencesDialog().getByRole("switch", { name: "Chat view" }).click()
+      await preferencesDialog().getByRole("switch", { name: "Agent Chat" }).click()
       await userEvent.keyboard("{Escape}")
       await expect.element(chatOf(name)).not.toBeInTheDocument()
       await expect.poll(() => rowsOf(name)).toBeLessThan(40)

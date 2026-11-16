@@ -653,7 +653,7 @@ export const Preferences = ({
                       <div className={`preference-row ${settingRowClasses}`}>
                         <SettingText
                           id="chat-view-label"
-                          label="Chat view"
+                          label="Agent Chat"
                           description="Read and reply to agents in a chat instead of their terminal. When the chat can't handle something, answer in the terminal."
                           descriptionId="chat-view-description"
                         />

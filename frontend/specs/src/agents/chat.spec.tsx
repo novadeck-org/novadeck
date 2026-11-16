@@ -37,7 +37,7 @@ const answeredMs = 500
 const setChatView = async (on: boolean): Promise<void> => {
   await openPreferencesOn("General")
   const dialog = preferencesDialog()
-  const chatView = dialog.getByRole("switch", { name: "Chat view" })
+  const chatView = dialog.getByRole("switch", { name: "Agent Chat" })
   await chatView.click()
   await expect.element(chatView).toHaveAttribute("aria-checked", String(on))
   await userEvent.keyboard("{Escape}")

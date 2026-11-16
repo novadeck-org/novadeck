@@ -482,7 +482,7 @@ describe("Connecting agents", () => {
 
     it("turns the chat view on as it starts, unless unchecked", async () => {
       await openWorkspace("/?demo=welcome")
-      const choice = welcome().getByRole("checkbox", { name: "Chat view" })
+      const choice = welcome().getByRole("checkbox", { name: "Agent Chat" })
       await expect.element(choice).toBeChecked()
       await expect
         .element(choice)
@@ -491,13 +491,13 @@ describe("Connecting agents", () => {
       await expect.element(welcome()).not.toBeInTheDocument()
       await openPreferences()
       await expect
-        .element(preferencesDialog().getByRole("switch", { name: "Chat view" }))
+        .element(preferencesDialog().getByRole("switch", { name: "Agent Chat" }))
         .toHaveAttribute("aria-checked", "true")
     })
 
     it("leaves the chat view off when unchecked, as its preview says", async () => {
       await openWorkspace("/?demo=welcome")
-      await welcome().getByRole("checkbox", { name: "Chat view" }).click()
+      await welcome().getByRole("checkbox", { name: "Agent Chat" }).click()
       await expect
         .element(welcome().getByText("Agents keep their own terminal screens."))
         .toBeVisible()
@@ -505,7 +505,7 @@ describe("Connecting agents", () => {
       await expect.element(welcome()).not.toBeInTheDocument()
       await openPreferences()
       await expect
-        .element(preferencesDialog().getByRole("switch", { name: "Chat view" }))
+        .element(preferencesDialog().getByRole("switch", { name: "Agent Chat" }))
         .toHaveAttribute("aria-checked", "false")
     })
 
@@ -515,7 +515,7 @@ describe("Connecting agents", () => {
       await expect.element(welcome()).not.toBeInTheDocument()
       await openPreferences()
       await expect
-        .element(preferencesDialog().getByRole("switch", { name: "Chat view" }))
+        .element(preferencesDialog().getByRole("switch", { name: "Agent Chat" }))
         .toHaveAttribute("aria-checked", "false")
     })
 

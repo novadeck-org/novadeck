@@ -380,7 +380,7 @@ const WelcomeForm = ({
                 {chatView && (
                   <ChoiceCard
                     icon={MessagesSquare}
-                    label="Chat view"
+                    label="Agent Chat"
                     note="Read and reply to agents in a chat instead of their terminal."
                     noteId="welcome-chat-view-description"
                     name="chat-view"
