@@ -71,6 +71,13 @@ export type Work = {
   // Its branch's pull request on its repository's forge, where a forge the person switched on
   // found one (forges.ts); absent where none did, or none could be asked.
   readonly pullRequest?: PullRequest | undefined
+  // How many paths hold changes not committed, and how many of HEAD's commits no remote holds.
+  // Absent where they couldn't be read.
+  readonly uncommitted?: number | undefined
+  readonly unpushed?: number | undefined
+  // Closing it leaves nothing that lives only here: merged with nothing uncommitted, or its pull
+  // request closed with nothing uncommitted or unpushed. Never while its pull request is open.
+  readonly safe?: boolean | undefined
 }
 
 export type WorksState = {
@@ -116,6 +123,10 @@ export type Works = {
   // refuses (git couldn't be read, the owner's agent is working in it); a worktree already
   // closed rejects with code NOT_FOUND.
   readonly close: (root: string, force?: boolean) => Promise<WorkClosing>
+  // Fetches origin now in every repository the project's works are in, so main, conflicts and
+  // pull requests are as of now; resolves once each fetch has ended, failed or not (a failure
+  // keeps the last `fetchedAt`). Absent where a backend can't fetch.
+  readonly fetch?: (projectId: string) => Promise<void>
   // A file of the project, by its path from the project's folder, as it would be once the
   // project's works merge onto main, read now: main's copy and what each work carries onto it.
   // Rejects when the backend cannot say.

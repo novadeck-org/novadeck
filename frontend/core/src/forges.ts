@@ -16,6 +16,9 @@ export type PullRequest = {
   readonly url: string
   readonly title: string
   readonly state: "draft" | "open" | "merged" | "closed"
+  // How its checks stand on its latest commit, for an open one: failing, running, passed, or
+  // none ran. Absent where the forge couldn't say, and on a merged or closed one.
+  readonly ci?: "failing" | "running" | "passed" | "none" | undefined
 }
 
 // A host a forge's repositories are on, and whether its tool is signed in there: `fix` is the

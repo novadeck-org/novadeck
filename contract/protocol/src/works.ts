@@ -60,6 +60,12 @@ export const workConflict = z.discriminatedUnion("with", [
 // Absent where the repository's top is neither inside nor above the project's folder.
 // `pullRequest` is its branch's pull request on its repository's forge, where a forge the person
 // switched on found one (forges.ts); absent where none did, or none could be asked.
+// `uncommitted` is how many paths hold changes not committed (staged, unstaged or untracked,
+// not ignored); `unpushed` how many of HEAD's commits no remote-tracking branch holds (all of
+// its own where nothing was pushed). `safe` where closing it leaves nothing that lives only
+// here: its work is merged with nothing uncommitted, or its pull request was closed with
+// nothing uncommitted or unpushed. An open pull request's worktree is never safe: it stays as
+// long as its pull request is open. The three are absent where they couldn't be read.
 export const work = z.strictObject({
   root: directory,
   terminalId: id.nullable(),
@@ -84,6 +90,9 @@ export const work = z.strictObject({
     .optional(),
   conflicts: z.array(workConflict).max(workLimits.conflicts),
   pullRequest: pullRequest.optional(),
+  uncommitted: count.optional(),
+  unpushed: count.optional(),
+  safe: z.boolean().optional(),
 })
 
 // `works.watch` events: every work, `synced`, then each later change.
