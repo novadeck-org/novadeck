@@ -46,11 +46,21 @@ export const standIn = async (
   mkdirSync(dir, { recursive: true })
   const ssl = (...args: string[]) => execFileSync(program, args, { cwd: dir, stdio: "ignore" })
   const key = ["-newkey", "rsa:2048", "-nodes", "-days", "2"]
-  ssl("req", "-x509", ...key, "-subj", "/CN=stand-in", "-keyout", "ca.key", "-out", "ca.pem")
+  // The authority's name differs from its leaf's, and the leaf names its key and its issuer's:
+  // OpenSSL 4 adds no key identifiers by itself (macOS runners' openssl since image
+  // 20261112), and a leaf without them whose issuer has its own name reads as self-signed
+  // (DEPTH_ZERO_SELF_SIGNED_CERT), which Claude Code's connectivity check refuses.
+  const authority = "/CN=stand-in authority"
+  ssl("req", "-x509", ...key, "-subj", authority, "-keyout", "ca.key", "-out", "ca.pem")
   ssl("req", ...key.slice(0, 3), "-subj", "/CN=stand-in", "-keyout", "leaf.key", "-out", "leaf.csr")
   writeFileSync(
     join(dir, "san.cnf"),
-    `subjectAltName=${hosts.map((host) => `DNS:${host}`).join(",")}\n`,
+    [
+      `subjectAltName=${hosts.map((host) => `DNS:${host}`).join(",")}`,
+      "subjectKeyIdentifier=hash",
+      "authorityKeyIdentifier=keyid,issuer",
+      "",
+    ].join("\n"),
   )
   ssl(
     "x509",
