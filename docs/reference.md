@@ -170,12 +170,16 @@ On macOS and Windows each terminal's shell is lowered to "below normal" priority
 BELOW_NORMAL_PRIORITY_CLASS on Windows, through `os.setPriority`), and what it starts
 inherits that, so the agent, its builds and its test runs all sit below the window when
 the CPU is short, the same aim as the weight above. On macOS the call comes right after the
-shell is spawned, before it can have started anything. On Windows the ConPTY starts the
-shell before it names its process id, so the call comes with the shell's first output, and
-the programs it started by then, as `cmd /k` with an agent's startup command may have, are
-lowered too, found through the relay's process tree; whatever any of them starts after
-that inherits it. A program that started and itself started another in the instant between
-is the one gap. A failed call (the process gone, no permission) is ignored. Linux gets no
+shell is spawned, before it can have started anything. On Windows node-pty's `pid` stays 0
+until its data pipe connects, by which time the shell may already run its startup command
+(`cmd /k` with an agent). So the call comes with the shell's first output, and the
+programs running by then are lowered once the relay has read the shell's process tree
+(spawning it, taking the snapshot, a call per pid: hundreds of milliseconds, up to
+`relayMs` on a cold machine). Anything they start in that window stays at normal, and if
+the relay can't run, only the shell is lowered; what the shell and the lowered ones start
+after that inherits it. Between the snapshot and a call a program may exit and its pid be
+reused, which would lower an unrelated process; that is accepted, for it is rare and
+costs one process some speed. A failed call (the process gone, no permission) is ignored. Linux gets no
 nice: with scopes, the weight does it, and a second penalty would only starve terminals
 beside other desktop apps; without them (no systemd or user bus), nice would do nothing
 anyway, as the kernel's autogroups, on by default in desktop distributions, share the CPU

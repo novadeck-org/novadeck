@@ -276,10 +276,16 @@ export const spawnPty = (
   })
   const scope = child.pid > 0 ? options.scopes?.contain(child.pid) : undefined
   let drawn = false
-  // macOS names the shell's pid at once, so it is lowered before it can start anything. A
-  // ConPTY names it 0 until it has started the shell, which may be running its startup
-  // command by then; its first output follows the pid. So on Windows the shell is lowered
-  // then, with what it started meanwhile, and what any of them start after that inherits.
+  // macOS names the shell's pid at once, so it is lowered before it can start anything. On
+  // Windows node-pty's public `pid` stays 0 until its data pipe connects, by which time the
+  // shell may be running its startup command; the first output follows the pid. So there the
+  // shell is lowered then, and what it started by then once the relay has read its tree (a
+  // process to spawn, a snapshot, a call per pid: hundreds of ms, up to `relayMs` on a cold
+  // machine). Whatever those started meanwhile stays at normal, and with no relay only the
+  // shell is lowered. Between the snapshot and a call a member can exit and Windows reuse its
+  // pid, so the call may lower an unrelated process, as `setPriority` can't check which it
+  // hits, unlike a kill by pid and start. Accepted: the window is that short, a reused pid
+  // being likelier a recent one, and the harm one process running a little slower.
   if (platform === "win32") {
     let lowered = false
     child.onData(() => {

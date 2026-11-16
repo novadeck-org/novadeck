@@ -1,13 +1,7 @@
 import { getPriority, setPriority } from "node:os"
 
 import { relayPath } from "@novadeck/relay"
-import {
-  processesUnder,
-  terminalForeground,
-  terminalPriority,
-  Trees,
-  type Spawn,
-} from "@novadeck/terminal/pty"
+import { processesUnder, terminalForeground, terminalPriority, Trees } from "@novadeck/terminal/pty"
 
 import { setups } from "./agents/index.js"
 import { poll, type DeckTerminal } from "./deck.js"
@@ -34,33 +28,60 @@ for (const setup of setups) {
     () => {
       const it = e2e(setup)
 
-      it("runs at a lowered priority, with its shell", async ({ e2e: run }) => {
+      it("runs at a lowered priority, with its shell", async ({ e2e: run, skip }) => {
         // CI's Windows runs the suite itself below normal, which a shell inherits without
         // any lowering: this run starts at normal (raising it back to normal is allowed
         // there), so what the shell has is its doing. Nothing else here changes the suite's.
-        if (getPriority(process.pid) !== 0) setPriority(process.pid, 0)
-        expect(getPriority(process.pid)).toBe(0)
+        if (process.platform === "win32" && getPriority(process.pid) !== 0)
+          setPriority(process.pid, 0)
+        // A macOS process can't lower its nice value back, so a suite started niced (from a
+        // Novadeck terminal, once this ships) can't tell the shell's priority from its own.
+        if (getPriority(process.pid) !== 0)
+          skip(
+            `the suite runs at priority ${getPriority(process.pid)}, not normal, and can't raise it`,
+          )
         const terminal = await start(run, setup)
         const shell = shellOf(run, terminal)
         expect(getPriority(shell)).toBe(terminalPriority)
-        // What the shell started: the agent's launcher, and the agent where it has its own
-        // process.
-        let seen: readonly Spawn[] = []
-        const children = await poll(
+        // Everything under the shell, the agent's launcher and the agent among them, and what
+        // they started (on Windows Codex's npm chain is shell, node, codex). One that has
+        // ended since the read is gone, not unlowered.
+        let unlowered: readonly string[] = []
+        await poll(
           async () => {
-            seen = (await processesUnder(shell, { trees })) ?? []
-            const found = seen.filter((each) => each.parent === shell)
-            return found.length > 0 ? found : undefined
+            const started = (await processesUnder(shell, { trees })) ?? []
+            if (!started.some((each) => each.parent === shell)) {
+              unlowered = ["no program under the shell"]
+              return undefined
+            }
+            unlowered = started.flatMap((each) => {
+              try {
+                const priority = getPriority(each.pid)
+                return priority === terminalPriority
+                  ? []
+                  : [`${each.name ?? each.pid}: ${priority}`]
+              } catch {
+                return []
+              }
+            })
+            return unlowered.length === 0 ? true : undefined
           },
-          () => `a program under the shell ${shell}, with ${JSON.stringify(seen)}`,
-          15_000,
+          () =>
+            `every program under the shell ${shell} at priority ${terminalPriority}: ${unlowered.join(", ")}`,
+          20_000,
         )
-        for (const child of children) expect(getPriority(child.pid)).toBe(terminalPriority)
         // The foreground is the agent's, where the platform tells (macOS).
-        const agent = await terminalForeground(shell)
-        if (agent !== undefined && agent !== shell)
+        if (process.platform === "darwin") {
+          const agent = await poll(
+            async () => {
+              const found = await terminalForeground(shell)
+              return found !== undefined && found !== shell ? found : undefined
+            },
+            "the agent in the terminal's foreground",
+            10_000,
+          )
           expect(getPriority(agent)).toBe(terminalPriority)
-        else expect(process.platform).toBe("win32")
+        }
       })
     },
   )
