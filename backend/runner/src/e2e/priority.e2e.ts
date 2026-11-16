@@ -1,10 +1,16 @@
 import { getPriority, setPriority } from "node:os"
 
 import { relayPath } from "@novadeck/relay"
-import { processesUnder, terminalForeground, terminalPriority, Trees } from "@novadeck/terminal/pty"
+import {
+  processesUnder,
+  terminalForeground,
+  terminalPriority,
+  Trees,
+  type Spawn,
+} from "@novadeck/terminal/pty"
 
 import { setups } from "./agents/index.js"
-import type { DeckTerminal } from "./deck.js"
+import { poll, type DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
 import { start } from "./scenarios.js"
 
@@ -28,21 +34,27 @@ for (const setup of setups) {
     () => {
       const it = e2e(setup)
 
-      it("runs at a lowered priority, with its shell", async ({ e2e: run, onTestFinished }) => {
+      it("runs at a lowered priority, with its shell", async ({ e2e: run }) => {
         // CI's Windows runs the suite itself below normal, which a shell inherits without
-        // any lowering: this run starts at normal, so what the shell has is its doing.
-        const own = getPriority(process.pid)
-        setPriority(process.pid, 0)
-        onTestFinished(() => setPriority(process.pid, own))
+        // any lowering: this run starts at normal (raising it back to normal is allowed
+        // there), so what the shell has is its doing. Nothing else here changes the suite's.
+        if (getPriority(process.pid) !== 0) setPriority(process.pid, 0)
         expect(getPriority(process.pid)).toBe(0)
         const terminal = await start(run, setup)
         const shell = shellOf(run, terminal)
         expect(getPriority(shell)).toBe(terminalPriority)
         // What the shell started: the agent's launcher, and the agent where it has its own
         // process.
-        const started = (await processesUnder(shell, { trees })) ?? []
-        const children = started.filter((each) => each.parent === shell)
-        expect(children).not.toHaveLength(0)
+        let seen: readonly Spawn[] = []
+        const children = await poll(
+          async () => {
+            seen = (await processesUnder(shell, { trees })) ?? []
+            const found = seen.filter((each) => each.parent === shell)
+            return found.length > 0 ? found : undefined
+          },
+          () => `a program under the shell ${shell}, with ${JSON.stringify(seen)}`,
+          15_000,
+        )
         for (const child of children) expect(getPriority(child.pid)).toBe(terminalPriority)
         // The foreground is the agent's, where the platform tells (macOS).
         const agent = await terminalForeground(shell)
