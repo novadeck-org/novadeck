@@ -295,10 +295,11 @@ Terminals:
   merged; the plain demos' storefront also has one with no owner, one just made and one its owner is
   working in; a demo agent that starts a turn gains lines in the first worktree it owns and holds its
   trash button disabled until the turn ends). New lines make a worktree at a terminal's first change; Many files changed
-  gives the unfolded row its "+N more"; the conflict actions turn the icon and the file names red,
-  with what it conflicts with on hover; Work merged empties the row (a worktree with no files
-  stays, and its trash button closes it at once) and gives it the green merge icon and "Merged" on hover;
-  Worktree just made empties it without that, so it keeps the plain icon. Commits main lacks gives a
+  gives the unfolded row its "+N more"; the conflict actions move the row under Needs you, with a red
+  triangle, the file names in red and what it conflicts with in words; Work merged empties the row
+  (a worktree with no files stays) and moves it to Done with the merge icon, "Merged" and "safe to
+  trash" in green, its trash button shown at rest and counted in Trash N safe;
+  Worktree just made empties it without that, so it stays In progress with the branch icon. Commits main lacks gives a
   worktree with no changed files but two commits main lacks, not read as merged (its trash button asks,
   naming them); Owner in History names it "Closed terminal" and shows it on the selected terminal's
   bar. Worktree just made and Worktree with changes show the

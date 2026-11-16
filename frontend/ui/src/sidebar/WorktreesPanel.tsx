@@ -272,7 +272,10 @@ const ChangeItem = ({
     row.branch,
     files,
     linesWords(work),
-    ...row.facts.map((fact) => fact.text.replace(/^(?!CI)[A-Z]/, (first) => first.toLowerCase())),
+    // Lowercased to run on in the label, but not an initialism ("CI failing", "PR closed").
+    ...row.facts.map((fact) =>
+      fact.text.replace(/^[A-Z](?![A-Z])/, (first) => first.toLowerCase()),
+    ),
   ]
     .filter(Boolean)
     .join(", ")
@@ -406,7 +409,8 @@ const keepDoneFolded = (folded: boolean): void => {
   }
 }
 
-// The time, to the minute, so the origin line's age keeps up while nothing else changes.
+// The time, to the minute, so the origin line's age keeps up while nothing else changes. It may
+// read a minute young, as the age is said to the minute or hour.
 const useMinute = (): number => {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
