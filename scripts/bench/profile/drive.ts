@@ -15,7 +15,7 @@ import {
   switchTo,
   until,
 } from "../timing/drive.ts"
-import type { Switch } from "../timing/report.ts"
+import { scenarioFailures, type Switch } from "../timing/report.ts"
 import type { OpenedApp } from "./app.ts"
 import { readGl, type GlReport } from "./gpu.ts"
 import { sampleMemory, type MemoryPoint, type MemorySample } from "./memory.ts"
@@ -172,6 +172,9 @@ export const play = async (
   const phases = () => Promise.all(seeds.map((n) => rowPhase(page, n)))
   await until(async () => (await phases()).every((each) => each === "running"), 15_000)
   agentPhases.push(...(await phases()))
+  // Agents that never run make every window an idle app's: fail, not measure.
+  const idle = scenarioFailures({ agentPhases, switches: [] }, agents)
+  if (idle.length > 0) throw new Error(idle.join("; "))
 
   const traced = async (phase: PhaseName, during: () => Promise<readonly Switch[]>) => {
     const recording = await startTrace(opened.userData, traceConfig)
@@ -243,5 +246,10 @@ export const play = async (
     return switches
   })
   await sampled("switches")
+  const unpainted = scenarioFailures(
+    { agentPhases, switches: recorded.flatMap((one) => one.switches) },
+    0,
+  )
+  if (unpainted.length > 0) throw new Error(unpainted.join("; "))
   for (let seed = 1; seed <= agents; seed += 1) opened.busy(seed, false)
 }

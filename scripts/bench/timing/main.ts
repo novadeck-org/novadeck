@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path"
 import { parseArgs } from "node:util"
 
 import { drive, scenario } from "./drive.ts"
-import { type Report, type Steady, type Switch, summarize } from "./report.ts"
+import { type Report, type Steady, type Switch, scenarioFailures, summarize } from "./report.ts"
 import { openStack, type Stack } from "./stack.ts"
 
 // `pnpm bench:timing [--output <file>]`: the timing run. The UI's production build in headless
@@ -103,5 +103,8 @@ try {
 } catch (cause) {
   error ??= describe(cause)
 }
+// A run that got to the end with its scenario not holding fails, as a sandbox that leaked does:
+// its numbers would pass for a trend. One that stopped short says why in `error` already.
+if (error === undefined) problems.push(...scenarioFailures(measured, scenario.agents))
 await finish()
 process.exitCode = problems.length > 0 ? 1 : 0

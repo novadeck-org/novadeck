@@ -72,6 +72,33 @@ export type Report = {
   readonly error?: string
 }
 
+/**
+ * Why a run's scenario didn't hold, so that its numbers measure something other than the
+ * scenario: agents the runner never heard running (their windows are as quiet as an idle
+ * app's) or most of the switches never painting (their times are the wait's). Empty when it
+ * held. A run that fails on these can't pass for a trend with a scenario that has quietly
+ * stopped working.
+ */
+export const scenarioFailures = (
+  measured: Pick<Measured, "agentPhases" | "switches">,
+  agents: number,
+): string[] => {
+  const heard = measured.agentPhases.filter((phase) => phase === "running").length
+  const timedOut = measured.switches.filter(({ ms }) => ms === undefined).length
+  return [
+    ...(heard < agents
+      ? [
+          `the scenario didn't hold: ${heard} of ${agents} agents were running (phases: ${measured.agentPhases.map(String).join(", ") || "none"})`,
+        ]
+      : []),
+    ...(measured.switches.length > 0 && timedOut * 2 > measured.switches.length
+      ? [
+          `the scenario didn't hold: ${timedOut} of ${measured.switches.length} switches never painted`,
+        ]
+      : []),
+  ]
+}
+
 /** The value below which `fraction` of `values` fall (nearest rank), or null for none. */
 export const percentile = (values: readonly number[], fraction: number): number | null => {
   if (values.length === 0) return null

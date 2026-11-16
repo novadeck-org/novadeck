@@ -35,6 +35,8 @@ export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve
 export type Probe = {
   benchTiming: { longTasks: number[] }
   benchSwitch: { clicked: number; painted: number | undefined }
+  /** The ids of the terminals the run opened, in the order it opened them (see `setUp`). */
+  benchTerminals?: string[]
 }
 
 // In the page, before the app loads or once it has: long tasks as they happen. It counts no
@@ -56,6 +58,10 @@ export const probe = (): void => {
 
 const rows = "[data-terminal-tab-id]"
 
+// Where a terminal's row is in the list isn't where it was opened: the list shows the newest
+// first, and may order its rows otherwise again. So `setUp` keeps each terminal's id as it
+// opens it, and every other step finds terminal `n`'s row by its id, in the page.
+
 // The radio's input sits under its label, which takes the click.
 export const layout = (page: Page, name: "Grid" | "Focus") =>
   page
@@ -66,8 +72,14 @@ export const layout = (page: Page, name: "Grid" | "Focus") =>
 /** The phase of terminal `n`'s row (1-based), or null before it's there. */
 export const phase = (page: Page, n: number) =>
   page.evaluate(
-    ([selector, index]) =>
-      document.querySelectorAll(selector)[index]?.getAttribute("data-terminal-phase") ?? null,
+    ([selector, index]) => {
+      const id = (window as unknown as Probe).benchTerminals?.[index]
+      return (
+        [...document.querySelectorAll(selector)]
+          .find((each) => each.getAttribute("data-terminal-tab-id") === id)
+          ?.getAttribute("data-terminal-phase") ?? null
+      )
+    },
     [rows, n - 1] as const,
   )
 
@@ -120,19 +132,39 @@ const type = async (page: Page, command: string) => {
 /** Where terminal `n`'s row is, scrolled into view first. */
 const row = async (page: Page, n: number) => {
   await page.evaluate(
-    ([selector, index]) =>
-      document.querySelectorAll(selector)[index]?.scrollIntoView({ block: "nearest" }),
+    ([selector, index]) => {
+      const id = (window as unknown as Probe).benchTerminals?.[index]
+      ;[...document.querySelectorAll(selector)]
+        .find((each) => each.getAttribute("data-terminal-tab-id") === id)
+        ?.scrollIntoView({ block: "nearest" })
+    },
     [rows, n - 1] as const,
   )
   await sleep(150)
   return page.evaluate(
     ([selector, index]) => {
-      const box = document.querySelectorAll(selector)[index]?.getBoundingClientRect()
+      const id = (window as unknown as Probe).benchTerminals?.[index]
+      const box = [...document.querySelectorAll(selector)]
+        .find((each) => each.getAttribute("data-terminal-tab-id") === id)
+        ?.getBoundingClientRect()
       return box ? { x: box.x + box.width / 2, y: box.y + box.height / 2 } : undefined
     },
     [rows, n - 1] as const,
   )
 }
+
+/** Remembers the id of the row that has appeared since the last, as terminal `n`'s. */
+const claim = (page: Page, selector: string): Promise<boolean> =>
+  page.evaluate((rowsSelector) => {
+    const kept = window as unknown as Probe
+    const known = (kept.benchTerminals ??= [])
+    const fresh = [...document.querySelectorAll(rowsSelector)]
+      .map((each) => each.getAttribute("data-terminal-tab-id") ?? "")
+      .find((id) => id !== "" && !known.includes(id))
+    if (fresh === undefined) return false
+    known.push(fresh)
+    return true
+  }, selector)
 
 /** The command an idle terminal runs: it prints terminal `n`'s mark. */
 export const idleShell = (n: number): string => `printf '[T%s] idle shell\\n' ${n}`
@@ -149,6 +181,9 @@ export const setUp = async (
   for (let n = 1; n <= terminals; n += 1) {
     // eslint-disable-next-line no-await-in-loop -- One terminal after another, as a person opens them.
     await page.getByRole("button", { name: "New terminal" }).first().click()
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    if (!(await until(() => claim(page, rows), 30_000)))
+      throw new Error(`terminal ${n} never showed a row`)
     // Keys typed while it starts are lost.
     // eslint-disable-next-line no-await-in-loop -- As above.
     const started = await until(async () => {
@@ -197,14 +232,23 @@ const overSession = (session: CDPSession): Cdp => ({
     ),
   next: (event, timeoutMs) =>
     new Promise((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error(`no ${event} within ${timeoutMs / 1000} s`)),
-        timeoutMs,
-      )
+      const settle = () => {
+        clearTimeout(timer)
+        session.off("close", lost)
+      }
+      const lost = () => {
+        settle()
+        reject(new Error("the DevTools connection closed"))
+      }
+      const timer = setTimeout(() => {
+        session.off("close", lost)
+        reject(new Error(`no ${event} within ${timeoutMs / 1000} s`))
+      }, timeoutMs)
+      session.once("close", lost)
       ;(
         session.once as (event: string, listener: (params: Record<string, unknown>) => void) => void
       )(event, (params) => {
-        clearTimeout(timer)
+        settle()
         resolve(params)
       })
     }),
@@ -222,16 +266,21 @@ const framed = async (
   during: () => Promise<void>,
 ): Promise<{ frames: number; slowFrames: number }> => {
   const folder = mkdtempSync(join(tmpdir(), "timing-trace-"))
+  let recording: Awaited<ReturnType<typeof record>> | undefined
   try {
-    const recording = await record(overSession(browserSession), frameTrace)
+    recording = await record(overSession(browserSession), frameTrace)
     await page.evaluate(() => performance.mark("profile-start"))
     await during()
     await page.evaluate(() => performance.mark("profile-end"))
     const path = join(folder, "window.json.gz")
-    await recording.stop(path)
+    const stopping = recording
+    recording = undefined
+    await stopping.stop(path)
     const { count, over33ms } = windowFrames(readTrace(path).traceEvents ?? [])
     return { frames: count, slowFrames: over33ms }
   } finally {
+    // A window that threw leaves the browser's tracing started: end it, best effort.
+    await recording?.stop(join(folder, "abandoned.json.gz")).catch(() => {})
     rmSync(folder, { recursive: true, force: true })
   }
 }

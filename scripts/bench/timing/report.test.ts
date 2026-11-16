@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { percentile, summarize } from "./report.ts"
+import { percentile, scenarioFailures, summarize } from "./report.ts"
 
 describe("a percentile", () => {
   it("is the nearest-rank value, whatever the samples' order", () => {
@@ -67,5 +67,29 @@ describe("a run's summary", () => {
     expect(summary.steady).toEqual([
       { layout: "Grid", mainThreadShare: 25, fps: 3, framesOver33ms: 2, longTasks: 2 },
     ])
+  })
+})
+
+describe("a scenario that didn't hold", () => {
+  const painted = { target: 1, ms: 30 }
+  const lost = { target: 2, ms: undefined }
+
+  it("is none when every agent runs and most switches paint", () => {
+    const agentPhases = ["running", "running"]
+    expect(scenarioFailures({ agentPhases, switches: [painted, painted, lost] }, 2)).toEqual([])
+  })
+
+  it("names the agents that never ran", () => {
+    const [failure] = scenarioFailures({ agentPhases: ["running", "idle", null], switches: [] }, 3)
+    expect(failure).toContain("1 of 3 agents were running")
+    expect(failure).toContain("running, idle, null")
+  })
+
+  it("names switches that mostly never painted", () => {
+    const failures = scenarioFailures(
+      { agentPhases: ["running"], switches: [painted, lost, lost] },
+      1,
+    )
+    expect(failures).toEqual(["the scenario didn't hold: 2 of 3 switches never painted"])
   })
 })
