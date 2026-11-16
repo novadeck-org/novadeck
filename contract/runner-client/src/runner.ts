@@ -405,6 +405,12 @@ export type Runner = {
      */
     answer(terminalId: string, request: string, answer: RequestAnswer): Promise<void>
     /**
+     * Writes a raw request's dialog, with the screen as it is, to a file for a bug report or a
+     * test fixture, and resolves with its path on the runner's machine. `NOT_FOUND` for a
+     * request the runner doesn't have, `CONFLICT` for one whose dialog is not raw.
+     */
+    saveDialog(terminalId: string, request: string): Promise<{ readonly path: string }>
+    /**
      * Presses Escape in the terminal's agent, stopping its turn; `CONFLICT` without one.
      * Resolves with the queued words the agent's box took back, cleared out of it, for the
      * chat to put back in the person's draft (`returned`, null for none, and for Codex);
@@ -865,6 +871,8 @@ export const connectRunner = async (
         ),
       answer: (terminalId, request, answer) =>
         call((client) => client.agents.answer({ terminalId, request, answer })),
+      saveDialog: (terminalId, request) =>
+        call((client) => client.agents.saveDialog({ terminalId, request })),
       interrupt: (terminalId, { setAside } = {}) =>
         call((client) =>
           client.agents.interrupt({

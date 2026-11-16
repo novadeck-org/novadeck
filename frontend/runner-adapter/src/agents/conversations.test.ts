@@ -96,6 +96,9 @@ const setup = () => {
     clearBox: vi.fn<ConversationStreams["clearBox"]>(async () => ({ cleared: true })),
     putBox: vi.fn<ConversationStreams["putBox"]>(async () => ({ placed: false })),
     answer: vi.fn<ConversationStreams["answer"]>(async () => {}),
+    saveDialog: vi.fn<ConversationStreams["saveDialog"]>(async () => ({
+      path: "/logs/dialogs/saved.json",
+    })),
   }
   const conversations = createRunnerConversations(streams)
   const store = conversations.conversation(key)

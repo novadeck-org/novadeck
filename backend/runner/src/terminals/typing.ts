@@ -457,6 +457,12 @@ export class Typing {
     return { cleared }
   }
 
+  /** Saves a raw request's dialog for a bug report (see `Terminals.saveDialog`). */
+  saveDialog(terminalId: string, request: string): Promise<{ path: string }> {
+    this.host.running(this.host.record(terminalId))
+    return this.dialogs.save(terminalId, request).then((path) => ({ path }))
+  }
+
   /** Answers a request waiting on the person through its dialog (see `Terminals.answer`). */
   answer(terminalId: string, request: string, answer: RequestAnswer): Promise<void> {
     return this.answers.answer(terminalId, request, answer)

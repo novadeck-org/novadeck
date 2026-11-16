@@ -91,6 +91,8 @@ const runner = createRunner({
     uploads: join(dirname(database), "uploads"),
   }),
   ...(relay !== undefined && { relay }),
+  // A dialog it could not read, saved for a bug report, goes in a folder beside the logs.
+  ...(setup && { dialogs: join(setup.folder, "dialogs") }),
   // Its installed engine and models live in a `voice` folder beside the database.
   voice: {
     ...(engine !== undefined && { engine }),

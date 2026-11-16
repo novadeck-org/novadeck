@@ -269,6 +269,7 @@ export const scriptedRunner = ({
       transcriptImage: api.agents.transcriptImage.handler(unplayed("agents.transcriptImage")),
       prompt: api.agents.prompt.handler(unplayed("agents.prompt")),
       answer: api.agents.answer.handler(unplayed("agents.answer")),
+      saveDialog: api.agents.saveDialog.handler(unplayed("agents.saveDialog")),
       interrupt: api.agents.interrupt.handler(unplayed("agents.interrupt")),
       keys: api.agents.keys.handler(unplayed("agents.keys")),
       takeBox: api.agents.takeBox.handler(unplayed("agents.takeBox")),

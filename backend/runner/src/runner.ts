@@ -60,6 +60,12 @@ export type RunnerOptions = {
    */
   uploads?: string
   /**
+   * Where "Save for debugging" writes a dialog Novadeck could not read (`agents.saveDialog`):
+   * a `dialogs` folder beside the logs in the desktop app, beside the database in a standalone
+   * runner; a fresh temporary folder when omitted.
+   */
+  dialogs?: string
+  /**
    * The relay agents start for Novadeck's MCP server and hooks, copied in beside the shell files;
    * the one `@novadeck/relay` built by default. The desktop app passes the one it ships.
    */
@@ -357,6 +363,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     // Without an engine nothing is described, so terminals have nothing to wait for.
     ...(options.murmur?.engine !== undefined && { describer: murmur }),
     ...(scopes && { pty: { scopes } }),
+    ...(options.dialogs !== undefined && { answers: { saves: options.dialogs } }),
     ...options.terminals,
   })
   const projects = new Projects(store, terminals, items, worktrees)

@@ -510,6 +510,17 @@ export const contract = {
     answer: procedure
       .input(z.strictObject({ terminalId: id, request: agentRef, answer: requestAnswer }))
       .output(z.void()),
+    // Writes a request's raw dialog (one the runner could not read, `agents.detail`'s
+    // `dialog.type` "raw") to a file the person can attach to a bug report or drop into a
+    // harness's test fixtures: the screen as it is now, the request's kind, tool and input,
+    // the harness and its version, and the codes the adapter's read refused with. Only on this
+    // call, never by itself, as the file holds the screen's text and the tool's input, which
+    // the runner's logs never do. Resolves with the file's absolute path, in a `dialogs` folder
+    // beside the logs. A request it doesn't have is NOT_FOUND; one whose dialog is not raw
+    // (or no terminal screen to save) a CONFLICT.
+    saveDialog: procedure
+      .input(z.strictObject({ terminalId: id, request: agentRef }))
+      .output(z.strictObject({ path: z.string().min(1).max(4096) })),
     // Presses Escape in the terminal's agent, which stops its turn in every harness, and
     // takes back out of the agent's box what stopping put there (see `interruptResult`). A
     // terminal without an agent bound is a CONFLICT; a box that still holds the queued

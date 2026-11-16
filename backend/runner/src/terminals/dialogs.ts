@@ -16,9 +16,11 @@ import {
   type RequestDialog,
 } from "@novadeck/protocol"
 
+import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
 import { cut } from "../text.js"
 import { DialogDiagnostics, type RawWhy, type Subject } from "./dialog-diagnostics.js"
+import { DialogSaves } from "./dialog-saves.js"
 
 const log = logs.for("dialogs")
 
@@ -82,6 +84,8 @@ export type DialogsOptions = {
    * to read.
    */
   readonly rawLatestMs?: number
+  /** Where a person's "Save for debugging" puts a raw dialog; see `DialogSaves`. */
+  readonly saves?: string
 }
 
 /**
@@ -239,6 +243,7 @@ export class Dialogs {
   private readonly rawAgeMs: number
   private readonly rawLatestMs: number
   private readonly diagnostics: DialogDiagnostics
+  private readonly saves: DialogSaves
 
   constructor(
     private readonly host: DialogsHost,
@@ -246,6 +251,7 @@ export class Dialogs {
   ) {
     this.now = options.now ?? Date.now
     this.diagnostics = new DialogDiagnostics(log, this.now)
+    this.saves = new DialogSaves(options.saves)
     this.throttleMs = options.throttleMs ?? 100
     this.settleMs = options.settleMs ?? 500
     this.rawStillMs = options.rawStillMs ?? 1_500
@@ -316,6 +322,35 @@ export class Dialogs {
       locked: reason,
     })
     this.announce(terminalId, state)
+  }
+
+  /**
+   * Writes a raw request's dialog, with the screen as it is, for the person to attach to a bug
+   * report (see `agents.saveDialog`); resolves with the file's path.
+   */
+  async save(terminalId: string, ref: string): Promise<string> {
+    const state = this.states.get(terminalId)
+    const dialog = this.shown(terminalId, ref)
+    const info = this.host.pending(terminalId)
+    const request = info?.requests.find((each) => each.ref === ref)
+    if (!state || !info || !request) throw new DomainError("NOT_FOUND")
+    if (dialog?.type !== "raw")
+      throw new DomainError("CONFLICT", "Only a dialog Novadeck can't read is saved.")
+    const screen = await this.host.screen(terminalId)
+    if (!screen) throw new DomainError("CONFLICT", "The terminal went away.")
+    const subject = {
+      ...this.subject(terminalId, state, ref, screen.rows)!,
+      columns: screen.columns,
+    }
+    return this.saves.save({
+      harness: info.agent,
+      version: info.version ?? null,
+      reason: dialog.reason,
+      refusals: this.diagnostics.refusals(subject),
+      request: request.facts,
+      rows: screen.rows,
+      columns: screen.columns,
+    })
   }
 
   /** The request was answered: its dialog stays as it was, and is looked at no more. */

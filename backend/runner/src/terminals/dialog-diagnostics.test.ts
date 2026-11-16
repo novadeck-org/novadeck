@@ -1,4 +1,13 @@
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { basename, dirname, join } from "node:path"
+
 import { refuse, type DialogAdapter } from "@novadeck/harness-core/dialogs"
+import {
+  readRecord,
+  rowsOfRecord,
+  type DialogRecord,
+} from "@novadeck/harness-core/testing/dialog-record"
 import { fakeAdapter, FakeTui } from "@novadeck/harness-core/testing/dialogs"
 import type { AgentName } from "@novadeck/protocol"
 
@@ -38,7 +47,11 @@ const asked = (ref: string, command: string, tool = "Bash"): Waiting => ({
 })
 
 // A terminal whose agent waits on a request for `command`, the fake TUI on its screen.
-const terminal = (command: string, adapter: DialogAdapter | false = fakeAdapter()) => {
+const terminal = (
+  command: string,
+  adapter: DialogAdapter | false = fakeAdapter(),
+  saves?: string,
+) => {
   const tui = new FakeTui()
   const requests = [asked("r1", command)]
   const dialogs = new Dialogs(
@@ -50,7 +63,14 @@ const terminal = (command: string, adapter: DialogAdapter | false = fakeAdapter(
       clear: () => {},
       changed: () => {},
     },
-    { throttleMs: 5, settleMs: 40, rawStillMs: 40, rawAgeMs: 40, rawLatestMs: 60 },
+    {
+      throttleMs: 5,
+      settleMs: 40,
+      rawStillMs: 40,
+      rawAgeMs: 40,
+      rawLatestMs: 60,
+      ...(saves !== undefined && { saves }),
+    },
   )
   return { tui, dialogs }
 }
@@ -186,5 +206,73 @@ describe("the tool a dialog line names", () => {
     expect(toolForLog("mcp__our-server__elicitation")).toBe("mcp")
     expect(toolForLog("call_mcp_tool")).toBe("mcp")
     expect(toolForLog("deploy the thing/now")).toBe("other")
+  })
+})
+
+describe("saving a raw dialog for debugging", () => {
+  const saved = (resources: { defer: (undo: () => void) => void }): string => {
+    const folder = mkdtempSync(join(tmpdir(), "saved-dialogs-"))
+    resources.defer(() => rmSync(folder, { recursive: true, force: true }))
+    return folder
+  }
+
+  it("writes the screen, the request and the refusals as a file the adapter replays", async ({
+    resources,
+  }) => {
+    const folder = saved(resources)
+    const { dialogs } = terminal("pwd", stopping, join(folder, "dialogs"))
+    dialogs.changed("t")
+    await until(() => dialogs.shown("t", "r1")?.type === "raw")
+    const path = await dialogs.save("t", "r1")
+    expect(dirname(path)).toBe(join(folder, "dialogs"))
+    expect(readdirSync(join(folder, "dialogs"))).toEqual([basename(path)])
+    if (process.platform !== "win32") expect(statSync(path).mode & 0o777).toBe(0o600)
+    const file = JSON.parse(readFileSync(path, "utf8")) as DialogRecord
+    expect(file).toMatchObject({
+      format: "novadeck.dialog.v1",
+      harness: "codex",
+      version: "0.160.1",
+      reason: "unrecognized",
+      refusals: ["fake.read.1"],
+      columns: 80,
+      rows: 5,
+      request: { kind: "permission", tool: "Bash", input: { command: "pwd" }, cwd: null },
+      scenario: {
+        events: [
+          {
+            event: "PermissionRequest",
+            payload: { tool_name: "Bash", tool_input: { command: "pwd" } },
+          },
+        ],
+      },
+    })
+    expect(rowsOfRecord(file)).toContain("FAKE ASK ls")
+    // The harness's replay of it refuses as the runner's read did.
+    expect(readRecord(stopping, file).refusals).toEqual(file.refusals)
+  })
+
+  it("saves only a request whose dialog is raw, and one the terminal has", async ({
+    resources,
+  }) => {
+    const { dialogs } = terminal("ls", fakeAdapter(), saved(resources))
+    await expect(dialogs.save("t", "r1")).rejects.toMatchObject({ code: "NOT_FOUND" })
+    dialogs.changed("t")
+    await until(() => dialogs.shown("t", "r1")?.type === "choices")
+    await expect(dialogs.save("t", "r1")).rejects.toMatchObject({ code: "CONFLICT" })
+    await expect(dialogs.save("t", "nothing")).rejects.toMatchObject({ code: "NOT_FOUND" })
+  })
+
+  it("keeps the newest few files of its folder", async ({ resources }) => {
+    const folder = saved(resources)
+    const { dialogs } = terminal("pwd", stopping, folder)
+    dialogs.changed("t")
+    await until(() => dialogs.shown("t", "r1")?.type === "raw")
+    for (let each = 0; each < 52; each += 1) {
+      // eslint-disable-next-line no-await-in-loop -- One file at a time.
+      await dialogs.save("t", "r1")
+    }
+    await pause(100)
+    expect(readdirSync(folder).length).toBeLessThanOrEqual(51)
+    expect(readdirSync(folder).length).toBeGreaterThanOrEqual(50)
   })
 })
