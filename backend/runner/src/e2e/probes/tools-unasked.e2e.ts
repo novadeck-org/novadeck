@@ -137,7 +137,7 @@ const cases: { readonly [agent in AgentName]: readonly Case[] } = {
     },
     {
       label: "--settings other key only, seeded",
-      words: () => `--settings '${JSON.stringify({ pickerGrouping: "flat" })}'`,
+      words: () => `--settings '${JSON.stringify({ pickerGrouping: "none" })}'`,
       seeded: true,
     },
     {
