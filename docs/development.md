@@ -729,8 +729,8 @@ App:
   download. Ready at
   launch offers an update downloaded before this run, which shows nothing, as at a launch.
   Finish restart reloads the demo, as the app comes back on the new version. Experimental on
-  and off set the channel, kept across the demo's boots until the page reloads; Preferences' Experimental switch, the IS_EXPERIMENTAL flag and the
-  chat view it holds back follow once Preferences is reopened.
+  and off set the channel, kept across the demo's boots until the page reloads; Preferences' Experimental switch and the IS_EXPERIMENTAL flag
+  follow once Preferences is reopened.
   What's new, after an update shows the card of three highlights until it is dismissed; What's
   new, text with markup shows highlights holding `<b>` and `**stars**` as typed; What's new,
   longest highlights fills four highlights to the app's limits, so the list scrolls; Updated,
@@ -738,8 +738,8 @@ App:
   reboots the demo, as the card is asked for once at launch.
   For specs, `?update=` opens any of these by key (`download`, `held`, `failed`, `available`,
   `allow`, `ready`, `whatsNew`, `whatsNewMarkup`, `whatsNewLong`, `noHighlights`). Both panels and the spec keys come from one record, `frontend/demo-debug/src/desktop/scenarios.ts`.
-  Specs also take `?channel=experimental`, an app on the experimental channel, so IS_EXPERIMENTAL is on (the
-  chat view still needs its own switch on); only specs read it, not `dev:web` or the try demo.
+  Specs also take `?channel=experimental`, an app on the experimental channel, so IS_EXPERIMENTAL is on;
+  only specs read it, not `dev:web` or the try demo.
 
 ### Visitor build
 

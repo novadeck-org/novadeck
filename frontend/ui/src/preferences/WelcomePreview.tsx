@@ -147,7 +147,11 @@ const TerminalOutput = ({ card, from }: { card: AgentCard; from: number }): Reac
       from,
     )}
     {card.agent === "claude" && (
-      <span className="welcome-cursor flex items-center gap-1.5">
+      <span
+        className="welcome-cursor flex items-center gap-1.5"
+        // Once the lines above it have typed in.
+        style={{ "--_at": `${from + 1000}ms` } as CSSProperties}
+      >
         ❯ <i className="block h-[9px] w-1" />
       </span>
     )}
@@ -209,10 +213,13 @@ export const WelcomePreview = ({
   const [chatChanged, setChatChanged] = useState(false)
   const [lastChat, setLastChat] = useState(chat)
   const [swapped, setSwapped] = useState(false)
+  // Changing the choice ends the opening tour, as picking a layout does, so what it changed
+  // stays said, and is announced.
   if (chat !== lastChat) {
     setLastChat(chat)
     setSwapped(true)
     setChatChanged(true)
+    setStep(undefined)
   }
   const stage = useRef<HTMLDivElement>(null)
   const caption = useId()

@@ -110,18 +110,18 @@ const ChoiceCard = ({
   // Given, the card offers installing instead of choosing, and `note` is left out.
   readonly installable?: Installable | undefined
   readonly onChange: (checked: boolean) => void
-  // Told when the pointer or focus comes to the card and leaves it.
-  readonly onLook?: ((looking: boolean) => void) | undefined
+  // Told whether the pointer is over the card, or focus in it: the card is looked at while either is.
+  readonly onLook?: ((how: "pointer" | "focus", looking: boolean) => void) | undefined
 }): React.JSX.Element => {
   const Card = installable ? "div" : "label"
   return (
     <Card
       {...(onLook
         ? {
-            onPointerEnter: () => onLook(true),
-            onPointerLeave: () => onLook(false),
-            onFocus: () => onLook(true),
-            onBlur: () => onLook(false),
+            onPointerEnter: () => onLook("pointer", true),
+            onPointerLeave: () => onLook("pointer", false),
+            onFocus: () => onLook("focus", true),
+            onBlur: () => onLook("focus", false),
           }
         : {})}
       className={`choice-card solid flex min-h-[60px] min-w-0 items-center gap-3 px-3 py-2.5 ${disabled ? "cursor-not-allowed" : installable ? "" : "cursor-pointer"}`}
@@ -212,7 +212,7 @@ const WelcomeForm = ({
   // The chat view starts on too.
   const [showChat, setShowChat] = useState(true)
   // While the person looks at that choice, the preview marks what it changes.
-  const [lookingAtChat, setLookingAtChat] = useState(false)
+  const [lookingAtChat, setLookingAtChat] = useState({ pointer: false, focus: false })
   const offerSettings = offerTranscripts || chatView !== undefined
 
   // As "Let’s build something" applies the choices; `install` then also starts installing
@@ -305,7 +305,7 @@ const WelcomeForm = ({
           <WelcomePreview
             connected={choices}
             chat={chatView !== undefined && showChat}
-            spotlight={chatView !== undefined && lookingAtChat}
+            spotlight={chatView !== undefined && (lookingAtChat.pointer || lookingAtChat.focus)}
           />
         </div>
       </div>
@@ -387,7 +387,9 @@ const WelcomeForm = ({
                     value="on"
                     checked={showChat}
                     onChange={setShowChat}
-                    onLook={setLookingAtChat}
+                    onLook={(how, looking) =>
+                      setLookingAtChat((current) => ({ ...current, [how]: looking }))
+                    }
                   />
                 )}
                 {offerTranscripts && (

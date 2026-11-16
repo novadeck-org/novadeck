@@ -1,5 +1,5 @@
 import { render, type Rendered } from "@novadeck/test-kit/render"
-import { createElement, type ComponentProps } from "react"
+import { act, createElement, type ComponentProps } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { describe, expect, it } from "../test"
@@ -98,6 +98,32 @@ describe("the chat view, in the welcome dialog", () => {
     show({ chatView: { enabled: false, onChange: (on) => changes.push(on) } })
     button("Skip for now")!.click()
     expect(changes).toEqual([])
+  })
+})
+
+describe("the chat view's preview, in the welcome dialog", () => {
+  const spotlit = (): boolean =>
+    document.querySelector(".welcome-stage")?.getAttribute("data-spotlight") === "chat"
+  const card = (): HTMLElement =>
+    document.querySelector('input[name="chat-view"]')!.closest<HTMLElement>(".choice-card")!
+
+  it("shows the agents as a chat while the choice is checked, and terminals once it isn't", () => {
+    show({ chatView: { enabled: false, onChange: () => {} } })
+    expect(document.querySelector(".welcome-chat")).not.toBeNull()
+    act(() => document.querySelector<HTMLInputElement>('input[name="chat-view"]')!.click())
+    expect(document.querySelector(".welcome-chat")).toBeNull()
+  })
+
+  it("marks what the choice changes while it has focus, though the pointer leaves it", () => {
+    show({ chatView: { enabled: false, onChange: () => {} } })
+    expect(spotlit()).toBe(false)
+    act(() => card().dispatchEvent(new PointerEvent("pointerover", { bubbles: true })))
+    act(() => document.querySelector<HTMLInputElement>('input[name="chat-view"]')!.focus())
+    expect(spotlit()).toBe(true)
+    act(() => card().dispatchEvent(new PointerEvent("pointerout", { bubbles: true })))
+    expect(spotlit()).toBe(true)
+    act(() => document.querySelector<HTMLInputElement>('input[name="chat-view"]')!.blur())
+    expect(spotlit()).toBe(false)
   })
 })
 

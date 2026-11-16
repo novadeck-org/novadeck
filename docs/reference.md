@@ -526,11 +526,14 @@ agent.
   touches your rc files.
 - **Connecting agents.** The first-run welcome dialog includes an interactive preview
   of Focus, Grid, and Canvas, which shows each layout once until you pick one (never with
-  reduced motion), plus a choice of agents, with every installed one chosen, and of
-  transcripts, on. A chosen agent's preview terminal shows it connected.
-  “Let’s build something” applies those choices; skipping, Escape, or clicking outside
-  dismisses the dialog without connecting agents or changing transcripts. The preview is illustrative and
-  starts no terminals. Preferences offers the same agents as immediate switches.
+  reduced motion), plus a choice of agents, with every installed one chosen, of the chat
+  view, on, and of transcripts, on. A chosen agent's preview terminal shows it connected,
+  and with the chat view chosen the agents' preview terminals show as their chat, while a
+  plain terminal stays as it is. “Let’s build something” applies those choices; skipping,
+  Escape, or clicking outside dismisses the dialog without connecting agents or changing
+  the chat view or transcripts. Its scheme picker (System, Light, Dark; left out for a theme
+  drawn in one scheme) applies at once and stays however the dialog closes, as Preferences →
+  Appearance's does. The preview is illustrative and starts no terminals. Preferences offers the same agents as immediate switches.
   An agent that is not installed offers Install instead, in both places, with the command
   it runs: its vendor's official installer, in a terminal of the workspace (Preferences
   closes for it). Once the installer ends, Novadeck connects the agent and starts it in a
