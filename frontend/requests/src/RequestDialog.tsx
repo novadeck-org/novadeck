@@ -63,6 +63,7 @@ import {
   useMenu,
   type Menu,
 } from "./use-menu"
+import { useMounted } from "./use-mounted"
 
 // What a request's dialog offers, as the next lines of the terminal: numbered rows, a thin bar on
 // the one the person is on. Each takes `send`, which gives the answer to the backend and says
@@ -99,8 +100,17 @@ type Controls = {
   readonly place: RequestPlace
 }
 
+// What the host does with a dialog it can't read, for the person's bug report: writes it to a file
+// for them (`save`, resolving with where it went), and shows that folder where it can (`open`).
+export type Diagnostics = {
+  readonly save: () => Promise<string>
+  readonly open?: (() => void) | undefined
+}
+
 // The host's own sides of a dialog, each optional.
 export type DialogSlots = {
+  // For a dialog the host can't read: "Save for debugging".
+  readonly diagnostics?: Diagnostics | undefined
   // In place of what a choices dialog asks in full: the host's own box of it, as the Inbox's plan.
   readonly detail?: ReactNode
   // The agent's harness, by its own name (`Conversation.agent`), for what its fields refuse.
@@ -1016,12 +1026,69 @@ const reasons = {
   failed: "That answer didn't take.",
 } as const
 
+// "Save for debugging" under a dialog no adapter read: writes it, and says where it went.
+const SaveForDebugging = ({
+  diagnostics,
+}: {
+  readonly diagnostics: Diagnostics
+}): React.JSX.Element => {
+  const [saved, setSaved] = useState<
+    | { readonly type: "idle" }
+    | { readonly type: "saving" }
+    | { readonly type: "saved"; readonly path: string }
+    | { readonly type: "failed"; readonly why: string }
+  >({ type: "idle" })
+  const mounted = useMounted()
+  const save = (): void => {
+    setSaved({ type: "saving" })
+    diagnostics.save().then(
+      (path) => mounted.current && setSaved({ type: "saved", path }),
+      (failure: unknown) =>
+        mounted.current &&
+        setSaved({
+          type: "failed",
+          why:
+            failure instanceof Error && failure.message
+              ? failure.message
+              : "Couldn't save the dialog.",
+        }),
+    )
+  }
+  return (
+    <p className="request-note request-raw-save">
+      <button
+        type="button"
+        className="request-key nodrag nopan"
+        disabled={saved.type === "saving"}
+        onClick={save}
+      >
+        {saved.type === "saved" ? "Save again" : "Save for debugging"}
+      </button>
+      <span role="status" data-failed={saved.type === "failed" || undefined}>
+        {saved.type === "saved" && (
+          <>
+            Saved to <span className="request-raw-path">{saved.path}</span>
+          </>
+        )}
+        {saved.type === "failed" && saved.why}
+      </span>
+      {saved.type === "saved" && diagnostics.open && (
+        <button type="button" className="request-key nodrag nopan" onClick={diagnostics.open}>
+          Open logs folder
+        </button>
+      )}
+    </p>
+  )
+}
+
 const Raw = ({
   dialog,
   live,
+  diagnostics,
 }: {
   readonly dialog: Extract<ChatDialog, { type: "raw" }>
   readonly live: Live | undefined
+  readonly diagnostics: Diagnostics | undefined
 }): React.JSX.Element => (
   <div className="request-dialog">
     {/* That an answer didn't take is news; why the chat can't read a dialog isn't, with the
@@ -1041,6 +1108,7 @@ const Raw = ({
         {shownControls(dialog.text)}
       </pre>
     )}
+    {diagnostics && <SaveForDebugging diagnostics={diagnostics} />}
   </div>
 )
 
@@ -1054,6 +1122,7 @@ export const RequestDialog = ({
   onReply,
   detail,
   harness,
+  diagnostics,
   ...controls
 }: Controls &
   DialogSlots & {
@@ -1071,5 +1140,5 @@ export const RequestDialog = ({
   ) : dialog.type === "form" ? (
     <Form dialog={dialog} {...controls} />
   ) : (
-    <Raw dialog={dialog} live={live} />
+    <Raw dialog={dialog} live={live} diagnostics={diagnostics} />
   )

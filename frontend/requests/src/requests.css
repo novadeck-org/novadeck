@@ -14,7 +14,8 @@
    a `.request-copy`); questions as tabbed pages (`.request-tabs`, `.request-tab`,
    `.request-pages`, `.request-page`, a `.request-question` each, then `.request-review`); a form
    (`.request-form-fields`, a `.request-form-field` each, its set to pick from `.request-picks`);
-   or a dialog it can't read (`.request-raw-reason`, `.request-raw`). A line under it says it
+   or a dialog it can't read (`.request-raw-reason`, `.request-raw`, and under them the host's
+   `.request-raw-save` line with its `.request-key`s and the `.request-raw-path` it saved to). A line under it says it
    waits (`.request-waiting`, `.request-choices`), was answered (`.request-answered`), came again
    (`.request-again`) or failed (`.request-error`); `.request-field-hint` warns beside a field.
    A plan's detail can be the host's prose (`.request-plan`, data-loading while it comes). A
@@ -368,6 +369,19 @@
   .request-key:hover:not(:disabled, [aria-disabled="true"]) {
     color: var(--_ink);
   }
+}
+/* Under a dialog no adapter read: "Save for debugging", where it went, a way to open the folder. */
+.request-raw-save {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 2ch;
+}
+.request-raw-save [data-failed] {
+  color: var(--_red);
+}
+.request-raw-path {
+  user-select: text;
+  overflow-wrap: anywhere;
 }
 .request-key:disabled,
 .request-key[aria-disabled="true"] {

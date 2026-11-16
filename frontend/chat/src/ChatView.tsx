@@ -113,6 +113,8 @@ const ChatBody = ({
   onClearBox,
   onAnswer,
   onAnswerInTerminal,
+  onSaveDialog,
+  onOpenLogs,
   onWordsLost,
   focusInput,
   onInputFocused,
@@ -187,6 +189,10 @@ const ChatBody = ({
   readonly onClearBox: (seen: string) => Promise<void>
   readonly onAnswer: (request: string, answer: ChatAnswer) => Promise<void>
   readonly onAnswerInTerminal: () => void
+  // Where the backend can: writes a raw dialog to a file for a bug report, and shows the logs
+  // folder it went to.
+  readonly onSaveDialog?: ((request: string) => Promise<string>) | undefined
+  readonly onOpenLogs?: (() => void) | undefined
   // Words that were to follow an answer and didn't reach the agent, for the person's box.
   readonly onWordsLost: (words: string) => void
   readonly focusInput: boolean
@@ -844,6 +850,8 @@ const ChatBody = ({
           harness={harness}
           onAnswer={answer}
           onAnswerInTerminal={onAnswerInTerminal}
+          onSaveDialog={onSaveDialog}
+          onOpenLogs={onOpenLogs}
           onSettled={() => {
             // The card that was answered went: the next card or the box takes focus, unless the
             // person moved it.

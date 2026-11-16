@@ -7,7 +7,7 @@ import type { MenuHandle } from "./Menu"
 import { RequestDialog, type DialogSlots, type Live, type RequestPlace } from "./RequestDialog"
 import { useMounted } from "./use-mounted"
 
-export type { Live, RequestPlace } from "./RequestDialog"
+export type { Diagnostics, Live, RequestPlace } from "./RequestDialog"
 
 // A card's frame: its head (the title line, and what the host puts beside it) over what it holds.
 // A request's card is one; the Inbox's own kinds (an agent's ask, a held message, trouble, an
@@ -106,6 +106,7 @@ export const RequestCard = ({
   draft,
   detail,
   harness,
+  diagnostics,
 }: DialogSlots & {
   // The card's own element, for the host.
   readonly ref?: Ref<HTMLElement> | undefined
@@ -312,6 +313,7 @@ export const RequestCard = ({
           handle={handle}
           detail={detail}
           harness={harness}
+          diagnostics={diagnostics}
         />
       )}
       {notice && !request.answered && (

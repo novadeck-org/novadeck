@@ -652,6 +652,13 @@ export const createDemoChat = (
     conversations: {
       conversation: storeOf,
       refused: promptRefused,
+      // The person saves a dialog the chat can't read for a bug report, from the chat or the Inbox
+      // (whose rows are fixtures): the demo writes nothing, and says where the runner would have,
+      // after the moment a write takes.
+      saveDialog: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 300))
+        return `/home/demo/.config/Novadeck/logs/dialogs/20261116T120000Z-demo-permission-3f9a1c.json`
+      },
       // The person empties the agent's box from the chat.
       clearBox: async (key) => {
         storeOf(key).update((conversation) => ({ ...conversation, box: null }))

@@ -1110,6 +1110,23 @@ describe("the runner's conversations", () => {
       await expect(conversations.putBox?.(key, "draft")).resolves.toBe(false)
     })
 
+    it("saves a raw dialog through the runner, and says why it couldn't", async () => {
+      const { streams } = setup()
+      const conversations = createRunnerConversations(
+        streams,
+        undefined,
+        createStore<MessagesState>(noMessages),
+      )
+      await expect(conversations.saveDialog?.(key, "r1")).resolves.toBe("/logs/dialogs/saved.json")
+      expect(streams.saveDialog).toHaveBeenCalledWith("t", "r1")
+      streams.saveDialog.mockRejectedValueOnce(new WireError("NOT_FOUND"))
+      await expect(conversations.saveDialog?.(key, "r1")).rejects.toThrow("already answered")
+      streams.saveDialog.mockRejectedValueOnce(new WireError("DISCONNECTED"))
+      await expect(conversations.saveDialog?.(key, "r1")).rejects.toThrow("offline")
+      streams.saveDialog.mockRejectedValueOnce(new WireError("CONFLICT"))
+      await expect(conversations.saveDialog?.(key, "r1")).rejects.toThrow("Couldn't save")
+    })
+
     it("carries the terminal's doorbell, as its messages change, for as long as it's read", async () => {
       const { streams } = setup()
       const messages = createStore<MessagesState>(noMessages)

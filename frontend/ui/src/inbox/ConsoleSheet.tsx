@@ -18,7 +18,7 @@ import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Markdown } from "@novadeck/toolkit/Markdown"
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 
-import { useAgentContext, useRefused } from "./agent-context"
+import { useAgentContext, useDiagnostics, useRefused } from "./agent-context"
 import {
   menuOf,
   requestReceipt,
@@ -151,6 +151,7 @@ const RequestSheet = ({
   const { row, answering, failed, sent, submit, reveal } = props
   const { drafts, setDraft } = useInboxContext()
   const refused = useRefused()
+  const diagnostics = useDiagnostics(row, request.id)
   const planAnswered = usePlanAnswered()
   const key = rowKey(row)
   // The card's answer settles once the Inbox has it: taken, or failed, which the sheet says.
@@ -180,6 +181,7 @@ const RequestSheet = ({
       onSettled={() => {}}
       onSubmitted={() => {}}
       refused={refused}
+      diagnostics={diagnostics}
       place={place}
       clock={askedClock}
       menu={handle}
