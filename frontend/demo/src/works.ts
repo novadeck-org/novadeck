@@ -756,7 +756,12 @@ export const createDemoWorks = (
     },
     fetchedAgo: (at, minutes) => {
       const { root } = ensure(at)
-      change(root, (work) => ({ ...work, fetchedAt: now() - minutes * minute }))
+      // A fetched main is the remote's, as the runner measures it once origin was fetched.
+      change(root, (work) => ({
+        ...work,
+        base: "origin/main",
+        fetchedAt: now() - minutes * minute,
+      }))
     },
     orphan: (root) => change(root, (work) => ({ ...work, terminalId: null, working: false })),
     setWorking: (terminalId, working) => {

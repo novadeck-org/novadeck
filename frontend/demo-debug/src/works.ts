@@ -148,7 +148,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Origin fetched 3 h ago",
-              hint: "Open Worktrees: the selected terminal's row (made now if it had no worktree) says its main is from a fetch 3 h ago, where the panel's fetch time shows it",
+              hint: "Open Worktrees: the selected terminal's row (made now if it had no worktree) is measured against origin/main fetched 3 h ago, so the panel's top line reads origin/main, 3 h ago in amber, with Fetch; Fetch brings it to just now",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (key) works.fetchedAgo(placed(workspace(), key), 3 * 60)
