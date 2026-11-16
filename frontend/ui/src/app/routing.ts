@@ -26,7 +26,9 @@ export type WorkspaceRoute = {
   terminal: string
   panel: SidebarPanel
   dialog: "search" | "preferences" | null
-  section: PreferencesTab
+  // The Preferences tab the URL names; null where it names none, and Preferences opens Agents
+  // where it has the tab, else General.
+  section: PreferencesTab | null
 }
 
 // URL-driven navigation over the workspace and UI stores. Each call commits the
@@ -52,12 +54,13 @@ export const workspaceRoute = (workspace: Workspace): WorkspaceRoute => ({
   terminal: activeSession(workspace)!.state.selected,
   panel: "terminals",
   dialog: null,
-  section: "general",
+  section: null,
 })
 
-// The Preferences tab a URL names, General for anything else.
-const sectionOf = (name: string | null): PreferencesTab =>
-  preferencesTabs.find(({ id }) => id === name)?.id ?? "general"
+// The Preferences tab a URL names: none where it names none, General where the name is
+// not a tab's.
+const sectionOf = (name: string | null): PreferencesTab | null =>
+  name === null ? null : (preferencesTabs.find(({ id }) => id === name)?.id ?? "general")
 
 // Whether the app shows the Files panel: where the backend has the project's files to show.
 export const filesShown = (backend: Pick<Backend, "files">): boolean => backend.files !== undefined
@@ -106,8 +109,7 @@ export const routeUrl = (route: WorkspaceRoute): string => {
   search.set("terminal", route.terminal)
   if (route.panel !== "terminals") search.set("panel", route.panel)
   if (route.dialog) search.set("dialog", route.dialog)
-  if (route.dialog === "preferences" && route.section !== "general")
-    search.set("section", route.section)
+  if (route.dialog === "preferences" && route.section !== null) search.set("section", route.section)
   return `/projects/${encodeURIComponent(route.projectId)}/sessions/${encodeURIComponent(route.sessionId)}/${route.view}?${search}`
 }
 
@@ -173,7 +175,7 @@ export const resolveRoute = (
       terminal,
       panel: panelOf(search.get("panel"), panels),
       dialog: dialog === "search" || dialog === "preferences" ? dialog : null,
-      section: dialog === "preferences" ? sectionOf(search.get("section")) : "general",
+      section: dialog === "preferences" ? sectionOf(search.get("section")) : null,
     },
   }
 }

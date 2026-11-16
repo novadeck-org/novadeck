@@ -1,6 +1,8 @@
 /* The toggle recipe: the switch (`.switch`, with its `.switch-thumb`) and the checkbox
    (`.checkbox`, holding a `.checkbox-input` and the `.checkbox-mark` drawn over it).
-   On, each takes the strong fill; the checkbox shows its mark at once.
+   On, each takes the strong fill; the checkbox shows its mark at once. A radio is the same
+   box, round, on a `.checkbox-input` of type radio, with a `.checkbox-dot` in place of the
+   mark.
 
    Hooks: on a switch, aria-checked and data-state="checked" | "unchecked", :disabled,
    and aria-disabled="true" while a change is pending; on a checkbox, the input's
@@ -18,7 +20,7 @@
    --toggle-box-border-width (1.5px),
    --toggle-box-shadow (a faint inset), --toggle-box-radius (4px): the checkbox off.
    It takes the track's on tokens when checked, and --toggle-box-checked-shadow (none).
-   --toggle-mark-fg (on-strong): the check.
+   --toggle-mark-fg (on-strong): the check, or the radio's dot.
    --toggle-disabled-opacity (0.5), --toggle-pending-opacity (0.6). */
 .switch {
   --_bg: var(--toggle-track-off-bg, var(--color-soft));
@@ -98,5 +100,18 @@
   color: var(--toggle-mark-fg, var(--color-on-strong));
 }
 .checkbox-input:checked ~ .checkbox-mark {
+  visibility: visible;
+}
+.checkbox-input[type="radio"] {
+  border-radius: 50%;
+}
+.checkbox-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--toggle-mark-fg, var(--color-on-strong));
+  visibility: hidden;
+}
+.checkbox-input:checked ~ .checkbox-dot {
   visibility: visible;
 }

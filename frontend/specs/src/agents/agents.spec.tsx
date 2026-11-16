@@ -283,7 +283,7 @@ describe("An agent that finishes", () => {
 
   it("offers a notification only in the desktop app, on unless turned off", async () => {
     await openWorkspace()
-    await openPreferences()
+    await openPreferencesOn("General")
     const toggle = preferencesDialog().getByRole("switch", {
       name: "Notify when an agent finishes",
     })
@@ -479,7 +479,7 @@ describe("Connecting agents", () => {
       await choice.click()
       await welcome().getByRole("button", { name: "Let’s build something" }).click()
       await expect.element(welcome()).not.toBeInTheDocument()
-      await openPreferences()
+      await openPreferencesOn("General")
       await expect
         .element(preferencesDialog().getByRole("switch", { name: "Transcripts" }))
         .toHaveAttribute("aria-checked", "false")
@@ -546,7 +546,7 @@ describe("Connecting agents", () => {
       await welcome().getByRole("checkbox", { name: "Transcripts" }).click()
       await welcome().getByRole("button", { name: "Skip for now" }).click()
       await expect.element(welcome()).not.toBeInTheDocument()
-      await openPreferences()
+      await openPreferencesOn("General")
       await expect
         .element(preferencesDialog().getByRole("switch", { name: "Transcripts" }))
         .toHaveAttribute("aria-checked", "true")

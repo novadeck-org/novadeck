@@ -112,7 +112,7 @@ export const createNavigator = ({
 
   const closeDialog = (): void => {
     const { route, dialogDepth } = current()
-    const destination = routeUrl({ ...route, dialog: null, section: "general" })
+    const destination = routeUrl({ ...route, dialog: null, section: null })
     if (destination === requested) return
     if (Number.isSafeInteger(dialogDepth) && dialogDepth > 0) {
       requested = destination

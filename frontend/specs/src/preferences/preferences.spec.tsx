@@ -138,7 +138,7 @@ describe("Preferences", () => {
   context("when choosing whether terminals keep transcripts", () => {
     it("keeps them by default, says they are saved encrypted, and turns them off", async () => {
       await openWorkspace()
-      await openPreferences()
+      await openPreferencesOn("General")
       await expect.element(transcriptsSwitch()).toHaveAttribute("aria-checked", "true")
       await expect
         .element(transcriptsSwitch())
@@ -146,7 +146,7 @@ describe("Preferences", () => {
       await transcriptsSwitch().click()
       await expect.element(transcriptsSwitch()).toHaveAttribute("aria-checked", "false")
       await closePreferences()
-      await openPreferences()
+      await openPreferencesOn("General")
       await expect.element(transcriptsSwitch()).toHaveAttribute("aria-checked", "false")
     })
   })
@@ -173,7 +173,7 @@ describe("Preferences", () => {
   context("when the app cannot keep transcripts encrypted", () => {
     it("shows the switch off and disabled, and says why", async () => {
       await openWorkspace("/?transcripts=unavailable")
-      await openPreferences()
+      await openPreferencesOn("General")
       await expect.element(transcriptsSwitch()).toHaveAttribute("aria-checked", "false")
       await expect.element(transcriptsSwitch()).toBeDisabled()
       await expect
@@ -201,10 +201,21 @@ describe("Preferences", () => {
   })
 
   context("when opened from the header", () => {
-    it("shows the General section with its settings", async () => {
+    it("opens the first tab, Agents, with the agents' settings", async () => {
       await openWorkspace()
 
       await openPreferences()
+
+      await expect.element(tab("Agents")).toHaveAttribute("aria-selected", "true")
+      await expect.element(tab("General")).toHaveAttribute("aria-selected", "false")
+      const agents = preferencesDialog().getByRole("tabpanel", { name: "Agents" })
+      await expect.element(agents.getByRole("switch", { name: "Claude Code" })).toBeVisible()
+    })
+
+    it("opens General, which holds the notifications and the transcripts, when it is chosen", async () => {
+      await openWorkspace()
+
+      await openPreferencesOn("General")
 
       await expect.element(tab("General")).toHaveAttribute("aria-selected", "true")
       await expect.element(tab("Shortcuts")).toHaveAttribute("aria-selected", "false")
@@ -936,7 +947,7 @@ describe("Appearance preference", () => {
 
     it("is left out where the app shows no desktop notifications", async () => {
       await openWorkspace()
-      await openPreferences()
+      await openPreferencesOn("General")
 
       await expect
         .element(

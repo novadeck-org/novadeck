@@ -69,6 +69,10 @@ describe("the visitor build", () => {
     const dialog = page.getByRole("dialog", { name: "Preferences" })
     await expect.element(dialog).toBeVisible()
     await expect.element(dialog.getByRole("tab", { name: "General" })).toBeVisible()
+    expect(dialog.getByRole("tab", { name: "Agents" }).query()).toBeNull()
+    await expect
+      .element(dialog.getByRole("tab", { name: "General" }))
+      .toHaveAttribute("aria-selected", "true")
     expect(dialog.getByRole("tab", { name: "Addons" }).query()).toBeNull()
   })
 

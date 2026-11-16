@@ -111,6 +111,39 @@ describe("route reconciliation", () => {
     )
   })
 
+  describe("for the Preferences tab", () => {
+    const pathname = "/projects/project/sessions/initial/grid"
+    const sectionOf = (search: string) =>
+      resolveRoute(fixture(), { pathname, search }, preferences, 1, availablePanels(true)).route
+        .section
+
+    it("is none where the URL names none, so Preferences opens its own first choice", () => {
+      expect(sectionOf("?terminal=01&dialog=preferences")).toBeNull()
+      expect(sectionOf("?terminal=01")).toBeNull()
+    })
+
+    it("is the tab the URL names, General included", () => {
+      expect(sectionOf("?terminal=01&dialog=preferences&section=agents")).toBe("agents")
+      expect(sectionOf("?terminal=01&dialog=preferences&section=general")).toBe("general")
+    })
+
+    it("is General where the name is not a tab's", () => {
+      expect(sectionOf("?terminal=01&dialog=preferences&section=nothing")).toBe("general")
+    })
+
+    it("is kept in the URL where it is named, General too, and left out where none is", () => {
+      const route = workspaceRoute(fixture())
+      const open = { ...route, dialog: "preferences" as const }
+
+      expect(routeUrl({ ...open, section: null })).toBe(
+        "/projects/project/sessions/initial/grid?terminal=01&dialog=preferences",
+      )
+      expect(routeUrl({ ...open, section: "general" })).toBe(
+        "/projects/project/sessions/initial/grid?terminal=01&dialog=preferences&section=general",
+      )
+    })
+  })
+
   it("shows the Files panel only where the backend reads the projects' files", () => {
     const pathname = "/projects/project/sessions/initial/grid"
     const location = { pathname, search: "?terminal=01&panel=files" }

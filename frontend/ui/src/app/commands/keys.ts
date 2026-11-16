@@ -146,7 +146,7 @@ export const createKeyCommands = (
     "preferences.open": {
       run: handled(() => {
         commands.setSwitcher(null)
-        navigation.go({ dialog: "preferences", section: "general" })
+        navigation.go({ dialog: "preferences", section: null })
       }),
     },
     "session.new": {

@@ -141,7 +141,7 @@ export const HeaderSection = memo((): React.JSX.Element => {
         }}
         onPreferences={() => {
           setSwitcher(null)
-          navigation.go({ dialog: "preferences", section: "general" })
+          navigation.go({ dialog: "preferences", section: null })
         }}
       />
       <PinsBar

@@ -382,6 +382,7 @@ describe("arrow navigation", () => {
     it("skips it", async () => {
       await openWorkspace()
       await pressShortcut("preferences")
+      await preferencesDialog().getByRole("tab", { name: "Appearance" }).click()
       await preferencesDialog().getByRole("checkbox", { name: "Grid" }).click()
       await preferencesDialog().getByRole("button", { name: "Close preferences" }).click()
       await expect.element(preferencesDialog()).not.toBeInTheDocument()

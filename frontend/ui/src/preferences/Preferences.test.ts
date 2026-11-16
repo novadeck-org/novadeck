@@ -123,6 +123,35 @@ describe("the Agents tab", () => {
   })
 })
 
+describe("the tab Preferences opens on when none is named", () => {
+  const agent = { agent: "claude" as const, available: true, connected: false, busy: false }
+
+  it("is Agents, the first tab, where there are agents", async () => {
+    await show({ tab: null, agents: { list: [agent], onChange: () => {} } })
+
+    expect(selected()).toBe("Agents")
+  })
+
+  it("is Agents where there is only the idle wait", async () => {
+    await show({ tab: null, hibernation: { minutes: 60, onChange: () => {} } })
+
+    expect(selected()).toBe("Agents")
+  })
+
+  it("is General where the backend has no agents", async () => {
+    await show({ tab: null })
+
+    expect(tabs()).not.toContain("Agents")
+    expect(selected()).toBe("General")
+  })
+
+  it("is General where General is named, though Agents is first", async () => {
+    await show({ tab: "general", agents: { list: [agent], onChange: () => {} } })
+
+    expect(selected()).toBe("General")
+  })
+})
+
 describe("the Agent Chat choice", () => {
   const choice = (label: "Chat" | "Terminal"): HTMLInputElement | null =>
     [...document.querySelectorAll<HTMLInputElement>('input[name="agent-presentation"]')].find(

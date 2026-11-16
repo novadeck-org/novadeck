@@ -255,7 +255,7 @@ describe("browser history", () => {
 
       history.back()
       await expect
-        .element(preferencesDialog().getByRole("tab", { name: "General" }))
+        .element(preferencesDialog().getByRole("tab", { name: "Agents" }))
         .toHaveAttribute("aria-selected", "true")
 
       history.back()

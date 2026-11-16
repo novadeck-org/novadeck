@@ -156,7 +156,8 @@ export const Preferences = ({
   chat = false,
 }: {
   open: boolean
-  tab: PreferencesTab
+  // The tab to show; null for none named, which opens Agents where the backend has it, else General.
+  tab: PreferencesTab | null
   onTabChange: (tab: PreferencesTab) => void
   // An agent whose switch to bring into view and focus once the dialog is open, where the
   // person came from a row that needs it connected; `onFocusedAgent` says it was done.
@@ -295,7 +296,8 @@ export const Preferences = ({
     (id === "addons" && !hasAddons) ||
     (id === "about" && !hasAbout) ||
     (id === "experimental" && !hasExperimental)
-  const shown = hidden(tab) ? "general" : tab
+  // Where no tab is named, Agents opens where there is one, else General.
+  const shown = tab === null ? (hasAgentsTab ? "agents" : "general") : hidden(tab) ? "general" : tab
   // A tab the list has scrolled out of sight, on a phone, is brought back into view when it opens.
   useEffect(() => {
     if (!open) return
@@ -543,7 +545,7 @@ export const Preferences = ({
                       return (
                         <label
                           key={label}
-                          className="choice-card relative flex min-h-[76px] min-w-0 cursor-pointer flex-col justify-between gap-3 p-3 text-body"
+                          className="choice-card solid relative flex min-h-[76px] min-w-0 cursor-pointer flex-col justify-between gap-3 p-3 text-body"
                           data-state={checked ? "checked" : "unchecked"}
                         >
                           <Icon
@@ -553,13 +555,20 @@ export const Preferences = ({
                             strokeWidth={1.5}
                           />
                           <span>{label}</span>
-                          <input
-                            type="radio"
-                            name="agent-presentation"
-                            className="absolute inset-0 m-0 size-full cursor-[inherit] opacity-0"
-                            checked={checked}
-                            onChange={() => onChange({ ...value, chatView })}
-                          />
+                          {/* The checkbox's box, round (the toggle recipe), with a dot in place of its check. */}
+                          <span className="checkbox absolute top-2.5 right-2.5 flex size-4 shrink-0 items-center justify-center">
+                            <input
+                              type="radio"
+                              name="agent-presentation"
+                              className="checkbox-input absolute inset-0 m-0 size-full cursor-[inherit]"
+                              checked={checked}
+                              onChange={() => onChange({ ...value, chatView })}
+                            />
+                            <span
+                              aria-hidden="true"
+                              className="checkbox-dot pointer-events-none relative"
+                            />
+                          </span>
                         </label>
                       )
                     })}
