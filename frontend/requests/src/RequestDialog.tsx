@@ -58,6 +58,7 @@ import {
   goToRow,
   holdsWords,
   isTyping,
+  movesKey,
   useArrivalGuard,
   useMenu,
   type Menu,
@@ -540,13 +541,18 @@ const Questions = ({
   const setTurned = (to: number): void => kept.set("page", to)
   const base = useId()
   const pages = useRef<HTMLFieldSetElement>(null)
-  const guarded = useArrivalGuard(arrived)
+  const guard = useArrivalGuard(arrived)
   // The page on screen's rows take the keys the host passes on.
   const shownPage = (): Element | null | undefined =>
     pages.current?.querySelector("[data-page][data-shown]")
   useImperativeHandle(handle, () => ({
-    key: (key) => (guarded() && answersKey(key) ? true : forwardKey(shownPage(), key)),
+    key: (key) => (guard.keysHeld() && answersKey(key) ? true : forwardKey(shownPage(), key)),
     go: (at) => goToRow(shownPage(), at),
+    focus: (arming) => {
+      if (arming) guard.holdKeys()
+      focusPage(pages.current, Math.min(turned, dialog.questions.length))
+      return Boolean(shownPage()?.contains(document.activeElement))
+    },
   }))
   const { questions } = dialog
   const page = Math.min(turned, questions.length)
@@ -619,18 +625,20 @@ const Questions = ({
       className="request-dialog request-questions"
       aria-label="Answer the questions"
       onKeyDown={turnKeys}
+      onPointerDownCapture={guard.release}
       onKeyDownCapture={(event) => {
+        if (movesKey(event.key)) guard.release()
         // Enter goes on a page at a time: held, it would answer the rest and send them. As the
         // host moves on to it, no key answers for a moment, but words typed in a field go in.
         const held = event.key === "Enter" && event.repeat
-        const arriving = guarded() && answersKey(event.key) && !isTyping(event.target)
+        const arriving = guard.keysHeld() && answersKey(event.key) && !isTyping(event.target)
         if (!held && !arriving) return
         event.preventDefault()
         event.stopPropagation()
       }}
       onClickCapture={(event) => {
         // A double-click's second click, landing as the host moves on, isn't for this.
-        if (!guarded()) return
+        if (!guard.on()) return
         event.preventDefault()
         event.stopPropagation()
       }}
@@ -824,11 +832,22 @@ const Form = ({
   const base = useId()
   const menu = useMenu(2)
   const root = useRef<HTMLFormElement>(null)
-  const guarded = useArrivalGuard(arrived)
+  const guard = useArrivalGuard(arrived)
   const options = (): Element | null | undefined => root.current?.querySelector(".request-options")
   useImperativeHandle(handle, () => ({
-    key: (key) => (guarded() && answersKey(key) ? true : forwardKey(options(), key)),
+    key: (key) => (guard.keysHeld() && answersKey(key) ? true : forwardKey(options(), key)),
     go: (at) => goToRow(options(), at),
+    // Its first field, as moving on to it does, or its rows where it has none.
+    focus: (arming) => {
+      const form = root.current
+      const to =
+        form?.querySelector<HTMLElement>("input:not([tabindex='-1'])") ??
+        options()?.querySelector<HTMLElement>("[tabindex='0']")
+      if (!to) return false
+      if (arming) guard.holdKeys()
+      to.focus({ preventScroll: true })
+      return document.activeElement === to
+    },
   }))
   // Moved on to from an answer, the keyboard comes to its first field, as a menu's first row.
   const placeNow = useRef(place)
@@ -865,21 +884,23 @@ const Form = ({
       className="request-dialog request-form"
       aria-label="Fill in the form"
       noValidate
+      onPointerDownCapture={guard.release}
       onKeyDownCapture={(event) => {
+        if (movesKey(event.key)) guard.release()
         // As the host moves on to it, no key answers for a moment, but words typed go in; Enter
         // in a field submits nothing meanwhile (`onSubmit`).
-        if (!guarded() || !answersKey(event.key) || isTyping(event.target)) return
+        if (!guard.keysHeld() || !answersKey(event.key) || isTyping(event.target)) return
         event.preventDefault()
         event.stopPropagation()
       }}
       onClickCapture={(event) => {
-        if (!guarded()) return
+        if (!guard.on()) return
         event.preventDefault()
         event.stopPropagation()
       }}
       onSubmit={(event) => {
         event.preventDefault()
-        if (guarded()) return
+        if (guard.keysHeld()) return
         answer("accept")
       }}
     >

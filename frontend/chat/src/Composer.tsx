@@ -83,6 +83,7 @@ export const Composer = ({
   stopError,
   onClearBox,
   focusInput,
+  onFocusWanted,
   onInputFocused,
   onCancelReply,
   onOpenTerminal,
@@ -128,6 +129,9 @@ export const Composer = ({
   readonly onClearBox: (seen: string) => Promise<void>
   // Keyboard navigation asks for focus here; call `onInputFocused` once it's there.
   readonly focusInput: boolean
+  // What takes that focus before the box, as a request's card the keyboard never came to: true
+  // where it did.
+  readonly onFocusWanted?: () => boolean
   readonly onInputFocused: () => void
   readonly onCancelReply: () => void
   // Shows the agent's terminal, where the person settles what failed there.
@@ -155,9 +159,13 @@ export const Composer = ({
   const [error, setError] = useState<Failure | null>(null)
   const mounted = useMounted()
   const shownError = error ?? stopError
+  const focusWanted = useRef(onFocusWanted)
+  useEffect(() => {
+    focusWanted.current = onFocusWanted
+  })
   useEffect(() => {
     if (!focusInput || !input.current) return
-    input.current.focus({ preventScroll: true })
+    if (!focusWanted.current?.()) input.current.focus({ preventScroll: true })
     onInputFocused()
   }, [focusInput, onInputFocused])
   // The box grows with its text, up to what its recipe allows.

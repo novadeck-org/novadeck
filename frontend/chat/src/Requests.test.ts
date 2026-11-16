@@ -7,16 +7,17 @@ import {
 } from "@novadeck/core/conversation"
 import { refusing } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
-import { act, createElement } from "react"
+import { act, createElement, createRef } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { againMs, Requests } from "./Requests"
+import { againMs, forgetClaimed, Requests, type RequestsHandle } from "./Requests"
 import { SliceKeys } from "./Slice"
 import { describe, expect, it } from "./test"
 
 const unmounts: (() => void)[] = []
 afterEach(() => {
   unmounts.splice(0).forEach((unmount) => unmount())
+  forgetClaimed()
   onSettled.mockClear()
   onReply.mockClear()
   onSubmitted.mockClear()
@@ -48,6 +49,9 @@ const choices: ChatDialog = {
   ],
 }
 
+// When the request was asked: one time, so the same request shown again is the same one.
+const askedOnce = Date.now()
+
 const request = (dialog: ChatDialog | null, answered = false): ChatRequest => ({
   id: "r1",
   kind: "permission",
@@ -57,7 +61,7 @@ const request = (dialog: ChatDialog | null, answered = false): ChatRequest => ({
   subagent: false,
   dialog,
   answered,
-  askedAt: Date.now(),
+  askedAt: askedOnce,
 })
 
 const questions = (chat: "field" | "prompt"): ChatDialog => ({
@@ -80,6 +84,15 @@ const onSettled = vi.fn<() => void>()
 const onReply = vi.fn<(request: string, dialog: string | null) => void>()
 const onSubmitted = vi.fn<() => void>()
 
+// The person is elsewhere as a card shows, where focus was nowhere: the card leaves the keyboard
+// be, and a key or click answers it at once.
+const beElsewhere = (): void => {
+  if (document.activeElement && document.activeElement !== document.body) return
+  const outside = document.body.appendChild(document.createElement("input"))
+  unmounts.push(() => outside.remove())
+  outside.focus()
+}
+
 const show = (
   dialog: ChatDialog | null,
   onAnswer: (request: string, answer: ChatAnswer) => Promise<void>,
@@ -88,6 +101,8 @@ const show = (
   replySending = false,
   slice: ChatSlice | null = null,
   harness: string | null = "claude",
+  // Focus is nowhere as it shows, which the card takes.
+  nowhere = false,
 ) => {
   const element = (next: ChatDialog | null, flag = answered) =>
     createElement(Requests, {
@@ -104,6 +119,7 @@ const show = (
       refused: refusing("/tmp is full", "x @a "),
       onSubmitted,
     })
+  if (!nowhere) beElsewhere()
   const { container, rerender, unmount } = render(element(dialog, answered))
   unmounts.push(unmount)
   return {
@@ -273,7 +289,16 @@ describe("a request's card", () => {
 
   it("sets the questions aside at once where the words go on as a prompt", async () => {
     const onAnswer = vi.fn<(request: string, answer: ChatAnswer) => Promise<void>>(async () => {})
-    const { container } = show(questions("prompt"), onAnswer)
+    const { container } = show(
+      questions("prompt"),
+      onAnswer,
+      false,
+      null,
+      false,
+      null,
+      "claude",
+      true,
+    )
     click(button(container, "Chat about this"))
     expect(onAnswer).toHaveBeenCalledWith("r1", { type: "chat", dialog: "q1" })
     expect(container.querySelector("textarea")).toBeNull()
@@ -556,6 +581,7 @@ describe("a dialog's options, with what core reads into them", () => {
     dialog: ChatDialog,
     onAnswer: (request: string, answer: ChatAnswer) => Promise<void>,
   ) => {
+    beElsewhere()
     const view = render(
       createElement(Requests, {
         requests: [{ ...request(dialog), kind }],
@@ -1071,7 +1097,7 @@ describe("a dialog of questions", () => {
   }
 
   it("takes the keys as it appears, on its first row", () => {
-    const { container } = show(dialog, async () => {})
+    const { container } = show(dialog, async () => {}, false, null, false, null, "claude", true)
     expect(document.activeElement).toBe(input(container, "Keep it"))
   })
 
@@ -1110,7 +1136,7 @@ describe("a dialog of questions", () => {
   })
 
   it("moves the bar and focus with the mouse over a question's rows", () => {
-    const { container } = show(dialog, async () => {})
+    const { container } = show(dialog, async () => {}, false, null, false, null, "claude", true)
     const drop = input(container, "Drop it")
     pointerMove(drop.closest("label")!.querySelector(".request-option-words")!)
     expect(document.activeElement).toBe(drop)
@@ -1403,5 +1429,104 @@ describe("a form", () => {
       action: "decline",
       values: {},
     })
+  })
+})
+
+describe("a dialog and the keyboard", () => {
+  // Past the moment a dialog that took the keyboard holds its answers.
+  const later = () => vi.spyOn(Date, "now").mockReturnValue(Date.now() + 1000)
+  const turn = (): Promise<void> => act(() => new Promise<void>((resolve) => setTimeout(resolve)))
+
+  it("takes it as a permission first shows, holding its answers a moment", () => {
+    const onAnswer = vi.fn<(request: string, answer: ChatAnswer) => Promise<void>>(async () => {})
+    const { container } = show(choices, onAnswer, false, null, false, null, "claude", true)
+    const yes = button(container, "Yes")
+    expect(document.activeElement).toBe(yes)
+    keyDown(yes, "1")
+    expect(onAnswer).not.toHaveBeenCalled()
+    const now = later()
+    try {
+      keyDown(yes, "1")
+      expect(onAnswer).toHaveBeenCalledWith("r1", { type: "choice", dialog: "d1", option: "1" })
+    } finally {
+      now.mockRestore()
+    }
+  })
+
+  it("takes it only the first time the dialog shows", () => {
+    const first = show(choices, async () => {}, false, null, false, null, "claude", true)
+    first.unmount()
+    expect(document.activeElement).toBe(document.body)
+    const { container } = show(choices, async () => {}, false, null, false, null, "claude", true)
+    expect(container.contains(document.activeElement)).toBe(false)
+  })
+
+  it("takes it again for another dialog of the request", () => {
+    const { container, rerender } = show(choices, async () => {})
+    expect(container.contains(document.activeElement)).toBe(false)
+    act(() => (document.activeElement as HTMLElement).blur())
+    rerender({ ...choices, id: "d2" })
+    expect(document.activeElement).toBe(button(container, "Yes"))
+  })
+
+  it("gives it over to the chat once, where the person was elsewhere as it showed", async () => {
+    const handle = createRef<RequestsHandle>()
+    const outside = document.body.appendChild(document.createElement("input"))
+    unmounts.push(() => outside.remove())
+    outside.focus()
+    const { container, unmount } = render(
+      createElement(Requests, {
+        handle,
+        requests: [request(choices)],
+        slice: null,
+        agent: "Claude",
+        onAnswer: async () => {},
+        onAnswerInTerminal: () => {},
+        onSettled,
+        replying: null,
+        replySending: false,
+        onReply,
+        refused: refusing(),
+        onSubmitted,
+      }),
+    )
+    unmounts.push(unmount)
+    expect(document.activeElement).toBe(outside)
+    const claim = (): boolean => {
+      let took = false
+      act(() => {
+        took = handle.current!.claim()
+      })
+      return took
+    }
+    expect(claim()).toBe(true)
+    expect(document.activeElement).toBe(button(container, "Yes"))
+    await turn()
+    outside.focus()
+    expect(claim()).toBe(false)
+    expect(document.activeElement).toBe(outside)
+  })
+
+  it("comes to the row the person is on from a click anywhere on the card", () => {
+    const { container } = show(choices, async () => {})
+    const [, second] = [...container.querySelectorAll<HTMLElement>(".request-option")]
+    pointerMove(second!.querySelector(".request-option-number")!)
+    click(container.querySelector(".request-subject")!)
+    expect(document.activeElement).toBe(second!.querySelector("textarea"))
+    button(container, "Yes").focus()
+    click(container.querySelector(".request-head")!)
+    expect(document.activeElement).toBe(button(container, "Yes"))
+  })
+
+  it("leaves a click that selects, or a double click, be", () => {
+    const { container } = show(choices, async () => {})
+    const outside = document.activeElement
+    act(
+      () =>
+        void container
+          .querySelector(".request-subject")!
+          .dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 2 })),
+    )
+    expect(document.activeElement).toBe(outside)
   })
 })

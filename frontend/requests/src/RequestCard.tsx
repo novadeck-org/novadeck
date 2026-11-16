@@ -1,6 +1,6 @@
 import type { ChatAnswer, ChatRequest } from "@novadeck/core/conversation"
 import type { Refused } from "@novadeck/core/conversation/prompt-refusal"
-import { useEffect, useRef, useState, type ReactNode, type Ref } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode, type Ref } from "react"
 
 import type { Drafted } from "./drafts"
 import type { MenuHandle } from "./Menu"
@@ -20,6 +20,7 @@ export const RequestFrame = ({
   title,
   head,
   busy,
+  onClick,
   children,
 }: {
   readonly ref?: Ref<HTMLElement>
@@ -33,6 +34,7 @@ export const RequestFrame = ({
   // Beside the title, at the head's far end: a clock, a key.
   readonly head?: ReactNode
   readonly busy?: boolean
+  readonly onClick?: (event: React.MouseEvent<HTMLElement>) => void
   readonly children?: ReactNode
 }): React.JSX.Element => (
   <article
@@ -42,6 +44,7 @@ export const RequestFrame = ({
     data-dialog={dialog}
     aria-label={label}
     aria-busy={busy}
+    onClick={onClick}
   >
     <header className="request-head">
       <h3>{title}</h3>
@@ -64,6 +67,16 @@ const saysSubject = ({ dialog, answered, subject }: ChatRequest): boolean =>
   !answered &&
   (dialog?.type === "questions" || (dialog?.type === "choices" && dialog.detail === subject))
 
+// What keeps the focus a click gives it: a control, or a field.
+const controls =
+  'button, a[href], input, textarea, select, summary, label, [role="tab"], [contenteditable]:not([contenteditable="false"])'
+
+// Hands a handle to the host's ref too.
+const share = <T,>(ref: Ref<T> | undefined, value: T | null): void => {
+  if (typeof ref === "function") ref(value)
+  else if (ref) ref.current = value
+}
+
 const reason = (failure: unknown): string =>
   failure instanceof Error && failure.message ? failure.message : "That answer didn't go through."
 
@@ -71,6 +84,7 @@ const reason = (failure: unknown): string =>
 // backend read it. The way to the agent's terminal shows only where the card has no other: an
 // answer it waits on, a dialog not on screen yet, one it can't read and has no live rows of.
 export const RequestCard = ({
+  ref,
   request,
   agent,
   send: answer,
@@ -93,6 +107,8 @@ export const RequestCard = ({
   detail,
   harness,
 }: DialogSlots & {
+  // The card's own element, for the host.
+  readonly ref?: Ref<HTMLElement> | undefined
   readonly request: ChatRequest
   // The agent's name, for what waits on it.
   readonly agent: string
@@ -101,8 +117,9 @@ export const RequestCard = ({
   readonly onAnswerInTerminal: () => void
   // The card went after an answer took, with focus nowhere.
   readonly onSettled: () => void
-  // The person submitted an answer from the card, with focus in it or nowhere.
-  readonly onSubmitted: () => void
+  // The person submitted an answer from the card, with focus in it or nowhere: `answer`, which is
+  // a chat to have in the host's box where its type is "chat".
+  readonly onSubmitted: (answer: ChatAnswer) => void
   // The person edited something in the dialog.
   readonly onEdited?: () => void
   // Whether words that go on as the agent's next prompt would be refused for their shape.
@@ -144,7 +161,33 @@ export const RequestCard = ({
   // otherwise, as in the terminal, puts it on the answered line where it was in the card, and on
   // the host's next place once the card goes.
   const took = useRef(false)
-  const card = useRef<HTMLElement>(null)
+  const card = useRef<HTMLElement | null>(null)
+  const frame = useCallback(
+    (element: HTMLElement | null) => {
+      card.current = element
+      share(ref, element)
+    },
+    [ref],
+  )
+  // The dialog's handle, the host's too.
+  const dialogHandle = useRef<MenuHandle | null>(null)
+  const handle = useCallback(
+    (value: MenuHandle | null) => {
+      dialogHandle.current = value
+      share(menu, value)
+    },
+    [menu],
+  )
+  // A mouse's click anywhere on the card but a control or a field brings the keyboard to the
+  // dialog's row the person is on, so the keys answer it from there; a selection stays to copy.
+  const toDialog = (event: React.MouseEvent<HTMLElement>): void => {
+    const { target } = event
+    if (event.detail > 1 || !(target instanceof Element) || target.closest(controls)) return
+    if (window.getSelection()?.isCollapsed === false) return
+    const active = document.activeElement
+    if (active && active.matches(controls) && card.current?.contains(active)) return
+    dialogHandle.current?.focus(false)
+  }
   const status = useRef<HTMLParagraphElement>(null)
   useEffect(() => {
     if (!request.answered) return
@@ -173,7 +216,7 @@ export const RequestCard = ({
     // The person's next words go to the host's next place, unless they have moved focus out of
     // the card.
     const active = document.activeElement
-    if (!active || active === document.body || card.current?.contains(active)) onSubmitted()
+    if (!active || active === document.body || card.current?.contains(active)) onSubmitted(given)
     // Once it took, the request goes and so does this card.
     answer(given).then(
       () => {
@@ -198,11 +241,12 @@ export const RequestCard = ({
     request.answered || dialog === null || (dialog.type === "raw" && !live?.keys)
   return (
     <RequestFrame
-      ref={card}
+      ref={frame}
       kind={request.kind}
       dialog={dialog?.type ?? "none"}
       label={`${title}: ${request.tool}`}
       busy={sending}
+      onClick={toDialog}
       title={
         <>
           {title}
@@ -261,7 +305,7 @@ export const RequestCard = ({
           }}
           draft={draft}
           arrived={arrived}
-          handle={menu}
+          handle={handle}
           detail={detail}
           harness={harness}
         />
