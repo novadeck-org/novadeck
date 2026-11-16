@@ -1642,6 +1642,115 @@ describe("the update feed", () => {
   })
 })
 
+describe("electron-updater's requests going quiet", () => {
+  // Electron's `net` requests have no "socket" event, which the library's own timeout waits
+  // for, so a patch gives its Electron executor one that runs on the request's events. The
+  // real, patched executor is asked, with requests standing in for Electron's.
+  beforeEach(() => void vi.useFakeTimers())
+  afterEach(() => void vi.useRealTimers())
+
+  class Request extends EventEmitter {
+    aborted = false
+    abort(): void {
+      this.aborted = true
+      this.emit("abort")
+    }
+    end(): void {}
+  }
+
+  type Executor = {
+    createRequest: () => Request
+    download(
+      url: URL,
+      destination: string,
+      options: { cancellationToken: unknown },
+    ): Promise<string>
+    addTimeOutHandler(request: Request, callback: (error: Error) => void, timeout: number): void
+  }
+
+  const executor = (): { executor: Executor; token: () => unknown; requests: Request[] } => {
+    const require = createRequire(import.meta.url)
+    const out = dirname(require.resolve("electron-updater"))
+    const { ElectronHttpExecutor } = require(join(out, "electronHttpExecutor.js")) as {
+      ElectronHttpExecutor: new () => Executor
+    }
+    const { CancellationToken } = createRequire(join(out, "index.js"))("builder-util-runtime") as {
+      CancellationToken: new () => unknown
+    }
+    const requests: Request[] = []
+    const made = new ElectronHttpExecutor()
+    made.createRequest = () => {
+      const request = new Request()
+      requests.push(request)
+      return request
+    }
+    return { executor: made, token: () => new CancellationToken(), requests }
+  }
+
+  context("when a download hears nothing back", () => {
+    it("fails it after a minute and aborts its request", async () => {
+      const { executor: made, token, requests } = executor()
+      let outcome: string | undefined
+      void made
+        .download(
+          new URL("https://github.com/owner/repo/releases/download/v1.7.28/Novadeck.zip"),
+          join(tmpdir(), "novadeck-never-written.zip"),
+          { cancellationToken: token() },
+        )
+        .then(
+          () => (outcome = "downloaded"),
+          (error: Error) => (outcome = error.message),
+        )
+
+      await vi.advanceTimersByTimeAsync(59_000)
+      expect(outcome).toBeUndefined()
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(outcome).toBe("Request timed out")
+      expect(requests.map((request) => request.aborted)).toEqual([true])
+    })
+  })
+
+  context("when the body stops coming", () => {
+    it("lets a slow body run, and fails one quiet for a minute", () => {
+      const { executor: made } = executor()
+      const request = new Request()
+      const failures: Error[] = []
+      made.addTimeOutHandler(request, (error) => failures.push(error), 60_000)
+      const response = new EventEmitter()
+      request.emit("response", response)
+
+      // A byte every 50 seconds, for over four minutes, is slow but alive.
+      for (let chunk = 0; chunk < 5; chunk += 1) {
+        vi.advanceTimersByTime(50_000)
+        response.emit("data", Buffer.alloc(1))
+      }
+      expect(failures).toEqual([])
+      vi.advanceTimersByTime(60_000)
+      expect(failures.map((error) => error.message)).toEqual(["Request timed out"])
+      expect(request.aborted).toBe(true)
+    })
+  })
+
+  context("when the request finished or was aborted", () => {
+    it("leaves it alone", () => {
+      const { executor: made } = executor()
+      const finished = new Request()
+      const aborted = new Request()
+      const failures: Error[] = []
+      for (const request of [finished, aborted])
+        made.addTimeOutHandler(request, (error) => failures.push(error), 60_000)
+      const response = new EventEmitter()
+      finished.emit("response", response)
+      response.emit("end")
+      // As a redirect does, to make a new request in its place.
+      aborted.abort()
+
+      vi.advanceTimersByTime(10 * 60_000)
+      expect(failures).toEqual([])
+    })
+  })
+})
+
 describe("checking through novadeck.dev", () => {
   beforeEach(() => void vi.useFakeTimers())
   afterEach(() => void vi.useRealTimers())

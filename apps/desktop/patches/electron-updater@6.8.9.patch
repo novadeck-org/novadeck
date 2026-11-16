@@ -14,3 +14,46 @@ index d6d5debc7943011135e97124b755a41268199313..13d93c89ec3c00e567cde37800efbf3d
          return {
              info: await client.getLatestVersion(),
              provider: client,
+diff --git a/out/electronHttpExecutor.js b/out/electronHttpExecutor.js
+index 0ae9e1126e1dc136977914ef1bfd46709fc9db1b..0bfd4cd566f8fdb31bc8b36991ceb6167e338668 100644
+--- a/out/electronHttpExecutor.js
++++ b/out/electronHttpExecutor.js
+@@ -61,6 +61,38 @@ class ElectronHttpExecutor extends builder_util_runtime_1.HttpExecutor {
+         }
+         return request;
+     }
++    // Novadeck: HttpExecutor's timeout starts on the request's "socket" event, which Electron's
++    // net requests never emit, so a check or download whose connection went quiet waited
++    // forever (docs/auto-update.md, "Checks through novadeck.dev"). This one ends a request
++    // that goes `timeout` without its response, a redirect or another byte of the body.
++    addTimeOutHandler(request, callback, timeout) {
++        let timer = null;
++        const stop = () => {
++            if (timer != null) {
++                clearTimeout(timer);
++                timer = null;
++            }
++        };
++        const arm = () => {
++            stop();
++            timer = setTimeout(() => {
++                timer = null;
++                request.abort();
++                callback(new Error("Request timed out"));
++            }, timeout);
++        };
++        request.on("response", response => {
++            arm();
++            response.on("data", arm);
++            response.on("end", stop);
++            response.on("error", stop);
++            response.on("aborted", stop);
++        });
++        request.on("redirect", arm);
++        request.on("error", stop);
++        request.on("abort", stop);
++        arm();
++    }
+     addRedirectHandlers(request, options, reject, redirectCount, handler) {
+         request.on("redirect", (statusCode, method, redirectUrl) => {
+             // no way to modify request options, abort old and make a new one

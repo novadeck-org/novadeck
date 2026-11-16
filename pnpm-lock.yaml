@@ -36,7 +36,7 @@ patchedDependencies:
   '@xterm/addon-webgl@0.19.0': 73f8c854c5f9aefcad136d2d24b047c852da2a4c6331e20354b315ca763d422f
   '@xterm/headless@6.0.0': d776fc76c3c9947732a5a677cc331b3656a51303c1c3769bb9e8ea4fdbc54cf5
   '@xterm/xterm@6.0.0': a3153716052e8ba6d2a87eed5e4918f6e7f8a6e79f1f4e541886ad03f7c88dab
-  electron-updater@6.8.9: 194f26b921816fb49234137172ac8a9e8146f732442494a3e0cefecd51d541e4
+  electron-updater@6.8.9: 007feb3a08cdae83fb8429cf2daca5f03d29772d1e300d1d5abacd862777a56b
   node-pty@1.2.0-beta.14: c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224
 
 importers:
@@ -96,7 +96,7 @@ importers:
     dependencies:
       electron-updater:
         specifier: 6.8.9
-        version: 6.8.9(patch_hash=194f26b921816fb49234137172ac8a9e8146f732442494a3e0cefecd51d541e4)(supports-color@10.2.2)
+        version: 6.8.9(patch_hash=007feb3a08cdae83fb8429cf2daca5f03d29772d1e300d1d5abacd862777a56b)(supports-color@10.2.2)
       koffi:
         specifier: 3.3.7
         version: 3.3.7
@@ -8648,7 +8648,7 @@ snapshots:
 
   electron-to-chromium@1.5.432: {}
 
-  electron-updater@6.8.9(patch_hash=194f26b921816fb49234137172ac8a9e8146f732442494a3e0cefecd51d541e4)(supports-color@10.2.2):
+  electron-updater@6.8.9(patch_hash=007feb3a08cdae83fb8429cf2daca5f03d29772d1e300d1d5abacd862777a56b)(supports-color@10.2.2):
     dependencies:
       builder-util-runtime: 9.7.0(supports-color@10.2.2)
       fs-extra: 10.1.0

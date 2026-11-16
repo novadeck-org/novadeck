@@ -138,12 +138,17 @@ In Cloudflare's fail-open mode, when the website's counting does not run, it ans
 check with a redirect to the GitHub file, and the `x-novadeck-*` headers go along to
 GitHub with the request, which is harmless.
 
-A connection the website accepts but never answers stalls checks for the run. The
-request timeout of electron-updater never arms under Electron's `net`:
-builder-util-runtime hooks `request.on("socket")` (`httpExecutor.js`), which Electron's
-`ClientRequest` lacks. That was so against GitHub before; Cloudflare ends a stuck request
-after about 100 seconds. The same holds for a GitHub request that hangs during the
-fallback: later checks stall for the run, and the website's counting with them.
+A request that goes quiet fails after a minute: a check or download, through the website or
+GitHub, that hears no response, redirect or byte of its body for 60 seconds is aborted
+and fails like any other. A stalled check falls back as a failed one does, and a stalled
+download is a failed download (see "Installing and telling"). electron-updater's own
+timeout never armed under Electron's `net`: builder-util-runtime hooks
+`request.on("socket")` (`httpExecutor.js`), which Electron's `ClientRequest` lacks. A dead
+connection then held a check, or a download and its progress bar, for the rest of the run,
+since a release found while one is under way waits for it. The patch to electron-updater
+(`apps/desktop/patches/electron-updater@6.8.9.patch`) gives its `ElectronHttpExecutor` a
+timeout that runs on the request's own events; a new electron-updater needs it carried
+over too, unless the library has fixed this itself.
 
 `NOVADECK_UPDATE_URL` replaces `https://novadeck.dev` for testing, and only with an
 address on this computer: localhost, 127.0.0.1 or [::1], over http or https, as in
@@ -237,7 +242,8 @@ before this installs its next update through Squirrel, once.
   the progress meanwhile; it has nothing to press and never takes focus. A `ready` offer
   the page did not see downloading, as at a launch, shows nothing. One download
   is tracked at a time, and a release found while it is under way waits for the next check.
-- **A failed download** is tried again by a check five minutes later, once per release in a
+- **A failed download**, including one that went a minute without a byte (see "Checks through
+  novadeck.dev"), is tried again by a check five minutes later, once per release in a
   run; after that the hourly checks try it. Once its progress (or an update it
   replaces) was offered, it is offered as `retrying` meanwhile, and the page drops the
   bar at once and shows nothing in its place: no chip either, since a copy that installs itself
