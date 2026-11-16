@@ -127,8 +127,7 @@ describe("the storefront's worktrees", () => {
 
   it("has one merged: no files, and not a worktree just made", () => {
     const merged = works.filter((work) => work.merged)
-    // One merged cleanly, one that still holds uncommitted files.
-    expect(merged).toHaveLength(2)
+    expect(merged).toHaveLength(1)
     expect(merged[0]).toMatchObject({ files: [], added: 0 })
     expect(works.filter((work) => !work.merged && work.files.length === 0)).not.toHaveLength(0)
   })
@@ -143,7 +142,7 @@ describe("the storefront's worktrees", () => {
   it("gives each a branch of its own, and a worktree of one owner is not another's", () => {
     expect(new Set(works.map((work) => work.branch)).size).toBe(works.length)
     const builds = works.filter((work) => work.branch?.startsWith("agent/build"))
-    expect(builds).toHaveLength(4)
+    expect(builds).toHaveLength(3)
     expect(new Set(builds.map((work) => work.terminalId)).size).toBe(1)
   })
 })
@@ -421,9 +420,7 @@ describe("a demo agent's turn", () => {
 
 describe("what the demo's works hold, and whether closing them is safe", () => {
   const { seed } = plainDemo("plain")
-  const works = worksFromPlans(seed, storefrontPlans, Date.now()).filter(
-    (work) => work.projectId === "storefront",
-  )
+  const works = worksFromPlans(seed, storefrontPlans, Date.now())
   const ci = (state: string) => works.find((work) => work.pullRequest?.ci === state)
 
   it("shows every CI standing, a draft with none among them", () => {

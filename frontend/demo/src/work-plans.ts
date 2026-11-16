@@ -85,17 +85,6 @@ export const storefrontPlans: readonly WorkPlan[] = [
     files: [],
   },
   {
-    // Merged, yet it holds files its owner never committed: closing it is not safe.
-    project: "storefront",
-    terminal: "Build",
-    branch: "agent/build-docs",
-    minutesAgo: 900,
-    merged: true,
-    pullRequest: { number: 807, state: "merged" },
-    uncommitted: 2,
-    files: [],
-  },
-  {
     project: "api-service",
     terminal: "Checkout implementation",
     minutesAgo: 75,
@@ -114,10 +103,14 @@ export const storefrontPlans: readonly WorkPlan[] = [
     files: [file("test/orders.test.ts", 47, 5, { read: true })],
   },
   {
+    // Merged, yet it holds two files its owner never committed: closing it is not safe.
     project: "docs-site",
     terminal: "Tests",
     minutesAgo: 90,
-    files: [file("docs/guides/getting-started.md", 22, 9)],
+    merged: true,
+    pullRequest: { number: 807, state: "merged" },
+    uncommitted: 2,
+    files: [],
   },
   {
     project: "design-system",

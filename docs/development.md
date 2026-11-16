@@ -312,9 +312,9 @@ Terminals:
   terminal's, and the Worktrees toggle in the rail flares the History toggle's dot and ring for a
   moment (close Worktrees first: it shows nothing while Worktrees is open); any first change that makes a
   terminal's worktree flares it too. "Every state in Worktrees"
-  gives the session's first four terminals a worktree each. The storefront's worktrees also carry what the
+  gives the session's first four terminals a worktree each. The plain demos' worktrees also carry what the
   rows' safe-to-close standing reads (a failing, a running and a passed check, a draft with none, a
-  merged and a closed one that are safe, and a merged one holding two uncommitted files); New lines,
+  merged and a closed one that are safe, and docs-site's merged one holding two uncommitted files); New lines,
   Many files and Work merged move those counts too. Commits not pushed gives the worktree 2 commits no
   remote holds, Uncommitted files 3 uncommitted paths (a merged one then reads unsafe), and Origin
   fetched 3 h ago dates its fetch three hours back; Commits main lacks is not merged because a merged one with nothing
