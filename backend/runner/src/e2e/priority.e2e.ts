@@ -1,4 +1,4 @@
-import { getPriority } from "node:os"
+import { getPriority, setPriority } from "node:os"
 
 import { relayPath } from "@novadeck/relay"
 import { processesUnder, terminalForeground, terminalPriority, Trees } from "@novadeck/terminal/pty"
@@ -28,11 +28,16 @@ for (const setup of setups) {
     () => {
       const it = e2e(setup)
 
-      it("runs at a lowered priority, with its shell", async ({ e2e: run }) => {
+      it("runs at a lowered priority, with its shell", async ({ e2e: run, onTestFinished }) => {
+        // CI's Windows runs the suite itself below normal, which a shell inherits without
+        // any lowering: this run starts at normal, so what the shell has is its doing.
+        const own = getPriority(process.pid)
+        setPriority(process.pid, 0)
+        onTestFinished(() => setPriority(process.pid, own))
+        expect(getPriority(process.pid)).toBe(0)
         const terminal = await start(run, setup)
         const shell = shellOf(run, terminal)
         expect(getPriority(shell)).toBe(terminalPriority)
-        expect(getPriority(process.pid)).toBeLessThan(terminalPriority)
         // What the shell started: the agent's launcher, and the agent where it has its own
         // process.
         const started = (await processesUnder(shell, { trees })) ?? []
