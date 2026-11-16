@@ -29,7 +29,7 @@ const itemOf = (title: string, branch = "") =>
   list()
     .getByRole("listitem")
     .filter({ has: page.getByRole("button", { name: named(title, branch) }) })
-const cross = (title: string, branch: string) =>
+const trash = (title: string, branch: string) =>
   itemOf(title, branch).getByRole("button", { name: /^Close the / })
 const dialog = () => page.getByRole("alertdialog", { name: "Close this worktree?" })
 
@@ -43,18 +43,18 @@ describe("The Worktrees panel", () => {
       await expect.element(page.getByRole("heading", { name: "Worktrees 7" })).toBeVisible()
     })
 
-    it("lists them first come, first served, whatever has been read", async () => {
+    it("lists them newest first, whatever has been read", async () => {
       await openWorkspace(storefront)
 
       await expect.element(rows().first()).toBeVisible()
       expect(labels()).toEqual([
-        "Build, agent/build-lint, 0 files changed, merged",
-        "No owner, agent/promo-banner, 1 file changed, 18 lines added, 2 removed",
-        "Build, agent/build, 2 files changed, 11 lines added, 5 removed",
-        "Checkout review, agent/checkout-review, 1 file changed, 6 lines added, 2 removed",
-        "Checkout implementation, agent/checkout-implementation, 5 files changed, 324 lines added, 56 removed, conflicts with main, Tests",
-        "Tests, agent/tests, 2 files changed, 85 lines added, 18 removed, conflicts with Checkout implementation",
         "Build, agent/build-cache, 0 files changed",
+        "Tests, agent/tests, 2 files changed, 85 lines added, 18 removed, conflicts with Checkout implementation",
+        "Checkout implementation, agent/checkout-implementation, 5 files changed, 324 lines added, 56 removed, conflicts with main, Tests",
+        "Checkout review, agent/checkout-review, 1 file changed, 6 lines added, 2 removed",
+        "Build, agent/build, 2 files changed, 11 lines added, 5 removed",
+        "No owner, agent/promo-banner, 1 file changed, 18 lines added, 2 removed",
+        "Build, agent/build-lint, 0 files changed, merged",
       ])
     })
 
@@ -82,8 +82,8 @@ describe("The Worktrees panel", () => {
 
       await expect.element(page.getByRole("heading", { name: "Worktrees 2" })).toBeVisible()
       expect(labels()).toEqual([
-        "Checkout implementation, agent/checkout-implementation, 2 files changed, 92 lines added, 11 removed",
         "Tests, agent/tests, 1 file changed, 47 lines added, 5 removed",
+        "Checkout implementation, agent/checkout-implementation, 2 files changed, 92 lines added, 11 removed",
       ])
       await expect.element(list().getByText("api-service")).not.toBeInTheDocument()
     })
@@ -150,11 +150,11 @@ describe("The Worktrees panel", () => {
     })
   })
 
-  context("when a row's × is used", () => {
+  context("when a row's trash button is used", () => {
     it("asks before closing a worktree that differs from main, saying what is kept", async () => {
       await openWorkspace(storefront)
 
-      await cross("Tests", "agent/tests").click()
+      await trash("Tests", "agent/tests").click()
 
       await expect.element(dialog()).toBeVisible()
       await expect
@@ -169,7 +169,7 @@ describe("The Worktrees panel", () => {
     it("closes it once confirmed, and the count drops", async () => {
       await openWorkspace(storefront)
 
-      await cross("Tests", "agent/tests").click()
+      await trash("Tests", "agent/tests").click()
       await dialog().getByRole("button", { name: "Close worktree" }).click()
 
       await expect.element(row("Tests")).not.toBeInTheDocument()
@@ -179,7 +179,7 @@ describe("The Worktrees panel", () => {
     it("closes a worktree that differs from nothing at once", async () => {
       await openWorkspace(storefront)
 
-      await cross("Build", "agent/build-cache").click()
+      await trash("Build", "agent/build-cache").click()
 
       await expect.element(dialog()).not.toBeInTheDocument()
       await expect.element(row("Build", "agent/build-cache")).not.toBeInTheDocument()
@@ -189,9 +189,9 @@ describe("The Worktrees panel", () => {
       await openWorkspace(storefront)
 
       await expect
-        .element(cross("Checkout review", "agent/checkout-review"))
+        .element(trash("Checkout review", "agent/checkout-review"))
         .toHaveAttribute("aria-disabled", "true")
-      await cross("Checkout review", "agent/checkout-review").click({ force: true })
+      await trash("Checkout review", "agent/checkout-review").click({ force: true })
       await expect.element(dialog()).not.toBeInTheDocument()
       await expect.element(row("Checkout review")).toBeVisible()
     })
@@ -200,7 +200,7 @@ describe("The Worktrees panel", () => {
       await openWorkspace(storefront)
 
       await expect.element(itemOf("No owner")).toBeVisible()
-      await cross("No owner", "agent/promo-banner").click()
+      await trash("No owner", "agent/promo-banner").click()
       await dialog().getByRole("button", { name: "Close worktree" }).click()
 
       await expect.element(itemOf("No owner")).not.toBeInTheDocument()

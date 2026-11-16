@@ -61,8 +61,8 @@ describe("the Worktrees panel's rows", () => {
     expect(rows.map((row) => row.work.root)).toEqual(["/r/d", "/r/c", "/r/b", "/r/a"])
   })
 
-  it("keeps the order of works first seen together", () => {
-    const rows = changeRows([work("b", 1), work("a", 1)], new Map())
+  it("lists works first seen together newest first too, the runner sending the oldest first", () => {
+    const rows = changeRows([work("a", 1), work("b", 1)], new Map())
     expect(rows.map((row) => row.work.root)).toEqual(["/r/b", "/r/a"])
   })
 

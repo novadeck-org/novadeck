@@ -172,10 +172,11 @@ export const selectedRoot = (
 }
 
 // The works in the order of the list: newest first, by when each first differed from main.
+// Works first seen together follow the runner's order reversed, as it lists the oldest first.
 export const orderedWorks = (works: readonly Work[]): readonly Work[] =>
   works
     .map((work, index) => ({ work, index }))
-    .toSorted((a, b) => b.work.firstSeenAt - a.work.firstSeenAt || a.index - b.index)
+    .toSorted((a, b) => b.work.firstSeenAt - a.work.firstSeenAt || b.index - a.index)
     .map(({ work }) => work)
 
 export const changeRows = (
