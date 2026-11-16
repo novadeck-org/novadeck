@@ -496,6 +496,11 @@ export type Runner = {
      * are on disk now.
      */
     preview(projectId: string, path: string): Promise<WorkPreview>
+    /**
+     * Fetches origin now in every repository the project's works are in; resolves once each
+     * fetch has ended, failed or not.
+     */
+    fetch(projectId: string): Promise<void>
   }
   /**
    * What agents show and the person attaches beside terminals: items, each held by a
@@ -901,6 +906,7 @@ export const connectRunner = async (
       close: (root, force) =>
         call((client) => client.works.close({ root, ...(force && { force }) })),
       preview: (projectId, path) => call((client) => client.works.preview({ projectId, path })),
+      fetch: (projectId) => call((client) => client.works.fetch({ projectId })),
     },
     companions: {
       list: (input) => call((client) => client.companions.list(input)),

@@ -272,6 +272,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       show: (root, terminalId) => note(`show ${root}`, () => runner.works.show(root, terminalId)),
       close: (root, force) => note(`close work ${root}`, () => runner.works.close(root, force)),
       preview: (projectId, path) => runner.works.preview(projectId, path),
+      fetch: (projectId) => note(`fetch works ${projectId}`, () => runner.works.fetch(projectId)),
     },
     settings: {
       get: () => runner.settings.get(),

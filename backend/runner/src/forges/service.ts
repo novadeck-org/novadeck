@@ -30,6 +30,8 @@ const log = logs.for("forges")
 
 /** A repository's pull requests are looked up at most this often, in milliseconds. */
 export const lookEveryMs = 5 * 60 * 1000
+/** A repository with an open pull request whose checks are running is looked up this often. */
+export const lookWhileRunningMs = 60 * 1000
 /** A repository that keeps failing is tried this seldom at the most. */
 const longestWaitMs = 60 * 60 * 1000
 /** A token this close to its end is asked for again. */
@@ -382,7 +384,9 @@ export class Forges {
       look.requests = found
       look.failures = 0
       look.blockedUntil = 0
-      look.nextAt = at + this.every
+      // Checks still running are looked at again sooner, to see them end.
+      const running = [...found.values()].some((pull) => pull.ci === "running")
+      look.nextAt = at + (running ? Math.min(this.every, lookWhileRunningMs) : this.every)
       return
     }
     // What was found before stands: it is never told "no pull request" for a failed lookup.

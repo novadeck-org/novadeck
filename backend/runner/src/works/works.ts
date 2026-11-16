@@ -38,6 +38,7 @@ import { conflictsOf, listFiles, mayConflict, type Detail, type Lines } from "./
 import { loadRemembered, RememberedSaves, type Remembered } from "./memory.js"
 import { mergedWork } from "./merged.js"
 import { carry, oversized, textAt } from "./preview.js"
+import { safeOf, uncommittedOf, unpushedOf } from "./standing.js"
 
 const log = logs.for("works")
 
@@ -97,9 +98,12 @@ export type WorksOptions = {
   readonly show: (terminalId: string, root: string) => Promise<string>
   /**
    * Closes the tracked worktree at `root` for the person, in the worktrees service's queue,
-   * after checking there that no agent works in it now (`Worktrees.closeAt`).
+   * after checking there that no agent works in it now (`Worktrees.closeAt`). `safe`: its work
+   * lives elsewhere too (see `safeOf`), so what main lacks is no reason to ask first.
    */
-  readonly remove: (root: string, force: boolean) => Promise<Removal>
+  readonly remove: (root: string, force: boolean, safe?: boolean) => Promise<Removal>
+  /** Fetches the origins of these repositories (git common dirs) now; resolves once each has ended. */
+  readonly fetch?: (commonDirs: readonly string[]) => Promise<void>
   /** Calls the listener each time a worktree starts being tracked; returns what stops it. */
   readonly onMade?: (listener: (made: WorkMade) => void) => () => void
   /** What takes the checkouts' working trees as trees, shared with the changes items. */
@@ -157,6 +161,10 @@ type Read = {
   readonly unread: ReadonlyMap<string, Lines> | undefined
   /** The files conflicting with main; undefined where this git can't tell. */
   readonly conflicts: readonly string[] | undefined
+  /** Paths changed and not committed, as of the snapshot; undefined where git couldn't say. */
+  readonly uncommitted: number | undefined
+  /** HEAD's commits no remote holds, as of when it was read; undefined likewise. */
+  readonly unpushed: number | undefined
   /** Untracked files over the size limit were left out of the snapshot. */
   readonly skipped: boolean
   readonly common: string | undefined
@@ -564,7 +572,7 @@ export class Works {
   /**
    * Closes the worktree of the work at `root` for the person. Without `force`, one that holds
    * files or commits main lacks is not closed but answered with what it holds, for the person to
-   * confirm; any other refusal (its owner's agent is working in it, git couldn't be read) is a
+   * confirm, unless it is safe to close (`safeOf`, read afresh now); any other refusal (its owner's agent is working in it, git couldn't be read) is a
    * CONFLICT saying why. What it remembered of the root goes with it.
    */
   async closeWork(root: string, force: boolean): Promise<WorkClosing> {
@@ -574,7 +582,9 @@ export class Works {
         "CONFLICT",
         "Its agent is working in that worktree right now: wait for its turn to end.",
       )
-    const closed = await this.options.remove(root, force)
+    // Not what was told a moment ago: read again, as a worktree safe then may not be now.
+    const safe = force ? false : await this.safeNow(work)
+    const closed = await this.options.remove(root, force, safe)
     if (!closed.ok) {
       if (closed.holds !== undefined && !force) return { closed: false, holds: closed.holds }
       throw new DomainError("CONFLICT", closed.reason)
@@ -590,6 +600,22 @@ export class Works {
       ...(closed.keptHead !== undefined && { keptHead: closed.keptHead }),
       branchDeleted: closed.branchDeleted,
     }
+  }
+
+  /** Whether the work is safe to close as it stands now, from fresh reads of its checkout. */
+  private safeNow(work: Work): Promise<boolean> {
+    return this.exclusive(async () => {
+      const row = this.options.tracked().find((each) => each.root === work.root)
+      const state = this.roots.get(work.root)
+      if (!row || !state) return false
+      const read = await this.read(work.root, state, row.base, true)
+      if (read === null || read === "keep") return false
+      const found =
+        row.commonDir !== undefined && read.branch !== null
+          ? this.validPullRequest(this.options.pullRequest?.(row.commonDir, read.branch))
+          : undefined
+      return safeOf({ ...read, pullRequest: found }) === true
+    }).catch(() => false)
   }
 
   /**
@@ -623,6 +649,20 @@ export class Works {
     for (const end of this.makers.keys()) end()
     await this.queue.catch(() => {})
     await this.saves?.settled()
+  }
+
+  /**
+   * Fetches origin now in every repository the project's works are in, then reads those works
+   * again, as main (and so merged, conflicts) may have moved. Resolves once every fetch has
+   * ended, failed or not.
+   */
+  async fetch(projectId: string): Promise<void> {
+    const mine = this.options.tracked().filter((row) => row.projectId === projectId)
+    const repositories = [...new Set(mine.flatMap(({ commonDir }) => commonDir ?? []))]
+    if (repositories.length === 0 || this.options.fetch === undefined) return
+    await this.options.fetch(repositories)
+    if (this.stopped) return
+    await this.exclusive(() => this.pass(new Set(mine.map(({ root }) => root)))).catch(() => {})
   }
 
   /** The work at `root`, read now if nobody is watching to keep them current. */
@@ -755,11 +795,12 @@ export class Works {
     root: string,
     state: RootState,
     start: string | undefined,
+    fresh = false,
   ): Promise<Read | null | "keep"> {
     const main = await mainBranch(root)
     if (!main) return null
     return this.options.snapshots.use(root, async (checkout) => {
-      const snapshot = await checkout.take()
+      const snapshot = await checkout.take(fresh)
       if (!snapshot || snapshot.head === "") return "keep"
       const branch = await branchOf(root)
       const watermark = state.remembered?.watermark ?? null
@@ -775,8 +816,10 @@ export class Works {
         snapshot.head,
         start,
       ].join(" ")
-      if (state.read?.key === key) return state.read
-      return this.measure(root, state, { main, snapshot, branch, watermark, key, start })
+      // What the remotes hold moves without the key: a push, a fetch.
+      const unpushed = await unpushedOf(root)
+      if (state.read?.key === key) return { ...state.read, unpushed }
+      return this.measure(root, state, { main, snapshot, branch, watermark, key, start, unpushed })
     })
   }
 
@@ -791,6 +834,7 @@ export class Works {
       watermark,
       key,
       start,
+      unpushed,
     }: {
       readonly main: Main
       readonly snapshot: Snapshot
@@ -798,8 +842,10 @@ export class Works {
       readonly watermark: string | null
       readonly key: string
       readonly start: string | undefined
+      readonly unpushed: number | undefined
     },
   ): Promise<Read | "keep"> {
+    const uncommitted = await uncommittedOf(root, snapshot)
     const commit = await snapshotCommit(root, snapshot.tree, snapshot.head, snapshot.env)
     if (!commit) return "keep"
     // Differs from nothing: merged, squashed in or just made.
@@ -815,6 +861,8 @@ export class Works {
       touched: new Set(),
       unread: undefined,
       conflicts: [],
+      uncommitted,
+      unpushed,
       skipped: snapshot.skipped,
       common: await commonDir(root),
       env: snapshot.env,
@@ -866,6 +914,8 @@ export class Works {
       unread,
       conflicts:
         merge.state === "conflict" ? merge.files : merge.state === "clean" ? [] : undefined,
+      uncommitted,
+      unpushed,
       skipped: snapshot.skipped,
       common: await commonDir(root),
       env: snapshot.env,
@@ -933,6 +983,7 @@ export class Works {
         repository !== undefined && read.branch !== null
           ? this.validPullRequest(this.options.pullRequest?.(repository, read.branch))
           : undefined
+      const safe = safeOf({ ...read, pullRequest: request })
       found.set(root, {
         root,
         terminalId,
@@ -956,6 +1007,9 @@ export class Works {
         truncated: listed.truncated || read.skipped,
         ...(folder !== undefined && { folder }),
         ...(request !== undefined && { pullRequest: request }),
+        ...(read.uncommitted !== undefined && { uncommitted: read.uncommitted }),
+        ...(read.unpushed !== undefined && { unpushed: read.unpushed }),
+        ...(safe !== undefined && { safe }),
         conflicts: conflictsOf(
           (read.conflicts?.length ?? 0) > 0,
           [...mine.keys()].map((other) => ({ root: other, terminalId: owners.get(other) ?? null })),

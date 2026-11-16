@@ -218,6 +218,29 @@ describe("the forges service", () => {
     expect(fakes.github.lookups[3]?.branches).toEqual(["feature", "next"])
   })
 
+  it("looks again every minute while an open pull request's checks run, and every five once they end", async () => {
+    const { forges, fakes, state } = setup({ enabled: ["github"] })
+    const running: PullRequest = { ...open, ci: "running" }
+    fakes.github.answer = () => new Map([["feature", running]])
+    await forges.tick()
+    state.now += 60_000 - 1
+    await forges.tick()
+    expect(fakes.github.lookups).toHaveLength(1)
+    state.now += 1
+    await forges.tick()
+    expect(fakes.github.lookups).toHaveLength(2)
+    fakes.github.answer = () => new Map([["feature", { ...open, ci: "passed" as const }]])
+    state.now += 60_000
+    await forges.tick()
+    expect(forges.pullRequest(dirs.a, "feature")?.ci).toBe("passed")
+    state.now += every - 1
+    await forges.tick()
+    expect(fakes.github.lookups).toHaveLength(3)
+    state.now += 1
+    await forges.tick()
+    expect(fakes.github.lookups).toHaveLength(4)
+  })
+
   it("backs off from a failing repository, keeping what it found", async () => {
     const { forges, fakes, state } = setup({ enabled: ["github"] })
     await forges.tick()

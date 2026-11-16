@@ -151,6 +151,7 @@ export const createRunnerWorks = (
     show: async (root, terminalId) => (await track(calls.show(root, terminalId))).itemId,
     close: (root, force) => track(calls.close(root, force)),
     preview: (projectId, path) => track(calls.preview(projectId, path)),
+    fetch: (projectId) => track(calls.fetch(projectId)),
   }
   const readOnce = (): void => {
     if (closed || reported || readDone) return

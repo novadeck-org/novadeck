@@ -64,6 +64,11 @@ export class Cleanup {
     return this.fetcher.fetchedAt(commonDir)
   }
 
+  /** Fetches the repositories' origins now: see `MainFetcher.fetchNow`. */
+  fetchNow(commonDirs: Iterable<string>): Promise<void> {
+    return this.fetcher.fetchNow(commonDirs)
+  }
+
   /** Starts the periodic look, and takes the first now. */
   start(): void {
     if (this.timer || this.stopped) return

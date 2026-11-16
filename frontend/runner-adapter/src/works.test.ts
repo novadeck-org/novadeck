@@ -35,6 +35,7 @@ const followed = (
     look?: (root: string) => Promise<void>
     close?: (root: string, force?: boolean) => Promise<WorkClosing>
     preview?: (projectId: string, path: string) => Promise<WorkPreview>
+    fetch?: (projectId: string) => Promise<void>
   } = {},
 ) => {
   const stream = channel<WorkWatchItem>()
@@ -51,6 +52,7 @@ const followed = (
     ),
     close: calls.close ?? (async () => ({ closed: true as const, branchDeleted: false })),
     preview: calls.preview ?? (async () => ({ main: null, works: [], renames: [] })),
+    fetch: calls.fetch ?? (async () => {}),
   })
   const release = works.watch()
   const ids = () =>
@@ -143,6 +145,7 @@ describe("Works, as the runner reports them", () => {
       show: async () => ({ itemId: "x" }),
       close: async () => ({ closed: true as const, branchDeleted: false }),
       preview: async () => ({ main: null, works: [], renames: [] }),
+      fetch: async () => {},
     })
     expect(watches).toBe(0)
   })
@@ -176,6 +179,7 @@ describe("reading the works once, as the backend starts", () => {
       show: async () => ({ itemId: "x" }),
       close: async () => ({ closed: true as const, branchDeleted: false }),
       preview: async () => ({ main: null, works: [], renames: [] }),
+      fetch: async () => {},
     })
     const state = () => runner.works.state.getSnapshot()
     return { ...runner, stream, state, watches: () => watches }
@@ -298,6 +302,13 @@ describe("looking at and showing a work", () => {
     })
     expect(await works.preview("p", "src/a.ts")).toEqual(preview)
     expect(asked).toEqual([["p", "src/a.ts"]])
+  })
+
+  it("fetches a project's origins through the runner, and resolves when it has", async () => {
+    const asked: string[] = []
+    const { works } = followed({ fetch: async (project) => void asked.push(project) })
+    await works.fetch?.("p")
+    expect(asked).toEqual(["p"])
   })
 
   it("closes a worktree by its root and says what was kept, or passes the runner's refusal on", async () => {
