@@ -1,0 +1,24 @@
+{
+  "probed": "2026-11-16, Claude Code 2.1.325, Linux, 138 columns, 41 rows, in Novadeck's terminal with colour off (CI=true in its environment; NO_COLOR=1 draws the same): a fresh session in a trusted folder, no prompt yet. Claude Code then draws no style at all, so its box's placeholder suggestion is not dim, and the screen's bright rows are its rows as drawn. The banner is as a probe of an API account shows it.",
+  "states": {
+    "placeholder": {
+      "height": 41,
+      "columns": 138,
+      "cursor": {
+        "row": 37,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.325",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   ~/.novadeck/tour",
+        "5": "  Fable 5.2 is here for your longest and toughest coding tasks. It draws down usage faster than Opus 5.5. Switch with /model.",
+        "6": "  1 more notice hidden",
+        "36": "──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "❯ Try \"edit <filepath> to...\"",
+        "38": "──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "40": "  ⏵⏵ accept edits on (shift+tab to cycle)"
+      }
+    }
+  }
+}
