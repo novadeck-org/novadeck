@@ -1,4 +1,5 @@
 import { createChat, watchChat } from "@novadeck/chat/state"
+import { readChatOfferAnswered } from "@novadeck/core/agents/chat-offer"
 import type { CreateBackend } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createWorkspaceStore } from "@novadeck/core/store"
@@ -81,6 +82,7 @@ const createServices = (
       location: { route, dialogDepth: dialogDepthOf(location.state), navigationType },
       preferences,
       sidebarCollapsed: readSidebarCollapsed(),
+      chatOfferAnswered: readChatOfferAnswered(),
       // What the person arranged before the runner kept it wins until it has been sent.
       projectArrangement:
         (backend.arrange && readStoredProjectArrangement()) ||

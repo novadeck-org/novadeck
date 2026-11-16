@@ -167,6 +167,9 @@ describe("dictation", () => {
   context("when voice input is not installed", () => {
     // The demo starts it installed, as the try demo shows it; the address asks for it without.
     const openWithoutVoice = async (route = "/?voice=uninstalled"): Promise<void> => {
+      // The agents demo, with the chat view off, offers Agent Chat in a card that stands over
+      // the strip's corner; these specs are about voice input, so that offer was answered.
+      localStorage.setItem("novadeck.agent-chat-offer-answered", "true")
       await openWorkspace(route)
     }
     // The offer, and the rest of voice input's setup, live in the terminal's dictation strip.

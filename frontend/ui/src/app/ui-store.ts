@@ -1,3 +1,4 @@
+import { writeChatOfferAnswered } from "@novadeck/core/agents/chat-offer"
 import type { PortableState } from "@novadeck/core/desktop/portable"
 import {
   readPortableCardRaised,
@@ -78,6 +79,10 @@ export type UiState = {
   // What is new in the version the app updated to, until the person dismisses it; null
   // while it has none to show or has not answered yet.
   readonly whatsNew: WhatsNew | null
+  // Whether Agent Chat's one-time offer (the footer's card) has been answered, by either
+  // button, or by the person choosing the chat view's setting themselves. Kept beside the
+  // preferences (`chat-offer.ts` of core), as it is a note of what was asked, not a setting.
+  readonly chatOfferAnswered: boolean
   // Whether the desktop app runs in its security sandbox, as it said at startup; null until
   // then, and where it does not say.
   readonly sandbox: SandboxState | null
@@ -154,12 +159,14 @@ export const initialUi = ({
   location,
   preferences,
   sidebarCollapsed = false,
+  chatOfferAnswered = false,
   projectArrangement = noArrangement,
   foldedTeams = noFoldedTeams,
 }: {
   location: UiLocation
   preferences: PreferencesValue
   sidebarCollapsed?: boolean
+  chatOfferAnswered?: boolean
   projectArrangement?: ProjectArrangement
   foldedTeams?: FoldedTeams
 }): UiState => ({
@@ -183,6 +190,7 @@ export const initialUi = ({
   update: null,
   portableCardOpen: false,
   whatsNew: null,
+  chatOfferAnswered,
   sandbox: null,
   sandboxOpen: false,
   portable: null,
@@ -226,6 +234,7 @@ export const persistUi = (ui: Store<UiState>, workspace: Store<Workspace>): (() 
   const stops = [
     persist(ui, (state) => state.preferences, writePreferences),
     persist(ui, (state) => state.shell.sidebarCollapsed, writeSidebarCollapsed),
+    persist(ui, (state) => state.chatOfferAnswered, writeChatOfferAnswered),
     persist(ui, (state) => state.foldedTeams, writeFoldedTeams),
     persist(workspace, (snapshot) => currentState(snapshot).windowedView, writeWindowedView),
   ]
@@ -356,6 +365,13 @@ export const watchUpdates = (updates: Backend["updates"], ui: UiStore): (() => v
 // Whether terminals show their agents' chat: the person turned the chat view on.
 export const chatViewOn = (state: Pick<UiState, "preferences">): boolean =>
   state.preferences.chatView
+
+// Notes that Agent Chat's offer was answered: it is never made again, in this window or a later
+// launch (`persistUi` keeps the note).
+export const answerChatOffer = (ui: UiStore): void =>
+  void ui.update((state) =>
+    state.chatOfferAnswered ? state : { ...state, chatOfferAnswered: true },
+  )
 
 // Whether tabs and window headers show terminals' critters: the person turned Agent avatars
 // on, one of the experimental features, so they show only while IS_EXPERIMENTAL is on.

@@ -1,0 +1,65 @@
+import { readChatOfferAnswered } from "@novadeck/core/agents/chat-offer"
+import { afterEach } from "vitest"
+
+import { context, describe, expect, it } from "../../test"
+import { openCommands } from "../../test/commands"
+import { persistUi } from "../ui-store"
+
+afterEach(() => localStorage.clear())
+
+const open = () => {
+  const app = openCommands()
+  persistUi(app.ui, app.workspace)
+  return {
+    ...app,
+    answered: () => app.ui.getSnapshot().chatOfferAnswered,
+    chatView: () => app.ui.getSnapshot().preferences.chatView,
+  }
+}
+
+describe("answering Agent Chat's offer", () => {
+  it("starts unanswered", () => {
+    const app = open()
+    expect(app.answered()).toBe(false)
+    expect(app.chatView()).toBe(false)
+  })
+
+  context("with Turn on", () => {
+    it("turns the chat view on, through the preferences, and is answered for good", () => {
+      const app = open()
+      app.commands.acceptChatOffer()
+      expect(app.chatView()).toBe(true)
+      expect(app.answered()).toBe(true)
+      expect(readChatOfferAnswered()).toBe(true)
+      expect(JSON.parse(localStorage.getItem("novadeck.preferences")!)).toMatchObject({
+        chatView: true,
+      })
+    })
+  })
+
+  context("with No thanks", () => {
+    it("is answered for good and leaves the chat view off", () => {
+      const app = open()
+      app.commands.declineChatOffer()
+      expect(app.chatView()).toBe(false)
+      expect(app.answered()).toBe(true)
+      expect(readChatOfferAnswered()).toBe(true)
+    })
+  })
+
+  context("when the person chooses the chat view themselves", () => {
+    it("is answered by the Preferences switch, on or off", () => {
+      const app = open()
+      app.commands.updatePreferences({ ...app.ui.getSnapshot().preferences, chatView: true })
+      expect(app.answered()).toBe(true)
+      expect(readChatOfferAnswered()).toBe(true)
+    })
+
+    it("is not answered by another preference changing", () => {
+      const app = open()
+      app.commands.updatePreferences({ ...app.ui.getSnapshot().preferences, fontSize: 15 })
+      expect(app.answered()).toBe(false)
+      expect(readChatOfferAnswered()).toBe(false)
+    })
+  })
+})

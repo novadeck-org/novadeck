@@ -26,6 +26,7 @@ import { SubscriptionUsage } from "../shell/SubscriptionUsage"
 import { WorkspaceFooter } from "../shell/WorkspaceFooter"
 import { programIcon } from "../terminals/processes/profiles"
 import { useRenderAt } from "../terminals/useRenderAt"
+import { chatOfferDue, selectedAgentCanChat } from "./chat-offer"
 import {
   useFeatureFlag,
   useUiState,
@@ -35,7 +36,7 @@ import {
 import { useAccounts } from "./controller/footer-accounts"
 import { crashLoopQuestion, currentState, shallowEqual } from "./selectors"
 import { useTourOffer } from "./TourProvider"
-import { dismissWhatsNew } from "./ui-store"
+import { chatViewOn, dismissWhatsNew } from "./ui-store"
 import { useBusyTerminals } from "./use-busy-terminals"
 import { useOfferNews } from "./use-offer-news"
 
@@ -107,6 +108,16 @@ export const FooterSection = memo((): React.JSX.Element => {
     backend.agents?.welcome.subscribe ?? always,
     () => backend.agents?.welcome.getSnapshot() ?? false,
   )
+  const chatView = useUiState(chatViewOn)
+  const chatOfferAnswered = useUiState((state) => state.chatOfferAnswered)
+  const canChat = useWorkspaceState(selectedAgentCanChat, Object.is)
+  const chatOfferWanted = chatOfferDue({
+    reads: backend.conversations !== undefined,
+    chatView,
+    answered: chatOfferAnswered,
+    welcome,
+    canChat,
+  })
   const murmurState = useSyncExternalStore(backend.murmur?.state.subscribe ?? always, () =>
     backend.murmur?.state.getSnapshot(),
   )
@@ -249,6 +260,23 @@ export const FooterSection = memo((): React.JSX.Element => {
               notes: whatsNew,
               blocked: asking || welcome || sandboxOpen || (portable && portableCardOpen),
               onDismiss: () => dismissWhatsNew(backend.whatsNew, ui),
+              returnFocus: () => {
+                const { selected, view } = currentState(store.getSnapshot())
+                if (!selected) return false
+                commands.setKeyboardFocus({ id: selected, view })
+                return true
+              },
+            }
+          : undefined
+      }
+      // Agent Chat's one-time offer goes before What's new (WorkspaceFooter.tsx), and waits for
+      // the same: a dialog, the sandbox notice or a portable copy's card.
+      chatOffer={
+        chatOfferWanted
+          ? {
+              blocked: asking || sandboxOpen || (portable && portableCardOpen),
+              onTurnOn: commands.acceptChatOffer,
+              onDecline: commands.declineChatOffer,
               returnFocus: () => {
                 const { selected, view } = currentState(store.getSnapshot())
                 if (!selected) return false

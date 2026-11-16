@@ -178,6 +178,13 @@ entry, with its own body if needed, and a launcher entry in `frontend/core/src/t
 runs as a Node script. Profiles are presentation only: per-program behaviour goes beside
 `programName` in `frontend/core/src/terminals/process.ts`, as `frontend/runner-adapter/src/terminals/resumable.ts` names the agents whose sessions resume.
 
+Someone who updated past the welcome dialog is offered Agent Chat once, as a card over the
+footer's right end (`frontend/ui/src/shell/AgentChatOffer.tsx`) the first time an agent's terminal
+is selected with it off: Turn on, or No thanks. Either answers it for good, as does choosing the
+setting in Preferences or finishing the welcome dialog; the answer is kept in local storage
+(`novadeck.agent-chat-offer-answered`, `frontend/core/src/agents/chat-offer.ts`), not in the
+preferences, so preferences saved earlier load as before.
+
 With **Agent Chat** on (Preferences → General → Agents, or the welcome dialog), a terminal
 running an agent (Claude Code, Codex or Antigravity) has a **Chat** button in
 its window header wherever the backend reads the agents' transcripts

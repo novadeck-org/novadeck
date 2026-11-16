@@ -627,6 +627,14 @@ App:
   terminals attaching over about 3 s; "Welcome dialog" opens the first-run dialog for
   connecting agents again (no reboot); "App error" makes a view throw as it draws, for the
   crash screen that stands in for the app, whose Reload boots the demo again.
+- **Agent Chat offer:** where the backend reads conversations (the showcase and agents demos). "Offer Agent Chat" turns Agent Chat off in the saved preferences, clears
+  `novadeck.agent-chat-offer-answered` and boots the demo again, as for someone who updated past
+  the welcome dialog: a card, Agent Chat, with Turn on and No thanks, rises over the footer's right
+  end once an agent's terminal is selected (a shell or no terminal has none), in Focus, Grid and
+  Canvas alike. Turn on shows the selected agent as a chat; No thanks, the ×, or Escape from
+  inside the card leaves the terminal as it is. Either answers it for good, as does choosing the
+  setting in Preferences or finishing the welcome dialog. The card goes before What's new
+  (`?update=whatsNew`), which returns once it is answered.
 - **Agent installs:** an agent that isn't installed offers Install in the welcome dialog and in
   Preferences' Agents (which reads "Installing…" while its installer runs), with the command it
   will run, and the demo plays what the runner does: a terminal titled "Install ..."

@@ -27,6 +27,7 @@ import { sessionOf, terminalOf } from "@novadeck/demo/workspace"
 import { approvalGroups, createDemoApprovals } from "./approvals"
 import { babciaGroups } from "./babcia"
 import type { BootRehearsals } from "./boot-rehearsal"
+import { chatOfferGroups } from "./chat-offer"
 import { createDebugPanel, type DebugPanel } from "./DebugPanel"
 import { createDemoPortable, type DemoPortable } from "./desktop/portable"
 import { createDemoSandbox } from "./desktop/sandbox"
@@ -288,6 +289,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           updatesGroup(launch, states.updateControls),
           ...approvalGroups(approvals, () => latest),
           ...inboxGroups(isDemoInbox(inner.inbox) ? inner.inbox : undefined, inner.seed),
+          ...chatOfferGroups(launch, inner.conversations !== undefined),
           ...feedbackGroups(launch, isDemoFeedback(inner.feedback) ? inner.feedback : undefined),
           ...planGroups(inner.companions),
           ...babciaGroups(babciaCuesOf(inner)),

@@ -12,6 +12,9 @@ import { labelled, literal, openWorkspace, terminal, terminalTab } from "./works
  * files, Claude Code in Refactor auth has a plan, and Dev server has nothing to show.
  */
 export const openShowcase = async (view: "focus" | "grid" | "canvas" = "grid"): Promise<void> => {
+  // The showcase reads its agents' conversations with the chat view off, so it would offer
+  // Agent Chat in a card over the lower right, where the taskbars are dragged to: answered.
+  localStorage.setItem("novadeck.agent-chat-offer-answered", "true")
   await openWorkspace(`/projects/studio/sessions/initial/${view}?demo=showcase`)
 }
 
