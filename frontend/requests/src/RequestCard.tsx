@@ -179,13 +179,17 @@ export const RequestCard = ({
     [menu],
   )
   // A mouse's click anywhere on the card but a control or a field brings the keyboard to the
-  // dialog's row the person is on, so the keys answer it from there; a selection stays to copy.
+  // dialog's row the person is on, so the keys answer it from there; a selection stays to copy,
+  // and what the click focused in the card keeps it, as a box that scrolls by its keys. A tap
+  // never does, which would raise a phone's keyboard for a field.
   const toDialog = (event: React.MouseEvent<HTMLElement>): void => {
-    const { target } = event
+    const { target, nativeEvent } = event
     if (event.detail > 1 || !(target instanceof Element) || target.closest(controls)) return
+    const by = "pointerType" in nativeEvent ? nativeEvent.pointerType : ""
+    if (by === "touch" || by === "pen") return
     if (window.getSelection()?.isCollapsed === false) return
     const active = document.activeElement
-    if (active && active.matches(controls) && card.current?.contains(active)) return
+    if (active && active !== document.body && card.current?.contains(active)) return
     dialogHandle.current?.focus(false)
   }
   const status = useRef<HTMLParagraphElement>(null)

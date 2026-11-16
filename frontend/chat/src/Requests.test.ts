@@ -1101,6 +1101,13 @@ describe("a dialog of questions", () => {
     expect(document.activeElement).toBe(input(container, "Keep it"))
   })
 
+  it("holds its answering keys a moment as it takes them, so keys typed on answer nothing", () => {
+    const { container } = show(dialog, async () => {}, false, null, false, null, "claude", true)
+    keyDown(document.activeElement!, "2")
+    expect(input(container, "Drop it").checked).toBe(false)
+    expect(shownPage(container)[0]?.textContent).toContain("Keep the grace?")
+  })
+
   it("takes the keys from the chat's box while it holds no words", () => {
     const { container } = appear("", "box")
     expect(document.activeElement).toBe(input(container, "Keep it"))
@@ -1516,6 +1523,24 @@ describe("a dialog and the keyboard", () => {
     button(container, "Yes").focus()
     click(container.querySelector(".request-head")!)
     expect(document.activeElement).toBe(button(container, "Yes"))
+  })
+
+  it("leaves focus where a click put it in the card, as in a box that scrolls by its keys", () => {
+    const { container } = show({ ...choices, detail: "pnpm test" }, async () => {})
+    const box = container.querySelector<HTMLElement>("pre")!
+    box.tabIndex = 0
+    box.focus()
+    click(box)
+    expect(document.activeElement).toBe(box)
+  })
+
+  it("leaves a tap be, which would raise a phone's keyboard", () => {
+    const { container } = show(choices, async () => {})
+    const outside = document.activeElement
+    const tap = new MouseEvent("click", { bubbles: true, detail: 1 })
+    Object.defineProperty(tap, "pointerType", { value: "touch" })
+    act(() => void container.querySelector(".request-subject")!.dispatchEvent(tap))
+    expect(document.activeElement).toBe(outside)
   })
 
   it("leaves a click that selects, or a double click, be", () => {

@@ -135,8 +135,9 @@ const Card = ({
     const holds = Boolean(frame.current?.contains(document.activeElement))
     if (key === null || replying) return false
     if (claimed.has(key)) return justTook.current && holds
-    // A dialog that took the keyboard itself, as the questions do, has had it.
-    if (!holds && !handle.current?.focus(true)) return false
+    // Its answering keys wait a moment, as focus comes, even to a dialog that took it itself, as
+    // the questions do.
+    if (!handle.current?.focus(true) && !holds) return false
     claim(key)
     justTook.current = true
     setTimeout(() => {
