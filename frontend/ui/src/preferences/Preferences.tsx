@@ -560,7 +560,7 @@ export const Preferences = ({
                             <input
                               type="radio"
                               name="agent-presentation"
-                              className="checkbox-input absolute inset-0 m-0 size-full cursor-[inherit]"
+                              className="checkbox-input absolute inset-0 m-0 size-full cursor-pointer"
                               checked={checked}
                               onChange={() => onChange({ ...value, chatView })}
                             />
