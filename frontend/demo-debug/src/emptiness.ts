@@ -15,7 +15,7 @@ import type { DemoAction } from "./types"
 // and the agent's screen, and the chat shows its words for it in place of the terminal's items.
 // Display only: the terminal's own conversation goes on beneath, and "Back to normal" gives it
 // back.
-type Facts = Pick<Conversation, "records" | "rest" | "turned" | "screen">
+type Facts = Pick<Conversation, "records" | "rest" | "turned" | "screen" | "slice">
 
 const read: ChatRecords = { state: "read", lines: 0, unread: 0 }
 
@@ -65,37 +65,38 @@ const states: readonly {
   {
     label: "Empty, proven",
     hint: "Nothing said yet. Send a prompt below.: the record was read and holds nothing, no turn, the agent idle",
-    facts: { records: read, rest: true, turned: false, screen: idle },
+    facts: { records: read, rest: true, turned: false, screen: idle, slice: null },
   },
   {
     label: "Transcript not found",
-    hint: "Says Novadeck can't find or read the transcript, with the agent's screen and a terminal key",
-    facts: { records: { state: "lost" }, rest: true, turned: false, screen: idle },
+    hint: "Says Novadeck can't find or read the transcript, with a Show terminal button above the agent's screen",
+    facts: { records: { state: "lost" }, rest: true, turned: false, screen: idle, slice: null },
   },
   {
     label: "Records unreadable",
-    hint: "Says the transcript holds records Novadeck couldn't read, with the agent's screen",
+    hint: "Says the transcript holds records Novadeck couldn't read, with a Show terminal button above the agent's screen",
     facts: {
       records: { state: "read", lines: 12, unread: 12 },
       rest: true,
       turned: false,
       screen: idle,
+      slice: null,
     },
   },
   {
     label: "Turn with no records",
     hint: "Says the agent has worked in this session, but its transcript gave nothing",
-    facts: { records: { state: "absent" }, rest: true, turned: true, screen: idle },
+    facts: { records: { state: "absent" }, rest: true, turned: true, screen: idle, slice: null },
   },
   {
     label: "Dialog on its screen",
-    hint: "Says something of the agent's own may be on its screen, and draws that dialog live, its keys under the title",
-    facts: { records: read, rest: false, turned: false, screen: dialog },
+    hint: "Says something of the agent's own may be on its screen and that its rows are below, where the dialog draws live, its keys on the title's line, once",
+    facts: { records: read, rest: false, turned: false, screen: dialog, slice: dialog },
   },
   {
     label: "Waiting on the screen",
     hint: "Loading the conversation…: the record is read, the screen not looked at yet",
-    facts: { records: read, rest: null, turned: false, screen: null },
+    facts: { records: read, rest: null, turned: false, screen: null, slice: null },
   },
 ]
 

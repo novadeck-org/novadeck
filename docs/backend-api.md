@@ -1055,7 +1055,8 @@ one from an earlier runner.
   many lines it has, and how many of those gave no item and hold no shape the decoder knows
   to read or skip (`unread`). It is what lets a client call a conversation empty: a record
   that is read, with `unread` 0, or not there yet, is one; a `NOT_FOUND` or an `unread` over
-  0 is not known to be.
+  0 is not known to be. The record alone doesn't make a chat empty: the client also needs `rest` from
+  `agents.slice` and no turn seen in `agents.detail`'s activity.
   An actor the terminal's session does not have, or without a transcript Novadeck reads,
   is `NOT_FOUND`; the stream ends when the terminal's agent leaves that session. The
   client's `agents.transcript(terminalId, actor)` resubscribes across reconnections,

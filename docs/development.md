@@ -403,12 +403,16 @@ Agents:
 - **Chat: nothing to show:** what the selected agent's chat says when it has no items, as the runner's
   facts about its record and screen decide (`emptiness` in `frontend/core`): "Empty, proven" is
   the plain "Nothing said yet. Send a prompt below."; "Transcript not found", "Records
-  unreadable" and "Turn with no records" say the conversation isn't showing here and why, over
-  the agent's screen and a terminal key; "Dialog on its screen" draws a dialog the agent put
-  there, live, with its keys under the title; "Waiting on the screen" is the loading line the
-  chat keeps until the runner has looked at the screen. "Back to normal" gives the agent's own
-  conversation back (`frontend/demo-debug/src/emptiness.ts`). A demo agent with no transcript of its own
-  is a new one, proven empty.
+  unreadable" and "Turn with no records" say the conversation isn't showing here and why, with
+  a Show terminal button above the agent's screen; "Dialog on its screen" says so and draws a
+  dialog the agent put there, live, once, below the log as a view does, its keys on the title's
+  line (the panel sets the view slice as the runner would, so the screen isn't drawn twice);
+  "Waiting on the screen" is the loading line the chat keeps until the runner has looked at the
+  screen. "Back to normal" gives the agent's own conversation back
+  (`frontend/demo-debug/src/emptiness.ts`). A demo agent with no transcript of its own is a new
+  one, proven empty. The screen counts as something other than idle only after 1.5 s, and a
+  transcript with no word from the runner for 10 s counts as lost; the panel sets the facts
+  after both.
 - **Chat: a handle given again:** a project gives a handle to a new terminal an hour after its
   terminal closes, so chat words from before that name an earlier terminal. "Handle given again"
   gives another terminal of the session its handle just now (its `handleGivenAt`) and adds two

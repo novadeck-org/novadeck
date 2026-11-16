@@ -22,6 +22,8 @@ import {
   graceMs,
   retryMaxMs,
   retryMs,
+  readMs,
+  screenGraceMs,
   settleMs,
   turnGraceMs,
   type ConversationStreams,
@@ -151,14 +153,27 @@ describe("the runner's conversations", () => {
       expect(slices.returned()).toBe(1)
     })
 
-    it("keeps a session whose transcript says nothing loading, however long it is quiet", async () => {
+    it("keeps a session whose transcript says nothing loading for a generous while, then counts it lost, never empty", async () => {
       const { details, store } = setup()
       store.subscribe(() => {})
       details.push(detail())
       await settle()
-      await vi.advanceTimersByTimeAsync(60_000)
+      await vi.advanceTimersByTimeAsync(readMs - 1)
       expect(store.getSnapshot()).toMatchObject({ session: "s1", loaded: false, items: [] })
       expect(store.getSnapshot().records).toEqual({ state: "reading" })
+      await vi.advanceTimersByTimeAsync(1)
+      expect(store.getSnapshot()).toMatchObject({ loaded: true, records: { state: "lost" } })
+    })
+
+    it("doesn't count a record lost that said it was read in time", async () => {
+      const { details, transcripts, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      transcripts[root]!.push({ type: "read", found: true, lines: 0, unread: 0 })
+      await settle()
+      await vi.advanceTimersByTimeAsync(readMs * 2)
+      expect(store.getSnapshot().records).toEqual({ state: "read", lines: 0, unread: 0 })
     })
 
     it("counts a record the runner read to its end with nothing in it as loaded, and says what it held", async () => {
@@ -892,9 +907,52 @@ describe("the runner's conversations", () => {
       slices.push({ slice: null, rest: true, screen })
       await settle()
       expect(store.getSnapshot()).toMatchObject({ rest: true, screen })
+      // A blank screen that isn't at rest never counts as something drawn.
       slices.push({ slice: null })
       await settle()
-      expect(store.getSnapshot()).toMatchObject({ rest: false, screen: null })
+      await vi.advanceTimersByTimeAsync(screenGraceMs * 2)
+      expect(store.getSnapshot()).toMatchObject({ rest: null, screen: null })
+    })
+
+    it("counts a screen that isn't at rest, with something drawn, only once it has stayed", async () => {
+      const { details, slices, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      const screen = {
+        reason: "view" as const,
+        columns: 80,
+        rows: [],
+        cursor: null,
+        secret: false,
+      }
+      slices.push({ slice: null, rest: false, screen })
+      await settle()
+      await vi.advanceTimersByTimeAsync(screenGraceMs - 1)
+      expect(store.getSnapshot()).toMatchObject({ rest: null, screen })
+      // Told again meanwhile, it doesn't start the wait over.
+      slices.push({ slice: null, rest: false, screen })
+      await settle()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(store.getSnapshot().rest).toBe(false)
+      // At rest again, at once.
+      slices.push({ slice: null, rest: true, screen })
+      await settle()
+      expect(store.getSnapshot().rest).toBe(true)
+    })
+
+    it("lets a screen that came to rest inside the wait go uncounted", async () => {
+      const { details, slices, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      const screen = { reason: "view" as const, columns: 80, rows: [], cursor: null, secret: false }
+      slices.push({ slice: null, rest: false, screen })
+      await settle()
+      slices.push({ slice: null, rest: true })
+      await settle()
+      await vi.advanceTimersByTimeAsync(screenGraceMs * 2)
+      expect(store.getSnapshot().rest).toBe(true)
     })
 
     it("don't count a lost slice stream as the screen at rest", async () => {

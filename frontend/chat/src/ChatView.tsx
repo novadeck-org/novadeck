@@ -709,7 +709,10 @@ const ChatBody = ({
                   <Unproven
                     reason={unproven.reason}
                     agent={name}
-                    screen={screen}
+                    // One copy of the rows, the one that takes keys: a slice of its own, which
+                    // draws under the log, is the screen's rows already.
+                    screen={slice === null ? screen : null}
+                    below={slice !== null}
                     onShowTerminal={onAnswerInTerminal}
                   />
                 ) : (

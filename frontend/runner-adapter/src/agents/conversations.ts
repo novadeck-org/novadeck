@@ -128,6 +128,15 @@ export const failuresToLoaded = 3
 // the terminal.
 export const turnGraceMs = 5000
 
+// How long the agent's screen must stay something other than its idle box, with something drawn,
+// before the chat counts it as that, in milliseconds: it is blank or still drawing as an agent
+// starts, and a dialog that wants the person stays well past it.
+export const screenGraceMs = 1500
+
+// How long a transcript may be open with no word on what the record holds and no item before it
+// counts as lost, in milliseconds: the runner always says once it has read it.
+export const readMs = 10_000
+
 type Stream<T> = AsyncIterableIterator<T, undefined>
 
 const end = (stream: Stream<unknown> | undefined): void => {
@@ -376,6 +385,9 @@ const read = (
   // Whether the slice stream carries the whole screen: it does while there is nothing to show,
   // which is when the chat may show the agent's own screen in its place.
   let wholeScreen = false
+  // What the screen last drew that isn't the idle box, and the wait before it counts.
+  let drawn = false
+  let unidling: ReturnType<typeof setTimeout> | undefined
   const followSlices = (screen: boolean): void => {
     end(slices)
     wholeScreen = screen
@@ -388,24 +400,45 @@ const read = (
       return
     }
     slices = sliced
+    clearTimeout(unidling)
+    unidling = undefined
     void (async () => {
       try {
         for await (const change of sliced) {
           if (!alive || slices !== sliced) return
           // A runner that says nothing of its screen's rest doesn't say it is at rest.
+          const idle = change.rest ?? false
+          // Something drawn that isn't its idle box counts as that only once it has stayed:
+          // until then the chat doesn't know (`rest` null), and a blank screen never counts.
+          drawn = !idle && (change.slice !== null || (change.screen ?? null) !== null)
+          if (idle || !drawn) {
+            clearTimeout(unidling)
+            unidling = undefined
+          } else if (unidling === undefined) {
+            unidling = setTimeout(() => {
+              unidling = undefined
+              if (alive && slices === sliced && drawn)
+                store.update((current) =>
+                  current.rest === false ? current : { ...current, rest: false },
+                )
+            }, screenGraceMs)
+          }
           store.update((current) => ({
             ...current,
             slice: change.slice,
-            rest: change.rest ?? false,
+            rest: idle ? true : drawn && current.rest === false ? false : null,
             screen: change.screen ?? null,
           }))
         }
       } catch {
         // The terminal is gone, or the runner closed: `detail` tells the same.
       }
-      // What its stream last said no longer holds.
-      if (alive && slices === sliced)
+      // What its stream last said no longer holds, and nothing says the agent is at rest.
+      if (alive && slices === sliced) {
+        clearTimeout(unidling)
+        unidling = undefined
         store.update((current) => ({ ...current, slice: null, rest: false, screen: null }))
+      }
     })()
   }
   const syncScreen = (): void => {
@@ -456,6 +489,12 @@ const read = (
       return
     }
     transcript = stream
+    // The runner always says once it has read the record: not within a generous while, and with
+    // no item, it is lost, never empty.
+    const unsaid = setTimeout(() => {
+      if (alive && transcript === stream && !store.getSnapshot().loaded)
+        recordsAre({ state: "lost" })
+    }, readMs)
     // After a reset, or a read again over items on show, it builds here while they stay.
     let pending: readonly ChatItem[] | null = shown > 0 ? [] : null
     const swap = (): void => {
@@ -514,6 +553,7 @@ const read = (
       }
       // Ended, as when the agent left the session: the next snapshot says what follows.
       if (!alive || transcript !== stream) return
+      clearTimeout(unsaid)
       transcript = undefined
       // A read lost before it got as far as what shows leaves that as it is.
       if (lost && pending !== null && pending.length < store.getSnapshot().items.length)
@@ -646,6 +686,7 @@ const read = (
       transcript = undefined
       clearTimeout(settling)
       clearTimeout(turning)
+      clearTimeout(unidling)
       stopRetrying()
     },
   }

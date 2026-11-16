@@ -373,6 +373,20 @@ describe("a chat with nothing to show", () => {
     expect(asked).toHaveBeenCalledTimes(1)
   })
 
+  it("draws the screen once where its rows show as a view of their own, the copy that takes keys", () => {
+    const view = rows("Trust this folder?", "1. Yes")
+    const { container, words } = shows({ rest: false, screen: view, slice: view })
+    expect(words).toContain("Its rows are below.")
+    expect(container.querySelectorAll(".chat-slice")).toHaveLength(1)
+    expect(container.querySelector(".chat-live[data-inline]")).toBeNull()
+    expect(container.querySelector(".chat-live")?.textContent).toContain("Trust this folder?")
+  })
+
+  it("offers the terminal as a button the person can read", () => {
+    const { container } = shows({ records: { state: "lost" } })
+    expect(button(container, "Show terminal").className).toContain("button")
+  })
+
   it("says why, by what the runner read", () => {
     expect(shows({ records: { state: "read", lines: 5, unread: 5 } }).words).toContain(
       "records Novadeck couldn't read",
