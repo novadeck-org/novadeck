@@ -470,7 +470,7 @@ describe("Connecting agents", () => {
       await openWorkspace("/?demo=welcome")
       const choice = welcome().getByRole("checkbox", { name: "Transcripts" })
       await expect.element(choice).toBeChecked()
-      await expect.element(choice).toHaveAccessibleDescription(/Saved encrypted on this computer/)
+      await expect.element(choice).toHaveAccessibleDescription(/after restarts, encrypted/)
       await choice.click()
       await welcome().getByRole("button", { name: "Let’s build something" }).click()
       await expect.element(welcome()).not.toBeInTheDocument()
@@ -486,7 +486,7 @@ describe("Connecting agents", () => {
       await expect.element(choice).toBeChecked()
       await expect
         .element(choice)
-        .toHaveAccessibleDescription(/in a chat instead of their terminal/)
+        .toHaveAccessibleDescription(/Chat with agents instead of a terminal/)
       await welcome().getByRole("button", { name: "Let’s build something" }).click()
       await expect.element(welcome()).not.toBeInTheDocument()
       await openPreferences()

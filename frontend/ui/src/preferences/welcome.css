@@ -86,6 +86,30 @@
   transform: translateX(3px);
 }
 
+/* An agent that isn't installed is an empty seat: a dashed card on the dialog's own ground,
+   its tile an outline, and the command Install runs, once shown, in a mono well that wraps. */
+.choice-card.welcome-install {
+  --_bg: transparent;
+  border-style: dashed;
+}
+.choice-card.solid.welcome-install:hover:not([data-disabled]) {
+  --_bg: transparent;
+}
+.welcome-install .choice-card-tile {
+  border-style: dashed;
+  border-color: var(--choice-card-tile-border-color, var(--color-line-strong));
+  background: transparent;
+}
+.welcome-install-command {
+  border: var(--border-width) solid var(--color-line);
+  border-radius: var(--radius-control);
+  background-color: var(--color-shell);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
 /* The actions keep to the foot of a dialog too tall for its window, over the choices
    scrolling under them, which fade out above. */
 .welcome-actions {

@@ -41,12 +41,12 @@
 /* The stage's height and the output's type, which narrow screens and the views
    override. */
 :where(.welcome-stage) {
-  height: 236px;
+  height: 336px;
 }
 :where(.welcome-code) {
   gap: 7px;
   padding: calc(var(--spacing) * 3);
-  font-size: 8px;
+  font-size: 9px;
 }
 .welcome-stage {
   --_mx: -1000px;
@@ -194,10 +194,10 @@
   --_deal-y: 4px;
   --_depth: 5;
   z-index: 3;
-  top: 14px;
+  top: 20px;
   left: 4%;
   width: 58%;
-  height: 124px;
+  height: 176px;
   transform: rotate(-3deg);
 }
 .welcome-terminal.review {
@@ -205,10 +205,10 @@
   --_deal-y: 24px;
   --_depth: 3;
   z-index: 2;
-  top: 23px;
+  top: 33px;
   left: 51%;
   width: 46%;
-  height: 132px;
+  height: 187px;
   transform: rotate(3deg);
 }
 .welcome-terminal.agy {
@@ -217,10 +217,10 @@
   --_depth: 7;
   z-index: 5;
   /* Above the zoom control in the stage's corner, over only the foot of Claude's card. */
-  top: 134px;
+  top: 191px;
   left: 3%;
   width: 46%;
-  height: 74px;
+  height: 105px;
   transform: rotate(-2deg);
 }
 .welcome-terminal.server {
@@ -228,10 +228,10 @@
   --_deal-y: -62px;
   --_depth: 9;
   z-index: 4;
-  top: 132px;
+  top: 187px;
   left: 52%;
   width: 44%;
-  height: 91px;
+  height: 129px;
   transform: rotate(1deg);
 }
 
@@ -239,7 +239,7 @@
 .welcome-chat {
   height: calc(100% - 28px);
   font-family: var(--chat-font, var(--font-mono));
-  font-size: 8px;
+  font-size: 9px;
   line-height: 1.4;
 }
 .welcome-chat-log {
@@ -357,12 +357,12 @@
   height: calc(50% - 33px);
 }
 .welcome-stage[data-view="grid"] .welcome-code {
-  font-size: 7px;
+  font-size: 8px;
   gap: 3px;
   padding: 7px;
 }
 .welcome-stage[data-view="grid"] .welcome-chat {
-  font-size: 7px;
+  font-size: 8px;
 }
 .welcome-stage[data-view="grid"] .welcome-chat-log {
   gap: 3px;
@@ -389,11 +389,11 @@
   height: calc(100% - 46px);
 }
 .welcome-stage[data-view="focus"] .welcome-terminal.agent .welcome-code {
-  font-size: 10px;
+  font-size: 12px;
   gap: 9px;
 }
 .welcome-stage[data-view="focus"] .welcome-terminal.agent .welcome-chat {
-  font-size: 10px;
+  font-size: 12px;
 }
 .welcome-stage[data-view="focus"] .welcome-terminal.agent .welcome-chat-log {
   gap: 9px;
@@ -414,15 +414,31 @@
     max-width: 470px;
     margin-inline: auto;
   }
+  /* The stage keeps its narrow size, so its cards and their type keep theirs. */
   .welcome-terminal.server {
     top: 114px;
+    height: 91px;
   }
   .welcome-terminal.agent {
     top: 8px;
+    height: 124px;
+  }
+  .welcome-terminal.review {
+    top: 23px;
+    height: 132px;
   }
   .welcome-terminal.agy {
     top: 134px;
     height: 72px;
+  }
+  .welcome-stage:not([data-view="focus"], [data-view="grid"]) :is(.welcome-code, .welcome-chat) {
+    font-size: 8px;
+  }
+  .welcome-stage[data-view="grid"] :is(.welcome-code, .welcome-chat) {
+    font-size: 7px;
+  }
+  .welcome-stage[data-view="focus"] .welcome-terminal.agent :is(.welcome-code, .welcome-chat) {
+    font-size: 10px;
   }
 }
 
