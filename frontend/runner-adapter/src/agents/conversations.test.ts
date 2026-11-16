@@ -20,7 +20,6 @@ import {
   enterGapMs,
   failuresToLoaded,
   graceMs,
-  loadedMs,
   retryMaxMs,
   retryMs,
   settleMs,
@@ -151,16 +150,61 @@ describe("the runner's conversations", () => {
       expect(slices.returned()).toBe(1)
     })
 
-    it("counts a session whose transcript stays empty as loaded after a moment", async () => {
+    it("keeps a session whose transcript says nothing loading, however long it is quiet", async () => {
       const { details, store } = setup()
       store.subscribe(() => {})
       details.push(detail())
       await settle()
-      expect(store.getSnapshot()).toMatchObject({ session: "s1", loaded: false })
-      await vi.advanceTimersByTimeAsync(loadedMs - 1)
-      expect(store.getSnapshot().loaded).toBe(false)
-      await vi.advanceTimersByTimeAsync(1)
-      expect(store.getSnapshot()).toMatchObject({ loaded: true, items: [] })
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(store.getSnapshot()).toMatchObject({ session: "s1", loaded: false, items: [] })
+      expect(store.getSnapshot().records).toEqual({ state: "reading" })
+    })
+
+    it("counts a record the runner read to its end with nothing in it as loaded, and says what it held", async () => {
+      const { details, transcripts, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      transcripts[root]!.push({ type: "read", found: true, lines: 3, unread: 1 })
+      await settle()
+      expect(store.getSnapshot()).toMatchObject({
+        loaded: true,
+        items: [],
+        records: { state: "read", lines: 3, unread: 1 },
+      })
+    })
+
+    it("counts a record whose file isn't there yet as absent", async () => {
+      const { details, transcripts, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      transcripts[root]!.push({ type: "read", found: false, lines: 0, unread: 0 })
+      await settle()
+      expect(store.getSnapshot()).toMatchObject({ loaded: true, records: { state: "absent" } })
+    })
+
+    it("tells a turn of the session from the agent's activity", async () => {
+      const { details, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      expect(store.getSnapshot().turned).toBe(false)
+      const idle = {
+        state: "idle" as const,
+        background: null,
+        waiting: null,
+        attention: { pending: 0, kind: null },
+        planning: false,
+        subagents: [],
+        lastTurn: null,
+      }
+      details.push(detail({ activity: idle }))
+      await settle()
+      expect(store.getSnapshot().turned).toBe(false)
+      details.push(detail({ activity: { ...idle, state: "working" } }))
+      await settle()
+      expect(store.getSnapshot().turned).toBe(true)
     })
 
     it("stops a grace period after the last subscriber left, ending its streams", async () => {
@@ -630,7 +674,7 @@ describe("the runner's conversations", () => {
       expect(store.getSnapshot().items).toHaveLength(2)
     })
 
-    it("count as none after a few reads in a row failed, and are still asked again", async () => {
+    it("count as lost after a few reads in a row failed, and are still asked again", async () => {
       const { details, transcripts, streams, store } = setup()
       store.subscribe(() => {})
       details.push(detail())
@@ -641,6 +685,9 @@ describe("the runner's conversations", () => {
         // eslint-disable-next-line no-await-in-loop -- Each failure follows the wait before it.
         await settle()
         expect(store.getSnapshot().loaded).toBe(failure >= failuresToLoaded)
+        expect(store.getSnapshot().records.state).toBe(
+          failure >= failuresToLoaded ? "lost" : "reading",
+        )
         // eslint-disable-next-line no-await-in-loop -- Each failure follows the wait before it.
         await vi.advanceTimersByTimeAsync(wait)
         wait = Math.min(wait * 2, retryMaxMs)
@@ -764,14 +811,61 @@ describe("the runner's conversations", () => {
       expect(streams.transcript).toHaveBeenCalledTimes(2)
     })
 
-    it("are loaded with none when the transcript ends with nothing", async () => {
+    it("are not read when the transcript ends with nothing: it is asked for again, and lost after a few", async () => {
       const { details, transcripts, store } = setup()
       store.subscribe(() => {})
       details.push(detail())
       await settle()
       transcripts[root]!.end()
       await settle()
-      expect(store.getSnapshot()).toMatchObject({ loaded: true, items: [] })
+      expect(store.getSnapshot()).toMatchObject({ loaded: false, items: [] })
+      expect(store.getSnapshot().records).toEqual({ state: "reading" })
+    })
+
+    it("ask for the agent's whole screen while there is nothing to show, and no more once there is", async () => {
+      const { details, transcripts, streams, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      expect(streams.slice).toHaveBeenLastCalledWith("t", true)
+      transcripts[root]!.push(batch(item(0)))
+      await settle()
+      expect(streams.slice).toHaveBeenLastCalledWith("t", false)
+      expect(streams.slice).toHaveBeenCalledTimes(2)
+      expect(store.getSnapshot().screen).toBeNull()
+    })
+
+    it("carry the screen at rest and the whole screen the runner told, and none where it says nothing", async () => {
+      const { details, slices, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      expect(store.getSnapshot().rest).toBeNull()
+      const screen = {
+        reason: "view" as const,
+        columns: 80,
+        rows: [],
+        cursor: null,
+        secret: false,
+      }
+      slices.push({ slice: null, rest: true, screen })
+      await settle()
+      expect(store.getSnapshot()).toMatchObject({ rest: true, screen })
+      slices.push({ slice: null })
+      await settle()
+      expect(store.getSnapshot()).toMatchObject({ rest: false, screen: null })
+    })
+
+    it("don't count a lost slice stream as the screen at rest", async () => {
+      const { details, slices, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      slices.push({ slice: null, rest: true })
+      await settle()
+      slices.end()
+      await settle()
+      expect(store.getSnapshot()).toMatchObject({ rest: false, slice: null })
     })
   })
 

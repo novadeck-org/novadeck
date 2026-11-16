@@ -14,6 +14,7 @@ import { terminalOf } from "@novadeck/demo/workspace"
 import { createDemoAgents } from "./agents"
 import { createChatFailures, createChatPictures } from "./chat"
 import { createDemoUpdates, pageUpdateChannel } from "./desktop/updates"
+import { createEmptyChats } from "./emptiness"
 import { createDemoFolders } from "./folders"
 import { createStaleMentions } from "./mentions"
 import { createDemoNotices } from "./notices"
@@ -593,6 +594,7 @@ export const createDemoStates = (
   const chat = createChatFailures()
   const pictures = createChatPictures()
   const mentions = createStaleMentions()
+  const emptyChats = createEmptyChats()
   const panelAsks: PanelAsks = new Set()
   const waitingActions = createWaitingActions(verbs, inbox, panelAsks)
   const screens = createStore<ReadonlyMap<string, DemoScreenState>>(new Map())
@@ -1034,6 +1036,11 @@ export const createDemoStates = (
     },
     {
       section: "Agents",
+      title: "Chat: nothing to show",
+      actions: emptyChats.actions,
+    },
+    {
+      section: "Agents",
       title: "Chat: a handle given again",
       actions: mentions.actions,
     },
@@ -1071,7 +1078,8 @@ export const createDemoStates = (
     updateControls,
     pickDirectory,
     moveTerminal,
-    chat: (conversations) => mentions.wrap(pictures.wrap(chat.wrap(conversations))),
+    chat: (conversations) =>
+      emptyChats.wrap(mentions.wrap(pictures.wrap(chat.wrap(conversations)))),
     screens,
     failPaste: (key) => pasteFails.delete(terminalKeyId(key)),
     holds: (key) => held.has(terminalKeyId(key)),

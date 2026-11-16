@@ -299,11 +299,26 @@ export type ChatSlice = {
   readonly secret: boolean
 }
 
+// What the runner says of the session's record, its transcript, once it has read it to its end:
+// `reading` until it says; `read`, with how many lines the record holds and how many of those
+// gave no item and hold nothing the decoder knows to skip (`unread`: words of the conversation
+// may be among them); `absent`, the record's file isn't there (yet); `lost`, the runner can't
+// find or read it.
+export type ChatRecords =
+  | { readonly state: "reading" }
+  | { readonly state: "read"; readonly lines: number; readonly unread: number }
+  | { readonly state: "absent" }
+  | { readonly state: "lost" }
+
 // A terminal's conversation now. `agent` and `session` name the agent's session bound to
 // the terminal whose transcript is read, its harness's name for the agent (`claude`,
-// `codex`, `agy`); both null while none is. `loaded` once the session's records so far
-// have started arriving. `items` are its root agent's, oldest first; subagents keep their
-// own. `requests` wait on the person, oldest first. `prompts` are the session's prompts
+// `codex`, `agy`); both null while none is. `loaded` once the session's records have been
+// read as far as they go (`records` is not `reading`), or items arrived. `records`, `rest`
+// and `turned` are what makes a conversation with no items empty (see `emptiness`): `rest`
+// is whether the agent's screen sits at its own idle, an empty box with nothing else of its own
+// drawn, null until the runner has looked; `turned` whether a turn of the session was seen;
+// `screen` the agent's whole screen, kept while there are no items. `items` are its root
+// agent's, oldest first; subagents keep their own. `requests` wait on the person, oldest first. `prompts` are the session's prompts
 // given through `send`, oldest first, as far as the backend follows them. `box` is what the agent's input box holds, null while there
 // is nothing to show. `slice` is the terminal's own rows while something of the harness's own
 // shows at its input.
@@ -311,6 +326,10 @@ export type Conversation = {
   readonly agent: string | null
   readonly session: string | null
   readonly loaded: boolean
+  readonly records: ChatRecords
+  readonly rest: boolean | null
+  readonly turned: boolean
+  readonly screen: ChatSlice | null
   readonly items: readonly ChatItem[]
   readonly requests: readonly ChatRequest[]
   readonly prompts: readonly ChatPrompt[]
@@ -342,6 +361,10 @@ export const noConversation: Conversation = {
   agent: null,
   session: null,
   loaded: false,
+  records: { state: "reading" },
+  rest: null,
+  turned: false,
+  screen: null,
   items: [],
   requests: [],
   prompts: [],

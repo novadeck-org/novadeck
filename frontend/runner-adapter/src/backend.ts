@@ -1415,7 +1415,7 @@ export const runnerBackend = (
   const conversations = createRunnerConversations(
     {
       detail: (terminalId) => runner.agents.detail(terminalId),
-      slice: (terminalId) => runner.agents.slice(terminalId),
+      slice: (terminalId, screen) => runner.agents.slice(terminalId, screen),
       transcript: (terminalId, actor) => runner.agents.transcript(terminalId, actor),
       transcriptImage: (terminalId, image) => runner.agents.transcriptImage(terminalId, image),
       prompt: (terminalId, text, given) => runner.agents.prompt(terminalId, text, given),

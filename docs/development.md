@@ -400,6 +400,15 @@ Agents:
   has two, and an image pasted into any demo chat shows as pasted once the prompt is
   recorded), gone (boxes naming each `[Image #N]`), slow (quiet boxes for 6 s) or unreachable
   (the boxes, asked again when the row is drawn again). Click a thumbnail to see it larger.
+- **Chat: nothing to show:** what the selected agent's chat says when it has no items, as the runner's
+  facts about its record and screen decide (`emptiness` in `frontend/core`): "Empty, proven" is
+  the plain "Nothing said yet. Send a prompt below."; "Transcript not found", "Records
+  unreadable" and "Turn with no records" say the conversation isn't showing here and why, over
+  the agent's screen and a terminal key; "Dialog on its screen" draws a dialog the agent put
+  there, live, with its keys under the title; "Waiting on the screen" is the loading line the
+  chat keeps until the runner has looked at the screen. "Back to normal" gives the agent's own
+  conversation back (`frontend/demo-debug/src/emptiness.ts`). A demo agent with no transcript of its own
+  is a new one, proven empty.
 - **Chat: a handle given again:** a project gives a handle to a new terminal an hour after its
   terminal closes, so chat words from before that name an earlier terminal. "Handle given again"
   gives another terminal of the session its handle just now (its `handleGivenAt`) and adds two

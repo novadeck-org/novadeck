@@ -4,6 +4,7 @@ import {
   type ChatImage,
   type Conversation,
 } from "@novadeck/core/conversation"
+import { emptiness } from "@novadeck/core/conversation/emptiness"
 import { wordsOf } from "@novadeck/core/conversation/picks"
 import { shellCommand, type Refused } from "@novadeck/core/conversation/prompt-refusal"
 import {
@@ -43,6 +44,7 @@ import { LiveSlice, SliceKeys } from "./Slice"
 import { ThumbsContext, useThumbs } from "./Thumbs"
 import { mentionOf, Transcript, type PeerLooks } from "./Transcript"
 import { currentPrompt, logPadding, scrollFor, startBefore, startRows } from "./turn-holds"
+import { Unproven } from "./Unproven"
 import { useBoxReturn } from "./use-box-return"
 import { useTranscriptMotion } from "./use-transcript-motion"
 import { useTurnHold } from "./use-turn-hold"
@@ -202,6 +204,10 @@ const ChatBody = ({
     agent: harness,
     session,
     loaded,
+    records,
+    rest,
+    turned,
+    screen,
     items,
     requests,
     prompts,
@@ -638,6 +644,19 @@ const ChatBody = ({
     return block?.kind === "user" ? block : null
   }, [blocks, heldId])
   const empty = items.length === 0 && bubbles.length === 0 && shownEchoes.length === 0
+  // What an empty chat is: only a conversation the runner proved empty says so; one it can't
+  // read, or with something of the agent's own on its screen, shows that screen instead.
+  // Before a session binds (Codex and Antigravity bind at a first prompt) there is no record to
+  // read, but a screen that isn't at its idle box is as much to show.
+  const verdict = emptiness({ loaded, records, rest, turned })
+  const unproven =
+    session === null
+      ? rest === false
+        ? { reason: "screen" as const }
+        : null
+      : verdict.state === "unproven"
+        ? verdict
+        : null
   return (
     <SliceKeys.Provider value={sliceKeys ?? null}>
       <section
@@ -685,15 +704,23 @@ const ChatBody = ({
                   Show earlier messages ({shownFrom})
                 </button>
               )}
-              {empty && (
-                <p className="chat-empty" role="status">
-                  {session === null
-                    ? `No conversation yet. It shows here once ${name} starts its session.`
-                    : !loaded
-                      ? "Loading the conversation…"
-                      : "Nothing said yet. Send a prompt below."}
-                </p>
-              )}
+              {empty &&
+                (unproven ? (
+                  <Unproven
+                    reason={unproven.reason}
+                    agent={name}
+                    screen={screen}
+                    onShowTerminal={onAnswerInTerminal}
+                  />
+                ) : (
+                  <p className="chat-empty" role="status">
+                    {session === null
+                      ? `No conversation yet. It shows here once ${name} starts its session.`
+                      : verdict.state === "loading"
+                        ? "Loading the conversation…"
+                        : "Nothing said yet. Send a prompt below."}
+                  </p>
+                ))}
               <ThumbsContext.Provider value={thumbs}>
                 <Transcript
                   blocks={shown}

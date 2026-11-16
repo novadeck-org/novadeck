@@ -1246,6 +1246,17 @@ button.chat-hold-line:focus-visible::before {
   padding: 0 var(--_pad);
   border-top: 0;
 }
+/* The agent's whole screen in the log, where nothing else shows: no rule or room of its own. */
+.chat-live[data-inline] {
+  max-height: none;
+  padding: 0;
+  border-top: 0;
+}
+.chat-unproven {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--_lh) / 2);
+}
 .chat-live-title {
   display: flex;
   justify-content: space-between;

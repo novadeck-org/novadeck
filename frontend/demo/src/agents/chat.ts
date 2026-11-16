@@ -366,6 +366,12 @@ export const createDemoChat = (
         ? { ...noDoorbell, delivered: transcript.delivered }
         : noDoorbell,
       loaded: true,
+      // A demo agent without a transcript is a new one: its record holds nothing, it never had a
+      // turn, and its screen sits at its box.
+      records: { state: "read", lines: 0, unread: 0 },
+      rest: true,
+      turned: false,
+      screen: null,
       items: transcript?.items ?? [],
       // An agent that reports nothing holds what its screen shows; one that does, what it
       // says it waits on.

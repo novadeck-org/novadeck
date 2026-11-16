@@ -4,6 +4,7 @@ import {
   type ChatAnswer,
   type ChatBox,
   type ChatDialog,
+  type ChatRecords,
   type ChatItem,
   type ChatPrompt,
   type ChatRequest,
@@ -43,7 +44,11 @@ import { hasCode } from "@novadeck/runner-client"
 
 export type ConversationStreams = {
   readonly detail: (terminalId: string) => AsyncIterableIterator<AgentDetail, undefined>
-  readonly slice: (terminalId: string) => AsyncIterableIterator<SliceChange, undefined>
+  // With `screen`, each change carries the agent's whole screen too.
+  readonly slice: (
+    terminalId: string,
+    screen?: boolean,
+  ) => AsyncIterableIterator<SliceChange, undefined>
   readonly transcript: (
     terminalId: string,
     actor: string,
@@ -109,17 +114,13 @@ export const graceMs = 30_000
 // milliseconds.
 export const settleMs = 500
 
-// How long a transcript may be open without a batch before it counts as read: the runner
-// sends none for a session whose file is empty, and goes on following it, in milliseconds.
-export const loadedMs = 1000
-
 // How long a read that failed waits before it asks again, doubling with each failure up to the
 // longest, in milliseconds.
 export const retryMs = 1000
 export const retryMaxMs = 15_000
 
 // How many failed reads in a row it takes for a conversation that showed nothing to count as
-// read: until then it is loading, as the runner may not yet know where the transcript is.
+// lost: until then it is loading, as the runner may not yet know where the transcript is.
 export const failuresToLoaded = 3
 
 type Stream<T> = AsyncIterableIterator<T, undefined>
@@ -362,8 +363,49 @@ const read = (
   let retrying: ReturnType<typeof setTimeout> | undefined
   let due = Number.POSITIVE_INFINITY
 
-  const markLoaded = (): void => {
-    store.update((current) => (current.loaded ? current : { ...current, loaded: true }))
+  // What the runner said of the record, which settles the conversation as read.
+  const recordsAre = (records: ChatRecords): void => {
+    store.update((current) => ({ ...current, loaded: true, records }))
+  }
+
+  // Whether the slice stream carries the whole screen: it does while there is nothing to show,
+  // which is when the chat may show the agent's own screen in its place.
+  let wholeScreen = false
+  const followSlices = (screen: boolean): void => {
+    end(slices)
+    wholeScreen = screen
+    let sliced: Stream<SliceChange>
+    try {
+      sliced = streams.slice(terminalId, screen)
+    } catch {
+      slices = undefined
+      store.update((current) => ({ ...current, slice: null, rest: false, screen: null }))
+      return
+    }
+    slices = sliced
+    void (async () => {
+      try {
+        for await (const change of sliced) {
+          if (!alive || slices !== sliced) return
+          // A runner that says nothing of its screen's rest doesn't say it is at rest.
+          store.update((current) => ({
+            ...current,
+            slice: change.slice,
+            rest: change.rest ?? false,
+            screen: change.screen ?? null,
+          }))
+        }
+      } catch {
+        // The terminal is gone, or the runner closed: `detail` tells the same.
+      }
+      // What its stream last said no longer holds.
+      if (alive && slices === sliced)
+        store.update((current) => ({ ...current, slice: null, rest: false, screen: null }))
+    })()
+  }
+  const syncScreen = (): void => {
+    const wants = store.getSnapshot().items.length === 0
+    if (wants !== wholeScreen && slices !== undefined) followSlices(wants)
   }
 
   const stopRetrying = (): void => {
@@ -392,7 +434,7 @@ const read = (
   // item replacing what shows, and the chat stays loading until a few reads have failed.
   const failed = (session: string, root: string): void => {
     failures += 1
-    if (failures >= failuresToLoaded) markLoaded()
+    if (failures >= failuresToLoaded) recordsAre({ state: "lost" })
     retryAt(session, root, lastAttempt + Math.min(retryMs * 2 ** (failures - 1), retryMaxMs))
   }
 
@@ -409,13 +451,6 @@ const read = (
       return
     }
     transcript = stream
-    // A transcript with nothing in it sends no batch: once it has been quiet a while, what
-    // shows is all there is yet.
-    const quiet = setTimeout(() => {
-      if (!alive || transcript !== stream) return
-      failures = 0
-      markLoaded()
-    }, loadedMs)
     // After a reset, or a read again over items on show, it builds here while they stay.
     let pending: readonly ChatItem[] | null = shown > 0 ? [] : null
     const swap = (): void => {
@@ -423,7 +458,10 @@ const read = (
       settling = undefined
       const items = pending
       pending = null
-      if (items !== null) store.update((current) => ({ ...current, items }))
+      if (items !== null) {
+        store.update((current) => ({ ...current, items }))
+        syncScreen()
+      }
     }
     void (async () => {
       let lost = false
@@ -436,6 +474,18 @@ const read = (
             pending = []
             continue
           }
+          // Read to its end with no item: nothing is there, as the runner counts it. A record
+          // rewritten empty beneath items on show replaces them.
+          if (change.type === "read") {
+            failures = 0
+            swap()
+            recordsAre(
+              change.found
+                ? { state: "read", lines: change.lines, unread: change.unread }
+                : { state: "absent" },
+            )
+            continue
+          }
           // Further than the read before got: the failures so far were of another kind.
           if (change.items.some((each) => each.index >= shown)) failures = 0
           if (pending === null) {
@@ -444,6 +494,7 @@ const read = (
               loaded: true,
               items: withBatch(current.items, session, change.items),
             }))
+            syncScreen()
             continue
           }
           pending = withBatch(pending, session, change.items)
@@ -458,14 +509,13 @@ const read = (
       }
       // Ended, as when the agent left the session: the next snapshot says what follows.
       if (!alive || transcript !== stream) return
-      clearTimeout(quiet)
       transcript = undefined
       // A read lost before it got as far as what shows leaves that as it is.
       if (lost && pending !== null && pending.length < store.getSnapshot().items.length)
         pending = null
       swap()
-      if (lost) failed(session, root)
-      else markLoaded()
+      // Not a record read to its end either way: it is asked for again.
+      failed(session, root)
     })()
   }
 
@@ -487,11 +537,16 @@ const read = (
     const requests = requestsOf(snapshot, root)
     const prompts = promptsOf(snapshot, changed ? [] : store.getSnapshot().prompts)
     const box = snapshot.box ?? null
+    // Whether a turn of this session was seen, as its hooks and records tell.
+    const turned =
+      snapshot.activity !== null &&
+      (snapshot.activity.state === "working" || snapshot.activity.lastTurn !== null)
     store.update((current) => {
       const same =
         !changed &&
         current.agent === snapshot.agent &&
         current.session === session &&
+        current.turned === turned &&
         sameBox(current.box, box) &&
         sameRequests(current.requests, requests) &&
         samePrompts(current.prompts, prompts)
@@ -499,16 +554,20 @@ const read = (
       return {
         agent: snapshot.agent,
         session,
+        turned,
         slice: current.slice,
+        rest: current.rest,
+        screen: current.screen,
         doorbell: current.doorbell,
         box: sameBox(current.box, box) ? current.box : box,
         requests: sameRequests(current.requests, requests) ? current.requests : requests,
         prompts: samePrompts(current.prompts, prompts) ? current.prompts : prompts,
         ...(changed
-          ? { loaded: false, items: [] }
-          : { loaded: current.loaded, items: current.items }),
+          ? { loaded: false, records: { state: "reading" as const }, items: [] }
+          : { loaded: current.loaded, records: current.records, items: current.items }),
       }
     })
+    if (changed) syncScreen()
     if (session === null || root === null) return
     if (changed) {
       follow(session, root)
@@ -524,25 +583,12 @@ const read = (
 
   try {
     detail = streams.detail(terminalId)
-    slices = streams.slice(terminalId)
   } catch {
     end(detail)
     return { stop: () => {} }
   }
   const stream = detail
-  const sliceStream = slices
-  void (async () => {
-    try {
-      for await (const { slice } of sliceStream) {
-        if (!alive) return
-        store.update((current) => ({ ...current, slice }))
-      }
-    } catch {
-      // The terminal is gone, or the runner closed: `detail` tells the same.
-    }
-    // What its stream last said no longer holds.
-    if (alive) store.update((current) => (current.slice ? { ...current, slice: null } : current))
-  })()
+  followSlices(true)
   void (async () => {
     try {
       for await (const snapshot of stream) {
@@ -556,6 +602,7 @@ const read = (
     if (!alive) return
     following = null
     end(slices)
+    slices = undefined
     end(transcript)
     transcript = undefined
     clearTimeout(settling)

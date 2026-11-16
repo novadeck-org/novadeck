@@ -14,16 +14,20 @@ export const SliceKeys = createContext<((keys: string) => void) | null>(null)
 export const Slice = ({
   slice,
   live = false,
+  grab = true,
 }: {
   readonly slice: ChatSlice
   readonly live?: boolean
+  // Whether the rows take focus as they come, which a view does; the agent's whole screen, shown
+  // while there is nothing else, leaves it where it is.
+  readonly grab?: boolean
 }): React.JSX.Element => {
   const keys = useContext(SliceKeys)
   const element = useRef<HTMLPreElement>(null)
   const taking = live && keys !== null && slice.reason !== "menu"
   const comesByItself = slice.reason === "dialog"
   useEffect(() => {
-    if (!taking) return
+    if (!taking || !grab) return
     const active = document.activeElement
     const chat = element.current?.closest(".chat")
     // A dialog comes by itself: wherever the person is stays theirs, or what they press next
@@ -31,7 +35,7 @@ export const Slice = ({
     if (comesByItself && active && active !== document.body) return
     if (!active || active === document.body || chat?.contains(active))
       element.current?.focus({ preventScroll: true })
-  }, [taking, comesByItself])
+  }, [taking, grab, comesByItself])
   return (
     <pre
       ref={element}
@@ -97,28 +101,33 @@ const liveKeys = [
 const whats = { menu: "menu", view: "view", dialog: "dialog" } as const
 
 // The terminal's own rows standing in the chat, live: a title that says whose they are, the keys
-// for the pointer where they take keys, and `aside`, a word on the title's line.
+// for the pointer where they take keys, and `aside`, a word on the title's line. `screen` marks
+// the agent's whole screen, which stands in the log, not under it, and takes no focus by itself.
 export const LiveSlice = ({
   slice,
   agent,
   aside,
+  screen = false,
 }: {
   readonly slice: ChatSlice
   // The agent's name, as the chat gives it.
   readonly agent: string
   readonly aside?: string | null
+  readonly screen?: boolean
 }): React.JSX.Element => {
   const keys = useContext(SliceKeys)
+  const what = screen ? "screen" : whats[slice.reason]
   return (
     <section
       className="chat-live"
+      data-inline={screen || undefined}
       // The rows take the keys, but for a menu of the harness's, which the box passes them to.
       data-takes-keys={slice.reason !== "menu" || undefined}
-      aria-label={`${agent}'s own ${whats[slice.reason]}`}
+      aria-label={`${agent}'s own ${what}`}
     >
       <div className="chat-live-title">
         <span>
-          {agent}'s own {whats[slice.reason]} · live from its terminal
+          {agent}'s own {what} · live from its terminal
         </span>
         {aside && <span>{aside}</span>}
         {keys && slice.reason !== "menu" && (
@@ -144,7 +153,7 @@ export const LiveSlice = ({
           </span>
         )}
       </div>
-      <Slice slice={slice} live />
+      <Slice slice={slice} live grab={!screen} />
     </section>
   )
 }
