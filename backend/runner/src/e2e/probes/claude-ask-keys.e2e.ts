@@ -94,6 +94,7 @@ surface({
 })
 surface({
   name: "k-bash-small-digits",
+  unshimmed: true,
   reply: {
     calls: [{ name: "mcp__plugin_novadeck_novadeck__agents", input: {} }],
   },
@@ -417,6 +418,7 @@ surface({
 // and which the tool's strict schema no longer allows, so a re-recording shows two fields.
 surface({
   name: "k-mcp-args",
+  unshimmed: true,
   reply: {
     calls: [
       {

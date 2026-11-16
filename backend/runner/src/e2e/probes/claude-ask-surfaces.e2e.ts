@@ -258,6 +258,7 @@ surface({
 
 surface({
   name: "mcp",
+  unshimmed: true,
   reply: {
     calls: [{ name: "mcp__plugin_novadeck_novadeck__agents", input: {} }],
   },
