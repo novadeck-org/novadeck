@@ -68,11 +68,12 @@ const ChatOfferCard = ({
   const panel = useRef<HTMLElement>(null)
   const titleId = useId()
   const shown = offer !== undefined && !offer.blocked && !hidden
-  // Said while the card is up for the first time, and not again when it returns from waiting.
+  // Said while the card is up for the first time, and not again when it returns from waiting
+  // or from not being due (a shell selected between two agents): it is said once, as an
+  // answered offer never returns, so nothing resets it.
   const [told, setTold] = useState<"not yet" | "telling" | "told">("not yet")
   if (shown && told === "not yet") setTold("telling")
   if (!shown && told === "telling") setTold("told")
-  if (!offer && told !== "not yet") setTold("not yet")
   const words = told === "telling" ? announcement : ""
   useEffect(() => onSay(words), [words, onSay])
   // Whether the card went away with focus inside it, as a download's bar taking the corner

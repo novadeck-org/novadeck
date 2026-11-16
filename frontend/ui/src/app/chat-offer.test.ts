@@ -31,6 +31,7 @@ const due = {
   answered: false,
   welcome: false,
   canChat: true,
+  touring: false,
 }
 
 describe("Agent Chat's offer", () => {
@@ -45,6 +46,7 @@ describe("Agent Chat's offer", () => {
       ["it was answered", { answered: true }],
       ["the welcome dialog is up", { welcome: true }],
       ["the selected terminal has no chat to show", { canChat: false }],
+      ["the tour is running", { touring: true }],
     ])("is not due when %s", (_, change) => {
       expect(chatOfferDue({ ...due, ...change })).toBe(false)
     })

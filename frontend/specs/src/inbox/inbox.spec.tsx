@@ -1,4 +1,4 @@
-import { afterEach } from "vitest"
+import { afterEach, beforeEach } from "vitest"
 import { page, userEvent } from "vitest/browser"
 
 import { desktopWindow } from "../support/backend"
@@ -17,6 +17,10 @@ import { context, describe, expect, it } from "../test"
 // of each kind, waiting on the person, over what its own agents wait on: api-service's plan and
 // permission, and, a moment after it opens, infra's failed turn and design-system's done report.
 const inbox = "/?demo=inbox"
+
+// These demos read their agents' conversations with the chat view off, so the footer would offer
+// Agent Chat, in a live region and a card these specs don't look at: answered.
+beforeEach(() => localStorage.setItem("novadeck.agent-chat-offer-answered", "true"))
 
 const openInbox = async (route = inbox): Promise<void> => {
   await openWorkspace(route)

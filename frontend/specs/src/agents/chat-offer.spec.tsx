@@ -2,6 +2,7 @@ import { userEvent } from "vitest/browser"
 import { page, type Locator } from "vitest/browser"
 
 import { chatOf, openChatDemo } from "../support/chat"
+import { takeTourFromHelp } from "../support/help"
 import { closePreferences, openPreferencesOn, preferencesDialog } from "../support/keyboard"
 import {
   chooseView,
@@ -167,6 +168,26 @@ describe("Agent Chat's offer", () => {
       expect(localStorage.getItem(answeredKey)).toBe("true")
       await terminalTab("Build").click()
       await expect.element(commandInput("Build")).toBeVisible()
+      await expectStaysAbsent(card())
+    })
+  })
+
+  context("while the tour runs", () => {
+    it("waits, as the tour's agent is not for the offer to change", async () => {
+      localStorage.setItem("novadeck.preferences", JSON.stringify({ chatView: false }))
+      await openWorkspace("/?demo=agents&tourStory=off&channel=experimental")
+      await openPreferencesOn("General")
+      const claude = preferencesDialog().getByRole("switch", { name: "Claude Code" })
+      await claude.click()
+      await expect.element(claude).toHaveAttribute("aria-checked", "true")
+      await closePreferences()
+      await takeTourFromHelp()
+      await page
+        .getByRole("dialog", { name: "Take the tour" })
+        .getByRole("button", { name: "Start the tour" })
+        .click()
+      const coach = page.getByRole("region", { name: "Tour step" })
+      await expect.element(coach).toBeVisible()
       await expectStaysAbsent(card())
     })
   })

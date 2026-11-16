@@ -8,6 +8,7 @@ import { context, describe, expect, it } from "../test"
 import type { AgentChatOfferProps } from "./AgentChatOffer"
 import { fadeMs, finishedForMs } from "./linger"
 import type { PortableCopy } from "./PortableInstall"
+import { nothingToCheck } from "./restart-check"
 import { UpdateProgress } from "./UpdateProgress"
 import { WorkspaceFooter } from "./WorkspaceFooter"
 
@@ -1216,6 +1217,51 @@ describe("Agent Chat's offer in the footer's corner", () => {
     mounted.push(page)
     expect(cards(page).offer).toBe(false)
     expect(page.container.querySelector(".update-progress")).not.toBeNull()
+  })
+
+  context("with a downloaded update waiting for a restart", () => {
+    const restartable = (offered?: AgentChatOfferProps) =>
+      createElement(WorkspaceFooter, {
+        hidden: false,
+        count: 2,
+        running: 1,
+        restart: {
+          offer: ready,
+          check: nothingToCheck,
+          answer: "known",
+          onRestart: () => {},
+          onGoTo: () => {},
+          blocked: false,
+        },
+        ...(offered ? { chatOffer: offered } : {}),
+      })
+    const restartCard = (page: Rendered) => page.container.querySelector(".restart-card")
+
+    it("leaves the restart card the person opened up when the offer comes due", () => {
+      const page = render(restartable())
+      mounted.push(page)
+      act(() => chip(page).click())
+      expect(restartCard(page)).not.toBeNull()
+      page.rerender(restartable(chatOffer()))
+      expect(restartCard(page)).not.toBeNull()
+      expect(cards(page).offer).toBe(false)
+    })
+
+    it("gives way to the restart card opened from its chip, and returns once it is folded away", () => {
+      const page = render(restartable(chatOffer()))
+      mounted.push(page)
+      expect(cards(page).offer).toBe(true)
+      act(() => chip(page).click())
+      expect(restartCard(page)).not.toBeNull()
+      expect(cards(page).offer).toBe(false)
+      act(() =>
+        page.container
+          .querySelector<HTMLButtonElement>(".restart-card .update-card-close")!
+          .click(),
+      )
+      expect(restartCard(page)).toBeNull()
+      expect(cards(page).offer).toBe(true)
+    })
   })
 
   it("waits out Zen mode with the footer", () => {

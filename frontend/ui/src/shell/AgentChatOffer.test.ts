@@ -116,6 +116,17 @@ describe("Agent Chat's offer card", () => {
       expect(card(page)).not.toBeNull()
     })
 
+    it("says itself once, not again when it is not due for a while and comes back", () => {
+      const page = show(offer())
+      expect(announcer(page).textContent).not.toBe("")
+      // A shell selected between two agents: nothing to offer, then the offer again.
+      page.rerender(createElement(AgentChatOffer, { offer: undefined, hidden: false }))
+      expect(announcer(page).textContent).toBe("")
+      page.rerender(createElement(AgentChatOffer, { offer: offer(), hidden: false }))
+      expect(card(page)).not.toBeNull()
+      expect(announcer(page).textContent).toBe("")
+    })
+
     it("leaves nothing to browse while it waits, and does not say itself again on its return", () => {
       const page = show(offer())
       expect(announcer(page).textContent).not.toBe("")

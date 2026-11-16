@@ -1,6 +1,6 @@
 import type { UpdateOffer } from "@novadeck/core/desktop/update"
 import { RotateCcw } from "lucide-react"
-import { useState, type ReactNode } from "react"
+import { useCallback, useState, type ReactNode } from "react"
 
 import { AgentChatOffer, type AgentChatOfferProps } from "./AgentChatOffer"
 import { FooterMurmur, type FooterMurmurProps } from "./FooterMurmur"
@@ -93,21 +93,30 @@ export const WorkspaceFooter = ({
   // dialog, menu or popover (looked at, as they come and go in portals). The offer is wanted
   // before What's new, which waits for it, as it does for every other notice.
   const [barActive, setBarActive] = useState(false)
-  const cornerFree = !hidden && !murmurSheet && !barActive
+  // The restart card, which the person opens from its chip, is up: it goes before the offer and
+  // What's new, which wait for it, so an agent terminal selected meanwhile takes nothing away.
+  const [restartShown, setRestartShown] = useState(false)
+  const restartShownChange = restart?.onShownChange
+  const onRestartShown = useCallback(
+    (shown: boolean): void => {
+      setRestartShown(shown)
+      restartShownChange?.(shown)
+    },
+    [restartShownChange],
+  )
+  const cornerFree = !hidden && !murmurSheet && !barActive && !restartShown
   const offerWanted = chatOffer !== undefined && !chatOffer.blocked && cornerFree
   const cardWanted = whatsNew !== undefined && !whatsNew.blocked && cornerFree && !offerWanted
   const overlay = useOverlayOpen(offerWanted || cardWanted)
-  // The offer or the what's-new card is up and has the corner; the restart card, which the
-  // person opens from its chip, waits for either.
-  const offerShown = offerWanted && !overlay
+  // The what's-new card is up and has the corner; the restart card waits for it.
   const whatsNewShown = cardWanted && !overlay
   const offer = chatOffer && {
     ...chatOffer,
-    blocked: chatOffer.blocked || murmurSheet || overlay || barActive,
+    blocked: chatOffer.blocked || murmurSheet || overlay || barActive || restartShown,
   }
   const card = whatsNew && {
     ...whatsNew,
-    blocked: whatsNew.blocked || murmurSheet || overlay || barActive || offerWanted,
+    blocked: whatsNew.blocked || murmurSheet || overlay || barActive || restartShown || offerWanted,
   }
   return (
     <footer
@@ -165,13 +174,8 @@ export const WorkspaceFooter = ({
             restart={
               restart && {
                 ...restart,
-                blocked:
-                  restart.blocked ||
-                  noticeOpen ||
-                  murmurSheet ||
-                  barActive ||
-                  whatsNewShown ||
-                  offerShown,
+                onShownChange: onRestartShown,
+                blocked: restart.blocked || noticeOpen || murmurSheet || barActive || whatsNewShown,
               }
             }
             hidden={hidden}
