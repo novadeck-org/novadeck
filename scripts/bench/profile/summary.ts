@@ -391,7 +391,7 @@ const labels: Readonly<Record<Metric, string>> = {
   transportOfBusy: "Transport, of busy",
   busyMsPerFrame: "Main thread busy a frame (ms)",
   fps: "Frames a second (main thread)",
-  framesOver33ms: "Frames over 33 ms",
+  framesOver33ms: "Slow frames: asked of the main thread, answered over 33 ms later",
   longTasks: "Long tasks",
   compositorFps: "Frames drawn a second (compositor)",
   compositorThread: "Renderer compositor thread busy",

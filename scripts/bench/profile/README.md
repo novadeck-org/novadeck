@@ -67,7 +67,7 @@ doesn't count as activity, so the screen blanks and locks a few minutes in, and 
 draws the page at about a frame a second, though it still reads as visible and focused. A lock
 started by hand does the same. The app can't hold the screen awake itself, as the sandbox gives
 it no session bus. A phase in which neither the compositor (its frames in the traced window) nor the page, asked for
-a frame every time in a one-second probe after the window, drew 5 frames a second is marked
+a frame every time in a one-second probe right after the window (before its trace is saved), drew 5 frames a second is marked
 throttled: its numbers are left out of the
 summary, its run out of the triggers, and profile.md lists it. A quiet page draws no frames, so
 the compositor alone can't tell a dark screen from it, and the probe alone can't tell one from a
@@ -184,8 +184,11 @@ In the output folder:
 - `maps/<variant>/`: each build of the UI the source maps came from.
 
 The traces (`tracing.ts`, the phases' and the memory samples') are recorded through the
-DevTools protocol's `Tracing.start` on the page's session, with `streamFormat: "json"`, which
-records every process the app runs, as the Performance panel does, and are saved gzipped as they
+DevTools protocol's `Tracing.start` on the browser's own endpoint (the port Chromium writes to
+`DevToolsActivePort` in the app's user data folder), with `streamFormat: "json"`, which records
+every process the app runs: the browser, the renderer, the GPU process and the utility
+processes (the runner's, the network service). A page's own session would leave the utility
+processes out. They are saved gzipped as they
 stream, so nothing here downloads or pins a trace reader. Not Electron's `contentTracing`: since
 Electron 45 it writes Perfetto's protobuf whatever the file's name, which the bench can't read
 (the traces then failed with `SyntaxError: Unexpected token`).
@@ -272,16 +275,20 @@ time.
   the traced windows hold only the frames the app asked for. A frame is a `BeginMainThreadFrame`
   on the page's main thread, which the compositor sends when something needs drawing; an idle
   page has none. The one probe that does ask for a frame every time, to tell a throttled screen,
-  runs for a second after each window has ended and its trace has been saved.
+  runs for a second right after each window has ended, before its trace is saved. A trace that
+  can't be saved or read leaves its phase's numbers out and is listed in `problems`; the run goes on.
 - **Main thread busy a frame** is the main thread's busy time over the page's frames in the
   window. A saturated main thread's busy share can't grow, as what a change costs or
   saves goes into fewer or more frames; its time a frame still moves.
-- **fps** is the page's frames a second. **Frames over 33 ms** are the frames the main thread
-  took over 33 ms to answer, from the compositor's request to their commit
-  (`SendBeginMainFrameToCommit`): a main thread blocked by a long task is late on the frame
-  waiting for it, which is what a gap over 33 ms between a counted page's frames measured, but
-  time with no frame asked for, a quiet page's, isn't counted. **Frames drawn a second** are the
-  frames the renderer's compositor drew, and the compositor's presented frames include
+- **fps** is the page's frames a second. **Slow frames (over 33 ms)**, `framesOver33ms` in the
+  JSON, are the frames the main thread took over 33 ms to answer, from the compositor's request
+  to their commit (`SendBeginMainFrameToCommit`). **It is not the old "frames over 33 ms"**, the
+  gaps over 33 ms between a counting loop's animation frames, so it doesn't compare with
+  numbers recorded before. It sees a main thread that is late on a frame already asked for: a long
+  task blocking a pending frame counts. It misses a stall that no frame was waiting for (a
+  quiet page's), which the profile's long tasks (`longTasks`, over 50 ms, the page's observer)
+  still hold; so read the two together: a stall can show as a long task and no slow frame.
+  **Frames drawn a second** are the frames the renderer's compositor drew, and they include
   those the page didn't change (scrolls, compositor animations).
 - **The other threads that draw**: the renderer's compositor thread, its raster tasks, which run
   on its pool workers (each worker's time summed, so they may pass 100%), and the GPU process's viz

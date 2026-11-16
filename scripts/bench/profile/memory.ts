@@ -196,7 +196,7 @@ export const sampleMemory = async (
   let dumped: readonly ProcessMemory[] = []
   let error: string | undefined
   try {
-    const recording = await startTrace(opened.page, memoryTrace)
+    const recording = await startTrace(opened.userData, memoryTrace)
     await sleep(sampleMs)
     await recording.stop(path)
     dumped = lastDumps(readTrace(path).traceEvents ?? [])

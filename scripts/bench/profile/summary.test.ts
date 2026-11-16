@@ -258,7 +258,9 @@ describe("markdown", () => {
     expect(text).toContain("## timing, production build\n\n| | grid |\n|---|---|\n")
     // Two runs' median is the mean of the two.
     expect(text).toContain("| Main thread busy | 60.0% (40.0%–80.0%) |")
-    expect(text).toContain("| Frames over 33 ms | 60 (40–80) |")
+    expect(text).toContain(
+      "| Slow frames: asked of the main thread, answered over 33 ms later | 60 (40–80) |",
+    )
     expect(text).not.toContain("Switch p50")
     expect(text).not.toContain("profiling build's overhead")
   })

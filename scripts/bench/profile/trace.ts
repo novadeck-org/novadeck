@@ -170,8 +170,9 @@ export type Frames = {
   readonly fps: number
   /**
    * Frames the main thread took over 33 ms to answer, from the compositor asking for them
-   * (`SendBeginMainFrameToCommit`) to their commit: two vsyncs at 60 Hz, as a gap that long
-   * between a page's frames was counted before. Time spent with no frame asked for isn't one.
+   * (`SendBeginMainFrameToCommit`) to their commit: two vsyncs at 60 Hz. Not the old count of
+   * gaps over 33 ms between a counting loop's frames: a stall with no frame pending isn't one
+   * (long tasks hold those).
    */
   readonly over33ms: number
 }

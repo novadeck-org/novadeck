@@ -220,6 +220,7 @@ const analyze = async (
       focused: one.focused,
     }
     try {
+      if (one.traceError) throw new Error(one.traceError)
       const parsed = readTrace(one.trace)
       seen.metadata ??= traceMachine(parsed.metadata)
       results.push({ ...common, breakdown: breakdown(parsed.traceEvents ?? [], attribution) })

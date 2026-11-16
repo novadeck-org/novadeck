@@ -66,6 +66,8 @@ export type Recorded = {
    * traced window had ended: a screen gone dark draws about one, however idle the page.
    */
   readonly askedFps: number
+  /** Why the trace couldn't be saved, should it not be. */
+  readonly traceError?: string
   readonly longTasks: readonly number[]
   readonly switches: readonly Switch[]
   /** Whether the page was shown and focused at the phase's end, as a throttled one isn't. */
@@ -173,7 +175,7 @@ export const play = async (
   agentPhases.push(...(await phases()))
 
   const traced = async (phase: PhaseName, during: () => Promise<readonly Switch[]>) => {
-    const recording = await startTrace(page, traceConfig)
+    const recording = await startTrace(opened.userData, traceConfig)
     // Tracing settles in every process before the window opens.
     await sleep(500)
     const from = await startRecording(page)
@@ -186,10 +188,26 @@ export const play = async (
       focused: document.hasFocus(),
     }))
     const gl = await readGl(page)
-    const trace = `${prefix}-${phase}.json.gz`
-    await recording.stop(trace)
+    // Right after the window, before the trace streams out, which takes seconds: a screen
+    // that went dark in the window must still be dark when the probe looks. The probe's
+    // frames fall in the trace, after its end mark.
     const askedFps = await askedFramesPerSecond(page)
-    recorded.push({ phase, trace, askedFps, longTasks, switches, ...state, gl })
+    const trace = `${prefix}-${phase}.json.gz`
+    // A trace that can't be saved leaves its phase's numbers out, and the run goes on.
+    const traceError = await recording.stop(trace).then(
+      () => undefined,
+      (cause: unknown) => (cause instanceof Error ? cause.message : String(cause)),
+    )
+    recorded.push({
+      phase,
+      trace,
+      askedFps,
+      longTasks,
+      switches,
+      ...state,
+      gl,
+      ...(traceError && { traceError }),
+    })
     lost(gl)
   }
   // Memory is read outside the phases, as its dumps would load their main thread.

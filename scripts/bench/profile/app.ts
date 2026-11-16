@@ -69,6 +69,8 @@ export type OpenedApp = {
   readonly readMachine: () => Promise<Machine>
   /** A folder inside the sandbox the app may write into, as its traces. */
   readonly scratch: string
+  /** The app's user data folder, where its DevTools endpoint's port is written. */
+  readonly userData: string
 }
 
 export type AppRun = {
@@ -122,6 +124,7 @@ export const openApp = (executable = packaged().executable): AppRun => {
       if (!existsSync(executable)) throw new Error(`the packaged app is missing: ${executable}`)
       opened ??= await openedCopy(executable)
       const scratch = join(sandbox.root, "scratch")
+      const userData = join(sandbox.root, "user-data")
       mkdirSync(scratch, { recursive: true })
       const display = Object.fromEntries(
         ["DISPLAY", "XAUTHORITY"].flatMap((name) => {
@@ -130,7 +133,7 @@ export const openApp = (executable = packaged().executable): AppRun => {
         }),
       )
       const switches = [
-        `--user-data-dir=${join(sandbox.root, "user-data")}`,
+        `--user-data-dir=${userData}`,
         // The unpacked package's chrome-sandbox isn't setuid, and Ubuntu forbids the
         // unprivileged namespaces Chromium's sandbox needs otherwise, as the smoke test says.
         ...(process.platform === "linux" ? ["--no-sandbox", "--ozone-platform=x11"] : []),
@@ -198,6 +201,7 @@ export const openApp = (executable = packaged().executable): AppRun => {
         busy,
         agent,
         scratch,
+        userData,
         machine: { ...(await read()), window, switches },
         readMachine: async () => ({ ...(await read()), window, switches }),
       }
