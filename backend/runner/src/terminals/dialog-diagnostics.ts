@@ -24,6 +24,17 @@ export type Subject = {
 /** Most characters of the joined refusal codes a line carries. */
 const maxCodes = 300
 
+/** The codes, space-separated, as many whole ones as fit in `limit` characters. */
+export const codesWithin = (codes: readonly string[], limit: number): string => {
+  let joined = ""
+  for (const code of codes) {
+    const next = joined === "" ? code : `${joined} ${code}`
+    if (next.length > limit) break
+    joined = next
+  }
+  return joined
+}
+
 /** The bottom rows a verbose line keeps of a screen, as the doorbell's do. */
 const screenRows = 24
 
@@ -66,7 +77,8 @@ export class DialogDiagnostics {
     try {
       return explain(() => subject.adapter!.read(subject.rows, subject.facts)).refusals
     } catch {
-      // An adapter that throws on a screen is logged as `dialogs.read-failed`; what it noted before is kept.
+      // An adapter that throws on a screen is logged as `dialogs.read-failed`; what it noted
+      // before the throw goes with it, so the line says only that it threw.
       return ["threw"]
     }
   }
@@ -81,7 +93,7 @@ export class DialogDiagnostics {
       data: {
         ...this.identity(subject),
         why,
-        refusals: this.refusals(subject).join(" ").slice(0, maxCodes),
+        refusals: codesWithin(this.refusals(subject), maxCodes),
         cols: subject.columns,
         rows: subject.rows.length,
         waitedMs: Math.max(0, at - subject.askedAt),

@@ -42,7 +42,7 @@ export const optionsFrom = (rows: readonly string[], from: number): Option[] | u
   const sequential = options.every(({ number }, index) => number === index + 1)
   return options.length >= 2 && sequential && options.filter(({ marked }) => marked).length === 1
     ? options
-    : undefined
+    : refuse("screen.optionsFrom.2")
 }
 
 // The footer after the options, which end at a blank row: its keys.
@@ -50,7 +50,7 @@ export const footerAfter = (rows: readonly string[], from: number): string | und
   let index = from
   while (index < rows.length && rows[index]!.trim() !== "") index += 1
   const footer = rows[index + 1]?.trim()
-  return footer?.startsWith("↑/↓ Navigate") ? footer : undefined
+  return footer?.startsWith("↑/↓ Navigate") ? footer : refuse("screen.footerAfter.1")
 }
 
 export const only = <T>(found: readonly T[]): T | undefined =>

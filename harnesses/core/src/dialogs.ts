@@ -137,7 +137,8 @@ export const refuse = (code: string): undefined => {
 
 /**
  * Runs `fn`, which reads a screen, and gives its result with the codes of every refusal it
- * noted, in order: the last is usually the one that decided. Not reentrant: a nested call
+ * noted, in order, as a path: a wrapper notes its own after its readers', so the one that
+ * decided is usually the first specific to the dialog asked, not the last. Not reentrant: a nested call
  * traces its own run and hands back to the outer one.
  */
 export const explain = <T>(fn: () => T): { result: T; refusals: string[] } => {

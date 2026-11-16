@@ -4,6 +4,9 @@ import { join } from "node:path"
 /** Where a refusal's code is written, and the shape every code takes: `<dialog>.<step>.<n>`. */
 const call = /\brefuse\(([^)]*)\)/g
 const shape = /^"[a-z-]+\.[A-Za-z]+\.\d+"$/
+/** A line that defines a function, and its name: `const keys = (`, `keys: (answer) =>`, `function keysFor(`. */
+const definition =
+  /^\s*(?:export\s+)?(?:const|let|function)\s+(\w+)|^\s*(?:readonly\s+)?(\w+)\s*:\s*(?:async\s*)?\(|^\s*(\w+)\s*\([^)]*\)\s*(?::[^=]*)?\{\s*$/
 
 /**
  * What an adapter's sources do against the refusal rules (see `refuse` in dialogs.ts):
@@ -28,7 +31,8 @@ export const refusalProblems = (folder: string): string[] => {
         else if (seen.has(code)) problems.push(`${where}: ${code} is also at ${seen.get(code)}`)
         else seen.set(code, where)
       }
-      if (!/\breturn undefined\b/.test(line)) return
+      // A ternary that gives undefined goes unchecked: most compute a value, not a refusal.
+      if (/^\s*(?:\/\/|\*|\/\*)/.test(line) || !/\breturn undefined\b/.test(line)) return
       // The enclosing lines, nearest first: each indented less than the one before.
       let indent = line.length - line.trimStart().length
       let answering = false
@@ -41,7 +45,10 @@ export const refusalProblems = (folder: string): string[] => {
         if (signature && (deeper > 0 || above.startsWith(")"))) continue
         indent = deeper
         signature = deeper === 0 && above.startsWith(")")
-        if (/\b(?:keys|prompt|answers?|answered)\w*\b|\w*Keys\b/i.test(above)) answering = true
+        // Only what defines a function names it: an `if` that reads `facts.answered` doesn't
+        // make the rejection under it an answer's.
+        const named = definition.exec(above)?.slice(1).find(Boolean)
+        if (named && /^(?:keys|prompt|answers?|answered)|Keys$/i.test(named)) answering = true
       }
       if (!answering)
         problems.push(`${where}: a read's refusal returns refuse("<code>"), not undefined`)

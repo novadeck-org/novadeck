@@ -56,4 +56,20 @@ describe("the refusal guard", () => {
     expect(problems[1]).toContain("static code")
     expect(problems[2]).toContain("also at x-dialog.ts:4")
   })
+
+  it("names a bare undefined in a read under a condition that mentions answers", () => {
+    // Only a function's name makes it an answer's: an `if` that reads `facts.answered` doesn't.
+    const problems = adapter(
+      [
+        "export const read = (rows, facts) => {",
+        "  if (facts.answered !== undefined) {",
+        "    return undefined",
+        "  }",
+        '  return refuse("x.read.1")',
+        "}",
+      ].join("\n"),
+    )
+    expect(problems).toHaveLength(1)
+    expect(problems[0]).toContain("x-dialog.ts:3")
+  })
 })

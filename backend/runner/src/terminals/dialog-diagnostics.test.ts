@@ -13,7 +13,7 @@ import type { AgentName } from "@novadeck/protocol"
 
 import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
-import { toolForLog } from "./dialog-diagnostics.js"
+import { codesWithin, toolForLog } from "./dialog-diagnostics.js"
 import { Dialogs, type Waiting } from "./dialogs.js"
 
 type Line = {
@@ -274,5 +274,15 @@ describe("saving a raw dialog for debugging", () => {
     await pause(100)
     expect(readdirSync(folder).length).toBeLessThanOrEqual(51)
     expect(readdirSync(folder).length).toBeGreaterThanOrEqual(50)
+  })
+})
+
+describe("the refusal codes a log line carries", () => {
+  it("keeps whole codes only, as many as fit", () => {
+    const codes = ["question.questionScreen.3", "permission.shows.5", "dialogs.read.1"]
+    expect(codesWithin(codes, 300)).toBe(codes.join(" "))
+    expect(codesWithin(codes, 44)).toBe("question.questionScreen.3 permission.shows.5")
+    expect(codesWithin(codes, 43)).toBe("question.questionScreen.3")
+    expect(codesWithin(codes, 5)).toBe("")
   })
 })

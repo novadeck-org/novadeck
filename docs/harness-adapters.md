@@ -839,8 +839,10 @@ drawings each reader rests on are probed, with fixtures from real screens
 A reader's rejection is `return refuse("<dialog>.<step>.<n>")` (`@novadeck/harness-core/dialogs`),
 not a bare `return undefined`: the call returns `undefined`, and notes its code in the trace that
 `explain(fn)` opened, if one is. `explain(() => adapter.read(rows, facts))` gives `{ result,
-refusals }`, the codes in the order the readers that looked at the screen stopped at, the last
-usually the one that decided (a reader that tries several dialogs notes each one's). Nothing
+refusals }`, the codes in the order the readers that looked at the screen stopped at. Read
+them as a path, not by the last: a reader that tries several dialogs notes each one's, and a
+wrapper adds its own after (Codex's `dialogs.read.1`, Claude's `permission.permission.5`), so
+the one that decided is usually the first specific to the dialog the request asks. Nothing
 changes in the hot path: with no trace open `refuse` is a null check. A code is a static string
 literal, `question.questionScreen.3` (the dialog's file, the function, the nth rejection in it),
 never built from the screen or the request, so the runner may log it; keep it that way, and add a
