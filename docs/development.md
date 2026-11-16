@@ -260,6 +260,14 @@ which leaves out `welcome`, `chirp`, `babcia` and `launch`, changes between them
 `&turnMs=` sets how long a demo agent's turn works (1500 ms unless given), as a spec does
 that must act on the screen before the turn ends.
 
+A dialog Novadeck can't read has "Save for debugging" under it: in the `agents` demo the fifth
+agent's chat (its `run_command` dialog, raw as `unrecognized`) and in the `inbox` variant the
+Edit row (`unsupported`); the demo writes nothing and says where the runner would have, after
+300 ms. The runner writes `dialogs/<time>-<harness>-<kind>-<id>.json` beside its logs (the
+desktop app's logs folder, or beside the database for `pnpm dev:web`); see `agents.saveDialog`
+in [Backend API](backend-api.md) and "Why a read refuses" in
+[Harness adapters](harness-adapters.md).
+
 The search field at the top filters actions by label, hint and group. Groups start folded,
 under three sections (Terminals, Agents, App), and the panel remembers which you opened in
 this tab. A ↺ beside an action marks one that boots the demo again.

@@ -1530,6 +1530,26 @@ one from an earlier runner.
   [Harness adapters, Answer driver](harness-adapters.md#answer-driver). The client's
   `agents.answer(terminalId, request, answer)` is that call.
 
+- `agents.saveDialog({ terminalId, request })` is the person's "Save for debugging" on a card
+  whose dialog shows `raw` (one the adapter could not read): it writes that request's dialog to
+  one JSON file, owner-only, and resolves with `{ path }`, the file's absolute path on the
+  runner's machine. The file holds the harness and its version, the screen as it is now
+  (`columns`, `rows` and a `screenRecord`, the format of the probe fixtures), the request's
+  `kind`, `tool`, `input` and `cwd`, the `reason` it is raw (`unrecognized`, `unsupported` or
+  `failed`), the adapter's `refusals` for that screen (see [Harness adapters](harness-adapters.md#why-a-read-refuses))
+  and when it was saved, under `format: "novadeck.dialog.v1"`. Its `scenario` has the shape of one
+  scenario of a probe fixture (`events` with the PermissionRequest or Elicitation payload,
+  `screens` by `<columns>x<rows>`), so a developer can paste it under a name into
+  `harnesses/<harness>/src/fixtures/*.probe.json`, or replay `request` and the screen through
+  the harness's `dialogs.read` (`readRecord` in `@novadeck/harness-core/testing/dialog-record`).
+  It writes only on this call: it holds the screen's text and the tool's input, which the logs
+  never do (SECURITY.md). Where: a `dialogs` folder beside the logs in the desktop app (its
+  `--novadeck-log` folder), beside the database in a standalone runner (`dev:web`, the
+  `NOVADECK_DATABASE` folder), a fresh temporary folder where the runner has neither; the
+  newest 50 files stay. Errors: `NOT_FOUND`, the terminal has no such request; `CONFLICT`, its
+  dialog is not raw, or the terminal is gone. The client's
+  `agents.saveDialog(terminalId, request)` is that call.
+
 - `agents.interrupt({ terminalId, setAside? })` presses Escape in the terminal's agent, which stops
   its turn in every harness, after up to 5 s where Claude Code's queued messages are still
   in their prompt hooks (the turn ends without a normal Stop: its activity is

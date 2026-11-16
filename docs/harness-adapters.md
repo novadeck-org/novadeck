@@ -834,6 +834,25 @@ drawings each reader rests on are probed, with fixtures from real screens
 (`harnesses/*/src/fixtures/input-box.probe.json`, `shell-mode.probe.json`, `ask.probe.json`;
 `e2e/probes/`); see [Harness coverage](harness-coverage.md).
 
+### Why a read refuses
+
+A reader's rejection is `return refuse("<dialog>.<step>.<n>")` (`@novadeck/harness-core/dialogs`),
+not a bare `return undefined`: the call returns `undefined`, and notes its code in the trace that
+`explain(fn)` opened, if one is. `explain(() => adapter.read(rows, facts))` gives `{ result,
+refusals }`, the codes in the order the readers that looked at the screen stopped at, the last
+usually the one that decided (a reader that tries several dialogs notes each one's). Nothing
+changes in the hot path: with no trace open `refuse` is a null check. A code is a static string
+literal, `question.questionScreen.3` (the dialog's file, the function, the nth rejection in it),
+never built from the screen or the request, so the runner may log it; keep it that way, and add a
+new rejection as the next number in its function. Answer-time rejections (`keys`, `prompt` and
+what they call) stay bare: the answer driver logs why an answer failed. Each harness's
+`refusals.test.ts` has the guard (`refusalProblems` in `@novadeck/harness-core/testing/refusal-guard`:
+static codes, none twice, no bare `return undefined` in a read), and replays a saved dialog.
+
+The runner runs the read once more under `explain` only when a request's dialog turns raw, and logs
+the codes once (`dialogs.unread`, see `libraries/log/README.md`); a saved dialog (`agents.saveDialog`)
+carries them too, with the screen, to become a fixture.
+
 ### Answer driver
 
 The answer driver (`terminals/answers.ts`) answers a request through its `DialogAdapter`

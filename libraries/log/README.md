@@ -50,6 +50,27 @@ held secret with spaces in it could be, but what follows the cut is shown only w
 redaction shrank thousands of characters to a few hundred). A `SyntaxError` keeps nothing from its first quote on, as JSON.parse
 quotes its input, and what JSON.parse quotes is withheld wherever its message is written.
 
+## Events the runner's dialogs write
+
+Each request whose dialog Novadeck cannot read from the agent's screen leaves a trace, once for
+the request however often its screen is read (`backend/runner/src/terminals/dialog-diagnostics.ts`):
+
+- `dialogs.unread` (info), when the request's dialog turns raw or is locked raw: `terminal`,
+  `harness`, `version` where known, `kind`, `tool` (the harness's own tool name; an MCP tool is
+  `mcp`, as its server's and tool's names are the person's), `why` (`unrecognized`, `unsupported`,
+  `clash` or `failed`), `refusals` (the adapter's static codes for that screen, in order),
+  `cols`, `rows` and `waitedMs` since the request was asked. No text of the screen or the request.
+- `dialogs.screen` (verbose only): the screen's bottom rows, one line each, written with
+  `NOVADECK_LOGS=verbose`.
+- `dialogs.read-late` (info): a request that was raw read after all (`rawMs` since it showed raw).
+- `dialogs.answer-failed` (warn): an answer through the dialog failed: `pressed` (whether any key
+  went) and `why`, the answer driver's own wording of the step, which holds counters but never
+  the screen's or the person's text.
+- `dialogs.read-failed` (error): an adapter threw reading a screen; its error's class only.
+
+A dialog the person saves with "Save for debugging" is not a log: it is a file they ask for, with
+the screen and the tool's input (see SECURITY.md).
+
 ## Parts
 
 - `createLogger`: a process's log. Lines below its level (`atLeast`), or marked verbose without
