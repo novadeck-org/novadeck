@@ -359,11 +359,16 @@ for (const setup of setups) {
       // fixed time: Codex on Windows reads it as keys, and it took longer than 1.5 s on a
       // loaded runner (0.169.0, 2026-11-15), so a prompt sent meanwhile found the box empty
       // and went in with the paste's keys, as words of it, never shown as its own.
+      // The same placeholder twice, as keys that stall partway could show one for part of it.
       const profile = harnesses[setup.agent].box
+      let last: string | undefined
       await t1.poll(async () => {
         const screen = await t1.screenText()
         const box = screen && profile.read(screen)
-        return box && profile.collapsed(box) ? true : undefined
+        const shown = box && profile.collapsed(box) ? box.text : undefined
+        const steady = shown !== undefined && shown === last
+        last = shown
+        return steady ? true : undefined
       }, "its box to show the paste as a placeholder")
       await t1.prompt("And this")
       await t1.until("Read that.")

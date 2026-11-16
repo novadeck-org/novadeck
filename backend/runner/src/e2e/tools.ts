@@ -112,7 +112,8 @@ const lists: { readonly [agent in AgentName]: Classes } = {
       // Runs a Python script that orchestrates agents and tool calls, in the background unless
       // it ends within WaitMsBeforeAsync. Never asks the person itself: its schema (read from
       // the request 1.5.9 sends) takes only the script, its arguments, its folder and the wait,
-      // as Claude Code's Workflow does. Added in 1.5.9.
+      // and its run-workflow skill says a call needing an approval not yet granted is denied,
+      // as the person can't be asked from a workflow. Added in 1.5.9.
       "run_workflow",
       "schedule",
       "search_web",

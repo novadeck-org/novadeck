@@ -203,12 +203,12 @@ suite("what Antigravity's own subagent, task and question tools were", () => {
     [
       "run_workflow",
       { Description: "Review each module\nin turn", Script: "print(1)" },
-      { kind: "agent", title: "Ran a workflow", detail: "Review each module" },
+      { kind: "agent", title: "Workflow", detail: "Review each module" },
     ],
     [
       "run_workflow",
       { ScriptPath: "/work/review.py" },
-      { kind: "agent", title: "Ran a workflow", detail: "/work/review.py" },
+      { kind: "agent", title: "Workflow", detail: "/work/review.py" },
     ],
     ["list_resources", {}, { kind: "read", title: "Listed MCP resources", detail: "" }],
     ["ask_question", {}, { kind: "plan", title: "Asked", detail: "" }],

@@ -178,13 +178,14 @@ const known = (name: string, fields: Fields | undefined): ToolRun | undefined =>
         title: "Scheduled",
         detail: oneLine(textField(fields, "Prompt", "CronExpression")),
       }
-    // run_workflow (1.5.9) runs a Python script of agents and tool calls, taking
+    // run_workflow (1.5.9) runs a Python script of agents and tool calls, mostly in the
+    // background past its call, so its row names it rather than saying it ran; it takes
     // `Description`, `Script` or `ScriptPath`, `Args`, `Cwd` and `WaitMsBeforeAsync`, as its
     // schema in the request 1.5.9 sends says.
     case "run_workflow":
       return {
         kind: "agent",
-        title: "Ran a workflow",
+        title: "Workflow",
         detail: oneLine(textField(fields, "Description", "ScriptPath")),
       }
     default:
