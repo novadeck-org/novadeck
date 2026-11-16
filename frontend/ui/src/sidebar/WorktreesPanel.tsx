@@ -340,8 +340,10 @@ const sweepBar = (safe: readonly ChangeRow[]): React.JSX.Element => (
   </SubjectBar>
 )
 
-const sweepDescription = (): string =>
-  "Their folders are removed. Each is merged or its pull request closed, and nothing in it lives only here. Their branches stay."
+const sweepDescription = (safe: readonly ChangeRow[]): string =>
+  safe.length === 1
+    ? "Its folder is removed. It is merged or its pull request closed, and nothing in it lives only here. Its branch stays."
+    : "Their folders are removed. Each is merged or its pull request closed, and nothing in it lives only here. Their branches stay."
 
 const sweepBody = (safe: readonly ChangeRow[]): React.JSX.Element => (
   <ul className="worktrees-kept text-control">

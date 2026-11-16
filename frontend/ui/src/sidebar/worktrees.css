@@ -98,7 +98,7 @@
 }
 
 /* A safe row's trash button shows at rest, in the colour that says so. */
-.worktrees-row[data-safe="true"] .icon-button.terminal-tab-revealed {
+.worktrees-row.terminal-tab[data-safe="true"] .icon-button.terminal-tab-revealed {
   opacity: 1;
   color: var(--color-success-fg);
 }
