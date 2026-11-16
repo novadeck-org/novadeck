@@ -395,7 +395,9 @@ looked at it for about a second, it lands quietly, counted on the bell but with 
 system ping, because you saw it where it happened; looked at for less, it lands and rings as any
 item does. An update (a `done` report or a `tell`) is read once you have looked at its terminal
 for about a second, whether it already landed or not, and lands as resolved; a glance while
-passing reads nothing, and an update that arrived while you looked lands when you look away. A
+passing reads nothing, and an update that arrived while you looked lands when you look away. Its
+row in the Inbox list reads it the same way: in sight for about a second while Novadeck has your
+focus, it turns resolved, as its subject is often all you need. Opening it reads it too. A
 row that resolves while it is held back lands too, as resolved: nothing is dropped. This second applies to Inbox updates and quiet landings only: the tab's
 unread marks of replies and failed turns clear as soon as you look. On a narrow window, while
 the Inbox list covers the screen, no terminal counts as looked at, for either. Opening an item

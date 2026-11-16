@@ -8,11 +8,13 @@ import {
 import { createStore } from "@novadeck/core/store"
 import { nextFrame, render } from "@novadeck/test-kit/render"
 import { act, createElement, useLayoutEffect } from "react"
+import { afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { HeldPill, InboxCount, InboxList } from "./InboxList"
 import { InboxProvider, useInboxContext, type InboxContextValue } from "./InboxProvider"
 import { InboxSheet } from "./InboxSheet"
+import { sightDwellMs } from "./read-on-sight"
 
 // jsdom has no ResizeObserver, which the sheet's placement watches its anchor with.
 Object.assign(globalThis, {
@@ -91,6 +93,7 @@ const mount = (
   dismissing = false,
   arranging = false,
   snoozing = false,
+  active = true,
 ) => {
   const state = createStore<InboxState>({ ...emptyInbox, items: rows })
   const answered: string[] = []
@@ -132,7 +135,7 @@ const mount = (
         inbox: snoozing ? withSnoozes(inbox, [], () => {}) : inbox,
         reveal: () => {},
         working,
-        active: true,
+        active,
       },
       createElement(
         "div",
@@ -407,6 +410,90 @@ describe("The Inbox's list", () => {
       expect(inbox.view.container.querySelector('[aria-label="Mark all read"]')).toBeNull()
       expect(inbox.view.container.querySelector('[aria-label="Clear settled"]')).toBeNull()
       await nextFrame()
+      inbox.view.unmount()
+    })
+  })
+
+  context("when an update's row is in sight", () => {
+    // The rows the list watches, which a test brings into sight or takes out of it.
+    const watched = new Map<Element, IntersectionObserverCallback>()
+    const sight = (element: Element, inSight: boolean): void =>
+      act(() => {
+        const entry = { isIntersecting: inSight, intersectionRatio: inSight ? 1 : 0 }
+        watched.get(element)?.([entry as IntersectionObserverEntry], {} as IntersectionObserver)
+      })
+    beforeEach(() => {
+      vi.stubGlobal(
+        "IntersectionObserver",
+        class {
+          constructor(private readonly report: IntersectionObserverCallback) {}
+          observe(element: Element): void {
+            watched.set(element, this.report)
+          }
+          disconnect(): void {
+            for (const [element, report] of watched)
+              if (report === this.report) watched.delete(element)
+          }
+        },
+      )
+      vi.spyOn(document, "hasFocus").mockReturnValue(true)
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
+      watched.clear()
+    })
+
+    it("reads it once it has stayed in sight for a moment, and nothing that asks", async () => {
+      const inbox = mount([told("u", 1), permission("a", 2)])
+      await nextFrame()
+      vi.useFakeTimers()
+      sight(inbox.row("u"), true)
+      sight(inbox.row("a"), true)
+      act(() => void vi.advanceTimersByTime(sightDwellMs - 1))
+      expect(inbox.answered).toEqual([])
+      act(() => void vi.advanceTimersByTime(1))
+      expect(inbox.answered).toEqual(["u"])
+      vi.useRealTimers()
+      inbox.view.unmount()
+    })
+
+    it("doesn't read one scrolled past, or one already resolved", async () => {
+      const resolved = { ...told("r", 2), settled: { how: "read", at: 3 } } as InboxRow
+      const inbox = mount([told("u", 1), resolved])
+      await nextFrame()
+      vi.useFakeTimers()
+      sight(inbox.row("u"), true)
+      act(() => void vi.advanceTimersByTime(sightDwellMs / 2))
+      sight(inbox.row("u"), false)
+      sight(inbox.row("r"), true)
+      act(() => void vi.advanceTimersByTime(sightDwellMs * 2))
+      expect(inbox.answered).toEqual([])
+      vi.useRealTimers()
+      inbox.view.unmount()
+    })
+
+    it("doesn't read it while the Inbox's panel isn't shown", async () => {
+      const inbox = mount([told("u", 1)], false, false, false, false, false)
+      await nextFrame()
+      vi.useFakeTimers()
+      sight(inbox.row("u"), true)
+      act(() => void vi.advanceTimersByTime(sightDwellMs * 2))
+      expect(inbox.answered).toEqual([])
+      vi.useRealTimers()
+      inbox.view.unmount()
+    })
+
+    it("doesn't read it while the window has no focus", async () => {
+      vi.spyOn(document, "hasFocus").mockReturnValue(false)
+      const inbox = mount([told("u", 1)])
+      await nextFrame()
+      vi.useFakeTimers()
+      sight(inbox.row("u"), true)
+      act(() => void vi.advanceTimersByTime(sightDwellMs * 2))
+      expect(inbox.answered).toEqual([])
+      vi.useRealTimers()
       inbox.view.unmount()
     })
   })

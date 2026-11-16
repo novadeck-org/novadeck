@@ -83,6 +83,8 @@ export type InboxContextValue = {
   readonly phone: boolean
   // Whether any agent in the workspace is at work, which the empty list says.
   readonly working: boolean
+  // Whether the Inbox's panel is on screen, where seeing an update's row reads it.
+  readonly active: boolean
   // Opens a row's sheet; with `once`, for that row alone (see `OpenOptions`).
   readonly open: (id: string, options?: OpenOptions) => void
   readonly close: () => void
@@ -529,6 +531,7 @@ export const InboxProvider = ({
       ghosts,
       phone: phone !== undefined,
       working,
+      active,
       open,
       close,
       showHeld,
@@ -553,6 +556,7 @@ export const InboxProvider = ({
       ghosts,
       phone,
       working,
+      active,
       open,
       close,
       showHeld,
