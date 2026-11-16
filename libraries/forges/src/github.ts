@@ -1,6 +1,6 @@
 import { choose, time, type Candidate } from "./choose.js"
 import { failure, parse } from "./cli.js"
-import type { Forge, Problem, PullRequest, Remote, Repository, Run, Token } from "./forge.js"
+import type { Ci, Forge, Problem, PullRequest, Remote, Repository, Run, Token } from "./forge.js"
 import { headers, record, send } from "./http.js"
 
 const defaultHost = "github.com"
@@ -56,9 +56,25 @@ const query = (count: number): string => {
   const fields = Array.from(
     { length: count },
     (_, at) =>
-      `p${at}: pullRequests(headRefName: $b${at}, states: [OPEN, MERGED, CLOSED], first: 20, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { number url title isDraft state mergedAt closedAt isCrossRepository } }`,
+      `p${at}: pullRequests(headRefName: $b${at}, states: [OPEN, MERGED, CLOSED], first: 20, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { number url title isDraft state mergedAt closedAt isCrossRepository commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } }`,
   ).join(" ")
   return `query($owner: String!, $name: String!, ${vars}) { repository(owner: $owner, name: $name) { ${fields} } }`
+}
+
+// The rollup of the head commit's checks and statuses; none where nothing reports on it.
+const rollups: Record<string, Ci> = {
+  SUCCESS: "passed",
+  FAILURE: "failing",
+  ERROR: "failing",
+  PENDING: "running",
+  EXPECTED: "running",
+}
+
+const ciOf = (pr: Record<string, unknown>): Ci => {
+  const commits = record(pr["commits"])?.["nodes"]
+  const commit = record(Array.isArray(commits) ? record(commits[0])?.["commit"] : undefined)
+  const state = record(commit?.["statusCheckRollup"])?.["state"]
+  return (typeof state === "string" ? rollups[state] : undefined) ?? "none"
 }
 
 const states: Record<string, PullRequest["state"]> = {
@@ -84,12 +100,14 @@ const candidate = (node: unknown): Candidate | undefined => {
   ) {
     return undefined
   }
+  const open = state === "open"
   return {
     pull: {
       number,
       url,
       title,
-      state: state === "open" && pr["isDraft"] === true ? "draft" : state,
+      state: open && pr["isDraft"] === true ? "draft" : state,
+      ...(open && { ci: ciOf(pr) }),
     },
     at: time(pr["mergedAt"]) || time(pr["closedAt"]),
   }

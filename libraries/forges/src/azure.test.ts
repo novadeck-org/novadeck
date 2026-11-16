@@ -253,4 +253,69 @@ describe("azure", () => {
       expect(await find(["a"])).toEqual({ kind: "unreachable" })
     })
   })
+
+  describe("ci", () => {
+    const root = "https://dev.azure.com/org/My%20Project/_apis"
+    const open = pr(5, "active", { repository: { project: { id: "proj-guid" } } })
+    const build = (status: string, extra: Record<string, unknown> = {}) => ({
+      status,
+      configuration: { isEnabled: true, type: { displayName: "Build" }, ...extra },
+    })
+    const checks = (evaluations: unknown, statuses: unknown) => {
+      let artifact: string | null = null
+      server.use(
+        byBranch({ a: [open] }),
+        http.get(`${root}/policy/evaluations`, ({ request }) => {
+          artifact = new URL(request.url).searchParams.get("artifactId")
+          return evaluations === 403
+            ? new HttpResponse("{}", { status: 403 })
+            : HttpResponse.json({ value: evaluations })
+        }),
+        http.get(`${root}/git/repositories/repo/pullrequests/5/statuses`, () =>
+          statuses === 403
+            ? new HttpResponse("{}", { status: 403 })
+            : HttpResponse.json({ value: statuses }),
+        ),
+      )
+      return async () => ({
+        ci: mapOf(await azure.pullRequests(fetch, token, repo, ["a"])).get("a")?.ci,
+        artifact,
+      })
+    }
+    it("asks the policy evaluations of the pull request in its project", async () => {
+      const run = checks([build("approved")], [])
+      expect(await run()).toEqual({
+        ci: "passed",
+        artifact: "vstfs:///CodeReview/CodeReviewId/proj-guid/5",
+      })
+    })
+    it("fails on a rejected build policy or a failed or errored status", async () => {
+      expect((await checks([build("rejected"), build("approved")], [])()).ci).toBe("failing")
+      expect((await checks([], [{ state: "failed" }, { state: "succeeded" }])()).ci).toBe("failing")
+      expect((await checks([], [{ state: "error" }])()).ci).toBe("failing")
+    })
+    it("runs while a build is queued or running, or a status pending", async () => {
+      expect((await checks([build("queued")], [])()).ci).toBe("running")
+      expect((await checks([build("running")], [{ state: "succeeded" }])()).ci).toBe("running")
+      expect((await checks([], [{ state: "pending" }])()).ci).toBe("running")
+    })
+    it("passes on an approved build or a succeeded status", async () => {
+      expect((await checks([], [{ state: "succeeded" }])()).ci).toBe("passed")
+    })
+    it("is none where nothing builds, and ignores other policies and disabled builds", async () => {
+      const review = { status: "rejected", configuration: { type: { displayName: "Minimum number of reviewers" } } }
+      expect((await checks([review, build("rejected", { isEnabled: false })], [{ state: "notSet" }])()).ci).toBe("none")
+    })
+    it("leaves ci absent where it can't be read, unless what it read already fails", async () => {
+      expect((await checks(403, [{ state: "succeeded" }])()).ci).toBeUndefined()
+      expect((await checks([build("approved")], 403)()).ci).toBeUndefined()
+      expect((await checks(403, [{ state: "failed" }])()).ci).toBe("failing")
+    })
+    it("keeps the pull request where ci can't be read", async () => {
+      checks(403, 403)
+      const map = mapOf(await azure.pullRequests(fetch, token, repo, ["a"]))
+      expect(map.get("a")).toMatchObject({ number: 5, state: "open" })
+      expect(map.get("a")).not.toHaveProperty("ci")
+    })
+  })
 })

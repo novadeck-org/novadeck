@@ -289,6 +289,63 @@ describe("github", () => {
     })
   })
 
+  describe("ci", () => {
+    const rolled = (state: string | null) => ({
+      commits: { nodes: [{ commit: { statusCheckRollup: state === null ? null : { state } } }] },
+    })
+    const cis = async (states: Record<string, string | null>) => {
+      server.use(
+        answer(
+          Object.fromEntries(
+            Object.entries(states).map(([branch, state], at) => [
+              branch,
+              [pr(at + 1, "OPEN", rolled(state))],
+            ]),
+          ),
+        ),
+      )
+      const found = mapOf(await github.pullRequests(fetch, token, repo, Object.keys(states)))
+      return Object.fromEntries([...found].map(([branch, one]) => [branch, one.ci]))
+    }
+    it("maps the head commit's rollup state, in the same request", async () => {
+      expect(
+        await cis({
+          a: "SUCCESS",
+          b: "FAILURE",
+          c: "ERROR",
+          d: "PENDING",
+          e: "EXPECTED",
+          f: null,
+        }),
+      ).toEqual({
+        a: "passed",
+        b: "failing",
+        c: "failing",
+        d: "running",
+        e: "running",
+        f: "none",
+      })
+    })
+    it("asks for the rollup in the query it already sends", async () => {
+      let sent = ""
+      server.use(
+        http.post("https://api.github.com/graphql", async ({ request }) => {
+          sent = ((await request.json()) as { query: string }).query
+          return HttpResponse.json({ data: { repository: {} } })
+        }),
+      )
+      await github.pullRequests(fetch, token, repo, ["a"])
+      expect(sent).toContain("statusCheckRollup { state }")
+    })
+    it("gives none to a merged or closed pull request", async () => {
+      server.use(
+        answer({ m: [pr(1, "MERGED", rolled("FAILURE"))], c: [pr(2, "CLOSED", rolled("SUCCESS"))] }),
+      )
+      const found = mapOf(await github.pullRequests(fetch, token, repo, ["m", "c"]))
+      expect([...found.values()].map((one) => "ci" in one)).toEqual([false, false])
+    })
+  })
+
   it("names its sign in", () => {
     expect(github.signIn("ghe.example.com")).toBe("gh auth login --hostname ghe.example.com")
   })

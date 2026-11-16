@@ -68,7 +68,13 @@ export type PullRequest = {
   readonly title: string
   // `draft` and `open` are open, one not yet ready for review and one that is.
   readonly state: "draft" | "open" | "merged" | "closed"
+  // How its checks stand on its latest commit, for an open one. Absent where the forge couldn't
+  // say (a token that can't read checks, a read that failed), and on a merged or closed one.
+  readonly ci?: Ci | undefined
 }
+
+/** How a pull request's checks stand: one failed, any still running, all passed, or none ran. */
+export type Ci = "failing" | "running" | "passed" | "none"
 
 /**
  * Why there is no answer, and whether the person can do something about it. `fix` is the
