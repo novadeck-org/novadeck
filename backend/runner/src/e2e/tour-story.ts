@@ -401,7 +401,9 @@ export const tell = async (
     [mates.designer, designer!],
   ] as const) {
     expect(run.deck.store.terminal(mate.id)?.ledBy).toBe(lead.id)
-    if (process.platform !== "win32") {
+    // Its command line only on Linux, as the runner reads no foreground process's argv on
+    // Windows or macOS; everywhere, the harness it runs is checked below.
+    if (process.platform === "linux") {
       // eslint-disable-next-line no-await-in-loop -- Two, one after the other.
       const argv = await poll(
         () => {
