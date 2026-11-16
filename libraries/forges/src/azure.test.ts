@@ -259,8 +259,16 @@ describe("azure", () => {
     const open = pr(5, "active", { repository: { project: { id: "proj-guid" } } })
     const build = (status: string, extra: Record<string, unknown> = {}) => ({
       status,
-      configuration: { isEnabled: true, type: { displayName: "Build" }, ...extra },
+      configuration: { id: 1, isEnabled: true, type: { displayName: "Build" }, ...extra },
     })
+    // A status as the list gives it: its context, its id, and the iteration it was posted on.
+    const posted = (
+      id: number,
+      state: string,
+      name = "ci",
+      iterationId = 1,
+      genre = "continuous-integration",
+    ) => ({ id, state, iterationId, context: { genre, name } })
     const checks = (evaluations: unknown, statuses: unknown) => {
       let artifact: string | null = null
       server.use(
@@ -290,17 +298,21 @@ describe("azure", () => {
       })
     })
     it("fails on a rejected build policy or a failed or errored status", async () => {
-      expect((await checks([build("rejected"), build("approved")], [])()).ci).toBe("failing")
-      expect((await checks([], [{ state: "failed" }, { state: "succeeded" }])()).ci).toBe("failing")
-      expect((await checks([], [{ state: "error" }])()).ci).toBe("failing")
+      expect((await checks([build("rejected"), build("approved", { id: 2 })], [])()).ci).toBe(
+        "failing",
+      )
+      expect(
+        (await checks([], [posted(1, "failed", "lint"), posted(2, "succeeded", "unit")])()).ci,
+      ).toBe("failing")
+      expect((await checks([], [posted(1, "error")])()).ci).toBe("failing")
     })
     it("runs while a build is queued or running, or a status pending", async () => {
       expect((await checks([build("queued")], [])()).ci).toBe("running")
-      expect((await checks([build("running")], [{ state: "succeeded" }])()).ci).toBe("running")
-      expect((await checks([], [{ state: "pending" }])()).ci).toBe("running")
+      expect((await checks([build("running")], [posted(1, "succeeded")])()).ci).toBe("running")
+      expect((await checks([], [posted(1, "pending")])()).ci).toBe("running")
     })
     it("passes on an approved build or a succeeded status", async () => {
-      expect((await checks([], [{ state: "succeeded" }])()).ci).toBe("passed")
+      expect((await checks([], [posted(1, "succeeded")])()).ci).toBe("passed")
     })
     it("is none where nothing builds, and ignores other policies and disabled builds", async () => {
       const review = {
@@ -308,14 +320,71 @@ describe("azure", () => {
         configuration: { type: { displayName: "Minimum number of reviewers" } },
       }
       expect(
-        (await checks([review, build("rejected", { isEnabled: false })], [{ state: "notSet" }])())
+        (await checks([review, build("rejected", { isEnabled: false })], [posted(1, "notSet")])())
           .ci,
       ).toBe("none")
     })
+    it("counts only each status context's newest post, not its history", async () => {
+      // Pending, then succeeded: not running. Failed, then fixed on a later iteration: passed.
+      expect((await checks([], [posted(1, "pending"), posted(2, "succeeded")])()).ci).toBe("passed")
+      expect(
+        (await checks([], [posted(9, "succeeded", "ci", 2), posted(3, "failed", "ci", 1)])()).ci,
+      ).toBe("passed")
+      // The other way round, a later failure stands over an earlier pass.
+      expect((await checks([], [posted(1, "succeeded"), posted(2, "failed")])()).ci).toBe("failing")
+      // Contexts apart are each their own: a second one still running keeps it running.
+      expect(
+        (await checks([], [posted(1, "succeeded", "unit"), posted(2, "pending", "e2e")])()).ci,
+      ).toBe("running")
+      expect((await checks([], [posted(1, "partiallySucceeded")])()).ci).toBe("passed")
+      expect((await checks([], [posted(1, "failed"), posted(2, "notApplicable")])()).ci).toBe(
+        "none",
+      )
+    })
+
+    it("counts only each build policy's current evaluation", async () => {
+      const old = { startedDate: "2026-01-01T00:00:00Z" }
+      const now = { startedDate: "2026-01-02T00:00:00Z" }
+      expect(
+        (
+          await checks(
+            [
+              { ...build("rejected"), ...old },
+              { ...build("approved"), ...now },
+            ],
+            [],
+          )()
+        ).ci,
+      ).toBe("passed")
+      expect(
+        (
+          await checks(
+            [
+              { ...build("approved"), ...now },
+              { ...build("queued"), ...old },
+            ],
+            [],
+          )()
+        ).ci,
+      ).toBe("passed")
+      // Another policy's own evaluation is not superseded by it.
+      expect(
+        (
+          await checks(
+            [
+              { ...build("approved"), ...now },
+              { ...build("rejected", { id: 2 }), ...old },
+            ],
+            [],
+          )()
+        ).ci,
+      ).toBe("failing")
+    })
+
     it("leaves ci absent where it can't be read, unless what it read already fails", async () => {
-      expect((await checks(403, [{ state: "succeeded" }])()).ci).toBeUndefined()
+      expect((await checks(403, [posted(1, "succeeded")])()).ci).toBeUndefined()
       expect((await checks([build("approved")], 403)()).ci).toBeUndefined()
-      expect((await checks(403, [{ state: "failed" }])()).ci).toBe("failing")
+      expect((await checks(403, [posted(1, "failed")])()).ci).toBe("failing")
     })
     it("keeps the pull request where ci can't be read", async () => {
       checks(403, 403)

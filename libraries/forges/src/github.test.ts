@@ -337,6 +337,35 @@ describe("github", () => {
       await github.pullRequests(fetch, token, repo, ["a"])
       expect(sent).toContain("statusCheckRollup { state }")
     })
+    it("leaves ci absent where the answer says the checks could not be read", async () => {
+      server.use(
+        http.post("https://api.github.com/graphql", () =>
+          HttpResponse.json({
+            data: { repository: { p0: { nodes: [pr(1, "OPEN", rolled(null))] } } },
+            errors: [
+              {
+                type: "FORBIDDEN",
+                message: "Resource not accessible",
+                path: [
+                  "repository",
+                  "p0",
+                  "nodes",
+                  0,
+                  "commits",
+                  "nodes",
+                  0,
+                  "commit",
+                  "statusCheckRollup",
+                ],
+              },
+            ],
+          }),
+        ),
+      )
+      const found = mapOf(await github.pullRequests(fetch, token, repo, ["a"]))
+      expect(found.get("a")).toMatchObject({ number: 1, state: "open" })
+      expect(found.get("a")).not.toHaveProperty("ci")
+    })
     it("gives none to a merged or closed pull request", async () => {
       server.use(
         answer({

@@ -151,6 +151,7 @@ const reported: Record<string, Ci> = {
   error: "failing",
   pending: "running",
   succeeded: "passed",
+  partiallySucceeded: "passed",
 }
 
 const rank: readonly Ci[] = ["failing", "running", "passed"]
@@ -200,21 +201,41 @@ const ciOf = async (
   }
   const evaluations = listOf(policies)
   if (evaluations === undefined) complete = false
+  // Only the current evaluation of each policy counts: the newest started.
+  const current = new Map<string, { at: number; found: Ci | undefined }>()
   for (const item of evaluations ?? []) {
     const evaluation = record(item)
     const policy = record(evaluation?.["configuration"])
     const type = record(policy?.["type"])
     if (policy?.["isEnabled"] === false) continue
     if (type?.["id"] !== buildPolicy && type?.["displayName"] !== "Build") continue
-    const found = evaluated[String(evaluation?.["status"])]
-    if (found !== undefined) signals.push(found)
+    const key = String(policy?.["id"] ?? evaluation?.["evaluationId"])
+    const at = time(evaluation?.["startedDate"])
+    const known = current.get(key)
+    if (known === undefined || at >= known.at)
+      current.set(key, { at, found: evaluated[String(evaluation?.["status"])] })
   }
+  for (const { found } of current.values()) if (found !== undefined) signals.push(found)
   const reports = listOf(statuses)
   if (reports === undefined) complete = false
+  // The list is the whole history, across iterations and repeated posts: only the newest status
+  // of each context (genre and name) counts, the latest iteration's first, then the highest id.
+  const newest = new Map<string, { order: [number, number]; found: Ci | undefined }>()
   for (const item of reports ?? []) {
-    const found = reported[String(record(item)?.["state"])]
-    if (found !== undefined) signals.push(found)
+    const report = record(item)
+    const context = record(report?.["context"])
+    const key = `${String(context?.["genre"] ?? "")}/${String(context?.["name"] ?? "")}`
+    const number = (value: unknown): number => (typeof value === "number" ? value : 0)
+    const order: [number, number] = [number(report?.["iterationId"]), number(report?.["id"])]
+    const known = newest.get(key)
+    if (
+      known === undefined ||
+      order[0] > known.order[0] ||
+      (order[0] === known.order[0] && order[1] >= known.order[1])
+    )
+      newest.set(key, { order, found: reported[String(report?.["state"])] })
   }
+  for (const { found } of newest.values()) if (found !== undefined) signals.push(found)
   return combine(signals, complete)
 }
 
