@@ -12,7 +12,7 @@ import { Switch } from "@novadeck/toolkit/Switch"
 import { Tabs, TabList, Tab, TabPanel } from "@novadeck/toolkit/Tabs"
 import { views } from "@novadeck/toolkit/views"
 import { MessagesSquare, SquareTerminal, X } from "lucide-react"
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react"
 
 import { shortcutGroups } from "../interaction/keymap"
 import { currentPlatform } from "../interaction/shortcuts"
@@ -122,6 +122,24 @@ const SettingText = ({
     </span>
   </span>
 )
+
+// Brings the open tab into view once the dialog's content is there, and when the tab changes:
+// on a phone the list scrolls, and the tab a URL names may be out of sight. The dialog mounts
+// its content only once it opens, so this stands inside it, not in the dialog's own component.
+const TabInView = ({
+  tab,
+  within,
+}: {
+  tab: string
+  within: RefObject<HTMLDivElement | null>
+}): null => {
+  useEffect(() => {
+    within.current
+      ?.querySelector<HTMLElement>(`[role="tab"][id$="-${tab}"]`)
+      ?.scrollIntoView?.({ block: "nearest", inline: "nearest" })
+  }, [tab, within])
+  return null
+}
 
 // The list's value for a wait; none for one the list lacks.
 const idleChoice = (minutes: number | null): string => {
@@ -298,13 +316,6 @@ export const Preferences = ({
     (id === "experimental" && !hasExperimental)
   // Where no tab is named, Agents opens where there is one, else General.
   const shown = tab === null ? (hasAgentsTab ? "agents" : "general") : hidden(tab) ? "general" : tab
-  // A tab the list has scrolled out of sight, on a phone, is brought back into view when it opens.
-  useEffect(() => {
-    if (!open) return
-    dialog.current
-      ?.querySelector<HTMLElement>(`[role="tab"][id$="-${shown}"]`)
-      ?.scrollIntoView?.({ block: "nearest", inline: "nearest" })
-  }, [open, shown])
   // The Experimental tab's switches, one row each.
   const experimentalToggles = [
     {
@@ -359,6 +370,7 @@ export const Preferences = ({
       className="modal flex h-[min(640px,calc(100dvh-48px))] w-[min(540px,calc(100vw-32px))] flex-col overflow-hidden max-[480px]:w-[calc(100vw-24px)]"
     >
       <Tabs value={shown} onValueChange={changeTab} className="flex min-h-0 flex-1 flex-col">
+        <TabInView tab={shown} within={dialog} />
         <div className="modal-header preferences-heading shrink-0 px-6 pt-5 max-[480px]:px-4">
           <div className="flex items-center justify-between gap-4">
             <h2 id="preferences-title" className="modal-title m-0 text-title font-medium">
@@ -373,11 +385,12 @@ export const Preferences = ({
             </button>
           </div>
           <TabList
-            // On a phone the tabs are wider than the dialog: the list scrolls, and its bottom
-            // padding keeps the indicator inside it.
-            className="preferences-tabs mt-3 flex gap-5 max-[480px]:overflow-x-auto max-[480px]:pb-px max-[480px]:[scrollbar-width:none]"
+            // On a phone the tabs are wider than the dialog: the list scrolls. Scrolling clips
+            // what the indicator's glow draws outside the list, so the list pads out by the glow
+            // and takes the padding back in its margin, and the indicator keeps its place.
+            className="preferences-tabs mt-3 flex gap-5 max-[480px]:-mx-2 max-[480px]:-mb-2 max-[480px]:overflow-x-auto max-[480px]:px-2 max-[480px]:pb-2 max-[480px]:[scrollbar-width:none]"
             label="Preference sections"
-            indicatorClassName="bottom-[-1px] h-0.5 max-[480px]:bottom-0"
+            indicatorClassName="bottom-[-1px] h-0.5 max-[480px]:bottom-[calc(0.5rem-1px)]"
           >
             {preferencesTabs
               .filter(({ id }) => !hidden(id))

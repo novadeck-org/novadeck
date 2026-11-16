@@ -58,19 +58,38 @@ describe("the preferences of a backend with no addons", () => {
 })
 
 describe("a tab the narrow window's list has scrolled out of sight", () => {
-  it("is brought into view when it opens", async () => {
+  it("is brought into view when the dialog opens on it, and when another is chosen", async () => {
     const brought: (string | null)[] = []
     const scrollIntoView = Element.prototype.scrollIntoView
     Element.prototype.scrollIntoView = function (this: Element) {
       brought.push(this.textContent)
     }
+    const props = (open: boolean, tab: ComponentProps<typeof Preferences>["tab"]) => ({
+      open,
+      tab,
+      version: "0.4.2",
+      onTabChange: () => {},
+      value: readPreferences(),
+      onChange: () => {},
+      onClose: () => {},
+    })
     try {
-      await show({ tab: "about", version: "0.4.2" })
+      // The dialog mounts its content only once it opens.
+      const page = render(createElement(Preferences, props(false, "about")))
+      mounted.push(page)
+      await nextFrame()
+      expect(brought).toEqual([])
+
+      page.rerender(createElement(Preferences, props(true, "about")))
+      await nextFrame()
+      expect(brought).toEqual(["About"])
+
+      page.rerender(createElement(Preferences, props(true, "general")))
+      await nextFrame()
+      expect(brought).toEqual(["About", "General"])
     } finally {
       Element.prototype.scrollIntoView = scrollIntoView
     }
-
-    expect(brought).toContain("About")
   })
 })
 
