@@ -810,6 +810,9 @@ export class Works {
         branch,
         watermark,
         snapshot.skipped,
+        // Untracked files left out of the tree still count as uncommitted.
+        snapshot.secret.join("\0"),
+        snapshot.large,
         // A rebuilt folder may have let go of the snapshot's commit.
         snapshot.generation,
         // Commits that change no file leave the tree as it was, and make a work merged.

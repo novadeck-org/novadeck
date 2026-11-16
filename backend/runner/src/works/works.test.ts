@@ -146,10 +146,14 @@ const told = 10_000
 // Snapshots as the runner makes them (beside the memory where there is one), each taken afresh:
 // a test reads right after an edit. Closed after each test, after its works.
 const made: Snapshots[] = []
-const snapshotsFor = (memory?: string, repackAfter?: number): Snapshots => {
+const snapshotsFor = (
+  memory?: string,
+  repackAfter?: number,
+  held: () => (path: string) => boolean = () => () => false,
+): Snapshots => {
   const snapshots = new Snapshots({
     // Which files may hold secrets is the companions' rule, tested there.
-    held: () => () => false,
+    held,
     freshMs: 0,
     ...(memory !== undefined && { home: join(dirname(memory), "works-objects") }),
     ...(repackAfter !== undefined && { repackAfter }),
@@ -218,7 +222,7 @@ const open = (
     ...(options.held && { held: options.held }),
     everyMs: 20,
     firstMs: everything,
-    snapshots: snapshotsFor(options.memory, options.repackAfter),
+    snapshots: snapshotsFor(options.memory, options.repackAfter, options.held),
     ...(options.memory !== undefined && { memory: options.memory }),
   })
   return { works, shown, removed }
@@ -1905,6 +1909,30 @@ describe.skipIf(!hasGit)("what a work holds that lives only in its worktree", ()
       uncommitted: 0,
       unpushed: 1,
       safe: true,
+    })
+  })
+
+  it("is no longer safe once a file that may hold secrets, which the snapshot leaves out, appears untracked", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    withOrigin(fixture)
+    const start = main.git("rev-parse", "HEAD").trim()
+    const squashed = fixture.worktree("squashed")
+    commit(squashed, "c.txt")
+    main.git("merge", "--quiet", "--squash", "squashed")
+    main.git("commit", "--quiet", "-m", "squash")
+    main.git("push", "--quiet", "origin", "main")
+    const { works } = open(() => [{ terminalId: terminal(1), root: squashed.root, base: start }], {
+      held: () => (path) => path.endsWith(".env.local"),
+    })
+    resources.defer(() => works.close())
+    expect((await current(works)).get(squashed.root)).toMatchObject({ uncommitted: 0, safe: true })
+    squashed.write(".env.local", "KEY=1\n")
+    expect((await current(works)).get(squashed.root)).toMatchObject({
+      uncommitted: 1,
+      safe: false,
     })
   })
 
