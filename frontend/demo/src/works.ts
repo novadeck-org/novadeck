@@ -75,7 +75,7 @@ export type WorkPlan = {
   // With no files: its work was merged (else the worktree was just made).
   readonly merged?: true
   readonly conflicts?: readonly string[]
-  // The owner's agent is mid-turn in it, so its × waits.
+  // The owner's agent is mid-turn in it, so its trash button waits.
   readonly working?: true
   // Its pull request on the forge, as the row's mark shows it.
   readonly pullRequest?: { readonly number: number; readonly state: PullRequest["state"] }

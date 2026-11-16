@@ -515,7 +515,7 @@ with every safety check again at that time:
   shows the work as a changes item on the owner's bar (a work with no owner, on the selected terminal's:
   `works.show({ root, terminalId })`). `working` says the owner's agent is mid-turn in this very
   worktree (its activity is working, or a shell command runs, and its current checkout is the
-  worktree). The row's × calls `works.close({ root, force })`, which closes the worktree with the
+  worktree). The row's trash button calls `works.close({ root, force })`, which closes the worktree with the
   person as the actor, through the worktrees service's removal (see "Worktrees": uncommitted work, and commits only a detached HEAD reaches, are kept on
   `refs/novadeck/kept/` refs, and the branch goes only when Novadeck made it and main holds all of
   it). The panel
@@ -529,7 +529,7 @@ with every safety check again at that time:
   confirmed. The close is queued in the worktrees service (the row looked up there, and a fresh check
   that no terminal's current checkout is the worktree with its agent working or a command running),
   so it can't race an agent's take, give or close; a command run elsewhere with `git -C` into it is
-  not seen. The × waits while `working`. A refusal (`CONFLICT`, with the service's reason: git
+  not seen. The trash button waits while `working`. A refusal (`CONFLICT`, with the service's reason: git
   status unreadable, submodules) shows above the list, as does a work that can't be shown; a
   worktree an agent closed meanwhile counts as closed. A work whose owner is closed (in History)
   shows on the selected terminal's bar. With no works the list says what appears there. The panel

@@ -89,7 +89,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Work merged",
-              hint: 'Open Worktrees: the selected terminal\'s row stays, with a merge icon in green and "Merged" on hover, and has no files, so its × closes it at once; any conflict with it clears on the others',
+              hint: 'Open Worktrees: the selected terminal\'s row stays, with a merge icon in green and "Merged" on hover, and has no files, so its trash button closes it at once; any conflict with it clears on the others',
               run: ({ selected }) => {
                 const key = selected()
                 const own = key && works.ownedBy(key.terminalId)
@@ -98,7 +98,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Worktree just made",
-              hint: "Open Worktrees: the selected terminal's row has its branch, the plain icon and no changes (not merged); hover it and click ×: it closes with no question",
+              hint: "Open Worktrees: the selected terminal's row has its branch, the plain icon and no changes (not merged); hover it and click its trash button: it closes with no question",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (key) works.openClean(placed(workspace(), key))
@@ -114,7 +114,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Worktree with changes",
-              hint: "Open Worktrees: the selected terminal's row has files; click its ×: a dialog says it holds changed files, committed work stays on the branch, uncommitted work (and commits only a detached HEAD reaches) is kept on a ref and ignored files like .env are not kept",
+              hint: "Open Worktrees: the selected terminal's row has files; click its trash button: a dialog says it holds changed files, committed work stays on the branch, uncommitted work (and commits only a detached HEAD reaches) is kept on a ref and ignored files like .env are not kept",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (!key) return
@@ -124,7 +124,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Commits main lacks",
-              hint: "Open Worktrees: the selected terminal's worktree has no changed files but two commits main lacks (as a squash-merged one has, or a commit and its revert), so it reads as merged; click its ×: the dialog says it holds 2 commits the main branch doesn't have, and closing needs your Close worktree",
+              hint: "Open Worktrees: the selected terminal's worktree has no changed files but two commits main lacks (as a squash-merged one has, or a commit and its revert), so it reads as merged; click its trash button: the dialog says it holds 2 commits the main branch doesn't have, and closing needs your Close worktree",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (key) works.commitsMainLacks(placed(workspace(), key), 2)
@@ -154,7 +154,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Owner working in it",
-              hint: "Open Worktrees: the selected terminal's row has its × dimmed; hover it for why (its agent is working in this worktree)",
+              hint: "Open Worktrees: the selected terminal's row has its trash button dimmed; hover it for why (its agent is working in this worktree)",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (!key) return
@@ -164,7 +164,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Owner done",
-              hint: "Open Worktrees: the selected terminal's × is available again",
+              hint: "Open Worktrees: the selected terminal's trash button is available again",
               run: ({ selected }) => {
                 const key = selected()
                 if (key) works.setWorking(key.terminalId, false)
@@ -177,7 +177,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Refuse the next close",
-              hint: "Open Worktrees: the next × anywhere leaves its row and shows a message above the list that git status couldn't be read",
+              hint: "Open Worktrees: the next trash button click anywhere leaves its row and shows a message above the list that git status couldn't be read",
               run: () => works.refuseNextClose(),
             },
             {

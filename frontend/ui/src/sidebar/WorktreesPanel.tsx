@@ -9,6 +9,7 @@ import {
   GitPullRequest,
   GitPullRequestClosed,
   GitPullRequestDraft,
+  Trash2,
   X,
   type LucideIcon,
 } from "lucide-react"
@@ -119,7 +120,7 @@ const linesWords = (work: Work): string | undefined => {
   return parts.length > 0 ? parts.join(", ") : undefined
 }
 
-// What the × says, when it is not available.
+// What the trash button says, when it is not available.
 const busyTip = "Its agent is working in this worktree. Close it once the turn ends."
 
 const closeTip = (row: ChangeRow): string =>
@@ -240,7 +241,7 @@ const ChangeItem = ({
                 if (row.close !== "busy") onClose(row)
               }}
             >
-              <X size={14} strokeWidth={1.5} />
+              <Trash2 size={14} strokeWidth={1.5} />
             </button>
           </Tooltip>
         </div>
@@ -251,7 +252,7 @@ const ChangeItem = ({
       data-conflict={row.conflict || undefined}
       data-merged={row.merged || undefined}
       data-pull-request={row.pullRequest?.state}
-      // The detail line keeps room for the mark beside the ×: its glyph and gaps, and its text.
+      // The detail line keeps room for the mark beside the trash button: its glyph and gaps, and its text.
       style={
         row.pullRequest
           ? ({
@@ -299,10 +300,10 @@ const closeBar = ({ row }: Asking): React.JSX.Element => (
 
 // The sidebar's Worktrees panel: the open project's works, each a git worktree Novadeck tracks,
 // against main, drawn as the Terminals panel's tabs and named by the terminal that owns it (or
-// "No owner"). First come, first served. A merged
+// "No owner"). Newest first. A merged
 // work (its changes already in main) has a green merge icon, which wins over a conflict; a
 // conflicting one a red icon. A click
-// shows the work on its owner's bar. The × asks the runner to close the worktree, which says what it holds when the
+// shows the work on its owner's bar. The trash button asks the runner to close the worktree, which says what it holds when the
 // person should confirm first, and waits while its owner's agent is working in it.
 export const WorktreesPanel = ({
   works,

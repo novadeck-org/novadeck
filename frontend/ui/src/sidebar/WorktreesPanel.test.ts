@@ -140,7 +140,7 @@ describe("the Worktrees panel's rows", () => {
     expect(link.target).toBe("_blank")
     expect(link.rel).toBe("noopener noreferrer")
     // Not inside the select button, so it is a control of its own, reached by Tab; on the
-    // detail line's end, before the ×, which keeps its place at the row's end.
+    // detail line's end, before the trash button, which keeps its place at the row's end.
     expect(link.closest("button")).toBeNull()
     expect(link.closest(".sidebar-item-actions")).not.toBeNull()
     expect(link.nextElementSibling?.matches("button.terminal-tab-action")).toBe(true)
@@ -201,9 +201,9 @@ describe("the Worktrees panel's rows", () => {
     expect(row("a").dataset.arrived).toBeUndefined()
   })
 
-  it("orders rows by when they were first seen, with no line between", () => {
-    const { rows } = show([work("b", { firstSeenAt: 2 }), work("a", { firstSeenAt: 1 })])
-    expect(rows().map((each) => each.dataset.worktreesRow)).toEqual(["/w/a", "/w/b"])
+  it("orders rows newest first, by when they were first seen, with no line between", () => {
+    const { rows } = show([work("a", { firstSeenAt: 1 }), work("b", { firstSeenAt: 2 })])
+    expect(rows().map((each) => each.dataset.worktreesRow)).toEqual(["/w/b", "/w/a"])
     expect(rows().some((each) => each.dataset.readStart !== undefined)).toBe(false)
   })
 
@@ -294,7 +294,7 @@ describe("a merged work's row", () => {
   })
 })
 
-describe("the × on a row", () => {
+describe("the trash button on a row", () => {
   const holding = async () =>
     ({ closed: false, holds: "2 changed files and 1 commit the main branch doesn't have" }) as const
 

@@ -293,17 +293,17 @@ Terminals:
   switching projects switches the list: one in conflict with main, two with each other, one
   merged; the plain demos' storefront also has one with no owner, one just made and one its owner is
   working in; a demo agent that starts a turn gains lines in the first worktree it owns and holds its
-  × disabled until the turn ends). New lines make a worktree at a terminal's first change; Many files changed
+  trash button disabled until the turn ends). New lines make a worktree at a terminal's first change; Many files changed
   gives the unfolded row its "+N more"; the conflict actions turn the icon and the file names red,
   with what it conflicts with on hover; Work merged empties the row (a worktree with no files
-  stays, and its × closes it at once) and gives it the green merge icon and "Merged" on hover;
+  stays, and its trash button closes it at once) and gives it the green merge icon and "Merged" on hover;
   Worktree just made empties it without that, so it keeps the plain icon. Commits main lacks gives a
-  worktree with no changed files but two commits main lacks, which reads as merged too (its × asks,
+  worktree with no changed files but two commits main lacks, which reads as merged too (its trash button asks,
   naming them); Owner in History names it "Closed terminal" and shows it on the selected terminal's
   bar. Worktree just made and Worktree with changes show the
-  two sides of the ×: closing at once, and the confirm dialog saying what is kept. No owner reads
+  two sides of the trash button: closing at once, and the confirm dialog saying what is kept. No owner reads
   "No owner" (click it to show it on the selected terminal's bar). Owner working in it and Owner
-  done dim and restore the × (hover it for why). Worktrees not read yet empties the panel for 3 s,
+  done dim and restore the trash button (hover it for why). Worktrees not read yet empties the panel for 3 s,
   with no count and no empty state, as before the runner first reports the worktrees. Refuse the
   next close shows the refusal above the list. Close every worktree closes the selected project's, leaving the list empty with
   what appears there; other projects keep theirs. The demo starts with Agent worktrees off
@@ -659,7 +659,7 @@ App:
   command, then flips the host to Signed in, or the forge to installed (Install lists the command
   first). The "Pull request" actions (No pull request, draft, open, merged, closed) set the mark on
   the selected terminal's worktree, or the project's first (one is made if it has none): the row's
-  detail line ends in its state's glyph and "#812" beside its ×, a link to the pull request's page,
+  detail line ends in its state's glyph and "#812" beside its trash button, a link to the pull request's page,
   and the work's changes item (in the showcase with "On, with Worktrees", select its row) has
   "PR #812" in its header, which opens the page in the browser.
 - **Guides:** "Toggle icon guides" draws a dashed box over every icon (`svg.lucide`) and a

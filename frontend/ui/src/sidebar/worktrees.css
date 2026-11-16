@@ -5,8 +5,8 @@
    `.worktrees-branch` (the row's branch), `.worktrees-refusal`, `.worktrees-kept`,
    `.worktrees-branches` and `.worktrees-trail` (a file's lines, right-aligned in its row),
    `.worktrees-empty`, `.worktrees-pr` (the work's pull request: "#812" after its state's glyph, a
-   link to its page, data-state its state, at the end of the row's detail line beside the ×).
-   The row's × is
+   link to its page, data-state its state, at the end of the row's detail line beside the trash button).
+   The row's trash button is
    `.terminal-tab-revealed`, shown under the pointer as a tab's Rename.
 
    Hooks: on a row, data-merged once its work is merged, data-conflict while it conflicts with
@@ -50,7 +50,7 @@
 }
 
 /* The pull request's mark: its state's glyph and "#812" in the caption's mono, muted, an open
-   one in ink; under the pointer it underlines. It sits in the row's actions, before the ×. */
+   one in ink; under the pointer it underlines. It sits in the row's actions, before the trash button. */
 .worktrees-pr {
   display: inline-flex;
   flex-shrink: 0;
@@ -157,7 +157,7 @@ a.worktrees-pr:focus-visible {
   margin: 0;
 }
 
-/* A × that waits (the owner's agent is working in the worktree) stays in its place, dimmed. */
+/* A trash button that waits (the owner's agent is working in the worktree) stays in its place, dimmed. */
 .worktrees-row .terminal-tab-action[aria-disabled="true"] {
   cursor: default;
   opacity: 0.35;

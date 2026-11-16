@@ -53,12 +53,12 @@ const work = (name: string, firstSeenAt: number, extra: Partial<Work> = {}): Wor
 const read = { unreadAdded: 0, unreadRemoved: 0 }
 
 describe("the Worktrees panel's rows", () => {
-  it("lists works in the order they were first seen, whatever has been read", () => {
+  it("lists works newest first, by when they were first seen, whatever has been read", () => {
     const rows = changeRows(
       [work("c", 3), work("b", 2, read), work("a", 1, read), work("d", 4)],
       new Map(),
     )
-    expect(rows.map((row) => row.work.root)).toEqual(["/r/a", "/r/b", "/r/c", "/r/d"])
+    expect(rows.map((row) => row.work.root)).toEqual(["/r/d", "/r/c", "/r/b", "/r/a"])
   })
 
   it("keeps the order of works first seen together", () => {
@@ -77,9 +77,9 @@ describe("the Worktrees panel's rows", () => {
   it("marks a merged work, which wins over a conflict", () => {
     const rows = changeRows(
       [
-        work("a", 1, { merged: true, files: [] }),
+        work("a", 3, { merged: true, files: [] }),
         work("b", 2, { merged: true, conflicts: [{ with: "main" }] }),
-        work("c", 3),
+        work("c", 1),
       ],
       new Map(),
     )
@@ -99,7 +99,7 @@ describe("the Worktrees panel's rows", () => {
   })
 
   it("says No owner for a worktree without one, and Closed terminal for an owner that is gone", () => {
-    const rows = changeRows([work("a", 1, { terminalId: null }), work("b", 2)], new Map())
+    const rows = changeRows([work("a", 2, { terminalId: null }), work("b", 1)], new Map())
     expect(rows.map((row) => row.title)).toEqual(["No owner", "Closed terminal"])
   })
 
@@ -109,7 +109,7 @@ describe("the Worktrees panel's rows", () => {
 
   it("gives a terminal's several worktrees a row each, by root", () => {
     const rows = changeRows(
-      [work("a", 1, { terminalId: "t" }), work("b", 2, { terminalId: "t" })],
+      [work("a", 2, { terminalId: "t" }), work("b", 1, { terminalId: "t" })],
       new Map([["t", "Builder"]]),
     )
     expect(rows.map((row) => [row.title, row.work.root])).toEqual([
@@ -119,7 +119,7 @@ describe("the Worktrees panel's rows", () => {
   })
 })
 
-describe("what a row's × does", () => {
+describe("what a row's trash button does", () => {
   it("asks the runner to close, whatever files the work lists: its standing is the runner's to say", () => {
     expect(closeMode(work("a", 1, { files: [], added: 0, unreadAdded: 0 }))).toBe("close")
     expect(closeMode(work("a", 1))).toBe("close")
@@ -132,7 +132,7 @@ describe("what a row's × does", () => {
   })
 
   it("is on each row", () => {
-    const rows = changeRows([work("a", 1), work("b", 2, { working: true })], new Map())
+    const rows = changeRows([work("a", 2), work("b", 1, { working: true })], new Map())
     expect(rows.map((row) => row.close)).toEqual(["close", "busy"])
   })
 })
@@ -284,7 +284,7 @@ describe("a row's pull request mark", () => {
 
   it("is on the row of a work that has one, beside its git-based merged state", () => {
     const [with_, without] = changeRows(
-      [work("a", 1, { merged: true, pullRequest: request("open") }), work("b", 2)],
+      [work("a", 2, { merged: true, pullRequest: request("open") }), work("b", 1)],
       new Map(),
     )
     expect(with_?.pullRequest?.text).toBe("#812")

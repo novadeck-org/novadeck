@@ -23,7 +23,7 @@ export type BranchView =
   | { readonly kind: "file"; readonly file: FileView }
   | { readonly kind: "more"; readonly text: string }
 
-// What a row's × does: asks the runner to close the worktree, which answers at once or says what
+// What a row's trash button does: asks the runner to close the worktree, which answers at once or says what
 // it holds for the person to confirm; or is not available because the owner's agent is
 // mid-turn in it. Whether to ask is the runner's to say, not the row's files.
 export type CloseMode = "close" | "busy"
@@ -155,7 +155,7 @@ export const mainWords = (fetchedAt: number | undefined, now: number): string | 
   return `main as of ${Math.floor(hours / 24)} d ago`
 }
 
-// What its × does: waits while the owner's agent is working in the worktree.
+// What its trash button does: waits while the owner's agent is working in the worktree.
 export const closeMode = (work: Work): CloseMode => (work.working ? "busy" : "close")
 
 // Which work's row is the selected one: the one last clicked while the terminal it was shown
@@ -171,11 +171,11 @@ export const selectedRoot = (
   return works.find((work) => work.terminalId === selectedTerminal)?.root
 }
 
-// The works in the order of the list: first come, first served.
+// The works in the order of the list: newest first, by when each first differed from main.
 export const orderedWorks = (works: readonly Work[]): readonly Work[] =>
   works
     .map((work, index) => ({ work, index }))
-    .toSorted((a, b) => a.work.firstSeenAt - b.work.firstSeenAt || a.index - b.index)
+    .toSorted((a, b) => b.work.firstSeenAt - a.work.firstSeenAt || a.index - b.index)
     .map(({ work }) => work)
 
 export const changeRows = (
