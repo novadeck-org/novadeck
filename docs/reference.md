@@ -557,8 +557,11 @@ agent.
   topmost tab to its bottommost, on into the list's edge where one is scrolled out of view,
   a block cursor on it marks the lead, and a tick reaches each worker's tab. Grid draws the
   same wires through its gutters, and Canvas between the windows. Selecting a member lights
-  its team's wire: it grows in, the ticks reach out and the cursor blinks twice (on Canvas,
-  only the cursor blinks). The team's other tabs take a faint tint of the accent and their
+  its team's wire, a quick fade with nothing replayed. A wire moves only as its team changes:
+  a team forming grows in, its ticks reaching out (in Grid and on Canvas its cursor blinks
+  twice too), and a teammate joining reaches out its own tick. A change made while the person
+  was in another session plays once they come back to it; scrolling, switching views and
+  selecting play nothing. The team's other tabs take a faint tint of the accent and their
   handles light up, the lead's in a chip; the selected tab keeps its own look. A terminal
   that both works for a lead and leads shows the team it leads. The wire is only drawn:
   assistive technology hears the team in each member's tab description, whatever is selected, as

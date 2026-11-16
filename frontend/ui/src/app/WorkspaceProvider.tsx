@@ -15,6 +15,7 @@ import { listedArrangement } from "../projects/project-arrangement"
 import { readStoredProjectArrangement } from "../projects/project-arrangement-storage"
 import { readSidebarCollapsed, readWindowedView } from "../shell/shell-storage"
 import { readFoldedTeams } from "../terminals/team-fold"
+import { createTeamNews, TeamNewsContext } from "../terminals/team-news"
 import { followSavedPreferences, watchAppearance } from "./appearance"
 import { createNavigator, type NavigatorServices, type RouterBinding } from "./commands/navigator"
 import { createWorkspaceCommands } from "./commands/workspace"
@@ -30,6 +31,7 @@ import { nameFinished, watchFinishes } from "./murmur-offer"
 import { watchPageFocus } from "./page-focus"
 import { pullRequestsOf } from "./pull-requests"
 import { availablePanels, historyShown, resolveRoute, sourceShown, worksShown } from "./routing"
+import { currentContext } from "./selectors"
 import {
   createUiStore,
   initialUi,
@@ -218,10 +220,17 @@ export const WorkspaceProvider = ({
   useRouteSync(sync, { location, navigationType, navigate })
   // The works' pull requests, for the changes items wherever they show.
   const pullRequests = useMemo(() => pullRequestsOf(services.backend), [services])
+  // What of each session's teams the person has seen drawn, so the team wires play only news.
+  const teamNews = useMemo(
+    () => createTeamNews(() => currentContext(services.workspace.getSnapshot())),
+    [services],
+  )
   return (
     <WorkspaceServicesContext value={services}>
       <DragSessionContext value={services.drag}>
-        <PullRequestsContext value={pullRequests}>{children}</PullRequestsContext>
+        <PullRequestsContext value={pullRequests}>
+          <TeamNewsContext value={teamNews}>{children}</TeamNewsContext>
+        </PullRequestsContext>
       </DragSessionContext>
     </WorkspaceServicesContext>
   )

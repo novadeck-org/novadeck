@@ -1,20 +1,23 @@
 /* The team wire recipe (TeamWire.tsx): each team's tabs joined on the rail's border, a block
    cursor at the lead and a tick into each worker. Every wire rests, dim: solid colours mixed
    into the ground they sit on, so where two pieces overlap they never add up to a brighter
-   dot; the cursor is a step brighter than the line. The selected terminal's team lights:
-   a line of the strong colour with a soft glow, whose segment grows in, whose ticks reach
-   out to the tabs after it.
+   dot; the cursor is a step brighter than the line. The selected terminal's team lights,
+   fading to a line of the strong colour with a soft glow. Only a change to the team plays
+   (team-news.ts): a team forming draws in, its segment growing and its ticks reaching out to
+   the tabs after it, and a teammate joining reaches out its own tick.
 
-   Hooks on `.team-wire`: data-settled (the lit wire's entrance has played; what's drawn
-   after, as rows scroll into view, appears without playing again), data-holding (the lit
-   wire's entrance waits while a fold's tab goes away). Each team has a
-   `.team-wire-shape`, with data-lit while it is the selected terminal's, data-folded while the
+   The wires are drawn in the Terminals list's room (`.team-wire-view`, which clips them) on a
+   `.team-wire-track` that the list's scroll timeline moves with the list, on the compositor,
+   so a scroll measures and redraws nothing. Each team has a
+   `.team-wire-shape`, with data-lead (its lead's id), data-lit while it is the selected terminal's, data-entering while its
+   team has just formed, data-folded while the
    person folded its teammates out of the list, data-faded while that leaves no teammate's tab
    showing ("wire": its segment and ticks fade out) or its lead folds away under a lead above
    ("all": its cursor too), data-reeling while the person points beside a lead above it (it
    reels in with that lead's wire), data-unfolding while they just unfolded them,
    and data-armed while they point at the gutter
-   beside its lead's tab. Parts: `.team-wire-segment`, `.team-wire-cursor`, `.team-wire-tap`,
+   beside its lead's tab. Parts: `.team-wire-segment`, `.team-wire-cursor`, `.team-wire-tap`
+   (data-joining while its teammate has just joined),
    `.team-wire-ghost` and each `.team-wire-ghost-tap` (tied to a folded lead's rows for its
    teammates),
    and on `.team-wire` itself, a `.team-wire-gutter` beside each lead's tab, the one part that
@@ -71,21 +74,52 @@
   background-color: var(--_fg);
   box-shadow: var(--_glow);
 }
-.team-wire-shape[data-lit] > .team-wire-segment {
-  transform-origin: top;
-  animation: team-wire-grow 220ms var(--ease-interface) both;
-}
 .team-wire-shape[data-lit] > .team-wire-tap {
   background-color: var(--_fg);
-  transform-origin: left;
+}
+/* The list lends its scroll timeline (TeamWire.tsx sets it on the list), and the track moves
+   up as far as the list scrolls (--_range, measured with the wires). Without scroll
+   timelines a scroll listener moves the track instead. */
+:root {
+  timeline-scope: --team-wire-list;
+}
+.team-wire-view {
+  position: absolute;
+  inset-inline: 0;
+  overflow: clip;
+}
+.team-wire-track {
+  position: absolute;
+  inset: 0 0 auto;
+}
+@supports (animation-timeline: scroll()) {
+  .team-wire-track {
+    animation: team-wire-follow linear both;
+    animation-timeline: --team-wire-list;
+  }
+}
+@keyframes team-wire-follow {
+  to {
+    transform: translateY(calc(-1 * var(--_range, 0px)));
+  }
+}
+/* Each wire keeps its element whether it lights or rests, in the teams' order, so lighting
+   fades; the lit ones stand over any resting one they cross. */
+.team-wire-shape {
+  position: absolute;
+  inset: 0;
+}
+.team-wire-shape[data-lit] {
+  z-index: 1;
+}
+.team-wire-shape[data-entering] > .team-wire-segment {
+  animation: team-wire-grow 220ms var(--ease-interface) both;
+}
+.team-wire-shape[data-entering] > .team-wire-tap {
   animation: team-wire-reach 180ms var(--ease-interface) 260ms both;
 }
-/* A selection that swaps the tabs a fold shows: the entrance waits for them to leave. */
-.team-wire[data-holding] .team-wire-shape[data-lit] > :is(.team-wire-segment, .team-wire-tap) {
-  animation-play-state: paused;
-}
-.team-wire[data-settled] .team-wire-shape > i {
-  animation: none;
+.team-wire-shape:not([data-entering]) > .team-wire-tap[data-joining] {
+  animation: team-wire-reach 180ms var(--ease-interface) both;
 }
 @keyframes team-wire-grow {
   from {
@@ -114,13 +148,16 @@
   transform-origin: top;
   transition:
     transform var(--motion-layout) var(--ease-interface) 120ms,
-    opacity var(--motion-layout) var(--ease-interface);
+    opacity var(--motion-layout) var(--ease-interface),
+    background-color var(--motion-feedback) var(--ease-interface),
+    box-shadow var(--motion-feedback) var(--ease-interface);
 }
 .team-wire-shape > .team-wire-tap {
   transform-origin: left;
   transition:
     transform var(--motion-feedback) var(--ease-interface),
-    opacity var(--motion-layout) var(--ease-interface);
+    opacity var(--motion-layout) var(--ease-interface),
+    background-color var(--motion-feedback) var(--ease-interface);
 }
 /* A team folding fades its wire out as its tabs collapse, the lead's cursor staying; one
    unfolding fades it back in as they unroll. */
@@ -140,7 +177,9 @@
 .team-wire-shape > .team-wire-cursor {
   transition:
     transform var(--motion-feedback) var(--ease-interface),
-    opacity var(--motion-layout) var(--ease-interface);
+    opacity var(--motion-layout) var(--ease-interface),
+    background-color var(--motion-feedback) var(--ease-interface),
+    box-shadow var(--motion-feedback) var(--ease-interface);
 }
 .team-wire-shape[data-armed]:not([data-folded]) > .team-wire-tap {
   transform: scaleX(0);

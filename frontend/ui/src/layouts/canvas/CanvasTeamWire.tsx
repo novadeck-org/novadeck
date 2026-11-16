@@ -2,6 +2,7 @@ import type { Team } from "@novadeck/core/derivations"
 import { useStore, ViewportPortal, type ReactFlowState } from "@xyflow/react"
 import { useCallback, useMemo, type CSSProperties } from "react"
 
+import { memberPiece, teamPiece, useEnteringPieces } from "../../terminals/team-news"
 import { chromeScaleAt, terminalHeaderHeight } from "./geometry"
 import { teamRoute, type Member, type Point, type Run } from "./team-route"
 import type { TerminalNode } from "./types"
@@ -13,32 +14,30 @@ import type { TerminalNode } from "./types"
 // and every point lands on a whole screen pixel, as the sidebar's wire does. It sits in the
 // canvas's viewport beneath the windows, so it pans, zooms and follows a dragged window with
 // them, and is only drawn: it takes no pointer. The lines are simply there. Every wire rests,
-// dim, as the sidebar's do (team-wire.css); the selected terminal's team lights, and its
-// cursor blinks twice each time one of its members is selected. A wire recedes with its
-// windows unless its team is the selected one.
+// dim, as the sidebar's do (team-wire.css); the selected terminal's team lights. Only a change
+// to a team plays (team-news.ts): a team forming blinks its cursor twice as its ticks reach
+// out, and a teammate joining reaches out its tick. A wire recedes with its windows unless its
+// team is the selected one.
 export const CanvasTeamWire = ({
   teams,
   team,
-  selected,
 }: {
   teams: readonly Team[]
   // The selected terminal's team, if it has one: the one whose wire lights and doesn't
   // recede.
   team: Team | undefined
-  selected: string
 }): React.JSX.Element | null =>
   // Mounted only while there is a team, so that no pan or zoom renders anything without one.
-  teams.length ? <TeamWires teams={teams} team={team} selected={selected} /> : null
+  teams.length ? <TeamWires teams={teams} team={team} /> : null
 
 const TeamWires = ({
   teams,
   team,
-  selected,
 }: {
   teams: readonly Team[]
   team: Team | undefined
-  selected: string
 }): React.JSX.Element => {
+  const entering = useEnteringPieces(teams, true)
   const ids = useMemo(
     () => [...new Set(teams.flatMap((each) => [each.lead, ...each.workers]))],
     [teams],
@@ -88,8 +87,9 @@ const TeamWires = ({
           team={each}
           rects={rects}
           view={{ x, y, zoom }}
-          selected={selected}
           active={team?.lead === each.lead}
+          entering={entering.has(teamPiece(each.lead))}
+          joining={(id) => entering.has(memberPiece(each.lead, id))}
         />
       ))}
     </ViewportPortal>
@@ -100,17 +100,19 @@ const TeamWireOf = ({
   team,
   rects,
   view,
-  selected,
   active,
+  entering,
+  joining,
 }: {
   team: Team
   // Where each team member on the canvas is, in its units, and where the camera is.
   rects: ReadonlyMap<string, Member>
   view: { readonly x: number; readonly y: number; readonly zoom: number }
-  selected: string
-  // Whether this is the selected terminal's team: it lights, and its cursor is drawn anew
-  // for each selection of one of its members, so it blinks again.
+  // Whether this is the selected terminal's team: it lights.
   active: boolean
+  // Its team just formed, and plays whole; a teammate who just joined it reaches out alone.
+  entering: boolean
+  joining: (id: string) => boolean
 }): React.JSX.Element | null => {
   const { x, y, zoom } = view
   const route = useMemo(() => {
@@ -156,7 +158,11 @@ const TeamWireOf = ({
       data-selected={active || undefined}
       style={{ "--_zoom": zoom } as CSSProperties}
     >
-      <div className="canvas-team-wire-shape" data-lit={active || undefined}>
+      <div
+        className="canvas-team-wire-shape"
+        data-lit={active || undefined}
+        data-entering={entering || undefined}
+      >
         {route.sides.map(({ side, stem }) => (
           <i key={`stem-${side}`} className="canvas-team-wire-line" style={horizontal(stem)} />
         ))}
@@ -168,6 +174,7 @@ const TeamWireOf = ({
             key={`tick-${tick.id}`}
             className="canvas-team-wire-line canvas-team-wire-tick"
             data-to={tick.run.to.x >= tick.run.from.x ? "right" : "left"}
+            data-joining={joining(tick.id) || undefined}
             style={horizontal(tick.run)}
           />
         ))}
@@ -177,7 +184,7 @@ const TeamWireOf = ({
           const left = side === "right" ? point.x : point.x - 5
           return (
             <i
-              key={`cursor-${side}-${active ? selected : ""}`}
+              key={`cursor-${side}`}
               className="canvas-team-wire-cursor"
               style={{
                 left: back(left, x),

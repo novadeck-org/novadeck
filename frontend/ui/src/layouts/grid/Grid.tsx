@@ -676,7 +676,6 @@ export const Grid = ({
             <GridTeamWire
               teams={teams}
               team={team}
-              selected={selected}
               boxes={wired}
               gap={gridGap}
               width={width}

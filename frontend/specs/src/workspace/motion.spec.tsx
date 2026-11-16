@@ -6,6 +6,7 @@ import { cleanup, render } from "vitest-browser-react"
 import { page, userEvent } from "vitest/browser"
 
 import { pageScheme, saveFromAnotherWindow, systemScheme } from "../support/appearance"
+import { joinTeam } from "../support/backend"
 import { expectStaysTrue } from "../support/layouts"
 import {
   chooseView,
@@ -40,13 +41,13 @@ const animationsFinished = async (): Promise<void> => {
   )
   await expect
     .poll(() => {
-      const animations = document
-        .getAnimations()
-        .filter(
-          (animation) =>
-            animation.playState === "running" &&
-            animation.effect?.getTiming().iterations !== Infinity,
-        )
+      const animations = document.getAnimations().filter(
+        (animation) =>
+          animation.playState === "running" &&
+          animation.effect?.getTiming().iterations !== Infinity &&
+          // A clock's, not a scroll's, which follows the list as long as it shows.
+          animation.timeline instanceof DocumentTimeline,
+      )
       // Preserve the final sample even if cleanup removes its elements before the
       // failure hook. A count alone cannot identify a stuck transition or its clock.
       pending = animations.map((animation) => {
@@ -181,32 +182,35 @@ describe("A team's wire", () => {
     document.querySelector<HTMLElement>(
       `[data-team-fold-row="${tabOf(name).getAttribute("data-terminal-tab-id")!}"]`,
     )!
-  // Where the lit wires end as drawn this frame, their entrance included.
-  const litBottom = () =>
-    Math.max(
-      ...[...document.querySelectorAll(".team-wire-shape[data-lit] > .team-wire-segment")].map(
-        (segment) => segment.getBoundingClientRect().bottom,
-      ),
-    )
-  // Past the fold's motion and the wire's entrance.
+  // Past the fold's motion and any entrance.
   const settled = () => new Promise((done) => setTimeout(done, 800))
-  // How far the lit wires reach, frame by frame, from `act` to the end of their entrance, however
-  // late a slow runner paints it: half a second past its first frame and any hold.
-  const reachWhile = (act: () => void) =>
-    new Promise<number>((done) => {
+  // Whether Checkout implementation's lit wire, this frame, runs to the one teammate shown and
+  // no further: a single tick, the segment ending on its row.
+  const onOneTeammate = () => {
+    const lead = tabOf("Checkout implementation").getAttribute("data-terminal-tab-id")!
+    const wire = `.team-wire-shape[data-lit][data-lead="${CSS.escape(lead)}"]`
+    const taps = [...document.querySelectorAll(`${wire} > .team-wire-tap`)]
+    const segment = document.querySelector(`${wire} > .team-wire-segment`)
+    if (taps.length !== 1 || !segment) return taps.length === 0
+    const row = Math.round(taps[0]!.getBoundingClientRect().top)
+    return Math.abs(Math.round(segment.getBoundingClientRect().bottom) - (row + 1)) <= 1
+  }
+  // Whether every frame from `act` to half a second past its first runs to one teammate.
+  const everyFrameWhile = (act: () => void) =>
+    new Promise<boolean>((done) => {
       act()
       let start: number | undefined
-      let furthest = 0
+      let always = true
       const step = (now: number) => {
-        if (start === undefined || document.querySelector(".team-wire[data-holding]")) start = now
-        furthest = Math.max(furthest, litBottom())
+        start ??= now
+        always &&= onOneTeammate()
         if (now - start < 500) requestAnimationFrame(step)
-        else done(furthest)
+        else done(always)
       }
       requestAnimationFrame(step)
     })
 
-  it("draws no further than it ends, moving from one folded teammate to another", async () => {
+  it("never reaches the teammate going away, moving from one folded teammate to another", async () => {
     await openWorkspace("/?demo=messages&nested=on")
     await terminalTab("Dev server").click()
     await expect.poll(gutter).not.toBeNull()
@@ -216,16 +220,10 @@ describe("A team's wire", () => {
     await userEvent.click(foldRow("Tests"))
     await expect.poll(() => laidOut("Tests")).toBe(true)
     await settled()
-    // The first teammate shown swaps nothing, so its wire draws at once.
-    expect(document.querySelector(".team-wire")!.hasAttribute("data-holding")).toBe(false)
-    const moveTo = async (name: string) => {
-      const reached = await reachWhile(() => foldRow(name).click())
-      await settled()
-      expect(reached).toBeLessThanOrEqual(litBottom() + 1)
-    }
     // Both ways, as the tab going away may stand above the one coming or below it.
-    await moveTo("Runtime")
-    await moveTo("Tests")
+    expect(await everyFrameWhile(() => foldRow("Runtime").click())).toBe(true)
+    await settled()
+    expect(await everyFrameWhile(() => foldRow("Tests").click())).toBe(true)
   })
 
   it("drops a teammate's tick at once as its team folds around the selected one", async () => {
@@ -254,26 +252,128 @@ describe("A team's wire", () => {
     expect(laidOut("Runtime")).toBe(true)
   })
 
-  it("ends a hold as its tab leaves, with its team's wire out of view", async () => {
-    await openWorkspace("/?demo=messages&nested=on")
-    await terminalTab("Dev server").click()
-    await expect.poll(gutter).not.toBeNull()
-    await userEvent.hover(gutter()!)
-    await userEvent.click(gutter()!)
-    await expect.poll(() => laidOut("Runtime")).toBe(false)
-    await userEvent.click(foldRow("Runtime"))
-    await expect.poll(() => laidOut("Runtime")).toBe(true)
+  const entrances = new Set(["team-wire-grow", "team-wire-reach"])
+  // Whether any part of a wire plays an entrance this frame.
+  const playing = () =>
+    [...document.querySelectorAll(".team-wire-shape > i")].some((part) =>
+      // An entrance: not the fade a selection lights it with, nor an armed fold's blink.
+      part
+        .getAnimations()
+        .some(
+          (animation) =>
+            animation instanceof CSSAnimation &&
+            entrances.has(animation.animationName) &&
+            animation.playState === "running",
+        ),
+    )
+  // Whether a wire played at any frame while `act` and its aftermath run.
+  const playsWhile = (act: () => void) =>
+    new Promise<boolean>((done) => {
+      act()
+      let start: number | undefined
+      let played = false
+      const step = (now: number) => {
+        start ??= now
+        played ||= playing()
+        if (now - start < 600) requestAnimationFrame(step)
+        else done(played)
+      }
+      requestAnimationFrame(step)
+    })
+  const select = (name: string) => () =>
+    tabOf(name).querySelector<HTMLElement>(".sidebar-item-select")!.click()
+
+  it("plays nothing as one of its members is selected, or another and back again", async () => {
+    await openWorkspace("/?demo=messages")
+    await expect.poll(() => document.querySelectorAll(".team-wire-shape").length).toBe(1)
     await settled()
-    // Nothing of the team shows, so nothing about the wires changes as Runtime's tab leaves.
+    expect(await playsWhile(select("Checkout review"))).toBe(false)
+    expect(await playsWhile(select("Checkout implementation"))).toBe(false)
+    expect(await playsWhile(select("Dev server"))).toBe(false)
+    expect(await playsWhile(select("Checkout review"))).toBe(false)
+  })
+
+  it("reaches out the tick of a teammate who joins, and only that one", async () => {
+    await openWorkspace("/?demo=messages")
+    await expect.poll(() => document.querySelectorAll(".team-wire-tap").length).toBe(1)
+    await settled()
+    joinTeam("Dev server", "Checkout implementation")
+    const joining = () =>
+      document.querySelector<HTMLElement>(".team-wire-tap[data-joining]")?.style.top ?? null
+    await expect.poll(joining).not.toBeNull()
+    expect(document.querySelectorAll(".team-wire-tap[data-joining]")).toHaveLength(1)
+    expect(document.querySelector(".team-wire-shape[data-entering]")).toBeNull()
+    // Once played, a later selection plays it no more.
+    await settled()
+    expect(await playsWhile(select("Dev server"))).toBe(false)
+  })
+
+  it("draws a team in whole as it forms", async () => {
+    await openWorkspace("/?demo=messages")
+    await expect.poll(() => document.querySelectorAll(".team-wire-shape").length).toBe(1)
+    await settled()
+    joinTeam("Dev server", "Runtime")
+    await expect
+      .poll(() => document.querySelectorAll(".team-wire-shape[data-entering]").length)
+      .toBe(1)
+    expect(document.querySelectorAll(".team-wire-shape")).toHaveLength(2)
+  })
+
+  it("stays on its tabs as the list scrolls, measuring and redrawing nothing", async () => {
+    await openWorkspace("/?demo=messages")
+    const list = document.querySelector<HTMLElement>(".terminal-tab-list")!
+    list.style.flex = "none"
+    list.style.height = "160px"
+    await expect.poll(() => document.querySelectorAll(".team-wire-tap").length).toBe(1)
+    await settled()
+    const tap = document.querySelector<HTMLElement>(".team-wire-tap")!
+    const placed = tap.style.top
+    const name = (who: string) =>
+      tabOf(who).querySelector(".sidebar-item-copy strong")!.getBoundingClientRect()
+    const offset = () => {
+      const rect = tap.getBoundingClientRect()
+      return Math.round(
+        rect.top - (name("Checkout review").top + name("Checkout review").height / 2),
+      )
+    }
+    const before = offset()
+    list.scrollTop = 40
+    await nextFrames(3)
+    expect(list.scrollTop).toBeGreaterThan(0)
+    expect(Math.abs(offset() - before)).toBeLessThanOrEqual(1)
+    expect(tap.style.top).toBe(placed)
+    expect(document.querySelector(".team-wire-tap")).toBe(tap)
+  })
+})
+
+describe("A tab's spinner", () => {
+  // Every spinner and blink a tab draws, with the tab it stands in.
+  const spinners = () =>
+    document.getAnimations().flatMap((animation) => {
+      const target = (animation.effect as KeyframeEffect | null)?.target
+      const tab = target?.closest("[data-terminal-tab-id]")
+      return animation instanceof CSSAnimation && animation.animationName === "terminal-spin" && tab
+        ? [{ animation, tab }]
+        : []
+    })
+
+  it("rests while its tab is scrolled out of the list's sight, and spins again as it comes back", async () => {
+    await openWorkspace("/?demo=messages")
+    await expect.poll(() => spinners().length).toBeGreaterThan(0)
     const list = document.querySelector<HTMLElement>(".terminal-tab-list")!
     list.style.flex = "none"
     list.style.height = "40px"
     list.scrollTop = list.scrollHeight
-    await settled()
-    const wire = document.querySelector(".team-wire")!
-    tabOf("Dev server").querySelector<HTMLElement>(".sidebar-item-select")!.click()
-    await expect.poll(() => wire.hasAttribute("data-holding")).toBe(true)
-    await expect.poll(() => wire.hasAttribute("data-holding")).toBe(false)
+    // Those out of sight rest; none in sight does.
+    await expect
+      .poll(() => spinners().filter(({ tab }) => tab.hasAttribute("data-offscreen")).length)
+      .toBeGreaterThan(0)
+    for (const { animation, tab } of spinners())
+      expect(animation.playState).toBe(tab.hasAttribute("data-offscreen") ? "paused" : "running")
+    // One that rested, scrolled back into sight.
+    const rested = spinners().find(({ tab }) => tab.hasAttribute("data-offscreen"))!
+    rested.tab.scrollIntoView({ block: "nearest" })
+    await expect.poll(() => rested.animation.playState).toBe("running")
   })
 })
 

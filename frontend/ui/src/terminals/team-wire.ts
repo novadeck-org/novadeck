@@ -23,10 +23,6 @@ export type WireShape = {
   readonly taps: readonly { readonly id: string; readonly y: number; readonly width: number }[]
 }
 
-// How long the cursor blinks as a team lights in Grid and Canvas: the lit wire's entrance ends
-// with it. Their stylesheets (grid-team-wire.css, canvas.css) blink for as long.
-export const blinkMs = 520
-
 // The wire for a team, or none while none of it can be drawn: every member out of view on
 // one side, or the list's room too small to show it. A lead none of whose workers' tabs show,
 // as when the person folded them away (team-fold.ts), keeps its cursor alone while in view.

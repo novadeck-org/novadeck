@@ -92,9 +92,11 @@
      --team-wire-rest-fg (line-strong at 42% in the ground) and --team-wire-rest-cursor
      (line-strong at 70% in the ground), whose ground here is the workspace's
      (--workspace-bg, then canvas). Every wire rests, dim; the selected terminal's team's
-     `.canvas-team-wire-shape` has data-lit and lights. Lines appear as they are; only the
-     lit cursor blinks, twice, for a selection. A wire recedes with its team's windows
-     unless its team is the selected one, as they do. */
+     `.canvas-team-wire-shape` has data-lit and lights, fading. Only a change to a team plays
+     (team-news.ts): a team forming (data-entering on its shape) blinks its cursor twice as
+     its ticks reach out, and a teammate joining (data-joining on its tick) reaches out its
+     tick. A wire recedes with its team's windows unless its team is the selected one, as
+     they do. */
   .canvas-team-wire {
     position: absolute;
     top: 0;
@@ -135,6 +137,9 @@
   }
   .canvas-team-wire-line {
     background-color: var(--_rest);
+    transition:
+      background-color var(--motion-feedback) var(--ease-interface),
+      box-shadow var(--motion-feedback) var(--ease-interface);
   }
   /* A tick fades towards its window. */
   .canvas-team-wire-tick {
@@ -146,6 +151,9 @@
   .canvas-team-wire-cursor {
     border-radius: 1px;
     background-color: var(--_rest-cursor);
+    transition:
+      background-color var(--motion-feedback) var(--ease-interface),
+      box-shadow var(--motion-feedback) var(--ease-interface);
   }
   .canvas-team-wire-shape[data-lit] > :is(.canvas-team-wire-line, .canvas-team-wire-cursor) {
     background-color: var(--_fg);
@@ -167,8 +175,25 @@
       color-mix(in srgb, var(--_fg) 55%, transparent)
     );
   }
-  .canvas-team-wire-shape[data-lit] > .canvas-team-wire-cursor {
+  .canvas-team-wire-shape[data-entering] > .canvas-team-wire-cursor {
     animation: canvas-team-wire-blink 520ms steps(1) both;
+  }
+  .canvas-team-wire-tick {
+    transform-origin: left;
+  }
+  .canvas-team-wire-tick[data-to="left"] {
+    transform-origin: right;
+  }
+  .canvas-team-wire-shape[data-entering] > .canvas-team-wire-tick {
+    animation: canvas-team-wire-reach 180ms var(--ease-interface) 260ms both;
+  }
+  .canvas-team-wire-shape:not([data-entering]) > .canvas-team-wire-tick[data-joining] {
+    animation: canvas-team-wire-reach 180ms var(--ease-interface) both;
+  }
+  @keyframes canvas-team-wire-reach {
+    from {
+      transform: scaleX(0);
+    }
   }
   @keyframes canvas-team-wire-blink {
     0%,
