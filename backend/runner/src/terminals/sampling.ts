@@ -44,6 +44,17 @@ export type SampledRecord = Pick<
 // names it there.
 const foregroundHidden = (): boolean => process.platform === "win32"
 
+// Whether process `pid` still runs; one the platform refuses to signal belongs to someone
+// else, and runs.
+export const alive = (pid: string): boolean => {
+  try {
+    process.kill(Number(pid), 0)
+    return true
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM"
+  }
+}
+
 /**
  * How long before an agent's end the person's Ctrl+C or Ctrl+D may have come for the end
  * to be theirs: they quit an agent within moments of the key.
