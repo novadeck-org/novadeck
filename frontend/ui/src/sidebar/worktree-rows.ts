@@ -48,10 +48,52 @@ export const pullMark = ({ number, state, url }: PullRequest): PullMark => {
   }
 }
 
+// The group a work is listed under, by what the person would do with it next: what needs them
+// (a conflict, its CI failing), what is still being made (no pull request yet), what waits on a
+// review (an open pull request) and what is done (merged, or its pull request closed).
+export type Group = "needs" | "progress" | "review" | "done"
+
+export const groups: readonly { readonly key: Group; readonly title: string }[] = [
+  { key: "needs", title: "Needs you" },
+  { key: "progress", title: "In progress" },
+  { key: "review", title: "In review" },
+  { key: "done", title: "Done" },
+]
+
+// Where a work stands, as the row's icon says it: its most telling fact, in that order.
+export type Standing =
+  | "conflict"
+  | "ci-failing"
+  | "working"
+  | "merged"
+  | "closed"
+  | "ready"
+  | "draft"
+  | "branch"
+
+// One fact a row says in words, under its branch: red only for what needs the person, amber for
+// what lives only here, green for what is safe to trash. `glyph` is a small mark before it.
+export type Fact = {
+  readonly text: string
+  readonly tone: "bad" | "ink" | "muted" | "warn" | "ok"
+  readonly glyph?: "ci-passed" | "ci-failing" | "ci-running" | "unpushed" | "uncommitted"
+  // It says the pull request's state, so its number (a link to its page) follows it.
+  readonly pull?: true
+}
+
 export type ChangeRow = {
   readonly work: Work
   // The owner terminal's title, or "No owner".
   readonly title: string
+  // The owner terminal's handle as people see it ("@moth"), where it has one.
+  readonly handle: string | undefined
+  readonly group: Group
+  readonly standing: Standing
+  // What it says under its branch, most telling first.
+  readonly facts: readonly Fact[]
+  // Closing it leaves nothing that lives only here (the runner's word): the trash button shows
+  // at rest, and Trash N safe takes it.
+  readonly safe: boolean
   // The branch, or "detached".
   readonly branch: string
   readonly close: CloseMode
@@ -128,12 +170,13 @@ export const conflictWords = (
   work: Work,
   titles: ReadonlyMap<string, string>,
   works: readonly Work[] = [],
+  main = "main",
 ): string | undefined => {
   if (work.conflicts.length === 0) return undefined
   const names = [
     ...new Set(
       work.conflicts.map((conflict) => {
-        if (conflict.with === "main") return "main"
+        if (conflict.with === "main") return main
         if (conflict.terminalId !== null && titles.has(conflict.terminalId))
           return titles.get(conflict.terminalId)!
         return works.find((other) => other.root === conflict.root)?.branch ?? "another worktree"
@@ -141,6 +184,107 @@ export const conflictWords = (
     ),
   ]
   return `Conflicts with ${names.join(", ")}`
+}
+
+// What a work's conflict is with, as its row says it: main by the branch it is measured
+// against ("origin/main"), the other works by their owners.
+const conflictFact = (
+  work: Work,
+  titles: ReadonlyMap<string, string>,
+  works: readonly Work[],
+): string | undefined => conflictWords(work, titles, works, work.base)
+
+const plural = (count: number, one: string, many: string): string =>
+  `${count} ${count === 1 ? one : many}`
+
+// The group a work is listed under. Merged wins over a conflict (a merged work's old branch may
+// still conflict with what main changed since), and a closed pull request is done too.
+export const groupOf = (work: Work): Group => {
+  const pull = work.pullRequest
+  if (work.merged || pull?.state === "merged" || pull?.state === "closed") return "done"
+  if (work.conflicts.length > 0 || pull?.ci === "failing") return "needs"
+  return pull ? "review" : "progress"
+}
+
+// Where a work stands, for its row's icon.
+export const standingOf = (work: Work): Standing => {
+  const pull = work.pullRequest
+  const done = work.merged || pull?.state === "merged"
+  if (!done && pull?.state !== "closed") {
+    if (work.conflicts.length > 0) return "conflict"
+    if (pull?.ci === "failing") return "ci-failing"
+  }
+  if (work.working) return "working"
+  if (done) return "merged"
+  if (pull?.state === "closed") return "closed"
+  if (pull?.state === "open") return "ready"
+  if (pull?.state === "draft") return "draft"
+  return "branch"
+}
+
+// What a row says under its branch, most telling first. `forges` is whether pull requests are
+// looked for at all: while none is, the row says nothing of one, not even that there is none.
+export const factsOf = (
+  work: Work,
+  titles: ReadonlyMap<string, string>,
+  works: readonly Work[],
+  forges: boolean,
+): readonly Fact[] => {
+  const pull = work.pullRequest
+  const merged = work.merged || pull?.state === "merged"
+  const closed = !merged && pull?.state === "closed"
+  const open = pull?.state === "open" || pull?.state === "draft"
+  const facts: Fact[] = []
+  const conflict = merged || closed ? undefined : conflictFact(work, titles, works)
+  if (conflict) facts.push({ text: conflict, tone: "bad" })
+  if (open && pull.ci === "failing")
+    facts.push({ text: "CI failing", tone: "bad", glyph: "ci-failing" })
+  if (work.working) facts.push({ text: "Working", tone: "ink" })
+  const numbered = pull ? ({ pull: true } as const) : {}
+  if (merged) facts.push({ text: "Merged", tone: work.safe ? "ok" : "muted", ...numbered })
+  else if (closed) facts.push({ text: "PR closed", tone: work.safe ? "ok" : "muted", ...numbered })
+  else if (pull?.state === "open")
+    facts.push({ text: "Ready for review", tone: "ink", ...numbered })
+  else if (pull?.state === "draft") facts.push({ text: "Draft", tone: "muted", ...numbered })
+  else if (forges) facts.push({ text: "No PR yet", tone: "muted" })
+  if (open && pull.ci === "running")
+    facts.push({ text: "CI running", tone: "muted", glyph: "ci-running" })
+  if (open && pull.ci === "passed")
+    facts.push({ text: "CI passed", tone: "muted", glyph: "ci-passed" })
+  if (open && pull.ci === "none") facts.push({ text: "no CI", tone: "muted" })
+  if (!merged && (work.unpushed ?? 0) > 0)
+    facts.push({
+      text: `${plural(work.unpushed!, "commit", "commits")} not pushed`,
+      tone: "warn",
+      glyph: "unpushed",
+    })
+  if ((merged || closed) && !work.safe && (work.uncommitted ?? 0) > 0)
+    facts.push({
+      text: `${plural(work.uncommitted!, "file", "files")} not committed`,
+      tone: "warn",
+      glyph: "uncommitted",
+    })
+  if (work.safe) facts.push({ text: "safe to trash", tone: "ok" })
+  return facts
+}
+
+// How long ago the remote's main was fetched, in words for the panel's top line ("origin/main,
+// 12 min ago"), and whether that is old enough to say so (an hour): from the works measured
+// against a remote's main, the oldest fetch. None where no work is, or none was fetched.
+export const originOf = (
+  works: readonly Work[],
+  now: number,
+): { readonly text: string; readonly stale: boolean } | undefined => {
+  const fetched = works.filter(
+    (work) => work.base.startsWith("origin/") && work.fetchedAt !== undefined,
+  )
+  if (fetched.length === 0) return undefined
+  const oldest = fetched.reduce((a, b) => (b.fetchedAt! < a.fetchedAt! ? b : a))
+  const words = mainWords(oldest.fetchedAt, now)!.replace(/^main as of /, "")
+  return {
+    text: `${oldest.base}, ${words}`,
+    stale: now - oldest.fetchedAt! >= 60 * 60_000,
+  }
 }
 
 // How old main is, in words, from when the repository's origin was last fetched; none when it
@@ -183,18 +327,26 @@ export const changeRows = (
   works: readonly Work[],
   titles: ReadonlyMap<string, string>,
   now = Date.now(),
+  handles: ReadonlyMap<string, string> = new Map(),
+  forges = true,
 ): readonly ChangeRow[] =>
   orderedWorks(works).map((work) => {
     const files = orderedFiles(work.files)
-    const words = work.merged ? undefined : conflictWords(work, titles, works)
+    // Done (merged, or its pull request closed) wins over a conflict, as its group and icon say.
+    const words = groupOf(work) === "done" ? undefined : conflictWords(work, titles, works)
     return {
       work,
       title: ownerTitle(work.terminalId, titles),
+      handle: work.terminalId === null ? undefined : handles.get(work.terminalId),
+      group: groupOf(work),
+      standing: standingOf(work),
+      facts: factsOf(work, titles, works, forges),
+      safe: work.safe === true,
       branch: work.branch ?? "detached",
       close: closeMode(work),
       conflict: words !== undefined,
       conflictWords: words,
-      merged: work.merged,
+      merged: work.merged || work.pullRequest?.state === "merged",
       mainWords: mainWords(work.fetchedAt, now),
       pullRequest: work.pullRequest ? pullMark(work.pullRequest) : undefined,
       files,

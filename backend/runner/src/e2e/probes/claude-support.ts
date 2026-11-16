@@ -166,7 +166,7 @@ import { readFileSync as readFile } from "node:fs"
 
 import type { AgentSetup } from "../agents/agent.js"
 import type { Reply } from "../model/script.js"
-import { own, result, answers, start } from "../scenarios.js"
+import { own, prompted, result, answers, start } from "../scenarios.js"
 
 export type Outcome = {
   /** What the model's next call carried as the tool's result. */
@@ -218,6 +218,13 @@ export { start }
 import { claude } from "../agents/claude.js"
 import { describe, e2e, supported } from "../fixture.js"
 import type { Rule } from "../model/script.js"
+const begin = async (run: E2E, unshimmed: true | undefined): Promise<DeckTerminal> => {
+  if (!unshimmed) return start(run, claude)
+  const terminal = await run.deck.open("NOVADECK_SHIMS= claude")
+  await terminal.reached("ready", { timeoutMs: 60_000 })
+  await prompted(terminal, claude)
+  return terminal
+}
 type Shot = (label: string, wait?: number) => Promise<void>
 type Step = (t: DeckTerminal, probe: Probe, shot: Shot) => Promise<void>
 type Spec = {
@@ -237,6 +244,11 @@ type Spec = {
   /** Keys to press after captures; each item pressed, then screen captured. */
   drive?: Step
   setup?: (run: E2E, probe: Probe) => void
+  /**
+   * Starts Claude Code past Novadeck's shim, which allows Novadeck's own MCP tools (since
+   * #952), for a case that needs one to ask.
+   */
+  unshimmed?: true
   expectResult?: boolean
   sizes?: [number, number][]
 }
@@ -253,7 +265,7 @@ export const surface = (spec: Spec) =>
       const seen: { result?: string } = {}
       const prompt = spec.prompt ?? "Ask now"
       run.model.use(...(spec.custom ? spec.custom(seen) : rules(prompt, spec.reply, seen)))
-      const t = await start(run, claude)
+      const t = await begin(run, spec.unshimmed)
       await t.submit(prompt)
       if (spec.shows) await t.until(spec.shows, 30_000)
       else await probe.waitLog(spec.hookStart ?? "PermissionRequest", "start")

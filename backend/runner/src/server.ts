@@ -12,6 +12,8 @@ export type ServerOptions = HttpOptions &
     shell?: string
     /** Where pasted files go; see `RunnerOptions.uploads`. */
     uploads?: string
+    /** Where saved dialogs go; see `RunnerOptions.dialogs`. */
+    dialogs?: string
     /** The relay agents start for Novadeck's MCP server and hooks; see `RunnerOptions.relay`. */
     relay?: string
     /** Voice input's engine and where it installs; see `RunnerOptions.voice`. */
@@ -34,6 +36,7 @@ export const startServer = async (options: ServerOptions = {}): Promise<HttpServ
     ...(options.database !== undefined && { database: options.database }),
     ...(options.shell !== undefined && { shell: options.shell }),
     ...(options.uploads !== undefined && { uploads: options.uploads }),
+    ...(options.dialogs !== undefined && { dialogs: options.dialogs }),
     ...(options.relay !== undefined && { relay: options.relay }),
     ...(options.voice !== undefined && { voice: options.voice }),
     ...(options.murmur !== undefined && { murmur: options.murmur }),

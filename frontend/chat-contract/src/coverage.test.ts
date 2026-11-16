@@ -18,8 +18,8 @@ import { describe, expect, it } from "./test"
 // conversation names them (checked 2026-11-05). A conversation for one needs a real record
 // of it first.
 const unrecorded: Readonly<Record<AgentName, readonly string[]>> = {
-  // Its Windows shell tool.
-  claude: ["powershell"],
+  // Its Windows shell tool, and Workflow, whose row comes from its schema alone.
+  claude: ["powershell", "workflow"],
   codex: [
     "clock.curr_time",
     "codex_tui.create_thread",
@@ -42,7 +42,8 @@ const unrecorded: Readonly<Record<AgentName, readonly string[]>> = {
     "read_mcp_resource",
     "update_goal",
   ],
-  agy: ["list_resources", "read_resource"],
+  // run_workflow (1.5.9) has its row from its schema alone.
+  agy: ["list_resources", "read_resource", "run_workflow"],
 }
 
 const source = (harness: AgentName | "core", path: string): string =>

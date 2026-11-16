@@ -1,3 +1,4 @@
+import { refuse } from "@novadeck/harness-core/dialogs"
 import type { AnswerableDialog, DialogRead, KeyStep } from "@novadeck/harness-core/dialogs"
 import type { RequestAnswer } from "@novadeck/protocol"
 
@@ -111,8 +112,8 @@ export const numbered = (
   }
   const rest = rows.slice(index).filter((each) => each !== "")
   const highlighted = options.filter(({ marker }) => marker).length
-  if (options.length < 2 || highlighted !== 1) return undefined
-  if (options.some(({ n }, at) => n !== at + 1)) return undefined
+  if (options.length < 2 || highlighted !== 1) return refuse("screen.numbered.1")
+  if (options.some(({ n }, at) => n !== at + 1)) return refuse("screen.numbered.2")
   return { options, rest }
 }
 
@@ -220,9 +221,9 @@ export const ruled = (
   from: number,
 ): { body: readonly string[]; open: number } | undefined => {
   const close = rows.slice(0, from).findLastIndex((each) => dashed.test(each))
-  if (close < 1) return undefined
+  if (close < 1) return refuse("screen.ruled.1")
   const open = rows.slice(0, close).findLastIndex((each) => dashed.test(each))
-  if (open < 1) return undefined
+  if (open < 1) return refuse("screen.ruled.2")
   return { body: rows.slice(open + 1, close), open }
 }
 

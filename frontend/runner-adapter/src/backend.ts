@@ -1421,6 +1421,7 @@ export const runnerBackend = (
       putBox: (terminalId, text) => runner.agents.putBox(terminalId, text),
       clearBox: (terminalId, seen) => runner.agents.clearBox(terminalId, seen),
       answer: (terminalId, request, answer) => runner.agents.answer(terminalId, request, answer),
+      saveDialog: (terminalId, request) => runner.agents.saveDialog(terminalId, request),
     },
     track,
     messages.state,

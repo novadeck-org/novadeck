@@ -466,6 +466,10 @@ export type Conversations = {
   // keys, resolving once it took. Rejects as `send` does; a dialog that can't be answered
   // safely turns `raw`, for the person to answer in the terminal.
   readonly answer: (key: TerminalKey, request: string, answer: ChatAnswer) => Promise<void>
+  // Optional. Writes a request's raw dialog (one no adapter read) and the screen it is on to a
+  // file the person can attach to a bug report, on their own action, resolving with its path
+  // on the runner's machine. Rejects with why not. Absent where a backend can't.
+  readonly saveDialog?: (key: TerminalKey, request: string) => Promise<string>
   // Whether `send`, or an answer's words that go on as a prompt, would be refused for the
   // text's shape, so the chat warns before it sends. Text that is nothing but white space
   // isn't refused here, though `send` refuses it: the chat sends no empty message, and an

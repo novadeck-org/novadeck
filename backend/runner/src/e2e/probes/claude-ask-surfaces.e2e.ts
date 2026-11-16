@@ -159,6 +159,134 @@ surface({
   },
 })
 
+// Reported 2026-11-16 (Claude Code 2.1.325): two questions, the first with a preview on every
+// option, in a narrow chat; the chat showed "Claude's own dialog" for it.
+const previewTabs = [
+  {
+    question:
+      "Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are open beside the terminal.",
+    header: "Install card",
+    multiSelect: false,
+    options: [
+      {
+        label: "A: command row (Recommended)",
+        description:
+          "'Not installed' badge by the name, Install button (download icon) top right, the whole command on its own wrapped line in a code box. Keeps #945's 'nothing hidden' rule; the card is taller.",
+        preview:
+          "┌──────────────────────────────────────┐\n│ [A] Antigravity (Not installed) [⬇ Install] │\n│     Install runs its official installer:    │\n│     ┌────────────────────────────────┐      │\n│     │ $ curl -fsSL https://antigrav… │      │\n│     │   /cli/install.sh | bash       │      │\n│     └────────────────────────────────┘      │\n└──────────────────────────────────────┘",
+      },
+      {
+        label: "B: empty seat",
+        description:
+          "Dashed card titled 'Add Antigravity', a cyan Install button, the command behind 'Show command'. Compact and inviting, but the cyan button competes with 'Let’s build something' and the command is one click away.",
+        preview:
+          "┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐\n╎ [╌A╌] Add Antigravity      [⬇ Install] ╎\n╎       Not installed yet. Show command   ╎\n└╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘",
+      },
+      {
+        label: "C: quiet line",
+        description:
+          "No card: one muted line under the agents, 'Antigravity isn’t installed. Install it', with the command as a tooltip. Lightest, but easy to miss, and the command shows only on hover.",
+        preview: "[Claude Code card]\n[Codex card]\n A  Antigravity isn’t installed. Install it",
+      },
+    ],
+  },
+  {
+    question:
+      "Rename 'Chat view'? In Preferences, 'View modes' already means Focus/Grid/Canvas, so 'Chat view' can read like a fourth layout. Only labels and docs change; the saved setting keeps its key.",
+    header: "Name",
+    multiSelect: false,
+    options: [
+      {
+        label: "Agent chat (Recommended)",
+        description:
+          "Says what it is and where it applies; no clash with views. E.g. 'Agent chat: read and reply to agents in a chat instead of their terminal.'",
+      },
+      {
+        label: "Keep 'Chat view'",
+        description: "No change.",
+      },
+      {
+        label: "Chat",
+        description: "Shortest; good for a header toggle, vaguer as a setting.",
+      },
+      {
+        label: "Reader",
+        description:
+          "Like a browser's reader mode: the same session, made readable. Undersells that you can reply.",
+      },
+    ],
+  },
+]
+
+surface({
+  name: "ask-preview-tabs",
+  reply: ask(...previewTabs),
+  shows: /Install card/,
+  sizes: [
+    [80, 40],
+    [60, 40],
+    [56, 40],
+    [52, 40],
+  ],
+  drive: async (t, _p, shot) => {
+    await t.confirm(/❯ 2\. B: empty seat/, async () => {
+      t.press(Down)
+      await shot("down")
+    })
+    await shot("q2")
+    t.press("2")
+    await shot("review")
+    t.press("1")
+    await shot("submitted", 1500)
+  },
+})
+
+// The runner reads it at a narrow chat's width and answers it as the chat would.
+surface({
+  name: "ask-preview-tabs-native",
+  reply: ask(...previewTabs),
+  shows: /Install card/,
+  sizes: [],
+  drive: async (t, _p, shot) => {
+    t.resize(56, 40)
+    await shot("native", 900)
+    const request = (await t.detail()).requests.find((each) => each.kind === "question")
+    const dialog = request?.dialog
+    if (!request || dialog?.type !== "questions") throw new Error("No native question at 56×40")
+    await t.answer(request.ref, {
+      type: "questions",
+      dialog: dialog.id,
+      answers: [
+        { question: "q1", options: ["2"] },
+        { question: "q2", options: ["2"] },
+      ],
+    })
+    await shot("answered", 1500)
+    const remaining = (await t.detail()).requests.length
+    if (remaining !== 0) throw new Error("The question remained pending after its native answer")
+    capture("ask-preview-tabs-native-answer", { dialog, remaining })
+  },
+})
+
+// The same two questions the other way round: the previews on the last.
+surface({
+  name: "ask-preview-tabs-last",
+  reply: ask(previewTabs[1], previewTabs[0]),
+  shows: /Rename 'Chat view'/,
+  sizes: [[56, 40]],
+  drive: async (t, _p, shot) => {
+    t.press("1")
+    await shot("q2")
+    await t.confirm(/❯ 2\. B: empty seat/, async () => {
+      t.press(Down)
+      await shot("q2-down")
+    })
+    await shot("review")
+    t.press("1")
+    await shot("submitted", 1500)
+  },
+})
+
 surface({
   name: "ask-long",
   reply: ask({
@@ -258,6 +386,7 @@ surface({
 
 surface({
   name: "mcp",
+  unshimmed: true,
   reply: {
     calls: [{ name: "mcp__plugin_novadeck_novadeck__agents", input: {} }],
   },

@@ -96,6 +96,7 @@ export type ConversationStreams = {
   readonly putBox: (terminalId: string, text: string) => Promise<{ readonly placed: boolean }>
   readonly clearBox: (terminalId: string, seen: string) => Promise<{ readonly cleared: boolean }>
   readonly answer: (terminalId: string, request: string, answer: RequestAnswer) => Promise<void>
+  readonly saveDialog: (terminalId: string, request: string) => Promise<{ readonly path: string }>
 }
 
 export type RunnerConversations = Conversations & {
@@ -857,6 +858,15 @@ export const createRunnerConversations = (
       track(streams.answer(terminalId, request, requestAnswerOf(answer))).catch(
         (error: unknown) => {
           throw refusal(error)
+        },
+      ),
+    saveDialog: ({ terminalId }, request) =>
+      track(streams.saveDialog(terminalId, request)).then(
+        ({ path }) => path,
+        (error: unknown) => {
+          if (hasCode(error, "DISCONNECTED", "CLOSED")) throw new Error("The runner is offline.")
+          if (hasCode(error, "NOT_FOUND")) throw new Error("That request is already answered.")
+          throw new Error("Couldn't save the dialog.")
         },
       ),
     // The protocol's rule, which the runner refuses by; blank text has nothing to warn of yet.

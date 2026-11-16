@@ -24,7 +24,6 @@ const generic: { readonly [agent in AgentName]: { readonly [tool: string]: strin
   claude: {
     DeferredToolPlaceholder: "a stand-in for a tool not loaded yet, never called",
     ReportFindings: "no argument shape recorded; reports into the harness's own review UI",
-    Workflow: "no argument shape recorded; runs a script the harness shows in its own UI",
   },
   codex: {},
   agy: {

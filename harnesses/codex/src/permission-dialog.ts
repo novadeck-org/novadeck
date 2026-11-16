@@ -1,3 +1,4 @@
+import { refuse } from "@novadeck/harness-core/dialogs"
 import type { RequestFacts } from "@novadeck/harness-core/dialogs"
 import { fieldsOf } from "@novadeck/harness-core/fields"
 
@@ -27,7 +28,7 @@ const keyOf = (hint: string): string | undefined => {
   // Ctrl as Codex has drawn it: `ctrl+`, `^` (0.161.0) and `⌃` (macOS, 0.163.0).
   const control = /^(?:ctrl\+|\^|⌃)([a-z])$/.exec(hint)
   if (control) return String.fromCharCode(control[1]!.charCodeAt(0) - 96)
-  return hint.length === 1 && hint >= "!" && hint <= "~" ? hint : undefined
+  return hint.length === 1 && hint >= "!" && hint <= "~" ? hint : refuse("permission.keyOf.1")
 }
 
 // The no that sends the person's words, as the next prompt.
@@ -79,7 +80,7 @@ const sameFile = (destination: string, file: string): boolean => {
 /** The lines of the command an exec approval shows, from its `$ ` line to its options. */
 const shownCommand = (body: readonly string[]): readonly string[] | undefined => {
   const start = body.findIndex((line) => /^\s*\$ /.test(line))
-  if (start < 0) return undefined
+  if (start < 0) return refuse("permission.shownCommand.1")
   return [body[start]!.replace(/^\s*\$ /, ""), ...body.slice(start + 1)]
 }
 
@@ -99,7 +100,7 @@ const headers = /^\s*(?:Permission rule|Reason|Environment|Thread|Description|De
 /** The lines a header's field takes in an approval's body, from after the header to the next. */
 const field = (body: readonly string[], header: string): readonly string[] | undefined => {
   const start = body.findIndex((line) => line.trimStart().startsWith(`${header}:`))
-  if (start < 0) return undefined
+  if (start < 0) return refuse("permission.field.1")
   const lines = [body[start]!.trimStart().slice(header.length + 1)]
   for (const line of body.slice(start + 1)) {
     if (headers.test(line)) break
@@ -110,13 +111,13 @@ const field = (body: readonly string[], header: string): readonly string[] | und
 
 /** A command's, a patch's or extra permissions' approval, each option by its printed shortcut. */
 const approval = (lines: readonly string[], facts: RequestFacts): Parsed | undefined => {
-  if (facts.kind !== "permission") return undefined
+  if (facts.kind !== "permission") return refuse("permission.approval.1")
   const title = lines.findLastIndex((line) => line.trim() in approvals)
-  if (title < 0) return undefined
+  if (title < 0) return refuse("permission.approval.2")
   const name = lines[title]!.trim() as keyof typeof approvals
   // Its own options, at the bottom: rows of a command above them may read as options.
   const first = lastOptions(lines, title + 1)
-  if (first < 0) return undefined
+  if (first < 0) return refuse("permission.approval.3")
   const body = lines.slice(title + 1, first)
   const input = fieldsOf(facts.input)
   let detail: string | null = null
@@ -124,32 +125,36 @@ const approval = (lines: readonly string[], facts: RequestFacts): Parsed | undef
   let cut = false
 
   if (name === "Would you like to run the following command?") {
-    if (facts.tool !== "Bash" || typeof input?.command !== "string") return undefined
+    if (facts.tool !== "Bash" || typeof input?.command !== "string")
+      return refuse("permission.approval.4")
     const shown = shownCommand(body)
-    if (!shown) return undefined
+    if (!shown) return refuse("permission.approval.5")
     cut = heldBack.test(shown.at(-1) ?? "")
     // Cut, its start must be the request's: the hook told the rest, for this very dialog.
     if (cut ? !opens(shown.slice(0, -1), input.command) : !wrapped(shown, input.command))
-      return undefined
+      return refuse("permission.approval.6")
     // As Codex will run it: its line breaks and characters stay, for the Inbox to show.
     detail = input.command
   } else if (name === "Would you like to make the following edits?") {
-    if (facts.tool !== "apply_patch" || typeof input?.command !== "string") return undefined
+    if (facts.tool !== "apply_patch" || typeof input?.command !== "string")
+      return refuse("permission.approval.7")
     const files = patchPaths(input.command)
     const shown = shownDestinations(body)
-    if (files.length === 0 || shown.length === 0) return undefined
-    if (!shown.every((each) => files.some((file) => sameFile(each, file)))) return undefined
-    if (!files.every((file) => shown.some((each) => sameFile(each, file)))) return undefined
+    if (files.length === 0 || shown.length === 0) return refuse("permission.approval.8")
+    if (!shown.every((each) => files.some((file) => sameFile(each, file))))
+      return refuse("permission.approval.9")
+    if (!files.every((file) => shown.some((each) => sameFile(each, file))))
+      return refuse("permission.approval.10")
     detail = shown.join("\n")
   } else {
-    if (facts.tool !== "request_permissions") return undefined
+    if (facts.tool !== "request_permissions") return refuse("permission.approval.11")
     const reason = typeof input?.reason === "string" ? input.reason.trim() : undefined
     const granted = fieldsOf(input?.permissions)
     const system = granted?.file_system
     // A file-system rule isn't one this reads back to the screen's wording.
-    if (system !== undefined && system !== null) return undefined
+    if (system !== undefined && system !== null) return refuse("permission.approval.12")
     const rule = fieldsOf(granted?.network)?.enabled === true ? "network" : undefined
-    if (reason === undefined && rule === undefined) return undefined
+    if (reason === undefined && rule === undefined) return refuse("permission.approval.13")
     const shownReason = field(body, "Reason")
     const shownRule = field(body, "Permission rule")
     if (
@@ -157,9 +162,9 @@ const approval = (lines: readonly string[], facts: RequestFacts): Parsed | undef
         ? shownReason !== undefined
         : !shownReason || !wrapped(shownReason, reason)
     )
-      return undefined
+      return refuse("permission.approval.14")
     if (rule === undefined ? shownRule !== undefined : !shownRule || !wrapped(shownRule, rule))
-      return undefined
+      return refuse("permission.approval.15")
     detail = [rule && `Permission rule: ${rule}`, reason && `Reason: ${collapse(reason)}`]
       .filter((line) => line !== undefined && line !== "")
       .join("\n")
@@ -167,7 +172,8 @@ const approval = (lines: readonly string[], facts: RequestFacts): Parsed | undef
 
   const { rows, next } = optionsAt(lines, first)
   const footer = lines[next]
-  if (rows.length === 0 || (footer !== undefined && !/^\s*Press /.test(footer))) return undefined
+  if (rows.length === 0 || (footer !== undefined && !/^\s*Press /.test(footer)))
+    return refuse("permission.approval.16")
   const wordings = approvals[name]
   const picks: Choice[] = []
   for (const row of rows) {
@@ -177,7 +183,7 @@ const approval = (lines: readonly string[], facts: RequestFacts): Parsed | undef
     if (!wording) {
       // The screen's bottom may cut the last option it has room for.
       if (cut && row === rows.at(-1)) continue
-      return undefined
+      return refuse("permission.approval.17")
     }
     const key = hinted ? keyOf(hinted[2]!) : undefined
     // An option whose shortcut isn't printed, or isn't one to press, can't be answered.
@@ -187,14 +193,14 @@ const approval = (lines: readonly string[], facts: RequestFacts): Parsed | undef
   }
   // Its way to say no went off the screen with them: the footer says which key that is.
   const refusal = cancelled.exec(footer ?? "")?.[1]
-  const refuse = cut && refusal !== undefined ? keyOf(refusal) : undefined
+  const noKey = cut && refusal !== undefined ? keyOf(refusal) : undefined
   const refuses = picks.some(({ label }) => label.startsWith("No"))
-  if (refuse !== undefined && !refuses)
-    picks.push({ id: "no", label: telling, key: refuse, text: "prompt" })
+  if (noKey !== undefined && !refuses)
+    picks.push({ id: "no", label: telling, key: noKey, text: "prompt" })
   // A card that can only say yes is no way to ask.
-  else if (cut && !refuses) return undefined
+  else if (cut && !refuses) return refuse("permission.approval.18")
   if (picks.length === 0 || new Set(picks.map(({ key }) => key)).size !== picks.length)
-    return undefined
+    return refuse("permission.approval.19")
   return choose(name, picks, detail)
 }
 
@@ -231,23 +237,25 @@ const cutsValues = "codex_tui"
 
 /** An MCP tool's approval form, each row by its digit. */
 const mcpApproval = (lines: readonly string[], facts: RequestFacts): Parsed | undefined => {
-  if (facts.kind !== "permission" || !facts.tool.startsWith("mcp__")) return undefined
+  if (facts.kind !== "permission" || !facts.tool.startsWith("mcp__"))
+    return refuse("permission.mcpApproval.1")
   const form = lines.findLastIndex((line) => /^\s*Field \d+\/\d+\s*$/.test(line))
   const message = lines[form + 1]
   const asked =
     message === undefined ? null : /^\s*(Allow .+ to run tool "(.+)"\?)\s*$/.exec(message)
-  if (form < 0 || !asked) return undefined
+  if (form < 0 || !asked) return refuse("permission.mcpApproval.2")
   const server = /^Allow the (.+) MCP server to run tool/.exec(asked[1]!)?.[1]
   const tool = asked[2]!
   // The hooks name the tool with its server's punctuation as underscores; the form, as is.
-  if (!facts.tool.endsWith(`__${mcpName(tool)}`)) return undefined
-  if (server !== undefined && facts.tool !== mcpTool(server, tool)) return undefined
+  if (!facts.tool.endsWith(`__${mcpName(tool)}`)) return refuse("permission.mcpApproval.3")
+  if (server !== undefined && facts.tool !== mcpTool(server, tool))
+    return refuse("permission.mcpApproval.4")
   const first = firstOption(lines, form + 2)
-  if (first < 0) return undefined
+  if (first < 0) return refuse("permission.mcpApproval.5")
   // The arguments the form prints, one `name: value` line each in name order. The person
   // reads what the form says, no more: a value it cut could be another request's.
   const given = facts.input === null || facts.input === undefined ? {} : fieldsOf(facts.input)
-  if (!given) return undefined
+  if (!given) return refuse("permission.mcpApproval.6")
   const cuts = server === cutsValues
   const printed = Object.keys(given)
     .toSorted()
@@ -256,17 +264,19 @@ const mcpApproval = (lines: readonly string[], facts: RequestFacts): Parsed | un
       const text = typeof value === "string" ? collapse(value) : JSON.stringify(value)
       return `${key}: ${cuts ? shownValue(text) : text}`
     })
-  if (!wrapped(lines.slice(form + 2, first), printed.join(" "))) return undefined
+  if (!wrapped(lines.slice(form + 2, first), printed.join(" ")))
+    return refuse("permission.mcpApproval.7")
   const { rows } = optionsAt(lines, first)
   const known = rows.map((row) => mcpWordings.find(({ label }) => labelled(row.head, label)))
-  if (rows.length < 2 || known.some((each) => each === undefined)) return undefined
+  if (rows.length < 2 || known.some((each) => each === undefined))
+    return refuse("permission.mcpApproval.8")
   // Each row in the order Codex offers them, ending with the cancel.
   const order = known.map((each) => mcpWordings.indexOf(each!))
   if (order.some((at, i) => i > 0 && at <= order[i - 1]!) || order.at(-1) !== 3 || order[0] !== 0) {
-    return undefined
+    return refuse("permission.mcpApproval.9")
   }
   const described = rows.every((row, i) => row.text.includes(known[i]!.description))
-  if (!described || rows.length > 9) return undefined
+  if (!described || rows.length > 9) return refuse("permission.mcpApproval.10")
   const picks = rows.map((row, i) => ({
     id: String(row.n),
     label: known[i]!.label,

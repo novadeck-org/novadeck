@@ -14,11 +14,15 @@ const storefront = "/projects/storefront/sessions/initial/focus?panel=worktrees"
 const apiService = "/projects/api-service/sessions/initial/focus?panel=worktrees"
 const showcase = "/projects/studio/sessions/initial/focus?demo=showcase&panel=worktrees"
 
-const list = () => page.getByRole("list", { name: "Worktrees" })
-const rows = () => list().getByRole("button", { name: /^(?!Close the |Preview )/ })
-// A row's accessible label starts as `Title, branch,`.
+// The panel's rows stand in a list per group (Needs you, In progress, In review, Done).
+const list = () => page.getByRole("region", { name: /^Worktrees( \d+)?$/ })
+const rows = () =>
+  list()
+    .getByRole("listitem")
+    .getByRole("button", { name: /^(?!Close the |Preview )/ })
+// A row's accessible label starts as `Title, @handle, branch,` (no handle where it has none).
 const named = (title: string, branch = "") =>
-  new RegExp(`^${title}, ${branch === "" ? "[^,]*" : branch},`)
+  new RegExp(`^${title}, (?:@[\\w-]+, )?${branch === "" ? "[^,]*" : branch},`)
 const row = (title: string, branch = "") =>
   list().getByRole("button", { name: named(title, branch) })
 const labels = () =>
@@ -43,18 +47,18 @@ describe("The Worktrees panel", () => {
       await expect.element(page.getByRole("heading", { name: "Worktrees 7" })).toBeVisible()
     })
 
-    it("lists them newest first, whatever has been read", async () => {
+    it("lists them by what's next (Needs you, In progress, In review, Done), newest first in each, and says where each stands", async () => {
       await openWorkspace(storefront)
 
       await expect.element(rows().first()).toBeVisible()
       expect(labels()).toEqual([
-        "Build, agent/build-cache, 0 files changed",
-        "Tests, agent/tests, 2 files changed, 85 lines added, 18 removed, conflicts with Checkout implementation",
-        "Checkout implementation, agent/checkout-implementation, 5 files changed, 324 lines added, 56 removed, conflicts with main, Tests",
-        "Checkout review, agent/checkout-review, 1 file changed, 6 lines added, 2 removed",
-        "Build, agent/build, 2 files changed, 11 lines added, 5 removed",
-        "No owner, agent/promo-banner, 1 file changed, 18 lines added, 2 removed",
-        "Build, agent/build-lint, 0 files changed, merged",
+        "Tests, @owl, agent/tests, 2 files changed, 85 lines added, 18 removed, conflicts with Checkout implementation, CI failing, ready for review, 1 commit not pushed",
+        "Checkout implementation, @moth, agent/checkout-implementation, 5 files changed, 324 lines added, 56 removed, conflicts with main, Tests, draft, no CI, 3 commits not pushed",
+        "Build, @raven, agent/build-cache, 0 files changed, no PR yet",
+        "Checkout review, @crow, agent/checkout-review, 1 file changed, 6 lines added, 2 removed, working, ready for review, CI running",
+        "Build, @raven, agent/build, 2 files changed, 11 lines added, 5 removed, ready for review, CI passed",
+        "No owner, agent/promo-banner, 1 file changed, 18 lines added, 2 removed, PR closed, safe to trash",
+        "Build, @raven, agent/build-lint, 0 files changed, merged, safe to trash",
       ])
     })
 
@@ -82,8 +86,8 @@ describe("The Worktrees panel", () => {
 
       await expect.element(page.getByRole("heading", { name: "Worktrees 2" })).toBeVisible()
       expect(labels()).toEqual([
-        "Tests, agent/tests, 1 file changed, 47 lines added, 5 removed",
-        "Checkout implementation, agent/checkout-implementation, 2 files changed, 92 lines added, 11 removed",
+        "Tests, @owl, agent/tests, 1 file changed, 47 lines added, 5 removed, no PR yet",
+        "Checkout implementation, @moth, agent/checkout-implementation, 2 files changed, 92 lines added, 11 removed, no PR yet",
       ])
       await expect.element(list().getByText("api-service")).not.toBeInTheDocument()
     })
@@ -196,14 +200,29 @@ describe("The Worktrees panel", () => {
       await expect.element(row("Checkout review")).toBeVisible()
     })
 
-    it("closes a safe worktree with no owner at once", async () => {
+    it("closes a safe worktree with no owner at once, its trash button shown at rest", async () => {
       await openWorkspace(storefront)
 
       await expect.element(itemOf("No owner")).toBeVisible()
+      await expect.element(itemOf("No owner")).toHaveAttribute("data-safe", "true")
       await trash("No owner", "agent/promo-banner").click()
 
       await expect.element(itemOf("No owner")).not.toBeInTheDocument()
       await expect.element(dialog()).not.toBeInTheDocument()
+    })
+
+    it("trashes every safe worktree after one confirm, and keeps the rest", async () => {
+      await openWorkspace(storefront)
+
+      await list().getByRole("button", { name: "Trash 2 safe" }).click()
+      const sweep = page.getByRole("alertdialog", { name: /Trash 2 worktrees\?/ })
+      await expect.element(sweep.getByText("No owner (agent/promo-banner)")).toBeVisible()
+      await expect.element(sweep.getByText("Build (agent/build-lint)")).toBeVisible()
+      await sweep.getByRole("button", { name: "Trash them" }).click()
+
+      await expect.element(itemOf("No owner")).not.toBeInTheDocument()
+      await expect.element(itemOf("Build", "agent/build-lint")).not.toBeInTheDocument()
+      await expect.element(page.getByRole("heading", { name: "Worktrees 5" })).toBeVisible()
     })
   })
 })

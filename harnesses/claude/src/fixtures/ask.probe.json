@@ -28718,6 +28718,1101 @@
           }
         }
       }
+    },
+    "ask-preview-tabs": {
+      "what": "Two questions, the first with a preview on every option and a label that wraps beside the preview's box, at several sizes: each question keeps its own layout (the previewed one arrows and Enter, the other digits); Down and Enter answer the first, 2 the second, 1 submits at review",
+      "version": "2.1.325",
+      "events": [
+        {
+          "event": "SessionStart",
+          "phase": "start",
+          "ms": 0,
+          "payload": {}
+        },
+        {
+          "event": "SessionStart",
+          "phase": "end",
+          "ms": 0,
+          "why": "immediate"
+        },
+        {
+          "event": "UserPromptSubmit",
+          "phase": "start",
+          "ms": 661,
+          "payload": {
+            "permission_mode": "default"
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "phase": "end",
+          "ms": 661,
+          "why": "immediate"
+        },
+        {
+          "event": "PreToolUse",
+          "phase": "start",
+          "ms": 776,
+          "payload": {
+            "permission_mode": "default",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:CronCreate,CronDelete,CronList,EnterPlanMode,EnterWorktree,ExitPlanMode,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 30
+            }
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "phase": "end",
+          "ms": 776,
+          "why": "immediate"
+        },
+        {
+          "event": "PostToolUse",
+          "phase": "start",
+          "ms": 853,
+          "payload": {
+            "permission_mode": "default",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:CronCreate,CronDelete,CronList,EnterPlanMode,EnterWorktree,ExitPlanMode,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 30
+            }
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "phase": "end",
+          "ms": 853,
+          "why": "immediate"
+        },
+        {
+          "event": "PostToolBatch",
+          "phase": "start",
+          "ms": 915,
+          "payload": {
+            "permission_mode": "default"
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "phase": "end",
+          "ms": 915,
+          "why": "immediate"
+        },
+        {
+          "event": "PreToolUse",
+          "phase": "start",
+          "ms": 995,
+          "payload": {
+            "permission_mode": "default",
+            "tool_name": "AskUserQuestion",
+            "tool_input": {
+              "questions": [
+                {
+                  "question": "Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are open beside the terminal.",
+                  "header": "Install card",
+                  "options": [
+                    {
+                      "label": "A: command row (Recommended)",
+                      "description": "'Not installed' badge by the name, Install button (download icon) top right, the whole command on its own wrapped line in a code box. Keeps #945's 'nothing hidden' rule; the card is taller.",
+                      "preview": "┌──────────────────────────────────────┐\n│ [A] Antigravity (Not installed) [⬇ Install] │\n│     Install runs its official installer:    │\n│     ┌────────────────────────────────┐      │\n│     │ $ curl -fsSL https://antigrav… │      │\n│     │   /cli/install.sh | bash       │      │\n│     └────────────────────────────────┘      │\n└──────────────────────────────────────┘"
+                    },
+                    {
+                      "label": "B: empty seat",
+                      "description": "Dashed card titled 'Add Antigravity', a cyan Install button, the command behind 'Show command'. Compact and inviting, but the cyan button competes with 'Let’s build something' and the command is one click away.",
+                      "preview": "┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐\n╎ [╌A╌] Add Antigravity      [⬇ Install] ╎\n╎       Not installed yet. Show command   ╎\n└╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘"
+                    },
+                    {
+                      "label": "C: quiet line",
+                      "description": "No card: one muted line under the agents, 'Antigravity isn’t installed. Install it', with the command as a tooltip. Lightest, but easy to miss, and the command shows only on hover.",
+                      "preview": "[Claude Code card]\n[Codex card]\n A  Antigravity isn’t installed. Install it"
+                    }
+                  ],
+                  "multiSelect": false
+                },
+                {
+                  "question": "Rename 'Chat view'? In Preferences, 'View modes' already means Focus/Grid/Canvas, so 'Chat view' can read like a fourth layout. Only labels and docs change; the saved setting keeps its key.",
+                  "header": "Name",
+                  "options": [
+                    {
+                      "label": "Agent chat (Recommended)",
+                      "description": "Says what it is and where it applies; no clash with views. E.g. 'Agent chat: read and reply to agents in a chat instead of their terminal.'"
+                    },
+                    {
+                      "label": "Keep 'Chat view'",
+                      "description": "No change."
+                    },
+                    {
+                      "label": "Chat",
+                      "description": "Shortest; good for a header toggle, vaguer as a setting."
+                    },
+                    {
+                      "label": "Reader",
+                      "description": "Like a browser's reader mode: the same session, made readable. Undersells that you can reply."
+                    }
+                  ],
+                  "multiSelect": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "phase": "end",
+          "ms": 995,
+          "why": "immediate"
+        },
+        {
+          "event": "PermissionRequest",
+          "phase": "start",
+          "ms": 1051,
+          "payload": {
+            "permission_mode": "default",
+            "tool_name": "AskUserQuestion",
+            "tool_input": {
+              "questions": [
+                {
+                  "question": "Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are open beside the terminal.",
+                  "header": "Install card",
+                  "options": [
+                    {
+                      "label": "A: command row (Recommended)",
+                      "description": "'Not installed' badge by the name, Install button (download icon) top right, the whole command on its own wrapped line in a code box. Keeps #945's 'nothing hidden' rule; the card is taller.",
+                      "preview": "┌──────────────────────────────────────┐\n│ [A] Antigravity (Not installed) [⬇ Install] │\n│     Install runs its official installer:    │\n│     ┌────────────────────────────────┐      │\n│     │ $ curl -fsSL https://antigrav… │      │\n│     │   /cli/install.sh | bash       │      │\n│     └────────────────────────────────┘      │\n└──────────────────────────────────────┘"
+                    },
+                    {
+                      "label": "B: empty seat",
+                      "description": "Dashed card titled 'Add Antigravity', a cyan Install button, the command behind 'Show command'. Compact and inviting, but the cyan button competes with 'Let’s build something' and the command is one click away.",
+                      "preview": "┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐\n╎ [╌A╌] Add Antigravity      [⬇ Install] ╎\n╎       Not installed yet. Show command   ╎\n└╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘"
+                    },
+                    {
+                      "label": "C: quiet line",
+                      "description": "No card: one muted line under the agents, 'Antigravity isn’t installed. Install it', with the command as a tooltip. Lightest, but easy to miss, and the command shows only on hover.",
+                      "preview": "[Claude Code card]\n[Codex card]\n A  Antigravity isn’t installed. Install it"
+                    }
+                  ],
+                  "multiSelect": false
+                },
+                {
+                  "question": "Rename 'Chat view'? In Preferences, 'View modes' already means Focus/Grid/Canvas, so 'Chat view' can read like a fourth layout. Only labels and docs change; the saved setting keeps its key.",
+                  "header": "Name",
+                  "options": [
+                    {
+                      "label": "Agent chat (Recommended)",
+                      "description": "Says what it is and where it applies; no clash with views. E.g. 'Agent chat: read and reply to agents in a chat instead of their terminal.'"
+                    },
+                    {
+                      "label": "Keep 'Chat view'",
+                      "description": "No change."
+                    },
+                    {
+                      "label": "Chat",
+                      "description": "Shortest; good for a header toggle, vaguer as a setting."
+                    },
+                    {
+                      "label": "Reader",
+                      "description": "Like a browser's reader mode: the same session, made readable. Undersells that you can reply."
+                    }
+                  ],
+                  "multiSelect": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "event": "PermissionRequest",
+          "phase": "end",
+          "ms": 1052,
+          "why": "immediate"
+        },
+        {
+          "event": "PostToolUse",
+          "phase": "start",
+          "ms": 8879,
+          "payload": {
+            "permission_mode": "default",
+            "tool_name": "AskUserQuestion",
+            "tool_input": {
+              "questions": [
+                {
+                  "question": "Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are open beside the terminal.",
+                  "header": "Install card",
+                  "options": [
+                    {
+                      "label": "A: command row (Recommended)",
+                      "description": "'Not installed' badge by the name, Install button (download icon) top right, the whole command on its own wrapped line in a code box. Keeps #945's 'nothing hidden' rule; the card is taller.",
+                      "preview": "┌──────────────────────────────────────┐\n│ [A] Antigravity (Not installed) [⬇ Install] │\n│     Install runs its official installer:    │\n│     ┌────────────────────────────────┐      │\n│     │ $ curl -fsSL https://antigrav… │      │\n│     │   /cli/install.sh | bash       │      │\n│     └────────────────────────────────┘      │\n└──────────────────────────────────────┘"
+                    },
+                    {
+                      "label": "B: empty seat",
+                      "description": "Dashed card titled 'Add Antigravity', a cyan Install button, the command behind 'Show command'. Compact and inviting, but the cyan button competes with 'Let’s build something' and the command is one click away.",
+                      "preview": "┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐\n╎ [╌A╌] Add Antigravity      [⬇ Install] ╎\n╎       Not installed yet. Show command   ╎\n└╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘"
+                    },
+                    {
+                      "label": "C: quiet line",
+                      "description": "No card: one muted line under the agents, 'Antigravity isn’t installed. Install it', with the command as a tooltip. Lightest, but easy to miss, and the command shows only on hover.",
+                      "preview": "[Claude Code card]\n[Codex card]\n A  Antigravity isn’t installed. Install it"
+                    }
+                  ],
+                  "multiSelect": false
+                },
+                {
+                  "question": "Rename 'Chat view'? In Preferences, 'View modes' already means Focus/Grid/Canvas, so 'Chat view' can read like a fourth layout. Only labels and docs change; the saved setting keeps its key.",
+                  "header": "Name",
+                  "options": [
+                    {
+                      "label": "Agent chat (Recommended)",
+                      "description": "Says what it is and where it applies; no clash with views. E.g. 'Agent chat: read and reply to agents in a chat instead of their terminal.'"
+                    },
+                    {
+                      "label": "Keep 'Chat view'",
+                      "description": "No change."
+                    },
+                    {
+                      "label": "Chat",
+                      "description": "Shortest; good for a header toggle, vaguer as a setting."
+                    },
+                    {
+                      "label": "Reader",
+                      "description": "Like a browser's reader mode: the same session, made readable. Undersells that you can reply."
+                    }
+                  ],
+                  "multiSelect": false
+                }
+              ],
+              "answers": {
+                "Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are open beside the terminal.": "B: empty seat",
+                "Rename 'Chat view'? In Preferences, 'View modes' already means Focus/Grid/Canvas, so 'Chat view' can read like a fourth layout. Only labels and docs change; the saved setting keeps its key.": "Keep 'Chat view'"
+              },
+              "annotations": {
+                "Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are open beside the terminal.": {
+                  "preview": "┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐\n╎ [╌A╌] Add Antigravity      [⬇ Install] ╎\n╎       Not installed yet. Show command   ╎\n└╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘"
+                }
+              }
+            }
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "phase": "end",
+          "ms": 8879,
+          "why": "immediate"
+        },
+        {
+          "event": "PostToolBatch",
+          "phase": "start",
+          "ms": 8934,
+          "payload": {
+            "permission_mode": "default"
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "phase": "end",
+          "ms": 8934,
+          "why": "immediate"
+        },
+        {
+          "event": "Stop",
+          "phase": "start",
+          "ms": 9012,
+          "payload": {
+            "permission_mode": "default"
+          }
+        },
+        {
+          "event": "Stop",
+          "phase": "end",
+          "ms": 9012,
+          "why": "immediate"
+        }
+      ],
+      "screens": {
+        "120x40": {
+          "height": 31,
+          "columns": 120,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.325",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "8": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "9": "←  ☐ Install card  ☐ Name  ✔ Submit  →",
+            "11": "│ Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are open",
+            "12": "│ beside the terminal.",
+            "14": "❯ 1. A: command row               ┌─────────────────────────────────────────────────┐",
+            "15": "    (Recommended)                 │ ┌──────────────────────────────────────┐        │",
+            "16": "  2. B: empty seat                │ │ [A] Antigravity (Not installed) [⬇ Install] │ │",
+            "17": "  3. C: quiet line                │ │     Install runs its official installer:    │ │",
+            "18": "                                  │ │     ┌────────────────────────────────┐      │ │",
+            "19": "                                  │ │     │ $ curl -fsSL https://antigrav… │      │ │",
+            "20": "                                  │ │     │   /cli/install.sh | bash       │      │ │",
+            "21": "                                  │ │     └────────────────────────────────┘      │ │",
+            "22": "                                  │ └──────────────────────────────────────┘        │",
+            "23": "                                  └─────────────────────────────────────────────────┘",
+            "25": "                                  Notes: press n to add notes",
+            "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "28": "  Chat about this",
+            "30": "Enter to select · ↑/↓ to navigate · n to add notes · Tab to switch questions · Esc to cancel"
+          }
+        },
+        "80x40": {
+          "height": 38,
+          "columns": 80,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.325",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "8": "────────────────────────────────────────────────────────────────────────────────",
+            "9": "←  ☐ Install card  ☐ Name  ✔ Submit  →",
+            "11": "│ Which look for a harness that isn't installed (e.g. Antigravity) on the",
+            "12": "│ welcome card? Screenshots A, B and C are open beside the terminal.",
+            "14": "❯ 1. A: command row               ┌────────────────────────────────────────────┐",
+            "15": "    (Recommended)                 │ ┌──────────────────────────────────────┐   │",
+            "16": "  2. B: empty seat                │ │ [A] Antigravity (Not installed) [⬇       │",
+            "17": "  3. C: quiet line                │ Install] │                                 │",
+            "18": "                                  │ │     Install runs its official installer: │",
+            "19": "                                  │     │                                      │",
+            "20": "                                  │ │     ┌────────────────────────────────┐   │",
+            "21": "                                  │     │                                      │",
+            "22": "                                  │ │     │ $ curl -fsSL https://antigrav… │   │",
+            "23": "                                  │     │                                      │",
+            "24": "                                  │ │     │   /cli/install.sh | bash       │   │",
+            "25": "                                  │     │                                      │",
+            "26": "                                  │ │     └────────────────────────────────┘   │",
+            "27": "                                  │     │                                      │",
+            "28": "                                  │ └──────────────────────────────────────┘   │",
+            "29": "                                  └────────────────────────────────────────────┘",
+            "31": "                                  Notes: press n to add notes",
+            "33": "────────────────────────────────────────────────────────────────────────────────",
+            "34": "  Chat about this",
+            "36": "Enter to select · ↑/↓ to navigate · n to add notes · Tab to switch questions ·",
+            "37": "Esc to cancel"
+          }
+        },
+        "60x40": {
+          "height": 40,
+          "columns": 60,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.325",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "8": "────────────────────────────────────────────────────────────",
+            "9": "←  ☐ Install card  ☐ Name  ✔ Submit  →",
+            "11": "│ Which look for a harness that isn't installed (e.g.",
+            "12": "│ Antigravity) on the welcome card? Screenshots A, B and C",
+            "13": "│ are open beside the terminal.",
+            "15": "❯ 1. A: command row              ┌────────────────────────┐",
+            "16": "    (Recommended)                │ ┌───────────────────── │",
+            "17": "  2. B: empty seat               │ ─────────────────┐     │",
+            "18": "  3. C: quiet line               │ │ [A] Antigravity (Not │",
+            "19": "                                 │  installed) [⬇         │",
+            "20": "                                 │ Install] │             │",
+            "21": "                                 │ │     Install runs its │",
+            "22": "                                 │  official installer:   │",
+            "23": "                                 │   │                    │",
+            "24": "                                 │ │     ┌─────────────── │",
+            "25": "                                 │ ─────────────────┐     │",
+            "26": "                                 │   │                    │",
+            "27": "                                 │ │     │ $ curl -fsSL   │",
+            "28": "                                 │ https://antigrav… │    │",
+            "29": "                                 │    │                   │",
+            "30": "                                 ├─── ✂ ─── 8 lines hidden ┤",
+            "31": "                                 └────────────────────────┘",
+            "33": "                                 Notes: press n to add notes",
+            "35": "────────────────────────────────────────────────────────────",
+            "36": "  Chat about this",
+            "38": "Enter to select · ↑/↓ to navigate · n to add notes · Tab to",
+            "39": "switch questions · Esc to cancel"
+          }
+        },
+        "56x40": {
+          "height": 40,
+          "columns": 56,
+          "rows": {
+            "0": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "1": " ▝▝   ▝▝   <sandbox>/project",
+            "4": "❯ Ask now",
+            "6": "────────────────────────────────────────────────────────",
+            "7": "←  ☐ Install card  ☐ Name  ✔ Submit  →",
+            "9": "│ Which look for a harness that isn't installed (e.g.",
+            "10": "│ Antigravity) on the welcome card? Screenshots A, B and",
+            "11": "│ C are open beside the terminal.",
+            "13": "❯ 1. A: command row            ┌────────────────────┐",
+            "14": "    (Recommended)              │ ┌───────────────── │",
+            "15": "  2. B: empty seat             │ ────────────────── │",
+            "16": "  3. C: quiet line             │ ───┐               │",
+            "17": "                               │ │ [A] Antigravity  │",
+            "18": "                               │ (Not installed) [⬇ │",
+            "19": "                               │  Install] │        │",
+            "20": "                               │ │     Install runs │",
+            "21": "                               │  its official      │",
+            "22": "                               │ installer:    │    │",
+            "23": "                               │ │                  │",
+            "24": "                               │ ┌───────────────── │",
+            "25": "                               │ ───────────────┐   │",
+            "26": "                               │     │              │",
+            "27": "                               │ │     │ $ curl     │",
+            "28": "                               ├─── ✂ ─── 14 lines",
+            "29": "                               hidden ┤",
+            "30": "                               └────────────────────┘",
+            "32": "                               Notes: press n to add",
+            "33": "                                      notes",
+            "35": "────────────────────────────────────────────────────────",
+            "36": "  Chat about this",
+            "38": "Enter to select · ↑/↓ to navigate · n to add notes · Tab",
+            "39": "to switch questions · Esc to cancel"
+          }
+        },
+        "52x40": {
+          "height": 40,
+          "columns": 52,
+          "rows": {
+            "0": " ▝▝   ▝▝   <sandbox>/project",
+            "3": "❯ Ask now",
+            "5": "────────────────────────────────────────────────────",
+            "6": "←  ☐ Install card  ☐ Name  ✔ Submit  →",
+            "8": "│ Which look for a harness that isn't installed",
+            "9": "│ (e.g. Antigravity) on the welcome card?",
+            "10": "│ Screenshots A, B and C are open beside the",
+            "11": "│ terminal.",
+            "13": "❯ 1. A: command row          ┌────────────────┐",
+            "14": "    (Recommended)            │ ┌───────────── │",
+            "15": "  2. B: empty seat           │ ────────────── │",
+            "16": "  3. C: quiet line           │ ───────────┐   │",
+            "17": "                             │ │ [A]          │",
+            "18": "                             │ Antigravity    │",
+            "19": "                             │ (Not           │",
+            "20": "                             │ installed) [⬇  │",
+            "21": "                             │ Install] │     │",
+            "22": "                             │ │     Install  │",
+            "23": "                             │ runs its       │",
+            "24": "                             │ official       │",
+            "25": "                             │ installer:     │",
+            "26": "                             │ │              │",
+            "27": "                             │ │     ┌─────── │",
+            "28": "                             ├─── ✂ ─── 18 lines",
+            "29": "                             hidden ┤",
+            "30": "                             └────────────────┘",
+            "32": "                             Notes: press n to add",
+            "33": "                                    notes",
+            "35": "────────────────────────────────────────────────────",
+            "36": "  Chat about this",
+            "38": "Enter to select · ↑/↓ to navigate · n to add notes ·",
+            "39": "Tab to switch questions · Esc to cancel"
+          }
+        }
+      },
+      "steps": {
+        "down": {
+          "height": 27,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.325",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "8": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "9": "←  ☐ Install card  ☐ Name  ✔ Submit  →",
+            "11": "│ Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are open",
+            "12": "│ beside the terminal.",
+            "14": "  1. A: command row               ┌─────────────────────────────────────────────────┐",
+            "15": "    (Recommended)                 │ ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐        │",
+            "16": "❯ 2. B: empty seat                │ ╎ [╌A╌] Add Antigravity      [⬇ Install] ╎      │",
+            "17": "  3. C: quiet line                │ ╎       Not installed yet. Show command   ╎     │",
+            "18": "                                  │ └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘        │",
+            "19": "                                  └─────────────────────────────────────────────────┘",
+            "21": "                                  Notes: press n to add notes",
+            "23": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "24": "  Chat about this",
+            "26": "Enter to select · ↑/↓ to navigate · n to add notes · Tab to switch questions · Esc to cancel"
+          }
+        },
+        "q2": {
+          "height": 27,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.325",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "7": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "8": "←  ☒ Install card  ☐ Name  ✔ Submit  →",
+            "10": "│ Rename 'Chat view'? In Preferences, 'View modes' already means Focus/Grid/Canvas, so 'Chat view' can read like a",
+            "11": "│ fourth layout. Only labels and docs change; the saved setting keeps its key.",
+            "13": "❯ 1. Agent chat (Recommended)",
+            "14": "     Says what it is and where it applies; no clash with views. E.g. 'Agent chat: read and reply to agents in a chat",
+            "15": "     instead of their terminal.'",
+            "16": "  2. Keep 'Chat view'",
+            "17": "     No change.",
+            "18": "  3. Chat",
+            "19": "     Shortest; good for a header toggle, vaguer as a setting.",
+            "20": "  4. Reader",
+            "21": "     Like a browser's reader mode: the same session, made readable. Undersells that you can reply.",
+            "22": "  5. Type something.",
+            "23": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "24": "  6. Chat about this",
+            "26": "Enter to select · Tab/Arrow keys to navigate · Esc to cancel"
+          }
+        },
+        "review": {
+          "height": 24,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.325",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "8": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "9": "←  ☒ Install card  ☒ Name  ✔ Submit  →",
+            "11": "Review your answers",
+            "13": " │ ● Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are",
+            "14": " │   open beside the terminal.",
+            "15": "   → B: empty seat",
+            "16": " │ ● Rename 'Chat view'? In Preferences, 'View modes' already means Focus/Grid/Canvas, so 'Chat view' can read like a",
+            "17": " │   fourth layout. Only labels and docs change; the saved setting keeps its key.",
+            "18": "   → Keep 'Chat view'",
+            "20": "Ready to submit your answers?",
+            "22": "❯ 1. Submit answers",
+            "23": "  2. Cancel"
+          }
+        },
+        "submitted": {
+          "height": 40,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.325",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "8": "● User answered Claude's questions:",
+            "9": "  ⎿  · Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are",
+            "10": "     open beside the terminal. → B: empty seat",
+            "11": "     · Rename 'Chat view'? In Preferences, 'View modes' already means Focus/Grid/Canvas, so 'Chat view' can read like a",
+            "12": "     fourth layout. Only labels and docs change; the saved setting keeps its key. → Keep 'Chat view'",
+            "14": "● Done.",
+            "16": "✻ Cooked for 0s · done 5:00 PM",
+            "34": "                                                                                                    ◐ medium · /effort",
+            "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "36": "❯",
+            "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "39": "  ⏸ manual mode on"
+          }
+        },
+        "after": {
+          "height": 40,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.325",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "8": "● User answered Claude's questions:",
+            "9": "  ⎿  · Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are",
+            "10": "     open beside the terminal. → B: empty seat",
+            "11": "     · Rename 'Chat view'? In Preferences, 'View modes' already means Focus/Grid/Canvas, so 'Chat view' can read like a",
+            "12": "     fourth layout. Only labels and docs change; the saved setting keeps its key. → Keep 'Chat view'",
+            "14": "● Done.",
+            "16": "✻ Cooked for 0s · done 5:00 PM",
+            "34": "                                                                                                    ◐ medium · /effort",
+            "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "36": "❯",
+            "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "39": "  ⏸ manual mode on"
+          }
+        }
+      }
+    },
+    "ask-preview-tabs-last": {
+      "what": "The same two questions the other way round, the previews on the last: 1 answers the first, Down and Enter the previewed one, whose highlight starts on its first row; 1 submits at review",
+      "version": "2.1.325",
+      "events": [
+        {
+          "event": "SessionStart",
+          "phase": "start",
+          "ms": 0,
+          "payload": {}
+        },
+        {
+          "event": "SessionStart",
+          "phase": "end",
+          "ms": 0,
+          "why": "immediate"
+        },
+        {
+          "event": "UserPromptSubmit",
+          "phase": "start",
+          "ms": 872,
+          "payload": {
+            "permission_mode": "default"
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "phase": "end",
+          "ms": 872,
+          "why": "immediate"
+        },
+        {
+          "event": "PreToolUse",
+          "phase": "start",
+          "ms": 996,
+          "payload": {
+            "permission_mode": "default",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:CronCreate,CronDelete,CronList,EnterPlanMode,EnterWorktree,ExitPlanMode,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 30
+            }
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "phase": "end",
+          "ms": 997,
+          "why": "immediate"
+        },
+        {
+          "event": "PostToolUse",
+          "phase": "start",
+          "ms": 1054,
+          "payload": {
+            "permission_mode": "default",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:CronCreate,CronDelete,CronList,EnterPlanMode,EnterWorktree,ExitPlanMode,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 30
+            }
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "phase": "end",
+          "ms": 1054,
+          "why": "immediate"
+        },
+        {
+          "event": "PostToolBatch",
+          "phase": "start",
+          "ms": 1116,
+          "payload": {
+            "permission_mode": "default"
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "phase": "end",
+          "ms": 1116,
+          "why": "immediate"
+        },
+        {
+          "event": "PreToolUse",
+          "phase": "start",
+          "ms": 1200,
+          "payload": {
+            "permission_mode": "default",
+            "tool_name": "AskUserQuestion",
+            "tool_input": {
+              "questions": [
+                {
+                  "question": "Rename 'Chat view'? In Preferences, 'View modes' already means Focus/Grid/Canvas, so 'Chat view' can read like a fourth layout. Only labels and docs change; the saved setting keeps its key.",
+                  "header": "Name",
+                  "options": [
+                    {
+                      "label": "Agent chat (Recommended)",
+                      "description": "Says what it is and where it applies; no clash with views. E.g. 'Agent chat: read and reply to agents in a chat instead of their terminal.'"
+                    },
+                    {
+                      "label": "Keep 'Chat view'",
+                      "description": "No change."
+                    },
+                    {
+                      "label": "Chat",
+                      "description": "Shortest; good for a header toggle, vaguer as a setting."
+                    },
+                    {
+                      "label": "Reader",
+                      "description": "Like a browser's reader mode: the same session, made readable. Undersells that you can reply."
+                    }
+                  ],
+                  "multiSelect": false
+                },
+                {
+                  "question": "Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are open beside the terminal.",
+                  "header": "Install card",
+                  "options": [
+                    {
+                      "label": "A: command row (Recommended)",
+                      "description": "'Not installed' badge by the name, Install button (download icon) top right, the whole command on its own wrapped line in a code box. Keeps #945's 'nothing hidden' rule; the card is taller.",
+                      "preview": "┌──────────────────────────────────────┐\n│ [A] Antigravity (Not installed) [⬇ Install] │\n│     Install runs its official installer:    │\n│     ┌────────────────────────────────┐      │\n│     │ $ curl -fsSL https://antigrav… │      │\n│     │   /cli/install.sh | bash       │      │\n│     └────────────────────────────────┘      │\n└──────────────────────────────────────┘"
+                    },
+                    {
+                      "label": "B: empty seat",
+                      "description": "Dashed card titled 'Add Antigravity', a cyan Install button, the command behind 'Show command'. Compact and inviting, but the cyan button competes with 'Let’s build something' and the command is one click away.",
+                      "preview": "┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐\n╎ [╌A╌] Add Antigravity      [⬇ Install] ╎\n╎       Not installed yet. Show command   ╎\n└╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘"
+                    },
+                    {
+                      "label": "C: quiet line",
+                      "description": "No card: one muted line under the agents, 'Antigravity isn’t installed. Install it', with the command as a tooltip. Lightest, but easy to miss, and the command shows only on hover.",
+                      "preview": "[Claude Code card]\n[Codex card]\n A  Antigravity isn’t installed. Install it"
+                    }
+                  ],
+                  "multiSelect": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "phase": "end",
+          "ms": 1200,
+          "why": "immediate"
+        },
+        {
+          "event": "PermissionRequest",
+          "phase": "start",
+          "ms": 1260,
+          "payload": {
+            "permission_mode": "default",
+            "tool_name": "AskUserQuestion",
+            "tool_input": {
+              "questions": [
+                {
+                  "question": "Rename 'Chat view'? In Preferences, 'View modes' already means Focus/Grid/Canvas, so 'Chat view' can read like a fourth layout. Only labels and docs change; the saved setting keeps its key.",
+                  "header": "Name",
+                  "options": [
+                    {
+                      "label": "Agent chat (Recommended)",
+                      "description": "Says what it is and where it applies; no clash with views. E.g. 'Agent chat: read and reply to agents in a chat instead of their terminal.'"
+                    },
+                    {
+                      "label": "Keep 'Chat view'",
+                      "description": "No change."
+                    },
+                    {
+                      "label": "Chat",
+                      "description": "Shortest; good for a header toggle, vaguer as a setting."
+                    },
+                    {
+                      "label": "Reader",
+                      "description": "Like a browser's reader mode: the same session, made readable. Undersells that you can reply."
+                    }
+                  ],
+                  "multiSelect": false
+                },
+                {
+                  "question": "Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are open beside the terminal.",
+                  "header": "Install card",
+                  "options": [
+                    {
+                      "label": "A: command row (Recommended)",
+                      "description": "'Not installed' badge by the name, Install button (download icon) top right, the whole command on its own wrapped line in a code box. Keeps #945's 'nothing hidden' rule; the card is taller.",
+                      "preview": "┌──────────────────────────────────────┐\n│ [A] Antigravity (Not installed) [⬇ Install] │\n│     Install runs its official installer:    │\n│     ┌────────────────────────────────┐      │\n│     │ $ curl -fsSL https://antigrav… │      │\n│     │   /cli/install.sh | bash       │      │\n│     └────────────────────────────────┘      │\n└──────────────────────────────────────┘"
+                    },
+                    {
+                      "label": "B: empty seat",
+                      "description": "Dashed card titled 'Add Antigravity', a cyan Install button, the command behind 'Show command'. Compact and inviting, but the cyan button competes with 'Let’s build something' and the command is one click away.",
+                      "preview": "┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐\n╎ [╌A╌] Add Antigravity      [⬇ Install] ╎\n╎       Not installed yet. Show command   ╎\n└╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘"
+                    },
+                    {
+                      "label": "C: quiet line",
+                      "description": "No card: one muted line under the agents, 'Antigravity isn’t installed. Install it', with the command as a tooltip. Lightest, but easy to miss, and the command shows only on hover.",
+                      "preview": "[Claude Code card]\n[Codex card]\n A  Antigravity isn’t installed. Install it"
+                    }
+                  ],
+                  "multiSelect": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "event": "PermissionRequest",
+          "phase": "end",
+          "ms": 1260,
+          "why": "immediate"
+        },
+        {
+          "event": "PostToolUse",
+          "phase": "start",
+          "ms": 6351,
+          "payload": {
+            "permission_mode": "default",
+            "tool_name": "AskUserQuestion",
+            "tool_input": {
+              "questions": [
+                {
+                  "question": "Rename 'Chat view'? In Preferences, 'View modes' already means Focus/Grid/Canvas, so 'Chat view' can read like a fourth layout. Only labels and docs change; the saved setting keeps its key.",
+                  "header": "Name",
+                  "options": [
+                    {
+                      "label": "Agent chat (Recommended)",
+                      "description": "Says what it is and where it applies; no clash with views. E.g. 'Agent chat: read and reply to agents in a chat instead of their terminal.'"
+                    },
+                    {
+                      "label": "Keep 'Chat view'",
+                      "description": "No change."
+                    },
+                    {
+                      "label": "Chat",
+                      "description": "Shortest; good for a header toggle, vaguer as a setting."
+                    },
+                    {
+                      "label": "Reader",
+                      "description": "Like a browser's reader mode: the same session, made readable. Undersells that you can reply."
+                    }
+                  ],
+                  "multiSelect": false
+                },
+                {
+                  "question": "Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are open beside the terminal.",
+                  "header": "Install card",
+                  "options": [
+                    {
+                      "label": "A: command row (Recommended)",
+                      "description": "'Not installed' badge by the name, Install button (download icon) top right, the whole command on its own wrapped line in a code box. Keeps #945's 'nothing hidden' rule; the card is taller.",
+                      "preview": "┌──────────────────────────────────────┐\n│ [A] Antigravity (Not installed) [⬇ Install] │\n│     Install runs its official installer:    │\n│     ┌────────────────────────────────┐      │\n│     │ $ curl -fsSL https://antigrav… │      │\n│     │   /cli/install.sh | bash       │      │\n│     └────────────────────────────────┘      │\n└──────────────────────────────────────┘"
+                    },
+                    {
+                      "label": "B: empty seat",
+                      "description": "Dashed card titled 'Add Antigravity', a cyan Install button, the command behind 'Show command'. Compact and inviting, but the cyan button competes with 'Let’s build something' and the command is one click away.",
+                      "preview": "┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐\n╎ [╌A╌] Add Antigravity      [⬇ Install] ╎\n╎       Not installed yet. Show command   ╎\n└╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘"
+                    },
+                    {
+                      "label": "C: quiet line",
+                      "description": "No card: one muted line under the agents, 'Antigravity isn’t installed. Install it', with the command as a tooltip. Lightest, but easy to miss, and the command shows only on hover.",
+                      "preview": "[Claude Code card]\n[Codex card]\n A  Antigravity isn’t installed. Install it"
+                    }
+                  ],
+                  "multiSelect": false
+                }
+              ],
+              "answers": {
+                "Rename 'Chat view'? In Preferences, 'View modes' already means Focus/Grid/Canvas, so 'Chat view' can read like a fourth layout. Only labels and docs change; the saved setting keeps its key.": "Agent chat (Recommended)",
+                "Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are open beside the terminal.": "B: empty seat"
+              },
+              "annotations": {
+                "Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are open beside the terminal.": {
+                  "preview": "┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐\n╎ [╌A╌] Add Antigravity      [⬇ Install] ╎\n╎       Not installed yet. Show command   ╎\n└╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘"
+                }
+              }
+            }
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "phase": "end",
+          "ms": 6352,
+          "why": "immediate"
+        },
+        {
+          "event": "PostToolBatch",
+          "phase": "start",
+          "ms": 6416,
+          "payload": {
+            "permission_mode": "default"
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "phase": "end",
+          "ms": 6416,
+          "why": "immediate"
+        },
+        {
+          "event": "Stop",
+          "phase": "start",
+          "ms": 6495,
+          "payload": {
+            "permission_mode": "default"
+          }
+        },
+        {
+          "event": "Stop",
+          "phase": "end",
+          "ms": 6495,
+          "why": "immediate"
+        }
+      ],
+      "screens": {
+        "120x40": {
+          "height": 27,
+          "columns": 120,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.325",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "7": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "8": "←  ☐ Name  ☐ Install card  ✔ Submit  →",
+            "10": "│ Rename 'Chat view'? In Preferences, 'View modes' already means Focus/Grid/Canvas, so 'Chat view' can read like a",
+            "11": "│ fourth layout. Only labels and docs change; the saved setting keeps its key.",
+            "13": "❯ 1. Agent chat (Recommended)",
+            "14": "     Says what it is and where it applies; no clash with views. E.g. 'Agent chat: read and reply to agents in a chat",
+            "15": "     instead of their terminal.'",
+            "16": "  2. Keep 'Chat view'",
+            "17": "     No change.",
+            "18": "  3. Chat",
+            "19": "     Shortest; good for a header toggle, vaguer as a setting.",
+            "20": "  4. Reader",
+            "21": "     Like a browser's reader mode: the same session, made readable. Undersells that you can reply.",
+            "22": "  5. Type something.",
+            "23": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "24": "  6. Chat about this",
+            "26": "Enter to select · Tab/Arrow keys to navigate · Esc to cancel"
+          }
+        },
+        "56x40": {
+          "height": 33,
+          "columns": 56,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.325",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "7": "────────────────────────────────────────────────────────",
+            "8": "←  ☐ Name  ☐ Install card  ✔ Submit  →",
+            "10": "│ Rename 'Chat view'? In Preferences, 'View modes'",
+            "11": "│ already means Focus/Grid/Canvas, so 'Chat view' can",
+            "12": "│ read like a fourth layout. Only labels and docs",
+            "13": "│ change; the saved setting keeps its key.",
+            "15": "❯ 1. Agent chat (Recommended)",
+            "16": "     Says what it is and where it applies; no clash with",
+            "17": "     views. E.g. 'Agent chat: read and reply to agents",
+            "18": "     in a chat instead of their terminal.'",
+            "19": "  2. Keep 'Chat view'",
+            "20": "     No change.",
+            "21": "  3. Chat",
+            "22": "     Shortest; good for a header toggle, vaguer as a",
+            "23": "     setting.",
+            "24": "  4. Reader",
+            "25": "     Like a browser's reader mode: the same session,",
+            "26": "     made readable. Undersells that you can reply.",
+            "27": "  5. Type something.",
+            "28": "────────────────────────────────────────────────────────",
+            "29": "  6. Chat about this",
+            "31": "Enter to select · Tab/Arrow keys to navigate · Esc to",
+            "32": "cancel"
+          }
+        }
+      },
+      "steps": {
+        "q2": {
+          "height": 31,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.325",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "8": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "9": "←  ☒ Name  ☐ Install card  ✔ Submit  →",
+            "11": "│ Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are open",
+            "12": "│ beside the terminal.",
+            "14": "❯ 1. A: command row               ┌─────────────────────────────────────────────────┐",
+            "15": "    (Recommended)                 │ ┌──────────────────────────────────────┐        │",
+            "16": "  2. B: empty seat                │ │ [A] Antigravity (Not installed) [⬇ Install] │ │",
+            "17": "  3. C: quiet line                │ │     Install runs its official installer:    │ │",
+            "18": "                                  │ │     ┌────────────────────────────────┐      │ │",
+            "19": "                                  │ │     │ $ curl -fsSL https://antigrav… │      │ │",
+            "20": "                                  │ │     │   /cli/install.sh | bash       │      │ │",
+            "21": "                                  │ │     └────────────────────────────────┘      │ │",
+            "22": "                                  │ └──────────────────────────────────────┘        │",
+            "23": "                                  └─────────────────────────────────────────────────┘",
+            "25": "                                  Notes: press n to add notes",
+            "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "28": "  Chat about this",
+            "30": "Enter to select · ↑/↓ to navigate · n to add notes · Tab to switch questions · Esc to cancel"
+          }
+        },
+        "q2-down": {
+          "height": 27,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.325",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "8": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "9": "←  ☒ Name  ☐ Install card  ✔ Submit  →",
+            "11": "│ Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are open",
+            "12": "│ beside the terminal.",
+            "14": "  1. A: command row               ┌─────────────────────────────────────────────────┐",
+            "15": "    (Recommended)                 │ ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐        │",
+            "16": "❯ 2. B: empty seat                │ ╎ [╌A╌] Add Antigravity      [⬇ Install] ╎      │",
+            "17": "  3. C: quiet line                │ ╎       Not installed yet. Show command   ╎     │",
+            "18": "                                  │ └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘        │",
+            "19": "                                  └─────────────────────────────────────────────────┘",
+            "21": "                                  Notes: press n to add notes",
+            "23": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "24": "  Chat about this",
+            "26": "Enter to select · ↑/↓ to navigate · n to add notes · Tab to switch questions · Esc to cancel"
+          }
+        },
+        "review": {
+          "height": 24,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.325",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "8": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "9": "←  ☒ Name  ☒ Install card  ✔ Submit  →",
+            "11": "Review your answers",
+            "13": " │ ● Rename 'Chat view'? In Preferences, 'View modes' already means Focus/Grid/Canvas, so 'Chat view' can read like a",
+            "14": " │   fourth layout. Only labels and docs change; the saved setting keeps its key.",
+            "15": "   → Agent chat (Recommended)",
+            "16": " │ ● Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are",
+            "17": " │   open beside the terminal.",
+            "18": "   → B: empty seat",
+            "20": "Ready to submit your answers?",
+            "22": "❯ 1. Submit answers",
+            "23": "  2. Cancel"
+          }
+        },
+        "submitted": {
+          "height": 40,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.325",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "8": "● User answered Claude's questions:",
+            "9": "  ⎿  · Rename 'Chat view'? In Preferences, 'View modes' already means Focus/Grid/Canvas, so 'Chat view' can read like a",
+            "10": "     fourth layout. Only labels and docs change; the saved setting keeps its key. → Agent chat (Recommended)",
+            "11": "     · Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are",
+            "12": "     open beside the terminal. → B: empty seat",
+            "14": "● Done.",
+            "16": "✻ Cooked for 0s · done 5:00 PM",
+            "34": "                                                                                                    ◐ medium · /effort",
+            "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "36": "❯",
+            "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "39": "  ⏸ manual mode on · ← for agents"
+          }
+        },
+        "after": {
+          "height": 40,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.325",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "8": "● User answered Claude's questions:",
+            "9": "  ⎿  · Rename 'Chat view'? In Preferences, 'View modes' already means Focus/Grid/Canvas, so 'Chat view' can read like a",
+            "10": "     fourth layout. Only labels and docs change; the saved setting keeps its key. → Agent chat (Recommended)",
+            "11": "     · Which look for a harness that isn't installed (e.g. Antigravity) on the welcome card? Screenshots A, B and C are",
+            "12": "     open beside the terminal. → B: empty seat",
+            "14": "● Done.",
+            "16": "✻ Cooked for 0s · done 5:00 PM",
+            "34": "                                                                                                    ◐ medium · /effort",
+            "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "36": "❯",
+            "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "39": "  ⏸ manual mode on · ← for agents"
+          }
+        }
+      }
     }
   }
 }

@@ -1,3 +1,4 @@
+import { refuse } from "@novadeck/harness-core/dialogs"
 import type { DialogRead, RequestFacts } from "@novadeck/harness-core/dialogs"
 import { fieldsOf, type Fields } from "@novadeck/harness-core/fields"
 
@@ -42,18 +43,21 @@ const readyToCode = (
   file: string | undefined,
 ): DialogRead | undefined => {
   const name = file?.split("/").pop()
-  if (!name) return undefined
+  if (!name) return refuse("plan.readyToCode.1")
   const before = rows.slice(0, at).findLastIndex((each) => each !== "")
   const lines = [rows[before] ?? "", rows[at]!].map((each) => each.trim())
   const asked = flat(lines.join(" "))
-  if (asked !== flat(planAsk) && flat(lines[1]!) !== flat(planAsk)) return undefined
+  if (asked !== flat(planAsk) && flat(lines[1]!) !== flat(planAsk))
+    return refuse("plan.readyToCode.2")
   const read = numbered(rows, at + 1, planOption, planContinuation, planHint)
-  if (!read || read.options.length !== 3 || read.options[2]!.label !== feedback) return undefined
+  if (!read || read.options.length !== 3 || read.options[2]!.label !== feedback)
+    return refuse("plan.readyToCode.3")
   // With the highlight on the field a digit would be typed into it.
-  if (read.options[2]!.marker) return undefined
+  if (read.options[2]!.marker) return refuse("plan.readyToCode.4")
   // The footer wraps with the width; the file is its last word.
   const footer = flat(read.rest.join(""))
-  if (!editorHintFlat.test(footer) || !footer.endsWith(flat(name))) return undefined
+  if (!editorHintFlat.test(footer) || !footer.endsWith(flat(name)))
+    return refuse("plan.readyToCode.5")
   return choices({
     title: "Ready to code?",
     detail: null,
@@ -91,12 +95,14 @@ const exitPlanMode = (
   file: string | undefined,
 ): DialogRead | undefined => {
   const at = rows.findLastIndex((each) => planTitle.test(each))
-  if (at < 0 || file !== undefined || nonBlank(input.plan) !== undefined) return undefined
+  if (at < 0 || file !== undefined || nonBlank(input.plan) !== undefined)
+    return refuse("plan.exitPlanMode.1")
   const says = rows.findIndex((each, index) => index > at && each !== "")
-  if (rows[says] !== "    Claude wants to exit plan mode") return undefined
+  if (rows[says] !== "    Claude wants to exit plan mode") return refuse("plan.exitPlanMode.2")
   const read = numbered(rows, says + 1, shortOption, planContinuation)
-  if (!read || read.options.length !== 2 || read.rest.length > 0) return undefined
-  if (read.options[1]!.label !== "No") return undefined
+  if (!read || read.options.length !== 2 || read.rest.length > 0)
+    return refuse("plan.exitPlanMode.3")
+  if (read.options[1]!.label !== "No") return refuse("plan.exitPlanMode.4")
   return choices({
     title: "Exit plan mode?",
     detail: null,
@@ -107,9 +113,9 @@ const exitPlanMode = (
 }
 
 export const plan = (rows: readonly string[], facts: RequestFacts): DialogRead | undefined => {
-  if (facts.kind !== "plan" || facts.tool !== "ExitPlanMode") return undefined
+  if (facts.kind !== "plan" || facts.tool !== "ExitPlanMode") return refuse("plan.plan.1")
   const input = fieldsOf(facts.input)
-  if (!input) return undefined
+  if (!input) return refuse("plan.plan.2")
   const file = nonBlank(input.planFilePath)?.replaceAll("\\", "/")
   const asked = rows.findLastIndex((each) => planQuestion.test(each))
   return asked >= 0 ? readyToCode(rows, asked, file) : exitPlanMode(rows, input, file)

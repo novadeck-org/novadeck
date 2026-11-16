@@ -29,4 +29,4 @@ export {
 export { processesUnder, startResolutionMs, type Spawn } from "./pty/spawned.js"
 export { anyRunning, chainTo, relayMs, Trees, type Member } from "./pty/trees.js"
 export type { ProcessTrees, Pty, PtyOptions } from "./pty/pty.js"
-export { userScopes } from "./pty/scopes.js"
+export { terminalCpuWeight, userScopes } from "./pty/scopes.js"

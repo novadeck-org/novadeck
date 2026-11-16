@@ -109,6 +109,8 @@ export const claudeAskSkipped: readonly string[] = [
   "k-write-over-nonl@2.1.291",
   "k-write-over-blank-end@2.1.291",
   "ask-preview-mixed",
+  "ask-preview-tabs",
+  "ask-preview-tabs-last",
 ]
 
 // Codex's ask scenarios with no rollout, in the 0.163.0 and 0.160.1 recordings.

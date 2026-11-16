@@ -147,6 +147,24 @@ move, about a quarter of a second at most on a calm machine, then runs either wa
 the person's own startup files start doesn't wait. Without a user bus (no systemd, a container, WSL without systemd),
 shells run in the app's scope as before. macOS and Windows are unchanged.
 
+A terminal's scope also asks for `CPUWeight=10` (`terminalCpuWeight`), a tenth of the
+app's scope's default 100. Inside the desktop's `app.slice` every thread otherwise weighs
+the same, so agents' builds and test runs in many terminals at once starved the app's
+window: measured on a 22-core machine at load 52, its main thread waited 1.1 s for a CPU
+in every 10 s, about 1 ms on each wakeup, and every hover, key and scroll lagged. Weighted
+like this (the same 10:1, measured by raising the app's scope instead), the wait fell
+about fourfold at the same load. The weight only matters while the CPU is short; idle, a
+terminal's programs have all of it. It is each terminal's, not their total: ten busy
+terminals weigh as much as the app. It also holds against the desktop's other apps, so what
+the person runs by hand in a terminal yields to a busy browser too, and a Novadeck started
+from one of its own terminals (`pnpm dev`) has its window at a terminal's weight. The first
+weighted scope makes systemd turn the CPU controller on in `app.slice`, so from then on
+every app there shares the CPU by its scope rather than by its threads. Where the user's
+systemd has no CPU controller to give its apps (a `Delegate=` that leaves it out, or
+cgroup v1), the weight is left unset, and terminals share the CPU with the app as before.
+Scopes themselves need systemd 253 or later, the first to take `OOMPolicy` on a scope;
+below that the first start fails and terminals stay in the app's scope.
+
 While a program holds the foreground, its profile decides how the terminal looks.
 `frontend/ui/src/terminals/processes/profiles.ts` maps program names to a tab and
 header icon and a body around the terminal's content; programs it does not list,
@@ -536,7 +554,8 @@ agent.
   drawn in one scheme) applies at once and stays however the dialog closes, as Preferences →
   Appearance's does. The preview is illustrative and starts no terminals. Preferences offers the same agents as immediate switches.
   An agent that is not installed offers Install instead, in both places, with the command
-  it runs: its vendor's official installer, in a terminal of the workspace (Preferences
+  it runs (in the welcome dialog, a dashed card to add it, whose command shows on asking and
+  is read out with Install): its vendor's official installer, in a terminal of the workspace (Preferences
   closes for it). Once the installer ends, Novadeck connects the agent and starts it in a
   terminal of its own, for you to sign in; while it runs, Preferences shows the agent as
   installing. Connecting installs a small Novadeck plugin into

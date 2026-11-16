@@ -12,11 +12,11 @@ spelling holds only a few), but the retired `summarize`, kept only to label sess
 before `describe`, and every tool each harness's `describe` knows but these, which
 no recording shows yet:
 
-- Claude Code: `PowerShell` (its Windows shell tool).
+- Claude Code: `PowerShell` (its Windows shell tool) and `Workflow`.
 - Codex: `clock.curr_time`, `image_generation`, `list_dir`, `list_mcp_resources`,
   `list_mcp_resource_templates`, `read_file`, `read_mcp_resource`, `update_goal` and the
   twelve `mcp__codex_tui` tools.
-- Antigravity: `list_resources`, `read_resource`.
+- Antigravity: `list_resources`, `read_resource`, `run_workflow`.
 
 `src/coverage.test.ts` holds that list to each `describe`: a tool added to one fails it until
 a conversation names it or the list does. A conversation for a tool on the list waits for a

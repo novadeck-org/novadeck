@@ -1,3 +1,4 @@
+import { refuse } from "@novadeck/harness-core/dialogs"
 import type {
   AnswerableDialog,
   DialogRead,
@@ -25,14 +26,17 @@ const reviewFooter = /^\d+ artifacts? · \/artifact to review$/
 const reviewing = (rows: readonly string[]): { readonly start: boolean } | undefined => {
   const lines = rows.map((row) => row.trimEnd())
   const at = only(rowsLike(lines, reviewFooter))
-  if (at === undefined || !lines[at]!.trim().startsWith("1 artifact · ")) return undefined
-  if (!rule(lines[at + 1] ?? "") || !rule(lines[at + 3] ?? "")) return undefined
+  if (at === undefined || !lines[at]!.trim().startsWith("1 artifact · "))
+    return refuse("plan.reviewing.1")
+  if (!rule(lines[at + 1] ?? "") || !rule(lines[at + 3] ?? "")) return refuse("plan.reviewing.2")
   const composer = lines[at + 2]?.trim()
   const last = lines.findLast((row) => row.trim() !== "")?.trim()
   const start = composer === ">" && last?.startsWith("? for shortcuts") === true
   // Words typed in the box, as feedback or a draft, leave it the same dialog, with no keys.
   const typed = composer?.startsWith(">") === true && composer !== ">"
-  return start || typed || (composer === ">" && review(rows)) ? { start } : undefined
+  return start || typed || (composer === ">" && review(rows))
+    ? { start }
+    : refuse("plan.reviewing.3")
 }
 
 const review = (rows: readonly string[]): boolean =>
@@ -43,12 +47,12 @@ const review = (rows: readonly string[]): boolean =>
 const composerRow = (rows: readonly string[]): string | undefined => {
   const at = rows.findIndex((row) => reviewFooter.test(row.trim()))
   const row = at < 0 ? undefined : rows[at + 2]?.trim()
-  return row?.startsWith(">") ? row.slice(1) : undefined
+  return row?.startsWith(">") ? row.slice(1) : refuse("plan.composerRow.1")
 }
 
 export const plan = (rows: readonly string[], request: RequestFacts): DialogRead | undefined => {
   const state = reviewing(rows)
-  if (request.kind !== "plan" || request.tool !== "artifact" || !state) return undefined
+  if (request.kind !== "plan" || request.tool !== "artifact" || !state) return refuse("plan.plan.1")
   // `/artifact` lists what awaits review, where y approves and n rejects the first.
   const open: KeyStep[] = [
     { press: "/artifact" },

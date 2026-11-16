@@ -4,6 +4,7 @@ import type { Refused } from "@novadeck/core/conversation/prompt-refusal"
 import type { InboxRow } from "@novadeck/core/inbox"
 import type { Messages, TerminalThreads } from "@novadeck/core/messages"
 import { terminalKeyPath } from "@novadeck/core/types"
+import type { Diagnostics } from "@novadeck/requests/RequestCard"
 import {
   createContext,
   createElement,
@@ -21,8 +22,10 @@ import {
 // Absent outside the app, as in a sheet's tests: there is no context then.
 type Sources = {
   readonly conversations?:
-    | (Pick<Conversations, "conversation"> & Partial<Pick<Conversations, "refused">>)
+    | (Pick<Conversations, "conversation"> & Partial<Pick<Conversations, "refused" | "saveDialog">>)
     | undefined
+  // Shows the logs folder, where the desktop app has one.
+  readonly openLogs?: (() => void) | undefined
   readonly messages?: Pick<Messages, "state"> | undefined
 }
 
@@ -32,8 +35,11 @@ export const AgentContextProvider = ({
   children,
   ...sources
 }: Sources & { readonly children?: ReactNode }): React.JSX.Element => {
-  const { conversations, messages } = sources
-  const value = useMemo(() => ({ conversations, messages }), [conversations, messages])
+  const { conversations, messages, openLogs } = sources
+  const value = useMemo(
+    () => ({ conversations, messages, openLogs }),
+    [conversations, messages, openLogs],
+  )
   return createElement(AgentSources.Provider, { value }, children)
 }
 
@@ -71,3 +77,19 @@ const refusesNothing: Refused = () => false
 // backend says, the chat's own check; outside the app nothing is.
 export const useRefused = (): Refused =>
   useContext(AgentSources).conversations?.refused ?? refusesNothing
+
+// What the Inbox's card of a request whose dialog no adapter read does for the person's bug report:
+// saves it to a file, and shows the logs folder; undefined where the backend can't save one.
+export const useDiagnostics = (row: InboxRow, request: string): Diagnostics | undefined => {
+  const { conversations, openLogs } = useContext(AgentSources)
+  const { projectId, workspaceSessionId, terminalId } = row.source
+  const save = conversations?.saveDialog
+  return useMemo(
+    () =>
+      save && {
+        save: () => save({ projectId, workspaceSessionId, terminalId }, request),
+        open: openLogs,
+      },
+    [save, openLogs, projectId, workspaceSessionId, terminalId, request],
+  )
+}

@@ -1,3 +1,4 @@
+import { refuse } from "@novadeck/harness-core/dialogs"
 import type { KeyStep } from "@novadeck/harness-core/dialogs"
 
 // What Antigravity's dialogs share: how its screen reads, and how a key's effect is awaited.
@@ -34,14 +35,14 @@ export const optionsFrom = (rows: readonly string[], from: number): Option[] | u
       })
     } else {
       const last = options.at(-1)
-      if (!last || rule(row)) return undefined
+      if (!last || rule(row)) return refuse("screen.optionsFrom.1")
       last.label = `${last.label} ${row.trim()}`
     }
   }
   const sequential = options.every(({ number }, index) => number === index + 1)
   return options.length >= 2 && sequential && options.filter(({ marked }) => marked).length === 1
     ? options
-    : undefined
+    : refuse("screen.optionsFrom.2")
 }
 
 // The footer after the options, which end at a blank row: its keys.
@@ -49,7 +50,7 @@ export const footerAfter = (rows: readonly string[], from: number): string | und
   let index = from
   while (index < rows.length && rows[index]!.trim() !== "") index += 1
   const footer = rows[index + 1]?.trim()
-  return footer?.startsWith("↑/↓ Navigate") ? footer : undefined
+  return footer?.startsWith("↑/↓ Navigate") ? footer : refuse("screen.footerAfter.1")
 }
 
 export const only = <T>(found: readonly T[]): T | undefined =>

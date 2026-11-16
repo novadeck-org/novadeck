@@ -466,6 +466,11 @@ export const WorkspaceTerminal = memo(
                       commands.appendChatDraft(chatContext, terminalId, words)
                     }
                     onAnswerInTerminal={() => commands.showTerminal(terminalId)}
+                    onSaveDialog={
+                      conversations!.saveDialog &&
+                      ((request) => conversations!.saveDialog!(terminalKey, request))
+                    }
+                    onOpenLogs={backend.openLogs}
                     focusInput={wanted}
                     onInputFocused={onInputFocused}
                     refused={conversations!.refused}

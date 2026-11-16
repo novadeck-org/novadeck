@@ -111,6 +111,14 @@ const known = (name: string, fields: Fields | undefined): ToolRun | undefined =>
         title: "Monitored",
         detail: oneLine(textField(fields, "description", "command")),
       }
+    // Workflow runs a script of agents, taking `script` or `scriptPath`, `name` and `args`
+    // (its schema as 2.1.325 offers it); the script's own meta names it.
+    case "workflow":
+      return {
+        kind: "agent",
+        title: "Workflow",
+        detail: oneLine(textField(fields, "name", "scriptPath")),
+      }
     case "toolsearch":
       return {
         kind: "search",

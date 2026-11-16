@@ -1,6 +1,7 @@
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
+import { posix } from "node:path"
 
-import { terminalForeground, userScopes } from "@novadeck/terminal/pty"
+import { terminalCpuWeight, terminalForeground, userScopes } from "@novadeck/terminal/pty"
 
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
@@ -8,6 +9,23 @@ import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
 import { start } from "./scenarios.js"
 
 const cgroupOf = (pid: number): string => readFileSync(`/proc/${pid}/cgroup`, "utf8").trim()
+
+// The scope's own cgroup folder, from a process's `0::` line.
+const cgroupFolder = (pid: number): string =>
+  posix.join("/sys/fs/cgroup", cgroupOf(pid).replace(/^0::/, ""))
+
+/**
+ * The scope's CPU weight, where its slice gives its apps the CPU controller: undefined where
+ * it has none to give, as with a `Delegate=` that leaves out cpu or cgroup v1, and the weight
+ * is left unset.
+ */
+const cpuWeightOf = (pid: number): number | undefined => {
+  const folder = cgroupFolder(pid)
+  const controllers = posix.join(posix.dirname(folder), "cgroup.subtree_control")
+  if (!existsSync(controllers) || !readFileSync(controllers, "utf8").split(/\s+/).includes("cpu"))
+    return undefined
+  return Number(readFileSync(posix.join(folder, "cpu.weight"), "utf8"))
+}
 
 const shellOf = (run: E2E, terminal: Pick<DeckTerminal, "id">): number => {
   const inside = run.deck.terminals as unknown as {
@@ -39,6 +57,8 @@ for (const setup of setups) {
         expect(agent).toBeDefined()
         expect(agent).not.toBe(shell)
         expect(cgroupOf(agent!)).toBe(cgroupOf(shell))
+        const weight = cpuWeightOf(shell)
+        if (weight !== undefined) expect(weight).toBe(terminalCpuWeight)
       })
     },
   )

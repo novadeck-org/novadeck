@@ -4,26 +4,41 @@ import { SidebarItem, sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import { SubjectBar, SubjectDetail, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import {
+  ChevronDown,
+  ChevronRight,
+  CircleCheck,
+  CircleX,
+  FilePenLine,
+  GitBranch,
   GitCompare,
   GitMerge,
   GitPullRequest,
   GitPullRequestClosed,
   GitPullRequestDraft,
+  LoaderCircle,
+  RefreshCw,
   Trash2,
+  TriangleAlert,
+  Upload,
   X,
   type LucideIcon,
 } from "lucide-react"
-import { useEffect, useMemo, useState, type CSSProperties } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { panelLabels } from "./panel-labels"
 import { SidebarPanel } from "./SidebarPanel"
 import {
   changeRows,
+  groups,
+  originOf,
   ownerOpen,
   selectedRoot,
   type ChangeRow,
+  type Fact,
   type FileView,
+  type Group,
   type PullMark,
+  type Standing,
 } from "./worktree-rows"
 
 // A count of lines, as a diff says it: what was added, what was removed; a side with none
@@ -126,15 +141,77 @@ const busyTip = "Its agent is working in this worktree. Close it once the turn e
 const closeTip = (row: ChangeRow): string =>
   row.close === "busy" ? busyTip : `Close the ${row.branch} worktree`
 
-// The row's branch, on its detail line.
+// The row's detail line: its owner's handle, then its branch, cut in the middle where it runs
+// long so both its start and its end show.
 const BranchLine = ({ row }: { row: ChangeRow }): React.JSX.Element => (
   <>
-    <span aria-hidden className="terminal-glyph inline-block w-[1ch] shrink-0 text-center" />
+    {row.handle && <span className="worktrees-handle shrink-0">{row.handle}</span>}
     <span className="worktrees-branch min-w-0 truncate" title={row.branch}>
       {row.branch}
     </span>
   </>
 )
+
+// The row's icon: where it stands, its most telling fact. A working agent's spinner is the
+// Terminals panel's own (tabs.css), turning while the row's phase says running.
+const standingIcons: Readonly<Record<Exclude<Standing, "working">, LucideIcon>> = {
+  conflict: TriangleAlert,
+  "ci-failing": CircleX,
+  merged: GitMerge,
+  closed: GitPullRequestClosed,
+  ready: GitPullRequest,
+  draft: GitPullRequestDraft,
+  branch: GitBranch,
+}
+
+const StandingIcon = ({ standing }: { standing: Standing }): React.JSX.Element => {
+  if (standing === "working")
+    return <span aria-hidden className="terminal-glyph inline-block w-[1ch] text-center" />
+  const Icon = standingIcons[standing]
+  return <Icon size={14} strokeWidth={1.5} aria-hidden />
+}
+
+const factGlyphs: Readonly<Record<NonNullable<Fact["glyph"]>, LucideIcon>> = {
+  "ci-passed": CircleCheck,
+  "ci-failing": CircleX,
+  "ci-running": LoaderCircle,
+  unpushed: Upload,
+  uncommitted: FilePenLine,
+}
+
+// What the row says under its branch: each fact in words, in its tone, the pull request's state
+// followed by its number, a link to its page. The first fact's glyph is the row's icon already,
+// so it goes without. It stands outside the row's select button, so the link is no control in a
+// control (the button's label says it all); a click beside the link selects the row as the
+// button would, for the pointer.
+const Facts = ({
+  row,
+  onSelect,
+}: {
+  row: ChangeRow
+  onSelect: () => void
+}): React.JSX.Element | null =>
+  row.facts.length === 0 ? null : (
+    <div
+      className="worktrees-facts"
+      onClick={(event) => {
+        if (!(event.target as Element).closest("a")) onSelect()
+      }}
+    >
+      {row.facts.map((fact, index) => {
+        // The icon says the first fact already, unless it is only the branch's.
+        const said = index === 0 && row.standing !== "branch"
+        const Glyph = !said && fact.glyph ? factGlyphs[fact.glyph] : undefined
+        return (
+          <span key={fact.text} className="worktrees-fact" data-tone={fact.tone}>
+            {Glyph && <Glyph size={11} strokeWidth={1.75} aria-hidden />}
+            <span aria-hidden>{fact.text}</span>
+            {fact.pull && row.pullRequest && <PullMarkLink mark={row.pullRequest} />}
+          </span>
+        )
+      })}
+    </div>
+  )
 
 // The glyph of a pull request's state, as the forges draw them.
 const pullGlyphs: Readonly<Record<PullMark["state"], LucideIcon>> = {
@@ -193,31 +270,30 @@ const ChangeItem = ({
   const files = `${count}${work.truncated ? "+" : ""} ${count === 1 && !work.truncated ? "file" : "files"} changed`
   const label = [
     row.title,
+    row.handle,
     row.branch,
     files,
     linesWords(work),
-    row.conflictWords?.replace(/^C/, "c"),
-    row.merged ? "merged" : undefined,
+    // Lowercased to run on in the label, but not an initialism ("CI failing", "PR closed").
+    ...row.facts.map((fact) =>
+      fact.text.replace(/^[A-Z](?![A-Z])/, (first) => first.toLowerCase()),
+    ),
   ]
     .filter(Boolean)
     .join(", ")
-  const tooltip = [row.conflictWords ?? (row.merged ? "Merged" : undefined), row.mainWords]
-    .filter(Boolean)
-    .join(" · ")
   return (
     <SidebarItem
       role="listitem"
       className={`terminal-tab worktrees-row${selected ? " selected" : ""}`}
       name={row.title}
-      icon={
-        row.merged ? (
-          <GitMerge size={14} strokeWidth={1.5} />
-        ) : (
-          <GitCompare size={14} strokeWidth={1.5} />
-        )
-      }
+      icon={<StandingIcon standing={row.standing} />}
       detail={<BranchLine row={row} />}
-      after={<Branches row={row} canOpen={canOpen} onOpenFile={onOpenFile} />}
+      after={
+        <>
+          <Facts row={row} onSelect={() => onSelect(work)} />
+          <Branches row={row} canOpen={canOpen} onOpenFile={onOpenFile} />
+        </>
+      }
       badge={
         work.added + work.removed > 0 ? (
           <span className="terminal-tab-kinds worktrees-size">
@@ -227,10 +303,8 @@ const ChangeItem = ({
       }
       selected={selected}
       selectLabel={label}
-      {...(tooltip ? { tooltip } : {})}
       actions={
         <div className="terminal-tab-actions flex items-center">
-          {row.pullRequest && <PullMarkLink mark={row.pullRequest} />}
           <Tooltip content={closeTip(row)}>
             <button
               className="terminal-tab-action icon-button small dim quiet terminal-tab-revealed"
@@ -247,22 +321,42 @@ const ChangeItem = ({
         </div>
       }
       onSelect={() => onSelect(work)}
-      data-terminal-phase="idle"
+      data-terminal-phase={row.standing === "working" ? "running" : "idle"}
       data-worktrees-row={work.root}
+      data-standing={row.standing}
       data-conflict={row.conflict || undefined}
       data-merged={row.merged || undefined}
+      data-safe={row.safe || undefined}
       data-pull-request={row.pullRequest?.state}
-      // The detail line keeps room for the mark beside the trash button: its glyph and gaps, and its text.
-      style={
-        row.pullRequest
-          ? ({
-              "--_sidebar-actions-space": `calc(${row.pullRequest.text.length}ch + 46px)`,
-            } as CSSProperties)
-          : undefined
-      }
     />
   )
 }
+
+const noHandles: ReadonlyMap<string, string> = new Map()
+
+// Trash N safe's dialog: the safe rows it closes.
+const sweepBar = (safe: readonly ChangeRow[]): React.JSX.Element => (
+  <SubjectBar>
+    <SubjectSide>
+      <Trash2 size={14} strokeWidth={1.5} aria-hidden="true" />
+      <SubjectName>Done</SubjectName>
+    </SubjectSide>
+    <SubjectDetail end>{safe.length} safe</SubjectDetail>
+  </SubjectBar>
+)
+
+const sweepDescription = (safe: readonly ChangeRow[]): string =>
+  safe.length === 1
+    ? "Its folder is removed. It is merged or its pull request closed, and nothing in it lives only here. Its branch stays."
+    : "Their folders are removed. Each is merged or its pull request closed, and nothing in it lives only here. Their branches stay."
+
+const sweepBody = (safe: readonly ChangeRow[]): React.JSX.Element => (
+  <ul className="worktrees-kept text-control">
+    {safe.map((row) => (
+      <li key={row.work.root}>{`${row.title} (${row.branch})`}</li>
+    ))}
+  </ul>
+)
 
 // What the dialog asks about: a worktree the runner said holds something, and what.
 type Asking = { readonly row: ChangeRow; readonly holds: string }
@@ -298,13 +392,142 @@ const closeBar = ({ row }: Asking): React.JSX.Element => (
   </SubjectBar>
 )
 
+// Where Done's fold is kept for the next time, in this browser only.
+const doneFoldKey = "novadeck.worktrees.done-folded"
+
+const readDoneFolded = (): boolean => {
+  try {
+    return localStorage.getItem(doneFoldKey) === "true"
+  } catch {
+    return false
+  }
+}
+
+const keepDoneFolded = (folded: boolean): void => {
+  try {
+    localStorage.setItem(doneFoldKey, String(folded))
+  } catch {
+    // Not kept: it folds as it is told until the panel comes back.
+  }
+}
+
+// The time, to the minute, so the origin line's age keeps up while nothing else changes. It may
+// read a minute young, as the age is said to the minute or hour.
+const useMinute = (): number => {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000)
+    return () => clearInterval(timer)
+  }, [])
+  return now
+}
+
+// The panel's top line: how old the remote's main is, which conflicts and merges are measured
+// against, amber once an hour old, and Fetch, which fetches it now.
+const OriginLine = ({
+  origin,
+  onFetch,
+}: {
+  origin: { readonly text: string; readonly stale: boolean }
+  onFetch: (() => Promise<void>) | undefined
+}): React.JSX.Element => {
+  const [fetching, setFetching] = useState(false)
+  // Why the last fetch failed, until the next one: the age stays as it was.
+  const [failed, setFailed] = useState<string | null>(null)
+  return (
+    <div className="worktrees-origin" data-stale={origin.stale || undefined}>
+      <RefreshCw size={11} strokeWidth={1.75} aria-hidden />
+      <span className="min-w-0 truncate" {...(failed ? { title: failed } : {})}>
+        {origin.text}
+        {failed && " · fetch failed"}
+      </span>
+      {onFetch && (
+        <button
+          type="button"
+          className="worktrees-fetch"
+          disabled={fetching}
+          onClick={() => {
+            setFetching(true)
+            setFailed(null)
+            onFetch()
+              .catch((error: unknown) =>
+                setFailed(error instanceof Error ? error.message : "Novadeck could not fetch."),
+              )
+              .finally(() => setFetching(false))
+          }}
+        >
+          {fetching ? "Fetching…" : failed ? "Retry" : "Fetch"}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// A group's heading: its name and count; Done's folds, and holds Trash N safe.
+const GroupHeading = ({
+  group,
+  title,
+  count,
+  folded,
+  onFold,
+  safe,
+  onTrashSafe,
+}: {
+  group: Group
+  title: string
+  count: number
+  folded: boolean | undefined
+  onFold: (() => void) | undefined
+  safe: number
+  onTrashSafe: () => void
+}): React.JSX.Element => {
+  const id = `worktrees-group-${group}`
+  const words = (
+    <>
+      <span>{title}</span>
+      <span className="worktrees-group-count">{count}</span>
+    </>
+  )
+  return (
+    <div className="worktrees-group-heading" data-group={group}>
+      <h3 id={id} className="worktrees-group-title">
+        {onFold ? (
+          <button
+            type="button"
+            className="worktrees-group-fold"
+            aria-expanded={!folded}
+            onClick={onFold}
+          >
+            {words}
+            {folded ? (
+              <ChevronRight size={12} strokeWidth={2} aria-hidden />
+            ) : (
+              <ChevronDown size={12} strokeWidth={2} aria-hidden />
+            )}
+          </button>
+        ) : (
+          words
+        )}
+      </h3>
+      {safe > 0 && (
+        <button type="button" className="worktrees-sweep" onClick={onTrashSafe}>
+          <Trash2 size={12} strokeWidth={1.75} aria-hidden />
+          Trash {safe} safe
+        </button>
+      )}
+    </div>
+  )
+}
+
 // The sidebar's Worktrees panel: the open project's works, each a git worktree Novadeck tracks,
 // against main, drawn as the Terminals panel's tabs and named by the terminal that owns it (or
-// "No owner"). Newest first. A merged
-// work (its changes already in main) has a green merge icon, which wins over a conflict; a
-// conflicting one a red icon. A click
-// shows the work on its owner's bar. The trash button asks the runner to close the worktree, which says what it holds when the
-// person should confirm first, and waits while its owner's agent is working in it.
+// "No owner"), grouped by what the person would do next: Needs you, In progress, In review and
+// Done (groups.ts order), newest first within each. A row's icon says where it stands, and the
+// line under its handle and branch says it in words: red only for what needs the person, amber
+// for what lives only here, green for what is safe to trash. A click shows the work on its
+// owner's bar. The trash button asks the runner to close the worktree, which says what it holds
+// when the person should confirm first, and waits while its owner's agent is working in it; on a
+// safe row it shows at rest, and Done's Trash N safe closes every safe one after one confirm.
 export const WorktreesPanel = ({
   works,
   reported,
@@ -318,6 +541,9 @@ export const WorktreesPanel = ({
   canOpenFile,
   onOpenFile,
   onCloseWork,
+  handles = noHandles,
+  forges = true,
+  onFetch,
 }: {
   // The open project's works.
   works: readonly Work[]
@@ -344,6 +570,12 @@ export const WorktreesPanel = ({
   // Closes a work's worktree; rejects with the backend's reason when it refuses, and with code
   // NOT_FOUND once it is closed already.
   onCloseWork: (root: string, force: boolean) => Promise<WorkClosing>
+  // Each terminal's handle as people see it ("@moth"), by id, where it has one.
+  handles?: ReadonlyMap<string, string>
+  // Whether pull requests are looked for (a forge is on): while none is, rows say nothing of one.
+  forges?: boolean
+  // Fetches origin now for the open project; absent where the backend can't.
+  onFetch?: () => Promise<void>
 }): React.JSX.Element => {
   const [last, setLast] = useState<{ root: string; on: string | undefined } | undefined>()
   // What the dialog asks about, and what went wrong last, as one line under a name.
@@ -354,7 +586,17 @@ export const WorktreesPanel = ({
     text: string
   } | null>(null)
   useEffect(() => (watching ? watch() : undefined), [watching, watch])
-  const rows = useMemo(() => changeRows(works, titles), [works, titles])
+  const now = useMinute()
+  const rows = useMemo(
+    () => changeRows(works, titles, now, handles, forges),
+    [works, titles, now, handles, forges],
+  )
+  const origin = originOf(works, now)
+  const [doneFolded, setDoneFolded] = useState(readDoneFolded)
+  // The safe rows Trash N safe would close, while its dialog asks.
+  const [sweeping, setSweeping] = useState<readonly ChangeRow[] | null>(null)
+  // The rows Trash N safe is closing now.
+  const [sweepingRoots, setSweepingRoots] = useState<ReadonlySet<string>>(() => new Set())
   // Both go with their row: once another project is open, or the worktree closed meanwhile,
   // they would name a row the list no longer has. Settled as the works change, during render.
   const [seen, setSeen] = useState(works)
@@ -363,6 +605,7 @@ export const WorktreesPanel = ({
     const listed = (root: string): boolean => works.some((work) => work.root === root)
     if (refusal && !listed(refusal.root)) setRefusal(null)
     if (asking && !listed(asking.row.work.root)) setAsking(null)
+    if (sweeping && !sweeping.some((row) => listed(row.work.root))) setSweeping(null)
   }
   const selected = selectedRoot(works, selectedId, last)
   // Asks the runner to close the worktree. Unforced, it may answer with what the worktree holds,
@@ -383,6 +626,38 @@ export const WorktreesPanel = ({
         })
       },
     )
+  }
+  // Closes every safe row, unforced: the runner closes a safe worktree without asking. While they
+  // close they leave Trash N safe, so a second click doesn't close them again. Any that stopped
+  // being safe since stay, named together above the list with the first one's reason.
+  const sweep = (safe: readonly ChangeRow[]): void => {
+    setRefusal(null)
+    const roots = safe.map((row) => row.work.root)
+    setSweepingRoots((was) => new Set([...was, ...roots]))
+    void Promise.all(
+      safe.map((row) =>
+        onCloseWork(row.work.root, false).then(
+          (closing): { row: ChangeRow; why: string } | undefined =>
+            closing.closed ? undefined : { row, why: `it holds ${closing.holds}` },
+          (error: unknown): { row: ChangeRow; why: string } | undefined =>
+            (error as { code?: unknown } | null)?.code === "NOT_FOUND"
+              ? undefined
+              : {
+                  row,
+                  why: error instanceof Error ? error.message : "Novadeck could not close it",
+                },
+        ),
+      ),
+    ).then((answers) => {
+      setSweepingRoots((was) => new Set([...was].filter((root) => !roots.includes(root))))
+      const stayed = answers.filter((answer) => answer !== undefined)
+      if (stayed.length === 0) return
+      setRefusal({
+        root: stayed[0]!.row.work.root,
+        title: stayed.map(({ row }) => named(row)).join(", "),
+        text: `${stayed.length === 1 ? "stays" : "stay"}: ${stayed[0]!.why}.`,
+      })
+    })
   }
   const show = (work: Work, row: ChangeRow): void => {
     // The owner's bar, but a closed owner (in History) has none: the selected terminal's.
@@ -418,6 +693,7 @@ export const WorktreesPanel = ({
           </button>
         </div>
       )}
+      {origin && rows.length > 0 && <OriginLine origin={origin} onFetch={onFetch} />}
       {rows.length === 0 ? (
         reported && (
           <div className="worktrees-empty">
@@ -429,22 +705,55 @@ export const WorktreesPanel = ({
           </div>
         )
       ) : (
-        <div
-          className={`worktrees-list ${sidebarListClasses}`}
-          role="list"
-          aria-label={panelLabels.worktrees}
-        >
-          {rows.map((row) => (
-            <ChangeItem
-              key={row.work.root}
-              row={row}
-              selected={row.work.root === selected}
-              onSelect={(work) => show(work, row)}
-              canOpen={canOpenFile}
-              onOpenFile={onOpenFile}
-              onClose={(each) => close(each, false)}
-            />
-          ))}
+        <div className={`worktrees-list ${sidebarListClasses}`}>
+          {groups.map(({ key, title }) => {
+            const members = rows.filter((row) => row.group === key)
+            if (members.length === 0) return null
+            // A row whose agent is working waits, as its own trash button does.
+            const safe = members.filter(
+              (row) => row.safe && row.close !== "busy" && !sweepingRoots.has(row.work.root),
+            )
+            const folded = key === "done" ? doneFolded : undefined
+            return (
+              <section
+                key={key}
+                className="worktrees-group"
+                aria-labelledby={`worktrees-group-${key}`}
+              >
+                <GroupHeading
+                  group={key}
+                  title={title}
+                  count={members.length}
+                  folded={folded}
+                  onFold={
+                    key === "done"
+                      ? () => {
+                          keepDoneFolded(!doneFolded)
+                          setDoneFolded(!doneFolded)
+                        }
+                      : undefined
+                  }
+                  safe={safe.length}
+                  onTrashSafe={() => setSweeping(safe)}
+                />
+                {!folded && (
+                  <div className="worktrees-group-rows" role="list" aria-label={title}>
+                    {members.map((row) => (
+                      <ChangeItem
+                        key={row.work.root}
+                        row={row}
+                        selected={row.work.root === selected}
+                        onSelect={(work) => show(work, row)}
+                        canOpen={canOpenFile}
+                        onOpenFile={onOpenFile}
+                        onClose={(each) => close(each, false)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            )
+          })}
         </div>
       )}
       <ConfirmDialog
@@ -460,6 +769,21 @@ export const WorktreesPanel = ({
           setAsking(null)
         }}
         onCancel={() => setAsking(null)}
+        widthClassName="w-[min(380px,calc(100vw-32px))]"
+      />
+      <ConfirmDialog
+        subject={sweeping}
+        bar={sweepBar}
+        title={(each) => `Trash ${each.length} ${each.length === 1 ? "worktree" : "worktrees"}?`}
+        description={sweepDescription}
+        body={sweepBody}
+        confirmLabel={sweeping?.length === 1 ? "Trash it" : "Trash them"}
+        cancelLabel={sweeping?.length === 1 ? "Keep it" : "Keep them"}
+        onConfirm={() => {
+          if (sweeping) sweep(sweeping)
+          setSweeping(null)
+        }}
+        onCancel={() => setSweeping(null)}
         widthClassName="w-[min(380px,calc(100vw-32px))]"
       />
     </SidebarPanel>

@@ -509,7 +509,22 @@ with every safety check again at that time:
   worktree is too). It is
   measured as before: the working tree against main by an in-memory `merge-tree`, with what is unread
   and what conflicts with main or another work (named by root, and its owner if it has one). A row
-  shows the owner terminal's title, or "No owner", and the branch; the panel lists only the open
+  shows the owner terminal's title, or "No owner", its size, then the owner's handle and the branch,
+  and under them what it says in words, most telling first: a conflict ("Conflicts with
+  origin/main", or with another work's owner) or a failing CI in red, Working, the pull request's
+  state followed by its number (a link to its page: No PR yet, Draft, Ready for review, Merged, PR
+  closed; nothing while no forge is on), its CI (running, passed, no CI), commits not pushed and,
+  on a done one that isn't safe, files not committed, in amber, and "safe to trash" in green. Its
+  icon is that first fact (a red triangle or cross, the Terminals panel's spinner while its agent
+  works, a merge, closed, ready or draft pull request glyph, else a branch). Rows stand in groups by
+  what is next (`worktree-rows.ts` `groupOf`): Needs you (a conflict, or its CI failing), In progress
+  (no pull request), In review (an open one) and Done (merged, or its pull request closed), newest
+  first in each; Done folds (kept in this browser) and holds Trash N safe, which closes every safe
+  row, unforced, after one confirm that lists them, saying above the list why any that stopped
+  being safe stays. A safe row's trash button shows at rest, in green. Over the groups, a line says
+  how old the remote's main is ("origin/main, 12 min ago", the oldest fetch among the works
+  measured against a remote's main; amber once an hour old) with Fetch (`works.fetch`). Sizes are
+  neutral: red is only for what needs the person. The panel lists only the open
   project's worktrees (the runner reports every project's, and the UI keeps those whose
   `projectId` is the open project's), and a click
   shows the work as a changes item on the owner's bar (a work with no owner, on the selected terminal's:

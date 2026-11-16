@@ -28,6 +28,8 @@ suite("what a Claude Code tool call was", () => {
     ["CronDelete", { id: "j" }, "run", "Unscheduled", ""],
     ["CronList", {}, "run", "Listed schedules", ""],
     ["Skill", { skill: "review", args: "x" }, "other", "Used a skill", "review"],
+    ["Workflow", { name: "review-changes", script: "x" }, "agent", "Workflow", "review-changes"],
+    ["Workflow", { scriptPath: "/w/review.js" }, "agent", "Workflow", "/w/review.js"],
     ["Monitor", { command: "tail", description: "Watch" }, "run", "Monitored", "Watch"],
     ["ToolSearch", { query: "select:Read" }, "search", "Searched tools", "select:Read"],
     ["EnterPlanMode", {}, "plan", "Entered plan mode", ""],
