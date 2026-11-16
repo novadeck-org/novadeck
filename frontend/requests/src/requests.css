@@ -376,6 +376,12 @@
   flex-wrap: wrap;
   gap: 0 2ch;
 }
+.request-raw-save [role="status"] {
+  flex-basis: 100%;
+}
+.request-raw-save [role="status"]:empty {
+  display: none;
+}
 .request-raw-save [data-failed] {
   color: var(--_red);
 }

@@ -1055,15 +1055,8 @@ const SaveForDebugging = ({
     )
   }
   return (
+    // Where it went comes first, on a line of its own, then what can be done with it.
     <p className="request-note request-raw-save">
-      <button
-        type="button"
-        className="request-key nodrag nopan"
-        disabled={saved.type === "saving"}
-        onClick={save}
-      >
-        {saved.type === "saved" ? "Save again" : "Save for debugging"}
-      </button>
       <span role="status" data-failed={saved.type === "failed" || undefined}>
         {saved.type === "saved" && (
           <>
@@ -1077,6 +1070,14 @@ const SaveForDebugging = ({
           Open logs folder
         </button>
       )}
+      <button
+        type="button"
+        className="request-key nodrag nopan"
+        disabled={saved.type === "saving"}
+        onClick={save}
+      >
+        {saved.type === "saved" ? "Save again" : "Save for debugging"}
+      </button>
     </p>
   )
 }
