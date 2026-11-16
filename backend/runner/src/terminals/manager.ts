@@ -318,9 +318,8 @@ export class Terminals {
     stripInherited(this.options.env, options.pty?.platform)
     this.trees = options.pty?.trees ?? new Trees(async () => this.options.relay)
     this.pty = {
-      ...(options.pty?.native && { native: options.pty.native }),
-      ...(options.pty?.scopes && { scopes: options.pty.scopes }),
-      ...(options.pty?.priority && { priority: options.pty.priority, trees: this.trees }),
+      ...options.pty,
+      trees: this.trees,
       platform: options.pty?.platform ?? process.platform,
     }
     this.host = createTerminalHost({
