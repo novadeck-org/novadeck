@@ -62,43 +62,43 @@ export const createSightReader = ({
   }
 }
 
-const pageFocused = (): boolean => !document.hidden && document.hasFocus()
-
-// Reads the row `element` shows once it has been in sight for the dwell, while `unread`.
+// Reads the row `element` shows once it has been in sight for the dwell, while `unread` and
+// while the person `looking` at the page: it has their focus and no dialog covers it, as the
+// app's own focus says (`ui.pageFocused`, which counts the desktop app's frames as the page).
 // Where the browser has no observer nothing is read: the row is opened to be read.
 export const useReadOnSight = (
   element: Element | null,
   unread: boolean,
+  looking: boolean,
   read: () => void,
 ): void => {
-  const latest = useRef(read)
+  const latest = useRef({ read, looking })
+  const reader = useRef<SightReader | null>(null)
   useLayoutEffect(() => {
-    latest.current = read
+    latest.current = { read, looking }
   })
   useEffect(() => {
     if (!unread || !element || typeof IntersectionObserver === "undefined") return
-    const reader = createSightReader({
-      focused: pageFocused(),
-      read: () => latest.current(),
+    const current = createSightReader({
+      focused: latest.current.looking,
+      read: () => latest.current.read(),
     })
+    reader.current = current
     const observer = new IntersectionObserver(
       (entries) => {
         const last = entries.at(-1)
-        if (last) reader.sight(last.isIntersecting && last.intersectionRatio >= sightFraction)
+        if (last) current.sight(last.isIntersecting && last.intersectionRatio >= sightFraction)
       },
       { threshold: sightFraction },
     )
     observer.observe(element)
-    const focus = (): void => reader.focus(pageFocused())
-    window.addEventListener("focus", focus)
-    window.addEventListener("blur", focus)
-    document.addEventListener("visibilitychange", focus)
     return () => {
-      reader.stop()
+      current.stop()
       observer.disconnect()
-      window.removeEventListener("focus", focus)
-      window.removeEventListener("blur", focus)
-      document.removeEventListener("visibilitychange", focus)
+      if (reader.current === current) reader.current = null
     }
   }, [element, unread])
+  useEffect(() => {
+    reader.current?.focus(looking)
+  }, [looking])
 }

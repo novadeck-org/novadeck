@@ -88,8 +88,20 @@ const Row = ({
     transition: { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
   })
   const onStep = drag?.onStep
-  const { state, view, now, drafts, ghosts, active, open, close, change, dismiss, snooze } =
-    useInboxContext()
+  const {
+    state,
+    view,
+    now,
+    drafts,
+    ghosts,
+    active,
+    looking,
+    open,
+    close,
+    change,
+    dismiss,
+    snooze,
+  } = useInboxContext()
   const { settled } = row
   // An update is read once its row has been in sight for a moment, on the Inbox's panel while
   // it shows: seeing it is reading it. A panel that isn't shown is only invisible, which the
@@ -102,8 +114,14 @@ const Row = ({
     },
     [rowRef],
   )
-  const unread = active && row.kind === "update" && !settled && !state.answering[row.id]
-  useReadOnSight(element, unread, () => change(row, { kind: "update", action: "read" }))
+  // One whose read failed waits to be opened, as the landing lands it to be read by hand.
+  const unread =
+    active &&
+    row.kind === "update" &&
+    !settled &&
+    !state.answering[row.id] &&
+    state.failed[row.id] === undefined
+  useReadOnSight(element, unread, looking, () => change(row, { kind: "update", action: "read" }))
   const type = inboxType(row)
   const pending = Boolean(state.answering[row.id])
   // Answered here and gone from the backend's rows, which keeps it until its sheet closes.

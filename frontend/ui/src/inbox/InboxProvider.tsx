@@ -85,6 +85,8 @@ export type InboxContextValue = {
   readonly working: boolean
   // Whether the Inbox's panel is on screen, where seeing an update's row reads it.
   readonly active: boolean
+  // Whether the person looks at the page: it has their focus and no dialog covers it.
+  readonly looking: boolean
   // Opens a row's sheet; with `once`, for that row alone (see `OpenOptions`).
   readonly open: (id: string, options?: OpenOptions) => void
   readonly close: () => void
@@ -167,6 +169,7 @@ export const InboxProvider = ({
   phone,
   working = false,
   active = false,
+  looking = false,
   children,
 }: {
   readonly inbox: Inbox
@@ -178,6 +181,8 @@ export const InboxProvider = ({
   readonly working?: boolean
   // Whether the Inbox's panel is on screen: the asks that settle meanwhile keep their place.
   readonly active?: boolean
+  // Whether the person looks at the page: it has their focus and no dialog covers it.
+  readonly looking?: boolean
   readonly children?: ReactNode
 }): React.JSX.Element => {
   const state = useSyncExternalStore(inbox.state.subscribe, inbox.state.getSnapshot)
@@ -532,6 +537,7 @@ export const InboxProvider = ({
       phone: phone !== undefined,
       working,
       active,
+      looking,
       open,
       close,
       showHeld,
@@ -557,6 +563,7 @@ export const InboxProvider = ({
       phone,
       working,
       active,
+      looking,
       open,
       close,
       showHeld,

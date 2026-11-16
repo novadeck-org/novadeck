@@ -94,6 +94,7 @@ const mount = (
   arranging = false,
   snoozing = false,
   active = true,
+  looking = true,
 ) => {
   const state = createStore<InboxState>({ ...emptyInbox, items: rows })
   const answered: string[] = []
@@ -136,6 +137,7 @@ const mount = (
         reveal: () => {},
         working,
         active,
+        looking,
       },
       createElement(
         "div",
@@ -200,6 +202,7 @@ const mount = (
     })
   return {
     withdraw,
+    state,
     view,
     subjects,
     pill,
@@ -436,12 +439,10 @@ describe("The Inbox's list", () => {
           }
         },
       )
-      vi.spyOn(document, "hasFocus").mockReturnValue(true)
     })
     afterEach(() => {
       vi.useRealTimers()
       vi.unstubAllGlobals()
-      vi.restoreAllMocks()
       watched.clear()
     })
 
@@ -485,9 +486,22 @@ describe("The Inbox's list", () => {
       inbox.view.unmount()
     })
 
-    it("doesn't read it while the window has no focus", async () => {
-      vi.spyOn(document, "hasFocus").mockReturnValue(false)
+    it("doesn't read again one whose read failed, which waits to be opened", async () => {
       const inbox = mount([told("u", 1)])
+      await nextFrame()
+      act(() => {
+        inbox.state.update((current) => ({ ...current, failed: { u: "That didn't take." } }))
+      })
+      vi.useFakeTimers()
+      sight(inbox.row("u"), true)
+      act(() => void vi.advanceTimersByTime(sightDwellMs * 2))
+      expect(inbox.answered).toEqual([])
+      vi.useRealTimers()
+      inbox.view.unmount()
+    })
+
+    it("doesn't read it while the person doesn't look at the page", async () => {
+      const inbox = mount([told("u", 1)], false, false, false, false, true, false)
       await nextFrame()
       vi.useFakeTimers()
       sight(inbox.row("u"), true)
