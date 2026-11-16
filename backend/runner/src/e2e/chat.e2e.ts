@@ -355,7 +355,16 @@ for (const setup of setups) {
       const write = (data: string) => run.deck.terminals.write({ terminalId: t1.id, data }, "e2e")
       await sleep(500)
       write(`\x1b[200~${lines.join("\r")}\x1b[201~`)
-      await sleep(1500)
+      // The box shows the paste as a placeholder once the agent has taken it, which is no
+      // fixed time: Codex on Windows reads it as keys, and it took longer than 1.5 s on a
+      // loaded runner (0.169.0, 2026-11-15), so a prompt sent meanwhile found the box empty
+      // and went in with the paste's keys, as words of it, never shown as its own.
+      const profile = harnesses[setup.agent].box
+      await t1.poll(async () => {
+        const screen = await t1.screenText()
+        const box = screen && profile.read(screen)
+        return box && profile.collapsed(box) ? true : undefined
+      }, "its box to show the paste as a placeholder")
       await t1.prompt("And this")
       await t1.until("Read that.")
       const over = await item(t1, "user", (text) => text.includes("And this"))
