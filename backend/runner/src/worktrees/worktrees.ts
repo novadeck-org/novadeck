@@ -207,6 +207,11 @@ export class Worktrees {
     return this.cleanup.fetchedAt(commonDir)
   }
 
+  /** Fetches the repositories' origins now, and waits for that (`Cleanup.fetchNow`). */
+  fetchNow(commonDirs: Iterable<string>): Promise<void> {
+    return this.cleanup.fetchNow(commonDirs)
+  }
+
   /** Looks at every worktree for cleanup and waits for that (tests; `start` does it on a timer). */
   tidy(fetch = false): Promise<void> {
     return this.cleanup.look(fetch)
@@ -525,12 +530,14 @@ export class Worktrees {
     path: string,
     force: boolean,
     guard?: (row: WorktreeRecord) => Promise<string | undefined>,
+    /** Its work lives elsewhere too (merged, or its pull request closed): what main lacks is no reason to refuse. */
+    safe = false,
   ): Promise<Closed> {
     return this.serial(async () => {
       const row = this.records.worktree(path)
       if (!row) return { ok: true, path, branch: "", branchDeleted: false, already: true }
       const why = await guard?.(row)
-      return why === undefined ? this.removal(row, force) : refused(why)
+      return why === undefined ? this.removal(row, force, safe) : refused(why)
     })
   }
 
@@ -544,9 +551,9 @@ export class Worktrees {
    * and commits only HEAD reaches are kept on `refs/novadeck/kept/` first, the folder goes,
    * the branch goes only when Novadeck made it and the main branch holds all of it, and the
    * row goes last. Without `force` it refuses a worktree that holds anything the main branch
-   * doesn't. Ignored files (such as .env or data) are not kept. Run in the queue.
+   * doesn't, unless it is `safe` (see `closeAt`). Ignored files (such as .env or data) are not kept. Run in the queue.
    */
-  private async removal(row: WorktreeRecord, force: boolean): Promise<Closed> {
+  private async removal(row: WorktreeRecord, force: boolean, safe = false): Promise<Closed> {
     const home = homeOf(row.commonDir)
     const finish = (extra: { kept?: string; keptHead?: string; branchDeleted?: boolean } = {}) => {
       this.forget(row.path)
@@ -577,7 +584,9 @@ export class Worktrees {
               "stays: close it yourself or ask the user.",
       )
     const dirty = standing.dirty > 0
-    const unmerged = !standing.inMain
+    // A safe one's commits are merged or kept on its remote: main lacking them asks nothing.
+    // What it holds uncommitted still does, as it may have changed since it was read safe.
+    const unmerged = !standing.inMain && !safe
     if ((dirty || unmerged) && !force) {
       const parts = [
         ...(dirty

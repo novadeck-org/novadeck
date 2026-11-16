@@ -810,7 +810,23 @@ and with the worktree holding uncommitted files or commits main lacks (squash- a
 work does not count, also once main has changed its files again), `{ closed: false, holds }` for the person to confirm before `force`. It
 refuses with `CONFLICT` and the reason while its owner's agent is working in it (checked afresh in
 the service's queue), when git status can't be read or the worktree has submodules (even with
-`force`), and answers `NOT_FOUND` for a root that is no work. These work with the Experimental switch off.
+`force`), and answers `NOT_FOUND` for a root that is no work. A work that is `safe` (below) closes unforced
+without that question, as it was read afresh just before the removal (an uncommitted file made since
+still asks); the agent-facing `close_worktree` is unchanged. These work with the Experimental switch off.
+
+A work also carries `uncommitted` (paths changed and not committed: staged, unstaged or untracked, not
+ignored, plus untracked files the snapshot leaves out for their size or as secrets), `unpushed` (HEAD's
+commits no remote-tracking branch holds, `git rev-list --count HEAD --not --remotes`) and `safe`: closing
+it leaves nothing that lives only there, which is `(merged && uncommitted === 0)` or `(pull request closed &&
+uncommitted === 0 && unpushed === 0)`, never while its pull request is open or a draft. A merged work
+ignores `unpushed`, as a squash merge often deletes its remote branch. Each is absent where it couldn't be
+read. Its `pullRequest` (from the forges the person switched on) carries `ci` for an open one: `failing`,
+`running`, `passed` or `none` (none ran), absent where the forge couldn't say or the pull request is
+merged or closed.
+`works.fetch({ projectId })` fetches origin now in every repository the project's works are in, through the
+worktrees service's fetcher (a fetch already under way is waited for, not repeated), reads those works
+again and answers once every fetch has ended, failed or not (a failure keeps `fetchedAt`); a project with
+no works answers at once.
 
 The runner keeps who owns each git worktree its agents work in in a `worktrees` table (schema 14):
 the worktree's real path (the key), its repository's git common dir, branch, the commit it started

@@ -269,7 +269,7 @@ export const WelcomePreview = ({
 
   return (
     <section
-      className="mt-6"
+      className="mt-6 flex min-h-0 flex-1 flex-col"
       aria-label="Explore your workspace"
       onPointerEnter={() => setHeld(true)}
       onPointerLeave={() => setHeld(false)}
@@ -280,7 +280,7 @@ export const WelcomePreview = ({
     >
       <div
         ref={stage}
-        className="welcome-stage relative isolate overflow-hidden"
+        className="welcome-stage relative isolate flex-1 overflow-hidden"
         data-view={view.id}
         data-spotlight={spotlight ? "chat" : undefined}
         aria-hidden="true"

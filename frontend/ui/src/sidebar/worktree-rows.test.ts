@@ -6,7 +6,10 @@ import {
   changeRows,
   closeMode,
   conflictWords,
+  groupOf,
   orderedFiles,
+  originOf,
+  standingOf,
   mainWords,
   pullMark,
   ownerOpen,
@@ -290,5 +293,92 @@ describe("a row's pull request mark", () => {
     expect(with_?.pullRequest?.text).toBe("#812")
     expect(with_?.merged).toBe(true)
     expect(without?.pullRequest).toBeUndefined()
+  })
+})
+
+describe("a work's group and icon", () => {
+  const pull = (state: "draft" | "open" | "merged" | "closed", ci?: "failing" | "passed") => ({
+    number: 1,
+    url: "https://github.com/acme/app/pull/1",
+    title: "Work",
+    state,
+    ...(ci ? { ci } : {}),
+  })
+
+  it("puts a merged work in Done, whatever it conflicts with", () => {
+    const merged = work("a", 1, { merged: true, conflicts: [{ with: "main" }] })
+    expect(groupOf(merged)).toBe("done")
+    expect(standingOf(merged)).toBe("merged")
+  })
+
+  it("puts a merged or closed pull request in Done, though git doesn't call it merged", () => {
+    expect(groupOf(work("a", 1, { pullRequest: pull("merged") }))).toBe("done")
+    expect(groupOf(work("a", 1, { pullRequest: pull("closed") }))).toBe("done")
+    expect(standingOf(work("a", 1, { pullRequest: pull("closed") }))).toBe("closed")
+  })
+
+  it("puts a conflict or a failing CI under Needs you, and a working agent's spinner under that", () => {
+    expect(groupOf(work("a", 1, { conflicts: [{ with: "main" }] }))).toBe("needs")
+    expect(groupOf(work("a", 1, { pullRequest: pull("open", "failing") }))).toBe("needs")
+    expect(standingOf(work("a", 1, { working: true, conflicts: [{ with: "main" }] }))).toBe(
+      "conflict",
+    )
+    expect(standingOf(work("a", 1, { working: true, pullRequest: pull("draft") }))).toBe("working")
+  })
+
+  it("puts an open pull request In review, and a work without one In progress", () => {
+    expect(groupOf(work("a", 1, { pullRequest: pull("draft") }))).toBe("review")
+    expect(standingOf(work("a", 1, { pullRequest: pull("open", "passed") }))).toBe("ready")
+    expect(groupOf(work("a", 1))).toBe("progress")
+    expect(standingOf(work("a", 1))).toBe("branch")
+  })
+})
+
+describe("the origin line", () => {
+  const hour = 60 * 60_000
+  const now = 10 * hour
+
+  it("says the oldest fetch among the works measured against a remote's main", () => {
+    expect(
+      originOf(
+        [
+          work("a", 1, { base: "origin/main", fetchedAt: now - 5 * 60_000 }),
+          work("b", 2, { base: "origin/main", fetchedAt: now - 2 * hour }),
+          work("c", 3, { base: "main" }),
+        ],
+        now,
+      ),
+    ).toEqual({ text: "origin/main, 2 h ago", stale: true })
+  })
+
+  it("is fresh under an hour, and none where nothing was fetched", () => {
+    expect(
+      originOf([work("a", 1, { base: "origin/main", fetchedAt: now - 59 * 60_000 })], now),
+    ).toEqual({ text: "origin/main, 59 min ago", stale: false })
+    expect(originOf([work("a", 1)], now)).toBeUndefined()
+  })
+})
+
+describe("a done row's conflict", () => {
+  it("is not said where its pull request merged or closed, and a terminal called main stays so", () => {
+    const pull = (state: "merged" | "closed") => ({
+      number: 1,
+      url: "https://github.com/acme/app/pull/1",
+      title: "Work",
+      state,
+    })
+    const [merged, closed, open] = changeRows(
+      [
+        work("a", 3, { pullRequest: pull("merged"), conflicts: [{ with: "main" }] }),
+        work("b", 2, { pullRequest: pull("closed"), conflicts: [{ with: "main" }] }),
+        work("c", 1, {
+          base: "origin/main",
+          conflicts: [{ with: "work", root: "/r/m", terminalId: "t-m" }],
+        }),
+      ],
+      new Map([["t-m", "main"]]),
+    )
+    expect([merged?.conflict, merged?.merged, closed?.conflict]).toEqual([false, true, false])
+    expect(open?.facts[0]?.text).toBe("Conflicts with main")
   })
 })

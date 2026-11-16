@@ -536,7 +536,8 @@ agent.
   drawn in one scheme) applies at once and stays however the dialog closes, as Preferences →
   Appearance's does. The preview is illustrative and starts no terminals. Preferences offers the same agents as immediate switches.
   An agent that is not installed offers Install instead, in both places, with the command
-  it runs: its vendor's official installer, in a terminal of the workspace (Preferences
+  it runs (in the welcome dialog, a dashed card to add it, whose command shows on asking and
+  is read out with Install): its vendor's official installer, in a terminal of the workspace (Preferences
   closes for it). Once the installer ends, Novadeck connects the agent and starts it in a
   terminal of its own, for you to sign in; while it runs, Preferences shows the agent as
   installing. Connecting installs a small Novadeck plugin into

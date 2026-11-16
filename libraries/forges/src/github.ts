@@ -1,6 +1,6 @@
 import { choose, time, type Candidate } from "./choose.js"
 import { failure, parse } from "./cli.js"
-import type { Forge, Problem, PullRequest, Remote, Repository, Run, Token } from "./forge.js"
+import type { Ci, Forge, Problem, PullRequest, Remote, Repository, Run, Token } from "./forge.js"
 import { headers, record, send } from "./http.js"
 
 const defaultHost = "github.com"
@@ -56,9 +56,27 @@ const query = (count: number): string => {
   const fields = Array.from(
     { length: count },
     (_, at) =>
-      `p${at}: pullRequests(headRefName: $b${at}, states: [OPEN, MERGED, CLOSED], first: 20, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { number url title isDraft state mergedAt closedAt isCrossRepository } }`,
+      `p${at}: pullRequests(headRefName: $b${at}, states: [OPEN, MERGED, CLOSED], first: 20, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { number url title isDraft state mergedAt closedAt isCrossRepository commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } }`,
   ).join(" ")
   return `query($owner: String!, $name: String!, ${vars}) { repository(owner: $owner, name: $name) { ${fields} } }`
+}
+
+// The rollup of the head commit's checks and statuses; none where nothing reports on it.
+const rollups: Record<string, Ci> = {
+  SUCCESS: "passed",
+  FAILURE: "failing",
+  ERROR: "failing",
+  PENDING: "running",
+  EXPECTED: "running",
+}
+
+const ciOf = (pr: Record<string, unknown>, blind: boolean): Ci | undefined => {
+  const commits = record(pr["commits"])?.["nodes"]
+  const commit = record(Array.isArray(commits) ? record(commits[0])?.["commit"] : undefined)
+  const state = record(commit?.["statusCheckRollup"])?.["state"]
+  const known = typeof state === "string" ? rollups[state] : undefined
+  // A rollup GraphQL answered with an error (a token that can't read checks) says nothing.
+  return known ?? (blind ? undefined : "none")
 }
 
 const states: Record<string, PullRequest["state"]> = {
@@ -70,7 +88,7 @@ const states: Record<string, PullRequest["state"]> = {
 // A pull request from the repository itself; one from a fork, whose branch may share the name,
 // is not the work's. Asked of GitHub rather than compared by name, which a renamed repository's
 // remote still has the old of.
-const candidate = (node: unknown): Candidate | undefined => {
+const candidate = (node: unknown, blind = false): Candidate | undefined => {
   const pr = record(node)
   if (pr === undefined) return undefined
   if (pr["isCrossRepository"] !== false) return undefined
@@ -84,12 +102,15 @@ const candidate = (node: unknown): Candidate | undefined => {
   ) {
     return undefined
   }
+  const open = state === "open"
+  const ci = open ? ciOf(pr, blind) : undefined
   return {
     pull: {
       number,
       url,
       title,
-      state: state === "open" && pr["isDraft"] === true ? "draft" : state,
+      state: open && pr["isDraft"] === true ? "draft" : state,
+      ...(open && ci !== undefined && { ci }),
     },
     at: time(pr["mergedAt"]) || time(pr["closedAt"]),
   }
@@ -102,6 +123,18 @@ const errorKind = (
   if (first === undefined) return undefined
   return { type: String(first["type"] ?? ""), message: String(first["message"] ?? "") }
 }
+
+// The pull requests whose checks an error of the answer names (`p0/2`: the third of the first
+// branch's), as a partial answer says of a token that can't read them.
+const blinded = (body: Record<string, unknown>): ReadonlySet<string> =>
+  new Set(
+    (Array.isArray(body["errors"]) ? body["errors"] : []).flatMap((each) => {
+      const path = record(each)?.["path"]
+      return Array.isArray(path) && path.includes("statusCheckRollup")
+        ? [`${String(path[1])}/${String(path[3])}`]
+        : []
+    }),
+  )
 
 const chunk = 40
 
@@ -136,10 +169,13 @@ const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) 
       if (error?.type === "FORBIDDEN") return { kind: "refused", fix: refresh(repo.host) }
       return error === undefined ? new Map() : { kind: "unknown", said: error.message }
     }
+    const blind = blinded(body)
     group.forEach((branch, index) => {
       const nodes = record(data[`p${index}`])?.["nodes"]
       if (!Array.isArray(nodes)) return
-      const pull = choose(nodes.flatMap((node) => candidate(node) ?? []))
+      const pull = choose(
+        nodes.flatMap((node, nth) => candidate(node, blind.has(`p${index}/${nth}`)) ?? []),
+      )
       if (pull !== undefined) found.set(branch, pull)
     })
   }

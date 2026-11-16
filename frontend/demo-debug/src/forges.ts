@@ -1,11 +1,11 @@
 import type { PullRequest } from "@novadeck/core/forges"
 import type { Backend } from "@novadeck/core/port"
 import { isDemoForges, type ForgesScenario } from "@novadeck/demo/forges"
-import { isDemoWorks } from "@novadeck/demo/works"
+import { isDemoWorks, type DemoWorks } from "@novadeck/demo/works"
 
 import type { DemoLaunch } from "./debug-demo"
 import { pageUpdateChannel } from "./desktop/updates"
-import type { DemoAction, DemoActionGroup } from "./types"
+import type { DemoAction, DemoActionContext, DemoActionGroup } from "./types"
 import { placed } from "./works"
 
 const where = "Preferences > Experimental > Forge integrations"
@@ -100,6 +100,44 @@ const states: readonly {
   },
 ]
 
+// How a pull request's checks stand, set on the selected terminal's work: an open pull request
+// is made where it had none.
+const checks: readonly {
+  readonly label: string
+  readonly ci: NonNullable<PullRequest["ci"]>
+  readonly hint: string
+}[] = [
+  {
+    label: "CI failing",
+    ci: "failing",
+    hint: "Open Worktrees: the selected row's pull request #812 (made open where it had none) shows its checks failing, in the failing color",
+  },
+  {
+    label: "CI running",
+    ci: "running",
+    hint: "Open Worktrees: the selected row's pull request #812 (made open where it had none) shows its checks running",
+  },
+  {
+    label: "CI passed",
+    ci: "passed",
+    hint: "Open Worktrees: the selected row's pull request #812 (made open where it had none) shows its checks passed",
+  },
+  {
+    label: "No CI",
+    ci: "none",
+    hint: "Open Worktrees: the selected row's pull request #812 (made open where it had none) shows no checks, as one that ran none does",
+  },
+]
+
+// The selected terminal's work, else the first of its project, else one made now.
+const target = (demo: DemoWorks, { selected, workspace }: DemoActionContext) => {
+  const key = selected()
+  if (!key) return undefined
+  if (!demo.ownedBy(key.terminalId) && demo.worksOf(key.projectId).length === 0)
+    demo.openClean(placed(workspace(), key))
+  return demo.ownedBy(key.terminalId) ?? demo.worksOf(key.projectId)[0]
+}
+
 // The panel's group for the forge integrations: Preferences' section and the Worktrees rows' pull
 // request marks. Nothing for a backend whose forges and works aren't the demo's.
 export const forgesGroups = (
@@ -109,19 +147,24 @@ export const forgesGroups = (
   const { forges, works } = backend
   const control = isDemoForges(forges) ? forges : undefined
   const marks: readonly DemoAction[] = isDemoWorks(works)
-    ? states.map(({ label, state, hint }) => ({
-        label,
-        hint,
-        run: ({ selected, workspace }) => {
-          const key = selected()
-          if (!key) return
-          // The selected terminal's work, else the first of its project, else one made now.
-          if (!works.ownedBy(key.terminalId) && works.worksOf(key.projectId).length === 0)
-            works.openClean(placed(workspace(), key))
-          const own = works.ownedBy(key.terminalId) ?? works.worksOf(key.projectId)[0]
-          if (own) works.setPullRequest(own.root, state)
-        },
-      }))
+    ? [
+        ...states.map(({ label, state, hint }) => ({
+          label,
+          hint,
+          run: (context: DemoActionContext) => {
+            const own = target(works, context)
+            if (own) works.setPullRequest(own.root, state)
+          },
+        })),
+        ...checks.map(({ label, ci, hint }) => ({
+          label,
+          hint,
+          run: (context: DemoActionContext) => {
+            const own = target(works, context)
+            if (own) works.setCi(own.root, ci)
+          },
+        })),
+      ]
     : []
   return [
     {

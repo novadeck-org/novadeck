@@ -1,6 +1,17 @@
 import { choose, time, type Candidate } from "./choose.js"
 import { failure, offline, parse } from "./cli.js"
-import type { Forge, Problem, PullRequest, Ran, Remote, Repository, Run, Token } from "./forge.js"
+import type {
+  Ci,
+  Fetch,
+  Forge,
+  Problem,
+  PullRequest,
+  Ran,
+  Remote,
+  Repository,
+  Run,
+  Token,
+} from "./forge.js"
 import { headers, pooled, record, send } from "./http.js"
 
 const defaultHost = "gitlab.com"
@@ -104,6 +115,45 @@ const candidate = (item: unknown): Candidate | undefined => {
   }
 }
 
+// A pipeline's status (https://docs.gitlab.com/api/pipelines/); canceled, skipped and manual
+// ones settle nothing, as no pipeline at all.
+const pipelines: Record<string, Ci> = {
+  failed: "failing",
+  success: "passed",
+  created: "running",
+  waiting_for_resource: "running",
+  preparing: "running",
+  pending: "running",
+  running: "running",
+  scheduled: "running",
+  canceled: "none",
+  skipped: "none",
+  manual: "none",
+}
+
+// An open merge request's pipeline, which only the single-request endpoint carries
+// (`head_pipeline`, null where none ran). Absent where it can't be read: this never fails the
+// lookup, which already has the request itself.
+const ciOf = async (
+  fetch: Fetch,
+  auth: Token,
+  repo: Repository & { readonly forge: "gitlab" },
+  base: string,
+  number: number,
+): Promise<Ci | undefined> => {
+  const answer = await send(
+    fetch,
+    `${base}/${number}`,
+    { headers: headers(auth.value) },
+    { signIn: signIn(repo.host) },
+  )
+  if (!("body" in answer)) return undefined
+  const pipeline = record(record(answer.body)?.["head_pipeline"])
+  if (pipeline === undefined) return "none"
+  const status = pipeline["status"]
+  return (typeof status === "string" ? pipelines[status] : undefined) ?? "none"
+}
+
 const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) => {
   if (repo.forge !== "gitlab") return { kind: "unknown", said: "not a GitLab repository" }
   const base = `https://${repo.host}/api/v4/projects/${encodeURIComponent(repo.path)}/merge_requests`
@@ -125,6 +175,14 @@ const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) 
     const pull = choose(answer.body.flatMap((item) => candidate(item) ?? []))
     if (pull !== undefined) found.set(branch, pull)
   }
+  // One more request for each open one.
+  const open = [...found].filter(([, pull]) => pull.state === "open" || pull.state === "draft")
+  const cis = await pooled(open, async ([branch, pull]) => ({
+    branch,
+    pull,
+    ci: await ciOf(fetch, auth, repo, base, pull.number),
+  }))
+  for (const { branch, pull, ci } of cis) if (ci !== undefined) found.set(branch, { ...pull, ci })
   return found
 }
 

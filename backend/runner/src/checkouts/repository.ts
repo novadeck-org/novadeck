@@ -153,12 +153,19 @@ const untrackedFiles = async (
   env: NodeJS.ProcessEnv,
   held: Held,
 ): Promise<
-  { readonly paths: string[]; readonly secret: string[]; readonly skipped: boolean } | undefined
+  | {
+      readonly paths: string[]
+      readonly secret: string[]
+      readonly skipped: boolean
+      /** How many were left out for their size. */
+      readonly large: number
+    }
+  | undefined
 > => {
   // Where status shows no untracked files, a snapshot takes none.
   const shown = line(await git(root, ["config", "--get", "status.showUntrackedFiles"], small))
   if (shown !== undefined && /^(no|false|off|0)$/i.test(shown))
-    return { paths: [], secret: [], skipped: false }
+    return { paths: [], secret: [], skipped: false, large: 0 }
   const run = await git(root, ["ls-files", "-o", "--exclude-standard", "-z"], {
     ...listing,
     env,
@@ -179,7 +186,7 @@ const untrackedFiles = async (
     ),
   )
   const paths = names.filter((_, at) => sizes[at]! <= maxUntrackedBytes)
-  return { paths, secret, skipped: paths.length < names.length }
+  return { paths, secret, skipped: paths.length < names.length, large: names.length - paths.length }
 }
 
 /** Whether a file (by its full path) may hold secrets: see the companions' `secrets`. */
@@ -193,6 +200,8 @@ export type Taken = {
   readonly skipped: boolean
   /** Untracked files that may hold secrets: left out of the tree, named only. */
   readonly secret: readonly string[]
+  /** How many untracked files over the size limit were left out of it. */
+  readonly large: number
   /** Where its objects are, for the runs that read them again (set with a private object folder). */
   readonly env: NodeJS.ProcessEnv | undefined
 }
@@ -266,7 +275,14 @@ export const snapshotTree = async (
   }
   const tree = line(await git(root, ["write-tree"], slow))
   return tree
-    ? { tree, head, skipped: untracked.skipped, secret: untracked.secret, env: own }
+    ? {
+        tree,
+        head,
+        skipped: untracked.skipped,
+        secret: untracked.secret,
+        large: untracked.large,
+        env: own,
+      }
     : undefined
 }
 

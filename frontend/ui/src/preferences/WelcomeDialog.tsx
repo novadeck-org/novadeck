@@ -9,6 +9,7 @@ import { brandName, NovaMark, NovaPattern, Wordmark } from "@novadeck/toolkit/No
 import { SegmentGroup } from "@novadeck/toolkit/SegmentGroup"
 import {
   ArrowRight,
+  Download,
   MessagesSquare,
   Monitor,
   Moon,
@@ -17,7 +18,14 @@ import {
   Sun,
   type LucideIcon,
 } from "lucide-react"
-import { useRef, useState, type ComponentType, type CSSProperties, type RefObject } from "react"
+import {
+  Fragment,
+  useRef,
+  useState,
+  type ComponentType,
+  type CSSProperties,
+  type RefObject,
+} from "react"
 
 import { agentLabels, agentNote, type AgentSwitch } from "./agent-switches"
 import { WelcomePreview } from "./WelcomePreview"
@@ -77,15 +85,26 @@ const installerOf = ({ available, installer }: AgentSwitch): string | undefined 
   available ? undefined : installer
 
 // What an agent that is not installed offers in place of a choice: the command that installs it,
-// shown whole beside its name, and the button that runs it.
+// shown on asking and read out whole with the button that runs it.
 type Installable = {
   readonly command: string
   readonly onInstall: () => void
 }
 
+type CardIcon = LucideIcon | ComponentType<{ size?: number; strokeWidth?: number }>
+
+const Tile = ({ icon: Icon }: { readonly icon: CardIcon }): React.JSX.Element => (
+  <span
+    className="choice-card-tile relative flex size-[38px] flex-none items-center justify-center"
+    aria-hidden="true"
+  >
+    <Icon size={20} strokeWidth={1.4} />
+  </span>
+)
+
 // One choice as a card: the icon tile takes the brand tile once chosen.
 const ChoiceCard = ({
-  icon: Icon,
+  icon,
   label,
   note,
   noteId,
@@ -94,11 +113,10 @@ const ChoiceCard = ({
   value,
   checked,
   disabled = false,
-  installable,
   onChange,
   onLook,
 }: {
-  readonly icon: LucideIcon | ComponentType<{ size?: number; strokeWidth?: number }>
+  readonly icon: CardIcon
   readonly label: string
   readonly note?: string | undefined
   readonly noteId: string
@@ -107,80 +125,130 @@ const ChoiceCard = ({
   readonly value: string
   readonly checked: boolean
   readonly disabled?: boolean
-  // Given, the card offers installing instead of choosing, and `note` is left out.
-  readonly installable?: Installable | undefined
   readonly onChange: (checked: boolean) => void
   // Told whether the pointer is over the card, or focus in it: the card is looked at while either is.
   readonly onLook?: ((how: "pointer" | "focus", looking: boolean) => void) | undefined
-}): React.JSX.Element => {
-  const Card = installable ? "div" : "label"
+}): React.JSX.Element => (
+  <label
+    {...(onLook
+      ? {
+          onPointerEnter: () => onLook("pointer", true),
+          onPointerLeave: () => onLook("pointer", false),
+          onFocus: () => onLook("focus", true),
+          onBlur: () => onLook("focus", false),
+        }
+      : {})}
+    className={`choice-card solid flex min-h-[60px] min-w-0 items-start gap-3 px-3 py-2.5 ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+    data-state={checked ? "checked" : "unchecked"}
+    data-disabled={disabled || undefined}
+  >
+    <Tile icon={icon} />
+    {/* As tall as the tile at least, so one line sits level with its middle and more start
+        at its top. */}
+    <span className="flex min-h-[38px] min-w-0 flex-1 flex-col justify-center gap-0.5">
+      <span className="text-body font-medium">{label}</span>
+      {note && (
+        <span
+          id={noteId}
+          className="settings-note text-caption leading-4.5"
+          data-tone={error ? "danger" : undefined}
+          role={error ? "alert" : undefined}
+        >
+          {note}
+        </span>
+      )}
+    </span>
+    <span className="flex h-[38px] shrink-0 items-center">
+      <Checkbox
+        name={name}
+        value={value}
+        checked={checked}
+        disabled={disabled}
+        aria-label={label}
+        aria-describedby={note ? noteId : undefined}
+        onChange={onChange}
+      />
+    </span>
+  </label>
+)
+
+// A command as it wraps: after a space, or a slash that ends a run of them (so `https://` stays
+// whole), before anywhere else.
+const wrappable = (command: string): React.JSX.Element[] =>
+  command.split(/(?<= )|(?<=\/)(?!\/)/).map((part, index) => (
+    // The parts never reorder.
+    // oxlint-disable-next-line react/no-array-index-key
+    <Fragment key={index}>
+      {part}
+      <wbr />
+    </Fragment>
+  ))
+
+// An agent that isn't here, as an empty seat to fill: a dashed card that offers to add it,
+// with the command Install runs a click away, across the card under its name, and read out
+// whole with the button.
+const InstallCard = ({
+  icon,
+  label,
+  noteId,
+  disabled,
+  command,
+  onInstall,
+}: {
+  readonly icon: CardIcon
+  readonly label: string
+  readonly noteId: string
+  readonly disabled: boolean
+  readonly onInstall: () => void
+} & Installable): React.JSX.Element => {
+  const [shown, setShown] = useState(false)
+  const commandId = `${noteId}-command`
   return (
-    <Card
-      {...(onLook
-        ? {
-            onPointerEnter: () => onLook("pointer", true),
-            onPointerLeave: () => onLook("pointer", false),
-            onFocus: () => onLook("focus", true),
-            onBlur: () => onLook("focus", false),
-          }
-        : {})}
-      className={`choice-card solid flex min-h-[60px] min-w-0 items-center gap-3 px-3 py-2.5 ${disabled ? "cursor-not-allowed" : installable ? "" : "cursor-pointer"}`}
-      data-state={checked ? "checked" : "unchecked"}
+    <div
+      className="choice-card solid welcome-install flex min-h-[60px] min-w-0 flex-col px-3 py-2.5"
+      data-state="unchecked"
       data-disabled={disabled || undefined}
     >
-      <span
-        className="choice-card-tile relative flex size-[38px] flex-none items-center justify-center"
-        aria-hidden="true"
-      >
-        <Icon size={20} strokeWidth={1.4} />
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="text-body font-medium">{label}</span>
-        {installable ? (
-          <span id={noteId} className="settings-note text-caption leading-4.5">
-            Not installed. Install runs
-            {/* Whole, so nothing it will do is hidden; a long one is cut to the card, and
-              the title and the description reading it out hold all of it. */}
-            <code className="settings-installer mt-0.5 block truncate" title={installable.command}>
-              {installable.command}
-            </code>
+      <div className="flex min-w-0 items-start gap-3">
+        <Tile icon={icon} />
+        <span className="flex min-h-[38px] min-w-0 flex-1 flex-col items-start justify-center">
+          <span className="text-body font-medium">Add {label}</span>
+          {/* "Add" and Install say it isn't here; the line keeps to the command, so it fits one. */}
+          <button
+            type="button"
+            className="button link addon-action !mt-0 text-left text-caption leading-4"
+            aria-expanded={shown}
+            aria-controls={commandId}
+            onClick={() => setShown((open) => !open)}
+          >
+            {shown ? "Hide install command" : "Show install command"}
+          </button>
+          {/* What the button reads out: the whole command, shown or not. */}
+          <span id={noteId} className="sr-only">
+            Not installed. Install runs {command}
           </span>
-        ) : (
-          note && (
-            <span
-              id={noteId}
-              className="settings-note text-caption leading-4.5"
-              data-tone={error ? "danger" : undefined}
-              role={error ? "alert" : undefined}
-            >
-              {note}
-            </span>
-          )
-        )}
-      </span>
-      {installable ? (
-        <button
-          type="button"
-          className="button min-h-8 shrink-0 px-3 text-control"
-          aria-label={`Install ${label}`}
-          aria-describedby={noteId}
-          disabled={disabled}
-          onClick={installable.onInstall}
-        >
-          Install
-        </button>
-      ) : (
-        <Checkbox
-          name={name}
-          value={value}
-          checked={checked}
-          disabled={disabled}
-          aria-label={label}
-          aria-describedby={note ? noteId : undefined}
-          onChange={onChange}
-        />
+        </span>
+        <span className="flex h-[38px] shrink-0 items-center">
+          <button
+            type="button"
+            className="button primary min-h-8 shrink-0 gap-1.5 px-3 text-control"
+            aria-label={`Install ${label}`}
+            aria-describedby={noteId}
+            disabled={disabled}
+            onClick={onInstall}
+          >
+            <Download size={13} aria-hidden="true" className="max-[420px]:hidden" />
+            Install
+          </button>
+        </span>
+      </div>
+      {shown && (
+        // Under the name, as wide as the card leaves it.
+        <code id={commandId} className="welcome-install-command mt-2 ml-[50px] block px-2 py-1.5">
+          {wrappable(command)}
+        </code>
       )}
-    </Card>
+    </div>
   )
 }
 
@@ -235,13 +303,15 @@ const WelcomeForm = ({
 
   return (
     <form
-      className="grid min-h-0 min-[820px]:grid-cols-[1.3fr_1fr]"
+      // The preview takes the room a wide window gives; the choices keep enough for a command.
+      className="grid min-h-0 min-[820px]:grid-cols-[minmax(0,1.5fr)_minmax(380px,1fr)]"
       onSubmit={(event) => {
         event.preventDefault()
         submit()
       }}
     >
-      <div className="welcome-intro relative isolate min-w-0 overflow-hidden px-8 pt-8 pb-6 min-[820px]:px-10 min-[820px]:pt-10 max-[420px]:px-5">
+      {/* Beside the choices, the preview takes whatever height they leave it. */}
+      <div className="welcome-intro relative isolate min-w-0 overflow-hidden px-8 pt-8 pb-6 min-[820px]:flex min-[820px]:flex-col min-[820px]:px-10 min-[820px]:pt-10 max-[420px]:px-5">
         <NovaPattern className="welcome-pattern pointer-events-none absolute top-0 right-0 -z-10 h-[230px] w-[72%]" />
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
           <div className="flex items-center gap-2.5 text-[23px]" role="img" aria-label={brandName}>
@@ -301,7 +371,7 @@ const WelcomeForm = ({
             Terminals, agents, and projects in one workspace.
           </DialogDescription>
         </div>
-        <div className="welcome-enter" style={at(500)}>
+        <div className="welcome-enter flex min-h-0 flex-1 flex-col" style={at(500)}>
           <WelcomePreview
             connected={choices}
             chat={chatView !== undefined && showChat}
@@ -323,11 +393,22 @@ const WelcomeForm = ({
 
           <fieldset className="settings-fieldset welcome-enter m-0 min-w-0 p-0" style={at(750)}>
             <legend className="sr-only">Agents</legend>
-            {/* One column that may be narrower than a command, which is cut to it. */}
+            {/* One column, which a shown command wraps to. */}
             <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
               {agents.map((toggle) => {
                 const note = agentNote(toggle)
-                return (
+                const command = installerOf(toggle)
+                return command && onInstall ? (
+                  <InstallCard
+                    key={toggle.agent}
+                    icon={icons[toggle.agent]}
+                    label={agentLabels[toggle.agent]}
+                    noteId={`welcome-${toggle.agent}-description`}
+                    disabled={toggle.busy}
+                    command={command}
+                    onInstall={() => submit({ agent: toggle.agent, command })}
+                  />
+                ) : (
                   <ChoiceCard
                     key={toggle.agent}
                     icon={icons[toggle.agent]}
@@ -338,18 +419,7 @@ const WelcomeForm = ({
                     name="agents"
                     value={toggle.agent}
                     checked={choices[toggle.agent]}
-                    disabled={
-                      toggle.busy || (!toggle.available && !(installerOf(toggle) && onInstall))
-                    }
-                    installable={
-                      installerOf(toggle) && onInstall
-                        ? {
-                            command: installerOf(toggle)!,
-                            onInstall: () =>
-                              submit({ agent: toggle.agent, command: installerOf(toggle)! }),
-                          }
-                        : undefined
-                    }
+                    disabled={toggle.busy || !toggle.available}
                     onChange={(checked) =>
                       setChoices((current) => ({ ...current, [toggle.agent]: checked }))
                     }
@@ -381,7 +451,7 @@ const WelcomeForm = ({
                   <ChoiceCard
                     icon={MessagesSquare}
                     label="Agent Chat"
-                    note="Read and reply to agents in a chat instead of their terminal."
+                    note="Chat with agents instead of a terminal."
                     noteId="welcome-chat-view-description"
                     name="chat-view"
                     value="on"
@@ -396,7 +466,7 @@ const WelcomeForm = ({
                   <ChoiceCard
                     icon={ScrollText}
                     label="Transcripts"
-                    note="Show recent output again after a restart. Saved encrypted on this computer."
+                    note="Keep output after restarts, encrypted."
                     noteId="welcome-transcripts-description"
                     name="transcripts"
                     value="on"
@@ -484,7 +554,7 @@ export const WelcomeDialog = ({
       initialFocusEl={() => heading.current}
       backdropClassName="overlay welcome-overlay fixed inset-0 z-50"
       positionerClassName="fixed inset-0 z-50 flex items-center justify-center p-4"
-      className="modal max-h-[calc(100dvh-32px)] w-[min(980px,calc(100vw-32px))] overflow-y-auto"
+      className="modal max-h-[calc(100dvh-32px)] w-[min(1080px,calc(100vw-32px))] overflow-y-auto"
     >
       <WelcomeForm
         agents={agents}

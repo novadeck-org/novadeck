@@ -19,6 +19,7 @@ import {
   createDemoWorks,
   isDemoWorks,
   planFile,
+  safeOf,
   withWorks,
   worksFromPlans,
   type WorkPlan,
@@ -250,12 +251,17 @@ describe("the demo's works", () => {
     expect(works.state.getSnapshot().works[0]).toMatchObject({ merged: false, added: 4 })
   })
 
-  it("makes a worktree just made that is not merged, and commits main lacks that read as merged", () => {
+  it("makes a worktree just made that is not merged, and one with commits main lacks, which is no more", () => {
     const works = createDemoWorks([])
     works.openClean(at)
     expect(works.state.getSnapshot().works[0]).toMatchObject({ files: [], merged: false })
     works.commitsMainLacks(at, 2)
-    expect(works.state.getSnapshot().works[0]).toMatchObject({ files: [], merged: true })
+    expect(works.state.getSnapshot().works[0]).toMatchObject({
+      files: [],
+      merged: false,
+      unpushed: 2,
+      safe: false,
+    })
   })
 
   it("refuses a close that would lose changes unless forced, and says what it kept", async () => {
@@ -299,7 +305,7 @@ describe("the demo's works", () => {
     await expect(works.show(at.root)).resolves.toBeNull()
   })
 
-  it("holds commits main lacks in a worktree with no changed files, until merged", async () => {
+  it("holds commits main lacks in a worktree with no changed files, until merged, which is safe", async () => {
     const works = createDemoWorks([])
     works.commitsMainLacks(at, 2)
     expect(works.state.getSnapshot().works[0]).toMatchObject({ files: [] })
@@ -409,5 +415,89 @@ describe("a demo agent's turn", () => {
     const before = stateOf(backend).length
     turns.work(at, terminal)
     expect(stateOf(backend)).toHaveLength(before)
+  })
+})
+
+describe("what the demo's works hold, and whether closing them is safe", () => {
+  const { seed } = plainDemo("plain")
+  const works = worksFromPlans(seed, storefrontPlans, Date.now())
+  const ci = (state: string) => works.find((work) => work.pullRequest?.ci === state)
+
+  it("shows every CI standing, a draft with none among them", () => {
+    expect(ci("failing")?.pullRequest?.state).toBe("open")
+    expect(ci("running")?.pullRequest?.state).toBe("open")
+    expect(ci("passed")?.pullRequest?.state).toBe("open")
+    expect(ci("none")?.pullRequest?.state).toBe("draft")
+  })
+
+  it("gives checks to open pull requests only", () => {
+    for (const work of works) {
+      const pull = work.pullRequest
+      if (pull === undefined) continue
+      expect("ci" in pull, `#${pull.number}`).toBe(pull.state === "open" || pull.state === "draft")
+    }
+  })
+
+  it("has a merged work that is safe, a closed one that is safe, and a merged one holding uncommitted files that is not", () => {
+    const safe = works.filter((work) => work.safe)
+    expect(safe.map((work) => work.pullRequest?.state).toSorted()).toEqual(["closed", "merged"])
+    expect(works.find((work) => work.merged && work.uncommitted === 2)).toMatchObject({
+      safe: false,
+    })
+  })
+
+  it("is never safe while its pull request is open, and says it by the runner's rule", () => {
+    for (const work of works) expect(work.safe, work.branch ?? "").toBe(safeOf(work))
+    expect(works.filter((work) => work.pullRequest?.state === "open" && work.safe)).toEqual([])
+    expect(safeOf({ merged: true, uncommitted: 0, unpushed: 4, pullRequest: undefined })).toBe(true)
+    expect(
+      safeOf({
+        merged: false,
+        uncommitted: 0,
+        unpushed: 1,
+        pullRequest: { state: "closed" } as never,
+      }),
+    ).toBe(false)
+  })
+
+  it("closes a safe work unforced without asking, and keeps a closed pull request's branch", async () => {
+    const demo = createDemoWorks(works)
+    const closed = works.find((work) => work.pullRequest?.state === "closed")!
+    expect(await demo.close(closed.root)).toEqual({ closed: true, branchDeleted: false })
+    const merged = works.find((work) => work.safe && work.merged)!
+    expect(await demo.close(merged.root)).toEqual({ closed: true, branchDeleted: true })
+  })
+
+  it("moves with its checks, uncommitted files and unpushed commits as the debug panel sets them", () => {
+    const merged = works.find((work) => work.safe && work.merged)!
+    // Alone, as the panel acts on a terminal's first worktree.
+    const demo = createDemoWorks([merged])
+    const held = () => demo.state.getSnapshot().works.find((work) => work.root === merged.root)
+    const at = { projectId: "storefront", terminalId: merged.terminalId!, root: merged.root }
+    demo.setUncommitted(at, 3)
+    expect(held()).toMatchObject({
+      uncommitted: 3,
+      safe: false,
+    })
+    demo.setUncommitted(at, 0)
+    expect(held()).toMatchObject({ safe: true })
+    demo.setUnpushed(at, 2)
+    expect(held()).toMatchObject({ unpushed: 2, safe: true })
+    demo.setCi(at.root, "failing")
+    expect(held()).toMatchObject({
+      pullRequest: { state: "open", ci: "failing" },
+      safe: false,
+    })
+  })
+
+  it("fetches origin at once, moving its project's fetch time to now", async () => {
+    let now = 5_000_000
+    const demo = createDemoWorks(works, { now: () => now })
+    await demo.fetch?.("storefront")
+    expect(demo.worksOf("storefront").every((work) => work.fetchedAt === now)).toBe(true)
+    const at = { projectId: "storefront", terminalId: works[0]!.terminalId!, root: works[0]!.root }
+    now += 1_000
+    demo.fetchedAgo(at, 180)
+    expect(demo.ownedBy(works[0]!.terminalId!)?.fetchedAt).toBe(now - 180 * 60_000)
   })
 })

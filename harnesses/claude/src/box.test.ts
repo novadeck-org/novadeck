@@ -544,3 +544,50 @@ describe("the doorbell's line beside a feedback draft's card in its frame", () =
     ).toBeUndefined()
   })
 })
+
+describe("Claude Code's box where it draws no colour or dim", () => {
+  // As NO_COLOR or a CI variable leaves it: its placeholder suggestion is plain text.
+  const { states } = loadProbe<{ states: Record<string, ScreenText> }>(
+    import.meta.dirname,
+    "monochrome-prompt.probe.json",
+  )
+  const fresh = states.placeholder!
+
+  it("reads its fresh prompt's placeholder as an empty box, the cursor at the box's start", () => {
+    expect(box.read(fresh)).toMatchObject({ text: "", mode: "prompt" })
+  })
+
+  it("still reads a draft in the same plain style as text", () => {
+    const typed = (text: string, column: number): ScreenText => {
+      const row = `❯\u00a0${text}`
+      const swap = (rows: readonly string[]) => rows.map((each, at) => (at === 37 ? row : each))
+      return {
+        ...fresh,
+        rows: swap(fresh.rows),
+        bright: swap(fresh.bright),
+        cursor: { row: 37, column },
+      }
+    }
+    // Typed after it, the cursor at its end.
+    expect(box.read(typed('Try "edit foo"', 16))?.text).toBe('Try "edit foo"')
+    // Another draft, whatever the cursor does: moved home, it is still the person's.
+    expect(box.read(typed("fix the build", 2))?.text).toBe("fix the build")
+    expect(box.read(typed("fix the build", 15))?.text).toBe("fix the build")
+    // A draft that begins like a suggestion but goes on past it.
+    expect(box.read(typed('Try "edit foo" and then more', 2))?.text).toBe(
+      'Try "edit foo" and then more',
+    )
+  })
+
+  it("reads the suggestion's shape as the person's own where colour is on", () => {
+    // Its footer hint drawn dim, as it is with colour: the box's bright `Try "…"` was typed.
+    const bright = fresh.bright.map((row, at) => (at === 40 ? "" : row))
+    const typed = { ...fresh, bright }
+    expect(box.read(typed)?.text).toBe('Try "edit <filepath> to..."')
+  })
+
+  it("reads the suggestion's shape as text where the cursor stands past the box's start", () => {
+    const along = { ...fresh, cursor: { row: 37, column: 10 } }
+    expect(box.read(along)?.text).toBe('Try "edit <filepath> to..."')
+  })
+})

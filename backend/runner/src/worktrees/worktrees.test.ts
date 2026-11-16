@@ -300,6 +300,28 @@ describe("closing a worktree", () => {
     expect(f.store.worktree(a.path)).toBeDefined()
   })
 
+  it("closes a safe one on the person's say without asking about commits main lacks, but still asks about uncommitted files; the branch stays", async ({
+    fx: f,
+  }) => {
+    const a = await open(f, "closed-pr")
+    if (!a.ok) throw new Error("open")
+    writeFileSync(join(a.path, "w.txt"), "w\n")
+    git(a.path, "add", "-A")
+    git(a.path, "commit", "--quiet", "-m", "work")
+    writeFileSync(join(a.path, "late.txt"), "x\n")
+    expect(await f.worktrees.closeAt(a.path, false, undefined, true)).toMatchObject({
+      ok: false,
+      holds: "1 uncommitted or untracked path",
+    })
+    rmSync(join(a.path, "late.txt"))
+    // Without the mark, the agent's and the person's own unsafe close, main's lack refuses.
+    expect(await f.worktrees.closeAt(a.path, false)).toMatchObject({ ok: false })
+    const closed = await f.worktrees.closeAt(a.path, false, undefined, true)
+    expect(closed).toMatchObject({ ok: true, branchDeleted: false })
+    expect(existsSync(a.path)).toBe(false)
+    expect(git(f.repo, "branch", "--list", "closed-pr")).toContain("closed-pr")
+  })
+
   it("says what it holds, apart from the agent's wording, where only force stands in the way", async ({
     fx: f,
   }) => {

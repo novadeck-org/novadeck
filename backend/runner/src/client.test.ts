@@ -1597,7 +1597,12 @@ describe("runner client works", () => {
       projectId,
       branch: "feat/x",
       working: false,
+      uncommitted: 0,
+      unpushed: expect.any(Number),
+      safe: false,
     })
+    // There is no origin to fetch: the call still answers once the fetch has ended.
+    await expect(client.works.fetch(projectId)).resolves.toBeUndefined()
 
     await writeFile(join(worktree, "new.txt"), "new\n")
     // Unforced it is not closed, and says what it holds for the person to confirm.

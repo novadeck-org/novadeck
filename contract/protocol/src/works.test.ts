@@ -70,6 +70,23 @@ describe("a work", () => {
     expect(work.parse({ ...base, merged: true }).merged).toBe(true)
   })
 
+  it("may say what it holds that lives only in its worktree, and whether closing it is safe", () => {
+    const standing = { uncommitted: 2, unpushed: 0, safe: false }
+    expect(work.parse({ ...base, ...standing })).toMatchObject(standing)
+    expect(work.parse(base)).not.toHaveProperty("safe")
+    expect(work.safeParse({ ...base, uncommitted: -1 }).success).toBe(false)
+    expect(work.safeParse({ ...base, unpushed: 1.5 }).success).toBe(false)
+    expect(work.safeParse({ ...base, safe: "yes" }).success).toBe(false)
+  })
+
+  it("carries its pull request's checks, only as one of four standings", () => {
+    const pull = { number: 1, url: "https://github.com/o/r/pull/1", title: "T", state: "open" }
+    for (const ci of ["failing", "running", "passed", "none"])
+      expect(work.parse({ ...base, pullRequest: { ...pull, ci } }).pullRequest?.ci).toBe(ci)
+    expect(work.parse({ ...base, pullRequest: pull }).pullRequest).not.toHaveProperty("ci")
+    expect(work.safeParse({ ...base, pullRequest: { ...pull, ci: "green" } }).success).toBe(false)
+  })
+
   it("names a conflicting work by its root and its owner, if any", () => {
     const other = { with: "work", root: "/w/other", terminalId: null }
     expect(workConflict.parse(other)).toEqual(other)

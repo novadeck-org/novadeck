@@ -19,11 +19,16 @@ const command = z
 
 // A branch's pull request (a merge request, on GitLab): `draft` and `open` are open, one not
 // yet ready for review and one that is; `merged` and `closed` are done, merged or not.
+// `ci` is how its checks stand on the pull request's latest commit, for an open one: `failing`
+// where one failed or errored, `running` while any has yet to finish, `passed` once all passed,
+// `none` where none ran (as often on a draft). Absent where the forge couldn't say (a token
+// that can't read checks, a lookup that failed) and on a merged or closed pull request.
 export const pullRequest = z.strictObject({
   number: z.number().int().min(0),
   url: z.url({ protocol: /^https?$/ }).max(forgeLimits.url),
   title: z.string().max(forgeLimits.title),
   state: z.enum(["draft", "open", "merged", "closed"]),
+  ci: z.enum(["failing", "running", "passed", "none"]).optional(),
 })
 
 // A host a forge's repositories are on, and whether its tool is signed in there:

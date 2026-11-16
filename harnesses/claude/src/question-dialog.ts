@@ -31,14 +31,17 @@ import {
  * several. A digit selects its option and, with several questions, moves to the next one;
  * a multi-select's digits tick and Right moves on; after the last question a review screen
  * takes `1` to submit. "Type something" is the option after the last, whose digit focuses
- * a field that takes the text and Enter once the screen shows it focused. With any option
- * previewed, digits only move the highlight: arrows and Enter.
+ * a field that takes the text and Enter once the screen shows it focused. A question with
+ * any option previewed has the preview layout, the others among its tabs keep theirs: there
+ * digits only move the highlight, arrows and Enter pick, and it has no "Type something".
  */
 
 type Ask = {
   readonly question: string
   readonly header: string
   readonly multiSelect: boolean
+  /** Whether any of its options has a preview, which gives the question the preview layout. */
+  readonly preview: boolean
   readonly options: readonly {
     readonly label: string
     readonly description: string
@@ -71,7 +74,13 @@ const asks = (input: unknown): Ask[] | undefined => {
       if (typeof description !== "string") return refuse("question.asks.6")
       listed.push({ label, description, preview: nonBlank(choice.preview) !== undefined })
     }
-    read.push({ question, header, multiSelect: fields.multiSelect === true, options: listed })
+    read.push({
+      question,
+      header,
+      multiSelect: fields.multiSelect === true,
+      preview: listed.some(({ preview }) => preview),
+      options: listed,
+    })
   }
   return read
 }
@@ -155,7 +164,7 @@ const showing = (rows: readonly string[], ask: Ask, place: Place): boolean => {
     shown !== undefined &&
     flat(shown.question.join("")) === flat(ask.question) &&
     shown.tabs.some(({ name }) => tabShows(name, ask.header)) &&
-    optionsOf(rows, shown, ask, false, place) !== undefined
+    optionsOf(rows, shown, ask, place) !== undefined
   )
 }
 
@@ -193,9 +202,9 @@ const optionsOf = (
   rows: readonly string[],
   { first, footer }: Pick<QuestionScreen, "first" | "footer">,
   ask: Ask,
-  preview: boolean,
   { asked, final }: Place,
 ): OptionRow[] | undefined => {
+  const { preview } = ask
   const count = ask.options.length
   const entries: OptionRow[] = []
   let ruledAt = -1
@@ -269,12 +278,12 @@ export const questions = (rows: readonly string[], facts: RequestFacts): DialogR
     return refuse("question.questions.1")
   const asked = asks(facts.input)
   if (!asked) return refuse("question.questions.2")
-  const preview = asked.some(({ options }) => options.some(({ preview: shown }) => shown))
-  if (preview) {
-    // Only one question, singly selected, is probed. An option without a preview shows
-    // "No preview available" in the box (2.1.323, fixtures/ask.probe.json
-    // `ask-preview-mixed`).
-    if (asked.length !== 1 || asked[0]!.multiSelect) return refuse("question.questions.3")
+  // A previewed question is probed singly selected only, alone or among other questions,
+  // each of which keeps its own layout (2.1.325, fixtures/ask.probe.json `ask-preview-tabs`
+  // and `ask-preview-tabs-last`). An option without a preview shows "No preview available"
+  // in the box (2.1.323, `ask-preview-mixed`).
+  if (asked.some(({ preview, multiSelect }) => preview && multiSelect)) {
+    return refuse("question.questions.3")
   }
 
   const shown = questionScreen(rows)
@@ -283,7 +292,6 @@ export const questions = (rows: readonly string[], facts: RequestFacts): DialogR
   // question has none.
   if (shown.bar ? asked.length < 2 && !asked[0]!.multiSelect : asked.length !== 1)
     return refuse("question.questions.5")
-  if (shown.bar && preview) return refuse("question.questions.6")
   if (shown.tabs.length !== asked.length) return refuse("question.questions.7")
   if (shown.tabs.some(({ open, name }, at) => !open || !tabShows(name, asked[at]!.header))) {
     return refuse("question.questions.8")
@@ -294,7 +302,7 @@ export const questions = (rows: readonly string[], facts: RequestFacts): DialogR
   }
 
   const place = { asked: asked.length, final: asked.length === 1 }
-  const entries = optionsOf(rows, shown, ask, preview, place)
+  const entries = optionsOf(rows, shown, ask, place)
   if (!entries) return refuse("question.questions.10")
 
   const marker = entries.findIndex((each) => each.marker)
@@ -313,7 +321,7 @@ export const questions = (rows: readonly string[], facts: RequestFacts): DialogR
         description: description === "" ? null : description,
       })),
       multiSelect: each.multiSelect,
-      text: !preview,
+      text: !each.preview,
     })),
   }
 
@@ -321,8 +329,8 @@ export const questions = (rows: readonly string[], facts: RequestFacts): DialogR
     dialog,
     keys: (answer) =>
       answer.type === "chat"
-        ? chatKeys(ask.options.length, preview, marker)
-        : keysFor(asked, preview, marker, answer),
+        ? chatKeys(ask.options.length, ask.preview, marker)
+        : keysFor(asked, marker, answer),
     answered: (later) =>
       idle(later) && !reviewing(later) && !(footerAt(later) >= 0 && showing(later, ask, place)),
   }
@@ -373,7 +381,6 @@ const freeTextFocused = (n: number) => (rows: readonly string[]) => {
 
 const keysFor = (
   asked: readonly Ask[],
-  preview: boolean,
   marker: number,
   answer: RequestAnswer,
 ): readonly KeyStep[] | undefined => {
@@ -389,12 +396,14 @@ const keysFor = (
     if (picked.some((at) => at < 0) || new Set(picked).size !== picked.length) return undefined
     const count = ask.options.length
 
-    if (preview) {
-      // Digits only move the highlight here: arrows to the option, then Enter.
+    if (ask.preview) {
+      // Digits only move the highlight here: arrows to the option, then Enter. The highlight
+      // starts where the read saw it on the first question, on the first row after.
       if (text !== undefined || picked.length !== 1) return undefined
       const target = picked[0]!
-      for (let step = 0; step < Math.abs(target - marker); step++) {
-        steps.push({ press: target > marker ? Down : Up })
+      const start = index === 0 ? marker : 0
+      for (let step = 0; step < Math.abs(target - start); step++) {
+        steps.push({ press: target > start ? Down : Up })
       }
       steps.push({
         until: (rows) => marked(rows, questionOption, target + 1),

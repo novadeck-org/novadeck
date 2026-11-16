@@ -601,12 +601,19 @@ export const contract = {
     // detached HEAD reaches) is kept on a ref, its folder removed, and its branch deleted only
     // when Novadeck made it and the main branch holds all of it (squash merges count). Without
     // `force` a worktree that holds uncommitted files or commits main lacks is not closed but
-    // answered `closed: false` with what it holds, for the person to confirm. Refused as a
+    // answered `closed: false` with what it holds, for the person to confirm; one that is
+    // `safe` (works.ts), read afresh, closes without that, unless it holds uncommitted files
+    // by then. Refused as a
     // CONFLICT, saying why, while its owner's agent is working in it, and when git can't be
     // read or it has submodules. A root with no work is NOT_FOUND.
     close: procedure
       .input(z.strictObject({ root: directory, force: z.boolean().optional() }))
       .output(workClosing),
+    // Fetches origin now in every repository the project's works are in, so main, conflicts and
+    // pull requests are as of now. Answers once every fetch has ended, failed or not (a failure
+    // keeps the repository's last `fetchedAt`); the works are read again before it does. A
+    // project with no works answers at once.
+    fetch: procedure.input(z.strictObject({ projectId: id })).output(z.void()),
   },
   // What agents show and the person attaches beside terminals: items held by a terminal's
   // bar or an undocked window, kept across restarts as pointers to files, pages and plans.

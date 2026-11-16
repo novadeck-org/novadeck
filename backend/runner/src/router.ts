@@ -92,6 +92,7 @@ const noWorks = {
   show: () => Promise.reject(new DomainError("NOT_FOUND")),
   closeWork: () => Promise.reject(new DomainError("NOT_FOUND")),
   preview: () => Promise.resolve({ main: null, works: [], renames: [] }),
+  fetch: () => Promise.resolve(),
 }
 
 const noTour: Pick<Tour, "prepare" | "brief" | "nudge"> = {
@@ -299,6 +300,7 @@ export const createRouter = (options: {
       close: api.works.close.handler(({ input }) =>
         works.closeWork(input.root, input.force === true),
       ),
+      fetch: api.works.fetch.handler(({ input }) => works.fetch(input.projectId)),
     },
     companions: {
       list: api.companions.list.handler(({ input }) => {

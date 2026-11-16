@@ -66,6 +66,11 @@ const show = (
     canOpen?: boolean
     // Whether the backend has reported the works yet; it has by default.
     reported?: boolean
+    // Handles by terminal id, as people see them.
+    handles?: ReadonlyMap<string, string>
+    // Whether a forge is on; one is by default.
+    forges?: boolean
+    fetch?: () => Promise<void>
   } = {},
 ) => {
   const onSelect = vi.fn<(work: Work, on: string | undefined) => Promise<void>>(
@@ -94,6 +99,9 @@ const show = (
     canOpenFile: () => options.canOpen ?? true,
     onOpenFile,
     onCloseWork,
+    ...(options.handles ? { handles: options.handles } : {}),
+    ...(options.forges === undefined ? {} : { forges: options.forges }),
+    ...(options.fetch ? { onFetch: options.fetch } : {}),
   }
   const page = render(createElement(WorktreesPanel, props))
   mounted.push(page)
@@ -125,7 +133,7 @@ describe("the Worktrees panel's rows", () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
-  it("marks a work's pull request with a link to its page, among the row's actions", () => {
+  it("marks a work's pull request with a link to its page, after its state in words", () => {
     const pullRequest = {
       number: 812,
       url: "https://github.com/acme/shop/pull/812",
@@ -139,14 +147,11 @@ describe("the Worktrees panel's rows", () => {
     expect(link.href).toBe(pullRequest.url)
     expect(link.target).toBe("_blank")
     expect(link.rel).toBe("noopener noreferrer")
-    // Not inside the select button, so it is a control of its own, reached by Tab; on the
-    // detail line's end, before the trash button, which keeps its place at the row's end.
+    // Not inside the select button, so it is a control of its own, reached by Tab; right after
+    // the fact that says the pull request's state, and none on a row without one.
     expect(link.closest("button")).toBeNull()
-    expect(link.closest(".sidebar-item-actions")).not.toBeNull()
-    expect(link.nextElementSibling?.matches("button.terminal-tab-action")).toBe(true)
-    // The detail line keeps room for it; a row without one keeps the usual room.
-    expect(row("a").style.getPropertyValue("--_sidebar-actions-space")).toBe("calc(4ch + 46px)")
-    expect(row("b").style.getPropertyValue("--_sidebar-actions-space")).toBe("")
+    expect(link.closest(".worktrees-fact")?.textContent).toBe("Draft#812")
+    expect(row("b").querySelector("a.worktrees-pr")).toBeNull()
     expect(row("a").dataset.pullRequest).toBe("draft")
     link.addEventListener("click", (event) => event.preventDefault())
     link.click()
@@ -425,5 +430,255 @@ describe("the Worktrees panel with no worktrees", () => {
       expect(rows()).toHaveLength(1)
       expect(page.container.querySelector(".sidebar-panel-count")?.textContent).toBe("1")
     })
+  })
+})
+
+describe("the Worktrees panel's groups", () => {
+  afterEach(() => localStorage.removeItem("novadeck.worktrees.done-folded"))
+  const pull = (state: "draft" | "open" | "merged" | "closed", extra = {}) => ({
+    number: 812,
+    url: "https://github.com/acme/app/pull/812",
+    title: "Work",
+    state,
+    ...extra,
+  })
+  const listed = (page: Rendered) =>
+    [...page.container.querySelectorAll<HTMLElement>("[role=list]")].map((list) => [
+      list.getAttribute("aria-label"),
+      [...list.querySelectorAll<HTMLElement>("[data-worktrees-row]")].map((row) =>
+        row.dataset.worktreesRow!.slice(3),
+      ),
+    ])
+
+  it("lists works by what is next: needs you, in progress, in review, done", () => {
+    const { page } = show([
+      work("conflict", { firstSeenAt: 6, conflicts: [{ with: "main" }] }),
+      work("failing", { firstSeenAt: 5, pullRequest: pull("open", { ci: "failing" }) }),
+      work("plain", { firstSeenAt: 4 }),
+      work("draft", { firstSeenAt: 3, pullRequest: pull("draft") }),
+      clean("merged", { firstSeenAt: 2, merged: true, conflicts: [{ with: "main" }] }),
+      work("closed", { firstSeenAt: 1, pullRequest: pull("closed") }),
+    ])
+    expect(listed(page)).toEqual([
+      ["Needs you", ["conflict", "failing"]],
+      ["In progress", ["plain"]],
+      ["In review", ["draft"]],
+      ["Done", ["merged", "closed"]],
+    ])
+    expect(
+      [...page.container.querySelectorAll("h3")].map((heading) => heading.textContent),
+    ).toEqual(["Needs you2", "In progress1", "In review1", "Done2"])
+  })
+
+  it("draws no group that has no work", () => {
+    const { page } = show([work("plain")])
+    expect(listed(page)).toEqual([["In progress", ["plain"]]])
+  })
+
+  it("folds Done, and keeps it folded the next time", () => {
+    const { page } = show([work("plain"), clean("merged", { merged: true })])
+    const fold = page.container.querySelector<HTMLButtonElement>(".worktrees-group-fold")!
+    expect(fold.getAttribute("aria-expanded")).toBe("true")
+    act(() => fold.click())
+    expect(fold.getAttribute("aria-expanded")).toBe("false")
+    expect(listed(page)).toEqual([["In progress", ["plain"]]])
+    const again = show([work("plain"), clean("merged", { merged: true })])
+    expect(listed(again.page)).toEqual([["In progress", ["plain"]]])
+  })
+
+  it("trashes every safe row after one confirm, unforced, and leaves the rest", async () => {
+    const { page, onCloseWork } = show([
+      clean("merged", { firstSeenAt: 3, merged: true, safe: true }),
+      work("closed", { firstSeenAt: 2, pullRequest: pull("closed"), safe: true }),
+      clean("held", { firstSeenAt: 1, merged: true, safe: false, uncommitted: 2 }),
+    ])
+    const sweep = page.container.querySelector<HTMLButtonElement>(".worktrees-sweep")!
+    expect(sweep.textContent).toBe("Trash 2 safe")
+    act(() => sweep.click())
+    await eventually(() => expect(dialog()).not.toBeNull())
+    expect(dialog()!.textContent).toContain("Trash 2 worktrees?")
+    expect(dialog()!.textContent).toContain("Their branches stay.")
+    act(() => answer("Trash them").click())
+    await eventually(() => expect(onCloseWork).toHaveBeenCalledTimes(2))
+    expect(onCloseWork.mock.calls).toEqual([
+      ["/w/merged", false],
+      ["/w/closed", false],
+    ])
+  })
+
+  it("says why a row that stopped being safe stays", async () => {
+    const { page } = show([clean("merged", { merged: true, safe: true })], {
+      close: async () => ({ closed: false, holds: "1 uncommitted or untracked path" }),
+    })
+    act(() => page.container.querySelector<HTMLButtonElement>(".worktrees-sweep")!.click())
+    await eventually(() => expect(dialog()).not.toBeNull())
+    expect(dialog()!.textContent).toContain("Its branch stays.")
+    act(() => answer("Trash it").click())
+    await eventually(() =>
+      expect(page.container.querySelector("[role=alert]")?.textContent).toContain(
+        "stays: it holds 1 uncommitted or untracked path.",
+      ),
+    )
+  })
+})
+
+describe("Trash N safe, while it works", () => {
+  const sweep = (page: Rendered) =>
+    page.container.querySelector<HTMLButtonElement>(".worktrees-sweep")
+
+  it("leaves out a safe row whose agent is working in it", () => {
+    const { page } = show([
+      clean("a", { merged: true, safe: true }),
+      clean("b", { merged: true, safe: true, working: true }),
+    ])
+    expect(sweep(page)?.textContent).toBe("Trash 1 safe")
+  })
+
+  it("takes the rows it closes out of its count until they are closed", async () => {
+    let finish: () => void = () => {}
+    const { page } = show([clean("a", { merged: true, safe: true })], {
+      close: () =>
+        new Promise((resolve) => {
+          finish = () => resolve({ closed: true, branchDeleted: false })
+        }),
+    })
+    act(() => sweep(page)!.click())
+    await eventually(() => expect(dialog()).not.toBeNull())
+    act(() => answer("Trash it").click())
+    await eventually(() => expect(sweep(page)).toBeNull())
+    await act(async () => finish())
+  })
+
+  it("names every row that stayed, with the first one's reason", async () => {
+    const { page } = show(
+      [
+        clean("a", { firstSeenAt: 2, merged: true, safe: true }),
+        clean("b", { firstSeenAt: 1, merged: true, safe: true }),
+      ],
+      { close: async () => ({ closed: false, holds: "1 uncommitted or untracked path" }) },
+    )
+    act(() => sweep(page)!.click())
+    await eventually(() => expect(dialog()).not.toBeNull())
+    act(() => answer("Trash them").click())
+    await eventually(() =>
+      expect(page.container.querySelector("[role=alert]")?.textContent).toBe(
+        "Title t-a (feat/a), Title t-b (feat/b) stay: it holds 1 uncommitted or untracked path.",
+      ),
+    )
+  })
+})
+
+describe("what a row says", () => {
+  const pull = (state: "draft" | "open" | "merged" | "closed", extra = {}) => ({
+    number: 812,
+    url: "https://github.com/acme/app/pull/812",
+    title: "Work",
+    state,
+    ...extra,
+  })
+  const facts = (row: HTMLElement) =>
+    [...row.querySelectorAll<HTMLElement>(".worktrees-fact")].map((fact) => [
+      fact.querySelector("[aria-hidden]:not(svg)")?.textContent,
+      fact.dataset.tone,
+    ])
+
+  it("names its owner's handle before its branch", () => {
+    const { row } = show([work("a")], { handles: new Map([["t-a", "@moth"]]) })
+    expect(row("a").querySelector(".worktrees-handle")?.textContent).toBe("@moth")
+    expect(row("a").querySelector(".worktrees-branch")?.textContent).toBe("feat/a")
+  })
+
+  it("says where it stands in words, red only for what needs the person", () => {
+    const { row } = show([
+      work("a", { base: "origin/main", conflicts: [{ with: "main" }], unpushed: 2 }),
+      work("b", { pullRequest: pull("open", { ci: "failing" }) }),
+      work("c", { pullRequest: pull("draft", { ci: "none" }), working: true }),
+    ])
+    expect(facts(row("a"))).toEqual([
+      ["Conflicts with origin/main", "bad"],
+      ["No PR yet", "muted"],
+      ["2 commits not pushed", "warn"],
+    ])
+    expect(row("a").dataset.standing).toBe("conflict")
+    expect(facts(row("b"))).toEqual([
+      ["CI failing", "bad"],
+      ["Ready for review", "ink"],
+    ])
+    expect(row("b").dataset.standing).toBe("ci-failing")
+    expect(facts(row("c"))).toEqual([
+      ["Working", "ink"],
+      ["Draft", "muted"],
+      ["no CI", "muted"],
+    ])
+    expect(row("c").dataset.standing).toBe("working")
+    expect(row("c").dataset.terminalPhase).toBe("running")
+  })
+
+  it("says a done one is safe, or what it holds", () => {
+    const { row } = show([
+      clean("safe", { merged: true, safe: true }),
+      clean("held", { merged: true, safe: false, uncommitted: 1 }),
+    ])
+    expect(facts(row("safe"))).toEqual([
+      ["Merged", "ok"],
+      ["safe to trash", "ok"],
+    ])
+    expect(row("safe").dataset.safe).toBe("true")
+    expect(facts(row("held"))).toEqual([
+      ["Merged", "muted"],
+      ["1 file not committed", "warn"],
+    ])
+    expect(row("held").dataset.safe).toBeUndefined()
+  })
+
+  it("selects its row on a click on its words, as the row's button would", async () => {
+    const { row, onSelect } = show([work("a")])
+    act(() => row("a").querySelector<HTMLElement>(".worktrees-facts")!.click())
+    await eventually(() => expect(onSelect).toHaveBeenCalledOnce())
+  })
+
+  it("says nothing of a pull request while no forge is on", () => {
+    const { row } = show([work("a")], { forges: false })
+    expect(facts(row("a"))).toEqual([])
+  })
+
+  it("names its facts in its accessible label", () => {
+    const { row } = show([work("a", { pullRequest: pull("open", { ci: "passed" }) })], {
+      handles: new Map([["t-a", "@moth"]]),
+    })
+    expect(row("a").querySelector(".sidebar-item-select")?.getAttribute("aria-label")).toBe(
+      "Title t-a, @moth, feat/a, 1 file changed, 4 lines added, 1 removed, ready for review, CI passed",
+    )
+  })
+})
+
+describe("the panel's origin line", () => {
+  it("says how old the remote's main is, amber after an hour, and fetches it", async () => {
+    const fetch = vi.fn<() => Promise<void>>(async () => {})
+    const { page } = show(
+      [work("a", { base: "origin/main", fetchedAt: Date.now() - 2 * 60 * 60_000 })],
+      { fetch },
+    )
+    const line = page.container.querySelector<HTMLElement>(".worktrees-origin")!
+    expect(line.textContent).toContain("origin/main, 2 h ago")
+    expect(line.dataset.stale).toBe("true")
+    act(() => line.querySelector<HTMLButtonElement>("button")!.click())
+    expect(fetch).toHaveBeenCalledOnce()
+  })
+
+  it("says when a fetch failed, and offers it again", async () => {
+    const { page } = show(
+      [work("a", { base: "origin/main", fetchedAt: Date.now() - 5 * 60_000 })],
+      { fetch: async () => Promise.reject(new Error("Could not resolve host")) },
+    )
+    const line = page.container.querySelector<HTMLElement>(".worktrees-origin")!
+    act(() => line.querySelector<HTMLButtonElement>("button")!.click())
+    await eventually(() => expect(line.textContent).toContain("fetch failed"))
+    expect(line.querySelector("button")?.textContent).toBe("Retry")
+  })
+
+  it("isn't drawn where nothing was fetched", () => {
+    const { page } = show([work("a")])
+    expect(page.container.querySelector(".worktrees-origin")).toBeNull()
   })
 })

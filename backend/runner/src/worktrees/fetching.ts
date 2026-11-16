@@ -62,6 +62,8 @@ export class MainFetcher {
   private readonly every: number
   private readonly environment: NodeJS.ProcessEnv
   private readonly ending = new AbortController()
+  /** The fetches under way, by repository. */
+  private readonly under = new Map<string, Promise<void>>()
 
   constructor(options: FetcherOptions = {}) {
     this.now = options.now ?? Date.now
@@ -86,10 +88,38 @@ export class MainFetcher {
     for (const known of this.states.keys()) if (!wanted.has(known)) this.states.delete(known)
     for (const commonDir of wanted) {
       if (this.ending.signal.aborted) return
-      const state = this.states.get(commonDir) ?? { fetchedAt: undefined, nextAt: 0, failures: 0 }
-      this.states.set(commonDir, state)
+      const state = this.stateOf(commonDir)
       if (this.now() < state.nextAt) continue
       // eslint-disable-next-line no-await-in-loop -- Never two fetches at once.
+      await this.fetching(commonDir, state, false)
+    }
+  }
+
+  /**
+   * Fetches the repositories now, due or not, all at once; resolves when each has ended, failed
+   * or not. A repository already being fetched is not fetched twice: its fetch is waited for.
+   * A failure leaves the repository's own schedule as it was.
+   */
+  async fetchNow(commonDirs: Iterable<string>): Promise<void> {
+    await Promise.all(
+      [...new Set(commonDirs)].map((commonDir) =>
+        this.fetching(commonDir, this.stateOf(commonDir), true),
+      ),
+    )
+  }
+
+  private stateOf(commonDir: string): State {
+    const state = this.states.get(commonDir) ?? { fetchedAt: undefined, nextAt: 0, failures: 0 }
+    this.states.set(commonDir, state)
+    return state
+  }
+
+  // One fetch of a repository, shared by whoever asks while it is under way.
+  private fetching(commonDir: string, state: State, asked: boolean): Promise<void> {
+    const under = this.under.get(commonDir)
+    if (under) return under
+    const run = (async () => {
+      if (this.ending.signal.aborted) return
       const done = await gitScope.run(this.ending.signal, () => this.fetch(commonDir))
       if (this.ending.signal.aborted) return
       const at = this.now()
@@ -98,13 +128,17 @@ export class MainFetcher {
         state.failures = 0
         state.nextAt = at + this.every
       } else {
-        state.failures += 1
-        state.nextAt = at + Math.min(longestWaitMs, this.every * 2 ** state.failures)
+        if (!asked) {
+          state.failures += 1
+          state.nextAt = at + Math.min(longestWaitMs, this.every * 2 ** state.failures)
+        }
         log.debug("worktrees.fetch-failed", "Novadeck could not fetch a repository's origin", {
           data: { commonDir, kind: done.kind, said: done.said },
         })
       }
-    }
+    })().finally(() => this.under.delete(commonDir))
+    this.under.set(commonDir, run)
+    return run
   }
 
   private async fetch(

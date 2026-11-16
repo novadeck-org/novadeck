@@ -57,6 +57,25 @@ describe("an agent that is not installed, in the welcome dialog", () => {
     )
   })
 
+  it("offers it as a seat to fill, its command read out with Install and shown on asking", () => {
+    show({ onInstall: () => {} })
+    const toggle = [...document.querySelectorAll("button")].find((each) =>
+      each.textContent?.includes("Show install command"),
+    )!
+    expect(document.body.textContent).toContain("Add Antigravity")
+    expect(document.getElementById(install()!.getAttribute("aria-describedby")!)?.textContent).toBe(
+      "Not installed. Install runs curl -fsSL https://antigravity.google/cli/install.sh | bash",
+    )
+    expect(toggle.getAttribute("aria-expanded")).toBe("false")
+    expect(document.querySelector(".welcome-install-command")).toBeNull()
+    act(() => toggle.click())
+    expect(toggle.getAttribute("aria-expanded")).toBe("true")
+    expect(toggle.textContent).toBe("Hide install command")
+    expect(document.querySelector(".welcome-install-command")?.textContent).toBe(
+      "curl -fsSL https://antigravity.google/cli/install.sh | bash",
+    )
+  })
+
   it("keeps a disabled checkbox where the dialog has no way to install", () => {
     show({})
     expect(install()).toBeNull()

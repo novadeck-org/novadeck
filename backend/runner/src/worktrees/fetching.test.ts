@@ -71,6 +71,40 @@ describe("fetching origins", () => {
     expect(fetchEveryMs).toBe(5 * minute)
   })
 
+  it("fetches now, due or not, every repository at once, and shares a fetch already under way", async () => {
+    const git = fake()
+    let now = 1_000_000
+    const fetcher = new MainFetcher({ now: () => now, run: git.run, environment: {} })
+    await fetcher.fetchDue(["/r/api/.git"])
+    now += minute
+    // Not due, yet fetched: the two at once, a third asking for one of them while it runs.
+    await Promise.all([
+      fetcher.fetchNow(["/r/api/.git", "/r/web/.git"]),
+      fetcher.fetchNow(["/r/api/.git"]),
+    ])
+    expect(git.fetches().map(({ cwd }) => cwd)).toEqual(["/r/api", "/r/api", "/r/web"])
+    expect(fetcher.fetchedAt("/r/api/.git")).toBe(now)
+    expect(fetcher.fetchedAt("/r/web/.git")).toBe(now)
+  })
+
+  it("resolves a fetch now that failed, keeping the last time and the repository's own schedule", async () => {
+    let failing = false
+    const git = fake({ failing: () => failing })
+    let now = 1_000_000
+    const fetcher = new MainFetcher({ now: () => now, run: git.run, environment: {} })
+    await fetcher.fetchDue(["/r/api/.git"])
+    const first = now
+    now += minute
+    failing = true
+    await fetcher.fetchNow(["/r/api/.git"])
+    expect(fetcher.fetchedAt("/r/api/.git")).toBe(first)
+    // The failure of a person's own ask puts nothing off: the next one due is as it was.
+    failing = false
+    now = first + 5 * minute
+    await fetcher.fetchDue(["/r/api/.git"])
+    expect(git.fetches()).toHaveLength(3)
+  })
+
   it("runs in the repository's folder, changing nothing but origin's refs, with a long timeout and a grace", async () => {
     const git = fake()
     const fetcher = new MainFetcher({ run: git.run, environment: {} })

@@ -509,7 +509,22 @@ with every safety check again at that time:
   worktree is too). It is
   measured as before: the working tree against main by an in-memory `merge-tree`, with what is unread
   and what conflicts with main or another work (named by root, and its owner if it has one). A row
-  shows the owner terminal's title, or "No owner", and the branch; the panel lists only the open
+  shows the owner terminal's title, or "No owner", its size, then the owner's handle and the branch,
+  and under them what it says in words, most telling first: a conflict ("Conflicts with
+  origin/main", or with another work's owner) or a failing CI in red, Working, the pull request's
+  state followed by its number (a link to its page: No PR yet, Draft, Ready for review, Merged, PR
+  closed; nothing while no forge is on), its CI (running, passed, no CI), commits not pushed and,
+  on a done one that isn't safe, files not committed, in amber, and "safe to trash" in green. Its
+  icon is that first fact (a red triangle or cross, the Terminals panel's spinner while its agent
+  works, a merge, closed, ready or draft pull request glyph, else a branch). Rows stand in groups by
+  what is next (`worktree-rows.ts` `groupOf`): Needs you (a conflict, or its CI failing), In progress
+  (no pull request), In review (an open one) and Done (merged, or its pull request closed), newest
+  first in each; Done folds (kept in this browser) and holds Trash N safe, which closes every safe
+  row, unforced, after one confirm that lists them, saying above the list why any that stopped
+  being safe stays. A safe row's trash button shows at rest, in green. Over the groups, a line says
+  how old the remote's main is ("origin/main, 12 min ago", the oldest fetch among the works
+  measured against a remote's main; amber once an hour old) with Fetch (`works.fetch`). Sizes are
+  neutral: red is only for what needs the person. The panel lists only the open
   project's worktrees (the runner reports every project's, and the UI keeps those whose
   `projectId` is the open project's), and a click
   shows the work as a changes item on the owner's bar (a work with no owner, on the selected terminal's:
@@ -536,6 +551,27 @@ with every safety check again at that time:
   and its rail toggle show only while Preferences → Experimental → Agent worktrees is
   on (`useWorktreesShown`), so a stable build, which turns that setting off, has no Worktrees panel; a
   link naming it then opens Terminals. A closed worktree's memory goes with it (`works.json` and its snapshot).
+  A work also carries what it holds that lives only in its worktree: `uncommitted` (paths changed and not
+  committed, read from the snapshot the pass already takes: the working tree as a tree against HEAD's
+  tree, one `git diff-tree` run when the key changes, plus the untracked files the snapshot leaves
+  out) and `unpushed` (`git rev-list --count HEAD --not --remotes`, one cheap run on every read, as the
+  remotes move without the key changing), and `safe`: `(merged && uncommitted === 0)` or `(its pull
+  request closed && uncommitted === 0 && unpushed === 0)` (`works/standing.ts`), never while its pull
+  request is open or a draft. A merged work ignores `unpushed`: its remote branch is often deleted after
+  a squash merge, which leaves its own commits unpushed. Each is absent where git couldn't say. The
+  person's unforced close (`closeWork`) of a work that is `safe` by a fresh read goes through
+  `Worktrees.closeAt` with `safe`, which skips the refusal for commits main lacks (uncommitted files
+  still refuse); the agent's `close_worktree` is unchanged, and the branch stays or goes by the same
+  rules. `works.fetch({ projectId })` fetches origin now for the project's repositories
+  (`MainFetcher.fetchNow`: all at once, each repository's in-flight fetch shared, a failure leaving its
+  schedule alone), then reads those works again, so `fetchedAt` and main move before it resolves.
+  A work's `pullRequest` comes from the forges (`forges/service.ts`): its `ci` for an open one is how
+  its checks stand on the latest commit (GitHub's `statusCheckRollup` in the one GraphQL query; GitLab's
+  `head_pipeline` from one more request per open merge request; Azure DevOps' build policy evaluations
+  and statuses, two more), and a repository is looked up every 5 minutes, or every minute while any
+  of its open pull requests has `ci: running` (given up after 30 minutes with no pull request's
+  checks changing, until one does). Azure DevOps counts only each status context's newest post and each
+  policy's current evaluation.
   A work also carries `fetchedAt`, when the runner last fetched its repository's origin (absent when
   it never has), so a row's tooltip can say "main as of 12 min ago": a PR merged on the remote shows
   as merged here only after the next fetch (see "Worktrees": cleanup and fetching). Worktrees the

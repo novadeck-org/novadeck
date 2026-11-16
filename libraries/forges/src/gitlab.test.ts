@@ -238,4 +238,70 @@ describe("gitlab", () => {
       expect(await find(["a"])).toEqual({ kind: "unknown", said: "HTTP 400" })
     })
   })
+
+  describe("ci", () => {
+    const pipeline = (iid: number, body: Record<string, unknown>) =>
+      http.get(`${url}/${iid}`, () => HttpResponse.json(body))
+    const found = async (pipelines: Record<string, Record<string, unknown>>) => {
+      const branches = Object.keys(pipelines)
+      server.use(
+        byBranch(
+          Object.fromEntries(branches.map((branch, at) => [branch, [mr(at + 1, "opened")]])),
+        ),
+        ...branches.map((branch, at) => pipeline(at + 1, pipelines[branch]!)),
+      )
+      const map = mapOf(await gitlab.pullRequests(fetch, token, repo, branches))
+      return Object.fromEntries([...map].map(([branch, one]) => [branch, one.ci]))
+    }
+    const status = (value: string) => ({ head_pipeline: { status: value } })
+    it("maps the head pipeline's status", async () => {
+      expect(
+        await found({
+          a: status("failed"),
+          b: status("success"),
+          c: status("running"),
+          d: status("pending"),
+          e: status("created"),
+          f: status("waiting_for_resource"),
+          g: status("preparing"),
+          h: status("scheduled"),
+          i: status("canceled"),
+          j: status("skipped"),
+          k: status("manual"),
+          l: { head_pipeline: null },
+        }),
+      ).toEqual({
+        a: "failing",
+        b: "passed",
+        c: "running",
+        d: "running",
+        e: "running",
+        f: "running",
+        g: "running",
+        h: "running",
+        i: "none",
+        j: "none",
+        k: "none",
+        l: "none",
+      })
+    })
+    it("asks only open merge requests", async () => {
+      server.use(byBranch({ m: [mr(1, "merged", { merged_at: "2026-01-01T00:00:00Z" })] }))
+      const map = mapOf(await gitlab.pullRequests(fetch, token, repo, ["m"]))
+      expect(map.get("m")).not.toHaveProperty("ci")
+    })
+    it("leaves ci absent where the pipeline can't be read, keeping the request", async () => {
+      server.use(
+        byBranch({ a: [mr(1, "opened")] }),
+        http.get(`${url}/1`, () => new HttpResponse("{}", { status: 403 })),
+      )
+      const map = mapOf(await gitlab.pullRequests(fetch, token, repo, ["a"]))
+      expect(map.get("a")).toEqual({
+        number: 1,
+        url: "https://gitlab.com/g/sub/p/-/merge_requests/1",
+        title: "MR 1",
+        state: "open",
+      })
+    })
+  })
 })

@@ -84,6 +84,27 @@ describe("the debug panel's Forges group", () => {
     expect(owned()?.pullRequest).toBeUndefined()
   })
 
+  it("sets how the pull request's checks stand, making an open one where there was none", () => {
+    const { works, run } = setup()
+    const first = works.state.getSnapshot().works[0]!
+    const slot = session.terminals.findIndex((terminal) => terminal.id === first.terminalId)
+    const pull = () => works.ownedBy(first.terminalId!)?.pullRequest
+    run("CI failing", slot)
+    expect(pull()?.ci).toBe("failing")
+    run("CI running", slot)
+    expect(pull()?.ci).toBe("running")
+    run("CI passed", slot)
+    expect(pull()?.ci).toBe("passed")
+    run("No CI", slot)
+    expect(pull()?.ci).toBe("none")
+    run("No pull request", slot)
+    run("CI failing", slot)
+    expect(pull()).toMatchObject({ number: 812, state: "open", ci: "failing" })
+    // A pull request that is done has no checks to show.
+    run("Pull request: closed", slot)
+    expect(pull()).not.toHaveProperty("ci")
+  })
+
   it("falls back to the project's first work for a terminal with none", () => {
     const { works, run } = setup()
     const withWork = new Set(works.state.getSnapshot().works.map((work) => work.terminalId))

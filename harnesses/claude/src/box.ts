@@ -9,6 +9,7 @@ import {
   rule,
   ruledBox,
   type BoxProfile,
+  type InputBox,
   type Markers,
   type TurnStatus,
 } from "@novadeck/tui-input/box"
@@ -138,8 +139,30 @@ const draftCards = (shown: readonly string[]): readonly string[] => {
 const still = (rows: readonly string[]): readonly string[] =>
   draftCards(rows.map((row) => row.replace(agentRow, "$1")))
 
+/**
+ * Its fresh prompt's suggestion: `Try "…"` on the box's one row, the cursor at the box's start.
+ * It draws the suggestion dim, which the screen's bright rows leave out, unless it draws no style
+ * at all (the environment's NO_COLOR, or a CI variable, turns colour off): then the suggestion
+ * reads as a draft and no ring is ever typed. Where the cursor stands at the start of a row
+ * that is exactly a suggestion's shape, it is one; a draft the person moved the cursor home in
+ * must also be that shape to read as empty, and anything else in the box is theirs. Only where
+ * nothing on the screen is dim: with colour on, the suggestion is dim and already left out, so
+ * that shape in bright text is the person's own. Probed 2026-11-16, 2.1.325
+ * (fixtures/monochrome-prompt.probe.json).
+ */
+const suggestion = (box: InputBox, screen: ScreenText): boolean =>
+  screen.rows.every((row, at) => row === screen.bright[at]) &&
+  box.mode === "prompt" &&
+  box.first === box.last &&
+  screen.cursor.row === box.first &&
+  screen.cursor.column <= markers.prompt.length + 1 &&
+  /^Try "[^"\n]+"$/.test(box.text.trim())
+
 /** How its box reads off a screen. */
-const read = (screen: ScreenText) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows))
+const read = (screen: ScreenText) => {
+  const found = agreeing(ruledBox(screen, markers), shellFooter(screen.rows))
+  return found && suggestion(found, screen) ? { ...found, text: "" } : found
+}
 
 /** Whether the screen shows messages queued behind the running turn. */
 const queued = (screen: ScreenText): boolean => {

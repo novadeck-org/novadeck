@@ -116,6 +116,8 @@ type Where = {
   readonly fetchedAt?: number
   /** The commit it started from; unknown when left out. */
   readonly base?: string
+  /** Its repository's git common dir, which a pull request is asked by. */
+  readonly commonDir?: string
 }
 
 // A watch tells `synced` without the checkouts not read within 1.5 s, which three can take on a
@@ -144,10 +146,14 @@ const told = 10_000
 // Snapshots as the runner makes them (beside the memory where there is one), each taken afresh:
 // a test reads right after an edit. Closed after each test, after its works.
 const made: Snapshots[] = []
-const snapshotsFor = (memory?: string, repackAfter?: number): Snapshots => {
+const snapshotsFor = (
+  memory?: string,
+  repackAfter?: number,
+  held: () => (path: string) => boolean = () => () => false,
+): Snapshots => {
   const snapshots = new Snapshots({
     // Which files may hold secrets is the companions' rule, tested there.
-    held: () => () => false,
+    held,
     freshMs: 0,
     ...(memory !== undefined && { home: join(dirname(memory), "works-objects") }),
     ...(repackAfter !== undefined && { repackAfter }),
@@ -160,8 +166,9 @@ afterEach(async () => {
 })
 
 // The row of a tracked worktree, as the runner's table gives it.
-const tracked = ({ terminalId, root, fetchedAt, base: start }: Where): Tracked => ({
+const tracked = ({ terminalId, root, fetchedAt, base: start, commonDir }: Where): Tracked => ({
   root,
+  ...(commonDir !== undefined && { commonDir }),
   projectId: project,
   terminalId,
   createdAt: 50,
@@ -175,13 +182,17 @@ const open = (
   options: {
     memory?: string
     repackAfter?: number
-    remove?: (root: string, force: boolean) => Promise<Removal>
+    remove?: (root: string, force: boolean, safe?: boolean) => Promise<Removal>
+    pullRequest?: (commonDir: string, branch: string) => PullRequest | undefined
+    fetch?: (commonDirs: readonly string[]) => Promise<void>
     /** Terminals in checkouts that are no tracked worktree, as plain terminals are. */
     plain?: readonly { terminalId: string; root: string }[]
     show?: (terminalId: string, root: string) => Promise<string>
     onMade?: (listener: (made: WorkMade) => void) => () => void
     projectFolder?: (projectId: string) => string | undefined
     held?: () => (path: string) => boolean
+    /** Which untracked files the snapshots leave out as secrets. */
+    snapshotHeld?: () => (path: string) => boolean
   } = {},
 ) => {
   const shown: [string, string][] = []
@@ -206,12 +217,14 @@ const open = (
         removed.push([root, force])
         return { ok: true, branchDeleted: false }
       }),
+    ...(options.pullRequest && { pullRequest: options.pullRequest }),
+    ...(options.fetch && { fetch: options.fetch }),
     ...(options.onMade && { onMade: options.onMade }),
     ...(options.projectFolder && { projectFolder: options.projectFolder }),
     ...(options.held && { held: options.held }),
     everyMs: 20,
     firstMs: everything,
-    snapshots: snapshotsFor(options.memory, options.repackAfter),
+    snapshots: snapshotsFor(options.memory, options.repackAfter, options.snapshotHeld),
     ...(options.memory !== undefined && { memory: options.memory }),
   })
   return { works, shown, removed }
@@ -1817,6 +1830,260 @@ describe("the worktrees made", () => {
     await works.close()
     await stays.done
     expect(from.listeners.size).toBe(0)
+  })
+})
+
+describe.skipIf(!hasGit)("what a work holds that lives only in its worktree", () => {
+  // The repository pushed to an origin of its own, as `origin/HEAD` points at its main.
+  const withOrigin = (fixture: Fixture) => {
+    const bare = join(fixture.holder, "origin.git")
+    execFileSync("git", ["init", "--bare", "--quiet", "-b", "main", bare])
+    fixture.main.git("remote", "add", "origin", bare)
+    fixture.main.git("push", "--quiet", "origin", "main")
+    fixture.main.git("fetch", "--quiet", "origin")
+    fixture.main.git("remote", "set-head", "origin", "main")
+    return join(fixture.main.root, ".git")
+  }
+  const commit = (checkout: Checkout, file: string) => {
+    checkout.write(file, `${file}\n`)
+    checkout.git("add", "-A")
+    checkout.git("commit", "--quiet", "-m", file)
+  }
+  const closed: PullRequest = {
+    number: 3,
+    url: "https://github.com/a/b/pull/3",
+    title: "Gone",
+    state: "closed",
+  }
+  const standing = (work: Work | undefined) => ({
+    uncommitted: work?.uncommitted,
+    unpushed: work?.unpushed,
+    safe: work?.safe,
+  })
+
+  it("counts the paths changed and not committed, untracked ones too and ignored ones not, and the commits no remote holds", async ({
+    fixture,
+    resources,
+  }) => {
+    withOrigin(fixture)
+    const each = fixture.worktree("each")
+    commit(each, "c.txt")
+    each.write("a.txt", "changed\n")
+    each.write("b.txt", "staged\n")
+    each.git("add", "b.txt")
+    each.write("new/deep.txt", "new\n")
+    each.write(".gitignore", "ignored.log\n")
+    each.write("ignored.log", "x\n")
+    const { works } = open(() => [{ terminalId: terminal(1), root: each.root }])
+    resources.defer(() => works.close())
+    // a.txt, b.txt, new/deep.txt and .gitignore; not ignored.log. One commit, not pushed.
+    expect(standing((await current(works)).get(each.root))).toEqual({
+      uncommitted: 4,
+      unpushed: 1,
+      safe: false,
+    })
+    each.git("push", "--quiet", "origin", "each")
+    each.git("add", "-A")
+    each.git("commit", "--quiet", "-m", "all")
+    each.git("push", "--quiet", "origin", "each")
+    expect(standing((await current(works)).get(each.root))).toMatchObject({
+      uncommitted: 0,
+      unpushed: 0,
+    })
+  })
+
+  it("is safe when the work is merged and nothing is uncommitted, whatever the remote holds", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    withOrigin(fixture)
+    const start = main.git("rev-parse", "HEAD").trim()
+    const squashed = fixture.worktree("squashed")
+    commit(squashed, "c.txt")
+    main.git("merge", "--quiet", "--squash", "squashed")
+    main.git("commit", "--quiet", "-m", "squash")
+    main.git("push", "--quiet", "origin", "main")
+    const { works } = open(() => [{ terminalId: terminal(1), root: squashed.root, base: start }])
+    resources.defer(() => works.close())
+    // Its own commit was never pushed: the remote branch is gone after a squash merge.
+    expect(standing((await current(works)).get(squashed.root))).toEqual({
+      uncommitted: 0,
+      unpushed: 1,
+      safe: true,
+    })
+  })
+
+  it("is no longer safe once a file that may hold secrets, which the snapshot leaves out, appears untracked", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    withOrigin(fixture)
+    const start = main.git("rev-parse", "HEAD").trim()
+    const squashed = fixture.worktree("squashed")
+    commit(squashed, "c.txt")
+    main.git("merge", "--quiet", "--squash", "squashed")
+    main.git("commit", "--quiet", "-m", "squash")
+    main.git("push", "--quiet", "origin", "main")
+    const { works } = open(() => [{ terminalId: terminal(1), root: squashed.root, base: start }], {
+      snapshotHeld: () => (path) => path.endsWith(".env.local"),
+    })
+    resources.defer(() => works.close())
+    expect((await current(works)).get(squashed.root)).toMatchObject({ uncommitted: 0, safe: true })
+    squashed.write(".env.local", "KEY=1\n")
+    expect((await current(works)).get(squashed.root)).toMatchObject({
+      uncommitted: 1,
+      safe: false,
+    })
+  })
+
+  it("is safe when its pull request was closed with nothing uncommitted or unpushed, not with a commit unpushed, and never while it is open", async ({
+    fixture,
+    resources,
+  }) => {
+    const commonDir = withOrigin(fixture)
+    const pushed = fixture.worktree("pushed")
+    const ahead = fixture.worktree("ahead")
+    const opened = fixture.worktree("open")
+    for (const each of [pushed, ahead, opened])
+      commit(each, `${each.git("branch", "--show-current").trim()}.txt`)
+    pushed.git("push", "--quiet", "origin", "pushed")
+    opened.git("push", "--quiet", "origin", "open")
+    ahead.git("push", "--quiet", "origin", "ahead")
+    commit(ahead, "more.txt")
+    const requests = new Map<string, PullRequest>([
+      ["pushed", closed],
+      ["ahead", closed],
+      ["open", { ...closed, state: "open" }],
+    ])
+    const { works } = open(
+      () =>
+        [pushed, ahead, opened].map((each, at) => ({
+          terminalId: terminal(at + 1),
+          root: each.root,
+          commonDir,
+        })),
+      { pullRequest: (_dir, branch) => requests.get(branch) },
+    )
+    resources.defer(() => works.close())
+    const found = await current(works)
+    expect(standing(found.get(pushed.root))).toEqual({ uncommitted: 0, unpushed: 0, safe: true })
+    expect(standing(found.get(ahead.root))).toEqual({ uncommitted: 0, unpushed: 1, safe: false })
+    expect(standing(found.get(opened.root))).toEqual({ uncommitted: 0, unpushed: 0, safe: false })
+  })
+
+  it("is never safe while its pull request is open, though its work is merged", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const commonDir = withOrigin(fixture)
+    const start = main.git("rev-parse", "HEAD").trim()
+    const squashed = fixture.worktree("squashed")
+    commit(squashed, "c.txt")
+    main.git("merge", "--quiet", "--squash", "squashed")
+    main.git("commit", "--quiet", "-m", "squash")
+    main.git("push", "--quiet", "origin", "main")
+    const { works } = open(
+      () => [{ terminalId: terminal(1), root: squashed.root, base: start, commonDir }],
+      {
+        pullRequest: () => ({ ...closed, state: "draft" }),
+      },
+    )
+    resources.defer(() => works.close())
+    expect(standing((await current(works)).get(squashed.root))).toMatchObject({ safe: false })
+  })
+
+  describe("closing", () => {
+    it("closes a safe work, read afresh, without asking what main lacks; one made unsafe since asks", async ({
+      fixture,
+      resources,
+    }) => {
+      const commonDir = withOrigin(fixture)
+      const pushed = fixture.worktree("pushed")
+      commit(pushed, "c.txt")
+      pushed.git("push", "--quiet", "origin", "pushed")
+      const { works, removed } = open(
+        () => [{ terminalId: terminal(1), root: pushed.root, commonDir }],
+        { pullRequest: () => closed },
+      )
+      resources.defer(() => works.close())
+      expect((await current(works)).get(pushed.root)?.safe).toBe(true)
+      await works.closeWork(pushed.root, false)
+      expect(removed).toEqual([[pushed.root, false]])
+      // The mark the service reads: safe, passed apart from `force`.
+      const marks: boolean[] = []
+      const again = open(() => [{ terminalId: terminal(1), root: pushed.root, commonDir }], {
+        pullRequest: () => closed,
+        remove: async (_root, _force, safe) => (
+          marks.push(safe === true),
+          { ok: true, branchDeleted: false }
+        ),
+      })
+      resources.defer(() => again.works.close())
+      await current(again.works)
+      await again.works.closeWork(pushed.root, false)
+      // Changed after it was told safe, before it was closed.
+      pushed.write("late.txt", "late\n")
+      await again.works.closeWork(pushed.root, false)
+      expect(marks).toEqual([true, false])
+    })
+
+    it("is not safe for a forced close", async ({ fixture, resources }) => {
+      const commonDir = withOrigin(fixture)
+      const pushed = fixture.worktree("pushed")
+      commit(pushed, "c.txt")
+      pushed.git("push", "--quiet", "origin", "pushed")
+      const marks: (boolean | undefined)[] = []
+      const { works } = open(() => [{ terminalId: terminal(1), root: pushed.root, commonDir }], {
+        pullRequest: () => closed,
+        remove: async (_root, _force, safe) => (
+          marks.push(safe),
+          { ok: true, branchDeleted: false }
+        ),
+      })
+      resources.defer(() => works.close())
+      await works.closeWork(pushed.root, true)
+      expect(marks).toEqual([false])
+    })
+  })
+
+  describe("fetching", () => {
+    it("fetches the origins of the project's repositories, then reads its works again for the new fetch time", async ({
+      fixture,
+      resources,
+    }) => {
+      const commonDir = withOrigin(fixture)
+      const each = fixture.worktree("each")
+      const row: { fetchedAt: number } = { fetchedAt: 1 }
+      const asked: (readonly string[])[] = []
+      const { works } = open(
+        () => [{ terminalId: terminal(1), root: each.root, commonDir, fetchedAt: row.fetchedAt }],
+        {
+          fetch: async (dirs) => {
+            asked.push(dirs)
+            row.fetchedAt = 99
+          },
+        },
+      )
+      resources.defer(() => works.close())
+      expect((await current(works)).get(each.root)?.fetchedAt).toBe(1)
+      await works.fetch(project)
+      expect(asked).toEqual([[commonDir]])
+      expect((await current(works)).get(each.root)?.fetchedAt).toBe(99)
+    })
+
+    it("fetches nothing for a project with no works", async ({ fixture, resources }) => {
+      const asked: unknown[] = []
+      const { works } = open(() => [{ terminalId: terminal(1), root: fixture.main.root }], {
+        fetch: async (dirs) => void asked.push(dirs),
+      })
+      resources.defer(() => works.close())
+      await works.fetch("33333333-3333-4333-8333-333333333333")
+      await works.fetch(project)
+      expect(asked).toEqual([])
+    })
   })
 })
 
