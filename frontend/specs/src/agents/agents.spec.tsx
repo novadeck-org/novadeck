@@ -519,6 +519,19 @@ describe("Connecting agents", () => {
         .toHaveAttribute("aria-checked", "false")
     })
 
+    it("changes the scheme at once, and keeps it when skipped", async () => {
+      await openWorkspace("/?demo=welcome")
+      const appearance = welcome().getByRole("radiogroup", { name: "Appearance" })
+      await appearance.getByText("Dark", { exact: true }).click()
+      await expect.poll(() => document.documentElement.dataset.scheme).toBe("dark")
+      await welcome().getByRole("button", { name: "Skip for now" }).click()
+      await expect.element(welcome()).not.toBeInTheDocument()
+      expect(document.documentElement.dataset.scheme).toBe("dark")
+      await openPreferences()
+      await preferencesDialog().getByRole("tab", { name: "Appearance" }).click()
+      await expect.element(preferencesDialog().getByRole("radio", { name: "Dark" })).toBeChecked()
+    })
+
     it("leaves the transcripts choice out where they cannot be kept encrypted", async () => {
       await openWorkspace("/?demo=welcome&transcripts=unavailable")
       await expect.element(welcome()).toBeVisible()

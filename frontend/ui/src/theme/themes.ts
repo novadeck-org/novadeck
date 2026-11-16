@@ -54,3 +54,7 @@ export type ThemeId = (typeof themes)[number]["id"]
 // goes with the default theme's.
 export const soundOfTheme = (id: string): NoticeSound =>
   (themes.find((entry) => entry.id === id) ?? themes[0]).sound
+
+// How many schemes a saved theme id comes in, as its sound: the shown theme's.
+export const schemeCountOfTheme = (id: string): number =>
+  (themes.find((entry) => entry.id === id) ?? themes[0]).schemes.length

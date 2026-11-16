@@ -100,3 +100,23 @@ describe("the chat view, in the welcome dialog", () => {
     expect(changes).toEqual([])
   })
 })
+
+describe("the scheme, in the welcome dialog", () => {
+  const scheme = (label: string): HTMLInputElement | null =>
+    document.querySelector(
+      `[role="radiogroup"][aria-label="Appearance"] input[aria-label="${label}"]`,
+    )
+
+  it("isn't offered where the theme comes in one scheme", () => {
+    show({})
+    expect(document.querySelector('[role="radiogroup"][aria-label="Appearance"]')).toBeNull()
+  })
+
+  // Picking one, and its applying at once, is the welcome spec's: the group answers pointer
+  // events, which jsdom doesn't send.
+  it("shows the chosen scheme where the theme comes in more than one", () => {
+    show({ scheme: { value: "dark", onChange: () => {} } })
+    expect(scheme("Dark")?.checked).toBe(true)
+    expect(scheme("System")?.checked).toBe(false)
+  })
+})

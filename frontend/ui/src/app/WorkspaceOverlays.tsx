@@ -4,6 +4,7 @@ import type { AgentName } from "@novadeck/core/harnesses"
 import type { Backend } from "@novadeck/core/port"
 import { orderedTiles } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
+import type { SchemePreference } from "@novadeck/core/types"
 import {
   memo,
   Suspense,
@@ -34,6 +35,7 @@ import { CloseTerminalDialog } from "../terminals/CloseTerminalDialog"
 import { MoveTeammateDialog } from "../terminals/MoveTeammateDialog"
 import { visibleSwitcher } from "../terminals/recent"
 import { TerminalSwitcher } from "../terminals/TerminalSwitcher"
+import { schemeCountOfTheme } from "../theme/themes"
 import { TourSpotlight } from "../tour/Spotlight"
 import { TourConsentDialog } from "../tour/TourConsent"
 import { CloseTeamRows } from "./CloseTeamRows"
@@ -396,6 +398,20 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           onChange={backend.agents.set}
           onInstall={installs.install}
           transcripts={transcripts}
+          {...(schemeCountOfTheme(preferences.appearance.theme) > 1
+            ? {
+                scheme: {
+                  value: preferences.appearance.scheme,
+                  onChange: (scheme: SchemePreference) => {
+                    const current = ui.getSnapshot().preferences
+                    updatePreferences({
+                      ...current,
+                      appearance: { ...current.appearance, scheme },
+                    })
+                  },
+                },
+              }
+            : {})}
           {...(backend.conversations
             ? {
                 chatView: {

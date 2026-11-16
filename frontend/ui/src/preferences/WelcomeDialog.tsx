@@ -1,11 +1,22 @@
 import { harnesses } from "@novadeck/core/harnesses"
+import type { SchemePreference } from "@novadeck/core/types"
 import { Checkbox } from "@novadeck/toolkit/Checkbox"
 import { Dialog, DialogDescription, DialogTitle } from "@novadeck/toolkit/Dialog"
 import { AntigravityIcon } from "@novadeck/toolkit/icons/AntigravityIcon"
 import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
 import { brandName, NovaMark, NovaPattern, Wordmark } from "@novadeck/toolkit/NovaLogo"
-import { ArrowRight, MessagesSquare, Play, ScrollText, type LucideIcon } from "lucide-react"
+import { SegmentGroup } from "@novadeck/toolkit/SegmentGroup"
+import {
+  ArrowRight,
+  MessagesSquare,
+  Monitor,
+  Moon,
+  Play,
+  ScrollText,
+  Sun,
+  type LucideIcon,
+} from "lucide-react"
 import { useRef, useState, type ComponentType, type CSSProperties, type RefObject } from "react"
 
 import { agentLabels, agentNote, type AgentSwitch } from "./agent-switches"
@@ -31,6 +42,19 @@ type ChatViewSetting = {
   readonly enabled: boolean
   readonly onChange: (enabled: boolean) => void
 }
+
+// The page's scheme, which the dialog changes at once, as Preferences does: the person sees
+// what they pick, and it stays however the dialog closes.
+type SchemeSetting = {
+  readonly value: SchemePreference
+  readonly onChange: (scheme: SchemePreference) => void
+}
+
+const schemeItems = [
+  { label: "System", value: "system", icon: <Monitor size={13} aria-hidden="true" /> },
+  { label: "Light", value: "light", icon: <Sun size={13} aria-hidden="true" /> },
+  { label: "Dark", value: "dark", icon: <Moon size={13} aria-hidden="true" /> },
+] as const
 
 const icons = { claude: ClaudeIcon, codex: CodexIcon, agy: AntigravityIcon }
 
@@ -167,6 +191,7 @@ const WelcomeForm = ({
   onTour,
   transcripts,
   chatView,
+  scheme,
   onDone,
   heading,
 }: {
@@ -176,6 +201,7 @@ const WelcomeForm = ({
   readonly onTour?: ((agent: AgentSwitch["agent"]) => void) | undefined
   readonly transcripts?: TranscriptsSetting | undefined
   readonly chatView?: ChatViewSetting | undefined
+  readonly scheme?: SchemeSetting | undefined
   readonly onDone: () => void
   readonly heading: RefObject<HTMLHeadingElement | null>
 }): React.JSX.Element => {
@@ -217,11 +243,29 @@ const WelcomeForm = ({
     >
       <div className="welcome-intro relative isolate min-w-0 overflow-hidden px-8 pt-8 pb-6 min-[820px]:px-10 min-[820px]:pt-10 max-[420px]:px-5">
         <NovaPattern className="welcome-pattern pointer-events-none absolute top-0 right-0 -z-10 h-[230px] w-[72%]" />
-        <div className="flex items-center gap-2.5 text-[23px]" role="img" aria-label={brandName}>
-          <NovaMark size={35} animated />
-          {/* With no descenders the letters ride high in their line; this centres their
-              capitals and baseline on the mark. */}
-          <Wordmark animated className="translate-y-[0.07em]" />
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+          <div className="flex items-center gap-2.5 text-[23px]" role="img" aria-label={brandName}>
+            <NovaMark size={35} animated />
+            {/* With no descenders the letters ride high in their line; this centres their
+                capitals and baseline on the mark. */}
+            <Wordmark animated className="translate-y-[0.07em]" />
+          </div>
+          {scheme && (
+            <div className="welcome-enter" style={at(1100)}>
+              <SegmentGroup
+                label="Appearance"
+                items={schemeItems}
+                value={scheme.value}
+                onValueChange={(next) => {
+                  const chosen = schemeItems.find((item) => item.value === next)?.value
+                  if (chosen) scheme.onChange(chosen)
+                }}
+                className="flex shrink-0 gap-1"
+                itemClassName="flex h-7 items-center justify-center gap-1.5 px-2.5 text-control"
+                indicatorClassName="absolute"
+              />
+            </div>
+          )}
         </div>
         <div className="mt-10 max-[819px]:mt-6">
           <DialogTitle
@@ -401,7 +445,7 @@ const WelcomeForm = ({
 }
 
 // Choices stay local until submission. Dismissing changes no agent, chat view or transcript
-// setting; Preferences keeps its immediate switches.
+// setting; Preferences keeps its immediate switches. The scheme alone applies at once.
 export const WelcomeDialog = ({
   open,
   agents,
@@ -410,6 +454,7 @@ export const WelcomeDialog = ({
   onTour,
   transcripts,
   chatView,
+  scheme,
   onDone,
 }: {
   readonly open: boolean
@@ -421,6 +466,8 @@ export const WelcomeDialog = ({
   readonly transcripts?: TranscriptsSetting | undefined
   // Given, the person chooses here whether agents show as a chat, as starting applies.
   readonly chatView?: ChatViewSetting | undefined
+  // Given, the person picks the page's scheme here, at once; left out where the theme has one.
+  readonly scheme?: SchemeSetting | undefined
   readonly onDone: () => void
 }): React.JSX.Element => {
   const heading = useRef<HTMLHeadingElement>(null)
@@ -444,6 +491,7 @@ export const WelcomeDialog = ({
         onTour={onTour}
         transcripts={transcripts}
         chatView={chatView}
+        scheme={scheme}
         onDone={onDone}
         heading={heading}
       />
