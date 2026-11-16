@@ -172,8 +172,13 @@ export const setups = (selected: readonly string[], ids: readonly string[]): rea
         { agents: ids.join(","), name: "Mixed", files: "mixed.e2e.ts" },
       ]
 
-/** The core scenarios: what the quirks jobs and macOS on a pull request run of each harness. */
-export const core = "messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts images.e2e.ts"
+/**
+ * The core scenarios: what the quirks jobs and macOS on a pull request run of each harness.
+ * `priority.e2e.ts` is among them, as macOS and Windows are where it runs and a pull request
+ * runs only these on macOS.
+ */
+export const core =
+  "messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts images.e2e.ts priority.e2e.ts"
 
 // Every harness: a message crossing under a cmd AutoRun that prints (the file sets it, on CI only).
 const autorunFile = "windows-autorun.e2e.ts"

@@ -403,13 +403,13 @@ describe("E2E rows", () => {
         agents: "claude",
         name: "Claude Code",
         files:
-          "messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts images.e2e.ts windows-quirks.e2e.ts windows-autorun.e2e.ts",
+          "messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts images.e2e.ts priority.e2e.ts windows-quirks.e2e.ts windows-autorun.e2e.ts",
       },
       {
         agents: "agy",
         name: "Antigravity",
         files:
-          "messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts images.e2e.ts windows-autorun.e2e.ts",
+          "messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts images.e2e.ts priority.e2e.ts windows-autorun.e2e.ts",
         autorun: true,
       },
     ])
@@ -836,7 +836,9 @@ describe("E2E on macOS", () => {
         setup: { agents: "claude,codex,agy", name: coreName, files: core },
       },
     ])
-    expect(core).toBe("messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts images.e2e.ts")
+    expect(core).toBe(
+      "messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts images.e2e.ts priority.e2e.ts",
+    )
   })
 
   it("runs the core scenarios of only the harnesses a pull request chose", () => {
