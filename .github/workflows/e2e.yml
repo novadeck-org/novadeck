@@ -95,7 +95,7 @@ jobs:
 
   # Linux's jobs, for any change the suite runs on. The Linux jobs keep their names; the
   # Windows and macOS ones (`e2e-windows` and `e2e-macos` below, with these steps) say so, and
-  # a harness's two halves say which (`Codex (Windows, 1/2)`).
+  # a harness's shards say which (`Codex (Windows, 1/2)`, `Codex (2/3)`).
   e2e:
     needs: plan
     if: needs.plan.outputs.run == 'true'
@@ -103,7 +103,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     # Windows starts processes and consoles several times slower, and has no namespace;
     # macOS's runners are slower than Linux's too. Codex's macOS job, run whole, took 28 to
-    # 29.5 minutes before shell-command.e2e.ts added about half a minute; 36 leaves room.
+    # 29.5 minutes before shell-command.e2e.ts added about half a minute, and up to 33.7 by
+    # 2026-11-15; 36 was set for it. The shards are planned against these limits.
     timeout-minutes: ${{ matrix.os == 'windows-latest' && 45 || matrix.os == 'macos-latest' && 36 || 20 }}
     defaults:
       run:
@@ -116,10 +117,9 @@ jobs:
         # suite, the others for a change to what is system-specific, and all three on a
         # schedule or a dispatch. Each harness alone, and Mixed, which runs every harness at
         # once for the scenarios across harnesses (`*.mixed.e2e.ts`) the others skip, as they
-        # leave to it. Claude Code runs in two halves on every system, Codex on Windows and
-        # Linux, and Antigravity on Linux, where their suites take longest
-        # (scripts/e2e/plan/plan.ts, `shardedOn` and `firstShard`). Each system's rows are
-        # its own job's.
+        # leave to it. Each harness runs in shards, split by its files' recorded times so
+        # each is planned a quarter under this limit at worst (scripts/e2e/plan/plan.ts,
+        # `shardsOn`, `split`, and durations.json). Each system's rows are its own job's.
         include: ${{ fromJSON(needs.plan.outputs.linux) }}
     env: &e2e-env
       NOVADECK_E2E_CACHE: ${{ github.workspace }}/.e2e-cache
@@ -186,7 +186,7 @@ jobs:
       - name: Run E2E
         env:
           FILES: ${{ matrix.setup.files }}
-        # Each file, or a half's `--exclude` and its file, a word of its own.
+        # Each file, or the last shard's `--exclude` and its file, a word of its own.
         run: |
           # shellcheck disable=SC2086
           if [ "$RUNNER_OS" != Linux ]; then
@@ -222,9 +222,9 @@ jobs:
           retention-days: 30
 
       # The namespace wrapper's own tests against a real namespace, which only a runner
-      # that allows one can run; once, in one job (Claude Code's first half).
+      # that allows one can run; once, in one job (Claude Code's first shard, or its job).
       - name: Test Network Namespace
-        if: matrix.setup.agents == 'claude' && runner.os == 'Linux' && matrix.setup.part != 2
+        if: matrix.setup.agents == 'claude' && runner.os == 'Linux' && (matrix.setup.part || 1) == 1
         env:
           NOVADECK_E2E_NETNS_TESTS: "1"
         run: npx vitest run --config vitest.config.ts scripts/e2e

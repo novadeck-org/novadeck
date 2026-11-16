@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process"
 import { appendFileSync, readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
+import { sharding } from "../../e2e/plan/main.ts"
 import { parseAffected } from "../../e2e/plan/plan.ts"
 import { declaredReads, platformOf, workspacePackages } from "../../workspace/platform.ts"
 import { readScope, type Scope, scopeFile } from "../../workspace/scopes.ts"
@@ -133,7 +134,7 @@ export const main = (): void => {
     process.env.BASE_SHA,
     process.env.HEAD_SHA,
   )
-  const decided = plan(found, ids)
+  const decided = plan(found, ids, { sharding: sharding() })
   console.error(
     decided.everything === undefined
       ? `${found.affected?.length} affected packages, ${found.files?.length} changed files`

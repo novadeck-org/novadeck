@@ -194,37 +194,119 @@ export const quirks = (selected: readonly string[]): readonly Quirk[] =>
     ...(id === "agy" ? { autorun: true as const } : {}),
   }))
 
-// The harnesses whose suite runs longest, and the systems where each runs in two jobs: Claude
-// Code and Codex on Windows and Linux (on Windows 21 and 24 minutes, #285's E2E run), and
-// Antigravity on Linux, whose one job took 18.3 to 19.5 of its 20 minutes and ran out with
-// #781's tests (19.1 minutes of tests then, 11.1 of them in the first half's files). On macOS,
-// where runners are scarce, a harness keeps one job while it fits: Claude Code's took 27.4 to
-// 29.6 of its 30 minutes on 2026-11-07 and ran out twice that evening, so it runs in two there
-// too; Codex's stays whole, though it grew from 23.6 to 28 and 29.5 of 30 (2026-11-09) and ran
-// out once with `shell-command.e2e.ts`'s half minute, so a macOS job has 36 minutes instead: a
-// second Codex job would take another scarce macOS runner and pay the setup twice. Split it
-// here too if it passes about 32 minutes or runs out at 36.
-const both: ReadonlySet<string> = new Set([systems.linux, systems.windows])
-const shardedOn: ReadonlyMap<string, ReadonlySet<string>> = new Map([
-  ["claude", new Set([...both, systems.macos])],
-  ["codex", both],
-  ["agy", new Set([systems.linux])],
+/** A system's key in `durations.json` and `jobLimits` (`linux`), from its `runs-on`. */
+const keyOf = (system: string): keyof typeof systems =>
+  (Object.keys(systems) as (keyof typeof systems)[]).find((key) => systems[key] === system) ??
+  "linux"
+
+/**
+ * Each suite file's recorded time, in seconds, in each harness's job on each system: the median
+ * of green runs, a harness's shards added up within a run (`durations.ts` writes it).
+ */
+export type Durations = {
+  readonly [harness: string]: {
+    readonly [system: string]: { readonly [file: string]: number } | undefined
+  }
+}
+
+/** What a harness's suite is split by: the suite's files (`chat.e2e.ts`) and their times. */
+export type Sharding = { readonly suite: readonly string[]; readonly durations: Durations }
+
+/** The `e2e` jobs' limits, in minutes, as `e2e.yml` sets them (a test holds the two alike). */
+export const jobLimits = { linux: 20, windows: 45, macos: 36 } as const
+
+/**
+ * What a job spends outside its test files, in minutes: checkout, the setup action, the
+ * harnesses' caches and install, the relay's build, Vitest's own start, and uploads. The p90 of
+ * the green runs of 2026-11-13 to 11-15, which `durations.json` was recorded from: 81 s on
+ * Linux, 136 on Windows, 151 on macOS.
+ */
+export const jobOverhead = { linux: 1.4, windows: 2.3, macos: 2.5 } as const
+
+/**
+ * How much slower than its files' medians a shard may run: a job's slowest green run of those
+ * days took up to 1.18 times its median (Claude Code's second Windows half), most within 1.1.
+ */
+export const slowest = 1.15
+
+/**
+ * How much of its job's limit a shard may take at worst, its files' medians slowed by `slowest`
+ * and its job's overhead added: the rest is room for a slower runner yet.
+ */
+export const shardShare = 0.75
+
+// How many jobs each harness's suite runs in on each system, so that each, split by its files'
+// recorded times, stays within `shardShare` of its limit at worst (a test holds every one there).
+// On 2026-11-13 to 11-15, in two halves of a fixed list, Claude Code's second Linux half took up
+// to 19.6 of its 20 minutes and Codex's 16.7; Codex's whole macOS job 33.7 of 36, Antigravity's
+// whole macOS job 28.4 and its whole Windows job 33.9 of 45. Split again, two Linux shards would
+// still take up to 89% (Claude Code) and 81% (Codex), and Antigravity's two would sit at the
+// line. Linux runners are many and quick to start, so a third job there costs a minute of
+// setup. A second macOS job takes another scarce runner (about five run at once, so two of a
+// whole-suite run's seven wait for one, as Mixed's frees the first within about 8 minutes),
+// but only the whole suite runs these: a night, a dispatch, a merge queue. A pull request's
+// macOS job runs the core scenarios (`macosRows`). Mixed runs whole everywhere.
+const shardsOn: ReadonlyMap<string, ReadonlyMap<string, number>> = new Map([
+  [
+    "claude",
+    new Map([
+      [systems.linux, 3],
+      [systems.windows, 2],
+      [systems.macos, 2],
+    ]),
+  ],
+  [
+    "codex",
+    new Map([
+      [systems.linux, 3],
+      [systems.windows, 2],
+      [systems.macos, 2],
+    ]),
+  ],
+  [
+    "agy",
+    new Map([
+      [systems.linux, 3],
+      [systems.windows, 2],
+      [systems.macos, 2],
+    ]),
+  ],
 ])
 
-// The first job's files, about half the suite's time (each harness's run on Windows in #285's
-// E2E run: chat 223–284 s, controls 126–136, answers 123–134, requests 55–63, inbox 30–35,
-// lead 21, nested 12–17, tasks 15–16 of the jobs' 21–24 minutes). The second runs every other file, so
-// a file added later runs there.
-export const firstShard = [
-  "chat.e2e.ts",
-  "controls.e2e.ts",
-  "answers.e2e.ts",
-  "requests.e2e.ts",
-  "inbox.e2e.ts",
-  "lead.e2e.ts",
-  "nested.e2e.ts",
-  "tasks.e2e.ts",
-]
+/** How many jobs a harness's suite runs in on a system: one unless `shardsOn` says more. */
+export const shardsOf = (harness: string, system: string): number =>
+  shardsOn.get(harness)?.get(system) ?? 1
+
+/**
+ * The suite's files in `count` shards of about the same recorded time: the longest first, each
+ * onto the shard with the least so far (on a tie, the one with fewer files, then the earlier). A
+ * file with no time recorded, as a new one, weighs as the median of those that have one. Each
+ * shard's files are sorted; there are never more shards than files.
+ */
+export const split = (
+  suite: readonly string[],
+  times: { readonly [file: string]: number } | undefined,
+  count: number,
+): readonly (readonly string[])[] => {
+  // No shard without a file, which would run the whole suite, or none of it.
+  const many = Math.max(1, Math.min(count, suite.length))
+  const known = suite.flatMap((file) => (times?.[file] === undefined ? [] : [times[file]!]))
+  const sorted = known.toSorted((a, b) => a - b)
+  const middle = sorted.length === 0 ? 0 : sorted[Math.floor(sorted.length / 2)]!
+  const weight = (file: string) => times?.[file] ?? middle
+  const shards = Array.from({ length: many }, () => ({ load: 0, files: [] as string[] }))
+  for (const file of suite.toSorted((a, b) => weight(b) - weight(a) || a.localeCompare(b))) {
+    const lightest = shards.reduce((least, shard) =>
+      shard.load < least.load ||
+      (shard.load === least.load && shard.files.length < least.files.length)
+        ? shard
+        : least,
+    )
+    lightest.load += weight(file)
+    lightest.files.push(file)
+  }
+  return shards.map((shard) => shard.files.toSorted())
+}
 
 /** One job of the `e2e` matrix: its system, its name, and the row it runs. */
 export type Row = {
@@ -233,40 +315,53 @@ export type Row = {
   readonly setup: Setup & { readonly part?: number }
 }
 
-// A job's name: the Linux ones bare, the others with their system, and a shard's number.
-const jobName = (name: string, os: string, part: number | undefined): string => {
+// A job's name: the Linux ones bare, the others with their system, and a shard's number of all.
+const jobName = (
+  name: string,
+  os: string,
+  part: { readonly at: number; readonly of: number } | undefined,
+): string => {
   const system = os === systems.windows ? "Windows" : os === systems.macos ? "macOS" : undefined
-  const tags = [system, part === undefined ? undefined : `${part}/2`].filter(Boolean)
+  const tags = [system, part === undefined ? undefined : `${part.at}/${part.of}`].filter(Boolean)
   return tags.length > 0 ? `${name} (${tags.join(", ")})` : name
 }
 
 /**
- * The `e2e` job's matrix, each system's rows in turn: a row as it is, or, for a long
- * harness on a system it is split on (`shardedOn`), two, one running `firstShard` and one the
- * rest.
+ * The `e2e` job's matrix, each system's rows in turn: a row as it is, or, for a harness split
+ * on a system (`shardsOn`), one per shard (`split`). Each shard but the last names its files;
+ * the last runs every other file, so one the plan wasn't told of (added, or renamed) still runs.
+ * Without the suite and its times (`sharding`), nothing is split: each row runs whole.
  */
-export const rows = (os: readonly string[], each: readonly Setup[]): readonly Row[] =>
+export const rows = (
+  os: readonly string[],
+  each: readonly Setup[],
+  sharding?: Sharding,
+): readonly Row[] =>
   os.flatMap((system) =>
     each.flatMap((setup): Row[] => {
-      if (!shardedOn.get(setup.agents)?.has(system))
+      const shards =
+        sharding === undefined
+          ? []
+          : split(
+              sharding.suite,
+              sharding.durations[setup.agents]?.[keyOf(system)],
+              shardsOf(setup.agents, system),
+            )
+      if (shards.length < 2)
         return [{ os: system, job: jobName(setup.name, system, undefined), setup }]
-      const rest = firstShard.map((file) => `--exclude src/e2e/${file}`).join(" ")
-      return [
-        {
-          os: system,
-          job: jobName(setup.name, system, 1),
-          setup: {
-            ...setup,
-            files: firstShard.map((file) => `src/e2e/${file}`).join(" "),
-            part: 1,
-          },
+      const named = shards.slice(0, -1).flat()
+      return shards.map((files, at) => ({
+        os: system,
+        job: jobName(setup.name, system, { at: at + 1, of: shards.length }),
+        setup: {
+          ...setup,
+          files:
+            at < shards.length - 1
+              ? files.map((file) => `src/e2e/${file}`).join(" ")
+              : named.map((file) => `--exclude src/e2e/${file}`).join(" "),
+          part: at + 1,
         },
-        {
-          os: system,
-          job: jobName(setup.name, system, 2),
-          setup: { ...setup, files: rest, part: 2 },
-        },
-      ]
+      }))
     }),
   )
 
@@ -276,7 +371,7 @@ export type Plan = {
   /** The `runs-on` of each system the `e2e` jobs run on; the `quirks` job needs Windows. */
   readonly os: readonly string[]
   readonly e2e: readonly Setup[]
-  /** The jobs that run: `os` by `e2e`, with the long harnesses split in two. */
+  /** The jobs that run: `os` by `e2e`, with the long harnesses split (`shardsOn`). */
   readonly rows: readonly Row[]
   /**
    * The matrix of each system's job: Linux's, Windows's, and macOS's, which starts only once
@@ -304,9 +399,15 @@ export const coreName = "Core scenarios"
  * pinned night (a dispatch on main) runs on macOS what a pull request leaves out. In the core
  * set's measured macOS times (PR runs of 2026-11-10: messaging, requests, lifecycle and images
  * took 106 s for Antigravity, 149 for Codex and 163 for Claude Code), the job takes about ten
- * minutes with its setup, against about 95 job minutes in five jobs for the whole suite.
+ * minutes with its setup, against about 95 job minutes in five jobs for the whole suite then
+ * (about 107 in seven, as its harnesses' shards are now: `shardsOn`).
  */
-export const macosRows = (event: string, chosen: readonly string[], ids: readonly string[]) =>
+export const macosRows = (
+  event: string,
+  chosen: readonly string[],
+  ids: readonly string[],
+  sharding: Sharding,
+) =>
   event === "pull_request"
     ? [
         {
@@ -315,9 +416,9 @@ export const macosRows = (event: string, chosen: readonly string[], ids: readonl
           setup: { agents: chosen.join(","), name: coreName, files: core },
         },
       ]
-    : rows([systems.macos], setups(chosen, ids))
+    : rows([systems.macos], setups(chosen, ids), sharding)
 
-export const plan = (facts: Facts, ids: readonly string[]): Plan => {
+export const plan = (facts: Facts, ids: readonly string[], sharding: Sharding): Plan => {
   const selected = select(facts, ids)
   // With nothing to run the jobs are skipped, but their matrices still name every row: a
   // skipped job's matrix is never run, and an empty one is an error where Actions reads it.
@@ -328,9 +429,9 @@ export const plan = (facts: Facts, ids: readonly string[]): Plan => {
   const os = held ? systemsChosen.filter((system) => system !== systems.macos) : systemsChosen
   const e2e = setups(chosen, ids)
   const jobs = {
-    linux: rows([systems.linux], e2e),
-    windows: rows([systems.windows], e2e),
-    macos: macosRows(facts.event, chosen, ids),
+    linux: rows([systems.linux], e2e, sharding),
+    windows: rows([systems.windows], e2e, sharding),
+    macos: macosRows(facts.event, chosen, ids, sharding),
   }
   return {
     run: selected.length > 0,

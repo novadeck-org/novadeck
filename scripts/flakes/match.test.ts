@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs"
 
-import { core, macosRows } from "../e2e/plan/plan"
+import { sharding } from "../e2e/plan/main"
+import { core, macosRows, plan, quirks } from "../e2e/plan/plan"
 import { context, describe, expect, it } from "../test"
 import { type Flake, failuresOf, judgeJob, judgeRun, parseRegister, verdictSummary } from "./match"
 
@@ -86,6 +87,48 @@ describe("the known-flake register", () => {
     })
   })
 
+  context("when it names E2E jobs", () => {
+    // Every job the E2E workflow runs: each harness's shards on each system, Mixed, macOS's
+    // core scenarios on a pull request, and the Windows quirks jobs. A shard's count changes
+    // its jobs' names, which an entry must follow or its flake reads as unknown.
+    const ids = Object.keys(
+      JSON.parse(readFileSync("backend/runner/src/e2e/harnesses.json", "utf8")) as object,
+    )
+    const night = { event: "schedule", affected: undefined, runner: undefined, files: undefined }
+    const jobs = [
+      ...plan(night, ids, sharding()).rows.map((row) => row.job),
+      ...macosRows("pull_request", ids, ids, sharding()).map((row) => row.job),
+      ...quirks(ids).map((row) => `${row.name} (Windows quirks)`),
+    ]
+
+    it("names in each pattern a job that runs", () => {
+      const e2e = /^\^(?:Claude Code|Codex|Antigravity|Mixed|Core scenarios)\b/
+      const unmatched = register.flakes.flatMap((flake) =>
+        flake.jobs
+          .filter((pattern) => e2e.test(pattern))
+          .filter((pattern) => !jobs.some((job) => new RegExp(pattern).test(job)))
+          .map((pattern) => `${flake.id}: ${pattern}`),
+      )
+      expect(unmatched).toEqual([])
+    })
+
+    it("names every shard of a harness on a system where it names one", () => {
+      // A job's harness and system, without its shard: `Codex (Windows, 1/2)` is `Codex (Windows)`.
+      const whole = (job: string) =>
+        job.replace(/(?:, | \()\d+\/\d+\)$/, (tag) => (tag.startsWith(",") ? ")" : ""))
+      const partial = register.flakes.flatMap((flake) =>
+        flake.jobs.flatMap((pattern) => {
+          const named = jobs.filter((job) => new RegExp(pattern).test(job))
+          const groups = new Set(named.map(whole))
+          return jobs
+            .filter((job) => groups.has(whole(job)) && !named.includes(job))
+            .map((job) => `${flake.id}: ${pattern} misses ${job}`)
+        }),
+      )
+      expect(partial).toEqual([])
+    })
+  })
+
   context("when a core scenario fails in macOS's one job of a pull request", () => {
     // On a pull request, macOS runs the core files of every harness in one job, "Core
     // scenarios (macOS)" (scripts/e2e/plan), where the rest of the time each harness runs its
@@ -94,11 +137,11 @@ describe("the known-flake register", () => {
     const ids = Object.keys(
       JSON.parse(readFileSync("backend/runner/src/e2e/harnesses.json", "utf8")) as object,
     )
-    const coreJob = macosRows("pull_request", ids, ids)
+    const coreJob = macosRows("pull_request", ids, ids, sharding())
       .map((row) => row.job)
       .join(", ")
     // Each harness's own macOS jobs, Mixed's (every harness at once, its own files) aside.
-    const harnessJobs = macosRows("schedule", ids, ids)
+    const harnessJobs = macosRows("schedule", ids, ids, sharding())
       .filter((row) => !row.setup.agents.includes(","))
       .map((row) => row.job)
     const coreFiles = core.split(" ").map((file) => `src/e2e/${file}`)

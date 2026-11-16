@@ -14,6 +14,7 @@ import {
   type Quirk,
   type Row,
   type Setup,
+  type Sharding,
 } from "../../e2e/plan/plan.ts"
 import { isRead, type Platform } from "../../workspace/platform.ts"
 import { isProse, type Scope, scopeOver } from "../../workspace/scopes.ts"
@@ -85,6 +86,8 @@ export type Plan = {
 export type Options = {
   /** Whether prose outside every package reaches only its declared readers. */
   readonly prose?: boolean
+  /** The E2E suite's files and times, which its long harnesses split by; without, none is. */
+  readonly sharding?: Sharding
 }
 
 // Files in a package that no build reads: its tests, specs and end-to-end scenarios, and
@@ -96,7 +99,12 @@ export const packageOf = (file: string, packages: readonly Workspace[]): Workspa
   packages.find(({ folder }) => file.startsWith(`${folder}/`))
 
 /** The E2E jobs for the harnesses `selected` of `ids`, on the systems `os`. */
-const e2eOf = (selected: readonly string[], os: readonly string[], ids: readonly string[]): E2E => {
+const e2eOf = (
+  selected: readonly string[],
+  os: readonly string[],
+  ids: readonly string[],
+  sharding?: Sharding,
+): E2E => {
   // With nothing to run the jobs are skipped, but their matrices still name every row: a
   // skipped job's matrix is never run, and an empty one is an error where Actions reads it.
   const chosen = selected.length > 0 ? selected : ids
@@ -106,17 +114,22 @@ const e2eOf = (selected: readonly string[], os: readonly string[], ids: readonly
     run: selected.length > 0,
     os: where,
     e2e,
-    rows: rows(where, e2e),
+    rows: rows(where, e2e, sharding),
     quirks: quirks(chosen),
   }
 }
 
 /** Everything, on every system, for the reason given. */
-const everything = (event: string, why: string, ids: readonly string[]): Plan => ({
+const everything = (
+  event: string,
+  why: string,
+  ids: readonly string[],
+  sharding?: Sharding,
+): Plan => ({
   event,
   everything: why,
   tests: { linux: "all", windows: "all", macos: "all" },
-  e2e: e2eOf(ids, Object.values(systems), ids),
+  e2e: e2eOf(ids, Object.values(systems), ids, sharding),
   package: true,
 })
 
@@ -158,9 +171,9 @@ const unreadable = (facts: Facts, prose: boolean): string | undefined => {
  * a changed file is one a package it is built from builds.
  */
 export const plan = (facts: Facts, ids: readonly string[], options: Options = {}): Plan => {
-  const { prose = true } = options
+  const { prose = true, sharding } = options
   const why = unreadable(facts, prose)
-  if (why !== undefined) return everything(facts.event, why, ids)
+  if (why !== undefined) return everything(facts.event, why, ids, sharding)
   // Read above: every fact is there.
   const packages = facts.packages!
   const files = facts.files!
@@ -192,7 +205,7 @@ export const plan = (facts: Facts, ids: readonly string[], options: Options = {}
     event: facts.event,
     everything: undefined,
     tests: { linux: [repository, ...linux], windows: others, macos: others },
-    e2e: e2eOf(selected, os, ids),
+    e2e: e2eOf(selected, os, ids, sharding),
     package: inside.some(
       (file) =>
         packaged.has(packageOf(file, packages)!.name) &&

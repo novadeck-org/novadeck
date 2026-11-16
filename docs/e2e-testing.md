@@ -121,6 +121,20 @@ macOS job first turns off the image's Reduce motion (see Running). Every job set
 `NOVADECK_E2E_TRACES`, and one whose tests failed or that was cancelled uploads the traces
 its failed tests wrote, as the `e2e-traces-<harness>-<os>` artifact, kept seven days.
 
+A harness whose suite runs long on a system runs there in shards (`shardsOn` in `plan.ts`),
+named `… (n/k)`: each harness in three on Linux and two on Windows and macOS. Mixed, and
+macOS's core scenarios on a pull request, run whole.
+The suite's files are split by their recorded times (`durations.json`: each file's median in
+that harness's job on that system over green runs). The longest goes first, each onto the
+shard with the least so far, and a file with no time recorded yet weighs as the median one.
+Each shard but the last names its files, and the last runs every other file, so a new or
+renamed file still runs. A file a harness skips whole weighs nothing. `plan.test.ts` holds each
+shard to three quarters of its job's limit at worst: its files' medians slowed by `slowest`
+(1.15), with the p90 of a job's time outside its files added. When one passes that, or the
+suite has grown a while, record the times again
+(`node scripts/e2e/plan/durations.ts <run id>…`, over a few days of green runs) and, if it
+still does, add a shard there.
+
 A `… (Windows quirks)` job per harness covers what those green Windows jobs can't, as
 people's machines differ from the runner's. It changes the runner's own machine, which
 no test may do on a developer's: a PowerShell profile for every user that prints, checked

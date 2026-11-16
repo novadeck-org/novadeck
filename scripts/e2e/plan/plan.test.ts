@@ -4,6 +4,7 @@ import { join } from "node:path"
 
 import { context, describe, expect, it } from "../../test"
 import { runGate } from "./gate.ts"
+import { sharding as recorded } from "./main.ts"
 import {
   allSystemsFolders,
   browserOnlyFiles,
@@ -11,18 +12,25 @@ import {
   core,
   coreName,
   followsChange,
-  firstShard,
+  jobLimits,
+  jobOverhead,
   parseAffected,
   plan,
   quirks,
   select,
   selectSystems,
   setups,
+  shardShare,
+  shardsOf,
+  slowest,
   sharedFolders,
+  split,
   systems,
 } from "./plan.ts"
 
 const ids = ["claude", "codex", "agy"]
+// The suite as it is, and the times recorded of it (durations.json).
+const sharding = recorded()
 // What `turbo ls --filter @novadeck/runner...` names: the runner and what it builds on.
 const runner = [
   "@novadeck/runner",
@@ -274,7 +282,7 @@ const count = (planned: ReturnType<typeof plan>) => {
 
 describe("E2E jobs by change", () => {
   const planFor = (affected: readonly string[], files: readonly string[]) =>
-    count(plan(pullRequest(affected, files), ids))
+    count(plan(pullRequest(affected, files), ids, sharding))
 
   // Each row's jobs and macOS jobs: the `e2e` rows (a harness each, and Mixed) on each
   // system the plan chose, and a quirks row per harness when it chose Windows.
@@ -324,7 +332,7 @@ describe("E2E jobs by change", () => {
       "libraries/terminal/package.json",
       "backend/runner/src/terminals/manager.ts",
     ]
-    const planned = plan(pullRequest(affected, files), ids)
+    const planned = plan(pullRequest(affected, files), ids, sharding)
     expect(planned.run).toBe(true)
     expect(planned.os).toEqual([systems.linux, systems.windows, systems.macos])
     expect(planned.e2e).toHaveLength(ids.length + 1)
@@ -357,7 +365,7 @@ describe("E2E turbo output", () => {
 
   it("sends a plan running everything when the output is bad", () => {
     const facts: Facts = { ...pullRequest([]), affected: parseAffected("oops") }
-    expect(plan(facts, ids).e2e).toHaveLength(ids.length + 1)
+    expect(plan(facts, ids, sharding).e2e).toHaveLength(ids.length + 1)
   })
 })
 
@@ -370,7 +378,7 @@ describe("E2E rows", () => {
   })
 
   it("names every system, for skipped jobs, when nothing is selected", () => {
-    expect(plan(pullRequest([], ["README.md"]), ids).os).toEqual([
+    expect(plan(pullRequest([], ["README.md"]), ids, sharding).os).toEqual([
       systems.linux,
       systems.windows,
       systems.macos,
@@ -378,9 +386,9 @@ describe("E2E rows", () => {
   })
 
   it("names every row, for skipped jobs, when nothing is selected", () => {
-    const planned = plan(pullRequest([], ["README.md"]), ids)
+    const planned = plan(pullRequest([], ["README.md"]), ids, sharding)
     expect(planned.run).toBe(false)
-    const everything = plan({ ...nightly, affected: [], runner, files: [] }, ids)
+    const everything = plan({ ...nightly, affected: [], runner, files: [] }, ids, sharding)
     expect(planned.e2e).toEqual(everything.e2e)
     expect(planned.quirks).toEqual(everything.quirks)
   })
@@ -408,7 +416,7 @@ describe("E2E rows", () => {
   })
 
   it("plans everything for a nightly run", () => {
-    const planned = plan(nightly, ids)
+    const planned = plan(nightly, ids, sharding)
     expect(planned.run).toBe(true)
     expect(planned.e2e.map((setup) => setup.name)).toEqual([
       "Claude Code",
@@ -420,61 +428,172 @@ describe("E2E rows", () => {
   })
 })
 
+describe("a suite split into shards", () => {
+  it("puts the longest files first, each onto the shard with the least so far", () => {
+    const times = { "a.e2e.ts": 9, "b.e2e.ts": 7, "c.e2e.ts": 5, "d.e2e.ts": 4, "e.e2e.ts": 2 }
+    expect(split(Object.keys(times), times, 2)).toEqual([
+      ["a.e2e.ts", "d.e2e.ts"],
+      ["b.e2e.ts", "c.e2e.ts", "e.e2e.ts"],
+    ])
+  })
+
+  it("runs every file once, whatever the count", () => {
+    const suite = ["a.e2e.ts", "b.e2e.ts", "c.e2e.ts"]
+    for (const many of [1, 2, 3]) {
+      const shards = split(suite, { "a.e2e.ts": 3 }, many)
+      expect(shards).toHaveLength(many)
+      expect(shards.flat().toSorted()).toEqual(suite)
+    }
+  })
+
+  it("weighs a file with no time recorded, as a new one, as the median of the rest", () => {
+    // The new file weighs 2, the median, and joins the lighter shard, not the 9's.
+    const times = { "a.e2e.ts": 9, "b.e2e.ts": 1, "c.e2e.ts": 2 }
+    expect(split([...Object.keys(times), "new.e2e.ts"], times, 2)).toEqual([
+      ["a.e2e.ts"],
+      ["b.e2e.ts", "c.e2e.ts", "new.e2e.ts"],
+    ])
+    // With nothing recorded, the files share out one by one.
+    expect(split(["x.e2e.ts", "y.e2e.ts"], undefined, 2)).toEqual([["x.e2e.ts"], ["y.e2e.ts"]])
+    // Never a shard with no file: it would run the whole suite, or none of it.
+    expect(split(["x.e2e.ts", "y.e2e.ts"], undefined, 3)).toEqual([["x.e2e.ts"], ["y.e2e.ts"]])
+  })
+})
+
 describe("E2E jobs", () => {
-  it("runs Claude Code in two halves everywhere, Codex on Linux and Windows, Antigravity on Linux, and the rest whole", () => {
-    expect(plan(nightly, ids).rows.map((row) => row.job)).toEqual([
-      "Claude Code (1/2)",
-      "Claude Code (2/2)",
-      "Codex (1/2)",
-      "Codex (2/2)",
-      "Antigravity (1/2)",
-      "Antigravity (2/2)",
+  it("runs each harness in three shards on Linux and two elsewhere, and Mixed whole", () => {
+    expect(plan(nightly, ids, sharding).rows.map((row) => row.job)).toEqual([
+      "Claude Code (1/3)",
+      "Claude Code (2/3)",
+      "Claude Code (3/3)",
+      "Codex (1/3)",
+      "Codex (2/3)",
+      "Codex (3/3)",
+      "Antigravity (1/3)",
+      "Antigravity (2/3)",
+      "Antigravity (3/3)",
       "Mixed",
       "Claude Code (Windows, 1/2)",
       "Claude Code (Windows, 2/2)",
       "Codex (Windows, 1/2)",
       "Codex (Windows, 2/2)",
-      "Antigravity (Windows)",
+      "Antigravity (Windows, 1/2)",
+      "Antigravity (Windows, 2/2)",
       "Mixed (Windows)",
       "Claude Code (macOS, 1/2)",
       "Claude Code (macOS, 2/2)",
-      "Codex (macOS)",
-      "Antigravity (macOS)",
+      "Codex (macOS, 1/2)",
+      "Codex (macOS, 2/2)",
+      "Antigravity (macOS, 1/2)",
+      "Antigravity (macOS, 2/2)",
       "Mixed (macOS)",
     ])
   })
 
-  it("gives the first half its files and the second every other file", () => {
-    const [first, second] = plan(nightly, ids).rows.filter((row) => row.os === systems.windows)
-    expect(first?.setup).toEqual({
-      agents: "claude",
-      name: "Claude Code",
-      files: firstShard.map((file) => `src/e2e/${file}`).join(" "),
-      part: 1,
-    })
-    expect(second?.setup.files).toBe(
-      firstShard.map((file) => `--exclude src/e2e/${file}`).join(" "),
-    )
+  // What each shard of a harness on a system runs: the files it names, or for the last, every
+  // file the others don't.
+  const shardsOfRun = (agents: string, os: string) =>
+    plan(nightly, ids, sharding).rows.filter((row) => row.os === os && row.setup.agents === agents)
+  const named = (files: string | undefined) =>
+    (files ?? "")
+      .split(" ")
+      .filter((word) => word.startsWith("src/e2e/"))
+      .map((word) => word.slice("src/e2e/".length))
+
+  it("names each shard's files but the last's, which runs every file the others don't", () => {
+    for (const [agents, os] of [
+      ["claude", systems.linux],
+      ["codex", systems.windows],
+      ["agy", systems.macos],
+    ] as const) {
+      const shards = shardsOfRun(agents, os)
+      const earlier = shards.slice(0, -1).flatMap((row) => named(row.setup.files))
+      expect(shards.at(-1)?.setup.files).toBe(
+        earlier.map((file) => `--exclude src/e2e/${file}`).join(" "),
+      )
+      expect(shards.map((row) => row.setup.part)).toEqual(shards.map((_, at) => at + 1))
+      // No file runs in two shards, and every file of the suite runs in one.
+      expect(new Set(earlier).size).toBe(earlier.length)
+      for (const file of earlier) expect(sharding.suite).toContain(file)
+    }
   })
 
-  it("names only files the suite has, so a renamed one can't drop out of both halves", () => {
+  it("keeps each shard a quarter under its job's limit at worst, by its files' recorded times", () => {
+    // Every harness the suite pins, not only those split today.
+    const pinned = Object.keys(
+      JSON.parse(
+        readFileSync(
+          join(import.meta.dirname, "../../../backend/runner/src/e2e/harnesses.json"),
+          "utf8",
+        ),
+      ) as object,
+    )
+    for (const agents of pinned)
+      for (const os of [systems.linux, systems.windows, systems.macos]) {
+        const key = (Object.keys(systems) as (keyof typeof systems)[]).find(
+          (each) => systems[each] === os,
+        )!
+        const times = sharding.durations[agents]?.[key]
+        expect(times, `${agents} on ${key} has recorded times`).toBeDefined()
+        const shards = split(sharding.suite, times, shardsOf(agents, os))
+        // A file with no time recorded yet weighs as the median one, as `split` weighs it.
+        const known = sharding.suite.flatMap((file) =>
+          times?.[file] === undefined ? [] : [times[file]!],
+        )
+        const median = known.toSorted((a, b) => a - b)[Math.floor(known.length / 2)] ?? 0
+        for (const files of shards) {
+          const minutes = files.reduce((sum, file) => sum + (times?.[file] ?? median), 0) / 60
+          expect(
+            minutes * slowest + jobOverhead[key],
+            `${agents} on ${key}, a shard of ${shards.length}`,
+          ).toBeLessThanOrEqual(jobLimits[key] * shardShare)
+        }
+      }
+  })
+
+  it("holds the limits the shards are planned by to those the workflow sets", () => {
+    const workflow = readFileSync(
+      join(import.meta.dirname, "../../../.github/workflows/e2e.yml"),
+      "utf8",
+    )
+    expect(workflow).toContain(
+      `timeout-minutes: \${{ matrix.os == 'windows-latest' && ${jobLimits.windows} || matrix.os == 'macos-latest' && ${jobLimits.macos} || ${jobLimits.linux} }}`,
+    )
+    const limitOf = (job: string) =>
+      new RegExp(`\\n  ${job}:\\n(?:    .*\\n)*?    timeout-minutes: (\\d+)\\n`).exec(workflow)?.[1]
+    expect(limitOf("e2e-windows")).toBe(String(jobLimits.windows))
+    expect(limitOf("e2e-macos")).toBe(String(jobLimits.macos))
+  })
+
+  it("names only files the suite has, none of whose paths holds another's", () => {
     const suite = readdirSync(join(import.meta.dirname, "../../../backend/runner/src/e2e"))
-    for (const file of firstShard) expect(suite).toContain(file)
     for (const file of core.split(" ")) expect(suite).toContain(file)
+    // Vitest takes a file named on its command line as part of a path: one named must not be
+    // part of another's, or both would run in that shard.
+    const paths = sharding.suite.map((file) => `src/e2e/${file}`)
+    for (const path of paths)
+      expect(
+        paths.filter((other) => other.includes(path)),
+        path,
+      ).toEqual([path])
   })
 
   it("splits only the systems the plan chose", () => {
     const linux = plan(
       pullRequest(["@novadeck/protocol"], ["contract/protocol/src/contract.ts"]),
       ids,
+      sharding,
     )
     expect(linux.rows.map((row) => row.job)).toEqual([
-      "Claude Code (1/2)",
-      "Claude Code (2/2)",
-      "Codex (1/2)",
-      "Codex (2/2)",
-      "Antigravity (1/2)",
-      "Antigravity (2/2)",
+      "Claude Code (1/3)",
+      "Claude Code (2/3)",
+      "Claude Code (3/3)",
+      "Codex (1/3)",
+      "Codex (2/3)",
+      "Codex (3/3)",
+      "Antigravity (1/3)",
+      "Antigravity (2/3)",
+      "Antigravity (3/3)",
       "Mixed",
     ])
   })
@@ -516,14 +635,17 @@ describe("E2E jobs per system", () => {
   const linuxOnly = plan(
     pullRequest(["@novadeck/protocol", "@novadeck/runner"], ["contract/protocol/src/harnesses.ts"]),
     ids,
+    sharding,
   )
 
   it("gives each system's job that system's rows", () => {
-    const { jobs } = plan(nightly, ids)
+    const { jobs } = plan(nightly, ids, sharding)
     expect(jobs.linux.every((row) => row.os === systems.linux)).toBe(true)
     expect(jobs.windows.every((row) => row.os === systems.windows)).toBe(true)
     expect(jobs.macos.every((row) => row.os === systems.macos)).toBe(true)
-    expect([...jobs.linux, ...jobs.windows, ...jobs.macos]).toEqual(plan(nightly, ids).rows)
+    expect([...jobs.linux, ...jobs.windows, ...jobs.macos]).toEqual(
+      plan(nightly, ids, sharding).rows,
+    )
   })
 
   // A skipped job's matrix is still read, and an empty one is an error there.
@@ -662,7 +784,7 @@ describe("E2E on a draft", () => {
   const runnerChange = pullRequest(["@novadeck/runner"], ["backend/runner/src/index.ts"])
 
   it("holds macOS's rows back where its change needs them, and runs Linux's and Windows's", () => {
-    const planned = plan({ ...runnerChange, draft: true }, ids)
+    const planned = plan({ ...runnerChange, draft: true }, ids, sharding)
     expect(planned.held).toBe(true)
     expect(planned.os).toEqual([systems.linux, systems.windows])
     expect(planned.rows.some((row) => row.os === systems.macos)).toBe(false)
@@ -674,13 +796,13 @@ describe("E2E on a draft", () => {
       ["@novadeck/protocol", "@novadeck/runner"],
       ["contract/protocol/src/a.ts"],
     )
-    expect(plan({ ...protocol, draft: true }, ids).held).toBe(false)
-    expect(plan({ ...pullRequest([], ["docs/a.md"]), draft: true }, ids).held).toBe(false)
+    expect(plan({ ...protocol, draft: true }, ids, sharding).held).toBe(false)
+    expect(plan({ ...pullRequest([], ["docs/a.md"]), draft: true }, ids, sharding).held).toBe(false)
   })
 
   it("runs macOS once ready, and on every run no payload calls a draft", () => {
-    expect(plan({ ...runnerChange, draft: false }, ids).os).toContain(systems.macos)
-    expect(plan(runnerChange, ids).os).toContain(systems.macos)
+    expect(plan({ ...runnerChange, draft: false }, ids, sharding).os).toContain(systems.macos)
+    expect(plan(runnerChange, ids, sharding).os).toContain(systems.macos)
   })
 
   it("runs again when a draft is marked ready, and reads whether it is one", () => {
@@ -699,13 +821,15 @@ describe("E2E on macOS", () => {
   const full = [
     "Claude Code (macOS, 1/2)",
     "Claude Code (macOS, 2/2)",
-    "Codex (macOS)",
-    "Antigravity (macOS)",
+    "Codex (macOS, 1/2)",
+    "Codex (macOS, 2/2)",
+    "Antigravity (macOS, 1/2)",
+    "Antigravity (macOS, 2/2)",
     "Mixed (macOS)",
   ]
 
   it("runs one job on a pull request: the core scenarios of every chosen harness", () => {
-    expect(plan(runnerChange, ids).jobs.macos).toEqual([
+    expect(plan(runnerChange, ids, sharding).jobs.macos).toEqual([
       {
         os: systems.macos,
         job: `${coreName} (macOS)`,
@@ -720,11 +844,11 @@ describe("E2E on macOS", () => {
       ["@novadeck/harness-codex", "@novadeck/runner"],
       ["harnesses/codex/src/index.ts"],
     )
-    expect(plan(codex, ids).jobs.macos.map((row) => row.setup.agents)).toEqual(["codex"])
+    expect(plan(codex, ids, sharding).jobs.macos.map((row) => row.setup.agents)).toEqual(["codex"])
   })
 
   it("keeps Linux's and Windows's rows whole on a pull request", () => {
-    const planned = plan(runnerChange, ids)
+    const planned = plan(runnerChange, ids, sharding)
     expect(planned.rows.filter((row) => row.os !== systems.macos)).toEqual([
       ...planned.jobs.linux,
       ...planned.jobs.windows,
@@ -735,7 +859,9 @@ describe("E2E on macOS", () => {
   it.each(["schedule", "workflow_dispatch", "merge_group", "push", ""])(
     "runs the whole suite on a %s run, as on every event but a pull request",
     (event) => {
-      expect(plan({ ...nightly, event }, ids).jobs.macos.map((row) => row.job)).toEqual(full)
+      expect(plan({ ...nightly, event }, ids, sharding).jobs.macos.map((row) => row.job)).toEqual(
+        full,
+      )
     },
   )
   it("runs the whole suite on a merge group that follows its change, for only the harnesses it chose", () => {
@@ -746,8 +872,9 @@ describe("E2E on macOS", () => {
       ),
       event: "merge_group",
     }
-    expect(plan(codex, ids).jobs.macos.map((row) => row.job)).toEqual([
-      "Codex (macOS)",
+    expect(plan(codex, ids, sharding).jobs.macos.map((row) => row.job)).toEqual([
+      "Codex (macOS, 1/2)",
+      "Codex (macOS, 2/2)",
       "Mixed (macOS)",
     ])
   })
@@ -766,7 +893,7 @@ describe("E2E on a merge group", () => {
     for (const event of ["schedule", "workflow_dispatch", "push", ""])
       expect(followsChange(event)).toBe(false)
     const docs = group([], ["docs/development.md"])
-    expect(plan(docs, ids)).toMatchObject({ run: false })
+    expect(plan(docs, ids, sharding)).toMatchObject({ run: false })
     expect(select(group(["@novadeck/harness-codex"], ["harnesses/codex/src/a.ts"]), ids)).toEqual([
       "codex",
     ])
@@ -788,7 +915,7 @@ describe("E2E on a merge group", () => {
       ...group(["@novadeck/runner"], ["backend/runner/src/a.ts"]),
       draft: false,
     }
-    expect(plan(runnerGroup, ids)).toMatchObject({ held: false })
-    expect(plan(runnerGroup, ids).os).toContain(systems.macos)
+    expect(plan(runnerGroup, ids, sharding)).toMatchObject({ held: false })
+    expect(plan(runnerGroup, ids, sharding).os).toContain(systems.macos)
   })
 })

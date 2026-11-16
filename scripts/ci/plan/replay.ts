@@ -2,6 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
+import { sharding } from "../../e2e/plan/main.ts"
 import * as e2e from "../../e2e/plan/plan.ts"
 import * as packaging from "../../package/plan/plan.ts"
 import {
@@ -138,7 +139,7 @@ const old = (facts: Facts, ids: readonly string[]) => {
     runner: facts.suite,
     files: facts.files,
   }
-  const decided = e2e.plan(e2eFacts, ids)
+  const decided = e2e.plan(e2eFacts, ids, sharding())
   return {
     e2e: decided,
     // The rule step 1d gives Windows' and macOS' unit tests: the E2E plan's, by changed files.

@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process"
-import { appendFileSync, readFileSync } from "node:fs"
+import { appendFileSync, readdirSync, readFileSync } from "node:fs"
 
-import { followsChange, parseAffected, plan } from "./plan.ts"
+import { followsChange, parseAffected, plan, type Durations, type Sharding } from "./plan.ts"
 
 // `node scripts/e2e/plan/main.ts`: decides which E2E rows a run needs and prints the plan as
 // JSON; in Actions it also sets the job's outputs `run`, `held`, `os`, `quirks`, and each system's
@@ -11,6 +11,16 @@ import { followsChange, parseAffected, plan } from "./plan.ts"
 // other event, or anything that can't be read, runs everything.
 
 const pins = new URL("../../../backend/runner/src/e2e/harnesses.json", import.meta.url)
+const suite = new URL("../../../backend/runner/src/e2e/", import.meta.url)
+const durations = new URL("durations.json", import.meta.url)
+
+/** The suite's files and their recorded times, which a split harness's shards are made by. */
+export const sharding = (): Sharding => ({
+  suite: readdirSync(suite)
+    .filter((file) => file.endsWith(".e2e.ts"))
+    .toSorted(),
+  durations: JSON.parse(readFileSync(durations, "utf8")) as Durations,
+})
 
 const run = (
   command: string,
@@ -83,7 +93,7 @@ export const main = (): void => {
   console.error(
     `${found.event || "no event"}: ${found.affected?.length ?? "unknown"} affected packages, ${found.files?.length ?? "unknown"} changed files`,
   )
-  const decided = plan(found, ids)
+  const decided = plan(found, ids, sharding())
   console.log(JSON.stringify(decided, null, 2))
   const output = process.env.GITHUB_OUTPUT
   if (output)
