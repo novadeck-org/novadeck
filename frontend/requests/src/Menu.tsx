@@ -11,7 +11,7 @@ import {
 
 import { Hint } from "./Hint"
 import { answering, menuKey, pressRow, startCursor, type Cursor } from "./menu-keys"
-import { arrivalGuardMs, isTyping } from "./use-menu"
+import { arrivalGuardMs, isTyping, movesKey } from "./use-menu"
 
 // A request's numbered menu, as the next lines of the terminal: a number and the words of each
 // row, a dim line under them where the row says more, and a thin bar on the row the person is on.
@@ -22,7 +22,8 @@ import { arrivalGuardMs, isTyping } from "./use-menu"
 // hold several, and Esc goes back to the rows, keeping the words. While it has focus or words,
 // what Enter does, why the words can't go, and a key that sends them sit small under it.
 // Focus stays where it is as a menu appears, unless the host says the person arrived here from
-// an answer (`arrived`): a menu that took it would take what they were typing for an answer.
+// an answer (`arrived`), or brings it here (`focus`): either way, for a moment no key answers, so
+// what they were typing elsewhere is never taken for an answer.
 
 export type Words = {
   readonly value: string
@@ -71,6 +72,10 @@ export type MenuHandle = {
   readonly key: (key: string) => boolean
   // Moves the cursor, and focus, to a row, pressing nothing.
   readonly go: (at: number) => void
+  // Brings focus to the row the person is on, pressing nothing: true where it landed. `guard`
+  // holds the answering keys back for a moment, for focus that comes while they may be typing
+  // elsewhere; a click is aimed at what the menu shows, and goes.
+  readonly focus: (guard: boolean) => boolean
 }
 
 // The most characters of the person's words a request's answer takes (`requestAnswer`'s text).
@@ -147,9 +152,11 @@ export const Menu = ({
   }
   const ids = useId()
 
-  // Until when keys don't answer: set as it arrives. Where it may take focus from is the host's
-  // at the time.
+  // Until when neither keys nor clicks answer: set as it arrives. Where it may take focus from is
+  // the host's at the time.
   const guard = useRef(0)
+  // Until when keys don't answer, as focus was brought here.
+  const keysGuard = useRef(0)
   const areaNow = useRef(area)
   useEffect(() => {
     areaNow.current = area
@@ -164,7 +171,7 @@ export const Menu = ({
   }, [arrived])
   // Whether a key is to be held back: no repeat answers, nor anything as the menu arrives.
   const held = (key: string, repeat: boolean): boolean =>
-    answering(key) && (repeat || Date.now() < guard.current)
+    answering(key) && (repeat || Date.now() < Math.max(guard.current, keysGuard.current))
 
   // Focus follows the cursor once it has moved there.
   useLayoutEffect(() => {
@@ -204,6 +211,13 @@ export const Menu = ({
       setCursor({ at: index, armed: null })
       focusTo.current = index
     },
+    focus: (arming) => {
+      const row = rows.current[at]
+      if (!row) return false
+      if (arming) keysGuard.current = Date.now() + arrivalGuardMs
+      row.focus({ preventScroll: true })
+      return document.activeElement === row
+    },
   }))
 
   const sendWords = (index: number): void => {
@@ -225,7 +239,17 @@ export const Menu = ({
   }
 
   return (
-    <div ref={menu} className="request-menu">
+    <div
+      ref={menu}
+      className="request-menu"
+      // The person is here on purpose: the keys answer at once.
+      onPointerDownCapture={() => {
+        keysGuard.current = 0
+      }}
+      onKeyDownCapture={(event) => {
+        if (movesKey(event.key)) keysGuard.current = 0
+      }}
+    >
       <div
         className="request-options"
         // A group of buttons, as the chat's rows always were, not an ARIA menu: the workspace

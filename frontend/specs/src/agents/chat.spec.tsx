@@ -609,18 +609,21 @@ describe("A request that waits on the person", () => {
         .not.toBeInTheDocument()
     })
 
-    it("takes the keys of a terminal's menu, and leaves the box's words alone", async () => {
+    it("takes the keyboard before the box, as a terminal's menu takes the keys", async () => {
       await openChatDemo()
       const chat = await openChat("Checkout review")
       const card = requestCard(chat, /^Needs your permission/)
-      await expect.element(composer(chat)).toHaveFocus()
+      await expect.element(card.getByRole("button", { name: "Yes, proceed" })).toHaveFocus()
+      await userEvent.keyboard("{ArrowDown}")
+      const always = card.getByRole("button", { name: /^Yes, and don't ask again/ })
+      await expect.element(always).toHaveFocus()
+      // Once it has had the keyboard, the box takes the person's words, and leaves the card be.
+      await composer(chat).click()
       await userEvent.keyboard("hello")
       await expect.element(composer(chat)).toHaveValue("hello")
-      card.getByRole("button", { name: "Yes, proceed" }).element().focus()
-      await userEvent.keyboard("{ArrowDown}")
-      await expect
-        .element(card.getByRole("button", { name: /^Yes, and don't ask again/ }))
-        .toHaveFocus()
+      // A click anywhere on the card brings the keyboard back to the row the person is on.
+      await card.getByRole("heading").click()
+      await expect.element(always).toHaveFocus()
     })
   })
 
@@ -759,6 +762,9 @@ describe("A request that waits on the person", () => {
       const card = requestCard(chat, /^Has a question: ask_question/)
       const unit = card.getByRole("checkbox", { name: "Unit tests" })
       unit.element().focus()
+      // The card took the keyboard as the chat opened, holding its answering keys a moment, so
+      // nothing typed on into it answers.
+      await new Promise((resolve) => setTimeout(resolve, 450))
       await userEvent.keyboard(" ")
       await expect.element(unit).toBeChecked()
       await userEvent.keyboard("{ArrowDown}")
@@ -782,7 +788,9 @@ describe("A request that waits on the person", () => {
       await userEvent.keyboard("{Enter}")
       await expect.element(card.getByRole("button", { name: "Submit answers" })).toHaveFocus()
       await userEvent.keyboard("{Enter}")
-      await expect.element(composer(chat)).toHaveFocus()
+      // The keyboard goes on to the agent's form, which never had it, before the box.
+      const form = requestCard(chat, /^Has a question: mcp_deploy/)
+      await expect.element(form.getByRole("textbox", { name: /^Target name/ })).toHaveFocus()
       await expect.element(card).not.toBeInTheDocument()
       await expect
         .element(chat.getByText("Noted: Unit tests; The README", { exact: false }), {
