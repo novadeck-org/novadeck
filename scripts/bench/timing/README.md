@@ -46,18 +46,19 @@ Its shape, with illustrative numbers:
   "environment": { "platform": "linux", "cpus": 4, "cpu": "…", "chromium": "…", … },
   "scenario": { "terminals": 13, "agents": 5, "warmMs": 5000, "windowMs": 15000, … },
   "summary": {
+    "framesFrom": "trace",    // absent from reports before the frames came from a trace: don't compare their steady numbers
     "switchP50Ms": 31.2,      // press to the first frame painted with the target's screen in the page, null if none
     "switchP90Ms": 35.0,
     "switchesTimedOut": 0,    // switches that never painted within 4 s
     "agentsHeard": 5,         // agents whose hooks the runner heard: below 5, the run measured less load
     "steady": [
-      // per layout: the main thread's busy share (%), frames a second, frame gaps over
-      // 33 ms and long tasks, over the window
+      // per layout: the main thread's busy share (%), the page's frames a second, the frames
+      // the main thread answered over 33 ms late, and long tasks, over the window
       { "layout": "Grid", "mainThreadShare": 61.3, "fps": 44.1, "framesOver33ms": 87, "longTasks": 40 },
       { "layout": "Focus", "mainThreadShare": 22.0, "fps": 59.8, "framesOver33ms": 3, "longTasks": 2 }
     ]
   },
-  "samples": { "agentPhases": ["running", …], "steady": [ … frame gaps and long tasks … ], "switches": [ { "target": 1, "ms": 30.4 }, … ] },
+  "samples": { "agentPhases": ["running", …], "steady": [ … frames, slow frames and long tasks … ], "switches": [ { "target": 1, "ms": 30.4 }, … ] },
   "problems": [],             // processes reaped after the run, the developer's home written to
   "error": "…"                // only when the run stopped short; the summary covers what it got
 }
@@ -72,13 +73,19 @@ and the run exits 1.
   it is shown again.
 - **`mainThreadShare`** is Chromium's TaskDuration over its own clock between two readings: a
   saturated main thread reads about 100.
-- **`framesOver33ms`** counts frame gaps over 33 ms: at 60 Hz a single dropped frame is one.
-- The frame counter is an animation frame requested all the time, which makes Chromium run a
-  full main-thread frame at every vsync even with nothing to draw, so it adds to
-  `mainThreadShare` and `longTasks` of a quiet window (Focus's especially). The timing run keeps
-  it, so its trend stays comparable with its history; the real-hardware profile
-  (`../profile/README.md`), which reads the main thread's time on its own, leaves it out
-  (`probe`'s `frames: false`) and reads its frames from its traces.
+- **`fps`** and **`framesOver33ms`** come from a Chromium trace of each steady window (browser
+  level, only the frame and user-timing categories, taken between two marks; `profile/tracing.ts`
+  and `windowFrames` in `profile/trace.ts`), never from a counter in the page: an animation frame
+  requested all the time makes Chromium run a full main-thread frame (style, layout, pre-paint,
+  commit) at every vsync even with nothing to draw, which loaded the thread the window measures
+  and put `mainThreadShare`, `fps` and `longTasks` well above the app's own. A frame is one the
+  compositor asked of the main thread (`BeginMainThreadFrame`), so an idle window has few.
+  `framesOver33ms` counts the frames the main thread took over 33 ms to answer after the
+  compositor asked (`SendBeginMainFrameToCommit`): a stall that no frame waited on isn't one (long
+  tasks hold it), and it is **not** the earlier count of gaps over 33 ms between a counted page's
+  frames. Reports without `summary.framesFrom` have the old counter's numbers: the PR comment
+  shows main's as n/a until main's nightly run has the field. The profile
+  (`../profile/README.md`) reads its frames the same way.
 - On a shared machine the numbers move run to run; compare runs from the same machine.
 
 ## The sandbox's limits

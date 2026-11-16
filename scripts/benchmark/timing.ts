@@ -17,6 +17,9 @@ export type TimingReport = {
   readonly commit?: string
   readonly scenario?: { readonly agents?: number }
   readonly summary?: {
+    // "trace" once the steady windows' frames come from a trace; absent in a report from
+    // before, whose frame counter loaded the main thread it measured.
+    readonly framesFrom?: string
     readonly switchP50Ms?: number | null
     readonly switchP90Ms?: number | null
     readonly switchesTimedOut?: number
@@ -66,13 +69,22 @@ const warningsOf = (report: TimingReport, whose: string): string[] => {
   ]
 }
 
-// One row: this run's value, and main's beside it when known.
+// Whether main's steady-window numbers (main-thread share, frames over 33 ms) measure what
+// this report's do: a report from before the frames came from a trace had a frame counter
+// loading the main thread, which put its share and frame counts well above the same app's now.
+// That is one discontinuity: the first nightly on main with the change replaces main's report.
+export const sameFrames = (report: TimingReport, main: TimingReport): boolean =>
+  report.summary?.framesFrom === main.summary?.framesFrom
+
+// One row: this run's value, and main's beside it when known; a row that main's report
+// can't be compared on shows n/a in main's column.
 const row = (
   name: string,
   value: (report: TimingReport | undefined) => string,
   report: TimingReport,
   main: TimingReport | undefined,
-): string => `| ${name} | ${value(report)} |${main ? ` ${value(main)} |` : ""}`
+  comparable = true,
+): string => `| ${name} | ${value(report)} |${main ? ` ${comparable ? value(main) : "n/a"} |` : ""}`
 
 // The report as Markdown, its column headed `label` ("This pull request", "This run"),
 // with main's last report beside it when given. Its numbers are never gated; a sandbox
@@ -82,8 +94,14 @@ export const timingComment = (
   { main, label = "This run" }: { readonly main?: TimingReport; readonly label?: string } = {},
 ): string => {
   const leaks = leaksOf(report, label, true)
+  const frames = !main || sameFrames(report, main)
   const warnings = [
     ...warningsOf(report, label),
+    ...(frames
+      ? []
+      : [
+          "Main's last report is from before the timing run read its frames from a trace: its frame counter loaded the main thread, so its main-thread share and frames over 33 ms aren't compared here (n/a). The next nightly run on main replaces it.",
+        ]),
     ...(main ? [...leaksOf(main, "Main's run", false), ...warningsOf(main, "Main's run")] : []),
   ]
   const mainColumn = main ? ` Main${main.commit ? ` (${main.commit.slice(0, 7)})` : ""} |` : ""
@@ -112,12 +130,14 @@ export const timingComment = (
         (entry) => share(steadyOf(entry, layout)?.mainThreadShare),
         report,
         main,
+        frames,
       ),
       row(
-        `${layout} frames over 33 ms`,
+        `${layout} slow frames (over 33 ms)`,
         (entry) => count(steadyOf(entry, layout)?.framesOver33ms),
         report,
         main,
+        frames,
       ),
     ]),
     row("Agents heard", (entry) => count(entry?.summary?.agentsHeard), report, main),

@@ -8,8 +8,10 @@ export type Steady = {
   readonly seconds: number
   /** The main thread's busy time over the window, from Chromium's TaskDuration. */
   readonly taskSeconds: number
-  /** The gaps between animation frames, in milliseconds. */
-  readonly frameGaps: readonly number[]
+  /** The page's frames over the window, from a trace of it (see `windowFrames`). */
+  readonly frames: number
+  /** The frames the main thread took over 33 ms to answer once asked for them. */
+  readonly slowFrames: number
   /** The long tasks' durations, in milliseconds. */
   readonly longTasks: readonly number[]
 }
@@ -40,6 +42,13 @@ export type Report = {
   readonly environment: Readonly<Record<string, string | number>>
   readonly scenario: Readonly<Record<string, unknown>>
   readonly summary: {
+    /**
+     * Where the steady windows' frames come from. A report without this field is from before
+     * the timing run read them from a trace: its frames came from an animation frame requested
+     * all the time, which loaded the main thread it measured, so its `mainThreadShare`,
+     * `fps`, `framesOver33ms` and `longTasks` don't compare with a report that has it.
+     */
+    readonly framesFrom: "trace"
     readonly switchP50Ms: number | null
     readonly switchP90Ms: number | null
     readonly switchesTimedOut: number
@@ -80,6 +89,7 @@ export const summarize = (measured: Measured): Report["summary"] => {
     return value === null ? null : round(value)
   }
   return {
+    framesFrom: "trace",
     switchP50Ms: at(0.5),
     switchP90Ms: at(0.9),
     switchesTimedOut: measured.switches.length - painted.length,
@@ -87,10 +97,8 @@ export const summarize = (measured: Measured): Report["summary"] => {
     steady: measured.steady.map((window) => ({
       layout: window.layout,
       mainThreadShare: round((window.taskSeconds / window.seconds) * 100),
-      // No frame at all is none a second, whatever the window.
-      fps:
-        window.frameGaps.length === 0 ? 0 : round((window.frameGaps.length + 1) / window.seconds),
-      framesOver33ms: window.frameGaps.filter((gap) => gap > 33).length,
+      fps: window.seconds > 0 ? round(window.frames / window.seconds) : 0,
+      framesOver33ms: window.slowFrames,
       longTasks: window.longTasks.length,
     })),
   }

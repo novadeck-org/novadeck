@@ -1,5 +1,11 @@
-import { chromium, type CDPSession, type Page } from "playwright"
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
+import { chromium, type Browser, type CDPSession, type Page } from "playwright"
+
+import { windowFrames } from "../profile/trace.ts"
+import { readTrace, record, type Cdp, type TraceConfig } from "../profile/tracing.ts"
 import type { Steady, Switch } from "./report.ts"
 import type { Running } from "./stack.ts"
 
@@ -27,23 +33,17 @@ export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve
 // What the page keeps for the run on `window`. Functions run in the page are sent there as
 // source, so each reaches it through a cast of its own rather than a helper here.
 export type Probe = {
-  benchTiming: { longTasks: number[]; frames: number[]; recording: boolean }
+  benchTiming: { longTasks: number[] }
   benchSwitch: { clicked: number; painted: number | undefined }
 }
 
-/**
- * What the probe keeps. A page that always has an animation frame requested makes Chromium
- * run a full main-thread frame (style, layout, pre-paint, commit) at every vsync, even with
- * nothing to draw, so `frames` costs the page what it measures: the timing run keeps it, its
- * numbers a trend on its own history, and the profile, whose steady windows are read for
- * their main-thread time, leaves it off and reads its frames from its trace instead.
- */
-export type ProbeOptions = { readonly frames: boolean }
-
-// In the page, before the app loads or once it has: long tasks as they happen, and, with
-// `frames`, each animation frame's time while a window records.
-export const probe = (options: ProbeOptions = { frames: true }): void => {
-  const timing: Probe["benchTiming"] = { longTasks: [], frames: [], recording: false }
+// In the page, before the app loads or once it has: long tasks as they happen. It counts no
+// frames: a page that always has an animation frame requested makes Chromium run a full
+// main-thread frame (style, layout, pre-paint, commit) at every vsync even with nothing to
+// draw, which would load the very thread the windows measure. Frames are read from a trace
+// of each window instead (see `steady`).
+export const probe = (): void => {
+  const timing: Probe["benchTiming"] = { longTasks: [] }
   ;(window as unknown as Probe).benchTiming = timing
   try {
     new PerformanceObserver((list) => {
@@ -52,13 +52,6 @@ export const probe = (options: ProbeOptions = { frames: true }): void => {
   } catch {
     // No long tasks to observe: the window reports none.
   }
-  if (!options.frames) return
-  // eslint-disable-next-line unicorn/consistent-function-scoping -- Sent to the page as source.
-  const loop = (time: number) => {
-    if (timing.recording) timing.frames.push(time)
-    requestAnimationFrame(loop)
-  }
-  requestAnimationFrame(loop)
 }
 
 const rows = "[data-terminal-tab-id]"
@@ -173,33 +166,83 @@ export const setUp = async (
   }
 }
 
-/** Starts recording frames; returns where the long tasks recorded so far end. */
+/** Starts recording long tasks; returns where the long tasks recorded so far end. */
 export const startRecording = (page: Page): Promise<number> =>
-  page.evaluate(() => {
-    const { benchTiming } = window as unknown as Probe
-    benchTiming.frames = []
-    benchTiming.recording = true
-    return benchTiming.longTasks.length
-  })
+  page.evaluate(() => (window as unknown as Probe).benchTiming.longTasks.length)
 
-/** Stops recording: the gaps between frames, and the long tasks since `from`. */
-export const stopRecording = async (
+/** Stops recording: the long tasks since `from`. */
+export const stopRecording = (page: Page, from: number): Promise<{ longTasks: number[] }> =>
+  page.evaluate(
+    (start) => ({ longTasks: (window as unknown as Probe).benchTiming.longTasks.slice(start) }),
+    from,
+  )
+
+// What a window's trace records: the page's marks, and the frames the compositor asks of the
+// main thread and the main thread's answers. Nothing else, so recording it costs the window little.
+const frameTrace: TraceConfig = {
+  traceBufferSizeInKb: 64 * 1024,
+  includedCategories: [
+    "__metadata",
+    "blink.user_timing",
+    "disabled-by-default-devtools.timeline.frame",
+  ],
+}
+
+/** A DevTools session of Playwright's, as the trace recording drives it. */
+const overSession = (session: CDPSession): Cdp => ({
+  send: (method, params) =>
+    (session.send as (method: string, params?: object) => Promise<Record<string, unknown>>)(
+      method,
+      params,
+    ),
+  next: (event, timeoutMs) =>
+    new Promise((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`no ${event} within ${timeoutMs / 1000} s`)),
+        timeoutMs,
+      )
+      ;(
+        session.once as (event: string, listener: (params: Record<string, unknown>) => void) => void
+      )(event, (params) => {
+        clearTimeout(timer)
+        resolve(params)
+      })
+    }),
+  // The session belongs to the browser, which closes it.
+  close: () => {},
+})
+
+/**
+ * The page's frames in a window, from a trace of it: `profile-start` and `profile-end` marks
+ * around `during` give the window.
+ */
+const framed = async (
   page: Page,
-  from: number,
-): Promise<{ frameGaps: number[]; longTasks: number[] }> => {
-  const { frames, tasks } = await page.evaluate((start) => {
-    const { benchTiming } = window as unknown as Probe
-    benchTiming.recording = false
-    return { frames: benchTiming.frames, tasks: benchTiming.longTasks.slice(start) }
-  }, from)
-  return {
-    frameGaps: frames.slice(1).map((time, index) => time - frames[index]!),
-    longTasks: tasks,
+  browserSession: CDPSession,
+  during: () => Promise<void>,
+): Promise<{ frames: number; slowFrames: number }> => {
+  const folder = mkdtempSync(join(tmpdir(), "timing-trace-"))
+  try {
+    const recording = await record(overSession(browserSession), frameTrace)
+    await page.evaluate(() => performance.mark("profile-start"))
+    await during()
+    await page.evaluate(() => performance.mark("profile-end"))
+    const path = join(folder, "window.json.gz")
+    await recording.stop(path)
+    const { count, over33ms } = windowFrames(readTrace(path).traceEvents ?? [])
+    return { frames: count, slowFrames: over33ms }
+  } finally {
+    rmSync(folder, { recursive: true, force: true })
   }
 }
 
 /** Measures a steady window in `name`, every agent busy, after a warm-up. */
-const steady = async (page: Page, cdp: CDPSession, name: Steady["layout"]): Promise<Steady> => {
+const steady = async (
+  page: Page,
+  cdp: CDPSession,
+  browserSession: CDPSession,
+  name: Steady["layout"],
+): Promise<Steady> => {
   await layout(page, name)
   await sleep(scenario.warmMs)
   // The main thread's busy time and the clock it's measured on, from the same reading.
@@ -214,13 +257,18 @@ const steady = async (page: Page, cdp: CDPSession, name: Steady["layout"]): Prom
     return { task: value("TaskDuration"), at: value("Timestamp") }
   }
   const from = await startRecording(page)
-  const before = await reading()
-  await sleep(scenario.windowMs)
-  const after = await reading()
+  let before!: Awaited<ReturnType<typeof reading>>
+  let after!: Awaited<ReturnType<typeof reading>>
+  const counted = await framed(page, browserSession, async () => {
+    before = await reading()
+    await sleep(scenario.windowMs)
+    after = await reading()
+  })
   return {
     layout: name,
     seconds: after.at - before.at,
     taskSeconds: after.task - before.task,
+    ...counted,
     ...(await stopRecording(page, from)),
   }
 }
@@ -327,8 +375,9 @@ export const drive = async (
   launched(browser.version())
   try {
     const page = await browser.newPage({ viewport: scenario.viewport })
-    await page.addInitScript(probe, { frames: true })
+    await page.addInitScript(probe)
     const cdp = await page.context().newCDPSession(page)
+    const browserSession = await (browser as Browser).newBrowserCDPSession()
     await cdp.send("Performance.enable")
     await page.goto(stack.url, { waitUntil: "load" })
     await boot(page)
@@ -341,11 +390,11 @@ export const drive = async (
     const phases = () => Promise.all(agents.map((n) => phase(page, n)))
     await until(async () => (await phases()).every((each) => each === "running"), 15_000)
     measured.agentPhases.push(...(await phases()))
-    measured.steady.push(await steady(page, cdp, "Grid"))
+    measured.steady.push(await steady(page, cdp, browserSession, "Grid"))
     // What a person watching an agent sees, the other four running beside it.
     await layout(page, "Focus")
     await select(page, 1)
-    measured.steady.push(await steady(page, cdp, "Focus"))
+    measured.steady.push(await steady(page, cdp, browserSession, "Focus"))
     for (let pass = 0; pass < scenario.switchPasses; pass += 1)
       for (const target of scenario.switchTargets)
         // eslint-disable-next-line no-await-in-loop -- One switch after another.

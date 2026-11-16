@@ -55,13 +55,15 @@ describe("a run's summary", () => {
           layout: "Grid",
           seconds: 2,
           taskSeconds: 0.5,
-          frameGaps: [16, 16, 50, 34, 33],
+          frames: 6,
+          slowFrames: 2,
           longTasks: [60, 70],
         },
       ],
       switches: [],
     })
 
+    expect(summary.framesFrom).toBe("trace")
     expect(summary.steady).toEqual([
       { layout: "Grid", mainThreadShare: 25, fps: 3, framesOver33ms: 2, longTasks: 2 },
     ])

@@ -153,8 +153,7 @@ export const play = async (
 ): Promise<void> => {
   const { page } = opened
   const { terminals, agents } = scenarioFor(name, options.terminals)
-  // Long tasks only: the page's frames are read from each trace.
-  await page.evaluate(probe, { frames: false })
+  await page.evaluate(probe)
   await boot(page)
   await layout(page, "Focus")
   memory.push(await sampleMemory(opened, "boot", 0))
