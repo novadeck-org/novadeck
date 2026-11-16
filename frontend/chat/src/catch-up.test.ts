@@ -5,14 +5,20 @@ const blocks = ["a", "b", "c", "d"].map((id) => ({ id }))
 
 describe("the blocks that arrived while a chat held", () => {
   it("counts those after the last it drew", () => {
-    expect(arrivedSince(blocks, "b")).toBe(2)
-    expect(arrivedSince(blocks, "d")).toBe(0)
+    expect(arrivedSince(blocks, "b", 2)).toBe(2)
+    expect(arrivedSince(blocks, "d", 4)).toBe(0)
   })
 
-  context("when the last it drew is gone, or it drew none", () => {
+  context("when the last it drew went meanwhile", () => {
+    it("counts how many more there are than it drew", () => {
+      expect(arrivedSince(blocks, "x", 3)).toBe(1)
+      expect(arrivedSince(blocks, "x", 5)).toBe(0)
+    })
+  })
+
+  context("when it drew none", () => {
     it("counts all of them", () => {
-      expect(arrivedSince(blocks, "x")).toBe(4)
-      expect(arrivedSince(blocks, null)).toBe(4)
+      expect(arrivedSince(blocks, null, 0)).toBe(4)
     })
   })
 })

@@ -249,12 +249,14 @@ describe("a chat out of sight", () => {
       expect(rows(container).at(-1)).toContain("Step 70")
     })
 
-    it("draws a few blocks that came meanwhile among those it showed", () => {
+    it("draws a few blocks that came meanwhile among those it showed, all at once", () => {
       const { container, conversation, show } = open(true)
+      backlog(conversation, 1, 40)
+      idle()
       leave(show)
-      backlog(conversation, 1, 3)
+      backlog(conversation, 41, 5)
       show(true)
-      expect(rows(container)).toHaveLength(4)
+      expect(rows(container)).toHaveLength(46)
       expect(rows(container)[0]).toContain("First words")
     })
   })

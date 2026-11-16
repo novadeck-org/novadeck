@@ -9,12 +9,16 @@ describe("work run in the next frame", () => {
     frames = []
     vi.stubGlobal("requestAnimationFrame", (run: FrameRequestCallback) => frames.push(run))
   })
-  afterEach(() => vi.unstubAllGlobals())
   const frame = (): void => {
     const now = frames
     frames = []
     for (const run of now) run(0)
   }
+  // A frame left pending would hold the next case's work in its batch.
+  afterEach(() => {
+    frame()
+    vi.unstubAllGlobals()
+  })
 
   it("runs everything asked for before it, in one frame", () => {
     const ran: string[] = []

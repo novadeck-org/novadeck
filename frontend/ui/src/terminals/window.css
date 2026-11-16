@@ -222,6 +222,10 @@
 .chat-stand-in {
   background-color: var(--chat-bg, var(--window-bg, var(--color-paper)));
 }
+/* Back in sight with news, until its turn: its log keeps its place, out of sight. */
+.chat-turn[data-stale] .chat-scroll {
+  visibility: hidden;
+}
 
 /* Above the chat, which covers the terminal's content (`.chat-pane`, z-10), so it floats over
    either view alike. */

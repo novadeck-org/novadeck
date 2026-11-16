@@ -4,14 +4,19 @@
 // as the log follows its end. A chat at its end then starts again from its last blocks, as it does
 // when it mounts, and draws the earlier ones a few at a time once the page is idle.
 
-/** How many blocks arrived after the one with id `last`: all of them where it's gone. */
+/**
+ * How many blocks arrived after the one with id `last`, of the `drawn` it showed. Where that one
+ * went meanwhile (a prompt a Stop took back, a result joined to its call), by how many more there
+ * are; all of them where it showed none.
+ */
 export const arrivedSince = (
   blocks: readonly { readonly id: string }[],
   last: string | null,
+  drawn: number,
 ): number => {
   if (last === null) return blocks.length
   const at = blocks.findLastIndex(({ id }) => id === last)
-  return at === -1 ? blocks.length : blocks.length - 1 - at
+  return at === -1 ? Math.max(0, blocks.length - drawn) : blocks.length - 1 - at
 }
 
 /**

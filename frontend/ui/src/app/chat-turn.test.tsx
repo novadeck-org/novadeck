@@ -13,7 +13,7 @@ import { Shown, useShown } from "@novadeck/toolkit/shown"
 import { act } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { describe, expect, it } from "../test"
+import { context, describe, expect, it } from "../test"
 import { ChatTurn } from "./chat-turn"
 
 const said = (id: string, text: string): ChatItem => ({
@@ -158,6 +158,39 @@ describe("a chat in its turn", () => {
     expect(chat(container)?.dataset.inSight).toBe("false")
     step()
     expect(chat(container)?.dataset.inSight).toBe("true")
+  })
+
+  context("back in sight, waiting its turn", () => {
+    const stale = (container: HTMLElement) =>
+      container.querySelector(".chat-turn")?.hasAttribute("data-stale")
+
+    it("keeps its log out of sight where its conversation changed while it was away", () => {
+      const { turns, step } = stepped()
+      const { container, show } = open(turns)
+      step()
+      show(false)
+      act(
+        () =>
+          void conversation.update((now) => ({
+            ...now,
+            items: [...now.items, said(`s:${now.items.length}`, "Words meanwhile")],
+          })),
+      )
+      show(true)
+      expect(stale(container)).toBe(true)
+      step()
+      expect(stale(container)).toBe(false)
+    })
+
+    it("shows its log as it was where nothing came", () => {
+      const { turns, step } = stepped()
+      const { container, show } = open(turns)
+      step()
+      show(false)
+      show(true)
+      expect(stale(container)).toBe(false)
+      expect(chat(container)?.dataset.inSight).toBe("false")
+    })
   })
 
   it("stands in as its picture from the last time this view showed it, nothing new since", async () => {

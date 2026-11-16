@@ -326,10 +326,10 @@ const ChatBody = ({
   // it does when it mounts, before it draws the window that came meanwhile (see ./catch-up).
   const holds = useContext(Holding)
   const lastId = blocks.at(-1)?.id ?? null
-  const [drawn, setDrawn] = useState({ holds, last: lastId })
+  const [drawn, setDrawn] = useState({ holds, last: lastId, count: blocks.length })
   if (drawn.holds !== holds) {
-    setDrawn({ holds, last: lastId })
-    if (!holds && catchesUp(atEnd, arrivedSince(blocks, drawn.last), growBy)) {
+    setDrawn({ holds, last: lastId, count: blocks.length })
+    if (!holds && catchesUp(atEnd, arrivedSince(blocks, drawn.last, drawn.count), growBy)) {
       admit(() => firstSize)
       setMore({ session, extra: 0 })
     }
