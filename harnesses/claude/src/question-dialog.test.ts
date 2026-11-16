@@ -314,6 +314,99 @@ describe("Claude Code's AskUserQuestion", () => {
     expect(waits(keys)[0]!.until(step("ask-preview-mixed", "down"))).toBe(false)
   })
 
+  // 2.1.325: two questions, one previewed; each keeps its own layout among the tabs. Reported
+  // as "Claude's own dialog" in a narrow chat.
+  const both = (first: string[], second: string[], text?: string) => ({
+    type: "questions" as const,
+    dialog: "d",
+    answers: [
+      { question: "q1", options: first },
+      { question: "q2", options: second, ...(text !== undefined && { text }) },
+    ],
+  })
+
+  it.each(["120x40", "80x40", "60x40", "56x40", "52x40"])(
+    "reads a previewed question among tabs, the next one in its own layout, at %s",
+    (size) => {
+      const dialog = need(readOf("ask-preview-tabs", size))
+      expect(dialog.dialog).toMatchObject({
+        questions: [
+          {
+            header: "Install card",
+            options: [
+              { id: "1", label: "A: command row (Recommended)" },
+              { id: "2", label: "B: empty seat" },
+              { id: "3", label: "C: quiet line" },
+            ],
+            text: false,
+          },
+          {
+            header: "Name",
+            options: [{ label: "Agent chat (Recommended)" }, {}, {}, {}],
+            text: true,
+          },
+        ],
+      })
+      expect(pressed(dialog.keys(both(["2"], ["2"])))).toEqual([Down, "\r", "2", "1"])
+      expect(pressed(dialog.keys(both(["1"], [], "Copilot")))).toEqual(["\r", "5", "\r", "1"])
+      expect(dialog.keys(answer(["2"]))).toBeUndefined()
+      expect(pressed(dialog.keys(chat()))).toEqual([Down, Down, Down, "\r"])
+    },
+  )
+
+  it("waits through a previewed question's tabs as the probe answered them", () => {
+    const dialog = need(readOf("ask-preview-tabs", "120x40"))
+    const keys = dialog.keys(both(["2"], ["2"]))
+    const [highlight, next, review] = waits(keys)
+    expect(highlight!.until(step("ask-preview-tabs", "down"))).toBe(true)
+    expect(highlight!.until(screen("ask-preview-tabs", "120x40"))).toBe(false)
+    expect(next!.until(step("ask-preview-tabs", "q2"))).toBe(true)
+    expect(next!.until(step("ask-preview-tabs", "down"))).toBe(false)
+    expect(review!.until(step("ask-preview-tabs", "review"))).toBe(true)
+    expect(dialog.answered(step("ask-preview-tabs", "submitted"))).toBe(true)
+    expect(dialog.answered(step("ask-preview-tabs", "q2"))).toBe(false)
+    expect(dialog.answered(screen("ask-preview-tabs", "120x40"))).toBe(false)
+  })
+
+  it("reads a previewed question after another, whose highlight starts on its first row", () => {
+    const dialog = need(readOf("ask-preview-tabs-last", "56x40"))
+    expect(dialog.dialog).toMatchObject({
+      questions: [
+        { header: "Name", text: true },
+        { header: "Install card", text: false },
+      ],
+    })
+    const keys = dialog.keys(both(["1"], ["2"]))
+    expect(pressed(keys)).toEqual(["1", Down, "\r", "1"])
+    const [next, highlight, review] = waits(keys)
+    expect(next!.until(step("ask-preview-tabs-last", "q2"))).toBe(true)
+    expect(highlight!.until(step("ask-preview-tabs-last", "q2-down"))).toBe(true)
+    expect(highlight!.until(step("ask-preview-tabs-last", "q2"))).toBe(false)
+    expect(review!.until(step("ask-preview-tabs-last", "review"))).toBe(true)
+    expect(pressed(dialog.keys(both(["1"], ["1"])))).toEqual(["1", "\r", "1"])
+    // The previewed question takes no words of the person's own.
+    expect(
+      dialog.keys({
+        type: "questions",
+        dialog: "d",
+        answers: [
+          { question: "q1", options: ["1"] },
+          { question: "q2", options: [], text: "x" },
+        ],
+      }),
+    ).toBeUndefined()
+  })
+
+  it("refuses a previewed multi-select, whose layout is unprobed", () => {
+    const facts = factsOf("ask-preview-tabs")
+    const input = facts.input as { questions: Record<string, unknown>[] }
+    const multi = {
+      ...facts,
+      input: { questions: [{ ...input.questions[0], multiSelect: true }, input.questions[1]] },
+    }
+    expect(dialogs.read(screen("ask-preview-tabs", "120x40"), multi)).toBeUndefined()
+  })
+
   it("reads the box's notes beside an option, where a short box leaves them", () => {
     // The box of an option without a preview takes three rows; with more options, its notes
     // stand beside one, as they may beside a wrapped label's rest.
