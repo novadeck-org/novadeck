@@ -196,14 +196,14 @@ describe("The Worktrees panel", () => {
       await expect.element(row("Checkout review")).toBeVisible()
     })
 
-    it("closes a worktree with no owner too", async () => {
+    it("closes a safe worktree with no owner at once", async () => {
       await openWorkspace(storefront)
 
       await expect.element(itemOf("No owner")).toBeVisible()
       await trash("No owner", "agent/promo-banner").click()
-      await dialog().getByRole("button", { name: "Close worktree" }).click()
 
       await expect.element(itemOf("No owner")).not.toBeInTheDocument()
+      await expect.element(dialog()).not.toBeInTheDocument()
     })
   })
 })
