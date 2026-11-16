@@ -20,10 +20,20 @@ import type { Store } from "@novadeck/core/store"
 import type { AgentStatus } from "@novadeck/core/types"
 import { useMounted } from "@novadeck/requests/use-mounted"
 import type { Mention } from "@novadeck/toolkit/mentions"
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import {
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 
 import type { Attachment } from "./attachments"
 import { blockAt, sentBubbles, type SentBubble } from "./bubbles"
+import { arrivedSince, catchesUp } from "./catch-up"
 import { Composer, failed, type Failure } from "./Composer"
 import { composerMode } from "./composer-mode"
 import { joinDraft } from "./drafts"
@@ -312,6 +322,18 @@ const ChatBody = ({
   // scrolling up lets go.
   const following = useRef(true)
   const [atEnd, setAtEnd] = useState(true)
+  // Back in sight after a long backlog, a chat at its end starts again from its last blocks, as
+  // it does when it mounts, before it draws the window that came meanwhile (see ./catch-up).
+  const holds = useContext(Holding)
+  const lastId = blocks.at(-1)?.id ?? null
+  const [drawn, setDrawn] = useState({ holds, last: lastId })
+  if (drawn.holds !== holds) {
+    setDrawn({ holds, last: lastId })
+    if (!holds && catchesUp(atEnd, arrivedSince(blocks, drawn.last), growBy)) {
+      admit(() => firstSize)
+      setMore({ session, extra: 0 })
+    }
+  }
   // Where the log stood as blocks go in above: the first row in view and where it stood, the
   // log's height and its scroll position; while the window grows, until it is `until` blocks.
   const prepended = useRef<Standing | null>(null)
@@ -332,6 +354,11 @@ const ChatBody = ({
     const element = scroller.current
     if (element && following.current) element.scrollTop = element.scrollHeight
   }, [])
+  // Back in sight, a log at its end shows its end in its first frame, whatever moved while it
+  // held: the browser brings back where it stood, not where its end is now.
+  useLayoutEffect(() => {
+    if (!holds) follow()
+  }, [holds, follow])
   // A prompt to scroll to once the earlier blocks it is among are shown.
   const pendingTurn = useRef<((element: HTMLElement) => void) | null>(null)
   useLayoutEffect(() => {

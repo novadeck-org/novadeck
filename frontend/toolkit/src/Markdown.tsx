@@ -10,6 +10,7 @@ import {
 import { Check, Copy } from "lucide-react"
 import { Fragment, useEffect, useMemo, useRef, useState } from "react"
 
+import { inNextFrame } from "./frames"
 import { MentionedText, MentionSpan } from "./Mentioned"
 import { mentionInCode, type Mention } from "./mentions"
 import { Tooltip } from "./Tooltip"
@@ -124,16 +125,20 @@ const useHighlighted = (lang: string, text: string): readonly HighlightedLine[] 
   useEffect(() => {
     if (!language || key === null || ready) return
     let live = true
+    let drawing = (): void => {}
     highlightLines(language, text.split("\n"))
       .then((lines) => {
         if (!lines) return
         if (text.length <= keptSize) coloured.keep(key, { value: lines, size: text.length })
-        if (live) setShown({ of: key, lines })
+        // With the other blocks coloured meanwhile, in one render (a chat back in sight colours
+        // many at once).
+        if (live) drawing = inNextFrame(() => setShown({ of: key, lines }))
       })
       // Plain text is still readable.
       .catch(() => {})
     return () => {
       live = false
+      drawing()
     }
   }, [language, text, key, ready])
   return current.lines

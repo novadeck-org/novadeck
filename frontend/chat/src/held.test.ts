@@ -9,7 +9,7 @@ import { afterEach, beforeEach, vi } from "vitest"
 
 import { ChatView } from "./ChatView"
 import { holdAfterMs, Holding, useHeldSnapshot } from "./held"
-import { describe, expect, it } from "./test"
+import { context, describe, expect, it } from "./test"
 
 // A store that counts who listens to it.
 const counted = (value: number) => {
@@ -205,5 +205,57 @@ describe("a chat out of sight", () => {
     expect(text(container)).not.toContain("More words")
     show(true)
     expect(text(container)).toContain("More words")
+  })
+
+  context("back in sight after a long backlog", () => {
+    const rows = (container: HTMLElement): string[] =>
+      [...container.querySelectorAll(".chat-thread > .chat-message")].map(
+        (row) => row.textContent ?? "",
+      )
+    const backlog = (
+      conversation: ReturnType<typeof open>["conversation"],
+      from: number,
+      count: number,
+    ) =>
+      act(
+        () =>
+          void conversation.update((now) => ({
+            ...now,
+            items: [
+              ...now.items,
+              ...Array.from({ length: count }, (_, at) =>
+                said(`s:${from + at}`, `Step ${from + at}`),
+              ),
+            ],
+          })),
+      )
+    // Each step of the window once the one before drew.
+    const idle = () => {
+      for (let step = 0; step < 6; step += 1) act(() => void vi.runAllTimers())
+    }
+
+    it("draws only its latest blocks at first, and the earlier ones once the page is idle", () => {
+      const { container, conversation, show } = open(true)
+      backlog(conversation, 1, 40)
+      idle()
+      expect(rows(container)).toHaveLength(41)
+      leave(show)
+      backlog(conversation, 41, 30)
+      show(true)
+      expect(rows(container)).toHaveLength(10)
+      expect(rows(container).at(-1)).toContain("Step 70")
+      idle()
+      expect(rows(container)).toHaveLength(60)
+      expect(rows(container).at(-1)).toContain("Step 70")
+    })
+
+    it("draws a few blocks that came meanwhile among those it showed", () => {
+      const { container, conversation, show } = open(true)
+      leave(show)
+      backlog(conversation, 1, 3)
+      show(true)
+      expect(rows(container)).toHaveLength(4)
+      expect(rows(container)[0]).toContain("First words")
+    })
   })
 })
