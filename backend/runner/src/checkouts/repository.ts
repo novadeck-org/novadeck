@@ -452,7 +452,7 @@ export const landingTries = 32
  * tree). It finds work that merging into main today no longer does: squash- and rebase-merged
  * work whose lines main has changed again since, so the old branch conflicts with them. Callers
  * ask only where it conflicts: work main reverted landed too, but merges cleanly. Only commits that touch one of `ref`'s files, once every one of them has
- * been touched, are merged into, oldest first, at most `landingTries` of them. Undefined where
+ * been touched, are merged into, oldest first, at most `tries` of them. Undefined where
  * it landed nowhere, `ref` changes nothing since they parted, or git failed: callers read that
  * as not merged, as they did before this was asked, so a failure never holds a read back.
  */
@@ -461,6 +461,7 @@ export const landedIn = async (
   main: Main,
   ref: string,
   env?: NodeJS.ProcessEnv,
+  tries = landingTries,
 ): Promise<string | undefined> => {
   const base = await mergeBase(root, main.commit, ref, env)
   if (base === undefined) return undefined
@@ -485,7 +486,7 @@ export const landedIn = async (
     options,
   )
   if (!log.ok) return undefined
-  const candidates = landingCandidates(log.out, paths).slice(0, landingTries)
+  const candidates = landingCandidates(log.out, paths).slice(0, tries)
   for (const { commit, tree } of candidates) {
     // eslint-disable-next-line no-await-in-loop -- Oldest first, one at a time: the first is most often the one.
     const merge = await mergeTrees(root, commit, ref, env)
