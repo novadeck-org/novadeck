@@ -85,8 +85,24 @@ export const ChatTurn = ({
     [conversation],
   )
   const picture = usePanePicture(element, inSight && built && !waiting, picturedAs, mark)
+  // What its conversation held as it went out of sight, to tell whether anything came meanwhile.
+  const markNow = (): string => `${chatMark(conversation.getSnapshot())}\n${drawn}`
+  const [away, setAway] = useState<{ readonly inSight: boolean; readonly left: string | null }>({
+    inSight,
+    left: null,
+  })
+  if (away.inSight !== inSight) setAway({ inSight, left: inSight ? away.left : markNow() })
+  // Back in sight and waiting its turn, it still shows what it drew before it went, where it
+  // stood: where something came meanwhile, its log keeps out of sight until its turn, which shows
+  // it at its end, so its old place doesn't flash by first.
+  const stale = built && waiting && inSight && away.left !== null && away.left !== markNow()
   return (
-    <div ref={setElement} className="chat-turn" data-waiting={!built || undefined}>
+    <div
+      ref={setElement}
+      className="chat-turn"
+      data-waiting={!built || undefined}
+      data-stale={stale || undefined}
+    >
       {built && <Shown value={inSight && !waiting}>{children}</Shown>}
       {!built && <ChatStandIn name={name} picture={picture} />}
     </div>

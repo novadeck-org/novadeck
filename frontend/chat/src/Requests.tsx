@@ -6,7 +6,7 @@ import {
 } from "@novadeck/core/conversation"
 import type { Refused } from "@novadeck/core/conversation/prompt-refusal"
 import type { MenuHandle } from "@novadeck/requests/Menu"
-import { RequestCard, type RequestPlace } from "@novadeck/requests/RequestCard"
+import { RequestCard, type Diagnostics, type RequestPlace } from "@novadeck/requests/RequestCard"
 import { useMounted } from "@novadeck/requests/use-mounted"
 import {
   useCallback,
@@ -92,6 +92,8 @@ const Card = ({
   onSubmitted,
   refused,
   claims,
+  onSaveDialog,
+  onOpenLogs,
 }: {
   readonly request: ChatRequest
   readonly slice: ChatSlice | null
@@ -111,6 +113,9 @@ const Card = ({
   // card that never had the keyboard, but for a chat about the dialog (`chat`), which is the box's.
   readonly onSubmitted: (chat: boolean) => void
   readonly refused: Refused
+  // Writes the request's raw dialog to a file for a bug report, and shows the logs folder.
+  readonly onSaveDialog: ((request: string) => Promise<string>) | undefined
+  readonly onOpenLogs: (() => void) | undefined
   // Where the card puts its way to take the keyboard, for the chat to give it before the box.
   readonly claims: (request: string, take: (() => boolean) | null) => void
 }): React.JSX.Element => {
@@ -193,6 +198,10 @@ const Card = ({
     })
   }
   const { dialog } = request
+  const diagnostics: Diagnostics | undefined = onSaveDialog && {
+    save: () => onSaveDialog(request.id),
+    open: onOpenLogs,
+  }
   return (
     <RequestCard
       ref={frame}
@@ -213,6 +222,7 @@ const Card = ({
         if (again !== null) setAgain(null)
       }}
       refused={refused}
+      diagnostics={diagnostics}
       place={place}
       live={
         slice?.reason === "dialog"
@@ -249,6 +259,8 @@ export const Requests = ({
   onReply,
   onSubmitted,
   refused,
+  onSaveDialog,
+  onOpenLogs,
 }: {
   // The chat's way to give the keyboard to a card before its box.
   readonly handle?: Ref<RequestsHandle>
@@ -268,6 +280,9 @@ export const Requests = ({
   readonly onSubmitted: (chat: boolean) => void
   // Whether words that go on as the agent's next prompt would be refused for their shape.
   readonly refused: Refused
+  // Where the backend can, writes a raw dialog to a file for a bug report, and shows the logs folder.
+  readonly onSaveDialog?: ((request: string) => Promise<string>) | undefined
+  readonly onOpenLogs?: (() => void) | undefined
 }): React.JSX.Element | null => {
   // Each card's way to take the keyboard, by its request.
   const takers = useRef(new Map<string, () => boolean>())
@@ -300,6 +315,8 @@ export const Requests = ({
           onReply={(dialog) => onReply(request.id, dialog)}
           onSubmitted={onSubmitted}
           refused={refused}
+          onSaveDialog={onSaveDialog}
+          onOpenLogs={onOpenLogs}
         />
       ))}
     </section>

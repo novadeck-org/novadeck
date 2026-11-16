@@ -1,3 +1,4 @@
+import { refuse } from "@novadeck/harness-core/dialogs"
 import type {
   AnswerableDialog,
   DialogRead,
@@ -53,34 +54,37 @@ const formOf = (input: unknown): Form | undefined => {
   const schema = fieldsOf(fields?.requested_schema)
   const properties = fieldsOf(schema?.properties)
   if (!fields || !server || !message || fields.mode !== "form" || !schema || !properties) {
-    return undefined
+    return refuse("form.formOf.1")
   }
   if (Object.keys(schema).some((key) => !["type", "properties", "required"].includes(key))) {
-    return undefined
+    return refuse("form.formOf.2")
   }
   const required = schema.required === undefined ? [] : schema.required
-  if (schema.type !== "object" || !Array.isArray(required)) return undefined
-  if (required.some((each) => typeof each !== "string" || !(each in properties))) return undefined
+  if (schema.type !== "object" || !Array.isArray(required)) return refuse("form.formOf.3")
+  if (required.some((each) => typeof each !== "string" || !(each in properties)))
+    return refuse("form.formOf.4")
   const ids = Object.keys(properties)
-  if (ids.length < 1 || ids.length > 8 || server.includes("\n")) return undefined
+  if (ids.length < 1 || ids.length > 8 || server.includes("\n")) return refuse("form.formOf.5")
   const read: FormField[] = []
   for (const id of ids) {
     const each = fieldsOf(properties[id])
     const label = nonBlank(each?.title)
-    if (!each || !label || label.includes("\n")) return undefined
+    if (!each || !label || label.includes("\n")) return refuse("form.formOf.6")
     if (Object.keys(each).some((key) => !["type", "title", "description", "enum"].includes(key))) {
-      return undefined
+      return refuse("form.formOf.7")
     }
-    if (each.description !== undefined && !nonBlank(each.description)) return undefined
+    if (each.description !== undefined && !nonBlank(each.description))
+      return refuse("form.formOf.8")
     const description = (each.description as string | undefined) ?? null
     const enums = each.enum
     if (enums !== undefined) {
       const listed = Array.isArray(enums) ? (enums as unknown[]) : []
-      if (each.type !== "string" || listed.length < 1 || listed.length > 32) return undefined
+      if (each.type !== "string" || listed.length < 1 || listed.length > 32)
+        return refuse("form.formOf.9")
       if (listed.some((value) => !nonBlank(value) || (value as string).includes("\n"))) {
-        return undefined
+        return refuse("form.formOf.10")
       }
-      if (new Set(listed).size !== listed.length) return undefined
+      if (new Set(listed).size !== listed.length) return refuse("form.formOf.11")
       read.push({
         id,
         label,
@@ -96,7 +100,7 @@ const formOf = (input: unknown): Form | undefined => {
       | "number"
       | "boolean"
       | undefined
-    if (!kind) return undefined
+    if (!kind) return refuse("form.formOf.12")
     read.push({ id, label, description, kind, choices: [], required: required.includes(id) })
   }
   return { server, message, fields: read }
@@ -130,15 +134,16 @@ const fieldRow = (field: FormField) =>
 /** The form on screen, row by row, in the order of its fields; undefined unless all of it reads. */
 const formScreen = (rows: readonly string[], form: Form): FormScreen | undefined => {
   const heading = rows.findLastIndex((each) => each === formHeading(form.server))
-  if (heading < 0) return undefined
+  if (heading < 0) return refuse("form.formScreen.1")
   const after = rows.slice(heading + 1)
   const first = after.findIndex((each) => fieldRow(form.fields[0]!).test(each))
-  if (first < 0 || !wraps(quoted(after.slice(0, first)), form.message)) return undefined
+  if (first < 0 || !wraps(quoted(after.slice(0, first)), form.message))
+    return refuse("form.formScreen.2")
   const states: FieldState[] = []
   let at = first
   for (const [index, field] of form.fields.entries()) {
     const match = fieldRow(field).exec(after[at] ?? "")
-    if (!match) return undefined
+    if (!match) return refuse("form.formScreen.3")
     const lines: string[] = []
     const options: { highlighted: boolean; label: string }[] = []
     at++
@@ -150,7 +155,7 @@ const formScreen = (rows: readonly string[], form: Form): FormScreen | undefined
       const choice = formOptionRow.exec(row)
       if (choice) options.push({ highlighted: choice[1] === "❯ ", label: choice[2]! })
       else if (/^ {8}\S/.test(row)) lines.push(row.trim())
-      else return undefined
+      else return refuse("form.formScreen.4")
     }
     states.push({
       highlighted: match[1] === "❯",
@@ -161,9 +166,9 @@ const formScreen = (rows: readonly string[], form: Form): FormScreen | undefined
     })
   }
   const row = after[at] ?? ""
-  if (!formButtons.test(row)) return undefined
+  if (!formButtons.test(row)) return refuse("form.formScreen.5")
   const footer = after.slice(at + 1).filter((each) => each !== "")
-  if (footer.length !== 1 || !footer[0]!.startsWith(formFooter)) return undefined
+  if (footer.length !== 1 || !footer[0]!.startsWith(formFooter)) return refuse("form.formScreen.6")
   return {
     fields: states,
     buttons: row.includes("❯ Accept") ? "accept" : row.includes("❯ Decline") ? "decline" : null,
@@ -353,15 +358,15 @@ const formKeys = (form: Form, answer: RequestAnswer): readonly KeyStep[] | undef
 }
 
 export const forms = (rows: readonly string[], facts: RequestFacts): DialogRead | undefined => {
-  if (facts.kind !== "question" || !facts.tool.startsWith("mcp__")) return undefined
+  if (facts.kind !== "question" || !facts.tool.startsWith("mcp__")) return refuse("form.forms.1")
   const form = formOf(facts.input)
-  if (!form || facts.tool !== elicitationTool(form.server)) return undefined
+  if (!form || facts.tool !== elicitationTool(form.server)) return refuse("form.forms.2")
   const screen = formScreen(rows, form)
-  if (!screen || screen.buttons !== null) return undefined
+  if (!screen || screen.buttons !== null) return refuse("form.forms.3")
   // As the probes drew it: the first field highlighted, nothing entered, nothing shown
   // below or above the fields that isn't the form.
   if (!form.fields.every((field, index) => untouched(field, screen.fields[index]!, index === 0))) {
-    return undefined
+    return refuse("form.forms.4")
   }
   const dialog: AnswerableDialog = {
     type: "form",

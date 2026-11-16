@@ -227,7 +227,13 @@ const mount = (
     failing = false,
     open = 0,
     conversations,
-  }: { failing?: boolean; open?: number; conversations?: Pick<Conversations, "conversation"> } = {},
+    openLogs,
+  }: {
+    failing?: boolean
+    open?: number
+    conversations?: Pick<Conversations, "conversation"> & Partial<Pick<Conversations, "saveDialog">>
+    openLogs?: () => void
+  } = {},
 ) => {
   const revealed: string[] = []
   // The list puts the row added last first; these rows are given oldest first, as they were
@@ -257,7 +263,7 @@ const mount = (
     createElement(InboxSheet, { active: true }),
   )
   const view = render(
-    conversations ? createElement(AgentContextProvider, { conversations }, page) : page,
+    conversations ? createElement(AgentContextProvider, { conversations, openLogs }, page) : page,
   )
   mounted = view
   // The nth of the rows as given, whatever place the list puts it in.
@@ -346,6 +352,8 @@ const later = (ms = 1000): void => void vi.spyOn(Date, "now").mockReturnValue(Da
 
 const sheet = () => document.querySelector<HTMLElement>(".inbox-sheet")
 const text = (selector: string) => document.querySelector(selector)?.textContent ?? null
+const button = (name: string): HTMLButtonElement =>
+  [...document.querySelectorAll("button")].find((each) => each.textContent?.includes(name))!
 
 // The pages of a card's questions: its tabs, the page on screen, and a control by its words.
 const tabs = () => Array.from(document.querySelectorAll<HTMLElement>(".inbox-sheet [role='tab']"))
@@ -934,6 +942,40 @@ describe("The Console sheet", () => {
       act(() => terminal.click())
       expect(inbox.revealed).toEqual(["t-crow"])
       expect(inbox.sent).toEqual([])
+      await inbox.done()
+    })
+
+    it("saves a dialog it can't read for debugging, on the person's click, and says where", async () => {
+      const saved: [string, string][] = []
+      const opened: string[] = []
+      const inbox = mount(
+        [requested({ type: "raw", text: "Allow this?\n1. Yes", reason: "unrecognized" })],
+        {
+          conversations: {
+            conversation: () => createStore<Conversation>(noConversation),
+            saveDialog: async (key, request) => {
+              saved.push([key.terminalId, request])
+              return "/logs/dialogs/saved.json"
+            },
+          },
+          openLogs: () => opened.push("logs"),
+        },
+      )
+
+      act(() => button("Save for debugging").click())
+      await act(async () => {})
+      expect(saved).toEqual([["t-crow", expect.any(String)]])
+      expect(text(".request-raw-save")).toContain("Saved to /logs/dialogs/saved.json")
+      act(() => button("Open logs folder").click())
+      expect(opened).toEqual(["logs"])
+      expect(inbox.sent).toEqual([])
+      await inbox.done()
+    })
+
+    it("offers no saving where the backend can't", async () => {
+      const inbox = mount([requested({ type: "raw", text: "x", reason: "unrecognized" })])
+
+      expect(document.querySelector(".request-raw-save")).toBeNull()
       await inbox.done()
     })
 

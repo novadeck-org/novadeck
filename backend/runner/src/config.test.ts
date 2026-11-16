@@ -26,6 +26,7 @@ describe("server configuration", () => {
     expect(config.database).toBe(resolve("data/workspace.sqlite"))
     expect(config.shell).toBe(join(resolve("data"), "shell"))
     expect(config.uploads).toBe(join(resolve("data"), "uploads"))
+    expect(config.dialogs).toBe(join(resolve("data"), "dialogs"))
   })
 
   it("installs voice input beside the database, from the engine built here unless another is named", () => {

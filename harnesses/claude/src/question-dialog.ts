@@ -1,3 +1,4 @@
+import { refuse } from "@novadeck/harness-core/dialogs"
 import type {
   AnswerableDialog,
   DialogRead,
@@ -51,25 +52,26 @@ type Ask = {
 /** The questions AskUserQuestion's input asks, when it is one this reads. */
 const asks = (input: unknown): Ask[] | undefined => {
   const questions = fieldsOf(input)?.questions
-  if (!Array.isArray(questions) || questions.length < 1 || questions.length > 8) return undefined
+  if (!Array.isArray(questions) || questions.length < 1 || questions.length > 8)
+    return refuse("question.asks.1")
   const read: Ask[] = []
   for (const each of questions as unknown[]) {
     const fields = fieldsOf(each)
     const question = nonBlank(fields?.question)
     const header = nonBlank(fields?.header)
     const options = fields?.options
-    if (!fields || !question || !header || !Array.isArray(options)) return undefined
-    if (options.length < 1 || options.length > 16) return undefined
+    if (!fields || !question || !header || !Array.isArray(options)) return refuse("question.asks.2")
+    if (options.length < 1 || options.length > 16) return refuse("question.asks.3")
     if (fields.multiSelect !== undefined && typeof fields.multiSelect !== "boolean") {
-      return undefined
+      return refuse("question.asks.4")
     }
     const listed: Ask["options"][number][] = []
     for (const option of options as unknown[]) {
       const choice = fieldsOf(option)
       const label = nonBlank(choice?.label)
-      if (!choice || !label) return undefined
+      if (!choice || !label) return refuse("question.asks.5")
       const { description = "" } = choice
-      if (typeof description !== "string") return undefined
+      if (typeof description !== "string") return refuse("question.asks.6")
       listed.push({ label, description, preview: nonBlank(choice.preview) !== undefined })
     }
     read.push({
@@ -122,16 +124,16 @@ type QuestionScreen = {
 /** The question a screen shows; undefined where the screen is no question's. */
 const questionScreen = (rows: readonly string[]): QuestionScreen | undefined => {
   const footer = footerAt(rows)
-  if (footer < 0) return undefined
+  if (footer < 0) return refuse("question.questionScreen.1")
   const first = rows.slice(0, footer).findLastIndex((each) => /^(❯| ) 1\. /.test(each))
-  if (first < 1) return undefined
+  if (first < 1) return refuse("question.questionScreen.2")
   // The question takes as many rows as it wraps to, no set number: fixtures/ask.probe.json
   // `ask-preview-mixed` takes seven at 52 columns, and a longer one or a narrower screen
   // more. The dialog's rule above it ends the search, and the rows between must read as
   // its question.
   for (let at = first - 1; at >= 0; at--) {
     const row = rows[at]!
-    if (rule.test(row)) return undefined
+    if (rule.test(row)) return refuse("question.questionScreen.3")
     const bar = tabBar.exec(row)
     if (!bar && !loneHeader.test(row)) continue
     return {
@@ -147,7 +149,7 @@ const questionScreen = (rows: readonly string[]): QuestionScreen | undefined => 
         .map((each) => each.replace(/^│ ?/, "")),
     }
   }
-  return undefined
+  return refuse("question.questionScreen.4")
 }
 
 /** Where a question stands in its dialog: alone, the last of several, or before others. */
@@ -227,74 +229,81 @@ const optionsOf = (
       entries.push({ n: 0, marker: false, text: "Chat about this", lines: [] })
     } else if (!preview && /^ {5,}\S/.test(row) && entries.length > 0) {
       entries[entries.length - 1]!.lines.push(row.trim())
-    } else return undefined
+    } else return refuse("question.optionsOf.1")
   }
-  if (entries.filter(({ marker }) => marker).length !== 1) return undefined
+  if (entries.filter(({ marker }) => marker).length !== 1) return refuse("question.optionsOf.2")
 
   if (preview) {
-    if (entries.length !== count + 1 || entries[count]!.n !== 0) return undefined
+    if (entries.length !== count + 1 || entries[count]!.n !== 0)
+      return refuse("question.optionsOf.3")
     for (const [at, each] of ask.options.entries()) {
       const entry = entries[at]!
       if (entry.n !== at + 1 || flat([entry.text, ...entry.lines].join("")) !== flat(each.label)) {
-        return undefined
+        return refuse("question.optionsOf.4")
       }
     }
-    if (!rows[first]!.includes("┌")) return undefined
+    if (!rows[first]!.includes("┌")) return refuse("question.optionsOf.5")
   } else {
-    if (entries.length !== count + 2 || ruledAt !== count + 1) return undefined
+    if (entries.length !== count + 2 || ruledAt !== count + 1) return refuse("question.optionsOf.6")
     for (const [at, each] of ask.options.entries()) {
       const entry = entries[at]!
       const label = ask.multiSelect ? /^\[ \] (.+)$/.exec(entry.text)?.[1] : entry.text
-      if (entry.n !== at + 1 || label !== each.label) return undefined
-      if (flat(entry.lines.join("")) !== flat(each.description)) return undefined
+      if (entry.n !== at + 1 || label !== each.label) return refuse("question.optionsOf.7")
+      if (flat(entry.lines.join("")) !== flat(each.description))
+        return refuse("question.optionsOf.8")
     }
     const other = entries[count]!
     const chat = entries[count + 1]!
     const typed = ask.multiSelect ? "[ ] Type something" : "Type something."
-    if (other.n !== count + 1 || other.text !== typed) return undefined
+    if (other.n !== count + 1 || other.text !== typed) return refuse("question.optionsOf.9")
     // The row after "Type something" of a multi-select goes on: to the next question, or
     // to submit the last one.
     const goes = asked === 1 ? ["Submit"] : final ? ["Next", "Submit"] : ["Next"]
-    if (!(ask.multiSelect ? goes : [""]).includes(flat(other.lines.join("")))) return undefined
+    if (!(ask.multiSelect ? goes : [""]).includes(flat(other.lines.join(""))))
+      return refuse("question.optionsOf.10")
     if (chat.n !== count + 2 || chat.text !== "Chat about this" || chat.lines.length > 0) {
-      return undefined
+      return refuse("question.optionsOf.11")
     }
     // With the highlight on the free-text row a digit would be typed into its field.
-    if (other.marker) return undefined
+    if (other.marker) return refuse("question.optionsOf.12")
     // Digits reach one digit's rows; a longer list is beyond what is probed.
-    if (count + 2 > 9) return undefined
+    if (count + 2 > 9) return refuse("question.optionsOf.13")
   }
 
   return entries
 }
 
 export const questions = (rows: readonly string[], facts: RequestFacts): DialogRead | undefined => {
-  if (facts.kind !== "question" || facts.tool !== "AskUserQuestion") return undefined
+  if (facts.kind !== "question" || facts.tool !== "AskUserQuestion")
+    return refuse("question.questions.1")
   const asked = asks(facts.input)
-  if (!asked) return undefined
+  if (!asked) return refuse("question.questions.2")
   // A previewed question is probed singly selected only, alone or among other questions,
   // each of which keeps its own layout (2.1.325, fixtures/ask.probe.json `ask-preview-tabs`
   // and `ask-preview-tabs-last`). An option without a preview shows "No preview available"
   // in the box (2.1.323, `ask-preview-mixed`).
-  if (asked.some(({ preview, multiSelect }) => preview && multiSelect)) return undefined
+  if (asked.some(({ preview, multiSelect }) => preview && multiSelect)) {
+    return refuse("question.questions.3")
+  }
 
   const shown = questionScreen(rows)
-  if (!shown) return undefined
+  if (!shown) return refuse("question.questions.4")
   // A lone multi-select question has a tab bar too, for its Submit; a lone single-select
   // question has none.
-  if (shown.bar ? asked.length < 2 && !asked[0]!.multiSelect : asked.length !== 1) return undefined
-  if (shown.tabs.length !== asked.length) return undefined
+  if (shown.bar ? asked.length < 2 && !asked[0]!.multiSelect : asked.length !== 1)
+    return refuse("question.questions.5")
+  if (shown.tabs.length !== asked.length) return refuse("question.questions.7")
   if (shown.tabs.some(({ open, name }, at) => !open || !tabShows(name, asked[at]!.header))) {
-    return undefined
+    return refuse("question.questions.8")
   }
   const ask = asked[0]!
   if (shown.question.length === 0 || flat(shown.question.join("")) !== flat(ask.question)) {
-    return undefined
+    return refuse("question.questions.9")
   }
 
   const place = { asked: asked.length, final: asked.length === 1 }
   const entries = optionsOf(rows, shown, ask, place)
-  if (!entries) return undefined
+  if (!entries) return refuse("question.questions.10")
 
   const marker = entries.findIndex((each) => each.marker)
   const dialog: AnswerableDialog = {

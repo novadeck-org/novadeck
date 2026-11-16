@@ -1,3 +1,4 @@
+import { refuse } from "@novadeck/harness-core/dialogs"
 import type {
   DialogAdapter,
   DialogRead,
@@ -60,7 +61,7 @@ const parse = (rows: readonly string[], facts: RequestFacts): Parsed | undefined
 export const dialogs: DialogAdapter = {
   read: (rows, request): DialogRead | undefined => {
     const parsed = parse(rows, request)
-    if (!parsed) return undefined
+    if (!parsed) return refuse("dialogs.read.1")
     return {
       ...parsed,
       // Gone: the dialog this request asked is no longer the one on screen (a queued

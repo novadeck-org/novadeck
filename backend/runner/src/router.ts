@@ -271,6 +271,7 @@ export const createRouter = (options: {
       putBox: api.agents.putBox.handler(({ input }) => terminals.putBox(input)),
       clearBox: api.agents.clearBox.handler(({ input }) => terminals.clearBox(input)),
       answer: api.agents.answer.handler(({ input }) => terminals.answer(input)),
+      saveDialog: api.agents.saveDialog.handler(({ input }) => terminals.saveDialog(input)),
       interrupt: api.agents.interrupt.handler(({ input }) => terminals.interrupt(input)),
       set: api.agents.set.handler(async ({ input }) => {
         const result = await agents.set(input.agent, input.connected)

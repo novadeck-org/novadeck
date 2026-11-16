@@ -470,6 +470,13 @@ describe("demo conversations", () => {
     })
   })
 
+  it("saves a dialog the chat can't read for debugging, writing nothing, and says where", async () => {
+    const { chat } = open()
+    const saved = chat.saveDialog!(key("05"), "05:raw")
+    await vi.advanceTimersByTimeAsync(400)
+    await expect(saved).resolves.toMatch(/\/logs\/dialogs\/.+\.json$/)
+  })
+
   it("refuses an answer to a dialog that has changed", async () => {
     const { chat } = open()
     await expect(

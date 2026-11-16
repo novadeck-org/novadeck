@@ -857,6 +857,70 @@ describe("a dialog's menu", () => {
     expect(container.querySelector(".request-raw-reason")?.className).not.toContain("sr-only")
   })
 
+  describe("saving a dialog it can't read for debugging", () => {
+    const raw = { type: "raw", text: "Allow this?\n1. Yes", reason: "unrecognized" } as const
+    const onOpenLogs = vi.fn<() => void>()
+    const saving = (
+      dialog: ChatDialog,
+      onSaveDialog: ((request: string) => Promise<string>) | undefined,
+    ) => {
+      beElsewhere()
+      const { container, unmount } = render(
+        createElement(Requests, {
+          requests: [request(dialog)],
+          slice: null,
+          agent: "Claude",
+          onAnswer: async () => {},
+          onAnswerInTerminal: () => {},
+          onSettled,
+          replying: null,
+          replySending: false,
+          onReply,
+          refused: refusing(),
+          onSubmitted,
+          onSaveDialog,
+          onOpenLogs,
+        }),
+      )
+      unmounts.push(unmount)
+      return container
+    }
+
+    it("writes it on the person's click, and says where it went, with a way to the folder", async () => {
+      const save = vi.fn<(request: string) => Promise<string>>(
+        async () => "/logs/dialogs/20261116T120000Z-claude-permission-3f9a1c.json",
+      )
+      const container = saving(raw, save)
+      expect(container.textContent).not.toContain("Saved to")
+      click(button(container, "Save for debugging"))
+      expect(save).toHaveBeenCalledExactlyOnceWith("r1")
+      await settle()
+      expect(container.querySelector(".request-raw-save")?.textContent).toContain(
+        "Saved to /logs/dialogs/20261116T120000Z-claude-permission-3f9a1c.json",
+      )
+      expect(button(container, "Save again")).toBeDefined()
+      click(button(container, "Open logs folder"))
+      expect(onOpenLogs).toHaveBeenCalledOnce()
+    })
+
+    it("says why a save didn't go", async () => {
+      const container = saving(raw, async () => {
+        throw new Error("The runner is offline.")
+      })
+      click(button(container, "Save for debugging"))
+      await settle()
+      const failed = container.querySelector(".request-raw-save [data-failed]")
+      expect(failed?.textContent).toBe("The runner is offline.")
+      expect(button(container, "Save for debugging")).toBeDefined()
+    })
+
+    it("offers it only for a dialog it can't read, and where the backend can save one", () => {
+      const save = async () => "/logs/dialogs/x.json"
+      expect(saving(choices, save).querySelector(".request-raw-save")).toBeNull()
+      expect(saving(raw, undefined).querySelector(".request-raw-save")).toBeNull()
+    })
+  })
+
   describe("the wait on the card's head", () => {
     beforeEach(() => vi.useFakeTimers())
     afterEach(() => vi.useRealTimers())

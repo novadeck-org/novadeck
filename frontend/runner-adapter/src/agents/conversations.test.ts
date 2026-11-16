@@ -96,6 +96,9 @@ const setup = () => {
     clearBox: vi.fn<ConversationStreams["clearBox"]>(async () => ({ cleared: true })),
     putBox: vi.fn<ConversationStreams["putBox"]>(async () => ({ placed: false })),
     answer: vi.fn<ConversationStreams["answer"]>(async () => {}),
+    saveDialog: vi.fn<ConversationStreams["saveDialog"]>(async () => ({
+      path: "/logs/dialogs/saved.json",
+    })),
   }
   const conversations = createRunnerConversations(streams)
   const store = conversations.conversation(key)
@@ -1105,6 +1108,23 @@ describe("the runner's conversations", () => {
       expect(streams.putBox).toHaveBeenCalledWith("t", "draft")
       streams.putBox.mockRejectedValueOnce(new WireError("CONFLICT"))
       await expect(conversations.putBox?.(key, "draft")).resolves.toBe(false)
+    })
+
+    it("saves a raw dialog through the runner, and says why it couldn't", async () => {
+      const { streams } = setup()
+      const conversations = createRunnerConversations(
+        streams,
+        undefined,
+        createStore<MessagesState>(noMessages),
+      )
+      await expect(conversations.saveDialog?.(key, "r1")).resolves.toBe("/logs/dialogs/saved.json")
+      expect(streams.saveDialog).toHaveBeenCalledWith("t", "r1")
+      streams.saveDialog.mockRejectedValueOnce(new WireError("NOT_FOUND"))
+      await expect(conversations.saveDialog?.(key, "r1")).rejects.toThrow("already answered")
+      streams.saveDialog.mockRejectedValueOnce(new WireError("DISCONNECTED"))
+      await expect(conversations.saveDialog?.(key, "r1")).rejects.toThrow("offline")
+      streams.saveDialog.mockRejectedValueOnce(new WireError("CONFLICT"))
+      await expect(conversations.saveDialog?.(key, "r1")).rejects.toThrow("Couldn't save")
     })
 
     it("carries the terminal's doorbell, as its messages change, for as long as it's read", async () => {

@@ -78,6 +78,7 @@ export const readConfig = (environment: NodeJS.ProcessEnv = process.env): Server
       database,
       shell: join(dirname(database), "shell"),
       uploads: join(dirname(database), "uploads"),
+      dialogs: join(dirname(database), "dialogs"),
       voice: {
         engine: engine ? resolve(engine) : engineManifest,
         // A URL as given, or a folder.

@@ -20,10 +20,20 @@ import type { Store } from "@novadeck/core/store"
 import type { AgentStatus } from "@novadeck/core/types"
 import { useMounted } from "@novadeck/requests/use-mounted"
 import type { Mention } from "@novadeck/toolkit/mentions"
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import {
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 
 import type { Attachment } from "./attachments"
 import { blockAt, sentBubbles, type SentBubble } from "./bubbles"
+import { arrivedSince, catchesUp } from "./catch-up"
 import { Composer, failed, type Failure } from "./Composer"
 import { composerMode } from "./composer-mode"
 import { joinDraft } from "./drafts"
@@ -113,6 +123,8 @@ const ChatBody = ({
   onClearBox,
   onAnswer,
   onAnswerInTerminal,
+  onSaveDialog,
+  onOpenLogs,
   onWordsLost,
   focusInput,
   onInputFocused,
@@ -187,6 +199,10 @@ const ChatBody = ({
   readonly onClearBox: (seen: string) => Promise<void>
   readonly onAnswer: (request: string, answer: ChatAnswer) => Promise<void>
   readonly onAnswerInTerminal: () => void
+  // Where the backend can: writes a raw dialog to a file for a bug report, and shows the logs
+  // folder it went to.
+  readonly onSaveDialog?: ((request: string) => Promise<string>) | undefined
+  readonly onOpenLogs?: (() => void) | undefined
   // Words that were to follow an answer and didn't reach the agent, for the person's box.
   readonly onWordsLost: (words: string) => void
   readonly focusInput: boolean
@@ -312,6 +328,18 @@ const ChatBody = ({
   // scrolling up lets go.
   const following = useRef(true)
   const [atEnd, setAtEnd] = useState(true)
+  // Back in sight after a long backlog, a chat at its end starts again from its last blocks, as
+  // it does when it mounts, before it draws the window that came meanwhile (see ./catch-up).
+  const holds = useContext(Holding)
+  const lastId = blocks.at(-1)?.id ?? null
+  const [drawn, setDrawn] = useState({ holds, last: lastId, count: blocks.length })
+  if (drawn.holds !== holds) {
+    setDrawn({ holds, last: lastId, count: blocks.length })
+    if (!holds && catchesUp(atEnd, arrivedSince(blocks, drawn.last, drawn.count), growBy)) {
+      admit(() => firstSize)
+      setMore({ session, extra: 0 })
+    }
+  }
   // Where the log stood as blocks go in above: the first row in view and where it stood, the
   // log's height and its scroll position; while the window grows, until it is `until` blocks.
   const prepended = useRef<Standing | null>(null)
@@ -332,6 +360,11 @@ const ChatBody = ({
     const element = scroller.current
     if (element && following.current) element.scrollTop = element.scrollHeight
   }, [])
+  // Back in sight, a log at its end shows its end in its first frame, whatever moved while it
+  // held: the browser brings back where it stood, not where its end is now.
+  useLayoutEffect(() => {
+    if (!holds) follow()
+  }, [holds, follow])
   // A prompt to scroll to once the earlier blocks it is among are shown.
   const pendingTurn = useRef<((element: HTMLElement) => void) | null>(null)
   useLayoutEffect(() => {
@@ -844,6 +877,8 @@ const ChatBody = ({
           harness={harness}
           onAnswer={answer}
           onAnswerInTerminal={onAnswerInTerminal}
+          onSaveDialog={onSaveDialog}
+          onOpenLogs={onOpenLogs}
           onSettled={() => {
             // The card that was answered went: the next card or the box takes focus, unless the
             // person moved it.

@@ -1048,6 +1048,11 @@ export class Terminals {
     this.typing.keys(input.terminalId, input.keys)
   }
 
+  /** Saves a raw request's dialog for a bug report (see `Typing.saveDialog`). */
+  saveDialog(input: { terminalId: string; request: string }): Promise<{ path: string }> {
+    return this.typing.saveDialog(input.terminalId, input.request)
+  }
+
   /** Takes what the agent's box holds, for the client's draft (see `Typing.takeBox`). */
   takeBox(terminalId: string): Promise<{ returned: string | null; images?: string[] }> {
     return this.typing.takeBox(terminalId)

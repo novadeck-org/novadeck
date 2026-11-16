@@ -109,7 +109,11 @@ export const InboxHost = ({
     [reveal, active],
   )
   return (
-    <AgentContextProvider conversations={backend.conversations} messages={backend.messages}>
+    <AgentContextProvider
+      conversations={backend.conversations}
+      messages={backend.messages}
+      openLogs={backend.openLogs}
+    >
       <InboxProvider
         inbox={inbox}
         reveal={revealItem}

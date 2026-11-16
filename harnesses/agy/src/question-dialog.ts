@@ -1,3 +1,4 @@
+import { refuse } from "@novadeck/harness-core/dialogs"
 import type {
   AnswerableDialog,
   DialogRead,
@@ -54,13 +55,13 @@ type Asked = {
 const asked = (rows: readonly string[]): Asked | undefined => {
   const lines = rows.map((row) => row.trimEnd())
   const at = only(rowsLike(lines, /^Question \d+\/\d+: .+$/))
-  if (at === undefined) return undefined
+  if (at === undefined) return refuse("question.asked.1")
   const match = /^Question (\d+)\/(\d+): (.+)$/.exec(lines[at]!.trim())!
   let end = at + 1
   const words = [match[3]!]
   while (end < lines.length && lines[end]!.trim() !== "") words.push(lines[end++]!.trim())
   const options = optionsFrom(lines, end + 1)
-  if (!options) return undefined
+  if (!options) return refuse("question.asked.2")
   // Its list's keys, or, with the write-in open, its field and the keys that follow it.
   let after = end + 1
   while (after < lines.length && lines[after]!.trim() !== "") after += 1
@@ -72,14 +73,14 @@ const asked = (rows: readonly string[]): Asked | undefined => {
     field?.startsWith(answerField) === true &&
     lines.some((row) => row.trim().startsWith("enter Submit · esc Back"))
   const footer = writing ? "" : footerAfter(lines, end + 1)
-  if (footer === undefined) return undefined
+  if (footer === undefined) return refuse("question.asked.3")
   const index = Number(match[1])
   const total = Number(match[2])
-  if (index < 1 || index > total) return undefined
+  if (index < 1 || index > total) return refuse("question.asked.4")
   // A multi-select's rows all carry a check box, but its Write-in's; a single's none.
   const boxes = options.filter(({ checked }) => checked !== undefined).length
   const multi = writing ? boxes > 0 : footer.includes("space Toggle")
-  if (boxes !== (multi ? options.length - 1 : 0)) return undefined
+  if (boxes !== (multi ? options.length - 1 : 0)) return refuse("question.asked.5")
   return { index, total, question: words.join(" "), options, multi, writing }
 }
 
@@ -88,14 +89,16 @@ type Question = { question: string; options: string[]; multi: boolean }
 // The questions of an ask_question call, each whole, or none.
 const questionsOf = (input: unknown): Question[] | undefined => {
   const call = toolCall(input)
-  if (call?.name !== "ask_question" || !Array.isArray(call.args.questions)) return undefined
+  if (call?.name !== "ask_question" || !Array.isArray(call.args.questions))
+    return refuse("question.questionsOf.1")
   const questions: Question[] = []
   for (const each of call.args.questions as unknown[]) {
     const { question, options, is_multi_select: multi } = (each ?? {}) as Record<string, unknown>
-    if (typeof question !== "string" || question.trim() === "") return undefined
+    if (typeof question !== "string" || question.trim() === "")
+      return refuse("question.questionsOf.2")
     if (!Array.isArray(options) || !options.every((option) => typeof option === "string"))
-      return undefined
-    if (multi !== undefined && typeof multi !== "boolean") return undefined
+      return refuse("question.questionsOf.3")
+    if (multi !== undefined && typeof multi !== "boolean") return refuse("question.questionsOf.4")
     questions.push({ question, options: options as string[], multi: multi === true })
   }
   // The most its dialog's schema holds, and as many options as a digit names.
@@ -103,7 +106,7 @@ const questionsOf = (input: unknown): Question[] | undefined => {
     questions.length <= 8 &&
     questions.every(({ options }) => options.length >= 1 && options.length <= 8)
     ? questions
-    : undefined
+    : refuse("question.questionsOf.5")
 }
 
 const writeIn = "Write-in..."
@@ -129,7 +132,9 @@ const moveTo = (index: number, number: number): KeyStep[] =>
 // The row after `Your answer:`, where a write-in's words appear.
 const fieldRow = (rows: readonly string[]): string | undefined => {
   const at = rows.findLastIndex((row) => row.trim() === answerField)
-  return at < 0 ? undefined : rows.slice(at + 1).find((row) => row.trim() !== "")
+  return at < 0
+    ? refuse("question.fieldRow.1")
+    : rows.slice(at + 1).find((row) => row.trim() !== "")
 }
 
 export const questions = (
@@ -138,16 +143,18 @@ export const questions = (
 ): DialogRead | undefined => {
   const read = asked(rows)
   const callQuestions = questionsOf(request.input)
-  if (!read || !callQuestions || read.total !== callQuestions.length) return undefined
+  if (!read || !callQuestions || read.total !== callQuestions.length)
+    return refuse("question.questions.1")
   // Any state of the dialog reads as the same one, as the driver reads it again before
   // each key; only where it stands at its start do answers have keys, and the talk only
   // where the question on screen does.
   const shown = callQuestions[read.index - 1]!
   if (read.multi !== shown.multi || squash(read.question) !== squash(shown.question))
-    return undefined
+    return refuse("question.questions.2")
   const labels = [...shown.options, writeIn].map(squash)
-  if (read.options.length !== labels.length) return undefined
-  if (!read.options.every(({ label }, index) => squash(label) === labels[index])) return undefined
+  if (read.options.length !== labels.length) return refuse("question.questions.3")
+  if (!read.options.every(({ label }, index) => squash(label) === labels[index]))
+    return refuse("question.questions.4")
   const fresh =
     !read.writing &&
     read.options[0]!.marked &&

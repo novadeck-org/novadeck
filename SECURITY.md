@@ -268,7 +268,14 @@ files (`runner.log` and the main process's `host.log`, rotated by size) to the l
 with paths, URLs, account names and known secrets redacted. They hold what the app did
 (starts, failures, update checks), not terminal contents, though an error message can name a
 command or a folder. Started with `NOVADECK_LOGS=verbose`, for a bug report, the logs also
-hold lines that may include what a terminal's screen showed. If the app crashes, Electron
+hold lines that may include what a terminal's screen showed. When an agent's dialog can't be
+read, the log says so once, with the harness, its version, the kind and tool of the request (an
+MCP tool as just `mcp`) and the adapter's reason codes, never the dialog's text outside verbose
+lines. A card for such a dialog also offers "Save for debugging", which, only when the person
+clicks it, writes one owner-only JSON file to a `dialogs` folder beside the logs (beside the
+database for a runner started without the app) holding the screen as shown and the request's tool
+input, so it can be attached to a bug report or made into a test; nothing sends it anywhere, the
+newest 50 stay, and it is yours to read and delete before you share it. If the app crashes, Electron
 saves a minidump (process memory, which can hold terminal text) in its local crash folder;
 it is never uploaded.
 

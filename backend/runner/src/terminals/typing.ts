@@ -457,6 +457,12 @@ export class Typing {
     return { cleared }
   }
 
+  /** Saves a raw request's dialog for a bug report (see `Terminals.saveDialog`). */
+  saveDialog(terminalId: string, request: string): Promise<{ path: string }> {
+    this.host.running(this.host.record(terminalId))
+    return this.dialogs.save(terminalId, request).then((path) => ({ path }))
+  }
+
   /** Answers a request waiting on the person through its dialog (see `Terminals.answer`). */
   answer(terminalId: string, request: string, answer: RequestAnswer): Promise<void> {
     return this.answers.answer(terminalId, request, answer)
@@ -976,8 +982,8 @@ export class Typing {
       },
       answered: (terminalId, ref) => this.dialogs.answered(terminalId).has(ref),
       raw: (terminalId, ref) => this.dialogs.shown(terminalId, ref)?.type === "raw",
-      lock: (terminalId, ref, reason, rows) => {
-        this.dialogs.lock(terminalId, ref, reason, rows)
+      lock: (terminalId, ref, reason, rows, why) => {
+        this.dialogs.lock(terminalId, ref, reason, rows, why)
         if (reason === "failed") this.astray(terminalId)
       },
       done: (terminalId, ref) => {
@@ -1066,6 +1072,7 @@ export class Typing {
         const { binding, activity } = bound
         return {
           agent: binding.agent,
+          version: binding.version ?? null,
           requests: activity.pending.map((request) => ({
             ref: requestRef(binding, request),
             actor: request.actor,
