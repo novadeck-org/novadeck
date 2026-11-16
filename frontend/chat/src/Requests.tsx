@@ -5,9 +5,18 @@ import {
   type ChatSlice,
 } from "@novadeck/core/conversation"
 import type { Refused } from "@novadeck/core/conversation/prompt-refusal"
+import type { MenuHandle } from "@novadeck/requests/Menu"
 import { RequestCard, type RequestPlace } from "@novadeck/requests/RequestCard"
 import { useMounted } from "@novadeck/requests/use-mounted"
-import { useContext, useEffect, useRef, useState } from "react"
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type Ref,
+} from "react"
 
 import { Fact, Since } from "./Fact"
 import { LiveSlice, SliceKeys } from "./Slice"
@@ -31,6 +40,41 @@ const clock = (askedAt: number): React.ReactNode => (
 
 const handedBack = (failure: unknown): boolean => failure instanceof WordsLost
 
+// The dialogs that have had the keyboard, by request, when it was asked, and dialog: each comes
+// to it once, as it first shows or as the chat next gives the keyboard out, and never again. The
+// newest are kept, far more than all the chats on screen show at once.
+const claimed = new Set<string>()
+const claimedKept = 200
+const claim = (key: string): void => {
+  claimed.delete(key)
+  claimed.add(key)
+  for (const old of claimed) {
+    if (claimed.size <= claimedKept) break
+    claimed.delete(old)
+  }
+}
+
+// Forgets every dialog that had the keyboard, for tests that show the same one afresh.
+export const forgetClaimed = (): void => claimed.clear()
+
+// Whether focus is free for a dialog that first shows in `chat`: on nothing, or in the chat on
+// what holds none of the person's words and isn't in another request's card.
+const free = (chat: Element | null): boolean => {
+  const active = document.activeElement
+  if (!active || active === document.body) return true
+  const words =
+    (active instanceof HTMLTextAreaElement ||
+      (active instanceof HTMLInputElement &&
+        (active.type === "text" || active.type === "search"))) &&
+    active.value !== ""
+  return Boolean(chat?.contains(active)) && !active.closest(".chat-requests") && !words
+}
+
+export type RequestsHandle = {
+  // Brings the keyboard to the first card whose dialog never had it: true where one took it.
+  readonly claim: () => boolean
+}
+
 // A request's card in the chat: the terminal's live rows where the chat has them, the words of
 // an answer that took without them handed back to the box, and a note when the same dialog is
 // still there a moment after an answer took.
@@ -47,6 +91,7 @@ const Card = ({
   onReply,
   onSubmitted,
   refused,
+  claims,
 }: {
   readonly request: ChatRequest
   readonly slice: ChatSlice | null
@@ -62,11 +107,58 @@ const Card = ({
   readonly replying: boolean
   readonly replySending: boolean
   readonly onReply: (dialog: string | null) => void
-  // The person submitted an answer from the card: what they type next goes in the box.
-  readonly onSubmitted: () => void
+  // The person submitted an answer from the card: what they type next goes in the box, or to a
+  // card that never had the keyboard, but for a chat about the dialog (`chat`), which is the box's.
+  readonly onSubmitted: (chat: boolean) => void
   readonly refused: Refused
+  // Where the card puts its way to take the keyboard, for the chat to give it before the box.
+  readonly claims: (request: string, take: (() => boolean) | null) => void
 }): React.JSX.Element => {
   const keys = useContext(SliceKeys)
+  // The keyboard comes to a dialog the first time it shows, from anywhere in the chat that holds
+  // none of the person's words, before the box takes it, and for a moment no key answers it.
+  const handle = useRef<MenuHandle | null>(null)
+  const frame = useRef<HTMLElement>(null)
+  const dialogKey =
+    request.dialog && !request.answered
+      ? `${request.id}\n${request.askedAt}\n${"id" in request.dialog ? request.dialog.id : request.dialog.type}`
+      : null
+  const latestKey = useRef(dialogKey)
+  useEffect(() => {
+    latestKey.current = dialogKey
+  })
+  // It took the keyboard in this task, as it showed: the box, asked for it as the chat shows,
+  // leaves it there.
+  const justTook = useRef(false)
+  const take = (): boolean => {
+    const key = latestKey.current
+    const holds = Boolean(frame.current?.contains(document.activeElement))
+    if (key === null || replying) return false
+    if (claimed.has(key)) return justTook.current && holds
+    // Its answering keys wait a moment, as focus comes, even to a dialog that took it itself, as
+    // the questions do.
+    if (!handle.current?.focus(true) && !holds) return false
+    claim(key)
+    justTook.current = true
+    setTimeout(() => {
+      justTook.current = false
+    })
+    return true
+  }
+  const takeNow = useRef(take)
+  useEffect(() => {
+    takeNow.current = take
+  })
+  const { id } = request
+  useEffect(() => {
+    claims(id, () => takeNow.current())
+    return () => claims(id, null)
+  }, [claims, id])
+  useEffect(() => {
+    const card = frame.current
+    if (dialogKey === null || !card) return
+    if (card.contains(document.activeElement) || free(card.closest(".chat"))) takeNow.current()
+  }, [dialogKey])
   const mounted = useMounted()
   // The request as it is now, for what happens a moment after an answer took.
   const latest = useRef(request)
@@ -103,13 +195,20 @@ const Card = ({
   const { dialog } = request
   return (
     <RequestCard
+      ref={frame}
+      menu={handle}
       request={request}
       agent={agent}
       harness={harness}
       send={send}
       onAnswerInTerminal={onAnswerInTerminal}
       onSettled={onSettled}
-      onSubmitted={onSubmitted}
+      onSubmitted={(answer) => {
+        // Answered, it has had the keyboard: what comes next is another's, or the box's.
+        if (dialogKey !== null) claim(dialogKey)
+        justTook.current = false
+        onSubmitted(answer.type === "chat")
+      }}
       onEdited={() => {
         if (again !== null) setAgain(null)
       }}
@@ -137,6 +236,7 @@ const Card = ({
 // What waits on the person, as the next lines of the terminal. The dialog's controls answer it
 // here.
 export const Requests = ({
+  handle,
   requests,
   slice,
   agent,
@@ -150,6 +250,8 @@ export const Requests = ({
   onSubmitted,
   refused,
 }: {
+  // The chat's way to give the keyboard to a card before its box.
+  readonly handle?: Ref<RequestsHandle>
   readonly requests: readonly ChatRequest[]
   // The terminal's own rows, for a dialog no adapter read.
   readonly slice: ChatSlice | null
@@ -163,15 +265,29 @@ export const Requests = ({
   readonly replying: string | null
   readonly replySending: boolean
   readonly onReply: (request: string, dialog: string | null) => void
-  readonly onSubmitted: () => void
+  readonly onSubmitted: (chat: boolean) => void
   // Whether words that go on as the agent's next prompt would be refused for their shape.
   readonly refused: Refused
-}): React.JSX.Element | null =>
-  requests.length === 0 ? null : (
+}): React.JSX.Element | null => {
+  // Each card's way to take the keyboard, by its request.
+  const takers = useRef(new Map<string, () => boolean>())
+  const order = useRef(requests)
+  useEffect(() => {
+    order.current = requests
+  })
+  useImperativeHandle(handle, () => ({
+    claim: () => order.current.some(({ id }) => takers.current.get(id)?.() ?? false),
+  }))
+  const claims = useCallback((id: string, take: (() => boolean) | null): void => {
+    if (take) takers.current.set(id, take)
+    else takers.current.delete(id)
+  }, [])
+  return requests.length === 0 ? null : (
     <section className="chat-requests" aria-label="Waiting for you">
       {requests.map((request) => (
         <Card
           key={request.id}
+          claims={claims}
           request={request}
           slice={slice}
           agent={agent}
@@ -188,3 +304,4 @@ export const Requests = ({
       ))}
     </section>
   )
+}

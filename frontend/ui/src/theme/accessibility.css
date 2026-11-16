@@ -3,13 +3,18 @@
 
 /* Reduced motion: nothing moves. `!important`, one of the contract's exceptions, so it
    beats the transitions libraries set inline or inject with `!important`, such as
-   dnd-kit's drag feedback. */
+   dnd-kit's drag feedback. A team wire's track keeps its animation: it is no motion of its
+   own but the list's scroll, which it follows (team-wire.css). */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     scroll-behavior: auto !important;
     transition: none !important;
+  }
+  *:not(.team-wire-track),
+  *::before,
+  *::after {
     animation: none !important;
   }
 }

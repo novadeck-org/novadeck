@@ -77,14 +77,47 @@ export const useMenu = (count: number): Menu => {
 // pressed twice, or held, for the one before never answers the next.
 export const arrivalGuardMs = 400
 
-// Whether the dialog is within its moment of arrival (`arrived`, from its host).
-export const useArrivalGuard = (arrived: boolean): (() => boolean) => {
+export type ArrivalGuard = {
+  // Whether the dialog is within its moment of arrival, which holds clicks and keys.
+  readonly on: () => boolean
+  // Whether its answering keys are held: as it arrives, or as focus came to it.
+  readonly keysHeld: () => boolean
+  // Holds its answering keys for a moment, as focus comes to it from what the person was
+  // typing; a click is aimed at what it shows, and goes.
+  readonly holdKeys: () => void
+  // The person is here on purpose (a press, a key that moves): the keys answer at once.
+  readonly release: () => void
+}
+
+// The dialog's moment of arrival, as its host moves on to it (`arrived`), and the keys it holds
+// as focus is brought to it.
+export const useArrivalGuard = (arrived: boolean): ArrivalGuard => {
   const until = useRef(0)
+  const keysUntil = useRef(0)
   useEffect(() => {
     if (arrived) until.current = Date.now() + arrivalGuardMs
   }, [arrived])
-  return () => Date.now() < until.current
+  return {
+    on: () => Date.now() < until.current,
+    keysHeld: () => Date.now() < Math.max(until.current, keysUntil.current),
+    holdKeys: () => {
+      keysUntil.current = Date.now() + arrivalGuardMs
+    },
+    release: () => {
+      keysUntil.current = 0
+    },
+  }
 }
+
+// Whether a key moves about a dialog, which the person presses there on purpose.
+export const movesKey = (key: string): boolean =>
+  key === "ArrowDown" ||
+  key === "ArrowUp" ||
+  key === "ArrowLeft" ||
+  key === "ArrowRight" ||
+  key === "Home" ||
+  key === "End" ||
+  key === "Tab"
 
 // Whether a key answers, rather than moves: what the guard holds back.
 export const answersKey = (key: string): boolean =>

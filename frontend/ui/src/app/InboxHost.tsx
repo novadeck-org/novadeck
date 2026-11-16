@@ -8,12 +8,12 @@ import { PlanTextProvider } from "../inbox/plan-text"
 import { focusTerminalInput } from "../interaction/dom"
 import { anyAgentWorking } from "../projects/project-status"
 import { useDesktop } from "../shell/desktop"
-import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
+import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { dingOf } from "./ding"
 import { clickNotice, noticeBoard } from "./inbox-pings"
 import { watchInboxToasts } from "./inbox-toasts"
 import { watchMoveToasts } from "./move-toasts"
-import { currentState } from "./selectors"
+import { currentState, modalOpen } from "./selectors"
 import { focusWhenReady, watchShowToasts } from "./show-toasts"
 
 // The Inbox: the backend's, as it lands (see `inbox-landing.ts`), or, where the backend has
@@ -27,8 +27,8 @@ const NoticeClicks = (): null => {
   useEffect(
     () =>
       backend.notices?.onClick((terminalId) =>
-        // The backend's rows, as the terminal being viewed may hold the one the notice is
-        // about back from the Inbox: the click lands it before it opens.
+        // The backend's rows: the click marks the one the notice is about as the person's to
+        // open (the landing's `reveal`) before it opens.
         clickNotice(
           terminalId,
           backend.inbox?.state.getSnapshot().items ?? [],
@@ -63,6 +63,8 @@ export const InboxHost = ({
   const { inbox } = landing
   // Whether an agent is at work in any project, for the empty Inbox to say.
   const working = useWorkspaceState((state) => anyAgentWorking(state.projects))
+  // Whether the person looks at the page, for an update's row in sight to be read.
+  const looking = useUiState((state) => state.pageFocused && !modalOpen(state))
   const { hideSidebar, reveal, select, showInbox, peekInbox } = commands
   const phone = useMemo(
     () => (desktop ? undefined : { hideList: hideSidebar, showList: showInbox }),
@@ -114,6 +116,7 @@ export const InboxHost = ({
         phone={phone}
         working={working}
         active={active}
+        looking={looking}
       >
         {children}
         <NoticeClicks />

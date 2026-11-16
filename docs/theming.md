@@ -355,7 +355,8 @@ fails too, and fails when one is no longer needed.
   ones too, while the scheme changes.
 - `theme/accessibility.css` uses `!important` for reduced motion, to beat the
   transitions libraries set inline or inject with `!important`, such as dnd-kit's drag
-  feedback.
+  feedback. A team wire's track keeps its animation: it follows the Terminals list's
+  scroll, which is no motion of its own.
 - `frontend/toolkit/src/drag-pull.css` uses `!important` for the glide a dragged element
   makes to the pointer as it is pulled free of its list: dnd-kit sets the element's
   transition inline (`--dnd-transition`).

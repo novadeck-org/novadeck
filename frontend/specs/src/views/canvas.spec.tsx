@@ -754,7 +754,7 @@ describe("Canvas's team wire", () => {
     expect(Number(getComputedStyle(node).zIndex)).toBeGreaterThanOrEqual(0)
   })
 
-  it("lights while one of the team is selected, its cursor drawn anew for each member selected", async () => {
+  it("lights while one of the team is selected, blinking nothing as another member is", async () => {
     const cursor = () =>
       document.querySelector(".canvas-team-wire-shape[data-lit] .canvas-team-wire-cursor")
     await openMessagesDemo()
@@ -763,9 +763,13 @@ describe("Canvas's team wire", () => {
     await expect.poll(lit).toBe(1)
     const first = cursor()
     expect(first).not.toBeNull()
-    // Another member of the same team: still lit, and its cursor blinks again.
+    // Another member of the same team: still lit, its cursor as it was.
     await terminalTab("Checkout implementation").click()
-    await expect.poll(cursor).not.toBe(first)
+    await expectSelected("Checkout implementation")
+    expect(cursor()).toBe(first)
+    expect(first!.getAnimations().filter((animation) => animation instanceof CSSAnimation)).toEqual(
+      [],
+    )
     expect(lit()).toBe(1)
     await terminalTab("Dev server").click()
     await expect.poll(lit).toBe(0)

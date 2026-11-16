@@ -1103,8 +1103,8 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     "shows that question as it is, so it needs no ask. Always ask every other question " +
     "you end your turn waiting on, such as which option to take or whether to open a pull " +
     "request, unless it is already an open ask, and put the full question in your reply too: " +
-    "while the user looks at this terminal, the Inbox holds its asks back until they look away, " +
-    "so then your reply is the only place they see it. A closing offer such as " +
+    "while the user looks at this terminal, an ask lands in the Inbox quietly, with no " +
+    "notification, so your reply is where they read it. A closing offer such as " +
     "'anything else?' isn't one, nor is an action your harness is already prompting them " +
     "for. With a lead, ask all the same, and send it the question too, so it knows what you " +
     "wait on; if your lead answers it first, act on that as its instruction and withdraw the " +
@@ -1221,7 +1221,7 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
   said: (answer) =>
     answer.withdrawn
       ? `Withdrew ask ${answer.id} from the Inbox.`
-      : `Ask ${answer.id} is in the user's Inbox. While they look at this terminal it waits there unseen until they look away, so put the full question in your reply too. Their answer arrives later as a message; keep working on what doesn't depend on it, and end your turn once nothing else is left.`,
+      : `Ask ${answer.id} is in the user's Inbox. While they look at this terminal it lands there quietly, with no notification, so put the full question in your reply too. Their answer arrives later as a message; keep working on what doesn't depend on it, and end your turn once nothing else is left.`,
   failed: "Novadeck couldn't save the ask.",
 }
 const tell: Tool<{ readonly id: string }> = {
@@ -1569,8 +1569,8 @@ const instructions =
   "Novadeck shows that question in the Inbox as it is, so it needs no ask. Always ask " +
   "there every other question you end your turn waiting on, such as which option to take " +
   "or whether to open a pull request, unless it is already an open ask, and put the full " +
-  "question in your reply too, as the Inbox holds an ask back while they look at this " +
-  "terminal; a closing " +
+  "question in your reply too, as an ask lands in the Inbox quietly while they look at " +
+  "this terminal; a closing " +
   "offer such as 'anything else?' isn't one, nor is an action your harness is already " +
   "prompting them for. When they write to you here, Novadeck takes your open asks out " +
   "of the Inbox and tells you; ask again only what their message leaves open. If they " +

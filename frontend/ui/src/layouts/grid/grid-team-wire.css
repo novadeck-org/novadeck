@@ -5,8 +5,10 @@
    --team-wire-rest-fg (line-strong at 42% in the ground) and --team-wire-rest-cursor
    (line-strong at 70% in the ground), whose ground here is the workspace's (--workspace-bg,
    then canvas). Each team has a `.grid-team-wire-shape`, with data-lit while it is the
-   selected terminal's. `.grid-team-wire` has data-settled (the lit wire's entrance has
-   played; one redrawn after a layout change appears without playing again) and data-hidden
+   selected terminal's, and data-entering while its team has just formed (team-news.ts): its
+   runs draw in, its ticks reach out after them and its cursor blinks twice; a tick reaches
+   out alone with data-joining, its teammate having just joined. `.grid-team-wire` has
+   data-hidden
    (the tiles are moving, or a window is over the grid: the wires are out of the way; so,
    while a tile is dragged, is the grid's data-gesture). */
 @layer components {
@@ -34,9 +36,24 @@
     opacity: 0;
     transition: none;
   }
+  /* Each wire keeps its element whether it lights or rests, so lighting fades; the lit one
+     stands over any resting one it crosses. */
+  .grid-team-wire-shape {
+    position: absolute;
+    inset: 0;
+  }
+  .grid-team-wire-shape[data-lit] {
+    z-index: 1;
+  }
   .grid-team-wire-shape > i {
     position: absolute;
     display: block;
+  }
+  .grid-team-wire-run,
+  .grid-team-wire-cursor {
+    transition:
+      background-color var(--motion-feedback) var(--ease-interface),
+      box-shadow var(--motion-feedback) var(--ease-interface);
   }
   .grid-team-wire-run {
     background-color: var(--_rest);
@@ -66,22 +83,24 @@
     background-color: var(--_fg);
     box-shadow: var(--_glow);
   }
-  .grid-team-wire-shape[data-lit] > .grid-team-wire-run[data-axis="horizontal"] {
-    animation: grid-team-wire-across 220ms var(--ease-interface) both;
-  }
-  .grid-team-wire-shape[data-lit] > .grid-team-wire-run[data-axis="vertical"] {
-    animation: grid-team-wire-down 220ms var(--ease-interface) both;
-  }
   .grid-team-wire-shape[data-lit] > .grid-team-wire-tick {
     background: linear-gradient(90deg, var(--_fg), color-mix(in srgb, var(--_fg) 55%, transparent));
+  }
+  .grid-team-wire-shape[data-entering] > .grid-team-wire-run[data-axis="horizontal"] {
+    animation: grid-team-wire-across 220ms var(--ease-interface) both;
+  }
+  .grid-team-wire-shape[data-entering] > .grid-team-wire-run[data-axis="vertical"] {
+    animation: grid-team-wire-down 220ms var(--ease-interface) both;
+  }
+  .grid-team-wire-shape[data-entering] > .grid-team-wire-tick {
     animation: grid-team-wire-across 180ms var(--ease-interface) 260ms both;
   }
-  /* It blinks twice as the team lights, then holds. */
-  .grid-team-wire-shape[data-lit] > .grid-team-wire-cursor {
-    animation: grid-team-wire-blink 520ms steps(1) both;
+  .grid-team-wire-shape:not([data-entering]) > .grid-team-wire-tick[data-joining] {
+    animation: grid-team-wire-across 180ms var(--ease-interface) both;
   }
-  .grid-team-wire[data-settled] .grid-team-wire-shape > i {
-    animation: none;
+  /* It blinks twice as the team forms, then holds. */
+  .grid-team-wire-shape[data-entering] > .grid-team-wire-cursor {
+    animation: grid-team-wire-blink 520ms steps(1) both;
   }
   @keyframes grid-team-wire-across {
     from {

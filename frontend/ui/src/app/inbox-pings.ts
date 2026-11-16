@@ -102,7 +102,7 @@ export const clickNotice = (
     // Shows the Inbox for the row; returns what puts the sidebar back, unless it showed already.
     readonly peekInbox: () => (() => void) | undefined
     readonly reveal: (terminalId: string) => void
-    // Lands the row in the Inbox before it opens, where the terminal being viewed held it.
+    // Marks the row as the person's to open before it opens (the landing's `reveal`).
     readonly land?: (id: string) => void
   },
   rowId?: string,
@@ -234,8 +234,7 @@ export const followNeeds = (
       // One that began well before this started, as the Inbox fills in after launch, isn't
       // new; a request asked just before, whose dialog it waited on, is.
       if (row.at < startedAt - launchSlackMs) continue
-      // One that arrived while the person looked at its terminal, and landed as they looked
-      // away, they have already seen there.
+      // One that landed while the person looked at its terminal they have already seen there.
       if (inbox.landedQuietly?.(row)) continue
       timers.set(
         key,

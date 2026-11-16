@@ -33,8 +33,7 @@ export const useMessageLinks = (): MessageLinks => {
       peers,
       goTo: commands.reveal,
       answer: (entry) => {
-        // The ask may be held back from the Inbox because this terminal is in view: asking
-        // to answer it lands it.
+        // Opened by the person: looking at this terminal doesn't read it as well.
         const held = entryRow(backend.inbox?.state.getSnapshot().items ?? [], entry)
         if (held) landing.reveal(held.id)
         // For that ask alone: once answered, the sidebar goes back to what it showed.

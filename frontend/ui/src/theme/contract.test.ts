@@ -677,7 +677,8 @@ const importantExceptions: readonly {
     declarations: [
       "*, *::before, *::after { scroll-behavior }",
       "*, *::before, *::after { transition }",
-      "*, *::before, *::after { animation }",
+      // A team wire's track follows the list's scroll, which is no motion of its own.
+      "*:not(.team-wire-track), *::before, *::after { animation }",
     ],
   },
   {

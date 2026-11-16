@@ -718,3 +718,11 @@
   outline: var(--border-width) solid var(--color-strong);
   outline-offset: 1px;
 }
+
+/* A tab scrolled out of the list's sight (tab-sight.ts) rests its spinners and blinks, which
+   pick up again as it scrolls back in. Last in the file, as specific as the rules that start
+   them, whose `animation` would otherwise set them running again. */
+.terminal-tab[data-offscreen]
+  :is(.terminal-glyph, .terminal-tab-subagent, .terminal-tab-wait, .team-fold-mark)::before {
+  animation-play-state: paused;
+}
