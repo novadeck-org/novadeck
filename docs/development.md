@@ -984,7 +984,7 @@ folder of `frontend/ui/src/`:
 | `frontend/core/src/messages.ts`                                 | The contract for agents' messages: threads, states, the pause, and a tab's count.                                              |
 | `frontend/core/src/conversation.ts`                             | The contract for an agent's conversation: transcript items, requests, the port.                                                |
 | `frontend/core/src/inbox.ts`                                    | The contract for the Inbox: rows by source, their type, how they ended, answers, the port.                                     |
-| `frontend/core/src/source.ts`                                   | The contract for the Files panel: a project's folders, listed one at a time, and what its agents changed.                      |
+| `frontend/core/src/files.ts`                                    | The contract for the Files panel: a project's folders, listed one at a time, and what its agents changed.                      |
 | `frontend/core/src/conversation/picks.ts`                       | What the person has picked and written for a dialog's questions, and the answer it makes.                                      |
 | `frontend/core/src/conversation/turns.ts`                       | A conversation grouped into blocks, the turn's status.                                                                         |
 | `frontend/core/src/roster.ts`                                   | A session's terminals and undocked windows, laid out as tiles, their order and status.                                         |

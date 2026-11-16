@@ -19,7 +19,8 @@ export const useWorktreesShown = (): boolean => {
 }
 
 // Leaves the Worktrees panel for Terminals while it isn't shown, before the sidebar paints it
-// empty: // at a launch whose URL names it, or when the person turns agent worktrees off while it is open.
+// empty: at a launch whose URL names it, or when the person turns agent worktrees off while it
+// is open.
 // A step back to it goes too, so the open panel's toggle hides the sidebar instead.
 export const useLeaveHiddenWorktrees = (shown: boolean): void => {
   const { navigation, ui } = useWorkspaceServices()
