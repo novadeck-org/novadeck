@@ -387,7 +387,11 @@ export const contract = {
     // agent and ends when the terminal is closed; an unknown terminal is TERMINAL_NOT_FOUND.
     // Its own stream, apart from `detail`: it changes on every key, and costs a look at the
     // screen only while someone reads it.
-    slice: procedure.input(z.strictObject({ terminalId: id })).output(eventIterator(sliceChange)),
+    // With `screen`, each change carries the whole screen too (`sliceChange`), which costs a read
+    // of all its rows on each change: for a chat with nothing yet to show, that is all.
+    slice: procedure
+      .input(z.strictObject({ terminalId: id, screen: z.boolean().optional() }))
+      .output(eventIterator(sliceChange)),
     // Gives the terminal's agent a prompt as the person would: the text pasted into its own
     // input box as one bracketed paste, then Enter once the paste shows there, the person's
     // keys held meanwhile. A terminal without an agent bound, or one that takes no

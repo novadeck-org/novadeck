@@ -146,6 +146,9 @@ export const readingOf = (
 /**
  * An actor's transcript as changes: every item from the start of `path`, then each one
  * appended, in batches, with `reset` when the file is rewritten; until `signal` aborts.
+ * Whenever it has read all there is for now and no item has come, it says what the file holds
+ * (`read`): whether it is there, its lines, and those that gave no item and hold no shape its
+ * decoder knows, which is how a client tells an empty record from one it can't read.
  * Each of `interruptions` joins them as its item before the person's first item the file got
  * after it, or once all it had then is read: after the turn's last steps, as the words a
  * harness writes just after the key (Antigravity's, up to 0.1 s on), before the next prompt.
@@ -182,6 +185,10 @@ export const transcriptChanges = async function* (
   // step order, and the interruptions told since the file was read from its start.
   let reached = -1
   const told = new Set<string>()
+  // What the file holds as read: its lines, those nothing was made of, and what `read` last said.
+  let lines = 0
+  let unread = 0
+  let said: string | undefined
   let wake: (() => void) | undefined
   let resume: (() => void) | undefined
   const notify = () => {
@@ -225,6 +232,7 @@ export const transcriptChanges = async function* (
     path,
     signal,
     (line, end) => {
+      lines += 1
       const found = shapes?.(line) ?? []
       let gap = false
       for (const shape of found) {
@@ -234,6 +242,13 @@ export const transcriptChanges = async function* (
         gap ||= inside
       }
       const read = items(line)
+      // A line is accounted for by an item, a gap, or shapes that are all known to the decoder.
+      if (
+        read.length === 0 &&
+        !gap &&
+        (found.length === 0 || found.some((each) => each.verdict === "unknown"))
+      )
+        unread += 1
       if (read.some((item) => item.role === "user")) interrupted(reached)
       reached = Math.max(reached, step?.(line) ?? reached)
       for (const item of read) collect(item, end)
@@ -244,14 +259,23 @@ export const transcriptChanges = async function* (
     },
     {
       fromStart: true,
-      onIdle: () => {
+      onIdle: (found) => {
         interrupted(reached)
         flush()
+        // Once an item has come, what the file holds besides is of no use to the chat.
+        const holds = JSON.stringify([found, lines, unread])
+        if (index > 0 || holds === said) return
+        said = holds
+        queue.push({ type: "read", found, lines, unread })
+        notify()
       },
       onReset: () => {
         queued -= collected.length
         collected = []
         index = 0
+        lines = 0
+        unread = 0
+        said = undefined
         reached = -1
         told.clear()
         queue.push({ type: "reset" })

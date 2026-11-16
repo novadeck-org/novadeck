@@ -80,6 +80,7 @@ describe("readSlice", () => {
     expect(read(atRest, undefined)).toEqual({
       bounds: undefined,
       resting: { rows: atRest, columns: 80, under: 1 },
+      idle: true,
     })
   })
 
@@ -125,6 +126,7 @@ describe("readSlice", () => {
     expect(read(["two", "", "view", "", "esc"], atRest)).toEqual({
       bounds: { reason: "view", first: 2, last: 4 },
       resting: undefined,
+      idle: false,
     })
   })
 
@@ -150,6 +152,7 @@ describe("readSlice", () => {
     expect(read(["one", "> 1. pick $HOME", "esc back"], atRest, { box: covered })).toEqual({
       bounds: { reason: "view", first: 1, last: 2 },
       resting: undefined,
+      idle: false,
     })
   })
 
@@ -178,6 +181,7 @@ describe("readSlice", () => {
     expect(read(["one", "Allow this?", "1. Yes"], atRest, { waiting: true })).toEqual({
       bounds: undefined,
       resting: undefined,
+      idle: false,
     })
   })
 
@@ -214,6 +218,33 @@ describe("readSlice", () => {
     expect(read(["one", "", "two", "", rule, "> words"], atRest, { box: clipped })).toEqual({
       bounds: undefined,
       resting: undefined,
+      idle: false,
     })
+  })
+})
+
+describe("readSlice's idle", () => {
+  it("idles at rest with an empty box, with a rest to go by or none", () => {
+    expect(read(atRest, atRest).idle).toBe(true)
+    expect(read(atRest, undefined).idle).toBe(true)
+  })
+
+  it("does not idle on words in the box, as a dialog read as a box holds its text", () => {
+    expect(read(["one", rule, "> a draft", rule, "footer"], atRest).idle).toBe(false)
+    expect(read(["Question 1/1", "> 1. Blue", "  2. Green"], undefined).idle).toBe(false)
+  })
+
+  it("does not idle on a menu, a view, no box, or a request holding the agent", () => {
+    expect(read(["one", "menu", rule, "> /"], atRest).idle).toBe(false)
+    expect(read(["view"], atRest).idle).toBe(false)
+    expect(read(["no box here"], undefined).idle).toBe(false)
+    expect(read(atRest, atRest, { waiting: true }).idle).toBe(false)
+  })
+
+  it("does not idle on a box that holds blank lines only", () => {
+    const blanks = box({
+      read: () => ({ text: "", mode: "prompt", first: 5, last: 6, blanks: true }),
+    })
+    expect(read(atRest, atRest, { box: blanks }).idle).toBe(false)
   })
 })

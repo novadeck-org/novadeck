@@ -96,6 +96,57 @@ describe("an actor's transcript as changes", () => {
     await expect.poll(() => texts(changes)).toEqual([["0:a", "1:b"], ["2:c"]])
   })
 
+  it("says what a record holds once it has read it all and no item has come", async ({ file }) => {
+    // Nothing there yet: not found, and found with no lines once it is created empty.
+    const { changes } = file.read()
+    await expect.poll(() => changes).toEqual([{ type: "read", found: false, lines: 0, unread: 0 }])
+    writeFileSync(file.path, "")
+    await expect
+      .poll(() => changes.at(-1))
+      .toEqual({ type: "read", found: true, lines: 0, unread: 0 })
+  })
+
+  it("says no more once an item has come, and again after a reset", async ({ file }) => {
+    writeFileSync(file.path, "a\n")
+    const { changes } = file.read()
+    await expect.poll(() => texts(changes)).toEqual([["0:a"]])
+    appendFileSync(file.path, "b\n")
+    await expect.poll(() => texts(changes)).toEqual([["0:a"], ["1:b"]])
+    writeFileSync(file.path, "")
+    await expect
+      .poll(() => changes.at(-1))
+      .toEqual({ type: "read", found: true, lines: 0, unread: 0 })
+  })
+
+  it("counts the lines nothing was made of that its decoder doesn't know", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "novadeck-transcript-"))
+    try {
+      const path = join(directory, "transcript.jsonl")
+      // Known to skip: "meta"; unknown: "new"; no shape at all: anything else.
+      writeFileSync(path, "meta\nmeta\nnew\nnot a record\n")
+      const shapes = (line: string) =>
+        line === "meta"
+          ? [{ key: "record:meta", verdict: "skipped" as const }]
+          : line === "new"
+            ? [{ key: "record:new", verdict: "unknown" as const }]
+            : []
+      const reader = new AbortController()
+      const changes: TranscriptChange[] = []
+      void (async () => {
+        for await (const change of transcriptChanges(
+          path,
+          { items: () => [], shapes, conversational: () => false },
+          reader.signal,
+        ))
+          changes.push(change)
+      })()
+      await expect.poll(() => changes).toEqual([{ type: "read", found: true, lines: 4, unread: 2 }])
+      reader.abort()
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
   it("sends a long backlog in batches", async ({ file }) => {
     writeFileSync(file.path, Array.from({ length: 600 }, (_, index) => `${index}\n`).join(""))
     const { changes } = file.read()

@@ -1512,9 +1512,9 @@ export class Terminals {
   }
 
   /** The terminal's live slice, then another on each change (see `slices.ts`). */
-  async *slice(terminalId: string, signal?: AbortSignal): AsyncGenerator<SliceChange> {
+  async *slice(id: string, signal?: AbortSignal, screen?: boolean): AsyncGenerator<SliceChange> {
     if (this.stopping) throw new DomainError("CLOSING")
-    yield* this.streams.watchSlice(this.record(terminalId).summary.id, signal)
+    yield* this.streams.watchSlice(this.record(id).summary.id, signal, screen)
   }
 
   /** The terminals whose shell holds work a restart would end, read now (see `busyTerminals`). */

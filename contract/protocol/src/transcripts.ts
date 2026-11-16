@@ -76,6 +76,7 @@ export const toolOutcome = z.strictObject({
 // the agent's text, another agent's message to it (`author` names that agent, in its
 // harness's words), a tool call, with its input as text, or a tool's result; `call`
 // pairs a result with its call, `run` says what a call was, and `outcome` what came of it.
+// A `read` says the record was read to its end (see below).
 // `scripted` marks a call its harness made inside a script of the agent's, recorded after the
 // script's own call. Text past 16 KiB is cut short and marked `truncated`. Private reasoning
 // is never included.
@@ -168,6 +169,19 @@ export const transcriptChange = z.discriminatedUnion("type", [
     items: z.array(transcriptItem).min(1).max(transcriptLimits.items),
   }),
   z.strictObject({ type: z.literal("reset") }),
+  // The record read to its end, as it stands: sent each time that is so and what it says
+  // differs, while the record has given no item. It is what makes a conversation with no items
+  // empty, rather than not read yet. `found` is whether the record's file is there; `lines` how
+  // many lines it holds; `unread` how many of those gave no item and hold nothing its decoder
+  // knows to skip, so that words of the conversation may be among them: a line that is no
+  // record, or whose shapes it has never seen (a gap, where the shape is conversation, is an
+  // item of its own). After a `reset` the counts start again.
+  z.strictObject({
+    type: z.literal("read"),
+    found: z.boolean(),
+    lines: z.number().int().nonnegative(),
+    unread: z.number().int().nonnegative(),
+  }),
 ])
 
 export type TranscriptItem = z.infer<typeof transcriptItem>

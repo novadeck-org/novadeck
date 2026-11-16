@@ -8,6 +8,7 @@ import { readScreen, styledRows, type Screen } from "@novadeck/emulator/headless
 import { readSlice, type Resting, type SliceProfile } from "@novadeck/harness-core/slices"
 import {
   liveSlice,
+  sliceLimits,
   type AgentName,
   type LiveSlice,
   type RequestDialog,
@@ -77,9 +78,17 @@ export type SlicesOptions = {
 
 type State = {
   readonly readers: Set<Latest<SliceChange>>
+  /** The readers that asked for the whole screen too. */
+  readonly screens: Set<Latest<SliceChange>>
   rest: Resting | undefined
-  /** What the readers have, to tell a change by. */
+  /** What the readers have, to tell a change by: the slice and whether the harness idles. */
   shown: string
+  /** The whole screen the readers that asked for it have, as JSON. */
+  whole: string
+  /** Whether a look has been told yet: until it has, a reader waits for its first. */
+  looked: boolean
+  /** Whether the last look took the whole screen, as readers of it wait for one that did. */
+  wholeTaken: boolean
   timer: ReturnType<typeof setTimeout> | undefined
   lastLook: number
   looking: boolean
@@ -93,17 +102,23 @@ type State = {
 
 const none = JSON.stringify({ slice: null })
 
-/** What the screen shows of the harness's own, and whether the screen is at rest. */
-const take = (
+/** What a look found: the slice, whether the harness idles, the screen at rest, the whole screen. */
+type Taken = {
+  readonly slice: LiveSlice | null
+  readonly resting: Resting | undefined
+  readonly idle: boolean
+  readonly whole: LiveSlice | null
+}
+
+/** The rows `first` to `last` of the screen as a slice of `reason`; null past its limits. */
+const rowsOf = (
   screen: Screen,
-  rest: Resting | undefined,
-  slicing: Slicing,
-): { readonly slice: LiveSlice | null; readonly resting: Resting | undefined } => {
-  const text = readScreen(screen)
-  const { box, profile, waiting, unread } = slicing
-  const { bounds, resting } = readSlice({ screen: text, rest, box, profile, waiting, unread })
-  if (!bounds) return { slice: null, resting }
-  const { reason, first, last } = bounds
+  text: ReturnType<typeof readScreen>,
+  profile: SliceProfile,
+  reason: LiveSlice["reason"],
+  first: number,
+  last: number,
+): LiveSlice | null => {
   const { row, column } = text.cursor
   const parsed = liveSlice.safeParse({
     reason,
@@ -113,7 +128,40 @@ const take = (
     secret: profile.secret(text.rows.slice(first, last + 1)),
   })
   // Past the limits it is no slice: rows cut short would be the wrong rows.
-  return { slice: parsed.success ? parsed.data : null, resting }
+  return parsed.success ? parsed.data : null
+}
+
+const drawn = (row: string): boolean => row.trim() !== ""
+
+/**
+ * Everything drawn, from the first row that shows anything to the last (the last rows where
+ * it is taller than a slice goes), for a reader that asked for the screen; null for a blank one.
+ */
+const wholeScreen = (
+  screen: Screen,
+  text: ReturnType<typeof readScreen>,
+  profile: SliceProfile,
+): LiveSlice | null => {
+  const last = text.rows.findLastIndex(drawn)
+  if (last < 0) return null
+  const first = Math.max(text.rows.findIndex(drawn), last - sliceLimits.rows + 1)
+  return rowsOf(screen, text, profile, "view", first, last)
+}
+
+/** What the screen shows of the harness's own, whether the screen is at rest, and idles. */
+const take = (
+  screen: Screen,
+  rest: Resting | undefined,
+  slicing: Slicing,
+  whole: boolean,
+): Taken => {
+  const text = readScreen(screen)
+  const { box, profile, waiting, unread } = slicing
+  const { bounds, resting, idle } = readSlice({ screen: text, rest, box, profile, waiting, unread })
+  const all = whole ? wholeScreen(screen, text, profile) : null
+  if (!bounds) return { slice: null, resting, idle, whole: all }
+  const { reason, first, last } = bounds
+  return { slice: rowsOf(screen, text, profile, reason, first, last), resting, idle, whole: all }
 }
 
 export class Slices {
@@ -131,12 +179,22 @@ export class Slices {
     this.viewStillMs = options.viewStillMs ?? 120
   }
 
-  /** The terminal's slice, then another on each change, until it is finished or `signal` aborts. */
-  async *watch(terminalId: string, signal: AbortSignal | undefined): AsyncGenerator<SliceChange> {
+  /**
+   * The terminal's slice, then another on each change, until it is finished or `signal` aborts.
+   * The first comes with the first look at the screen, so what it says of the harness idling is
+   * said and not guessed; `screen` asks for the whole screen with each.
+   */
+  async *watch(
+    terminalId: string,
+    signal: AbortSignal | undefined,
+    screen = false,
+  ): AsyncGenerator<SliceChange> {
     const reader = new Latest<SliceChange>()
     const state = this.states.get(terminalId) ?? this.fresh(terminalId)
     state.readers.add(reader)
-    reader.push(JSON.parse(state.shown) as SliceChange)
+    if (screen) state.screens.add(reader)
+    // What a look already told is what it has, unless it took no screen and this reader wants one.
+    if (state.looked && (!screen || state.wholeTaken)) reader.push(this.change(state, reader))
     this.changed(terminalId)
     const abort = () => reader.finish()
     signal?.addEventListener("abort", abort, { once: true })
@@ -152,6 +210,8 @@ export class Slices {
       signal?.removeEventListener("abort", abort)
       reader.finish()
       state.readers.delete(reader)
+      state.screens.delete(reader)
+      if (state.screens.size === 0) state.wholeTaken = false
       if (state.readers.size === 0 && this.states.get(terminalId) === state) {
         this.stop(state)
         this.states.delete(terminalId)
@@ -187,8 +247,12 @@ export class Slices {
   private fresh(terminalId: string): State {
     const state: State = {
       readers: new Set(),
+      screens: new Set(),
       rest: undefined,
       shown: none,
+      whole: "null",
+      looked: false,
+      wholeTaken: false,
       timer: undefined,
       lastLook: Number.NEGATIVE_INFINITY,
       looking: false,
@@ -216,12 +280,32 @@ export class Slices {
     )
   }
 
-  private tell(state: State, slice: LiveSlice | null): void {
-    const change = { slice }
-    const shown = JSON.stringify(change)
-    if (shown === state.shown) return
+  /** What a reader has of the state: the screen only if it asked. */
+  private change(state: State, reader: Latest<SliceChange>): SliceChange {
+    const change = JSON.parse(state.shown) as SliceChange
+    return state.screens.has(reader)
+      ? { ...change, screen: JSON.parse(state.whole) as LiveSlice | null }
+      : change
+  }
+
+  /** Tells the readers what a look found, if it is the first or differs from what they have. */
+  private tell(
+    state: State,
+    slice: LiveSlice | null,
+    rest: boolean,
+    whole: LiveSlice | null = null,
+  ): void {
+    const wants = state.screens.size > 0
+    const shown = JSON.stringify({ slice, rest })
+    const all = wants ? JSON.stringify(whole) : "null"
+    // A reader's first look, whatever it found, and the first to take the screen for one that asked.
+    const first = !state.looked || (wants && !state.wholeTaken)
+    state.looked = true
+    state.wholeTaken = wants
+    if (!first && shown === state.shown && all === state.whole) return
     state.shown = shown
-    for (const reader of state.readers) reader.push(change)
+    state.whole = all
+    for (const reader of state.readers) reader.push(this.change(state, reader))
   }
 
   private async look(terminalId: string, state: State): Promise<void> {
@@ -230,18 +314,19 @@ export class Slices {
     // What can't be read shows nothing: a look that throws leaves no stale rows up.
     const taken = await (async () => {
       const slicing = this.slicing(terminalId)
-      return slicing && slicing.read((screen) => take(screen, state.rest, slicing))
+      const whole = state.screens.size > 0
+      return slicing && slicing.read((screen) => take(screen, state.rest, slicing, whole))
     })().catch(() => undefined)
     state.looking = false
     if (this.states.get(terminalId) !== state) return
     if (taken) {
       state.rest = taken.resting ?? state.rest
-      this.settle(terminalId, state, taken.slice)
+      this.settle(terminalId, state, taken)
     } else {
       // Nothing of a harness's own is at an input no agent draws, and its rest is another's.
       state.rest = undefined
       state.viewSince = undefined
-      this.tell(state, null)
+      this.tell(state, null, false)
     }
     if (state.again) {
       state.again = false
@@ -249,12 +334,20 @@ export class Slices {
     }
   }
 
-  /** Tells what the look found: a view only once it has stayed, as a redraw has no box. */
-  private settle(terminalId: string, state: State, slice: LiveSlice | null): void {
-    const told = (JSON.parse(state.shown) as SliceChange).slice
-    if (slice?.reason !== "view" || told?.reason === "view") {
+  /**
+   * Tells what the look found: a view only once it has stayed, as a redraw has no box, and so
+   * the harness leaving its idle for a screen with no box and nothing new drawn.
+   */
+  private settle(terminalId: string, state: State, taken: Taken): void {
+    const { slice, idle, whole, resting } = taken
+    const told = JSON.parse(state.shown) as SliceChange
+    const holds =
+      slice?.reason === "view"
+        ? told.slice?.reason !== "view"
+        : slice === null && resting === undefined && told.rest === true
+    if (!holds) {
       state.viewSince = undefined
-      this.tell(state, slice)
+      this.tell(state, slice, idle, whole)
       return
     }
     state.viewSince ??= this.now()
@@ -267,6 +360,6 @@ export class Slices {
       return
     }
     state.viewSince = undefined
-    this.tell(state, slice)
+    this.tell(state, slice, idle, whole)
   }
 }

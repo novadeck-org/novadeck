@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest"
 
 import { contract } from "./contract.js"
-import { maxTranscriptImages, transcriptImageResult, transcriptItem } from "./transcripts.js"
+import { sliceChange } from "./slices.js"
+import {
+  maxTranscriptImages,
+  transcriptChange,
+  transcriptImageResult,
+  transcriptItem,
+} from "./transcripts.js"
 
 const item = {
   index: 0,
@@ -79,5 +85,36 @@ describe("the answer to a transcript image", () => {
       { terminalId, offset: 9, index: 0 },
     ])
       expect(input.safeParse(bad).success).toBe(false)
+  })
+})
+
+describe("what a transcript says once it is read to its end", () => {
+  it("is whether its file is there, its lines, and those nothing was made of", () => {
+    const read = { type: "read", found: true, lines: 4, unread: 1 }
+    expect(transcriptChange.parse(read)).toEqual(read)
+    expect(transcriptChange.safeParse({ ...read, lines: -1 }).success).toBe(false)
+    expect(transcriptChange.safeParse({ type: "read", found: true }).success).toBe(false)
+  })
+})
+
+describe("what a look at the screen says", () => {
+  it("may say whether the harness idles, and carry the whole screen, or say neither", () => {
+    expect(sliceChange.parse({ slice: null })).toEqual({ slice: null })
+    expect(sliceChange.parse({ slice: null, rest: true, screen: null })).toEqual({
+      slice: null,
+      rest: true,
+      screen: null,
+    })
+  })
+
+  it("is asked with the whole screen by a reader that wants it", () => {
+    const input = contract.agents.slice["~orpc"].inputSchema!
+    expect(
+      input.safeParse({ terminalId: "00000000-0000-4000-8000-000000000001", screen: true }).success,
+    ).toBe(true)
+    expect(
+      input.safeParse({ terminalId: "00000000-0000-4000-8000-000000000001", screen: "yes" })
+        .success,
+    ).toBe(false)
   })
 })

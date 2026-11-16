@@ -125,13 +125,15 @@ describe("slicingOf", () => {
 describe("Slices", () => {
   it("starts with none, and tells a menu as it opens and as it closes", async () => {
     const { seen, show } = await setup()
+    expect(seen).toEqual([{ slice: null, rest: false }])
     await show(["one", "> "])
-    expect(seen).toEqual([{ slice: null }])
+    expect(seen.at(-1)).toEqual({ slice: null, rest: true })
     await show(["one", "menu", "", "> /"])
     expect(texts(seen.at(-1))).toEqual(["menu"])
+    expect(seen.at(-1)).toMatchObject({ rest: false })
     expect(seen.at(-1)?.slice).toMatchObject({ reason: "menu", columns: 20, secret: false })
     await show(["one", "> "])
-    expect(seen.at(-1)).toEqual({ slice: null })
+    expect(seen.at(-1)).toEqual({ slice: null, rest: true })
   })
 
   it("tells no change twice", async () => {
@@ -139,7 +141,7 @@ describe("Slices", () => {
     await show(["one", "> "])
     await show(["one", "menu", "", "> /"])
     await show(["one", "menu", "", "> /"])
-    expect(seen).toHaveLength(2)
+    expect(seen).toHaveLength(3)
   })
 
   it("takes changes that came together in one look, the last draw's", async () => {
@@ -178,9 +180,9 @@ describe("Slices", () => {
     const { seen, show, pass } = await setup()
     await show(["one", "> "])
     await show(["one", "view"])
-    expect(seen).toHaveLength(1)
+    expect(seen).toHaveLength(2)
     await pass(119)
-    expect(seen).toHaveLength(1)
+    expect(seen).toHaveLength(2)
     await pass(1)
     expect(texts(seen.at(-1))).toEqual(["view"])
   })
@@ -191,7 +193,10 @@ describe("Slices", () => {
     await show(["one", ""])
     await show(["one", "> "])
     await pass(200)
-    expect(seen).toEqual([{ slice: null }])
+    expect(seen).toEqual([
+      { slice: null, rest: false },
+      { slice: null, rest: true },
+    ])
   })
 
   it("updates a view that shows at once", async () => {
@@ -228,7 +233,7 @@ describe("Slices", () => {
     await draw(["$ "])
     slices.changed("t")
     await settle()
-    expect(seen.at(-1)).toEqual({ slice: null })
+    expect(seen.at(-1)).toEqual({ slice: null, rest: false })
   })
 
   it("shows nothing of a terminal whose look throws", async () => {
@@ -238,7 +243,7 @@ describe("Slices", () => {
     set({ read: () => Promise.reject(new Error("gone")) })
     slices.changed("t")
     await settle()
-    expect(seen.at(-1)).toEqual({ slice: null })
+    expect(seen.at(-1)).toEqual({ slice: null, rest: false })
   })
 
   it("is no slice past its limits: rows cut short would be the wrong rows", async () => {
@@ -250,7 +255,65 @@ describe("Slices", () => {
     await settle()
     await written(wide, "\x1b[2J\x1b[Hone\r\nmenu\r\n\r\n> /")
     await show(["unused"])
-    expect(seen).toEqual([{ slice: null }])
+    expect(seen.every(({ slice }) => slice === null)).toBe(true)
+  })
+
+  it("says the harness idles only with an empty box and nothing else drawn", async () => {
+    const { seen, show, set, pass } = await setup()
+    await show(["one", "> "])
+    expect(seen.at(-1)?.rest).toBe(true)
+    // Words in the box, or what a dialog drawn as a box holds, are not an idle.
+    await show(["one", "> a draft"])
+    expect(seen.at(-1)).toEqual({ slice: null, rest: false })
+    await show(["one", "> "])
+    set({ waiting: true })
+    await show(["one", "> "])
+    await pass(120)
+    expect(seen.at(-1)).toEqual({ slice: null, rest: false })
+  })
+
+  it("holds back the harness leaving its idle for nothing, as a redraw passes", async () => {
+    const { seen, show, pass } = await setup()
+    await show(["one", "> "])
+    await show(["one", ""])
+    expect(seen.at(-1)?.rest).toBe(true)
+    await pass(120)
+    expect(seen.at(-1)?.rest).toBe(false)
+  })
+
+  it("tells nothing until its first look, so its idle is said and not guessed", async () => {
+    const slices = new Slices(() => undefined, { now: () => 0, throttleMs: 40 })
+    const controller = new AbortController()
+    const seen: SliceChange[] = []
+    const reading = (async () => {
+      for await (const change of slices.watch("t", controller.signal)) seen.push(change)
+    })()
+    expect(seen).toEqual([])
+    await settle()
+    expect(seen).toEqual([{ slice: null, rest: false }])
+    controller.abort()
+    await reading
+  })
+
+  it("gives a reader that asked the whole screen, and the others none", async () => {
+    const { seen, show, slices } = await setup()
+    const whole: SliceChange[] = []
+    const controller = new AbortController()
+    const reading = (async () => {
+      for await (const change of slices.watch("t", controller.signal, true)) whole.push(change)
+    })()
+    await show(["one", "", "two", "> "])
+    expect(whole.at(-1)?.screen?.reason).toBe("view")
+    expect(whole.at(-1)?.screen?.rows.map((row) => row.map(({ text }) => text).join(""))).toEqual([
+      "one",
+      "",
+      "two",
+      ">",
+    ])
+    expect(whole.at(-1)?.rest).toBe(true)
+    expect(seen.every((change) => change.screen === undefined)).toBe(true)
+    controller.abort()
+    await reading
   })
 
   it("looks at nothing with no reader", async () => {

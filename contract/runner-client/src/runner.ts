@@ -338,9 +338,10 @@ export type Runner = {
     /**
      * Follows the terminal's live slice: a snapshot, then another on each change, across
      * reconnections, with a fresh one when the stream is opened again; `slice` is null while
-     * nothing shows. Iteration ends as `detail`'s does.
+     * nothing shows. With `screen`, each change carries the whole screen too. Iteration ends
+     * as `detail`'s does.
      */
-    slice(terminalId: string): AsyncIterableIterator<SliceChange, undefined>
+    slice(terminalId: string, screen?: boolean): AsyncIterableIterator<SliceChange, undefined>
     /**
      * Follows an actor's conversation, by the ref `detail` names it by: every item its
      * harness recorded, then each later one. After a reconnection the items follow again
@@ -836,9 +837,9 @@ export const connectRunner = async (
         followRestarting(connection, (client, signal) =>
           client.agents.detail({ terminalId }, { signal }),
         ),
-      slice: (terminalId) =>
+      slice: (terminalId, screen) =>
         followRestarting(connection, (client, signal) =>
-          client.agents.slice({ terminalId }, { signal }),
+          client.agents.slice({ terminalId, ...(screen && { screen }) }, { signal }),
         ),
       transcript: (terminalId, actor) =>
         followRestarting<TranscriptChange>(

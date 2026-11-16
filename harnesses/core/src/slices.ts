@@ -38,6 +38,13 @@ export type SliceRead = {
   readonly bounds: SliceBounds | undefined
   /** This screen, where it is at rest: the next to compare with. */
   readonly resting: Resting | undefined
+  /**
+   * Whether the harness sits at its own idle: at rest, with an input box that holds nothing, no
+   * request holding it, and nothing else of its own drawn (no menu, no view, no dialog). Only
+   * then is a conversation with no records a new one: a dialog drawn in a frame the box reader
+   * takes for the box has text in it, so it is no idle, and a screen with no box is none either.
+   */
+  readonly idle: boolean
 }
 
 const blank = (row: string | undefined): boolean => row === undefined || row.trim() === ""
@@ -109,7 +116,11 @@ const overBox = (
   return first <= last ? { reason: "menu", first, last } : undefined
 }
 
-const shown = (bounds: SliceBounds | undefined): SliceRead => ({ bounds, resting: undefined })
+const shown = (bounds: SliceBounds | undefined): SliceRead => ({
+  bounds,
+  resting: undefined,
+  idle: false,
+})
 
 /**
  * What of the screen stands for something of the harness's own at its input, and whether the
@@ -153,5 +164,6 @@ export const readSlice = (input: {
   return {
     bounds: undefined,
     resting: { rows: screen.rows, columns: screen.columns, under },
+    idle: read.text === "" && read.blanks !== true,
   }
 }

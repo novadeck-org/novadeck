@@ -251,7 +251,7 @@ export const createRouter = (options: {
         terminals.detail(input.terminalId, signal),
       ),
       slice: api.agents.slice.handler(({ input, signal }) =>
-        terminals.slice(input.terminalId, signal),
+        terminals.slice(input.terminalId, signal, input.screen),
       ),
       transcript: api.agents.transcript.handler(({ input, signal }) =>
         terminals.transcript(input.terminalId, input.actor, signal),

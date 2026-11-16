@@ -41,7 +41,17 @@ export const liveSlice = z.strictObject({
   secret: z.boolean(),
 })
 
-export const sliceChange = z.strictObject({ slice: liveSlice.nullable() })
+// What a look at the screen found: `slice`, as above; `rest`, whether the harness sits at its own
+// idle, an input box with nothing in it and nothing else of its own drawn, no request holding
+// it; and, for a reader that asked (`agents.slice`'s `screen`), `screen`, the whole of what is
+// drawn, as a `view`'s rows are. `rest` is absent from a snapshot before the first look, and
+// from a runner from before it: neither says the screen is at rest. A look that could read no
+// screen says `rest: false`.
+export const sliceChange = z.strictObject({
+  slice: liveSlice.nullable(),
+  rest: z.boolean().optional(),
+  screen: liveSlice.nullable().optional(),
+})
 
 export type SliceRun = z.infer<typeof sliceRun>
 export type LiveSlice = z.infer<typeof liveSlice>

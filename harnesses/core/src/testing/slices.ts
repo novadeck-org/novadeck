@@ -13,6 +13,8 @@ export type SliceReplayed = {
   readonly label: string
   readonly screen: ScreenText
   readonly bounds: SliceBounds | undefined
+  /** Whether the harness idles on it (see `SliceRead.idle`). */
+  readonly idle: boolean
   /** The rows the slice spans, without the blanks that end each. */
   readonly rows: readonly string[]
   readonly secret: boolean
@@ -26,7 +28,7 @@ export const replaySlices = (
 ): readonly SliceReplayed[] => {
   let rest: Resting | undefined
   return steps.map(({ label, screen }) => {
-    const { bounds, resting } = readSlice({
+    const { bounds, resting, idle } = readSlice({
       screen,
       rest,
       box,
@@ -40,8 +42,13 @@ export const replaySlices = (
       label,
       screen,
       bounds,
+      idle,
       rows: rows.map((row) => row.trimEnd()),
       secret: profile.secret(rows),
     }
   })
 }
+
+/** Whether the harness idles on a screen seen first, with no screen at rest to go by. */
+export const idlesOn = (screen: ScreenText, box: BoxProfile, profile: SliceProfile): boolean =>
+  readSlice({ screen, rest: undefined, box, profile, waiting: false, unread: false }).idle

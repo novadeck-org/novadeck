@@ -99,8 +99,12 @@ export class Streams<R extends { readonly summary: { readonly id: string } }> {
   }
 
   /** The terminal's live slice, then another on each change, until it is finished or `signal` aborts. */
-  watchSlice(terminalId: string, signal: AbortSignal | undefined): AsyncGenerator<SliceChange> {
-    return this.slices.watch(terminalId, signal)
+  watchSlice(
+    terminalId: string,
+    signal: AbortSignal | undefined,
+    screen?: boolean,
+  ): AsyncGenerator<SliceChange> {
+    return this.slices.watch(terminalId, signal, screen)
   }
 
   /** The terminal's listing, then another on each change, until it is finished or `signal` aborts. */

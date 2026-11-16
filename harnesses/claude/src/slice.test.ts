@@ -1,5 +1,6 @@
+import type { ScreenText } from "@novadeck/emulator/headless"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import { replaySlices, type SliceFixture } from "@novadeck/harness-core/testing/slices"
+import { idlesOn, replaySlices, type SliceFixture } from "@novadeck/harness-core/testing/slices"
 import { describe, expect, it } from "vitest"
 
 import { box, slice } from "./box.js"
@@ -72,5 +73,41 @@ describe("Claude Code's live slice", () => {
   it("reads the latest version as the pinned one", () => {
     expect(at("latest", "/").rows).toHaveLength(5)
     expect(at("latest", "<enter>").bounds?.reason).toBe("view")
+  })
+})
+
+describe("Claude Code's idle", () => {
+  const startup = loadProbe<{ [screen: string]: ScreenText }>(
+    import.meta.dirname,
+    "startup.probe.json",
+  )
+
+  it("idles at its prompt on a new session: an empty box, nothing else drawn", () => {
+    expect(idlesOn(startup.prompt!, box, slice)).toBe(true)
+  })
+
+  it("does not idle on its start-up screens before it", () => {
+    for (const screen of ["trust", "onboarding", "resume", "signIn"])
+      expect(idlesOn(startup[screen]!, box, slice), screen).toBe(false)
+  })
+
+  it("does not idle on a dialog, whatever frame it is drawn in", () => {
+    const { scenarios } = loadProbe<{
+      scenarios: { [name: string]: { screens?: { [size: string]: ScreenText } } }
+    }>(import.meta.dirname, "ask.probe.json")
+    let seen = 0
+    for (const { screens = {} } of Object.values(scenarios))
+      for (const [size, screen] of Object.entries(screens)) {
+        seen += 1
+        expect(idlesOn(screen, box, slice), size).toBe(false)
+      }
+    expect(seen).toBeGreaterThan(10)
+  })
+
+  it("does not idle with a draft in its box", () => {
+    const rows = startup.prompt!.rows.map((row, line) => (line === 36 ? "❯ a draft" : row))
+    const drafted = { ...startup.prompt!, rows, bright: rows }
+    expect(box.read(drafted)?.text).toBe("a draft")
+    expect(idlesOn(drafted, box, slice)).toBe(false)
   })
 })

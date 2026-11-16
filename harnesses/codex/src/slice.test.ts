@@ -1,5 +1,6 @@
+import type { ScreenText } from "@novadeck/emulator/headless"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import { replaySlices, type SliceFixture } from "@novadeck/harness-core/testing/slices"
+import { idlesOn, replaySlices, type SliceFixture } from "@novadeck/harness-core/testing/slices"
 import { describe, expect, it } from "vitest"
 
 import { box, slice } from "./box.js"
@@ -74,5 +75,39 @@ describe("Codex's live slice", () => {
 
   it("marks no row a secret: it asks for none in a session", () => {
     expect(replayed("menus").some(({ secret }) => secret)).toBe(false)
+  })
+})
+
+describe("Codex's idle", () => {
+  const startup = loadProbe<{ [screen: string]: ScreenText }>(
+    import.meta.dirname,
+    "startup.probe.json",
+  )
+
+  it("idles at its prompt on a new session: an empty box, nothing else drawn", () => {
+    expect(idlesOn(startup.prompt!, box, slice)).toBe(true)
+  })
+
+  it("does not idle on its start-up screens before it", () => {
+    for (const screen of ["trust", "hooks", "signIn", "resume", "update"])
+      expect(idlesOn(startup[screen]!, box, slice), screen).toBe(false)
+  })
+
+  it("does not idle on its question panel, which the box reader takes for a box with text", () => {
+    const { scenarios } = loadProbe<{
+      scenarios: { [name: string]: { screens: { [size: string]: ScreenText } } }
+    }>(import.meta.dirname, "ask.probe.json")
+    for (const size of ["wide", "narrow"]) {
+      const screen = scenarios["rui-default-on"]!.screens[size]!
+      expect(box.read(screen)?.text, size).not.toBe("")
+      expect(idlesOn(screen, box, slice), size).toBe(false)
+    }
+  })
+
+  it("does not idle with a draft in its box", () => {
+    const rows = startup.prompt!.rows.map((row, line) => (line === 36 ? "› a draft" : row))
+    const drafted = { ...startup.prompt!, rows, bright: rows }
+    expect(box.read(drafted)?.text).toBe("a draft")
+    expect(idlesOn(drafted, box, slice)).toBe(false)
   })
 })
