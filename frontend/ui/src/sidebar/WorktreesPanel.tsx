@@ -23,7 +23,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react"
-import { useEffect, useMemo, useState, type CSSProperties } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { panelLabels } from "./panel-labels"
 import { SidebarPanel } from "./SidebarPanel"
@@ -179,21 +179,36 @@ const factGlyphs: Readonly<Record<NonNullable<Fact["glyph"]>, LucideIcon>> = {
   uncommitted: FilePenLine,
 }
 
-// What the row says under its branch: each fact in words, in its tone. The first one's glyph is
-// the row's icon already, so it goes without.
-const Facts = ({ facts }: { facts: readonly Fact[] }): React.JSX.Element | null =>
-  facts.length === 0 ? null : (
-    <span className="worktrees-facts" aria-hidden>
-      {facts.map((fact, index) => {
+// What the row says under its branch: each fact in words, in its tone, the pull request's state
+// followed by its number, a link to its page. The first fact's glyph is the row's icon already,
+// so it goes without. It stands outside the row's select button, so the link is no control in a
+// control (the button's label says it all); a click beside the link selects the row as the
+// button would, for the pointer.
+const Facts = ({
+  row,
+  onSelect,
+}: {
+  row: ChangeRow
+  onSelect: () => void
+}): React.JSX.Element | null =>
+  row.facts.length === 0 ? null : (
+    <div
+      className="worktrees-facts"
+      onClick={(event) => {
+        if (!(event.target as Element).closest("a")) onSelect()
+      }}
+    >
+      {row.facts.map((fact, index) => {
         const Glyph = index > 0 && fact.glyph ? factGlyphs[fact.glyph] : undefined
         return (
           <span key={fact.text} className="worktrees-fact" data-tone={fact.tone}>
             {Glyph && <Glyph size={11} strokeWidth={1.75} aria-hidden />}
-            {fact.text}
+            <span aria-hidden>{fact.text}</span>
+            {fact.pull && row.pullRequest && <PullMarkLink mark={row.pullRequest} />}
           </span>
         )
       })}
-    </span>
+    </div>
   )
 
 // The glyph of a pull request's state, as the forges draw them.
@@ -268,8 +283,12 @@ const ChangeItem = ({
       name={row.title}
       icon={<StandingIcon standing={row.standing} />}
       detail={<BranchLine row={row} />}
-      below={<Facts facts={row.facts} />}
-      after={<Branches row={row} canOpen={canOpen} onOpenFile={onOpenFile} />}
+      after={
+        <>
+          <Facts row={row} onSelect={() => onSelect(work)} />
+          <Branches row={row} canOpen={canOpen} onOpenFile={onOpenFile} />
+        </>
+      }
       badge={
         work.added + work.removed > 0 ? (
           <span className="terminal-tab-kinds worktrees-size">
@@ -281,7 +300,6 @@ const ChangeItem = ({
       selectLabel={label}
       actions={
         <div className="terminal-tab-actions flex items-center">
-          {row.pullRequest && <PullMarkLink mark={row.pullRequest} />}
           <Tooltip content={closeTip(row)}>
             <button
               className="terminal-tab-action icon-button small dim quiet terminal-tab-revealed"
@@ -305,15 +323,6 @@ const ChangeItem = ({
       data-merged={row.merged || undefined}
       data-safe={row.safe || undefined}
       data-pull-request={row.pullRequest?.state}
-      // The facts' line keeps room for the mark beside the trash button: its glyph and gaps, and
-      // its text.
-      style={
-        row.pullRequest
-          ? ({
-              "--_worktrees-actions-space": `calc(${row.pullRequest.text.length}ch + 46px)`,
-            } as CSSProperties)
-          : undefined
-      }
     />
   )
 }
@@ -473,12 +482,12 @@ const GroupHeading = ({
             aria-expanded={!folded}
             onClick={onFold}
           >
-            {folded ? (
-              <ChevronRight size={11} strokeWidth={2} aria-hidden />
-            ) : (
-              <ChevronDown size={11} strokeWidth={2} aria-hidden />
-            )}
             {words}
+            {folded ? (
+              <ChevronRight size={12} strokeWidth={2} aria-hidden />
+            ) : (
+              <ChevronDown size={12} strokeWidth={2} aria-hidden />
+            )}
           </button>
         ) : (
           words

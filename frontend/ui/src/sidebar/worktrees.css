@@ -50,21 +50,33 @@
   --_sidebar-actions-space: 0px;
 }
 .worktrees-row:has(.worktrees-facts) .sidebar-item-actions {
-  top: 55px;
+  top: 53px;
 }
 .worktrees-facts {
   display: flex;
   flex-wrap: wrap;
   gap: 2px 8px;
-  padding-right: var(--_worktrees-actions-space, 30px);
+  margin-top: -8px;
+  padding: 0 34px 9px 32px;
   font-size: var(--text-caption);
   line-height: 16px;
+  cursor: pointer;
 }
 .worktrees-fact {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  min-width: 0;
   white-space: nowrap;
+}
+/* A conflict names whom it's with, which may run long: it alone wraps. */
+.worktrees-fact[data-tone="bad"] {
+  white-space: normal;
+}
+.worktrees-fact .worktrees-pr {
+  height: 16px;
+  margin: 0 0 0 1px;
+  padding: 0 2px;
 }
 .worktrees-fact svg {
   flex-shrink: 0;
@@ -126,7 +138,6 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-left: -15px;
   padding: 0;
   border: 0;
   background: none;
@@ -270,7 +281,6 @@ a.worktrees-pr:focus-visible {
 
 /* The detail line holds the branch, which stays while the files unfold under it. */
 .worktrees-branch {
-  font-family: var(--font-mono);
   color: var(--color-ink);
 }
 

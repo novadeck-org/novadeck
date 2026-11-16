@@ -77,6 +77,8 @@ export type Fact = {
   readonly text: string
   readonly tone: "bad" | "ink" | "muted" | "warn" | "ok"
   readonly glyph?: "ci-passed" | "ci-failing" | "ci-running" | "unpushed" | "uncommitted"
+  // It says the pull request's state, so its number (a link to its page) follows it.
+  readonly pull?: true
 }
 
 export type ChangeRow = {
@@ -238,10 +240,12 @@ export const factsOf = (
   if (open && pull.ci === "failing")
     facts.push({ text: "CI failing", tone: "bad", glyph: "ci-failing" })
   if (work.working) facts.push({ text: "Working", tone: "ink" })
-  if (merged) facts.push({ text: "Merged", tone: work.safe ? "ok" : "muted" })
-  else if (closed) facts.push({ text: "PR closed", tone: work.safe ? "ok" : "muted" })
-  else if (pull?.state === "open") facts.push({ text: "Ready for review", tone: "ink" })
-  else if (pull?.state === "draft") facts.push({ text: "Draft", tone: "muted" })
+  const numbered = pull ? ({ pull: true } as const) : {}
+  if (merged) facts.push({ text: "Merged", tone: work.safe ? "ok" : "muted", ...numbered })
+  else if (closed) facts.push({ text: "PR closed", tone: work.safe ? "ok" : "muted", ...numbered })
+  else if (pull?.state === "open")
+    facts.push({ text: "Ready for review", tone: "ink", ...numbered })
+  else if (pull?.state === "draft") facts.push({ text: "Draft", tone: "muted", ...numbered })
   else if (forges) facts.push({ text: "No PR yet", tone: "muted" })
   if (open && pull.ci === "running")
     facts.push({ text: "CI running", tone: "muted", glyph: "ci-running" })

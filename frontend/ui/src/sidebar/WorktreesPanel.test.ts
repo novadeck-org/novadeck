@@ -133,7 +133,7 @@ describe("the Worktrees panel's rows", () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
-  it("marks a work's pull request with a link to its page, among the row's actions", () => {
+  it("marks a work's pull request with a link to its page, after its state in words", () => {
     const pullRequest = {
       number: 812,
       url: "https://github.com/acme/shop/pull/812",
@@ -147,14 +147,11 @@ describe("the Worktrees panel's rows", () => {
     expect(link.href).toBe(pullRequest.url)
     expect(link.target).toBe("_blank")
     expect(link.rel).toBe("noopener noreferrer")
-    // Not inside the select button, so it is a control of its own, reached by Tab; on the
-    // detail line's end, before the trash button, which keeps its place at the row's end.
+    // Not inside the select button, so it is a control of its own, reached by Tab; right after
+    // the fact that says the pull request's state, and none on a row without one.
     expect(link.closest("button")).toBeNull()
-    expect(link.closest(".sidebar-item-actions")).not.toBeNull()
-    expect(link.nextElementSibling?.matches("button.terminal-tab-action")).toBe(true)
-    // The facts line keeps room for it; a row without one keeps the usual room.
-    expect(row("a").style.getPropertyValue("--_worktrees-actions-space")).toBe("calc(4ch + 46px)")
-    expect(row("b").style.getPropertyValue("--_worktrees-actions-space")).toBe("")
+    expect(link.closest(".worktrees-fact")?.textContent).toBe("Draft#812")
+    expect(row("b").querySelector("a.worktrees-pr")).toBeNull()
     expect(row("a").dataset.pullRequest).toBe("draft")
     link.addEventListener("click", (event) => event.preventDefault())
     link.click()
@@ -534,7 +531,7 @@ describe("what a row says", () => {
   })
   const facts = (row: HTMLElement) =>
     [...row.querySelectorAll<HTMLElement>(".worktrees-fact")].map((fact) => [
-      fact.textContent,
+      fact.querySelector("[aria-hidden]:not(svg)")?.textContent,
       fact.dataset.tone,
     ])
 
@@ -585,6 +582,12 @@ describe("what a row says", () => {
       ["1 file not committed", "warn"],
     ])
     expect(row("held").dataset.safe).toBeUndefined()
+  })
+
+  it("selects its row on a click on its words, as the row's button would", async () => {
+    const { row, onSelect } = show([work("a")])
+    act(() => row("a").querySelector<HTMLElement>(".worktrees-facts")!.click())
+    await eventually(() => expect(onSelect).toHaveBeenCalledOnce())
   })
 
   it("says nothing of a pull request while no forge is on", () => {
