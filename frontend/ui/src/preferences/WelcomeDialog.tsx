@@ -85,7 +85,7 @@ const installerOf = ({ available, installer }: AgentSwitch): string | undefined 
   available ? undefined : installer
 
 // What an agent that is not installed offers in place of a choice: the command that installs it,
-// shown whole beside its name, and the button that runs it.
+// shown on asking and read out whole with the button that runs it.
 type Installable = {
   readonly command: string
   readonly onInstall: () => void
@@ -172,9 +172,10 @@ const ChoiceCard = ({
   </label>
 )
 
-// A command as it wraps: at its slashes and spaces before anywhere else.
+// A command as it wraps: after a space, or a slash that ends a run of them (so `https://` stays
+// whole), before anywhere else.
 const wrappable = (command: string): React.JSX.Element[] =>
-  command.split(/(?<=[/ ])/).map((part, index) => (
+  command.split(/(?<= )|(?<=\/)(?!\/)/).map((part, index) => (
     // The parts never reorder.
     // oxlint-disable-next-line react/no-array-index-key
     <Fragment key={index}>
@@ -184,7 +185,8 @@ const wrappable = (command: string): React.JSX.Element[] =>
   ))
 
 // An agent that isn't here, as an empty seat to fill: a dashed card that offers to add it,
-// with the command Install runs a click away, and read out whole with the button.
+// with the command Install runs a click away, across the card under its name, and read out
+// whole with the button.
 const InstallCard = ({
   icon,
   label,
@@ -203,48 +205,49 @@ const InstallCard = ({
   const commandId = `${noteId}-command`
   return (
     <div
-      className="choice-card solid welcome-install flex min-h-[60px] min-w-0 items-start gap-3 px-3 py-2.5"
+      className="choice-card solid welcome-install flex min-h-[60px] min-w-0 flex-col px-3 py-2.5"
       data-state="unchecked"
       data-disabled={disabled || undefined}
     >
-      <Tile icon={icon} />
-      <span className="flex min-h-[38px] min-w-0 flex-1 flex-col justify-center gap-0.5">
-        <span className="text-body font-medium">Add {label}</span>
-        {/* "Add" and Install say it isn't here; the line keeps to the command, so it fits one. */}
-        <span className="settings-note text-caption leading-4.5">
+      <div className="flex min-w-0 items-start gap-3">
+        <Tile icon={icon} />
+        <span className="flex min-h-[38px] min-w-0 flex-1 flex-col items-start justify-center">
+          <span className="text-body font-medium">Add {label}</span>
+          {/* "Add" and Install say it isn't here; the line keeps to the command, so it fits one. */}
           <button
             type="button"
-            className="button link addon-action inline text-caption"
+            className="button link addon-action !mt-0 text-left text-caption leading-4"
             aria-expanded={shown}
             aria-controls={commandId}
             onClick={() => setShown((open) => !open)}
           >
             {shown ? "Hide install command" : "Show install command"}
           </button>
+          {/* What the button reads out: the whole command, shown or not. */}
+          <span id={noteId} className="sr-only">
+            Not installed. Install runs {command}
+          </span>
         </span>
-        {/* What the button reads out: the whole command, shown or not. */}
-        <span id={noteId} className="sr-only">
-          Not installed. Install runs {command}
+        <span className="flex h-[38px] shrink-0 items-center">
+          <button
+            type="button"
+            className="button primary min-h-8 shrink-0 gap-1.5 px-3 text-control"
+            aria-label={`Install ${label}`}
+            aria-describedby={noteId}
+            disabled={disabled}
+            onClick={onInstall}
+          >
+            <Download size={13} aria-hidden="true" className="max-[420px]:hidden" />
+            Install
+          </button>
         </span>
-        {shown && (
-          <code id={commandId} className="welcome-install-command mt-1.5 block px-2 py-1.5">
-            {wrappable(command)}
-          </code>
-        )}
-      </span>
-      <span className="flex h-[38px] shrink-0 items-center">
-        <button
-          type="button"
-          className="button primary min-h-8 shrink-0 gap-1.5 px-3 text-control"
-          aria-label={`Install ${label}`}
-          aria-describedby={noteId}
-          disabled={disabled}
-          onClick={onInstall}
-        >
-          <Download size={13} aria-hidden="true" />
-          Install
-        </button>
-      </span>
+      </div>
+      {shown && (
+        // Under the name, as wide as the card leaves it.
+        <code id={commandId} className="welcome-install-command mt-2 ml-[50px] block px-2 py-1.5">
+          {wrappable(command)}
+        </code>
+      )}
     </div>
   )
 }
@@ -307,7 +310,8 @@ const WelcomeForm = ({
         submit()
       }}
     >
-      <div className="welcome-intro relative isolate min-w-0 overflow-hidden px-8 pt-8 pb-6 min-[820px]:px-10 min-[820px]:pt-10 max-[420px]:px-5">
+      {/* Beside the choices, the preview takes whatever height they leave it. */}
+      <div className="welcome-intro relative isolate min-w-0 overflow-hidden px-8 pt-8 pb-6 min-[820px]:flex min-[820px]:flex-col min-[820px]:px-10 min-[820px]:pt-10 max-[420px]:px-5">
         <NovaPattern className="welcome-pattern pointer-events-none absolute top-0 right-0 -z-10 h-[230px] w-[72%]" />
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
           <div className="flex items-center gap-2.5 text-[23px]" role="img" aria-label={brandName}>
@@ -367,7 +371,7 @@ const WelcomeForm = ({
             Terminals, agents, and projects in one workspace.
           </DialogDescription>
         </div>
-        <div className="welcome-enter" style={at(500)}>
+        <div className="welcome-enter flex min-h-0 flex-1 flex-col" style={at(500)}>
           <WelcomePreview
             connected={choices}
             chat={chatView !== undefined && showChat}

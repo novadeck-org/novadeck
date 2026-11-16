@@ -39,9 +39,10 @@
    cards the chat view changes. */
 
 /* The stage's height and the output's type, which narrow screens and the views
-   override. */
+   override. Beside the choices it fills the height they leave it, from its least; its
+   Canvas cards keep their places as shares of it. */
 :where(.welcome-stage) {
-  height: 336px;
+  min-height: 236px;
 }
 :where(.welcome-code) {
   gap: 7px;
@@ -194,10 +195,10 @@
   --_deal-y: 4px;
   --_depth: 5;
   z-index: 3;
-  top: 20px;
+  top: 6%;
   left: 4%;
   width: 58%;
-  height: 176px;
+  height: 52.4%;
   transform: rotate(-3deg);
 }
 .welcome-terminal.review {
@@ -205,10 +206,10 @@
   --_deal-y: 24px;
   --_depth: 3;
   z-index: 2;
-  top: 33px;
+  top: 9.8%;
   left: 51%;
   width: 46%;
-  height: 187px;
+  height: 55.7%;
   transform: rotate(3deg);
 }
 .welcome-terminal.agy {
@@ -217,10 +218,10 @@
   --_depth: 7;
   z-index: 5;
   /* Above the zoom control in the stage's corner, over only the foot of Claude's card. */
-  top: 191px;
+  top: 56.8%;
   left: 3%;
   width: 46%;
-  height: 105px;
+  height: 31.3%;
   transform: rotate(-2deg);
 }
 .welcome-terminal.server {
@@ -228,10 +229,10 @@
   --_deal-y: -62px;
   --_depth: 9;
   z-index: 4;
-  top: 187px;
+  top: 55.7%;
   left: 52%;
   width: 44%;
-  height: 129px;
+  height: 38.4%;
   transform: rotate(1deg);
 }
 
@@ -410,6 +411,8 @@
 
 @media (max-width: 819px) {
   .welcome-stage {
+    flex: none;
+    width: 100%;
     height: 232px;
     max-width: 470px;
     margin-inline: auto;

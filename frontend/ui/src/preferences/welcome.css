@@ -9,6 +9,10 @@
    `.welcome-pattern`: the Nova pattern behind the intro.
    `.welcome-headline`, `.welcome-heading`: the headline and the choices' heading, set
    tight.
+   `.welcome-install`: on a `.choice-card`, an agent that isn't installed, as an empty seat:
+   dashed, on the dialog's own ground, its tile an outline; its `.welcome-install-command`
+   is the command Install runs, once asked for, in a mono well that wraps.
+   `.welcome-actions`: Start and Skip, kept to the foot of a dialog too tall for its window.
    `.welcome-enter` and `.welcome-rise` arrive `--_at` after the dialog opens; each
    `.welcome-letter` is typed `--_i` letters in, followed by the `.welcome-caret`.
    `.welcome-start`: a variant of `.button.primary` drawn as the brand tile, with its
@@ -23,7 +27,10 @@
    --welcome-caret-bg (strong).
    --brand-tile-bg, --brand-tile-fg, --brand-tile-border-color: the start button, and
    the light that passes over it.
-   --welcome-skip-fg (muted), --welcome-skip-hover-fg (ink). */
+   --welcome-skip-fg (muted), --welcome-skip-hover-fg (ink).
+   --welcome-install-border-color (line-strong): the seat's dashed edge and its tile's.
+   --welcome-install-command-bg (shell), --welcome-install-command-fg (ink): the command's
+   well. */
 
 .overlay.welcome-overlay {
   --_blur: var(--welcome-overlay-blur, var(--overlay-blur, 5px));
@@ -88,23 +95,23 @@
 
 /* An agent that isn't installed is an empty seat: a dashed card on the dialog's own ground,
    its tile an outline, and the command Install runs, once shown, in a mono well that wraps. */
-.choice-card.welcome-install {
-  --_bg: transparent;
-  border-style: dashed;
-}
+/* Only its buttons answer the pointer, so the card keeps its look under it. */
+.choice-card.welcome-install,
 .choice-card.solid.welcome-install:hover:not([data-disabled]) {
   --_bg: transparent;
+  --_border-color: var(--welcome-install-border-color, var(--color-line-strong));
+  border-style: dashed;
 }
 .welcome-install .choice-card-tile {
   border-style: dashed;
-  border-color: var(--choice-card-tile-border-color, var(--color-line-strong));
+  border-color: var(--welcome-install-border-color, var(--color-line-strong));
   background: transparent;
 }
 .welcome-install-command {
   border: var(--border-width) solid var(--color-line);
   border-radius: var(--radius-control);
-  background-color: var(--color-shell);
-  color: var(--color-ink);
+  background-color: var(--welcome-install-command-bg, var(--color-shell));
+  color: var(--welcome-install-command-fg, var(--color-ink));
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 1.5;
