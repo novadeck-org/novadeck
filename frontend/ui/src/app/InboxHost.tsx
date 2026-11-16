@@ -27,8 +27,8 @@ const NoticeClicks = (): null => {
   useEffect(
     () =>
       backend.notices?.onClick((terminalId) =>
-        // The backend's rows, as the terminal being viewed may hold the one the notice is
-        // about back from the Inbox: the click lands it before it opens.
+        // The backend's rows: the click marks the one the notice is about as the person's to
+        // open (the landing's `reveal`) before it opens.
         clickNotice(
           terminalId,
           backend.inbox?.state.getSnapshot().items ?? [],

@@ -396,9 +396,9 @@ for about a second, whether it arrived while you looked or before, and turns res
 while passing reads nothing. This second applies to Inbox updates only: the tab's unread marks
 of replies and failed turns clear as soon as you look. On a narrow window, while the Inbox list
 covers the screen, no terminal counts as looked at. An item you open by its id, as Answer in
-Messages or a click on a notification does, isn't read by looking. If a read fails, it isn't
-tried again while you look, so you can read the update by hand. The tabs and windows read the Inbox's raw items,
-so their "!" and "?" show at once, before the list lists them.
+Messages or a click on a notification does, isn't read by looking. If a read fails, looking
+doesn't try it again, so you can read the update by hand. The tabs' and windows' "!" and "?"
+read the Inbox's raw items.
 
 The rows that ask something of you keep the Inbox's own order (the row added last first) until
 you drag one: they drag among each other into your order, or move a place with Alt+↑/↓ on the

@@ -15,8 +15,8 @@ import { viewing, type UiState, type UiStore } from "./ui-store"
 // has rung already, and looking at its terminal doesn't take it back. An update (a done
 // report or a tell) is read once its terminal has been looked at for a moment
 // (`readDwellMs`): seeing the terminal is seeing it, and it turns resolved, in the history. A
-// glance reads nothing, and a read that fails isn't tried again while they look: the update
-// waits to be read by hand. On a phone, while the Inbox list covers the screen, no terminal is
+// glance reads nothing, and a read that fails isn't tried again by looking: the update waits
+// to be read by hand. On a phone, while the Inbox list covers the screen, no terminal is
 // looked at. A row the person asks to open by its id (`reveal`) isn't read by looking either,
 // as Answer in a terminal's Messages opens it.
 //

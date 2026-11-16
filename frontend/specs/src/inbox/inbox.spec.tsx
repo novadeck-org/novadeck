@@ -23,18 +23,16 @@ const openInbox = async (route = inbox): Promise<void> => {
   await sidebarPanel("Inbox").click()
 }
 
-// The preview ask comes from the terminal the demo opens on, which the landing rule holds back
-// while the person looks at it: selecting another one lands it.
+// Moves off the terminal the demo opens on, which the preview ask comes from, and back to the
+// Inbox: where these specs start.
 const lookAway = async (): Promise<void> => {
   await sidebarPanel("Terminals").click()
   await terminalTab("Checkout review").click()
   await sidebarPanel("Inbox").click()
 }
 
-// What the Inbox demo holds once it has settled and the person has looked away from its first
-// terminal: the 12 that wait, the preview ask that landed, and the demo agents' done reports.
-// Whether the page has focus when it opens (so whether the preview ask is held) is up to the
-// browser, so a count is only asserted after looking away, never before.
+// What the Inbox demo holds once it has settled: the 12 that wait, the preview ask, and the demo
+// agents' done reports.
 const settledRows = 15
 
 const rows = () =>

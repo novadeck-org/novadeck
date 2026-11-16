@@ -174,12 +174,15 @@ describe("the landing rule", () => {
       stop()
     })
 
-    it("stays quiet through a re-key", () => {
-      const { set, inbox, ids, stop } = setup()
+    it("lands a newer row under the same id as another: quietly only if still viewed", () => {
+      const { set, select, inbox, ids, stop } = setup()
       set([ask("a", "01")])
       set([{ ...ask("a", "01"), at: 2 }])
       expect(ids()).toEqual(["a"])
       expect(quietly(inbox, "a")).toBe(true)
+      select("02")
+      set([{ ...ask("a", "01"), at: 3 }])
+      expect(quietly(inbox, "a")).toBe(false)
       stop()
     })
   })
