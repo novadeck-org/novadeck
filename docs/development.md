@@ -122,8 +122,8 @@ rest of that icon's things as tabs under its header, each with its ×, Delete cl
 tab with focus. The arrow keys, Home and End move along the tabs, and Ctrl+PageDown and
 Ctrl+PageUp step through them from anywhere in the pane; neither opens something that may
 hold secrets until you pick it. Every other icon with something open waits behind it as a
-thin card edge above the pane, as in a file drawer: the one under the pointer lifts to its
-label, and a click brings its icon forward. The mark under
+thin card edge above the pane, as in a file drawer: the edges stay compact on hover,
+and a click brings its icon forward. The mark under
 an icon says whether it's new, showing, open behind, or seen: something new gets a dot,
 quietly, and nothing opens on its own unless you asked for it. Something the agent opens
 for you opens at once only on the terminal you're on, so the view never moves under you:
@@ -139,7 +139,8 @@ it on top; a stack's icon brings all of it forward, as tabs. Click the showing i
 or the pane's minimize button, to minimize it with the rest of its icon, uncovering what's
 behind; press Escape to hide the whole pane, which keeps what's open in
 it for when the pane comes back. Close from the pane's header, a tab's ×, a card's corner button or the icon's
-right-click, which uncovers what's behind too. Closing a plan or Messages on its own terminal's bar hides it: the
+right-click, which uncovers what's behind too. The pane's header × closes all of its tabs;
+a tab's own × closes only that tab. Closing a plan or Messages on its own terminal's bar hides it: the
 plan comes back with the agent's next version of it, Messages with the next message,
 last on the bar each time. Closing anything else deletes it, with the window it's in;
 nothing keeps a history, so ask the agent to show it again. Icons line up in the order they came,

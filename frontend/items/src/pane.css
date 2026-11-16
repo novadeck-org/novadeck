@@ -186,16 +186,10 @@
 /* The icons open behind what the pane shows peek out above it (`.pane-stack`, `--_count` of
    them) as the cards of a file drawer do: a thin edge for each (`.pane-stack-sheet`,
    `--_depth` 0 the nearest, the nearest last), each further back narrower and fainter.
-   The one under the pointer lifts out of the row to show its label, the one behind it rises
-   a little and the one in front comes clearer, so running the pointer along them leafs
-   through them. The row keeps its height, with room above for a lifted card and the one
-   behind it, and cards only rise up out of it, so neither what's shown nor the card under
-   the pointer moves, wherever on its edge the pointer comes in. What's shown sits under
-   them, an edge of its own just clear of the window's header while nothing's behind. */
+   Hover and keyboard focus emphasize an edge without growing it or revealing a header.
+   What's shown sits under them, clear of the window's header while nothing's behind. */
 .pane-stack {
   --_rest: 9px;
-  --_lift: 20px;
-  --_nudge: 5px;
   display: flex;
   flex: none;
   flex-direction: column;
@@ -204,9 +198,7 @@
 }
 .pane-stack:not(:empty) {
   box-sizing: content-box;
-  height: calc(
-    var(--_lift) + min(var(--_count, 0) - 1, 1) * var(--_nudge) + var(--_count, 0) * var(--_rest)
-  );
+  height: calc(var(--_count, 0) * var(--_rest));
   /* Keeps the reach of the card furthest back to the row. */
   overflow: hidden;
 }
@@ -239,42 +231,23 @@
   opacity: var(--_fade);
   cursor: pointer;
   transition:
-    height var(--motion-feedback) var(--ease-interface),
     opacity var(--motion-feedback) var(--ease-interface),
     border-color var(--motion-feedback) var(--ease-interface),
     box-shadow var(--motion-feedback) var(--ease-interface);
 }
 .pane-stack-sheet > * {
   opacity: 0;
-  transition: opacity var(--motion-feedback) var(--ease-interface);
 }
-/* Under the pointer, or focused, it lifts to its label, comes clear and its edge darkens,
-   casting further onto the one behind it. */
+/* Under the pointer, or focused, its edge darkens without moving the stack. */
 .pane-stack-sheet:is(:hover, :focus-visible) {
-  height: calc(var(--_rest) + var(--_lift));
   opacity: 1;
   border-color: var(--pane-stack-hover-border-color, var(--color-line-strong));
   box-shadow: 0 -2px 6px -2px var(--_cast);
 }
-/* The one behind it rises a little, and the one in front comes clearer, as a finger
-   leafing through parts them. The one in front keeps its height, which would push the one
-   lifted out from under the pointer. */
-.pane-stack-sheet:has(+ .pane-stack-sheet:is(:hover, :focus-visible)) {
-  height: calc(var(--_rest) + var(--_nudge));
-  opacity: calc(var(--_fade) + 0.1);
-}
-.pane-stack-sheet:is(:hover, :focus-visible) + .pane-stack-sheet {
-  opacity: calc(var(--_fade) + 0.1);
-}
-.pane-stack-sheet:is(:hover, :focus-visible) > * {
-  opacity: 1;
-}
-/* Without a pointer to lift them, each shows its label. */
+/* Touch keeps readable labels and larger targets without a hover state. */
 @media (hover: none) {
   .pane-stack {
     --_rest: 22px;
-    --_lift: 0px;
-    --_nudge: 0px;
   }
   .pane-stack-sheet > * {
     opacity: 1;

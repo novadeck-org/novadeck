@@ -399,6 +399,10 @@ export const TerminalCompanion = ({
         commands.openBarTab(terminal, next.key)
       actions.close(each)
     },
+    // Closing the group must not reopen a neighbour that this same close already removed.
+    onClosePane: () => {
+      for (const each of tabs) actions.close(each)
+    },
     onRaise: (each) => openPicked(each.key),
     first: selected,
   }

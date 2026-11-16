@@ -134,6 +134,57 @@ describe("A terminal's taskbar", () => {
     await expect.element(pane.getByText("src/content/projects.json", { exact: true })).toBeVisible()
   })
 
+  it.each(["focus", "grid", "canvas"] as const)(
+    "keeps stacked panes compact on hover and keyboard focus in %s",
+    async (view) => {
+      await openShowcase(view)
+      if (view === "focus") await terminalTab("Build Studio").click()
+      await taskbarIcon("Build Studio", "2 images").click()
+      await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
+      const sheets = terminal("Build Studio")
+        .element()
+        .querySelectorAll<HTMLElement>(".pane-stack-sheet")
+      expect(sheets).toHaveLength(2)
+      const stack = sheets[0]!.parentElement!
+      const bounds = () =>
+        [stack, ...sheets].map((element) => {
+          const { top, height } = element.getBoundingClientRect()
+          return { top, height }
+        })
+      const before = await settled(bounds)
+      expect(stack.offsetHeight).toBe(22)
+      const check = async (sheet: HTMLElement) => {
+        await userEvent.hover(page.elementLocator(sheet))
+        await nextFrames(2)
+        expect(bounds()).toEqual(before)
+        expect(getComputedStyle(sheet.querySelector("b")!).opacity).toBe("0")
+        sheet.focus()
+        await nextFrames(2)
+        expect(bounds()).toEqual(before)
+      }
+      await check(sheets[0]!)
+      await check(sheets[1]!)
+      await userEvent.keyboard("{Enter}")
+      await expect.element(companionPane("Build Studio").getByRole("tablist")).toBeVisible()
+    },
+  )
+
+  it("closes all of a pane's tabs, revealing the next pane or uncovering the terminal", async () => {
+    await openShowcase()
+    const pane = companionPane("Build Studio")
+    await expect.element(pane.getByText("src/content/projects.json", { exact: true })).toBeVisible()
+    await taskbarIcon("Build Studio", "2 images").click()
+    await expect.element(pane.getByRole("tablist")).toBeVisible()
+    await pane.getByRole("button", { name: "Close all tabs", exact: true }).click()
+    await expect.element(taskbarIcon("Build Studio", "2 images")).not.toBeInTheDocument()
+    await expect.element(pane.getByText("src/content/projects.json", { exact: true })).toBeVisible()
+    expect(pane.getByRole("tab").elements()).toHaveLength(2)
+
+    await pane.getByRole("button", { name: "Close all tabs", exact: true }).click()
+    await expect.element(pane).not.toBeInTheDocument()
+    expect(taskbarIcons("Build Studio")).toEqual(["Plan: A home for Studio, new", "Messages"])
+  })
+
   it("closes what its pane shows, off the taskbar, and the pane with it", async () => {
     await openShowcase()
     const pane = companionPane("Build Studio")

@@ -27,7 +27,7 @@ const Restore = createLucideIcon("restore", [
 // bar does on Windows: minimizes its icon's worth back to the taskbar, uncovering what's
 // open behind it; undocks it into a window of its own, where it can; and closes it, off
 // the taskbar, as the taskbar's menu does. Escape hides the whole pane, which is the same
-// as minimizing while nothing's behind. Under tabs, closing is each tab's own.
+// as minimizing while nothing's behind. Closing a pane closes all of its tabs.
 const PaneActions = ({
   name,
   behind,
@@ -41,7 +41,7 @@ const PaneActions = ({
   behind: boolean
   onUndock: (() => void) | undefined
   onMinimize: () => void
-  onClose: (() => void) | undefined
+  onClose: () => void
 }): React.JSX.Element => (
   <span className="artifact-actions">
     <Tooltip content={behind ? "Minimize · Esc hides the pane" : "Minimize to the taskbar · Esc"}>
@@ -66,18 +66,11 @@ const PaneActions = ({
         </button>
       </Tooltip>
     )}
-    {onClose && (
-      <Tooltip content="Close">
-        <button
-          type="button"
-          className="icon-button"
-          aria-label={`Close ${name}`}
-          onClick={onClose}
-        >
-          <X size={14} strokeWidth={1.75} aria-hidden />
-        </button>
-      </Tooltip>
-    )}
+    <Tooltip content={`Close ${name}`}>
+      <button type="button" className="icon-button" aria-label={`Close ${name}`} onClick={onClose}>
+        <X size={14} strokeWidth={1.75} aria-hidden />
+      </button>
+    </Tooltip>
   </span>
 )
 
@@ -173,9 +166,8 @@ const handOffMs = 1000
 
 // The icons with something open behind the pane's, every one, peeking out above it as the
 // cards of a file drawer do: each further back narrower and fainter, the nearest last. Each
-// lifts under the pointer to say what it holds (a thing's name, or a stack's kind, count and
-// the one in front) and comes forward when clicked. One that was just shown tucks in
-// behind what took its place, so the two read as swapped. Escape hides the pane from here
+// stays compact under the pointer and comes forward when clicked. One just shown tucks
+// in behind what took its place, so the two read as swapped. Escape hides the pane from here
 // too, as from what it shows, and Ctrl+PageDown and Ctrl+PageUp step through its tabs.
 const BehindStack = ({
   behind,
@@ -425,6 +417,7 @@ export const CompanionPane = ({
   onMinimize,
   onHide,
   onClose,
+  onClosePane,
   onRaise,
   first = false,
 }: {
@@ -452,6 +445,8 @@ export const CompanionPane = ({
   onHide: () => void
   // Closes what's shown, as the taskbar's menu does, uncovering what's behind.
   onClose: (member: BarMember) => void
+  // Closes every tab without selecting another tab in the group.
+  onClosePane: () => void
   // Brings what's behind, or another tab, to the top.
   onRaise: (member: BarMember) => void
   // Its terminal is the selected one: its pane takes its turn ahead of the others.
@@ -618,11 +613,11 @@ export const CompanionPane = ({
         links={links}
         actions={
           <PaneActions
-            name={memberLook(member, { plans }).name}
+            name={tabs.length > 1 ? "all tabs" : memberLook(member, { plans }).name}
             behind={behind.length > 0}
             onUndock={undock}
             onMinimize={handOff(() => onMinimize(member))}
-            onClose={tabs.length > 1 ? undefined : handOff(() => onClose(member))}
+            onClose={handOff(onClosePane)}
           />
         }
       />
