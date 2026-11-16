@@ -4,6 +4,7 @@ import {
   noDoorbell,
   type ChatAnswer,
   type ChatItem,
+  type ChatRequest,
   type BoxReturn,
   type ChatPrompt,
   type Conversation,
@@ -19,6 +20,7 @@ import { afterEach, vi } from "vitest"
 
 import { ChatView } from "./ChatView"
 import { createChatCommands } from "./commands"
+import { forgetClaimed } from "./Requests"
 import {
   chatAttachmentsOf,
   chatDraftOf,
@@ -31,7 +33,10 @@ import { describe, expect, it } from "./test"
 import { useChat } from "./use-chat"
 
 const unmounts: (() => void)[] = []
-afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
+afterEach(() => {
+  unmounts.splice(0).forEach((unmount) => unmount())
+  forgetClaimed()
+})
 
 const key = { projectId: "project", workspaceSessionId: "initial", terminalId: "01" }
 const context = "project/initial"
@@ -107,7 +112,14 @@ const inApp = (
     context: () => context,
   })
   commands.setChatDraft("01", draft)
-  const App = ({ mounted }: { readonly mounted: boolean }): React.JSX.Element | null => {
+  const App = ({
+    mounted,
+    focusInput = false,
+  }: {
+    readonly mounted: boolean
+    // The workspace asks for the keyboard to come to the chat.
+    readonly focusInput?: boolean
+  }): React.JSX.Element | null => {
     const state = useChat(chat, (each) => each)
     return mounted
       ? createElement(ChatView, {
@@ -134,7 +146,7 @@ const inApp = (
           onAnswer: (request, reply) => conversations.answer(key, request, reply),
           onWordsLost: (words) => commands.appendChatDraft(context, "01", words),
           onAnswerInTerminal: () => {},
-          focusInput: false,
+          focusInput,
           onInputFocused: () => {},
           refused: conversations.refused,
           ...(onKeys && { onKeys }),
@@ -151,7 +163,13 @@ const inApp = (
     sentAt,
     setAside,
     answered,
-    show: (mounted: boolean) => rerender(createElement(App, { mounted })),
+    show: (mounted: boolean, focusInput = false) =>
+      rerender(createElement(App, { mounted, focusInput })),
+    // The workspace asks for the keyboard once, as selecting the terminal by keys does.
+    wantFocus: () => {
+      rerender(createElement(App, { mounted: true, focusInput: true }))
+      rerender(createElement(App, { mounted: true, focusInput: false }))
+    },
     draft: () => chatDraftOf(chat.store.getSnapshot().drafts, context, "01"),
     attachments: () => chatAttachmentsOf(chat.store.getSnapshot().attachments, context, "01"),
     replyTo: () => chatReplyOf(chat.store.getSnapshot().replies, context, "01"),
@@ -1955,5 +1973,75 @@ describe("a chat with images pasted into its box", () => {
     expect(chat.sent).toHaveBeenCalledWith("!ls")
     expect(chat.sentImages).toEqual([undefined])
     expect(chips(container)).toEqual([])
+  })
+})
+
+describe("a request's card and the chat's box", () => {
+  const yesNo = (id: string, dialog = "d1"): ChatRequest => ({
+    ...asking.requests[0]!,
+    id,
+    dialog: {
+      type: "choices",
+      id: dialog,
+      title: null,
+      detail: null,
+      options: [
+        { id: "1", label: `Yes ${id}`, text: null },
+        { id: "2", label: "No", text: null },
+      ],
+    },
+  })
+  const arrive = (
+    store: ReturnType<typeof createStore<Conversation>>,
+    ...requests: ChatRequest[]
+  ): void =>
+    act(() => {
+      store.update((current) => ({ ...current, requests }))
+    })
+  const turn = (): Promise<void> => act(() => new Promise<void>((resolve) => setTimeout(resolve)))
+
+  it("takes the keyboard from the empty box as it first shows, and the box has it after", async () => {
+    const store = createStore<Conversation>({ ...asking, requests: [] })
+    const chat = inApp(store)
+    box(chat.container).focus()
+    arrive(store, yesNo("r1"))
+    expect(document.activeElement).toBe(button(chat.container, "Yes r1"))
+    await turn()
+    box(chat.container).focus()
+    chat.wantFocus()
+    expect(document.activeElement).toBe(box(chat.container))
+  })
+
+  it("leaves the person writing in the box, and comes first as the keyboard next comes", () => {
+    const store = createStore<Conversation>({ ...asking, requests: [] })
+    const chat = inApp(store)
+    set(box(chat.container), "half a thought")
+    box(chat.container).focus()
+    arrive(store, yesNo("r1"))
+    expect(document.activeElement).toBe(box(chat.container))
+    chat.wantFocus()
+    expect(document.activeElement).toBe(button(chat.container, "Yes r1"))
+  })
+
+  it("takes the keyboard over the box as the chat comes on screen with it", () => {
+    const store = createStore<Conversation>({ ...asking, requests: [yesNo("r1")] })
+    const chat = inApp(store)
+    chat.show(false)
+    forgetClaimed()
+    chat.show(true, true)
+    expect(document.activeElement).toBe(button(chat.container, "Yes r1"))
+  })
+
+  it("hands the keyboard on to the next card that never had it as one is answered", async () => {
+    const store = createStore<Conversation>({ ...asking, requests: [] })
+    const chat = inApp(store, { answer: () => new Promise<void>(() => {}) })
+    arrive(store, yesNo("r1"))
+    arrive(store, yesNo("r1"), yesNo("r2", "d2"))
+    // The person is on the first: the second waits.
+    expect(document.activeElement).toBe(button(chat.container, "Yes r1"))
+    press(chat.container, "Yes r1")
+    expect(chat.answered).toHaveBeenCalledWith("r1", { type: "choice", dialog: "d1", option: "1" })
+    expect(document.activeElement).toBe(button(chat.container, "Yes r2"))
+    await turn()
   })
 })

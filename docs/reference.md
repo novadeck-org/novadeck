@@ -363,7 +363,7 @@ the agent can keep working; your answer reaches that exact agent session later a
 Every row is open, resolved or withdrawn, and only a withdrawn one disappears: an ask its own
 agent withdrew. Everything else that ends stays, as history, in gray, saying how it ended: an
 ask answered here (with your answer), dismissed, or replied to by you writing in its terminal; a
-tell or `done` report once you opened it or looked at its terminal; a dialog answered here, in
+tell or `done` report once you opened it, saw its row in the list or looked at its terminal; a dialog answered here, in
 the chat (with your answer) or in the terminal, or closed in the terminal with no word of
 how (a No or Escape); a held message once you released it or stopped its thread; a failed turn or a usage
 limit once the agent works again, a failed turn too once you read it; messages held long once they
@@ -388,20 +388,19 @@ dot toned by the most pressing item; how many wait on you is in its tooltip and 
 header. Updates and resolved rows are not counted. A usage limit is a state, not a stored row:
 it stays until the agent's next turn, so Continue is there after the reset.
 
-One rule decides when an item lands in the list: what concerns the terminal you are looking at
-(the selected one, while Novadeck has your focus, in every view) doesn't land while you look,
-since the agent is right there. If it is still unresolved when you look away it lands. Had you
-looked at it for about a second, it lands quietly, counted on the bell but with no toast or
-system ping, because you saw it where it happened; looked at for less, it lands and rings as any
-item does. An update (a `done` report or a `tell`) is read once you have looked at its terminal
-for about a second, whether it already landed or not, and lands as resolved; a glance while
-passing reads nothing, and an update that arrived while you looked lands when you look away. A
-row that resolves while it is held back lands too, as resolved: nothing is dropped. This second applies to Inbox updates and quiet landings only: the tab's
-unread marks of replies and failed turns clear as soon as you look. On a narrow window, while
-the Inbox list covers the screen, no terminal counts as looked at, for either. Opening an item
-by its id, as Answer in Messages or a click on a notification does, lands it at once, even while
-its read is under way. If a read fails, the update lands so you can read it by hand. The tabs and windows read the Inbox's raw items,
-so their "!" and "?" show at once, before the list lists them.
+Every item lands in the list at once. What concerns the terminal you are looking at (the
+selected one, while Novadeck has your focus, in every view) lands quietly: counted on the bell,
+but with no toast or system ping, because you see it happen there, and it stays quiet when you
+look away. An update (a `done` report or a `tell`) is read once you have looked at its terminal
+for about a second, whether it arrived while you looked or before, and turns resolved; a glance
+while passing reads nothing. Its row in the Inbox list reads it the same way: in sight for about
+a second while Novadeck has your focus and no dialog covers it, it turns resolved, as its subject
+is often all you need. Opening it reads it too. This second applies to Inbox updates only: the
+tab's unread marks of replies and failed turns clear as soon as you look. On a narrow window,
+while the Inbox list covers the screen, no terminal counts as looked at. An item you open by its
+id, as Answer in Messages or a click on a notification does, isn't read by looking. If a read
+fails, looking doesn't try it again, so you can read the update by hand. The tabs' and windows'
+"!" and "?" read the Inbox's raw items.
 
 The rows that ask something of you keep the Inbox's own order (the row added last first) until
 you drag one: they drag among each other into your order, or move a place with Alt+↑/↓ on the
@@ -557,8 +556,11 @@ agent.
   topmost tab to its bottommost, on into the list's edge where one is scrolled out of view,
   a block cursor on it marks the lead, and a tick reaches each worker's tab. Grid draws the
   same wires through its gutters, and Canvas between the windows. Selecting a member lights
-  its team's wire: it grows in, the ticks reach out and the cursor blinks twice (on Canvas,
-  only the cursor blinks). The team's other tabs take a faint tint of the accent and their
+  its team's wire, a quick fade with nothing replayed. A wire moves only as its team changes:
+  a team forming grows in, its ticks reaching out (in Grid and on Canvas its cursor blinks
+  twice too), and a teammate joining reaches out its own tick. A change made while the person
+  was in another session plays once they come back to it; scrolling, switching views and
+  selecting play nothing. The team's other tabs take a faint tint of the accent and their
   handles light up, the lead's in a chip; the selected tab keeps its own look. A terminal
   that both works for a lead and leads shows the team it leads. The wire is only drawn:
   assistive technology hears the team in each member's tab description, whatever is selected, as

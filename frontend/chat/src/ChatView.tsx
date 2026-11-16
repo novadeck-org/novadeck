@@ -35,7 +35,7 @@ import { markPhase, type WindowPhase } from "./mark-phase"
 import { otherMenu } from "./other-menu"
 import { usePassing, type PassingState } from "./passing"
 import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
-import { Requests } from "./Requests"
+import { Requests, type RequestsHandle } from "./Requests"
 import { recordedImagesOf, takeSentImages, type ChatSend } from "./sends"
 import { settledSent, settleSent } from "./settled"
 import { ShellLines, listedShells, type ShellTailsSource } from "./ShellLines"
@@ -436,6 +436,14 @@ const ChatBody = ({
       ?.querySelector<HTMLElement>(".chat-input")
       ?.focus({ preventScroll: true })
 
+  // Where the keyboard goes as the chat gives it out: to a card whose dialog never had it, before
+  // the box, as a harness's own dialog takes the keys as it shows.
+  const requestsHandle = useRef<RequestsHandle>(null)
+  const claimCard = (): boolean => requestsHandle.current?.claim() ?? false
+  const focusEntry = (): void => {
+    if (!claimCard()) focusBox()
+  }
+
   // Focus left on a control that went or was disabled (it falls to the page, where Esc isn't heard
   // by the chat) goes to the held line where there is one, else the box.
   const refocus = useRef(false)
@@ -624,11 +632,11 @@ const ChatBody = ({
   const wasTaken = useRef(false)
   useEffect(() => {
     const active = document.activeElement
-    if (wasTaken.current && !taken && (!active || active === document.body)) focusBox()
+    if (wasTaken.current && !taken && (!active || active === document.body)) focusEntry()
     wasTaken.current = taken
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Only as it comes and goes.
   }, [taken])
-  const boxReturn = useBoxReturn(chatSection, taken, focusBox)
+  const boxReturn = useBoxReturn(chatSection, taken, focusEntry)
 
   // The window's phase as the current turn's prompt mark wears it.
   const phase = windowPhase && markPhase(windowPhase)
@@ -799,6 +807,7 @@ const ChatBody = ({
           />
         )}
         <Requests
+          handle={requestsHandle}
           requests={asked}
           slice={slice}
           agent={name}
@@ -806,10 +815,11 @@ const ChatBody = ({
           onAnswer={answer}
           onAnswerInTerminal={onAnswerInTerminal}
           onSettled={() => {
-            // The card that was answered went: the box takes focus, unless the person moved it.
+            // The card that was answered went: the next card or the box takes focus, unless the
+            // person moved it.
             const active = document.activeElement
             if (active && active !== document.body) return
-            focusBox()
+            focusEntry()
           }}
           replying={reply?.request ?? null}
           replySending={reply !== null && replyGoing}
@@ -818,8 +828,9 @@ const ChatBody = ({
             onReplyTo(dialog === null ? null : { request, dialog })
             if (dialog !== null) focusBox()
           }}
-          // An answer went from a card: the person's next words go in the box.
-          onSubmitted={focusBox}
+          // An answer went from a card: the person's next keys go to a card that never had them,
+          // or their words in the box, where they chose to chat about it.
+          onSubmitted={(chat) => (chat ? focusBox() : focusEntry())}
           refused={refused}
         />
         {/* Always in the page, so a screen reader announces the note as it appears. */}
@@ -882,6 +893,7 @@ const ChatBody = ({
           onClearBox={onClearBox}
           focusInput={focusInput}
           onInputFocused={onInputFocused}
+          onFocusWanted={claimCard}
           onCancelReply={() => {
             onReplyTo(null)
             focusBox()

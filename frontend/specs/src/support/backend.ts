@@ -2,7 +2,7 @@ import type { ChatItem, Conversation, Conversations } from "@novadeck/core/conve
 import type { PortableInstall } from "@novadeck/core/desktop/portable"
 import type { SandboxState } from "@novadeck/core/desktop/sandbox"
 import type { InboxRow, InboxSource } from "@novadeck/core/inbox"
-import type { Approval, Approvals, Backend, Notice } from "@novadeck/core/port"
+import type { Approval, Approvals, Backend, BackendSink, Notice } from "@novadeck/core/port"
 import { createStore, type Store } from "@novadeck/core/store"
 import { createDemoBackend } from "@novadeck/demo"
 import {
@@ -408,10 +408,44 @@ export const createSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   const withApprovals = approvalsRequested() ? { ...demo, approvals: specApprovals() } : demo
   // Keeps no arrangement, as a demo doesn't, but takes the one a spec leaves in storage
   // (`novadeck.project-arrangement`) as an earlier client's, which the app imports.
+  const backend = desktopRequested() ? asDesktop(withApprovals) : withApprovals
   return {
-    ...(desktopRequested() ? asDesktop(withApprovals) : withApprovals),
+    ...backend,
     arrange: async () => {},
+    // Keeps what it reports to, so a spec can report a change the demo makes on its own.
+    start: (sink) => {
+      started.push({ sink, seed: backend.seed, backend })
+      return backend.start?.(sink) ?? (() => {})
+    },
   }
+}
+
+// Every backend the page started and what it reports to: StrictMode makes two and keeps one,
+// and a change a spec reports reaches whichever the app kept.
+const started: {
+  readonly sink: BackendSink
+  readonly seed: Backend["seed"]
+  readonly backend: Backend
+}[] = []
+
+/** The backend reports that the terminal named `name` now works for the one named `lead`, in
+ * the session that has both: it joins that lead's team, or forms one with it. */
+export const joinTeam = (name: string, lead: string): void => {
+  for (const { sink, seed } of started)
+    for (const project of seed.projects)
+      for (const session of project.sessions) {
+        const worker = session.terminals.find((each) => each.name === name)
+        const leader = session.terminals.find((each) => each.name === lead)
+        if (!worker || !leader) continue
+        sink.dispatch([
+          {
+            type: "terminal/update",
+            target: { projectId: project.id, workspaceSessionId: session.id },
+            terminalId: worker.id,
+            ledBy: leader.id,
+          },
+        ])
+      }
 }
 
 // Specs open the demo with a backend that has agents ask the person's approval with
@@ -507,4 +541,25 @@ export const forgetEarlierPages = (): void => {
   made.length = 0
   desktops.length = 0
   babciaCues.length = 0
+}
+
+/** The backend opens a new terminal that works for the one named `lead`, in its session, as an
+ * agent opens a teammate: it comes with its own tab and tile already in the team. */
+export const addTeammate = (lead: string): void => {
+  for (const { sink, seed, backend } of started)
+    for (const project of seed.projects)
+      for (const session of project.sessions) {
+        const leader = session.terminals.find((each) => each.name === lead)
+        if (!leader) continue
+        const target = { projectId: project.id, workspaceSessionId: session.id }
+        const terminal = backend.newTerminal({ target, directory: "~" })
+        sink.dispatch([
+          {
+            type: "terminal/add",
+            target,
+            terminal: { ...terminal, ledBy: leader.id },
+            select: false,
+          },
+        ])
+      }
 }

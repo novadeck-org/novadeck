@@ -397,6 +397,27 @@ describe("A team in the sidebar", () => {
     expect(tabDescription("Dev server")).toBeNull()
   })
 
+  // Run with reduced motion, as these specs are: the wire follows the list all the same.
+  it("keeps its wire on its tabs as the list scrolls", async () => {
+    await openMessagesDemo()
+    const list = document.querySelector<HTMLElement>(".terminal-tab-list")!
+    list.style.flex = "none"
+    list.style.height = "160px"
+    await expect.poll(() => document.querySelectorAll(".team-wire-tap").length).toBe(1)
+    const tap = document.querySelector<HTMLElement>(".team-wire-tap")!
+    const name = () =>
+      document
+        .querySelector('[aria-label^="Select Checkout review"]')!
+        .closest("[data-terminal-tab-id]")!
+        .querySelector(".sidebar-item-copy strong")!
+        .getBoundingClientRect()
+    const offset = () => tap.getBoundingClientRect().top - (name().top + name().height / 2)
+    await expect.poll(() => Math.abs(offset())).toBeLessThanOrEqual(1)
+    list.scrollTop = 40
+    await expect.poll(() => list.scrollTop).toBeGreaterThan(0)
+    await expect.poll(() => Math.abs(offset())).toBeLessThanOrEqual(1)
+  })
+
   it("ends once the lead's terminal is closed", async () => {
     await openMessagesDemo()
     await terminalTab("Checkout implementation").click()

@@ -1,7 +1,7 @@
 import type { Team } from "@novadeck/core/derivations"
 import { useEffect, useMemo, useState } from "react"
 
-import { blinkMs } from "../../terminals/team-wire"
+import { memberPiece, teamPiece, useEnteringPieces } from "../../terminals/team-news"
 import { teamRoutes, type Run, type TeamRoute, type TileBox } from "./team-route"
 
 import "./grid-team-wire.css"
@@ -16,15 +16,15 @@ const place = (run: Run): React.CSSProperties =>
 
 // Every team's wire through the Grid's gutters: a block cursor left of the lead's tile, a
 // tick into each worker's, and runs between them that never cross a tile. Every wire rests,
-// dim, as the rail's do; the selected terminal's team lights, and plays its entrance each
-// time one of its members is selected: its runs draw in, its ticks reach out after them and
-// its cursor blinks twice. It sits in the grid's own frame, so it scrolls with the tiles,
+// dim, as the rail's do; the selected terminal's team lights. Only a change to a team plays
+// (team-news.ts): a team forming draws in, its runs first, its ticks reaching out after them
+// and its cursor blinking twice, and a teammate joining reaches out its tick. It sits in the
+// grid's own frame, so it scrolls with the tiles,
 // takes no pointer and is only drawn, as the window's header says who leads a terminal in
 // words.
 export const GridTeamWire = ({
   teams,
   team,
-  selected,
   boxes,
   gap,
   width,
@@ -33,7 +33,6 @@ export const GridTeamWire = ({
   teams: readonly Team[]
   // The selected terminal's team: its wire lights, the others rest.
   team: Team | undefined
-  selected: string
   // The tiles as laid out now.
   boxes: readonly TileBox[]
   gap: number
@@ -61,48 +60,45 @@ export const GridTeamWire = ({
     [resting, crews, gap],
   )
   const out = hidden || still !== geometry
-  // The selection whose entrance has played, counted only once it played in view: the wire
-  // comes back from a layout change as it was, without playing it again. Any change of
-  // selection forgets it, so coming back to a member before the timer fires plays it again.
-  const [played, setPlayed] = useState<string | undefined>(undefined)
-  const [seen, setSeen] = useState(selected)
-  if (seen !== selected) {
-    setSeen(selected)
-    setPlayed(undefined)
-  }
-  useEffect(() => {
-    if (out) return
-    const timer = setTimeout(() => setPlayed(selected), blinkMs + 200)
-    return () => clearTimeout(timer)
-  }, [selected, out])
-  const settled = played === selected
+  // What plays, once the tiles are at rest and the wires show: a layout change brings them
+  // back as they were, without playing anything again.
+  const entering = useEnteringPieces(teams, !out)
   const wires = routes.flatMap((route, i) => (route ? [{ route, lead: teams[i]!.lead }] : []))
   if (!wires.length) return null
-  // The lit wire is drawn last, over any resting one it crosses.
-  const lit = wires.find(({ lead }) => lead === team?.lead)
+  // Each wire keeps its element whether it lights or rests, so lighting fades; the stylesheet
+  // raises the lit one over any resting one it crosses.
   return (
-    <div
-      className="grid-team-wire"
-      aria-hidden
-      data-hidden={out || undefined}
-      data-settled={settled || undefined}
-    >
-      {wires.map((wire) => wire !== lit && <Wire key={wire.lead} route={wire.route} lit={false} />)}
-      {/* Drawn anew for each selection, and while its entrance hasn't played, as the wires
-          come into view, so it plays where it can be seen. */}
-      {lit && (
+    <div className="grid-team-wire" aria-hidden data-hidden={out || undefined}>
+      {wires.map((wire) => (
         <Wire
-          key={`${lit.lead}:${selected}${settled || out ? "" : ":shown"}`}
-          route={lit.route}
-          lit
+          key={wire.lead}
+          route={wire.route}
+          lit={wire.lead === team?.lead}
+          entering={entering.has(teamPiece(wire.lead))}
+          joining={(id) => entering.has(memberPiece(wire.lead, id))}
         />
-      )}
+      ))}
     </div>
   )
 }
 
-const Wire = ({ route, lit }: { route: TeamRoute; lit: boolean }): React.JSX.Element => (
-  <div className="grid-team-wire-shape" data-lit={lit || undefined}>
+const Wire = ({
+  route,
+  lit,
+  entering,
+  joining,
+}: {
+  route: TeamRoute
+  lit: boolean
+  // Its team just formed, and draws in whole; a teammate who just joined it reaches out alone.
+  entering: boolean
+  joining: (id: string) => boolean
+}): React.JSX.Element => (
+  <div
+    className="grid-team-wire-shape"
+    data-lit={lit || undefined}
+    data-entering={entering || undefined}
+  >
     {route.runs.map((run) => (
       <i
         key={`${run.axis}${run.x},${run.y}`}
@@ -112,7 +108,12 @@ const Wire = ({ route, lit }: { route: TeamRoute; lit: boolean }): React.JSX.Ele
       />
     ))}
     {route.workers.map((worker) => (
-      <i key={worker.id} className="grid-team-wire-tick" style={place(worker.tick)} />
+      <i
+        key={worker.id}
+        className="grid-team-wire-tick"
+        data-joining={joining(worker.id) || undefined}
+        style={place(worker.tick)}
+      />
     ))}
     <i className="grid-team-wire-cursor" style={{ left: route.cursor[0], top: route.cursor[1] }} />
   </div>

@@ -613,7 +613,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     })
   })
 
-  it("says an ask is held back while the user looks at its terminal", async () => {
+  it("says an ask lands quietly while the user looks at its terminal", async () => {
     answer = { ok: true, id: "a1" }
     const [, asked] = await session(terminal(), [
       initialize,
@@ -625,7 +625,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     ])
     const text = (asked!.result as { content: { text: string }[] }).content[0]!.text
     expect(text).toContain(
-      "Ask a1 is in the user's Inbox. While they look at this terminal it waits there unseen until they look away",
+      "Ask a1 is in the user's Inbox. While they look at this terminal it lands there quietly, with no notification",
     )
     expect(text).toContain(
       "so put the full question in your reply too. Their answer arrives later as a message",
@@ -787,7 +787,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       "unless it is already an open ask, and put the full question in your reply too",
     )
     expect(instructions).toContain(
-      "as the Inbox holds an ask back while they look at this terminal",
+      "as an ask lands in the Inbox quietly while they look at this terminal",
     )
     expect(instructions).toContain("an ask with the action shape, not just words in your reply")
     expect(instructions).toContain("never ask for a secret value")
@@ -841,7 +841,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       "unless it is already an open ask, and put the full question in your reply too",
     )
     expect(ask.description).toContain(
-      "while the user looks at this terminal, the Inbox holds its asks back until they look away",
+      "while the user looks at this terminal, an ask lands in the Inbox quietly, with no notification",
     )
     expect(ask.description).toContain("an ask with the action shape")
     for (const each of described)

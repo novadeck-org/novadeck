@@ -5,9 +5,9 @@ import { desktopWindow } from "../support/backend"
 import { expectStaysAbsent, openWorkspace, sidebarPanel, terminalTab } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
-// The landing rule: what an agent says from the terminal the person is looking at doesn't
-// reach the Inbox, the bell or a toast until they look away. The spec's desktop-like app (`&desktop=on`)
-// starts with an empty Inbox the spec fills.
+// The landing rule: what an agent says from the terminal the person is looking at lands in
+// the Inbox and on the bell at once, quietly: no toast, as they see it happen there. The spec's
+// desktop-like app (`&desktop=on`) starts with an empty Inbox the spec fills.
 const storefront =
   "/projects/storefront/sessions/initial/focus?terminal=storefront-initial-01&desktop=on"
 const docs = "/projects/docs-site/sessions/initial/focus?terminal=docs-site-initial-02&desktop=on"
@@ -22,49 +22,26 @@ const open = async (route: string): Promise<void> => {
   await openWorkspace(route)
 }
 
-// The grace a new entry waits before it rings is 2 s; waiting past it shows nothing rang.
-const nothingLands = (): Promise<void> =>
+// The grace a new entry waits before it rings is 2 s; waiting past it shows no toast rang.
+const noToast = (): Promise<void> =>
   expectStaysAbsent(
-    {
-      shown: () => bell().query() !== null || document.querySelector(".toast") !== null,
-      name: "a bell or toast",
-    },
+    { shown: () => document.querySelector(".toast") !== null, name: "a toast" },
     { ms: 3_000 },
   )
 
 describe("The landing rule", () => {
   context("when an agent asks from the terminal the person looks at", () => {
-    it("lands in the Inbox only once they select another terminal", async () => {
+    it("lands in the Inbox and on the bell at once, with no toast, even once they look away", async () => {
       await open(storefront)
 
       desktopWindow.arrive(demoInboxIds.preview)
-
-      await nothingLands()
-      await sidebarPanel("Inbox").click()
-      await expect.element(page.getByRole("complementary", { name: "Inbox" })).toBeVisible()
-      await expectStaysAbsent(inboxRow("Should the preview show"))
-      await sidebarPanel("Terminals").click()
-      await terminalTab("Checkout review").click()
 
       await expect.element(bell()).toHaveAccessibleName("Inbox, 1 waiting")
       await sidebarPanel("Inbox").click()
       await expect.element(inboxRow("Should the preview show")).toBeVisible()
-    })
-  })
-
-  context("when the person looked at the terminal long enough to see its ask", () => {
-    it("lands quietly: on the bell, with no toast", async () => {
-      await open(storefront)
-
-      desktopWindow.arrive(demoInboxIds.preview)
-      await nothingLands()
+      await sidebarPanel("Terminals").click()
       await terminalTab("Checkout review").click()
-
-      await expect.element(bell()).toHaveAccessibleName("Inbox, 1 waiting")
-      await expectStaysAbsent(
-        { shown: () => document.querySelector(".toast") !== null, name: "a toast" },
-        { ms: 3_000 },
-      )
+      await noToast()
     })
   })
 
@@ -90,16 +67,15 @@ describe("The landing rule", () => {
     })
   })
 
-  context("when the person looks away from an ask before the dwell is over", () => {
-    it("lands it as any other, and it rings", async () => {
+  context("when an agent asks from a terminal the person isn't looking at", () => {
+    it("lands it and rings", async () => {
       await open(storefront)
-      const away = terminalTab("Checkout review").element() as HTMLElement
+      await terminalTab("Checkout review").click()
 
       desktopWindow.arrive(demoInboxIds.preview)
-      away.click()
 
       await expect.element(bell()).toHaveAccessibleName("Inbox, 1 waiting")
-      // Not quiet: it rings its toast after the grace a new entry waits.
+      // It rings its toast after the grace a new entry waits.
       await expect
         .poll(() => document.querySelectorAll(".toast").length, { timeout: 8_000 })
         .toBe(1)
@@ -107,12 +83,12 @@ describe("The landing rule", () => {
   })
 
   context("when an agent reports it is done to the terminal the person looks at", () => {
-    it("reads it by being seen, so it lands as history and never as news, however they look away", async () => {
+    it("lands quietly and is read by being seen, so it stays as history, however they look away", async () => {
       await open(docs)
 
       desktopWindow.arrive(demoInboxIds.done)
       // It isn't read by the arrival itself, only once the person has looked at the terminal
-      // for a moment; then the backend has it read, and it stays only as a resolved row.
+      // for a moment; then the backend has it read, and it stays as a resolved row.
       expect(desktopWindow.openRowIds()).toContain(demoInboxIds.done)
       await expect
         .poll(() => desktopWindow.openRowIds(), { timeout: 5_000 })

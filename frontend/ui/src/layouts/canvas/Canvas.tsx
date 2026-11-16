@@ -635,7 +635,7 @@ const TerminalCanvas = ({
                 size={1.6}
                 bgColor="transparent"
               />
-              <CanvasTeamWire teams={teams} team={team} selected={selected} />
+              <CanvasTeamWire teams={teams} team={team} />
               {ghost && (
                 <ViewportPortal>
                   <div

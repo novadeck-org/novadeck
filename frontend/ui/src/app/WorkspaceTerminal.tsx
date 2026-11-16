@@ -110,7 +110,7 @@ const useWindowFrame = (
     shallowEqual,
   )
   const target = useWorkspaceState(currentTarget, sameTarget)
-  // What the raw Inbox says of it, not the landing rule's, which hides rows from its list only.
+  // What the raw Inbox says of it, not the landing rule's, which only marks how rows land.
   const { need, subject, dialog, snoozed, snoozedRequests } = useTerminalMarks(backend.inbox, {
     ...target,
     terminalId: id,

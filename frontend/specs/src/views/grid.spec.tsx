@@ -1,6 +1,7 @@
 import { afterEach } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
+import { addTeammate, joinTeam } from "../support/backend"
 import { near } from "../support/canvas"
 import { windowMenu } from "../support/companions"
 import { jump } from "../support/keyboard"
@@ -1001,30 +1002,42 @@ describe("Grid view's team wire", () => {
     await expect.poll(ticks).toBe(1)
   })
 
-  it("lights a team's wire, playing its entrance, each time one of its members is selected after another terminal", async () => {
-    // Playing where it can be seen: not while the wires are out of the way.
-    const entrance =
-      ".grid-team-wire:not([data-settled], [data-hidden]) .grid-team-wire-shape[data-lit]"
-    const playing = () => gridView().element().querySelector(entrance) !== null
+  it("lights a team's wire as one of its members is selected, playing nothing", async () => {
+    const entrance = ".grid-team-wire-shape[data-entering], .grid-team-wire-tick[data-joining]"
     await openMessagesDemo()
     await terminalTab("Checkout implementation").click()
-    // The entrance is short, and a slow machine can spend it before a first look: it is noted
-    // from before the view is chosen, and from before each selection after.
     const played = recordAppearance(entrance)
     await chooseView("Grid")
-    await expect.poll(played).toBe(true)
-    await expect.poll(playing, { timeout: 4000 }).toBe(false)
-    expect(lit()).toBe(1)
-    // Another terminal rests the wire, and plays nothing.
+    await expect.poll(lit).toBe(1)
+    // Another terminal rests the wire, and the same member lights it again: nothing plays.
     await terminal("Dev server").click({ position: { x: 150, y: 150 } })
     await expectSelected("Dev server")
     await expect.poll(lit).toBe(0)
-    await expectStaysTrue(() => !playing(), "nothing plays while Dev server is selected")
-    // Back to the same member: it lights, and its entrance plays again.
-    const again = recordAppearance(entrance)
     await terminal("Checkout implementation").click({ position: { x: 150, y: 150 } })
     await expectSelected("Checkout implementation")
-    await expect.poll(again).toBe(true)
-    expect(lit()).toBe(1)
+    await expect.poll(lit).toBe(1)
+    await expectStaysTrue(() => !played(), "nothing plays as the team's wire lights")
+  })
+
+  it("reaches out the tick of a teammate opened in a tile of its own, the sidebar showing it too", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout implementation").click()
+    await chooseView("Grid")
+    await expect.poll(ticks).toBe(1)
+    const joined = recordAppearance(".grid-team-wire-tick[data-joining]")
+    addTeammate("Checkout implementation")
+    await expect.poll(ticks, { timeout: 4000 }).toBe(2)
+    await expect.poll(joined, { timeout: 4000 }).toBe(true)
+  })
+
+  it("reaches out the tick of a teammate who joins", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout implementation").click()
+    await chooseView("Grid")
+    await expect.poll(ticks).toBe(1)
+    const joined = recordAppearance(".grid-team-wire-tick[data-joining]")
+    joinTeam("Dev server", "Checkout implementation")
+    await expect.poll(ticks).toBe(2)
+    await expect.poll(joined, { timeout: 4000 }).toBe(true)
   })
 })
