@@ -1127,7 +1127,7 @@ describe("the footer without the security sandbox", () => {
 })
 
 describe("the footer's feedback slot", () => {
-  it("shows what it is given at the end, after the usage readout, and nothing without", () => {
+  it("shows what it is given after the usage readout, before Help, and nothing without", () => {
     const page = render(
       createElement(WorkspaceFooter, {
         hidden: false,

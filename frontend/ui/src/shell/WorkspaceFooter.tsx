@@ -75,7 +75,7 @@ export const WorkspaceFooter = ({
   readonly murmur?: FooterMurmurProps | undefined
   // The account's subscriptions, at the right end before its buttons.
   readonly usage?: ReactNode
-  // The feedback button, at the very end; only a backend that takes feedback has one.
+  // The feedback button, at the end before Help; only a backend that takes feedback has one.
   readonly feedback?: ReactNode
   // The Help button, after the feedback button, in the corner.
   readonly help?: ReactNode
@@ -98,9 +98,9 @@ export const WorkspaceFooter = ({
   return (
     <footer
       hidden={hidden}
-      className="app-footer max-[701px]:px-3 max-[701px]:text-[8px] max-[701px]:leading-3 h-7 shrink-0 grid-cols-[1fr_auto_1fr] items-center px-4 text-caption"
+      className="app-footer max-[701px]:px-3 max-[701px]:text-[8px] max-[701px]:leading-3 h-7 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-x-4 px-4 text-caption"
     >
-      <span className="flex items-center gap-2 justify-self-start">
+      <span className="flex items-center gap-2 justify-self-start whitespace-nowrap">
         <span>
           {count} {count === 1 ? "terminal" : "terminals"}
         </span>
@@ -118,8 +118,9 @@ export const WorkspaceFooter = ({
           </span>
         )}
       </span>
-      {/* The middle: what the person should notice whichever end they look at. */}
-      <span className="footer-middle flex items-center">
+      {/* The middle: what the person should notice whichever end they look at. It spans the
+          bar's height, so the sandbox notice it anchors rises from the bar's top edge. */}
+      <span className="footer-middle relative flex items-center self-stretch">
         <FooterSandbox sandbox={sandbox} hidden={hidden} />
       </span>
       {/* Two groups: the subscriptions, then the buttons and chips (`.footer-misc`), set
@@ -128,8 +129,8 @@ export const WorkspaceFooter = ({
         {usage}
         <span className="footer-misc flex items-center gap-1">
           {/* Most pressing first, nearest the middle: the crash loop's restart, Murmur's
-              install, then the update's chip under its card at the corner; the feedback and
-              Help buttons, always there, hold the edge so nothing else moves them. */}
+              install, then the update's chip; the feedback and Help buttons, always there,
+              hold the edge so nothing else moves them. */}
           {onRetry && (
             <button
               type="button"

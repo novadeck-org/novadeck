@@ -80,6 +80,8 @@
 .footer-update {
   display: inline-flex;
   align-items: center;
+  /* One line in the bar: a tight end takes room from the middle rather than wrapping. */
+  white-space: nowrap;
   min-height: 24px;
   margin-block: -3px;
   padding: 3px 6px;

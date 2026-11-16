@@ -173,11 +173,11 @@
   .debug-handle-chevron {
     opacity: 0.7;
   }
-  /* The footer's middle holds a chip (the sandbox's): the closed handle steps left of it,
-     toward the counts, which leave more room than the subscriptions; open, it is back on
-     the card. */
+  /* The footer's middle holds a chip (the sandbox's), which moves off centre as the
+     ends grow: the closed handle rises onto the footer's top edge, clear of it wherever it
+     is; open, it is back on the card. */
   body:has(.footer-middle .footer-update) .debug-handle[aria-expanded="false"] {
-    translate: -120px 0;
+    translate: 0 -1.75rem;
   }
   /* Narrow, the footer's chips reach its middle; the handle keeps to its icons. */
   @media (width < 36rem) {
