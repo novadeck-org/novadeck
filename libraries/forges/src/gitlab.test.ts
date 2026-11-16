@@ -240,13 +240,15 @@ describe("gitlab", () => {
   })
 
   describe("ci", () => {
-    const pipeline = (iid: number, body: unknown) =>
+    const pipeline = (iid: number, body: Record<string, unknown>) =>
       http.get(`${url}/${iid}`, () => HttpResponse.json(body))
-    const found = async (pipelines: Record<string, unknown>) => {
+    const found = async (pipelines: Record<string, Record<string, unknown>>) => {
       const branches = Object.keys(pipelines)
       server.use(
-        byBranch(Object.fromEntries(branches.map((branch, at) => [branch, [mr(at + 1, "opened")]]))),
-        ...branches.map((branch, at) => pipeline(at + 1, pipelines[branch])),
+        byBranch(
+          Object.fromEntries(branches.map((branch, at) => [branch, [mr(at + 1, "opened")]])),
+        ),
+        ...branches.map((branch, at) => pipeline(at + 1, pipelines[branch]!)),
       )
       const map = mapOf(await gitlab.pullRequests(fetch, token, repo, branches))
       return Object.fromEntries([...map].map(([branch, one]) => [branch, one.ci]))

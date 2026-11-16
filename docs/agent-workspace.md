@@ -536,6 +536,25 @@ with every safety check again at that time:
   and its rail toggle show only while Preferences → Experimental → Agent worktrees is
   on (`useWorktreesShown`), so a stable build, which turns that setting off, has no Worktrees panel; a
   link naming it then opens Terminals. A closed worktree's memory goes with it (`works.json` and its snapshot).
+  A work also carries what it holds that lives only in its worktree: `uncommitted` (paths changed and not
+  committed, read from the snapshot the pass already takes: the working tree as a tree against HEAD's
+  tree, one `git diff-tree` run when the key changes, plus the untracked files the snapshot leaves
+  out) and `unpushed` (`git rev-list --count HEAD --not --remotes`, one cheap run on every read, as the
+  remotes move without the key changing), and `safe`: `(merged && uncommitted === 0)` or `(its pull
+  request closed && uncommitted === 0 && unpushed === 0)` (`works/standing.ts`), never while its pull
+  request is open or a draft. A merged work ignores `unpushed`: its remote branch is often deleted after
+  a squash merge, which leaves its own commits unpushed. Each is absent where git couldn't say. The
+  person's unforced close (`closeWork`) of a work that is `safe` by a fresh read goes through
+  `Worktrees.closeAt` with `safe`, which skips the refusal for commits main lacks (uncommitted files
+  still refuse); the agent's `close_worktree` is unchanged, and the branch stays or goes by the same
+  rules. `works.fetch({ projectId })` fetches origin now for the project's repositories
+  (`MainFetcher.fetchNow`: all at once, each repository's in-flight fetch shared, a failure leaving its
+  schedule alone), then reads those works again, so `fetchedAt` and main move before it resolves.
+  A work's `pullRequest` comes from the forges (`forges/service.ts`): its `ci` for an open one is how
+  its checks stand on the latest commit (GitHub's `statusCheckRollup` in the one GraphQL query; GitLab's
+  `head_pipeline` from one more request per open merge request; Azure DevOps' build policy evaluations
+  and statuses, two more), and a repository is looked up every 5 minutes, or every minute while any
+  of its open pull requests has `ci: running`.
   A work also carries `fetchedAt`, when the runner last fetched its repository's origin (absent when
   it never has), so a row's tooltip can say "main as of 12 min ago": a PR merged on the remote shows
   as merged here only after the next fetch (see "Worktrees": cleanup and fetching). Worktrees the

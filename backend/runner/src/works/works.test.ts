@@ -1915,10 +1915,11 @@ describe.skipIf(!hasGit)("what a work holds that lives only in its worktree", ()
     const commonDir = withOrigin(fixture)
     const pushed = fixture.worktree("pushed")
     const ahead = fixture.worktree("ahead")
-    const open_ = fixture.worktree("open")
-    for (const each of [pushed, ahead, open_]) commit(each, `${each.git("branch", "--show-current").trim()}.txt`)
+    const opened = fixture.worktree("open")
+    for (const each of [pushed, ahead, opened])
+      commit(each, `${each.git("branch", "--show-current").trim()}.txt`)
     pushed.git("push", "--quiet", "origin", "pushed")
-    open_.git("push", "--quiet", "origin", "open")
+    opened.git("push", "--quiet", "origin", "open")
     ahead.git("push", "--quiet", "origin", "ahead")
     commit(ahead, "more.txt")
     const requests = new Map<string, PullRequest>([
@@ -1928,7 +1929,7 @@ describe.skipIf(!hasGit)("what a work holds that lives only in its worktree", ()
     ])
     const { works } = open(
       () =>
-        [pushed, ahead, open_].map((each, at) => ({
+        [pushed, ahead, opened].map((each, at) => ({
           terminalId: terminal(at + 1),
           root: each.root,
           commonDir,
@@ -1939,7 +1940,7 @@ describe.skipIf(!hasGit)("what a work holds that lives only in its worktree", ()
     const found = await current(works)
     expect(standing(found.get(pushed.root))).toEqual({ uncommitted: 0, unpushed: 0, safe: true })
     expect(standing(found.get(ahead.root))).toEqual({ uncommitted: 0, unpushed: 1, safe: false })
-    expect(standing(found.get(open_.root))).toEqual({ uncommitted: 0, unpushed: 0, safe: false })
+    expect(standing(found.get(opened.root))).toEqual({ uncommitted: 0, unpushed: 0, safe: false })
   })
 
   it("is never safe while its pull request is open, though its work is merged", async ({
@@ -1954,9 +1955,12 @@ describe.skipIf(!hasGit)("what a work holds that lives only in its worktree", ()
     main.git("merge", "--quiet", "--squash", "squashed")
     main.git("commit", "--quiet", "-m", "squash")
     main.git("push", "--quiet", "origin", "main")
-    const { works } = open(() => [{ terminalId: terminal(1), root: squashed.root, base: start, commonDir }], {
-      pullRequest: () => ({ ...closed, state: "draft" }),
-    })
+    const { works } = open(
+      () => [{ terminalId: terminal(1), root: squashed.root, base: start, commonDir }],
+      {
+        pullRequest: () => ({ ...closed, state: "draft" }),
+      },
+    )
     resources.defer(() => works.close())
     expect(standing((await current(works)).get(squashed.root))).toMatchObject({ safe: false })
   })
@@ -1982,7 +1986,10 @@ describe.skipIf(!hasGit)("what a work holds that lives only in its worktree", ()
       const marks: boolean[] = []
       const again = open(() => [{ terminalId: terminal(1), root: pushed.root, commonDir }], {
         pullRequest: () => closed,
-        remove: async (_root, _force, safe) => (marks.push(safe === true), { ok: true, branchDeleted: false }),
+        remove: async (_root, _force, safe) => (
+          marks.push(safe === true),
+          { ok: true, branchDeleted: false }
+        ),
       })
       resources.defer(() => again.works.close())
       await current(again.works)
@@ -2001,7 +2008,10 @@ describe.skipIf(!hasGit)("what a work holds that lives only in its worktree", ()
       const marks: (boolean | undefined)[] = []
       const { works } = open(() => [{ terminalId: terminal(1), root: pushed.root, commonDir }], {
         pullRequest: () => closed,
-        remove: async (_root, _force, safe) => (marks.push(safe), { ok: true, branchDeleted: false }),
+        remove: async (_root, _force, safe) => (
+          marks.push(safe),
+          { ok: true, branchDeleted: false }
+        ),
       })
       resources.defer(() => works.close())
       await works.closeWork(pushed.root, true)

@@ -303,8 +303,14 @@ describe("azure", () => {
       expect((await checks([], [{ state: "succeeded" }])()).ci).toBe("passed")
     })
     it("is none where nothing builds, and ignores other policies and disabled builds", async () => {
-      const review = { status: "rejected", configuration: { type: { displayName: "Minimum number of reviewers" } } }
-      expect((await checks([review, build("rejected", { isEnabled: false })], [{ state: "notSet" }])()).ci).toBe("none")
+      const review = {
+        status: "rejected",
+        configuration: { type: { displayName: "Minimum number of reviewers" } },
+      }
+      expect(
+        (await checks([review, build("rejected", { isEnabled: false })], [{ state: "notSet" }])())
+          .ci,
+      ).toBe("none")
     })
     it("leaves ci absent where it can't be read, unless what it read already fails", async () => {
       expect((await checks(403, [{ state: "succeeded" }])()).ci).toBeUndefined()

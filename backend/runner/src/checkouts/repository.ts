@@ -153,13 +153,13 @@ const untrackedFiles = async (
   env: NodeJS.ProcessEnv,
   held: Held,
 ): Promise<
-  {
-    readonly paths: string[]
-    readonly secret: string[]
-    readonly skipped: boolean
-    /** How many were left out for their size. */
-    readonly large: number
-  }
+  | {
+      readonly paths: string[]
+      readonly secret: string[]
+      readonly skipped: boolean
+      /** How many were left out for their size. */
+      readonly large: number
+    }
   | undefined
 > => {
   // Where status shows no untracked files, a snapshot takes none.

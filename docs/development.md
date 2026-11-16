@@ -299,7 +299,7 @@ Terminals:
   with what it conflicts with on hover; Work merged empties the row (a worktree with no files
   stays, and its trash button closes it at once) and gives it the green merge icon and "Merged" on hover;
   Worktree just made empties it without that, so it keeps the plain icon. Commits main lacks gives a
-  worktree with no changed files but two commits main lacks, which reads as merged too (its trash button asks,
+  worktree with no changed files but two commits main lacks, not read as merged (its trash button asks,
   naming them); Owner in History names it "Closed terminal" and shows it on the selected terminal's
   bar. Worktree just made and Worktree with changes show the
   two sides of the trash button: closing at once, and the confirm dialog saying what is kept. No owner reads
@@ -312,7 +312,14 @@ Terminals:
   terminal's, and the Worktrees toggle in the rail flares the History toggle's dot and ring for a
   moment (close Worktrees first: it shows nothing while Worktrees is open); any first change that makes a
   terminal's worktree flares it too. "Every state in Worktrees"
-  gives the session's first four terminals a worktree each. In the showcase, selecting a row shows its work as a changes item on the terminal's
+  gives the session's first four terminals a worktree each. The storefront's worktrees also carry what the
+  rows' safe-to-close standing reads (a failing, a running and a passed check, a draft with none, a
+  merged and a closed one that are safe, and a merged one holding two uncommitted files); New lines,
+  Many files and Work merged move those counts too. Commits not pushed gives the worktree 2 commits no
+  remote holds, Uncommitted files 3 uncommitted paths (a merged one then reads unsafe), and Origin
+  fetched 3 h ago dates its fetch three hours back; Commits main lacks is not merged because a merged one with nothing
+  uncommitted is safe, and closes without asking. The demo's
+  fetch moves its project's fetch time to now. In the showcase, selecting a row shows its work as a changes item on the terminal's
   bar (see Changes below); in the other demos there is no pane to show it in.
 - **Projects and sessions:** mark the selected terminal running, then start a fresh
   session and open Sessions to see the old one count it; make the next folder pick fail; or
@@ -671,7 +678,9 @@ App:
   signed out, CLI missing, Token refused, Switch under way, Switch failed) move the rows without a
   reboot. In the demo, Sign in and Install close Preferences and run in a terminal that plays the
   command, then flips the host to Signed in, or the forge to installed (Install lists the command
-  first). The "Pull request" actions (No pull request, draft, open, merged, closed) set the mark on
+  first). The "CI failing", "CI running", "CI passed" and "No CI" actions set how an open pull
+  request's checks stand (one is made open where there was none; a pull request that is done has none).
+  The "Pull request" actions (No pull request, draft, open, merged, closed) set the mark on
   the selected terminal's worktree, or the project's first (one is made if it has none): the row's
   detail line ends in its state's glyph and "#812" beside its trash button, a link to the pull request's page,
   and the work's changes item (in the showcase with "On, with Worktrees", select its row) has

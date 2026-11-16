@@ -12,7 +12,8 @@ export const storefrontPlans: readonly WorkPlan[] = [
     terminal: "Checkout implementation",
     minutesAgo: 52,
     fetchedMinutesAgo: 3,
-    pullRequest: { number: 812, state: "draft" },
+    pullRequest: { number: 812, state: "draft", ci: "none" },
+    unpushed: 3,
     conflicts: ["main", "Tests"],
     files: [
       file("src/checkout/Checkout.tsx", 120, 34, { conflict: true }),
@@ -29,7 +30,8 @@ export const storefrontPlans: readonly WorkPlan[] = [
     project: "storefront",
     terminal: "Tests",
     minutesAgo: 38,
-    pullRequest: { number: 814, state: "open" },
+    pullRequest: { number: 814, state: "open", ci: "failing" },
+    unpushed: 1,
     conflicts: ["Checkout implementation"],
     files: [
       file("src/checkout/Checkout.test.tsx", 31, 12, { conflict: true }),
@@ -41,6 +43,7 @@ export const storefrontPlans: readonly WorkPlan[] = [
     terminal: "Checkout review",
     minutesAgo: 140,
     working: true,
+    pullRequest: { number: 816, state: "open", ci: "running" },
     files: [file("src/checkout/Checkout.tsx", 6, 2, { read: true })],
   },
   {
@@ -48,6 +51,8 @@ export const storefrontPlans: readonly WorkPlan[] = [
     terminal: "Build",
     minutesAgo: 300,
     fetchedMinutesAgo: 47,
+    pullRequest: { number: 818, state: "open", ci: "passed" },
+    uncommitted: 0,
     files: [
       file("vite.config.ts", 9, 3, { read: true }),
       file("package.json", 2, 2, { read: true }),
@@ -59,6 +64,7 @@ export const storefrontPlans: readonly WorkPlan[] = [
     branch: "agent/promo-banner",
     minutesAgo: 600,
     pullRequest: { number: 801, state: "closed" },
+    uncommitted: 0,
     files: [file("src/promo/Banner.tsx", 18, 2, { read: true })],
   },
   {
@@ -75,6 +81,18 @@ export const storefrontPlans: readonly WorkPlan[] = [
     minutesAgo: 800,
     merged: true,
     pullRequest: { number: 809, state: "merged" },
+    unpushed: 2,
+    files: [],
+  },
+  {
+    // Merged, yet it holds files its owner never committed: closing it is not safe.
+    project: "storefront",
+    terminal: "Build",
+    branch: "agent/build-docs",
+    minutesAgo: 900,
+    merged: true,
+    pullRequest: { number: 807, state: "merged" },
+    uncommitted: 2,
     files: [],
   },
   {

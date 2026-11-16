@@ -77,6 +77,34 @@ describe("the debug panel's Worktrees group", () => {
     })
   })
 
+  context("on what a work holds", () => {
+    it("counts uncommitted files and unpushed commits on the selected terminal's work, making one where it has none", () => {
+      const { run, work } = setup([])
+      run("Uncommitted files", 1)
+      expect(work(1)).toMatchObject({ uncommitted: 3, safe: false })
+      run("Commits not pushed", 1)
+      expect(work(1)).toMatchObject({ unpushed: 2 })
+    })
+
+    it("holds a merged work unsafe with uncommitted files", () => {
+      const { run, work } = setup([])
+      run("Worktree just made", 1)
+      run("Work merged", 1)
+      expect(work(1)).toMatchObject({ merged: true, uncommitted: 0, safe: true })
+      run("Uncommitted files", 1)
+      expect(work(1)).toMatchObject({ merged: true, uncommitted: 3, safe: false })
+    })
+
+    it("dates its origin's last fetch three hours back", () => {
+      const { run, work } = setup([])
+      const before = Date.now()
+      run("Origin fetched 3 h ago", 1)
+      const ago = before - work(1)!.fetchedAt!
+      expect(ago).toBeGreaterThan(3 * 60 * 60_000 - 60_000)
+      expect(ago).toBeLessThan(3 * 60 * 60_000 + 60_000)
+    })
+  })
+
   it("conflicts the selected work with main", () => {
     const { run, work } = setup([])
     run("Conflict with main", 1)
@@ -134,7 +162,7 @@ describe("the debug panel's Worktrees group", () => {
   it("leaves a worktree with commits main lacks, or whose owner is in History", () => {
     const { run, work, works } = setup([])
     run("Commits main lacks", 1)
-    expect(work(1)).toMatchObject({ files: [], merged: true })
+    expect(work(1)).toMatchObject({ files: [], merged: false })
     run("Owner in History", 2)
     expect(
       works.state.getSnapshot().works.some((each) => each.terminalId?.startsWith("closed-")),

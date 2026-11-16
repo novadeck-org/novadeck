@@ -658,7 +658,7 @@ export class Works {
    */
   async fetch(projectId: string): Promise<void> {
     const mine = this.options.tracked().filter((row) => row.projectId === projectId)
-    const repositories = [...new Set(mine.flatMap(({ commonDir }) => commonDir ?? []))]
+    const repositories = [...new Set(mine.flatMap((row) => row.commonDir ?? []))]
     if (repositories.length === 0 || this.options.fetch === undefined) return
     await this.options.fetch(repositories)
     if (this.stopped) return

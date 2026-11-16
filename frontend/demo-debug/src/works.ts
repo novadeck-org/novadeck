@@ -124,10 +124,34 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Commits main lacks",
-              hint: "Open Worktrees: the selected terminal's worktree has no changed files but two commits main lacks (as a squash-merged one has, or a commit and its revert), so it reads as merged; click its trash button: the dialog says it holds 2 commits the main branch doesn't have, and closing needs your Close worktree",
+              hint: "Open Worktrees: the selected terminal's worktree has no changed files but two commits main lacks (as a squash-merged one has, or a commit and its revert), and does not read as merged; click its trash button: the dialog says it holds 2 commits the main branch doesn't have, and closing needs your Close worktree",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (key) works.commitsMainLacks(placed(workspace(), key), 2)
+              },
+            },
+            {
+              label: "Commits not pushed",
+              hint: "Open Worktrees: the selected terminal's row (made now if it had no worktree) counts 2 commits no remote holds; if its pull request is closed, it is no longer safe to close, so its trash button asks first",
+              run: ({ selected, workspace }) => {
+                const key = selected()
+                if (key) works.setUnpushed(placed(workspace(), key), 2)
+              },
+            },
+            {
+              label: "Uncommitted files",
+              hint: "Open Worktrees: the selected terminal's row (made now if it had no worktree) counts 3 uncommitted files, and is no longer safe to close, merged or not: its trash button asks first",
+              run: ({ selected, workspace }) => {
+                const key = selected()
+                if (key) works.setUncommitted(placed(workspace(), key), 3)
+              },
+            },
+            {
+              label: "Origin fetched 3 h ago",
+              hint: "Open Worktrees: the selected terminal's row (made now if it had no worktree) says its main is from a fetch 3 h ago, where the panel's fetch time shows it",
+              run: ({ selected, workspace }) => {
+                const key = selected()
+                if (key) works.fetchedAgo(placed(workspace(), key), 3 * 60)
               },
             },
             {

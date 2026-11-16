@@ -339,7 +339,10 @@ describe("github", () => {
     })
     it("gives none to a merged or closed pull request", async () => {
       server.use(
-        answer({ m: [pr(1, "MERGED", rolled("FAILURE"))], c: [pr(2, "CLOSED", rolled("SUCCESS"))] }),
+        answer({
+          m: [pr(1, "MERGED", rolled("FAILURE"))],
+          c: [pr(2, "CLOSED", rolled("SUCCESS"))],
+        }),
       )
       const found = mapOf(await github.pullRequests(fetch, token, repo, ["m", "c"]))
       expect([...found.values()].map((one) => "ci" in one)).toEqual([false, false])

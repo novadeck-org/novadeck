@@ -77,21 +77,52 @@ export type WorkPlan = {
   readonly conflicts?: readonly string[]
   // The owner's agent is mid-turn in it, so its trash button waits.
   readonly working?: true
-  // Its pull request on the forge, as the row's mark shows it.
-  readonly pullRequest?: { readonly number: number; readonly state: PullRequest["state"] }
+  // Its pull request on the forge, as the row's mark shows it, and how its checks stand where
+  // it is open (none ran when left out).
+  readonly pullRequest?: {
+    readonly number: number
+    readonly state: PullRequest["state"]
+    readonly ci?: PullRequest["ci"]
+  }
+  // How many paths hold changes not committed: as many as the plan has files, or none for a
+  // merged one, when left out.
+  readonly uncommitted?: number
+  // How many of its commits no remote holds; none when left out.
+  readonly unpushed?: number
 }
 
 // A pull request of the demo's: its page is on the forge's host, which no one opens.
+// Only an open one (or a draft) has checks: none ran when `ci` is left out.
 export const demoPullRequest = (
   number: number,
   state: PullRequest["state"],
   title = `Change ${number}`,
+  ci: NonNullable<PullRequest["ci"]> = "none",
 ): PullRequest => ({
   number,
   state,
   title,
   url: `https://github.com/novadeck-demo/storefront/pull/${number}`,
+  ...((state === "open" || state === "draft") && { ci }),
 })
+
+// Whether closing a work leaves nothing that lives only there, by the runner's rule: merged with
+// nothing uncommitted, or its pull request closed with nothing uncommitted or unpushed; never
+// while its pull request is open or a draft. A merged work ignores `unpushed`: its remote
+// branch is often deleted after a squash merge.
+export const safeOf = (
+  work: Pick<Work, "merged" | "uncommitted" | "unpushed" | "pullRequest">,
+): boolean => {
+  const { merged, uncommitted = 0, unpushed = 0, pullRequest } = work
+  if (pullRequest?.state === "open" || pullRequest?.state === "draft") return false
+  return (
+    (merged && uncommitted === 0) ||
+    (pullRequest?.state === "closed" && uncommitted === 0 && unpushed === 0)
+  )
+}
+
+// The work with its `safe` as its other fields make it.
+const standing = (work: Work): Work => ({ ...work, safe: safeOf(work) })
 
 const fileOf = (plan: FilePlan, changedAt: number): WorkFile => {
   const share = plan.read ? 0 : (plan.unread ?? 1)
@@ -183,32 +214,41 @@ export const worksFromPlans = (
         terminalId: other.terminalId,
       })),
     ]
-    return summed(
-      {
-        root: at.root,
-        terminalId: at.terminalId,
-        projectId: at.projectId,
-        working: plan.working === true,
-        branch: at.branch,
-        base: "main",
-        ...(plan.fetchedMinutesAgo !== undefined && {
-          fetchedAt: now - plan.fetchedMinutesAgo * minute,
-        }),
-        firstSeenAt: now - plan.minutesAgo * minute,
-        merged: plan.merged === true,
-        added: 0,
-        removed: 0,
-        unreadAdded: 0,
-        unreadRemoved: 0,
-        files: [],
-        truncated: false,
-        folder: { repo: "", project: "" },
-        conflicts,
-        ...(plan.pullRequest && {
-          pullRequest: demoPullRequest(plan.pullRequest.number, plan.pullRequest.state),
-        }),
-      },
-      plan.files.map((file) => fileOf(file, now - plan.minutesAgo * minute)),
+    return standing(
+      summed(
+        {
+          root: at.root,
+          terminalId: at.terminalId,
+          projectId: at.projectId,
+          working: plan.working === true,
+          branch: at.branch,
+          base: "main",
+          ...(plan.fetchedMinutesAgo !== undefined && {
+            fetchedAt: now - plan.fetchedMinutesAgo * minute,
+          }),
+          firstSeenAt: now - plan.minutesAgo * minute,
+          merged: plan.merged === true,
+          added: 0,
+          removed: 0,
+          unreadAdded: 0,
+          unreadRemoved: 0,
+          files: [],
+          truncated: false,
+          folder: { repo: "", project: "" },
+          conflicts,
+          uncommitted: plan.uncommitted ?? (plan.merged ? 0 : plan.files.length),
+          unpushed: plan.unpushed ?? 0,
+          ...(plan.pullRequest && {
+            pullRequest: demoPullRequest(
+              plan.pullRequest.number,
+              plan.pullRequest.state,
+              undefined,
+              plan.pullRequest.ci,
+            ),
+          }),
+        },
+        plan.files.map((file) => fileOf(file, now - plan.minutesAgo * minute)),
+      ),
     )
   })
 }
@@ -234,7 +274,11 @@ export const gained = (work: Work, lines: number): Work => {
         unreadRemoved: 0,
         conflict: false,
       }
-  return summed(work, [file, ...rest])
+  return {
+    ...summed(work, [file, ...rest]),
+    // A file of its own is one more not committed.
+    uncommitted: (work.uncommitted ?? 0) + (first ? 0 : 1),
+  }
 }
 
 // It changes `count` more files, all unread, more than the work lists.
@@ -255,6 +299,7 @@ export const spread = (work: Work, count: number): Work => ({
       }
     }),
   ]),
+  uncommitted: (work.uncommitted ?? 0) + count,
   // So many files that the work lists only some: the row says "and more".
   truncated: true,
 })
@@ -290,9 +335,11 @@ const withConflict = (work: Work, other: Work): Work => {
 
 // Nothing differs from main any more, and the worktree has commits of its own: merged into it.
 // The worktree stays.
+// Its own commits stay unpushed, as after a squash merge deleted the remote branch.
 export const merged = (work: Work): Work => ({
   ...emptied(work),
   merged: true,
+  unpushed: 1,
 })
 
 // Nothing differs from main, as in a worktree just made.
@@ -301,6 +348,8 @@ export const emptied = (work: Work): Work => ({
   merged: false,
   conflicts: [],
   truncated: false,
+  uncommitted: 0,
+  unpushed: 0,
 })
 
 // It no longer conflicts with anything.
@@ -356,9 +405,18 @@ export type DemoWorksControl = {
   // src/checkout/PaymentStep.tsx to src/checkout/PaymentForm.tsx (which Moth modifies), or no
   // longer.
   readonly previewScenario: (which: PreviewScenario, on: boolean) => void
-  // The terminal's worktree differs from nothing but has `count` commits main lacks, as one
-  // squash-merged does.
+  // The terminal's worktree differs from nothing but has `count` commits main lacks (and no
+  // remote holds); it is not merged, so closing it asks.
   readonly commitsMainLacks: (at: Placed, count: number) => void
+  // The work's pull request has its checks in this state (an open one made where it had none
+  // or was done).
+  readonly setCi: (root: string, ci: NonNullable<PullRequest["ci"]>) => void
+  // The terminal's worktree holds `count` uncommitted paths, whatever else it is.
+  readonly setUncommitted: (at: Placed, count: number) => void
+  // The terminal's worktree has `count` commits no remote holds.
+  readonly setUnpushed: (at: Placed, count: number) => void
+  // The terminal's worktree's origin was last fetched `minutes` ago.
+  readonly fetchedAgo: (at: Placed, minutes: number) => void
   // The owner's agent is mid-turn in the terminal's first worktree, or no longer.
   readonly setWorking: (terminalId: string, working: boolean) => void
   // The next close is refused, as when git status couldn't be read.
@@ -428,7 +486,7 @@ export const createDemoWorks = (
   const change = (root: string, step: (work: Work) => Work): void => {
     state.update((current) => ({
       ...current,
-      works: current.works.map((work) => (work.root === root ? step(work) : work)),
+      works: current.works.map((work) => (work.root === root ? standing(step(work)) : work)),
     }))
   }
   const find = (root: string): Work | undefined =>
@@ -454,6 +512,9 @@ export const createDemoWorks = (
       truncated: false,
       folder: { repo: "", project: "" },
       conflicts: [],
+      uncommitted: 0,
+      unpushed: 0,
+      safe: false,
     }
     state.update((current) => ({ ...current, works: [...current.works, fresh] }))
     made.update((counts) => madeOne(counts, at.projectId))
@@ -500,6 +561,16 @@ export const createDemoWorks = (
       // The terminal the panel names: the owner's, or the selected one's where the owner is closed.
       const on = terminalId ?? work?.terminalId ?? undefined
       return work && show && on !== undefined ? show(work, on) : Promise.resolve(null)
+    },
+    // Origin is fetched at once in the demo: its works' fetch time moves to now.
+    fetch: async (projectId) => {
+      const at = now()
+      state.update((current) => ({
+        ...current,
+        works: current.works.map((work) =>
+          work.projectId === projectId ? { ...work, fetchedAt: at } : work,
+        ),
+      }))
     },
     preview: async (projectId, path): Promise<WorkPreview> =>
       preview
@@ -581,13 +652,17 @@ export const createDemoWorks = (
           ? [`${commits} commit${commits === 1 ? "" : "s"} the main branch doesn't have`]
           : []),
       ].join(" and ")
-      if (holds !== "" && !force) return { closed: false, holds }
+      // A safe one closes without asking, as the runner's does: what it holds lives elsewhere too.
+      const safe = !force && work.safe === true
+      if (holds !== "" && !force && !safe) return { closed: false, holds }
       unmerged.delete(root)
       state.update((current) => drop(current, root))
       return {
         closed: true,
-        ...(holds !== "" && { kept: `refs/novadeck/kept/${slug(work.branch ?? "detached")}-work` }),
-        branchDeleted: holds === "",
+        ...(holds !== "" &&
+          !safe && { kept: `refs/novadeck/kept/${slug(work.branch ?? "detached")}-work` }),
+        // The branch stays where its commits aren't in main: a closed pull request's.
+        branchDeleted: holds === "" || (safe && files === 0),
       }
     },
     gain: (at, lines = turnLines) => {
@@ -618,7 +693,7 @@ export const createDemoWorks = (
         ...current,
         works: current.works.map((work) =>
           work.root === root
-            ? merged(work)
+            ? standing(merged(work))
             : {
                 ...work,
                 conflicts: work.conflicts.filter(
@@ -645,16 +720,44 @@ export const createDemoWorks = (
       })),
     commitsMainLacks: (at, count) => {
       const { root } = ensure(at)
-      change(root, merged)
+      // Not read as merged, so closing it asks: a merged one with nothing uncommitted is safe.
+      change(root, (work) => ({ ...emptied(work), unpushed: count }))
       unmerged.set(root, count)
     },
     setPullRequest: (root, pullState) =>
       change(root, ({ pullRequest, ...work }) => ({
         ...work,
         ...(pullState && {
-          pullRequest: demoPullRequest(pullRequest?.number ?? 812, pullState, pullRequest?.title),
+          pullRequest: demoPullRequest(
+            pullRequest?.number ?? 812,
+            pullState,
+            pullRequest?.title,
+            pullRequest?.ci,
+          ),
         }),
       })),
+    setCi: (root, ci) =>
+      change(root, ({ pullRequest, ...work }) => ({
+        ...work,
+        pullRequest: demoPullRequest(
+          pullRequest?.number ?? 812,
+          pullRequest?.state === "draft" ? "draft" : "open",
+          pullRequest?.title,
+          ci,
+        ),
+      })),
+    setUncommitted: (at, count) => {
+      const { root } = ensure(at)
+      change(root, (work) => ({ ...work, uncommitted: count }))
+    },
+    setUnpushed: (at, count) => {
+      const { root } = ensure(at)
+      change(root, (work) => ({ ...work, unpushed: count }))
+    },
+    fetchedAgo: (at, minutes) => {
+      const { root } = ensure(at)
+      change(root, (work) => ({ ...work, fetchedAt: now() - minutes * minute }))
+    },
     orphan: (root) => change(root, (work) => ({ ...work, terminalId: null, working: false })),
     setWorking: (terminalId, working) => {
       const own = ownedBy(terminalId)

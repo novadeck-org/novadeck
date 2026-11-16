@@ -1,6 +1,16 @@
 import { choose, time, type Candidate } from "./choose.js"
 import { failure, offline, parse } from "./cli.js"
-import type { Ci, Fetch, Forge, Problem, PullRequest, Remote, Repository, Run, Token } from "./forge.js"
+import type {
+  Ci,
+  Fetch,
+  Forge,
+  Problem,
+  PullRequest,
+  Remote,
+  Repository,
+  Run,
+  Token,
+} from "./forge.js"
 import { headers, pooled, record, send } from "./http.js"
 
 const defaultHost = "dev.azure.com"
@@ -184,7 +194,8 @@ const ciOf = async (
   const signals: Ci[] = []
   let complete = true
   const listOf = (answer: typeof policies): unknown[] | undefined => {
-    const list = answer !== undefined && "body" in answer ? record(answer.body)?.["value"] : undefined
+    const list =
+      answer !== undefined && "body" in answer ? record(answer.body)?.["value"] : undefined
     return Array.isArray(list) ? list : undefined
   }
   const evaluations = listOf(policies)

@@ -1,6 +1,17 @@
 import { choose, time, type Candidate } from "./choose.js"
 import { failure, offline, parse } from "./cli.js"
-import type { Ci, Fetch, Forge, Problem, PullRequest, Ran, Remote, Repository, Run, Token } from "./forge.js"
+import type {
+  Ci,
+  Fetch,
+  Forge,
+  Problem,
+  PullRequest,
+  Ran,
+  Remote,
+  Repository,
+  Run,
+  Token,
+} from "./forge.js"
 import { headers, pooled, record, send } from "./http.js"
 
 const defaultHost = "gitlab.com"
