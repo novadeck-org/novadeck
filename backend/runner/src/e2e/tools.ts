@@ -15,8 +15,8 @@ type Classes = { readonly asking: readonly string[]; readonly other: readonly st
 
 const lists: { readonly [agent in AgentName]: Classes } = {
   // Recorded from Claude Code 2.1.304 and the latest of 2026-10-29 (Monitor), and checked on
-  // 2.1.316 and 2.1.325 (the pin, 2026-11-16); on Windows it offers Glob and Grep too (seen in CI,
-  // 2026-10-29).
+  // 2.1.316, 2.1.325 and 2.1.326 (the pin, 2026-11-17); on Windows it offers Glob and Grep too
+  // (seen in CI, 2026-10-29).
   // EnterPlanMode and EnterWorktree ask the person to approve them, through its ordinary permission prompt, which Novadeck reads for
   // every tool; they are not questions of their own.
   claude: {

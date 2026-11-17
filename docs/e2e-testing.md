@@ -162,7 +162,7 @@ again without it. These tests skip anywhere else. Its traces upload as
 
 | Harness     | Published as                                                                               | Version |
 | ----------- | ------------------------------------------------------------------------------------------ | ------- |
-| Claude Code | npm, `@anthropic-ai/claude-code`                                                           | 2.1.325 |
+| Claude Code | npm, `@anthropic-ai/claude-code`                                                           | 2.1.326 |
 | Codex       | npm, `@openai/codex`                                                                       | 0.169.0 |
 | Antigravity | an archive, by its address and SHA-512 (Linux, macOS, Windows; x86-64, and arm64 on macOS) | 1.5.9   |
 
