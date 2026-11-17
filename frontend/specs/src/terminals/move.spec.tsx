@@ -157,6 +157,19 @@ describe("Moving a terminal to another session", () => {
       expect(terminalTabNames()).toContain("Dev server")
     })
 
+    it("marks a session by what its agents are doing", async () => {
+      const { others } = await openWithSessions()
+      await moveMenu(worker)
+      await page.getByRole("menuitem", { name: named(others[0]!) }).click()
+      await page.getByRole("button", { name: "Move all 2" }).click()
+      await expect.element(terminalTab(lead)).not.toBeInTheDocument()
+      await moveMenu("Dev server")
+      const row = page.getByRole("menuitem", { name: named(others[0]!) })
+      await expect
+        .poll(() => row.element().querySelector("[data-project-status]") !== null)
+        .toBe(true)
+    })
+
     it("keeps the teammate where it is when the question is cancelled", async () => {
       const { others } = await openWithSessions()
       await moveMenu(worker)

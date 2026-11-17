@@ -270,6 +270,29 @@ describe("workspace render scope", () => {
     })
   })
 
+  context("when one terminal's agent starts working", () => {
+    // Canvas places its windows again on any terminal's news, which once built every window
+    // afresh, and every terminal's menu read the sessions' marks, which change as agents work:
+    // with many agents, each status change cost every tab and window.
+    it("draws no other terminal's tab or window again", async () => {
+      const { services } = await open()
+      const target = firstTarget(services)
+      const seen = rendersDuring(() =>
+        services.workspace.dispatch({
+          type: "terminal/status",
+          target,
+          terminalId: first,
+          status: { state: "running", agent: { working: true } },
+        }),
+      )
+      expect(seen[`frame ${first}`]).toBeGreaterThan(0)
+      const others = Object.keys(seen).filter(
+        (key) => (key.startsWith("frame ") || key.startsWith("tab ")) && !key.endsWith(first),
+      )
+      expect(others).toEqual([])
+    })
+  })
+
   context("when an agent's status line reports how full its context is", () => {
     // Each terminal's agent runs on its own model, which names its stats.
     const usage = (model: string, occupied: number): AgentUsage => ({

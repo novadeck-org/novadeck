@@ -4,7 +4,6 @@ import { activeProject } from "@novadeck/core/state"
 import type { Tile, WorkspaceSession } from "@novadeck/core/types"
 import { createContext, useContext, useMemo, useRef, type ReactNode } from "react"
 
-import type { ProjectStatus } from "../projects/project-status"
 import type { SessionsMove } from "../sidebar/SessionsPanel"
 import { moveSessions, type MoveTarget } from "../terminals/move-state"
 import type { TabsAway } from "../terminals/TerminalTabs"
@@ -16,14 +15,13 @@ import { useSessionMarks } from "./useSessionMarks"
 // How many sessions a terminal's menu lists before "All sessions…".
 export const moveMenuSessions = 8
 
-// A session as a move's menu shows it: its name, how many terminals it has, when the person
-// was last there and the mark its terminals make.
+// A session as a move's menu shows it: its name, how many terminals it has and when the person
+// was last there. The mark its terminals make is read by the menu's own row (SessionMark).
 type MoveSession = {
   readonly id: string
   readonly name: string
   readonly count: number
   readonly visitedAt: number | null
-  readonly status: ProjectStatus | undefined
 }
 
 const MoveSessionsContext = createContext<readonly MoveSession[]>([])
@@ -41,14 +39,15 @@ const sameSessions = (a: readonly WorkspaceSession[], b: readonly WorkspaceSessi
     )
   })
 
-// The open project's sessions for every terminal's menu, read once for them all, as each
-// tab and header asking on its own would read the marks again per terminal.
+// The open project's sessions for every terminal's menu, read once for them all. Every tab and
+// window header reads it, so it holds nothing that changes as agents work: their marks are
+// read by the menu's rows (SessionMark), which exist only while a menu is open. With them in
+// here, each agent starting or stopping drew every tab and window again.
 export const MoveSessionsProvider = ({
   children,
 }: {
   readonly children: ReactNode
 }): React.JSX.Element => {
-  const marks = useSessionMarks()
   const sessions = useWorkspaceState((workspace) => activeProject(workspace)!.history, sameSessions)
   const value = useMemo(
     () =>
@@ -57,11 +56,25 @@ export const MoveSessionsProvider = ({
         name: session.name,
         count: session.state.roster.terminals.length,
         visitedAt: session.visitedAt,
-        status: marks[session.id]?.status,
       })),
-    [sessions, marks],
+    [sessions],
   )
   return <MoveSessionsContext.Provider value={value}>{children}</MoveSessionsContext.Provider>
+}
+
+// The mark a session's terminals make, in a move's menu.
+const SessionMark = ({ id }: { readonly id: string }): React.JSX.Element | null => {
+  const status = useSessionMarks()[id]?.status
+  if (!status) return null
+  return (
+    <span
+      className="session-status flex shrink-0 items-center"
+      data-project-status={status}
+      aria-hidden="true"
+    >
+      <span className="project-status-mark" />
+    </span>
+  )
 }
 
 // What a terminal's menu offers to move it: only a terminal, not a window, on a backend that
@@ -84,15 +97,7 @@ export const useMoveTo = (tile: Tile): MoveTo | undefined => {
         id: session.id,
         name: session.name,
         count: session.count,
-        mark: session.status && (
-          <span
-            className="session-status flex shrink-0 items-center"
-            data-project-status={session.status}
-            aria-hidden="true"
-          >
-            <span className="project-status-mark" />
-          </span>
-        ),
+        mark: <SessionMark id={session.id} />,
       })),
       more: others.length > moveMenuSessions,
       team,
