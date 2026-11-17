@@ -53,7 +53,7 @@ import {
 import type { OpenPolicy } from "./options.js"
 import { peerOf } from "./peers-host.js"
 import type { Record } from "./record.js"
-import { launchFor, resumeRefusal, type Claims } from "./resumes.js"
+import { folderFor, launchFor, resumeRefusal, type Claims } from "./resumes.js"
 import { nobodyToRun, runNotice, waitingToRun } from "./runs.js"
 import { shellBusy } from "./sampling.js"
 import type { Sleeper, Sleepers } from "./sleepers.js"
@@ -102,6 +102,8 @@ export type CallsHost = LeadsHost &
     readonly sleepers: () => Sleepers
     /** Every terminal's sessions, running or saved, which a resume reads its kept launch flags from. */
     readonly rows: () => Iterable<{ readonly agents: Record["agents"] }>
+    /** History's closed terminals' sessions, which a resume reads its session's folder from too. */
+    readonly closedRows: () => Iterable<{ readonly agents: Record["agents"] }>
     /** Closes a terminal for good, the person's close: one with no shell is forgotten as its row. */
     readonly close: (terminalId: string, closedBy: string | null) => Promise<void>
     /** Where a harness lives on this machine, which says how it may start with a task. */
@@ -257,11 +259,27 @@ export class Calls {
           "isn't loaded, so no terminal opened.",
       )
     const folder = request.cwd ?? "."
-    const cwd = await this.host
-      .launcher()
-      .directory(resolvePath(record.summary.cwd, folder))
-      .catch(() => undefined)
-    if (cwd === undefined) return refused(`${folder} isn't a folder a terminal can open in.`)
+    // A resume it names no folder for runs where its session bound, while that is there, as a
+    // restore's does (`resumeFolder`); else in the caller's folder.
+    const own =
+      request.agent !== undefined && request.resume !== undefined && request.cwd === undefined
+        ? folderFor(
+            [...this.host.rows(), ...this.host.closedRows()],
+            request.agent,
+            request.resume,
+            this.host.worktrees()?.root,
+          )
+        : undefined
+    const at = (path: string) =>
+      this.host
+        .launcher()
+        .directory(path)
+        .catch(() => undefined)
+    const cwd =
+      (own === undefined ? undefined : await at(own)) ??
+      (await at(resolvePath(record.summary.cwd, folder)))
+    if (cwd === undefined)
+      return refused(`${request.cwd ?? record.summary.cwd} isn't a folder a terminal can open in.`)
     // A command is the person's to approve: with no one to ask, or one question already
     // waiting from this terminal, nothing is charged or asked.
     if (request.command !== undefined) {

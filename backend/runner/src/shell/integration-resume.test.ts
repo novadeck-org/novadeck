@@ -81,6 +81,87 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(after).not.toMatch(/\d+ +claude/)
     })
 
+    // A Claude Code session reports where its Bash tool `cd`ed (a compact's SessionStart), and
+    // the terminal's folder follows; its own stays where it bound, which Claude Code keys
+    // its project, memory and instructions by.
+    it("resumes the agent where its session bound, not where its terminal was last", async ({
+      shell,
+    }) => {
+      writeFileSync(join(shell.home, ".bashrc"), 'export PATH="$HOME/bin:$PATH"\n')
+      const bin = join(shell.home, "bin")
+      mkdirSync(bin, { recursive: true })
+      // Each run counted, so a restart's shows apart from the first's.
+      writeFileSync(
+        join(bin, "claude"),
+        '#!/bin/sh\nn=$(($(cat "$HOME/runs" 2>/dev/null || echo 0) + 1)); echo $n > "$HOME/runs"\necho "claude $n in [$PWD] $*"\nread line\n',
+        { mode: 0o755 },
+      )
+      const project = join(shell.home, "project")
+      const below = join(project, "data", "raw")
+      mkdirSync(below, { recursive: true })
+      const id = randomUUID()
+      shell.store.saveTerminal({
+        id,
+        sessionId: shell.sessionId,
+        cwd: below,
+        handle: shell.store.giveHandle(shell.sessionId),
+        naming: { person: null, opener: null, murmur: null, own: null, summary: null },
+        openedBy: null,
+        ledBy: null,
+        command: null,
+        lastProgram: null,
+        work: null,
+        agents: { claude: { sessionId: "abc-1", seq: 1, cwd: project } },
+        promptedAt: null,
+      })
+      const manager = shell.manager()
+      await create(manager, shell, { id, restore: true, resume: "claude" })
+      await shell.until(manager, id, `claude 1 in [${project}] --resume abc-1`)
+
+      // Restarted after its shell went elsewhere and ended, it resumes there again.
+      const next = shell.watch(manager)
+      manager.write({ terminalId: id, data: `\rcd '${below}'\r` }, "owner")
+      await next((summary) => summary.id === id && summary.cwd === below)
+      manager.write({ terminalId: id, data: "exit\r" }, "owner")
+      await next((summary) => summary.id === id && summary.exit !== null)
+      await manager.restart({ terminalId: id, cols: 100, rows: 20, resume: "claude" }, "owner")
+      await shell.until(manager, id, `claude 2 in [${project}] --resume abc-1`)
+    })
+
+    it("resumes the agent where its terminal was last once its session's folder is gone", async ({
+      shell,
+    }) => {
+      writeFileSync(join(shell.home, ".bashrc"), 'export PATH="$HOME/bin:$PATH"\n')
+      const bin = join(shell.home, "bin")
+      mkdirSync(bin, { recursive: true })
+      // Each run counted, so a restart's shows apart from the first's.
+      writeFileSync(
+        join(bin, "claude"),
+        '#!/bin/sh\nn=$(($(cat "$HOME/runs" 2>/dev/null || echo 0) + 1)); echo $n > "$HOME/runs"\necho "claude $n in [$PWD] $*"\nread line\n',
+        { mode: 0o755 },
+      )
+      const last = join(shell.home, "last")
+      mkdirSync(last)
+      const id = randomUUID()
+      shell.store.saveTerminal({
+        id,
+        sessionId: shell.sessionId,
+        cwd: last,
+        handle: shell.store.giveHandle(shell.sessionId),
+        naming: { person: null, opener: null, murmur: null, own: null, summary: null },
+        openedBy: null,
+        ledBy: null,
+        command: null,
+        lastProgram: null,
+        work: null,
+        agents: { claude: { sessionId: "abc-1", seq: 1, cwd: join(shell.home, "gone") } },
+        promptedAt: null,
+      })
+      const manager = shell.manager()
+      await create(manager, shell, { id, restore: true, resume: "claude" })
+      await shell.until(manager, id, `claude 1 in [${last}] --resume abc-1`)
+    })
+
     it("starts a new terminal's command at the first prompt, as if typed there", async ({
       shell,
     }) => {

@@ -7,8 +7,10 @@ import { savedSession } from "./binding/standing.js"
 import {
   cancelResume,
   Claims,
+  folderFor,
   launchFor,
   restartedTask,
+  resumeFolder,
   resumeNote,
   resumeRefusal,
   sessionHeldElsewhere,
@@ -195,6 +197,53 @@ describe("the session a restore asks to resume", () => {
       "this shell can't run the command",
     )
     expect(resumeNote(undefined, undefined, false)).toBeUndefined()
+  })
+})
+
+describe("the folder a resume starts in", () => {
+  const root = "/home/x/.novadeck/worktrees"
+  const saved = {
+    agents: {
+      claude: { sessionId: "c-1", seq: 1, cwd: "/home/x/project" },
+      agy: { sessionId: "a-1", seq: 1, cwd: root },
+      codex: { sessionId: "x-1", seq: 1 },
+    },
+  }
+
+  it("is where the resumed session bound", () => {
+    expect(resumeFolder(saved, { resume: "claude" }, root)).toBe("/home/x/project")
+    expect(resumeFolder(saved, { resume: "claude" }, undefined)).toBe("/home/x/project")
+  })
+
+  it("is none for no resume, a command of its own, a session with no folder, or the bare worktrees folder", () => {
+    expect(resumeFolder(saved, {}, root)).toBeUndefined()
+    expect(resumeFolder(saved, { resume: "claude", command: "claude" }, root)).toBeUndefined()
+    expect(resumeFolder(saved, { resume: "codex" }, root)).toBeUndefined()
+    expect(resumeFolder({ agents: {} }, { resume: "claude" }, root)).toBeUndefined()
+    expect(resumeFolder(undefined, { resume: "claude" }, root)).toBeUndefined()
+    // An Antigravity session saved as the folder of agents' worktrees, where none works.
+    expect(resumeFolder(saved, { resume: "agy" }, root)).toBeUndefined()
+  })
+})
+
+describe("the folder an agent's resume of a past session starts in", () => {
+  const root = "/home/x/.novadeck/worktrees"
+  const report = (sessionId: string, seq: number, cwd?: string) => ({
+    agents: { claude: { sessionId, seq, ...(cwd !== undefined && { cwd }) } },
+  })
+
+  it("is where the session bound, as its newest report keeps it", () => {
+    const rows = [report("s", 1, "/old"), report("s", 3, "/new"), report("t", 9, "/other")]
+    expect(folderFor(rows, "claude", "s", root)).toBe("/new")
+    // A newer one that names none, as older reports didn't, leaves the folder one names.
+    expect(folderFor([report("s", 1, "/old"), report("s", 3)], "claude", "s", root)).toBe("/old")
+  })
+
+  it("is none for a session no row has, one with no folder, or the bare worktrees folder", () => {
+    expect(folderFor([report("t", 1, "/a")], "claude", "s", root)).toBeUndefined()
+    expect(folderFor([report("s", 1)], "claude", "s", root)).toBeUndefined()
+    expect(folderFor([report("s", 1, root)], "claude", "s", root)).toBeUndefined()
+    expect(folderFor([report("s", 1, "/a")], "codex", "s", root)).toBeUndefined()
   })
 })
 

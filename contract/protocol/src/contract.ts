@@ -181,7 +181,8 @@ export const contract = {
     // Every terminal of the session, running or saved to restore, oldest first.
     list: procedure.input(z.strictObject({ sessionId: id })).output(z.array(terminalSummary)),
     // `restore` starts where the runner's saved record of this terminal left off: in its
-    // last directory, showing its saved transcript before the shell's output. `resume`
+    // last directory (or, resuming, where that session bound), showing its saved transcript
+    // before the shell's output. `resume`
     // names the agent that ran there: while it is connected, the runner resumes the
     // session it last reported in this terminal, instead of showing the transcript.
     // A session resumes in one terminal only, never beside another terminal running it.

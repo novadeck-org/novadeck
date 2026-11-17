@@ -168,6 +168,9 @@ export const Composer = ({
     if (!focusWanted.current?.()) input.current.focus({ preventScroll: true })
     onInputFocused()
   }, [focusInput, onInputFocused])
+  // What the box says while empty, which it is sized to as to a draft.
+  const placeholder =
+    mode === "reply" || mode === "waiting" ? `Reply to ${label}'s question…` : `Message ${label}…`
   // The box grows with its text, up to what its recipe allows.
   useLayoutEffect(() => {
     const field = input.current
@@ -183,7 +186,23 @@ export const Composer = ({
       caretAt.current = null
     }
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Sized to the text it holds.
-  }, [draft])
+  }, [draft, placeholder])
+  // And to its width: a chat built while hidden measures its text, the placeholder at least,
+  // wrapped a cell to a line, so the box sizes again once it has its width, and as that changes.
+  useEffect(() => {
+    const field = input.current
+    if (!field || typeof ResizeObserver === "undefined") return
+    // The first report sizes it too, whatever width the text was measured at.
+    let width = -1
+    const watch = new ResizeObserver(() => {
+      if (field.clientWidth === width) return
+      width = field.clientWidth
+      field.style.height = "auto"
+      field.style.height = `${field.scrollHeight}px`
+    })
+    watch.observe(field)
+    return () => watch.disconnect()
+  }, [])
   // Sending answers the agent's question with the words, until the person cancels.
   const replying = mode === "reply" || mode === "waiting"
   // The question a reply was written for went: the words wait for an edit before they go.
@@ -457,7 +476,7 @@ export const Composer = ({
           data-terminal-input
           className="chat-input"
           aria-label={`Message ${label}`}
-          placeholder={replying ? `Reply to ${label}'s question…` : `Message ${label}…`}
+          placeholder={placeholder}
           rows={1}
           value={draft}
           aria-describedby={[

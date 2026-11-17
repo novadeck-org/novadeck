@@ -1190,7 +1190,8 @@ export const runnerBackend = (
 
   // Starts a fresh shell for the terminal, keeping its id: a restart when the runner
   // still has the exited record, a create that restores the runner's saved record when
-  // it does not, in the terminal's last directory. Its surface attaches again.
+  // it does not, in the terminal's last directory (or, resuming, where its session bound).
+  // Its surface attaches again.
   //
   // Every replacement shell starts here, while the terminal's `sleeping` status or its
   // `restoredProcess` still names the program it lost, which resumes when the runner knows

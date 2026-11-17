@@ -151,10 +151,6 @@
   pointer-events: none;
   user-select: none;
 }
-/* Zen's dock floats over the window's bottom edge. */
-.workspace[data-zen="true"] .terminal-focused .chat {
-  padding-bottom: 5rem;
-}
 .chat-main {
   position: relative;
   flex: 1;

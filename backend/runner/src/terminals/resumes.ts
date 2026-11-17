@@ -8,6 +8,7 @@ import { DomainError } from "../errors.js"
 import { resumeAvailability, type UnavailableReason } from "../harnesses/eligibility.js"
 import { harnesses } from "../harnesses/registry.js"
 import { agentLabel } from "../messaging/messages.js"
+import { sessionFolder } from "../worktrees/root.js"
 import { expectedAgent } from "./commands.js"
 import type { Record } from "./record.js"
 import { hasRun, type SavedTerminal } from "./saved-terminals.js"
@@ -159,6 +160,46 @@ export const sessionHeldElsewhere = (
     if (other.root?.agent === agent && other.root.sessionId === session) return true
   }
   return false
+}
+
+/**
+ * The folder a terminal resuming its agent's session (`resume`, with no `command` of its own,
+ * as `Claims.judge` reads it) starts in: where that session bound, which its harness keys the
+ * conversation's project by, or undefined where it has none (or only the bare folder of agents'
+ * worktrees, `root`). Not the terminal's own last folder, which follows every report's: Claude
+ * Code's Bash tool keeps a `cd`, and its compact's SessionStart names that folder, so a
+ * session resumed there would take that folder's project, memory and instructions (probed
+ * 2026-11-17, e2e/probes/session-cwd.e2e.ts; Codex's and Antigravity's commands keep none).
+ */
+export const resumeFolder = (
+  saved: Pick<SavedTerminal, "agents"> | undefined,
+  {
+    resume,
+    command,
+  }: { readonly resume?: AgentName | undefined; readonly command?: string | undefined },
+  root: string | undefined,
+): string | undefined =>
+  resume && command === undefined ? sessionFolder(saved?.agents[resume]?.cwd, root) : undefined
+
+/**
+ * The folder `session` of `agent` bound in, as any of the terminals' rows kept it, live, saved
+ * or closed in History (the newest report of it that names one): where an agent's `open_agent`
+ * resumes it when it names no folder of its own (`resumeFolder` says why). Undefined where none
+ * kept one, or kept only the bare folder of agents' worktrees, `root`.
+ */
+export const folderFor = (
+  rows: Iterable<Pick<SavedTerminal, "agents">>,
+  agent: AgentName,
+  session: string,
+  root: string | undefined,
+): string | undefined => {
+  let found: { readonly seq: number; readonly cwd: string } | undefined
+  for (const row of rows) {
+    const report = row.agents[agent]
+    if (report?.sessionId !== session || report.cwd === undefined) continue
+    if (!found || report.seq > found.seq) found = { seq: report.seq, cwd: report.cwd }
+  }
+  return sessionFolder(found?.cwd, root)
 }
 
 /**
