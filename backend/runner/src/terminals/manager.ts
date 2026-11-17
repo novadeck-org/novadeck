@@ -80,6 +80,7 @@ import {
   Claims,
   endExpecting,
   restartedTask,
+  resumeFolder,
   resumeNote,
   sessionHeldElsewhere,
 } from "./resumes.js"
@@ -780,8 +781,11 @@ export class Terminals {
       // Read beside the waits below, which it outlasts on Windows; see `Launcher.environment`.
       const environment = this.launcher.environment()
       const origin = await this.launcher.directory(input.cwd)
-      // A saved directory that is gone falls back to the one asked for.
-      const cwd = saved ? await this.launcher.directory(saved.cwd).catch(() => origin) : origin
+      // A saved directory that is gone falls back to the one asked for; one resuming its
+      // agent starts where that session bound, while it is there (`resumeFolder`).
+      const own = resumeFolder(saved, input, this.options.worktrees?.service.root)
+      const last = () => (saved ? this.launcher.directory(saved.cwd).catch(() => origin) : origin)
+      const cwd = own ? await this.launcher.directory(own).catch(last) : await last()
       const shell = await this.launcher.executable(cwd, environment)
       const integration = await this.launcher.shellIntegration()
       const connected = await this.launcher.connected(input.resume)
@@ -1183,10 +1187,14 @@ export class Terminals {
         check,
         prepare: async () => {
           const environment = this.launcher.environment()
-          // The last directory, or where the terminal started once that is gone.
-          const cwd = await this.launcher
-            .directory(record.summary.cwd)
-            .catch(() => this.launcher.directory(record.origin))
+          // The last directory, or where the terminal started once that is gone; one resuming
+          // its agent starts where that session bound, while it is there (`resumeFolder`).
+          const own = resumeFolder(record, input, this.options.worktrees?.service.root)
+          const last = () =>
+            this.launcher
+              .directory(record.summary.cwd)
+              .catch(() => this.launcher.directory(record.origin))
+          const cwd = own ? await this.launcher.directory(own).catch(last) : await last()
           const shell = await this.launcher.executable(cwd, environment)
           const integration = await this.launcher.shellIntegration()
           const connected = await this.launcher.connected(input.resume)

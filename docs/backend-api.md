@@ -882,7 +882,16 @@ one from an earlier runner.
   connected, the runner builds the command that resumes the session it last reported
   in this terminal (`claude --resume <id>`, `codex resume <id>`,
   `agy --conversation <id>`) and the fresh shell runs it once as it starts, and then no
-  transcript is shown. The runner writes the command to a file of its own, readable
+  transcript is shown. That shell starts in the folder where the session bound, while it
+  exists (then the terminal's last directory), not the last directory, which follows each
+  report's `cwd`: Claude Code's Bash tool keeps a `cd`, and a compact's `SessionStart`
+  names it, so the terminal's folder moves there, and a session resumed in it would take
+  that folder's project, memory and instructions (probed 2026-11-17,
+  `e2e/probes/session-cwd.e2e.ts`; Codex's and Antigravity's commands keep no `cd`). A
+  saved session folder that is the bare folder of agents' worktrees counts as none
+  (`sessionFolder`), as in History; a session saved with no folder of its own, as older
+  ones were, resumes in the last directory, as before. `terminals.restart({ …, resume })`
+  and a resting agent's wake start there too. The runner writes the command to a file of its own, readable
   by the user only, and gives its path to the shell in `NOVADECK_RESUME`. The
   integration unsets the variable, reads and removes the file, and runs the command:
   bash, zsh and fish at the first prompt, after the user's startup files and prompt

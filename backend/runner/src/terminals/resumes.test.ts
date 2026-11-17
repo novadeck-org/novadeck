@@ -9,6 +9,7 @@ import {
   Claims,
   launchFor,
   restartedTask,
+  resumeFolder,
   resumeNote,
   resumeRefusal,
   sessionHeldElsewhere,
@@ -195,6 +196,32 @@ describe("the session a restore asks to resume", () => {
       "this shell can't run the command",
     )
     expect(resumeNote(undefined, undefined, false)).toBeUndefined()
+  })
+})
+
+describe("the folder a resume starts in", () => {
+  const root = "/home/x/.novadeck/worktrees"
+  const saved = {
+    agents: {
+      claude: { sessionId: "c-1", seq: 1, cwd: "/home/x/project" },
+      agy: { sessionId: "a-1", seq: 1, cwd: root },
+      codex: { sessionId: "x-1", seq: 1 },
+    },
+  }
+
+  it("is where the resumed session bound", () => {
+    expect(resumeFolder(saved, { resume: "claude" }, root)).toBe("/home/x/project")
+    expect(resumeFolder(saved, { resume: "claude" }, undefined)).toBe("/home/x/project")
+  })
+
+  it("is none for no resume, a command of its own, a session with no folder, or the bare worktrees folder", () => {
+    expect(resumeFolder(saved, {}, root)).toBeUndefined()
+    expect(resumeFolder(saved, { resume: "claude", command: "claude" }, root)).toBeUndefined()
+    expect(resumeFolder(saved, { resume: "codex" }, root)).toBeUndefined()
+    expect(resumeFolder({ agents: {} }, { resume: "claude" }, root)).toBeUndefined()
+    expect(resumeFolder(undefined, { resume: "claude" }, root)).toBeUndefined()
+    // An Antigravity session saved as the folder of agents' worktrees, where none works.
+    expect(resumeFolder(saved, { resume: "agy" }, root)).toBeUndefined()
   })
 })
 
