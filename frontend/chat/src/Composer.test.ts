@@ -444,6 +444,10 @@ describe("the composer's transmit pulse", () => {
 })
 
 describe("the composer's box height", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it("sizes again once a chat built while hidden has its width", () => {
     const watched: (() => void)[] = []
     vi.stubGlobal(

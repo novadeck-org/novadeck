@@ -168,6 +168,9 @@ export const Composer = ({
     if (!focusWanted.current?.()) input.current.focus({ preventScroll: true })
     onInputFocused()
   }, [focusInput, onInputFocused])
+  // What the box says while empty, which it is sized to as to a draft.
+  const placeholder =
+    mode === "reply" || mode === "waiting" ? `Reply to ${label}'s question…` : `Message ${label}…`
   // The box grows with its text, up to what its recipe allows.
   useLayoutEffect(() => {
     const field = input.current
@@ -183,7 +186,7 @@ export const Composer = ({
       caretAt.current = null
     }
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Sized to the text it holds.
-  }, [draft])
+  }, [draft, placeholder])
   // And to its width: a chat built while hidden measures its text, the placeholder at least,
   // wrapped a cell to a line, so the box sizes again once it has its width, and as that changes.
   useEffect(() => {
@@ -473,7 +476,7 @@ export const Composer = ({
           data-terminal-input
           className="chat-input"
           aria-label={`Message ${label}`}
-          placeholder={replying ? `Reply to ${label}'s question…` : `Message ${label}…`}
+          placeholder={placeholder}
           rows={1}
           value={draft}
           aria-describedby={[
