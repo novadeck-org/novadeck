@@ -3,7 +3,7 @@ import { join, resolve } from "node:path"
 import { parse } from "smol-toml"
 import { describe, expect, it } from "vitest"
 
-import { rootsSetting, theirRoots } from "./roots.js"
+import { rootsGiven, rootsSetting, theirRoots } from "./roots.js"
 
 describe("the person's own writable roots", () => {
   it("are read from their table, its dotted key, or an inline table", () => {
@@ -88,5 +88,22 @@ describe("the setting that gives a session its roots", () => {
 
   it("names a folder no literal string can hold in a basic one", () => {
     expect(read(rootsSetting(["/a\nb", "/x'''y"]))).toEqual(["/a\nb", "/x'''y"])
+  })
+})
+
+describe("the writable roots a launch gives", () => {
+  it("are read back from the setting the shim passes, as written", () => {
+    const roots = ["/home/x/.novadeck/worktrees", "C:\\Users\\O'Brien", "rel"]
+    expect(rootsGiven(["-c", rootsSetting(roots), "resume"])).toEqual(roots)
+    expect(
+      rootsGiven([`--config=${rootsSetting(["/a"])}`, "--config", rootsSetting(["/b"])]),
+    ).toEqual(["/a", "/b"])
+  })
+
+  it("are none from other settings, other words or none", () => {
+    expect(rootsGiven(["-c", 'model="o3"', "-c", "model=o3", "--add-dir=/a"])).toEqual([])
+    expect(rootsGiven([rootsSetting(["/a"])])).toEqual([])
+    expect(rootsGiven(["-c"])).toEqual([])
+    expect(rootsGiven(undefined)).toEqual([])
   })
 })

@@ -214,10 +214,12 @@ network:
   person's terminal should run it. A developer with one set may see a failure CI, which
   has none, doesn't.
 - **The worktrees folder is the sandbox's.** The deck gives its runner the sandbox's
-  `~/.novadeck/worktrees` (`RunnerOptions.worktreesRoot`), so no shim passes an agent the
-  developer's own as `--add-dir`, as each once did on a computer that had one. Every agent
-  process that reports is checked for a folder given with `--add-dir` outside the sandbox's
-  home (`added-folders.ts`), which fails the test. A scenario that needs the folder there, as
+  `~/.novadeck/worktrees` (`RunnerOptions.worktreesRoot`), so no shim gives an agent the
+  developer's own, as each once did on a computer that had one. Every agent process that
+  reports is checked, by the words it was started with, for a folder outside the sandbox's
+  home given the way its shim gives that one (`added-folders.ts`): `--add-dir` (Antigravity),
+  `permissions.additionalDirectories` in its `--settings` (Claude Code), or `-c
+  sandbox_workspace_write.writable_roots` (Codex). One fails the test. A scenario that needs the folder there, as
   every person's computer has it once Novadeck has made a worktree, makes it in the sandbox
   (`tell`'s `worktreesFolder` in `tour-story.ts`, and `lead.e2e.ts`); one whose harness
   can't start with it yet is skipped, naming the fix it waits on, until that lands (`waitsOn`).

@@ -9,19 +9,21 @@ import { parse } from "smol-toml"
  * relative one is of the config's folder, as Codex reads it there; passed on as it is, it would
  * be read against the session's folder instead (probed 2026-11-17, 0.169.0).
  */
-export const theirRoots = (config: string, folder: string): readonly string[] => {
+export const theirRoots = (config: string, folder: string): readonly string[] =>
+  rootsOf(config).map((root) => (isAbsolute(root) ? root : resolve(folder, root)))
+
+// `sandbox_workspace_write.writable_roots` at a TOML text's top level, as it is written there.
+const rootsOf = (text: string): readonly string[] => {
   let parsed: unknown
   try {
-    parsed = parse(config)
+    parsed = parse(text)
   } catch {
     return []
   }
   const table = (parsed as { sandbox_workspace_write?: unknown }).sandbox_workspace_write
   const roots = (table as { writable_roots?: unknown } | undefined)?.writable_roots
   return Array.isArray(roots)
-    ? roots
-        .filter((root): root is string => typeof root === "string")
-        .map((root) => (isAbsolute(root) ? root : resolve(folder, root)))
+    ? roots.filter((root): root is string => typeof root === "string")
     : []
 }
 
@@ -51,3 +53,19 @@ const tomlString = (path: string): string => {
  */
 export const rootsSetting = (roots: readonly string[]): string =>
   `sandbox_workspace_write.writable_roots=[${[...new Set(roots)].map(tomlString).join(",")}]`
+
+/**
+ * The writable roots a process's words (`Report.launch`) give with `-c` or `--config`, as
+ * `rootsSetting` writes them, each as it is written; none from any other setting. Codex reads
+ * the value after `=` as TOML, so the whole word reads as one line of it.
+ */
+export const rootsGiven = (words: readonly string[] | undefined): readonly string[] =>
+  (words ?? [])
+    .flatMap((word, at, all) =>
+      word.startsWith("--config=")
+        ? [word.slice("--config=".length)]
+        : (word === "-c" || word === "--config") && all[at + 1] !== undefined
+          ? [all[at + 1]!]
+          : [],
+    )
+    .flatMap(rootsOf)
