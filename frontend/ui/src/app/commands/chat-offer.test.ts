@@ -47,6 +47,16 @@ describe("answering Agent Chat's offer", () => {
     })
   })
 
+  context("when the welcome dialog is finished with Agent Chat unticked", () => {
+    it("holds the offer for this run, answering nothing, so a reload offers it again", () => {
+      const app = open()
+      app.commands.holdChatOffer()
+      expect(app.ui.getSnapshot().chatOfferHeld).toBe(true)
+      expect(app.answered()).toBe(false)
+      expect(readChatOfferAnswered()).toBe(false)
+    })
+  })
+
   context("when the person chooses the chat view themselves", () => {
     it("is answered by the choice in Preferences, either way", () => {
       const app = open()

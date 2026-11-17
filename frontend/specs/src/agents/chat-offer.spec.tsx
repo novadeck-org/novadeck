@@ -1,3 +1,4 @@
+import { cleanup } from "vitest-browser-react"
 import { userEvent } from "vitest/browser"
 import { page, type Locator } from "vitest/browser"
 
@@ -158,16 +159,33 @@ describe("Agent Chat's offer", () => {
       await expectStaysAbsent(card())
     })
 
-    it("is answered by finishing the welcome dialog, either way", async () => {
+    it("is answered by finishing the welcome dialog with Agent Chat ticked, so it is never offered", async () => {
       await openWorkspace("/?demo=welcome")
       const welcome = page.getByRole("dialog", { name: "Welcome to Novadeck" })
-      await welcome.getByRole("checkbox", { name: "Agent Chat" }).click()
-      await welcome.getByRole("button", { name: "Skip for now" }).click()
+      await expect.element(welcome.getByRole("checkbox", { name: "Agent Chat" })).toBeChecked()
+      await welcome.getByRole("button", { name: "Let’s build something" }).click()
       await expect.element(welcome).not.toBeInTheDocument()
       expect(localStorage.getItem(answeredKey)).toBe("true")
       await terminalTab("Build").click()
+      await expectStaysAbsent(card())
+    })
+
+    it("is not answered by finishing the welcome dialog with Agent Chat unticked: held back for that run, offered at the next launch", async () => {
+      await openWorkspace("/?demo=welcome")
+      const welcome = page.getByRole("dialog", { name: "Welcome to Novadeck" })
+      await welcome.getByRole("checkbox", { name: "Agent Chat" }).click()
+      await welcome.getByRole("button", { name: "Let’s build something" }).click()
+      await expect.element(welcome).not.toBeInTheDocument()
+      expect(localStorage.getItem(answeredKey)).not.toBe("true")
+      // This run: no offer, even on an agent's terminal.
+      await terminalTab("Build").click()
       await expect.element(commandInput("Build")).toBeVisible()
       await expectStaysAbsent(card())
+      // A later launch, with the same storage: the welcome is behind, the offer is due.
+      await cleanup()
+      await openWorkspace("/?demo=agents")
+      await terminalTab("Build").click()
+      await expect.element(card()).toBeVisible()
     })
   })
 

@@ -113,11 +113,13 @@ export const FooterSection = memo((): React.JSX.Element => {
   const tourBusy = useTourBusy()
   const chatView = useUiState(chatViewOn)
   const chatOfferAnswered = useUiState((state) => state.chatOfferAnswered)
+  const chatOfferHeld = useUiState((state) => state.chatOfferHeld)
   const canChat = useWorkspaceState(selectedAgentCanChat, Object.is)
   const chatOfferWanted = chatOfferDue({
     reads: backend.conversations !== undefined,
     chatView,
     answered: chatOfferAnswered,
+    held: chatOfferHeld,
     welcome,
     canChat,
     touring: tourBusy,

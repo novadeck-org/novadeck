@@ -60,7 +60,7 @@ import {
   shallowEqual,
 } from "./selectors"
 import { useTourOffer, useTourRun } from "./TourProvider"
-import { switchOffExperimental, type ExperimentalFeatures } from "./ui-store"
+import { chatViewOn, switchOffExperimental, type ExperimentalFeatures } from "./ui-store"
 import { useForgeRuns } from "./useForgeRuns"
 import { useInstalls } from "./useInstalls"
 
@@ -432,8 +432,11 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
               }
             : {})}
           onDone={() => {
-            // The welcome dialog offers Agent Chat too, so those who saw it are not asked again.
-            commands.declineChatOffer()
+            // The welcome dialog offers Agent Chat too. Starting has applied its choice already:
+            // kept on, the offer is moot and answered; unticked on purpose, it is no answer, so
+            // the offer only waits out this run and comes at a later launch.
+            if (chatViewOn(ui.getSnapshot())) commands.declineChatOffer()
+            else commands.holdChatOffer()
             backend.agents?.finishWelcome()
           }}
         />

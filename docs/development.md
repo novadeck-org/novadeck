@@ -633,7 +633,8 @@ App:
   end once an agent's terminal is selected (a shell or no terminal has none), in Focus, Grid and
   Canvas alike. Turn on shows the selected agent as a chat; No thanks, the ×, or Escape from
   inside the card leaves the terminal as it is. Either answers it for good, as does choosing the
-  setting in Preferences or finishing the welcome dialog. The card goes before What's new
+  setting in Preferences or finishing the welcome dialog with Agent Chat ticked (unticked, the
+  offer waits out that run). The card goes before What's new
   (`?update=whatsNew`), which returns once it is answered.
 - **Agent installs:** an agent that isn't installed offers Install in the welcome dialog and in
   Preferences' Agents (which reads "Installing…" while its installer runs), with the command it

@@ -19,6 +19,8 @@ export type DialogProps = {
   // allowed here. Set the first focus with initialFocusEl.
   readonly role?: "dialog" | "alertdialog"
   readonly closeOnInteractOutside?: boolean
+  // False for a dialog only its own button closes.
+  readonly closeOnEscape?: boolean
 }
 
 // Parts that name and describe a dialog; Ark wires their ids.
@@ -40,11 +42,13 @@ export const Dialog = ({
   modal = true,
   role = "dialog",
   closeOnInteractOutside,
+  closeOnEscape,
 }: DialogProps): React.JSX.Element => (
   <ArkDialog.Root
     open={open}
     role={role}
     {...(closeOnInteractOutside === undefined ? {} : { closeOnInteractOutside })}
+    {...(closeOnEscape === undefined ? {} : { closeOnEscape })}
     onOpenChange={(details) => onOpenChange(details.open)}
     aria-label={label}
     onExitComplete={onExitComplete}

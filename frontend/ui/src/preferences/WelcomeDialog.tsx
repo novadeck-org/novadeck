@@ -477,6 +477,9 @@ const WelcomeForm = ({
           className="welcome-enter welcome-actions -mx-8 px-8 pb-7 max-[420px]:-mx-5 max-[420px]:px-5"
           style={at(1000)}
         >
+          <p className="modal-description m-0 mb-2.5 text-caption leading-[1.65]">
+            You can change any of this later in Preferences.
+          </p>
           <button
             type="submit"
             className="button primary welcome-start relative min-h-11 w-full justify-between gap-3 overflow-hidden px-4 py-3 text-body font-medium"
@@ -484,21 +487,15 @@ const WelcomeForm = ({
             Let’s build something
             <ArrowRight size={16} className="welcome-arrow" aria-hidden="true" />
           </button>
-          <button
-            type="button"
-            className="button ghost welcome-skip mt-2 min-h-9 w-full px-3 py-2 text-control"
-            onClick={onDone}
-          >
-            Skip for now
-          </button>
         </div>
       </div>
     </form>
   )
 }
 
-// Choices stay local until submission. Dismissing changes no agent, chat view or transcript
-// setting; Preferences keeps its immediate switches. The scheme alone applies at once.
+// Choices stay local until the start button applies them, which is the only way out: Escape and
+// the backdrop leave it open, so what the person sees chosen is what they get. Preferences keeps
+// its immediate switches. The scheme alone applies at once.
 export const WelcomeDialog = ({
   open,
   agents,
@@ -524,10 +521,9 @@ export const WelcomeDialog = ({
   return (
     <Dialog
       open={open}
-      closeOnInteractOutside
-      onOpenChange={(expanded) => {
-        if (!expanded) onDone()
-      }}
+      closeOnInteractOutside={false}
+      closeOnEscape={false}
+      onOpenChange={() => {}}
       label="Welcome to Novadeck"
       initialFocusEl={() => heading.current}
       backdropClassName="overlay welcome-overlay fixed inset-0 z-50"

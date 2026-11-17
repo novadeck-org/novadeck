@@ -448,27 +448,37 @@ describe("Connecting agents", () => {
         .toHaveAttribute("aria-checked", "false")
     })
 
-    it("discards its choices when dismissed", async () => {
+    it("stays open on Escape and on a click outside, and offers no skip", async () => {
       await openWorkspace("/?demo=welcome")
       await expect.element(welcome()).toBeVisible()
-      await expect.element(agentChoice(welcome(), "Codex")).toBeChecked()
-      await escapeFrom(welcome())
-      await expect.element(welcome()).not.toBeInTheDocument()
-      await openPreferencesOn("Agents")
+      expect(welcome().getByRole("button", { name: "Skip for now" }).query()).toBeNull()
       await expect
-        .element(agentSwitch(preferencesDialog(), "Codex"))
-        .toHaveAttribute("aria-checked", "false")
+        .element(welcome().getByText("You can change any of this later in Preferences."))
+        .toBeVisible()
+      await escapeFrom(welcome())
+      await new Promise((resolve) => setTimeout(resolve, 400))
+      await expect.element(welcome()).toBeVisible()
+      // Just outside the dialog's corner is the backdrop.
+      await welcome().click({ position: { x: -8, y: -8 }, force: true })
+      await expect.element(welcome()).toBeVisible()
+      // Focus stays inside it.
+      await userEvent.keyboard("{Tab}".repeat(40))
+      expect(welcome().element().contains(document.activeElement)).toBe(true)
     })
 
-    it("skips setup without connecting selected agents", async () => {
+    it("connects every installed agent as it finishes with what it shows chosen", async () => {
       await openWorkspace("/?demo=welcome")
       await expect.element(agentChoice(welcome(), "Claude Code")).toBeChecked()
-      await welcome().getByRole("button", { name: "Skip for now" }).click()
+      await expect.element(agentChoice(welcome(), "Codex")).toBeChecked()
+      await welcome().getByRole("button", { name: "Let’s build something" }).click()
       await expect.element(welcome()).not.toBeInTheDocument()
       await openPreferencesOn("Agents")
       await expect
         .element(agentSwitch(preferencesDialog(), "Claude Code"))
-        .toHaveAttribute("aria-checked", "false")
+        .toHaveAttribute("aria-checked", "true")
+      await expect
+        .element(agentSwitch(preferencesDialog(), "Codex"))
+        .toHaveAttribute("aria-checked", "true")
     })
 
     it("keeps transcripts on unless turned off and started", async () => {
@@ -512,22 +522,12 @@ describe("Connecting agents", () => {
         .toBeChecked()
     })
 
-    it("leaves the chat view off when skipped", async () => {
-      await openWorkspace("/?demo=welcome")
-      await welcome().getByRole("button", { name: "Skip for now" }).click()
-      await expect.element(welcome()).not.toBeInTheDocument()
-      await openPreferencesOn("Appearance")
-      await expect
-        .element(preferencesDialog().getByRole("radio", { name: "Terminal" }))
-        .toBeChecked()
-    })
-
-    it("changes the scheme at once, and keeps it when skipped", async () => {
+    it("changes the scheme at once, and keeps it as the dialog finishes", async () => {
       await openWorkspace("/?demo=welcome")
       const appearance = welcome().getByRole("radiogroup", { name: "Appearance" })
       await appearance.getByText("Dark", { exact: true }).click()
       await expect.poll(() => document.documentElement.dataset.scheme).toBe("dark")
-      await welcome().getByRole("button", { name: "Skip for now" }).click()
+      await welcome().getByRole("button", { name: "Let’s build something" }).click()
       await expect.element(welcome()).not.toBeInTheDocument()
       expect(document.documentElement.dataset.scheme).toBe("dark")
       await openPreferences()
@@ -541,10 +541,10 @@ describe("Connecting agents", () => {
       expect(welcome().getByRole("checkbox", { name: "Transcripts" }).query()).toBeNull()
     })
 
-    it("leaves transcripts as they were when skipped", async () => {
+    it("keeps transcripts on as it finishes with them chosen", async () => {
       await openWorkspace("/?demo=welcome")
-      await welcome().getByRole("checkbox", { name: "Transcripts" }).click()
-      await welcome().getByRole("button", { name: "Skip for now" }).click()
+      await expect.element(welcome().getByRole("checkbox", { name: "Transcripts" })).toBeChecked()
+      await welcome().getByRole("button", { name: "Let’s build something" }).click()
       await expect.element(welcome()).not.toBeInTheDocument()
       await openPreferencesOn("General")
       await expect

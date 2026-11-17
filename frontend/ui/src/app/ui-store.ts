@@ -83,6 +83,10 @@ export type UiState = {
   // button, or by the person choosing the chat view's setting themselves. Kept beside the
   // preferences (`chat-offer.ts` of core), as it is a note of what was asked, not a setting.
   readonly chatOfferAnswered: boolean
+  // Whether the offer waits out this run: the welcome dialog finished with Agent Chat unticked on
+  // purpose, which is no answer, so it is offered at a later launch. Never persisted; a reload
+  // counts as a new run.
+  readonly chatOfferHeld: boolean
   // Whether the desktop app runs in its security sandbox, as it said at startup; null until
   // then, and where it does not say.
   readonly sandbox: SandboxState | null
@@ -191,6 +195,7 @@ export const initialUi = ({
   portableCardOpen: false,
   whatsNew: null,
   chatOfferAnswered,
+  chatOfferHeld: false,
   sandbox: null,
   sandboxOpen: false,
   portable: null,
@@ -372,6 +377,10 @@ export const answerChatOffer = (ui: UiStore): void =>
   void ui.update((state) =>
     state.chatOfferAnswered ? state : { ...state, chatOfferAnswered: true },
   )
+
+// Holds Agent Chat's offer back for the rest of this run, without answering it.
+export const holdChatOffer = (ui: UiStore): void =>
+  void ui.update((state) => (state.chatOfferHeld ? state : { ...state, chatOfferHeld: true }))
 
 // Whether tabs and window headers show terminals' critters: the person turned Agent avatars
 // on, one of the experimental features, so they show only while IS_EXPERIMENTAL is on.

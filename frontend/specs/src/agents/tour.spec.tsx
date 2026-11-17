@@ -48,7 +48,7 @@ describe("The tour", () => {
     await openWorkspace("/?demo=welcome&channel=experimental")
     await expect.element(welcome()).toBeVisible()
     expect(welcome().getByRole("button", { name: "Take the tour" }).query()).toBeNull()
-    await welcome().getByRole("button", { name: "Skip for now" }).click()
+    await welcome().getByRole("button", { name: "Let’s build something" }).click()
     await openPreferencesOn("About")
     expect(preferencesDialog().getByRole("button", { name: "Take the tour" }).query()).toBeNull()
   })

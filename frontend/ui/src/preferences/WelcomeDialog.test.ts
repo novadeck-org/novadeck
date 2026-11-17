@@ -84,6 +84,110 @@ describe("an agent that is not installed, in the welcome dialog", () => {
   })
 })
 
+describe("leaving the welcome dialog", () => {
+  const start = (): HTMLButtonElement =>
+    [...document.querySelectorAll("button")].find((each) =>
+      each.textContent?.includes("Let’s build something"),
+    )!
+  const open = (): boolean => document.querySelector('[role="dialog"]') !== null
+
+  it("offers no skip, and says what is chosen can be changed later", () => {
+    show({})
+    expect(document.body.textContent).not.toContain("Skip")
+    expect(document.body.textContent).toContain("You can change any of this later in Preferences.")
+  })
+
+  it("stays open on Escape and on a click on the backdrop, finishing nothing", () => {
+    const done = vi.fn<() => void>()
+    show({ onDone: done })
+    act(() => {
+      document
+        .querySelector('[role="dialog"]')!
+        .dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+    })
+    act(() => {
+      const backdrop = document.querySelector(".welcome-overlay")!
+      backdrop.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
+      backdrop.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }))
+      backdrop.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+    expect(open()).toBe(true)
+    expect(done).not.toHaveBeenCalled()
+  })
+
+  it("applies what is shown chosen: the installed agents, transcripts and the chat view", () => {
+    const connected: [string, boolean][] = []
+    const transcripts: boolean[] = []
+    const chat: boolean[] = []
+    const done = vi.fn<() => void>()
+    show({
+      agents: [
+        { agent: "claude", available: true, connected: false, busy: false },
+        { agent: "codex", available: true, connected: false, busy: false },
+        { agent: "agy", available: false, connected: false, busy: false },
+      ],
+      onChange: (agent, on) => connected.push([agent, on]),
+      transcripts: { enabled: false, available: true, onChange: (on) => transcripts.push(on) },
+      chatView: { enabled: false, onChange: (on) => chat.push(on) },
+      onDone: done,
+    })
+    start().click()
+    expect(connected).toEqual([
+      ["claude", true],
+      ["codex", true],
+    ])
+    expect(transcripts).toEqual([true])
+    expect(chat).toEqual([true])
+    expect(done).toHaveBeenCalledOnce()
+  })
+
+  it("applies what is unticked as unticked", () => {
+    const connected: [string, boolean][] = []
+    const transcripts: boolean[] = []
+    const chat: boolean[] = []
+    show({
+      agents: [
+        { agent: "claude", available: true, connected: true, busy: false },
+        { agent: "codex", available: true, connected: false, busy: false },
+      ],
+      onChange: (agent, on) => connected.push([agent, on]),
+      transcripts: { enabled: true, available: true, onChange: (on) => transcripts.push(on) },
+      chatView: { enabled: true, onChange: (on) => chat.push(on) },
+    })
+    for (const [name, value] of [
+      ["agents", "claude"],
+      ["agents", "codex"],
+      ["transcripts", "on"],
+      ["chat-view", "on"],
+    ] as const)
+      document.querySelector<HTMLInputElement>(`input[name="${name}"][value="${value}"]`)!.click()
+    start().click()
+    expect(connected).toEqual([["claude", false]])
+    expect(transcripts).toEqual([false])
+    expect(chat).toEqual([false])
+  })
+
+  it("finishes while an agent is installing, one is missing and transcripts are unavailable", () => {
+    const connected: [string, boolean][] = []
+    const done = vi.fn<() => void>()
+    show({
+      agents: [
+        { agent: "claude", available: true, connected: false, busy: true },
+        { agent: "codex", available: true, connected: false, busy: false },
+        { agent: "agy", available: false, connected: false, busy: false },
+      ],
+      onChange: (agent, on) => connected.push([agent, on]),
+      transcripts: { enabled: false, available: false, onChange: () => {} },
+      onDone: done,
+    })
+    expect(start().disabled).toBe(false)
+    start().click()
+    // The busy one is left to its own switch; the rest is applied.
+    expect(connected).toEqual([["codex", true]])
+    expect(done).toHaveBeenCalledOnce()
+  })
+})
+
 describe("the chat view, in the welcome dialog", () => {
   const chatView = (): HTMLInputElement | null =>
     document.querySelector('input[type="checkbox"][name="chat-view"]')
@@ -109,13 +213,6 @@ describe("the chat view, in the welcome dialog", () => {
     chatView()!.click()
     expect(chatView()?.checked).toBe(false)
     button("Let’s build something")!.click()
-    expect(changes).toEqual([])
-  })
-
-  it("changes nothing when the person skips", () => {
-    const changes: boolean[] = []
-    show({ chatView: { enabled: false, onChange: (on) => changes.push(on) } })
-    button("Skip for now")!.click()
     expect(changes).toEqual([])
   })
 })

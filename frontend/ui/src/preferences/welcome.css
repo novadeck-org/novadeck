@@ -12,12 +12,11 @@
    `.welcome-install`: on a `.choice-card`, an agent that isn't installed, as an empty seat:
    dashed, on the dialog's own ground, its tile an outline; its `.welcome-install-command`
    is the command Install runs, once asked for, in a mono well that wraps.
-   `.welcome-actions`: Start and Skip, kept to the foot of a dialog too tall for its window.
+   `.welcome-actions`: Start, and the line above it, kept to the foot of a dialog too tall for its window.
    `.welcome-enter` and `.welcome-rise` arrive `--_at` after the dialog opens; each
    `.welcome-letter` is typed `--_i` letters in, followed by the `.welcome-caret`.
    `.welcome-start`: a variant of `.button.primary` drawn as the brand tile, with its
    `.welcome-arrow`; a light passes over it once it arrives and as it is hovered.
-   `.welcome-skip`: a variant of `.button.ghost` in muted text.
    Without motion, everything is simply in place.
 
    Tokens, each optional (its fallback in brackets):
@@ -27,7 +26,6 @@
    --welcome-caret-bg (strong).
    --brand-tile-bg, --brand-tile-fg, --brand-tile-border-color: the start button, and
    the light that passes over it.
-   --welcome-skip-fg (muted), --welcome-skip-hover-fg (ink).
    --welcome-install-border-color (line-strong): the seat's dashed edge and its tile's.
    --welcome-install-command-bg (shell), --welcome-install-command-fg (ink): the command's
    well. */
@@ -133,14 +131,6 @@
   height: 24px;
   background: linear-gradient(to bottom, transparent, var(--_bg));
   pointer-events: none;
-}
-.button.ghost.welcome-skip {
-  --_fg: var(--welcome-skip-fg, var(--color-muted));
-}
-@media (hover: hover) {
-  .button.ghost.welcome-skip:hover {
-    --_fg: var(--welcome-skip-hover-fg, var(--color-ink));
-  }
 }
 
 @media (prefers-reduced-motion: no-preference) {

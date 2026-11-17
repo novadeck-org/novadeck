@@ -31,7 +31,13 @@ import {
   sameTarget,
   windowedDestination,
 } from "../selectors"
-import { answerChatOffer, chatViewOn, notePortableCardShown, type UiState } from "../ui-store"
+import {
+  answerChatOffer,
+  chatViewOn,
+  holdChatOffer,
+  notePortableCardShown,
+  type UiState,
+} from "../ui-store"
 import { createChatCommands, type ChatCommands } from "./chat"
 import { createCompanionCommands, type CompanionCommands } from "./companion"
 import type { CommandContext } from "./context"
@@ -93,6 +99,7 @@ export type WorkspaceCommands = ShellCommands &
     // with No thanks. Either way it is never made again.
     readonly acceptChatOffer: () => void
     readonly declineChatOffer: () => void
+    readonly holdChatOffer: () => void
     // Turns a feature flag on or off.
     readonly setFeatureFlag: (flag: FeatureFlag, on: boolean) => void
     readonly changeView: (next: ViewMode) => void
@@ -471,6 +478,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     restoreProjectArrangement: (arrangement) => arrange(() => arrangement),
     acceptChatOffer: () => self.updatePreferences({ ...preferences(), chatView: true }),
     declineChatOffer: () => answerChatOffer(ui),
+    holdChatOffer: () => holdChatOffer(ui),
     updatePreferences: (next) => {
       const snapshot = workspace.getSnapshot()
       const { view } = currentState(snapshot)
