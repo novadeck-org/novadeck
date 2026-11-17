@@ -175,7 +175,7 @@ describe("Agent Chat's offer", () => {
     it("waits, as the tour's agent is not for the offer to change", async () => {
       localStorage.setItem("novadeck.preferences", JSON.stringify({ chatView: false }))
       await openWorkspace("/?demo=agents&tourStory=off&channel=experimental")
-      await openPreferencesOn("General")
+      await openPreferencesOn("Agents")
       const claude = preferencesDialog().getByRole("switch", { name: "Claude Code" })
       await claude.click()
       await expect.element(claude).toHaveAttribute("aria-checked", "true")
