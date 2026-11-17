@@ -193,6 +193,27 @@ describe("observing a harness session", () => {
     })
   })
 
+  it("leaves a session's saved folder for its terminal's where it is the bare folder of agents' worktrees", () => {
+    // As an Antigravity session's could be saved, before its decoder left that folder out.
+    const root = "/home/a/.novadeck/worktrees"
+    const saved: Sessions = {
+      sessions: { agy: { sessionId: "a", seq: 2_000, cwd: root } },
+      binding: null,
+      cwd: "/work",
+    }
+    const again = seen({ agent: "agy", startedAt: 3_000, evidence: "conversation-observed" })
+    const rooted = { ...facts, worktreesRoot: root }
+    expect(observe(saved, again, rooted)?.sessions.agy?.cwd).toBe("/work")
+    expect(observe(saved, { ...again, cwd: "/w/app" }, rooted)?.sessions.agy?.cwd).toBe("/w/app")
+    // A folder below it, a worktree, is a session's own, as is any where no root is known.
+    const below = {
+      ...saved,
+      sessions: { agy: { sessionId: "a", seq: 2_000, cwd: `${root}/p/g/app` } },
+    }
+    expect(observe(below, again, rooted)?.sessions.agy?.cwd).toBe(`${root}/p/g/app`)
+    expect(observe(saved, again, facts)?.sessions.agy?.cwd).toBe(root)
+  })
+
   it("refreshes the bound session's directory when it reports again", () => {
     expect(observe(running, seen({ startedAt: 3_000, cwd: "/elsewhere" }), facts)?.cwd).toBe(
       "/elsewhere",

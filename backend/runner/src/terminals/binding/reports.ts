@@ -73,6 +73,7 @@ export type ReportsHost = {
     | {
         enabled: () => boolean
         ready: (startedAt: number | undefined, relists: boolean) => boolean
+        readonly service: { readonly root: string }
       }
     | undefined
 }
@@ -210,6 +211,7 @@ export class Reports {
         record.bound !== null &&
         (record.bound.activity.state === "working" || record.bound.activity.background !== null),
       platform: process.platform,
+      worktreesRoot: this.host.worktrees()?.service.root,
     }
     // Its prompt shows, as the agent holding the terminal tells, as for a session it names;
     // one whose hooks its harness says don't run there can take no message.

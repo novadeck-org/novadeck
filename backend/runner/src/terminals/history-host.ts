@@ -30,6 +30,7 @@ export type HistoryParts = {
     | {
         ownersPruned(ids: readonly string[]): unknown
         ownerRestored(from: string, to: string): unknown
+        readonly root: string
       }
     | undefined
   /** The terminal resting on the session, asleep or waking, with no agent bound yet. */
@@ -98,6 +99,7 @@ export const historyHost = (parts: HistoryParts): HistoryHost => ({
   announce: parts.announce,
   pruned: (ids) => void parts.worktrees?.ownersPruned(ids),
   restored: (from, to) => void parts.worktrees?.ownerRestored(from, to),
+  worktreesRoot: () => parts.worktrees?.root,
   // Above the prompt the shell just drew, drawn and sent to every window that shows it.
   say: (record, text) => void showNote(record.terminal, text, record.summary.id),
 })

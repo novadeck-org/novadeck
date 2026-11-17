@@ -743,7 +743,10 @@ An added folder isn't where a session runs. Antigravity lists it in each hook's
 what remains only when it is one folder. With more, as in the person's own several workspaces,
 or none, as where it works inside the added folder, its hooks name none, and its status line's
 `cwd` and the terminal's tell it. Taking the first had moved the terminal, and so the folder `open_agent`
-opens a teammate in and a resume runs in, to the worktrees folder. Claude Code and Codex
+opens a teammate in and a resume runs in, to the worktrees folder. A session saved so keeps
+that folder, which no agent works in (worktrees are below it): read back, as History resumes it
+or the session reports again, it gives way to the terminal's (`sessionFolder` in
+`backend/runner/src/worktrees/root.ts`), and no saved row is rewritten. Claude Code and Codex
 report their process's own folder (`cwd`), which the flag doesn't change.
 
 The shims also let a session run Novadeck's own MCP tools without asking, for that launch

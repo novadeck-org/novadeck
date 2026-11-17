@@ -931,6 +931,23 @@ describe("restoring a row", () => {
     expect(plan.saved.cwd).toBe(folder)
     expect(record.restoring).toMatchObject({ agent: "codex", session: "codex-001" })
   })
+
+  it("resumes a session saved in the bare folder of agents' worktrees in its terminal's folder", async () => {
+    // As an Antigravity session's could be saved, before its decoder left that folder out.
+    const root = "/home/a/.novadeck/worktrees"
+    const { history, store } = setup({ worktreesRoot: () => root })
+    store.rows.set(
+      "old-1",
+      row({
+        agent: "agy",
+        cwd: folder,
+        agents: { agy: { sessionId: "agy-1", seq: 3, cwd: root } },
+      }),
+    )
+    const { plan } = await restoring({ history, store } as Setup, live())
+    expect(plan.resume).toBe("agy")
+    expect(plan.saved.cwd).toBe(folder)
+  })
 })
 
 describe("confirming an agent's restore", () => {

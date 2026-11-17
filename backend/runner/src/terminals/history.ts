@@ -18,6 +18,7 @@ import { harnesses } from "../harnesses/registry.js"
 import { logs } from "../log.js"
 import { agentLabel } from "../messaging/messages.js"
 import type { ClosedRecord, ClosedRecords, ListedClosed } from "../workspaces/closed.js"
+import { sessionFolder } from "../worktrees/root.js"
 import { savedSession } from "./binding/standing.js"
 import { mention } from "./handles.js"
 import type { Former } from "./introductions.js"
@@ -116,6 +117,8 @@ export type HistoryHost = {
   readonly pruned?: (terminalIds: readonly string[]) => void
   /** Called when a restore was confirmed, or a newer row of the conversation replaced the row: what `from` owned is `to`'s. */
   readonly restored?: (from: string, to: string) => void
+  /** The folder of agents' worktrees, which is no session's own (`sessionFolder`). */
+  readonly worktreesRoot?: () => string | undefined
   /** Shows the person a line in a terminal. */
   readonly say: (record: Closing, text: string) => void
 }
@@ -583,7 +586,7 @@ export class ClosedTerminals {
     pass?: Pass,
   ): Promise<ClosedTerminalState> {
     try {
-      if (await folderGone(report.cwd ?? row.cwd)) return { state: "gone", reason: "folder" }
+      if (await folderGone(this.folderOf(report, row))) return { state: "gone", reason: "folder" }
       const install = await this.host.install(agent)
       if (!install) return { state: "ready" }
       const known = { transcript: report.transcript }
@@ -667,11 +670,16 @@ export class ClosedTerminals {
     }
   }
 
+  // The folder a row's agent session resumes in: its own, else the terminal's.
+  private folderOf(report: AgentReport | undefined, row: Pick<ListedClosed, "cwd">): string {
+    return sessionFolder(report?.cwd, this.host.worktreesRoot?.()) ?? row.cwd
+  }
+
   private plan(row: ClosedRecord): Plan {
     const resume = resumeOf(row)
     const report = resume && row.agents[resume]
     // The session's own folder, where its harness finds the conversation.
-    const cwd = report?.cwd ?? row.cwd
+    const cwd = this.folderOf(report, row)
     return {
       resume,
       saved: {

@@ -2,6 +2,7 @@ import type { SessionObserved, TelemetryObserved } from "@novadeck/harness-core/
 import type { AgentName } from "@novadeck/protocol"
 
 import type { AgentReport } from "../terminals/saved-terminals.js"
+import { sessionFolder } from "../worktrees/root.js"
 import { harnesses } from "./registry.js"
 
 /**
@@ -73,6 +74,8 @@ export type Facts = {
    */
   readonly busy?: boolean
   readonly platform: NodeJS.Platform
+  /** The folder of agents' worktrees, which is no session's own (`sessionFolder`). */
+  readonly worktreesRoot?: string | undefined
 }
 
 /**
@@ -195,7 +198,8 @@ export const observe = (
     : { since: Math.min(event.startedAt, firstReported ?? Infinity), shown: [] }
   // Where it bound stays its folder: a harness looks a conversation up by it, so a resume
   // must run there, whatever directory a later report names.
-  const cwd = (same && known.cwd) || event.cwd || state.cwd
+  // One saved as the bare folder of agents' worktrees, as Antigravity's could be, has none.
+  const cwd = (same && sessionFolder(known.cwd, facts.worktreesRoot)) || event.cwd || state.cwd
   // Where its harness keeps the conversation, as it named it: a hint for finding it again.
   const transcript = event.transcript ?? (same ? known.transcript : undefined)
   // The flags its process was launched with, as that process tells them; a report that can't

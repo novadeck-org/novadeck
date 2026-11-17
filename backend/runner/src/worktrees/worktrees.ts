@@ -127,6 +127,11 @@ export class Worktrees {
   private readonly madeListeners = new Set<(made: Made) => void>()
   private readonly changeListeners = new Set<(change: WorktreeChange) => void>()
 
+  /** The folder the worktrees live in. */
+  get root(): string {
+    return this.host.root ?? worktreesRoot()
+  }
+
   constructor(
     private readonly records: WorktreeRecords,
     private readonly host: WorktreesHost,
@@ -296,7 +301,7 @@ export class Worktrees {
     if (!(await validBranch(repository.home, input.branch)))
       return refused(`"${input.branch}" isn't a branch name git accepts.`)
     const group = folderName(input.group ?? input.branch) || "work"
-    const wanted = join(this.host.root ?? worktreesRoot(), input.projectId, group, repository.name)
+    const wanted = join(this.root, input.projectId, group, repository.name)
     const tracked = this.records.worktree(wanted)
     if (tracked || existsSync(wanted))
       return refused(
