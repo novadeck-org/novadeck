@@ -356,7 +356,8 @@ export class TerminalPeers {
           const happenings = this.options.happenings(terminal.summary.id, bodies)
           const done = happenings.findLast((each) => each.kind === "done")
           const where: Whereabouts = {
-            title: terminal.summary.title,
+            // Its session's default title ("Terminal") says nothing of it, so no listing names it.
+            title: terminal.summary.titleSource.kind === "default" ? null : terminal.summary.title,
             summary: terminal.naming.summary,
             git: await this.git(now ?? cwd),
             working: activity?.state === "working" || terminal.summary.shellCommand != null,

@@ -232,6 +232,22 @@ describe("what team says", () => {
     ])
   })
 
+  it("says on an asleep member's own line that a message wakes it", () => {
+    const asleep = peerOf({
+      terminalId: "FOX",
+      handle: "fox",
+      agent: "claude",
+      expecting: null,
+      asleep: true,
+      busy: false,
+      where: whereabouts({ since: now - minutes(180) }),
+      lead: "moth",
+    })
+    expect(team({ peers: [asleep] }).text).toContain(
+      "- @fox: Claude Code, asleep (last turn ended 3 h ago), no process running; a message wakes it, led by you",
+    )
+  })
+
   it("leaves out peers, and says when the caller is on no team", () => {
     const { text } = team({ peers: [member("fox", null), member("owl", "crow")] })
     expect(text).toBe(

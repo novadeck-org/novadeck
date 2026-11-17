@@ -82,7 +82,10 @@ describe("a message to a sleeping terminal", () => {
     const run = setup()
     resources.defer(closing(run))
     const listed = run.messaging.agents("A")
-    expect(listed.ok && listed.text).toContain("- @fox: Claude Code, asleep")
+    // Nothing but its handle tells it apart, so it shares the line of such sleepers.
+    expect(listed.ok && listed.text).toContain(
+      "- asleep, never described and nothing reported: @fox (Claude Code)",
+    )
     expect(run.messaging.ringable("B")).toBe(false)
     expect(run.messaging.delivery("B")?.state).toBe("unbound")
   })

@@ -156,6 +156,7 @@ describe("what peers read of a terminal", () => {
         cwd: "/nowhere",
         sessionId: "s",
         title: "t",
+        titleSource: { kind: "person" },
         activity: null,
         ...summary,
       },
@@ -287,7 +288,14 @@ describe("a tell and a shown page of each harness's agent, as agents lists them"
     it(`reach agents() from ${agent}'s session, without a query, a secret or a home folder`, async () => {
       const now = Date.now()
       const record = {
-        summary: { id: "t1", cwd: "/nowhere", sessionId: "s", title: "t", activity: null },
+        summary: {
+          id: "t1",
+          cwd: "/nowhere",
+          sessionId: "s",
+          title: "t",
+          titleSource: { kind: "person" },
+          activity: null,
+        },
         naming: { person: null, opener: null, murmur: null, own: null, summary: null },
         work: null,
         openedBy: null,
@@ -374,7 +382,14 @@ describe("the worktrees a terminal owns, as agents lists them", () => {
   }) => {
     const here = await folder(resources)
     const record = {
-      summary: { id: "t1", cwd: "/nowhere", sessionId: "s", title: "t", activity: null },
+      summary: {
+        id: "t1",
+        cwd: "/nowhere",
+        sessionId: "s",
+        title: "t",
+        titleSource: { kind: "person" },
+        activity: null,
+      },
       naming: { person: null, opener: null, murmur: null, own: null, summary: null },
       work: null,
       openedBy: null,
@@ -438,6 +453,7 @@ describe("what peers read of a terminal's reports and rest", () => {
         cwd: "/nowhere",
         sessionId: "s",
         title: "t",
+        titleSource: { kind: "person" },
         activity: null,
         ...over.summary,
       },
@@ -539,6 +555,7 @@ describe("where a peer's agent works now", () => {
         cwd: join(root, "tasks", "a", "repo"),
         sessionId: "s",
         title: "t",
+        titleSource: { kind: "person" },
         activity: null,
         shellCommand,
       },

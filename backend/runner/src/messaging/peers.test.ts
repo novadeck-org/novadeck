@@ -202,9 +202,7 @@ describe("an agent's terminal as agents read it", () => {
   })
 
   it("says it sleeps, or what it is expected to run", () => {
-    expect(read(listing({ asleep: true }))[0]).toBe(
-      "- @fox: Claude Code, asleep, no process running; a message wakes it, peer",
-    )
+    expect(read(listing({ asleep: true }))[0]).toBe("- @fox: Claude Code, asleep, peer")
     expect(read(listing({ agent: null, expecting: "codex" }))[0]).toBe(
       "- @fox: expecting Codex, not started yet, peer",
     )
@@ -370,6 +368,62 @@ describe("the teams there", () => {
       "- @fox: Claude Code, idle, your lead",
       "- @owl: Claude Code, idle, your teammate",
     ])
+  })
+})
+
+describe("asleep agents in the agents listing", () => {
+  const sleeper = (handle: string, fields: Partial<PeerInput> = {}) =>
+    listing({ terminalId: handle, handle, asleep: true, ...fields })
+  const agents = (peers: readonly Peer[], lead: string | null = null) =>
+    renderAgents({ handle: "moth", lead, peers, messages: [], unbound: false, now }).split("\n")
+
+  it("says once what asleep means, and only when one is", () => {
+    const lines = agents([
+      sleeper("fox", { where: whereabouts({ title: "API" }) }),
+      sleeper("owl", { where: whereabouts({ summary: "Docs" }) }),
+    ])
+    expect(lines.slice(1, 3)).toEqual([
+      "Other terminals in this project and session:",
+      "(Asleep: no process runs there; a message wakes it.)",
+    ])
+    expect(lines.filter((line) => line.includes("a message wakes it"))).toHaveLength(1)
+    expect(agents([listing()])).not.toContain(
+      "(Asleep: no process runs there; a message wakes it.)",
+    )
+  })
+
+  it("names sleepers with nothing but a handle together on one line, by agent, after the rest", () => {
+    const lines = agents([
+      sleeper("fox"),
+      listing({ terminalId: "owl", handle: "owl" }),
+      sleeper("elk", { agent: "codex" }),
+      sleeper("yak"),
+    ])
+    expect(lines.slice(2)).toEqual([
+      "(Asleep: no process runs there; a message wakes it.)",
+      "- @owl: Claude Code, idle, peer",
+      "- asleep, never described and nothing reported: @fox and @yak (Claude Code) · @elk (Codex)",
+    ])
+  })
+
+  it("keeps on its own line a sleeper with a title, a summary, a report, work left or a team", () => {
+    const dirty = { detached: false, ahead: 0, gone: false, dirty: true }
+    const kept = [
+      sleeper("a", { where: whereabouts({ title: "API" }) }),
+      sleeper("b", { where: whereabouts({ summary: "Docs" }) }),
+      sleeper("c", {
+        where: whereabouts({
+          happenings: [{ kind: "done", at: now - 1, subject: "Fixed", body: null, pr: null }],
+        }),
+      }),
+      sleeper("d", { where: whereabouts({ git: { repo: "r", branch: "b", state: dirty } }) }),
+      sleeper("e", { lead: "moth" }),
+      sleeper("crow"),
+    ]
+    const lines = agents([...kept, listing({ terminalId: "f", handle: "f", lead: "crow" })])
+    expect(lines.some((line) => line.startsWith("- asleep, never described"))).toBe(false)
+    for (const handle of ["a", "b", "c", "d", "e", "crow"])
+      expect(lines.some((line) => line.startsWith(`- @${handle}`))).toBe(true)
   })
 })
 
@@ -682,6 +736,17 @@ describe("what an agent reported, as agents lists it", () => {
     ])
   })
 
+  it("lists only an asleep agent's latest, as what it did before is history", () => {
+    const happenings = [
+      done(now - minutes(400), "Older"),
+      done(now - minutes(60), "Middle"),
+      done(now - minutes(20), "Flakes fixed, #837 merged"),
+    ]
+    expect(lines(reporter(happenings, { standing: true }, { asleep: true }))).toEqual([
+      '  done: 20 min ago "Flakes fixed, #837 merged" (still current)',
+    ])
+  })
+
   it("cuts a long subject to one line, and shows no body or update", () => {
     const happenings = [
       {
@@ -779,9 +844,21 @@ describe("what an agent told the person, as agents lists it", () => {
     ])
   })
 
-  it("is not hidden by a newer done, and sits after the done", () => {
+  it("leaves out what came before the latest done, which says how that work ended", () => {
     const lines = told([tell(now - minutes(30), "Half way"), done(now - minutes(5), "Fixed")])
-    expect(lines).toEqual(['  done: 5 min ago "Fixed"', '  told: 30 min ago "Half way"'])
+    expect(lines).toEqual(['  done: 5 min ago "Fixed"'])
+  })
+
+  it("lists what came after the latest done, and sits after the done", () => {
+    const lines = told([
+      tell(now - minutes(30), "Half way"),
+      done(now - minutes(20), "Fixed"),
+      tell(now - minutes(10), "PR opened for the follow-up"),
+    ])
+    expect(lines).toEqual([
+      '  done: 20 min ago "Fixed"',
+      '  told: 10 min ago "PR opened for the follow-up"',
+    ])
   })
 
   it("redacts a token in a tell's subject", () => {
@@ -871,15 +948,15 @@ describe("the items on an agent's bar, as agents lists them", () => {
       where: whereabouts({
         shown: [item("page", "http://localhost:5173/", 1)],
         happenings: [
-          { kind: "update", at: now - minutes(9), subject: "Hi", body: null, pr: null },
-          { kind: "done", at: now - minutes(8), subject: "Fixed", body: null, pr: null },
+          { kind: "done", at: now - minutes(9), subject: "Fixed", body: null, pr: null },
+          { kind: "update", at: now - minutes(8), subject: "Hi", body: null, pr: null },
           { kind: "turn", at: now - minutes(2), from: null, outcome: "failed", text: "boom" },
         ],
       }),
     })
     expect(read(peer).slice(1)).toEqual([
-      '  done: 8 min ago "Fixed"',
-      '  told: 9 min ago "Hi"',
+      '  done: 9 min ago "Fixed"',
+      '  told: 8 min ago "Hi"',
       "  showing: http://localhost:5173/ (page, 1 min)",
       "  last turn failed 2 min ago: boom",
     ])
@@ -997,12 +1074,8 @@ describe("how long a peer has waited on the user or slept", () => {
   it("says how long ago a sleeper's last turn ended, where that is known", () => {
     const asleep = (since: number | null) =>
       read(listing({ asleep: true, where: whereabouts({ since }) }))[0]
-    expect(asleep(now - minutes(180))).toBe(
-      "- @fox: Claude Code, asleep (last turn ended 3 h ago), no process running; a message wakes it, peer",
-    )
-    expect(asleep(null)).toBe(
-      "- @fox: Claude Code, asleep, no process running; a message wakes it, peer",
-    )
+    expect(asleep(now - minutes(180))).toBe("- @fox: Claude Code, asleep for 3 h, peer")
+    expect(asleep(null)).toBe("- @fox: Claude Code, asleep, peer")
   })
 
   it("keeps a sleeper's since in its peer, and still hides what it waits on", () => {

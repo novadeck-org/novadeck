@@ -67,6 +67,7 @@ const world = (
         handle,
         handleGivenAt,
         title: `${handle} work`,
+        titleSource: { kind: "person" },
         cwd: "/w",
       } as TerminalSummary,
       naming: {

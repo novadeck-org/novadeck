@@ -416,10 +416,13 @@ export const unboundNote =
   "Novadeck hasn't seen this terminal's own agent session, so replies can't reach you " +
   "until Novadeck's hooks run here (in Codex, trust them with /hooks)."
 
+/** What `agents` says once of every agent asleep there, where `team` says it on each line. */
+export const asleepNote = "(Asleep: no process runs there; a message wakes it.)"
+
 /**
  * What runs there and what it is doing: an agent busy or idle and since when, waiting on
  * the user, for how long and for what (whole in `team`), waiting on its own job or wake-up,
- * or asleep, with when its last turn ended;
+ * or asleep since its last turn ended (what that means whole in `team`, once in `agents`);
  * an agent expected there; why no agent there takes messages; or a plain shell's program.
  */
 const statusOf = (peer: Peer, now: number, full: boolean): string => {
@@ -428,7 +431,9 @@ const statusOf = (peer: Peer, now: number, full: boolean): string => {
       peer.startup === "sign-in"
         ? "waiting on the user to sign in there: its prompt says it isn't signed in"
         : peer.state === "asleep"
-          ? `asleep${peer.since !== null ? ` (last turn ended ${ago(peer.since, now)})` : ""}, no process running; a message wakes it`
+          ? full
+            ? `asleep${peer.since !== null ? ` (last turn ended ${ago(peer.since, now)})` : ""}, no process running; a message wakes it`
+            : `asleep${peer.since !== null ? ` ${lasted(peer.since, now)}` : ""}`
           : peer.waiting
             ? waitingNote(peer.waiting, now, full)
             : peer.waitsOn
@@ -524,19 +529,21 @@ const doneChars = 100
 /**
  * An agent's `done` reports as `agents` lists them: the latest few, newest first, each when
  * and its subject quoted, the latest marked while it still stands, then how many came
- * before. Subjects only; a report at length is for `team`. Null before one.
+ * before. An asleep agent's latest only: what it did before that is history. Subjects only;
+ * a report at length is for `team`. Null before one.
  */
 export const doneLine = (peer: Peer, now: number): string | null => {
   const dones = peer.happenings.flatMap((happening) =>
     happening.kind === "done" ? [happening] : [],
   )
   if (!peer.agent || dones.length === 0) return null
-  const shown = dones.slice(-shownDones).toReversed()
+  const asleep = peer.state === "asleep"
+  const shown = dones.slice(asleep ? -1 : -shownDones).toReversed()
   const parts = shown.map(
     (done, index) =>
       `${ago(done.at, now)} "${flat(redact(done.subject), doneChars)}"${index === 0 && peer.standing ? " (still current)" : ""}`,
   )
-  const earlier = dones.length - shown.length
+  const earlier = asleep ? 0 : dones.length - shown.length
   return `  done: ${[...parts, ...(earlier > 0 ? [`and ${earlier} earlier`] : [])].join(" · ")}`
 }
 
@@ -558,13 +565,14 @@ const shownTells = 3
 const tellChars = 100
 
 /**
- * An agent's `tell` reports as `agents` lists them, whether or not a newer `done` came: the
- * latest few, newest first, each when and its subject quoted, then how many came before.
- * Subjects only. Null before one.
+ * An agent's `tell` reports as `agents` lists them, only those since its latest `done`, as
+ * that done says how the work they were about ended: the latest few, newest first, each when
+ * and its subject quoted, then how many came before. Subjects only. Null without one.
  */
 export const toldLine = (peer: Peer, now: number): string | null => {
+  const done = peer.happenings.findLast((happening) => happening.kind === "done")
   const tells = peer.happenings.flatMap((happening) =>
-    happening.kind === "update" ? [happening] : [],
+    happening.kind === "update" && (!done || happening.at > done.at) ? [happening] : [],
   )
   if (!peer.agent || tells.length === 0) return null
   const shown = tells.slice(-shownTells).toReversed()
@@ -725,14 +733,51 @@ export const rosterLines = (
   return lines.toSorted((a, b) => Number(b.mine) - Number(a.mine)).map(({ line }) => line)
 }
 
+/**
+ * Whether an asleep agent has nothing but its handle to tell it apart: no title but its
+ * session's default, no summary, no report, no worktree, no checkout it left work in, and no
+ * team, leading or led. `agents` names such terminals together on one line.
+ */
+export const blank = (peer: Peer, leads: ReadonlySet<string | null>): boolean =>
+  peer.agent !== null &&
+  peer.state === "asleep" &&
+  peer.startup === null &&
+  !peer.title &&
+  !peer.summary &&
+  peer.pr === null &&
+  peer.worktrees.length === 0 &&
+  !peer.git?.state?.dirty &&
+  !peer.git?.state?.ahead &&
+  !peer.happenings.some(({ kind }) => kind === "update" || kind === "done") &&
+  peer.lead === null &&
+  !leads.has(peer.handle)
+
+/** Blank asleep agents (see `blank`) on one line, by agent: their handles are all there is. */
+const blankLine = (peers: readonly Peer[]): string | null => {
+  if (peers.length === 0) return null
+  const byAgent = new Map<AgentName | null, string[]>()
+  for (const peer of peers)
+    byAgent.set(peer.agent, [...(byAgent.get(peer.agent) ?? []), mention(peer.handle)])
+  const groups = [...byAgent].map(
+    ([agent, handles]) => `${listed(handles)}${agent ? ` (${agentLabel(agent)})` : ""}`,
+  )
+  return `- asleep, never described and nothing reported: ${groups.join(" · ")}`
+}
+
 /** The other terminals in the project and session, as agents read them. */
 const renderPeers = (peers: readonly Peer[], now: number, viewer: Viewer): string => {
   if (peers.length === 0) return "There are no other terminals in this project and session."
   const teams = rosterLines(viewer, peers)
+  const leads = new Set([viewer.lead, ...peers.map((peer) => peer.lead)])
+  const quiet = peers.filter((peer) => blank(peer, leads))
+  const asleep = peers.some((peer) => peer.agent && peer.state === "asleep")
+  const blanks = blankLine(quiet)
   return [
     ...(teams.length > 0 ? ["Teams in this project and session:", ...teams] : []),
     "Other terminals in this project and session:",
-    ...peers.flatMap((peer) => renderPeer(peer, now, viewer)),
+    ...(asleep ? [asleepNote] : []),
+    ...peers.flatMap((peer) => (quiet.includes(peer) ? [] : renderPeer(peer, now, viewer))),
+    ...(blanks ? [blanks] : []),
   ].join("\n")
 }
 

@@ -988,19 +988,22 @@ const agents: Tool<Listing> = {
     "message wakes it); how it relates to you (your lead, your teammate, led by you, or a " +
     "peer); the summary its own agent gave of its work; the git repository and branch it " +
     "works in, with commits ahead of its upstream, uncommitted changes, and the pull " +
-    "request it reported; the subjects of its latest done reports, the latest marked while " +
-    "it still stands (finished, not at work again), so you can tell what it already did; " +
+    "request it reported; the subjects of its latest done reports (an asleep one's latest " +
+    "only), the latest marked while it still stands (finished, not at work again), so you " +
+    "can tell what it already did; " +
     "the background shells it has running (named by its own description or just the program, " +
     "never the full command, with how long each has run, so you can reuse its dev server " +
     "rather than start a second, and not pile a heavy run on one already running) and any " +
     "that exited with an error in the last ten minutes; the subjects of its latest tell " +
-    "reports, so you can tell what it already told the user; the items open on its bar " +
+    "reports since its latest done, so you can tell what it already told the user; the " +
+    "items open on its bar " +
     "(its dev server's page, files, plans, changes, images; a local page by its address " +
     "without its query, another site by its host only, a file by its path in the project " +
     "or else its name, never a secret one), so you can open the same page rather than " +
     "start a second server; " +
     "and, when its last turn failed, when and why. A plain " +
-    "shell shows the program it runs. It also lists your own messages not yet delivered. " +
+    "shell shows the program it runs. Asleep agents with no title, summary or report share " +
+    "one line of handles. It also lists your own messages not yet delivered. " +
     "To follow your own team's work, call team instead. A terminal whose agent is waiting " +
     "on the user can't go on until they answer, so tell them rather than telling it to " +
     "proceed. This is Novadeck's knowledge, always current, so call it again rather than " +
