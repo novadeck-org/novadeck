@@ -598,9 +598,9 @@ export type Machine = {
    */
   readonly cmdShimDir?: string
   /**
-   * Where agents' worktrees live (`~/.novadeck/worktrees`). A shim passes it to its harness
-   * as `--add-dir` while the folder exists, so the harness may write there as in the
-   * project's folder, under the person's own permission mode.
+   * Where agents' worktrees live (`~/.novadeck/worktrees`). A shim gives it to its harness
+   * while the folder exists, as `--add-dir` or, for Claude Code, in the settings it passes, so
+   * the harness may write there under the person's own permission mode.
    */
   readonly worktreesRoot?: string
   /**

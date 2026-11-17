@@ -1,6 +1,7 @@
 /**
  * How a shim holds the folder where agents' worktrees live (`machine.worktreesRoot`), which
- * it passes to its harness as `--add-dir=<folder>` once the folder exists. The `=` form
+ * Codex's and Antigravity's pass to their harness as `--add-dir=<folder>` once the folder
+ * exists (Claude Code's names it in its settings instead, `harnesses/claude/src/shim.ts`). The `=` form
  * takes that one value: Claude Code's `--add-dir <directories...>` would take a prompt after
  * it for another folder.
  */

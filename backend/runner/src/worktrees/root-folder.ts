@@ -4,8 +4,8 @@ import { worktreesRoot } from "./root.js"
 
 /**
  * The folder agents' worktrees live in (`worktreesRoot()`), and whether an agent process
- * can use them. The harness shims pass the folder as `--add-dir` only if it exists when
- * the agent launches, and Novadeck's MCP server lists the worktree tools only while the
+ * can use them. The harness shims give a session the folder (`--add-dir`, or Claude Code's
+ * settings) only if it exists when the agent launches, and Novadeck's MCP server lists the worktree tools only while the
  * setting is on, a list Claude Code and Codex keep for the whole process (Antigravity
  * lists again at each turn). So a process can use worktrees when it started after both the
  * folder was there and, unless its harness lists tools again, the setting last went on.

@@ -1,5 +1,13 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
+import { dirname, join } from "node:path"
 
 import { worktreesRoot } from "../worktrees/root.js"
 import { setups } from "./agents/index.js"
@@ -18,12 +26,17 @@ type Defer = { readonly defer: (cleanup: () => void) => void }
 /** The worktrees' folder for the run, made where it isn't, and taken away after where made. */
 const worktreesFolder = (run: Defer): string => {
   const root = worktreesRoot()
-  if (!existsSync(root)) {
-    mkdirSync(root, { recursive: true })
+  // The folders it made (`~/.novadeck` too where that wasn't there either), each taken away
+  // after where it is empty, from the deepest up, so nothing it didn't make goes.
+  const made = mkdirSync(root, { recursive: true })
+  if (made !== undefined)
     run.defer(() => {
-      if (existsSync(root) && readdirSync(root).length === 0) rmSync(root, { recursive: true })
+      for (let folder = root; ; folder = dirname(folder)) {
+        if (!existsSync(folder) || readdirSync(folder).length > 0) return
+        rmdirSync(folder)
+        if (folder === made) return
+      }
     })
-  }
   return root
 }
 
