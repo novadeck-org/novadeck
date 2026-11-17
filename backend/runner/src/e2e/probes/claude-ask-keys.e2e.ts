@@ -489,10 +489,12 @@ const notebook = {
     },
   ],
 }
+// From 2.1.326 a notebook not read first fails before any dialog, as "Couldn't edit notebook"
+// (seen on the nightly against 2.1.326, 2026-11-17).
 surface({
   name: "k-notebook-edit",
   reply: notebook,
-  shows: /Do you want to|Error/,
+  shows: /Do you want to|Error|Couldn't edit notebook/,
   setup: (run) => {
     const file = join(run.sandbox.project, "nb.ipynb")
     writeFileSync(

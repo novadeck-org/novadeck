@@ -136,10 +136,11 @@ export const claude: AgentSetup = {
   // A message queued behind a running turn has its UserPromptSubmit hooks run as it is
   // queued, those of two messages overlapping, the spinner saying "running
   // UserPromptSubmit hooks" meanwhile; "ctrl+x ctrl+s to send now" stands under the latest
-  // message once all are through (probed 2026-11-06, 2.1.316, a hook made slow).
+  // message once all are through (probed 2026-11-06, 2.1.316, a hook made slow). From 2.1.326
+  // the hint reads "⎿  Queued · ctrl+x ctrl+s to send now" (seen on the nightly, 2026-11-17).
   queued: (prompt) =>
     new RegExp(
-      `❯\\s+${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n\\s*ctrl\\+x ctrl\\+s to send now`,
+      `❯\\s+${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n\\s*(?:⎿\\s+Queued · )?ctrl\\+x ctrl\\+s to send now`,
     ),
   queueing: /running \w+ hook[\s\S]*Press up to edit queued messages/,
   toolHooking: /running PostToolUse hook[\s\S]*Press up to edit queued messages/,
@@ -153,10 +154,12 @@ export const claude: AgentSetup = {
   // Its cost warning, a menu raised once a turn has ended with the session's cost at $5 or
   // more, which it shows a key's user only as a billing admin (seeded `popup: true`).
   // 300k output tokens cost Opus 5.5 over $5; its context meter counts input tokens alone,
-  // so nothing compacts (probed 2026-10-02, 2.1.287).
+  // so nothing compacts (probed 2026-10-02, 2.1.287). From 2.1.326 it says "an estimated $5"
+  // (its bundle, 2026-11-17).
   popup: {
     reply: (text) => ({ text, usage: { outputTokens: 300_000 } }),
-    shows: /You've spent \$5 on the Anthropic API this session\.[\s\S]*❯ 1\. Got it, thanks!/,
+    shows:
+      /You've spent (?:an estimated )?\$5 on the Anthropic API this session\.[\s\S]*❯ 1\. Got it, thanks!/,
   },
   // A subagent run in the background: its Stop lists it as a running background task, and
   // once it finishes Claude Code starts a turn by itself, with a task notification.

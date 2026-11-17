@@ -242,6 +242,10 @@ const queueing = (screen: ScreenText): boolean => {
  */
 export const box: BoxProfile = {
   read,
+  // From 2.1.326 a rule of its box says where it scrolled rows away, so it holds more than it
+  // shows; 2.1.325 drew plain rules, and only `viewport` tells (probed 2026-11-17,
+  // fixtures/scrolled-box.probe.json).
+  cut: ({ scrolled }) => scrolled === true,
   takeQueued: {
     // Up, which its box offers: it moves everything queued to the box at once, a message
     // still in its prompt hook too (whose hook runs out harmlessly), before any Escape. An
@@ -249,8 +253,10 @@ export const box: BoxProfile = {
     // there once its hook has ended, then starts a turn of its own, which fires no hook
     // (probed 2026-11-06, 2.1.316, cursor keys in normal mode, `e2e/probes/queued-stop-cause.e2e.ts`).
     keys: "\x1b[A",
-    // With nothing queued Up recalls the latest prompt, under this rule, which Down leaves.
-    recalled: (screen) => screen.rows.some((row) => /^─+ History \d+\/\d+ ─+$/.test(row.trim())),
+    // With nothing queued Up recalls the latest prompt, under this rule, which Down leaves. From
+    // 2.1.326 the rule may say after it how many rows scrolled away (" · ↑ 3 more", its bundle).
+    recalled: (screen) =>
+      screen.rows.some((row) => /^─+ History \d+\/\d+(?: · [↑↓] \d+ more)? ─+$/.test(row.trim())),
     leave: "\x1b[B",
     // Its shortcuts panel, `?`, shows under an empty box, the queued row still up; this row of
     // it stays whole however narrow the screen wraps the rest (fixtures/queued-box.probe.json).

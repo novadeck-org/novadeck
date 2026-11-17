@@ -1,0 +1,107 @@
+{
+  "probed": "2026-11-17, src/e2e/probes/scrolled-box.e2e.ts (Claude Code's scrolled box), 2.1.325 and 2.1.326 in the e2e sandbox: `above`, a reply of ten rows pasted on a 40×12 screen, its head scrolled away; `below`, three blank lines and words typed on an 80×12 screen, the cursor moved back up over the blanks, the words scrolled away below. 2.1.326 says so on the box's rule, dim, and leads no row it shows with ❯ where the first line went above; 2.1.325 draws plain rules and leads the first row shown with ❯.",
+  "states": {
+    "2.1.325": {
+      "above": {
+        "height": 12,
+        "columns": 40,
+        "cursor": {
+          "row": 10,
+          "column": 19
+        },
+        "rows": {
+          "1": "❯ Warm up                               ",
+          "3": "● Warmed up.",
+          "5": "✻ Sautéed for 0s · done 6:14 AM",
+          "6": "                    ◐ medium · /effort",
+          "7": "────────────────────────────────────────",
+          "8": "❯ changelog and say so in the",
+          "9": "  changelog and say so in the",
+          "10": "  changelog, thanks. ",
+          "11": "────────────────────────────────────────"
+        },
+        "bright": {
+          "1": "❯ Warm up",
+          "10": "  changelog, thanks."
+        }
+      },
+      "below": {
+        "height": 12,
+        "columns": 80,
+        "cursor": {
+          "row": 8,
+          "column": 1
+        },
+        "rows": {
+          "1": "❯ Warm up                                                                       ",
+          "3": "● Warmed up.",
+          "5": "✻ Sautéed for 0s · done 6:14 AM",
+          "6": "                                                         ctrl+g to edit in Vim",
+          "7": "────────────────────────────────────────────────────────────────────────────────",
+          "8": "❯  ",
+          "9": "  ",
+          "10": "  ",
+          "11": "────────────────────────────────────────────────────────────────────────────────"
+        },
+        "bright": {
+          "1": "❯ Warm up",
+          "8": "❯",
+          "9": "",
+          "10": ""
+        }
+      }
+    },
+    "2.1.326": {
+      "above": {
+        "height": 12,
+        "columns": 40,
+        "cursor": {
+          "row": 10,
+          "column": 19
+        },
+        "rows": {
+          "1": "❯ Warm up                               ",
+          "3": "● Warmed up.",
+          "5": "✻ Baked for 0s · done 6:14 AM",
+          "6": "                    ◐ medium · /effort",
+          "7": "─── ↑ 4 more ───────────────────────────",
+          "8": "  changelog and say so in the",
+          "9": "  changelog and say so in the",
+          "10": "  changelog, thanks. ",
+          "11": "────────────────────────────────────────"
+        },
+        "bright": {
+          "1": "❯ Warm up",
+          "7": "───          ───────────────────────────",
+          "10": "  changelog, thanks."
+        }
+      },
+      "below": {
+        "height": 12,
+        "columns": 80,
+        "cursor": {
+          "row": 8,
+          "column": 1
+        },
+        "rows": {
+          "1": "❯ Warm up                                                                       ",
+          "3": "● Warmed up.",
+          "5": "✻ Baked for 0s · done 6:14 AM",
+          "6": "                                                         ctrl+g to edit in Vim",
+          "7": "────────────────────────────────────────────────────────────────────────────────",
+          "8": "❯  ",
+          "9": "  ",
+          "10": "  ",
+          "11": "─── ↓ 1 more ───────────────────────────────────────────────────────────────────"
+        },
+        "bright": {
+          "1": "❯ Warm up",
+          "8": "❯",
+          "9": "",
+          "10": "",
+          "11": "───          ───────────────────────────────────────────────────────────────────"
+        }
+      }
+    }
+  }
+}

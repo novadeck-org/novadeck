@@ -442,15 +442,30 @@ export const footerRows = (screen: ScreenText, count = 4, reach = 12): readonly 
   return (near && below.length > last.length ? below : last).map(({ row }) => row)
 }
 
-/** Whether a row is a horizontal rule. */
-export const rule = (row: string | undefined): boolean => /^─{8,}$/.test((row ?? "").trim())
+/**
+ * A box's rule that says how many of its rows it scrolled away on that side, as Claude Code
+ * draws from 2.1.326 where its box shows only part of what it holds: `─── ↑ 18 more ───` over
+ * it, `─── ↓ 1 more ───` under it, the words dim; 2.1.325 drew a plain rule there (probed
+ * 2026-11-17, e2e/probes/scrolled-box.e2e.ts, harnesses/claude fixtures/scrolled-box.probe.json).
+ */
+const scrollRule = /^─{3,} [↑↓] \d+ more ─{3,}$/
+
+/** A box's top rule saying rows of it scrolled away above (`scrollRule`). */
+const scrolledAbove = /^─{3,} ↑ \d+ more ─{3,}$/
+
+/** Whether a row is a horizontal rule, or a box's rule that says it scrolled (`scrollRule`). */
+export const rule = (row: string | undefined): boolean => {
+  const trimmed = (row ?? "").trim()
+  return /^─{8,}$/.test(trimmed) || scrollRule.test(trimmed)
+}
 
 /**
  * Whether a row is a rule from the screen's first column, as a box's frame is drawn: a row of
  * `─` in the box's text is indented under its marker, and a row of it in a reply or a draft
  * would otherwise read as the box's top.
  */
-const frameRule = (row: string | undefined): boolean => /^─{8,}\s*$/.test(row ?? "")
+const frameRule = (row: string | undefined): boolean =>
+  /^─{8,}\s*$/.test(row ?? "") || scrollRule.test((row ?? "").trimEnd())
 
 /**
  * The rows a ruled box would lie between: the lowest rule, and the nearest rule from the first
@@ -476,9 +491,43 @@ export const ruledBox = (screen: ScreenText, markers: Markers): InputBox | undef
   if (bottom >= 0 && cursor.row > bottom) return clippedBox(screen, bottom, markers)
   if (top < 0 || bottom - top < 2) return undefined
   if (cursor.row <= top || cursor.row >= bottom) return undefined
+  const scrolled = [top, bottom].some((at) => scrollRule.test(screen.rows[at]!.trim()))
   for (let first = cursor.row; first > top; first -= 1)
-    if (leads(screen.rows[first], markers)) return read(screen, first, bottom - 1, markers)
-  return undefined
+    if (leads(screen.rows[first], markers)) {
+      const box = read(screen, first, bottom - 1, markers)
+      return box && scrolled ? { ...box, scrolled: true } : box
+    }
+  return scrolledAbove.test(screen.rows[top]!.trim())
+    ? unmarkedBox(screen, top + 1, bottom - 1, markers)
+    : undefined
+}
+
+/**
+ * A box whose first line scrolled away above, its marker with it, as its top rule says
+ * (`scrolledAbove`): Claude Code from 2.1.326 draws the rows it shows indented alike, where
+ * 2.1.325 led the first of them with `❯` (probed 2026-11-17, a reply of ten rows on 40×12).
+ * Every row from `first` to `last` is a line of its body or blank. Its mode can't be read: it
+ * reads as a prompt, which a footer that says shell mode then disowns (`agreeing`).
+ */
+const unmarkedBox = (
+  screen: ScreenText,
+  first: number,
+  last: number,
+  markers: Markers,
+): InputBox | undefined => {
+  const rows = screen.rows.slice(first, last + 1)
+  if (!rows.every((row) => row.trim() === "" || bodyRow(row))) return undefined
+  if (!rows.some((row) => row.trim() !== "")) return undefined
+  // Its first row read as led by the marker, which stands as wide as the indent it replaces.
+  const led = (row: string | undefined) =>
+    `${markers.prompt}${(row ?? "").slice(markers.prompt.length)}`
+  const marked = {
+    ...screen,
+    rows: screen.rows.map((row, at) => (at === first ? led(row) : row)),
+    bright: screen.bright.map((row, at) => (at === first ? led(row) : row)),
+  }
+  const box = read(marked, first, last, markers)
+  return box && { ...box, scrolled: true }
 }
 
 /** Whether a row is a line of a box's body: indented under its marker, and showing text. */

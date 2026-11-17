@@ -149,6 +149,67 @@ describe("ruledBox", () => {
     })
   })
 
+  // Claude Code from 2.1.326 says on a rule where its box scrolled rows away, dim; 2.1.325 drew
+  // a plain rule there (both seen in the e2e rig, 2026-11-17).
+  describe("whose rule says it scrolled rows away", () => {
+    const over = "─── ↑ 7 more ────────────"
+    const under = "─── ↓ 1 more ────────────"
+    const dim = (row: string) => row.replace(/[↑↓] \d+ more/, (words) => " ".repeat(words.length))
+
+    it("reads the rules as its own, and says it shows only part of what it holds", () => {
+      // A draft under blank lines, the cursor moved up over them: its words are below.
+      const drawn = ["history", line, "❯ ", "  ", "  ", under]
+      const box = ruledBox(screen(drawn, 2, 1, drawn.map(dim)), markers)
+      expect(box).toMatchObject({ mode: "prompt", first: 2, last: 4, scrolled: true })
+      const plain = ruledBox(screen([...drawn.slice(0, -1), line], 2, 1), markers)
+      expect(plain).toMatchObject({ first: 2, last: 4 })
+      expect(plain?.scrolled).toBeUndefined()
+      // Its scrolled box may hide more, where a profile reads `scrolled` so.
+      const profile = { cut: ({ scrolled }) => scrolled === true } as BoxProfile
+      expect(hidesText(profile, box!, drawn.length)).toBe(true)
+    })
+
+    it("reads the rows under a rule that says its first line went above, its marker with it", () => {
+      const drawn = [
+        "● Worked on.",
+        over,
+        "  changelog and say so in the",
+        "  changelog, thanks.",
+        line,
+      ]
+      const box = ruledBox(screen(drawn, 3, 20, drawn.map(dim)), markers)
+      expect(box).toEqual({
+        text: "changelog and say so in the\nchangelog, thanks.",
+        mode: "prompt",
+        first: 2,
+        last: 3,
+        scrolled: true,
+      })
+      // A tail of what was typed, where a profile reads `scrolled` as cut.
+      const profile = { cut: ({ scrolled }) => scrolled === true } as BoxProfile
+      const typed = "Merge it and say so in the changelog and say so in the changelog, thanks."
+      expect(tailOf(profile, box!, drawn.length, typed)).toBe(box!.text)
+    })
+
+    it("reads none under a plain rule without a marker, or with a row that isn't its body", () => {
+      const drawn = ["● Worked on.", line, "  changelog, thanks.", line]
+      expect(ruledBox(screen(drawn, 2, 10), markers)).toBeUndefined()
+      expect(
+        ruledBox(screen([drawn[0]!, over, "plain words", line], 2, 5), markers),
+      ).toBeUndefined()
+      expect(ruledBox(screen([drawn[0]!, over, "  ", line], 2, 1), markers)).toBeUndefined()
+      // Rows scrolled away below say nothing of its first row.
+      expect(ruledBox(screen([drawn[0]!, line, "  words", under], 2, 3), markers)).toBeUndefined()
+    })
+
+    it("takes such a rule as a rule, and words with it in a draft for text", () => {
+      expect(boxRules(["history", over, "❯ hi", under])).toEqual({ top: 1, bottom: 3 })
+      // Indented under the marker, it is a line of the draft.
+      const framed = ["history", line, "❯ first", `  ${under}`, "  last", line]
+      expect(ruledBox(screen(framed, 4, 4), markers)?.text).toBe(`first\n${under}\nlast`)
+    })
+  })
+
   it("takes a row of ─ in the text, indented under the marker, for text, not the top rule", () => {
     const framed = ["history", line, "❯ first", `  ${line}`, "  last", line, "footer"]
     for (const row of [2, 4])

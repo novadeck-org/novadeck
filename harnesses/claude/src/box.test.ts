@@ -1,7 +1,7 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { readSlice } from "@novadeck/harness-core/slices"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import { checkPaste, newTurn, takesQueue } from "@novadeck/tui-input/box"
+import { checkPaste, hidesText, newTurn, tailOf, takesQueue } from "@novadeck/tui-input/box"
 import { describe, expect, it } from "vitest"
 
 import { box, clearPending, slice } from "./box.js"
@@ -63,6 +63,40 @@ describe("Claude Code's queued messages", () => {
     })
     expect(box.read({ ...screen, rows })).toBeDefined()
     expect(box.escapeHold?.holds({ ...screen, rows })).toBe(false)
+  })
+})
+
+describe("Claude Code's box that shows only part of what it holds", () => {
+  const { states } = loadProbe<{
+    states: Record<string, { above: ScreenText; below: ScreenText }>
+  }>(import.meta.dirname, "scrolled-box.probe.json")
+  const typed = `Merge it${" and say so in the changelog".repeat(7)}, thanks.`
+
+  it.each(["2.1.325", "2.1.326"])("reads the tail of a reply too tall for it on %s", (version) => {
+    const screen = states[version]!.above
+    const read = box.read(screen)
+    expect(read).toMatchObject({
+      mode: "prompt",
+      text: "changelog and say so in the\nchangelog and say so in the\nchangelog, thanks.",
+    })
+    expect(tailOf(box, read!, screen.rows.length, typed)).toBe(read!.text)
+  })
+
+  it.each(["2.1.325", "2.1.326"])(
+    "reads blank rows over words scrolled away below as hiding them on %s",
+    (version) => {
+      const screen = states[version]!.below
+      const read = box.read(screen)
+      expect(read).toMatchObject({ mode: "prompt", text: "" })
+      expect(hidesText(box, read!, screen.rows.length)).toBe(true)
+    },
+  )
+
+  it("says it scrolled where 2.1.326's rule says so, and only there", () => {
+    for (const state of ["above", "below"] as const) {
+      expect(box.cut?.(box.read(states["2.1.326"]![state])!)).toBe(true)
+      expect(box.cut?.(box.read(states["2.1.325"]![state])!)).toBe(false)
+    }
   })
 })
 
