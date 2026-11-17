@@ -98,15 +98,15 @@ describe("the person's prompts not in the agent's record yet", () => {
   for (const harness of agentNames)
     it(`show among ${harness}'s recorded conversation as its golden`, async () => {
       const items = chatItemsOf(harness, recorded[harness])
-      const { lines } = renderChat(items, harness, sentBubbles(sends, prompts, items.length))
+      const { lines } = renderChat(items, harness, sentBubbles(sends, prompts, items))
       await expect(`${lines.join("\n")}\n`).toMatchFileSnapshot(`./sent/${harness}.txt`)
     })
 
   it("draws them alike on every harness, but for the agent's name", () => {
     const shown = agentNames.map((harness) => {
       const items = chatItemsOf(harness, recorded[harness])
-      return renderChat(items, harness, sentBubbles(sends, prompts, items.length)).lines.map(
-        (line) => line.replace(/back in \w+(?: Code)?'s box/, "back in the agent's box"),
+      return renderChat(items, harness, sentBubbles(sends, prompts, items)).lines.map((line) =>
+        line.replace(/back in \w+(?: Code)?'s box/, "back in the agent's box"),
       )
     })
     for (const other of shown.slice(1)) expect(other).toEqual(shown[0])
@@ -115,7 +115,7 @@ describe("the person's prompts not in the agent's record yet", () => {
   it("lets a settled prompt go once its item arrives", () => {
     const items = chatItemsOf("claude", recorded.claude)
     const settled = [receipt("settled000000000", "Open the first", 8, "settled", 2)]
-    const { lines } = renderChat(items, "claude", sentBubbles([], settled, items.length))
+    const { lines } = renderChat(items, "claude", sentBubbles([], settled, items))
     // `toContain` compares by `===`, which a matcher never is, so it could never fail here.
     expect(lines).not.toContainEqual(expect.stringMatching(/^sent/))
     expect(lines).toContain("user: Open the first")
