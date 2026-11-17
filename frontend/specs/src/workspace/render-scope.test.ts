@@ -102,6 +102,11 @@ vi.mock("@novadeck/ui/terminals/WindowStats", async (original) => {
     WindowStats: await counted("stats", actual.WindowStats, (props) => props.stats.model ?? ""),
   }
 })
+// A props-less child the overlays draw unconditionally: counted, it renders whenever they do.
+vi.mock("@novadeck/ui/app/NameOffer", async (original) => {
+  const actual = await original<typeof import("@novadeck/ui/app/NameOffer")>()
+  return { ...actual, NameOffer: await counted("overlays host", actual.NameOffer) }
+})
 vi.mock("@novadeck/ui/search/TerminalSearch", async (original) => {
   const actual = await original<typeof import("@novadeck/ui/search/TerminalSearch")>()
   return { ...actual, TerminalSearch: await counted("overlays", actual.TerminalSearch) }
@@ -145,8 +150,9 @@ const Grab = ({ found }: { readonly found: (services: WorkspaceServices) => void
 const open = async (
   createBackend = createSpecBackend,
   phase = testPhases("workspace render scope", () => Object.fromEntries(renders)),
+  view: "canvas" | "grid" | "focus" = "canvas",
 ) => {
-  window.location.hash = `#/projects/storefront/sessions/initial/canvas?terminal=${first}`
+  window.location.hash = `#/projects/storefront/sessions/initial/${view}?terminal=${first}`
   let found!: (services: WorkspaceServices) => void
   const handedOver = new Promise<WorkspaceServices>((resolve) => {
     found = resolve
@@ -295,10 +301,33 @@ describe("workspace render scope", () => {
     // The sidebar keeps every panel mounted and the overlays every dialog, closed or not: both
     // once drew again whole for each agent's news, the tabs read from the tiles and the closed
     // search handed every tile.
-    it("wakes neither the sidebar and its panels nor the overlays", async () => {
+    it.each(["canvas", "grid", "focus"] as const)(
+      "wakes neither the sidebar and its panels nor the overlays in %s",
+      async (view) => {
+        const { services } = await open(createSpecBackend, undefined, view)
+        const target = firstTarget(services)
+        const seen = rendersDuring(() =>
+          services.workspace.dispatch({
+            type: "terminal/status",
+            target,
+            terminalId: first,
+            status: { state: "running", agent: { working: true } },
+          }),
+        )
+        expect(seen[`tab ${first}`]).toBeGreaterThan(0)
+        expect(Object.keys(seen)).not.toEqual(
+          expect.arrayContaining([expect.stringMatching(/^(sidebar|overlays)/)]),
+        )
+      },
+    )
+  })
+
+  context("when one terminal's agent ends its turn", () => {
+    // The Files panel reads its folders again as a turn ends, and only it hears of it.
+    it("wakes neither the sidebar and its other panels nor the overlays", async () => {
       const { services } = await open()
       const target = firstTarget(services)
-      const seen = rendersDuring(() =>
+      act(() =>
         services.workspace.dispatch({
           type: "terminal/status",
           target,
@@ -306,9 +335,21 @@ describe("workspace render scope", () => {
           status: { state: "running", agent: { working: true } },
         }),
       )
+      const seen = rendersDuring(() =>
+        services.workspace.dispatch({
+          type: "terminal/status",
+          target,
+          terminalId: first,
+          status: {
+            state: "running",
+            agent: { working: false, lastTurn: { outcome: "completed", at: Date.now() } },
+          },
+        }),
+      )
       expect(seen[`tab ${first}`]).toBeGreaterThan(0)
-      expect(seen).not.toHaveProperty("sidebar")
-      expect(seen).not.toHaveProperty("overlays")
+      expect(Object.keys(seen)).not.toEqual(
+        expect.arrayContaining([expect.stringMatching(/^(sidebar|overlays)/)]),
+      )
     })
   })
 

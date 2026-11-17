@@ -12,7 +12,6 @@ import { memo, useCallback, useMemo, useSyncExternalStore } from "react"
 import { useDesktop } from "../shell/desktop"
 import { sidebarVisible } from "../shell/shell-state"
 import { WorkspaceSidebar } from "../shell/WorkspaceSidebar"
-import { latestTurnEnd } from "../sidebar/files-turns"
 import { projectPath, filesOfWorks } from "../sidebar/files-works"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useStoreSelector } from "./controller/useStoreSelector"
@@ -25,6 +24,7 @@ import {
   sameOwners,
   sameWorks,
 } from "./files-feed"
+import { FilesSection } from "./FilesSection"
 import { useTabsAway } from "./move-to"
 import { historyShown, filesShown } from "./routing"
 import { currentState, currentTarget, sameItems, sameTarget } from "./selectors"
@@ -79,8 +79,6 @@ export const SidebarSection = memo((): React.JSX.Element => {
     (folder: string) => filesFeed!.list(projectId, folder),
     [filesFeed, projectId],
   )
-  // Its folders are read again when an agent's turn ends in the project.
-  const turn = useWorkspaceState((workspace) => latestTurnEnd(activeProject(workspace)!))
   const selectedHandle = useWorkspaceState((workspace) => {
     const { roster, selected } = currentState(workspace)
     return roster.terminals.find((terminal) => terminal.id === selected)?.handle
@@ -147,35 +145,6 @@ export const SidebarSection = memo((): React.JSX.Element => {
     (lit: ReadonlySet<string>) =>
       ui.update((state) => (state.filesLit === lit ? state : { ...state, filesLit: lit })),
     [ui],
-  )
-  const files = useMemo(
-    () =>
-      filesFeed
-        ? {
-            project: filesProject ?? worksOverlay,
-            list,
-            turn,
-            watch: watchWorks,
-            onOpenFile,
-            onLit,
-            selectedHandle,
-            roster,
-            squads,
-          }
-        : undefined,
-    [
-      filesFeed,
-      filesProject,
-      worksOverlay,
-      list,
-      turn,
-      watchWorks,
-      onOpenFile,
-      onLit,
-      selectedHandle,
-      roster,
-      squads,
-    ],
   )
   // The History panel shows where the backend keeps closed terminals; see `historyShown`.
   const historyFeed = historyShown(backend) ? backend.history : undefined
@@ -335,7 +304,24 @@ export const SidebarSection = memo((): React.JSX.Element => {
       orderedIds={ids}
       sidebarPanel={sidebarPanel}
       sidebarVisible={visible}
-      files={files}
+      files={
+        filesFeed && (
+          <FilesSection
+            key={projectId}
+            project={filesProject ?? worksOverlay}
+            list={list}
+            watch={watchWorks}
+            onOpenFile={onOpenFile}
+            onLit={onLit}
+            selectedHandle={selectedHandle}
+            roster={roster}
+            squads={squads}
+            active={sidebarPanel === "files"}
+            visible={visible}
+            onHide={hideSidebar}
+          />
+        )
+      }
       history={history}
       worktrees={worktrees}
       onHide={hideSidebar}

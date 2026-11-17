@@ -1,4 +1,3 @@
-import type { FolderListing, FilesProject } from "@novadeck/core/files"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { ClosedTerminal } from "@novadeck/core/history"
 import type { AgentConnection } from "@novadeck/core/port"
@@ -9,7 +8,6 @@ import type { ComponentProps, ReactNode } from "react"
 
 import { HeldPill, InboxCount, InboxList } from "../inbox/InboxList"
 import { shortcutBindings } from "../interaction/shortcuts"
-import { FilesPanel } from "../sidebar/FilesPanel"
 import { HistoryPanel } from "../sidebar/HistoryPanel"
 import { panelLabels } from "../sidebar/panel-labels"
 import { SidebarPanel, sidebarCreateClasses } from "../sidebar/SidebarPanel"
@@ -29,24 +27,9 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "ids"> & {
   orderedIds: readonly string[]
   sidebarPanel: PanelId
   sidebarVisible: boolean
-  // Where the backend reads the projects' files: what its agents changed in the project, if it says, how to
-  // read a folder, when an agent's turn last ended, how to follow the works the changes come
-  // from while the panel shows, if they do, how to open a file, the handle of the selected
-  // terminal, and the session's agents for the strip: every terminal's handle in roster order,
-  // and the teams as handles, each lead first. Left out, there is no Files panel.
-  files:
-    | {
-        project: FilesProject | undefined
-        list: (folder: string) => Promise<FolderListing>
-        turn: number
-        watch: (() => () => void) | undefined
-        onOpenFile: (path: string) => Promise<void>
-        onLit?: ((lit: ReadonlySet<string>) => void) | undefined
-        selectedHandle: string | undefined
-        roster: readonly string[]
-        squads: readonly (readonly string[])[]
-      }
-    | undefined
+  // The Files panel, wired to where the backend reads the projects' files (FilesSection); left
+  // out, there is none.
+  files: ReactNode
   // Where the backend keeps closed terminals: this project's rows, how to read them afresh
   // (stable, as it starts a read), the agents it can connect, and what a row's click does.
   // Left out, there is no History panel.
@@ -114,23 +97,7 @@ export const WorkspaceSidebar = ({
     aria-hidden={!sidebarVisible}
     inert={!sidebarVisible}
   >
-    {files && (
-      <FilesPanel
-        key={projectId}
-        project={files.project}
-        list={files.list}
-        turn={files.turn}
-        watch={files.watch}
-        onOpenFile={files.onOpenFile}
-        onLit={files.onLit}
-        selectedHandle={files.selectedHandle}
-        roster={files.roster}
-        squads={files.squads}
-        active={sidebarPanel === "files"}
-        visible={sidebarVisible}
-        onHide={onHide}
-      />
-    )}
+    {files}
     <SidebarPanel
       id="sessions-panel"
       title={panelLabels.sessions}

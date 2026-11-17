@@ -13,7 +13,7 @@ import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { Bell, BellOff, LoaderCircle, X } from "lucide-react"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useMemo, useState, memo } from "react"
 
 import { focusSheet, focusSheetSoon, nextRowButton, rowOf } from "./inbox-dom"
 import { iconKey, icons, tintOf, typeWords } from "./inbox-icons"
@@ -319,14 +319,14 @@ const Row = ({
 
 // Beside the title: how many wait on the person, as the rail's bell says, while any do. It reads
 // the Inbox itself, so a change in what waits re-renders it and not the sidebar.
-export const InboxCount = (): string | null => {
+const InboxCountView = (): string | null => {
   const { state } = useInboxContext()
   const waiting = needing(state.items).length
   return waiting === 0 ? null : `${waiting} waiting`
 }
 
 // The pill beside the title while rows wait to join the list.
-export const HeldPill = (): React.JSX.Element | null => {
+const HeldPillView = (): React.JSX.Element | null => {
   const { held, showHeld } = useInboxContext()
   if (held.length === 0) return null
   return (
@@ -359,7 +359,7 @@ export const arrangedIds = (
 const needsBefore = (before: InboxRow | undefined): boolean =>
   before !== undefined && asking(before)
 
-export const InboxList = (): React.JSX.Element => {
+const InboxListView = (): React.JSX.Element => {
   const { shown, view, working, state, ghosts, arrange } = useInboxContext()
   const placements = shown.map((row) => ({
     row,
@@ -483,3 +483,8 @@ export const InboxList = (): React.JSX.Element => {
     </div>
   )
 }
+
+// Each reads the Inbox itself and takes no props, so the sidebar drawing again draws none of them.
+export const InboxCount = memo(InboxCountView)
+export const HeldPill = memo(HeldPillView)
+export const InboxList = memo(InboxListView)
