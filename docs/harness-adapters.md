@@ -733,12 +733,12 @@ Novadeck writes nothing to a harness's config. The `=` form matters: Claude Code
   `--add-dir`. From 2.1.326 `--add-dir` of a folder it hasn't trusted holds every start and
   resume at "Adding a new directory … Is this a directory you created or one you trust?",
   whose default, "No, exit", ends the session; a folder from its settings asks nothing, and
-  merges with the person's own folders and rules. One thing differs: 2.1.326 asks before a
-  read-only git command in a repository that isn't the project's or one trusted, and a
-  folder from settings, unlike one from `--add-dir`, names no repository (its changelog), so a
-  `git -C <worktree>` there may ask where the worktree's repository isn't the session's
-  project's (probed 2026-11-17, 2.1.325 and 2.1.326,
-  `e2e/probes/add-dir.e2e.ts`; `e2e/worktrees-folder.e2e.ts`). Without either settings file
+  merges with the person's own folders and rules. Its changelog says 2.1.326 asks before a read-only git command in a repository that isn't
+  the project's or one trusted, and that only `--add-dir` names one; but in the default mode a
+  `git -C` asks however the folder is given, on 2.1.325 and 2.1.326 alike, even into the
+  project itself, and only a plain `git status` runs unasked (probed 2026-11-17, 2.1.325 and
+  2.1.326, `e2e/probes/add-dir.e2e.ts`, `e2e/probes/add-dir-git.e2e.ts`;
+  `e2e/worktrees-folder.e2e.ts`). Without either settings file
   it passes neither; it never passes a second `--settings`, which would replace the first.
   Its commands (`mcp`, `plugin`, ...) run unchanged.
 - **Codex** adds it ahead of any command: the interactive session, `resume` and `exec` take it.
