@@ -1,0 +1,45 @@
+2026-11-17T15:36:07.0152020Z @novadeck/specs:test:  [32m✓[39m [30m[43m behaviour (chromium) [49m[39m src/companions/canvas.spec.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 7137[2mms[22m[39m
+2026-11-17T15:36:07.0235680Z @novadeck/specs:test:    [32m✓[39m Canvas with a pane an agent opens in a window that is not selected [2m(1)[22m
+2026-11-17T15:36:07.0357400Z @novadeck/specs:test:      [33m[2m✓[22m[39m waits behind a toast, the camera still; a click on it selects the window[33m 7134[2mms[22m[39m
+2026-11-17T15:36:08.5095130Z @novadeck/specs:test:  [31m❯[39m [30m[43m behaviour (chromium) [49m[39m src/terminals/process-windows.spec.tsx [2m([22m[2m0 test[22m[2m)[22m
+2026-11-17T15:36:12.7647240Z @novadeck/specs:test:  [32m✓[39m [30m[43m behaviour (chromium) [49m[39m src/setup.spec.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 2478[2mms[22m[39m
+2026-11-17T15:36:12.7650200Z @novadeck/specs:test:    [32m✓[39m the desktop window a spec reads [2m(1)[22m
+2026-11-17T15:36:12.7664630Z @novadeck/specs:test:      [33m[2m✓[22m[39m is the page's, once the workspace opens again[33m 2436[2mms[22m[39m
+2026-11-17T15:36:16.5350700Z @novadeck/specs:test:  [32m✓[39m [30m[43m behaviour (chromium) [49m[39m src/agents/chat-turns.spec.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 2975[2mms[22m[39m
+2026-11-17T15:36:16.5352310Z @novadeck/specs:test:    [32m✓[39m A chat coming into sight [2m(1)[22m
+2026-11-17T15:36:16.5353270Z @novadeck/specs:test:      [33m[2m✓[22m[39m stands in as its terminal's name in Grid until its turn, then shows[33m 2974[2mms[22m[39m
+2026-11-17T15:36:16.8368410Z @novadeck/specs:test:  [32m✓[39m [30m[43m behaviour (chromium) [49m[39m src/views/canvas-sessions.spec.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 12083[2mms[22m[39m
+2026-11-17T15:36:16.8386470Z @novadeck/specs:test:    [32m✓[39m Canvas across workspace sessions [2m(1)[22m
+2026-11-17T15:36:16.8393160Z @novadeck/specs:test:      [32m✓[39m when switching session right after moving the camera [2m(1)[22m
+2026-11-17T15:36:16.8410640Z @novadeck/specs:test:        [33m[2m✓[22m[39m frames every window afresh on returning, as on opening[33m 12081[2mms[22m[39m
+2026-11-17T15:36:19.8885710Z @novadeck/specs:test:  [32m✓[39m [30m[43m behaviour (chromium) [49m[39m src/workspace/commands.spec.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 2622[2mms[22m[39m
+2026-11-17T15:36:19.8887740Z @novadeck/specs:test:    [32m✓[39m workspace commands [2m(1)[22m
+2026-11-17T15:36:19.8888750Z @novadeck/specs:test:      [32m✓[39m when creating a terminal while another name is being edited [2m(1)[22m
+2026-11-17T15:36:19.8899420Z @novadeck/specs:test:        [33m[2m✓[22m[39m saves the existing name and creates the new terminal in the same interaction[33m 2622[2mms[22m[39m
+2026-11-17T15:36:19.9524700Z @novadeck/specs:test: 
+2026-11-17T15:36:19.9542210Z @novadeck/specs:test: [31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Suites 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-11-17T15:36:19.9543970Z @novadeck/specs:test: 
+2026-11-17T15:36:19.9545210Z @novadeck/specs:test: [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/terminals/process-windows.spec.tsx[2m [ src/terminals/process-windows.spec.tsx ][22m
+2026-11-17T15:36:19.9546760Z @novadeck/specs:test: [31m[1mError[22m: Failed to import test file /Users/runner/work/novadeck/novadeck/frontend/specs/src/terminals/process-windows.spec.tsx[39m
+2026-11-17T15:36:19.9549260Z @novadeck/specs:test: [31m[1mCaused by: TypeError[22m: Failed to fetch dynamically imported module: http://localhost:23315/Users/runner/work/novadeck/novadeck/frontend/specs/src/terminals/process-windows.spec.tsx?import&browserv=1794929767307[39m
+2026-11-17T15:36:19.9550780Z @novadeck/specs:test: [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+2026-11-17T15:36:19.9551370Z @novadeck/specs:test: 
+2026-11-17T15:36:19.9556980Z @novadeck/specs:test: 
+2026-11-17T15:36:19.9563000Z @novadeck/specs:test: [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m87 passed[39m[22m[90m (88)[39m
+2026-11-17T15:36:19.9590520Z @novadeck/specs:test: [2m      Tests [22m [1m[32m1540 passed[39m[22m[2m | [22m[33m8 skipped[39m[90m (1548)[39m
+2026-11-17T15:36:19.9595760Z @novadeck/specs:test: [2m   Start at [22m 14:52:51
+2026-11-17T15:36:19.9610960Z @novadeck/specs:test: [2m   Duration [22m 2608.74s[2m (tests 95%, import 2%, transform 1%)[22m
+2026-11-17T15:36:19.9645870Z @novadeck/specs:test: 
+2026-11-17T15:36:21.8701260Z @novadeck/specs:test: [ELIFECYCLE] Test failed. See above for more details.
+2026-11-17T15:36:22.0100230Z @novadeck/ui:test: cache miss, executing d8ed5b6297c1ceb6
+2026-11-17T15:36:22.0105300Z @novadeck/desktop:test: cache miss, executing 70d6756f2912dd9e
+2026-11-17T15:36:22.0524100Z ##[error]command (/Users/runner/work/novadeck/novadeck/frontend/specs) /Users/runner/setup-pnpm/pnpm run test --reporter=default --reporter=hanging-process exited (1)
+2026-11-17T15:36:22.0684180Z @novadeck/specs#test:  ERROR  command (/Users/runner/work/novadeck/novadeck/frontend/specs) /Users/runner/setup-pnpm/pnpm run test --reporter=default --reporter=hanging-process exited (1)
+2026-11-17T15:36:22.0691530Z  ERROR  run failed: command  exited (1)
+2026-11-17T15:36:22.0692030Z 
+2026-11-17T15:36:22.0693620Z  Tasks:    32 successful, 35 total
+2026-11-17T15:36:22.0696060Z Cached:    0 cached, 35 total
+2026-11-17T15:36:22.0699180Z   Time:    56m15.251s 
+2026-11-17T15:36:22.0700870Z Failed:    @novadeck/specs#test
+2026-11-17T15:36:22.0701160Z 
+2026-11-17T15:36:22.2312240Z ##[error]Process completed with exit code 1.
