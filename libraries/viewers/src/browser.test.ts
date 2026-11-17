@@ -805,6 +805,7 @@ describe("the browser viewer", () => {
       expect(root.hasAttribute("data-tilting")).toBe(true)
     })
 
+    // Given 25 s, as its waits go at frame speed and may run past the browser tests' 15 s.
     it("swings a phone toward where it's pushed on its spring, and back flat to rest", async () => {
       // With motion, as the person's browser has it unless they ask for less.
       vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList)
@@ -833,18 +834,20 @@ describe("the browser viewer", () => {
       try {
         pointer("pointerdown", left + 4, 1)
         pointer("pointermove", left + 4 + 200, 1)
-        // It starts slow, then gets there.
+        // It starts slow, then gets there. The spring steps at most 1/30 s of its own time a
+        // frame, so where a loaded runner draws few frames a second, as macOS's did on #1010,
+        // it takes longer by the clock: about 0.7 s of its own over, and 1 s back to rest.
         await expect.poll(turned).toBeGreaterThan(0)
         expect(turned()).toBeLessThan(tiltToward(200))
-        await expect.poll(turned, { timeout: 3000 }).toBeCloseTo(tiltToward(200), 0)
+        await expect.poll(turned, { timeout: 10_000 }).toBeCloseTo(tiltToward(200), 0)
         pointer("pointerup", left + 4 + 200, 0)
         expect(root.hasAttribute("data-settling")).toBe(true)
-        await expect.poll(() => root.hasAttribute("data-settling"), { timeout: 3000 }).toBe(false)
+        await expect.poll(() => root.hasAttribute("data-settling"), { timeout: 10_000 }).toBe(false)
         expect(turned()).toBe(0)
       } finally {
         vi.restoreAllMocks()
       }
-    })
+    }, 25_000)
 
     it("lets a phone go when a move comes with no button down, its release lost", () => {
       const pane = paneIn()
