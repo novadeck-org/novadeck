@@ -461,7 +461,7 @@ describe("a suite split into shards", () => {
 })
 
 describe("E2E jobs", () => {
-  it("runs each harness in three shards on Linux and two elsewhere, and Mixed whole", () => {
+  it("runs each harness in three shards on Linux, Claude Code in three on Windows, the rest in two, and Mixed whole", () => {
     expect(plan(nightly, ids, sharding).rows.map((row) => row.job)).toEqual([
       "Claude Code (1/3)",
       "Claude Code (2/3)",
@@ -473,8 +473,9 @@ describe("E2E jobs", () => {
       "Antigravity (2/3)",
       "Antigravity (3/3)",
       "Mixed",
-      "Claude Code (Windows, 1/2)",
-      "Claude Code (Windows, 2/2)",
+      "Claude Code (Windows, 1/3)",
+      "Claude Code (Windows, 2/3)",
+      "Claude Code (Windows, 3/3)",
       "Codex (Windows, 1/2)",
       "Codex (Windows, 2/2)",
       "Antigravity (Windows, 1/2)",

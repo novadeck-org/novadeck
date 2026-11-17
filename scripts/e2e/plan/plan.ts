@@ -256,7 +256,9 @@ const shardsOn: ReadonlyMap<string, ReadonlyMap<string, number>> = new Map([
     "claude",
     new Map([
       [systems.linux, 3],
-      [systems.windows, 2],
+      // Its two Windows shards took up to 30.4 of 45 minutes (68%) on 2026-11-17's night, and a
+      // suite file more put the planned worst past the line: a third, as Windows runners are many.
+      [systems.windows, 3],
       [systems.macos, 2],
     ]),
   ],
