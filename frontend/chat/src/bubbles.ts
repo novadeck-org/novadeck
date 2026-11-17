@@ -1,4 +1,4 @@
-import type { ChatPrompt } from "@novadeck/core/conversation"
+import type { ChatItem, ChatPrompt } from "@novadeck/core/conversation"
 import type { ChatBlock } from "@novadeck/core/conversation/turns"
 
 import type { Attachment } from "./attachments"
@@ -21,18 +21,55 @@ export type SentBubble = {
 
 const noImages: readonly Attachment[] = []
 
+// The same words, however their white space runs.
+const sameWords = (a: string, b: string): boolean =>
+  a.trim().split(/\s+/).join(" ") === b.trim().split(/\s+/).join(" ")
+
+// The second a time falls in, as a coarse record writes it.
+const second = (at: number): number => Math.floor(at / 1000) * 1000
+
+// Whether a pending prompt is in the record already, before its receipt says so: the backend
+// reads the record for receipts apart from the transcript, which may show the item first.
+// It is there where a person's item no settled receipt claims holds its words, recorded no
+// earlier than the second it was sent in; each such item stands for one prompt only.
+const recordedAhead = (
+  items: readonly ChatItem[],
+  prompts: readonly ChatPrompt[],
+): ((prompt: ChatPrompt, text: string) => boolean) => {
+  const claimed = new Set(prompts.flatMap(({ item }) => (item === null ? [] : [item])))
+  const taken = new Set<number>()
+  return (prompt, text) => {
+    const at = items.findIndex(
+      (item, index) =>
+        !claimed.has(index) &&
+        !taken.has(index) &&
+        item.role === "user" &&
+        item.kind === "text" &&
+        !item.interrupted &&
+        item.ring === null &&
+        item.at !== null &&
+        item.at >= second(prompt.sentAt) &&
+        sameWords(item.text, text),
+    )
+    if (at < 0) return false
+    taken.add(at)
+    return true
+  }
+}
+
 // The prompts to show as bubbles, in the order they were given: those the conversation's
 // receipts tell (`prompts`), as any window shows them, then this window's own still on their
-// way. A settled one shows until the conversation holds its item (`items` long), which may
-// arrive after the receipt, and a withdrawn one shows not at all: its words are the draft
-// again. A settled one whose words aren't known, from the receipt or this window's own
-// send, shows not at all.
+// way. A settled one shows until the conversation holds its item, which may arrive after the
+// receipt, and a pending one until the conversation holds it (`recordedAhead`), which may
+// arrive before; a withdrawn one shows not at all: its words are the draft again. A settled
+// one whose words aren't known, from the receipt or this window's own send, shows not at all.
 export const sentBubbles = (
   sends: readonly ChatSend[],
   prompts: readonly ChatPrompt[],
-  items: number,
+  items: readonly ChatItem[],
 ): readonly SentBubble[] => {
   const told = new Set(prompts.map(({ ref }) => ref))
+  const recorded = recordedAhead(items, prompts)
   const local = new Map(sends.map((send) => [send.ref, send]))
   // What a prompt of images shows reads as its draft did, the placeholders in the words.
   const textOf = (prompt: ChatPrompt): string | undefined => {
@@ -50,11 +87,13 @@ export const sentBubbles = (
       case "withdrawn":
         return []
       case "settled":
-        return prompt.item !== null && items > prompt.item
+        return prompt.item !== null && items.length > prompt.item
           ? []
           : [{ ref, text, images, state: "sending", at }]
       case "pending":
-        return [{ ref, text, images, state: "sending", at }]
+        return recorded(prompt, prompt.text ?? text)
+          ? []
+          : [{ ref, text, images, state: "sending", at }]
       case "unrecorded":
       case "in-box":
         return [{ ref, text, images, state: prompt.state, at }]

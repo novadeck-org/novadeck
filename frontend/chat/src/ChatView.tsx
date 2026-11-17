@@ -286,8 +286,8 @@ const ChatBody = ({
   const settled = settledSent()
   // The person's prompts the agent's record doesn't show yet.
   const bubbles = useMemo(
-    () => sentBubbles(sending, prompts, items.length).filter(({ ref }) => !settled.has(ref)),
-    [sending, prompts, items.length, settled],
+    () => sentBubbles(sending, prompts, items).filter(({ ref }) => !settled.has(ref)),
+    [sending, prompts, items, settled],
   )
   // The requests whose cards show: a question that a message on its way sets aside goes as
   // the message goes, and comes back only should it not go.
