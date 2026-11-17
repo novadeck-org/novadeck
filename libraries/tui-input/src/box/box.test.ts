@@ -191,13 +191,17 @@ describe("ruledBox", () => {
       expect(tailOf(profile, box!, drawn.length, typed)).toBe(box!.text)
     })
 
-    it("reads none under a plain rule without a marker, or with a row that isn't its body", () => {
+    it("reads none under a plain rule without a marker, or with a row that isn't its body; blank ones as hiding text", () => {
       const drawn = ["● Worked on.", line, "  changelog, thanks.", line]
       expect(ruledBox(screen(drawn, 2, 10), markers)).toBeUndefined()
       expect(
         ruledBox(screen([drawn[0]!, over, "plain words", line], 2, 5), markers),
       ).toBeUndefined()
-      expect(ruledBox(screen([drawn[0]!, over, "  ", line], 2, 1), markers)).toBeUndefined()
+      // Blank rows alone under it hold what scrolled away: a draft, not an empty box.
+      expect(ruledBox(screen([drawn[0]!, over, "  ", line], 2, 1), markers)).toMatchObject({
+        text: "",
+        scrolled: true,
+      })
       // Rows scrolled away below say nothing of its first row.
       expect(ruledBox(screen([drawn[0]!, line, "  words", under], 2, 3), markers)).toBeUndefined()
     })

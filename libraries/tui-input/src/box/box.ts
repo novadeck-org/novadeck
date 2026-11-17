@@ -506,8 +506,10 @@ export const ruledBox = (screen: ScreenText, markers: Markers): InputBox | undef
  * A box whose first line scrolled away above, its marker with it, as its top rule says
  * (`scrolledAbove`): Claude Code from 2.1.326 draws the rows it shows indented alike, where
  * 2.1.325 led the first of them with `❯` (probed 2026-11-17, a reply of ten rows on 40×12).
- * Every row from `first` to `last` is a line of its body or blank. Its mode can't be read: it
- * reads as a prompt, which a footer that says shell mode then disowns (`agreeing`).
+ * Every row from `first` to `last` is a line of its body or blank; blank alone, it holds what
+ * scrolled away, as `scrolled` says. Its mode can't be read: it reads as a prompt, which a
+ * footer that says shell mode then disowns (`agreeing`); one whose footer gives way to another
+ * hint reads as a prompt all the same, a draft taller than its box.
  */
 const unmarkedBox = (
   screen: ScreenText,
@@ -517,7 +519,6 @@ const unmarkedBox = (
 ): InputBox | undefined => {
   const rows = screen.rows.slice(first, last + 1)
   if (!rows.every((row) => row.trim() === "" || bodyRow(row))) return undefined
-  if (!rows.some((row) => row.trim() !== "")) return undefined
   // Its first row read as led by the marker, which stands as wide as the indent it replaces.
   const led = (row: string | undefined) =>
     `${markers.prompt}${(row ?? "").slice(markers.prompt.length)}`
