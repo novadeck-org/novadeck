@@ -103,7 +103,7 @@ for novadeck_arg in "$@"; do
     # Already without the shared server: only the title is added.
     --no-daemon) novadeck_daemon= ;;
     # A profile's own roots stand, which the setting would replace.
-    -p | --profile | --profile=*) novadeck_roots= ;;
+    -p* | --profile | --profile=*) novadeck_roots= ;;
   esac
 done${capture ? posixCapture(capture) : ""}
 ${posixLaunch("codex")}
@@ -151,6 +151,7 @@ rem Only while Codex is connected: Novadeck's shells name the harnesses whose sh
 echo " %NOVADECK_SHIMS% " | findstr /c:" codex " >nul || goto plain
 set "novadeck_add="
 set "novadeck_roots="
+set "novadeck_titled="
 ${
   root === undefined
     ? ""
@@ -169,13 +170,14 @@ set "novadeck_arg=%novadeck_arg:"=%"
 shift
 if /i "%novadeck_arg%"=="agents" goto plain
 if /i "%novadeck_arg%"=="--remote" goto plain
-rem A profile's own roots stand, which the setting would replace.
-if "%novadeck_arg%"=="-p" set "novadeck_add="
+rem A profile's own roots stand, which the setting would replace, wherever it is named.
+if "%novadeck_arg:~0,2%"=="-p" set "novadeck_add="
 if /i "%novadeck_arg%"=="--profile" set "novadeck_add="
-if /i "%novadeck_arg%"=="--no-daemon" goto titled
+if /i "%novadeck_arg%"=="--no-daemon" set "novadeck_titled=1"
 goto words
 :session
 set "novadeck_arg="
+if defined novadeck_titled goto titled
 ${cmdLaunch("codex")}
 ${launchLine(`--no-daemon %novadeck_add% -c "${titleSetting}" -c ${approveNovadeck}`, pwshShimDir, "session")}
 exit /b %ERRORLEVEL%

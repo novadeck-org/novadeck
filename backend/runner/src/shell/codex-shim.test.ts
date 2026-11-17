@@ -199,8 +199,18 @@ for (const pwsh of [false, true])
         "--no-daemon",
       ])
       // A profile's own roots stand, which the setting would replace: none is passed.
-      for (const profile of [["-p", "x"], ["--profile", "x"], ["--profile=x"]])
+      for (const profile of [["-p", "x"], ["-px"], ["--profile", "x"], ["--profile=x"]])
         expect(shim.run(profile)).toEqual(["--no-daemon", "-c", title, "-c", approve, ...profile])
+      // Named after --no-daemon too.
+      expect(shim.run(["--no-daemon", "-p", "x"])).toEqual([
+        "-c",
+        title,
+        "-c",
+        approve,
+        "--no-daemon",
+        "-p",
+        "x",
+      ])
       // Never --add-dir of its own.
       expect(shim.run([]).filter((arg) => arg.startsWith("--add-dir"))).toEqual([])
       // What needs the shared server stays as it was.

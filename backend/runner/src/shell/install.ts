@@ -148,7 +148,10 @@ export const installShellFiles = async (
       } It looks again at the next start.`,
     )
   // Read, never written: Codex's shim passes its roots on with the worktrees' folder.
-  const codexRoots = theirRoots(await readFile(codexConfigPath, "utf8").catch(() => ""))
+  const codexRoots = theirRoots(
+    await readFile(codexConfigPath, "utf8").catch(() => ""),
+    dirname(codexConfigPath),
+  )
   const files = shellFiles(paths, platform, undefined, {
     cmdPrints: prints !== undefined,
     codexRoots,

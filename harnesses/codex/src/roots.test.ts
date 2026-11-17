@@ -5,28 +5,50 @@ import { rootsSetting, theirRoots } from "./roots.js"
 
 describe("the person's own writable roots", () => {
   it("are read from their table, its dotted key, or an inline table", () => {
-    expect(theirRoots(`[sandbox_workspace_write]\nwritable_roots = ["/a", "/b"]\n`)).toEqual([
-      "/a",
-      "/b",
-    ])
-    expect(theirRoots(`sandbox_workspace_write.writable_roots = ['/a']\n`)).toEqual(["/a"])
-    expect(theirRoots(`sandbox_workspace_write = { writable_roots = ["/a"] }\n`)).toEqual(["/a"])
     expect(
-      theirRoots(`[sandbox_workspace_write]\nwritable_roots = [\n  "/a", # theirs\n  "/b",\n]\n`),
+      theirRoots(`[sandbox_workspace_write]\nwritable_roots = ["/a", "/b"]\n`, "/home/x/.codex"),
+    ).toEqual(["/a", "/b"])
+    expect(
+      theirRoots(`sandbox_workspace_write.writable_roots = ['/a']\n`, "/home/x/.codex"),
+    ).toEqual(["/a"])
+    expect(
+      theirRoots(`sandbox_workspace_write = { writable_roots = ["/a"] }\n`, "/home/x/.codex"),
+    ).toEqual(["/a"])
+    expect(
+      theirRoots(
+        `[sandbox_workspace_write]\nwritable_roots = [\n  "/a", # theirs\n  "/b",\n]\n`,
+        "/home/x/.codex",
+      ),
     ).toEqual(["/a", "/b"])
   })
 
+  it("are full paths, a relative one of the config's own folder", () => {
+    expect(
+      theirRoots(`[sandbox_workspace_write]\nwritable_roots = ["rel", "/abs"]\n`, "/home/x/.codex"),
+    ).toEqual(["/home/x/.codex/rel", "/abs"])
+  })
+
   it("are none where the config sets none, doesn't read as TOML, or isn't there", () => {
-    expect(theirRoots("")).toEqual([])
-    expect(theirRoots(`model = "o3"\n[sandbox_workspace_write]\nnetwork_access = true\n`)).toEqual(
-      [],
-    )
-    expect(theirRoots(`[sandbox_workspace_write\nwritable_roots = ["/a"]`)).toEqual([])
-    expect(theirRoots(`[sandbox_workspace_write]\nwritable_roots = "/a"\n`)).toEqual([])
+    expect(theirRoots("", "/home/x/.codex")).toEqual([])
+    expect(
+      theirRoots(
+        `model = "o3"\n[sandbox_workspace_write]\nnetwork_access = true\n`,
+        "/home/x/.codex",
+      ),
+    ).toEqual([])
+    expect(
+      theirRoots(`[sandbox_workspace_write\nwritable_roots = ["/a"]`, "/home/x/.codex"),
+    ).toEqual([])
+    expect(
+      theirRoots(`[sandbox_workspace_write]\nwritable_roots = "/a"\n`, "/home/x/.codex"),
+    ).toEqual([])
     // A profile's are its own, which the shim leaves standing.
-    expect(theirRoots(`[profiles.x.sandbox_workspace_write]\nwritable_roots = ["/p"]\n`)).toEqual(
-      [],
-    )
+    expect(
+      theirRoots(
+        `[profiles.x.sandbox_workspace_write]\nwritable_roots = ["/p"]\n`,
+        "/home/x/.codex",
+      ),
+    ).toEqual([])
   })
 })
 
@@ -43,7 +65,20 @@ describe("the setting that gives a session its roots", () => {
     expect(setting).not.toContain('"')
   })
 
-  it("names a folder holding a single quote in a basic string", () => {
-    expect(read(rootsSetting(["/home/it's", "/a"]))).toEqual(["/home/it's", "/a"])
+  it("names a folder holding single quotes in a literal string that holds no double quote", () => {
+    const paths = [
+      "C:\\Users\\Mary O'Brien\\.novadeck\\worktrees",
+      "/home/end'",
+      "/home/two''",
+      "/a",
+    ]
+    const setting = rootsSetting(paths)
+    expect(read(setting)).toEqual(paths)
+    // Windows' reading of a command line takes out double quotes, which the value never holds.
+    expect(setting).not.toContain('"')
+  })
+
+  it("names a folder no literal string can hold in a basic one", () => {
+    expect(read(rootsSetting(["/a\nb", "/x'''y"]))).toEqual(["/a\nb", "/x'''y"])
   })
 })
