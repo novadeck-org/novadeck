@@ -461,11 +461,12 @@ describe("a suite split into shards", () => {
 })
 
 describe("E2E jobs", () => {
-  it("runs each harness in three shards on Linux, Claude Code in three on Windows, the rest in two, and Mixed whole", () => {
+  it("runs Claude Code in four shards on Linux and three on Windows, the rest in three and two, and Mixed whole", () => {
     expect(plan(nightly, ids, sharding).rows.map((row) => row.job)).toEqual([
-      "Claude Code (1/3)",
-      "Claude Code (2/3)",
-      "Claude Code (3/3)",
+      "Claude Code (1/4)",
+      "Claude Code (2/4)",
+      "Claude Code (3/4)",
+      "Claude Code (4/4)",
       "Codex (1/3)",
       "Codex (2/3)",
       "Codex (3/3)",
@@ -519,7 +520,31 @@ describe("E2E jobs", () => {
     }
   })
 
-  it("keeps each shard a quarter under its job's limit at worst, by its files' recorded times", () => {
+  // Time that tests not yet in durations.json will add, in seconds on Linux: tests that were
+  // skipped when it was recorded and now run (the tour's teammates opening where they should:
+  // Claude Code's tour about a minute, Codex's about 30 s, `lead.e2e.ts` about 10 s). Windows
+  // runs them up to three times slower, as it runs `lead.e2e.ts` now, and macOS half again.
+  // Drop each once durations.json is recorded again with it.
+  const unrecorded: Readonly<Record<string, Readonly<Record<string, number>>>> = {
+    claude: { "tour.e2e.ts": 60, "lead.e2e.ts": 10 },
+    codex: { "tour.e2e.ts": 30, "lead.e2e.ts": 10 },
+    agy: { "lead.e2e.ts": 10 },
+  }
+  const slower = { linux: 1, windows: 3, macos: 1.5 } as const
+  const withUnrecorded = (
+    times: Readonly<Record<string, number>> | undefined,
+    agents: string,
+    key: keyof typeof slower,
+  ): Readonly<Record<string, number>> | undefined =>
+    times &&
+    Object.fromEntries(
+      Object.entries(times).map(([file, time]) => [
+        file,
+        time + (unrecorded[agents]?.[file] ?? 0) * slower[key],
+      ]),
+    )
+
+  it("keeps each shard a quarter under its job's limit at worst, by its files' times, those still to be recorded too", () => {
     // Every harness the suite pins, not only those split today.
     const pinned = Object.keys(
       JSON.parse(
@@ -534,12 +559,14 @@ describe("E2E jobs", () => {
         const key = (Object.keys(systems) as (keyof typeof systems)[]).find(
           (each) => systems[each] === os,
         )!
-        const times = sharding.durations[agents]?.[key]
-        expect(times, `${agents} on ${key} has recorded times`).toBeDefined()
-        const shards = split(sharding.suite, times, shardsOf(agents, os))
+        const recordedTimes = sharding.durations[agents]?.[key]
+        expect(recordedTimes, `${agents} on ${key} has recorded times`).toBeDefined()
+        const times = withUnrecorded(recordedTimes, agents, key)
+        // The shards as CI splits them, by the times recorded, each weighed with what is to come.
+        const shards = split(sharding.suite, recordedTimes, shardsOf(agents, os))
         // A file with no time recorded yet weighs as the median one, as `split` weighs it.
         const known = sharding.suite.flatMap((file) =>
-          times?.[file] === undefined ? [] : [times[file]!],
+          recordedTimes?.[file] === undefined ? [] : [recordedTimes[file]!],
         )
         const median = known.toSorted((a, b) => a - b)[Math.floor(known.length / 2)] ?? 0
         for (const files of shards) {
@@ -586,9 +613,10 @@ describe("E2E jobs", () => {
       sharding,
     )
     expect(linux.rows.map((row) => row.job)).toEqual([
-      "Claude Code (1/3)",
-      "Claude Code (2/3)",
-      "Claude Code (3/3)",
+      "Claude Code (1/4)",
+      "Claude Code (2/4)",
+      "Claude Code (3/4)",
+      "Claude Code (4/4)",
       "Codex (1/3)",
       "Codex (2/3)",
       "Codex (3/3)",
