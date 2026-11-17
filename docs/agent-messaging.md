@@ -2741,8 +2741,9 @@ again on each call.
   - **Antigravity**, whose injection lasts one model call, is told at every turn's start
     while the setting is on, so the notice holds on every turn; its `told.worktrees` is
     kept all the same, to know on a flip off that it was told.
-  - **A session that can't use worktrees yet.** The harness shims pass `--add-dir` for the
-    worktrees folder (`~/.novadeck/worktrees`) only if it exists when the agent launches, and
+  - **A session that can't use worktrees yet.** The harness shims give a session the
+    worktrees folder (`~/.novadeck/worktrees`; `--add-dir`, or Claude Code's settings) only if
+    it exists when the agent launches, and
     Novadeck's MCP server lists the worktree tools only while the setting is on, a list
     Claude Code and Codex keep for the whole process (Antigravity, `toolsAtTurnStart`, lists
     them at each turn, so only the folder matters to it). `RootFolder`

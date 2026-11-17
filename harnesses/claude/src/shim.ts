@@ -1,6 +1,8 @@
 import { header } from "@novadeck/harness-core/header"
 import { cmdLaunch, posixLaunch } from "@novadeck/harness-core/launch-mark"
-import { cmdAdd, posixAdd } from "@novadeck/harness-core/shim-root"
+import { cmdValue, shQuote } from "@novadeck/harness-core/shim-root"
+
+import { worktreesSettings } from "./plugin.js"
 
 // Claude Code's commands other than a session, which a status line has no part in.
 export const commands = [
@@ -94,17 +96,19 @@ export const allowNovadeck = "--allowed-tools=mcp__plugin_novadeck_novadeck"
 
 // While Claude Code is connected, Novadeck's shells run it through this shim, which adds
 // Novadeck's settings: a status line that tells Novadeck the session's rate limits and
-// context, then shows the person's own status line. It also passes --add-dir for the folder
-// where agents' worktrees live, once that exists, so the session may write there as in its
-// own folder, and lets the session run Novadeck's own tools without asking (`allowNovadeck`),
-// fresh at every start and resume; it never passes a second --settings, which would replace
-// the first. As a session starts, it tells Novadeck so (`posixLaunch` and `cmdLaunch`). Its
+// context, then shows the person's own status line. Once the folder where agents' worktrees
+// live exists, the settings it passes also name that folder as one of the session's own
+// (`worktreesSettings`), so the session may write there as in its own folder; not as
+// --add-dir, which from 2.1.326 asks whether to trust the folder before the session starts,
+// its default exiting. It lets the session run Novadeck's own tools without asking
+// (`allowNovadeck`), fresh at every start and resume; it never passes a second --settings,
+// which would replace the first. As a session starts, it tells Novadeck so (`posixLaunch` and `cmdLaunch`). Its
 // other commands, and anything outside Novadeck's shells, run unchanged.
 export const posixShim = (root?: string): string => `#!/bin/sh
 ${header("#", "shim for claude")}
 # Runs the real claude with Novadeck's status line, which passes on the person's own, with
-# access to the folder where agents' worktrees live, and with Novadeck's own tools allowed.
-${posixAdd(root)}
+# the folder where agents' worktrees live as its own, and with Novadeck's own tools allowed.
+novadeck_root=${root === undefined ? "" : shQuote(root)}
 novadeck_real=
 novadeck_ifs=$IFS
 IFS=:
@@ -129,6 +133,9 @@ fi
 [ -n "\${NOVADECK_TERMINAL_ID:-}" ] || exec "$novadeck_real" "$@"
 case " \${NOVADECK_SHIMS:-} " in *" claude "*) ;; *) exec "$novadeck_real" "$@" ;; esac
 novadeck_settings=$(dirname "$0")/../plugins/claude/statusline.json
+[ -n "$novadeck_root" ] && [ -d "$novadeck_root" ] &&
+  [ -f "$(dirname "$0")/../plugins/claude/${worktreesSettings}" ] &&
+  novadeck_settings=$(dirname "$0")/../plugins/claude/${worktreesSettings}
 [ -f "$novadeck_settings" ] || novadeck_settings=
 novadeck_value=
 novadeck_list=
@@ -152,7 +159,7 @@ for novadeck_arg in "$@"; do
   esac
 done
 ${posixLaunch("claude")}
-exec "$novadeck_real" \${novadeck_settings:+--settings "$novadeck_settings"} \${novadeck_add:+"$novadeck_add"} ${allowNovadeck} "$@"
+exec "$novadeck_real" \${novadeck_settings:+--settings "$novadeck_settings"} ${allowNovadeck} "$@"
 `
 
 // The same on Windows, as Codex's (`harnesses/codex/src/shim.ts`): `where` lists matches in PATH
@@ -173,7 +180,7 @@ exec "$novadeck_real" \${novadeck_settings:+--settings "$novadeck_settings"} \${
 export const cmdShim = (root?: string): string => `@echo off
 ${header("rem", "shim for claude")}
 rem Runs the real claude with Novadeck's status line, which passes on the person's own, with
-rem access to the folder where agents' worktrees live, and with Novadeck's own tools allowed.
+rem the folder where agents' worktrees live as its own, and with Novadeck's own tools allowed.
 setlocal
 set "novadeck_real="
 for /f "delims=" %%i in ('where $PATH:claude 2^>nul') do call :consider "%%~fi"
@@ -184,9 +191,15 @@ if not defined novadeck_real (
 if not defined NOVADECK_TERMINAL_ID goto plain
 rem Only while Claude Code is connected: Novadeck's shells name the harnesses whose shims apply.
 echo " %NOVADECK_SHIMS% " | findstr /c:" claude " >nul || goto plain
-${cmdAdd(root)}
 set "novadeck_settings=%~dp0..\\plugins\\claude\\statusline.json"
-set "novadeck_with="
+${
+  root === undefined
+    ? ""
+    : `set "novadeck_root=${cmdValue(root)}"
+rem The test with a trailing backslash is one only a directory passes.
+if exist "%novadeck_root%\\" if exist "%~dp0..\\plugins\\claude\\${worktreesSettings}" set "novadeck_settings=%~dp0..\\plugins\\claude\\${worktreesSettings}"
+`
+}set "novadeck_with="
 if exist "%novadeck_settings%" set novadeck_with=--settings "%novadeck_settings%"
 rem The first word that isn't an option or an option's value may be another command.
 :command
@@ -233,7 +246,7 @@ goto more
 :session
 set "novadeck_arg="
 ${cmdLaunch("claude")}
-"%novadeck_real%" %novadeck_with% %novadeck_add% ${allowNovadeck} %*
+"%novadeck_real%" %novadeck_with% ${allowNovadeck} %*
 exit /b %ERRORLEVEL%
 :plain
 "%novadeck_real%" %*

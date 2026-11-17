@@ -28,7 +28,9 @@ type Fixture = {
   worktrees: string
   real: string
   settings: string
+  worktreesSettings: string
   remove: () => void
+  removeWorktrees: () => void
   variables: () => unknown[]
 }
 
@@ -61,6 +63,7 @@ const it = base.extend<{ shim: Fixture }>({
         },
       )
     const settings = join(paths.plugins.claude, "statusline.json")
+    const worktreesSettings = join(paths.plugins.claude, "worktrees.json")
     const launch: Fixture["launch"] = (program, args, env = {}, cwd) => {
       rmSync(log, { force: true })
       const options = {
@@ -101,7 +104,9 @@ const it = base.extend<{ shim: Fixture }>({
       worktrees,
       real,
       settings,
+      worktreesSettings,
       remove: () => rmSync(settings),
+      removeWorktrees: () => rmSync(worktreesSettings),
       variables: () => JSON.parse(readFileSync(variables, "utf8")) as unknown[],
     })
   },
@@ -137,27 +142,28 @@ describe("claude shim", { timeout: 60_000 }, () => {
     ])
   })
 
-  it("opens the folder of agents' worktrees to a session once it exists, with one --settings", ({
+  // As a setting, not `--add-dir`: from 2.1.326 `--add-dir` of a folder Claude Code hasn't
+  // trusted holds its start at a question whose default exits (e2e/probes/add-dir.e2e.ts).
+  it("opens the folder of agents' worktrees to a session once it exists, in its one --settings", ({
     shim,
   }) => {
-    const settings = expect.stringMatching(/statusline\.json$/)
+    const plain = expect.stringMatching(/statusline\.json$/)
+    const settings = expect.stringMatching(/plugins[/\\]claude[/\\]worktrees\.json$/)
+    expect(shim.run([])).toEqual(["--settings", plain, allow])
     mkdirSync(shim.worktrees)
-    const add = `--add-dir=${shim.worktrees}`
-    expect(shim.run([])).toEqual(["--settings", settings, add, allow])
+    expect(shim.run([])).toEqual(["--settings", settings, allow])
     expect(shim.run(["--model", "haiku", "fix a b"])).toEqual([
       "--settings",
       settings,
-      add,
       allow,
       "--model",
       "haiku",
       "fix a b",
     ])
-    // A list option before the prompt keeps its own words.
+    // A list option before the prompt keeps its own words, the person's folders among them.
     expect(shim.run(["--add-dir", "x", "y", "-p", "hi"])).toEqual([
       "--settings",
       settings,
-      add,
       allow,
       "--add-dir",
       "x",
@@ -172,22 +178,35 @@ describe("claude shim", { timeout: 60_000 }, () => {
       "install",
       "x",
     ])
+    // No --add-dir of its own, ever.
+    expect(shim.run([]).filter((arg) => arg.startsWith("--add-dir"))).toEqual([])
   })
 
-  it("opens the folder and allows Novadeck's tools even without the status line, and leaves commands alone", ({
+  it("passes the plain status line while the settings with the folder aren't written, and only Novadeck's tools without either", ({
     shim,
   }) => {
+    const plain = expect.stringMatching(/statusline\.json$/)
+    mkdirSync(shim.worktrees)
+    shim.removeWorktrees()
+    expect(shim.run(["hi"])).toEqual(["--settings", plain, allow, "hi"])
     shim.remove()
     expect(shim.run(["hi"])).toEqual([allow, "hi"])
-    mkdirSync(shim.worktrees)
-    const add = `--add-dir=${shim.worktrees}`
-    expect(shim.run(["hi"])).toEqual([add, allow, "hi"])
     expect(shim.run(["mcp", "list"])).toEqual(["mcp", "list"])
     expect(shim.run(["--model", "haiku", "update"], { NOVADECK_SHIMS: "codex" })).toEqual([
       "--model",
       "haiku",
       "update",
     ])
+  })
+
+  it("names the worktrees' folder as the session's own, beside the status line, in its settings", ({
+    shim,
+  }) => {
+    const plain = JSON.parse(readFileSync(shim.settings, "utf8")) as object
+    expect(JSON.parse(readFileSync(shim.worktreesSettings, "utf8"))).toEqual({
+      ...plain,
+      permissions: { additionalDirectories: [shim.worktrees] },
+    })
   })
 
   it("names the status line Novadeck wrote", ({ shim }) => {

@@ -74,11 +74,14 @@ export const disconnect: Harness["disconnect"] = [
   { argv: ["claude", "plugin", "marketplace", "remove", marketplace.name], optional: true },
 ]
 
+/** The settings file with the worktrees' folder, beside `statusline.json`. */
+export const worktreesSettings = "worktrees.json"
+
 /**
  * The plugin's files: the marketplace and its manifest, its MCP server, its hooks, and the
- * settings Novadeck's shim adds for the status line.
+ * settings Novadeck's shim adds for the status line, and with the worktrees' folder.
  */
-export const files: Harness["files"] = (platform, launchers) => [
+export const files: Harness["files"] = (platform, launchers, machine = {}) => [
   { path: join(".claude-plugin", "marketplace.json"), content: json(marketplace) },
   { path: join("novadeck", ".claude-plugin", "plugin.json"), content: json(manifest) },
   // Its MCP server, which Claude Code finds at the plugin's root and starts with the
@@ -113,8 +116,30 @@ export const files: Harness["files"] = (platform, launchers) => [
   // person's own (see the runner's shell/hook.ts).
   {
     path: "statusline.json",
-    content: json({
-      statusLine: { type: "command", command: hook(platform, "StatusLine"), padding: 0 },
-    }),
+    content: json({ statusLine: statusLine(platform) }),
   },
+  // The same with the folder where agents' worktrees live as one of the session's own, which
+  // the shim passes instead while that folder exists. As a setting, not `--add-dir`: from
+  // 2.1.326 `--add-dir` of a folder it hasn't trusted holds its start at "Adding a new
+  // directory … Is this a directory you created or one you trust?", whose default exits, and a
+  // setting's folder asks nothing (probed 2026-11-17, e2e/probes/add-dir.e2e.ts). Its settings
+  // merge with the person's own, whose folders and rules still apply.
+  ...(machine.worktreesRoot === undefined
+    ? []
+    : [
+        {
+          path: worktreesSettings,
+          content: json({
+            statusLine: statusLine(platform),
+            permissions: { additionalDirectories: [machine.worktreesRoot] },
+          }),
+        },
+      ]),
 ]
+
+/** The status line Novadeck's shim sets: its hook, which passes on the person's own. */
+const statusLine = (platform: NodeJS.Platform) => ({
+  type: "command",
+  command: hook(platform, "StatusLine"),
+  padding: 0,
+})

@@ -717,18 +717,26 @@ type LaunchProfile = {
 
 Every connected harness has a shim on every platform (`harnesses/*/src/shim.ts`; `claude`,
 `codex` and `agy` on Linux and macOS, `.cmd` files on Windows). Besides its own job (Claude
-Code's status line, Codex's `--no-daemon` and title), each passes `--add-dir=<folder>` for
+Code's status line, Codex's `--no-daemon` and title), each gives a session the folder
 the folder where Novadeck's agent worktrees live (`~/.novadeck/worktrees`, from
-`backend/runner/src/worktrees/root.ts`, handed to the shims as `machine.worktreesRoot`), but
-only while that folder exists as a directory when the harness launches. Agents' worktrees are
+`backend/runner/src/worktrees/root.ts`, handed to the shims as `machine.worktreesRoot`), as
+`--add-dir=<folder>` (Claude Code: in its settings, below), but only while that folder exists
+as a directory when the harness launches. Agents' worktrees are
 outside their starting folder, where all three block writes by default; with the flag the
 folder behaves like the project's, under the person's own permission mode or sandbox, and
 Novadeck writes nothing to a harness's config. The `=` form matters: Claude Code's
 `--add-dir <directories...>` would take a prompt after it as another folder.
 
-- **Claude Code** adds it to a session also when the status line's settings file is missing,
-  and never passes a second `--settings`, which would replace the first. Its commands (`mcp`,
-  `plugin`, ...) run unchanged.
+- **Claude Code** gets it in its settings instead: while the folder exists, its shim passes
+  `--settings <plugins>/claude/worktrees.json`, the status line's settings plus
+  `permissions.additionalDirectories: [<folder>]`, in place of `statusline.json`, and never
+  `--add-dir`. From 2.1.326 `--add-dir` of a folder it hasn't trusted holds every start and
+  resume at "Adding a new directory … Is this a directory you created or one you trust?",
+  whose default, "No, exit", ends the session; a folder from its settings asks nothing, and
+  merges with the person's own folders and rules (probed 2026-11-17, 2.1.325 and 2.1.326,
+  `e2e/probes/add-dir.e2e.ts`; `e2e/worktrees-folder.e2e.ts`). Without either settings file
+  it passes neither; it never passes a second `--settings`, which would replace the first.
+  Its commands (`mcp`, `plugin`, ...) run unchanged.
 - **Codex** adds it ahead of any command: the interactive session, `resume` and `exec` take it.
   `codex agents` and `--remote` run unchanged.
 - **Antigravity** leaves its own subcommands (`agy mcp`, `agy update`) unchanged on Linux and macOS. On
