@@ -387,6 +387,10 @@ export const holdChatOffer = (ui: UiStore): void =>
 export const agentAvatarsOn = (state: Pick<UiState, "preferences" | "flags">): boolean =>
   state.flags.IS_EXPERIMENTAL && state.preferences.agentAvatars
 
+/** Whether the footer offers the onboarding tour: its own switch, with Experimental on. */
+export const onboardingTourOn = (state: Pick<UiState, "preferences" | "flags">): boolean =>
+  state.flags.IS_EXPERIMENTAL && state.preferences.onboardingTour
+
 // Turns one feature flag on or off, as is: `setFeatureFlag` of the workspace's commands also
 // starts terminals afresh on the chat view where the flag turns it on or off.
 export const setFeatureFlag = (ui: UiStore, flag: FeatureFlag, on: boolean): void => {

@@ -75,6 +75,7 @@ const setup = (initiallyWide = true) => {
         ligatures: false,
         chatView: false,
         agentAvatars: false,
+        onboardingTour: false,
         sound: true,
         soundVolume: 0.6,
         soundChoice: "theme",

@@ -9,7 +9,8 @@ const screens = {
 } as const
 
 // Novadeck's tour: a start the backend refuses, and its story's controls. Its consent opens
-// from the footer's Help menu.
+// from the footer's Help menu, there with Experimental on ("Experimental on" under App >
+// Updates) and Onboarding tour switched on in Preferences > Experimental.
 export const tourGroups = (tour: DemoTour): readonly DemoActionGroup[] => [
   {
     section: "App",

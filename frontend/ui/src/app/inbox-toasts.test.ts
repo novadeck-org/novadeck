@@ -78,6 +78,7 @@ const setup = (items: InboxRow[] = [], pings = true) => {
         ligatures: false,
         chatView: false,
         agentAvatars: false,
+        onboardingTour: false,
       },
     }),
   )

@@ -70,4 +70,13 @@ describe("readPreferences", () => {
     localStorage.setItem(preferencesStorageKey, JSON.stringify({ agentAvatars: true }))
     expect(readPreferences().agentAvatars).toBe(true)
   })
+
+  it("keeps the onboarding tour off unless it was switched on, as preferences saved before it read", () => {
+    localStorage.setItem(preferencesStorageKey, JSON.stringify({ agentAvatars: true }))
+    expect(readPreferences().onboardingTour).toBe(false)
+    localStorage.setItem(preferencesStorageKey, JSON.stringify({ onboardingTour: "yes" }))
+    expect(readPreferences().onboardingTour).toBe(false)
+    localStorage.setItem(preferencesStorageKey, JSON.stringify({ onboardingTour: true }))
+    expect(readPreferences().onboardingTour).toBe(true)
+  })
 })

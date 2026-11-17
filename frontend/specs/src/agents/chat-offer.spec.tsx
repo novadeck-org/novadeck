@@ -204,7 +204,10 @@ describe("Agent Chat's offer", () => {
 
   context("while the tour runs", () => {
     it("waits, as the tour's agent is not for the offer to change", async () => {
-      localStorage.setItem("novadeck.preferences", JSON.stringify({ chatView: false }))
+      localStorage.setItem(
+        "novadeck.preferences",
+        JSON.stringify({ chatView: false, onboardingTour: true }),
+      )
       await openWorkspace("/?demo=agents&tourStory=off&channel=experimental")
       await openPreferencesOn("Agents")
       const claude = preferencesDialog().getByRole("switch", { name: "Claude Code" })

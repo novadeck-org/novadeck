@@ -55,6 +55,9 @@ export type PreferencesValue = {
   // Whether a terminal's tab and window header show its handle's critter, the avatar the
   // Messages pane draws, in its program's place.
   agentAvatars: boolean
+  // Whether the footer offers the onboarding tour, in its Help menu. Off by default, and only
+  // with Experimental on.
+  onboardingTour: boolean
 }
 export type Project = { id: string; name: string; directory: string }
 

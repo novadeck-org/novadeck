@@ -20,6 +20,7 @@ export const readPreferences = (): PreferencesValue => {
     ligatures: false,
     chatView: false,
     agentAvatars: false,
+    onboardingTour: false,
   }
   try {
     const saved = JSON.parse(
@@ -46,6 +47,8 @@ export const readPreferences = (): PreferencesValue => {
       chatView: typeof saved?.chatView === "boolean" ? saved.chatView : defaults.chatView,
       agentAvatars:
         typeof saved?.agentAvatars === "boolean" ? saved.agentAvatars : defaults.agentAvatars,
+      onboardingTour:
+        typeof saved?.onboardingTour === "boolean" ? saved.onboardingTour : defaults.onboardingTour,
     }
   } catch {
     return defaults

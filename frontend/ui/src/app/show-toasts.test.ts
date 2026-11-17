@@ -41,6 +41,7 @@ const setup = () => {
         ligatures: false,
         chatView: false,
         agentAvatars: false,
+        onboardingTour: false,
       },
     }),
   )

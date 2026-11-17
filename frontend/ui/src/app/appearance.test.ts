@@ -83,6 +83,7 @@ const uiWith = (appearance: PreferencesValue["appearance"]): UiStore =>
         ligatures: false,
         chatView: false,
         agentAvatars: false,
+        onboardingTour: false,
       },
     }),
   )

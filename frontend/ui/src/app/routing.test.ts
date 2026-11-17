@@ -25,6 +25,7 @@ const preferences: PreferencesValue = {
   ligatures: false,
   chatView: false,
   agentAvatars: false,
+  onboardingTour: false,
 }
 const target = { projectId: "project", workspaceSessionId: "initial" }
 const fixture = (): Workspace => ({

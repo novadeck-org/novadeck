@@ -67,6 +67,7 @@ export const openCommands = ({
     ligatures: false,
     chatView: false,
     agentAvatars: false,
+    onboardingTour: false,
   },
   desktop = true,
   canvas,

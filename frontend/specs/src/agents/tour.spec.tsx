@@ -1,8 +1,8 @@
-import { onTestFinished } from "vitest"
+import { beforeEach, onTestFinished } from "vitest"
 import { cleanup } from "vitest-browser-react"
 import { page, userEvent, type Locator } from "vitest/browser"
 
-import { helpButton, takeTourFromHelp } from "../support/help"
+import { helpButton, switchTourOn, takeTourFromHelp } from "../support/help"
 import { closePreferences, openPreferencesOn, preferencesDialog } from "../support/keyboard"
 import { workspaceSwitcher } from "../support/sessions"
 import { expectSelected, openWorkspace, terminalTabNames } from "../support/workspace"
@@ -38,10 +38,40 @@ const offerFromHelp = async ({ connect = true } = {}): Promise<void> => {
   await takeTourFromHelp()
 }
 
+// The footer offers the tour only with its own switch on, in Preferences → Experimental.
+beforeEach(switchTourOn)
+
 describe("The tour", () => {
   it("is offered only with Experimental on, from the footer's Help menu", async () => {
     await openWorkspace("/?tourStory=off")
     await expect.element(helpButton()).not.toBeInTheDocument()
+  })
+
+  it("is offered only with its own switch on, which Preferences → Experimental turns on", async () => {
+    localStorage.removeItem("novadeck.preferences")
+    await openWorkspace(offered)
+    // Its Experimental tab shows: the flag is on, and the switch, off, holds Help back. The
+    // Help menu holds the tour alone, so with its switch off there is no Help at all.
+    await openPreferencesOn("Experimental")
+    const tourSwitch = preferencesDialog().getByRole("switch", { name: "Onboarding tour" })
+    await expect.element(tourSwitch).toHaveAttribute("aria-checked", "false")
+    expect(helpButton().query()).toBeNull()
+    await tourSwitch.click()
+    await expect.element(tourSwitch).toHaveAttribute("aria-checked", "true")
+    await closePreferences()
+    await expect.element(helpButton()).toBeVisible()
+  })
+
+  it("is offered nowhere where the backend has no tour, its switch not available", async () => {
+    // The showcase demo follows the experimental channel and has no tour.
+    await openWorkspace("/?demo=showcase&channel=experimental")
+    await openPreferencesOn("Experimental")
+    const tourSwitch = preferencesDialog().getByRole("switch", { name: "Onboarding tour" })
+    await expect.element(tourSwitch).toBeDisabled()
+    await expect.element(preferencesDialog().getByText("Not available here.").first()).toBeVisible()
+    await closePreferences()
+    await expect.element(page.getByRole("button", { name: "Feedback", exact: true })).toBeVisible()
+    expect(helpButton().query()).toBeNull()
   })
 
   it("is offered nowhere else: not in the welcome dialog, nor in Preferences' About", async () => {

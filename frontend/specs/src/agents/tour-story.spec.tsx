@@ -1,6 +1,7 @@
+import { beforeEach } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
-import { takeTourFromHelp } from "../support/help"
+import { switchTourOn, takeTourFromHelp } from "../support/help"
 import { closePreferences, openPreferencesOn, preferencesDialog } from "../support/keyboard"
 import { workspaceSwitcher } from "../support/sessions"
 import { openWorkspace, terminalTabNames, view } from "../support/workspace"
@@ -51,6 +52,9 @@ const startTour = async (): Promise<void> => {
   await consent().getByRole("button", { name: "Start the tour" }).click()
   await expect.element(consent()).not.toBeInTheDocument()
 }
+
+// The footer offers the tour only with its own switch on, in Preferences → Experimental.
+beforeEach(switchTourOn)
 
 describe("The tour's story", () => {
   it("plays from the agent's start to its card, the person's answer and all", async () => {

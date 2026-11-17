@@ -19,6 +19,7 @@ const preferences: PreferencesValue = {
   ligatures: false,
   chatView: false,
   agentAvatars: false,
+  onboardingTour: false,
 }
 const panels = availablePanels(true)
 const base = "/projects/project/sessions/initial/grid"

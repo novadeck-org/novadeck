@@ -564,6 +564,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           {...(transcripts ? { transcripts } : {})}
           {...(hibernation ? { hibernation } : {})}
           {...(worktrees ? { worktrees } : {})}
+          tour={tour !== undefined}
           notices={backend.notices !== undefined}
           systemSounds={backend.notices?.sounds === true}
           hearSound={dingOf(backend, ui).preview}

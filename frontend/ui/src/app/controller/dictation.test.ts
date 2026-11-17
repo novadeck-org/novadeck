@@ -54,6 +54,7 @@ const ui = (): UiStore =>
         ligatures: false,
         chatView: false,
         agentAvatars: false,
+        onboardingTour: false,
       },
     }),
   )

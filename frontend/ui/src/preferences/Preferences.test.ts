@@ -281,6 +281,36 @@ describe("the Experimental tab", () => {
     ).not.toBeNull()
   })
 
+  it("holds the onboarding tour switch, off until switched on, which writes the preference", async () => {
+    const written: boolean[] = []
+    await show({
+      tab: "experimental",
+      experimental: experimental(true),
+      tour: true,
+      onChange: (value) => written.push(value.onboardingTour),
+    })
+    const tourSwitch = document.querySelector<HTMLElement>(
+      '[role="switch"][aria-labelledby="onboarding-tour-label"]',
+    )
+
+    expect(tourSwitch?.getAttribute("aria-checked")).toBe("false")
+    tourSwitch?.click()
+    expect(written).toEqual([true])
+  })
+
+  it("holds the onboarding tour switch disabled, not available, where the backend has no tour", async () => {
+    await show({ tab: "experimental", experimental: experimental(true) })
+    const tourSwitch = document.querySelector(
+      '[role="switch"][aria-labelledby="onboarding-tour-label"]',
+    )
+
+    expect(tourSwitch?.getAttribute("aria-checked")).toBe("false")
+    expect(tourSwitch?.hasAttribute("disabled")).toBe(true)
+    expect(document.getElementById("onboarding-tour-description")?.textContent).toBe(
+      "Not available here.",
+    )
+  })
+
   const worktreesSwitch = (): HTMLElement | null =>
     document.querySelector('[role="switch"][aria-labelledby="agent-worktrees-label"]')
 

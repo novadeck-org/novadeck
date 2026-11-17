@@ -159,6 +159,7 @@ export const Preferences = ({
   onFocusedAgent,
   transcripts,
   hibernation,
+  tour = false,
   worktrees,
   forges,
   agents,
@@ -199,6 +200,8 @@ export const Preferences = ({
     readonly minutes: number | null
     readonly onChange: (minutes: number | null) => void
   }
+  // Whether the backend has a tour, which the Onboarding tour switch offers from the footer.
+  tour?: boolean
   // Whether agents get git worktrees, an Experimental feature the backend keeps; absent
   // where the backend has none.
   worktrees?: {
@@ -326,6 +329,16 @@ export const Preferences = ({
       checked: value.agentAvatars,
       onToggle: (agentAvatars: boolean) => onChange({ ...value, agentAvatars }),
       disabled: false,
+    },
+    {
+      id: "onboarding-tour",
+      label: "Onboarding tour",
+      description: tour
+        ? "Add a Help menu to the footer that offers a short tour: your own agent, on its cheapest model, in a sandbox folder."
+        : "Not available here.",
+      checked: tour && value.onboardingTour,
+      onToggle: (onboardingTour: boolean) => onChange({ ...value, onboardingTour }),
+      disabled: !tour,
     },
     {
       id: "agent-worktrees",

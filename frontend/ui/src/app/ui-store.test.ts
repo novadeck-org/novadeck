@@ -17,6 +17,7 @@ import {
   initialUi,
   keepProjectArrangement,
   notePortableCardShown,
+  onboardingTourOn,
   persist,
   setFeatureFlag,
   trackRecent,
@@ -62,6 +63,7 @@ const initial = (): UiState =>
       ligatures: false,
       chatView: false,
       agentAvatars: false,
+      onboardingTour: false,
     },
   })
 
@@ -506,6 +508,14 @@ describe("the IS_EXPERIMENTAL flag", () => {
     expect(agentAvatarsOn({ preferences: on, flags: { IS_EXPERIMENTAL: false } })).toBe(false)
     expect(agentAvatarsOn({ preferences: on, flags: { IS_EXPERIMENTAL: true } })).toBe(true)
     expect(agentAvatarsOn({ preferences, flags: { IS_EXPERIMENTAL: true } })).toBe(false)
+  })
+
+  it("offers the onboarding tour only with its switch and Experimental both on", () => {
+    const { preferences } = initial()
+    const on = { ...preferences, onboardingTour: true }
+    expect(onboardingTourOn({ preferences: on, flags: { IS_EXPERIMENTAL: false } })).toBe(false)
+    expect(onboardingTourOn({ preferences: on, flags: { IS_EXPERIMENTAL: true } })).toBe(true)
+    expect(onboardingTourOn({ preferences, flags: { IS_EXPERIMENTAL: true } })).toBe(false)
   })
 })
 

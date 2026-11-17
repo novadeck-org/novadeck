@@ -27,16 +27,11 @@ import { WorkspaceFooter } from "../shell/WorkspaceFooter"
 import { programIcon } from "../terminals/processes/profiles"
 import { useRenderAt } from "../terminals/useRenderAt"
 import { chatOfferDue, selectedAgentCanChat } from "./chat-offer"
-import {
-  useFeatureFlag,
-  useUiState,
-  useWorkspaceServices,
-  useWorkspaceState,
-} from "./controller/context"
+import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useAccounts } from "./controller/footer-accounts"
 import { crashLoopQuestion, currentState, shallowEqual } from "./selectors"
 import { useTourBusy, useTourOffer } from "./TourProvider"
-import { chatViewOn, dismissWhatsNew } from "./ui-store"
+import { chatViewOn, dismissWhatsNew, onboardingTourOn } from "./ui-store"
 import { useBusyTerminals } from "./use-busy-terminals"
 import { useOfferNews } from "./use-offer-news"
 
@@ -68,9 +63,10 @@ export const FooterSection = memo((): React.JSX.Element => {
     [store],
   )
   const crashes = useUiState((state) => state.crashLoop)
-  // The Help menu is an experimental feature: it shows only while IS_EXPERIMENTAL is on, and
-  // where the backend has a tour, which its one item offers.
-  const experimental = useFeatureFlag("IS_EXPERIMENTAL")
+  // The Help menu offers the onboarding tour, an experimental feature: it shows only while
+  // IS_EXPERIMENTAL and the tour's own switch are on, and where the backend has a tour, which
+  // its one item offers.
+  const tourOn = useUiState(onboardingTourOn)
   const tour = useTourOffer()
   const helpItems = useMemo(
     () => (tour ? [{ value: "tour", label: "Take the tour", onSelect: () => tour.offer() }] : []),
@@ -360,7 +356,7 @@ export const FooterSection = memo((): React.JSX.Element => {
           <FeedbackButton feedback={backend.feedback} titleOf={titleOf} iconOf={programIcon} />
         )
       }
-      help={experimental && tour && <FooterHelp items={helpItems} />}
+      help={tourOn && tour && <FooterHelp items={helpItems} />}
     />
   )
 })
