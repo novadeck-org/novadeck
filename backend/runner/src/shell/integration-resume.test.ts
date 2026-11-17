@@ -125,8 +125,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       manager.write({ terminalId: id, data: "exit\r" }, "owner")
       await next((summary) => summary.id === id && summary.exit !== null)
       await manager.restart({ terminalId: id, cols: 100, rows: 20, resume: "claude" }, "owner")
-      const shown = await shell.until(manager, id, /claude 2 in /)
-      expect(shown).toContain(`claude 2 in [${project}] --resume abc-1`)
+      await shell.until(manager, id, `claude 2 in [${project}] --resume abc-1`)
     })
 
     it("resumes the agent where its terminal was last once its session's folder is gone", async ({

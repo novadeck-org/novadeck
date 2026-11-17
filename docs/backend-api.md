@@ -874,7 +874,8 @@ the run: its transcript is not saved again until the next start. See
 one from an earlier runner.
 
 - `terminals.create({ …, restore: true, resume? })` continues the saved terminal of
-  that ID in the same session: in its last directory when that still exists, with its
+  that ID in the same session: in its last directory when that still exists (one that
+  resumes its agent, where that session bound: below), with its
   agent sessions, showing its transcript above a separator before the shell's output. On
   Windows both go up into the scrollback, as ConPTY places its cursor at rows counted
   from the top of a screen it takes as its own and would draw over them.
@@ -882,16 +883,17 @@ one from an earlier runner.
   connected, the runner builds the command that resumes the session it last reported
   in this terminal (`claude --resume <id>`, `codex resume <id>`,
   `agy --conversation <id>`) and the fresh shell runs it once as it starts, and then no
-  transcript is shown. That shell starts in the folder where the session bound, while it
-  exists (then the terminal's last directory), not the last directory, which follows each
-  report's `cwd`: Claude Code's Bash tool keeps a `cd`, and a compact's `SessionStart`
-  names it, so the terminal's folder moves there, and a session resumed in it would take
-  that folder's project, memory and instructions (probed 2026-11-17,
-  `e2e/probes/session-cwd.e2e.ts`; Codex's and Antigravity's commands keep no `cd`). A
-  saved session folder that is the bare folder of agents' worktrees counts as none
-  (`sessionFolder`), as in History; a session saved with no folder of its own, as older
-  ones were, resumes in the last directory, as before. `terminals.restart({ …, resume })`
-  and a resting agent's wake start there too. The runner writes the command to a file of its own, readable
+  transcript is shown. A shell started to resume its agent starts in the folder where
+  that session bound, while it exists (else the terminal's last directory), resumed or
+  refused, not the last directory, which follows each report's `cwd`: Claude Code's Bash
+  tool keeps a `cd`, and a compact's `SessionStart` names it, so the terminal's folder
+  moves there, and a session resumed in it would take that folder's project, memory and
+  instructions (probed 2026-11-17, `e2e/probes/session-cwd.e2e.ts`; a `/clear` names the
+  folder Claude Code started in again, and Codex's and Antigravity's commands keep no
+  `cd`). A saved session folder that is the bare folder of agents' worktrees counts as
+  none (`sessionFolder`), as in History; a session saved with no folder of its own, as
+  older ones were, resumes in the last directory, as before. `terminals.restart({ …,
+  resume })` and a resting agent's wake start there too. The runner writes the command to a file of its own, readable
   by the user only, and gives its path to the shell in `NOVADECK_RESUME`. The
   integration unsets the variable, reads and removes the file, and runs the command:
   bash, zsh and fish at the first prompt, after the user's startup files and prompt

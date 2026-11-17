@@ -740,10 +740,10 @@ export class Terminals {
 
   /**
    * Starts a terminal. With `restore`, it continues the saved terminal of that id: in its
-   * last directory, with its saved agent sessions, and its transcript shown first unless
-   * the shell resumes the session `resume` last reported there (see `claim`). With
-   * `command`, the shell runs it at its first prompt; a shell that can't, as without the
-   * integration, does not start.
+   * last directory (resuming, its session's: `resumeFolder`), with its saved agent sessions,
+   * and its transcript shown first unless the shell resumes the session `resume` last
+   * reported there (see `claim`). With `command`, the shell runs it at its first prompt; a
+   * shell that can't, as without the integration, does not start.
    */
   async create(input: Create, ownerId: string, plan?: Plan): Promise<TerminalSummary> {
     // A closed terminal is brought back from its History row (see `ClosedTerminals.restore`).
@@ -1161,9 +1161,9 @@ export class Terminals {
   }
 
   /**
-   * Starts a fresh shell in an exited terminal, keeping its id, session and directory.
-   * The caller gains control, and needs it unless nobody holds it.
-   * Viewers attach again for the new screen. A failed start leaves the terminal exited.
+   * Starts a fresh shell in an exited terminal, keeping its id, session and directory
+   * (resuming, its session's: `resumeFolder`). The caller gains control, and needs it unless
+   * nobody holds it. Viewers attach again for the new screen. A failed start leaves it exited.
    */
   async restart(
     input: { terminalId: string; resume?: AgentName | undefined } & Size,
