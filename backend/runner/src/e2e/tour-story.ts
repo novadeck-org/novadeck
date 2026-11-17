@@ -1,12 +1,14 @@
-import { readFile, writeFile } from "node:fs/promises"
+import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
+import { samePath } from "@novadeck/harness-core/paths"
 import type { AgentName } from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
 import { tourBriefMark } from "../messaging/messages.js"
 import { card } from "../tour/brief.js"
 import { tourWrites } from "../tour/launch.js"
+import { worktreesRoot } from "../worktrees/root.js"
 import type { AgentSetup } from "./agents/agent.js"
 import { poll, type DeckTerminal } from "./deck.js"
 import { expect, type E2E } from "./fixture.js"
@@ -349,6 +351,14 @@ export const storyRules = (run: E2E): { rules: Rule[]; script: () => string } =>
   }
 }
 
+/** Checks that `terminal` works in the tour's folder, `directory`, as the runner knows it. */
+const inTour = (terminal: DeckTerminal, directory: string): void => {
+  const { cwd } = terminal.summary()
+  expect(samePath(cwd, directory), `${terminal.handle} works in ${cwd}, not ${directory}`).toBe(
+    true,
+  )
+}
+
 /** The words of the model and effort flags a harness starts with, as `open_agent` gives them. */
 const flags = (agent: AgentName, { model, effort }: Opening): string =>
   harnesses[agent].launch
@@ -359,14 +369,19 @@ const flags = (agent: AgentName, { model, effort }: Opening): string =>
  * Runs the story with `lead` leading, on a deck whose harnesses include every agent the brief
  * names, and checks what it did: each teammate started by its lead on the model and effort the
  * brief names, described itself, its messages delivered, the copywriter's ask in the Inbox and
- * its answer delivered, and the page shown on the lead's bar, opened. Returns the openings.
+ * its answer delivered, and the page shown on the lead's bar, opened, every one of them in the
+ * tour's folder. Returns the openings. With `worktreesFolder`, the folder of agents' worktrees
+ * is there before the lead starts, as on every computer Novadeck has run agents on, and each
+ * harness's shim passes it on as `--add-dir`.
  */
 export const tell = async (
   run: E2E,
   setup: AgentSetup,
   agents: readonly AgentName[],
+  { worktreesFolder = false }: { readonly worktreesFolder?: boolean } = {},
 ): Promise<readonly [Opening, Opening]> => {
   await seedTour(run, agents)
+  if (worktreesFolder) await mkdir(worktreesRoot(run.sandbox.home), { recursive: true })
   const prepared = await run.deck.tour.prepare(setup.agent)
   // The folder's own instruction files hold no script: it reaches the lead as a notice.
   for (const name of ["AGENTS.md", "CLAUDE.md"])
@@ -401,6 +416,8 @@ export const tell = async (
     [mates.designer, designer!],
   ] as const) {
     expect(run.deck.store.terminal(mate.id)?.ledBy).toBe(lead.id)
+    // In the tour's folder, the lead's, never another its harness was given to write in.
+    inTour(mate, prepared.directory)
     // Its command line only on Linux, as the runner reads no foreground process's argv on
     // Windows or macOS; everywhere, the harness it runs is checked below.
     if (process.platform === "linux") {
@@ -517,6 +534,8 @@ export const tell = async (
   await expect(requests.next(2000)).rejects.toThrow()
   expect(tourWrites[setup.agent].length).toBeGreaterThan(0)
   expect(run.model.calls.length).toBeGreaterThan(calls)
+  // The lead's own folder, as its harness reported it all along, is still the tour's.
+  inTour(lead, prepared.directory)
   return [writer!, designer!]
 }
 

@@ -213,6 +213,14 @@ network:
   (clink, doskey macros), as cmd does without `/d`, and the runner leaves it so, as a
   person's terminal should run it. A developer with one set may see a failure CI, which
   has none, doesn't.
+- **The worktrees folder is the sandbox's.** The deck gives its runner the sandbox's
+  `~/.novadeck/worktrees` (`RunnerOptions.worktreesRoot`), so no shim passes an agent the
+  developer's own as `--add-dir`, as each once did on a computer that had one. Every agent
+  process that reports is checked for a folder given with `--add-dir` outside the sandbox's
+  home (`added-folders.ts`), which fails the test. A scenario that needs the folder there, as
+  every person's computer has it once Novadeck has made a worktree, makes it in the sandbox
+  (`tell`'s `worktreesFolder` in `tour-story.ts`, and `lead.e2e.ts`); one whose harness
+  can't start with it yet is skipped, naming the fix it waits on, until that lands (`waitsOn`).
 - **No keyring.** `DBUS_SESSION_BUS_ADDRESS` points at a socket that doesn't exist, so
   no harness finds a login in the secret service. The kernel keyring (keyutils) needs no
   bus, so for each pinned harness it was checked, from its source or its program's

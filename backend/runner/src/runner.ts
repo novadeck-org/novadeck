@@ -56,6 +56,12 @@ export type RunnerOptions = {
    */
   shell?: string
   /**
+   * Where agents' worktrees live, which the harness shims pass on as `--add-dir` while it
+   * exists; `~/.novadeck/worktrees` of the runner's own home when omitted. The e2e deck gives
+   * its sandbox's, so no agent there is given a folder of the developer's.
+   */
+  worktreesRoot?: string
+  /**
    * Where files pasted into terminals are saved, such as an `uploads` folder beside the
    * database; a fresh temporary folder when omitted.
    */
@@ -170,6 +176,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       ? Promise.resolve(undefined)
       : installShellFiles(options.shell, {
           ...(options.relay !== undefined && { relay: options.relay }),
+          ...(options.worktreesRoot !== undefined && { worktrees: options.worktreesRoot }),
           // Whether Codex is connected is known only once these are written (see below).
           pwsh: "kept",
           fresh: true,
@@ -190,6 +197,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     const write = async () => {
       await installShellFiles(shell, {
         ...(options.relay !== undefined && { relay: options.relay }),
+        ...(options.worktreesRoot !== undefined && { worktrees: options.worktreesRoot }),
         pwsh: process.platform === "win32" && (await agents.connected("codex")),
       })
     }
@@ -331,9 +339,11 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     },
     exists: (terminalId) =>
       terminals.place(terminalId) !== undefined || store.terminalExists(terminalId),
+    ...(options.worktreesRoot !== undefined && { root: options.worktreesRoot }),
   })
   const rootFolder = new RootFolder({
     enabled: () => store.settings.runner().worktrees,
+    ...(options.worktreesRoot !== undefined && { path: options.worktreesRoot }),
   })
   rootFolder.ensure()
   const terminals = new Terminals({

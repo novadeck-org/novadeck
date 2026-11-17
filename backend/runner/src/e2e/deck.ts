@@ -23,6 +23,7 @@ import { handleWords } from "../terminals/handles.js"
 import type { Terminals } from "../terminals/index.js"
 import type { Prompted } from "../terminals/typing.js"
 import type { WorkspaceStore } from "../workspaces/store.js"
+import { worktreesRoot } from "../worktrees/root.js"
 import { createHistory, type Reach, type ReachOptions, type Snapshot } from "./history.js"
 
 /** The client the deck drives terminals as: it creates them, so it controls them. */
@@ -660,6 +661,8 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       database: join(options.data, "workspace.sqlite"),
       uploads: join(options.data, "uploads"),
       shell: shellFolder,
+      // The sandbox's own, never the developer's, which the shims would pass to every agent.
+      worktreesRoot: worktreesRoot(options.env.HOME!),
       ...(options.transcriptKey && { transcriptKey: options.transcriptKey }),
       // Plugin commands run with the sandbox's environment as it is: a login shell's
       // startup files, even the system's own in /etc/profile, could put another PATH

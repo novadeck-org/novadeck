@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
+import { waitsOn } from "./added-folders.js"
 import { claude } from "./agents/claude.js"
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
@@ -26,6 +27,18 @@ for (const setup of setups) {
       expect(writer.agent).toBe(setup.agent)
       expect(designer.agent).toBe(setup.agent)
     })
+
+    // As on every computer Novadeck has run agents on, the folder of agents' worktrees is
+    // there, and each shim passes it on as `--add-dir`: the lead and its teammates still work
+    // in the tour's folder.
+    const waits = waitsOn([setup.agent], { readOnly: true })
+    ;(waits === undefined ? it : it.skip)(
+      `tells the same story while the folder of agents' worktrees is there${waits === undefined ? "" : `, skipped until: ${waits}`}`,
+      async ({ e2e: run }) => {
+        const [writer, designer] = await tell(run, setup, [setup.agent], { worktreesFolder: true })
+        expect([writer.agent, designer.agent]).toEqual([setup.agent, setup.agent])
+      },
+    )
   })
 }
 

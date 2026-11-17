@@ -10,6 +10,7 @@ import { beforeAll, type TestFunction } from "vitest"
 
 import { harnesses } from "../harnesses/registry.js"
 import { it as base } from "../test.js"
+import { watchAddedFolders } from "./added-folders.js"
 import type { AgentSetup, Seed } from "./agents/agent.js"
 import { setups as every } from "./agents/index.js"
 import { harnessLogins, loginStore } from "./credentials.js"
@@ -106,6 +107,9 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[], handles?: DeckOption
       resources.defer(() =>
         rmSync(sandbox.root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }),
       )
+      // No agent is given a folder outside the sandbox to write in.
+      const added = watchAddedFolders(sandbox.home)
+      resources.defer(() => added.stop())
       // Whatever happens, nothing the test started outlives it. When the test ends early,
       // what this has to end is a leak too, and fails the test.
       resources.defer(async () => {
@@ -212,6 +216,7 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[], handles?: DeckOption
         // Reported here too when a wait failed with it: a test may have swallowed that.
         ...(model.rejection() ? [model.rejection()!] : []),
         ...changes.map((path) => `the developer's harness home changed: ${path}`),
+        ...added.outside().map((launch) => `outside the sandbox's home, ${launch}`),
         ...appeared.map((target) => `a login appeared in ${loginStore}: ${target}`),
         ...asks
           .filter((service) => unsuffixedClaudeItem.test(service))
