@@ -1,16 +1,15 @@
 @import "@xyflow/react/dist/base.css" layer(base);
 @reference "../../styles.css";
 
-/* How much taller a window's header is at the zoom than at rest (geometry.ts
-   `headerGrowthAt`). Not inherited, so the zoom setting it every frame on a heading and a
-   terminal's screen restyles those alone, never the thousands of rows the screen holds. */
-@property --_canvas-grown {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
-
 @layer components {
+  /* How much taller a window's header is at the zoom than at rest (geometry.ts
+     `headerGrowthAt`). Not inherited, so the zoom setting it every frame on a heading and a
+     terminal's screen restyles those alone, never the thousands of rows the screen holds. */
+  @property --_canvas-grown {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0px;
+  }
   .canvas-viewport .react-flow {
     --xy-background-color: transparent;
   }
