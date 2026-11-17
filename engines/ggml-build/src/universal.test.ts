@@ -11,16 +11,11 @@ import {
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { afterEach, beforeAll, describe as context, describe, expect, it } from "vitest"
+import { afterAll, beforeAll, describe as context, describe, expect, it } from "vitest"
 
 import type { Slice } from "./cmake.ts"
 import { commands, output } from "./machine.ts"
 import { archsProblem, merge, mergePlan } from "./universal.ts"
-
-const folders: string[] = []
-afterEach(() => {
-  for (const path of folders.splice(0)) rmSync(path, { recursive: true, force: true })
-})
 
 const staged = [
   { name: "whisper-server" },
@@ -64,7 +59,6 @@ context.skipIf(process.platform !== "darwin")("merging the slices with lipo", ()
   // one, over a minute. Each step's time is told, so a slow one says which it was.
   beforeAll(() => {
     root = mkdtempSync(join(tmpdir(), "ggml-build-"))
-    folders.push(root)
     writeFileSync(join(root, "main.c"), "int main(void) { return 0; }\n")
     const timed = <T>(step: string, run: () => T): T => {
       const started = performance.now()
@@ -91,9 +85,16 @@ context.skipIf(process.platform !== "darwin")("merging the slices with lipo", ()
     }
     timed("lipo -archs", () => output("lipo", ["-archs", join(root, slices[0]!, "whisper-server")]))
   }, 180_000)
+  // Removed once the tests are done, not after each one: a retry merges the same slices again,
+  // and beforeAll doesn't make them anew.
+  afterAll(() => {
+    if (root) rmSync(root, { recursive: true, force: true })
+  })
 
+  // Even after the warm-up, a loaded runner's lipo calls took over Vitest's default 5 s.
   it("makes each binary universal, keeps its mode, and keeps each link a link", async () => {
-    const staging = join(root, "staging")
+    // Each attempt's own: one that timed out still runs, and mustn't merge into its retry's.
+    const staging = mkdtempSync(join(root, "staging-"))
     await merge(
       slices.map((slice) => ({ slice, folder: join(root, slice) })),
       staging,
@@ -107,5 +108,5 @@ context.skipIf(process.platform !== "darwin")("merging the slices with lipo", ()
     ).toEqual(slices)
     expect(statSync(join(staging, "whisper-server")).mode & 0o111).not.toBe(0)
     expect(readlinkSync(join(staging, "server"))).toBe("whisper-server")
-  })
+  }, 60_000)
 })
