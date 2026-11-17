@@ -550,6 +550,15 @@
       "seen": [
         "feat/install-script-look run 44063445169 job 134014233533 (macOS), retried and passed"
       ]
+    },
+    {
+      "id": "ui-dictation-addons-install-toasts-standing",
+      "jobs": ["^Test \\(macOS\\)$"],
+      "test": "src/interaction/dictation.spec.tsx > dictation > when voice input is not installed > brings the microphone and the shortcut back when installed from Addons",
+      "signature": "AssertionError: expected \\[[\\s\\S]*\\] to have a length of \\+0 but got \\d+",
+      "status": "known",
+      "cause": "Unknown. The specs' closeToasts (support/toasts.tsx), on its way to clicking the strip's voice offer past the demo's toasts, still found 5 toasts standing after its 30 tries, about 15 s: none had closed, so its focus on the front toast's close button may never have held. Seen in the behaviour-mac pass, which runs on every system, but only on a macOS job. Passed on its retry. Not reproduced.",
+      "seen": ["#1008 run 44078385420 job 134031626368 (macOS), behaviour-mac, retried and passed"]
     }
   ]
 }
