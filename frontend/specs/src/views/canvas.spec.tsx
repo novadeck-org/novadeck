@@ -175,6 +175,35 @@ describe("Canvas", () => {
         .toBeLessThan(zoomed - 20)
     })
 
+    it("keeps each terminal its size, its header growing over the terminal's top", async () => {
+      await openCanvas()
+      await clickBackground({ x: 150, y: 100 })
+      const window = () => terminal("Checkout implementation").element()
+      // Layout sizes, which the camera's scale leaves alone: what the terminal is given.
+      const content = () => {
+        const element = window().querySelector<HTMLElement>(".terminal-content")!
+        return { width: element.offsetWidth, height: element.offsetHeight }
+      }
+      // The header's share of its window's height on screen.
+      const share = () =>
+        window().querySelector(".terminal-header")!.getBoundingClientRect().height /
+        window().getBoundingClientRect().height
+      const before = content()
+      const atRest = share()
+      const start = boxOf(terminal("Checkout implementation")).width
+
+      await press("-")
+      await press("-")
+      await expect
+        .poll(() => boxOf(terminal("Checkout implementation")).width)
+        .toBeLessThan(start - 40)
+      await settled(() => boxOf(terminal("Checkout implementation")))
+
+      expect(content()).toEqual(before)
+      // The header grew within the window, which keeps its size.
+      expect(share()).toBeGreaterThan(atRest * 1.2)
+    })
+
     it("fits all terminals inside the view with 0", async () => {
       await openCanvas()
       await clearMiddle()

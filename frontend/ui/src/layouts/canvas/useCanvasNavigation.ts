@@ -13,6 +13,7 @@ import {
   centerOf,
   chromeScaleAt,
   fitOptions,
+  headerMiddleAt,
   onScreen,
   terminalHeaderHeight,
   windowSize,
@@ -46,13 +47,13 @@ const focusButtonInView = (
   container: HTMLElement,
 ): boolean => {
   const right = (node.position.x + windowSize.width) * viewport.zoom + viewport.x
-  const top = node.position.y * viewport.zoom + viewport.y
+  const middle = (node.position.y + headerMiddleAt(viewport.zoom)) * viewport.zoom + viewport.y
   const header = terminalHeaderHeight * chromeScaleAt(viewport.zoom) * viewport.zoom
   return (
     right - header * 0.6 > 0 &&
     right - header * 1.6 < container.clientWidth &&
-    top + header / 2 >= 0 &&
-    top + header / 2 <= container.clientHeight
+    middle >= 0 &&
+    middle <= container.clientHeight
   )
 }
 
