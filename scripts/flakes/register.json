@@ -530,11 +530,26 @@
     {
       "id": "ui-agents-chat-screen-grid-tile-timeout",
       "jobs": ["^Test \\(macOS\\)$"],
-      "test": "src/agents/chat-screen.spec.tsx > The terminal behind a chat > keeps Antigravity's screen whole in a short Grid tile at 13px and restores the visible fit",
+      "test": "src/agents/chat-screen.spec.tsx > The terminal behind a chat > keeps ",
       "signature": "Test timed out in \\d+ms",
       "status": "known",
-      "cause": "Unknown, suspected the runner's slowness. It ran out its 30 s test timeout on the same slow macOS job (about 40 min against a usual 17 to 27). Its retry passed there in about 19.2 s, against 3.4 s locally (Linux), so the 30 s attempt may have been as slow as the job, or stalled: the log can't tell. Not reproduced. The flake tally of 2026-11-16 counts one earlier run that retried a sibling case (Claude Code at 12px), on 2026-11-13.",
-      "seen": ["#1002 run 44053570165 job 133946302766 (macOS), retried and passed, behaviour"]
+      "cause": "Unknown. The four Grid tile cases (Claude Code at 12 and 15px, Codex, Antigravity) share one body, so the entry names them all. Each retry ran out its 30 s test timeout on macOS. Two runs were far slower than the usual 17 to 27 min: about 40 min on #1002, and a test step of about 63 min on #1010, when other macOS runs that hour took 59 to 65 min. On #1002 the Antigravity retry passed in about 19.2 s, against 3.4 s locally (Linux). But on 44063445169 the test step took a usual 18 min, so slowness alone doesn't explain it: an attempt may stall. Not reproduced. The flake tally of 2026-11-16 counts one earlier retry (Claude Code at 12px), on 2026-11-13.",
+      "seen": [
+        "#1002 run 44053570165 job 133946302766 (macOS), Antigravity at 13px, retried and passed, behaviour",
+        "feat/install-script-look run 44063445169 job 134014233533 (macOS), Claude Code at 15px, retried and passed",
+        "#1010 run 44076738880 job 134024642143 (macOS), Claude Code at 15px retried once and Antigravity at 13px twice, both passed"
+      ]
+    },
+    {
+      "id": "ui-process-windows-claude-macos-timeout",
+      "jobs": ["^Test \\(macOS\\)$"],
+      "test": "src/terminals/process-windows.spec.tsx > process windows > presents claude in its window with input and controls in every layout",
+      "signature": "Test timed out in \\d+ms",
+      "status": "known",
+      "cause": "Unknown. It ran out its 30 s test timeout on macOS and passed on its retry, on a job whose test step took a usual 18 min, so not a slow runner. The same test's Windows entry (ui-process-windows-layout-settled, a settle wait that gave up after 5 s) is fixed and failed another way. Not reproduced.",
+      "seen": [
+        "feat/install-script-look run 44063445169 job 134014233533 (macOS), retried and passed"
+      ]
     }
   ]
 }
