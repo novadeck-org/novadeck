@@ -43,7 +43,12 @@
   border-radius: 0;
   box-shadow: none;
 }
-.workspace[data-zen="true"] .terminal-focused .terminal-content {
+/* The dock floats over the focused window's foot, so the terminal's screen and its chat keep
+   clear of it; a window with a taskbar already ends above the dock, which sits on the bar. */
+.workspace[data-zen="true"]
+  .terminal-focused
+  .terminal-companion:not(:has(> .taskbar))
+  :is(.terminal-content, .chat) {
   padding-bottom: 5rem;
 }
 .workspace[data-zen="true"] .grid-stage {
