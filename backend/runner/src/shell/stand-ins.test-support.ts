@@ -83,6 +83,33 @@ export const standIn = (home: string): string => {
 }
 
 /**
+ * Waits until the runner has handled the terminal's shell's latest prompt, with no line
+ * entered since: its first, or the one after a command a test typed there. A command typed
+ * before then runs as the shell takes it, and on a loaded runner its agent's first hook can
+ * start before the runner handles that prompt. Either the prompt then reads as later than
+ * the hook, so the session reads as one from before it and never binds (`observe`), or the
+ * hook's report comes first and the prompt, handled after it, ends the binding (`prompted`).
+ * Either way its agent can be neither led nor messaged. The app's own startup commands are
+ * immune: the shell integration holds back its prompt report until such a command exits.
+ */
+export const atPrompt = async (manager: Terminals, terminalId: string): Promise<void> => {
+  const records = (
+    manager as unknown as {
+      records: Map<string, { promptedAt: number | null; lineEntered: boolean }>
+    }
+  ).records
+  const ready = () => {
+    const record = records.get(terminalId)
+    return record !== undefined && record.promptedAt !== null && !record.lineEntered
+  }
+  for (let waited = 0; !ready(); waited += 20) {
+    if (waited >= 10_000) throw new Error(`${terminalId}'s shell showed no fresh prompt in 10 s`)
+    // eslint-disable-next-line no-await-in-loop -- Polls until the prompt is handled.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+}
+
+/**
  * Drives stand-in agents in a manager's terminals: `start` runs one there, and `queue`
  * gives it a step, whose output `step` also waits for and reads.
  */
@@ -103,6 +130,7 @@ export const driver = (shell: Fixture, manager: Terminals) => {
     prepare: (terminalId: string) => mkdirSync(folder(terminalId), { recursive: true }),
     start: async (terminalId: string, agent: AgentName, session: string) => {
       mkdirSync(folder(terminalId), { recursive: true })
+      await atPrompt(manager, terminalId)
       manager.write(
         { terminalId, data: `agent ${agent} ${session} '${folder(terminalId)}'\r` },
         "owner",
@@ -577,6 +605,7 @@ export const ringing = async (
   const received = join(shell.home, "received.jsonl")
   const raw = join(shell.home, "raw.jsonl")
   const type = (data: string) => manager.write({ terminalId: idle.id, data }, "owner")
+  await atPrompt(manager, idle.id)
   if (first) type(`${first}\r`)
   type(
     `${program} ${agent} ${session} '${received}' '${raw}' ${mode}${mode === "bg" ? " &" : ""}${after ? `; ${after}` : ""}\r`,

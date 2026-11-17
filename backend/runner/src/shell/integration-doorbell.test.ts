@@ -8,6 +8,7 @@ import { readyReturnMs } from "../terminals/binding/facts.js"
 import { describe, expect } from "../test.js"
 import { bash, screen, it, create, type Fixture } from "./integration.test-support.js"
 import {
+  atPrompt,
   standIn,
   driver,
   messageId,
@@ -810,6 +811,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await start(sender.id, "claude", "s-claude")
       const file = (name: string) => join(shell.home, name)
       const thread = "01a0f932-a824-7c30-b713-b59ed562f00b"
+      await atPrompt(manager, idle.id)
       manager.write(
         {
           terminalId: idle.id,
