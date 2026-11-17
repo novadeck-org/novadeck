@@ -69,7 +69,8 @@ describe.skipIf(!supported)("Codex with the worktrees' folder there", () => {
           {
             name: "exec_command",
             input: {
-              cmd: `touch ${join(mine, "a")}; touch ${join(stranger, "a")}; echo touched`,
+              // Redirection, as sh and PowerShell (Codex's shell on Windows) both write it.
+              cmd: `echo a > "${join(mine, "a")}"; echo a > "${join(stranger, "a")}"; echo wrote`,
               yield_time_ms: 2000,
             },
           },
