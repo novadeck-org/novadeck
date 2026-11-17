@@ -1,3 +1,5 @@
+import { join, resolve } from "node:path"
+
 import { parse } from "smol-toml"
 import { describe, expect, it } from "vitest"
 
@@ -23,9 +25,15 @@ describe("the person's own writable roots", () => {
   })
 
   it("are full paths, a relative one of the config's own folder", () => {
+    // A full path of this system's own: on Windows, `/home/x/.codex` is of the current drive.
+    const folder = resolve("/home/x/.codex")
+    const full = resolve("/abs")
     expect(
-      theirRoots(`[sandbox_workspace_write]\nwritable_roots = ["rel", "/abs"]\n`, "/home/x/.codex"),
-    ).toEqual(["/home/x/.codex/rel", "/abs"])
+      theirRoots(
+        `[sandbox_workspace_write]\nwritable_roots = ["rel", ${JSON.stringify(full)}]\n`,
+        folder,
+      ),
+    ).toEqual([join(folder, "rel"), full])
   })
 
   it("are none where the config sets none, doesn't read as TOML, or isn't there", () => {

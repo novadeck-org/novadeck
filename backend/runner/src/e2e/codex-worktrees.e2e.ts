@@ -1,38 +1,21 @@
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  rmdirSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs"
-import { dirname, join } from "node:path"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
 
 import { worktreesRoot } from "../worktrees/root.js"
 import { setups } from "./agents/index.js"
-import { describe, e2e, expect, supported } from "./fixture.js"
+import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
 import { answers, own, result } from "./scenarios.js"
 
-// Codex's shim gives a session the folder where agents' worktrees live, once it exists
-// (`worktreesRoot()`, of the runner's own home, which the rig's runner shares), as its writable
-// roots: not as --add-dir, which Codex 0.163.0 and later exit at under a read-only sandbox,
-// its default in a folder not yet trusted (e2e/probes/codex-roots.e2e.ts). The rig makes the
-// folder where its home has none, and takes away after only the empty folders it made.
+// Codex's shim gives a session the folder where agents' worktrees live, once it exists (on the
+// rig, the sandbox's own: the deck gives its runner `worktreesRoot` of the sandbox's home), as
+// its writable roots: not as --add-dir, which Codex 0.163.0 and later exit at under a read-only
+// sandbox, its default in a folder not yet trusted (e2e/probes/codex-roots.e2e.ts). The test
+// makes the folder; it goes with the sandbox.
 
-type Defer = { readonly defer: (cleanup: () => void) => void }
-
-const worktreesFolder = (run: Defer): string => {
-  const root = worktreesRoot()
-  const made = mkdirSync(root, { recursive: true })
-  if (made !== undefined)
-    run.defer(() => {
-      for (let folder = root; ; folder = dirname(folder)) {
-        if (!existsSync(folder) || readdirSync(folder).length > 0) return
-        rmdirSync(folder)
-        if (folder === made) return
-      }
-    })
+/** The worktrees' folder the rig's runner gives its agents, made for the test. */
+const worktreesFolder = (run: E2E): string => {
+  const root = worktreesRoot(run.sandbox.home)
+  mkdirSync(root, { recursive: true })
   return root
 }
 
@@ -47,11 +30,8 @@ const setup = setups.find((each) => each.agent === "codex")!
 describe.skipIf(!supported)("Codex with the worktrees' folder there", () => {
   const it = e2e(setup)
 
-  it("starts under a read-only sandbox, where --add-dir would end it", async ({
-    e2e: run,
-    resources,
-  }) => {
-    worktreesFolder(resources)
+  it("starts under a read-only sandbox, where --add-dir would end it", async ({ e2e: run }) => {
+    worktreesFolder(run)
     configure(run.sandbox.env.CODEX_HOME!, 'sandbox_mode = "read-only"')
     const t = await run.deck.open("codex")
     await t.reached("ready", { timeoutMs: 60_000 })
@@ -61,8 +41,8 @@ describe.skipIf(!supported)("Codex with the worktrees' folder there", () => {
   // Seeded with no folder trusted: its default sandbox there is read-only.
   e2e.seeded({ folderTrusted: false }, setup)(
     "stops at its own trust screen in a folder not yet trusted, not at an error",
-    async ({ e2e: run, resources }) => {
-      worktreesFolder(resources)
+    async ({ e2e: run }) => {
+      worktreesFolder(run)
       const t = await run.deck.open("codex")
       await t.until(/trust/i, 60_000)
       expect(await t.screen()).not.toContain("Ignoring --add-dir")
@@ -71,12 +51,10 @@ describe.skipIf(!supported)("Codex with the worktrees' folder there", () => {
 
   it("writes in the worktrees' folder under workspace-write, and nowhere it isn't given", async ({
     e2e: run,
-    resources,
   }) => {
-    const root = worktreesFolder(resources)
+    const root = worktreesFolder(run)
     const mine = join(root, `novadeck-e2e-${process.pid}-${Date.now()}`)
     mkdirSync(mine)
-    resources.defer(() => rmSync(mine, { recursive: true, force: true }))
     const stranger = join(run.sandbox.root, "stranger")
     mkdirSync(stranger)
     // Never asking, and the sandbox's /tmp not writable whole, so a write it may not do fails.
