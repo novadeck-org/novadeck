@@ -388,8 +388,9 @@ export const Preferences = ({
             // Whenever the tabs are wider than the dialog (a phone, a larger text size, another
             // tab), the list scrolls on its own, never the dialog. Scrolling clips what the
             // indicator's glow draws outside the list, so the list pads out by the glow and takes
-            // the padding back in its margin, and the indicator keeps its place.
-            className="preferences-tabs mt-3 -mx-2 -mb-2 flex gap-5 overflow-x-auto px-2 pb-2 [scrollbar-width:none]"
+            // the padding back in its margin (the top too, for the focus ring), and the indicator
+            // keeps its place.
+            className="preferences-tabs mt-1.5 -mx-2 -mb-2 flex gap-5 overflow-x-auto px-2 pt-1.5 pb-2 [scrollbar-width:none]"
             label="Preference sections"
             indicatorClassName="bottom-[calc(0.5rem-1px)] h-0.5"
           >

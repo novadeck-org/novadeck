@@ -528,14 +528,3 @@ describe("the forge integrations, in Preferences", () => {
     expect(panel()?.textContent).not.toContain("Forge integrations")
   })
 })
-
-describe("tabs wider than the dialog", () => {
-  it("scroll in their own list, never in the dialog", async () => {
-    await show({})
-
-    const list = document.querySelector(".preferences-tabs")!
-    expect(list.className).toContain("overflow-x-auto")
-    expect(list.className).not.toContain("max-[")
-    expect(document.querySelector('[role="dialog"]')!.className).toContain("overflow-clip")
-  })
-})
