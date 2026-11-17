@@ -184,6 +184,22 @@ export const Composer = ({
     }
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Sized to the text it holds.
   }, [draft])
+  // And to its width: a chat built while hidden measures its text, the placeholder at least,
+  // wrapped a cell to a line, so the box sizes again once it has its width, and as that changes.
+  useEffect(() => {
+    const field = input.current
+    if (!field || typeof ResizeObserver === "undefined") return
+    // The first report sizes it too, whatever width the text was measured at.
+    let width = -1
+    const watch = new ResizeObserver(() => {
+      if (field.clientWidth === width) return
+      width = field.clientWidth
+      field.style.height = "auto"
+      field.style.height = `${field.scrollHeight}px`
+    })
+    watch.observe(field)
+    return () => watch.disconnect()
+  }, [])
   // Sending answers the agent's question with the words, until the person cancels.
   const replying = mode === "reply" || mode === "waiting"
   // The question a reply was written for went: the words wait for an edit before they go.

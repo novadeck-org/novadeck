@@ -442,3 +442,32 @@ describe("the composer's transmit pulse", () => {
     expect(animated.every(({ cancel }) => cancel.mock.calls.length === 1)).toBe(true)
   })
 })
+
+describe("the composer's box height", () => {
+  it("sizes again once a chat built while hidden has its width", () => {
+    const watched: (() => void)[] = []
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private readonly report: () => void) {}
+        observe() {
+          watched.push(() => this.report())
+        }
+        disconnect() {}
+      },
+    )
+    // A cell to a line while hidden, so the placeholder alone fills the box; one line once wide.
+    let width = 0
+    vi.spyOn(HTMLTextAreaElement.prototype, "clientWidth", "get").mockImplementation(() => width)
+    vi.spyOn(HTMLTextAreaElement.prototype, "scrollHeight", "get").mockImplementation(() =>
+      width === 0 ? 273 : 21,
+    )
+
+    const field = show("").querySelector("textarea")!
+    expect(field.style.height).toBe("273px")
+
+    width = 492
+    act(() => watched.forEach((report) => report()))
+    expect(field.style.height).toBe("21px")
+  })
+})
