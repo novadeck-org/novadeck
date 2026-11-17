@@ -57,6 +57,25 @@ describe("answering Agent Chat's offer", () => {
     })
   })
 
+  context("when the welcome dialog changes the chat view", () => {
+    it("is no answer by itself, so the dialog's finish decides: held after unticking an on setting", () => {
+      const fresh = open()
+      fresh.commands.updatePreferences(
+        { ...fresh.ui.getSnapshot().preferences, chatView: true },
+        { answersOffer: false },
+      )
+      expect(fresh.answered()).toBe(false)
+      fresh.commands.updatePreferences(
+        { ...fresh.ui.getSnapshot().preferences, chatView: false },
+        { answersOffer: false },
+      )
+      expect(fresh.answered()).toBe(false)
+      fresh.commands.holdChatOffer()
+      expect(fresh.ui.getSnapshot().chatOfferHeld).toBe(true)
+      expect(fresh.answered()).toBe(false)
+    })
+  })
+
   context("when the person chooses the chat view themselves", () => {
     it("is answered by the choice in Preferences, either way", () => {
       const app = open()

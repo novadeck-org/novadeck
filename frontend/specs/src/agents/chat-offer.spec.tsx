@@ -187,6 +187,23 @@ describe("Agent Chat's offer", () => {
       await terminalTab("Build").click()
       await expect.element(card()).toBeVisible()
     })
+
+    it("is held, not answered, when the chat view was already on and the welcome dialog turns it off", async () => {
+      localStorage.setItem("novadeck.preferences", JSON.stringify({ chatView: true }))
+      await openWorkspace("/?demo=welcome")
+      const welcome = page.getByRole("dialog", { name: "Welcome to Novadeck" })
+      await welcome.getByRole("checkbox", { name: "Agent Chat" }).click()
+      await welcome.getByRole("button", { name: "Let’s build something" }).click()
+      await expect.element(welcome).not.toBeInTheDocument()
+      expect(localStorage.getItem(answeredKey)).not.toBe("true")
+      await terminalTab("Build").click()
+      await expect.element(commandInput("Build")).toBeVisible()
+      await expectStaysAbsent(card())
+      await cleanup()
+      await openWorkspace("/?demo=agents")
+      await terminalTab("Build").click()
+      await expect.element(card()).toBeVisible()
+    })
   })
 
   context("while the tour runs", () => {

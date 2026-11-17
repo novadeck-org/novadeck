@@ -68,6 +68,18 @@ describe("An agent that is not installed, in the welcome dialog", () => {
       await expect.element(agentSwitch("Antigravity")).toHaveAttribute("aria-checked", "true")
     })
 
+    it("keeps focus in the dialog while the new agent connects, its choice busy but focusable", async () => {
+      await openWorkspace("/?demo=welcome&agentConnect=slow")
+      await installButton("Antigravity").click()
+      const choice = welcome().getByRole("checkbox", { name: "Antigravity" })
+      await expect.element(choice, installTime).toBeChecked()
+      // Busy: connecting, so it reads as disabled while focus stays.
+      await expect.element(choice).toHaveAttribute("aria-disabled", "true")
+      expect(welcome().element().contains(document.activeElement)).toBe(true)
+      await expect.element(choice, installTime).not.toHaveAttribute("aria-disabled")
+      expect(welcome().element().contains(document.activeElement)).toBe(true)
+    })
+
     it("lets the person finish while it installs, applying the other choices, and the install carries on", async () => {
       await openWorkspace("/?demo=welcome&agentInstall=held")
       await welcome().getByRole("checkbox", { name: "Codex" }).click()

@@ -409,7 +409,7 @@ describe("Connecting agents", () => {
       await openWorkspace("/?demo=welcome")
       const dialog = welcome()
       await expect
-        .element(dialog.getByRole("heading", { name: "Big ideas. Room to build." }))
+        .element(dialog.getByRole("heading", { name: "You’re a runner, not a babysitter." }))
         .toHaveFocus()
       await userEvent.keyboard("{Tab}{Enter}")
       await expect

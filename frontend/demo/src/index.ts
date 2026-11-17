@@ -813,6 +813,8 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
   const install = params.get("agentInstall")
   if (install === "held") installs.holdNext()
   if (install === "fails") installs.failNext()
+  // `&agentConnect=slow` keeps an agent busy a moment as it connects, as the runner's does.
+  if (params.get("agentConnect") === "slow") installs.slowConnect()
   const backend = installs.wrap(
     withMoves(
       withShellItems(

@@ -2,6 +2,7 @@ import { type ChildProcess, spawn, type SpawnOptions } from "node:child_process"
 import { randomBytes } from "node:crypto"
 import { createServer } from "node:net"
 import { join } from "node:path"
+import { DatabaseSync } from "node:sqlite"
 
 import type { Sandbox } from "@novadeck/sandbox"
 
@@ -26,6 +27,24 @@ export const runnerEnv = (
   NOVADECK_DATABASE: join(sandbox.root, "data", "workspace.sqlite"),
   CORS_ORIGINS: runner.origin,
 })
+
+/**
+ * Marks the welcome dialog as seen in the runner's saved settings, as finishing it does, so the
+ * app boots to its workspace: going through the dialog would connect the sandbox's agents and
+ * change what the run measures. Written as the runner writes the setting (`welcomed` as JSON),
+ * once its database exists and before the UI first loads.
+ */
+export const markWelcomed = (database: string): void => {
+  const db = new DatabaseSync(database)
+  try {
+    db.exec("PRAGMA busy_timeout = 5000")
+    db.prepare(
+      "INSERT INTO settings (key, value) VALUES ('welcomed', 'true') ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+    ).run()
+  } finally {
+    db.close()
+  }
+}
 
 /** Free ports on loopback, each held until all are known, so no two come out the same. */
 const freePorts = async (count: number): Promise<readonly number[]> => {
@@ -191,6 +210,7 @@ export const openStack = (): Stack => {
       })
       track(runner)
       await ready(`http://127.0.0.1:${runnerPort}/`, runner, 60_000)
+      markWelcomed(join(sandbox.root, "data", "workspace.sqlite"))
       const preview = start(
         process.execPath,
         [

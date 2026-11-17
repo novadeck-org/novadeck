@@ -69,6 +69,9 @@ export const forgePlayOf = (key: TerminalKey): ForgePlay | undefined =>
 // How long a played install runs before it ends.
 export const installMs = 2_500
 
+// How long a slow connect keeps its agent busy.
+const connectMs = 1_500
+
 export type DemoInstalls = {
   // The backend, whose terminals opened with an agent's installer play it: busy a while, then
   // the agent shows installed or, once armed to fail, still not.
@@ -81,6 +84,9 @@ export type DemoInstalls = {
   readonly holdNext: () => void
   // Ends the installs held, as they would have.
   readonly release: () => void
+  // Makes connecting an agent take a moment, busy meanwhile, as the runner's does: the
+  // connect that follows an install, with the agent already shown as installed.
+  readonly slowConnect: () => void
 }
 
 type Connections = readonly AgentConnection[]
@@ -88,6 +94,7 @@ type Connections = readonly AgentConnection[]
 export const createDemoInstalls = (): DemoInstalls => {
   let failing = false
   let holding = false
+  let slow = false
   // The installs under way, each with how to end it, and the timers that end them.
   const running = new Set<() => void>()
   const timers = new Set<ReturnType<typeof setTimeout>>()
@@ -95,26 +102,41 @@ export const createDemoInstalls = (): DemoInstalls => {
   // The agents installs have installed since, which show as available over what the backend's
   // own list says.
   const installed = createStore<ReadonlySet<AgentName>>(new Set())
+  // The agents a slow connect holds busy.
+  const connecting = createStore<ReadonlySet<AgentName>>(new Set())
   const overlaid = (base: Store<Connections>): Store<Connections> => {
-    let last: { list: Connections; set: ReadonlySet<AgentName>; shown: Connections } | undefined
+    let last:
+      | {
+          list: Connections
+          set: ReadonlySet<AgentName>
+          busy: ReadonlySet<AgentName>
+          shown: Connections
+        }
+      | undefined
     return {
       getSnapshot: () => {
         const list = base.getSnapshot()
         const set = installed.getSnapshot()
-        if (last?.list === list && last.set === set) return last.shown
+        const busy = connecting.getSnapshot()
+        if (last?.list === list && last.set === set && last.busy === busy) return last.shown
         const shown =
-          set.size === 0
+          set.size === 0 && busy.size === 0
             ? list
-            : list.map(({ installer: _installer, ...each }) =>
-                set.has(each.agent)
-                  ? { ...each, available: true }
-                  : { ...each, ...(_installer !== undefined && { installer: _installer }) },
-              )
-        last = { list, set, shown }
+            : list.map(({ installer: _installer, ...each }) => ({
+                ...each,
+                ...(set.has(each.agent) && { available: true }),
+                ...(busy.has(each.agent) && { busy: true }),
+                ...(!set.has(each.agent) && _installer !== undefined && { installer: _installer }),
+              }))
+        last = { list, set, busy, shown }
         return shown
       },
       subscribe: (listener) => {
-        const stops = [base.subscribe(listener), installed.subscribe(listener)]
+        const stops = [
+          base.subscribe(listener),
+          installed.subscribe(listener),
+          connecting.subscribe(listener),
+        ]
         return () => stops.forEach((stop) => stop())
       },
     }
@@ -132,8 +154,32 @@ export const createDemoInstalls = (): DemoInstalls => {
     release: () => {
       for (const end of running) end()
     },
+    slowConnect: () => {
+      slow = true
+    },
     wrap: (backend) => {
-      const agents = backend.agents && { ...backend.agents, state: overlaid(backend.agents.state) }
+      const base = backend.agents
+      const agents = base && {
+        ...base,
+        state: overlaid(base.state),
+        set: (agent: AgentName, connected: boolean) => {
+          if (!slow) return base.set(agent, connected)
+          const mark = (busy: boolean): void =>
+            void connecting.update((set) => {
+              const next = new Set(set)
+              if (busy) next.add(agent)
+              else next.delete(agent)
+              return next
+            })
+          mark(true)
+          const timer = setTimeout(() => {
+            timers.delete(timer)
+            base.set(agent, connected)
+            mark(false)
+          }, connectMs)
+          timers.add(timer)
+        },
+      }
       return {
         ...backend,
         ...(agents && { agents }),

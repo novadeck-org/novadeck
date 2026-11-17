@@ -1,11 +1,12 @@
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
+import { DatabaseSync } from "node:sqlite"
 
 import { describe, expect, it, onTestFinished } from "vitest"
 
 import { strays } from "./sandbox.ts"
-import { runnerEnv } from "./stack.ts"
+import { markWelcomed, runnerEnv } from "./stack.ts"
 
 // The timing run's boundary: the Novadeck `claude` shim runs the next `claude` on PATH, so a
 // real one there would start the developer's real Claude Code with their logins.
@@ -65,5 +66,23 @@ describe("the runner's environment", () => {
       NOVADECK_DATABASE: join("/tmp/sandbox", "data", "workspace.sqlite"),
       CORS_ORIGINS: "http://127.0.0.1:5678",
     })
+  })
+})
+
+describe("the welcome dialog, in the timing run", () => {
+  it("is marked seen in the runner's settings, whatever they held", () => {
+    const [folder] = folders("data")
+    const file = join(folder!, "workspace.sqlite")
+    const db = new DatabaseSync(file)
+    db.exec("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT")
+    db.exec("INSERT INTO settings VALUES ('welcomed', 'false'), ('transcripts', 'false')")
+    db.close()
+    markWelcomed(file)
+    const check = new DatabaseSync(file)
+    expect(check.prepare("SELECT key, value FROM settings ORDER BY key").all()).toEqual([
+      { key: "transcripts", value: "false" },
+      { key: "welcomed", value: "true" },
+    ])
+    check.close()
   })
 })

@@ -78,7 +78,7 @@ const pluginNote = (names: readonly string[]): string =>
     ? "You can connect agents later in Preferences."
     : `Adds a small plugin to ${listed(names)}. Remove it anytime in Preferences.`
 
-const headline = "Room to build."
+const headline = "not a babysitter."
 
 // The command that installs an agent that isn't here, where the backend knows one.
 const installerOf = ({ available, installer }: AgentSwitch): string | undefined =>
@@ -113,6 +113,7 @@ const ChoiceCard = ({
   value,
   checked,
   disabled = false,
+  busy = false,
   onChange,
   onLook,
 }: {
@@ -125,6 +126,9 @@ const ChoiceCard = ({
   readonly value: string
   readonly checked: boolean
   readonly disabled?: boolean
+  // Mid-change: looks disabled and ignores clicks, but stays focusable, so focus in the dialog
+  // is not dropped while it changes.
+  readonly busy?: boolean
   readonly onChange: (checked: boolean) => void
   // Told whether the pointer is over the card, or focus in it: the card is looked at while either is.
   readonly onLook?: ((how: "pointer" | "focus", looking: boolean) => void) | undefined
@@ -138,9 +142,9 @@ const ChoiceCard = ({
           onBlur: () => onLook("focus", false),
         }
       : {})}
-    className={`choice-card solid flex min-h-[60px] min-w-0 items-start gap-3 px-3 py-2.5 ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+    className={`choice-card solid flex min-h-[60px] min-w-0 items-start gap-3 px-3 py-2.5 ${disabled || busy ? "cursor-not-allowed" : "cursor-pointer"}`}
     data-state={checked ? "checked" : "unchecked"}
-    data-disabled={disabled || undefined}
+    data-disabled={disabled || busy || undefined}
   >
     <Tile icon={icon} />
     {/* As tall as the tile at least, so one line sits level with its middle and more start
@@ -164,9 +168,12 @@ const ChoiceCard = ({
         value={value}
         checked={checked}
         disabled={disabled}
+        aria-disabled={busy || undefined}
         aria-label={label}
         aria-describedby={note ? noteId : undefined}
-        onChange={onChange}
+        onChange={(next) => {
+          if (!busy) onChange(next)
+        }}
       />
     </span>
   </label>
@@ -378,10 +385,10 @@ const WelcomeForm = ({
             className="welcome-headline m-0 text-[46px] leading-[1.06] font-medium max-[819px]:text-[38px] max-[420px]:text-[34px]"
           >
             {/* Read whole at once; the typed copy is for the eyes only. */}
-            <span className="sr-only">Big ideas. {headline}</span>
+            <span className="sr-only">You’re a runner, {headline}</span>
             <span aria-hidden="true">
               <span className="welcome-rise" style={at(420)}>
-                Big ideas.
+                You’re a runner,
               </span>
               <br />
               {[...headline].map((letter, index) => (
@@ -402,7 +409,7 @@ const WelcomeForm = ({
             className="modal-description welcome-enter mt-4 mb-0 max-w-[350px] text-lead leading-[1.7]"
             style={at(1300)}
           >
-            Terminals, agents, and projects in one workspace.
+            Novadeck runs your agents in one window. When one needs you, it asks in your Inbox.
           </DialogDescription>
         </div>
         <div className="welcome-enter flex min-h-0 flex-1 flex-col" style={at(500)}>
@@ -454,7 +461,8 @@ const WelcomeForm = ({
                     name="agents"
                     value={toggle.agent}
                     checked={choices[toggle.agent]}
-                    disabled={toggle.busy || !toggle.available}
+                    disabled={!toggle.available}
+                    busy={toggle.busy}
                     onChange={(checked) =>
                       setChoices((current) => ({ ...current, [toggle.agent]: checked }))
                     }

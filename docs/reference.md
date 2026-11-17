@@ -205,8 +205,8 @@ Someone who updated past the welcome dialog is offered Agent Chat once, as a car
 footer's right end (`frontend/ui/src/shell/AgentChatOffer.tsx`) the first time an agent's terminal
 is selected with it off: Turn on, or No thanks. Either answers it for good, as does choosing the
 setting in Preferences or finishing the welcome dialog with Agent Chat ticked. Finishing it with
-Agent Chat unticked is no answer: the offer only waits out that run (held in memory, so a restart
-or reload counts as a new run) and comes at a later launch. The answer is kept in local storage
+Agent Chat unticked is no answer: the offer only waits out that run (held in memory, so a restart,
+reload or the app booting again after a reconnect counts as a new run) and comes at a later launch. The answer is kept in local storage
 (`novadeck.agent-chat-offer-answered`, `frontend/core/src/agents/chat-offer.ts`), not in the
 preferences, so preferences saved earlier load as before.
 

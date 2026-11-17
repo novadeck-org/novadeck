@@ -438,16 +438,11 @@ export const focusOn = async (page: Page, n: number): Promise<void> => {
 }
 
 /**
- * Waits until the app has booted, as it has once it offers either the welcome or a new
- * terminal, having connected to the runner, and passes the welcome.
+ * Waits until the app has booted, as it has once it offers a new terminal, having connected to
+ * the runner. The stack has marked the welcome dialog seen (`markWelcomed`), so it is not up.
  */
 export const boot = async (page: Page): Promise<void> => {
-  const skip = page.getByText("Skip for now")
-  await skip
-    .or(page.getByRole("button", { name: "New terminal" }))
-    .first()
-    .waitFor({ timeout: 60_000 })
-  if (await skip.isVisible()) await skip.click()
+  await page.getByRole("button", { name: "New terminal" }).first().waitFor({ timeout: 60_000 })
 }
 
 /**

@@ -428,7 +428,10 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
                 chatView: {
                   enabled: preferences.chatView,
                   onChange: (chatView: boolean) =>
-                    updatePreferences({ ...ui.getSnapshot().preferences, chatView }),
+                    updatePreferences(
+                      { ...ui.getSnapshot().preferences, chatView },
+                      { answersOffer: false },
+                    ),
                 },
               }
             : {})}
