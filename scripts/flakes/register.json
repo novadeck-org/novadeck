@@ -550,14 +550,15 @@
       ]
     },
     {
-      "id": "ui-process-windows-claude-macos-timeout",
+      "id": "ui-process-windows-macos-timeout",
       "jobs": ["^Test \\(macOS\\)$"],
-      "test": "src/terminals/process-windows.spec.tsx > process windows > presents claude in its window with input and controls in every layout",
-      "signature": "Test timed out in \\d+ms",
+      "test": "src/terminals/process-windows.spec.tsx > process windows > presents ",
+      "signature": "Test timed out in \\d+ms|TimeoutError: locator\\.click: Timeout \\d+ms exceeded",
       "status": "known",
-      "cause": "Unknown. It ran out its 30 s test timeout on macOS and passed on its retry, on a job whose test step took a usual 18 min, so not a slow runner. The same test's Windows entry (ui-process-windows-layout-settled, a settle wait that gave up after 5 s) is fixed and failed another way. Not reproduced.",
+      "cause": "Unknown, macOS only, in any of the three harness cases: a case ran out its 30 s test timeout and passed on its retry in 4 to 11 s, where it usually takes 1.5 to 15 s. In the codex case the sidebar's Select Checkout review click, just after switching to Canvas, was dispatched but never completed before the test's time ran out (its 2973 ms was what was left of the test), so the page looks to have stalled rather than run slow. Not reproduced: 6 local runs on Linux each passed. The same test's Windows entry (ui-process-windows-layout-settled, a settle wait that gave up after 5 s) is fixed and failed another way.",
       "seen": [
-        "feat/install-script-look run 44063445169 job 134014233533 (macOS), retried and passed"
+        "feat/install-script-look run 44063445169 job 134014233533 (macOS), claude, retried and passed",
+        "main's promotion nightly run 44133019853 job 134214959595 (macOS), codex, locator.click timed out at 2973 ms, retried and passed"
       ]
     },
     {
