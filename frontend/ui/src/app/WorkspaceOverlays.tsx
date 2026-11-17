@@ -407,6 +407,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           agents={agents.list}
           onChange={backend.agents.set}
           onInstall={installs.install}
+          installing={installs.installing}
           transcripts={transcripts}
           {...(schemeCountOfTheme(preferences.appearance.theme) > 1
             ? {

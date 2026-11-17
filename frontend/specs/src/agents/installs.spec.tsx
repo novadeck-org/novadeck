@@ -2,7 +2,7 @@ import { afterEach } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
 import { openPreferencesOn, preferencesDialog } from "../support/keyboard"
-import { expectSelected, openWorkspace, terminalTab, terminalTabNames } from "../support/workspace"
+import { expectSelected, openWorkspace, terminalTabNames } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
 const welcome = (): Locator => page.getByRole("dialog", { name: "Welcome to Novadeck" })
@@ -37,27 +37,51 @@ describe("An agent that is not installed, in the welcome dialog", () => {
   })
 
   context("when Install is pressed", () => {
-    it("applies the other choices, then installs in a terminal, connects the agent and starts it", async () => {
+    const finish = (): Promise<void> =>
+      welcome().getByRole("button", { name: "Let’s build something" }).click()
+
+    it("installs in a terminal behind the dialog, which stays open and shows the install running", async () => {
       await openWorkspace("/?demo=welcome")
-      await welcome().getByRole("checkbox", { name: "Codex" }).click()
       await installButton("Antigravity").click()
-      await expect.element(welcome()).not.toBeInTheDocument()
-
-      // A terminal of its own runs the installer, selected.
-      await expectSelected("Install Antigravity")
+      await expect.element(welcome()).toBeVisible()
       await expect
-        .element(
-          page.getByText("curl -fsSL https://antigravity.google/cli/install.sh | bash").last(),
-        )
+        .element(welcome().getByRole("button", { name: "Install Antigravity" }))
+        .toHaveAttribute("aria-disabled", "true")
+      await expect
+        .element(welcome().getByText("Installing in a terminal of its own…"))
         .toBeVisible()
+      // Focus stays in the dialog.
+      expect(welcome().element().contains(document.activeElement)).toBe(true)
+    })
 
-      // Once it ends, the agent is connected and started in a terminal of its own.
-      await expect.poll(terminalTabNames, installTime).toContain("agy")
-      await expectSelected("agy")
-      expect(terminalTab("Install Antigravity").query()).not.toBeNull()
-
+    it("shows the agent as a ticked choice once it is installed, and connects it as the dialog finishes", async () => {
+      await openWorkspace("/?demo=welcome")
+      await installButton("Antigravity").click()
+      await expect
+        .element(welcome().getByRole("checkbox", { name: "Antigravity" }), installTime)
+        .toBeChecked()
+      expect(installButton("Antigravity").query()).toBeNull()
+      expect(welcome().element().contains(document.activeElement)).toBe(true)
+      await finish()
+      await expect.element(welcome()).not.toBeInTheDocument()
       await openPreferencesOn("Agents")
       await expect.element(agentSwitch("Antigravity")).toHaveAttribute("aria-checked", "true")
+    })
+
+    it("lets the person finish while it installs, applying the other choices, and the install carries on", async () => {
+      await openWorkspace("/?demo=welcome&agentInstall=held")
+      await welcome().getByRole("checkbox", { name: "Codex" }).click()
+      await installButton("Antigravity").click()
+      await expect
+        .element(welcome().getByRole("button", { name: "Install Antigravity" }))
+        .toHaveAttribute("aria-disabled", "true")
+      await expect
+        .element(welcome().getByRole("button", { name: "Let’s build something" }))
+        .toBeEnabled()
+      await finish()
+      await expect.element(welcome()).not.toBeInTheDocument()
+      await expectSelected("Install Antigravity")
+      await openPreferencesOn("Agents")
       await expect.element(agentSwitch("Claude Code")).toHaveAttribute("aria-checked", "true")
       await expect.element(agentSwitch("Codex")).toHaveAttribute("aria-checked", "false")
     })
@@ -65,16 +89,18 @@ describe("An agent that is not installed, in the welcome dialog", () => {
     it("starts nothing, and leaves the installer's terminal, where the install failed", async () => {
       await openWorkspace("/?demo=welcome&agentInstall=fails")
       await installButton("Antigravity").click()
+      // Long enough for an install that worked to have ended.
+      await new Promise((resolve) => setTimeout(resolve, 4_000))
+      expect(terminalTabNames()).not.toContain("agy")
+      // Still not installed: the dialog offers it again, and finishing is not held up.
+      await expect.element(installButton("Antigravity")).toBeEnabled()
+      await finish()
+      await expect.element(welcome()).not.toBeInTheDocument()
       await expectSelected("Install Antigravity")
       await expect
         .element(page.getByText("curl: (6) Could not resolve host: antigravity.google").last())
         .toBeVisible()
-      // Long enough for an install that worked to have ended.
-      await new Promise((resolve) => setTimeout(resolve, 4_000))
-      expect(terminalTabNames()).not.toContain("agy")
-      await expectSelected("Install Antigravity")
       await openPreferencesOn("Agents")
-      // Still not installed, Preferences offers to install it again.
       await expect.element(preferencesInstall("Antigravity")).toBeEnabled()
       expect(agentSwitch("Antigravity").query()).toBeNull()
     })
@@ -82,9 +108,9 @@ describe("An agent that is not installed, in the welcome dialog", () => {
     it("waits for an install that is still running", async () => {
       await openWorkspace("/?demo=welcome&agentInstall=held")
       await installButton("Antigravity").click()
-      await expectSelected("Install Antigravity")
       await new Promise((resolve) => setTimeout(resolve, 4_000))
       expect(terminalTabNames()).not.toContain("agy")
+      await expect.element(welcome()).toBeVisible()
     })
   })
 

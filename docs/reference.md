@@ -588,7 +588,7 @@ agent.
   An agent that is not installed offers Install instead, in both places, with the command
   it runs (in the welcome dialog, a dashed card to add it, whose command shows on asking and
   is read out with Install): its vendor's official installer, in a terminal of the workspace (Preferences
-  closes for it). Once the installer ends, Novadeck connects the agent and starts it in a
+  closes for it; the welcome dialog stays open, its card reading "Installing…" until the agent is found, then a ticked choice). Once the installer ends, Novadeck connects the agent and starts it in a
   terminal of its own, for you to sign in; while it runs, Preferences shows the agent as
   installing. Connecting installs a small Novadeck plugin into
   it with the agent's own plugin commands (`claude plugin`, `codex plugin`,

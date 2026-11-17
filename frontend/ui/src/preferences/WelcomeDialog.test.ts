@@ -76,6 +76,60 @@ describe("an agent that is not installed, in the welcome dialog", () => {
     )
   })
 
+  it("starts the installer and keeps the dialog open, showing it installing", () => {
+    const installed: string[] = []
+    const done = vi.fn<() => void>()
+    show({ onInstall: (agent) => installed.push(agent), onDone: done })
+    act(() => install()!.dispatchEvent(new MouseEvent("click", { bubbles: true })))
+    expect(installed).toEqual(["agy"])
+    expect(done).not.toHaveBeenCalled()
+  })
+
+  it("reads as installing while its installer runs, and still lets the person finish", () => {
+    const done = vi.fn<() => void>()
+    show({ onInstall: () => {}, installing: new Set(["agy"]), onDone: done })
+    expect(install()?.getAttribute("aria-disabled")).toBe("true")
+    expect(install()?.textContent).toBe("Installing…")
+    expect(document.body.textContent).toContain("Installing in a terminal of its own…")
+    const start = [...document.querySelectorAll("button")].find((each) =>
+      each.textContent?.includes("Let’s build something"),
+    )!
+    act(() => start.click())
+    expect(done).toHaveBeenCalledOnce()
+  })
+
+  it("ticks an agent that turns installed while the dialog is open, and applies it", () => {
+    const connected: [string, boolean][] = []
+    const agents = (available: boolean) => [
+      { agent: "claude" as const, available: true, connected: false, busy: false },
+      { agent: "agy" as const, available, connected: false, busy: false, installer: "install-agy" },
+    ]
+    show({
+      agents: agents(false),
+      onInstall: () => {},
+      onChange: (a, on) => connected.push([a, on]),
+    })
+    expect(checkbox("agy")).toBeNull()
+    // The backend's state arriving: the installer ended and the agent is found.
+    mounted[0]!.rerender(
+      createElement(WelcomeDialog, {
+        open: true,
+        agents: agents(true),
+        onChange: (a, on) => connected.push([a, on]),
+        onInstall: () => {},
+        onDone: () => {},
+      }),
+    )
+    expect(checkbox("agy")?.checked).toBe(true)
+    ;[...document.querySelectorAll("button")]
+      .find((each) => each.textContent?.includes("Let’s build something"))!
+      .click()
+    expect(connected).toEqual([
+      ["claude", true],
+      ["agy", true],
+    ])
+  })
+
   it("keeps a disabled checkbox where the dialog has no way to install", () => {
     show({})
     expect(install()).toBeNull()
