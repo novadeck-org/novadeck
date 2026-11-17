@@ -33,7 +33,12 @@
 # you made is removed: not Novadeck's data, nor the plugins connected to your agents. The
 # script says where the data is and how to remove the plugins.
 #
-# The release workflow replaces @REPOSITORY@ with the repository it publishes from. These
+# It speaks in a banner, phases and a sign-off, in colour on a terminal unless NO_COLOR is set,
+# with the banner's tagline typed out and curl's progress bar shown there. A piped run prints
+# the same lines without colour or animation, and errors go to stderr.
+#
+# The release workflow replaces @REPOSITORY@ with the repository it publishes from, and
+# @VERSION@ with the version it releases; an unrendered copy names no version. These
 # environment variables change it:
 #
 #   NOVADECK_INSTALL_BASE_URL         The folder to download from, for a mirror or a test.
@@ -65,13 +70,120 @@
 # Every definition comes before the one call on the last line, so a download that is cut
 # short runs nothing.
 
+# Colour codes for stdout, and for stderr, each only on a terminal and never with NO_COLOR.
+# Unset until style runs, so a function called on its own prints plain text.
+style() {
+  TEAL='' RED='' YELLOW='' DIM='' BOLD='' WHITE='' RESET='' ANIMATE=false
+  ERR_RED='' ERR_BOLD='' ERR_DIM='' ERR_RESET=''
+  [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ] || return 0
+  if [ -t 1 ]; then
+    case "${COLORTERM:-}" in
+      truecolor | 24bit) TEAL="$(printf '\033[38;2;0;229;214m')" ;;
+      *) TEAL="$(printf '\033[96m')" ;;
+    esac
+    RED="$(printf '\033[91m')"
+    YELLOW="$(printf '\033[93m')"
+    DIM="$(printf '\033[2m')"
+    BOLD="$(printf '\033[1m')"
+    WHITE="$(printf '\033[97m')"
+    RESET="$(printf '\033[0m')"
+    ANIMATE=true
+  fi
+  if [ -t 2 ]; then
+    ERR_RED="$(printf '\033[91m')"
+    ERR_BOLD="$(printf '\033[1m')"
+    ERR_DIM="$(printf '\033[2m')"
+    ERR_RESET="$(printf '\033[0m')"
+  fi
+}
+
 fail() {
-  printf 'novadeck install: %s\n' "$1" >&2
+  printf '\n    %s%s✗ flatlined%s %s— %s%s\n\n' "${ERR_RED:-}" "${ERR_BOLD:-}" "${ERR_RESET:-}" "${ERR_DIM:-}" "${ERR_RESET:-}" "$1" >&2
   exit 1
 }
 
+# A line of its own, under the phase it belongs to.
 say() {
-  printf '%s\n' "$1"
+  printf '        %s›%s %s\n' "${DIM:-}" "${RESET:-}" "$1"
+}
+
+# A command to copy, on a line of its own with no marker, so a whole line pastes as is.
+command_line() {
+  printf '          %s\n' "$1"
+}
+
+# The heading of a phase: `>>> name`.
+section() {
+  printf '\n    %s>>>%s %s%s%s\n' "${DIM:-}" "${RESET:-}" "${BOLD:-}" "$1" "${RESET:-}"
+}
+
+# Marks at the start of a line: done, worth knowing, failed, removed.
+ok() { say "${TEAL:-}✓${RESET:-} $1"; }
+warn() { say "${YELLOW:-}!${RESET:-} $1"; }
+bad() { say "${RED:-}✗${RESET:-} $1"; }
+gone() { say "${DIM:-}−${RESET:-} $1"; }
+
+# Words that matter less, dimmed.
+quiet() {
+  printf '%s%s%s' "${DIM:-}" "$1" "${RESET:-}"
+}
+
+# A path as the person reads it, with their home folder as ~.
+tidy() {
+  # shellcheck disable=SC2088 # A ~ to read, not to expand.
+  case "${HOME:+$1}" in
+    "$HOME"/*) printf '~/%s\n' "${1#"$HOME"/}" ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+
+# Typed out a character at a time on a terminal, printed whole otherwise. A sleep that
+# takes no fraction just makes it print at once.
+typing() {
+  printf '    '
+  if [ "$ANIMATE" = true ]; then
+    rest="$1"
+    while [ -n "$rest" ]; do
+      next="${rest#?}"
+      printf '%s' "${rest%"$next"}"
+      rest="$next"
+      sleep 0.03 2> /dev/null || true
+    done
+  else
+    printf '%s' "$1"
+  fi
+  printf '\n'
+}
+
+# NOVADECK in the ANSI Shadow figlet font, with the tagline and the release under it, then
+# a line typed out.
+banner() {
+  printf '%s%s\n' "$TEAL" "$BOLD"
+  cat << 'EOF'
+    ███╗   ██╗ ██████╗ ██╗   ██╗ █████╗ ██████╗ ███████╗ ██████╗██╗  ██╗
+    ████╗  ██║██╔═══██╗██║   ██║██╔══██╗██╔══██╗██╔════╝██╔════╝██║ ██╔╝
+    ██╔██╗ ██║██║   ██║██║   ██║███████║██║  ██║█████╗  ██║     █████╔╝
+    ██║╚██╗██║██║   ██║╚██╗ ██╔╝██╔══██║██║  ██║██╔══╝  ██║     ██╔═██╗
+    ██║ ╚████║╚██████╔╝ ╚████╔╝ ██║  ██║██████╔╝███████╗╚██████╗██║  ██╗
+    ╚═╝  ╚═══╝ ╚═════╝   ╚═══╝  ╚═╝  ╚═╝╚═════╝ ╚══════╝ ╚═════╝╚═╝  ╚═╝
+EOF
+  printf '%s%s               a workspace for parallel terminals%s%s\n' "$RESET" "$DIM" "${version:+ · v$version}" "$RESET"
+  typing "$1"
+}
+
+# The last word of a run: a headline and the lines under it.
+closing() {
+  printf '\n    %s%s━━━%s %s%s%s%s\n' "$TEAL" "$BOLD" "$RESET" "$WHITE" "$BOLD" "$1" "$RESET"
+  shift
+  for line in "$@"; do
+    printf '        %s\n' "$line"
+  done
+  printf '\n'
+}
+
+# The sign-off of an install that worked, warnings or not.
+chromed() {
+  closing "preem, choom. you're chromed." "$@"
 }
 
 has() {
@@ -119,6 +231,21 @@ download() {
   curl -fsSL --retry 3 --retry-connrefused -o "$2" "$1" || fail "could not download $1"
 }
 
+# A package, with curl's progress bar on a terminal, which goes once the download is done.
+download_package() {
+  if [ "$ANIMATE" = true ] && [ -t 2 ]; then
+    curl -fSL --progress-bar --retry 3 --retry-connrefused -o "$2" "$1" || fail "could not download $1"
+    printf '\033[1A\033[2K' >&2
+  else
+    download "$1" "$2"
+  fi
+}
+
+# A file's size in megabytes, or nothing when wc cannot tell.
+size() {
+  wc -c < "$1" 2> /dev/null | awk '{ printf "%.0f MB\n", $1 / 1000000 }' || true
+}
+
 # A file's SHA-256, through sha256sum on Linux and shasum on macOS, which may lack it.
 checksum() {
   if has sha256sum; then
@@ -146,20 +273,20 @@ verify() {
 # checksums. Without gh it says plainly that only the checksums were checked.
 attest() {
   if ! has gh; then
-    say "Checked $1 against the release's checksums only; install the GitHub CLI (gh) to check its build attestation too."
+    warn "attestation $(quiet "not checked, checksums only: install the GitHub CLI (gh) to check it too")"
   elif ! gh attestation verify --help > /dev/null 2>&1; then
-    say "Checked $1 against the release's checksums only; this version of gh has no 'gh attestation'."
+    warn "attestation $(quiet "not checked, checksums only: this version of gh has no 'gh attestation'")"
   elif ! gh auth status --hostname github.com > /dev/null 2>&1; then
-    say "Checked $1 against the release's checksums only; sign in with 'gh auth login' to check its build attestation too."
+    warn "attestation $(quiet "not checked, checksums only: sign in with 'gh auth login' to check it too")"
   else
     if output="$(gh attestation verify "$1" --repo "$repository" --hostname github.com --signer-workflow "$repository/.github/workflows/release.yml" 2>&1)"; then
-      say "Checked $1: its checksum and its build attestation from $repository."
+      ok "attestation $(quiet "built by $repository's release workflow")"
     elif printf '%s\n' "$output" | grep -Eiq 'no attestations? found|no matching attestation|verifying with issuer|verification failed|failed to verify|digest|signature|mismatch|does not match'; then
       printf '%s\n' "$output" >&2
       fail "$1 has no valid build attestation from $repository; do not use it, and report it if it persists."
     else
       printf '%s\n' "$output" >&2
-      say "Could not verify the build attestation of $1 (gh could not check it, see above); it was checked against the release's checksums only."
+      warn "attestation $(quiet "could not be verified, gh could not check it (see above); checksums only")"
     fi
   fi
 }
@@ -167,9 +294,12 @@ attest() {
 fetch() {
   base="$1"
   name="$2"
-  say "Downloading $name"
-  download "$base/$name" "$name"
+  section "downloading"
+  download_package "$base/$name" "$name"
+  megabytes="$(size "$name")"
+  say "$name${megabytes:+ $(quiet "$megabytes")}"
   verify "$name"
+  ok "checksum $(quiet "matches SHA256SUMS")"
   attest "$name"
 }
 
@@ -189,14 +319,15 @@ as_root() {
 # setuid fusermount* on the PATH, FUSE 2's fusermount included, so either one will do; it
 # does not look in the system folders, and neither does this.
 check_fuse() {
-  if has fusermount3 || has fusermount; then
-    if [ -e "${NOVADECK_INSTALL_FUSE_DEVICE:-/dev/fuse}" ]; then
-      return 0
-    fi
+  if ! has fusermount3 && ! has fusermount; then
+    warn "fusermount $(quiet "missing: the AppImage needs FUSE 3 to start. Install your")"
+    say "  $(quiet "distribution's fuse3 package, or start Novadeck with --appimage-extract-and-run.")"
+  elif [ ! -e "${NOVADECK_INSTALL_FUSE_DEVICE:-/dev/fuse}" ]; then
+    warn "/dev/fuse $(quiet "missing: the AppImage needs FUSE 3 to start, and this system offers")"
+    say "  $(quiet "no FUSE device, as in many containers. Start Novadeck with --appimage-extract-and-run.")"
+  else
+    ok "fusermount"
   fi
-  say "Novadeck's AppImage needs FUSE 3, which this computer seems to lack."
-  say "Install your distribution's fuse3 package, or start Novadeck with"
-  say "--appimage-extract-and-run."
 }
 
 # XDG_DATA_HOME, which the XDG spec says to ignore unless it is an absolute path.
@@ -226,8 +357,10 @@ install_appimage() {
   folder="$data/novadeck"
   image="$(image_path)"
 
+  say "installs to $(quiet "$(tidy "$folder")")"
   fetch "$base" novadeck-linux-x86_64.AppImage
   chmod +x novadeck-linux-x86_64.AppImage
+  section "installing"
 
   # The icon comes out of the AppImage without mounting it, so this needs no FUSE.
   icon=""
@@ -237,7 +370,7 @@ install_appimage() {
     mkdir -p "$data/icons/hicolor/512x512/apps"
     cp squashfs-root/usr/share/icons/hicolor/512x512/apps/novadeck.png "$icon"
   else
-    say "Could not extract the icon; the menu entry will have none."
+    warn "icon $(quiet "could not be extracted; the menu entry has none")"
   fi
 
   # A new file renamed over the old one, so an upgrade works while Novadeck is running.
@@ -259,10 +392,13 @@ Categories=Utility;
 StartupWMClass=dev.mzpk.novadeck
 EOF
 
-  say "Installed Novadeck to $image"
+  say "app        $(quiet "→ $(tidy "$image")")"
+  say "command    $(quiet "→ $(tidy "$bin/novadeck")")"
+  say "menu entry $(quiet "→ Novadeck")"
   case ":$PATH:" in
     *":$bin:"*) ;;
-    *) say "Add $bin to your PATH to start it as \`novadeck\`: export PATH=\"$bin:\$PATH\"" ;;
+    *) warn "PATH $(quiet "lacks $(tidy "$bin"); add it to your PATH to start Novadeck as \`novadeck\`:")"
+       command_line "export PATH=\"$bin:\$PATH\"" ;;
   esac
   check_fuse
   setup_sandbox "$base"
@@ -307,9 +443,9 @@ write_profile() {
 }
 
 sandbox_warning() {
-  say "Warning: Novadeck will run without its sandbox: $1"
-  say "To set it up later, run:"
-  say "  curl -fsSL $2/install.sh | sh -s -- --sandbox"
+  bad "Novadeck will run without its sandbox: $(quiet "$1")"
+  say "  $(quiet "To set it up later, run:")"
+  command_line "curl -fsSL $2/install.sh | sh -s -- --sandbox"
 }
 
 # True when AppArmor stops unprivileged programs from creating user namespaces, which is
@@ -339,6 +475,7 @@ home_owner() {
 setup_sandbox() {
   base="$1"
   userns_restricted || return 0
+  section "sandbox"
   parser="$(find_tool apparmor_parser)"
   if [ -z "$parser" ]; then
     sandbox_warning "apparmor_parser, which loads the profile, is not installed." "$base"
@@ -370,20 +507,21 @@ setup_sandbox() {
   fi
   brewname="$name-brew"
   if cmp -s "$profile" "$target" && profile_loaded "$name" && { [ "$location" = "$brew" ] || profile_loaded "$brewname"; }; then
-    say "Novadeck's sandbox is already set up."
+    ok "sandbox $(quiet "already set up")"
     return 0
   fi
   say "Writing an AppArmor profile so Novadeck's sandbox works on this system."
+  say "$(quiet "This system restricts user namespaces; sudo may ask for your password once.")"
   # Loaded before it is saved, so a profile that will not load never replaces a working one
   # and never loads at the next boot.
   if ! as_root "$parser" --replace "$profile" > /dev/null; then
     sandbox_warning "the profile could not be loaded as root." "$base"
   elif as_root cp "$profile" "$target"; then
-    say "Novadeck's sandbox is set up."
+    ok "sandbox $(quiet "set up")"
   else
-    say "Novadeck's sandbox works until the next restart, as the profile could not be saved."
-    say "After a restart, run this again:"
-    say "  curl -fsSL $base/install.sh | sh -s -- --sandbox"
+    warn "sandbox $(quiet "works until the next restart, as the profile could not be saved.")"
+    say "  $(quiet "After a restart, run this again:")"
+    command_line "curl -fsSL $base/install.sh | sh -s -- --sandbox"
   fi
 }
 
@@ -424,7 +562,9 @@ install_mac() {
   folder="$(mac_folder)" || exit 1
   app="$folder/novadeck.app"
 
+  say "installs to $(quiet "$(tidy "$folder")")"
   fetch "$base" novadeck-mac-universal.zip
+  section "installing"
 
   # Replacing the app under a running copy would leave it starting helpers of another
   # version.
@@ -444,8 +584,8 @@ install_mac() {
   # interrupts are ignored until both are done.
   trap '' INT HUP QUIT TERM
   if [ -e "$app" ] && ! mv "$app" "$staging/previous.app"; then
-    say "If macOS said your terminal was prevented from modifying apps, allow it under System"
-    say "Settings > Privacy & Security > App Management, then run this again."
+    warn "If macOS said your terminal was prevented from modifying apps, allow it under"
+    say "  System Settings > Privacy & Security > App Management, then run this again."
     fail "could not replace $app."
   fi
   if ! mv "$staging/novadeck.app" "$app"; then
@@ -461,16 +601,18 @@ install_mac() {
   trap - QUIT
   # What is left there, such as the copy it replaced, costs only space.
   if ! rm -rf "$staging" 2> /dev/null; then
-    say "Could not remove $staging; delete it by hand."
+    warn "Could not remove $(tidy "$staging"); delete it by hand."
   fi
   staging=""
 
-  say "Installed Novadeck to $app"
+  say "app $(quiet "→ $(tidy "$app")")"
   if developer_id_signed "$app"; then
-    say "Done. Novadeck updates itself from here."
+    ok "signed $(quiet "Developer ID")"
+    chromed "Open it from Launchpad or Spotlight. Novadeck updates itself from here."
   else
-    say "Done. This build is not signed, so Novadeck tells you of new versions rather than"
-    say "installing them; run this again to install one."
+    warn "unsigned build $(quiet "— Novadeck tells you of new versions rather than installing")"
+    say "  $(quiet "them; run this again to install one.")"
+    chromed "Open it from Launchpad or Spotlight."
   fi
 }
 
@@ -504,18 +646,38 @@ config_home() {
 }
 
 uninstall_leftovers() {
-  say "Your data and any agent plugins stay. To remove the data, delete $1."
-  say "To remove the plugin from an agent you connected, run its own command:"
-  say "  claude plugin uninstall novadeck@novadeck && claude plugin marketplace remove novadeck"
-  say "  codex plugin remove novadeck@novadeck && codex plugin marketplace remove novadeck"
-  say "  agy plugin uninstall novadeck"
+  section "kept"
+  say "your data $(quiet "— delete $1 to remove it")"
+  say "agent plugins $(quiet "— each agent you connected removes its own:")"
+  command_line "claude plugin uninstall novadeck@novadeck && claude plugin marketplace remove novadeck"
+  command_line "codex plugin remove novadeck@novadeck && codex plugin marketplace remove novadeck"
+  command_line "agy plugin uninstall novadeck"
+}
+
+# One thing the uninstall removed, under a heading that comes with the first.
+removed() {
+  [ "$found" = true ] || section "removing"
+  found=true
+  gone "$1"
+}
+
+# The sign-off of an uninstall: what went, or that nothing was there.
+unplugged() {
+  if [ "$found" = false ]; then
+    closing "nothing to unplug, choom." "Novadeck is not installed, so there is nothing to remove."
+    return 0
+  fi
+  uninstall_leftovers "$1"
+  closing "chrome's out, choom. stay preem." "Come back any time: curl -fsSL https://novadeck.dev/install.sh | sh"
 }
 
 uninstall_sandbox() {
   base="$1"
   target="${NOVADECK_INSTALL_APPARMOR_DIR:-/etc/apparmor.d}/novadeck-appimage-$(id -u)"
   [ -e "$target" ] || return 1
-  say "Removing Novadeck's AppArmor profile."
+  [ "$found" = true ] || section "removing"
+  found=true
+  say "$(quiet "Removing Novadeck's AppArmor profile as root; sudo may ask for your password.")"
   parser="$(find_tool apparmor_parser)"
   # Unloaded from the file that loaded it, then the file goes, so it never loads again. An
   # unload that fails, as the profile is not loaded, still leaves the file to remove.
@@ -524,13 +686,13 @@ uninstall_sandbox() {
     unloaded=true
   fi
   if as_root rm -f "$target"; then
+    gone "AppArmor profile $(quiet "${target##*/}")"
     if [ "$unloaded" = false ]; then
-      say "Novadeck's profile stays loaded until the next restart, if it is loaded at all."
+      say "  $(quiet "Novadeck's profile stays loaded until the next restart, if it is loaded at all.")"
     fi
   else
-    say "Warning: the profile could not be removed as root."
-    say "To finish, run:"
-    say "  curl -fsSL $base/install.sh | sh -s -- --uninstall"
+    bad "the profile could not be removed as root. $(quiet "To finish, run:")"
+    command_line "curl -fsSL $base/install.sh | sh -s -- --uninstall"
   fi
   return 0
 }
@@ -550,33 +712,24 @@ uninstall_appimage() {
   # Only the command this install made: one that points elsewhere is someone else's.
   if [ -L "$link" ] && [ "$(readlink "$link")" = "$image" ]; then
     rm -f "$link"
-    say "Removed $link"
-    found=true
+    removed "$(tidy "$link")"
   fi
   for file in "$image" "$data/applications/dev.mzpk.novadeck.desktop" "$data/icons/hicolor/512x512/apps/novadeck.png"; do
     if [ -e "$file" ] || [ -L "$file" ]; then
       rm -f "$file"
-      say "Removed $file"
-      found=true
+      removed "$(tidy "$file")"
     fi
   done
   # The folder also holds the person's data, so it goes only when nothing else is in it.
   if [ -d "$folder" ]; then
-    rmdir "$folder" 2> /dev/null && say "Removed $folder"
+    rmdir "$folder" 2> /dev/null && removed "$(tidy "$folder")"
   fi
-  if uninstall_sandbox "$base"; then
-    found=true
-  fi
+  uninstall_sandbox "$base" || true
 
-  if [ "$found" = false ]; then
-    say "Novadeck is not installed, so there is nothing to remove."
-    return 0
-  fi
-  say "Done."
   if [ -d "$folder" ]; then
-    uninstall_leftovers "$(config_home)/novadeck and $folder"
+    unplugged "$(tidy "$(config_home)/novadeck") and $(tidy "$folder")"
   else
-    uninstall_leftovers "$(config_home)/novadeck"
+    unplugged "$(tidy "$(config_home)/novadeck")"
   fi
 }
 
@@ -606,20 +759,14 @@ uninstall_mac() {
       destination="$trash/novadeck.$$.app"
     fi
     if ! mv "$app" "$destination"; then
-      say "If macOS said your terminal was prevented from modifying apps, allow it under System"
-      say "Settings > Privacy & Security > App Management, then run this again."
+      warn "If macOS said your terminal was prevented from modifying apps, allow it under"
+      say "  System Settings > Privacy & Security > App Management, then run this again."
       fail "could not move $app to the Trash."
     fi
-    say "Moved $app to the Trash"
-    found=true
+    removed "$(tidy "$app") $(quiet "moved to the Trash")"
   done
 
-  if [ "$found" = false ]; then
-    say "Novadeck is not installed, so there is nothing to remove."
-    return 0
-  fi
-  say "Done."
-  uninstall_leftovers "$HOME/Library/Application Support/novadeck"
+  unplugged "$(tidy "$HOME/Library/Application Support/novadeck")"
 }
 
 usage() {
@@ -642,6 +789,17 @@ main() {
     usage
   fi
   repository='@REPOSITORY@'
+  # Unrendered, as in a checkout, the placeholder names no version.
+  version='@VERSION@'
+  case "$version" in
+    @*@) version="" ;;
+  esac
+  style
+  if [ "$uninstall" = true ]; then
+    banner "jacking out…"
+  else
+    banner "jacking in…"
+  fi
   base="${NOVADECK_INSTALL_BASE_URL:-https://github.com/$repository/releases/latest/download}"
   base="${base%/}"
 
@@ -673,25 +831,37 @@ main() {
     return 0
   fi
   if [ "$sandbox_only" = true ] && [ "$platform" = mac ]; then
-    say "Novadeck's sandbox needs no setup on macOS."
+    section "sandbox"
+    ok "Novadeck's sandbox needs no setup on macOS."
+    printf '\n'
     return 0
   fi
   if [ "$sandbox_only" = true ]; then
-    userns_restricted || say "This system does not restrict user namespaces, so Novadeck's sandbox needs no setup."
-    setup_sandbox "$base"
+    if userns_restricted; then
+      setup_sandbox "$base"
+    else
+      section "sandbox"
+      ok "This system does not restrict user namespaces, so Novadeck's sandbox needs no setup."
+    fi
+    printf '\n'
     return 0
   fi
 
   has curl || fail "curl is required."
   has sha256sum || has shasum || fail "sha256sum is required."
 
-  say "Installing Novadeck"
+  section "preflight"
+  if [ "$platform" = mac ]; then
+    say "macOS $(uname -m)"
+  else
+    say "linux x86_64"
+  fi
   download "$base/SHA256SUMS" SHA256SUMS
   if [ "$platform" = mac ]; then
     install_mac "$base"
   else
     install_appimage "$base"
-    say "Done. Novadeck updates itself from here."
+    chromed "Start it from your app menu, or run \`novadeck\`." "Novadeck updates itself from here."
   fi
 }
 

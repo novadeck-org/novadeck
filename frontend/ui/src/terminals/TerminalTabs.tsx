@@ -9,7 +9,6 @@ import {
 import { RestrictToElement } from "@dnd-kit/dom/modifiers"
 import { DragDropProvider, useDragDropManager } from "@dnd-kit/react"
 import { isSortable } from "@dnd-kit/react/sortable"
-import type { Tile } from "@novadeck/core/types"
 import { PullOut } from "@novadeck/toolkit/drag-pull"
 import { sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import {
@@ -21,6 +20,7 @@ import {
   useMemo,
   useState,
   type ReactNode,
+  memo,
 } from "react"
 
 import { TabListContext } from "./tab-list"
@@ -91,15 +91,17 @@ const DropAdrift = ({ adrift }: { readonly adrift: () => boolean }): null => {
   return null
 }
 
-export const TerminalTabs = ({
-  terminals,
+// The tabs, by id: each tab reads its own tile, so the list draws again only as tiles open,
+// close or move, never as one terminal's news changes its tile.
+const TerminalTabsView = ({
+  ids,
   renderTab,
   onReorder,
   away,
 }: {
-  terminals: readonly Tile[]
+  ids: readonly string[]
   // Renders one sortable tab, usually a TerminalTab, at its position in the list.
-  renderTab: (terminal: Tile, index: number) => ReactNode
+  renderTab: (id: string, index: number) => ReactNode
   // Saves the order a drag ends on.
   onReorder: (ids: string[]) => void
   // Where a tab may be dragged beyond the list; without it, it stays in the list.
@@ -174,7 +176,7 @@ export const TerminalTabs = ({
           focus: focused?.getAttribute("data-terminal-tab-id") ?? null,
         }))
         if (taken || event.canceled || source.initialIndex === source.index) return
-        const order = terminals.map((terminal) => terminal.id)
+        const order = [...ids]
         const from = order.indexOf(String(source.id))
         if (from < 0) return
         const [id] = order.splice(from, 1)
@@ -184,13 +186,14 @@ export const TerminalTabs = ({
     >
       {away && <DropAdrift adrift={away.adrift} />}
       <div className={`terminal-tab-list ${sidebarListClasses}`} ref={attach} data-tour="tabs">
-        <Fragment key={drag.generation}>
-          {terminals.map((terminal, index) => renderTab(terminal, index))}
-        </Fragment>
-        {!terminals.length && (
+        <Fragment key={drag.generation}>{ids.map((id, index) => renderTab(id, index))}</Fragment>
+        {!ids.length && (
           <p className="terminal-tab-empty px-3 py-3 text-control">No open terminals</p>
         )}
       </div>
     </DragDropProvider>
   )
 }
+
+// Drawn again only as its own props change: the sidebar keeps every panel mounted.
+export const TerminalTabs = memo(TerminalTabsView)

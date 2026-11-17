@@ -679,6 +679,33 @@ describe("a chat sending a message", () => {
     expect(bubbles(container).map(([text]) => text)).toEqual(["second"])
   })
 
+  it("shows a prompt once the transcript holds it, though its receipt still waits", async () => {
+    const conversation = createStore<Conversation>({ ...asking, requests: [] })
+    const refs: string[] = []
+    const chat = inApp(conversation, {
+      draft: "first",
+      send: async () => ({ tracked: true }),
+      onRef: (ref) => refs.push(ref),
+    })
+    const { container } = chat
+    await send(container)
+    const pending: ChatPrompt = {
+      ref: refs[0]!,
+      text: "first",
+      sentAt: 1_000,
+      state: "pending",
+      item: null,
+    }
+    await act(async () => conversation.update((now) => ({ ...now, prompts: [pending] })))
+    expect(bubbles(container)).toEqual([["first", "sending", "sending"]])
+    // The transcript's reader got there before the receipts': one message, the recorded one.
+    await act(async () =>
+      conversation.update((now) => ({ ...now, items: [{ ...userItem("first"), at: 1_200 }] })),
+    )
+    expect(bubbles(container)).toEqual([])
+    expect(container.querySelectorAll('[data-role="user"]')).toHaveLength(1)
+  })
+
   it("lets what the doorbell brought speak for itself, with a line only where it can't", async () => {
     const ring = (id: string, at: number, replies = false): ChatItem => ({
       ...userItem("[Novadeck: automatic notice, agent messages waiting, n7Q2]"),

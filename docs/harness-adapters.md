@@ -717,10 +717,11 @@ type LaunchProfile = {
 
 Every connected harness has a shim on every platform (`harnesses/*/src/shim.ts`; `claude`,
 `codex` and `agy` on Linux and macOS, `.cmd` files on Windows). Besides its own job (Claude
-Code's status line, Codex's `--no-daemon` and title), each gives a session the folder
-the folder where Novadeck's agent worktrees live (`~/.novadeck/worktrees`, from
+Code's status line, Codex's `--no-daemon` and title), each gives a session the folder where
+Novadeck's agent worktrees live (`~/.novadeck/worktrees`, from
 `backend/runner/src/worktrees/root.ts`, handed to the shims as `machine.worktreesRoot`), as
-`--add-dir=<folder>` (Claude Code: in its settings, below), but only while that folder exists
+`--add-dir=<folder>` (Claude Code: in its settings; Codex: as its writable roots; both below),
+but only while that folder exists
 as a directory when the harness launches. Agents' worktrees are
 outside their starting folder, where all three block writes by default; with the flag the
 folder behaves like the project's, under the person's own permission mode or sandbox, and
@@ -741,8 +742,21 @@ Novadeck writes nothing to a harness's config. The `=` form matters: Claude Code
   `e2e/worktrees-folder.e2e.ts`). Without either settings file
   it passes neither; it never passes a second `--settings`, which would replace the first.
   Its commands (`mcp`, `plugin`, ...) run unchanged.
-- **Codex** adds it ahead of any command: the interactive session, `resume` and `exec` take it.
-  `codex agents` and `--remote` run unchanged.
+- **Codex** gets it as its writable roots instead, ahead of any command (the interactive
+  session, `resume` and `exec` take it): `-c sandbox_workspace_write.writable_roots=[<folder>,
+  …the person's own]`, the setting Novadeck writes to `<plugins>/codex/writable-roots.txt`, and
+  never `--add-dir`. Codex 0.163.0 and later (to at least 0.169.0) exit at `--add-dir` under a
+  read-only sandbox, as with `-s read-only`, `sandbox_mode = "read-only"`, or its default in a
+  folder not yet trusted ("Ignoring --add-dir … because the effective permissions do not allow
+  additional writable roots"), where the setting is only unused; 0.160.0 to 0.162.0 went on
+  (probed 2026-11-17, `e2e/probes/codex-roots.e2e.ts`; `e2e/codex-worktrees.e2e.ts`). A `-c`
+  replaces the config's list rather than adding to it, so the runner reads the person's own
+  roots from `config.toml` (`CODEX_HOME`, else `~/.codex`; read, never written), again as it
+  changes, and puts them in too. A profile replaces the base config's roots with its own and
+  the setting would replace a profile's, so with `-p`/`--profile` the shim passes none. Not
+  merged: roots from a project's `.codex/config.toml`, from the person's own `-c`, or from a
+  `CODEX_HOME` set only in their shell, not the app's. `codex agents` and `--remote` run
+  unchanged.
 - **Antigravity** leaves its own subcommands (`agy mcp`, `agy update`) unchanged on Linux and macOS. On
   Windows its cmd shim adds it with or without the cmd.exe pass-through's folder on PATH, and
   passes every command the flag.

@@ -604,6 +604,12 @@ export type Machine = {
    */
   readonly worktreesRoot?: string
   /**
+   * The folders the person's own Codex config lets a session write besides its own
+   * (`sandbox_workspace_write.writable_roots`, read from it, never written), which Codex's shim
+   * passes on beside the worktrees' folder, as its setting replaces the config's list.
+   */
+  readonly codexRoots?: readonly string[]
+  /**
    * Novadeck's capture of an agent's commands' output (Linux and macOS): what a command's
    * bash loads through BASH_ENV, and the folder a command's zsh is given as ZDOTDIR. A shim
    * sets both for its harness's commands alone, where the harness writes their output

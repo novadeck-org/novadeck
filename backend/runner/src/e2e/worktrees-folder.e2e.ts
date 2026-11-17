@@ -1,42 +1,23 @@
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  rmdirSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs"
-import { dirname, join } from "node:path"
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
 
 import { worktreesRoot } from "../worktrees/root.js"
 import { setups } from "./agents/index.js"
-import { describe, e2e, expect, supported } from "./fixture.js"
+import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
 import { answers, own, replies, result, start, turn } from "./scenarios.js"
 
-// Every harness's shim gives a session the folder where agents' worktrees live, once it exists
-// (`worktreesRoot()`, of the runner's own home, which the rig's runner shares). Claude Code from
-// 2.1.326 asks before taking a folder it hasn't trusted given by `--add-dir`, its default
-// exiting, so its shim names the folder in the settings it passes instead
-// (e2e/probes/add-dir.e2e.ts). The rig makes the folder where its home has none, and takes it
-// away after; it never touches a folder that was there.
+// Every harness's shim gives a session the folder where agents' worktrees live, once it exists:
+// on the rig, the sandbox's own (the deck gives its runner `worktreesRoot` of the sandbox's
+// home). Claude Code from 2.1.326 asks before taking a folder it hasn't trusted given by
+// `--add-dir`, its default exiting, so its shim names the folder in the settings it passes
+// instead (e2e/probes/add-dir.e2e.ts). The test makes the folder; it goes with the sandbox.
 
 type Defer = { readonly defer: (cleanup: () => void) => void }
 
-/** The worktrees' folder for the run, made where it isn't, and taken away after where made. */
-const worktreesFolder = (run: Defer): string => {
-  const root = worktreesRoot()
-  // The folders it made (`~/.novadeck` too where that wasn't there either), each taken away
-  // after where it is empty, from the deepest up, so nothing it didn't make goes.
-  const made = mkdirSync(root, { recursive: true })
-  if (made !== undefined)
-    run.defer(() => {
-      for (let folder = root; ; folder = dirname(folder)) {
-        if (!existsSync(folder) || readdirSync(folder).length > 0) return
-        rmdirSync(folder)
-        if (folder === made) return
-      }
-    })
+/** The worktrees' folder the rig's runner gives its agents, made for the test. */
+const worktreesFolder = (run: E2E): string => {
+  const root = worktreesRoot(run.sandbox.home)
+  mkdirSync(root, { recursive: true })
   return root
 }
 
@@ -66,9 +47,8 @@ for (const setup of setups) {
 
     it("starts at its prompt with the worktrees' folder there, asking nothing of it", async ({
       e2e: run,
-      resources,
     }) => {
-      worktreesFolder(resources)
+      worktreesFolder(run)
       run.model.use(replies("Warm up", "Warmed up."))
       const t = await start(run, setup)
       await turn(t, "Warm up", "Warmed up.")
@@ -87,7 +67,7 @@ for (const setup of setups) {
         e2e: run,
         resources,
       }) => {
-        const root = worktreesFolder(resources)
+        const root = worktreesFolder(run)
         const inWorktrees = fileIn(resources, root, "note.txt", "worktrees-words\n")
         const theirs = join(run.sandbox.root, "their-folder")
         const inTheirs = fileIn(resources, theirs, "note.txt", "their-words\n")

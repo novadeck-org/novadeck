@@ -1,5 +1,5 @@
 import { critterLive, teamText, treeRole } from "@novadeck/core/derivations"
-import { isWindow } from "@novadeck/core/roster"
+import { isWindow, tileOf } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import type { Tile } from "@novadeck/core/types"
 import { barMembers, composeBar } from "@novadeck/items/bar"
@@ -27,7 +27,7 @@ import { useTerminalMarks } from "./useTerminalMarks"
 
 // One terminal's or window's sidebar tab. It selects only what concerns its own tile, so
 // a rename keystroke re-renders the tab being renamed and no other.
-export const WorkspaceTab = memo(
+const TabOfTile = memo(
   ({ terminal, index }: { readonly terminal: Tile; readonly index: number }): React.JSX.Element => {
     const { commands, backend } = useWorkspaceServices()
     const { id } = terminal
@@ -138,6 +138,15 @@ export const WorkspaceTab = memo(
   },
 )
 
-export const renderTab = (terminal: Tile, index: number): React.JSX.Element => (
-  <WorkspaceTab key={terminal.id} terminal={terminal} index={index} />
+// The tab of the tile with this id, which it reads itself: the list hands it only the id, so
+// one terminal's news draws its own tab again and no other, nor the list.
+export const WorkspaceTab = memo(
+  ({ id, index }: { readonly id: string; readonly index: number }): React.JSX.Element | null => {
+    const tile = useWorkspaceState((workspace) => tileOf(currentState(workspace).roster, id))
+    return tile ? <TabOfTile terminal={tile} index={index} /> : null
+  },
+)
+
+export const renderTab = (id: string, index: number): React.JSX.Element => (
+  <WorkspaceTab key={id} id={id} index={index} />
 )

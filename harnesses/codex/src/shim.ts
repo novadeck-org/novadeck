@@ -1,8 +1,9 @@
 import type { Machine } from "@novadeck/harness-core/harness"
 import { header } from "@novadeck/harness-core/header"
 import { cmdLaunch, posixLaunch } from "@novadeck/harness-core/launch-mark"
-import { cmdAdd, posixAdd, shQuote } from "@novadeck/harness-core/shim-root"
+import { cmdValue, shQuote } from "@novadeck/harness-core/shim-root"
 
+import { rootsFile } from "./plugin.js"
 import { titleSetting } from "./title.js"
 
 // Interactive Codex runs its sessions, and their hooks, in a shared background server
@@ -12,9 +13,12 @@ import { titleSetting } from "./title.js"
 // unchanged, as does anything outside Novadeck's shells. It also names its terminal
 // title's items, so the title tells Novadeck once its prompt shows (`title.ts`), and lets the
 // session run Novadeck's own tools without asking (`approveNovadeck`), fresh at every start
-// and resume. And it passes
-// --add-dir for the folder where agents' worktrees live, once that exists, which Codex adds to
-// its writable roots; the option goes ahead of any command (`resume` and `exec` take it too).
+// and resume. And once the folder where agents' worktrees live exists, it gives that folder to
+// the session to write, as the setting Novadeck wrote for it (`rootsFile`, `rootsSetting`): its
+// writable roots with the person's own, ahead of any command (`resume` and `exec` take it too).
+// Not as --add-dir, which Codex 0.163.0 and later exit at under a read-only sandbox (its default
+// in a folder not yet trusted). Where the person names a profile, which may set roots of its own
+// that the setting would replace, it passes none (probed 2026-11-17, e2e/probes/codex-roots.e2e.ts).
 // Codex writes what its commands print nowhere Novadeck can read while they run, so where the
 // terminal names a folder to capture to (NOVADECK_CAPTURE), the shim has Codex give its commands
 // Novadeck's capture (backend/runner/src/shell/capture.ts): on Linux and macOS through the
@@ -63,7 +67,7 @@ ${header("#", "shim for codex")}
 # Runs the real codex with --no-daemon, so its hooks can tell Novadeck which session runs
 # in this terminal, with a title that tells Novadeck once its prompt shows, with Novadeck's
 # own tools approved, and with access to the folder where agents' worktrees live.
-${posixAdd(root)}
+novadeck_root=${root === undefined ? "" : shQuote(root)}
 novadeck_real=
 novadeck_ifs=$IFS
 IFS=:
@@ -89,15 +93,21 @@ fi
 # Only while Codex is connected: Novadeck's shells name the harnesses whose shims apply.
 case " \${NOVADECK_SHIMS:-} " in *" codex "*) ;; *) exec "$novadeck_real" "$@" ;; esac
 novadeck_daemon=--no-daemon
+novadeck_roots=
+novadeck_file=$(dirname "$0")/../plugins/codex/${rootsFile}
+[ -n "$novadeck_root" ] && [ -d "$novadeck_root" ] && [ -f "$novadeck_file" ] &&
+  novadeck_roots=$(cat "$novadeck_file")
 for novadeck_arg in "$@"; do
   case $novadeck_arg in
     agents | --remote | --remote=*) exec "$novadeck_real" "$@" ;;
     # Already without the shared server: only the title is added.
     --no-daemon) novadeck_daemon= ;;
+    # A profile's own roots stand, which the setting would replace.
+    -p* | --profile | --profile=*) novadeck_roots= ;;
   esac
 done${capture ? posixCapture(capture) : ""}
 ${posixLaunch("codex")}
-exec "$novadeck_real" \${novadeck_daemon:+"$novadeck_daemon"} \${novadeck_add:+"$novadeck_add"} -c "${titleSetting}" -c ${approveNovadeck} "$@"
+exec "$novadeck_real" \${novadeck_daemon:+"$novadeck_daemon"} \${novadeck_roots:+-c} \${novadeck_roots:+"$novadeck_roots"} -c "${titleSetting}" -c ${approveNovadeck} "$@"
 `
 
 // `where` lists matches in PATH order, including this shim, and on npm installs an
@@ -139,8 +149,20 @@ if not defined novadeck_real (
 if not defined NOVADECK_TERMINAL_ID goto plain
 rem Only while Codex is connected: Novadeck's shells name the harnesses whose shims apply.
 echo " %NOVADECK_SHIMS% " | findstr /c:" codex " >nul || goto plain
-${cmdAdd(root)}
-rem A word that needs the shared server leaves codex alone.
+set "novadeck_add="
+set "novadeck_roots="
+set "novadeck_titled="
+${
+  root === undefined
+    ? ""
+    : `set "novadeck_root=${cmdValue(root)}"
+set "novadeck_file=%~dp0..\\plugins\\codex\\${rootsFile}"
+rem The test with a trailing backslash is one only a directory passes. The setting holds no
+rem double quote (\`rootsSetting\`), so it goes whole in one.
+if exist "%novadeck_root%\\" if exist "%novadeck_file%" set /p novadeck_roots=<"%novadeck_file%"
+if defined novadeck_roots set novadeck_add=-c "%novadeck_roots%"
+`
+}rem A word that needs the shared server leaves codex alone.
 :words
 set novadeck_arg=""%1
 if "%novadeck_arg:"=#%"=="##" goto session
@@ -148,10 +170,14 @@ set "novadeck_arg=%novadeck_arg:"=%"
 shift
 if /i "%novadeck_arg%"=="agents" goto plain
 if /i "%novadeck_arg%"=="--remote" goto plain
-if /i "%novadeck_arg%"=="--no-daemon" goto titled
+rem A profile's own roots stand, which the setting would replace, wherever it is named.
+if "%novadeck_arg:~0,2%"=="-p" set "novadeck_add="
+if /i "%novadeck_arg%"=="--profile" set "novadeck_add="
+if /i "%novadeck_arg%"=="--no-daemon" set "novadeck_titled=1"
 goto words
 :session
 set "novadeck_arg="
+if defined novadeck_titled goto titled
 ${cmdLaunch("codex")}
 ${launchLine(`--no-daemon %novadeck_add% -c "${titleSetting}" -c ${approveNovadeck}`, pwshShimDir, "session")}
 exit /b %ERRORLEVEL%

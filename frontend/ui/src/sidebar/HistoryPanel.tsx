@@ -10,7 +10,7 @@ import {
 } from "@novadeck/toolkit/SidebarItem"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { Plug, RotateCcw, Search } from "lucide-react"
-import { Fragment, useEffect, useId, useState, type ReactNode } from "react"
+import { Fragment, useEffect, useId, useState, type ReactNode, memo } from "react"
 
 import {
   agentName,
@@ -158,7 +158,7 @@ const HistoryRow = ({
 // The sidebar's History panel: the terminals closed in this project, newest first, with a
 // search while there are any. The count beside the title is the matches over the total
 // while searching.
-export const HistoryPanel = ({
+const HistoryPanelView = ({
   rows,
   list,
   connections,
@@ -267,3 +267,6 @@ export const HistoryPanel = ({
     </SidebarPanel>
   )
 }
+
+// Drawn again only as its own props change: the sidebar keeps every panel mounted.
+export const HistoryPanel = memo(HistoryPanelView)

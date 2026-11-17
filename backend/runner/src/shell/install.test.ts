@@ -153,6 +153,36 @@ describe("the allow rules Antigravity's launches took", () => {
   })
 })
 
+describe("Codex's writable roots", () => {
+  it("are the worktrees' folder and the person's own, as their config holds them at each writing", async ({
+    resources,
+  }) => {
+    const directory = mkdtempSync(join(tmpdir(), "novadeck-roots-"))
+    resources.defer(() => rmSync(directory, { recursive: true, force: true }))
+    const worktrees = join(directory, "worktrees")
+    const codexConfig = join(directory, "config.toml")
+    const options = { platform: "linux" as const, worktrees, codexConfig }
+    const roots = async () =>
+      readFileSync(
+        join(
+          (await installShellFiles(join(directory, "shell"), options)).plugins.codex,
+          "writable-roots.txt",
+        ),
+        "utf8",
+      )
+    // No config: the worktrees' folder alone.
+    expect(await roots()).toBe(`sandbox_workspace_write.writable_roots=['${worktrees}']`)
+    // Theirs, read and never written, go with it, as the config holds them now.
+    writeFileSync(codexConfig, `[sandbox_workspace_write]\nwritable_roots = ["/theirs"]\n`)
+    expect(await roots()).toBe(`sandbox_workspace_write.writable_roots=['${worktrees}','/theirs']`)
+    expect(readFileSync(codexConfig, "utf8")).toBe(
+      `[sandbox_workspace_write]\nwritable_roots = ["/theirs"]\n`,
+    )
+    writeFileSync(codexConfig, `model = "o3"\n`)
+    expect(await roots()).toBe(`sandbox_workspace_write.writable_roots=['${worktrees}']`)
+  })
+})
+
 describe("installing the relay", () => {
   it("puts the running copy back on Windows when the new one can't take its place", async () => {
     const { files, ops } = memory(

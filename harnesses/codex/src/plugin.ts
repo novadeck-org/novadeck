@@ -6,6 +6,7 @@ import { hookSeconds, hookCommand, type Dialect } from "@novadeck/harness-core/h
 import { json, manifest, marketplace, mcpVariables } from "@novadeck/harness-core/plugin"
 
 import { codexHome } from "./home.js"
+import { rootsSetting } from "./roots.js"
 
 /** Novadeck's plugin as Codex names it: `<plugin>@<marketplace>`. */
 export const pluginId = `${manifest.name}@${marketplace.name}`
@@ -120,8 +121,14 @@ export const disconnect: Harness["disconnect"] = [
   { argv: ["codex", "plugin", "marketplace", "remove", marketplace.name], optional: true },
 ]
 
-/** The plugin's marketplace, manifest, MCP server and hooks, as Codex reads them. */
-export const files: Harness["files"] = (platform, launchers) => [
+/** The file holding the `-c` setting that gives a session the worktrees' folder to write. */
+export const rootsFile = "writable-roots.txt"
+
+/**
+ * The plugin's marketplace, manifest, MCP server and hooks, as Codex reads them, and the
+ * setting its shim passes for the worktrees' folder (`rootsSetting`).
+ */
+export const files: Harness["files"] = (platform, launchers, machine = {}) => [
   { path: join(".claude-plugin", "marketplace.json"), content: json(marketplace) },
   {
     path: join("novadeck", ".codex-plugin", "plugin.json"),
@@ -165,4 +172,12 @@ export const files: Harness["files"] = (platform, launchers) => [
       ),
     }),
   },
+  ...(machine.worktreesRoot === undefined
+    ? []
+    : [
+        {
+          path: rootsFile,
+          content: rootsSetting([machine.worktreesRoot, ...(machine.codexRoots ?? [])]),
+        },
+      ]),
 ]

@@ -1,9 +1,11 @@
 import { execFile, spawn } from "node:child_process"
 import { existsSync } from "node:fs"
 import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
+import { homedir } from "node:os"
 import { basename, dirname, join } from "node:path"
 import { promisify } from "node:util"
 
+import { theirRoots } from "@novadeck/harness-codex/roots"
 import { cmdShimName, pwshShimName, relayPath } from "@novadeck/relay"
 
 import { logs } from "../log.js"
@@ -11,6 +13,10 @@ import { withoutInherited } from "./inherited.js"
 import { shellFiles, shellPaths, staleShellFiles, type ShellPaths } from "./scripts.js"
 
 const log = logs.for("shell")
+
+/** The person's Codex config, in its home (`CODEX_HOME`, else `~/.codex`). */
+export const codexConfig = (env: NodeJS.ProcessEnv = process.env): string =>
+  join(env.CODEX_HOME || join(homedir(), ".codex"), "config.toml")
 
 /**
  * The shell files as written, with the launchers as Novadeck's shells name them: the
@@ -67,6 +73,8 @@ export type InstallOptions = {
   readonly prints?: typeof cmdPrints
   /** Where agents' worktrees live, for the shims to pass on (`~/.novadeck/worktrees` by default). */
   readonly worktrees?: string
+  /** The person's Codex config, whose own writable roots go with the worktrees' (`codexConfig()`). */
+  readonly codexConfig?: string
   /** For tests: the platform to write the files for, and how a path is shortened. */
   readonly platform?: NodeJS.Platform
   readonly short?: (path: string) => Promise<string>
@@ -90,6 +98,7 @@ export const installShellFiles = async (
     fresh = false,
     prints: printing = cmdPrints,
     worktrees,
+    codexConfig: codexConfigPath = codexConfig(),
     platform = process.platform,
     short = shortName,
   }: InstallOptions = {},
@@ -138,8 +147,14 @@ export const installShellFiles = async (
           : ""
       } It looks again at the next start.`,
     )
+  // Read, never written: Codex's shim passes its roots on with the worktrees' folder.
+  const codexRoots = theirRoots(
+    await readFile(codexConfigPath, "utf8").catch(() => ""),
+    dirname(codexConfigPath),
+  )
   const files = shellFiles(paths, platform, undefined, {
     cmdPrints: prints !== undefined,
+    codexRoots,
     ...(worktrees !== undefined && { worktreesRoot: worktrees }),
     ...(cmdShimDir !== undefined && { cmdShimDir }),
     ...(pwshShimDir !== undefined && { pwshShimDir }),

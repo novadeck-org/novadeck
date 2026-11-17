@@ -1504,7 +1504,7 @@ Artifacts go to `apps/desktop/release/`:
 
 - Linux x64: `novadeck-linux-x86_64.AppImage`, built on the static type2 runtime so it
   mounts with FUSE 3. Releases also carry `install.sh`, the installer in
-  [scripts/install](../scripts/install) with the repository filled in.
+  [scripts/install](../scripts/install) with the repository and the version filled in.
 - macOS universal: `novadeck-mac-universal.dmg`, the disk image to drag the app to
   Applications from, and `novadeck-mac-universal.zip`, which updates install from.
 - Windows x64: `novadeck-win-x64-setup.exe`, a one-click installer that installs for the
@@ -1542,7 +1542,7 @@ run as Node or under Playwright's inspector (the smoke test's worker and koffi c
 app with only those three turned on (beside the executable on Linux and Windows; on macOS the
 whole bundle, copied to a scratch folder and signed ad hoc there). The workflow feeds
 its own repository into the update feed baked into each app and into `install.sh`, so
-moving the repository needs no edit. Conventional
+moving the repository needs no edit, and the version into `install.sh`, whose banner names it. Conventional
 Commits determine release eligibility; versions are currently limited to patch
 increments. Documentation-only changes do not trigger a release. See
 [.release-it.json](../.release-it.json) for the release configuration.
