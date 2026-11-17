@@ -1,5 +1,5 @@
-import { afterEach, vi } from "vitest"
-import { page, type Locator } from "vitest/browser"
+import { afterEach, onTestFinished, vi } from "vitest"
+import { page, userEvent, type Locator } from "vitest/browser"
 
 import { pageScheme, saveFromAnotherWindow, systemScheme } from "../support/appearance"
 import {
@@ -959,6 +959,46 @@ describe("Appearance preference", () => {
       await expect
         .element(preferencesDialog().getByRole("combobox", { name: "Sound" }))
         .not.toBeInTheDocument()
+    })
+  })
+})
+
+describe("Preferences' tabs in a narrow window", () => {
+  context("when they are wider than the dialog", () => {
+    it("scroll in their own list, keep the last tab in view and the focus ring whole", async () => {
+      onTestFinished(() => page.viewport(1440, 900))
+      await openWorkspace()
+      await openPreferences()
+      await page.viewport(400, 800)
+      const dialog = preferencesDialog().element()
+      const list = dialog.querySelector<HTMLElement>(".preferences-tabs")!
+      expect(list.scrollWidth).toBeGreaterThan(list.clientWidth)
+
+      const last = preferencesDialog().getByRole("tab").last()
+      await last.click()
+      await expect.element(last).toHaveAttribute("aria-selected", "true")
+      // The list scrolled to it; the dialog and its body stayed put.
+      expect(dialog.scrollLeft).toBe(0)
+      expect(dialog.scrollWidth).toBe(dialog.clientWidth)
+      const panels = dialog.querySelector<HTMLElement>(".preferences-panels")!
+      expect(panels.scrollWidth).toBeLessThanOrEqual(panels.clientWidth)
+      const box = list.getBoundingClientRect()
+      const at = last.element().getBoundingClientRect()
+      expect(at.left).toBeGreaterThanOrEqual(box.left)
+      expect(at.right).toBeLessThanOrEqual(box.right)
+
+      // A tab focused from the keyboard draws its whole ring inside the list's box: the
+      // scrolling list clips whatever the ring draws beyond its padding.
+      await userEvent.keyboard("{Shift>}{Tab}{/Shift}")
+      await userEvent.keyboard("{Tab}")
+      last.element().focus()
+      const style = getComputedStyle(last.element())
+      expect(style.outlineStyle).toBe("solid")
+      const ring = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset)
+      const tabBox = last.element().getBoundingClientRect()
+      expect(tabBox.top - ring).toBeGreaterThanOrEqual(box.top)
+      expect(tabBox.bottom + ring).toBeLessThanOrEqual(box.bottom)
+      expect(tabBox.right + ring).toBeLessThanOrEqual(box.right)
     })
   })
 })

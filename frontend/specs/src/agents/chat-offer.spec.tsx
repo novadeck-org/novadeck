@@ -19,7 +19,7 @@ import { context, describe, expect, it } from "../test"
 // view off and no note that it was offered. The agents demo's terminals "Build" and
 // "Checkout implementation" run agents; "Dev server" is a shell.
 const card = (): Locator => page.getByRole("region", { name: "Agent Chat", exact: true })
-const turnOn = (): Locator => card().getByRole("button", { name: "Turn on" })
+const turnOn = (): Locator => card().getByRole("button", { name: "Try Agent Chat" })
 const noThanks = (): Locator => card().getByRole("button", { name: "No thanks" })
 const announcer = (): Locator => page.getByRole("status").filter({ hasText: /^Agent Chat: / })
 const answeredKey = "novadeck.agent-chat-offer-answered"
@@ -33,13 +33,9 @@ describe("Agent Chat's offer", () => {
       await openAsExistingUser()
       await terminalTab("Build").click()
       await expect.element(card()).toBeVisible()
+      await expect.element(card().getByText("Talk to your agents in a chat")).toBeVisible()
       await expect
-        .element(card().getByText("Read and reply to agents in a chat instead of their terminal."))
-        .toBeVisible()
-      await expect
-        .element(
-          card().getByText("You can change this any time in Preferences → Appearance → Layout."),
-        )
+        .element(card().getByText("Preferences → Appearance", { exact: true }))
         .toBeVisible()
       await expect.element(turnOn()).toBeVisible()
       await expect.element(noThanks()).toBeVisible()
@@ -77,7 +73,7 @@ describe("Agent Chat's offer", () => {
     })
   })
 
-  context("with Turn on", () => {
+  context("with Try Agent Chat", () => {
     it("shows the selected agent as a chat, and never offers again", async () => {
       await openAsExistingUser()
       await terminalTab("Build").click()

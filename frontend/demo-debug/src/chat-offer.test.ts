@@ -24,7 +24,7 @@ describe("the debug panel's Agent Chat offer group", () => {
     const [group] = chatOfferGroups(launch, true)
     expect(group?.section).toBe("App")
     expect(group?.actions.map((action) => action.label)).toEqual(["Offer Agent Chat"])
-    expect(group?.actions[0]?.hint).toMatch(/Turn on and No thanks/)
+    expect(group?.actions[0]?.hint).toMatch(/Try Agent Chat and No thanks/)
   })
 
   it("turns the saved chat view off, forgets the answer, keeps other preferences, and boots again", () => {

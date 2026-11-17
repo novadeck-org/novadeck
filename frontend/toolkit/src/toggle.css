@@ -1,8 +1,8 @@
 /* The toggle recipe: the switch (`.switch`, with its `.switch-thumb`) and the checkbox
    (`.checkbox`, holding a `.checkbox-input` and the `.checkbox-mark` drawn over it).
-   On, each takes the strong fill; the checkbox shows its mark at once. A radio is the same
-   box, round, on a `.checkbox-input` of type radio, with a `.checkbox-dot` in place of the
-   mark.
+   On, each takes the strong fill; the checkbox shows its mark at once. A radio shares the
+   input but is drawn quietly: a thin ring, and once checked the ring in the strong colour
+   around a solid dot (a `.checkbox-dot`, drawn over the input in place of the mark).
 
    Hooks: on a switch, aria-checked and data-state="checked" | "unchecked", :disabled,
    and aria-disabled="true" while a change is pending; on a checkbox, the input's
@@ -20,7 +20,11 @@
    --toggle-box-border-width (1.5px),
    --toggle-box-shadow (a faint inset), --toggle-box-radius (4px): the checkbox off.
    It takes the track's on tokens when checked, and --toggle-box-checked-shadow (none).
-   --toggle-mark-fg (on-strong): the check, or the radio's dot.
+   --toggle-mark-fg (on-strong): the check.
+   --toggle-radio-border-color (line-strong), --toggle-radio-hover-border-color (muted),
+   --toggle-radio-on-border-color (strong), --toggle-radio-dot-bg (strong),
+   --toggle-radio-border-width (1.5px), --toggle-radio-dot-size (8px): the radio's ring
+   (off, under the pointer, on) and its dot.
    --toggle-disabled-opacity (0.5), --toggle-pending-opacity (0.6). */
 .switch {
   --_bg: var(--toggle-track-off-bg, var(--color-soft));
@@ -102,16 +106,50 @@
 .checkbox-input:checked ~ .checkbox-mark {
   visibility: visible;
 }
+/* A radio: a transparent circle with a ring, and a dot once checked. Its rules come after
+   the checkbox's and are one class more specific, so they win without redoing each one. */
 .checkbox-input[type="radio"] {
+  --_bg: transparent;
+  --_border-color: var(--toggle-radio-border-color, var(--color-line-strong));
+  --_shadow: none;
+  border-width: var(--toggle-radio-border-width, 1.5px);
   border-radius: 50%;
 }
+.checkbox-input[type="radio"]:checked {
+  --_bg: transparent;
+  --_border-color: var(--toggle-radio-on-border-color, var(--color-strong));
+  --_shadow: none;
+}
+@media (hover: hover) {
+  .checkbox-input[type="radio"]:hover {
+    --_border-color: var(--toggle-radio-hover-border-color, var(--color-muted));
+  }
+  .checkbox-input[type="radio"]:checked:hover {
+    --_border-color: color-mix(
+      in srgb,
+      var(--toggle-radio-on-border-color, var(--color-strong)) 75%,
+      transparent
+    );
+  }
+  .checkbox-input[type="radio"]:not(:checked):hover {
+    --_bg: transparent;
+  }
+}
+.checkbox-input[type="radio"]:disabled,
+.checkbox-input[type="radio"]:disabled:checked {
+  --_border-color: var(--toggle-radio-border-color, var(--color-line-strong));
+}
 .checkbox-dot {
-  width: 6px;
-  height: 6px;
+  width: var(--toggle-radio-dot-size, 8px);
+  height: var(--toggle-radio-dot-size, 8px);
   border-radius: 50%;
-  background-color: var(--toggle-mark-fg, var(--color-on-strong));
+  background-color: var(--toggle-radio-dot-bg, var(--color-strong));
   visibility: hidden;
+  transition: opacity var(--motion-feedback) var(--ease-interface);
 }
 .checkbox-input:checked ~ .checkbox-dot {
   visibility: visible;
+}
+.checkbox-input:disabled ~ .checkbox-dot {
+  opacity: var(--toggle-disabled-opacity, 0.5);
 }
