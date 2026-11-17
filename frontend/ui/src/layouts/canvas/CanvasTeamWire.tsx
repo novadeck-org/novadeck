@@ -3,7 +3,7 @@ import { useStore, ViewportPortal, type ReactFlowState } from "@xyflow/react"
 import { useCallback, useMemo, type CSSProperties } from "react"
 
 import { memberPiece, teamPiece, useEnteringPieces } from "../../terminals/team-news"
-import { headerMiddleAt } from "./geometry"
+import { chromeScaleAt, terminalHeaderHeight } from "./geometry"
 import { teamRoute, type Member, type Point, type Run } from "./team-route"
 import type { TerminalNode } from "./types"
 
@@ -121,7 +121,7 @@ const TeamWireOf = ({
       present.find((rect) => rect.id === team.lead),
       present.filter((rect) => rect.id !== team.lead),
       // Under the window's 1px border, half way down its header.
-      1 + headerMiddleAt(zoom),
+      1 + (terminalHeaderHeight * chromeScaleAt(zoom)) / 2,
     )
   }, [team, rects, zoom])
   if (!route) return null

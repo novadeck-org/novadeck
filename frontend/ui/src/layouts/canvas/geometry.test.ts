@@ -1,5 +1,5 @@
 import { describe, expect, it } from "../../test"
-import { chromeScaleAt, headerMiddleAt, inSight, onScreen, terminalHeaderHeight } from "./geometry"
+import { headerGrowthAt, inSight, onScreen, terminalHeaderHeight } from "./geometry"
 
 const viewport = { x: 0, y: 0, zoom: 1 }
 const screen = { width: 1000, height: 800 }
@@ -28,13 +28,9 @@ describe("a window in sight", () => {
 })
 
 describe("a window's header at a zoom", () => {
-  it("has its middle half its height down, grown over the terminal zoomed out", () => {
-    expect(headerMiddleAt(1)).toBe(terminalHeaderHeight / 2)
-    expect(headerMiddleAt(0.25)).toBe(terminalHeaderHeight)
-  })
-
-  it("sits at the bottom of its place past zoom 1, where it is shorter", () => {
-    const header = terminalHeaderHeight * chromeScaleAt(1.5)
-    expect(headerMiddleAt(1.5)).toBeCloseTo(terminalHeaderHeight - header / 2)
+  it("grows as the camera zooms out, and shrinks past zoom 1", () => {
+    expect(headerGrowthAt(1)).toBe(0)
+    expect(headerGrowthAt(0.25)).toBe(terminalHeaderHeight)
+    expect(headerGrowthAt(1.5)).toBeLessThan(0)
   })
 })

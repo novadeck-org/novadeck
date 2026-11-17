@@ -1,6 +1,15 @@
 @import "@xyflow/react/dist/base.css" layer(base);
 @reference "../../styles.css";
 
+/* How much taller a window's header is at the zoom than at rest (geometry.ts
+   `headerGrowthAt`). Not inherited, so the zoom setting it every frame on a heading and a
+   terminal's screen restyles those alone, never the thousands of rows the screen holds. */
+@property --_canvas-grown {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
 @layer components {
   .canvas-viewport .react-flow {
     --xy-background-color: transparent;
@@ -44,30 +53,31 @@
   .canvas-node .terminal-visibility[data-off-screen] {
     content-visibility: hidden;
   }
-  /* The header grows with the chrome scale so it stays readable zoomed out, but its place
-     in the window keeps its size, so the terminal beneath keeps its own at any zoom: a zoom
-     never refits a terminal nor resizes its agent's screen. Grown, the header lies over the
-     terminal's top rows, too small to read at those zooms; shrunk past zoom 1, it sits at
-     the bottom of its place, its colour filling the rest. Over what the window holds (its
-     chat is at 10), under its taskbar (60) and menus. */
-  .canvas-node .terminal-heading {
-    --_grown: calc(var(--_canvas-header-height) * (var(--_canvas-chrome-scale) - 1));
-    height: var(--_canvas-header-height);
-    z-index: 20;
-    background-color: var(--window-header-bg, var(--window-bg, var(--color-paper)));
+  /* The header grows as the camera zooms out, to stay readable, and takes its room from
+     what the window holds, as it always has. The terminal's screen doesn't give it up: it
+     is as much taller than its room as the header grew, its top rows out of sight beneath
+     the header (too small to read at those zooms) and its last rows where they were. So a
+     zoom never changes a terminal's size: nothing refits, and no agent's screen is resized
+     and redrawn. Past zoom 1 the header is shorter and the screen starts that much lower.
+     Both read one value, set by the zoom as it moves (Canvas.tsx) and from the canvas's
+     chrome scale for those that mount at rest. */
+  .canvas-node .terminal-heading,
+  .canvas-node .terminal-xterm {
+    --_canvas-grown: calc(var(--_canvas-header-height) * (var(--_canvas-chrome-scale, 1) - 1));
   }
-  /* The phase line and its sweep run along the header's bottom edge, wherever it lies. */
-  .canvas-node .terminal-heading::after,
-  .canvas-node .terminal-sweep {
-    bottom: min(0px, -1 * var(--_grown));
+  .canvas-node .terminal-heading {
+    height: calc(var(--_canvas-header-height) + var(--_canvas-grown));
+  }
+  .canvas-node .terminal-content {
+    overflow-y: clip;
+  }
+  /* A flexed screen: the room it fills counts its margin, so it grows by what it reaches up. */
+  .canvas-node .terminal-xterm {
+    margin-top: calc(-1 * var(--_canvas-grown));
   }
   /* The selection bar keeps its place in the header at any zoom, and its 2px width on
      screen: the node is scaled by the zoom, which the chrome scale squared undoes. */
   .canvas-node .terminal-heading::before {
-    top: max(
-      var(--_canvas-header-height) * var(--_canvas-chrome-scale) / 2,
-      var(--_canvas-header-height) * (1 - var(--_canvas-chrome-scale) / 2)
-    );
     width: calc(2px * var(--_canvas-chrome-scale) * var(--_canvas-chrome-scale));
     height: calc(24px * var(--_canvas-chrome-scale));
   }
@@ -77,7 +87,7 @@
     padding: 7px 16px;
     gap: 6px;
     line-height: 16px;
-    transform: translateY(max(0px, -1 * var(--_grown))) scale(var(--_canvas-chrome-scale));
+    transform: scale(var(--_canvas-chrome-scale));
     transform-origin: top left;
     cursor: move;
   }

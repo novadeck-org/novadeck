@@ -40,6 +40,7 @@ import {
   canvasStep,
   chromeScaleAt,
   fitOptions,
+  headerGrowthAt,
   inSight,
   terminalHeaderHeight,
   windowSize,
@@ -71,6 +72,9 @@ export type { CanvasHandle } from "./types"
 const nodeMargin = "400px 550px"
 // The chrome that reads `--_canvas-chrome-scale` (canvas.css, terminal-status.css).
 const chromeReaders = ".terminal-heading, .terminal-ending"
+// What reads `--_canvas-grown` (canvas.css): each window's heading and its terminal's screen,
+// handed the very same value, so the screen keeps its size to the last pixel.
+const growthReaders = ".canvas-node .terminal-heading, .canvas-node .terminal-xterm"
 
 // How long a window dropped from a taskbar takes to settle onto the canvas's grid.
 const settleMs = 160
@@ -164,6 +168,9 @@ const TerminalCanvas = ({
       const scale = String(chromeScaleAt(zoom))
       for (const chrome of element.querySelectorAll<HTMLElement>(chromeReaders))
         chrome.style.setProperty("--_canvas-chrome-scale", scale)
+      const grown = `${headerGrowthAt(zoom)}px`
+      for (const reader of element.querySelectorAll<HTMLElement>(growthReaders))
+        reader.style.setProperty("--_canvas-grown", grown)
       clearTimeout(resting)
       resting = setTimeout(() => {
         element.style.setProperty("--_canvas-chrome-scale", scale)
