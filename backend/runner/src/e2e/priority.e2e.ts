@@ -8,9 +8,6 @@ import { poll, type DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
 import { start } from "./scenarios.js"
 
-// The suite's own priority when this file loads, before any terminal of its tests starts.
-const atLoad = getPriority(process.pid)
-
 const trees = new Trees(async () => relayPath)
 
 const shellOf = (run: E2E, terminal: Pick<DeckTerminal, "id">): number => {
@@ -32,19 +29,18 @@ for (const setup of setups) {
       const it = e2e(setup)
 
       it("runs at a lowered priority, with its shell", async ({ e2e: run, skip }) => {
-        // CI's Windows runs the suite itself below normal, which a shell inherits without
-        // any lowering: this run starts at normal (raising it back to normal is allowed
-        // there), so what the shell has is its doing. Nothing else here changes the suite's.
-        if (process.platform === "win32" && getPriority(process.pid) !== 0)
-          setPriority(process.pid, 0)
-        // A macOS process can't lower its nice value back, so a suite started niced (from a
-        // Novadeck terminal, once this ships) can't tell the shell's priority from its own.
-        if (getPriority(process.pid) !== 0) {
-          console.log(`priority.e2e: suite at ${atLoad} on load, ${getPriority(process.pid)} now`)
-          skip(
-            `the suite runs at priority ${getPriority(process.pid)}, not normal, and can't raise it`,
-          )
+        // The shell inherits the suite's priority without any lowering, so the suite must
+        // start at normal for what the shell has to be the runner's doing. CI's Windows runs it
+        // below normal and its macOS above (nice -10); moving to normal lowers its priority,
+        // which is allowed. A suite below normal (nice 10 on macOS, as one started from a
+        // Novadeck terminal will be) can't raise itself: that case is skipped.
+        try {
+          if (getPriority(process.pid) !== 0) setPriority(process.pid, 0)
+        } catch {
+          // Left as it is, and skipped below.
         }
+        if (getPriority(process.pid) !== 0)
+          skip(`the suite runs at priority ${getPriority(process.pid)} and can't move to normal`)
         const terminal = await start(run, setup)
         const shell = shellOf(run, terminal)
         expect(getPriority(shell)).toBe(terminalPriority)
