@@ -21,17 +21,32 @@ export type SentBubble = {
 
 const noImages: readonly Attachment[] = []
 
-// The same words, however their white space runs.
-const sameWords = (a: string, b: string): boolean =>
-  a.trim().split(/\s+/).join(" ") === b.trim().split(/\s+/).join(" ")
+// A text's lines as a receipt matches them (the runner's `promptLines`): line breaks as line
+// feeds, each line trimmed, blank lines at either end dropped.
+const linesOf = (text: string): string => {
+  const lines = text
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+  let first = 0
+  let last = lines.length
+  while (first < last && lines[first] === "") first += 1
+  while (last > first && lines[last - 1] === "") last -= 1
+  return lines.slice(first, last).join("\n")
+}
 
-// The second a time falls in, as a coarse record writes it.
-const second = (at: number): number => Math.floor(at / 1000) * 1000
+// How long before its receipt's `sentAt` the record may date a prompt, in milliseconds: the
+// backend tells `sentAt` once the prompt went, after its Enter, which the record dates, and
+// after the wait for a first prompt's session to bind (5 s) and for the screen to settle (1 s),
+// with whole seconds the coarsest record.
+const enterSlackMs = 7_000
 
 // Whether a pending prompt is in the record already, before its receipt says so: the backend
 // reads the record for receipts apart from the transcript, which may show the item first.
-// It is there where a person's item no settled receipt claims holds its words, recorded no
-// earlier than the second it was sent in; each such item stands for one prompt only.
+// It is there where a person's item no settled or withdrawn receipt claims holds just its
+// lines, recorded no earlier than it can have been sent; each such item stands for one prompt
+// only. Prompts the record holds as one item, as Claude Code records a queue it takes in at
+// once, wait for their receipts.
 const recordedAhead = (
   items: readonly ChatItem[],
   prompts: readonly ChatPrompt[],
@@ -39,6 +54,8 @@ const recordedAhead = (
   const claimed = new Set(prompts.flatMap(({ item }) => (item === null ? [] : [item])))
   const taken = new Set<number>()
   return (prompt, text) => {
+    const words = linesOf(text)
+    if (words === "") return false
     const at = items.findIndex(
       (item, index) =>
         !claimed.has(index) &&
@@ -48,8 +65,8 @@ const recordedAhead = (
         !item.interrupted &&
         item.ring === null &&
         item.at !== null &&
-        item.at >= second(prompt.sentAt) &&
-        sameWords(item.text, text),
+        item.at >= prompt.sentAt - enterSlackMs &&
+        linesOf(item.text) === words,
     )
     if (at < 0) return false
     taken.add(at)
