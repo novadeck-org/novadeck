@@ -35,6 +35,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           PS1: "$ ",
           PATH: `${bin}:${join(shell.home, "bin")}:${process.env.PATH}`,
         },
+        // History's rows, of every project, as the runner keeps them.
+        closed: shell.store,
+        projects: () => shell.store.projects().map(({ id }) => id),
       })
       const project = join(shell.home, "project")
       mkdirSync(project)
@@ -510,6 +513,94 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         ])
         expect(created.map((id) => manager.get(id).openedBy)).toEqual(Array(5).fill(terminal.id))
         await shell.until(manager, created[3]!, "claude args: --model opus --resume sess-1")
+      } finally {
+        controller.abort()
+        await client
+      }
+    })
+
+    it("resumes a past session where it bound, unless the caller names a folder", async ({
+      shell,
+    }) => {
+      const bin = showStandIn(shell.home)
+      for (const agent of ["claude", "codex", "agy"] as const) fakeAgent(shell.home, agent)
+      const manager = shell.manager({
+        env: {
+          HOME: shell.home,
+          PS1: "$ ",
+          PATH: `${bin}:${join(shell.home, "bin")}:${process.env.PATH}`,
+        },
+        // History's rows, of every project, as the runner keeps them.
+        closed: shell.store,
+        projects: () => shell.store.projects().map(({ id }) => id),
+      })
+      const project = join(shell.home, "project")
+      mkdirSync(join(project, "sub"), { recursive: true })
+      mkdirSync(join(shell.home, "mine"))
+      // Sessions closed in History: one whose agent last went below its folder, and one whose
+      // folder is gone.
+      const projectId = shell.store.session(shell.sessionId).projectId
+      const past = (session: string, cwd: string, agent: AgentName = "claude") =>
+        shell.store.insertClosed({
+          id: randomUUID(),
+          projectId,
+          sessionId: shell.sessionId,
+          handle: "moth",
+          naming: { person: null, opener: null, murmur: null, own: null, summary: null },
+          agent,
+          lastProgram: agent,
+          command: agent,
+          cwd: join(project, "sub"),
+          agents: { [agent]: { sessionId: session, seq: 2, cwd } },
+          interruptions: [],
+          transcript: null,
+          closedAt: Date.now(),
+          closedBy: null,
+        })
+      past("sess-p", project)
+      past("sess-n", project)
+      past("sess-g", join(shell.home, "gone"))
+      past("sess-c", project, "codex")
+      past("sess-a", project, "agy")
+      const openAgent = (request: object) => ({ ...open(request), type: "open_agent" as "open" })
+      const terminal = await create(manager, shell)
+      const controller = new AbortController()
+      const requests: TerminalRequest[] = []
+      const client = (async () => {
+        for await (const request of manager.requests("client", controller.signal)) {
+          requests.push(request)
+          const id = randomUUID()
+          // eslint-disable-next-line no-await-in-loop -- Requests are opened in turn.
+          await manager.create(
+            {
+              id,
+              sessionId: request.sessionId,
+              cwd: request.cwd,
+              cols: 100,
+              rows: 20,
+              ...(request.command && { command: request.command }),
+              requestId: request.requestId,
+            },
+            "client",
+          )
+          manager.answerRequest({ requestId: request.requestId, terminalId: id }, "client")
+        }
+      })()
+      try {
+        await show(shell, manager, terminal.id, [
+          openAgent({ agent: "claude", resume: "sess-p" }),
+          openAgent({ agent: "claude", resume: "sess-n", cwd: "mine" }),
+          openAgent({ agent: "claude", resume: "sess-g" }),
+          openAgent({ agent: "codex", resume: "sess-c" }),
+          openAgent({ agent: "agy", resume: "sess-a" }),
+        ])
+        expect(requests.map(({ cwd }) => cwd)).toEqual([
+          project,
+          join(shell.home, "mine"),
+          shell.home,
+          project,
+          project,
+        ])
       } finally {
         controller.abort()
         await client

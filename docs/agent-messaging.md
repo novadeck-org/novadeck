@@ -748,8 +748,12 @@ person or from what it knows of the work, never a guess, and must know the agent
 belongs to too, so a caller unsure of either asks the person. It is refused for an id that
 isn't a session id's shape, one open in another terminal, and a harness that can't resume;
 the runner keeps no list of past sessions, so an id the harness doesn't know fails in the
-new terminal, not at the call. The answer says whether the caller leads the agent. Its
-`title` is the opener's (see [Naming](#naming)).
+new terminal, not at the call. Without `cwd` it opens where that session bound, as a
+terminal's row, live, saved or closed in History, kept it, while that folder is there (else
+the caller's folder, as ever): Claude Code takes a conversation's project, memory and
+instructions from the folder it runs in. A `cwd` the caller gives still wins. The answer
+says whether the caller leads the agent. Its `title` is the opener's (see
+[Naming](#naming)).
 
 `open_terminal({ command?, cwd?, title?, focus? })` is the generic form: a plain shell or
 a command, never a lead. It runs no agent: a `command` that does (a bare `claude`, `codex`

@@ -182,6 +182,27 @@ export const resumeFolder = (
   resume && command === undefined ? sessionFolder(saved?.agents[resume]?.cwd, root) : undefined
 
 /**
+ * The folder `session` of `agent` bound in, as any of the terminals' rows kept it, live, saved
+ * or closed in History (the newest report of it that names one): where an agent's `open_agent`
+ * resumes it when it names no folder of its own (`resumeFolder` says why). Undefined where none
+ * kept one, or kept only the bare folder of agents' worktrees, `root`.
+ */
+export const folderFor = (
+  rows: Iterable<Pick<SavedTerminal, "agents">>,
+  agent: AgentName,
+  session: string,
+  root: string | undefined,
+): string | undefined => {
+  let found: { readonly seq: number; readonly cwd: string } | undefined
+  for (const row of rows) {
+    const report = row.agents[agent]
+    if (report?.sessionId !== session || report.cwd === undefined) continue
+    if (!found || report.seq > found.seq) found = { seq: report.seq, cwd: report.cwd }
+  }
+  return sessionFolder(found?.cwd, root)
+}
+
+/**
  * The flags `session` of `agent` was launched with, as any of the terminals' rows kept them
  * (`AgentReport.launch`), live or saved: for a resume asked by an agent, in a terminal that
  * has no row of its own for the session yet. The newest report of the session wins.

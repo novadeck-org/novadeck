@@ -697,6 +697,7 @@ export class Terminals {
       claims: () => this.claims,
       sleepers: () => this.sleepers,
       rows: () => [...this.records.values(), ...this.saves.terminals()],
+      closedRows: () => this.history.all(),
       close: (terminalId, closedBy) => this.close({ terminalId }, closedBy),
       install: (agent) => this.options.install(agent),
       models: (agent) => this.options.models(agent),
