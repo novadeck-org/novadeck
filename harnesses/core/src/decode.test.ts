@@ -2,6 +2,7 @@ import { agentLimits, maxTurnError } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
 import {
+  addedFolders,
   callId,
   commandFolder,
   cutText,
@@ -35,6 +36,16 @@ const zeroWidth = String.fromCodePoint(0x200b)
 // A character outside the BMP, two UTF-16 units, so a cut can fall between them.
 const emoji = "😀"
 const lone = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/
+
+describe("the folders a process was given with --add-dir", () => {
+  it("reads both spellings, each folder once given, without its trailing separators", () => {
+    expect(
+      addedFolders(["--add-dir=/a/", "--model", "m", "--add-dir", "C:\\b\\", "--add-dir"]),
+    ).toEqual(["/a", "C:\\b"])
+    expect(addedFolders(["--add-dir=/", "--add-dir=C:\\"])).toEqual(["/", "C:\\"])
+    expect(addedFolders(undefined)).toEqual([])
+  })
+})
 
 describe("text cut short", () => {
   it("is cut at the limit, or before a character the limit would split", () => {

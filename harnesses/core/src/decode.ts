@@ -63,6 +63,22 @@ export const absolute = (value: unknown): string | undefined =>
     ? value
     : undefined
 
+/**
+ * The folders a process's words (`Report.launch`) give with `--add-dir`, as
+ * `--add-dir=<folder>` or `--add-dir <folder>`, each without a trailing separator past its
+ * root. Novadeck's shims give one, the folder of agents' worktrees, once that exists.
+ */
+export const addedFolders = (words: readonly string[] | undefined): readonly string[] =>
+  (words ?? [])
+    .flatMap((word, at, all) =>
+      word.startsWith("--add-dir=")
+        ? [word.slice("--add-dir=".length)]
+        : word === "--add-dir" && all[at + 1] !== undefined
+          ? [all[at + 1]!]
+          : [],
+    )
+    .map((folder) => folder.replace(/(?<=[^\\/:])[\\/]+$/, ""))
+
 /** The start of an absolute Windows path: a drive and its root, or a share. */
 const windowsAbsolute = /^(?:[a-z]:[\\/]|[\\/]{2}[^\\/])/i
 

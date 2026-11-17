@@ -735,6 +735,17 @@ Novadeck writes nothing to a harness's config. The `=` form matters: Claude Code
   Windows its cmd shim adds it with or without the cmd.exe pass-through's folder on PATH, and
   passes every command the flag.
 
+An added folder isn't where a session runs. Antigravity lists it in each hook's
+`workspacePaths` beside its own folder, in order of path (probed 2026-11-17, 1.5.9:
+`~/.novadeck/worktrees` ahead of a project in the home, as `.` sorts before letters), so its decoder (`workspaceOf` in
+`harnesses/agy/src/decode.ts`) leaves out every folder the process's own words gave with
+`--add-dir` (`Report.launch`, read by `addedFolders` in harness-core's `decode.ts`) and takes
+what remains only when it is one folder. With more, as in the person's own several workspaces,
+or none, as where it works inside the added folder, its hooks name none, and its status line's
+`cwd` and the terminal's tell it. Taking the first had moved the terminal, and so the folder `open_agent`
+opens a teammate in and a resume runs in, to the worktrees folder. Claude Code and Codex
+report their process's own folder (`cwd`), which the flag doesn't change.
+
 The shims also let a session run Novadeck's own MCP tools without asking, for that launch
 alone, writing none of the person's files. Every way a session starts goes through them: typed, `open_agent`'s
 line (`taskCommand`), the app's own launches and every resume are command lines run in a

@@ -1,9 +1,17 @@
 import { createHash } from "node:crypto"
 import { extname, isAbsolute, relative } from "node:path"
 
-import { absolute, errorText, shortName, sessionId, text } from "@novadeck/harness-core/decode"
+import {
+  absolute,
+  addedFolders,
+  errorText,
+  shortName,
+  sessionId,
+  text,
+} from "@novadeck/harness-core/decode"
 import type { BackgroundJob, EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import { fieldsOf, parseFields, type Fields } from "@novadeck/harness-core/fields"
+import { samePath } from "@novadeck/harness-core/paths"
 import type { Report } from "@novadeck/harness-core/report"
 import { unquote } from "@novadeck/harness-core/tools"
 import { agentLimits, telemetryLimits } from "@novadeck/protocol"
@@ -96,12 +104,34 @@ const failed = (value: unknown): { error?: string; limited?: true } => {
   }
 }
 
-const decodeEvent = ({ event, seq, instance, payload }: Report): readonly HarnessEvent[] => {
+/**
+ * The folder a conversation runs in, from its hook's `workspacePaths`. Antigravity lists a
+ * folder its process was given with `--add-dir` there too, beside its own in order of path,
+ * not its own first (probed 2026-11-17, 1.5.9: `~/.novadeck/worktrees` ahead of a project in
+ * the home, as `.` sorts before letters), so those are left out. Of what remains, only a lone
+ * folder is its own: with more, as in the person's own several workspaces, or none, as where
+ * it works inside the added folder, which it may list alone, none is claimed, and its status
+ * line, which names its process's folder, and the terminal's tell it.
+ */
+const workspaceOf = (paths: unknown, launch: readonly string[] | undefined): string | undefined => {
+  const added = addedFolders(launch)
+  const own = (Array.isArray(paths) ? paths : [])
+    .flatMap((path) => absolute(path) ?? [])
+    .filter((path) => !added.some((folder) => samePath(folder, path)))
+  return own.length === 1 ? own[0] : undefined
+}
+
+const decodeEvent = ({
+  event,
+  seq,
+  instance,
+  payload,
+  launch,
+}: Report): readonly HarnessEvent[] => {
   if (event === "StatusLine") return statusLine({ seq, instance, payload })
   const id = sessionId(payload.conversationId)
   if (!id) return []
-  const workspaces = Array.isArray(payload.workspacePaths) ? payload.workspacePaths : []
-  const cwd = absolute(workspaces[0])
+  const cwd = workspaceOf(payload.workspacePaths, launch)
   const transcript = absolute(payload.transcriptPath)
   const base: EventBase<"agy"> = { agent: "agy", sessionId: id, instance, startedAt: seq }
   const observed: HarnessEvent = {
