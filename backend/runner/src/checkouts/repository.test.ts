@@ -16,7 +16,6 @@ import { describe, expect, it as base } from "../test.js"
 import {
   landedIn,
   landingCandidates,
-  landingTries,
   mainBranch,
   mergeTrees,
   parseMerge,
@@ -417,14 +416,19 @@ describe("where a branch's work landed in main", () => {
     },
   )
 
+  // A few tries stand for its many: a Windows runner takes over a tenth of a second for each
+  // git run, so as many commits and merges as `landingTries` took the test past its 20 s there.
   it.skipIf(!hasGit)("gives up past its tries", async ({ root }) => {
+    const tries = 3
     commitFile(root, "base", "0\n", "first")
     git(root, "checkout", "--quiet", "-b", "feature")
     commitFile(root, "a", "feature\n", "feature")
     git(root, "checkout", "--quiet", "main")
     // Every one of main's commits touches the file, none to what the branch has.
-    for (let at = 0; at <= landingTries; at += 1) commitFile(root, "a", `${at}\n`, `main ${at}`)
-    commitFile(root, "a", "feature\n", "at last")
-    expect(await landedIn(root, mainOf(root), "feature")).toBeUndefined()
+    for (let at = 0; at < tries; at += 1) commitFile(root, "a", `${at}\n`, `main ${at}`)
+    const landed = commitFile(root, "a", "feature\n", "at last")
+    expect(await landedIn(root, mainOf(root), "feature", undefined, tries)).toBeUndefined()
+    // One try more reaches it: the tries are all that held it back.
+    expect(await landedIn(root, mainOf(root), "feature", undefined, tries + 1)).toBe(landed)
   })
 })

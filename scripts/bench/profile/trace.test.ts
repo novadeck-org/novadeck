@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest"
 
-import { breakdown, storeSpan, type Attribution, type Frame, type TraceEvent } from "./trace.ts"
+import {
+  breakdown,
+  storeSpan,
+  windowFrames,
+  type Attribution,
+  type Frame,
+  type TraceEvent,
+} from "./trace.ts"
 
 const main = { pid: 10, tid: 11 }
 const at = (ts: number) => ts * 1000
@@ -330,5 +337,17 @@ describe("the page's frames", () => {
 
   it("has none where the page asked for none: a quiet window isn't slow", () => {
     expect(breakdown(marks(0, 2000), none).frames).toEqual({ count: 0, fps: 0, over33ms: 0 })
+  })
+
+  it("reads a window's frames between its marks alone, as the timing run does", () => {
+    const events = [
+      ...marks(1000, 2000),
+      begun(1100),
+      begun(1500),
+      ...asked("a", 1500, 40),
+      begun(2500),
+    ]
+    expect(windowFrames(events)).toEqual({ count: 2, fps: 2, over33ms: 1 })
+    expect(() => windowFrames([begun(1)])).toThrow(/profile-start/)
   })
 })

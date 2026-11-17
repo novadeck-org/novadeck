@@ -640,6 +640,23 @@
   color: var(--color-ink);
   font-weight: 600;
 }
+/* Agent Chat's one-time offer (AgentChatOffer.tsx), in What's new's look: the tape names the
+   feature, a line says what it does in the ink colour, the muted line under it where to change
+   it, and the two buttons at the foot, No thanks and Turn on. */
+.update-card.whats-new.chat-offer {
+  gap: 10px;
+}
+.chat-offer-line,
+.chat-offer-quiet {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.chat-offer-line {
+  color: var(--color-ink);
+}
+.chat-offer .update-card-foot {
+  justify-content: flex-end;
+}
 @keyframes whats-new-tape-in {
   from {
     opacity: 0;

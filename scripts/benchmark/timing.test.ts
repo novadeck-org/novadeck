@@ -10,6 +10,7 @@ const report: TimingReport = {
   commit: "0123456789abcdef",
   scenario: { agents: 5 },
   summary: {
+    framesFrom: "trace",
     switchP50Ms: 21.4,
     switchP90Ms: 35.2,
     switchesTimedOut: 0,
@@ -34,7 +35,7 @@ describe("the timing run's comment", () => {
     expect(comment).toContain("| Measure | This pull request |\n")
     expect(comment).toContain("| Switch p90 | 35 ms |")
     expect(comment).toContain("| Grid main-thread share | 91% |")
-    expect(comment).toContain("| Focus frames over 33 ms | 1 |")
+    expect(comment).toContain("| Focus slow frames (over 33 ms) | 1 |")
   })
 
   context("beside main's last run", () => {
@@ -47,6 +48,22 @@ describe("the timing run's comment", () => {
       const comment = timingComment(report, { main })
       expect(comment).toContain("| Measure | This run | Main (fedcba9) |")
       expect(comment).toContain("| Switch p90 | 35 ms | 50 ms |")
+    })
+
+    it("leaves out main's frame numbers where main's report predates reading frames from a trace", () => {
+      const { framesFrom: _, ...before } = report.summary!
+      const main = { ...report, summary: { ...before, switchP90Ms: 50 } }
+      const comment = timingComment(report, { main })
+      expect(comment).toContain("| Grid main-thread share | 91% | n/a |")
+      expect(comment).toContain("| Grid slow frames (over 33 ms) | 40 | n/a |")
+      expect(comment).toContain("| Switch p90 | 35 ms | 50 ms |")
+      expect(comment).toContain("before the timing run read its frames from a trace")
+    })
+
+    it("compares frame numbers when both reports read them from a trace", () => {
+      const comment = timingComment(report, { main: report })
+      expect(comment).toContain("| Grid main-thread share | 91% | 91% |")
+      expect(comment).not.toContain("n/a")
     })
 
     it("tells of main's sandbox problems without failing this job for them", () => {

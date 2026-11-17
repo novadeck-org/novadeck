@@ -627,6 +627,14 @@ App:
   terminals attaching over about 3 s; "Welcome dialog" opens the first-run dialog for
   connecting agents again (no reboot); "App error" makes a view throw as it draws, for the
   crash screen that stands in for the app, whose Reload boots the demo again.
+- **Agent Chat offer:** where the backend reads conversations (the showcase and agents demos). "Offer Agent Chat" turns Agent Chat off in the saved preferences, clears
+  `novadeck.agent-chat-offer-answered` and boots the demo again, as for someone who updated past
+  the welcome dialog: a card, Agent Chat, with Turn on and No thanks, rises over the footer's right
+  end once an agent's terminal is selected (a shell or no terminal has none), in Focus, Grid and
+  Canvas alike. Turn on shows the selected agent as a chat; No thanks, the ×, or Escape from
+  inside the card leaves the terminal as it is. Either answers it for good, as does choosing the
+  setting in Preferences or finishing the welcome dialog. The card goes before What's new
+  (`?update=whatsNew`), which returns once it is answered.
 - **Agent installs:** an agent that isn't installed offers Install in the welcome dialog and in
   Preferences' Agents (which reads "Installing…" while its installer runs), with the command it
   will run, and the demo plays what the runner does: a terminal titled "Install ..."
@@ -1354,7 +1362,7 @@ check always reports, so it can be required.
 The timing run, the real app in the sandbox (`pnpm bench:timing`), is too heavy and too
 noisy for every pull request: the Benchmark Timing workflow runs it nightly on main and on
 pull requests labelled `bench`. It reports switch p90, each layout's main-thread share and
-frames over 33 ms in the job summary and in one comment on the pull request, beside main's
+slow frames (over 33 ms, read from a trace of the window, not counted in the page) in the job summary and in one comment on the pull request, beside main's
 last nightly run, and keeps each report as an artifact. It never fails on its numbers, only
 when the sandbox leaked or couldn't be made, which the report then leads with.
 

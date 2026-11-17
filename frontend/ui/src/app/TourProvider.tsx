@@ -39,3 +39,9 @@ export const useTourRun = (): TourDriver => {
   if (!driver) throw new Error("useTourRun must be used inside a TourProvider")
   return driver
 }
+
+/** Whether a tour runs, or its closing card shows; false where there is no tour provider. */
+export const useTourBusy = (): boolean => {
+  const driver = useContext(DriverContext)
+  return driver !== undefined && (driver.shown !== null || driver.closing !== null)
+}

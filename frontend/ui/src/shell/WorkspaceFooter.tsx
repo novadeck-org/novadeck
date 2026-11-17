@@ -1,7 +1,8 @@
 import type { UpdateOffer } from "@novadeck/core/desktop/update"
 import { RotateCcw } from "lucide-react"
-import { useState, type ReactNode } from "react"
+import { useCallback, useState, type ReactNode } from "react"
 
+import { AgentChatOffer, type AgentChatOfferProps } from "./AgentChatOffer"
 import { FooterMurmur, type FooterMurmurProps } from "./FooterMurmur"
 import { FooterSandbox, type FooterSandboxProps } from "./FooterSandbox"
 import { useOverlayOpen } from "./notice-focus"
@@ -21,7 +22,10 @@ import { WhatsNew, type WhatsNewProps } from "./WhatsNew"
 // the bar's own colours, which opens its notice (PortableInstall.tsx). Without the security
 // sandbox, a chip in the footer's middle says so (FooterSandbox.tsx). After an update, a card says what
 // is new until it is dismissed (WhatsNew.tsx); it waits while a download's bar
-// shows, since notices there don't stack.
+// shows, since notices there don't stack. Agent Chat's one-time offer (AgentChatOffer.tsx) takes
+// the same corner, and goes before What's new: it is two lines answered in one click, and What's
+// new can stay for weeks, so the offer must not wait behind it; What's new returns once the offer
+// is answered.
 export const WorkspaceFooter = ({
   hidden,
   count,
@@ -36,6 +40,7 @@ export const WorkspaceFooter = ({
   available,
   noticeOpen = false,
   whatsNew,
+  chatOffer,
   sandbox,
   murmur,
   usage,
@@ -65,6 +70,8 @@ export const WorkspaceFooter = ({
   readonly available?: AvailableUpdate | undefined
   // What is new in the version the app updated to, as the card above the right end.
   readonly whatsNew?: WhatsNewProps | undefined
+  // Agent Chat's one-time offer, as the card above the right end; given while it is due.
+  readonly chatOffer?: AgentChatOfferProps | undefined
   // Whether the sandbox notice is open: the bar and the cards above the right end wait for it,
   // so only one notice shows at a time.
   readonly noticeOpen?: boolean
@@ -82,18 +89,34 @@ export const WorkspaceFooter = ({
 }): React.JSX.Element => {
   // Murmur's sheet, in the place the download's bar would cover.
   const [murmurSheet, setMurmurSheet] = useState(false)
-  // The card is up when nothing else holds the corner: not a notice, Murmur's sheet, or a
-  // dialog, menu or popover (looked at, as they come and go in portals).
+  // A card is up when nothing else holds the corner: not a notice, Murmur's sheet, or a
+  // dialog, menu or popover (looked at, as they come and go in portals). The offer is wanted
+  // before What's new, which waits for it, as it does for every other notice.
   const [barActive, setBarActive] = useState(false)
-  const cardWanted =
-    whatsNew !== undefined && !whatsNew.blocked && !hidden && !murmurSheet && !barActive
-  const overlay = useOverlayOpen(cardWanted)
-  // The what's-new card is up and has the corner; the restart card, which the person opens
-  // from its chip, waits for it.
+  // The restart card, which the person opens from its chip, is up: it goes before the offer and
+  // What's new, which wait for it, so an agent terminal selected meanwhile takes nothing away.
+  const [restartShown, setRestartShown] = useState(false)
+  const restartShownChange = restart?.onShownChange
+  const onRestartShown = useCallback(
+    (shown: boolean): void => {
+      setRestartShown(shown)
+      restartShownChange?.(shown)
+    },
+    [restartShownChange],
+  )
+  const cornerFree = !hidden && !murmurSheet && !barActive && !restartShown
+  const offerWanted = chatOffer !== undefined && !chatOffer.blocked && cornerFree
+  const cardWanted = whatsNew !== undefined && !whatsNew.blocked && cornerFree && !offerWanted
+  const overlay = useOverlayOpen(offerWanted || cardWanted)
+  // The what's-new card is up and has the corner; the restart card waits for it.
   const whatsNewShown = cardWanted && !overlay
+  const offer = chatOffer && {
+    ...chatOffer,
+    blocked: chatOffer.blocked || murmurSheet || overlay || barActive || restartShown,
+  }
   const card = whatsNew && {
     ...whatsNew,
-    blocked: whatsNew.blocked || murmurSheet || overlay || barActive,
+    blocked: whatsNew.blocked || murmurSheet || overlay || barActive || restartShown || offerWanted,
   }
   return (
     <footer
@@ -145,11 +168,13 @@ export const WorkspaceFooter = ({
           )}
           <FooterMurmur murmur={murmur} hidden={hidden} onSheetChange={setMurmurSheet} />
           <PortableInstall portable={portable} hidden={hidden} />
+          <AgentChatOffer offer={offer} hidden={hidden} />
           <WhatsNew card={card} hidden={hidden} />
           <RestartToUpdate
             restart={
               restart && {
                 ...restart,
+                onShownChange: onRestartShown,
                 blocked: restart.blocked || noticeOpen || murmurSheet || barActive || whatsNewShown,
               }
             }

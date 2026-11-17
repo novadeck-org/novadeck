@@ -431,7 +431,11 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
                 },
               }
             : {})}
-          onDone={backend.agents.finishWelcome}
+          onDone={() => {
+            // The welcome dialog offers Agent Chat too, so those who saw it are not asked again.
+            commands.declineChatOffer()
+            backend.agents?.finishWelcome()
+          }}
         />
       )}
       {driver.shown && (

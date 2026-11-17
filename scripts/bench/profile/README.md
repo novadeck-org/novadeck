@@ -270,7 +270,7 @@ time.
 - **The page's frames** are read from the trace, never counted by a probe in the page: a page
   that always has an animation frame requested makes Chromium run a full main-thread frame (style,
   layout, pre-paint, commit) at every vsync, even with nothing to draw, which loads the very
-  thread the windows measure (the timing run's counter did, and counted about 58 frames a second
+  thread the windows measure (the counter both runs once had did, and counted about 58 frames a second
   in a Focus window the app itself drew 16 in). So the profile's page keeps long tasks alone, and
   the traced windows hold only the frames the app asked for. A frame is a `BeginMainThreadFrame`
   on the page's main thread, which the compositor sends when something needs drawing; an idle

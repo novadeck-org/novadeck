@@ -5,8 +5,10 @@ import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
+import type { AgentChatOfferProps } from "./AgentChatOffer"
 import { fadeMs, finishedForMs } from "./linger"
 import type { PortableCopy } from "./PortableInstall"
+import { nothingToCheck } from "./restart-check"
 import { UpdateProgress } from "./UpdateProgress"
 import { WorkspaceFooter } from "./WorkspaceFooter"
 
@@ -1147,5 +1149,131 @@ describe("the footer's feedback slot", () => {
     expect(misc?.lastElementChild?.id).toBe("help")
     expect(misc?.lastElementChild?.previousElementSibling?.id).toBe("feedback")
     expect(show().bar().querySelector("#feedback")).toBeNull()
+  })
+})
+
+describe("Agent Chat's offer in the footer's corner", () => {
+  const notes: WhatsNew = {
+    version: "0.0.80",
+    highlights: [{ title: "Word handles for terminals", line: "Talk to @moth." }],
+  }
+  const chatOffer = (over: Partial<AgentChatOfferProps> = {}): AgentChatOfferProps => ({
+    blocked: false,
+    onTurnOn: () => {},
+    onDecline: () => {},
+    returnFocus: () => true,
+    ...over,
+  })
+  const corner = (
+    over: { chatOffer?: AgentChatOfferProps | undefined; whatsNew?: WhatsNew | undefined } = {},
+  ) =>
+    createElement(WorkspaceFooter, {
+      hidden: false,
+      count: 2,
+      running: 1,
+      ...(over.whatsNew
+        ? {
+            whatsNew: {
+              notes: over.whatsNew,
+              blocked: false,
+              onDismiss: () => {},
+              returnFocus: () => true,
+            },
+          }
+        : {}),
+      ...(over.chatOffer ? { chatOffer: over.chatOffer } : {}),
+    })
+  const cards = (page: Rendered) => ({
+    offer: page.container.querySelector(".chat-offer") !== null,
+    news: page.container.querySelector(".whats-new:not(.chat-offer)") !== null,
+  })
+
+  it("goes before the what's-new card, which waits for it and comes back once it is answered", () => {
+    const page = render(corner({ whatsNew: notes }))
+    mounted.push(page)
+    expect(cards(page)).toEqual({ offer: false, news: true })
+    page.rerender(corner({ whatsNew: notes, chatOffer: chatOffer() }))
+    expect(cards(page)).toEqual({ offer: true, news: false })
+    page.rerender(corner({ whatsNew: notes }))
+    expect(cards(page)).toEqual({ offer: false, news: true })
+  })
+
+  it("leaves the what's-new card where it is while the offer itself waits for another notice", () => {
+    const page = render(corner({ whatsNew: notes, chatOffer: chatOffer({ blocked: true }) }))
+    mounted.push(page)
+    expect(cards(page)).toEqual({ offer: false, news: true })
+  })
+
+  it("waits for a download's bar, which has the corner until it fades", () => {
+    const page = render(
+      createElement(WorkspaceFooter, {
+        hidden: false,
+        count: 2,
+        running: 1,
+        progress: downloading,
+        chatOffer: chatOffer(),
+      }),
+    )
+    mounted.push(page)
+    expect(cards(page).offer).toBe(false)
+    expect(page.container.querySelector(".update-progress")).not.toBeNull()
+  })
+
+  context("with a downloaded update waiting for a restart", () => {
+    const restartable = (offered?: AgentChatOfferProps) =>
+      createElement(WorkspaceFooter, {
+        hidden: false,
+        count: 2,
+        running: 1,
+        restart: {
+          offer: ready,
+          check: nothingToCheck,
+          answer: "known",
+          onRestart: () => {},
+          onGoTo: () => {},
+          blocked: false,
+        },
+        ...(offered ? { chatOffer: offered } : {}),
+      })
+    const restartCard = (page: Rendered) => page.container.querySelector(".restart-card")
+
+    it("leaves the restart card the person opened up when the offer comes due", () => {
+      const page = render(restartable())
+      mounted.push(page)
+      act(() => chip(page).click())
+      expect(restartCard(page)).not.toBeNull()
+      page.rerender(restartable(chatOffer()))
+      expect(restartCard(page)).not.toBeNull()
+      expect(cards(page).offer).toBe(false)
+    })
+
+    it("gives way to the restart card opened from its chip, and returns once it is folded away", () => {
+      const page = render(restartable(chatOffer()))
+      mounted.push(page)
+      expect(cards(page).offer).toBe(true)
+      act(() => chip(page).click())
+      expect(restartCard(page)).not.toBeNull()
+      expect(cards(page).offer).toBe(false)
+      act(() =>
+        page.container
+          .querySelector<HTMLButtonElement>(".restart-card .update-card-close")!
+          .click(),
+      )
+      expect(restartCard(page)).toBeNull()
+      expect(cards(page).offer).toBe(true)
+    })
+  })
+
+  it("waits out Zen mode with the footer", () => {
+    const page = render(
+      createElement(WorkspaceFooter, {
+        hidden: true,
+        count: 2,
+        running: 1,
+        chatOffer: chatOffer(),
+      }),
+    )
+    mounted.push(page)
+    expect(cards(page).offer).toBe(false)
   })
 })

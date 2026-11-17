@@ -211,6 +211,18 @@ const pageFrames = (
   return { count, fps: seconds > 0 ? count / seconds : 0, over33ms }
 }
 
+/**
+ * The page's frames between its `profile-start` and `profile-end` marks, whose thread is the
+ * page's main thread; fails on a trace without both marks.
+ */
+export const windowFrames = (events: readonly TraceEvent[]): Frames => {
+  const mark = (name: string) => events.find((event) => event.name === name && event.ph !== "M")
+  const begin = mark("profile-start")
+  const finish = mark("profile-end")
+  if (!begin || !finish) throw new Error("the trace has no profile-start and profile-end marks")
+  return pageFrames(events, { pid: begin.pid, tid: begin.tid }, begin.ts, finish.ts)
+}
+
 type Span = { readonly name: string; readonly start: number; readonly end: number }
 
 /** The thread's complete events, and its begin and end pairs as one, clipped to the window. */
