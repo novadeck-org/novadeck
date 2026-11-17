@@ -37,6 +37,17 @@ describe("placing Canvas's nodes again", () => {
     expect(keepUnchanged(previous, [lead])[0]).toBe(lead)
   })
 
+  it("hands over a node that no longer has a field the canvas set before", () => {
+    const styled = node("a", { style: { opacity: 0.5 } })
+    const plain = node("a")
+    expect(keepUnchanged([styled], [plain])[0]).toBe(plain)
+  })
+
+  it("keeps a node whose class was cleared, which is no class", () => {
+    const cleared = node("a", { className: "" })
+    expect(keepUnchanged([cleared], [node("a")])[0]).toBe(cleared)
+  })
+
   it("follows the new order, and drops what is gone", () => {
     const previous = [node("a"), node("b"), node("c")]
     const next = keepUnchanged(previous, [node("c"), node("a")])

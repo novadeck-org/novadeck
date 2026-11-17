@@ -1,18 +1,35 @@
 import type { TerminalNode } from "./types"
 
-// Whether every field the canvas sets on a node is as the node already has it. XYFlow's own
-// fields on the node it holds, as its measured size, aren't the canvas's and don't count.
-const sameNode = (current: TerminalNode, next: TerminalNode): boolean =>
-  Object.entries(next).every(([key, value]) => {
-    const held: unknown = current[key as keyof TerminalNode]
+// The fields XYFlow sets on a node it holds, never the canvas: they don't count as a change.
+const xyflowOwn = new Set(["measured", "dragging", "resizing"])
+
+// A field as the canvas means it: a class cleared to "" is no class.
+const meant = (key: string, value: unknown): unknown =>
+  key === "className" && value === "" ? undefined : value
+
+// Whether every field the canvas sets on a node is as the node already has it, a field it
+// no longer sets included.
+const sameNode = (current: TerminalNode, next: TerminalNode): boolean => {
+  const keys = new Set([...Object.keys(current), ...Object.keys(next)])
+  return [...keys].every((key) => {
+    if (xyflowOwn.has(key)) return true
     if (key === "position")
       return current.position.x === next.position.x && current.position.y === next.position.y
-    if (key === "data")
-      return Object.entries(next.data).every(([field, each]) =>
-        Object.is(current.data[field as keyof TerminalNode["data"]], each),
+    if (key === "data") {
+      const fields = new Set([...Object.keys(current.data), ...Object.keys(next.data)])
+      return [...fields].every((field) =>
+        Object.is(
+          current.data[field as keyof TerminalNode["data"]],
+          next.data[field as keyof TerminalNode["data"]],
+        ),
       )
-    return Object.is(held, value)
+    }
+    return Object.is(
+      meant(key, current[key as keyof TerminalNode]),
+      meant(key, next[key as keyof TerminalNode]),
+    )
   })
+}
 
 /**
  * The nodes as the canvas places them: `next`, keeping each node of `previous` that it leaves
