@@ -108,7 +108,7 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[], handles?: DeckOption
         rmSync(sandbox.root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }),
       )
       // No agent is given a folder outside the sandbox to write in.
-      const added = watchAddedFolders(sandbox.home)
+      const added = watchAddedFolders(sandbox.root)
       resources.defer(() => added.stop())
       // Whatever happens, nothing the test started outlives it. When the test ends early,
       // what this has to end is a leak too, and fails the test.
@@ -216,7 +216,7 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[], handles?: DeckOption
         // Reported here too when a wait failed with it: a test may have swallowed that.
         ...(model.rejection() ? [model.rejection()!] : []),
         ...changes.map((path) => `the developer's harness home changed: ${path}`),
-        ...added.outside().map((launch) => `outside the sandbox's home, ${launch}`),
+        ...added.outside().map((launch) => `outside the sandbox, ${launch}`),
         ...appeared.map((target) => `a login appeared in ${loginStore}: ${target}`),
         ...asks
           .filter((service) => unsuffixedClaudeItem.test(service))

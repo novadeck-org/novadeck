@@ -100,6 +100,11 @@ describe("the writable roots a launch gives", () => {
     ).toEqual(["/a", "/b"])
   })
 
+  it("are read from any form of the setting a word may hold", () => {
+    expect(rootsGiven(["-c", "sandbox_workspace_write={writable_roots=['/a']}"])).toEqual(["/a"])
+    expect(rootsGiven(["-c", '"sandbox_workspace_write"."writable_roots"=["/a"]'])).toEqual(["/a"])
+  })
+
   it("are none from other settings, other words or none", () => {
     expect(rootsGiven(["-c", 'model="o3"', "-c", "model=o3", "--add-dir=/a"])).toEqual([])
     expect(rootsGiven([rootsSetting(["/a"])])).toEqual([])
