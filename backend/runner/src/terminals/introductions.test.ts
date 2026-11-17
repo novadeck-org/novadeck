@@ -302,6 +302,35 @@ describe("what an agent that called a recycled handle is told", () => {
     })
   })
 
+  it("shows a lookup only the terminals it names, so a handle it didn't name stays unknown", async () => {
+    const { peers } = world()
+    peers.introduce("A", "O")
+    expect(
+      await peers.agents({
+        type: "agents",
+        terminalId: "A",
+        token: "k",
+        request: { handles: "owl" },
+      }),
+    ).toMatchObject({ ok: true })
+    expect((await peers.send(call({ to: "fox", text: "hi" }))).ok).toBe(false)
+  })
+
+  it("refuses a lookup of more terminals than it takes before reading any", async () => {
+    const { peers, caller } = world()
+    const many = Array.from({ length: 17 }, (_, index) => `t${index}`)
+    const before = JSON.stringify(caller.agents)
+    expect(
+      await peers.agents({
+        type: "agents",
+        terminalId: "A",
+        token: "k",
+        request: { handles: many },
+      }),
+    ).toEqual({ ok: false, reason: "Look up at most 16 terminals at once." })
+    expect(JSON.stringify(caller.agents)).toBe(before)
+  })
+
   it("sends at once to a terminal a team listing showed", async () => {
     const { peers } = world()
     await peers.team({

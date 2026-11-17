@@ -368,7 +368,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       service: worktrees,
       enabled: () => store.settings.runner().worktrees,
       ready: (startedAt, relists) => rootFolder.ready(startedAt, relists),
-      // Read only once a lookup asks, when the forges below are made.
+      // Read only by MCP calls, which come once the forges below are made.
       pullRequest: (commonDir, branch) => forges.pullRequest(commonDir, branch),
     },
     sealer,

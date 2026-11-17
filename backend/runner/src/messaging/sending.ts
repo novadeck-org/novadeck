@@ -218,10 +218,10 @@ export const lookedMost = 16
  * `terminal` or `full`, asks for the listing.
  */
 const agentsRequest = z.object({
+  // A handle too long for any is no handle there, which the lookup refuses, naming them all.
   handles: z
-    .union([z.string().min(1).max(4096), z.array(z.string().min(1).max(65)).min(1).max(256)])
+    .union([z.string().min(1).max(4096), z.array(z.string().min(1).max(4096)).min(1).max(256)])
     .transform((to) => addressees(to).handles)
-    .refine((handles) => handles.every((handle) => handle.length <= 64))
     .optional()
     .catch(undefined),
 })
@@ -824,7 +824,7 @@ export class Sending {
     const peers = this.peers(live, about)
     const missing = handles.find((handle) => !peers.some((peer) => peer.handle === handle))
     if (missing !== undefined)
-      return refused(unknownHandle(missing, live.handle, peers, this.host.now(), lead))
+      return refused(unknownHandle(missing, live.handle, peers, this.host.now(), lead, "Look up"))
     const messages = [...this.host.store.messages()]
     const text = renderLookup({
       handle: live.handle,

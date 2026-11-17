@@ -10,7 +10,13 @@ import { peerOf as listed, renderPeer, type Whereabouts } from "../messaging/pee
 import { describe, expect, it } from "../test.js"
 import { folder } from "../testing/engines.js"
 import { GitStates } from "./git-state.js"
-import { TerminalPeers, waitingOf, type PeerRecord, type PeerTerminal } from "./peers-host.js"
+import {
+  TerminalPeers,
+  waitingOf,
+  workedFolders,
+  type PeerRecord,
+  type PeerTerminal,
+} from "./peers-host.js"
 import { freshWork } from "./work.js"
 
 const request = (fields: Partial<Request>): Request => ({
@@ -535,11 +541,32 @@ describe("what peers read of a terminal's reports and rest", () => {
     expect(asked).toEqual([false, true, true, false])
   })
 
-  it("is the folders its work wrote in most, inside its project, busiest first", async () => {
+  it("is the folders its work wrote in most, in its worktrees or its project, busiest first", async () => {
     const work = {
-      folders: { "/nowhere/src/api": 9, "/nowhere": 7, "/elsewhere/notes": 8, "/nowhere/web": 2 },
+      folders: {
+        "/nowhere/src/api": 9,
+        "/elsewhere/notes": 8,
+        "/missing/a/src": 8,
+        "/nowhere": 7,
+        "/home/me/.claude": 6,
+        "/nowhere/web": 2,
+      },
     }
-    expect((await read({ work }))?.folders).toEqual(["src/api", "."])
+    const worktrees = [{ path: "/missing/a", branch: "feat/a" }]
+    expect((await read({ work, worktrees }))?.folders).toEqual([
+      "src/api",
+      "feat/a: src",
+      ".",
+      "web",
+    ])
+  })
+
+  it("names at most five folders, after leaving out those elsewhere", () => {
+    const folders = Object.fromEntries([
+      ...Array.from({ length: 6 }, (_, index) => [`/elsewhere/${index}`, 100 - index]),
+      ...Array.from({ length: 7 }, (_, index) => [`/p/${index}`, 50 - index]),
+    ])
+    expect(workedFolders(folders, "/p", [])).toEqual(["0", "1", "2", "3", "4"])
   })
 
   it("is each owned worktree's pull request, where a forge found one", async () => {

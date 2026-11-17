@@ -102,6 +102,7 @@ describe("a terminal looked up by handle", () => {
         '  "Users API with paging" · api feat/paging, 2 ahead',
         "  worktrees: /w/feat-paging/api (feat/paging, 2 ahead, PR #12 open, checks running)",
         "  works in: src/users · src/routes",
+        '  done: 50 min ago "Schema merged"',
         '  open in the user\'s Inbox: 20 min ago "Keep offset paging too?"',
         "  latest:",
         "    50 min ago, done: Schema merged — The users table has a cursor column.",
@@ -116,6 +117,7 @@ describe("a terminal looked up by handle", () => {
     const fox = peer(
       "claude",
       {
+        standing: true,
         happenings: [
           report("done", 90, "First fix", "One"),
           report("update", 80, "Next PR opened", "Two"),
@@ -129,6 +131,7 @@ describe("a terminal looked up by handle", () => {
       "- @fox: Claude Code, asleep, no process running; a message wakes it, peer",
     )
     expect(lines.slice(2)).toEqual([
+      '  done: 1 h ago "Second fix" (still current) · 2 h ago "First fix"',
       "  latest:",
       "    2 h ago, done: First fix — One",
       "    1 h ago, update: Next PR opened — Two",

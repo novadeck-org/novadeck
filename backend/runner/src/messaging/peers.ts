@@ -595,12 +595,12 @@ const doneChars = 100
  * before. An asleep agent's latest only: what it did before that is history. Subjects only;
  * a report at length is for `team`. Null before one.
  */
-export const doneLine = (peer: Peer, now: number): string | null => {
+export const doneLine = (peer: Peer, now: number, full = false): string | null => {
   const dones = peer.happenings.flatMap((happening) =>
     happening.kind === "done" ? [happening] : [],
   )
   if (!peer.agent || dones.length === 0) return null
-  const asleep = peer.state === "asleep"
+  const asleep = peer.state === "asleep" && !full
   const shown = dones.slice(asleep ? -1 : -shownDones).toReversed()
   const parts = shown.map(
     (done, index) =>
@@ -919,11 +919,12 @@ export const unknownHandle = (
   peers: readonly Peer[],
   now: number,
   lead: string | null,
+  verb = "Send to",
 ): string =>
   [
     to === self
       ? `${mention(self)} is this terminal.`
-      : `"${cut(to, 64)}" is no terminal's handle here. Send to one of these by its exact ` +
+      : `"${cut(to, 64)}" is no terminal's handle here. ${verb} one of these by its exact ` +
         "handle, picking by its title, summary and branch; if more than one could be meant, " +
         "ask the user rather than guess.",
     renderPeers(peers, now, { handle: self, lead }),

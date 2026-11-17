@@ -3,6 +3,7 @@ import {
   ago,
   asksLine,
   detailLine,
+  doneLine,
   endedLine,
   failureLine,
   foldersLine,
@@ -43,6 +44,7 @@ const lookedUp = (
     runningLine(peer, now),
     endedLine(peer, now),
     showingLine(peer, now),
+    doneLine(peer, now, true),
     asksLine(peer, now),
     failureLine(peer, now),
   ].filter((line): line is string => Boolean(line))

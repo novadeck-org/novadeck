@@ -2091,6 +2091,10 @@ describe("listing", () => {
         /^"nobody" is no terminal's handle here\.[\s\S]*\n- @fox · API author: Codex, /,
       ),
     })
+    expect(messaging.agents("A", about, { handles: ["x".repeat(80)] })).toEqual({
+      ok: false,
+      reason: expect.stringMatching(/^"x+" is no terminal's handle here\. Look up one of these/),
+    })
     const many = Array.from({ length: 17 }, (_, index) => `t${index}`)
     expect(messaging.agents("A", about, { handles: many })).toEqual({
       ok: false,

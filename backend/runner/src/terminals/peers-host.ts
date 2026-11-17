@@ -20,6 +20,7 @@ import {
 } from "../messaging/peers.js"
 import {
   lookedHandles,
+  lookedMost,
   namedHandles,
   type AgentsAnswer,
   type PeerAnswer,
@@ -84,6 +85,38 @@ export const peerOf = (record: PeerRecord): PeerTerminal => ({
     return record.openedBy
   },
 })
+
+/** How many folders a terminal's work wrote in a lookup names. */
+const workedMost = 5
+
+/** A path inside a folder, relative to it ("." for the folder itself); undefined outside. */
+const pathIn = (folder: string, path: string): string | undefined => {
+  const within = relative(folder, path)
+  return within.startsWith("..") || isAbsolute(within) ? undefined : within || "."
+}
+
+/**
+ * The folders a terminal's work wrote in most, busiest first: inside one of its own
+ * worktrees, named by its branch and the path in it, else inside its project, by the path
+ * there; any other folder (a home folder, a scratchpad) left out before the most are taken.
+ */
+export const workedFolders = (
+  folders: { readonly [folder: string]: number },
+  project: string,
+  worktrees: readonly Pick<OwnedWorktree, "path" | "branch">[],
+): readonly string[] =>
+  busiestFolders(folders, Number.POSITIVE_INFINITY)
+    .flatMap(({ folder }) => {
+      for (const { path, branch } of worktrees) {
+        const within = pathIn(path, folder)
+        if (within !== undefined) return [`${branch}: ${within}`]
+      }
+      const within = pathIn(project, folder)
+      return within === undefined ? [] : [within]
+    })
+    .slice(0, workedMost)
+
+const tooMany = { ok: false, reason: `Look up at most ${lookedMost} terminals at once.` } as const
 
 export type PeersOptions = {
   readonly messaging: Messaging
@@ -275,12 +308,20 @@ export class TerminalPeers {
     const caller = this.options.caller(call.terminalId, call.token)
     if (!caller) return unansweredCalls.agents
     const handles = lookedHandles(call.request)
+    if (handles.length > lookedMost) return tooMany
     const stranger = this.strangers(caller, handles)
     if (stranger) return { ok: false, reason: stranger }
     // A lookup quotes reports at length, as `team` does.
     const about = await this.whereabouts(caller.summary.sessionId, handles.length > 0)
-    this.listed(caller)
-    return this.options.messaging.agents(call.terminalId, (id) => about.get(id), call.request)
+    const answer = this.options.messaging.agents(
+      call.terminalId,
+      (id) => about.get(id),
+      call.request,
+    )
+    // A lookup shows only the terminals it names, which `strangers` introduced; its
+    // refusal of a handle shows them all, as the listing does.
+    if (handles.length === 0 || !answer.ok) this.listed(caller)
+    return answer
   }
 
   /**
@@ -364,6 +405,7 @@ export class TerminalPeers {
           // Where its agent works now, when that is another checkout than its terminal's.
           const now = terminal.activity ? await this.current(terminal.work, cwd) : null
           const happenings = this.options.happenings(terminal.summary.id, bodies)
+          const owned = await this.owned(terminal.summary.id)
           const done = happenings.findLast((each) => each.kind === "done")
           const where: Whereabouts = {
             // Its session's default title ("Terminal") says nothing of it, so no listing names it.
@@ -394,11 +436,12 @@ export class TerminalPeers {
               secret: item.secret,
               at: item.shownAt,
             })),
-            worktrees: await this.owned(terminal.summary.id),
-            folders: busiestFolders(terminal.work?.folders ?? {}).flatMap(({ folder }) => {
-              const within = relative(this.options.projectFolder(sessionId) ?? cwd, folder)
-              return within.startsWith("..") || isAbsolute(within) ? [] : [within || "."]
-            }),
+            worktrees: owned,
+            folders: workedFolders(
+              terminal.work?.folders ?? {},
+              this.options.projectFolder(sessionId) ?? cwd,
+              owned,
+            ),
             shell: {
               running: terminal.summary.busy,
               command: terminal.summary.busy ? shownCommand(terminal.summary.process?.argv) : null,

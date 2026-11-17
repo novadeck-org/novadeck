@@ -263,6 +263,22 @@ describe("what team says", () => {
     )
   })
 
+  it("redacts a secret in a report's subject and body, and in an ask's subject", () => {
+    const token = `ghp_${"a".repeat(36)}`
+    const { text } = team({
+      peers: [
+        member("fox", "moth", {
+          happenings: [
+            { kind: "done", at: now - 1, subject: `Key ${token}`, body: `Use ${token}`, pr: null },
+            { kind: "asked", at: now, subject: `Rotate ${token}?` },
+          ],
+        }),
+      ],
+    })
+    expect(text).not.toContain(token)
+    expect(text.match(/\[redacted\]/g)).toHaveLength(3)
+  })
+
   it("leaves out peers, and says when the caller is on no team", () => {
     const { text } = team({ peers: [member("fox", null), member("owl", "crow")] })
     expect(text).toBe(
