@@ -2742,7 +2742,8 @@ again on each call.
     while the setting is on, so the notice holds on every turn; its `told.worktrees` is
     kept all the same, to know on a flip off that it was told.
   - **A session that can't use worktrees yet.** The harness shims give a session the
-    worktrees folder (`~/.novadeck/worktrees`; `--add-dir`, or Claude Code's settings) only if
+    worktrees folder (`~/.novadeck/worktrees`; `--add-dir`, Claude Code's settings, or Codex's
+    writable roots) only if
     it exists when the agent launches, and
     Novadeck's MCP server lists the worktree tools only while the setting is on, a list
     Claude Code and Codex keep for the whole process (Antigravity, `toolsAtTurnStart`, lists

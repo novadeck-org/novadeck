@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto"
+import { unwatchFile, watchFile } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
@@ -18,7 +19,7 @@ import { createHarnesses, type HarnessesOptions } from "./harnesses/service.js"
 import { logs } from "./log.js"
 import { Murmur } from "./murmur/service.js"
 import { apiError, createRouter } from "./router.js"
-import { installShellFiles } from "./shell/install.js"
+import { codexConfig, installShellFiles } from "./shell/install.js"
 import { Terminals, type TerminalOptions } from "./terminals/index.js"
 import { createTranscriptSealer, transcriptsAvailable } from "./terminals/sealing.js"
 import { Uploads } from "./terminals/uploads.js"
@@ -168,6 +169,9 @@ export const wire = (options: RunnerOptions) => {
 // A part of the runner that began work as it was built, which must end if the rest can't be.
 type Started = { close(): Promise<void> }
 
+/** How often the person's Codex config is looked at for a change. */
+const codexConfigPollMs = 3_000
+
 // The runner's parts over its store (see `wire`); each that starts work joins `started`.
 const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Started[]) => {
   // Written once, for the shells and for the agents that install Novadeck's plugin.
@@ -223,6 +227,16 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
         log.error("shell.codex-failed", "Novadeck could not write Codex's capture", { err: error }),
       )
   if (process.platform === "win32") void codexShells()
+  // Codex's shim passes the person's own writable roots with the worktrees' folder, as its
+  // config holds them at each launch: an edit to it is written in at once, not at the next
+  // start. Its time is looked at every few seconds (`watchFile` stats it, so a config made
+  // later or replaced whole counts too).
+  if (options.shell !== undefined) {
+    const config = codexConfig()
+    const changed = () => void codexShells()
+    watchFile(config, { interval: codexConfigPollMs, persistent: false }, changed)
+    started.push({ close: async () => unwatchFile(config, changed) })
+  }
   // A connected agent that keeps its own copy of the plugin gets the files just written,
   // where they differ from that copy (see `Harness.installed`).
   void shellFiles

@@ -40,7 +40,18 @@ const shimTest = (pwsh: boolean) =>
       const worktrees = join(root, "worktrees")
       const pwshShim = join(root, "novadeck-pwsh.exe")
       writeFileSync(pwshShim, "pwsh")
-      const paths = await installShellFiles(join(root, "shell"), { worktrees, pwshShim, pwsh })
+      // The person's own Codex config, with a writable root of theirs.
+      const codexConfig = join(root, "config.toml")
+      writeFileSync(
+        codexConfig,
+        `model = "x"\n[sandbox_workspace_write]\nwritable_roots = [${JSON.stringify(join(root, "theirs"))}]\n`,
+      )
+      const paths = await installShellFiles(join(root, "shell"), {
+        worktrees,
+        pwshShim,
+        pwsh,
+        codexConfig,
+      })
       const real = join(root, "real")
       mkdirSync(real)
       const log = join(root, "args.json")
@@ -137,7 +148,9 @@ for (const pwsh of [false, true])
       expect(shim.run([])).toEqual(ours)
     })
 
-    it("opens the folder of agents' worktrees to a session once it exists, before any command", ({
+    // As its writable roots with the person's own, not --add-dir, which Codex 0.163.0 and later
+    // exit at under a read-only sandbox (e2e/probes/codex-roots.e2e.ts).
+    it("gives a session the folder of agents' worktrees to write once it exists, the person's own roots with it, before any command", ({
       shim,
     }) => {
       const title = "tui.terminal_title=['status','thread-id']"
@@ -151,11 +164,15 @@ for (const pwsh of [false, true])
         "hi",
       ])
       mkdirSync(shim.worktrees)
-      const add = `--add-dir=${shim.worktrees}`
-      expect(shim.run([])).toEqual(["--no-daemon", add, "-c", title, "-c", approve])
+      const theirs = join(shim.root, "theirs")
+      const roots = [
+        "-c",
+        `sandbox_workspace_write.writable_roots=['${shim.worktrees}','${theirs}']`,
+      ]
+      expect(shim.run([])).toEqual(["--no-daemon", ...roots, "-c", title, "-c", approve])
       expect(shim.run(["resume", "abc"])).toEqual([
         "--no-daemon",
-        add,
+        ...roots,
         "-c",
         title,
         "-c",
@@ -165,7 +182,7 @@ for (const pwsh of [false, true])
       ])
       expect(shim.run(["exec", "hi"])).toEqual([
         "--no-daemon",
-        add,
+        ...roots,
         "-c",
         title,
         "-c",
@@ -173,7 +190,19 @@ for (const pwsh of [false, true])
         "exec",
         "hi",
       ])
-      expect(shim.run(["--no-daemon"])).toEqual([add, "-c", title, "-c", approve, "--no-daemon"])
+      expect(shim.run(["--no-daemon"])).toEqual([
+        ...roots,
+        "-c",
+        title,
+        "-c",
+        approve,
+        "--no-daemon",
+      ])
+      // A profile's own roots stand, which the setting would replace: none is passed.
+      for (const profile of [["-p", "x"], ["--profile", "x"], ["--profile=x"]])
+        expect(shim.run(profile)).toEqual(["--no-daemon", "-c", title, "-c", approve, ...profile])
+      // Never --add-dir of its own.
+      expect(shim.run([]).filter((arg) => arg.startsWith("--add-dir"))).toEqual([])
       // What needs the shared server stays as it was.
       expect(shim.run(["agents"])).toEqual(["agents"])
       expect(shim.run(["--remote", "ws://host"])).toEqual(["--remote", "ws://host"])
