@@ -291,6 +291,25 @@ describe("workspace render scope", () => {
       )
       expect(others).toEqual([])
     })
+
+    // The sidebar keeps every panel mounted and the overlays every dialog, closed or not: both
+    // once drew again whole for each agent's news, the tabs read from the tiles and the closed
+    // search handed every tile.
+    it("wakes neither the sidebar and its panels nor the overlays", async () => {
+      const { services } = await open()
+      const target = firstTarget(services)
+      const seen = rendersDuring(() =>
+        services.workspace.dispatch({
+          type: "terminal/status",
+          target,
+          terminalId: first,
+          status: { state: "running", agent: { working: true } },
+        }),
+      )
+      expect(seen[`tab ${first}`]).toBeGreaterThan(0)
+      expect(seen).not.toHaveProperty("sidebar")
+      expect(seen).not.toHaveProperty("overlays")
+    })
   })
 
   context("when an agent's status line reports how full its context is", () => {

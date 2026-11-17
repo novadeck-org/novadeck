@@ -23,7 +23,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, memo } from "react"
 
 import { panelLabels } from "./panel-labels"
 import { SidebarPanel } from "./SidebarPanel"
@@ -528,7 +528,7 @@ const GroupHeading = ({
 // owner's bar. The trash button asks the runner to close the worktree, which says what it holds
 // when the person should confirm first, and waits while its owner's agent is working in it; on a
 // safe row it shows at rest, and Done's Trash N safe closes every safe one after one confirm.
-export const WorktreesPanel = ({
+const WorktreesPanelView = ({
   works,
   reported,
   watch,
@@ -789,3 +789,6 @@ export const WorktreesPanel = ({
     </SidebarPanel>
   )
 }
+
+// Drawn again only as its own props change: the sidebar keeps every panel mounted.
+export const WorktreesPanel = memo(WorktreesPanelView)

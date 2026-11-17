@@ -2,31 +2,31 @@ import type { FolderListing, FilesProject } from "@novadeck/core/files"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { ClosedTerminal } from "@novadeck/core/history"
 import type { AgentConnection } from "@novadeck/core/port"
-import type { SidebarPanel as PanelId, Tile, WorkspaceSession } from "@novadeck/core/types"
+import type { SidebarPanel as PanelId } from "@novadeck/core/types"
 import type { Work, WorkClosing } from "@novadeck/core/works"
 import { Plus } from "lucide-react"
-import type { ComponentProps } from "react"
+import type { ComponentProps, ReactNode } from "react"
 
 import { HeldPill, InboxCount, InboxList } from "../inbox/InboxList"
 import { shortcutBindings } from "../interaction/shortcuts"
-import { sessionGlance, type SessionMark } from "../projects/session-marks"
 import { FilesPanel } from "../sidebar/FilesPanel"
 import { HistoryPanel } from "../sidebar/HistoryPanel"
 import { panelLabels } from "../sidebar/panel-labels"
-import { SessionsPanel, type SessionsMove } from "../sidebar/SessionsPanel"
 import { SidebarPanel, sidebarCreateClasses } from "../sidebar/SidebarPanel"
 import { WorktreesPanel } from "../sidebar/WorktreesPanel"
 import { programIcon } from "../terminals/processes/profiles"
 import { TerminalTabs } from "../terminals/TerminalTabs"
 
-type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
+type Props = Omit<ComponentProps<typeof TerminalTabs>, "ids"> & {
   projectId: string
   workspaceSessionId: string
-  workspaceSessions: WorkspaceSession[]
-  // What each session's terminals show at a glance, by its id.
-  sessionMarks: Readonly<Record<string, SessionMark>>
-  terminalCount: number
-  ordered: readonly Tile[]
+  // The Sessions panel's list, which reads the sessions itself, how many there are, and the
+  // open one's name once the project has others to tell it from.
+  sessions: ReactNode
+  sessionCount: number
+  sessionName: string | undefined
+  // The tiles' ids in sidebar order: each tab reads its own tile.
+  orderedIds: readonly string[]
   sidebarPanel: PanelId
   sidebarVisible: boolean
   // Where the backend reads the projects' files: what its agents changed in the project, if it says, how to
@@ -80,13 +80,6 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
         onCloseWork: (root: string, force: boolean) => Promise<WorkClosing>
       }
     | undefined
-  onSessionSelect: (id: string) => void
-  onSessionRename: (id: string, name: string) => void
-  onSessionMove: (id: string, index: number) => void
-  // A terminal on its way to another session, while the person picks where.
-  moving?: SessionsMove | undefined
-  onSessionRemove: (id: string) => void
-  onFresh: () => void
   onHide: () => void
   onCreate: () => void
 }
@@ -99,25 +92,19 @@ const historyIcon = (row: ClosedTerminal): React.JSX.Element => {
 export const WorkspaceSidebar = ({
   projectId,
   workspaceSessionId,
-  workspaceSessions,
-  sessionMarks,
-  terminalCount,
-  ordered,
+  sessions,
+  sessionCount,
+  sessionName,
+  orderedIds,
   sidebarPanel,
   sidebarVisible,
   files,
   history,
   worktrees,
-  onSessionSelect,
-  onSessionRename,
-  onSessionMove,
-  onSessionRemove,
-  onFresh,
   onHide,
   onCreate,
   renderTab,
   onReorder,
-  moving,
   away,
 }: Props): React.JSX.Element => (
   <aside
@@ -147,32 +134,11 @@ export const WorkspaceSidebar = ({
     <SidebarPanel
       id="sessions-panel"
       title={panelLabels.sessions}
-      count={workspaceSessions.length}
+      count={sessionCount}
       active={sidebarPanel === "sessions"}
       onClose={onHide}
     >
-      <SessionsPanel
-        key={projectId}
-        sessions={workspaceSessions.map((session) => {
-          const { terminals } = session.state.roster
-          return {
-            id: session.id,
-            name: session.name,
-            visitedAt: session.visitedAt,
-            terminalNames: terminals.map((terminal) => terminal.name),
-            running: terminals.filter((terminal) => terminal.state === "running").length,
-            mark: sessionGlance(sessionMarks[session.id]),
-          }
-        })}
-        activeId={workspaceSessionId}
-        onSelect={onSessionSelect}
-        onFresh={onFresh}
-        onRename={onSessionRename}
-        onMove={onSessionMove}
-        onRemove={onSessionRemove}
-        historyKept={Boolean(history)}
-        moving={moving}
-      />
+      {sessions}
     </SidebarPanel>
     {history && (
       <HistoryPanel
@@ -187,13 +153,9 @@ export const WorkspaceSidebar = ({
       id="terminals-panel"
       title={panelLabels.terminals}
       titleHint={`Recent · ${shortcutBindings().recent.display.join(" ")}`}
-      count={terminalCount}
+      count={orderedIds.length}
       // Which session's terminals these are, once the project has others to tell it from.
-      scope={
-        workspaceSessions.length > 1
-          ? workspaceSessions.find((session) => session.id === workspaceSessionId)?.name
-          : undefined
-      }
+      scope={sessionName}
       active={sidebarPanel === "terminals"}
       onClose={onHide}
     >
@@ -211,7 +173,7 @@ export const WorkspaceSidebar = ({
       </button>
       <TerminalTabs
         key={`${projectId}/${workspaceSessionId}`}
-        terminals={ordered}
+        ids={orderedIds}
         renderTab={renderTab}
         onReorder={onReorder}
         away={away}

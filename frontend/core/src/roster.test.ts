@@ -2,8 +2,10 @@ import {
   createRoster,
   keepFoldsTogether,
   orderBefore,
+  orderedIds,
   setTerminalProcess,
   setTerminalStatus,
+  tileOf,
 } from "./roster"
 import { describe, expect, it } from "./test"
 import type { TerminalMetadata, TerminalStatus } from "./types"
@@ -73,6 +75,26 @@ describe("a terminal's status", () => {
     expect(setTerminalProcess(running, "01", "node", ["node", "pnpm.cjs", "dev"])).toBe(running)
     const back = setTerminalProcess(running, "01", "zsh")
     expect(back.terminals[0]).not.toHaveProperty("argv")
+  })
+})
+
+describe("a tile looked up by id", () => {
+  const roster = {
+    ...createRoster([
+      { id: "01", name: "Checkout", directory: "/work", command: "", process: "", state: "idle" },
+      { id: "02", name: "Dev", directory: "/work", command: "", process: "", state: "idle" },
+    ]),
+    order: ["02", "01"],
+  }
+
+  it("finds the tile, and nothing once it is gone", () => {
+    expect(tileOf(roster, "02")?.name).toBe("Dev")
+    expect(tileOf(roster, "03")).toBeUndefined()
+  })
+
+  it("lists the ids in sidebar order, the same list while the roster is the same", () => {
+    expect(orderedIds(roster)).toEqual(["02", "01"])
+    expect(orderedIds(roster)).toBe(orderedIds(roster))
   })
 })
 

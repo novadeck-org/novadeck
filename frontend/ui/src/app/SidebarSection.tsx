@@ -2,11 +2,10 @@ import { allTeams, sameTeams } from "@novadeck/core/derivations"
 import type { ForgeConnection } from "@novadeck/core/forges"
 import type { ClosedTerminal, HistoryState } from "@novadeck/core/history"
 import { itemIdOf } from "@novadeck/core/items"
-import { orderedTiles } from "@novadeck/core/roster"
+import { orderedIds } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
 import { handleText } from "@novadeck/core/terminals/handle"
-import type { WorkspaceSession } from "@novadeck/core/types"
 import type { Work, WorksState } from "@novadeck/core/works"
 import { memo, useCallback, useMemo, useSyncExternalStore } from "react"
 
@@ -26,26 +25,13 @@ import {
   sameOwners,
   sameWorks,
 } from "./files-feed"
-import { useMoving, useTabsAway } from "./move-to"
+import { useTabsAway } from "./move-to"
 import { historyShown, filesShown } from "./routing"
 import { currentState, currentTarget, sameItems, sameTarget } from "./selectors"
+import { SessionsSection } from "./SessionsSection"
 import { useReorderTiles } from "./team-fold"
 import { useWorktreesShown } from "./use-worktrees-shown"
-import { useSessionMarks } from "./useSessionMarks"
 import { renderTab } from "./WorkspaceTab"
-
-// The Sessions panel shows each session's name, visit time and terminals, nothing else.
-const sameSessions = (a: readonly WorkspaceSession[], b: readonly WorkspaceSession[]): boolean =>
-  a.length === b.length &&
-  a.every((session, index) => {
-    const other = b[index]!
-    return (
-      session.id === other.id &&
-      session.name === other.name &&
-      session.visitedAt === other.visitedAt &&
-      session.state.roster.terminals === other.state.roster.terminals
-    )
-  })
 
 // What a backend without forges reads in their place.
 const noForges = createStore<readonly ForgeConnection[]>([])
@@ -64,19 +50,23 @@ const sameRows = (a: readonly ClosedTerminal[], b: readonly ClosedTerminal[]): b
 // The sidebar wired to the workspace: terminal tabs and workspace sessions.
 export const SidebarSection = memo((): React.JSX.Element => {
   const { commands, backend, ui } = useWorkspaceServices()
-  const { switchSession, startFresh, hideSidebar, add } = commands
+  const { hideSidebar, add } = commands
   const reorderTiles = useReorderTiles()
-  const { renameSession, moveSession, removeSession } = commands
   const desktop = useDesktop()
   const projectId = useWorkspaceState((workspace) => workspace.activeProjectId)
-  const workspaceSessions = useWorkspaceState(
-    (workspace) => activeProject(workspace)!.history,
-    sameSessions,
-  )
-  const sessionMarks = useSessionMarks()
+  // Only what the sidebar shows of the sessions itself: how many, and the open one's name
+  // once there are others. Their rows read the rest (SessionsSection), and the tabs their own
+  // tiles, so an agent's news wakes neither the sidebar nor its other panels.
+  const sessionCount = useWorkspaceState((workspace) => activeProject(workspace)!.history.length)
+  const sessionName = useWorkspaceState((workspace) => {
+    const { history, activeSessionId } = activeProject(workspace)!
+    return history.length > 1
+      ? history.find((session) => session.id === activeSessionId)?.name
+      : undefined
+  })
   const target = useWorkspaceState(currentTarget, sameTarget)
-  const ordered = useWorkspaceState(
-    (workspace) => orderedTiles(currentState(workspace).roster),
+  const ids = useWorkspaceState(
+    (workspace) => orderedIds(currentState(workspace).roster),
     sameItems,
   )
   // The Files panel shows where the backend reads the projects' files; see `filesShown`.
@@ -219,7 +209,6 @@ export const SidebarSection = memo((): React.JSX.Element => {
         : undefined,
     [historyFeed, historyRows, readHistory, backend.agents, connections, commands, projectId],
   )
-  const moving = useMoving()
   const away = useTabsAway()
   const worksReported = useStoreSelector(worksFeed?.state ?? noWorks, (state) => state.reported)
   // Titles of every project's terminals, in every session of it, for the rows to name.
@@ -334,25 +323,25 @@ export const SidebarSection = memo((): React.JSX.Element => {
     <WorkspaceSidebar
       projectId={projectId}
       workspaceSessionId={target.workspaceSessionId}
-      workspaceSessions={workspaceSessions}
-      sessionMarks={sessionMarks}
-      terminalCount={ordered.length}
-      ordered={ordered}
+      sessions={
+        <SessionsSection
+          key={projectId}
+          workspaceSessionId={target.workspaceSessionId}
+          historyKept={Boolean(history)}
+        />
+      }
+      sessionCount={sessionCount}
+      sessionName={sessionName}
+      orderedIds={ids}
       sidebarPanel={sidebarPanel}
       sidebarVisible={visible}
       files={files}
       history={history}
       worktrees={worktrees}
-      onSessionSelect={switchSession}
-      onSessionRename={renameSession}
-      onSessionMove={moveSession}
-      onSessionRemove={removeSession}
-      onFresh={startFresh}
       onHide={hideSidebar}
       onCreate={() => add()}
       renderTab={renderTab}
       onReorder={reorderTiles}
-      moving={moving}
       away={away}
     />
   )

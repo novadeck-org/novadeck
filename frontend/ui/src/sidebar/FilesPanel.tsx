@@ -1,7 +1,7 @@
 import type { FolderListing, FilesProject } from "@novadeck/core/files"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { ChevronsDownUp } from "lucide-react"
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, memo } from "react"
 
 import {
   keptWorking,
@@ -48,7 +48,7 @@ const parentOf = (path: string): string => path.slice(0, Math.max(0, path.lastIn
 // are writing now. Keeping agents' chips in the strip leaves only their work in the tree: the files
 // they touched or are writing and the folders those are in; with nothing kept every file shows.
 // Lighting an agent otherwise, by selecting its terminal or pointing at a chip, only dims the rest.
-export const FilesPanel = ({
+const FilesPanelView = ({
   project,
   list,
   turn,
@@ -386,3 +386,6 @@ export const FilesPanel = ({
     </SidebarPanel>
   )
 }
+
+// Drawn again only as its own props change: the sidebar keeps every panel mounted.
+export const FilesPanel = memo(FilesPanelView)

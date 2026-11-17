@@ -58,6 +58,20 @@ export const orderedTiles: (roster: TerminalRoster) => readonly Tile[] = remembe
   return [...ordered, ...all.filter((tile) => !orderedIds.has(tile.id))]
 })
 
+// The roster's tiles by id: what one tab or window reads of its own tile.
+const tilesById = remembered(
+  (roster): ReadonlyMap<string, Tile> => new Map(tilesOf(roster).map((tile) => [tile.id, tile])),
+)
+
+// The tile with this id, terminal or window; undefined once it has closed.
+export const tileOf = (roster: TerminalRoster, id: string): Tile | undefined =>
+  tilesById(roster).get(id)
+
+// The ids of the tiles in sidebar order: what changes only as tiles open, close or move.
+export const orderedIds: (roster: TerminalRoster) => readonly string[] = remembered((roster) =>
+  orderedTiles(roster).map((tile) => tile.id),
+)
+
 export const addTerminal = (
   roster: TerminalRoster,
   terminal: TerminalMetadata,

@@ -2,12 +2,13 @@ import type { OfferedUninstall } from "@novadeck/core/desktop/uninstall"
 import type { ForgeConnection, ForgeName } from "@novadeck/core/forges"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { Backend } from "@novadeck/core/port"
-import { orderedTiles } from "@novadeck/core/roster"
+import { orderedTiles, tileOf } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
-import type { SchemePreference } from "@novadeck/core/types"
+import type { SchemePreference, Tile } from "@novadeck/core/types"
 import {
   memo,
   Suspense,
+  type ComponentProps,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -291,6 +292,43 @@ const useUninstall = (
   }
 }
 
+// The search dialog, which reads the terminals only while it is open, keeping the last it read
+// for its way out: the overlays, which are mostly closed, never draw again for an agent's news.
+const SearchHost = memo(
+  ({
+    open,
+    ...props
+  }: Omit<ComponentProps<typeof TerminalSearch>, "terminals">): React.JSX.Element => {
+    const live = useWorkspaceState(
+      (workspace) => (open ? orderedTiles(currentState(workspace).roster) : null),
+      (a, b) => a === b || (a !== null && b !== null && sameItems(a, b)),
+    )
+    const [kept, setKept] = useState<readonly Tile[]>([])
+    if (live !== null && live !== kept) setKept(live)
+    return <TerminalSearch open={open} terminals={live ?? kept} {...props} />
+  },
+)
+
+// The terminal switcher, which reads the terminals it lists itself, while it shows.
+const SwitcherHost = ({
+  ids,
+  index,
+  ...props
+}: Omit<ComponentProps<typeof TerminalSwitcher>, "terminals" | "selected"> & {
+  readonly ids: readonly string[]
+  readonly index: number
+}): React.JSX.Element => {
+  const terminals = useWorkspaceState(
+    (workspace) =>
+      ids.flatMap((id) => {
+        const tile = tileOf(currentState(workspace).roster, id)
+        return tile ? [tile] : []
+      }),
+    sameItems,
+  )
+  return <TerminalSwitcher terminals={terminals} selected={ids[index]} {...props} />
+}
+
 // Dialogs and the terminal switcher, above the workspace.
 export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const { backend, commands, navigation, ui, workspace: workspaceStore } = useWorkspaceServices()
@@ -341,10 +379,6 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
       view: currentState(workspace).view,
     }),
     shallowEqual,
-  )
-  const ordered = useWorkspaceState(
-    (workspace) => orderedTiles(currentState(workspace).roster),
-    sameItems,
   )
   const { dialog, section, preferences, switcher, agentFocus } = useUiState(
     (state) => ({
@@ -523,26 +557,22 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
       <NameOffer />
       {backend.feedback?.ask && <AskAgent feedback={backend.feedback} />}
       {switcher && (
-        <TerminalSwitcher
+        <SwitcherHost
           mode={switcher.mode}
           project={projectName}
           onClose={closeSwitcher}
           onSelect={chooseRecent}
-          terminals={switcher.ids.flatMap((id) => {
-            const terminal = ordered.find((item) => item.id === id)
-            return terminal ? [terminal] : []
-          })}
-          selected={switcher.ids[switcher.index]}
+          ids={switcher.ids}
+          index={switcher.index}
         />
       )}
       {/* Each dialog loads on its own; one opened before its chunk arrives appears once it does. */}
       <Suspense fallback={null}>
         <Loaded dialog="search" onLoaded={onLoaded} />
-        <TerminalSearch
+        <SearchHost
           onExitComplete={onExitComplete}
           open={searching}
           key={context}
-          terminals={ordered}
           destination={searchLabel}
           onSelect={openSearchResult}
           onClose={closeDialog}
