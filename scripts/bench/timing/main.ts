@@ -11,10 +11,12 @@ import { openStack, type Stack } from "./stack.ts"
 // `pnpm bench:timing [--output <file>]`: the timing run. The UI's production build in headless
 // Chromium against a real runner in a sandbox, with fake agents sending real hooks and
 // status-line telemetry (see drive.ts for the scenario). It writes a JSON report, by default
-// to .cache/bench/timing.json. Its numbers are a trend, never a gate, so a run that fails to
-// measure says why in the report's `error` and still exits 0; it exits 1 only when the
-// sandbox leaked or refused to start, as `problems` says, as that's a boundary failing, not a
-// number. Linux and macOS; on Linux CI it can run with no network at all:
+// to .cache/bench/timing.json. Its numbers are a trend, never a gate (it never fails on how
+// fast something was), but it fails when it didn't measure the scenario: it exits 1 when the
+// sandbox leaked or refused to start, or the scenario didn't hold (agents not running, the
+// agents not in view, most switches unpainted: see `scenarioFailures`), as `problems` says,
+// and when the run threw (a build or a step failing), as `error` says; the report is written
+// either way. Stopped by a signal, it exits as `problems` says alone. Linux and macOS; on Linux CI it can run with no network at all:
 // `node scripts/e2e/isolated/main.ts -- pnpm bench:timing`.
 
 const root = join(import.meta.dirname, "..", "..", "..")
@@ -46,6 +48,8 @@ const environment: Record<string, string | number> = {
 }
 const problems: string[] = []
 let error: string | undefined
+// Whether the run threw, as opposed to being stopped by a signal.
+let thrown = false
 
 const describe = (cause: unknown) =>
   cause instanceof Error ? (cause.stack ?? cause.message) : String(cause)
@@ -102,9 +106,11 @@ try {
   })
 } catch (cause) {
   error ??= describe(cause)
+  thrown = true
 }
 // A run that got to the end with its scenario not holding fails, as a sandbox that leaked does:
 // its numbers would pass for a trend. One that stopped short says why in `error` already.
-if (error === undefined) problems.push(...scenarioFailures(measured, scenario.agents))
+if (error === undefined)
+  problems.push(...scenarioFailures({ ...measured, windows: measured.steady }, scenario.agents))
 await finish()
-process.exitCode = problems.length > 0 ? 1 : 0
+process.exitCode = problems.length > 0 || thrown ? 1 : 0

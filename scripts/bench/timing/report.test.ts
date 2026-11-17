@@ -57,6 +57,7 @@ describe("a run's summary", () => {
           taskSeconds: 0.5,
           frames: 6,
           slowFrames: 2,
+          inView: [1, 2],
           longTasks: [60, 70],
         },
       ],
@@ -65,7 +66,14 @@ describe("a run's summary", () => {
 
     expect(summary.framesFrom).toBe("trace")
     expect(summary.steady).toEqual([
-      { layout: "Grid", mainThreadShare: 25, fps: 3, framesOver33ms: 2, longTasks: 2 },
+      {
+        layout: "Grid",
+        mainThreadShare: 25,
+        fps: 3,
+        framesOver33ms: 2,
+        inView: [1, 2],
+        longTasks: 2,
+      },
     ])
   })
 })
@@ -73,10 +81,14 @@ describe("a run's summary", () => {
 describe("a scenario that didn't hold", () => {
   const painted = { target: 1, ms: 30 }
   const lost = { target: 2, ms: undefined }
+  const running = ["running", "running", "running", "running", "running"]
+  const grid = (inView: number[]) => ({ layout: "Grid", inView })
+  const focus = (inView: number[]) => ({ layout: "Focus", inView })
 
-  it("is none when every agent runs and most switches paint", () => {
-    const agentPhases = ["running", "running"]
-    expect(scenarioFailures({ agentPhases, switches: [painted, painted, lost] }, 2)).toEqual([])
+  it("is none when every agent runs, the windows show them and the switches paint", () => {
+    const switches = [painted, painted]
+    const windows = [grid([1, 2, 3, 4]), focus([1])]
+    expect(scenarioFailures({ agentPhases: running, switches, windows }, 5)).toEqual([])
   })
 
   it("names the agents that never ran", () => {
@@ -85,11 +97,46 @@ describe("a scenario that didn't hold", () => {
     expect(failure).toContain("running, idle, null")
   })
 
-  it("names switches that mostly never painted", () => {
-    const failures = scenarioFailures(
-      { agentPhases: ["running"], switches: [painted, lost, lost] },
-      1,
-    )
-    expect(failures).toEqual(["the scenario didn't hold: 2 of 3 switches never painted"])
+  it("names a Grid that shows idle shells, whatever the agents' phases", () => {
+    const windows = [grid([10, 11, 12, 13]), focus([1])]
+    const failures = scenarioFailures({ agentPhases: running, switches: [], windows }, 5)
+    expect(failures).toHaveLength(1)
+    expect(failures[0]).toContain('Grid showed ["T10","T11","T12","T13"]')
+    expect(failures[0]).toContain("at least 4 agents")
+  })
+
+  it("wants fewer agents in Grid where there are fewer", () => {
+    const windows = [grid([1, 2, 3, 9]), focus([1])]
+    expect(
+      scenarioFailures(
+        { agentPhases: ["running", "running", "running"], switches: [], windows },
+        3,
+      ),
+    ).toEqual([])
+  })
+
+  it("names a Focus that doesn't show agent 1", () => {
+    const windows = [grid([1, 2, 3, 4]), focus([13])]
+    const [failure] = scenarioFailures({ agentPhases: running, switches: [], windows }, 5)
+    expect(failure).toContain('Focus showed ["T13"]')
+  })
+
+  it("names switches that painted for fewer than nine in ten", () => {
+    const eleven = [
+      painted,
+      painted,
+      painted,
+      painted,
+      painted,
+      painted,
+      painted,
+      painted,
+      painted,
+      painted,
+    ]
+    const one = scenarioFailures({ agentPhases: running, switches: [...eleven, lost] }, 5)
+    expect(one).toEqual([])
+    const two = scenarioFailures({ agentPhases: running, switches: [...eleven, lost, lost] }, 5)
+    expect(two).toEqual(["the scenario didn't hold: 2 of 12 switches never painted"])
   })
 })

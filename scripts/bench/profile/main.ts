@@ -213,6 +213,7 @@ const analyze = async (
       phase: one.phase,
       trace: relative(output, one.trace),
       askedFps: one.askedFps,
+      inView: one.inView,
       longTasks: one.longTasks.length,
       switches: one.switches,
       gl: one.gl,

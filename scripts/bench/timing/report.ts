@@ -12,6 +12,8 @@ export type Steady = {
   readonly frames: number
   /** The frames the main thread took over 33 ms to answer once asked for them. */
   readonly slowFrames: number
+  /** The marks, `[T<n>]`, of the screens in view at both ends of the window. */
+  readonly inView: readonly number[]
   /** The long tasks' durations, in milliseconds. */
   readonly longTasks: readonly number[]
 }
@@ -59,6 +61,8 @@ export type Report = {
       readonly mainThreadShare: number
       readonly fps: number
       readonly framesOver33ms: number
+      /** The marks, `[T<n>]`, in view at both ends of the window. */
+      readonly inView: readonly number[]
       readonly longTasks: number
     }[]
   }
@@ -72,26 +76,49 @@ export type Report = {
   readonly error?: string
 }
 
+/** The most switches that may never paint before the scenario is taken not to hold. */
+const unpaintedShare = 0.1
+
 /**
  * Why a run's scenario didn't hold, so that its numbers measure something other than the
- * scenario: agents the runner never heard running (their windows are as quiet as an idle
- * app's) or most of the switches never painting (their times are the wait's). Empty when it
- * held. A run that fails on these can't pass for a trend with a scenario that has quietly
- * stopped working.
+ * scenario. Empty when it held. A run that fails on these can't pass for a trend with a
+ * scenario that has quietly stopped working:
+ * - agents the runner never heard running: their windows are as quiet as an idle app's;
+ * - a steady window that doesn't show the agents: Grid needs at least four of them in view
+ *   (what the layout guarantees in the bench's window), Focus agent 1;
+ * - more than a tenth of the switches never painting: a healthy run paints all of them,
+ *   each waiting 4 s, so a tenth is already a scenario pressing the wrong terminals.
  */
 export const scenarioFailures = (
-  measured: Pick<Measured, "agentPhases" | "switches">,
+  measured: {
+    readonly agentPhases: readonly (string | null)[]
+    readonly switches: readonly Switch[]
+    readonly windows?: readonly { readonly layout: string; readonly inView: readonly number[] }[]
+  },
   agents: number,
 ): string[] => {
   const heard = measured.agentPhases.filter((phase) => phase === "running").length
   const timedOut = measured.switches.filter(({ ms }) => ms === undefined).length
+  const shown = (window: { readonly inView: readonly number[] }) =>
+    window.inView.filter((mark) => mark <= agents)
+  const unseen = (measured.windows ?? []).flatMap((window) => {
+    const agentsInView = shown(window)
+    const need = window.layout === "Grid" ? Math.min(agents, 4) : 1
+    const held = window.layout === "Grid" ? agentsInView.length >= need : window.inView.includes(1)
+    return held
+      ? []
+      : [
+          `the scenario didn't hold: ${window.layout} showed ${JSON.stringify(window.inView.map((mark) => `T${mark}`))} in view, ${window.layout === "Grid" ? `where at least ${need} agents were wanted` : "where agent T1 was wanted"}`,
+        ]
+  })
   return [
     ...(heard < agents
       ? [
           `the scenario didn't hold: ${heard} of ${agents} agents were running (phases: ${measured.agentPhases.map(String).join(", ") || "none"})`,
         ]
       : []),
-    ...(measured.switches.length > 0 && timedOut * 2 > measured.switches.length
+    ...unseen,
+    ...(measured.switches.length > 0 && timedOut > measured.switches.length * unpaintedShare
       ? [
           `the scenario didn't hold: ${timedOut} of ${measured.switches.length} switches never painted`,
         ]
@@ -126,6 +153,7 @@ export const summarize = (measured: Measured): Report["summary"] => {
       mainThreadShare: round((window.taskSeconds / window.seconds) * 100),
       fps: window.seconds > 0 ? round(window.frames / window.seconds) : 0,
       framesOver33ms: window.slowFrames,
+      inView: window.inView,
       longTasks: window.longTasks.length,
     })),
   }

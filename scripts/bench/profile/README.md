@@ -41,7 +41,8 @@ profile sits beside the first's. `--runs` is 3 by default and every variant runs
 takes about 3 minutes, so the default, 3 runs of 2 scenarios on 2 builds, takes about
 35 minutes. `--switch` passes Chromium a switch, as `--switch=--foo`; `--note` is kept in the
 output, to say where it ran. A run fails, and the profile exits 1, should its agents not all reach `running` once set busy,
-or more than half its switches never paint (their rows are found by the ids the run kept as
+its Grid or Focus window not show them (four agents' screens in view in Grid, agent 1's in Focus;
+profile.json has each window's `inView`), or more than a tenth of its switches never paint (their rows are found by the ids the run kept as
 it opened the terminals, not by position). It exits 1 should any run fail or the sandbox leak, having written
 what it got; on SIGINT, SIGTERM or SIGHUP the app running closes and what the runs got is written,
 and a second signal ends it at once. A signal while the app is still launching meets

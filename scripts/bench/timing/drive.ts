@@ -154,35 +154,61 @@ const row = async (page: Page, n: number) => {
 }
 
 /** Remembers the id of the row that has appeared since the last, as terminal `n`'s. */
-const claim = (page: Page, selector: string): Promise<boolean> =>
-  page.evaluate((rowsSelector) => {
-    const kept = window as unknown as Probe
-    const known = (kept.benchTerminals ??= [])
-    const fresh = [...document.querySelectorAll(rowsSelector)]
-      .map((each) => each.getAttribute("data-terminal-tab-id") ?? "")
-      .find((id) => id !== "" && !known.includes(id))
-    if (fresh === undefined) return false
-    known.push(fresh)
-    return true
-  }, selector)
+const claim = (page: Page, selector: string, n: number): Promise<boolean> =>
+  page.evaluate(
+    ([rowsSelector, index]) => {
+      const kept = window as unknown as Probe
+      const known = (kept.benchTerminals ??= [])
+      const fresh = [...document.querySelectorAll(rowsSelector)]
+        .map((each) => each.getAttribute("data-terminal-tab-id") ?? "")
+        .find((id) => id !== "" && !known.includes(id))
+      if (fresh === undefined) return false
+      known[index] = fresh
+      return true
+    },
+    [selector, n - 1] as const,
+  )
+
+/**
+ * The marks, `[T<n>]`, of the screens in view: those at least half inside the window, each
+ * read as `shown` reads one. What a window shows is what it measures, so each steady window
+ * records it, and the scenario fails where it isn't the agents (see `scenarioFailures`).
+ */
+export const marksInView = (page: Page): Promise<number[]> =>
+  page.evaluate(() => {
+    const marks = new Set<number>()
+    for (const screen of document.querySelectorAll(".xterm")) {
+      const box = screen.getBoundingClientRect()
+      if (box.width <= 0 || box.height <= 0) continue
+      const inside = Math.min(box.right, window.innerWidth) - Math.max(box.left, 0)
+      const high = Math.min(box.bottom, window.innerHeight) - Math.max(box.top, 0)
+      if (inside < box.width / 2 || high < box.height / 2) continue
+      const read = (screen.parentElement as { profileText?: () => string } | null)?.profileText
+      for (const found of (read?.() ?? screen.textContent ?? "").matchAll(/\[T(\d+)\]/g))
+        marks.add(Number(found[1]))
+    }
+    return [...marks].toSorted((a, b) => a - b)
+  })
 
 /** The command an idle terminal runs: it prints terminal `n`'s mark. */
 export const idleShell = (n: number): string => `printf '[T%s] idle shell\\n' ${n}`
 
 /**
  * Opens `terminals` terminals, one after another, each running `command(n)` once its
- * shell has started, and waits for each to show its mark, `[T<n>]`.
+ * shell has started, and waits for each to show its mark, `[T<n>]`. The last terminal is
+ * opened first and terminal 1 last: the list, and so Grid, shows the newest first, so the
+ * first terminals, which the scenario makes the agents, are the ones in view.
  */
 export const setUp = async (
   page: Page,
   terminals: number,
   command: (n: number) => string,
 ): Promise<void> => {
-  for (let n = 1; n <= terminals; n += 1) {
+  for (let n = terminals; n >= 1; n -= 1) {
     // eslint-disable-next-line no-await-in-loop -- One terminal after another, as a person opens them.
     await page.getByRole("button", { name: "New terminal" }).first().click()
     // eslint-disable-next-line no-await-in-loop -- As above.
-    if (!(await until(() => claim(page, rows), 30_000)))
+    if (!(await until(() => claim(page, rows, n), 30_000)))
       throw new Error(`terminal ${n} never showed a row`)
     // Keys typed while it starts are lost.
     // eslint-disable-next-line no-await-in-loop -- As above.
@@ -306,6 +332,7 @@ const steady = async (
     return { task: value("TaskDuration"), at: value("Timestamp") }
   }
   const from = await startRecording(page)
+  const seenBefore = await marksInView(page)
   let before!: Awaited<ReturnType<typeof reading>>
   let after!: Awaited<ReturnType<typeof reading>>
   const counted = await framed(page, browserSession, async () => {
@@ -318,6 +345,8 @@ const steady = async (
     seconds: after.at - before.at,
     taskSeconds: after.task - before.task,
     ...counted,
+    // Those in view at both ends of the window.
+    inView: (await marksInView(page)).filter((mark) => seenBefore.includes(mark)),
     ...(await stopRecording(page, from)),
   }
 }
@@ -391,6 +420,24 @@ export const select = async (page: Page, n: number) => {
 }
 
 /**
+ * Shows terminal `n` in Focus: waits for the layout to settle, as a press during Focus's
+ * first mount is lost, then selects it, and looks that its screen is the one in view, trying
+ * again a few times; fails the scenario where it never is.
+ */
+export const focusOn = async (page: Page, n: number): Promise<void> => {
+  await layout(page, "Focus")
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop -- Each try follows the last.
+    await sleep(500)
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    await select(page, n)
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    if (await until(async () => (await marksInView(page)).includes(n), 3000)) return
+  }
+  throw new Error(`Focus never showed terminal ${n}: ${JSON.stringify(await marksInView(page))}`)
+}
+
+/**
  * Waits until the app has booted, as it has once it offers either the welcome or a new
  * terminal, having connected to the runner, and passes the welcome.
  */
@@ -441,8 +488,7 @@ export const drive = async (
     measured.agentPhases.push(...(await phases()))
     measured.steady.push(await steady(page, cdp, browserSession, "Grid"))
     // What a person watching an agent sees, the other four running beside it.
-    await layout(page, "Focus")
-    await select(page, 1)
+    await focusOn(page, 1)
     measured.steady.push(await steady(page, cdp, browserSession, "Focus"))
     for (let pass = 0; pass < scenario.switchPasses; pass += 1)
       for (const target of scenario.switchTargets)

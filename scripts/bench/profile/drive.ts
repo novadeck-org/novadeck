@@ -3,11 +3,12 @@ import type { Page } from "playwright"
 import {
   boot,
   idleShell,
+  focusOn,
   layout,
+  marksInView,
   phase as rowPhase,
   probe,
   scenario as timing,
-  select,
   setUp,
   sleep,
   startRecording,
@@ -69,6 +70,8 @@ export type Recorded = {
   /** Why the trace couldn't be saved, should it not be. */
   readonly traceError?: string
   readonly longTasks: readonly number[]
+  /** The marks, `[T<n>]`, of the screens in view at both ends of the window. */
+  readonly inView: readonly number[]
   readonly switches: readonly Switch[]
   /** Whether the page was shown and focused at the phase's end, as a throttled one isn't. */
   readonly visible: boolean
@@ -181,10 +184,12 @@ export const play = async (
     // Tracing settles in every process before the window opens.
     await sleep(500)
     const from = await startRecording(page)
+    const seenBefore = await marksInView(page)
     await page.evaluate(() => performance.mark("profile-start"))
     const switches = await during()
     await page.evaluate(() => performance.mark("profile-end"))
     const { longTasks } = await stopRecording(page, from)
+    const inView = (await marksInView(page)).filter((mark) => seenBefore.includes(mark))
     const state = await page.evaluate(() => ({
       visible: document.visibilityState === "visible",
       focused: document.hasFocus(),
@@ -205,6 +210,7 @@ export const play = async (
       trace,
       askedFps,
       longTasks,
+      inView,
       switches,
       ...state,
       gl,
@@ -227,14 +233,27 @@ export const play = async (
   })
   await sampled("grid")
   // What a person watching an agent sees, the others running beside it.
-  await layout(page, "Focus")
-  await select(page, 1)
+  await focusOn(page, 1)
   await sleep(shared.warmMs)
   await traced("focus", async () => {
     await sleep(shared.windowMs)
     return []
   })
   await sampled("focus")
+  // A window that didn't show the agents measured something else: fail, not report it.
+  const unseen = scenarioFailures(
+    {
+      agentPhases,
+      switches: [],
+      windows: recorded.flatMap((one) =>
+        one.phase === "switches"
+          ? []
+          : [{ layout: one.phase === "grid" ? "Grid" : "Focus", inView: one.inView }],
+      ),
+    },
+    agents,
+  )
+  if (unseen.length > 0) throw new Error(unseen.join("; "))
   // As Grid and Focus settle before their windows, after the memory sample's trace.
   await sleep(shared.warmMs)
   await traced("switches", async () => {

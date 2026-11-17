@@ -65,8 +65,12 @@ Its shape, with illustrative numbers:
 ```
 
 `problems` should always be empty: anything there means the sandbox leaked or couldn't be made,
-or the scenario didn't hold (fewer agents running than `scenario.agents` once the run set them
-busy, or more than half the switches never painting), and the run exits 1. A scenario that has
+or the scenario didn't hold, and the run exits 1. It didn't hold when fewer agents ran than
+`scenario.agents` once the run set them busy, when a steady window didn't show the agents (Grid
+needs four agents' screens in view, Focus agent 1's: each window records the `[T<n>]` marks in view
+as `inView`), or when more than a tenth of the switches never painted. A run that throws (a
+build or a step failing) exits 1 as well, its report written with `error`. Terminals are opened
+last to first, so the first, the agents, are the newest, which Grid shows first. A scenario that has
 quietly stopped working would otherwise report a quiet app's numbers as a trend. The terminals'
 rows are found by the ids `setUp` kept as it opened them, as the list shows the newest first.
 

@@ -83,6 +83,7 @@ const phase = (
   trace: `traces/${name}.json.gz`,
   breakdown: breakdown(busy),
   askedFps: 60,
+  inView: [1, 2, 3, 4],
   longTasks: 0,
   switches: [],
   visible: true,

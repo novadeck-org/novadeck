@@ -27,6 +27,8 @@ export type PhaseResult = {
    * every time: what tells a page throttled (see `throttledFps`).
    */
   readonly askedFps: number
+  /** The marks, `[T<n>]`, of the screens in view at both ends of the window. */
+  readonly inView: readonly number[]
   readonly longTasks: number
   readonly switches: readonly Switch[]
   readonly visible: boolean
