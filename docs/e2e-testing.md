@@ -219,10 +219,10 @@ network:
   reports is checked, by the words it was started with, for a folder outside the sandbox's
   home given the way its shim gives that one (`added-folders.ts`): `--add-dir` (Antigravity),
   `permissions.additionalDirectories` in its `--settings` (Claude Code), or `-c
-  sandbox_workspace_write.writable_roots` (Codex). One fails the test. A scenario that needs the folder there, as
-  every person's computer has it once Novadeck has made a worktree, makes it in the sandbox
-  (`tell`'s `worktreesFolder` in `tour-story.ts`, and `lead.e2e.ts`); one whose harness
-  can't start with it yet is skipped, naming the fix it waits on, until that lands (`waitsOn`).
+  sandbox_workspace_write.writable_roots` (Codex). One fails the test. A scenario that needs
+  the folder there, as every person's computer has it once Novadeck has made a worktree,
+  makes it in the sandbox (`tell`'s `worktreesFolder` in `tour-story.ts`, `lead.e2e.ts` and
+  `worktrees-folder.e2e.ts`).
 - **No keyring.** `DBUS_SESSION_BUS_ADDRESS` points at a socket that doesn't exist, so
   no harness finds a login in the secret service. The kernel keyring (keyutils) needs no
   bus, so for each pinned harness it was checked, from its source or its program's

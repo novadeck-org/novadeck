@@ -3,7 +3,6 @@ import { mkdir } from "node:fs/promises"
 import { samePath } from "@novadeck/harness-core/paths"
 
 import { worktreesRoot } from "../worktrees/root.js"
-import { waitsOn } from "./added-folders.js"
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, gate, text, tool, type Call } from "./model/script.js"
@@ -85,36 +84,34 @@ for (const setup of setups) {
       await t2.until("Surveying now.")
     })
 
-    // The folder of agents' worktrees there, which each shim passes on as `--add-dir`: a helper
+    // The folder of agents' worktrees there, which each shim gives on: a helper
     // opened with no folder named opens in its lead's, a plain one, not a git checkout, and the
     // lead stays there (Antigravity lists the added folder beside its own, in order of path,
     // here first).
-    const waits = waitsOn([setup.agent])
-    ;(waits === undefined ? it : it.skip)(
-      `opens a helper in its lead's folder while the folder of agents' worktrees is there${waits === undefined ? "" : `, skipped until: ${waits}`}`,
-      async ({ e2e: run }) => {
-        await mkdir(worktreesRoot(run.sandbox.home), { recursive: true })
-        const requests = run.deck.answerRequests()
-        run.model.use(
-          opens("Start a helper", setup.agent, brief),
-          own((call) => (opened(call, "fox") ? { text: "Started fox." } : undefined)),
-          own((call) => (delivered(call, "moth") ? { text: "Surveying now." } : undefined)),
-        )
-        const t1 = await start(run, setup)
+    it("opens a helper in its lead's folder while the folder of agents' worktrees is there", async ({
+      e2e: run,
+    }) => {
+      await mkdir(worktreesRoot(run.sandbox.home), { recursive: true })
+      const requests = run.deck.answerRequests()
+      run.model.use(
+        opens("Start a helper", setup.agent, brief),
+        own((call) => (opened(call, "fox") ? { text: "Started fox." } : undefined)),
+        own((call) => (delivered(call, "moth") ? { text: "Surveying now." } : undefined)),
+      )
+      const t1 = await start(run, setup)
 
-        await t1.submit("Start a helper")
+      await t1.submit("Start a helper")
 
-        const t2 = await requests.next()
-        await t1.until("Started fox.")
-        // Its brief taken, so no turn of it runs on past the test.
-        await t2.until("Surveying now.")
-        for (const terminal of [t1, t2])
-          expect(
-            samePath(terminal.summary().cwd, run.sandbox.project),
-            `${terminal.handle} works in ${terminal.summary().cwd}`,
-          ).toBe(true)
-      },
-    )
+      const t2 = await requests.next()
+      await t1.until("Started fox.")
+      // Its brief taken, so no turn of it runs on past the test.
+      await t2.until("Surveying now.")
+      for (const terminal of [t1, t2])
+        expect(
+          samePath(terminal.summary().cwd, run.sandbox.project),
+          `${terminal.handle} works in ${terminal.summary().cwd}`,
+        ).toBe(true)
+    })
 
     it("delivers its lead's message at the next tool call of a turn, a peer's at the Stop", async ({
       e2e: run,

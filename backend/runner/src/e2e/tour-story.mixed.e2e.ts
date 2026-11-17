@@ -1,6 +1,5 @@
 import type { AgentName } from "@novadeck/protocol"
 
-import { waitsOn } from "./added-folders.js"
 import { agy } from "./agents/agy.js"
 import { claude } from "./agents/claude.js"
 import { codex } from "./agents/codex.js"
@@ -34,19 +33,17 @@ for (const lead of team)
 
     // With the folder of agents' worktrees there, as tour-story.e2e.ts has it: each teammate
     // opens in the tour's folder, whichever harness leads.
-    const waits = waitsOn([lead.agent, designerOf(lead.agent)], { readOnly: true })
-    ;(waits === undefined ? it : it.skip)(
-      `opens both teammates in the tour's folder while the folder of agents' worktrees is there${waits === undefined ? "" : `, skipped until: ${waits}`}`,
-      async ({ e2e: run }) => {
-        const [writer, designer] = await tell(
-          run,
-          lead,
-          team.map(({ agent }) => agent),
-          { worktreesFolder: true },
-        )
-        expect([writer.agent, designer.agent]).toEqual([lead.agent, designerOf(lead.agent)])
-      },
-    )
+    it("opens both teammates in the tour's folder while the folder of agents' worktrees is there", async ({
+      e2e: run,
+    }) => {
+      const [writer, designer] = await tell(
+        run,
+        lead,
+        team.map(({ agent }) => agent),
+        { worktreesFolder: true },
+      )
+      expect([writer.agent, designer.agent]).toEqual([lead.agent, designerOf(lead.agent)])
+    })
   })
 
 // The designer's harness asks about the tour's folder, which the person hasn't trusted:
