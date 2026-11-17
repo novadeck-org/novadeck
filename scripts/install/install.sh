@@ -75,7 +75,7 @@
 style() {
   TEAL='' RED='' YELLOW='' DIM='' BOLD='' WHITE='' RESET='' ANIMATE=false
   ERR_RED='' ERR_BOLD='' ERR_DIM='' ERR_RESET=''
-  [ -z "${NO_COLOR:-}" ] || return 0
+  [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ] || return 0
   if [ -t 1 ]; then
     case "${COLORTERM:-}" in
       truecolor | 24bit) TEAL="$(printf '\033[38;2;0;229;214m')" ;;
@@ -105,6 +105,11 @@ fail() {
 # A line of its own, under the phase it belongs to.
 say() {
   printf '        %s›%s %s\n' "${DIM:-}" "${RESET:-}" "$1"
+}
+
+# A command to copy, on a line of its own with no marker, so a whole line pastes as is.
+command_line() {
+  printf '          %s\n' "$1"
 }
 
 # The heading of a phase: `>>> name`.
@@ -314,14 +319,15 @@ as_root() {
 # setuid fusermount* on the PATH, FUSE 2's fusermount included, so either one will do; it
 # does not look in the system folders, and neither does this.
 check_fuse() {
-  if has fusermount3 || has fusermount; then
-    if [ -e "${NOVADECK_INSTALL_FUSE_DEVICE:-/dev/fuse}" ]; then
-      ok "fusermount"
-      return 0
-    fi
+  if ! has fusermount3 && ! has fusermount; then
+    warn "fusermount $(quiet "missing: the AppImage needs FUSE 3 to start. Install your")"
+    say "  $(quiet "distribution's fuse3 package, or start Novadeck with --appimage-extract-and-run.")"
+  elif [ ! -e "${NOVADECK_INSTALL_FUSE_DEVICE:-/dev/fuse}" ]; then
+    warn "/dev/fuse $(quiet "missing: the AppImage needs FUSE 3 to start, and this system offers")"
+    say "  $(quiet "no FUSE device, as in many containers. Start Novadeck with --appimage-extract-and-run.")"
+  else
+    ok "fusermount"
   fi
-  warn "fusermount $(quiet "missing: the AppImage needs FUSE 3 to start. Install your")"
-  say "  $(quiet "distribution's fuse3 package, or start Novadeck with --appimage-extract-and-run.")"
 }
 
 # XDG_DATA_HOME, which the XDG spec says to ignore unless it is an absolute path.
@@ -392,7 +398,7 @@ EOF
   case ":$PATH:" in
     *":$bin:"*) ;;
     *) warn "PATH $(quiet "lacks $(tidy "$bin"); add it to your PATH to start Novadeck as \`novadeck\`:")"
-       say "  $(quiet "export PATH=\"$bin:\$PATH\"")" ;;
+       command_line "export PATH=\"$bin:\$PATH\"" ;;
   esac
   check_fuse
   setup_sandbox "$base"
@@ -439,7 +445,7 @@ write_profile() {
 sandbox_warning() {
   bad "Novadeck will run without its sandbox: $(quiet "$1")"
   say "  $(quiet "To set it up later, run:")"
-  say "  curl -fsSL $2/install.sh | sh -s -- --sandbox"
+  command_line "curl -fsSL $2/install.sh | sh -s -- --sandbox"
 }
 
 # True when AppArmor stops unprivileged programs from creating user namespaces, which is
@@ -515,7 +521,7 @@ setup_sandbox() {
   else
     warn "sandbox $(quiet "works until the next restart, as the profile could not be saved.")"
     say "  $(quiet "After a restart, run this again:")"
-    say "  curl -fsSL $base/install.sh | sh -s -- --sandbox"
+    command_line "curl -fsSL $base/install.sh | sh -s -- --sandbox"
   fi
 }
 
@@ -643,9 +649,9 @@ uninstall_leftovers() {
   section "kept"
   say "your data $(quiet "— delete $1 to remove it")"
   say "agent plugins $(quiet "— each agent you connected removes its own:")"
-  say "  claude plugin uninstall novadeck@novadeck && claude plugin marketplace remove novadeck"
-  say "  codex plugin remove novadeck@novadeck && codex plugin marketplace remove novadeck"
-  say "  agy plugin uninstall novadeck"
+  command_line "claude plugin uninstall novadeck@novadeck && claude plugin marketplace remove novadeck"
+  command_line "codex plugin remove novadeck@novadeck && codex plugin marketplace remove novadeck"
+  command_line "agy plugin uninstall novadeck"
 }
 
 # One thing the uninstall removed, under a heading that comes with the first.
@@ -669,7 +675,9 @@ uninstall_sandbox() {
   base="$1"
   target="${NOVADECK_INSTALL_APPARMOR_DIR:-/etc/apparmor.d}/novadeck-appimage-$(id -u)"
   [ -e "$target" ] || return 1
-  removed "AppArmor profile $(quiet "${target##*/}")"
+  [ "$found" = true ] || section "removing"
+  found=true
+  say "$(quiet "Removing Novadeck's AppArmor profile as root; sudo may ask for your password.")"
   parser="$(find_tool apparmor_parser)"
   # Unloaded from the file that loaded it, then the file goes, so it never loads again. An
   # unload that fails, as the profile is not loaded, still leaves the file to remove.
@@ -678,12 +686,13 @@ uninstall_sandbox() {
     unloaded=true
   fi
   if as_root rm -f "$target"; then
+    gone "AppArmor profile $(quiet "${target##*/}")"
     if [ "$unloaded" = false ]; then
       say "  $(quiet "Novadeck's profile stays loaded until the next restart, if it is loaded at all.")"
     fi
   else
     bad "the profile could not be removed as root. $(quiet "To finish, run:")"
-    say "  curl -fsSL $base/install.sh | sh -s -- --uninstall"
+    command_line "curl -fsSL $base/install.sh | sh -s -- --uninstall"
   fi
   return 0
 }

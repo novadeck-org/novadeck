@@ -129,6 +129,10 @@ type Scenario = {
   rendered?: boolean
   /** The version the release workflow renders in; the placeholder stays when unset. */
   version?: string
+  /** Runs it on a terminal, through script(1), which puts stdout and stderr together in stdout. */
+  tty?: boolean
+  /** Sets NO_COLOR. */
+  noColor?: boolean
   /** The macOS side of the fake computer; uname then says Darwin. */
   mac?: {
     /** Whether codesign finds a Developer ID signature on the installed app. */
@@ -370,26 +374,33 @@ esac`,
   mkdirSync(caskrooms)
   if (scenario.cask) mkdirSync(join(caskrooms, "novadeck"))
   const start = (args = scenario.args ?? []) =>
-    spawnSync("/bin/sh", [entry, ...args], {
-      env: {
-        PATH: bin,
-        ...(scenario.home === "unset" ? {} : { HOME: scenario.home ? join(root, "gone") : home }),
-        ...(scenario.sudoUid ? { SUDO_UID: scenario.sudoUid } : {}),
-        NOVADECK_INSTALL_SBIN_DIRS: sbin,
-        TMPDIR: temporary,
-        NOVADECK_INSTALL_USERNS_SYSCTL: sysctl,
-        NOVADECK_INSTALL_APPARMOR_DIR: apparmor,
-        NOVADECK_INSTALL_FUSE_DEVICE: device,
-        NOVADECK_INSTALL_PROFILES: profiles,
-        NOVADECK_INSTALL_APPLICATIONS_DIR: applications,
-        NOVADECK_INSTALL_CASKROOMS: caskrooms,
-        ...(scenario.configHome ? { XDG_CONFIG_HOME: scenario.configHome } : {}),
-        ...(data ? { XDG_DATA_HOME: data } : {}),
-        ...(scenario.relativeXdg ? { XDG_DATA_HOME: scenario.relativeXdg } : {}),
-        ...(scenario.rendered ? {} : { NOVADECK_INSTALL_BASE_URL: `http://mirror.test/dl/` }),
+    spawnSync(
+      scenario.tty ? "/usr/bin/script" : "/bin/sh",
+      scenario.tty
+        ? ["-qec", ["/bin/sh", entry, ...args].join(" "), "/dev/null"]
+        : [entry, ...args],
+      {
+        env: {
+          ...(scenario.noColor ? { NO_COLOR: "1" } : {}),
+          PATH: bin,
+          ...(scenario.home === "unset" ? {} : { HOME: scenario.home ? join(root, "gone") : home }),
+          ...(scenario.sudoUid ? { SUDO_UID: scenario.sudoUid } : {}),
+          NOVADECK_INSTALL_SBIN_DIRS: sbin,
+          TMPDIR: temporary,
+          NOVADECK_INSTALL_USERNS_SYSCTL: sysctl,
+          NOVADECK_INSTALL_APPARMOR_DIR: apparmor,
+          NOVADECK_INSTALL_FUSE_DEVICE: device,
+          NOVADECK_INSTALL_PROFILES: profiles,
+          NOVADECK_INSTALL_APPLICATIONS_DIR: applications,
+          NOVADECK_INSTALL_CASKROOMS: caskrooms,
+          ...(scenario.configHome ? { XDG_CONFIG_HOME: scenario.configHome } : {}),
+          ...(data ? { XDG_DATA_HOME: data } : {}),
+          ...(scenario.relativeXdg ? { XDG_DATA_HOME: scenario.relativeXdg } : {}),
+          ...(scenario.rendered ? {} : { NOVADECK_INSTALL_BASE_URL: `http://mirror.test/dl/` }),
+        },
+        encoding: "utf8",
       },
-      encoding: "utf8",
-    })
+    )
   const result = start()
   const lines = readFileSync(log, "utf8").split("\n").filter(Boolean)
   const profile = join(apparmor, `novadeck-appimage-${scenario.root ? 0 : 1000}`)
@@ -487,6 +498,8 @@ describe.skipIf(!linux)("install.sh", () => {
     it("says when ~/.local/bin is not on the PATH", () => {
       const result = run()
       expect(result.stdout).toContain("to your PATH")
+      // On a line of its own, with no marker, so a whole line pastes as is.
+      expect(result.stdout).toMatch(/^ +export PATH="\/\S+\/\.local\/bin:\$PATH"$/m)
     })
 
     it("replaces the installed AppImage when run again", () => {
@@ -544,7 +557,8 @@ describe.skipIf(!linux)("install.sh", () => {
 
     it("explains when there is no /dev/fuse", () => {
       const result = run({ extra: ["fusermount3"], fuseDevice: false })
-      expect(result.stdout).toContain("needs FUSE 3")
+      expect(result.stdout).toContain("! /dev/fuse missing: the AppImage needs FUSE 3")
+      expect(result.stdout).not.toContain("fusermount missing")
     })
   })
 
@@ -949,6 +963,7 @@ profile novadeck-appimage-1000-brew "${join(result.home, "Applications/novadeck.
       expect(existsSync(refused.profilePath)).toBe(true)
       expect(existsSync(join(refused.data, "novadeck"))).toBe(false)
       expect(again.stdout).toContain("could not be removed as root")
+      expect(again.stdout).not.toContain("− AppArmor profile")
       expect(again.stdout).toContain(
         "curl -fsSL http://mirror.test/dl/install.sh | sh -s -- --uninstall",
       )
@@ -1355,24 +1370,27 @@ profile novadeck-appimage-1000-brew "${join(result.home, "Applications/novadeck.
       expect(result.stdout + result.stderr).not.toContain("\x1b")
     })
 
-    // script(1) gives the functions a terminal, which a pipe from spawnSync is not.
-    it.skipIf(!existsSync("/usr/bin/script"))("colours a terminal unless NO_COLOR is set", () => {
-      const folder = mkdtempSync(join(tmpdir(), "novadeck-install-"))
-      folders.push(folder)
-      const functions = ["style", "say", "ok"]
-        .map((name) => script.match(new RegExp(`^${name}\\(\\) \\{[\\s\\S]*?^\\}`, "m"))![0])
-        .join("\n")
-      const entry = join(folder, "speak.sh")
-      writeFileSync(entry, `${functions}\nstyle\nok done\n`)
-      const speak = (env: NodeJS.ProcessEnv) =>
-        spawnSync("/usr/bin/script", ["-qec", `sh ${entry}`, "/dev/null"], {
-          encoding: "utf8",
-          env: { PATH: "/usr/bin:/bin", ...env },
-          timeout: 5000,
-        }).stdout
-      expect(speak({})).toContain("\x1b[96m✓\x1b[0m done")
-      expect(speak({ COLORTERM: "truecolor" })).toContain("\x1b[38;2;0;229;214m✓")
-      expect(speak({ NO_COLOR: "1" })).not.toContain("\x1b")
+    it.skipIf(!existsSync("/usr/bin/script"))(
+      "speaks in colour on a terminal, with curl's bar cleared once the download is done",
+      () => {
+        const result = run({ tty: true, extra: ["fusermount3"] })
+        expect(result.status).toBe(0)
+        expect(result.stdout).toContain("\x1b[96m\x1b[1m\r\n    ███╗")
+        expect(result.stdout).toContain("jacking in…")
+        expect(result.stdout).toContain("\x1b[1A\x1b[2K")
+        expect(result.stdout).toContain("\x1b[96m✓\x1b[0m checksum")
+        expect(result.stdout).toContain("preem, choom. you're chromed.")
+        const failed = run({ tty: true, tamper: "something else" })
+        expect(failed.status).toBe(1)
+        expect(failed.stdout).toContain("\x1b[91m\x1b[1m✗ flatlined\x1b[0m")
+      },
+    )
+
+    it.skipIf(!existsSync("/usr/bin/script"))("prints no colour codes with NO_COLOR", () => {
+      const result = run({ tty: true, noColor: true })
+      expect(result.status).toBe(0)
+      expect(result.stdout).toContain("preem, choom. you're chromed.")
+      expect(result.stdout).not.toContain("\x1b")
     })
   })
 
