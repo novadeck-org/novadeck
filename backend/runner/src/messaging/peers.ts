@@ -1,6 +1,12 @@
 import { basename, isAbsolute, relative } from "node:path"
 
-import type { AgentActivity, AgentName, CompanionItem, StartupScreen } from "@novadeck/protocol"
+import type {
+  AgentActivity,
+  AgentName,
+  CompanionItem,
+  PullRequest,
+  StartupScreen,
+} from "@novadeck/protocol"
 import { redact } from "@novadeck/secrets"
 
 import { isLoopback } from "../config.js"
@@ -42,6 +48,8 @@ export type Whereabouts = {
   readonly shown: readonly Shown[]
   /** The git worktrees it owns, oldest first (see `OwnedWorktree`); empty for none. */
   readonly worktrees: readonly OwnedWorktree[]
+  /** The folders its work wrote in most, inside its project, busiest first; for a lookup. */
+  readonly folders?: readonly string[]
 }
 
 /**
@@ -53,6 +61,8 @@ export type OwnedWorktree = {
   readonly branch: string
   readonly state: GitState | null
   readonly gone: boolean
+  /** Its branch's pull request, where a forge the person switched on found one. */
+  readonly pullRequest?: PullRequest | undefined
 }
 
 /**
@@ -114,7 +124,15 @@ export type Happening =
       /** The pull request link it gave, found as it was written (see `pullRequestIn`). */
       readonly pr: string | null
     }
-  | { readonly kind: "asked"; readonly at: number; readonly subject: string }
+  | {
+      readonly kind: "asked"
+      readonly at: number
+      readonly subject: string
+      /** Its Inbox entry's id, where the log knows it. */
+      readonly id?: string
+      /** Whether it is still open in the Inbox, waiting for the person's answer. */
+      readonly open?: boolean
+    }
   | {
       readonly kind: "turn"
       readonly at: number
@@ -192,6 +210,8 @@ export type Peer = {
   readonly git: Git | null
   /** The worktrees it owns; empty for none, and for a plain shell. */
   readonly worktrees: readonly OwnedWorktree[]
+  /** The folders its work wrote in most, inside its project; empty for none or a plain shell. */
+  readonly folders: readonly string[]
   /** The latest pull request link its agent gave in a `tell` or `done`; null without one. */
   readonly pr: string | null
   /** What runs in a terminal with no agent there or expected; null for an agent's. */
@@ -303,6 +323,7 @@ export const peerOf = (input: {
     lead: input.lead,
     git: where?.git ?? null,
     worktrees: agent ? (where?.worktrees ?? []) : [],
+    folders: agent ? (where?.folders ?? []) : [],
     pr: reportedPullRequest(happenings),
     shell: agent || expecting || untrusted ? null : (where?.shell ?? null),
     happenings,
@@ -490,24 +511,66 @@ const gitText = (peer: Peer): string | null => {
   return all.length > 0 ? all.join(", ") : null
 }
 
-/** How many worktrees an agent's listing names, and how long a path shows. */
+/** How many worktrees an agent's listing names (a lookup more), and how long a path shows. */
 const shownWorktrees = 4
+const lookedWorktrees = 12
 const worktreePathChars = 160
+
+/**
+ * A branch's pull request as a lookup names it: its number, how it stands, and its checks
+ * while open, as a forge the person switched on found them.
+ */
+const requestText = ({ number, state, ci }: PullRequest): string =>
+  `PR #${number} ${state}${ci && ci !== "none" ? `, checks ${ci}` : ""}`
 
 /**
  * The git worktrees a terminal owns, in one line: each with its path, branch and state
  * (commits ahead, uncommitted changes, or that its folder is gone), so agents find each
- * other's work. Null without any.
+ * other's work; a lookup (`full`) names more, each with its pull request. Null without any.
  */
-export const worktreesLine = (peer: Peer): string | null => {
+export const worktreesLine = (peer: Peer, full = false): string | null => {
   if (peer.worktrees.length === 0) return null
-  const named = peer.worktrees.slice(0, shownWorktrees).map(({ path, branch, state, gone }) => {
+  const shown = peer.worktrees.slice(0, full ? lookedWorktrees : shownWorktrees)
+  const named = shown.map(({ path, branch, state, gone, pullRequest: found }) => {
     const notes = gone ? ["folder gone"] : stateParts(branch, state)
-    const detail = [flat(branch, titleChars), ...notes].filter((part) => Boolean(part))
+    const request = full && found ? requestText(found) : null
+    const detail = [flat(branch, titleChars), ...notes, request].filter((part) => Boolean(part))
     return `${flat(path, worktreePathChars)} (${detail.join(", ")})`
   })
   const more = peer.worktrees.length - named.length
   return `  worktrees: ${[...named, ...(more > 0 ? [`and ${more} more`] : [])].join(" · ")}`
+}
+
+/** How many folders a lookup names, and how long each shows. */
+const shownFolders = 5
+const folderChars = 120
+
+/**
+ * The folders an agent's work wrote in most, inside its project, as a lookup names them,
+ * so another agent can tell whether their work would meet. Null without any.
+ */
+export const foldersLine = (peer: Peer): string | null => {
+  if (!peer.agent || peer.folders.length === 0) return null
+  const named = peer.folders.slice(0, shownFolders).map((folder) => flat(folder, folderChars))
+  return `  works in: ${named.join(" · ")}`
+}
+
+/** How long an open ask's subject shows in a lookup. */
+const askChars = 160
+
+/**
+ * The asks an agent has open in the person's Inbox, waiting for their answer, as a lookup
+ * names them: each when and its subject quoted. Null without any.
+ */
+export const asksLine = (peer: Peer, now: number): string | null => {
+  const open = peer.happenings.flatMap((happening) =>
+    happening.kind === "asked" && happening.open === true ? [happening] : [],
+  )
+  if (!peer.agent || open.length === 0) return null
+  const named = open.map(
+    ({ at, subject }) => `${ago(at, now)} "${flat(redact(subject), askChars)}"`,
+  )
+  return `  open in the user's Inbox: ${named.join(" · ")}`
 }
 
 /** How long a summary shows, in characters. */

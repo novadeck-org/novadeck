@@ -1509,15 +1509,20 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     expect(listed?.result).toEqual({ content: [{ type: "text", text }], isError: false })
   })
 
-  it("takes no arguments for agents, so an older one's terminal or full asks for nothing", async () => {
+  it("takes only handles for agents, so an older one's terminal or full asks for the listing", async () => {
     calls.length = 0
     answer = { ok: true, text: "listed" }
     await session(terminal(), [
       initialize,
       { id: 3, method: "tools/call", params: { name: "agents", arguments: { terminal: "@fox" } } },
       { id: 4, method: "tools/call", params: { name: "agents", arguments: { full: true } } },
+      {
+        id: 5,
+        method: "tools/call",
+        params: { name: "agents", arguments: { handles: ["@fox", "owl"], full: true } },
+      },
     ])
-    expect(calls.map(({ request }) => request)).toEqual([{}, {}])
+    expect(calls.map(({ request }) => request)).toEqual([{}, {}, { handles: ["@fox", "owl"] }])
     const [, tools] = await session(terminal(), [initialize, list])
     const described = tools?.result?.tools as {
       name: string
@@ -1527,7 +1532,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     const agents = described.find((tool) => tool.name === "agents")
     expect(agents?.inputSchema).toEqual({
       type: "object",
-      properties: {},
+      properties: { handles: expect.objectContaining({ type: "array" }) },
       additionalProperties: false,
     })
     expect(agents?.description).toContain("To follow your own team's work, call team instead.")

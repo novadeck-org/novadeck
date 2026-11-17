@@ -17,6 +17,7 @@ import {
   type Deliverable,
   type Live,
 } from "./live.js"
+import { renderLookup } from "./lookup.js"
 import type { Loops } from "./loops.js"
 import type { MessageStore } from "./message-store.js"
 import {
@@ -204,10 +205,32 @@ const sendRequest = z.strictObject({
 
 /**
  * What `team` may ask: every member's latest entries, whatever the caller saw before.
- * Anything it can't read, as from a newer relay, asks for nothing. `agents` asks for
- * nothing: an older relay's `terminal` or `full` is ignored.
+ * Anything it can't read, as from a newer relay, asks for nothing.
  */
 const teamRequest = z.object({ all: z.boolean().optional().catch(undefined) })
+
+/** How many terminals one `agents` lookup may name. */
+export const lookedMost = 16
+
+/**
+ * What `agents` may ask: terminals by handle (one, several separated by spaces or commas,
+ * or a list), each looked up whole. Anything else it can't read, as an older relay's
+ * `terminal` or `full`, asks for the listing.
+ */
+const agentsRequest = z.object({
+  handles: z
+    .union([z.string().min(1).max(4096), z.array(z.string().min(1).max(65)).min(1).max(256)])
+    .transform((to) => addressees(to).handles)
+    .refine((handles) => handles.every((handle) => handle.length <= 64))
+    .optional()
+    .catch(undefined),
+})
+
+/** The handles an `agents` call looks up, bare, each once; none for the listing. */
+export const lookedHandles = (request: unknown): readonly string[] => {
+  const parsed = agentsRequest.safeParse(request ?? {})
+  return parsed.success ? (parsed.data.handles ?? []) : []
+}
 
 /** How many callers' last looks at their team are kept; the oldest goes past it. */
 const keptLooks = 512
@@ -755,12 +778,14 @@ export class Sending {
   /**
    * The other terminals in the caller's project and session, each described by what
    * Novadeck knows of it, and the caller's own messages not yet delivered or gone, as one
-   * text agents read.
+   * text agents read; or, with handles, those terminals each looked up whole.
    */
-  agents(terminalId: string, about: About = () => undefined): AgentsAnswer {
+  agents(terminalId: string, about: About = () => undefined, request: unknown = {}): AgentsAnswer {
     const { store, holds } = this.host
     const live = this.host.sessions.get(terminalId)
     if (!live) return refused("Novadeck couldn't list the terminals.")
+    const handles = lookedHandles(request)
+    if (handles.length > 0) return this.lookup(live, handles, about)
     const mine = [...store.messages()]
       .filter(
         (message) =>
@@ -785,6 +810,30 @@ export class Sending {
     // As every answer to the caller does, it tells of its messages held long, once.
     const held = holds.heldFrom(terminalId)
     return { ok: true, text: [text, ...held].join("\n") }
+  }
+
+  /**
+   * The terminals named in the caller's project and session, each looked up whole (see
+   * `renderLookup`), a peer as a teammate; or, where one is no current handle there, why,
+   * describing every terminal there, as `send` refuses it.
+   */
+  private lookup(live: Live, handles: readonly string[], about: About): AgentsAnswer {
+    const lead = this.host.leading.leadOf(live.terminalId) ?? null
+    if (handles.length > lookedMost)
+      return refused(`Look up at most ${lookedMost} terminals at once.`)
+    const peers = this.peers(live, about)
+    const missing = handles.find((handle) => !peers.some((peer) => peer.handle === handle))
+    if (missing !== undefined)
+      return refused(unknownHandle(missing, live.handle, peers, this.host.now(), lead))
+    const messages = [...this.host.store.messages()]
+    const text = renderLookup({
+      handle: live.handle,
+      lead,
+      peers: handles.map((handle) => peers.find((peer) => peer.handle === handle)!),
+      exchanges: (peer) => exchanged(messages, live.terminalId, peer),
+      now: this.host.now(),
+    })
+    return { ok: true, text }
   }
 
   /**

@@ -1,3 +1,4 @@
+import type { PullRequest } from "@novadeck/protocol"
 import { z } from "zod"
 
 import { unansweredCalls, type Call } from "../shell/reports.js"
@@ -30,7 +31,19 @@ export type WorktreesWiring = {
   readonly enabled: () => boolean
   /** Whether an agent process started at that time can use worktrees (`RootFolder.ready`). */
   readonly ready: (startedAt: number | undefined, relists: boolean) => boolean
+  /** A branch's pull request, where a forge the person switched on found one (`Forges`). */
+  readonly pullRequest?: (commonDir: string, branch: string) => PullRequest | undefined
 }
+
+/** The worktrees a terminal owns, oldest first, each with its branch's pull request. */
+export const ownedWorktrees = (
+  wiring: WorktreesWiring | undefined,
+  terminalId: string,
+): readonly (WorktreeRecord & { readonly pullRequest?: PullRequest | undefined })[] =>
+  (wiring?.service.ownedRows(terminalId) ?? []).map((row) => {
+    const pullRequest = wiring?.pullRequest?.(row.commonDir, row.branch)
+    return pullRequest ? { ...row, pullRequest } : row
+  })
 
 /** The worktree calls' host entries for a terminal manager's `Calls`. */
 export const worktreeHost = (

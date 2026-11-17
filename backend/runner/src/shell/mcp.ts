@@ -1004,15 +1004,33 @@ const agents: Tool<Listing> = {
     "and, when its last turn failed, when and why. A plain " +
     "shell shows the program it runs. Asleep agents with nothing to tell them apart (no " +
     "title, summary, report, work left or team) share one line of handles. It also lists your own messages not yet delivered. " +
+    "Give handles to look up terminals whole instead, a peer as a teammate: everything " +
+    "above in full (each worktree with its pull request and checks, where a forge is on), " +
+    "the folders its work writes in, its asks open in the user's Inbox, and its latest " +
+    "reports with their bodies, asks, turns that ended without a report with the start of " +
+    "their reply, failed turns, and the messages between you; before you start work that " +
+    "may meet another's, or to see what one did. " +
     "To follow your own team's work, call team instead. A terminal whose agent is waiting " +
     "on the user can't go on until they answer, so tell them rather than telling it to " +
     "proceed. This is Novadeck's knowledge, always current, so call it again rather than " +
     "rely on what you remember. When you mention a terminal to the user, write its handle " +
     "with @ and its title if it has one, as `@fox · api-server`. " +
     rules,
-  inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  inputSchema: {
+    type: "object",
+    properties: {
+      handles: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "Handles of terminals to look up whole, as the listing names them (@fox); leave " +
+          "it out for the listing.",
+      },
+    },
+    additionalProperties: false,
+  },
   call: "agents",
-  request: () => ({}),
+  request: (args) => picked(args, ["handles"]),
   // The runner renders the listing, as it renders a refused send's.
   said: (answer) => answer.text,
   failed: "Novadeck couldn't list the terminals.",

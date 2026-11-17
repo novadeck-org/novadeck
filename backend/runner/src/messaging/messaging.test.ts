@@ -2066,6 +2066,46 @@ describe("listing", () => {
     })
   })
 
+  it("looks up the terminals named by handle, whole, in the order asked", () => {
+    const { messaging, send } = create()
+    messaging.register("C", here, "owl", null)
+    send("A", "fox", "Leave the old route")
+    for (const handles of ["@fox owl", ["fox", "@owl"]]) {
+      const looked = messaging.agents("A", about, { handles })
+      expect(looked.ok).toBe(true)
+      const text = looked.ok ? looked.text : ""
+      expect(text.match(/^- @\w+/gm)).toEqual(["- @fox", "- @owl"])
+      expect(text).toMatch(/^You are @moth in Novadeck\.\n- @fox · API author: Codex, /)
+      expect(text).toContain('  "Users API with paging" · api feat/paging, 1 ahead')
+      expect(text).toMatch(/you → @fox, on its way: "Leave the old route"/)
+      expect(text).not.toContain("Other terminals in this project and session:")
+    }
+  })
+
+  it("refuses a lookup of a handle no terminal has, describing them all, as send does", () => {
+    const { messaging } = create()
+    const looked = messaging.agents("A", about, { handles: ["fox", "nobody"] })
+    expect(looked).toEqual({
+      ok: false,
+      reason: expect.stringMatching(
+        /^"nobody" is no terminal's handle here\.[\s\S]*\n- @fox · API author: Codex, /,
+      ),
+    })
+    const many = Array.from({ length: 17 }, (_, index) => `t${index}`)
+    expect(messaging.agents("A", about, { handles: many })).toEqual({
+      ok: false,
+      reason: "Look up at most 16 terminals at once.",
+    })
+  })
+
+  it("lists every terminal for a request it can't read, as an older relay's", () => {
+    const { messaging } = create()
+    for (const request of [{ handles: 5 }, { handles: [] }, { terminal: "@fox" }, null]) {
+      const listed = messaging.agents("A", about, request)
+      expect(listed.ok && listed.text).toContain("Other terminals in this project and session:")
+    }
+  })
+
   it("calls an agent busy while its terminal shows it working past its turn's end", () => {
     // Codex's turn is over, but its terminal still shows it working, as on what an
     // interrupted Claude Code turn left running, which no delivery phase holds.

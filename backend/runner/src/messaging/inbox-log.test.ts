@@ -110,6 +110,27 @@ for (const agent of agentNames)
       expect(records.reports()).toHaveLength(1)
     })
 
+    it("marks an ask open while it waits in the Inbox, and no longer once withdrawn", () => {
+      const run = setup(memoryInbox())
+      run.open("t1", agent, "s1")
+      const asked = (subject: string) => {
+        run.advance(spacing)
+        const made = run.inbox.call("t1", "ask", { subject, body: "Body" })
+        if (!made.ok) throw new Error(made.reason)
+        return made.id
+      }
+      const [first] = [asked("Which shape?"), asked("Merge it?")]
+      expect(run.inbox.happenings("t1")).toMatchObject([
+        { kind: "asked", subject: "Which shape?", open: true },
+        { kind: "asked", subject: "Merge it?", open: true },
+      ])
+      run.inbox.call("t1", "ask", { withdraw: first })
+      expect(run.inbox.happenings("t1")).toMatchObject([
+        { kind: "asked", subject: "Which shape?", open: false },
+        { kind: "asked", subject: "Merge it?", open: true },
+      ])
+    })
+
     it("outlives the Inbox's row: read, and a day later, the done is still the session's", () => {
       const records = memoryInbox()
       const run = setup(records)

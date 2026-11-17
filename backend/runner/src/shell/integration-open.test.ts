@@ -288,7 +288,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         ])) as { ok: true; text: string }[]
         expect(listed!.text).toContain("- led by you: @fox, @owl, @crow and @kite\n")
         expect(listed!.text).toContain(
-          "- @fox · claude: expecting Claude Code, not started yet, led by you\n",
+          "- @fox: expecting Claude Code, not started yet, led by you\n",
         )
         expect(manager.get(created[0]!).ledBy).toBe(terminal.id)
         // Who opened it is kept with the terminal, for a runner that restores it.

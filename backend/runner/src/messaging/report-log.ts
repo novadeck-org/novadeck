@@ -159,7 +159,8 @@ export type BodyReader = (id: string) => string
 
 /** The Happening `team` lists for a row, with the body where it was read. */
 const happeningOf = (row: LoggedReport, read: BodyReader | undefined): Happening => {
-  if (row.kind === "ask") return { kind: "asked", at: row.at, subject: row.subject ?? "" }
+  if (row.kind === "ask")
+    return { kind: "asked", at: row.at, subject: row.subject ?? "", id: row.id }
   if (row.kind === "turn")
     return {
       kind: "turn",

@@ -248,6 +248,21 @@ describe("what team says", () => {
     )
   })
 
+  it("marks an ask still open, and shows it no more as new once it is answered", () => {
+    const asking = (open: boolean) =>
+      member("fox", "moth", {
+        happenings: [{ kind: "asked", at: now - minutes(2), subject: "Merge it?", id: "a", open }],
+      })
+    const first = team({ peers: [asking(true)] })
+    expect(first.text).toContain("2 min ago, asked the user: Merge it? (still open)")
+    expect(team({ peers: [asking(false)], look: first.look }).text).toContain(
+      "nothing new since you last looked",
+    )
+    expect(team({ peers: [asking(false)], all: true }).text).toMatch(
+      /2 min ago, asked the user: Merge it\?$/m,
+    )
+  })
+
   it("leaves out peers, and says when the caller is on no team", () => {
     const { text } = team({ peers: [member("fox", null), member("owl", "crow")] })
     expect(text).toBe(

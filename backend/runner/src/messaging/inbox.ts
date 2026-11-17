@@ -895,11 +895,17 @@ export class Inbox {
   ): Happening[] {
     const session = this.sessionOf(terminalId, saved)
     if (!session) return []
-    return this.log.happenings(
-      session.agent,
-      session.sessionId,
-      bodies ? (id) => this.readBodies([id]).get(id) ?? "" : undefined,
-    )
+    return this.log
+      .happenings(
+        session.agent,
+        session.sessionId,
+        bodies ? (id) => this.readBodies([id]).get(id) ?? "" : undefined,
+      )
+      .map((happening) =>
+        happening.kind === "asked" && happening.id !== undefined
+          ? { ...happening, open: this.open.get(happening.id)?.state === "open" }
+          : happening,
+      )
   }
 
   /** Whether the terminal has an ask open, waiting for the person's answer. */

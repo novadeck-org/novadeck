@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs"
 import { basename, isAbsolute, relative } from "node:path"
 
-import type { CompanionItem, TerminalMessages } from "@novadeck/protocol"
+import type { CompanionItem, PullRequest, TerminalMessages } from "@novadeck/protocol"
 
 import { planTitle } from "../companions/content.js"
 import { secrets } from "../companions/secrets.js"
@@ -19,6 +19,7 @@ import {
   type Whereabouts,
 } from "../messaging/peers.js"
 import {
+  lookedHandles,
   namedHandles,
   type AgentsAnswer,
   type PeerAnswer,
@@ -103,8 +104,12 @@ export type PeersOptions = {
   readonly bar: (
     terminalId: string,
   ) => readonly Pick<CompanionItem, "kind" | "name" | "path" | "url" | "secret" | "shownAt">[]
-  /** The git worktrees a terminal owns, oldest first. */
-  readonly worktrees: (terminalId: string) => readonly { path: string; branch: string }[]
+  /** The git worktrees a terminal owns, oldest first, each with its branch's pull request. */
+  readonly worktrees: (terminalId: string) => readonly {
+    readonly path: string
+    readonly branch: string
+    readonly pullRequest?: PullRequest | undefined
+  }[]
   /** Whether the runner is stopping. */
   readonly stopping: () => boolean
   /** Keeps a caller's reports, which now hold what its session was shown (`Introductions`). */
@@ -263,14 +268,19 @@ export class TerminalPeers {
 
   /**
    * The other terminals in the caller's project and session, each described by what
-   * Novadeck knows of it, and the caller's messages yet to arrive.
+   * Novadeck knows of it, and the caller's messages yet to arrive; or the terminals it
+   * names by handle, each looked up whole, a handle checked as `send` checks it.
    */
   async agents(call: Call): Promise<AgentsAnswer> {
     const caller = this.options.caller(call.terminalId, call.token)
     if (!caller) return unansweredCalls.agents
-    const about = await this.whereabouts(caller.summary.sessionId)
+    const handles = lookedHandles(call.request)
+    const stranger = this.strangers(caller, handles)
+    if (stranger) return { ok: false, reason: stranger }
+    // A lookup quotes reports at length, as `team` does.
+    const about = await this.whereabouts(caller.summary.sessionId, handles.length > 0)
     this.listed(caller)
-    return this.options.messaging.agents(call.terminalId, (id) => about.get(id))
+    return this.options.messaging.agents(call.terminalId, (id) => about.get(id), call.request)
   }
 
   /**
@@ -385,6 +395,10 @@ export class TerminalPeers {
               at: item.shownAt,
             })),
             worktrees: await this.owned(terminal.summary.id),
+            folders: busiestFolders(terminal.work?.folders ?? {}).flatMap(({ folder }) => {
+              const within = relative(this.options.projectFolder(sessionId) ?? cwd, folder)
+              return within.startsWith("..") || isAbsolute(within) ? [] : [within || "."]
+            }),
             shell: {
               running: terminal.summary.busy,
               command: terminal.summary.busy ? shownCommand(terminal.summary.process?.argv) : null,
@@ -399,9 +413,10 @@ export class TerminalPeers {
   /** The worktrees a terminal owns with their states, as last read (see `GitStates`). */
   private owned(terminalId: string): Promise<OwnedWorktree[]> {
     return Promise.all(
-      this.options.worktrees(terminalId).map(async ({ path, branch }) => {
+      this.options.worktrees(terminalId).map(async ({ path, branch, pullRequest }) => {
         const gone = !existsSync(path)
-        return { path, branch, gone, state: gone ? null : await this.states.of(path) }
+        const state = gone ? null : await this.states.of(path)
+        return { path, branch, gone, state, ...(pullRequest && { pullRequest }) }
       }),
     )
   }

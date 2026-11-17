@@ -84,7 +84,14 @@ export const happened = (happenings: readonly Happening[]): Entry[] => {
       ]
     }
     if (happening.kind === "asked")
-      return [{ at, text: `asked the user: ${flat(happening.subject, subjectChars)}` }]
+      return [
+        {
+          at,
+          // Its answer changes only the mark, which shows no ask again as new.
+          key: `${at}|asked|${happening.subject}`,
+          text: `asked the user: ${flat(happening.subject, subjectChars)}${happening.open ? " (still open)" : ""}`,
+        },
+      ]
     return [
       {
         at,

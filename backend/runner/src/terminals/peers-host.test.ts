@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import type { ActivityEvent } from "@novadeck/harness-core/events"
-import type { AgentName, TerminalSummary } from "@novadeck/protocol"
+import type { AgentName, PullRequest, TerminalSummary } from "@novadeck/protocol"
 
 import { apply, started, summary as activitySummary, type Request } from "../harnesses/activity.js"
 import type { Messaging } from "../messaging/messaging.js"
@@ -443,7 +443,14 @@ describe("the worktrees a terminal owns, as agents lists them", () => {
 
 describe("what peers read of a terminal's reports and rest", () => {
   const read = async (
-    over: { summary?: object; work?: object | null; delivered?: number; happenings?: unknown[] },
+    over: {
+      summary?: object
+      work?: object | null
+      delivered?: number
+      happenings?: unknown[]
+      request?: { readonly [key: string]: unknown }
+      worktrees?: { path: string; branch: string; pullRequest?: PullRequest }[]
+    },
     bodies: boolean[] = [],
     via: "agents" | "team" = "agents",
   ) => {
@@ -485,12 +492,12 @@ describe("what peers read of a terminal's reports and rest", () => {
           return (over.happenings ?? []) as never
         },
         bar: () => [],
-        worktrees: () => [],
+        worktrees: () => over.worktrees ?? [],
         stopping: () => false,
       },
       new GitStates(async () => null),
     )
-    await peers[via]({ type: via, terminalId: "t1", token: "k", request: {} })
+    await peers[via]({ type: via, terminalId: "t1", token: "k", request: over.request ?? {} })
     return where
   }
   const done = { kind: "done", at: 100, subject: "Fixed", body: null, pr: null }
@@ -519,11 +526,38 @@ describe("what peers read of a terminal's reports and rest", () => {
     expect((await read({ summary: { lastTurnAt: null } }))?.since).toBeNull()
   })
 
-  it("reads report bodies only for team, which quotes them", async () => {
+  it("reads report bodies only for team and a lookup, which quote them", async () => {
     const asked: boolean[] = []
     await read({}, asked)
     await read({}, asked, "team")
-    expect(asked).toEqual([false, true])
+    await read({ request: { handles: ["fox"] } }, asked)
+    await read({ request: { handles: 5 } }, asked)
+    expect(asked).toEqual([false, true, true, false])
+  })
+
+  it("is the folders its work wrote in most, inside its project, busiest first", async () => {
+    const work = {
+      folders: { "/nowhere/src/api": 9, "/nowhere": 7, "/elsewhere/notes": 8, "/nowhere/web": 2 },
+    }
+    expect((await read({ work }))?.folders).toEqual(["src/api", "."])
+  })
+
+  it("is each owned worktree's pull request, where a forge found one", async () => {
+    const pullRequest: PullRequest = {
+      number: 7,
+      url: "https://github.com/o/r/pull/7",
+      title: "Paging",
+      state: "open",
+      ci: "passed",
+    }
+    const worktrees = [
+      { path: "/missing/a", branch: "feat/a", pullRequest },
+      { path: "/missing/b", branch: "feat/b" },
+    ]
+    expect((await read({ worktrees }))?.worktrees).toEqual([
+      { path: "/missing/a", branch: "feat/a", gone: true, state: null, pullRequest },
+      { path: "/missing/b", branch: "feat/b", gone: true, state: null },
+    ])
   })
 })
 

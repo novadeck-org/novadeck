@@ -40,7 +40,7 @@ import type { AgentsAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.
 import { stripInherited } from "../shell/inherited.js"
 import { type Ack, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
-import { worktreeHost, type WorktreesWiring } from "../worktrees/calls.js"
+import { ownedWorktrees, worktreeHost, type WorktreesWiring } from "../worktrees/calls.js"
 import { Approvals } from "./approvals.js"
 import { Bindings } from "./binding/facts.js"
 import { Reports } from "./binding/reports.js"
@@ -660,7 +660,7 @@ export class Terminals {
       projectFolder: (sessionId) => this.projectFolder(sessionId),
       happenings: (id, full) => this.inbox.happenings(id, savedSession(this.records.get(id)), full),
       bar: (id) => this.options.items?.bar(id) ?? [],
-      worktrees: (id) => this.options.worktrees?.service.ownedRows(id) ?? [],
+      worktrees: (id) => ownedWorktrees(this.options.worktrees, id),
       stopping: () => this.stopping,
       save: (record) => this.saves.save(record as Record, false),
       former: (sessionId, handle, before) =>
