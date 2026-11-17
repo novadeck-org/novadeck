@@ -53,11 +53,45 @@ const typed = async (
 }
 
 /** Waits until the agent's own conversation has left the screen, as its clear shows it. */
-const cleared = (terminal: DeckTerminal) =>
+const cleared = (terminal: DeckTerminal, timeoutMs?: number) =>
   terminal.poll(
     async () => (!(await terminal.screen()).includes("Remember the word heron") ? true : undefined),
     "its conversation to leave the screen",
+    timeoutMs,
   )
+
+/**
+ * Has the person clear the conversation with `/clear`, and type it again if it didn't take,
+ * as they would. Novadeck can see the agent idle before its harness takes a command: Codex
+ * runs its Stop hook inside the turn, and its screen refuses `/clear` ("disabled while a task
+ * is in progress") until it has handled the turn's end, about 350 ms later on a Windows
+ * runner (0.169.0, E2E run 44097370998; codex-rs core/src/session/turn.rs runs the hook,
+ * tui/src/chatwidget/slash_dispatch.rs refuses). Each try but the last waits 10 s for it,
+ * and a clear that took only slowly is waited out, never cleared twice.
+ */
+const clear = async (terminal: DeckTerminal, tries = 3): Promise<void> => {
+  const before = (await terminal.detail()).sessionId
+  for (let tried = 1; ; tried += 1) {
+    // eslint-disable-next-line no-await-in-loop -- One try after another.
+    await terminal.submit("/clear")
+    try {
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await cleared(terminal, tried < tries ? 10_000 : undefined)
+      return
+    } catch (error) {
+      // Only a clear that didn't take is tried again, not an agent that went away.
+      const late = error instanceof Error && error.message.startsWith("Timed out after")
+      if (tried >= tries || !late) throw error
+      // A clear that took, only slowly, has left the session it was typed in: wait for it.
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      if ((await terminal.detail()).sessionId !== before) {
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        await cleared(terminal)
+        return
+      }
+    }
+  }
+}
 
 /**
  * Waits until the turn of the prompt submitted since `from` has ended, Settled, its reply
@@ -92,12 +126,10 @@ for (const setup of setups) {
       expect(before).not.toBeNull()
       const mark = t1.mark()
 
-      await t1.submit("/clear")
-
       // The harness cleared: its own screen drops the conversation, and Novadeck sees its
       // agent at an empty prompt again, the old session no longer bound (a new one, or
       // none yet where the harness binds its next session only with its first prompt).
-      await cleared(t1)
+      await clear(t1)
       await t1.reached("ready", { after: mark })
       await t1.poll(
         async () => ((await t1.detail()).sessionId !== before ? true : undefined),
