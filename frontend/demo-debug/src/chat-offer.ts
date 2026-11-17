@@ -30,7 +30,7 @@ export const chatOfferGroups = (launch: DemoLaunch, reads: boolean): readonly De
           actions: [
             {
               label: "Offer Agent Chat",
-              hint: "Turns Agent Chat off and forgets it was offered: a card, Agent Chat, with Turn on and No thanks, rises over the footer's right end while an agent's terminal is selected (select one if a shell is)",
+              hint: "Turns Agent Chat off and forgets it was offered: a card, Agent Chat, with Try Agent Chat and No thanks, rises over the footer's right end while an agent's terminal is selected (select one if a shell is)",
               reboots: true,
               run: () => {
                 turnChatViewOff()

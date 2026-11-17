@@ -7,7 +7,7 @@ export type AgentChatOfferProps = {
   // Whether something else holds the corner or the person's attention: a dialog, a question,
   // the sandbox notice, a portable copy's card. The offer waits, and comes back when it ends.
   readonly blocked: boolean
-  // Turn on: the chat view is on, and the offer is answered.
+  // Try Agent Chat: the chat view is on, and the offer is answered.
   readonly onTurnOn: () => void
   // No thanks, the ×, and Escape from inside the card: the offer is answered.
   readonly onDecline: () => void
@@ -15,22 +15,25 @@ export type AgentChatOfferProps = {
   readonly returnFocus: () => boolean
 }
 
-// The words are the Show agents as choice's (Preferences.tsx), so the offer and the choice it points
-// to say the same.
+// The offer pitches the feature; the choice it points to (Show agents as, Preferences.tsx) is
+// where it is changed back.
 export const chatOfferText = {
   title: "Agent Chat",
-  line: "Read and reply to agents in a chat instead of their terminal.",
-  quiet: "You can change this any time in Preferences → Appearance → Layout.",
-  accept: "Turn on",
+  headline: "Talk to your agents in a chat",
+  line: "Formatted replies, tool calls folded to a line, and permissions, plans and questions answered with a click. The terminal is one click away.",
+  quiet: "Switch back any time in",
+  // Kept whole on one line: the quiet line wraps before it, never inside it.
+  path: "Preferences → Appearance",
+  accept: "Try Agent Chat",
   decline: "No thanks",
 } as const
 
-const announcement = `${chatOfferText.title}: ${chatOfferText.line}`
+const announcement = `${chatOfferText.title}: ${chatOfferText.headline}`
 
 // The one-time offer of Agent Chat, for people who updated past the welcome dialog: a card in
 // the corner the download's bar and the update notices use, as a `.floating` surface in
 // What's new's look (WhatsNew.tsx), whose tape names the feature. It comes up on an agent's
-// terminal (the footer decides, in every view), and is answered once, by Turn on or No thanks
+// terminal (the footer decides, in every view), and is answered once, by Try Agent Chat or No thanks
 // (the ×, which reads Dismiss, and Escape from inside the card are No thanks); it is never made again. As What's
 // new's card does, it never takes focus or keys by itself, so typing in a terminal goes on;
 // every control is a button the Tab key reaches, and a live region says it once as it comes up.
@@ -135,8 +138,11 @@ const ChatOfferCard = ({
           <X size={14} />
         </button>
       </p>
+      <p className="chat-offer-headline">{chatOfferText.headline}</p>
       <p className="chat-offer-line">{chatOfferText.line}</p>
-      <p className="chat-offer-quiet">{chatOfferText.quiet}</p>
+      <p className="chat-offer-quiet">
+        {chatOfferText.quiet} <span className="whitespace-nowrap">{chatOfferText.path}</span>.
+      </p>
       <div className="update-card-foot">
         <button
           type="button"

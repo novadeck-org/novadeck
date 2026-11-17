@@ -24,7 +24,7 @@ describe("answering Agent Chat's offer", () => {
     expect(app.chatView()).toBe(false)
   })
 
-  context("with Turn on", () => {
+  context("with Try Agent Chat", () => {
     it("turns the chat view on, through the preferences, and is answered for good", () => {
       const app = open()
       app.commands.acceptChatOffer()

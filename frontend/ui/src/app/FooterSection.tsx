@@ -109,7 +109,7 @@ export const FooterSection = memo((): React.JSX.Element => {
     () => backend.agents?.welcome.getSnapshot() ?? false,
   )
   // A tour that runs, or whose closing card is up: its spotlight and coach are not a dialog, so
-  // the offer, whose Turn on would change how the tour's agent shows, waits until it ends.
+  // the offer, whose Try Agent Chat would change how the tour's agent shows, waits until it ends.
   const tourBusy = useTourBusy()
   const chatView = useUiState(chatViewOn)
   const chatOfferAnswered = useUiState((state) => state.chatOfferAnswered)

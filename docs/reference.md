@@ -203,7 +203,7 @@ runs as a Node script. Profiles are presentation only: per-program behaviour goe
 
 Someone who updated past the welcome dialog is offered Agent Chat once, as a card over the
 footer's right end (`frontend/ui/src/shell/AgentChatOffer.tsx`) the first time an agent's terminal
-is selected with it off: Turn on, or No thanks. Either answers it for good, as does choosing the
+is selected with it off: Try Agent Chat, or No thanks. Either answers it for good, as does choosing the
 setting in Preferences or finishing the welcome dialog; the answer is kept in local storage
 (`novadeck.agent-chat-offer-answered`, `frontend/core/src/agents/chat-offer.ts`), not in the
 preferences, so preferences saved earlier load as before.

@@ -33,17 +33,25 @@ const announcer = (page: Rendered) => page.container.querySelector("[role=status
 
 describe("Agent Chat's offer card", () => {
   context("when it is due", () => {
-    it("says what the chat does, where to change it, and offers Turn on and No thanks", () => {
+    it("says what the chat does, where to change it, and offers Try Agent Chat and No thanks", () => {
       const page = show(offer())
       const text = card(page)!.textContent
       expect(text).toContain("Agent Chat")
-      expect(text).toContain("Read and reply to agents in a chat instead of their terminal.")
-      expect(text).toContain("You can change this any time in Preferences → Appearance → Layout.")
+      expect(text).toContain("Talk to your agents in a chat")
+      expect(text).toContain("The terminal is one click away.")
+      expect(text).toContain("Switch back any time in Preferences → Appearance.")
       expect(
         [...card(page)!.querySelectorAll("button")].map(
           (b) => b.getAttribute("aria-label") ?? b.textContent,
         ),
-      ).toEqual(["Dismiss", "No thanks", "Turn on"])
+      ).toEqual(["Dismiss", "No thanks", "Try Agent Chat"])
+    })
+
+    it("keeps the path to the setting whole on one line", () => {
+      const page = show(offer())
+      const path = card(page)!.querySelector(".chat-offer-quiet span")!
+      expect(path.textContent).toBe("Preferences → Appearance")
+      expect(path.className).toContain("whitespace-nowrap")
     })
 
     it("is a region named for the feature, and never takes focus by itself", () => {
@@ -60,16 +68,16 @@ describe("Agent Chat's offer card", () => {
       expect(announcer(page).getAttribute("aria-live")).toBe("polite")
       expect(announcer(page).textContent).toBe("")
       page.rerender(createElement(AgentChatOffer, { offer: offer(), hidden: false }))
-      expect(announcer(page).textContent).toContain("Agent Chat: Read and reply")
+      expect(announcer(page).textContent).toContain("Agent Chat: Talk to your agents in a chat")
     })
   })
 
   context("when it is answered", () => {
-    it("turns on with Turn on, which is the only press that does", () => {
+    it("turns on with Try Agent Chat, which is the only press that does", () => {
       const onTurnOn = vi.fn<() => void>()
       const onDecline = vi.fn<() => void>()
       const page = show(offer({ onTurnOn, onDecline }))
-      press(page, "Turn on")
+      press(page, "Try Agent Chat")
       expect(onTurnOn).toHaveBeenCalledOnce()
       expect(onDecline).not.toHaveBeenCalled()
     })
@@ -92,7 +100,7 @@ describe("Agent Chat's offer card", () => {
     it("gives typing focus back to the terminal when the button pressed had it", () => {
       const returnFocus = vi.fn<() => boolean>(() => true)
       const page = show(offer({ returnFocus }))
-      const button = named(page, "Turn on")
+      const button = named(page, "Try Agent Chat")
       button.focus()
       act(() => button.click())
       expect(returnFocus).toHaveBeenCalledOnce()
@@ -101,7 +109,7 @@ describe("Agent Chat's offer card", () => {
     it("leaves focus alone when a press came from elsewhere", () => {
       const returnFocus = vi.fn<() => boolean>(() => true)
       const page = show(offer({ returnFocus }))
-      act(() => named(page, "Turn on").click())
+      act(() => named(page, "Try Agent Chat").click())
       expect(returnFocus).not.toHaveBeenCalled()
     })
   })

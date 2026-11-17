@@ -641,18 +641,24 @@
   font-weight: 600;
 }
 /* Agent Chat's one-time offer (AgentChatOffer.tsx), in What's new's look: the tape names the
-   feature, a line says what it does in the ink colour, the muted line under it where to change
-   it, and the two buttons at the foot, No thanks and Turn on. */
+   feature, a bold headline and a line under it that pitch it in the ink colour, the muted line
+   under them where to change it, and the two buttons at the foot, No thanks and Try Agent
+   Chat. */
 .update-card.whats-new.chat-offer {
   gap: 10px;
 }
+.chat-offer-headline,
 .chat-offer-line,
 .chat-offer-quiet {
   margin: 0;
   overflow-wrap: anywhere;
 }
+.chat-offer-headline,
 .chat-offer-line {
   color: var(--color-ink);
+}
+.chat-offer-headline {
+  font-weight: 600;
 }
 .chat-offer .update-card-foot {
   justify-content: flex-end;
