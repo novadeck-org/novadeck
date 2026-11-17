@@ -495,6 +495,15 @@ describe("what peers read of a terminal's reports and rest", () => {
   }
   const done = { kind: "done", at: 100, subject: "Fixed", body: null, pr: null }
 
+  it("leaves out a title its session gave by default, and keeps any other", async () => {
+    const titled = async (titleSource: object) =>
+      (await read({ summary: { title: "Terminal", titleSource } }))?.title
+    expect(await titled({ kind: "default" })).toBeNull()
+    expect(await titled({ kind: "person" })).toBe("Terminal")
+    expect(await titled({ kind: "agent", by: "fox" })).toBe("Terminal")
+    expect(await titled({ kind: "murmur" })).toBe("Terminal")
+  })
+
   it("is whether its latest done still stands: no prompt of the person's or delivery came after it", async () => {
     expect((await read({ happenings: [done] }))?.standing).toBe(true)
     expect((await read({ happenings: [done], work: { personAt: 150 } }))?.standing).toBe(false)

@@ -419,11 +419,42 @@ describe("asleep agents in the agents listing", () => {
       sleeper("d", { where: whereabouts({ git: { repo: "r", branch: "b", state: dirty } }) }),
       sleeper("e", { lead: "moth" }),
       sleeper("crow"),
+      // A branch with no upstream may hold commits nowhere else; one not read yet may too.
+      sleeper("g", {
+        where: whereabouts({
+          git: { repo: "r", branch: "feat-x", state: { ...dirty, dirty: false, ahead: null } },
+        }),
+      }),
+      sleeper("h", { where: whereabouts({ git: { repo: "r", branch: "b", state: null } }) }),
+      sleeper("i", {
+        where: whereabouts({
+          happenings: [
+            { kind: "turn", at: now - 1, from: null, outcome: "failed", text: "usage limit" },
+          ],
+        }),
+      }),
     ]
     const lines = agents([...kept, listing({ terminalId: "f", handle: "f", lead: "crow" })])
     expect(lines.some((line) => line.startsWith("- asleep, never described"))).toBe(false)
-    for (const handle of ["a", "b", "c", "d", "e", "crow"])
+    for (const handle of ["a", "b", "c", "d", "e", "crow", "g", "h", "i"])
       expect(lines.some((line) => line.startsWith(`- @${handle}`))).toBe(true)
+    expect(lines).toContain("  r feat-x, no upstream")
+    expect(lines).toContain("  last turn failed just now: usage limit")
+  })
+
+  it("folds a sleeper whose checkout is clean and pushed, or on a detached head", () => {
+    const clean = { detached: false, ahead: 0, gone: false, dirty: false }
+    const lines = agents([
+      sleeper("fox", { where: whereabouts({ git: { repo: "r", branch: "main", state: clean } }) }),
+      sleeper("owl", {
+        where: whereabouts({
+          git: { repo: "r", branch: null, state: { ...clean, detached: true, ahead: null } },
+        }),
+      }),
+    ])
+    expect(lines.at(-1)).toBe(
+      "- asleep, never described and nothing reported: @fox and @owl (Claude Code)",
+    )
   })
 })
 
@@ -847,6 +878,11 @@ describe("what an agent told the person, as agents lists it", () => {
   it("leaves out what came before the latest done, which says how that work ended", () => {
     const lines = told([tell(now - minutes(30), "Half way"), done(now - minutes(5), "Fixed")])
     expect(lines).toEqual(['  done: 5 min ago "Fixed"'])
+  })
+
+  it("lists a tell made after the done in the same moment", () => {
+    const lines = told([done(now - minutes(5), "Fixed"), tell(now - minutes(5), "And one more")])
+    expect(lines).toEqual(['  done: 5 min ago "Fixed"', '  told: 5 min ago "And one more"'])
   })
 
   it("lists what came after the latest done, and sits after the done", () => {

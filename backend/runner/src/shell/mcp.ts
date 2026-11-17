@@ -984,7 +984,7 @@ const agents: Tool<Listing> = {
     '"you"), then each terminal: its handle and title, its agent (Claude Code, Codex or ' +
     "Antigravity) and whether that is busy or idle and for how long, waiting on the user " +
     "(for how long, and what for), idle but waiting on its own job or a wake-up it set, " +
-    "which wakes it by itself (a message still reaches it), or asleep (since when; a " +
+    "which wakes it by itself (a message still reaches it), or asleep (for how long; a " +
     "message wakes it); how it relates to you (your lead, your teammate, led by you, or a " +
     "peer); the summary its own agent gave of its work; the git repository and branch it " +
     "works in, with commits ahead of its upstream, uncommitted changes, and the pull " +
@@ -1002,13 +1002,13 @@ const agents: Tool<Listing> = {
     "or else its name, never a secret one), so you can open the same page rather than " +
     "start a second server; " +
     "and, when its last turn failed, when and why. A plain " +
-    "shell shows the program it runs. Asleep agents with no title, summary or report share " +
-    "one line of handles. It also lists your own messages not yet delivered. " +
+    "shell shows the program it runs. Asleep agents with nothing to tell them apart (no " +
+    "title, summary, report, work left or team) share one line of handles. It also lists your own messages not yet delivered. " +
     "To follow your own team's work, call team instead. A terminal whose agent is waiting " +
     "on the user can't go on until they answer, so tell them rather than telling it to " +
     "proceed. This is Novadeck's knowledge, always current, so call it again rather than " +
     "rely on what you remember. When you mention a terminal to the user, write its handle " +
-    "with @ and its title, as `@fox · api-server`. " +
+    "with @ and its title if it has one, as `@fox · api-server`. " +
     rules,
   inputSchema: { type: "object", properties: {}, additionalProperties: false },
   call: "agents",

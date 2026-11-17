@@ -570,10 +570,11 @@ const tellChars = 100
  * and its subject quoted, then how many came before. Subjects only. Null without one.
  */
 export const toldLine = (peer: Peer, now: number): string | null => {
-  const done = peer.happenings.findLast((happening) => happening.kind === "done")
-  const tells = peer.happenings.flatMap((happening) =>
-    happening.kind === "update" && (!done || happening.at > done.at) ? [happening] : [],
-  )
+  // By place, not time: happenings are oldest first, and a tell may share its done's moment.
+  const done = peer.happenings.findLastIndex((happening) => happening.kind === "done")
+  const tells = peer.happenings
+    .slice(done + 1)
+    .flatMap((happening) => (happening.kind === "update" ? [happening] : []))
   if (!peer.agent || tells.length === 0) return null
   const shown = tells.slice(-shownTells).toReversed()
   const parts = shown.map(
@@ -734,9 +735,19 @@ export const rosterLines = (
 }
 
 /**
+ * Whether a checkout is known to hold no work of its own: none, or one read as clean and
+ * pushed (or a detached head). A branch with no upstream, or one not read yet, may hold
+ * commits nowhere else, so it doesn't count.
+ */
+const settled = (git: Git | null): boolean =>
+  git === null ||
+  (git.state !== null && !git.state.dirty && (git.state.detached || git.state.ahead === 0))
+
+/**
  * Whether an asleep agent has nothing but its handle to tell it apart: no title but its
- * session's default, no summary, no report, no worktree, no checkout it left work in, and no
- * team, leading or led. `agents` names such terminals together on one line.
+ * session's default, no summary, no report, no failed last turn, no worktree, no checkout
+ * that may hold its work, and no team, leading or led. `agents` names such terminals
+ * together on one line.
  */
 export const blank = (peer: Peer, leads: ReadonlySet<string | null>): boolean =>
   peer.agent !== null &&
@@ -746,9 +757,13 @@ export const blank = (peer: Peer, leads: ReadonlySet<string | null>): boolean =>
   !peer.summary &&
   peer.pr === null &&
   peer.worktrees.length === 0 &&
-  !peer.git?.state?.dirty &&
-  !peer.git?.state?.ahead &&
-  !peer.happenings.some(({ kind }) => kind === "update" || kind === "done") &&
+  settled(peer.git) &&
+  !peer.happenings.some(
+    (happening) =>
+      happening.kind === "update" ||
+      happening.kind === "done" ||
+      (happening.kind === "turn" && happening.outcome === "failed"),
+  ) &&
   peer.lead === null &&
   !leads.has(peer.handle)
 

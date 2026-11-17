@@ -751,7 +751,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     }[]
     const agents = described.find((tool) => tool.name === "agents")!
     expect(agents.description).toContain(
-      "write its handle with @ and its title, as `@fox · api-server`",
+      "write its handle with @ and its title if it has one, as `@fox · api-server`",
     )
     for (const name of ["send", "close_terminal"])
       expect(described.find((tool) => tool.name === name)!.description).toContain("such as @fox")
