@@ -8,6 +8,9 @@ import { poll, type DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
 import { start } from "./scenarios.js"
 
+// The suite's own priority when this file loads, before any terminal of its tests starts.
+const atLoad = getPriority(process.pid)
+
 const trees = new Trees(async () => relayPath)
 
 const shellOf = (run: E2E, terminal: Pick<DeckTerminal, "id">): number => {
@@ -36,10 +39,12 @@ for (const setup of setups) {
           setPriority(process.pid, 0)
         // A macOS process can't lower its nice value back, so a suite started niced (from a
         // Novadeck terminal, once this ships) can't tell the shell's priority from its own.
-        if (getPriority(process.pid) !== 0)
+        if (getPriority(process.pid) !== 0) {
+          console.log(`priority.e2e: suite at ${atLoad} on load, ${getPriority(process.pid)} now`)
           skip(
             `the suite runs at priority ${getPriority(process.pid)}, not normal, and can't raise it`,
           )
+        }
         const terminal = await start(run, setup)
         const shell = shellOf(run, terminal)
         expect(getPriority(shell)).toBe(terminalPriority)
