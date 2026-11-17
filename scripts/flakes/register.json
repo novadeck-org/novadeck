@@ -371,6 +371,15 @@
       ]
     },
     {
+      "id": "ui-process-windows-macos-import-fetch",
+      "jobs": ["^Test \\(macOS\\)$"],
+      "test": "src/terminals/process-windows.spec.tsx",
+      "signature": "Error: Failed to import test file \\S+/process-windows\\.spec\\.tsx\\nCaused by: TypeError: Failed to fetch dynamically imported module",
+      "status": "known",
+      "cause": "macOS only, cause unknown: 43 minutes into the specs step, Chromium couldn't fetch the spec file from Vitest's Vite server, so the file failed whole with no test run and nothing for a retry to repeat. Vite logged no error before it. Chromium says the same of a module Vite fails to transform, so this names one file only, never every spec: a real broken import fails on Linux and Windows too, and a rerun fails it again.",
+      "seen": ["#1010 run 44101855011 attempt 1 job 134114871181 (macOS)"]
+    },
+    {
       "id": "viewers-diff-marker-frames-timeout",
       "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/diff.test.ts > the diff viewer > with lines wider than the viewer > pins each line's marker with its numbers",

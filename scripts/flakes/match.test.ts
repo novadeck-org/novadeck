@@ -17,6 +17,7 @@ const fixtures: Record<string, string> = {
   "ui-preferences-voice-cancel": "Test (macOS)",
   "ui-murmur-offer-expect-element": "Test (Windows)",
   "ui-process-windows-layout-settled": "Test (Windows, 1/3)",
+  "ui-process-windows-macos-import-fetch": "Test (macOS)",
   "e2e-codex-quirks-stopped-thread": "Codex (Windows quirks)",
   "e2e-codex-windows-patch-never-returns": "Codex (Windows, 2/2)",
   "e2e-antigravity-macos-lead-tool-call": "Antigravity (macOS)",
@@ -56,6 +57,39 @@ describe("the known-flake register", () => {
       const log = fixture("e2e-codex-windows-patch-never-returns")
       const other = log.replaceAll("Finished Transcript step 2.", "Finished Transcript step 1.")
       expect(judgeJob(register, job, other).flakes).toEqual([])
+    })
+  })
+
+  context("when a spec file fails whole on macOS as it imports", () => {
+    const job = "Test (macOS)"
+    const log = fixture("ui-process-windows-macos-import-fetch")
+
+    it("takes another error for no flake, as a broken import gives one", () => {
+      // The log colours "Caused by: TypeError", so the error's name and its message go apart.
+      const broken = log
+        .replace("TypeError", "SyntaxError")
+        .replace(
+          "Failed to fetch dynamically imported module",
+          "The requested module does not provide an export named 'x'",
+        )
+      expect(judgeJob(register, job, broken).flakes).toEqual([])
+    })
+
+    it("takes it for no flake on Linux or Windows, where a broken import fails too", () => {
+      for (const other of ["Test (Linux, 1/3)", "Test (Windows, 2/3)"])
+        expect(judgeJob(register, other, log).flakes).toEqual([])
+    })
+
+    it("takes another file for no flake, as only process-windows' was seen", () => {
+      const other = log.replaceAll(
+        "terminals/process-windows.spec.tsx",
+        "agents/chat-screen.spec.tsx",
+      )
+      expect(judgeJob(register, job, other)).toEqual({
+        job,
+        flakes: [],
+        unknown: ["src/agents/chat-screen.spec.tsx"],
+      })
     })
   })
 
