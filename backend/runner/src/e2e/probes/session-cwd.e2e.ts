@@ -2,12 +2,14 @@
 // into, which the terminal's folder follows, while the session's own stays where it bound.
 // Each harness's agent runs `cd <project>/sub && pwd`, then a plain `pwd` (does its tool keep the
 // folder?); then Claude Code and Codex compact (a SessionStart naming a `cwd`), and Antigravity's
-// status line redraws as ever. Records the terminal's folder and the saved session's after each.
+// status line redraws as ever; then each `/clear`s, a new session of the same process. Records
+// the terminal's folder and the saved session's (with its id and transcript) after each.
 // Found 2026-11-17 (pinned: Claude Code 2.1.326, Codex 0.169.0, Antigravity 1.5.9): only Claude
 // Code's Bash tool keeps the folder, and its compact's SessionStart names it, so the terminal's
 // folder moves there while the session's stays; Codex's and Antigravity's commands each run in
-// the session's folder again, and nothing they report moves. Runs only with
-// NOVADECK_E2E_PROBES=1, by path; writes
+// the session's folder again, and nothing they report moves. After `/clear` Claude Code's new
+// session names the folder it started in, not the `cd`'s, and keeps its transcript there.
+// Runs only with NOVADECK_E2E_PROBES=1, by path; writes
 // $PROBE_OUT/session-cwd-<agent>-<pinned|latest>.json.
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
@@ -62,10 +64,15 @@ describe.skipIf(!supported || !probing)("probe: the folder a session reports aft
         )
         const t = await run.deck.open(setup.agent)
         await t.reached("ready", { timeoutMs: 60_000 })
-        const folders = () => ({
-          terminal: t.summary().cwd,
-          session: run.deck.store.terminal(t.id)?.agents[setup.agent]?.cwd,
-        })
+        const folders = () => {
+          const report = run.deck.store.terminal(t.id)?.agents[setup.agent]
+          return {
+            terminal: t.summary().cwd,
+            session: report?.cwd,
+            sessionId: report?.sessionId,
+            transcript: report?.transcript,
+          }
+        }
         const seen: Record<string, unknown> = { start: folders() }
         await ran(t, "Go below", 1)
         await sleep(3000)
@@ -78,6 +85,14 @@ describe.skipIf(!supported || !probing)("probe: the folder a session reports aft
           await sleep(15_000)
           seen.afterCompact = folders()
         }
+        // A new session of the same process, as `/clear` starts: whose folder does it name?
+        await t.submit("/clear")
+        await sleep(10_000)
+        seen.afterClear = folders()
+        // Its first prompt, so a harness that names a session only then has.
+        await ran(t, "Where now", 3).catch(() => undefined)
+        await sleep(3000)
+        seen.afterClearPrompt = folders()
         const version = process.env.NOVADECK_E2E_HARNESS === "latest" ? "latest" : "pinned"
         mkdirSync(outDir, { recursive: true })
         writeFileSync(
