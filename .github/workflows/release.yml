@@ -190,16 +190,17 @@ jobs:
           merge-multiple: true
 
       # The installer for Linux and macOS, with this repository in it, so a moved repository needs no
-      # edit. It is a release asset to be covered by the checksums, their signature and the
-      # attestation like the packages it downloads.
+      # edit, and the version it installs, which its banner names. It is a release asset to be
+      # covered by the checksums, their signature and the attestation like the packages it downloads.
       - name: Render Installer
         env:
           REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
-          sed "s|@REPOSITORY@|$REPOSITORY|g" scripts/install/install.sh > release-assets/install.sh
-          if grep -q '@REPOSITORY@' release-assets/install.sh; then
-            echo "::error::install.sh still holds its placeholder."
+          sed -e "s|@REPOSITORY@|$REPOSITORY|g" -e "s|@VERSION@|$VERSION|g" scripts/install/install.sh > release-assets/install.sh
+          if grep -Eq '@(REPOSITORY|VERSION)@' release-assets/install.sh; then
+            echo "::error::install.sh still holds a placeholder."
             exit 1
           fi
           shellcheck -s sh release-assets/install.sh

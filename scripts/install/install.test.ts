@@ -127,6 +127,8 @@ type Scenario = {
   fuseDevice?: boolean
   /** Leaves the download folder unset, so the script builds it from its repository. */
   rendered?: boolean
+  /** The version the release workflow renders in; the placeholder stays when unset. */
+  version?: string
   /** The macOS side of the fake computer; uname then says Darwin. */
   mac?: {
     /** Whether codesign finds a Developer ID signature on the installed app. */
@@ -342,7 +344,8 @@ esac`,
   const device = join(root, "fuse")
   if (scenario.fuseDevice ?? true) writeFileSync(device, "")
 
-  const text = (scenario.script ?? script).replaceAll("@REPOSITORY@", "acme/novadeck")
+  const rendered = (scenario.script ?? script).replaceAll("@REPOSITORY@", "acme/novadeck")
+  const text = scenario.version ? rendered.replaceAll("@VERSION@", scenario.version) : rendered
   const entry = join(root, "install.sh")
   writeFileSync(entry, text)
   const data = scenario.xdg ? join(root, scenario.xdg) : undefined
@@ -414,7 +417,10 @@ describe.skipIf(!linux)("install.sh", () => {
       it("says plainly that only checksums were checked without gh", () => {
         const result = run()
         expect(result.status).toBe(0)
-        expect(result.stdout).toContain(`Checked ${download} against the release's checksums only`)
+        expect(result.stdout).toContain("✓ checksum matches SHA256SUMS")
+        expect(result.stdout).toContain(
+          "! attestation not checked, checksums only: install the GitHub CLI (gh) to check it too",
+        )
       })
 
       it("verifies the download against the repository when gh is signed in", () => {
@@ -423,7 +429,7 @@ describe.skipIf(!linux)("install.sh", () => {
         expect(result.commands).toContain(
           `gh attestation verify ${download} --repo acme/novadeck --hostname github.com --signer-workflow acme/novadeck/.github/workflows/release.yml`,
         )
-        expect(result.stdout).toContain("its build attestation from acme/novadeck")
+        expect(result.stdout).toContain("✓ attestation built by acme/novadeck's release workflow")
       })
 
       it("installs nothing when the attestation does not hold", () => {
@@ -437,7 +443,7 @@ describe.skipIf(!linux)("install.sh", () => {
         const result = run({ gh: "unreachable" })
         expect(result.status).toBe(0)
         expect(result.stderr).toContain("no such host")
-        expect(result.stdout).toContain("Could not verify the build attestation")
+        expect(result.stdout).toContain("! attestation could not be verified")
         expect(existsSync(join(result.data, "novadeck", image))).toBe(true)
       })
 
@@ -834,8 +840,8 @@ profile novadeck-appimage-1000-brew "${join(result.home, "Applications/novadeck.
       expect(existsSync(join(data, "applications/dev.mzpk.novadeck.desktop"))).toBe(false)
       expect(existsSync(join(data, "icons/hicolor/512x512/apps/novadeck.png"))).toBe(false)
       expect(() => lstatSync(join(home, ".local/bin/novadeck"))).toThrow()
-      expect(again.stdout).toContain(`Removed ${join(data, "novadeck", image)}`)
-      expect(again.stdout).toContain("Your data and any agent plugins stay")
+      expect(again.stdout).toContain(`− ~/.local/share/novadeck/${image}`)
+      expect(again.stdout).toContain("your data — delete ~/.config/novadeck to remove it")
       expect(again.stdout).toContain("claude plugin uninstall novadeck@novadeck")
       expect(again.stdout).toContain("codex plugin remove novadeck@novadeck")
       expect(again.stdout).toContain("agy plugin uninstall novadeck")
@@ -860,14 +866,15 @@ profile novadeck-appimage-1000-brew "${join(result.home, "Applications/novadeck.
       expect(readFileSync(join(folder, "workspace.sqlite"), "utf8")).toBe("projects")
       expect(existsSync(join(folder, "shell"))).toBe(true)
       expect(existsSync(join(folder, image))).toBe(false)
-      expect(again.stdout).toContain(folder)
-      expect(again.stdout).toContain("Your data and any agent plugins stay")
+      expect(again.stdout).toContain(
+        "your data — delete ~/.config/novadeck and ~/.local/share/novadeck to remove it",
+      )
     })
 
     it("removes the folder when nothing else is in it", () => {
       const result = run()
       expect(existsSync(join(result.data, "novadeck"))).toBe(true)
-      expect(result.again(uninstall).stdout).toContain(`Removed ${join(result.data, "novadeck")}`)
+      expect(result.again(uninstall).stdout).toContain("− ~/.local/share/novadeck\n")
       expect(existsSync(join(result.data, "novadeck"))).toBe(false)
     })
 
@@ -895,11 +902,11 @@ profile novadeck-appimage-1000-brew "${join(result.home, "Applications/novadeck.
 
     it("names the config folder from XDG_CONFIG_HOME when it is absolute", () => {
       const plain = run()
-      expect(plain.again(uninstall).stdout).toContain(`delete ${plain.home}/.config/novadeck`)
+      expect(plain.again(uninstall).stdout).toContain("delete ~/.config/novadeck")
       const set = run({ configHome: "/xdg/config" })
       expect(set.again(uninstall).stdout).toContain("delete /xdg/config/novadeck")
       const relative = run({ configHome: "xdg/config" })
-      expect(relative.again(uninstall).stdout).toContain(`delete ${relative.home}/.config/novadeck`)
+      expect(relative.again(uninstall).stdout).toContain("delete ~/.config/novadeck")
     })
 
     it("works without curl", () => {
@@ -1058,7 +1065,7 @@ profile novadeck-appimage-1000-brew "${join(result.home, "Applications/novadeck.
       expect(result.lines).toContain("curl http://mirror.test/dl/SHA256SUMS")
       expect(result.lines).toContain(`curl http://mirror.test/dl/${macDownload}`)
       expect(readFileSync(executable(result.applications), "utf8")).toBe(archive)
-      expect(result.stdout).toContain(`Installed Novadeck to ${result.applications}/novadeck.app`)
+      expect(result.stdout).toContain(`app → ${result.applications}/novadeck.app`)
       expect(readdirSync(result.applications)).toEqual(["novadeck.app"])
       expect(existsSync(join(result.home, "Applications"))).toBe(false)
       expect(existsSync(join(result.home, ".local"))).toBe(false)
@@ -1224,9 +1231,10 @@ profile novadeck-appimage-1000-brew "${join(result.home, "Applications/novadeck.
       expect(readFileSync(join(result.trash, "novadeck.app/Contents/MacOS/novadeck"), "utf8")).toBe(
         "old",
       )
-      expect(result.stdout).toContain(`Moved ${result.applications}/novadeck.app to the Trash`)
-      expect(result.stdout).toContain("Your data and any agent plugins stay")
-      expect(result.stdout).toContain("Library/Application Support/novadeck")
+      expect(result.stdout).toContain(`− ${result.applications}/novadeck.app moved to the Trash`)
+      expect(result.stdout).toContain(
+        "your data — delete ~/Library/Application Support/novadeck to remove it",
+      )
     })
 
     it("removes the copy in ~/Applications too", () => {
@@ -1292,6 +1300,79 @@ profile novadeck-appimage-1000-brew "${join(result.home, "Applications/novadeck.
       expect(result.status).toBe(1)
       expect(result.stderr).toContain("x86_64 only")
       expect(result.lines).toEqual([])
+    })
+  })
+
+  context("in what it prints", () => {
+    it("names the release in the banner when rendered with its version", () => {
+      const result = run({ version: "1.2.3" })
+      expect(result.stdout).toContain(
+        "a workspace for parallel terminals · v1.2.3\n    jacking in…\n",
+      )
+    })
+
+    it("names no version in an unrendered copy", () => {
+      const result = run()
+      expect(result.stdout).toContain("a workspace for parallel terminals\n")
+      expect(result.stdout).not.toContain("@VERSION@")
+    })
+
+    it("walks through its phases and signs off an install", () => {
+      const result = run({ restrict: "1", parser: "valid", extra: ["fusermount3"] })
+      const phases = result.stdout.match(/^ {4}>>> .+$/gm)
+      expect(phases).toEqual([
+        "    >>> preflight",
+        "    >>> downloading",
+        "    >>> installing",
+        "    >>> sandbox",
+      ])
+      expect(result.stdout).toContain("› installs to ~/.local/share/novadeck\n")
+      expect(result.stdout).toContain(`› app        → ~/.local/share/novadeck/${image}\n`)
+      expect(result.stdout).toContain("› ✓ sandbox set up\n")
+      expect(result.stdout).toContain("━━━ preem, choom. you're chromed.\n")
+    })
+
+    it("signs off an uninstall, and says when there was nothing to remove", () => {
+      const result = run()
+      const again = result.again(["--uninstall"])
+      expect(again.stdout).toContain("jacking out…")
+      expect(again.stdout).toContain("━━━ chrome's out, choom. stay preem.")
+      const nothing = result.again(["--uninstall"])
+      expect(nothing.stdout).toContain("━━━ nothing to unplug, choom.")
+      expect(nothing.stdout).not.toContain(">>> removing")
+    })
+
+    it("flatlines on stderr when it fails, without a sign-off", () => {
+      const result = run({ tamper: "something else" })
+      expect(result.stderr).toContain(
+        `✗ flatlined — ${download} does not match its checksum in SHA256SUMS`,
+      )
+      expect(result.stdout).not.toContain("━━━")
+    })
+
+    it("prints no colour codes to a pipe", () => {
+      const result = run({ restrict: "1", parser: "valid", tamper: "something else" })
+      expect(result.stdout + result.stderr).not.toContain("\x1b")
+    })
+
+    // script(1) gives the functions a terminal, which a pipe from spawnSync is not.
+    it.skipIf(!existsSync("/usr/bin/script"))("colours a terminal unless NO_COLOR is set", () => {
+      const folder = mkdtempSync(join(tmpdir(), "novadeck-install-"))
+      folders.push(folder)
+      const functions = ["style", "say", "ok"]
+        .map((name) => script.match(new RegExp(`^${name}\\(\\) \\{[\\s\\S]*?^\\}`, "m"))![0])
+        .join("\n")
+      const entry = join(folder, "speak.sh")
+      writeFileSync(entry, `${functions}\nstyle\nok done\n`)
+      const speak = (env: NodeJS.ProcessEnv) =>
+        spawnSync("/usr/bin/script", ["-qec", `sh ${entry}`, "/dev/null"], {
+          encoding: "utf8",
+          env: { PATH: "/usr/bin:/bin", ...env },
+          timeout: 5000,
+        }).stdout
+      expect(speak({})).toContain("\x1b[96m✓\x1b[0m done")
+      expect(speak({ COLORTERM: "truecolor" })).toContain("\x1b[38;2;0;229;214m✓")
+      expect(speak({ NO_COLOR: "1" })).not.toContain("\x1b")
     })
   })
 
