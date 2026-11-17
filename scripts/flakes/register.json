@@ -508,6 +508,33 @@
       "status": "known",
       "cause": "Windows only, a Rust test whose log has no Vitest FAIL line, so it's matched by the job's log, and only where cargo's list of failures names status_line tests alone, cause unknown: four relay status_line tests failed together because every Git Bash child printed nothing, the deadline tests through 10 s; they ran at once beside the sandbox reap test on a loaded runner. Mitigated by task/ci-flakes (those tests run one at a time, and a plain one that printed nothing runs once more); the child's stderr goes to NUL, so a return needs it seen to find the cause.",
       "seen": ["#785 run 42411833861 job 128521430789 (Windows, 1/3)"]
+    },
+    {
+      "id": "runner-shell-lead-approval-unbound",
+      "jobs": ["^Test \\((?:macOS|Linux|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/shell/integration-closing.test.ts > agents closing other bash terminals > lets an agent lead another's agent once the person approves, and ends it when the person releases",
+      "signature": "AssertionError: expected \\{ ok: false, …\\(1\\) \\} to match object \\{ ok: true, text: StringMatching",
+      "status": "fixed",
+      "cause": "The test's own, as far as can be told: its first lead call was refused before anything was asked. Not reproduced, and the recorded failure leaves out lead's reason; probed locally, the stand-in driver typed `agent …` into the second terminal before the runner had handled its shell's first prompt (promptedAt still null). On a loaded runner the agent's SessionStart hook can then start before the runner handles that prompt: either the prompt reads as later than the hook, so observe takes the session as one from before it and never binds it, or the hook's report comes first and the late prompt ends the binding (prompted). Either leaves the caller or the target unbound, and lead refuses. The app's own startup commands are immune, as the shell integration holds back the prompt report until such a command exits; a person typing an agent's command into a new terminal before its first prompt is handled could meet it only with a runner seconds behind. The driver's start, the doorbell's ringing and its one direct launch now wait for the shell's latest prompt, with no line entered since (atPrompt in backend/runner/src/shell/stand-ins.test-support.ts).",
+      "seen": ["#1002 run 44053570165 job 133946302766 (macOS), retried and passed"]
+    },
+    {
+      "id": "ui-views-canvas-sessions-return-timeout",
+      "jobs": ["^Test \\(macOS\\)$"],
+      "test": "src/views/canvas-sessions.spec.tsx > Canvas across workspace sessions > when switching session right after moving the camera > frames every window afresh on returning, as on opening",
+      "signature": "TimeoutError: locator\\.click: Timeout \\d+ms exceeded[\\s\\S]*name: 'Sessions'",
+      "status": "known",
+      "cause": "Unknown, suspected the runner's slowness. It ran out its 30 s test timeout, the Sessions click getting the 1.2 s left, on a macOS job that took about 40 min against a usual 17 to 27. Its retry passed there in about 17.6 s, against 3.9 s locally (Linux), so the 30 s attempt may have been as slow as the job, or stalled: the log can't tell. Not reproduced. The flake tally of 2026-11-16 counts one earlier run that retried it, on 2026-11-13.",
+      "seen": ["#1002 run 44053570165 job 133946302766 (macOS), retried and passed, behaviour-mac"]
+    },
+    {
+      "id": "ui-agents-chat-screen-grid-tile-timeout",
+      "jobs": ["^Test \\(macOS\\)$"],
+      "test": "src/agents/chat-screen.spec.tsx > The terminal behind a chat > keeps Antigravity's screen whole in a short Grid tile at 13px and restores the visible fit",
+      "signature": "Test timed out in \\d+ms",
+      "status": "known",
+      "cause": "Unknown, suspected the runner's slowness. It ran out its 30 s test timeout on the same slow macOS job (about 40 min against a usual 17 to 27). Its retry passed there in about 19.2 s, against 3.4 s locally (Linux), so the 30 s attempt may have been as slow as the job, or stalled: the log can't tell. Not reproduced. The flake tally of 2026-11-16 counts one earlier run that retried a sibling case (Claude Code at 12px), on 2026-11-13.",
+      "seen": ["#1002 run 44053570165 job 133946302766 (macOS), retried and passed, behaviour"]
     }
   ]
 }
