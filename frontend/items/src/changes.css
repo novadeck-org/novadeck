@@ -39,6 +39,15 @@
 .changes-origin {
   color: var(--color-muted);
 }
+/* The reason a fetch failed, which a title shows to a pointer: read out, not drawn. */
+.changes-origin-why {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .changes-origin[data-stale="true"] {
   color: var(--color-warning-fg);
 }

@@ -137,6 +137,24 @@ describe("opening a worktree", () => {
     expect(git(opened.path, "branch", "--show-current")).toBe("side")
   })
 
+  // A fetcher that records the fetches it runs, which `every` makes due always when 0.
+  const recordingFetcher = (
+    resources: { defer: (cleanup: () => void) => void },
+    every?: number,
+  ) => {
+    const fetches: string[] = []
+    const fetcher = new MainFetcher({
+      environment: {},
+      ...(every !== undefined && { every }),
+      run: (cwd, args, limit) => {
+        if (args.includes("fetch")) fetches.push(cwd)
+        return realGit(cwd, args, limit)
+      },
+    })
+    resources.defer(() => fetcher.abort())
+    return { fetches, fetcher }
+  }
+
   // A service whose fetcher records the fetches it runs, and what time limit each had.
   const recording = (
     resources: { defer: (cleanup: () => void) => void },
@@ -224,31 +242,93 @@ describe("opening a worktree", () => {
     },
   )
 
-  it("keeps a repository with no worktree on the fetch schedule while something asks for it", async ({
+  it("keeps a repository with no worktree on the fetch schedule while something asks for it, not moving its checkout", async ({
     resources,
     fx: f,
   }) => {
     const origin = withOrigin((cleanup) => resources.defer(cleanup))
     const common = join(origin.repo, ".git")
     let wanted: string[] = [common]
-    const fetcher = new MainFetcher({ environment: {}, follow: () => false, every: 0 })
+    const { fetches, fetcher } = recordingFetcher(resources, 0)
     const worktrees = new Worktrees(f.store, {
       exists: (id) => f.live.has(id),
       root: f.root,
       cleanup: { fetcher },
       repositories: () => Promise.resolve(wanted),
     })
-    resources.defer(() => {
-      fetcher.abort()
-      void worktrees.stop()
-    })
+    resources.defer(() => void worktrees.stop())
+    const before = git(origin.repo, "rev-parse", "HEAD")
+    origin.land("b.txt")
     await worktrees.tidy(true)
-    const first = fetcher.fetchedAt(common)
-    expect(first).toBeTypeOf("number")
-    // Asked for no more (its compare closed): it is forgotten, and not fetched again.
+    expect(fetches).toHaveLength(1)
+    expect(fetcher.fetchedAt(common)).toBeTypeOf("number")
+    // Fetched for a compare's sake alone, so the checkout stays where the person has it.
+    await fetcher.idle()
+    expect(git(origin.repo, "rev-parse", "HEAD")).toBe(before)
+    // Asked for no more (its compare closed): forgotten, and not fetched again.
     wanted = []
     await worktrees.tidy(true)
+    expect(fetches).toHaveLength(1)
     expect(fetcher.fetchedAt(common)).toBeUndefined()
+  })
+
+  it("moves the checkout of a repository that also has a tracked worktree, on the schedule", async ({
+    resources,
+    fx: f,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
+    const common = join(origin.repo, ".git")
+    const { fetcher } = recordingFetcher(resources, 0)
+    const worktrees = new Worktrees(f.store, {
+      exists: (id) => f.live.has(id),
+      root: f.root,
+      cleanup: { fetcher },
+      repositories: () => Promise.resolve([common]),
+    })
+    resources.defer(() => void worktrees.stop())
+    const opened = await worktrees.open({
+      projectId: "p2",
+      terminalId: "t1",
+      cwd: origin.repo,
+      branch: "feat/x",
+      from: "main",
+    })
+    if (!opened.ok) throw new Error(opened.reason)
+    const landed = origin.land("c.txt")
+    await worktrees.tidy(true)
+    await fetcher.idle()
+    expect(git(origin.repo, "rev-parse", "HEAD")).toBe(landed)
+  })
+
+  it("keeps the state of a repository whose fetch is under way when a look forgets the rest", async ({
+    resources,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    const common = join(origin.repo, ".git")
+    git(origin.repo, "config", "protocol.ext.allow", "always")
+    git(origin.repo, "remote", "set-url", "origin", "ext::sleep 30")
+    const { fetches, fetcher } = recordingFetcher(resources)
+    await fetcher.fetchBriefly(common, 200)
+    expect(fetches).toHaveLength(1)
+    await fetcher.fetchDue([])
+    // Still the same state, and the one fetch: a second ask is shared with it.
+    await fetcher.fetchBriefly(common, 100)
+    expect(fetches).toHaveLength(1)
+  })
+
+  it("keeps what a brief fetch found when a look forgets the repositories nobody listed", async ({
+    resources,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    const common = join(origin.repo, ".git")
+    const { fetcher } = recordingFetcher(resources)
+    await fetcher.fetchBriefly(common, 10_000, false)
+    const at = fetcher.fetchedAt(common)
+    expect(at).toBeTypeOf("number")
+    // A compare not saved yet is no one's, but fetched a moment ago it is kept.
+    await fetcher.fetchDue([])
+    expect(fetcher.fetchedAt(common)).toBe(at)
   })
 
   it("starts from the cached main when the remote can't be reached", async ({

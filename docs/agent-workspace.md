@@ -504,8 +504,12 @@ with every safety check again at that time:
   hangs or fails leaves the refs as they were. For as long as such a compare is on a bar its repository
   stays on the fetch schedule (every five minutes, as a tracked worktree's is) though it has no tracked
   worktree: `Worktrees`' `repositories` host hook adds it to what each look fetches, and its state is
-  forgotten once the compare closes. The checkout's own fast-forward after a fetch (see "Fetching")
-  happens here too. The content of such a compare carries `origin: { fetchedAt?, failed? }`, which the
+  forgotten once the compare closes (and not while a fetch is under way or was within the period).
+  Only `origin` counts: a ref of any other remote (`upstream/x`) is never fetched and has no note, and a
+  name `origin/x` that git doesn't know yet is taken for one a fetch may bring, so a branch pushed since
+  the last fetch can be shown; a local branch named `origin/x` is none. The person's checkout is not
+  fast-forwarded by such a fetch (see "Fetching"): that follows only for a repository with a tracked
+  worktree, by its scheduled fetch. The content of such a compare carries `origin: { fetchedAt?, failed? }`, which the
   pane's header turns into a quiet note only where freshness is in doubt: "origin fetch failed · last
   fetched 3 h ago" (the reason in its title), "origin last fetched 3 h ago" once over an hour old (both
   amber, as the Worktrees panel's age is), or "origin not fetched yet". Fresh, it says nothing.

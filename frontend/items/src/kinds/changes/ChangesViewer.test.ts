@@ -330,7 +330,11 @@ describe("a change beside a terminal", () => {
       expect(old?.getAttribute("data-stale")).toBe("true")
       const failed = header({ fetchedAt: now - 1_200_000, failed: "Could not resolve host" })
       expect(failed.querySelector(".changes-origin")?.textContent).toBe(
-        "origin fetch failed · last fetched 20 min ago",
+        "origin fetch failed · last fetched 20 min ago: Could not resolve host",
+      )
+      // The reason is in the text for those who can't hover, as well as in the title.
+      expect(failed.querySelector(".changes-origin-why")?.textContent).toBe(
+        ": Could not resolve host",
       )
       expect(failed.querySelector(".changes-origin")?.getAttribute("title")).toBe(
         "Could not resolve host",

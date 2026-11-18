@@ -474,7 +474,8 @@ export const changesArtifacts: readonly SampleArtifact[] = [
     ],
   }),
   // The same compare of a remote-tracking ref, in each state of how current origin is: fetched a
-  // moment ago (the header says nothing), over an hour ago, a fetch that failed, and never.
+  // moment ago (the header says nothing), over an hour ago, a fetch that failed, and never. The
+  // head names tell them apart, as titles are the runner's: "Compare · <folder> · <head>".
   ...(
     [
       ["fresh", { fetchedAgo: 2 * 60_000 }],
@@ -483,9 +484,9 @@ export const changesArtifacts: readonly SampleArtifact[] = [
       ["unfetched", {}],
     ] as const
   ).map(([state, origin]) =>
-    sample(`change-compare-${state}`, `Compare · studio · origin/main · ${state}`, {
+    sample(`change-compare-${state}`, `Compare · studio · feature/contact-${state}`, {
       base: "origin/main",
-      head: "feature/contact-form",
+      head: `feature/contact-${state}`,
       origin,
       start: { "src/pages/Home.tsx": text("export const Home = () => null") },
       steps: [

@@ -1471,22 +1471,21 @@ export class CompanionItems {
     }
   }
 
-  // The compares' remote-ness, found once per item: the common git dir of a compare that reads a
-  // remote-tracking ref, else undefined.
-  private readonly remotes = new Map<string, Promise<string | undefined>>()
+  // The compares' remote-ness, found once per item where git could tell: the common git dir of a
+  // compare that reads a remote-tracking ref, null for one that does not.
+  private readonly remotes = new Map<string, string | null>()
 
-  private remoteOf(item: ItemRecord): Promise<string | undefined> {
+  private async remoteOf(item: ItemRecord): Promise<string | undefined> {
     if (item.kind !== "changes" || item.compare === undefined || item.path === null)
-      return Promise.resolve(undefined)
-    const { compare, path } = item
-    let known = this.remotes.get(item.pointerKey)
-    if (!known) {
-      known = findRepository(path).then((found) =>
-        found.ok ? remoteCompare(found.root, compare) : undefined,
-      )
-      this.remotes.set(item.pointerKey, known)
-    }
-    return known
+      return undefined
+    const known = this.remotes.get(item.pointerKey)
+    if (known !== undefined) return known ?? undefined
+    const found = await findRepository(item.path)
+    if (!found.ok) return undefined
+    const common = await remoteCompare(found.root, item.compare)
+    // A probe that failed is tried again on the next read.
+    if (common !== undefined) this.remotes.set(item.pointerKey, common)
+    return common ?? undefined
   }
 
   /**
@@ -1505,7 +1504,7 @@ export class CompanionItems {
   private async freshen(root: string, compare: Compare): Promise<void> {
     if (!this.options.origin) return
     const common = await remoteCompare(root, compare).catch(() => undefined)
-    if (common !== undefined)
+    if (typeof common === "string")
       await this.options.origin.fetchBriefly(common, this.options.fetchWaitMs ?? 5000)
   }
 

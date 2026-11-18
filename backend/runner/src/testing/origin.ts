@@ -18,6 +18,8 @@ export type Origin = {
   readonly repo: string
   /** Commits `file` on the remote's main from another clone; resolves to the new commit. */
   readonly land: (file: string) => string
+  /** Pushes a new branch with a commit to the remote from another clone, which `repo` has not fetched. */
+  readonly branch: (name: string) => string
   /** The remote-tracking main as the checkout last fetched it. */
   readonly fetch: () => void
 }
@@ -47,6 +49,17 @@ export const withOrigin = (defer: (cleanup: () => void) => void): Origin => {
       gitIn(other, "commit", "--quiet", "-m", `add ${file}`)
       gitIn(other, "push", "--quiet", "origin", "main")
       return gitIn(other, "rev-parse", "HEAD")
+    },
+    branch: (name) => {
+      gitIn(other, "pull", "--quiet", "origin", "main")
+      gitIn(other, "checkout", "--quiet", "-b", name)
+      writeFileSync(join(other, `${name}.txt`), `${name}\n`)
+      gitIn(other, "add", "-A")
+      gitIn(other, "commit", "--quiet", "-m", `add ${name}`)
+      gitIn(other, "push", "--quiet", "origin", name)
+      const pushed = gitIn(other, "rev-parse", "HEAD")
+      gitIn(other, "checkout", "--quiet", "main")
+      return pushed
     },
     fetch: () => {
       gitIn(repo, "fetch", "--quiet", "origin")

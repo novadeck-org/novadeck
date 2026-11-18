@@ -277,7 +277,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     snapshots,
     // Compares of remote refs make them current, and keep their repository fetched.
     origin: {
-      fetchBriefly: (commonDir, ms) => worktrees.fetchBriefly(commonDir, ms),
+      // Fetched for a compare, not a worktree: the person's checkout is not moved by it.
+      fetchBriefly: (commonDir, ms) => worktrees.fetchBriefly(commonDir, ms, false),
       status: (commonDir) => worktrees.originStatus(commonDir),
     },
     // The files of a change the person read, kept with the works.

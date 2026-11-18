@@ -218,10 +218,15 @@ describe("fetching origins", () => {
     expect(calls).toHaveLength(2)
   })
 
-  it("forgets a repository no longer tracked", async () => {
+  it("forgets a repository no longer tracked, once its period has passed", async () => {
     const git = fake()
-    const fetcher = new MainFetcher({ run: git.run, environment: {} })
+    let now = 1_000_000
+    const fetcher = new MainFetcher({ now: () => now, run: git.run, environment: {} })
     await fetcher.fetchDue(["/a/.git"])
+    // Fetched a moment ago: kept, as a caller that asked for it may not be listed yet.
+    await fetcher.fetchDue([])
+    expect(fetcher.fetchedAt("/a/.git")).toBe(now)
+    now += 5 * minute
     await fetcher.fetchDue([])
     expect(fetcher.fetchedAt("/a/.git")).toBeUndefined()
   })

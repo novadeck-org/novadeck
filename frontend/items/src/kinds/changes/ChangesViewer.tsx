@@ -182,6 +182,10 @@ export const ChangesViewer = ({
                 title={note.title}
               >
                 {note.text}
+                {note.title !== undefined && (
+                  // The reason, for those who can't hover to read the title.
+                  <span className="changes-origin-why">: {note.title}</span>
+                )}
               </span>
             </>
           )}

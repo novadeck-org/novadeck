@@ -449,7 +449,7 @@ Agents:
   saves and copies work again. Specs open the showcase
   with `&planFault=` `transcript`, `gone`, `folder`, `too-large` or `failing`.
 - **Changes:** only in the `showcase` variant, no action needed: the dev server's terminal
-  (`@fox`, the third) holds its items on the bar beside those that can't show, fourteen of them
+  (`@fox`, the third) holds its items on the bar beside those that can't show, thirteen of them
   changes, one in each shape the changes pane draws: an ordinary change in layers (a refactor of
   auth: two commits since main and an edit not committed, with a re-indented file, new,
   changed and removed declarations, imports, a test, a Markdown heading, a small edit and a
@@ -458,7 +458,8 @@ Agents:
   past what the runner reads (files listed by name, and "This change is too large to show
   here"), a merge of main shown against its first parent, flagged, as on a runner whose git is
   older than 2.38 ("merge, against its first parent"), and one with no changes ("No changes against main"); a compare of two refs (`change-compare`), and
-  the same of `origin/main` in each state of how current origin is: fetched minutes ago (no note),
+  the same of `origin/main` in each state of how current origin is, told apart by their heads
+  (`feature/contact-fresh`, `-stale`, `-failed`, `-unfetched`): fetched minutes ago (no note),
   over an hour ago ("origin last fetched 3 h ago", amber), a failed fetch ("origin fetch failed · last
   fetched 20 min ago", amber, the reason in its title) and never fetched ("origin not fetched yet"). Their data is
   `frontend/demo/src/showcase/changes.ts`: each is a small history of file texts

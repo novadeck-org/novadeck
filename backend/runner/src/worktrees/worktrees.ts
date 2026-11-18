@@ -225,8 +225,8 @@ export class Worktrees {
   }
 
   /** Makes a repository's remote refs current for a caller that can't wait (`Cleanup.fetchBriefly`). */
-  fetchBriefly(commonDir: string, ms: number): Promise<void> {
-    return this.cleanup.fetchBriefly(commonDir, ms)
+  fetchBriefly(commonDir: string, ms: number, follow = true): Promise<void> {
+    return this.cleanup.fetchBriefly(commonDir, ms, follow)
   }
 
   /** When a repository was last fetched and why its last fetch failed (`Cleanup.originStatus`). */

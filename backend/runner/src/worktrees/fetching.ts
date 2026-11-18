@@ -198,15 +198,25 @@ export class MainFetcher {
   }
 
   /** Fetches the repositories that are due, one after another; the rest are forgotten. */
-  async fetchDue(commonDirs: Iterable<string>): Promise<void> {
+  async fetchDue(
+    commonDirs: Iterable<string>,
+    follows: (commonDir: string) => boolean = () => true,
+  ): Promise<void> {
     const wanted = new Set(commonDirs)
-    for (const known of this.states.keys()) if (!wanted.has(known)) this.states.delete(known)
+    for (const [known, state] of this.states)
+      // One being fetched, or fetched within the period, is a caller's (a compare's) that has yet to be asked for.
+      if (
+        !wanted.has(known) &&
+        !this.under.has(known) &&
+        !(state.fetchedAt !== undefined && this.now() - state.fetchedAt < this.every)
+      )
+        this.states.delete(known)
     for (const commonDir of wanted) {
       if (this.ending.signal.aborted) return
       const state = this.stateOf(commonDir)
       if (this.now() < state.nextAt) continue
       // eslint-disable-next-line no-await-in-loop -- Never two fetches at once.
-      await this.fetching(commonDir, state, false)
+      await this.fetching(commonDir, state, false, follows(commonDir))
     }
   }
 
@@ -218,7 +228,7 @@ export class MainFetcher {
   async fetchNow(commonDirs: Iterable<string>): Promise<void> {
     await Promise.all(
       [...new Set(commonDirs)].map((commonDir) =>
-        this.fetching(commonDir, this.stateOf(commonDir), true),
+        this.fetching(commonDir, this.stateOf(commonDir), true, true),
       ),
     )
   }
@@ -228,9 +238,10 @@ export class MainFetcher {
    * worktree's base): nothing is fetched where it was fetched within `recentFetchMs`; otherwise a
    * fetch under way is waited for, or one is started with the usual time limit, and the
    * caller is let go after `ms` either way. The fetch itself is never cut short for the
-   * caller: it carries on, as a scheduled one would. Never throws.
+   * caller: it carries on, as a scheduled one would. The repository's checkout follows the fetch
+   * only if `follow`. Never throws.
    */
-  async fetchBriefly(commonDir: string, ms: number): Promise<void> {
+  async fetchBriefly(commonDir: string, ms: number, follow = true): Promise<void> {
     const state = this.stateOf(commonDir)
     if (
       !this.under.has(commonDir) &&
@@ -243,7 +254,7 @@ export class MainFetcher {
       timer = setTimeout(resolve, ms)
     })
     try {
-      await Promise.race([this.fetching(commonDir, state, true), late])
+      await Promise.race([this.fetching(commonDir, state, true, follow), late])
     } finally {
       clearTimeout(timer)
     }
@@ -256,12 +267,17 @@ export class MainFetcher {
   }
 
   // One fetch of a repository, shared by whoever asks while it is under way.
-  private fetching(commonDir: string, state: State, asked: boolean): Promise<void> {
+  private fetching(
+    commonDir: string,
+    state: State,
+    asked: boolean,
+    follow: boolean,
+  ): Promise<void> {
     const under = this.under.get(commonDir)
     if (under) return under
     const run = (async () => {
       if (this.ending.signal.aborted) return
-      const done = await gitScope.run(this.ending.signal, () => this.fetch(commonDir))
+      const done = await gitScope.run(this.ending.signal, () => this.fetch(commonDir, follow))
       if (this.ending.signal.aborted) return
       const at = this.now()
       if (done.ok) {
@@ -286,6 +302,7 @@ export class MainFetcher {
 
   private async fetch(
     commonDir: string,
+    follow: boolean,
   ): Promise<{ readonly ok: true } | Extract<Run, { ok: false }>> {
     const home = homeOf(commonDir)
     // The person's own ssh command in their git config is theirs to keep.
@@ -319,7 +336,7 @@ export class MainFetcher {
     if (!run.ok) return run
     // The fetch moved only `origin/*`; the checkout follows where it is safe to.
     // Not waited for: a merge that hangs (a filter, a stalled disk) must not stall fetching.
-    if (this.follow()) void this.forward(commonDir, false)
+    if (follow && this.follow()) void this.forward(commonDir, false)
     return { ok: true }
   }
 }

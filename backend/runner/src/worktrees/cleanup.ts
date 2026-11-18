@@ -84,8 +84,8 @@ export class Cleanup {
   }
 
   /** Fetches one repository's origin for a caller that can't wait: see `MainFetcher.fetchBriefly`. */
-  fetchBriefly(commonDir: string, ms: number): Promise<void> {
-    return this.fetcher.fetchBriefly(commonDir, ms)
+  fetchBriefly(commonDir: string, ms: number, follow = true): Promise<void> {
+    return this.fetcher.fetchBriefly(commonDir, ms, follow)
   }
 
   /** How many times the repository's checkout was moved to its main: see `MainFetcher.moved`. */
@@ -184,10 +184,10 @@ export class Cleanup {
   private async sweep(fetch: boolean): Promise<void> {
     if (fetch) {
       const more = (await this.host.repositories?.().catch(() => [])) ?? []
-      await this.fetcher.fetchDue([
-        ...this.service.all().map(({ commonDir }) => commonDir),
-        ...more,
-      ])
+      const owned = new Set(this.service.all().map(({ commonDir }) => commonDir))
+      // The checkout follows a fetch only for a repository with a tracked worktree: one that is on
+      // the schedule for a compare's sake alone is left as the person has it.
+      await this.fetcher.fetchDue([...owned, ...more], (commonDir) => owned.has(commonDir))
     }
     const rows = this.service.all()
     const tracked = new Set(rows.map(({ path }) => path))
