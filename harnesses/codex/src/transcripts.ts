@@ -200,8 +200,10 @@ const scripted = (fields: Fields): readonly TranscriptEntry[] => {
  * its thread and kept under the day it started, its parent's or a later one. Each response
  * item holds the person's or the agent's text, another agent's message to it, a tool call
  * or its output; reasoning stays out, as do developer messages and the context Codex adds
- * as the person's. A command the person ran in shell mode is one user message, which reads
- * as the person's `!command` and a Bash run with its output, and its exit code when not
+ * as the person's. Its terminal shows no reasoning in the conversation either: a summary is
+ * drawn only in the transcript overlay (Ctrl+T) and, as a heading, on the working line. A
+ * command the person ran in shell mode is one user message, which reads as the person's
+ * `!command` and a Bash run with its output, and its exit code when not
  * zero. The person's answer to an async question is a user message of Codex's own, which
  * reads as its history shows it: `Re: ` and the question, then the answer. A turn the person
  * interrupted reads as their interruption, where it ended. A command or a patch a script ran

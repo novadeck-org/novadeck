@@ -117,8 +117,9 @@ export const unknownShape = (
   })
 }
 
-// A shape that holds the agent's reasoning, by its key, in any harness.
-const reasoning = /thinking|reasoning/i
+// A shape that holds the agent's reasoning, by its key, in any harness (Claude Code's updates
+// are `narration`: shown, but a line holding one with an unknown shape keeps its signature private).
+const reasoning = /thinking|reasoning|narration/i
 
 /** What a reading of a transcript tells beside its items. */
 export type Reading = {
@@ -156,8 +157,8 @@ export const readingOf = (
  * transcript is read again. Where its harness gives lines no `step`, none joins.
  * A line holding a shape its harness's decoder has never seen is told to `unknown`, and one
  * inside the conversation (its harness's `conversational`) leaves a gap among the items, where
- * the chat may be missing words the terminal shows, its text the line as written. Reasoning
- * stays private, so a line that holds some gives no text.
+ * the chat may be missing words the terminal shows, its text the line as written, unless the
+ * line holds reasoning (thinking, updates), whose raw record, signature included, stays out.
  */
 export const transcriptChanges = async function* (
   path: string,

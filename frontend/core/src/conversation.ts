@@ -62,7 +62,7 @@ export type ChatImage = {
 // agent's text, another agent's message to it (`author` names that agent, in its
 // harness's words), a tool call with its input as text (often JSON), or a tool's result,
 // which `call` pairs with its call; a result may come before its call. Text past what the
-// backend carries is cut short and marked `truncated`. Private reasoning is never there.
+// backend carries is cut short and marked `truncated`. Reasoning is there only as `thinking`.
 export type ChatItem = {
   // Stable for the item while its session lasts, so a list can key by it.
   readonly id: string
@@ -90,6 +90,9 @@ export type ChatItem = {
   // A user item that is the line Novadeck's doorbell typed rather than the person's words:
   // `replies` where it carries their Inbox replies. Null on every other item.
   readonly ring: { readonly nonce: string; readonly replies: boolean } | null
+  // On an agent's text item, that it is the agent's thinking as its harness's terminal shows it
+  // to the person (Claude Code's updates, tagged "summary"), not a reply. Absent elsewhere.
+  readonly thinking?: true | undefined
   // On a `note` item, what its harness recorded between turns: the mode it says it's in, each
   // time it says so, a plan approved, or a compaction, whose summary is the item's text; or a
   // gap, a part of the record the backend can't read, the line as written its text, if any.

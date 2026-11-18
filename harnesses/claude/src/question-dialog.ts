@@ -90,7 +90,11 @@ const tabBar = /^←\s+(.+?)\s+✔ Submit\s+→$/
 const tabs = /([☐☒]) (.+?)(?=  [☐☒] |$)/g
 const loneHeader = /^ ☐ .+$/
 const questionOption = /^(❯| ) (\d+)\. (.+)$/
-const review = "Ready to submit your answers?"
+const reviewTitle = "Review your answers"
+const readyLine = "Ready to submit your answers?"
+const submitRow = /^[❯ ] 1\. Submit answers$/
+const cancelRow = /^[❯ ] 2\. Cancel$/
+const answerRow = /^\s+→ \S/
 
 const footerAt = (rows: readonly string[]): number =>
   rows.findLastIndex((each) => questionFooter.test(each))
@@ -168,7 +172,21 @@ const showing = (rows: readonly string[], ask: Ask, place: Place): boolean => {
   )
 }
 
-const reviewing = (rows: readonly string[]): boolean => rows.includes(review)
+/**
+ * Whether the screen is the review screen. Through 2.1.326 "Ready to submit your answers?"
+ * stood right above its Submit answers and Cancel; 2.1.327 dropped it (its bundle's review
+ * screen; the nightly on the latest harnesses, 2026-11-18), so there Submit answers over
+ * Cancel says it, under the title or an answer's `→` row. A review of several long questions
+ * is taller than a short pane, which scrolls its title away but keeps its answers' last rows
+ * above the choices. The highlight may stand on either choice: a digit picks its own.
+ */
+const reviewing = (rows: readonly string[]): boolean => {
+  if (rows.includes(readyLine)) return true
+  const submit = rows.findIndex((row) => submitRow.test(row))
+  if (submit < 1 || !cancelRow.test(rows[submit + 1] ?? "")) return false
+  const above = rows.slice(0, submit)
+  return above.includes(reviewTitle) || above.some((row) => answerRow.test(row))
+}
 
 type OptionRow = { n: number; marker: boolean; text: string; lines: string[] }
 

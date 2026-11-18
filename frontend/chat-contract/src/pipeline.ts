@@ -220,7 +220,10 @@ const lineOf = (block: Element): { line: string; rows: number } => {
     const words = textOf(block.querySelector(".chat-text")!)
     return { line: `user (images: ${names.join(", ")}): ${words}`, rows: 0 }
   }
-  if (role === "user" || role === "assistant") return { line: `${role}: ${textOf(block)}`, rows: 0 }
+  // The agent's thinking, as its terminal shows it, tagged (the tag is a fact, which readers skip).
+  const tag = role === "assistant" && block.hasAttribute("data-thinking") ? " (summary)" : ""
+  if (role === "user" || role === "assistant")
+    return { line: `${role}${tag}: ${textOf(block)}`, rows: 0 }
   throw unknownBlock(block)
 }
 

@@ -6,6 +6,7 @@ import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { transcriptLimits } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
+import { signature } from "./narration.test-support.js"
 import { transcripts, unwrapPasted } from "./transcripts.js"
 
 const { scenarios } = loadProbe(import.meta.dirname, "transcript.probe.json") as {
@@ -38,6 +39,90 @@ describe("Claude Code's transcript, as captured", () => {
       interrupted: true,
       ring: null,
     })
+  })
+})
+
+const narration = loadProbe(import.meta.dirname, "narration.probe.json") as {
+  scenarios: { [name: string]: object[] }
+}
+
+describe("Claude Code's thinking, as captured with its display on `updates`", () => {
+  it("reads the model's update as the agent's text marked thinking, in its place among the calls", () => {
+    expect(
+      items(narration.scenarios.updates!).map(
+        ({ role, kind, text, thinking }) =>
+          `${role} ${kind}${thinking ? " thinking" : ""}: ${text}`,
+      ),
+    ).toEqual([
+      "user text: <text>",
+      "assistant text thinking: Pick the first option and keep the default owner, since the next step needs it.",
+      'assistant tool-call: {"command":"<command>"}',
+      "tool tool-result: <output>",
+      "assistant text: <text>",
+    ])
+  })
+
+  it("leaves out the block it withholds the text of, with the display on `omitted` too", () => {
+    expect(items(narration.scenarios.omitted!).map(({ role, kind }) => `${role} ${kind}`)).toEqual([
+      "user text",
+      "assistant text",
+    ])
+  })
+
+  it("dates the update by its record, and trims what the model wrote", () => {
+    const [update] = items([
+      {
+        type: "assistant",
+        timestamp: "2026-11-18T10:00:03.000Z",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "thinking", thinking: "\n  Update.  \n", signature: signature("narration") },
+          ],
+        },
+      },
+    ])
+    expect(update).toMatchObject({
+      at: Date.parse("2026-11-18T10:00:03.000Z"),
+      role: "assistant",
+      kind: "text",
+      text: "Update.",
+      thinking: true,
+    })
+  })
+
+  // What its terminal shows only in the transcript view and with `--verbose`, never as it goes.
+  it("leaves out thinking of any other kind, with words or none, a signature it can't read, and redacted thinking", () => {
+    const record = (block: object) => ({
+      type: "assistant",
+      timestamp: "2026-11-18T10:00:03.000Z",
+      message: { role: "assistant", content: [block] },
+    })
+    for (const block of [
+      { type: "thinking", thinking: "Words.", signature: signature("thinking") },
+      { type: "thinking", thinking: "Words.", signature: signature("other") },
+      { type: "thinking", thinking: "Words.", signature: "not a signature" },
+      { type: "thinking", thinking: "Words." },
+      { type: "thinking", thinking: "", signature: signature("narration") },
+      { type: "thinking", thinking: "  \n", signature: signature("narration") },
+      { type: "redacted_thinking", data: "x" },
+    ])
+      expect(items([record(block)]), JSON.stringify(block)).toEqual([])
+  })
+
+  it("never reads the person's record as thinking", () => {
+    expect(
+      items([
+        {
+          type: "user",
+          timestamp: "2026-11-18T10:00:03.000Z",
+          message: {
+            role: "user",
+            content: [{ type: "thinking", thinking: "Words.", signature: signature("narration") }],
+          },
+        },
+      ]),
+    ).toEqual([])
   })
 })
 

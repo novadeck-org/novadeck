@@ -91,6 +91,12 @@ describe("the startup watch", () => {
         expect([name, signedOut?.(screens[name]!.rows)]).toEqual([name, false])
       // A reply quoting it, at the start of its row, is no footer.
       expect(signedOut?.(["⎿  Not logged in · Run /login"])).toBe(false)
+      // 2.1.327 writes its "run" in lower case.
+      const footer = screens.signedOut!.rows.map((row) =>
+        row.replace("· Run /login", "· run /login"),
+      )
+      expect(footer).not.toEqual(screens.signedOut!.rows)
+      expect(signedOut?.(footer)).toBe(true)
     })
   })
 

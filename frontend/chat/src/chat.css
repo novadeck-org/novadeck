@@ -428,6 +428,18 @@
 .chat-message[data-role="assistant"] + .chat-message[data-role="assistant"]::before {
   content: none;
 }
+/* The agent's update (its thinking, as its terminal shows it) ends in a dim "· summary" tag, in the
+   text's own line where it ends in a paragraph; after a list or a code block it takes a line. */
+.chat-message[data-thinking] > .markdown {
+  display: inline;
+}
+.chat-message[data-thinking] > .markdown > p:last-child {
+  display: inline;
+}
+.chat-summary-tag {
+  color: var(--_muted);
+  white-space: nowrap;
+}
 /* Another agent's words can turn the work from outside, so they stand next to the person's own
    prompt in weight. No box: like every voice here they're marked in the gutter, by the agent's
    face, at its first line. The handle in its hue, where it runs dim beside it, the words in

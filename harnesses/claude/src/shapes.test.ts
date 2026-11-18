@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { signature } from "./narration.test-support.js"
 import { conversational, shapes } from "./shapes.js"
 import { transcripts } from "./transcripts.js"
 
@@ -8,6 +9,21 @@ const keys = (record: object) =>
 const said = (content: string) => keys({ type: "user", message: { role: "user", content } })
 
 describe("Claude Code's shapes", () => {
+  it("read the model's update, and skip the thinking its terminal doesn't show", () => {
+    const thinking = (block: object) =>
+      keys({ type: "assistant", message: { role: "assistant", content: [block] } })
+    expect(
+      thinking({ type: "thinking", thinking: "Hi.", signature: signature("narration") }),
+    ).toEqual(["block:assistant/narration read"])
+    for (const block of [
+      { type: "thinking", thinking: "", signature: signature("thinking") },
+      { type: "thinking", thinking: "Hi.", signature: signature("thinking") },
+      { type: "thinking", thinking: "", signature: signature("narration") },
+      { type: "redacted_thinking", data: "x" },
+    ])
+      expect(thinking(block)).toEqual([`block:assistant/${block.type} skipped`])
+  })
+
   it("read a paste only where the decoder unwraps it", () => {
     expect(said('<pasted_content id="a">\nx\n</pasted_content id="a">\n')).toEqual([
       "block:user/text read",

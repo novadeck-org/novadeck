@@ -1045,7 +1045,7 @@ takes to catch a prompt hidden under a record skipped on purpose, as #482's was:
 - Claude Code: the record's type, an attachment's type (a queued prompt's also by who gave
   it and how), each message block's type, and for a record it wrote for itself (`isMeta`)
   the tag its text opens with (`record:system`, `attachment:queued_command/human/prompt`,
-  `block:assistant/thinking`, `meta:user/tag:system-reminder`);
+  `block:assistant/narration`, `meta:user/tag:system-reminder`);
 - Codex: the top-level type, a response item's type and a message's role, an event's type
   (`record:world_state`, `item:message/developer`, `event:token_count`);
 - Antigravity: the step's source and type, and whether it carries media

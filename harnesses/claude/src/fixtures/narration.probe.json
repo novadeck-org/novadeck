@@ -1,0 +1,151 @@
+{
+  "harness": "claude",
+  "version": "2.1.327",
+  "source": "captured",
+  "how": "the assistant records of a turn run with thinking display `updates` (and one with `omitted`), from a real session transcript: the model's update, its empty thinking block and the tool call and reply around them, their words replaced; each signature rebuilt with the layout of a real one (its kind in field 8 of the message in field 1 of field 2), its opaque bytes zeroed",
+  "scenarios": {
+    "updates": [
+      {
+        "type": "user",
+        "isSidechain": false,
+        "timestamp": "2026-11-18T10:00:00.000Z",
+        "message": {
+          "role": "user",
+          "content": "<text>"
+        }
+      },
+      {
+        "parentUuid": null,
+        "isSidechain": false,
+        "type": "assistant",
+        "timestamp": "2026-11-18T10:00:02.000Z",
+        "uuid": "a",
+        "thinkingDisplay": "updates",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQSSgoQCBMYAjgBQgh0aGlua2luZxIMAAAAAAAAAAAAAAAAGigAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            }
+          ]
+        }
+      },
+      {
+        "parentUuid": null,
+        "isSidechain": false,
+        "type": "assistant",
+        "timestamp": "2026-11-18T10:00:03.000Z",
+        "uuid": "a",
+        "thinkingDisplay": "updates",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Pick the first option and keep the default owner, since the next step needs it.",
+              "signature": "CAQSSwoRCBMYAjgBQgluYXJyYXRpb24SDAAAAAAAAAAAAAAAABooAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+            }
+          ]
+        }
+      },
+      {
+        "parentUuid": null,
+        "isSidechain": false,
+        "type": "assistant",
+        "timestamp": "2026-11-18T10:00:04.000Z",
+        "uuid": "a",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01",
+              "name": "Bash",
+              "input": {
+                "command": "<command>"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "user",
+        "isSidechain": false,
+        "timestamp": "2026-11-18T10:00:05.000Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01",
+              "content": "<output>"
+            }
+          ]
+        }
+      },
+      {
+        "parentUuid": null,
+        "isSidechain": false,
+        "type": "assistant",
+        "timestamp": "2026-11-18T10:00:06.000Z",
+        "uuid": "a",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "<text>"
+            }
+          ]
+        }
+      }
+    ],
+    "omitted": [
+      {
+        "type": "user",
+        "isSidechain": false,
+        "timestamp": "2026-11-18T10:01:00.000Z",
+        "message": {
+          "role": "user",
+          "content": "<text>"
+        }
+      },
+      {
+        "parentUuid": null,
+        "isSidechain": false,
+        "type": "assistant",
+        "timestamp": "2026-11-18T10:01:02.000Z",
+        "uuid": "a",
+        "thinkingDisplay": "omitted",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQSSgoQCBMYAjgBQgh0aGlua2luZxIMAAAAAAAAAAAAAAAAGigAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            }
+          ]
+        }
+      },
+      {
+        "parentUuid": null,
+        "isSidechain": false,
+        "type": "assistant",
+        "timestamp": "2026-11-18T10:01:03.000Z",
+        "uuid": "a",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "<text>"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

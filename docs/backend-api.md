@@ -1025,8 +1025,12 @@ one from an earlier runner.
   rewritten (the items follow again from the start). An item is the person's or the
   agent's text, a tool call with its input as text, or a tool's result, numbered from
   the record's start, with when it was written; `call` pairs a result with its call by a
-  runner-issued ref. Text past 16 KiB is cut short and marked `truncated`, and reasoning
-  never appears. `outcome` says what came of a tool call, as its harness's decoder read it
+  runner-issued ref. Text past 16 KiB is cut short and marked `truncated`. Reasoning
+  appears only where the harness's own terminal shows it to the person as the agent's words:
+  Claude Code's updates (a thinking block of its `narration` kind), which come as `assistant`
+  text items with `thinking: true`, the chat drawing them tagged "summary" as its terminal
+  does. Codex's and Antigravity's terminals show none of their reasoning as such (see
+  [Harness coverage](harness-coverage.md)), so none of it appears, nor does any other thinking. `outcome` says what came of a tool call, as its harness's decoder read it
   from the record, before any cut, and null where the harness says nothing: `failed`
   (true, false, or null where unknown), `exit`, `running` (it goes on past this result, a
   command in the background, whose `failed` stays null), `size` (a count and its unit) and

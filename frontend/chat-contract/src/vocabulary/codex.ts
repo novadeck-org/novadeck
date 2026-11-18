@@ -226,6 +226,21 @@ export const codexVocabulary: readonly Written[] = [
     ],
   },
   {
+    // Its reasoning summaries are in the rollout, but its terminal draws them only in the
+    // transcript overlay (Ctrl+T), never in the conversation: so the chat leaves them out.
+    name: "reasoning",
+    records: [
+      said("Which repos?"),
+      item({
+        type: "reasoning",
+        summary: [{ type: "summary_text", text: "**Choosing the repos**\n\nThe public ones." }],
+        encrypted_content: "gAAAA",
+      }),
+      item({ type: "reasoning", summary: [], encrypted_content: "gAAAB" }),
+      replied("Those two."),
+    ],
+  },
+  {
     name: "agent-message-and-interruption",
     records: [
       said("Start."),

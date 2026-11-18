@@ -34,6 +34,11 @@ user: Use the lazy tool.
 assistant: Calling.
 tools: [8 tool calls · messaged reviewer, listed agents, opened an agent, described this terminal] messaged reviewer [agent] · Lazily | Call: call_mcp_tool: 3 lines: ServerName: novadeck → 1 line: Sent; listed agents [agent] | Call: call_mcp_tool: 3 lines: ServerName: novadeck → 1 line: reviewer; opened an agent [agent] · agy: Review | Call: call_mcp_tool: 3 lines: ServerName: novadeck_novadeck → 1 line: Opened; described this terminal [agent] · Chat | Call: call_mcp_tool: 3 lines: ServerName: novadeck → 1 line: Saved; create_issue [other] · github | Call: call_mcp_tool: 2 lines: ToolName: create_issue → 1 line: Created #12; call_mcp_tool [other] | Call: 1 line: github → 1 line: No tool named; asked you to choose [agent] · Which pick? | Call: call_mcp_tool: 3 lines: ServerName: novadeck → 1 line: Asked.; told you [agent] · CI is green | Call: call_mcp_tool: 3 lines: ServerName: novadeck → 1 line: Told.
 
+# thinking
+user: Which repos?
+tools: ran [run] · ls → 2 lines: a
+assistant: Those two.
+
 # limits
 user: Be extreme.
 tools: ran [run] | Call: run_command: 1 line, shortened: {"CommandLine":"echo xxxxxxxxxxxxxxxxxxxxxxxxxx… → 1 line, shortened: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…; a_very_long_tool_name_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz [other] · …/user/project/f.ts | Call: 1 line: /home/user/project/f.ts → 1 line: fine; unknown_tool [other] · something → 1 line: result

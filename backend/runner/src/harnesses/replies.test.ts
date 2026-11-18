@@ -105,6 +105,36 @@ describe("an agent's last reply in its transcript", () => {
     await expect(lastReply(path, claude)).resolves.toBe("Found only a README.")
   })
 
+  it("is not Claude Code's update, which its terminal shows beside its reply but which is none", async ({
+    resources,
+  }) => {
+    const claude = harnesses.claude.transcripts!.items
+    const path = join(folder(resources), "transcript.jsonl")
+    // A thinking block of the narration kind, as its signature names it (see narration.ts).
+    const signature = Buffer.concat([
+      Buffer.from("080412130a110813180238014209", "hex"),
+      Buffer.from("narration"),
+    ]).toString("base64")
+    writeFileSync(
+      path,
+      [
+        line("user", "Look around"),
+        line("assistant", [{ type: "text", text: "Found only a README." }]),
+        line("assistant", [{ type: "thinking", thinking: "Checking it once more.", signature }]),
+      ].join("\n") + "\n",
+    )
+    await expect(lastReply(path, claude)).resolves.toBe("Found only a README.")
+    // With no reply, an update alone says nothing of one.
+    writeFileSync(
+      path,
+      [
+        line("user", "Look around"),
+        line("assistant", [{ type: "thinking", thinking: "Checking.", signature }]),
+      ].join("\n") + "\n",
+    )
+    await expect(lastReply(path, claude)).resolves.toBeUndefined()
+  })
+
   it("is nothing when the transcript can't be read", async () => {
     await expect(lastReply("/nonexistent/novadeck/transcript.jsonl", items)).resolves.toBe(
       undefined,
