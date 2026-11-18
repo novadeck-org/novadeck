@@ -91,6 +91,9 @@ export {
   partBytes,
   partText,
   pdfLimits,
+  folderLimits,
+  folderEntry,
+  type FolderEntry,
 } from "./companions.js"
 export {
   type ClosedTerminal,

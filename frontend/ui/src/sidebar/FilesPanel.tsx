@@ -56,6 +56,7 @@ const FilesPanelView = ({
   checkout,
   watch,
   onOpenFile,
+  onOpenFolder,
   onLit,
   selectedHandle,
   roster,
@@ -77,6 +78,9 @@ const FilesPanelView = ({
   watch?: (() => () => void) | undefined
   // Opens a file of the project, by its path from the root; rejects if it can't be opened.
   onOpenFile: (path: string) => Promise<void>
+  // Opens a folder of the project, by its path from the root, in the selected terminal's pane;
+  // absent where the backend can't.
+  onOpenFolder?: ((path: string) => Promise<void>) | undefined
   // Told the agents the panel lights while it shows (the kept ones, else the selected terminal's),
   // and none when it does not: what an open file preview emphasizes.
   onLit?: ((lit: ReadonlySet<string>) => void) | undefined
@@ -256,6 +260,10 @@ const FilesPanelView = ({
     setSelected(row.node.path)
     onOpenFile(row.node.path).catch(() => read(parentOf(row.node.path)))
   }
+  // A folder shown in the pane; one that can't be opened may be gone: its parent is read again.
+  const openFolder = (row: FilesRow): void => {
+    onOpenFolder?.(row.node.path).catch(() => read(parentOf(row.node.path)))
+  }
   const focusRow = (row: FilesRow | undefined): void => {
     if (!row) return
     setStop(row.node.path)
@@ -391,6 +399,7 @@ const FilesPanelView = ({
                 shownTimes={shownTimes}
                 onActivate={activate}
                 onOpenFile={openFile}
+                onOpenFolder={onOpenFolder && openFolder}
                 onFocus={setStop}
                 onLight={setHovered}
               />

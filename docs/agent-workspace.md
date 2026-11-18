@@ -488,7 +488,27 @@ with every safety check again at that time:
   browser show it alike: only its pages are drawn, so a link in it goes nowhere, no form or
   script it carries runs, and nothing it names is fetched. It opens fitted to the pane's width, and keeps its page and zoom across views,
   windows and a rewrite of the file; one over 128 MB loads as too large to preview, and one
-  locked with a password, or that isn't a PDF pdf.js can read, says so in the pane. Showing the same file or page again updates the item on the agent's own
+  locked with a password, or that isn't a PDF pdf.js can read, says so in the pane.
+  A folder (`show {"file": {"path": "<dir>/"}}`, or the person's "Open in the pane" on a
+  Files panel row, kind `folder`) is listed, read-only, as a grid of thumbnails or a list
+  (newest first, or by name or size): the runner reads its entries (name, kind by extension,
+  size, modified time, and what a folder inside holds), watches it with the file system's own
+  watch (a few events together, at most about four reads a second, and every few seconds where
+  it can't watch), and pushes the listing again as files land, which the pane draws on top, or
+  holds in a "N new files" pill while the pointer is in the grid; a file whose size is
+  changing shows the Files panel's write cursor. A folder with files landing behind another tab
+  makes its taskbar icon new. Double-clicking a folder goes into it in the same tab, never above
+  the one that was opened (the crumbs start there); double-clicking a file opens it as an item
+  of its own kind on the terminal's bar (`companions.attach`), as if shown, so it goes to that
+  kind's group. Thumbnails of images up to 2 MiB, and of videos up to 24 MiB (their first frame
+  and length, drawn by the page), are read through `companions.part` with the file's own stamp,
+  lazily and nearest first; a PDF, a recording and a text file show their kind's icon. It is
+  the same for Claude Code, Codex and Antigravity, as the runner reads the folder. Secrets
+  follow `companions/secrets.ts`: a folder that may hold secrets is refused (`show` answers
+  with why, and nothing in it is listed), a secret file or folder inside one is named and
+  flagged, never opened, counted, read or given a thumbnail, and a symbolic link that leaves
+  the opened folder is listed as a link and never followed. Of a folder holding more than 2000
+  entries, the first 2000 by name are listed and the pane says so. Showing the same file or page again updates the item on the agent's own
   bar, or else the latest it showed that the person moved into a window or onto another
   bar, where it stays. Items are told apart by a file's real path or a page's `pageKey`
   (`protocol/src/pages.ts`): its address without the fragment, or for a server on this

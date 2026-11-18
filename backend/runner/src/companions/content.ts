@@ -89,16 +89,17 @@ const unavailable = (reason: Unavailable["reason"], size: number | null = null):
 })
 
 /** Whether a file is shown as an image, by its extension. */
-const isImage = (path: string): boolean => images[extname(path).toLowerCase()] !== undefined
+export const isImage = (path: string): boolean => images[extname(path).toLowerCase()] !== undefined
 
 /** Whether a file is played as a video, by its extension. */
-const isVideo = (path: string): boolean => videos[extname(path).toLowerCase()] !== undefined
+export const isVideo = (path: string): boolean => videos[extname(path).toLowerCase()] !== undefined
 
 /** Whether a file is played as a recording, by its extension. */
-const isAudio = (path: string): boolean => recordings[extname(path).toLowerCase()] !== undefined
+export const isAudio = (path: string): boolean =>
+  recordings[extname(path).toLowerCase()] !== undefined
 
 /** Whether a file is previewed as a PDF, by its extension. */
-const isPdf = (path: string): boolean => extname(path).toLowerCase() === ".pdf"
+export const isPdf = (path: string): boolean => extname(path).toLowerCase() === ".pdf"
 
 // The formats a person names otherwise than by their extension: JPEG's other extensions are
 // JPEG, and JPEG XL is spelt out.
@@ -157,14 +158,15 @@ export type Pointed = {
   readonly ok: true
   /** Its path, symlinks resolved. */
   readonly path: string
-  readonly kind: "image" | "video" | "audio" | "pdf" | "file"
+  readonly kind: "image" | "video" | "audio" | "pdf" | "file" | "folder"
   readonly size: number
   readonly secret: boolean
 }
 
 /**
- * A file a request points at, from the terminal's directory: anything but a missing
- * path, a folder, or a pipe or device. What it holds is read only as it loads. `env` is
+ * A file or a folder a request points at, from the terminal's directory: anything but a
+ * missing path, or a pipe or device. A folder that may hold secrets is refused: it is never
+ * listed. What it holds is read only as it loads. `env` is
  * the person's environment, which says where tools keep their logins (see `secret`).
  */
 export const pointAt = async (
@@ -176,8 +178,13 @@ export const pointAt = async (
   if (!path) return failure("That file doesn't exist.")
   const stats = await stat(path).catch(() => undefined)
   if (!stats) return failure("That file doesn't exist.")
-  if (stats.isDirectory()) return failure("That's a folder; only files can be shown.")
-  if (!stats.isFile()) return failure("Only files can be shown, not a pipe or a device.")
+  if (stats.isDirectory()) {
+    if (secret(path, env))
+      return failure("That folder may hold secrets, so Novadeck won't list what is in it.")
+    return { ok: true, path, kind: "folder", size: 0, secret: false }
+  }
+  if (!stats.isFile())
+    return failure("Only files and folders can be shown, not a pipe or a device.")
   return {
     ok: true,
     path,
@@ -219,7 +226,7 @@ const reasonOf = (error: unknown): Unavailable["reason"] => {
 }
 
 /** What says a file changed: its size, when it last changed, and which file it is. */
-const stampOf = (stats: Stats): string => `${stats.size}:${stats.mtimeMs}:${stats.ino}`
+export const stampOf = (stats: Stats): string => `${stats.size}:${stats.mtimeMs}:${stats.ino}`
 
 /** A short digest of a text, as a stamp. */
 export const hashOf = (text: string): string =>

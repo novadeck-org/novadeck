@@ -5,6 +5,10 @@ import { currentContext, currentTarget } from "../selectors"
 import type { CommandContext } from "./context"
 
 export type FileCommands = {
+  // Opens a folder of the active project, by its path from the project's root, in the pane of the
+  // selected terminal (the session's first when a window is selected): listed there as a folder
+  // item, read-only. Rejects when the backend can't open it, or the session has no terminal.
+  readonly openFolderInPane: (path: string) => Promise<void>
   // Opens a file of the active project, by its path from the project's root, in the
   // session's project window: re-pointed to it when it is open, made when it is not, and
   // selected, with or without a terminal. Nothing happens where the backend can't open
@@ -40,6 +44,21 @@ export const createFileCommands = (
   { workspace, navigation, effects, companions, ui }: CommandContext,
   { markCreated, pulse }: SourceDependencies,
 ): FileCommands => ({
+  openFolderInPane: async (path) => {
+    const attach = companions?.attach
+    if (!attach) return
+    const before = workspace.getSnapshot()
+    const target = currentTarget(before)
+    const state = sessionState(before, target)
+    const terminal =
+      state?.roster.terminals.find((each) => each.id === state.selected) ??
+      state?.roster.terminals[0]
+    if (!terminal) throw new Error("There is no terminal to show the folder beside")
+    await attach(target, terminal.id, absolutePath(activeProject(before)!.directory, path))
+    // The item opens on the terminal's bar as the backend reports it; the person sees it there.
+    if (state?.selected !== terminal.id)
+      navigation.navigateWorkspace([{ type: "terminal/select", target, terminalId: terminal.id }])
+  },
   openProjectFile: async (path, options) => {
     const open = companions?.openInProject
     if (!open) return

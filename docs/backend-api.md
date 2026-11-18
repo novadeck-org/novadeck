@@ -1737,7 +1737,17 @@ one from an earlier runner.
     Neither carries its bytes, which `companions.part({ itemId, stamp, offset, reveal? })`
     reads, 2 MiB (`partBytes`) as base64 from `offset`, while the file is as the content's
     `stamp` names it (else `changed`, or `unavailable` with `missing`, `unreadable`,
-    `not-a-file`, `too-large` or `secret` as above); an item of another kind is `NOT_FOUND`. A text
+    `not-a-file`, `too-large` or `secret` as above); an item of another kind is `NOT_FOUND`. A folder
+    is the listing of the folder `within` names (`companions.content({ itemId, within? })`: a
+    path from the item's top, "" for the top; one that leaves the top, through a link too, is
+    `unavailable` as `missing`, and one that may hold secrets as `secret`; a top that is gone is
+    `gone`): `path`, `within`, `entries`, `total` and `truncated`, the first 2000 entries by name,
+    each with its `name`, `kind` (`folder`, `image`, `video`, `audio`, `pdf`, `text`, `other`),
+    `size`, `modifiedAt`, `children` (what a folder holds), `secret`, `link` (a link out of the
+    top: never entered or read) and `stamp`. It is read again, a few changes together, as the
+    folder changes. `companions.part` takes a `path` for such an item, a file of the folder from its
+    top, read as its kind is (an image only to 2 MiB) against the stamp its entry gave. A
+    text
     file is the lines around those pointed at, read to the last of them and up to 4 MiB
     more to count the rest: `total` once it reached the file's end, else `truncated`;
     lines past the end are pulled back to it and marked `clamped`. A plan is its text, cut
@@ -1808,10 +1818,10 @@ one from an earlier runner.
     open by another program) is an ordinary error that may pass; an unknown item is
     `NOT_FOUND`.
     Saves of one plan are handled one at a time.
-  - `companions.attach({ terminalId, path, lines?, title? })` puts a file the person
-    picked on a terminal's bar, by a path absolute or from the terminal's directory:
-    `TERMINAL_NOT_FOUND`, or `INVALID_FILE` saying why for a missing path, a folder, a
-    pipe or a device. Binary files are accepted.
+  - `companions.attach({ terminalId, path, lines?, title? })` puts a file or a folder the
+    person picked on a terminal's bar, by a path absolute or from the terminal's directory:
+    `TERMINAL_NOT_FOUND`, or `INVALID_FILE` saying why for a missing path, a folder that may
+    hold secrets, a pipe or a device. Binary files are accepted. A folder is a `folder` item.
   - `companions.openInProject({ sessionId, path, windowId })` opens a file the person
     picked in the session's project window, by a path absolute or from the project's
     folder, and answers the `item` and `window`. A session has one such window (`home` is
@@ -1819,7 +1829,7 @@ one from an earlier runner.
     same item at it, with a later `version` and the window named by it again. With no
     window yet, one is made under `windowId` with an item whose `from` is null.
     `NOT_FOUND` for an unknown session, `CONFLICT` for a taken `windowId`, or
-    `INVALID_FILE` saying why. No agent's show lands in it, and closing it deletes it.
+    `INVALID_FILE` saying why (a folder opens through `attach`, not here). No agent's show lands in it, and closing it deletes it.
   - `companions.move({ itemId, terminalId })` moves an item onto a bar of its session,
     from a bar or a window, which goes with it; an item that bar held under the same
     pointer is replaced. `NOT_FOUND`, `TERMINAL_NOT_FOUND`, or `CONFLICT` for another

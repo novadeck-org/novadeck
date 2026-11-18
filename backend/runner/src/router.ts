@@ -339,7 +339,7 @@ export const createRouter = (options: {
         items.answerLook(input, context.session.id),
       ),
       content: api.companions.content.handler(async function* ({ input, signal }) {
-        for await (const content of items.content(input.itemId, input.reveal, signal))
+        for await (const content of items.content(input.itemId, input.reveal, signal, input.within))
           yield await withSkill(content, store.item(input.itemId)?.plan?.agent)
       }),
       changeFile: api.companions.changeFile.handler(({ input }) => items.changeFile(input)),

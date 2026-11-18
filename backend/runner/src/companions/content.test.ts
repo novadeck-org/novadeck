@@ -135,20 +135,30 @@ describe("what a show points at", () => {
     await expect(loadFile(file(login), false, {})).resolves.toMatchObject({ reason: "secret" })
   })
 
-  it("is never a missing path, a folder, or a pipe", async ({ directory }) => {
+  it("is never a missing path or a pipe, and a folder is one that may be listed", async ({
+    directory,
+  }) => {
     await expect(pointAt("gone.txt", directory)).resolves.toEqual({
       ok: false,
       reason: "That file doesn't exist.",
     })
     await expect(pointAt(".", directory)).resolves.toEqual({
+      ok: true,
+      path: directory,
+      kind: "folder",
+      size: 0,
+      secret: false,
+    })
+    mkdirSync(join(directory, ".ssh"))
+    await expect(pointAt(".ssh/", directory)).resolves.toEqual({
       ok: false,
-      reason: "That's a folder; only files can be shown.",
+      reason: "That folder may hold secrets, so Novadeck won't list what is in it.",
     })
     if (process.platform === "win32") return
     expect(spawnSync("mkfifo", [join(directory, "pipe")]).status).toBe(0)
     await expect(pointAt("pipe", directory)).resolves.toEqual({
       ok: false,
-      reason: "Only files can be shown, not a pipe or a device.",
+      reason: "Only files and folders can be shown, not a pipe or a device.",
     })
   })
 

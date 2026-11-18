@@ -549,12 +549,13 @@ export type Runner = {
     /**
      * Follows what an item points at: read now, then again each time it changes, across
      * reconnections. A file that may hold secrets is `held` unless `reveal` is the
-     * path the item points at, the file the person chose to show. Iteration
+     * path the item points at, the file the person chose to show. A folder item lists the
+     * folder `within` names, from its top (the top when absent). Iteration
      * ends once the item is deleted, the runner closes, or on `return()`.
      */
     content(
       itemId: string,
-      options?: { readonly reveal?: string },
+      options?: { readonly reveal?: string; readonly within?: string },
     ): AsyncIterableIterator<ItemContent, undefined>
     /**
      * One file of a changes item as a selection of its layers changed it: one run, from the
@@ -628,13 +629,15 @@ export type Runner = {
      * An item's file from `offset`, up to `partBytes` bytes, for a kind read in parts (a
      * video, a recording), while it is as
      * `stamp` names it; `changed` when it is not. Rejects with `NOT_FOUND` for an unknown
-     * item or one of a kind not read in parts.
+     * item or one of a kind not read in parts. A folder item's `path` names one of its files,
+     * from its top.
      */
     part(input: {
       readonly itemId: string
       readonly stamp: string
       readonly offset: number
       readonly reveal?: string
+      readonly path?: string
     }): Promise<FilePart>
     /** What went wrong on a page item during its show `shown`, as the pane saw it. */
     pageTrouble(input: {
@@ -953,10 +956,14 @@ export const connectRunner = async (
       list: (input) => call((client) => client.companions.list(input)),
       watch: () =>
         followAll(connection, (client, signal) => client.companions.watch(undefined, { signal })),
-      content: (itemId, { reveal } = {}) =>
+      content: (itemId, { reveal, within } = {}) =>
         followRestarting(connection, (client, signal) =>
           client.companions.content(
-            { itemId, ...(reveal !== undefined && { reveal }) },
+            {
+              itemId,
+              ...(reveal !== undefined && { reveal }),
+              ...(within !== undefined && { within }),
+            },
             { signal },
           ),
         ),

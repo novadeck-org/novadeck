@@ -52,6 +52,7 @@ import {
   type PlanText,
   type Pointed,
 } from "./content.js"
+import { FolderWatch, loadFolder, readFolderPart } from "./folder.js"
 import { findRepository, LayerReader, type ReadMarks } from "./layers.js"
 import { PageLooks } from "./looks.js"
 import type { Compare, ItemRecord, ItemRecords, WindowRecord } from "./records.js"
@@ -286,6 +287,11 @@ const keyOf = (content: ItemContent): string =>
 /** How recent a plan's own timestamp must be for it to count as written live. */
 const LIVE_PLAN_MS = 60_000
 
+// A folder is read at most about four times a second, and where nothing tells it changed, every
+// few seconds.
+const folderGapMs = 250
+const folderPollMs = 3_000
+
 /**
  * What agents show and the person attaches beside terminals, kept as pointers: each item
  * is held by one terminal's bar or one window, survives restarts, and goes when it is
@@ -316,6 +322,8 @@ export class CompanionItems {
   private readonly dismissed = new Set<string>()
   /** The shells each terminal's item has counted, so one started since is told from news of the others. */
   private readonly shellIds = new Map<string, ReadonlySet<string>>()
+  /** The names a folder item's top held when it was last read, so what came since is told. */
+  private readonly folderNames = new Map<string, ReadonlySet<string>>()
   /** The ends of shells' output files, read for their items. */
   private readonly tails = new ShellTails()
   /**
@@ -699,6 +707,8 @@ export class CompanionItems {
     if (folder === undefined) throw new DomainError("NOT_FOUND", "Session not found")
     const pointed = await pointAt(input.path, folder, this.environment())
     if (!pointed.ok) throw new DomainError("INVALID_FILE", pointed.reason)
+    if (pointed.kind === "folder")
+      throw new DomainError("INVALID_FILE", "A folder opens in a terminal's pane, not in a window.")
     if (this.stopping) throw new DomainError("CLOSING")
     const pointer = this.filePointer(pointed, input.path, folder, folder)
     const own = this.records.windows(input.sessionId).find((window) => window.home === "project")
@@ -871,6 +881,7 @@ export class CompanionItems {
     itemId: string,
     reveal: string | undefined,
     signal?: AbortSignal,
+    within?: string,
   ): AsyncGenerator<ItemContent> {
     if (this.stopping) throw new DomainError("CLOSING")
     this.item(itemId)
@@ -881,6 +892,10 @@ export class CompanionItems {
     signal?.addEventListener("abort", abort, { once: true })
     if (signal?.aborted) reader.abort()
     try {
+      if (this.item(itemId).kind === "folder") {
+        yield* this.folderContent(itemId, within ?? "", reader.signal)
+        return
+      }
       let probed: string | undefined
       let sent: string | undefined
       // How long a change's last read took, which sets the wait for the next, and how many
@@ -936,6 +951,60 @@ export class CompanionItems {
       readers.delete(reader)
       if (readers.size === 0 && this.readers.get(itemId) === readers) this.readers.delete(itemId)
     }
+  }
+
+  /**
+   * A folder item's listing of the folder `within` names, read again as the folder changes: its
+   * own watch, a few events as one, and at most about four reads in a second; where the
+   * watch tells nothing (a network share), every few seconds. Files that came to its top since
+   * it was first read make the item new, which the taskbar marks.
+   */
+  private async *folderContent(
+    itemId: string,
+    within: string,
+    signal: AbortSignal,
+  ): AsyncGenerator<ItemContent> {
+    const watcher = new FolderWatch()
+    let sent: string | undefined
+    try {
+      while (!signal.aborted) {
+        const item = this.records.item(itemId)
+        if (!item) return
+        const began = Date.now()
+        // eslint-disable-next-line no-await-in-loop -- Each read follows the change before it.
+        const { content, dir } = await loadFolder(item, within, this.environment())
+        if (signal.aborted) return
+        watcher.follow(dir)
+        if (within === "") this.folderArrivals(item, content)
+        const key = `${item.version}|${item.path}|${keyOf(content)}`
+        if (key !== sent) {
+          sent = key
+          yield content
+        }
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        await sleep(Math.max(0, folderGapMs - (Date.now() - began)), undefined, { signal }).catch(
+          () => {},
+        )
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        await watcher.wait(folderPollMs, signal)
+      }
+    } finally {
+      watcher.close()
+    }
+  }
+
+  /** Makes a folder item new, as an item shown again is, once files came to its top. */
+  private folderArrivals(item: ItemRecord, content: ItemContent): void {
+    if (content.state !== "ready" || content.content.kind !== "folder") return
+    const { entries, truncated } = content.content
+    const names = new Set(entries.map(({ name }) => name))
+    const known = this.folderNames.get(item.id)
+    this.folderNames.set(item.id, names)
+    if (known === undefined || truncated) return
+    if (![...names].some((name) => !known.has(name))) return
+    const now = this.records.item(item.id)
+    if (!now) return
+    this.save({ ...now, version: now.version + 1, openAsked: false, shownAt: Date.now() })
   }
 
   private changesWait(took: number): number {
@@ -1287,7 +1356,7 @@ export class CompanionItems {
     // A held file goes by its own name, so the person sees what they would open.
     const name = pointed.secret
       ? basename(pointed.path)
-      : (shown.title ?? basename(resolve(cwd, given)))
+      : (shown.title ?? (basename(resolve(cwd, given)) || pointed.path))
     return {
       pointerKey: pointed.path,
       kind: pointed.kind,
@@ -1366,6 +1435,7 @@ export class CompanionItems {
     ) {
       return `${size(pointed.size)} ${formatOf(pointed.path)}`
     }
+    if (pointed.kind === "folder") return tail(pointed.path, companionLimits.detail)
     const shown = project && inside(project, pointed.path) ? relative(project, pointed.path) : given
     const range = lines ? ` · lines ${lines.from}–${lines.to}` : ""
     return `${tail(shown, companionLimits.detail - range.length)}${range}`
@@ -1592,9 +1662,14 @@ export class CompanionItems {
     readonly stamp: string
     readonly offset: number
     readonly reveal?: string | undefined
+    readonly path?: string | undefined
   }): Promise<FilePart> {
     if (this.stopping) throw new DomainError("CLOSING")
     const item = this.item(input.itemId)
+    if (input.path !== undefined) {
+      if (item.kind !== "folder") throw new DomainError("NOT_FOUND", "That item isn't a folder")
+      return readFolderPart(item, { ...input, path: input.path }, this.environment())
+    }
     const largest = partsOf[item.kind]
     if (largest === undefined) throw new DomainError("NOT_FOUND", "That item isn't read in parts")
     const reveal = input.reveal !== undefined && input.reveal === item.path
@@ -1642,6 +1717,8 @@ export class CompanionItems {
     if (item.kind === "video" || item.kind === "audio")
       return loadPlayed(item, reveal, { shown: item.version, at: cued?.at }, this.environment())
     if (item.kind === "pdf") return loadPdf(item, reveal, this.environment())
+    if (item.kind === "folder")
+      return loadFolder(item, "", this.environment()).then(({ content }) => content)
     return loadFile(item, reveal, this.environment())
   }
 
@@ -1651,6 +1728,7 @@ export class CompanionItems {
 
   private removed(item: ItemRecord, window: WindowRecord | undefined): void {
     this.cues.delete(item.id)
+    this.folderNames.delete(item.id)
     this.sink?.gone(item)
     for (const reader of this.readers.get(item.id) ?? []) reader.abort()
     this.emit(

@@ -8,6 +8,7 @@ import type {
 } from "@novadeck/core/items"
 
 import { clip, clipMime, clipSize } from "./clip"
+import { folderSamples, type DemoFolder } from "./folders"
 import { lockedPdf, lockedPdfSize, notAPdf, quarterlyReport } from "./pdf"
 import { recording, recordingMime, recordingSize } from "./recording"
 
@@ -22,6 +23,8 @@ export type SampleArtifact = {
   // A change's files read one at a time, as the runner reads them: the file's diff for the
   // layers selected.
   readonly changeFile?: (path: string, layers: readonly string[]) => ChangeFileDiff
+  // A folder's files, which its listings, its files' parts and what they open as come from.
+  readonly folder?: DemoFolder
   // A video's, a recording's or a PDF's bytes, which its parts are cut from: `read` makes them when first
   // asked, `part` is how many go in a part (the runner's 2 MiB unless given), and `delay` how
   // long each part takes, in milliseconds, so one can be seen loading.
@@ -767,4 +770,5 @@ export const devServerArtifacts: readonly SampleArtifact[] = [
   videoSamples.playable,
   recordingSamples.playable,
   pdfSamples.shown,
+  folderSamples.render,
 ]

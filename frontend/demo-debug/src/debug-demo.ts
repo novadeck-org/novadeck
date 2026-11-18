@@ -36,6 +36,7 @@ import { updatesGroup, type DemoUpdates } from "./desktop/updates"
 import { doorbellGroups } from "./doorbell"
 import { feedbackGroups } from "./feedback"
 import { filesGroups } from "./files"
+import { folderViewGroups } from "./folder-view"
 import { forgesGroups } from "./forges"
 import { historyGroups } from "./history"
 import { inboxGroups } from "./inbox"
@@ -296,6 +297,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           ...planGroups(inner.companions),
           ...videoGroups(inner.companions),
           ...pdfGroups(inner.companions),
+          ...folderViewGroups(inner.companions),
           ...babciaGroups(babciaCuesOf(inner)),
           ...launchGroups(launchCuesOf(inner)),
           ...doorbellGroups(inner.messages),

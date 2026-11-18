@@ -489,6 +489,16 @@ Agents:
   shows the report under a new stamp, as if its file was rewritten, read in 512-byte parts 0.3 s
   apart: the old one stays on screen under a Loading chip for about 2 s, then the new one swaps
   in on the page you were on.
+- **Folder:** only in the `showcase` variant, on the selected terminal's bar. The dev server's
+  terminal (`@fox`) already holds `render`, a folder an agent wrote into (`frontend/demo/src/showcase/folders.ts`:
+  SVG stills, a clip, a PDF, a log, a folder inside it, a secret file and folder and a link out),
+  listed as thumbnails, newest first; double-clicking a file opens it in its kind's group,
+  and opening a folder from the Files panel (`agents` demo) lists a stand-in. The Folder group:
+  "Show a folder" shows it again; "A file lands in the folder" puts a new picture on top (held
+  in a pill while the pointer is in the grid); "A file is being written" grows one for about 3 s
+  (write cursor and pulse); "Show a folder with nothing in it", "...too large to list whole" and
+  "...that may hold secrets" are the pane's other states; "The folder goes away" strikes its tab
+  through and says it is gone, with a Close action; "Bring the folder back" undoes it.
 - **Changes:** only in the `showcase` variant, no action needed: the dev server's terminal
   (`@fox`, the third) holds its items on the bar beside those that can't show, thirteen of them
   changes, one in each shape the changes pane draws: an ordinary change in layers (a refactor of

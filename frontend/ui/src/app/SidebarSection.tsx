@@ -151,6 +151,10 @@ export const SidebarSection = memo((): React.JSX.Element => {
       }),
     [commands, worksFeed, allWorks, projectId],
   )
+  const onOpenFolder = useMemo(
+    () => (backend.companions?.attach ? commands.openFolderInPane : undefined),
+    [backend.companions, commands],
+  )
   const onLit = useCallback(
     (lit: ReadonlySet<string>) =>
       ui.update((state) => (state.filesLit === lit ? state : { ...state, filesLit: lit })),
@@ -323,6 +327,7 @@ export const SidebarSection = memo((): React.JSX.Element => {
             checkout={checkout}
             watch={watchWorks}
             onOpenFile={onOpenFile}
+            onOpenFolder={onOpenFolder}
             onLit={onLit}
             selectedHandle={selectedHandle}
             roster={roster}

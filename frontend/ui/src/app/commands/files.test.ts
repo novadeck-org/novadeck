@@ -41,6 +41,40 @@ const target = { projectId: "project", workspaceSessionId: "initial" }
 const reply = () => Promise.resolve({ item: readme, window: windowOf("session-1", "README.md") })
 
 describe("files commands", () => {
+  context("when opening a folder in the pane", () => {
+    const attaching = (attach?: Companions["attach"]) => {
+      const asked: { terminalId: string; path: string }[] = []
+      const companions: Companions = {
+        ...emptyCompanions(),
+        ...(attach && {
+          attach: (to, terminalId, path) => (
+            asked.push({ terminalId, path }),
+            attach(to, terminalId, path)
+          ),
+        }),
+      }
+      return { ...openCommands({ companions }), asked }
+    }
+    const folder = itemFixture("folder", "01", { kind: "folder", name: "src", path: "/p/src" })
+
+    it("attaches it to the selected terminal by its absolute path", async () => {
+      const app = attaching(async () => folder)
+      await app.commands.openFolderInPane("src")
+      expect(app.asked).toEqual([{ terminalId: "01", path: "~/project/src" }])
+    })
+
+    it("does nothing where the backend can't attach", async () => {
+      const app = attaching()
+      await expect(app.commands.openFolderInPane("src")).resolves.toBeUndefined()
+      expect(app.asked).toEqual([])
+    })
+
+    it("lets the rejection stand when the backend can't open it", async () => {
+      const app = attaching(() => Promise.reject(new Error("no such folder")))
+      await expect(app.commands.openFolderInPane("gone")).rejects.toThrow("no such folder")
+    })
+  })
+
   context("when opening a file", () => {
     it("opens it in a new project window by its absolute path, selected", async () => {
       const app = open(reply)
