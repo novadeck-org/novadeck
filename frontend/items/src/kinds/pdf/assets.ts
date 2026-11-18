@@ -8,7 +8,9 @@ const files = import.meta.glob<string>(
   [
     "../../../node_modules/pdfjs-dist/cmaps/*.bcmap",
     "../../../node_modules/pdfjs-dist/standard_fonts/*.{pfb,ttf}",
-    "../../../node_modules/pdfjs-dist/wasm/*.wasm",
+    // The image decoders only: pdf.js's script engine (quickjs) is never run here, and its
+    // colour-profile module (qcms) isn't used when the app hands it its files.
+    "../../../node_modules/pdfjs-dist/wasm/{openjpeg,jbig2}.wasm",
   ],
   { query: "?url&inline", import: "default" },
 )

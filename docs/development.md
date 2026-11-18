@@ -482,8 +482,9 @@ Agents:
   by Ghostscript, which the viewer says "This PDF is locked with a password, which Novadeck doesn't
   open."; "Show a file that isn't a PDF" is text under
   a PDF's name, which the viewer says "This file couldn't be read as a PDF."; "Rewrite the PDF"
-  shows the report under a new stamp, as if its file was rewritten: the old one stays on screen
-  under a Loading chip, then the new one swaps in on the page you were on.
+  shows the report under a new stamp, as if its file was rewritten, read in 512-byte parts 0.3 s
+  apart: the old one stays on screen under a Loading chip for about 2 s, then the new one swaps
+  in on the page you were on.
 - **Changes:** only in the `showcase` variant, no action needed: the dev server's terminal
   (`@fox`, the third) holds its items on the bar beside those that can't show, thirteen of them
   changes, one in each shape the changes pane draws: an ordinary change in layers (a refactor of

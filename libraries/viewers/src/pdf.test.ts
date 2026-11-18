@@ -256,6 +256,47 @@ describe("a PDF's drawing", () => {
   })
 })
 
+describe("a PDF out of sight or on another screen", () => {
+  it("draws no page while it has no size", async () => {
+    const pane = paneIn()
+    mount(pane, pdfOf(40))
+    await opened(pane, 40)
+    // Hidden as soon as it's laid out, while its first pages may still be drawing.
+    pane.style.display = "none"
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    const drawn = pagesOf(pane).filter((page) => page.querySelector("canvas")).length
+    expect(drawn).toBeLessThanOrEqual(3)
+  })
+
+  it("draws its pages again for a screen of another pixel density", async () => {
+    // A screen of twice the density, as the browser would report the move.
+    const listeners: (() => void)[] = []
+    const matchMedia = window.matchMedia
+    const ratio = Object.getOwnPropertyDescriptor(window, "devicePixelRatio")
+    window.matchMedia = ((query: string) => ({
+      ...matchMedia.call(window, query),
+      addEventListener: (_: string, on: () => void) => listeners.push(on),
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia
+    try {
+      Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 1 })
+      const pane = paneIn()
+      mount(pane, pdfOf(1))
+      await opened(pane, 1)
+      const page = pagesOf(pane)[0]!
+      await expect.poll(() => page.querySelector("canvas")?.width ?? 0).toBeGreaterThan(350)
+      Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 2 })
+      listeners.forEach((on) => on())
+      // Twice the pixels, in the same CSS size.
+      await expect.poll(() => page.querySelector("canvas")?.width ?? 0).toBeGreaterThan(700)
+    } finally {
+      window.matchMedia = matchMedia
+      if (ratio) Object.defineProperty(window, "devicePixelRatio", ratio)
+      else Reflect.deleteProperty(window, "devicePixelRatio")
+    }
+  })
+})
+
 describe("a PDF's place", () => {
   it("opens where an earlier viewer of it was, page, place in it and zoom", async () => {
     const pane = paneIn()

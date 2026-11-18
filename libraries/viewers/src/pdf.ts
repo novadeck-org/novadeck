@@ -160,6 +160,8 @@ export const mountPdf: Mount<
     readonly height: number
     readonly element: HTMLDivElement
     drawn: number | undefined
+    // The device pixel ratio it was drawn for, which a move to another screen changes.
+    sharp: number | undefined
     // The drawing under way, and the scale it draws at.
     task: RenderTask | undefined
     drawing: number | undefined
@@ -181,6 +183,7 @@ export const mountPdf: Mount<
   // The place it had when last measured with a size.
   let last: PdfState["pdf"] | undefined
   const sized = (): boolean => root.clientWidth > 0 && root.clientHeight > 0
+  const pixelRatio = (): number => win.devicePixelRatio || 1
 
   // The scale pages are drawn at, as a share of 100%: fitted to the viewer's width, or zoomed.
   const scale = (): number => {
@@ -228,7 +231,7 @@ export const mountPdf: Mount<
     page.task = undefined
     page.drawing = undefined
     const drawn = page.drawn !== undefined
-    page.drawn = undefined
+    page.drawn = page.sharp = undefined
     page.element.replaceChildren()
     if (drawn)
       void current?.getPage(index + 1).then(
@@ -242,12 +245,14 @@ export const mountPdf: Mount<
     const page = list[index]
     const shown = current
     const at = scale()
-    if (!page || !shown || page.drawn === at || page.task) return
+    const sharp = pixelRatio()
+    const done = (): boolean => page?.drawn === at && page.sharp === sharp
+    if (!page || !shown || done() || page.task) return
     const proxy = await shown.getPage(index + 1)
-    if (destroyed || shown !== current || page.task || page.drawn === at || at !== scale()) return
+    if (destroyed || shown !== current || page.task || done() || at !== scale()) return
     const viewport = proxy.getViewport({ scale: at * pointPixels })
     const ratio = Math.min(
-      win.devicePixelRatio || 1,
+      sharp,
       Math.sqrt(canvasPixels / Math.max(viewport.width * viewport.height, 1)),
     )
     const canvas = document.createElement("canvas")
@@ -270,14 +275,16 @@ export const mountPdf: Mount<
     if (page.task !== task) return
     page.task = page.drawing = undefined
     page.drawn = at
+    page.sharp = sharp
     page.element.replaceChildren(canvas)
     // Zoomed or resized as it drew: drawn again at the scale it's at now.
     if (at !== scale()) settle()
   }
 
   // Draws the pages in and around the view, and lets go of those far from it.
+  // Nothing while it has no size: every page would read as in view.
   const drawAround = (): void => {
-    if (list.length === 0 || pending) return
+    if (list.length === 0 || pending || !sized()) return
     const view = root.clientHeight
     const top = root.scrollTop
     list.forEach((page, index) => {
@@ -334,6 +341,18 @@ export const mountPdf: Mount<
     onTrouble?.(found)
   }
 
+  // Says why the PDF isn't drawn, in place of the last one's pages.
+  const fail = (found: PdfTrouble): void => {
+    trouble(found)
+    list.forEach(undraw)
+    list = []
+    pages.replaceChildren()
+    void current?.loadingTask.destroy()
+    current = undefined
+    chip.hidden = true
+    root.setAttribute("aria-busy", "false")
+  }
+
   // Opens the PDF, laid out at its place: the saved one, or where the last one was.
   const open = async (bytes: Blob): Promise<void> => {
     const number = (opened += 1)
@@ -363,15 +382,7 @@ export const mountPdf: Mount<
       void task?.destroy()
       if (destroyed || number !== opened) return
       const name = (error as { readonly name?: unknown } | null)?.name
-      trouble(name === "PasswordException" ? "password" : "unreadable")
-      list.forEach(undraw)
-      list = []
-      pages.replaceChildren()
-      void current?.loadingTask.destroy()
-      current = undefined
-      chip.hidden = true
-      root.setAttribute("aria-busy", "false")
-      return
+      return fail(name === "PasswordException" ? "password" : "unreadable")
     }
     if (destroyed || number !== opened) return void loaded.loadingTask.destroy()
     const sizes = await Promise.all(
@@ -383,8 +394,7 @@ export const mountPdf: Mount<
     if (destroyed || number !== opened) return void loaded.loadingTask.destroy()
     if (!sizes) {
       void loaded.loadingTask.destroy()
-      root.setAttribute("aria-busy", "false")
-      return trouble("unreadable")
+      return fail("unreadable")
     }
     trouble(null)
     // Where it was as it opened: a place asked for since, or the last PDF's.
@@ -397,7 +407,14 @@ export const mountPdf: Mount<
       page.className = "pdf-page"
       page.dataset.page = String(index + 1)
       page.setAttribute("aria-label", `Page ${index + 1}`)
-      return { ...size, element: page, drawn: undefined, task: undefined, drawing: undefined }
+      return {
+        ...size,
+        element: page,
+        drawn: undefined,
+        sharp: undefined,
+        task: undefined,
+        drawing: undefined,
+      }
     })
     pages.replaceChildren(...list.map((page) => page.element))
     pending = undefined
@@ -433,7 +450,10 @@ export const mountPdf: Mount<
   root.addEventListener("keydown", onKeyDown)
   // A new width refits a fitted PDF, keeping its place.
   let width = 0
-  const observer = new win.ResizeObserver(() => {
+  // A resize is laid out in the next frame: laid out at once, a scrollbar that comes or goes
+  // with it would resize it again in the same frame, which the browser reports as an error.
+  let resizing = 0
+  const onResize = (): void => {
     // Hidden: it holds where it was. Shown again: back to it.
     if (!sized()) {
       held ??= last
@@ -447,8 +467,25 @@ export const mountPdf: Mount<
     width = root.clientWidth
     if (zoom === "fit" && list.length > 0) layout()
     else settle()
+  }
+  const observer = new win.ResizeObserver(() => {
+    win.cancelAnimationFrame(resizing)
+    resizing = win.requestAnimationFrame(onResize)
   })
   observer.observe(root)
+  // Moved to a screen of another pixel density, as a laptop's and a monitor's are: its pages
+  // are drawn again for it, though its size in CSS pixels is the same.
+  let density: MediaQueryList | undefined
+  const onDensity = (): void => {
+    watchDensity()
+    settle()
+  }
+  const watchDensity = (): void => {
+    density?.removeEventListener("change", onDensity)
+    density = win.matchMedia(`(resolution: ${pixelRatio()}dppx)`)
+    density.addEventListener("change", onDensity)
+  }
+  watchDensity()
   void open(content.bytes)
 
   return {
@@ -475,7 +512,9 @@ export const mountPdf: Mount<
     destroy: () => {
       destroyed = true
       win.cancelAnimationFrame(pass)
+      win.cancelAnimationFrame(resizing)
       observer.disconnect()
+      density?.removeEventListener("change", onDensity)
       for (const page of list) page.task?.cancel()
       void current?.loadingTask.destroy()
       frame.remove()

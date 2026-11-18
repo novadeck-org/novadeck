@@ -56,7 +56,7 @@ export const pdfGroups = (companions: Backend["companions"]): readonly DemoActio
         },
         {
           label: "Rewrite the PDF",
-          hint: "The PDF of Show a PDF is read again as a new file: the pane keeps the old one on screen, then swaps in the new, on the page you were on",
+          hint: "The PDF of Show a PDF is read again as a new file, in small parts for about 2 s: the pane keeps the old one on screen under a Loading chip, then swaps in the new, on the page you were on",
           run: (context) => {
             rewrites += 1
             return show(pdfAgain(pdfSamples.shown, `rewritten-${rewrites}`))(context)

@@ -478,8 +478,10 @@ const quarterly: SampleArtifact = {
 }
 
 // The PDF again, as it is after the agent rewrote the file: a new stamp.
+// Its bytes come in small parts a moment apart, so the Loading chip over the old PDF shows.
 export const pdfAgain = (sample: SampleArtifact, stamp: string): SampleArtifact => ({
   ...sample,
+  ...(sample.file && { file: { ...sample.file, part: 512, delay: 300 } }),
   content: pdfContent(
     sample.content.state === "ready" && sample.content.content.kind === "pdf"
       ? sample.content.content.size
