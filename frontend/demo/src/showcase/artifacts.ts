@@ -8,7 +8,7 @@ import type {
 } from "@novadeck/core/items"
 
 import { clip, clipMime, clipSize } from "./clip"
-import { lockedPdf, notAPdf, quarterlyReport } from "./pdf"
+import { lockedPdf, lockedPdfSize, notAPdf, quarterlyReport } from "./pdf"
 import { recording, recordingMime, recordingSize } from "./recording"
 
 // Something a sample agent shows: the item it points at, by an id that stays the same, and
@@ -507,8 +507,8 @@ export const pdfSamples = {
   },
   locked: {
     item: pdfItem("studio-report-locked", "locked.pdf", "1 page, locked"),
-    content: pdfContent(lockedPdf().length),
-    file: { read: async () => lockedPdf() },
+    content: pdfContent(lockedPdfSize),
+    file: { read: lockedPdf },
   },
   broken: {
     item: pdfItem("studio-report-broken", "broken.pdf", "Not a PDF"),

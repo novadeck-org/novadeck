@@ -15,7 +15,7 @@ import {
 } from "./artifacts"
 import { changesArtifacts } from "./changes"
 import { clip, clipSize } from "./clip"
-import { makePdf, quarterlyReport } from "./pdf"
+import { lockedPdf, lockedPdfSize, makePdf, quarterlyReport } from "./pdf"
 import { recording, recordingSize } from "./recording"
 import { createShowcase } from "./simulation"
 
@@ -590,6 +590,10 @@ describe("the showcase's PDFs", () => {
     entries.forEach((entry, index) => {
       expect(text.slice(Number(entry[1]), Number(entry[1]) + 8)).toBe(`${index + 1} 0 obj\n`)
     })
+  })
+
+  it("has a locked PDF as large as its item says, though its bytes load only when read", async () => {
+    expect((await lockedPdf()).length).toBe(lockedPdfSize)
   })
 
   it("is among what the dev server's terminal shows, as large as its item says", async () => {

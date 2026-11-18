@@ -1,7 +1,10 @@
 // A one-page PDF locked with a password (Ghostscript, 128-bit RC4, the user password
 // "secret"), as base64, which the demo's locked PDF holds: pdf.js asks for the password, which
 // the pane says it doesn't open.
-export const lockedPdfData =
+export const lockedPdfBytes = (): Uint8Array<ArrayBuffer> =>
+  Uint8Array.from(atob(lockedPdfData), (char) => char.charCodeAt(0))
+
+const lockedPdfData =
   "JVBERi0xLjQKJcfsj6IKJSVJbnZvY2F0aW9uOiBncyAtcSAtZE5PUEFVU0UgLWRCQVRDSCAtc0RFVklDRT1wZGZ3cm" +
   "l0ZSAtZENvbXByZXNzUGFnZXM9dHJ1ZSAtZENvbXBhdGliaWxpdHlMZXZlbD0xLjQgLXNPd25lclBhc3N3b3JkPT8g" +
   "LXNVc2VyUGFzc3dvcmQ9PyAtZEVuY3J5cHRpb25SPTMgLWRLZXlMZW5ndGg9MTI4IC1kU3Vic2V0Rm9udHM9dHJ1ZS" +

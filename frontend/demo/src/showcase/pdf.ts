@@ -1,5 +1,3 @@
-import { lockedPdfData } from "./locked-pdf-data"
-
 // The demo's PDFs, written as bytes in code so the pane's viewer has something to draw: a
 // short report on Letter pages, each saying its number, in the plain Helvetica every viewer has.
 
@@ -59,6 +57,8 @@ export const quarterlyReport = makePdf("Quarterly report", 5)
 // Bytes that aren't a PDF, under a PDF's name.
 export const notAPdf = encoder.encode("This is not a PDF. ".repeat(200))
 
-// A PDF locked with a password, which the pane can't open.
-export const lockedPdf = (): Uint8Array<ArrayBuffer> =>
-  Uint8Array.from(atob(lockedPdfData), (char) => char.charCodeAt(0))
+// A PDF locked with a password, which the pane can't open: its bytes, which load only when a
+// pane reads them, so they stay out of the demo's first load, and its size, which they have.
+export const lockedPdf = async (): Promise<Uint8Array<ArrayBuffer>> =>
+  (await import("./locked-pdf-data")).lockedPdfBytes()
+export const lockedPdfSize = 2846
