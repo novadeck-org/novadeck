@@ -305,7 +305,7 @@ export const studioArtifacts: SampleArtifacts = {
 }
 
 // What the dev server's terminal holds that can't show, one of each reason, and text that
-// shows only in part: so each looks as it would.
+// shows only in part, a table among it: so each looks as it would.
 const unavailable = (
   id: string,
   item: Partial<SampleArtifact["item"]> & Pick<SampleArtifact["item"], "name">,
@@ -350,6 +350,28 @@ const routeLines = [
   ")",
 ]
 
+// A long export the runner reads only the start of: a header, then visits, a few with quoted
+// fields, and a byte-order mark, as spreadsheets write one.
+const pages = ["/", "/work", "/work/harbour-press", "/about", "/journal, issue 4"]
+const visitLines = [
+  "\uFEFFday,page,visits,bounce rate,note",
+  ...Array.from({ length: 399 }, (_, index) => {
+    const page = pages[index % pages.length]!
+    const note = index % 9 === 0 ? '"Newsletter went out; ""Careful work"" issue"' : ""
+    const day = new Date(Date.UTC(2025, 0, 1 + index)).toISOString().slice(0, 10)
+    return `${day},${page.includes(",") ? `"${page}"` : page},${120 + ((index * 37) % 900)},${((index * 13) % 70) + 10}%,${note}`
+  }),
+]
+
+// A short table, whole.
+const scoreLines = [
+  "font\tsize\tlegibility\tchosen",
+  "Harbour Serif\t11\t4.6\tyes",
+  "Harbour Serif Condensed\t9\t3.9\tyes",
+  "Grotesk\t10\t4.4\t",
+  "Mono\t9\t3.1\tno",
+]
+
 const envLines = [
   "# Local settings for the dev server",
   "VITE_API_URL=http://localhost:8787",
@@ -390,6 +412,19 @@ export const devServerArtifacts: readonly SampleArtifact[] = [
       total: null,
       truncated: true,
     }),
+  ),
+  unavailable(
+    "dev-visits",
+    { name: "visits.csv", detail: "exports/visits.csv · its start" },
+    ready({
+      ...fileLines("exports/visits.csv", visitLines, { from: 1, to: visitLines.length }),
+      total: 12_034,
+    }),
+  ),
+  unavailable(
+    "dev-fonts",
+    { name: "type-tests.tsv", detail: "research/type-tests.tsv" },
+    ready(fileLines("research/type-tests.tsv", scoreLines, { from: 1, to: scoreLines.length })),
   ),
   unavailable(
     "dev-routes",

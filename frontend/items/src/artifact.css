@@ -247,7 +247,9 @@
 .artifact-table-scroll:focus-visible {
   box-shadow: inset 0 0 0 2px var(--color-strong);
 }
+/* As wide as the pane at least, the last column taking what the others leave. */
 .artifact-table table {
+  min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   font-size: var(--text-control);
@@ -266,6 +268,9 @@
 }
 .artifact-table :is(th, td)[data-numeric] {
   text-align: right;
+}
+.artifact-table :is(th, td):last-child {
+  width: 100%;
 }
 .artifact-table thead th {
   position: sticky;

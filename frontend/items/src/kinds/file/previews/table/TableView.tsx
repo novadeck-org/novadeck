@@ -3,14 +3,19 @@ import { createKept } from "@novadeck/viewers"
 import { ArrowDown, ArrowUp } from "lucide-react"
 import { useLayoutEffect, useMemo, useRef, useState } from "react"
 
-import { usePaneNote } from "../../../../pane-row"
 import type { PreviewProps } from ".."
+import { usePaneNote } from "../../../../pane-row"
 import { nextSort, partText, sortRows, tableOf, type Sort } from "./table"
 
 // Where each table was left, by the item showing it, and in which file: scrolled, and
 // sorted, so it opens again as it was when its pane is built again (a view switch, a tab
 // brought back). A place in one file means nothing in another.
-type Left = { readonly path: string; readonly top: number; readonly left: number; readonly sort: Sort | null }
+type Left = {
+  readonly path: string
+  readonly top: number
+  readonly left: number
+  readonly sort: Sort | null
+}
 const left = createKept<Left>(24)
 
 // A delimited file (CSV, TSV) as a table: its header held on top as it scrolls, each column
@@ -41,11 +46,11 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
   useLayoutEffect(() => {
     const element = scroller.current
     if (!element) return
-    element.scrollTop = kept?.top ?? 0
-    element.scrollLeft = kept?.left ?? 0
-    // Only as it opens, or another file comes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content.path])
+    const place = left.get(id)
+    const at = place?.path === content.path ? place : undefined
+    element.scrollTop = at?.top ?? 0
+    element.scrollLeft = at?.left ?? 0
+  }, [id, content.path, scroller])
   // A file the item is re-pointed at starts in its own order.
   const [shownPath, setShownPath] = useState(content.path)
   if (shownPath !== content.path) {
@@ -84,8 +89,7 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
                 const Arrow = sorted === "descending" ? ArrowDown : ArrowUp
                 return (
                   <th
-                    // Columns stay where they are; only their names change with the file.
-                    // eslint-disable-next-line react/no-array-index-key
+                    // oxlint-disable-next-line react/no-array-index-key -- A column is its place.
                     key={column}
                     scope="col"
                     aria-sort={sorted ?? "none"}
@@ -119,7 +123,7 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
                   {row.line}
                 </th>
                 {row.cells.map((cell, column) => (
-                  // eslint-disable-next-line react/no-array-index-key
+                  // oxlint-disable-next-line react/no-array-index-key -- A column is its place.
                   <td key={column} data-numeric={table.numeric[column] || undefined}>
                     {cell}
                   </td>
@@ -143,14 +147,14 @@ export const TableThumb = ({ content }: { content: FileContent }): React.JSX.Ele
     <span className="peek-table">
       <span className="peek-table-row" data-head>
         {columns.map((cell, column) => (
-          // eslint-disable-next-line react/no-array-index-key
+          // oxlint-disable-next-line react/no-array-index-key -- A column is its place.
           <span key={column}>{cell}</span>
         ))}
       </span>
       {table.rows.slice(0, 5).map((row) => (
         <span key={row.line} className="peek-table-row">
           {row.cells.slice(0, 4).map((cell, column) => (
-            // eslint-disable-next-line react/no-array-index-key
+            // oxlint-disable-next-line react/no-array-index-key -- A column is its place.
             <span key={column} data-numeric={table.numeric[column] || undefined}>
               {cell}
             </span>

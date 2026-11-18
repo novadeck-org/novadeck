@@ -150,3 +150,105 @@ describe("a file with no preview", () => {
     expect(switcher()).toBeNull()
   })
 })
+
+describe("a CSV file", () => {
+  const people = fileContent("data/people.csv", [
+    "﻿name,age,city",
+    'Ann,34,"Oslo, NO"',
+    "Bo,7,Rome",
+    "Cy,1200,Bern",
+  ])
+  // The table's cells by row, header first.
+  const cells = (container: HTMLElement) =>
+    [...container.querySelectorAll(".artifact-table tr")].map((row) =>
+      [...row.querySelectorAll("th, td")].map((cell) => cell.textContent),
+    )
+
+  it("shows as a table, its header named by the file's first row, each row led by its line", async () => {
+    const { container, switcher } = await show("people-1", people)
+    expect(cells(container)).toEqual([
+      ["Line", "name", "age", "city"],
+      ["2", "Ann", "34", "Oslo, NO"],
+      ["3", "Bo", "7", "Rome"],
+      ["4", "Cy", "1200", "Bern"],
+    ])
+    expect(container.querySelector("td[data-numeric]")?.textContent).toBe("34")
+    expect(container.querySelector(".artifact-cut")).toBeNull()
+    expect(switcher()).not.toBeNull()
+  })
+
+  it("sorts by a column from its header: up, down, then as the file has it", async () => {
+    const { container } = await show("people-2", people)
+    const age = () =>
+      [...container.querySelectorAll("thead th")].find((cell) => cell.textContent === "age")!
+    const ages = () =>
+      cells(container)
+        .slice(1)
+        .map((row) => row[2])
+    act(() => age().querySelector("button")!.click())
+    expect(age().getAttribute("aria-sort")).toBe("ascending")
+    expect(ages()).toEqual(["7", "34", "1200"])
+    act(() => age().querySelector("button")!.click())
+    expect(age().getAttribute("aria-sort")).toBe("descending")
+    expect(ages()).toEqual(["1200", "34", "7"])
+    act(() => age().querySelector("button")!.click())
+    expect(age().getAttribute("aria-sort")).toBe("none")
+    expect(ages()).toEqual(["34", "7", "1200"])
+  })
+
+  it("opens again sorted and scrolled as it was left", async () => {
+    const first = await show("people-3", people)
+    const scroller = first.container.querySelector<HTMLElement>(".artifact-table-scroll")!
+    act(() =>
+      first.container.querySelector<HTMLButtonElement>("thead th:nth-child(3) button")!.click(),
+    )
+    scroller.scrollTop = 120
+    act(() => void scroller.dispatchEvent(new Event("scroll")))
+    act(() => first.unmount())
+    const again = await show("people-3", people)
+    expect(again.container.querySelector(".artifact-table-scroll")!.scrollTop).toBe(120)
+    expect(again.container.querySelector("thead th:nth-child(3)")!.getAttribute("aria-sort")).toBe(
+      "ascending",
+    )
+  })
+
+  it("shows its raw text once switched to its source", async () => {
+    const { container, switcher } = await show("people-4", people)
+    act(() => switcher()!.click())
+    expect(container.querySelector(".artifact-table")).toBeNull()
+    expect(container.querySelector(".code-viewer")?.textContent).toContain('Ann,34,"Oslo, NO"')
+  })
+
+  context("when the runner read only part of it", () => {
+    it("says so under the table, with which lines", async () => {
+      const { container } = await show("people-5", { ...people, total: 12034, to: 4 })
+      expect(container.querySelector(".artifact-cut")?.textContent).toBe(
+        "Only part of the file is shown: lines 1–4 of 12,034.",
+      )
+    })
+
+    it("letters its columns where the lines start past the header", async () => {
+      const { container } = await show("people-6", {
+        ...fileContent("data/people.csv", ["Ann,34", "Bo,7"]),
+        firstLine: 960,
+        from: 960,
+        to: 961,
+        total: 5000,
+      })
+      expect(cells(container)[0]).toEqual(["Line", "A", "B"])
+      expect(container.querySelector(".artifact-cut")?.textContent).toContain(
+        "without its header row",
+      )
+    })
+  })
+})
+
+describe("a TSV file", () => {
+  it("splits its columns on tabs", async () => {
+    const { container } = await show(
+      "tsv-1",
+      fileContent("out/scores.tsv", ["team\tscore", "red, blue\t3"]),
+    )
+    expect(container.querySelector("tbody tr")?.textContent).toBe("2red, blue3")
+  })
+})
