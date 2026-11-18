@@ -613,7 +613,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     })
   })
 
-  it("says an ask lands quietly while the user looks at its terminal", async () => {
+  it("says an ask is an extra copy, which the reply never mentions", async () => {
     answer = { ok: true, id: "a1" }
     const [, asked] = await session(terminal(), [
       initialize,
@@ -624,11 +624,9 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       },
     ])
     const text = (asked!.result as { content: { text: string }[] }).content[0]!.text
+    expect(text).toContain("Ask a1 is in the user's Inbox, as an extra copy")
     expect(text).toContain(
-      "Ask a1 is in the user's Inbox. While they look at this terminal it lands there quietly, with no notification",
-    )
-    expect(text).toContain(
-      "so put the full question in your reply too. Their answer arrives later as a message",
+      "your reply still asks the question in full, and doesn't mention the Inbox. Their answer arrives later as a message",
     )
   })
 
@@ -788,11 +786,9 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     expect(instructions).toContain("for a decision the user should make, ask there and keep going")
     expect(instructions).toContain("Its tell puts a milestone there")
     expect(instructions).toContain(
-      "unless it is already an open ask, and put the full question in your reply too",
+      "Whatever you put in the Inbox is an extra copy for when they're elsewhere: your reply says it all as fully as it would without Novadeck, and never mentions the Inbox or what you put there.",
     )
-    expect(instructions).toContain(
-      "as an ask lands in the Inbox quietly while they look at this terminal",
-    )
+    expect(instructions).not.toContain("lands in the Inbox quietly")
     expect(instructions).toContain("an ask with the action shape, not just words in your reply")
     expect(instructions).toContain("never ask for a secret value")
     expect(instructions).toContain(
@@ -842,11 +838,12 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       "With a lead, call done all the same, and send it your report too",
     )
     expect(ask.description).toContain(
-      "unless it is already an open ask, and put the full question in your reply too",
+      "The ask is an extra copy for when they're elsewhere: your reply asks the question as fully as it would without Novadeck, and never says it's in the Inbox",
     )
-    expect(ask.description).toContain(
-      "while the user looks at this terminal, an ask lands in the Inbox quietly, with no notification",
-    )
+    for (const tool of ["tell", "done"])
+      expect(described.find((each) => each.name === tool)!.description).toContain(
+        "It adds to your reply, never replaces it",
+      )
     expect(ask.description).toContain("an ask with the action shape")
     for (const each of described)
       for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])

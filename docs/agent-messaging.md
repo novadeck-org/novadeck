@@ -825,7 +825,11 @@ it is the same in every harness. Every other question it ends its turn waiting o
 option? open a pull request?) it always asks with `ask`, and in full in its reply, unless
 it is already an open ask; a closing offer such as "anything else?" isn't one, nor is an
 action the harness is already prompting for. A worker asks the same way, and sends its lead
-the question too. Mid-work, the agent keeps
+the question too. Whatever the agent puts in the Inbox (an ask, a `tell`, a `done`) is an
+extra copy for when the person is elsewhere: its reply says it all as fully as it would
+without Novadeck, and never mentions the Inbox or what it put there, as someone reading the
+reply is already looking at it. `ask`, `tell` and `done` say so, as do their answers, the
+server's instructions and the prompt-time notice. Mid-work, the agent keeps
 working on what doesn't depend on the answer, and ends its turn once nothing else is
 left, until the answer arrives.
 `shape` defaults to `{ type: "text" }`. It can instead offer one to three options (`label`, optional `summary`, Markdown `details` and `code: { path, text }`),

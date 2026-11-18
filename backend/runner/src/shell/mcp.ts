@@ -1139,9 +1139,9 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     "own question tool and you'd stop to ask with it, do, as you normally would: the Inbox " +
     "shows that question as it is, so it needs no ask. Always ask every other question " +
     "you end your turn waiting on, such as which option to take or whether to open a pull " +
-    "request, unless it is already an open ask, and put the full question in your reply too: " +
-    "while the user looks at this terminal, an ask lands in the Inbox quietly, with no " +
-    "notification, so your reply is where they read it. A closing offer such as " +
+    "request, unless it is already an open ask. The ask is an extra copy for when they're " +
+    "elsewhere: your reply asks the question as fully as it would without Novadeck, and " +
+    "never says it's in the Inbox. A closing offer such as " +
     "'anything else?' isn't one, nor is an action your harness is already prompting them " +
     "for. With a lead, ask all the same, and send it the question too, so it knows what you " +
     "wait on; if your lead answers it first, act on that as its instruction and withdraw the " +
@@ -1258,13 +1258,15 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
   said: (answer) =>
     answer.withdrawn
       ? `Withdrew ask ${answer.id} from the Inbox.`
-      : `Ask ${answer.id} is in the user's Inbox. While they look at this terminal it lands there quietly, with no notification, so put the full question in your reply too. Their answer arrives later as a message; keep working on what doesn't depend on it, and end your turn once nothing else is left.`,
+      : `Ask ${answer.id} is in the user's Inbox, as an extra copy: your reply still asks the question in full, and doesn't mention the Inbox. Their answer arrives later as a message; keep working on what doesn't depend on it, and end your turn once nothing else is left.`,
   failed: "Novadeck couldn't save the ask.",
 }
 const tell: Tool<{ readonly id: string }> = {
   name: "tell",
   description:
     "Tell the user something through Novadeck's Inbox: a one-line subject and Markdown body. " +
+    "It adds to your reply, never replaces it: your reply says it as fully as it would " +
+    "without Novadeck, and doesn't mention the Inbox. " +
     "It appears as an Update they read by opening it, without badging the bell. It suits a " +
     "milestone they'd want to hear of while they're elsewhere: a pull request opened, its " +
     "checks passed or failed, a merge, or that you now wait on someone else; not each step. " +
@@ -1278,7 +1280,8 @@ const tell: Tool<{ readonly id: string }> = {
   },
   call: "tell",
   request: (args) => args,
-  said: (answer) => `Update ${answer.id} is in the user's Inbox.`,
+  said: (answer) =>
+    `Update ${answer.id} is in the user's Inbox, as an extra copy: your reply still says it in full, and doesn't mention the Inbox.`,
   failed: "Novadeck couldn't save the update.",
 }
 
@@ -1286,7 +1289,9 @@ const done: Tool<{ readonly id: string }> = {
   name: "done",
   description:
     "Report to the user through Novadeck's Inbox that the task you were given is finished: " +
-    "a one-line subject and a Markdown body with your own short report. It appears as an " +
+    "a one-line subject and a Markdown body with your own short report. It adds to your " +
+    "reply, never replaces it: your reply reports as fully as it would without Novadeck, and " +
+    "doesn't mention the Inbox. It appears as an " +
     "Update they read by opening it. Call it once the task is finished, not when you answer a " +
     "question or finish a step. With a lead, call done all the same, and send it your report too. " +
     "Use ask when you need an answer. Reports stay in Messages.",
@@ -1298,7 +1303,8 @@ const done: Tool<{ readonly id: string }> = {
   },
   call: "done",
   request: (args) => args,
-  said: (answer) => `Report ${answer.id} is in the user's Inbox.`,
+  said: (answer) =>
+    `Report ${answer.id} is in the user's Inbox, as an extra copy: your reply still reports in full, and doesn't mention the Inbox.`,
   failed: "Novadeck couldn't save the report.",
 }
 
@@ -1599,6 +1605,13 @@ export const mcpAnswer = async (
 
 // What the server says of itself in a Novadeck terminal, which Claude Code reads up front,
 // before it loads a tool's description: when `ask` and `tell` serve better than the reply.
+// What the Inbox is beside an agent's reply: a copy for when the user is elsewhere, so the reply
+// never leans on it or points to it.
+const inboxExtra =
+  "Whatever you put in the Inbox is an extra copy for when they're elsewhere: your reply " +
+  "says it all as fully as it would without Novadeck, and never mentions the Inbox or what " +
+  "you put there."
+
 const instructions =
   together +
   " Novadeck's ask puts a question in the user's Inbox, where they see it: they rarely " +
@@ -1606,9 +1619,7 @@ const instructions =
   "has its own question tool and you'd stop to ask with it, do, as you normally would: " +
   "Novadeck shows that question in the Inbox as it is, so it needs no ask. Always ask " +
   "there every other question you end your turn waiting on, such as which option to take " +
-  "or whether to open a pull request, unless it is already an open ask, and put the full " +
-  "question in your reply too, as an ask lands in the Inbox quietly while they look at " +
-  "this terminal; a closing " +
+  "or whether to open a pull request, unless it is already an open ask; a closing " +
   "offer such as 'anything else?' isn't one, nor is an action your harness is already " +
   "prompting them for. When they write to you here, Novadeck takes your open asks out " +
   "of the Inbox and tells you; ask again only what their message leaves open. If they " +
@@ -1624,7 +1635,9 @@ const instructions =
   "your own short report when the task you were given is finished, not when you answer a " +
   "question or finish a step. With a lead, use ask, tell and done all the same, and send " +
   "your lead your report and your questions too; approvals of actions are still only the " +
-  "user's. Its feedback drafts a note about Novadeck for the user to read and send, when " +
+  "user's. " +
+  inboxExtra +
+  " Its feedback drafts a note about Novadeck for the user to read and send, when " +
   "they ask for one or you hit a bug in Novadeck itself."
 
 // The answer to the handshake: the protocol version the agent asked for when it is one of
