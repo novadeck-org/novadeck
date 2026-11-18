@@ -6,7 +6,7 @@ import {
   type ViewRenderer,
 } from "@novadeck/emulator/browser"
 
-import { sizeBounds } from "../size.js"
+import { measureCols, sizeBounds } from "../size.js"
 import { copyOnSelect, takeClipboardWrites } from "./copy.js"
 import { followTerminal, type FollowedTerminal, type FollowOptions, type Screen } from "./follow.js"
 import { takeClipboardKeys, takeFilePastes, type PasteFailure, type PasteTarget } from "./paste.js"
@@ -314,9 +314,14 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
       resize: ({ cols, rows }) => {
         if (xterm.cols !== cols || xterm.rows !== rows) xterm.resize(cols, rows)
       },
+      // The frame's size, held to the measure: a wider frame centres the screen
+      // (data-measured, terminal-xterm.css) and leaves its own size as it is, so the next
+      // fit finds the same.
       fit: () => {
         const size = view.fit()
-        return size && clampSize(size)
+        if (!size) return undefined
+        container.toggleAttribute("data-measured", size.cols > measureCols)
+        return clampSize({ cols: Math.min(size.cols, measureCols), rows: size.rows })
       },
     }
     // The state a person sees, with the lock recomputed in the same step as the change that

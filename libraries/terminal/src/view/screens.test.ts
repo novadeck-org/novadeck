@@ -1,6 +1,7 @@
 import type { Terminal } from "@novadeck/emulator/browser"
 import { describe, expect, it, vi } from "vitest"
 
+import { measureCols } from "../size.js"
 import {
   closeScreens,
   emulatorPrototype,
@@ -83,6 +84,32 @@ const capped = (cap: number) => {
   const hostOf = (id: string) => elementOf(id).firstElementChild
   const present = (id: string) => hostOf(id)?.isConnected === true
   return { screens, told, attached, show, hide, present, hostOf, elementOf, connection, resized }
+}
+
+// The screens' containers have a size, as laid out, nothing else in the page does, and
+// xterm's fitting finds `proposed` in them.
+const layOut = (proposed: { readonly cols: number; readonly rows: number }): void => {
+  for (const [name, value] of [
+    ["clientWidth", 800],
+    ["clientHeight", 600],
+  ] as const) {
+    const original = Object.getOwnPropertyDescriptor(Element.prototype, name)!.get!
+    vi.spyOn(Element.prototype, name, "get").mockImplementation(function (this: Element) {
+      return this.classList.contains("screen") ? value : original.call(this)
+    })
+  }
+  const prototype = emulatorPrototype()
+  const loadAddon = prototype.loadAddon
+  vi.spyOn(prototype, "loadAddon").mockImplementation(function (
+    this: Terminal,
+    addon: Parameters<Terminal["loadAddon"]>[0],
+  ) {
+    if ("proposeDimensions" in addon && typeof addon.proposeDimensions === "function")
+      vi.spyOn(addon as { proposeDimensions: () => unknown }, "proposeDimensions").mockReturnValue(
+        proposed,
+      )
+    return loadAddon.call(this, addon)
+  })
 }
 
 describe("the cap on parked screens", () => {
@@ -337,29 +364,7 @@ describe("a mount's hold on a screen", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "requestAnimationFrame"] })
     try {
       const { screens, show, resized } = capped(2)
-      // The screens' containers have a size, as laid out; nothing else in the page does.
-      for (const [name, value] of [
-        ["clientWidth", 800],
-        ["clientHeight", 600],
-      ] as const) {
-        const original = Object.getOwnPropertyDescriptor(Element.prototype, name)!.get!
-        vi.spyOn(Element.prototype, name, "get").mockImplementation(function (this: Element) {
-          return this.classList.contains("screen") ? value : original.call(this)
-        })
-      }
-      const prototype = emulatorPrototype()
-      const loadAddon = prototype.loadAddon
-      vi.spyOn(prototype, "loadAddon").mockImplementation(function (
-        this: Terminal,
-        addon: Parameters<Terminal["loadAddon"]>[0],
-      ) {
-        if ("proposeDimensions" in addon && typeof addon.proposeDimensions === "function")
-          vi.spyOn(
-            addon as { proposeDimensions: () => unknown },
-            "proposeDimensions",
-          ).mockReturnValue({ cols: 100, rows: 30 })
-        return loadAddon.call(this, addon)
-      })
+      layOut({ cols: 100, rows: 30 })
       show("a")
       await vi.advanceTimersByTimeAsync(0)
       resized.mockClear()
@@ -372,6 +377,40 @@ describe("a mount's hold on a screen", () => {
     } finally {
       closeScreens()
       vi.useRealTimers()
+    }
+  })
+})
+
+describe("the measure", () => {
+  it("fits a frame wider than the measure to it, and marks the frame to centre the screen", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "requestAnimationFrame"] })
+    try {
+      const { show, resized, hostOf } = capped(2)
+      layOut({ cols: measureCols + 80, rows: 40 })
+      show("wide")
+      await vi.advanceTimersByTimeAsync(0)
+      expect(resized).toHaveBeenLastCalledWith("wide", { cols: measureCols, rows: 40 })
+      expect(hostOf("wide")?.hasAttribute("data-measured")).toBe(true)
+    } finally {
+      closeScreens()
+      vi.useRealTimers()
+      vi.restoreAllMocks()
+    }
+  })
+
+  it("fits a frame within the measure to the frame, unmarked", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "requestAnimationFrame"] })
+    try {
+      const { show, resized, hostOf } = capped(2)
+      layOut({ cols: measureCols, rows: 40 })
+      show("narrow")
+      await vi.advanceTimersByTimeAsync(0)
+      expect(resized).toHaveBeenLastCalledWith("narrow", { cols: measureCols, rows: 40 })
+      expect(hostOf("narrow")?.hasAttribute("data-measured")).toBe(false)
+    } finally {
+      closeScreens()
+      vi.useRealTimers()
+      vi.restoreAllMocks()
     }
   })
 })
