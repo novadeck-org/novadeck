@@ -783,23 +783,23 @@ describe("A terminal's tab", () => {
 describe("A stack's menu", () => {
   it("offers only what's done with all of it, and each of its things to open", async () => {
     await openShowcase()
-    const menu = await iconMenu("Dev server", "7 files")
+    const menu = await iconMenu("Dev server", "11 files")
     const entries = menu
       .getByRole("menuitem")
       .elements()
       .map((entry) => entry.textContent)
-    expect(entries).toEqual(["Open", "Move left", "Move right", "Close 7 files"])
+    expect(entries).toEqual(["Open", "Move left", "Move right", "Close 11 files"])
 
-    await menu.getByRole("menuitem", { name: "Close 7 files" }).click()
+    await menu.getByRole("menuitem", { name: "Close 11 files" }).click()
 
-    await expect.element(taskbarIcon("Dev server", "7 files")).not.toBeInTheDocument()
+    await expect.element(taskbarIcon("Dev server", "11 files")).not.toBeInTheDocument()
   })
 })
 
 describe("Something that can't show", () => {
   it("says why, with its path to copy", async () => {
     await openShowcase()
-    await chooseFromIconSubmenu("Dev server", "7 files", "Open", "notes.md")
+    await chooseFromIconSubmenu("Dev server", "11 files", "Open", "notes.md")
     const pane = companionPane("Dev server")
     await expect.element(pane.getByText("notes.md isn't there any more.")).toBeVisible()
     await expect.element(pane.getByRole("button", { name: "Copy path" })).toBeVisible()
@@ -817,9 +817,9 @@ describe("Something that can't show", () => {
 
   it("shows what may hold secrets once the person picks it, and never in a peek", async () => {
     await openShowcase()
-    await taskbarIcon("Dev server", "7 files").hover()
+    await taskbarIcon("Dev server", "11 files").hover()
     await expect.element(page.getByText("May hold secrets. Click to open.")).toBeVisible()
-    await chooseFromIconSubmenu("Dev server", "7 files", "Open", ".env.local")
+    await chooseFromIconSubmenu("Dev server", "11 files", "Open", ".env.local")
     const pane = companionPane("Dev server")
     await expect.element(pane.getByText("VITE_API_URL=http://localhost:8787")).toBeVisible()
   })
