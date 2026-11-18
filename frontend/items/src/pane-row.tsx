@@ -2,7 +2,7 @@ import { pathOf, type Item } from "@novadeck/core/items"
 import { handleText } from "@novadeck/core/terminals/handle"
 import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { Ellipsis, SquareTerminal, type LucideIcon } from "lucide-react"
+import { Check, Ellipsis, SquareTerminal, type LucideIcon } from "lucide-react"
 import {
   createContext,
   useContext,
@@ -22,9 +22,14 @@ import { createPortal } from "react-dom"
 
 // What the viewer tells its tab: facts for the tooltip beside the ones the item has, and
 // that what it shows is gone.
-export type TabNote = { readonly facts: readonly string[]; readonly gone: boolean }
+export type TabNote = {
+  readonly facts: readonly string[]
+  readonly gone: boolean
+  // Where it points now, where that isn't where it was shown: a page's live address.
+  readonly where: string | undefined
+}
 
-const noNote: TabNote = { facts: [], gone: false }
+const noNote: TabNote = { facts: [], gone: false, where: undefined }
 
 // Where the viewer puts its tools: the row's own spot, null until drawn, and undefined where
 // no row is drawn, as when a viewer is drawn on its own.
@@ -60,15 +65,15 @@ export const PaneChrome = ({
   )
 }
 
-// Tells the tab of what's shown what its viewer knows of it: `facts` for its tooltip and
-// whether it's `gone`. Let go as the viewer is.
-export const usePaneNote = (facts: readonly string[], gone = false): void => {
+// Tells the tab of what's shown what its viewer knows of it: `facts` for its tooltip, whether
+// it's `gone`, and `where` it points now. Let go as the viewer is.
+export const usePaneNote = (facts: readonly string[], gone = false, where?: string): void => {
   const set = useContext(NoteSetter)
   const joined = facts.join("\n")
   useEffect(() => {
-    set?.({ facts: joined === "" ? [] : joined.split("\n"), gone })
+    set?.({ facts: joined === "" ? [] : joined.split("\n"), gone, where })
     return () => set?.(noNote)
-  }, [set, joined, gone])
+  }, [set, joined, gone, where])
 }
 
 // What the row says of one tab beyond its name and icon.
@@ -79,6 +84,13 @@ export type TabLook = {
   readonly origin: string | undefined
   // Something's wrong with what it holds, as a shell exited non-zero.
   readonly failed: boolean
+}
+
+// What a screen reader gets of a tab beyond its name: its tooltip's lines, and the terminal a
+// moved item came from, whether or not it has a tooltip.
+export const describeTab = (look: TabLook): string | undefined => {
+  const lines = [...look.tip, ...(look.origin === undefined ? [] : [`From ${look.origin}`])]
+  return lines.length > 0 ? lines.join(". ") : undefined
 }
 
 // The tab's icon and name, as its button and the lone title are drawn: a moved item names the
@@ -127,7 +139,7 @@ export const PaneTitle = ({
           className="pane-tab-open"
           role="heading"
           aria-level={2}
-          aria-description={look.tip.length > 0 ? look.tip.join(". ") : undefined}
+          aria-description={describeTab(look)}
         >
           <TabFace icon={icon} name={name} look={look} />
         </span>
@@ -233,6 +245,10 @@ export const PaneTools = ({
               value: tool.key,
               label: tool.label,
               disabled: tool.disabled === true || tool.pending === true,
+              // A tool that's on says so in the menu too.
+              ...(tool.pressed && {
+                detail: <Check size={12} strokeWidth={1.75} aria-label="On" />,
+              }),
               onSelect: () => {
                 if (tool.href) window.open(tool.href, "_blank", "noreferrer")
                 else tool.onClick?.()
@@ -256,24 +272,37 @@ const agoText = (at: number, now: number): string => {
   return hours < 24 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`
 }
 
-// What a tab's tooltip says of its item: where it points, then its facts, then who showed it
-// and when. What a viewer knows that the item doesn't (`facts`) goes among the facts. Nothing
-// for what has none, as the shells, and never the default (read-only, live).
-export const tabTip = (item: Item, facts: readonly string[], now = Date.now()): string[] => {
-  const where = pathOf(item) ?? item.url ?? (item.kind === "plan" ? item.detail || item.name : "")
-  const own = [
+// What a tab's tooltip says of its item: where it points (`where`, if its viewer knows better
+// than the item does), then its facts, then who showed it and when. What a viewer knows that the
+// item doesn't (`facts`) goes among the facts. Nothing for what has none, as the shells, and never
+// the default (read-only, live). `own` is an item its pane's own terminal showed: its agent isn't
+// named there, as the window is its own, only when.
+export const tabTip = (
+  item: Item,
+  facts: readonly string[],
+  {
+    own = false,
+    where,
+    now = Date.now(),
+  }: { own?: boolean; where?: string | undefined; now?: number } = {},
+): string[] => {
+  const place =
+    where ?? pathOf(item) ?? item.url ?? (item.kind === "plan" ? item.detail || item.name : "")
+  const details = [
     ...(item.kind === "plan" ? [`v${item.version}`] : []),
     ...(item.kind === "file" && item.lines ? [`lines ${item.lines.from}–${item.lines.to}`] : []),
     ...(item.kind === "image" && item.detail ? [item.detail] : []),
     ...facts,
   ]
-  const who =
+  const ago = item.kind === "shells" || item.kind === "changes" ? "" : agoText(item.shownAt, now)
+  const verb = item.kind === "plan" ? "wrote" : "showed"
+  const made =
     item.by === "person"
-      ? "You added it"
-      : item.from
-        ? `${handleText(item.from.handle)} ${item.kind === "plan" ? "wrote" : "showed"} it`
-        : ""
-  const when = item.kind === "shells" || item.kind === "changes" ? "" : agoText(item.shownAt, now)
-  const made = who && when ? `${who} ${when}` : ""
-  return [where, [...own, made].filter(Boolean).join(" · ")].filter(Boolean)
+      ? `You added it${ago && ` ${ago}`}`
+      : !ago
+        ? ""
+        : own || !item.from
+          ? `${item.kind === "plan" ? "written" : "shown"} ${ago}`
+          : `${handleText(item.from.handle)} ${verb} it ${ago}`
+  return [place, [...details, made].filter(Boolean).join(" · ")].filter(Boolean)
 }

@@ -320,16 +320,20 @@ export const createShowcase = (
     report?.([{ type: "item/upsert", target: agent.key, item }])
   }
 
+  // What was there at boot was shown a few minutes ago, in the order it's listed in, so a
+  // tooltip says "4m ago" and not a time since the epoch.
+  const boot = now()
+  const ago = (order: number): number => boot - 10 * 60_000 + order * 30_000
   const items: readonly Item[] = [
     ...[...running.values()].flatMap((agent, index) => [
-      planItemOf(agent, index),
+      planItemOf(agent, ago(index)),
       ...agent.sample.artifacts.shown.map((artifact, shownAt) =>
-        itemOf(agent, artifact, { openAsked: false, shownAt: index + shownAt + 1 }),
+        itemOf(agent, artifact, { openAsked: false, shownAt: ago(index + shownAt + 1) }),
       ),
     ]),
     ...shown.flatMap((holder) =>
       holder.artifacts.map((artifact, shownAt) =>
-        itemOf(holder, artifact, { openAsked: false, shownAt }),
+        itemOf(holder, artifact, { openAsked: false, shownAt: ago(shownAt) }),
       ),
     ),
   ]

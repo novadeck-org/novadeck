@@ -9,7 +9,15 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type Reac
 import { AwakeContext, useWakeful } from "../../awake"
 import { isNew, isSecret, type BarMember, type BehindGroup } from "../../bar/bar"
 import { usePanePicture, useStandInPicture, type PanePicture } from "../../pane-pictures"
-import { PaneChrome, PaneTitle, TabFace, tabTip, type TabLook, type TabNote } from "../../pane-row"
+import {
+  PaneChrome,
+  PaneTitle,
+  TabFace,
+  describeTab,
+  tabTip,
+  type TabLook,
+  type TabNote,
+} from "../../pane-row"
 import { usePaneTurn } from "../../pane-turns"
 import type { LookContext } from "../../registration"
 import { registrationOf, stackNames } from "../../registry"
@@ -361,11 +369,7 @@ const PaneTabs = ({
                 className="pane-tab-open"
                 aria-selected={open}
                 aria-keyshortcuts="Delete"
-                aria-description={
-                  look.tip.length > 0
-                    ? [...look.tip, ...(look.origin ? [`From ${look.origin}`] : [])].join(". ")
-                    : undefined
-                }
+                aria-description={describeTab(look)}
                 tabIndex={open ? 0 : -1}
                 onClick={() => {
                   if (!open) pick(tab)
@@ -391,7 +395,7 @@ const PaneTabs = ({
   )
 }
 
-const noNote: TabNote = { facts: [], gone: false }
+const noNote: TabNote = { facts: [], gone: false, where: undefined }
 
 // The tab `by` along from the one shown, round the row's ends, as Ctrl+PageDown (1) and
 // Ctrl+PageUp (-1) step from anywhere in the pane: never one that may hold secrets, which
@@ -621,7 +625,10 @@ export const CompanionPane = ({
   // What the row says of a tab: the item's own facts and, for the one shown, what its viewer
   // adds; the terminal a moved one came from; and a shell that failed.
   const looks = (each: BarMember, note: TabNote): TabLook => ({
-    tip: each.kind === "item" ? tabTip(each.item, note.facts) : [],
+    tip:
+      each.kind === "item"
+        ? tabTip(each.item, note.facts, { own: !each.placed, where: note.where })
+        : [],
     origin:
       each.kind === "item" && each.placed ? (originOf(each) ?? "another terminal") : undefined,
     failed:

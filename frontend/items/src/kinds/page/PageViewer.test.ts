@@ -124,7 +124,12 @@ describe("a page beside a terminal", () => {
       const rendered = show({ kind: "page", url, shown: 1, live: true })
       const size = () =>
         rendered.container.querySelector(".browser-viewer")!.getAttribute("data-size")
-      const phone = () => button(rendered.container, "Phone size")!
+      // It names what it does now, so it reads the same in the folded menu.
+      const phone = () =>
+        button(
+          rendered.container,
+          size() === "phone" ? "Back to desktop size" : "Show at phone size",
+        )!
       expect(size()).toBe("desktop")
       expect(phone().getAttribute("aria-pressed")).toBe("false")
       act(() => phone().click())
@@ -401,9 +406,9 @@ describe("a page beside a terminal", () => {
 
     it("lays out as the person last switched it, for a look to load it afresh", () => {
       const { rendered } = withPictures([shot])
-      act(() => button(rendered.container, "Phone size")!.click())
+      act(() => button(rendered.container, "Show at phone size")!.click())
       expect(pageSights.layout(item.id)).toBe("phone")
-      act(() => button(rendered.container, "Phone size")!.click())
+      act(() => button(rendered.container, "Back to desktop size")!.click())
       expect(pageSights.layout(item.id)).toBe("desktop")
     })
   })
@@ -515,7 +520,7 @@ describe("a page beside a terminal", () => {
       expect(container.querySelector("webview")).toBeNull()
       expect(container.querySelector("img")?.getAttribute("alt")).toBe(`${url} as shown`)
       expect(button(container, "Back")).toBeUndefined()
-      expect(button(container, "Phone size")).toBeUndefined()
+      expect(button(container, "Show at phone size")).toBeUndefined()
       expect(container.querySelector(".artifact-browser")?.getAttribute("aria-busy")).toBe("false")
     })
 

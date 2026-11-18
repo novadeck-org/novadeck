@@ -208,4 +208,6 @@
   min-height: 0;
   overflow: auto;
   background-color: var(--pane-bg, var(--color-paper));
+  /* Its row folds the tools as a pane's does, for what a pane-reader doesn't hold. */
+  container: pane-reader / inline-size;
 }

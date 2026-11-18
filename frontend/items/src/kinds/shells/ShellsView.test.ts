@@ -89,7 +89,10 @@ describe("the shells item", () => {
         ["cmd ok", "exited 0", 3],
         ["cmd stop", "stopped", 3],
       ])
-      // The row's own, none of it: a failed shell tints its tab, which the pane draws.
+      // The view says each state in its rows; a failed one is marked there, and tints its tab in the row.
+      expect(
+        [...container.querySelectorAll(".shells-row")].map((row) => row.getAttribute("data-state")),
+      ).toEqual(["failed", "running", "ended", "stopped"])
       expect(container.querySelector(".artifact-meta")).toBeNull()
     })
   })

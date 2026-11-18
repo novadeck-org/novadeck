@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 
 import type { ArtifactBodyProps } from "../../ArtifactViewer"
 import { useAwake } from "../../awake"
-import { PaneTools, type PaneTool } from "../../pane-row"
+import { PaneTools, usePaneNote, type PaneTool } from "../../pane-row"
 import { useViewerSlot } from "../../ViewerSlot"
 
 /** Whether two addresses share an origin: scheme, host and port. */
@@ -95,6 +95,8 @@ const ShownPage = ({
   const collect = useTroubles(trouble)
   const [place, setPlace] = useState<Place>({ url: page.url, back: false, forward: false })
   const [load, setLoad] = useState<Load>("loading")
+  // The tab says where the page is now, which isn't always where it was shown.
+  usePaneNote([], false, place.url)
   const [size, setSize] = useState(() => pageSights.layout(id))
   // Each show of it loads it afresh and brings its scroll into view, once.
   const content = useMemo(
@@ -191,8 +193,7 @@ const ShownPage = ({
                 {
                   key: "phone",
                   icon: Smartphone,
-                  label: "Phone size",
-                  tip: size === "phone" ? "Back to desktop size" : "Show at phone size",
+                  label: size === "phone" ? "Back to desktop size" : "Show at phone size",
                   pressed: size === "phone",
                   onClick: switchSize,
                 },
