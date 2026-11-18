@@ -479,6 +479,21 @@ export const pdfFrameViewer = ({ pdfjs, worker: workerUrl, port }: PdfFrameEnvir
     }
     if (message.type === "zoom" && isZoom(message.zoom)) return setZoom(message.zoom)
     if (message.type === "focus") return root.focus({ preventScroll: true })
+    if (message.type === "label" && typeof message.label === "string")
+      return root.setAttribute("aria-label", message.label.slice(0, 256))
+    // A scroll or pinch over the app's glass in front of the frame, while it hasn't the focus.
+    if (
+      message.type === "wheel" &&
+      typeof message.x === "number" &&
+      typeof message.y === "number" &&
+      typeof message.mode === "number"
+    ) {
+      const unit = message.mode === 1 ? 16 : message.mode === 2 ? 400 : 1
+      if (message.zoom !== true) return root.scrollBy(message.x * unit, message.y * unit)
+      const delta = clamp(message.y * unit, -wheelNotch, wheelNotch)
+      if (delta) setZoom(scale() * Math.exp(-delta * wheelStep))
+      return
+    }
     if (message.type === "theme" && message.tokens && typeof message.tokens === "object") {
       for (const [name, value] of Object.entries(message.tokens))
         if (name.startsWith("--pdf-") && typeof value === "string")

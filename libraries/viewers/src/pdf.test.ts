@@ -100,6 +100,20 @@ const code = async () => ({
 })
 // The frame's page, as the app serves it.
 const frameUrl = URL.createObjectURL(new Blob([frameHtml], { type: "text/html" }))
+const sha256 = async (text: string): Promise<string> =>
+  btoa(
+    String.fromCharCode(
+      ...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))),
+    ),
+  )
+// The same page, but running in a frame of this page's origin, which the real one refuses: its
+// script without that check, and its policy naming that script's hash.
+const drawingPage = async (): Promise<string> => {
+  const script = /<script>([\s\S]*?)<\/script>/.exec(frameHtml)![1]!
+  const open = script.replace('if (self.origin === "null")', "if (true)")
+  return frameHtml.replace(script, open).replace(/sha256-[^']+/, `sha256-${await sha256(open)}`)
+}
+const drawingUrl = URL.createObjectURL(new Blob([await drawingPage()], { type: "text/html" }))
 
 type Drawn = PdfViewer & { readonly frame: HTMLIFrameElement }
 const panes: HTMLElement[] = []
@@ -142,7 +156,7 @@ const mount = (
   }
   const frame = openPdfFrame({
     iframe,
-    url: frameUrl,
+    url: drawingUrl,
     code,
     viewer: options.viewer ?? pdfFrameViewer.toString(),
     hear: (data) => {
@@ -568,13 +582,14 @@ const mountIsolated = (
     viewer?: string
     onTrouble?: (trouble: PdfTrouble | null) => void
     onAction?: (action: string) => void
+    assets?: PdfAssets
   } = {},
 ): PdfViewer => {
   const viewer = mountPdf(pane, {
     content: { bytes },
     label: "report.pdf",
     frame: { url: frameUrl, code, ...(options.viewer && { viewer: options.viewer }) },
-    assets,
+    assets: options.assets ?? assets,
     ...(options.onTrouble && { onTrouble: options.onTrouble }),
     ...(options.onAction && { onAction: options.onAction }),
   })
@@ -696,6 +711,8 @@ describe("the frame's walls", () => {
       port.postMessage({ type: "place", page: -1, within: 2, zoom: 99, scale: 1, pages: 1 })
       for (let index = 0; index < 20; index++) port.postMessage({ type: "action", action: "hide" })
       parent.postMessage({ type: "novadeck:page-request", url: "https://example.com/" }, "*")
+      // Everything above has been sent.
+      port.postMessage({ type: "busy", busy: false })
       port.onmessage = ({ data }) => {
         if (data && data.type === "zoom")
           for (let index = 0; index < 20; index++)
@@ -717,14 +734,17 @@ describe("the frame's walls", () => {
       })
       const iframe = pane.querySelector("iframe")!
       await expect.poll(() => posted.length).toBe(1)
+      await expect
+        .poll(() => pane.querySelector(".pdf-host")!.getAttribute("aria-busy"))
+        .toBe("false")
       // What it posted the app's page names its frame as the sender, which the app's own
       // listeners check against their own.
       expect(posted[0]!.source).toBe(iframe.contentWindow)
       // Not focused: no action, and nothing else it sent was taken.
       expect(actions).toEqual([])
       expect(viewer.state()).toEqual({ pdf: { page: 0, within: 0, zoom: "fit" } })
-      // Focused, a burst is cut to a few a second.
-      iframe.focus()
+      // Given the focus, a burst is cut to a few a second.
+      viewer.focus()
       viewer.zoom(1)
       await expect.poll(() => actions.length).toBe(5)
       await new Promise((settled) => setTimeout(settled, 300))
@@ -745,7 +765,86 @@ describe("the frame's walls", () => {
   })
 })
 
+describe("the frame's hold on the focus", () => {
+  // A frame that waits, then takes the focus itself, as a script in it could.
+  const steal = `function steal({ port }) {
+    port.postMessage({ type: "ready" })
+    setTimeout(() => {
+      window.focus()
+      document.body.tabIndex = 0
+      document.body.focus()
+    }, 300)
+  }`
+
+  it("goes back to where it was when a script in the frame takes it", async () => {
+    const pane = paneIn()
+    const field = document.createElement("input")
+    document.body.append(field)
+    try {
+      field.focus()
+      mountIsolated(pane, pdfOf(1), { viewer: steal })
+      await new Promise((settled) => setTimeout(settled, 1200))
+      expect(document.activeElement).toBe(field)
+    } finally {
+      field.remove()
+    }
+  })
+
+  it("is the frame's when the person presses on it, or Tabs to it", async () => {
+    const pane = paneIn()
+    mountIsolated(pane, pdfOf(1))
+    const glass = pane.querySelector<HTMLElement>(".pdf-glass")!
+    const frame = pane.querySelector("iframe")!
+    expect(frame.tabIndex).toBe(-1)
+    glass.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }))
+    expect(document.activeElement).toBe(frame)
+    expect(glass.hidden).toBe(true)
+    frame.blur()
+    expect(glass.hidden).toBe(false)
+    glass.focus()
+    expect(document.activeElement).toBe(frame)
+  })
+})
+
+describe("the files a frame asks for", () => {
+  it("are read once each, and only a few a second", async () => {
+    const flood = `function flood({ port }) {
+      port.postMessage({ type: "ready" })
+      for (let id = 1; id <= 100; id++)
+        port.postMessage({ type: "asset", id, kind: "cmap", name: "Name" + (id % 40) + ".bcmap" })
+    }`
+    const read: string[] = []
+    const counting: PdfAssets = async (_, name) => {
+      read.push(name)
+      return new Uint8Array(4)
+    }
+    const pane = paneIn()
+    mountIsolated(pane, pdfOf(1), { viewer: flood, assets: counting })
+    await expect.poll(() => read.length).toBe(16)
+    await new Promise((settled) => setTimeout(settled, 300))
+    expect(read).toHaveLength(16)
+  })
+})
+
 describe("the frame's page", () => {
+  it("runs nothing in a frame that isn't sandboxed, which would have the app's origin", async () => {
+    const pane = paneIn()
+    const iframe = document.createElement("iframe")
+    pane.append(iframe)
+    const heard: unknown[] = []
+    const frame = openPdfFrame({
+      iframe,
+      url: frameUrl,
+      code,
+      viewer: "function ran({ port }) { port.postMessage({ type: 'ready' }) }",
+      hear: (data) => heard.push(data),
+      stopped: () => {},
+    })
+    viewers.push({ destroy: frame.close })
+    await new Promise((settled) => setTimeout(settled, 1500))
+    expect(heard).toEqual([])
+  })
+
   it("allows its one script by its hash, and no network", async () => {
     const script = /<script>([\s\S]*?)<\/script>/.exec(frameHtml)![1]!
     const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(script))

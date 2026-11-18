@@ -21,5 +21,6 @@ export const asClassic = (text: string, global: "pdfjsLib" | "pdfjsWorker"): str
       return `${JSON.stringify(exported ?? local)}:${local}`
     })
   const body = text.trimEnd().slice(0, found.index).replaceAll("import.meta.url", '"about:blank"')
-  return `${body}\nglobalThis.${global}={${names.join(",")}};\n`
+  // Strict, as a module is.
+  return `"use strict";\n${body}\nglobalThis.${global}={${names.join(",")}};\n`
 }

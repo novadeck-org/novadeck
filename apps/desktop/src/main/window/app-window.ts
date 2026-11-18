@@ -126,6 +126,10 @@ export const openAppWindow = ({
   window.on("blur", () => tellWindowFocus(window))
 
   window.webContents.on("will-navigate", (event) => event.preventDefault())
+  // The app uses no WebRTC, and no page policy can keep a frame in it from opening a peer
+  // connection, as a PDF's (libraries/viewers/src/pdf.ts) could: none of it sends UDP that
+  // doesn't go through a proxy (see SECURITY.md, PDF Previews).
+  window.webContents.setWebRTCIPHandlingPolicy("disable_non_proxied_udp")
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (webAddress(url)) void shell.openExternal(url)

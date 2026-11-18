@@ -59,15 +59,23 @@ export const openPdfFrame = ({
       return stopped()
     }
     const target = iframe.contentWindow
-    void codeOf(code).then(({ library, worker }) => {
-      if (closed || !target || loads > 1) return
-      const channel = new MessageChannel()
-      port = channel.port1
-      port.addEventListener("message", ({ data }) => hear(data))
-      port.start()
-      // Its origin is opaque, so "*" is the only one to name; the page checks its parent sent it.
-      target.postMessage({ type: "start", library, worker, viewer }, "*", [channel.port2])
-    })
+    codeOf(code).then(
+      ({ library, worker }) => {
+        if (closed || !target || loads > 1) return
+        const channel = new MessageChannel()
+        port = channel.port1
+        port.addEventListener("message", ({ data }) => hear(data))
+        port.start()
+        // Its origin is opaque, so "*" is the only one to name; the page checks its parent sent it.
+        target.postMessage({ type: "start", library, worker, viewer }, "*", [channel.port2])
+      },
+      // pdf.js couldn't be had, as a chunk that didn't load: the next frame tries again.
+      () => {
+        converted.delete(code)
+        close()
+        stopped()
+      },
+    )
   })
   iframe.src = url
   return {

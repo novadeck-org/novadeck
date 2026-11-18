@@ -1,5 +1,6 @@
 /* The PDF viewer: its frame (`.pdf-frame`, an iframe of its own origin that draws the PDF,
-   see pdf.ts) filling `.pdf-host`, and `.pdf-host-notice` when the frame stopped.
+   see pdf.ts) filling `.pdf-host`, the glass in front of it while it hasn't the focus
+   (`.pdf-glass`), and `.pdf-host-notice` when the frame stopped.
 
    Hooks: aria-busy on the host while it opens a PDF.
 
@@ -13,7 +14,8 @@
    --pdf-chip-bg (a dark glass), --pdf-chip-fg (white), --pdf-chip-border (none),
    --pdf-chip-radius (6px), --pdf-chip-shadow (none), --pdf-chip-font (the frame's own),
    --pdf-chip-hover-bg (--pdf-chip-bg, else a darker glass): the chip naming the page and
-   zoom. A font the app loads isn't the frame's: the chip falls back to the system's. */
+   zoom. A font the app loads isn't the frame's: the chip falls back to the system's.
+   --pdf-glass-ring (Highlight): the glass's focus ring, reached by Tab. */
 .pdf-host {
   position: relative;
   display: flex;
@@ -27,6 +29,18 @@
   min-height: 0;
   border: 0;
   background: var(--pdf-ground, none);
+}
+/* In front of the frame while it hasn't the focus: a press or Tab here gives it the focus. */
+.pdf-glass {
+  position: absolute;
+  inset: 0;
+}
+.pdf-glass[hidden] {
+  display: none;
+}
+.pdf-glass:focus-visible {
+  outline: 2px solid var(--pdf-glass-ring, Highlight);
+  outline-offset: -2px;
 }
 .pdf-host-notice {
   margin: auto;

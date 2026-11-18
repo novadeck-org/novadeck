@@ -82,8 +82,16 @@ const tokens = [
   "--pdf-chip-hover-bg",
 ]
 
-// The pane's actions the frame may ask for: a burst past this is a frame misbehaving.
+// The pane's actions the frame may ask for, and files: a burst past this is a frame
+// misbehaving. How long a frame has to start, and what may wait for it meanwhile.
 const actionsPerSecond = 5
+const assetsPerSecond = 16
+const startMs = 30_000
+const queued = 16
+
+// pdf.js's own files as handed over, read once for every frame: a frame asking again, or
+// many at once, costs the app's page nothing more.
+const read = new Map<string, Promise<Uint8Array | undefined>>()
 
 /**
  * Mounts a PDF viewer in its frame. `onTrouble` hears why a PDF it was given isn't drawn;
@@ -112,23 +120,34 @@ export const mountPdf: Mount<
   iframe.referrerPolicy = "no-referrer"
   iframe.title = label
   iframe.className = "pdf-frame"
+  // Reached through the glass, never by Tab straight into the frame.
+  iframe.tabIndex = -1
+  // Over the frame while it hasn't the focus, so only the person gives it the focus: a press on
+  // it, or Tab to it, lets the frame have it. A scroll or pinch over it goes to the frame.
+  const glass = document.createElement("div")
+  glass.className = "pdf-glass"
+  glass.tabIndex = 0
+  glass.setAttribute("role", "button")
+  glass.setAttribute("aria-label", label)
   const notice = document.createElement("p")
   notice.className = "pdf-host-notice"
   notice.setAttribute("role", "alert")
   notice.hidden = true
-  host.append(iframe, notice)
+  host.append(iframe, glass, notice)
   element.append(host)
 
   let place: Place | undefined = isPdfState(saved) ? saved.pdf : undefined
   let opened: OpenFrame | undefined
   let ready = false
   let destroyed = false
-  // What waits for the frame to be ready.
-  const queue: { message: Record<string, unknown>; transfer: Transferable[] }[] = []
+  // What waits for the frame to be ready: of each kind but files, only the latest, so a
+  // file rewritten again and again holds one copy of its bytes.
+  let queue: { message: Record<string, unknown>; transfer: Transferable[] }[] = []
   const post = (message: Record<string, unknown>, transfer: Transferable[] = []): void => {
     if (destroyed) return
-    if (!ready || !opened) return void queue.push({ message, transfer })
-    opened.post(message, transfer)
+    if (ready && opened) return opened.post(message, transfer)
+    if (message.type !== "asset") queue = queue.filter((each) => each.message.type !== message.type)
+    if (queue.length < queued) queue.push({ message, transfer })
   }
 
   const theme = (): void => {
@@ -145,9 +164,17 @@ export const mountPdf: Mount<
     post({ type: "theme", tokens: values, scheme: dark ? "dark" : light ? "light" : preferred })
   }
 
-  // A file pdf.js asked for, from the app's own, or none.
+  // A file pdf.js asked for, from the app's own, or none; a frame asking past the rate gets none.
+  let asked: number[] = []
   const answer = async (id: number, kind: PdfAssetKind, name: string): Promise<void> => {
-    const bytes = await assets?.(kind, name).catch(() => undefined)
+    const now = win.performance.now()
+    asked = asked.filter((at) => now - at < 1000)
+    if (asked.length >= assetsPerSecond || !assets) return post({ type: "asset", id })
+    asked.push(now)
+    const key = `${kind}/${name}`
+    const known = read.get(key) ?? assets(kind, name).catch(() => undefined)
+    read.set(key, known)
+    const bytes = await known
     if (!bytes) return post({ type: "asset", id })
     const copy = bytes.slice().buffer
     post({ type: "asset", id, bytes: copy }, [copy])
@@ -164,17 +191,24 @@ export const mountPdf: Mount<
     onAction(action)
   }
 
+  let trouble: PdfTrouble | null | undefined
   const hear = (message: PdfFrameMessage): void => {
     switch (message.type) {
       case "ready":
+        if (ready) return
         ready = true
+        win.clearTimeout(starting)
+        opened?.post({ type: "label", label })
         theme()
-        for (const { message: queued, transfer } of queue.splice(0)) opened?.post(queued, transfer)
+        for (const { message: waiting, transfer } of queue.splice(0))
+          opened?.post(waiting, transfer)
         return
       case "place":
         place = { page: message.page, within: message.within, zoom: message.zoom }
         return
       case "trouble":
+        if (message.trouble === trouble) return
+        trouble = message.trouble
         return onTrouble?.(message.trouble)
       case "busy":
         return host.setAttribute("aria-busy", String(message.busy))
@@ -189,6 +223,9 @@ export const mountPdf: Mount<
   // let go of, and says so.
   const stop = (): void => {
     ready = false
+    queue = []
+    opened?.close()
+    win.clearTimeout(starting)
     iframe.remove()
     notice.textContent = "The PDF viewer stopped."
     notice.hidden = false
@@ -207,6 +244,55 @@ export const mountPdf: Mount<
     },
     stopped: stop,
   })
+  // A frame that never starts, as when pdf.js couldn't be read, is let go of too.
+  const starting = win.setTimeout(() => {
+    if (!ready && !destroyed) stop()
+  }, startMs)
+
+  // The frame takes the focus only when the person gives it: through the glass, or when the app
+  // focuses the viewer. Taken any other way, by a script in the frame, it goes back to where it
+  // was, so nothing typed for elsewhere reaches the frame.
+  let given = false
+  let before: Element | null = null
+  const give = (): void => {
+    given = true
+    iframe.focus({ preventScroll: true })
+    post({ type: "focus" })
+  }
+  const remember = (event: FocusEvent): void => {
+    if (event.target !== iframe) before = event.target as Element
+  }
+  document.addEventListener("focusin", remember, true)
+  iframe.addEventListener("focus", () => {
+    if (given) return void (glass.hidden = true)
+    const back = before as HTMLElement | null
+    if (back?.isConnected && back !== document.body) back.focus({ preventScroll: true })
+    else iframe.blur()
+  })
+  iframe.addEventListener("blur", () => {
+    given = false
+    glass.hidden = false
+  })
+  glass.addEventListener("pointerdown", (event) => {
+    event.preventDefault()
+    give()
+  })
+  glass.addEventListener("focus", give)
+  // A scroll or pinch over the glass scrolls or zooms the PDF, as over the frame.
+  glass.addEventListener(
+    "wheel",
+    (event) => {
+      event.preventDefault()
+      post({
+        type: "wheel",
+        x: event.deltaX,
+        y: event.deltaY,
+        mode: event.deltaMode,
+        zoom: event.ctrlKey || event.metaKey,
+      })
+    },
+    { passive: false },
+  )
 
   const open = async (bytes: Blob): Promise<void> => {
     const data = await bytes.arrayBuffer()
@@ -219,7 +305,7 @@ export const mountPdf: Mount<
   const looks = new win.MutationObserver(theme)
   looks.observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ["class", "style", "data-theme"],
+    attributeFilter: ["class", "style", "data-theme", "data-scheme"],
   })
 
   if (place) post({ type: "place", place })
@@ -235,13 +321,12 @@ export const mountPdf: Mount<
       post({ type: "place", place: state.pdf })
     },
     jumpTo: () => {},
-    focus: () => {
-      iframe.focus({ preventScroll: true })
-      post({ type: "focus" })
-    },
+    focus: give,
     zoom: (next) => post({ type: "zoom", zoom: next }),
     destroy: () => {
       destroyed = true
+      win.clearTimeout(starting)
+      document.removeEventListener("focusin", remember, true)
       opened?.close()
       scheme.removeEventListener("change", theme)
       looks.disconnect()
