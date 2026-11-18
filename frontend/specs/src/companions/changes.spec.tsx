@@ -7,7 +7,7 @@ import { describe, expect, it } from "../test"
 // main (a1c3f9e, then 7d02b4a) and an edit not committed.
 const openChange = async () => {
   await openShowcase()
-  await chooseFromIconSubmenu("Dev server", "9 changes", "Open", "Changes")
+  await chooseFromIconSubmenu("Dev server", "13 changes", "Open", "Changes")
   const pane = companionPane("Dev server")
   await expect.element(pane.getByRole("listbox", { name: "Layers" })).toBeVisible()
   return pane
