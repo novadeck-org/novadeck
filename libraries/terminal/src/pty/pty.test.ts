@@ -349,6 +349,39 @@ describe("a pty's terminal in use", () => {
     expect(lowered).toEqual([])
   })
 
+  it("leaves a Windows tree raised when its terminal came into use while the lowering read it", async () => {
+    const { sets, activity } = registry()
+    const standIn = nativeStandIn({ pid: 77, conpty: true })
+    const lowered: number[] = []
+    const raised: number[] = []
+    // Each read waits until the test answers it, so the lowering's can come back last.
+    const reads: ((tree: { pid: number; startedAt: number }[]) => void)[] = []
+    spawnPty({
+      file: "shell",
+      args: [],
+      cwd: "/",
+      env: {},
+      cols: 80,
+      rows: 24,
+      platform: "win32",
+      native: standIn.spawn,
+      id: "t1",
+      activity,
+      priority: { lower: (pid) => void lowered.push(pid), raise: (pid) => void raised.push(pid) },
+      trees: { read: () => new Promise((resolve) => reads.push(resolve)) },
+    })
+    const tree = [77, 5].map((pid) => ({ pid, startedAt: 1 }))
+    standIn.draw("$ ")
+    expect(lowered).toEqual([77])
+    sets.get("t1")!(true)
+    await vi.waitFor(() => expect(reads).toHaveLength(2))
+    reads[1]!(tree)
+    await vi.waitFor(() => expect(raised).toEqual(expect.arrayContaining([77, 5])))
+    reads[0]!(tree)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(lowered).toEqual([77])
+  })
+
   it("stops following once it has exited", () => {
     const { stopped, activity } = registry()
     const { standIn } = spawnWith("darwin", activity)

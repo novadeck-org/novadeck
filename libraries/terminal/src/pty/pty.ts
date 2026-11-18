@@ -317,6 +317,9 @@ export const spawnPty = (
         void options.trees
           ?.read(shell)
           .then((tree) => {
+            // Its terminal came into use while the tree was read: the raise reads its own,
+            // which may have come back first, and a lowering now would undo it.
+            if (boost.active) return
             for (const member of tree ?? [])
               if (member.pid !== shell) options.priority?.lower(member.pid)
           })

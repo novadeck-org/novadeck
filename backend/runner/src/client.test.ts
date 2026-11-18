@@ -22,6 +22,7 @@ import { vi } from "vitest"
 
 import { createRunner } from "./index.js"
 import { startServer, type ServerOptions } from "./server.js"
+import { ActiveTerminals } from "./terminals/active.js"
 import { handleWords } from "./terminals/handles.js"
 import { describe, expect, it } from "./test.js"
 import { ptyOptions } from "./testing/pty.js"
@@ -338,6 +339,29 @@ describe("runner client over WebSocket", () => {
     await expect(again.terminals.list({ sessionId })).resolves.toEqual([
       expect.objectContaining({ id: created.id, exit: null }),
     ])
+  })
+})
+
+describe("the terminal a window uses", () => {
+  it("reaches the runner for the window's session, and lapses once its client closes", async ({
+    resources,
+  }) => {
+    const report = vi.spyOn(ActiveTerminals.prototype, "report")
+    const release = vi.spyOn(ActiveTerminals.prototype, "release")
+    resources.defer(() => {
+      report.mockRestore()
+      release.mockRestore()
+    })
+    const app = await deployed(resources)
+    const runner = await app.connect()
+    const { id: sessionId } = await session(runner, app.directory)
+    const created = await runner.terminals.create(shell(sessionId))
+    await runner.terminals.active(created.id)
+    expect(report).toHaveBeenCalledExactlyOnceWith(expect.any(String), created.id)
+    const window = report.mock.calls[0]![0]
+    expect(release).not.toHaveBeenCalledWith(window)
+    await runner.close()
+    await vi.waitFor(() => expect(release).toHaveBeenCalledWith(window))
   })
 })
 
