@@ -8,6 +8,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type Reac
 
 import { AwakeContext, useWakeful } from "../../awake"
 import { isNew, isSecret, type BarMember, type BehindGroup } from "../../bar/bar"
+import { onPaneAction } from "../../pane-actions"
 import { usePanePicture, useStandInPicture, type PanePicture } from "../../pane-pictures"
 import {
   PaneChrome,
@@ -611,16 +612,33 @@ export const CompanionPane = ({
   )
   // Ctrl+PageDown and Ctrl+PageUp, from anywhere in the pane, show the next or previous tab,
   // focus following to it for the next step.
+  const step = (by: 1 | -1): boolean => {
+    const next = member && stepTab(tabs, member.key, by)
+    if (!next) return false
+    tabMemory.picked(next.key, true)
+    onRaise(next)
+    return true
+  }
   const stepKey = (event: React.KeyboardEvent): void => {
     const by = { PageDown: 1, PageUp: -1 }[event.key] as 1 | -1 | undefined
     if (!by || !event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return
-    const next = member && stepTab(tabs, member.key, by)
-    if (!next) return
+    if (!step(by)) return
     event.preventDefault()
     event.stopPropagation()
-    tabMemory.picked(next.key, true)
-    onRaise(next)
   }
+  // The same, asked by a viewer whose keys the pane can't hear, as the PDF's frame.
+  const actions = useRef({ onHide, step })
+  useEffect(() => {
+    actions.current = { onHide, step }
+  })
+  useEffect(() => {
+    const element = section.current
+    if (!element) return
+    return onPaneAction(element, (action) => {
+      if (action === "hide") actions.current.onHide()
+      else actions.current.step(action === "next-tab" ? 1 : -1)
+    })
+  }, [])
   const undock = member?.kind === "item" && !member.placed ? () => onUndock(member) : undefined
   // What the row says of a tab: the item's own facts and, for the one shown, what its viewer
   // adds; the terminal a moved one came from; and a shell that failed.

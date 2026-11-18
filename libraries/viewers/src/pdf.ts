@@ -1,29 +1,32 @@
-import type { PDFDocumentLoadingTask, PDFDocumentProxy, PDFWorker, RenderTask } from "pdfjs-dist"
-
 import type { Mount, Viewer, ViewerState } from "./index.js"
+import { openPdfFrame, type FrameCode, type OpenFrame } from "./pdf/frame-host.js"
+import { pdfFrameViewer } from "./pdf/frame-viewer.js"
+import {
+  frameMessage,
+  type PdfAssetKind,
+  type PdfFrameMessage,
+  type PdfPaneAction,
+  type PdfTrouble,
+  type PdfZoom,
+} from "./pdf/messages.js"
 
-// A PDF, drawn page under page with pdf.js, each page on a canvas once it nears the view:
-// fitted to the viewer's width, never past its actual size, or zoomed. Ctrl/⌘+scroll and
-// the keys zoom, a scroll moves through it, and a chip over it says which page is at its top
-// and how far it's zoomed, and takes it back to fit. Its state is that page, how far down it
-// the view starts, and the zoom, so a PDF shown again opens where it was, whatever the
-// viewer's size, and a PDF written again keeps its place.
-//
-// Only the pages are drawn: no annotation layer, so a link in it goes nowhere, no form is
-// filled, and no script it carries runs (pdf.js runs a PDF's scripts only through its own
-// sandbox, which isn't loaded), and nothing it holds is fetched. Its looks are pdf.css's.
-//
-// pdf.js reads PDFs in a worker, whose script (pdfjs-dist's `build/pdf.worker.min.mjs`) the
-// app serves and names in `worker`, as its bundler gives the file's address. What pdf.js reads
-// besides, the app hands it through `assets`, never fetched by an address: the Adobe CMaps a
-// PDF's fonts may name (`cmaps/`), the standard fonts (`standard_fonts/`), and the decoders
-// of scanned images, JPEG 2000 and JBIG2 (`wasm/`). Without it those draw as blanks.
+export type { PdfPaneAction, PdfTrouble, PdfZoom } from "./pdf/messages.js"
 
-/** A PDF's bytes, read afresh for each time it is opened, since pdf.js takes them. */
+// A PDF, drawn by pdf.js in a frame of its own (pdf/frame-viewer.ts), never in the app's page:
+// the frame is sandboxed with scripts only, so it has an opaque origin, and its page
+// (pdf/frame.html, which the app serves) allows no network, no storage and no script but what
+// this hands it. A PDF's bytes go in, transferred; out come only the small messages
+// pdf/messages.ts checks: where it is, why it isn't drawn, whether it's busy, which of pdf.js's
+// own files it needs, and the pane's actions for its keys. A script a PDF somehow ran in the
+// frame reaches neither the app's page, its storage, nor its connection to the runner.
+//
+// In the frame, a PDF is drawn page under page, fitted to the frame's width, never past its
+// actual size, or zoomed; a chip names the page at the top and the zoom. Its state, kept as
+// the other viewers' is, is that page, how far down it the view starts, and the zoom, which the
+// frame reports as it changes.
+
+/** A PDF's bytes, read afresh for each time it is opened, since they go to the frame. */
 export type PdfContent = { readonly bytes: Blob }
-
-/** Fitted to the viewer's width, or a scale of the PDF's actual size (1 is 100%). */
-export type PdfZoom = "fit" | number
 
 export type PdfViewer = Viewer<PdfContent> & {
   readonly zoom: (zoom: PdfZoom) => void
@@ -33,491 +36,216 @@ export type PdfViewer = Viewer<PdfContent> & {
  * One of pdf.js's own files, by its folder in pdfjs-dist (`cmap`: `cmaps/`, `font`:
  * `standard_fonts/`, `wasm`: `wasm/`) and its name there, as bytes.
  */
-export type PdfAssets = (kind: "cmap" | "font" | "wasm", name: string) => Promise<Uint8Array>
-
-// How pdf.js names what it asks the app for.
-const assetKinds = { cMapUrl: "cmap", standardFontDataUrl: "font", wasmUrl: "wasm" } as const
-
-// pdf.js's factory for its files, answering from `assets`.
-const factoryOf = (assets: PdfAssets) =>
-  class {
-    fetch({ kind, filename }: { kind: string; filename: string }): Promise<Uint8Array> {
-      const asset = assetKinds[kind as keyof typeof assetKinds]
-      if (!asset) return Promise.reject(new Error(`pdf.js asked for an unknown ${kind}`))
-      return assets(asset, filename)
-    }
-  }
-
-/** Why a PDF isn't drawn: it asks for a password, or isn't a PDF pdf.js can read. */
-export type PdfTrouble = "password" | "unreadable"
-
-type PdfState = {
-  readonly pdf: {
-    // The page at the view's top, from 0, and how far down it the view starts, as a fraction
-    // of its height.
-    readonly page: number
-    readonly within: number
-    readonly zoom: PdfZoom
-  }
-}
-
-// The furthest out and in it zooms, and a key's step. A wheel's step: a notch zooms by about
-// 15%, while a pinch's smaller steps zoom as far as the fingers moved.
-const least = 0.25
-const most = 8
-const keyStep = 1.25
-const wheelStep = 0.01
-const wheelNotch = 15
-// A PDF's unit, the point, in CSS pixels: what pdf.js draws at 100%.
-const pointPixels = 96 / 72
-// How far beyond the view pages are drawn, and kept drawn, in views.
-const drawAhead = 1
-const keepAhead = 3
-// The most pixels a page's canvas holds; a larger page is drawn at a lower resolution.
-const canvasPixels = 16_777_216
-
-const isZoom = (zoom: unknown): zoom is PdfZoom =>
-  zoom === "fit" || (typeof zoom === "number" && Number.isFinite(zoom) && zoom > 0)
-
-const isPdfState = (state: unknown): state is PdfState => {
-  const pdf = (state as Partial<PdfState> | null)?.pdf
-  return (
-    Number.isInteger(pdf?.page) &&
-    pdf!.page >= 0 &&
-    Number.isFinite(pdf?.within) &&
-    isZoom(pdf?.zoom)
-  )
-}
-
-const clamp = (value: number, low: number, high: number): number =>
-  Math.min(Math.max(value, low), high)
-
-// The one worker every PDF is read in, started with the first, from the script it names.
-const pdfjs = () => import("pdfjs-dist")
-const workers = new Map<string, Promise<PDFWorker>>()
-const workerOf = (src: string): Promise<PDFWorker> => {
-  const started =
-    workers.get(src) ??
-    pdfjs().then(({ GlobalWorkerOptions, PDFWorker }) => {
-      GlobalWorkerOptions.workerSrc = src
-      return new PDFWorker()
-    })
-  workers.set(src, started)
-  return started
-}
-
-const troubleText: Record<PdfTrouble, string> = {
-  password: "This PDF is locked with a password, which Novadeck doesn't open.",
-  unreadable: "This file couldn't be read as a PDF.",
-}
-
-const gestures = "Scroll with Ctrl or ⌘, or pinch, to zoom."
-const keyHelp = "Reached by Tab: plus and minus zoom, 0 fits, Page Up and Page Down move a view."
+export type PdfAssets = (kind: PdfAssetKind, name: string) => Promise<Uint8Array>
 
 /**
- * Mounts a PDF viewer, reading PDFs in the worker script at `worker`, with pdf.js's own files
- * from `assets`; `onTrouble` hears why a PDF it was given isn't drawn.
+ * The frame, as the app serves it: its page's address (pdf/frame.html, as `pdf-frame.html`
+ * beside the app's own), and pdf.js's two modules as text (pdfjs-dist's `build/pdf.min.mjs`
+ * and `build/pdf.worker.min.mjs`), which it hands the frame. `viewer` is the source the frame
+ * runs, pdf/frame-viewer.ts's own unless given, as a test of the frame's walls gives another.
+ */
+export type PdfFrame = {
+  readonly url: string
+  readonly code: FrameCode
+  readonly viewer?: string
+}
+
+type Place = { readonly page: number; readonly within: number; readonly zoom: PdfZoom }
+type PdfState = { readonly pdf: Place }
+
+const isPlace = (place: unknown): place is Place => {
+  const given = place as Partial<Place> | null
+  return (
+    Number.isInteger(given?.page) &&
+    given!.page! >= 0 &&
+    Number.isFinite(given?.within) &&
+    (given?.zoom === "fit" || (typeof given?.zoom === "number" && given.zoom > 0))
+  )
+}
+const isPdfState = (state: unknown): state is PdfState =>
+  isPlace((state as Partial<PdfState> | null)?.pdf)
+
+// The tokens the frame draws with, read from where the viewer mounts (see pdf.css).
+const tokens = [
+  "--pdf-ground",
+  "--pdf-padding",
+  "--pdf-gap",
+  "--pdf-page-bg",
+  "--pdf-page-shadow",
+  "--pdf-notice-fg",
+  "--pdf-chip-bg",
+  "--pdf-chip-fg",
+  "--pdf-chip-border",
+  "--pdf-chip-radius",
+  "--pdf-chip-shadow",
+  "--pdf-chip-font",
+  "--pdf-chip-hover-bg",
+]
+
+// The pane's actions the frame may ask for: a burst past this is a frame misbehaving.
+const actionsPerSecond = 5
+
+/**
+ * Mounts a PDF viewer in its frame. `onTrouble` hears why a PDF it was given isn't drawn;
+ * `onAction` hears what the pane does for a key pressed in the PDF, only while the frame has
+ * the focus.
  */
 export const mountPdf: Mount<
   PdfContent,
   {
-    readonly worker: string
+    readonly frame: PdfFrame
     readonly assets?: PdfAssets
     readonly onTrouble?: (trouble: PdfTrouble | null) => void
+    readonly onAction?: (action: PdfPaneAction) => void
   },
   PdfViewer
-> = (element, { content, label, saved, worker: workerSrc, assets, onTrouble }) => {
+> = (element, { content, label, saved, frame, assets, onTrouble, onAction }) => {
   const document = element.ownerDocument
   const win = document.defaultView ?? window
-  // The chip sits over the pages, which scroll under it.
-  const frame = document.createElement("div")
-  frame.className = "pdf-frame"
-  const root = document.createElement("div")
-  root.className = "pdf-viewer"
-  root.setAttribute("role", "region")
-  root.setAttribute("aria-label", label)
-  root.setAttribute("aria-description", `${gestures} ${keyHelp}`)
-  root.setAttribute("aria-busy", "true")
-  root.tabIndex = 0
-  const pages = document.createElement("div")
-  pages.className = "pdf-pages"
-  const chip = document.createElement("button")
-  chip.type = "button"
-  chip.className = "pdf-chip"
-  chip.hidden = true
-  chip.title = `${gestures} Click to fit.`
+  const host = document.createElement("div")
+  host.className = "pdf-host"
+  host.setAttribute("aria-busy", "true")
+  const iframe = document.createElement("iframe")
+  // Scripts only: no same origin, so the frame's is opaque, and no popups, forms, top
+  // navigation or downloads.
+  iframe.setAttribute("sandbox", "allow-scripts")
+  iframe.referrerPolicy = "no-referrer"
+  iframe.title = label
+  iframe.className = "pdf-frame"
   const notice = document.createElement("p")
-  notice.className = "pdf-notice"
+  notice.className = "pdf-host-notice"
   notice.setAttribute("role", "alert")
   notice.hidden = true
-  root.append(pages, notice)
-  frame.append(root, chip)
-  element.append(frame)
+  host.append(iframe, notice)
+  element.append(host)
 
-  // Each page: its size at 100% in points, its element, and what is drawn on it.
-  type Page = {
-    readonly width: number
-    readonly height: number
-    readonly element: HTMLDivElement
-    drawn: number | undefined
-    // The device pixel ratio it was drawn for, which a move to another screen changes.
-    sharp: number | undefined
-    // The drawing under way, and the scale it draws at.
-    task: RenderTask | undefined
-    drawing: number | undefined
-  }
-  let current: PDFDocumentProxy | undefined
-  let list: Page[] = []
-  let zoom: PdfZoom = "fit"
-  // Where to go once the pages are laid out: the saved place, then the place kept across a
-  // reload. While it's set, it is the viewer's place.
-  let pending: PdfState["pdf"] | undefined = isPdfState(saved) ? saved.pdf : undefined
-  if (pending) zoom = pending.zoom
-  // Each opened document's number, so a later one's answers win.
-  let opened = 0
+  let place: Place | undefined = isPdfState(saved) ? saved.pdf : undefined
+  let opened: OpenFrame | undefined
+  let ready = false
   let destroyed = false
-  let pass = 0
-  // Where it was, while it has no size (hidden, as a parked Focus terminal is), every offset
-  // reading 0: the place it last had, or one asked for since, to go to once it has a size.
-  let held: PdfState["pdf"] | undefined
-  // The place it had when last measured with a size.
-  let last: PdfState["pdf"] | undefined
-  const sized = (): boolean => root.clientWidth > 0 && root.clientHeight > 0
-  const pixelRatio = (): number => win.devicePixelRatio || 1
-
-  // The scale pages are drawn at, as a share of 100%: fitted to the viewer's width, or zoomed.
-  const scale = (): number => {
-    if (zoom !== "fit") return zoom
-    const widest = Math.max(1, ...list.map((page) => page.width))
-    const style = win.getComputedStyle(root)
-    const across = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
-    return clamp((root.clientWidth - across) / (widest * pointPixels), least, 1)
+  // What waits for the frame to be ready.
+  const queue: { message: Record<string, unknown>; transfer: Transferable[] }[] = []
+  const post = (message: Record<string, unknown>, transfer: Transferable[] = []): void => {
+    if (destroyed) return
+    if (!ready || !opened) return void queue.push({ message, transfer })
+    opened.post(message, transfer)
   }
 
-  // The page at the view's top, and how far down it the view starts.
-  const place = (): PdfState["pdf"] => {
-    if (pending || list.length === 0) return pending ?? { page: 0, within: 0, zoom }
-    if (held || !sized()) return { ...(held ?? last ?? { page: 0, within: 0 }), zoom }
-    const top = root.scrollTop
-    let index = 0
-    while (index + 1 < list.length && list[index + 1]!.element.offsetTop <= top) index += 1
-    const page = list[index]!.element
-    const within = clamp((top - page.offsetTop) / Math.max(page.offsetHeight, 1), 0, 1)
-    last = { page: index, within, zoom }
-    return last
-  }
-
-  const goTo = ({ page, within }: { readonly page: number; readonly within: number }): void => {
-    const target = list[clamp(page, 0, list.length - 1)]?.element
-    if (!target) return
-    root.scrollTop = target.offsetTop + clamp(within, 0, 1) * target.offsetHeight
-  }
-
-  const showChip = (): void => {
-    if (list.length === 0) return void (chip.hidden = true)
-    const { page } = place()
-    const percent = `${Math.round(scale() * 100)}%`
-    chip.textContent = `${page + 1} / ${list.length} · ${percent}`
-    chip.setAttribute(
-      "aria-label",
-      `Page ${page + 1} of ${list.length}, at ${percent}${zoom === "fit" ? ", fitted" : ""}`,
-    )
-    chip.hidden = false
-  }
-
-  // Lets go of a page's drawing, and of what pdf.js keeps to draw it again.
-  const undraw = (page: Page, index: number): void => {
-    page.task?.cancel()
-    page.task = undefined
-    page.drawing = undefined
-    const drawn = page.drawn !== undefined
-    page.drawn = page.sharp = undefined
-    page.element.replaceChildren()
-    if (drawn)
-      void current?.getPage(index + 1).then(
-        (proxy) => proxy.cleanup(),
-        () => {},
-      )
-  }
-
-  // Draws a page at the current scale, unless it already is, in device pixels.
-  const draw = async (index: number): Promise<void> => {
-    const page = list[index]
-    const shown = current
-    const at = scale()
-    const sharp = pixelRatio()
-    const done = (): boolean => page?.drawn === at && page.sharp === sharp
-    if (!page || !shown || done() || page.task) return
-    const proxy = await shown.getPage(index + 1)
-    if (destroyed || shown !== current || page.task || done() || at !== scale()) return
-    const viewport = proxy.getViewport({ scale: at * pointPixels })
-    const ratio = Math.min(
-      sharp,
-      Math.sqrt(canvasPixels / Math.max(viewport.width * viewport.height, 1)),
-    )
-    const canvas = document.createElement("canvas")
-    canvas.width = Math.max(1, Math.floor(viewport.width * ratio))
-    canvas.height = Math.max(1, Math.floor(viewport.height * ratio))
-    const task = proxy.render({
-      canvas,
-      viewport,
-      ...(ratio !== 1 && { transform: [ratio, 0, 0, ratio, 0, 0] }),
-    })
-    page.task = task
-    page.drawing = at
-    try {
-      await task.promise
-    } catch {
-      // Cancelled for a new scale or a new file, or a page pdf.js couldn't draw: left blank.
-      if (page.task === task) page.task = page.drawing = undefined
-      return
+  const theme = (): void => {
+    const style = win.getComputedStyle(host)
+    const values: Record<string, string> = {}
+    for (const token of tokens) {
+      const value = style.getPropertyValue(token).trim()
+      if (value) values[token] = value
     }
-    if (page.task !== task) return
-    page.task = page.drawing = undefined
-    page.drawn = at
-    page.sharp = sharp
-    page.element.replaceChildren(canvas)
-    // Zoomed or resized as it drew: drawn again at the scale it's at now.
-    if (at !== scale()) settle()
+    const scheme = win.getComputedStyle(document.documentElement).colorScheme
+    const dark = /\bdark\b/.test(scheme) && !/\blight\b/.test(scheme)
+    const light = /\blight\b/.test(scheme) && !/\bdark\b/.test(scheme)
+    const preferred = win.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+    post({ type: "theme", tokens: values, scheme: dark ? "dark" : light ? "light" : preferred })
   }
 
-  // Draws the pages in and around the view, and lets go of those far from it.
-  // Nothing while it has no size: every page would read as in view.
-  const drawAround = (): void => {
-    if (list.length === 0 || pending || !sized()) return
-    const view = root.clientHeight
-    const top = root.scrollTop
-    list.forEach((page, index) => {
-      const start = page.element.offsetTop
-      const end = start + page.element.offsetHeight
-      if (end >= top - view * drawAhead && start <= top + view * (1 + drawAhead)) void draw(index)
-      else if (end < top - view * keepAhead || start > top + view * (1 + keepAhead))
-        undraw(page, index)
-    })
+  // A file pdf.js asked for, from the app's own, or none.
+  const answer = async (id: number, kind: PdfAssetKind, name: string): Promise<void> => {
+    const bytes = await assets?.(kind, name).catch(() => undefined)
+    if (!bytes) return post({ type: "asset", id })
+    const copy = bytes.slice().buffer
+    post({ type: "asset", id, bytes: copy }, [copy])
   }
 
-  // Sizes each page for the current scale, keeping the page at the view's top where it is.
-  // Without a size it only holds the place, to lay out once it has one.
-  const layout = (keep: PdfState["pdf"] | undefined = place()): void => {
-    if (!sized()) {
-      held = keep ?? held
-      return
+  let actions: number[] = []
+  const act = (action: PdfPaneAction): void => {
+    // Only for a key the person pressed in this PDF: its frame has the focus.
+    if (document.activeElement !== iframe || !onAction) return
+    const now = win.performance.now()
+    actions = actions.filter((at) => now - at < 1000)
+    if (actions.length >= actionsPerSecond) return
+    actions.push(now)
+    onAction(action)
+  }
+
+  const hear = (message: PdfFrameMessage): void => {
+    switch (message.type) {
+      case "ready":
+        ready = true
+        theme()
+        for (const { message: queued, transfer } of queue.splice(0)) opened?.post(queued, transfer)
+        return
+      case "place":
+        place = { page: message.page, within: message.within, zoom: message.zoom }
+        return
+      case "trouble":
+        return onTrouble?.(message.trouble)
+      case "busy":
+        return host.setAttribute("aria-busy", String(message.busy))
+      case "asset":
+        return void answer(message.id, message.kind, message.name)
+      case "action":
+        return act(message.action)
     }
-    held = undefined
-    const at = scale()
-    for (const page of list) {
-      page.element.style.width = `${page.width * pointPixels * at}px`
-      page.element.style.height = `${page.height * pointPixels * at}px`
-      // A drawing at another scale is dropped; what was drawn before stretches until the new
-      // one is in.
-      if (page.task && page.drawing !== at) {
-        page.task.cancel()
-        page.task = page.drawing = undefined
-      }
-    }
-    if (keep) goTo(keep)
-    showChip()
-    drawAround()
   }
 
-  const settle = (): void => {
-    win.cancelAnimationFrame(pass)
-    pass = win.requestAnimationFrame(() => {
-      showChip()
-      drawAround()
-    })
+  // The frame went somewhere else than its page, which only a script in it could do: it's
+  // let go of, and says so.
+  const stop = (): void => {
+    ready = false
+    iframe.remove()
+    notice.textContent = "The PDF viewer stopped."
+    notice.hidden = false
+    host.setAttribute("aria-busy", "false")
+    onTrouble?.("unreadable")
   }
 
-  const setZoom = (next: PdfZoom, keep?: PdfState["pdf"]): void => {
-    const before = keep ?? place()
-    zoom = next === "fit" ? "fit" : clamp(next, least, most)
-    if (pending) return void (pending = { ...pending, zoom })
-    layout(before)
-  }
-
-  const trouble = (found: PdfTrouble | null): void => {
-    notice.textContent = found ? troubleText[found] : ""
-    notice.hidden = found === null
-    onTrouble?.(found)
-  }
-
-  // Says why the PDF isn't drawn, in place of the last one's pages.
-  const fail = (found: PdfTrouble): void => {
-    trouble(found)
-    list.forEach(undraw)
-    list = []
-    pages.replaceChildren()
-    void current?.loadingTask.destroy()
-    current = undefined
-    chip.hidden = true
-    root.setAttribute("aria-busy", "false")
-  }
-
-  // Opens the PDF, laid out at its place: the saved one, or where the last one was.
-  const open = async (bytes: Blob): Promise<void> => {
-    const number = (opened += 1)
-    root.setAttribute("aria-busy", "true")
-    let loaded: PDFDocumentProxy
-    let task: PDFDocumentLoadingTask | undefined
-    try {
-      const [{ getDocument }, worker, data] = await Promise.all([
-        pdfjs(),
-        workerOf(workerSrc),
-        bytes.arrayBuffer(),
-      ])
-      if (destroyed || number !== opened) return
-      task = getDocument({
-        data: new Uint8Array(data),
-        worker,
-        // Nothing the PDF names is fetched: fonts it doesn't hold are the system's, and pdf.js's
-        // own files come from the app.
-        useSystemFonts: true,
-        enableXfa: false,
-        stopAtErrors: false,
-        ...(assets && { useWorkerFetch: false, BinaryDataFactory: factoryOf(assets) }),
-      })
-      loaded = await task.promise
-    } catch (error) {
-      // A document that didn't open still holds its bytes in the worker.
-      void task?.destroy()
-      if (destroyed || number !== opened) return
-      const name = (error as { readonly name?: unknown } | null)?.name
-      return fail(name === "PasswordException" ? "password" : "unreadable")
-    }
-    if (destroyed || number !== opened) return void loaded.loadingTask.destroy()
-    const sizes = await Promise.all(
-      Array.from({ length: loaded.numPages }, async (_, index) => {
-        const viewport = (await loaded.getPage(index + 1)).getViewport({ scale: 1 })
-        return { width: viewport.width, height: viewport.height }
-      }),
-    ).catch(() => undefined)
-    if (destroyed || number !== opened) return void loaded.loadingTask.destroy()
-    if (!sizes) {
-      void loaded.loadingTask.destroy()
-      return fail("unreadable")
-    }
-    trouble(null)
-    // Where it was as it opened: a place asked for since, or the last PDF's.
-    const keep = pending ?? (list.length > 0 ? place() : undefined)
-    list.forEach(undraw)
-    void current?.loadingTask.destroy()
-    current = loaded
-    list = sizes.map((size, index) => {
-      const page = document.createElement("div")
-      page.className = "pdf-page"
-      page.dataset.page = String(index + 1)
-      page.setAttribute("aria-label", `Page ${index + 1}`)
-      return {
-        ...size,
-        element: page,
-        drawn: undefined,
-        sharp: undefined,
-        task: undefined,
-        drawing: undefined,
-      }
-    })
-    pages.replaceChildren(...list.map((page) => page.element))
-    pending = undefined
-    root.setAttribute("aria-busy", "false")
-    layout(keep ?? { page: 0, within: 0, zoom })
-  }
-
-  const onScroll = (): void => settle()
-
-  const onWheel = (event: WheelEvent): void => {
-    if (!event.ctrlKey && !event.metaKey) return
-    event.preventDefault()
-    // A pinch comes as ctrl+wheel in pixels; a notch in lines or pages.
-    const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1
-    const delta = clamp(event.deltaY * unit, -wheelNotch, wheelNotch)
-    if (delta) setZoom(scale() * Math.exp(-delta * wheelStep))
-  }
-
-  const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.target !== root || event.defaultPrevented || event.isComposing) return
-    if (event.altKey || event.ctrlKey || event.metaKey) return
-    const key = event.key
-    if (key === "+" || key === "=") setZoom(scale() * keyStep)
-    else if (key === "-" || key === "_") setZoom(scale() / keyStep)
-    else if (key === "0") setZoom("fit")
-    else return
-    event.preventDefault()
-  }
-
-  chip.addEventListener("click", () => setZoom("fit"))
-  root.addEventListener("scroll", onScroll, { passive: true })
-  root.addEventListener("wheel", onWheel, { passive: false })
-  root.addEventListener("keydown", onKeyDown)
-  // A new width refits a fitted PDF, keeping its place.
-  let width = 0
-  // A resize is laid out in the next frame: laid out at once, a scrollbar that comes or goes
-  // with it would resize it again in the same frame, which the browser reports as an error.
-  let resizing = 0
-  const onResize = (): void => {
-    // Hidden: it holds where it was. Shown again: back to it.
-    if (!sized()) {
-      held ??= last
-      return
-    }
-    if (held) {
-      width = root.clientWidth
-      return layout(held)
-    }
-    if (root.clientWidth === width) return settle()
-    width = root.clientWidth
-    if (zoom === "fit" && list.length > 0) layout()
-    else settle()
-  }
-  const observer = new win.ResizeObserver(() => {
-    win.cancelAnimationFrame(resizing)
-    resizing = win.requestAnimationFrame(onResize)
+  opened = openPdfFrame({
+    iframe,
+    url: frame.url,
+    code: frame.code,
+    viewer: frame.viewer ?? pdfFrameViewer.toString(),
+    hear: (data) => {
+      const message = frameMessage(data)
+      if (message) hear(message)
+    },
+    stopped: stop,
   })
-  observer.observe(root)
-  // Moved to a screen of another pixel density, as a laptop's and a monitor's are: its pages
-  // are drawn again for it, though its size in CSS pixels is the same.
-  let density: MediaQueryList | undefined
-  const onDensity = (): void => {
-    watchDensity()
-    settle()
+
+  const open = async (bytes: Blob): Promise<void> => {
+    const data = await bytes.arrayBuffer()
+    post({ type: "open", bytes: data }, [data])
   }
-  const watchDensity = (): void => {
-    density?.removeEventListener("change", onDensity)
-    density = win.matchMedia(`(resolution: ${pixelRatio()}dppx)`)
-    density.addEventListener("change", onDensity)
-  }
-  watchDensity()
+
+  // The app's light or dark, and its tokens, as they change.
+  const scheme = win.matchMedia("(prefers-color-scheme: dark)")
+  scheme.addEventListener("change", theme)
+  const looks = new win.MutationObserver(theme)
+  looks.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["class", "style", "data-theme"],
+  })
+
+  if (place) post({ type: "place", place })
   void open(content.bytes)
 
   return {
     // A PDF written again opens where the last one was.
     update: (next) => void open(next.bytes),
-    state: () => ({ pdf: place() }) as unknown as ViewerState,
+    state: () => ({ pdf: place ?? { page: 0, within: 0, zoom: "fit" } }) as unknown as ViewerState,
     restore: (state) => {
       if (!isPdfState(state)) return
-      if (pending || list.length === 0) {
-        pending = state.pdf
-        zoom = state.pdf.zoom
-        return
-      }
-      if (!sized()) {
-        held = state.pdf
-        zoom = state.pdf.zoom
-        return
-      }
-      setZoom(state.pdf.zoom, state.pdf)
+      place = state.pdf
+      post({ type: "place", place: state.pdf })
     },
     jumpTo: () => {},
-    focus: () => root.focus({ preventScroll: true }),
-    zoom: (next) => setZoom(next),
+    focus: () => {
+      iframe.focus({ preventScroll: true })
+      post({ type: "focus" })
+    },
+    zoom: (next) => post({ type: "zoom", zoom: next }),
     destroy: () => {
       destroyed = true
-      win.cancelAnimationFrame(pass)
-      win.cancelAnimationFrame(resizing)
-      observer.disconnect()
-      density?.removeEventListener("change", onDensity)
-      for (const page of list) page.task?.cancel()
-      void current?.loadingTask.destroy()
-      frame.remove()
+      opened?.close()
+      scheme.removeEventListener("change", theme)
+      looks.disconnect()
+      host.remove()
     },
   }
 }

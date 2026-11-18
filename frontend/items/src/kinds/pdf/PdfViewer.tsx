@@ -3,17 +3,16 @@ import { Progress } from "@novadeck/toolkit/Progress"
 import { createKept } from "@novadeck/viewers"
 import { mountPdf, type PdfTrouble } from "@novadeck/viewers/pdf"
 import { FileType } from "lucide-react"
-// eslint-disable-next-line import/default -- Vite's `?url` gives the worker file's address.
-import worker from "pdfjs-dist/build/pdf.worker.min.mjs?url"
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { Unavailable, type ArtifactBodyProps } from "../../ArtifactViewer"
+import { raisePaneAction } from "../../pane-actions"
 import { usePaneNote } from "../../pane-row"
 import { loadParts } from "../../parts/load"
 import { useRevealed } from "../../store/use-item-store"
 import { useViewerSlot } from "../../ViewerSlot"
 import { bytesText, loadingText } from "../video/format"
-import { pdfAssets } from "./assets"
+import { pdfAssets, pdfFrame } from "./assets"
 
 // The PDFs read for panes, by item and stamp, up to 256 MB in all: a pane that goes and comes
 // back, as a view switch, draws its PDF again without reading it.
@@ -93,18 +92,32 @@ const useSource = ({
 }
 
 // The PDF itself, in the PDF viewer, which keeps its page and zoom by item.
+// Its frame's keys for the pane (Escape, Ctrl+PageDown and Ctrl+PageUp) come out as the pane's
+// actions, raised from here for the pane to carry out.
 const Pages = ({ id, name, bytes }: { id: string; name: string; bytes: Blob }) => {
   const content = useMemo(() => ({ bytes }), [bytes])
   const [trouble, setTrouble] = useState<PdfTrouble | null>(null)
+  const element = useRef<HTMLDivElement | null>(null)
+  const frame = useMemo(() => pdfFrame(), [])
   const { ref } = useViewerSlot(mountPdf, {
     id,
     content,
     label: name,
-    worker,
+    frame,
     assets: pdfAssets,
     onTrouble: setTrouble,
+    onAction: (action) => element.current && raisePaneAction(element.current, action),
   })
-  return <div ref={ref} className="artifact-pdf" data-trouble={trouble ?? undefined} />
+  return (
+    <div
+      ref={(node) => {
+        element.current = node
+        ref(node)
+      }}
+      className="artifact-pdf"
+      data-trouble={trouble ?? undefined}
+    />
+  )
 }
 
 // A PDF of a pane, drawn page by page once its bytes are in, and its progress till then.

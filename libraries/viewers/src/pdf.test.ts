@@ -1,10 +1,12 @@
 import "./pdf.css"
-// eslint-disable-next-line import/default -- Vite's `?url` gives the worker file's address.
-import worker from "pdfjs-dist/build/pdf.worker.min.mjs?url"
 import { afterEach, describe, expect, it } from "vitest"
 
 import type { ViewerState } from "./index.js"
 import { mountPdf, type PdfAssets, type PdfTrouble, type PdfViewer } from "./pdf.js"
+import { openPdfFrame } from "./pdf/frame-host.js"
+import { pdfFrameViewer } from "./pdf/frame-viewer.js"
+import frameHtml from "./pdf/frame.html?raw"
+import { frameMessage } from "./pdf/messages.js"
 
 // A PDF of its objects, numbered from 1, the first its catalog: the objects, then the table
 // of where each starts. Text is taken a byte a character, as a PDF's streams are binary.
@@ -78,8 +80,30 @@ const assets: PdfAssets = async (kind, name) => {
   return Uint8Array.from(atob(url.slice(url.indexOf(",") + 1)), (char) => char.charCodeAt(0))
 }
 
+// pdf.js as the app hands it to the frame: its two modules' text.
+const modules = import.meta.glob<string>(
+  [
+    "../node_modules/pdfjs-dist/build/pdf.min.mjs",
+    "../node_modules/pdfjs-dist/build/pdf.worker.min.mjs",
+  ],
+  { query: "?url&inline", import: "default" },
+)
+const textOf = async (name: string): Promise<string> => {
+  const url = await modules[`../node_modules/pdfjs-dist/build/${name}`]!()
+  return new TextDecoder().decode(
+    Uint8Array.from(atob(url.slice(url.indexOf(",") + 1)), (char) => char.charCodeAt(0)),
+  )
+}
+const code = async () => ({
+  library: await textOf("pdf.min.mjs"),
+  worker: await textOf("pdf.worker.min.mjs"),
+})
+// The frame's page, as the app serves it.
+const frameUrl = URL.createObjectURL(new Blob([frameHtml], { type: "text/html" }))
+
+type Drawn = PdfViewer & { readonly frame: HTMLIFrameElement }
 const panes: HTMLElement[] = []
-const viewers: PdfViewer[] = []
+const viewers: { destroy: () => void }[] = []
 afterEach(() => {
   for (const viewer of viewers.splice(0)) viewer.destroy()
   for (const pane of panes.splice(0)) pane.remove()
@@ -93,29 +117,90 @@ const paneIn = (width = 400): HTMLElement => {
   return pane
 }
 
+// The viewer as its frame runs it, through the frame's own page, but in a frame of this
+// page's origin, so a test can look at what it drew; `mountPdf` sandboxes it (see the tests of
+// its walls below). Its place, trouble and files go as `mountPdf` passes them.
 const mount = (
   pane: HTMLElement,
   bytes: Blob,
-  options: { saved?: ViewerState; onTrouble?: (trouble: PdfTrouble | null) => void } = {},
-): PdfViewer => {
-  const viewer = mountPdf(pane, {
-    content: { bytes },
-    label: "report.pdf",
-    worker,
-    assets,
-    ...options,
+  options: {
+    saved?: ViewerState
+    onTrouble?: (trouble: PdfTrouble | null) => void
+    viewer?: string
+  } = {},
+): Drawn => {
+  const iframe = document.createElement("iframe")
+  iframe.style.cssText = "flex: 1; min-height: 0; border: 0"
+  pane.append(iframe)
+  type Place = { page: number; within: number; zoom: "fit" | number }
+  let place = (options.saved as unknown as { pdf?: Place } | undefined)?.pdf
+  let ready = false
+  const queue: [Record<string, unknown>, Transferable[]][] = []
+  const send = (message: Record<string, unknown>, transfer: Transferable[] = []): void => {
+    if (ready) frame.post(message, transfer)
+    else queue.push([message, transfer])
+  }
+  const frame = openPdfFrame({
+    iframe,
+    url: frameUrl,
+    code,
+    viewer: options.viewer ?? pdfFrameViewer.toString(),
+    hear: (data) => {
+      const message = frameMessage(data)
+      if (!message) return
+      if (message.type === "ready") {
+        ready = true
+        for (const [queued, transfer] of queue.splice(0)) frame.post(queued, transfer)
+      }
+      if (message.type === "place")
+        place = { page: message.page, within: message.within, zoom: message.zoom }
+      if (message.type === "trouble") options.onTrouble?.(message.trouble)
+      if (message.type === "asset")
+        void assets(message.kind, message.name).then(
+          (found) => {
+            const copy = found.slice().buffer
+            frame.post({ type: "asset", id: message.id, bytes: copy }, [copy])
+          },
+          () => frame.post({ type: "asset", id: message.id }),
+        )
+    },
+    stopped: () => {},
   })
+  const open = (blob: Blob) =>
+    void blob.arrayBuffer().then((data) => send({ type: "open", bytes: data }, [data]))
+  if (place) send({ type: "place", place })
+  open(bytes)
+  const viewer: Drawn = {
+    frame: iframe,
+    update: (next) => open(next.bytes),
+    state: () => ({ pdf: place ?? { page: 0, within: 0, zoom: "fit" } }) as unknown as ViewerState,
+    restore: (state) => {
+      place = (state as unknown as { pdf: Place }).pdf
+      send({ type: "place", place })
+    },
+    jumpTo: () => {},
+    focus: () => {},
+    zoom: (zoom) => send({ type: "zoom", zoom }),
+    destroy: () => {
+      frame.close()
+      iframe.remove()
+    },
+  }
   viewers.push(viewer)
   return viewer
 }
 
-const viewerOf = (pane: HTMLElement): HTMLElement => pane.querySelector(".pdf-viewer")!
+const docOf = (pane: HTMLElement): Document | undefined =>
+  pane.querySelector("iframe")?.contentDocument ?? undefined
+const viewerOf = (pane: HTMLElement): HTMLElement => docOf(pane)!.querySelector(".pdf-viewer")!
 const pagesOf = (pane: HTMLElement): HTMLElement[] =>
-  [...pane.querySelectorAll(".pdf-page")] as HTMLElement[]
-const chipOf = (pane: HTMLElement): HTMLButtonElement => pane.querySelector(".pdf-chip")!
+  [...(docOf(pane)?.querySelectorAll(".pdf-page") ?? [])] as HTMLElement[]
+const chipOf = (pane: HTMLElement): HTMLButtonElement => docOf(pane)!.querySelector(".pdf-chip")!
 const opened = async (pane: HTMLElement, count: number): Promise<void> => {
   await expect.poll(() => pagesOf(pane).length).toBe(count)
-  await expect.poll(() => viewerOf(pane).getAttribute("aria-busy")).toBe("false")
+  await expect
+    .poll(() => docOf(pane)?.querySelector(".pdf-viewer")?.getAttribute("aria-busy"))
+    .toBe("false")
 }
 
 // Whether a page's canvas has anything dark on it: its text, drawn.
@@ -158,7 +243,6 @@ describe("a PDF in its viewer", () => {
     // Far below the view, the last page waits to be drawn.
     expect(last!.querySelector("canvas")).toBeNull()
     expect(chipOf(pane).textContent).toBe("1 / 5 · 44%")
-    expect(viewerOf(pane).getAttribute("aria-label")).toBe("report.pdf")
   })
 
   it("draws a page as it's scrolled to, and names it on the chip", async () => {
@@ -269,31 +353,34 @@ describe("a PDF out of sight or on another screen", () => {
   })
 
   it("draws its pages again for a screen of another pixel density", async () => {
-    // A screen of twice the density, as the browser would report the move.
-    const listeners: (() => void)[] = []
-    const matchMedia = window.matchMedia
-    const ratio = Object.getOwnPropertyDescriptor(window, "devicePixelRatio")
-    window.matchMedia = ((query: string) => ({
-      ...matchMedia.call(window, query),
-      addEventListener: (_: string, on: () => void) => listeners.push(on),
-      removeEventListener: () => {},
-    })) as unknown as typeof window.matchMedia
-    try {
-      Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 1 })
-      const pane = paneIn()
-      mount(pane, pdfOf(1))
-      await opened(pane, 1)
-      const page = pagesOf(pane)[0]!
-      await expect.poll(() => page.querySelector("canvas")?.width ?? 0).toBeGreaterThan(350)
-      Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 2 })
-      listeners.forEach((on) => on())
-      // Twice the pixels, in the same CSS size.
-      await expect.poll(() => page.querySelector("canvas")?.width ?? 0).toBeGreaterThan(700)
-    } finally {
-      window.matchMedia = matchMedia
-      if (ratio) Object.defineProperty(window, "devicePixelRatio", ratio)
-      else Reflect.deleteProperty(window, "devicePixelRatio")
+    // The frame's screen, which the test moves: its density, and who listens for a change.
+    const wrapped = `function (env) {
+      let ratio = 1
+      const listeners = []
+      Object.defineProperty(window, "devicePixelRatio", { configurable: true, get: () => ratio })
+      const media = window.matchMedia.bind(window)
+      window.matchMedia = (query) => {
+        const real = media(query)
+        return {
+          matches: real.matches, media: real.media,
+          addEventListener: (_, on) => listeners.push(on),
+          removeEventListener: () => {},
+        }
+      }
+      window.moveScreen = (to) => { ratio = to; listeners.splice(0).forEach((on) => on()) }
+      return (${pdfFrameViewer.toString()})(env)
+    }`
+    const pane = paneIn()
+    mount(pane, pdfOf(1), { viewer: wrapped })
+    await opened(pane, 1)
+    const page = pagesOf(pane)[0]!
+    await expect.poll(() => page.querySelector("canvas")?.width ?? 0).toBeGreaterThan(350)
+    const frameWindow = pane.querySelector("iframe")!.contentWindow as Window & {
+      moveScreen: (ratio: number) => void
     }
+    frameWindow.moveScreen(2)
+    // Twice the pixels, in the same CSS size.
+    await expect.poll(() => page.querySelector("canvas")?.width ?? 0).toBeGreaterThan(700)
   })
 })
 
@@ -347,7 +434,7 @@ describe("a PDF's place", () => {
     await expect.poll(() => chipOf(pane).textContent).toMatch(/^3 \/ 5/)
     pane.style.display = "none"
     await expect.poll(() => viewerOf(pane).clientHeight).toBe(0)
-    expect(viewer.state()).toMatchObject({ pdf: { page: 2 } })
+    await expect.poll(() => viewer.state()).toMatchObject({ pdf: { page: 2 } })
     pane.style.display = "flex"
     await expect.poll(() => viewerOf(pane).scrollTop).toBeCloseTo(pagesOf(pane)[2]!.offsetTop, 0)
   })
@@ -364,7 +451,7 @@ describe("a PDF's place", () => {
     hidden.style.display = "none"
     const viewer = mount(hidden, pdfOf(5), { saved: state })
     await expect.poll(() => pagesOf(hidden).length).toBe(5)
-    expect(viewer.state()).toMatchObject({ pdf: { page: 3 } })
+    await expect.poll(() => viewer.state()).toMatchObject({ pdf: { page: 3 } })
     hidden.style.display = "flex"
     await expect.poll(() => chipOf(hidden).textContent).toMatch(/^4 \/ 5/)
   })
@@ -393,7 +480,7 @@ describe("a PDF it can't draw", () => {
     const troubles: (PdfTrouble | null)[] = []
     mount(pane, new Blob(["not a PDF at all"]), { onTrouble: (trouble) => troubles.push(trouble) })
     await expect.poll(() => troubles).toEqual(["unreadable"])
-    expect(pane.querySelector('[role="alert"]')!.textContent).toBe(
+    expect(docOf(pane)!.querySelector('[role="alert"]')!.textContent).toBe(
       "This file couldn't be read as a PDF.",
     )
     expect(pagesOf(pane)).toEqual([])
@@ -407,7 +494,7 @@ describe("a PDF it can't draw", () => {
     const locked = Uint8Array.from(atob(lockedPdfData), (char) => char.charCodeAt(0))
     mount(pane, new Blob([locked]), { onTrouble: (trouble) => troubles.push(trouble) })
     await expect.poll(() => troubles).toEqual(["password"])
-    expect(pane.querySelector('[role="alert"]')!.textContent).toBe(
+    expect(docOf(pane)!.querySelector('[role="alert"]')!.textContent).toBe(
       "This PDF is locked with a password, which Novadeck doesn't open.",
     )
   })
@@ -422,7 +509,7 @@ describe("a PDF it can't draw", () => {
     viewer.update({ bytes: pdfOf(2) })
     await opened(pane, 2)
     expect(troubles).toEqual(["unreadable", null])
-    expect(pane.querySelector<HTMLElement>('[role="alert"]')!.hidden).toBe(true)
+    expect(docOf(pane)!.querySelector<HTMLElement>('[role="alert"]')!.hidden).toBe(true)
   })
 })
 
@@ -472,3 +559,202 @@ const lockedPdfData =
   "aXplIDExIC9Sb290IDEgMCBSIC9JbmZvIDIgMCBSCi9JRCBbPDVBMjAxMTMxQjI1REZFMzBFODlGMzRFNUJCRDJFRD" +
   "lEPjw1QTIwMTEzMUIyNURGRTMwRTg5RjM0RTVCQkQyRUQ5RD5dCi9FbmNyeXB0IDEwIDAgUiA+PgpzdGFydHhyZWYK" +
   "MjQ1NwolJUVPRgo="
+
+// The viewer as the app mounts it: in a sandboxed frame of no origin.
+const mountIsolated = (
+  pane: HTMLElement,
+  bytes: Blob,
+  options: {
+    viewer?: string
+    onTrouble?: (trouble: PdfTrouble | null) => void
+    onAction?: (action: string) => void
+  } = {},
+): PdfViewer => {
+  const viewer = mountPdf(pane, {
+    content: { bytes },
+    label: "report.pdf",
+    frame: { url: frameUrl, code, ...(options.viewer && { viewer: options.viewer }) },
+    assets,
+    ...(options.onTrouble && { onTrouble: options.onTrouble }),
+    ...(options.onAction && { onAction: options.onAction }),
+  })
+  viewers.push(viewer)
+  return viewer
+}
+
+describe("a PDF in its frame", () => {
+  it("is drawn in a sandboxed frame of no origin, which the app can't look into", async () => {
+    const pane = paneIn()
+    mountIsolated(pane, pdfOf(3))
+    const frame = pane.querySelector("iframe")!
+    expect(frame.getAttribute("sandbox")).toBe("allow-scripts")
+    expect(frame.title).toBe("report.pdf")
+    // Opened and laid out in the frame, which says only that.
+    await expect
+      .poll(() => pane.querySelector(".pdf-host")!.getAttribute("aria-busy"))
+      .toBe("false")
+    expect(frame.contentDocument).toBeNull()
+  })
+
+  it("hears why a PDF isn't drawn, from the frame", async () => {
+    const pane = paneIn()
+    const troubles: (PdfTrouble | null)[] = []
+    mountIsolated(pane, new Blob(["not a PDF"]), { onTrouble: (found) => troubles.push(found) })
+    await expect.poll(() => troubles).toEqual(["unreadable"])
+  })
+})
+
+// What a script in the frame tries, as if a PDF had made pdf.js run it: the app's page, its
+// storage, the network (the runner's socket among it), popups and the window's address. It says
+// what happened over its port, and which of the page's rules stopped it.
+const attack = `function attack({ port }) {
+  const results = {}
+  const violations = []
+  document.addEventListener("securitypolicyviolation", (event) =>
+    violations.push(event.effectiveDirective),
+  )
+  const attempt = async (name, run) => {
+    try {
+      await run()
+      results[name] = "allowed"
+    } catch (error) {
+      results[name] = error && error.name === "SecurityError" ? "refused" : "failed"
+    }
+  }
+  port.onmessage = async ({ data }) => {
+    if (!data || data.type !== "targets") return
+    await attempt("parentDocument", () => parent.document.body.dataset.reached = "yes")
+    await attempt("topDocument", () => top.document.title)
+    await attempt("storage", () => localStorage.setItem("reached", "yes"))
+    await attempt("database", () => indexedDB.open("reached"))
+    await attempt("cookie", () => { document.cookie = "reached=yes"; if (!document.cookie) throw new Error("none") })
+    await attempt("fetch", () => fetch(data.page, { mode: "no-cors" }))
+    await attempt("socket", () => new Promise((open, fail) => {
+      const socket = new WebSocket(data.socket)
+      socket.onopen = open
+      socket.onerror = () => fail(new Error("closed"))
+    }))
+    await attempt("popup", () => { if (!window.open(data.page)) throw new Error("none") })
+    await attempt("topNavigation", () => { top.location.href = data.page })
+    await new Promise((settled) => setTimeout(settled, 200))
+    port.postMessage({ type: "report", results, violations })
+  }
+  port.postMessage({ type: "ready" })
+}`
+
+describe("the frame's walls", () => {
+  it("keep a script in it from the app's page, its storage, the network and the window", async () => {
+    const pane = paneIn()
+    const iframe = document.createElement("iframe")
+    iframe.setAttribute("sandbox", "allow-scripts")
+    pane.append(iframe)
+    let report: { results: Record<string, string>; violations: string[] } | undefined
+    const frame = openPdfFrame({
+      iframe,
+      url: frameUrl,
+      code,
+      viewer: attack,
+      hear: (data) => {
+        const message = data as { type?: string }
+        if (message?.type === "ready")
+          frame.post({
+            type: "targets",
+            page: location.href,
+            socket: `ws://${location.host}/`,
+          })
+        if (message?.type === "report") report = data as typeof report
+      },
+      stopped: () => {},
+    })
+    viewers.push({ destroy: frame.close })
+    await expect.poll(() => report, { timeout: 15_000 }).toBeDefined()
+    expect(report!.results).toEqual({
+      parentDocument: "refused",
+      topDocument: "refused",
+      storage: "refused",
+      database: "refused",
+      cookie: "refused",
+      fetch: "failed",
+      socket: "failed",
+      popup: "failed",
+      topNavigation: "refused",
+    })
+    // The fetch and the socket were refused by the page's own rules, not by chance.
+    expect(report!.violations.filter((each) => each === "connect-src")).toHaveLength(2)
+    expect(document.body.dataset.reached).toBeUndefined()
+    expect(localStorage.getItem("reached")).toBeNull()
+  })
+
+  it("let through none of a frame's messages but the viewer's own, nor a key, nor a type", async () => {
+    // A frame that says it's ready, then sends what the app must not act on: keys, typing,
+    // actions while it hasn't the focus, a place out of range, and a message to the app's page.
+    const forge = `function forge({ port }) {
+      port.postMessage({ type: "ready" })
+      port.postMessage({ type: "key", key: "a", code: "KeyA" })
+      port.postMessage({ type: "action", action: "type", text: "rm -rf ~\\n" })
+      port.postMessage({ type: "action", action: "hide", text: "extra" })
+      port.postMessage({ type: "place", page: -1, within: 2, zoom: 99, scale: 1, pages: 1 })
+      for (let index = 0; index < 20; index++) port.postMessage({ type: "action", action: "hide" })
+      parent.postMessage({ type: "novadeck:page-request", url: "https://example.com/" }, "*")
+      port.onmessage = ({ data }) => {
+        if (data && data.type === "zoom")
+          for (let index = 0; index < 20; index++)
+            port.postMessage({ type: "action", action: "next-tab" })
+      }
+    }`
+    const pane = paneIn()
+    const actions: string[] = []
+    const posted: MessageEvent[] = []
+    const listen = (event: MessageEvent) => {
+      if ((event.data as { type?: unknown } | null)?.type === "novadeck:page-request")
+        posted.push(event)
+    }
+    window.addEventListener("message", listen)
+    try {
+      const viewer = mountIsolated(pane, pdfOf(1), {
+        viewer: forge,
+        onAction: (action) => actions.push(action),
+      })
+      const iframe = pane.querySelector("iframe")!
+      await expect.poll(() => posted.length).toBe(1)
+      // What it posted the app's page names its frame as the sender, which the app's own
+      // listeners check against their own.
+      expect(posted[0]!.source).toBe(iframe.contentWindow)
+      // Not focused: no action, and nothing else it sent was taken.
+      expect(actions).toEqual([])
+      expect(viewer.state()).toEqual({ pdf: { page: 0, within: 0, zoom: "fit" } })
+      // Focused, a burst is cut to a few a second.
+      iframe.focus()
+      viewer.zoom(1)
+      await expect.poll(() => actions.length).toBe(5)
+      await new Promise((settled) => setTimeout(settled, 300))
+      expect(actions).toEqual(Array(5).fill("next-tab"))
+    } finally {
+      window.removeEventListener("message", listen)
+    }
+  })
+
+  it("let go of a frame that loads another page than its own", async () => {
+    const leave = `function leave() { location.href = "data:text/html,<p>elsewhere</p>" }`
+    const pane = paneIn()
+    const troubles: (PdfTrouble | null)[] = []
+    mountIsolated(pane, pdfOf(1), { viewer: leave, onTrouble: (found) => troubles.push(found) })
+    await expect.poll(() => troubles).toEqual(["unreadable"])
+    expect(pane.querySelector("iframe")).toBeNull()
+    expect(pane.querySelector('[role="alert"]')!.textContent).toBe("The PDF viewer stopped.")
+  })
+})
+
+describe("the frame's page", () => {
+  it("allows its one script by its hash, and no network", async () => {
+    const script = /<script>([\s\S]*?)<\/script>/.exec(frameHtml)![1]!
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(script))
+    const hash = btoa(String.fromCharCode(...new Uint8Array(digest)))
+    const policy = /Content-Security-Policy"\s+content="([^"]*)"/.exec(frameHtml)![1]!
+    expect(policy).toContain(`script-src 'sha256-${hash}' blob: 'wasm-unsafe-eval';`)
+    expect(policy.startsWith("default-src 'none';")).toBe(true)
+    // No network, no eval but WebAssembly's, and no inline script but its own.
+    expect(policy).not.toMatch(/connect-src|[^-]unsafe-eval|https?:/)
+    expect(/script-src[^;]*/.exec(policy)![0]).not.toContain("unsafe-inline")
+  })
+})

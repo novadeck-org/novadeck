@@ -143,19 +143,34 @@ passkeys don't show there; a security key or a phone still can.
 
 ## PDF Previews
 
-A PDF an agent shows is drawn by pdf.js in the app's own page, not in the companion pane's
-sandboxed `<webview>` (`libraries/viewers/src/pdf.ts`), since Chromium's own PDF viewer there
-can't say which page it is on, which the pane keeps. So a PDF's bytes, which anything that
-wrote the file chose, are parsed by pdf.js in a worker of the app's origin, and its fonts and
-images are drawn in the app's page, which holds the runner connection. What limits that: only
-the pages are drawn, on canvases, with no annotation, text or form layer, so a link in a PDF
-goes nowhere and nothing in it is filled in; pdf.js's scripting sandbox is never loaded, so a
-script a PDF carries never runs (pdf.js 6 has no `eval` path for fonts either); XFA is off;
-and nothing a PDF names is fetched: pdf.js's own CMaps, standard fonts and image decoders come
-from the app (`frontend/items/src/kinds/pdf/assets.ts`), never from an address. A PDF reaches
-the page only through `companions.part`, under the same secret and size checks as any item
-(128 MB at most). A flaw in pdf.js's parser or renderer would run with the app page's reach,
-as a flaw in any of the app's own code would; pdf.js is kept to a current release.
+A PDF an agent shows is parsed and drawn by pdf.js in a frame of its own
+(`libraries/viewers/src/pdf.ts`), never in the app's page. The frame is an `<iframe
+sandbox="allow-scripts">`, without `allow-same-origin`, so its origin is opaque: it can't read
+the app's page (`parent.document` throws), its storage, cookies or IndexedDB, and it can't open
+popups or move the app's window. Its page, `pdf-frame.html` beside the app's own
+(`libraries/viewers/src/pdf/frame.html`, copied to `frontend/ui/public`), has a policy of its own,
+`default-src 'none'`, which allows no network at all: no fetch, no WebSocket (so no reach to the
+runner), no image, font or frame from any address. It allows one inline script, named by its
+hash, which takes one message, from its parent only: pdf.js, its worker and the viewer as text,
+with one end of a `MessageChannel`. The frame runs those from blob addresses, with WebAssembly
+for pdf.js's image decoders and a blob worker. In the desktop app the frame runs in a renderer
+process of its own.
+
+A PDF's bytes go into the frame transferred over the channel; pdf.js's CMaps, fonts and decoders
+too, asked for by a name the app checks (letters, digits, `.`, `_` and `-`), from the app's own
+copies. What comes out is only what `libraries/viewers/src/pdf/messages.ts` takes, each field
+checked and nothing more: the page at the top and the zoom, how many pages, why a PDF isn't
+drawn, whether it is opening, the files it needs, and three of the pane's actions for keys
+pressed in it (hide the pane, the next or previous tab). Those are names, never keys, so nothing
+from the frame types into a terminal or an agent's composer; the app acts on one only while the
+frame has the focus, at most five a second. The app listens to nothing the frame posts to its
+window, and its other window listeners check the sender is their own. A frame that loads another
+page than its own, which only a script in it could make it do, is taken away. Within the frame,
+only the pages are drawn, on canvases, with no annotation, text or form layer; pdf.js's
+scripting sandbox is never loaded, so a script a PDF carries never runs; and XFA is off.
+
+A flaw in pdf.js reaches only the frame: the bytes and pages of the PDF it shows, and what it
+may tell the app. It could draw a misleading PDF, or keep its pane busy, as any page could.
 
 ## Packaged App Fuses
 
