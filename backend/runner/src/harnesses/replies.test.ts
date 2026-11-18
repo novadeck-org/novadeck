@@ -111,22 +111,9 @@ describe("an agent's last reply in its transcript", () => {
     const claude = harnesses.claude.transcripts!.items
     const path = join(folder(resources), "transcript.jsonl")
     // A thinking block of the narration kind, as its signature names it (see narration.ts).
-    const signature = Buffer.from([
-      0x08,
-      0x04,
-      0x12,
-      0x14,
-      0x0a,
-      0x12,
-      0x08,
-      0x13,
-      0x18,
-      0x02,
-      0x38,
-      0x01,
-      0x42,
-      0x09,
-      ...Buffer.from("narration"),
+    const signature = Buffer.concat([
+      Buffer.from("080412130a110813180238014209", "hex"),
+      Buffer.from("narration"),
     ]).toString("base64")
     writeFileSync(
       path,

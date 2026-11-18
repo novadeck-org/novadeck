@@ -70,7 +70,12 @@ describe("the scrollback", () => {
     const [, update, reply] = [...container.querySelectorAll("article")]
     expect(update?.getAttribute("aria-label")).toBe("Claude, summary")
     expect(update?.getAttribute("data-thinking")).toBe("true")
-    expect(update?.querySelector(".chat-fact")?.textContent).toBe("summary")
+    // The tag is in the text's flow, after the words, and no fact of the row's edge.
+    const tag = update?.querySelector(".chat-summary-tag")
+    expect(tag?.textContent?.trim()).toBe("· summary")
+    expect(tag?.closest(".chat-fact")).toBeNull()
+    expect(tag?.previousElementSibling?.classList.contains("markdown")).toBe(true)
+    expect(update?.querySelector(".chat-fact")).toBeNull()
     expect(reply?.getAttribute("aria-label")).toBe("Claude")
     expect(reply?.hasAttribute("data-thinking")).toBe(false)
     expect(reply?.querySelector(".chat-fact")).toBeNull()
