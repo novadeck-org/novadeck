@@ -187,21 +187,26 @@ const mapBounded = async <Item, Result>(
 
 // What folders held when last counted, by path, with the change time of the folder then: a
 // folder whose time is the same holds what it did, so a listing counts only what changed.
-const counted = new Map<string, { readonly changed: number; readonly count: number | null }>()
+const counted = new Map<
+  string,
+  { readonly changed: number; readonly at: number; readonly count: number | null }
+>()
 const countedMost = 4000
 const coarseMs = 2000
 
 /** How many entries a folder holds, or null where it can't be read; `changed` is its mtime. */
 const countOf = async (path: string, changed: number): Promise<number | null> => {
   const known = counted.get(path)
-  // A time within what a coarse file system rounds to may not yet tell the next change.
-  if (known?.changed === changed && Date.now() - changed >= coarseMs) return known.count
+  // A count taken within what a coarse file system rounds a time to of that time may not have seen
+  // all of the folder's changes in that tick: it is trusted only once it was taken after it.
+  if (known?.changed === changed && known.at - changed >= coarseMs) return known.count
+  const at = Date.now()
   const count = await readdir(path).then(
     (names) => names.length,
     () => null,
   )
   counted.delete(path)
-  counted.set(path, { changed, count })
+  counted.set(path, { changed, at, count })
   for (const oldest of counted.keys()) {
     if (counted.size <= countedMost) break
     counted.delete(oldest)

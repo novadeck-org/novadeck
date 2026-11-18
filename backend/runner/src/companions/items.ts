@@ -116,11 +116,9 @@ type CompanionOptions = {
   /** How often `content` looks at what an item points at, in milliseconds. */
   readonly pollMs?: number
   /** How long a folder waits for a change its watch may not tell; see `folderPolls`. */
-  readonly folderPolls?: {
-    readonly shown: number
-    readonly hidden: number
-    readonly unwatched: number
-  }
+  readonly folderPolls?: { readonly safety: number; readonly unwatched: number }
+  /** For tests: run between the steps of a folder's read, to change the folder there. */
+  readonly folderSteps?: { readonly afterPlacing?: () => void; readonly afterReading?: () => void }
   /**
    * Remote refs: makes a repository's current for a caller that waits at most `ms` (the fetch
    * itself carries on), and tells when it was last fetched and why a fetch failed. Without it
@@ -296,9 +294,9 @@ const LIVE_PLAN_MS = 60_000
 // A folder is read at most about four times a second, and where nothing tells it changed, every
 // few seconds.
 const folderGapMs = 250
-// How long a folder waits for a change its watch may not tell: while a pane shows it, while none
-// does (its top only), and while the watch isn't working at all.
-export const folderPolls = { shown: 15_000, hidden: 60_000, unwatched: 3_000 } as const
+// How long a folder waits for a change its watch may not tell (a share, a link retargeted, a file
+// written in a folder inside it), and while the watch isn't working at all.
+export const folderPolls = { safety: 20_000, unwatched: 3_000 } as const
 export const folderPollMs = folderPolls.unwatched
 
 /**
@@ -893,7 +891,6 @@ export class CompanionItems {
     reveal: string | undefined,
     signal?: AbortSignal,
     within?: string,
-    shown?: boolean,
   ): AsyncGenerator<ItemContent> {
     if (this.stopping) throw new DomainError("CLOSING")
     this.item(itemId)
@@ -916,12 +913,7 @@ export class CompanionItems {
         // A folder is listed as it changes until the item is something else (a path shown again
         // as a file, or the reverse), when what was read of it before is read afresh.
         if (item.kind === "folder") {
-          yield* this.folderContent(
-            itemId,
-            within ?? "",
-            shown === true || (within ?? "") !== "",
-            reader.signal,
-          )
+          yield* this.folderContent(itemId, within ?? "", reader.signal)
           probed = undefined
           sent = undefined
           continue
@@ -983,11 +975,9 @@ export class CompanionItems {
   private async *folderContent(
     itemId: string,
     within: string,
-    shown: boolean,
     signal: AbortSignal,
   ): AsyncGenerator<ItemContent> {
     const watcher = new FolderWatch()
-    const safety = shown ? this.folderPolls.shown : this.folderPolls.hidden
     let sent: string | undefined
     try {
       while (!signal.aborted) {
@@ -1000,11 +990,14 @@ export class CompanionItems {
         const place = await placeOfFolder(item, within, this.environment())
         if (signal.aborted) return
         watcher.follow(place?.dir, place?.ino)
+        this.options.folderSteps?.afterPlacing?.()
         // eslint-disable-next-line no-await-in-loop -- As above.
         const { content, ino } = await loadFolder(item, within, this.environment())
         if (signal.aborted) return
+        this.options.folderSteps?.afterReading?.()
         // Replaced meanwhile: what is read isn't what the watch was armed on, so it is armed anew.
-        const replaced = ino !== place?.ino
+        // A folder that couldn't be read (no permission) says no folder, which isn't another one.
+        const replaced = ino !== undefined && ino !== place?.ino
         if (replaced) watcher.follow(undefined)
         if (within === "") this.folderArrivals(item, content)
         const key = `${item.version}|${item.path}|${keyOf(content)}`
@@ -1018,7 +1011,7 @@ export class CompanionItems {
         )
         if (replaced) continue
         // eslint-disable-next-line no-await-in-loop -- As above.
-        await watcher.wait({ safety, unwatched: this.folderPolls.unwatched }, signal)
+        await watcher.wait(this.folderPolls, signal)
       }
     } finally {
       watcher.close()

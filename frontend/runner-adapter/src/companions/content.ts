@@ -153,14 +153,13 @@ export const createRunnerCompanions = (
 ): Companions => ({
   ...(livePages && picture ? { picture } : {}),
   ...(livePages && phone ? { phone } : {}),
-  follow: (_target, itemId, { reveal, within, shown }, on) => {
+  follow: (_target, itemId, { reveal, within }, on) => {
     let stream: ReturnType<typeof runner.content> | undefined
     let stopped = false
     try {
       stream = runner.content(itemId, {
         ...(reveal !== undefined && { reveal }),
         ...(within !== undefined && within !== "" && { within }),
-        ...(shown && { shown }),
       })
     } catch {
       return () => {}

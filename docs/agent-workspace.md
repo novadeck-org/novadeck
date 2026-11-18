@@ -495,8 +495,8 @@ with every safety check again at that time:
   size, modified time, and what a folder inside holds), watches it with the file system's own
   watch (a few events together, at most about four reads a second; a folder deleted and made again
   is watched anew), plus a poll for what a watch can't tell, as on a share or under a link that was
-  retargeted: every 15 s while a pane shows it, 60 s while none does, and 3 s where it can't watch at
-  all, as for a folder that is gone, which is polled for until it is back. It and pushes the listing again as files land, which the pane draws on top, or
+  retargeted: every 20 s while the watch works, and every 3 s where it can't watch at
+  all, as for a folder that is gone, which is polled for until it is back. It pushes the listing again as files land, which the pane draws on top, or
   holds in a "N new files" pill while the pointer is in the grid; a file whose size is
   changing shows the Files panel's write cursor. A folder with files landing behind another tab
   makes its taskbar icon new. Double-clicking a folder goes into it in the same tab, never above

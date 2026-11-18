@@ -671,9 +671,6 @@ export const contract = {
           itemId: id,
           reveal: z.string().max(4096).optional(),
           within: z.string().max(4096).optional(),
-          // For a folder item: that a pane shows it, so its listing is read again now and then
-          // even where the file system's watch tells nothing (a share, a link retargeted).
-          shown: z.boolean().optional(),
         }),
       )
       .output(eventIterator(itemContent)),

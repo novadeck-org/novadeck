@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import {
   appendFileSync,
+  chmodSync,
   closeSync,
   ftruncateSync,
   mkdirSync,
@@ -26,13 +27,14 @@ import {
   pdfLimits,
   folderLimits,
 } from "@novadeck/protocol"
+import { vi } from "vitest"
 
 import { timing } from "../checkouts/git.js"
 import type { Shell } from "../harnesses/shells.js"
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import type { PlanText } from "./content.js"
-import { CompanionItems, folderPollMs, folderPolls, type TerminalPlace } from "./items.js"
+import { CompanionItems, type TerminalPlace } from "./items.js"
 
 const gitInstalled = (() => {
   try {
@@ -59,7 +61,11 @@ type Fixture = {
   /** The person's environment, as `environment` reads it: none of the machine's own. */
   environment: NodeJS.ProcessEnv
   /** How long a folder waits for a change its watch may not tell, which a test may shorten. */
-  polls: { shown: number; hidden: number; unwatched: number }
+  polls: { safety: number; unwatched: number }
+  /** What `environment` was asked, which a read of a folder asks once each time. */
+  asked: { environment: number }
+  /** Run between the steps of a folder's read, which a test sets to change the folder there. */
+  steps: { afterPlacing?: () => void; afterReading?: () => void }
   /** The files of changes read, by checkout, as `reads` keeps them. */
   marks: Map<string, Map<string, string>>
 }
@@ -75,10 +81,14 @@ const it = base.extend<{ fixture: Fixture }>({
     const places = new Map<string, TerminalPlace>()
     const live = new Map<string, PlanText>()
     const environment: NodeJS.ProcessEnv = {}
-    const polls = { ...folderPolls }
+    // Polls far past any test, so what arrives within one can only be what the watch told; a test
+    // that wants a poll to deliver shortens the one it means.
+    const polls = { safety: 600_000, unwatched: 600_000 }
+    const asked = { environment: 0 }
+    const steps: Fixture["steps"] = {}
     const marks = new Map<string, Map<string, string>>()
     const items = new CompanionItems({
-      environment: () => environment,
+      environment: () => ((asked.environment += 1), environment),
       reads: {
         marks: (root) => marks.get(root) ?? new Map(),
         mark: async (root, path, blob) => {
@@ -92,6 +102,10 @@ const it = base.extend<{ fixture: Fixture }>({
       pollMs: 10,
       changesMs: 10,
       folderPolls: polls,
+      folderSteps: {
+        afterPlacing: () => steps.afterPlacing?.(),
+        afterReading: () => steps.afterReading?.(),
+      },
     })
     resources.defer(() => items.shutdown())
     const terminal = (handle: string, sessionId = session.id): TerminalPlace => {
@@ -140,6 +154,8 @@ const it = base.extend<{ fixture: Fixture }>({
       live,
       environment,
       polls,
+      asked,
+      steps,
       marks,
     })
   },
@@ -2443,21 +2459,17 @@ describe("a folder beside its terminal", () => {
     try {
       expect(listed(await next(stream)).total).toBe(4)
       // A file written, then written to: each is a listing of its own, and only the first is news.
-      // Each comes from the file system's watch, well before the poll of a folder it can't watch.
-      const began = Date.now()
+      // Each comes from the file system's watch: the polls here are minutes long.
       writeFileSync(join(place, "new.png"), "a")
       expect(listed(await next(stream)).entries.map(({ name }) => name)).toContain("new.png")
-      expect(Date.now() - began).toBeLessThan(folderPollMs / 2)
       const arrived = fixture.items.bar(moth.terminalId)[0]!
       expect(arrived.version).toBeGreaterThan(before.version)
       expect(arrived.openAsked).toBe(false)
-      const wrote = Date.now()
       appendFileSync(join(place, "new.png"), "bcde")
       let grown = listed(await next(stream))
       while (grown.entries.find(({ name }) => name === "new.png")?.size !== 5)
         // eslint-disable-next-line no-await-in-loop -- Each listing is read before the next.
         grown = listed(await next(stream))
-      expect(Date.now() - wrote).toBeLessThan(folderPollMs / 2)
       // Written to, not new: the item is no newer for it.
       expect(fixture.items.bar(moth.terminalId)[0]!.version).toBe(arrived.version)
     } finally {
@@ -2469,6 +2481,8 @@ describe("a folder beside its terminal", () => {
   it("says a folder is gone once it is moved or deleted, and lists it again when it is back", async ({
     fixture,
   }) => {
+    // Once gone, a folder can't be watched, and is polled for: a short poll, which only then counts.
+    fixture.polls.unwatched = 300
     const place = render(fixture.directory)
     const moth = fixture.terminal("moth")
     const shown = await fixture.items.show(moth, { file: { path: "render" } })
@@ -2476,12 +2490,10 @@ describe("a folder beside its terminal", () => {
     const stream = fixture.items.content(shown.ok ? shown.id : "", undefined, controller.signal)
     try {
       expect(listed(await next(stream)).total).toBe(4)
-      const began = Date.now()
       renameSync(place, `${place}-moved`)
       await expect(next(stream)).resolves.toMatchObject({ state: "unavailable", reason: "gone" })
-      // Told by the watch, not found by the poll.
-      expect(Date.now() - began).toBeLessThan(folderPollMs / 2)
-      // A folder that is gone can't be watched: it is polled for, and found again within a poll.
+      // Told by the watch: the polls here are minutes long.
+      // A folder that is gone can't be watched: it is polled for, which a short poll shows.
       renameSync(`${place}-moved`, place)
       expect(listed(await next(stream)).total).toBe(4)
     } finally {
@@ -2520,14 +2532,10 @@ describe("a folder beside its terminal", () => {
       rmSync(place, { recursive: true })
       mkdirSync(place)
       writeFileSync(join(place, "one.png"), "1")
-      const began = Date.now()
       expect(listed(await next(stream)).entries.map(({ name }) => name)).toEqual(["one.png"])
-      expect(Date.now() - began).toBeLessThan(folderPollMs / 2)
-      // The watch moved onto the new folder: what lands in it is told as fast.
-      const wrote = Date.now()
+      // The watch moved onto the new folder: what lands in it is told.
       writeFileSync(join(place, "two.png"), "2")
       expect(listed(await next(stream)).total).toBe(2)
-      expect(Date.now() - wrote).toBeLessThan(folderPollMs / 2)
     } finally {
       controller.abort()
       await stream.return(undefined)
@@ -2557,13 +2565,40 @@ describe("a folder beside its terminal", () => {
     writeFileSync(join(inner, "three.png"), "3")
     utimesSync(inner, stamped, stamped)
     expect(await children()).toBe(3)
-    // A time long past is trusted, which is what saves reading what hasn't changed.
+    // A count taken well after the time it was kept by is trusted, which saves reading what
+    // hasn't changed; one taken within the same tick as the change is not, though the clock moved on.
     const old = new Date(Date.now() - 60_000)
     utimesSync(inner, old, old)
     expect(await children()).toBe(3)
     writeFileSync(join(inner, "four.png"), "4")
     utimesSync(inner, old, old)
     expect(await children()).toBe(3)
+  })
+
+  it("recounts a folder counted in the same tick as a change, once the clock has moved past it", async ({
+    fixture,
+  }) => {
+    const place = render(fixture.directory)
+    const inner = join(place, "old-runs")
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "render" } })
+    const id = shown.ok ? shown.id : ""
+    const children = async () =>
+      listed(await fixture.items.load(id, false)).entries.find(({ name }) => name === "old-runs")
+        ?.children
+    // Counted at 1, its time (as a coarse file system keeps it) a moment before now.
+    const tick = new Date(Date.now() - 100)
+    utimesSync(inner, tick, tick)
+    expect(await children()).toBe(1)
+    // Written in the same tick: the time has not moved. Seen well after, it is counted again.
+    writeFileSync(join(inner, "same-tick.png"), "x")
+    utimesSync(inner, tick, tick)
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.now() + 5000 })
+    try {
+      expect(await children()).toBe(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("lists a link by its target's kind, so the listing and a read of the file agree", async ({
@@ -2596,12 +2631,9 @@ describe("a folder beside its terminal", () => {
     ).resolves.toEqual({ state: "part", data: Buffer.from("pixels").toString("base64") })
   })
 
-  it("finds what the watch can't tell, by a poll while a pane shows the folder", async ({
-    fixture,
-  }) => {
+  it("finds what the watch can't tell inside a folder, by a poll", async ({ fixture }) => {
     if (process.platform === "win32") return
-    fixture.polls.shown = 300
-    fixture.polls.hidden = 60_000
+    fixture.polls.safety = 300
     const place = render(fixture.directory)
     mkdirSync(join(place, "runs", "1"), { recursive: true })
     mkdirSync(join(place, "runs", "2"), { recursive: true })
@@ -2613,17 +2645,125 @@ describe("a folder beside its terminal", () => {
     const id = shown.ok ? shown.id : ""
     const controller = new AbortController()
     // In the folder the link leads to: the watch is on runs/1, which the retarget doesn't touch.
-    const stream = fixture.items.content(id, undefined, controller.signal, "latest", true)
+    const stream = fixture.items.content(id, undefined, controller.signal, "latest")
     try {
       expect(listed(await next(stream)).entries.map(({ name }) => name)).toEqual(["one.png"])
-      const began = Date.now()
       rmSync(join(place, "latest"))
       symlinkSync(join(place, "runs", "2"), join(place, "latest"))
       expect(listed(await next(stream)).entries.map(({ name }) => name)).toEqual(["two.png"])
-      expect(Date.now() - began).toBeLessThan(folderPolls.shown)
     } finally {
       controller.abort()
       await stream.return(undefined)
+    }
+  })
+
+  it("finds what the watch can't tell at the top too, by a poll", async ({ fixture }) => {
+    fixture.polls.safety = 300
+    const place = render(fixture.directory)
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "render" } })
+    const controller = new AbortController()
+    const stream = fixture.items.content(shown.ok ? shown.id : "", undefined, controller.signal)
+    try {
+      const count = (content: ItemContent | undefined) =>
+        listed(content).entries.find(({ name }) => name === "old-runs")?.children
+      expect(count(await next(stream))).toBe(1)
+      // A file in a folder inside is no event of the folder watched: only the poll counts it.
+      writeFileSync(join(place, "old-runs", "late.png"), "x")
+      expect(count(await next(stream))).toBe(2)
+    } finally {
+      controller.abort()
+      await stream.return(undefined)
+    }
+  })
+
+  it("arms the watch before it reads, so what lands just after the read is told", async ({
+    fixture,
+  }) => {
+    const place = render(fixture.directory)
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "render" } })
+    const controller = new AbortController()
+    const stream = fixture.items.content(shown.ok ? shown.id : "", undefined, controller.signal)
+    let wrote = false
+    // Right after the first read, as a write does between a read and a watch armed after it.
+    fixture.steps.afterReading = () => {
+      if (wrote) return
+      wrote = true
+      writeFileSync(join(place, "just-after.png"), "x")
+    }
+    try {
+      expect(listed(await next(stream)).entries.map(({ name }) => name)).not.toContain(
+        "just-after.png",
+      )
+      expect(listed(await next(stream)).entries.map(({ name }) => name)).toContain("just-after.png")
+    } finally {
+      controller.abort()
+      await stream.return(undefined)
+    }
+  })
+
+  it("arms and reads again a folder replaced between placing the watch and reading", async ({
+    fixture,
+  }) => {
+    const place = render(fixture.directory)
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "render" } })
+    const controller = new AbortController()
+    const stream = fixture.items.content(shown.ok ? shown.id : "", undefined, controller.signal)
+    let swapped = false
+    try {
+      expect(listed(await next(stream)).total).toBe(4)
+      // The next pass: the folder is made again after the watch was armed on the one before it.
+      fixture.steps.afterPlacing = () => {
+        if (swapped) return
+        swapped = true
+        rmSync(place, { recursive: true })
+        mkdirSync(place)
+        writeFileSync(join(place, "fresh.png"), "x")
+      }
+      writeFileSync(join(place, "nudge.png"), "x")
+      // Read again at once, not left to a poll, and watched anew: what lands in it is told.
+      let content = listed(await next(stream))
+      while (!content.entries.some(({ name }) => name === "fresh.png"))
+        // eslint-disable-next-line no-await-in-loop -- Each listing is read before the next.
+        content = listed(await next(stream))
+      writeFileSync(join(place, "later.png"), "x")
+      content = listed(await next(stream))
+      expect(content.entries.map(({ name }) => name)).toContain("later.png")
+    } finally {
+      controller.abort()
+      await stream.return(undefined)
+    }
+  })
+
+  it("waits for a folder it can't read, and doesn't read it again and again", async ({
+    fixture,
+  }) => {
+    if (process.platform === "win32" || process.getuid?.() === 0) return
+    const place = render(fixture.directory)
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "render" } })
+    chmodSync(place, 0o000)
+    const controller = new AbortController()
+    try {
+      const stream = fixture.items.content(shown.ok ? shown.id : "", undefined, controller.signal)
+      const before = fixture.asked.environment
+      await expect(next(stream)).resolves.toMatchObject({
+        state: "unavailable",
+        reason: "unreadable",
+      })
+      const later = next(stream)
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+      // A pass asks twice (placing and reading): a few at most in two seconds, not one in four every second.
+      expect(fixture.asked.environment - before).toBeLessThanOrEqual(4)
+      chmodSync(place, 0o755)
+      controller.abort()
+      await later
+      await stream.return(undefined)
+    } finally {
+      chmodSync(place, 0o755)
+      controller.abort()
     }
   })
 
