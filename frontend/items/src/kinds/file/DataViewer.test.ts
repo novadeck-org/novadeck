@@ -4,8 +4,9 @@ import { createElement } from "react"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
-import { DataViewer, isData } from "./DataViewer"
+import { DataViewer } from "./DataViewer"
 import type { ToSource } from "./previews"
+import { isData } from "./previews/data"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))

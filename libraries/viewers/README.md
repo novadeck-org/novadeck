@@ -58,6 +58,8 @@ hand back as `saved` to the next viewer of the same thing.
   text as JSON, JSONL (a record that doesn't read is a row of its own, never the file's
   failure) or YAML (anchors, merge keys, several documents, aliases bounded), or says the
   line and column it stops at; `dataFormatOf` tells the format by a file's name.
+- `./data-format`: `dataFormatOf` alone, without the parsers, so an app tells a data file by
+  its name without loading `yaml`.
 - `./tree.css`: the tree viewer's looks, themed through `--tree-*` and the code's `--syntax-*`.
 - `./sync`: `distance` and `merge`, how far apart Markdown texts are and how they merge.
   Built on CodeMirror's state, so kept apart from `./text`.

@@ -15,9 +15,6 @@ import type { PreviewProps } from "./previews"
 // doesn't read goes to its source at the line it stops, once per load: switched back, it
 // says where it stops. A file read only in part says so.
 
-/** Whether a file is one the tree reads. */
-export const isData = (path: string): boolean => dataFormatOf(path) !== undefined
-
 // The loads already sent to their source: switched back to the preview, they stay.
 const sent = new WeakSet<FileContent>()
 
