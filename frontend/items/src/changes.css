@@ -23,7 +23,8 @@
 
    Tokens, each optional (its fallback in brackets):
    --changes-add-fg, --changes-remove-fg (success-fg, danger-fg): a changed line's ink, for
-   its sign, number and counts. The gutter carries the colour: --changes-add-gutter-bg,
+   its counts, and a quarter of the way to the text for its sign and number, so they keep
+   4.5:1 on the gutter. The gutter carries the colour: --changes-add-gutter-bg,
    --changes-remove-gutter-bg (the ink at 20%, 18% on a light scheme) behind the number and
    sign, and --changes-add-bg, --changes-remove-bg (the ink at 5%, 7% on a light scheme) a
    whisper under the line. A changed run of tokens is one mark, the ink at 30%.
@@ -444,12 +445,12 @@
 }
 .diff-row[data-kind="add"] :is(.changes-sign, .changes-num) {
   background: var(--_add-gutter);
-  color: var(--_add);
+  color: color-mix(in srgb, var(--_add) 75%, var(--color-ink));
   opacity: 1;
 }
 .diff-row[data-kind="remove"] :is(.changes-sign, .changes-num) {
   background: var(--_remove-gutter);
-  color: var(--_remove);
+  color: color-mix(in srgb, var(--_remove) 75%, var(--color-ink));
   opacity: 1;
 }
 .changes-tok {
@@ -622,7 +623,7 @@ button.changes-fold:hover {
 }
 @keyframes preview-pulse {
   from {
-    background-color: color-mix(in srgb, var(--color-strong) 30%, var(--_add-bg));
+    background-color: color-mix(in srgb, var(--color-strong) 30%, var(--_ground));
   }
 }
 @media (prefers-reduced-motion: reduce) {
