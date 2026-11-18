@@ -13,3 +13,7 @@ backend/runner/src/workspaces/schemas/*.sql text eol=lf
 # The workflows' tests (scripts/quality/plan, scripts/e2e/plan) find jobs and steps in them by
 # their lines, and run the gates' bash out of them, on Windows too.
 .github/workflows/*.yml text eol=lf
+# The PDF frame's page allows its one script by a hash of its text, which the browser reads with
+# LF line endings; the tests hash it as checked out, so it keeps LF on every platform.
+libraries/viewers/src/pdf/frame.html text eol=lf
+frontend/ui/public/pdf-frame.html text eol=lf
