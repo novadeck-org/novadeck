@@ -29,13 +29,15 @@ export const folderListing = z.strictObject({
 
 // The project's own checkout against its remote's main, as `projects.checkout` reports it.
 // `behind` is set where the checkout is on the branch main is (`main` for `origin/main`) with
-// main strictly ahead of it, which Novadeck leaves for the person when the checkout has changes of
-// its own or an operation half done; `count` is how many commits main has that it lacks. `moved`
-// counts the times the runner moved the checkout to main since it began: a change in it says the
-// files on disk changed.
+// main strictly ahead of it and the runner hasn't moved it: it has changes of its own, an
+// operation half done, a file in the way, or it was not fetched since; `count` is how many commits
+// main has that it lacks. `moved` counts the times the runner moved the checkout to main since it
+// began, and `head` is the commit HEAD is at (null where there is none): when either changes, the
+// files on disk may have.
 export const checkoutState = z.strictObject({
   behind: z.strictObject({ branch: name, remote: name, count: z.number().int().min(1) }).nullable(),
   moved: z.number().int().min(0),
+  head: z.string().max(128).nullable(),
 })
 export type CheckoutState = z.infer<typeof checkoutState>
 

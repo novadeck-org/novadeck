@@ -30,9 +30,10 @@ describe("a project's checkout against main", () => {
   it("follows main by itself after a fetch, and says nothing", async ({ setup: s }) => {
     const landed = s.origin.land("b.txt")
     await s.fetcher.fetchNow([s.common])
+    await s.fetcher.idle()
     expect(gitIn(s.origin.repo, "rev-parse", "HEAD")).toBe(landed)
     expect(s.fetcher.moved(s.common)).toBe(1)
-    expect(await s.checkouts.read(s.origin.repo)).toEqual({ behind: null, moved: 1 })
+    expect(await s.checkouts.read(s.origin.repo)).toEqual({ behind: null, moved: 1, head: landed })
   })
 
   it("leaves the checkout be after a fetch where following is switched off", async ({
@@ -44,6 +45,7 @@ describe("a project's checkout against main", () => {
     const before = gitIn(s.origin.repo, "rev-parse", "HEAD")
     s.origin.land("b.txt")
     await fetcher.fetchNow([s.common])
+    await fetcher.idle()
     expect(gitIn(s.origin.repo, "rev-parse", "HEAD")).toBe(before)
     expect(fetcher.moved(s.common)).toBe(0)
   })
@@ -53,27 +55,50 @@ describe("a project's checkout against main", () => {
   }) => {
     s.origin.land("b.txt")
     const landed = s.origin.land("c.txt")
+    const before = gitIn(s.origin.repo, "rev-parse", "HEAD")
     writeFileSync(join(s.origin.repo, "a.txt"), "mine\n")
     await s.fetcher.fetchNow([s.common])
+    await s.fetcher.idle()
     expect(s.fetcher.moved(s.common)).toBe(0)
     expect(await s.checkouts.read(s.origin.repo)).toEqual({
       behind: { branch: "main", remote: "origin/main", count: 2 },
       moved: 0,
+      head: before,
     })
     expect(await s.checkouts.update(s.origin.repo)).toEqual({ ok: true })
     expect(gitIn(s.origin.repo, "rev-parse", "HEAD")).toBe(landed)
-    expect(await s.checkouts.read(s.origin.repo)).toEqual({ behind: null, moved: 1 })
+    expect(await s.checkouts.read(s.origin.repo)).toEqual({ behind: null, moved: 1, head: landed })
   })
 
-  it("gives git's reason when a change is in the way, and says nothing off main", async ({
-    setup: s,
-  }) => {
+  it("says so, whatever the reason the checkout wasn't moved", async ({ setup: s }) => {
+    // A file of the person's own, untracked, where main brings one.
+    s.origin.land("b.txt")
+    writeFileSync(join(s.origin.repo, "b.txt"), "mine\n")
+    await s.fetcher.fetchNow([s.common])
+    await s.fetcher.idle()
+    expect(s.fetcher.moved(s.common)).toBe(0)
+    expect(await s.checkouts.read(s.origin.repo)).toMatchObject({ behind: { count: 1 } })
+    expect(await s.checkouts.update(s.origin.repo)).toEqual({
+      ok: false,
+      said: "b.txt is in the way, and not tracked.",
+    })
+  })
+
+  it("names the file where a change is in the way", async ({ setup: s }) => {
     s.origin.land("a.txt")
     writeFileSync(join(s.origin.repo, "a.txt"), "mine\n")
     await s.fetcher.fetchNow([s.common])
-    const refused = await s.checkouts.update(s.origin.repo)
-    expect(refused).toMatchObject({ ok: false })
-    expect(refused.ok ? "" : refused.said).not.toBe("")
+    await s.fetcher.idle()
+    expect(await s.checkouts.update(s.origin.repo)).toEqual({
+      ok: false,
+      said: "Your changes to a.txt would be overwritten.",
+    })
+  })
+
+  it("says nothing off main", async ({ setup: s }) => {
+    s.origin.land("b.txt")
+    await s.fetcher.fetchNow([s.common])
+    await s.fetcher.idle()
     gitIn(s.origin.repo, "checkout", "--quiet", "-b", "feature")
     expect(await s.checkouts.read(s.origin.repo)).toMatchObject({ behind: null })
   })
@@ -81,6 +106,6 @@ describe("a project's checkout against main", () => {
   it("has nothing for a folder outside a repository", async ({ setup: s, resources }) => {
     const folder = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-plain-")))
     resources.defer(() => rmSync(folder, { recursive: true, force: true }))
-    expect(await s.checkouts.read(folder)).toEqual({ behind: null, moved: 0 })
+    expect(await s.checkouts.read(folder)).toEqual({ behind: null, moved: 0, head: null })
   })
 })

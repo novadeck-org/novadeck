@@ -220,11 +220,12 @@ root). Entries come sorted, folders first, then by name ignoring case and a lead
 order, and `truncated` says there were more. A missing project is `NOT_FOUND`; a folder that is
 missing, not a folder, or outside the project's directory is `INVALID_DIRECTORY`.
 `projects.checkout({ projectId })` says how the project's own checkout stands against its remote's main:
-`{ behind: { branch, remote, count } | null, moved }`. `behind` is set only where the runner left the
-checkout alone (see agent-workspace.md, "Fetching"): it is on the branch main is, main is strictly ahead,
-and it has tracked changes or an operation half done. `moved` counts the times the runner moved the
-checkout since it began; a change in it says files on disk changed. A project outside a repository, or with no
-remote main, is `{ behind: null, moved: 0 }`. `projects.updateCheckout({ projectId })` fast-forwards it on the
+`{ behind: { branch, remote, count } | null, moved, head }`. `behind` is set where the checkout is on
+the branch main is and main is strictly ahead of it, which the runner moves by itself where nothing is in the
+way (see agent-workspace.md, "Fetching"): what it reports is what was left, for whatever reason. `moved`
+counts the times the runner moved the checkout since it began, and `head` is the commit HEAD is at
+(`null` where there is none); a change in either says files on disk may have changed. A project outside a
+repository, or with no remote main, is `{ behind: null, moved: 0, head: null }`. `projects.updateCheckout({ projectId })` fast-forwards it on the
 person's say, tracked changes allowed, answering `{ ok: true }` (also where there was nothing to move) or
 `{ ok: false, said }` with git's reason or the operation in progress.
 `sessions.save({ sessionId, state, visitedAt })` replaces a session's `state`, a string the

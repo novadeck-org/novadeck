@@ -48,11 +48,11 @@ export type FolderListing = {
   readonly truncated: boolean
 }
 
-// How a project's own checkout stands against its remote's main. `behind` is set only where the
-// checkout is on main, main is ahead of it and the backend left it alone (changes of its own, or
-// an operation half done): the branch, the remote's name for it, and how many commits it lacks.
-// `moved` counts the times the backend moved the checkout to main: when it changes, the files on
-// disk did.
+// How a project's own checkout stands against its remote's main. `behind` is set where the
+// checkout is on main and main is ahead of it, which the backend moves by itself where nothing is
+// in the way: the branch, the remote's name for it, and how many commits it lacks. `moved` counts
+// the times the backend moved the checkout to main, and `head` is the commit it is at (null
+// where there is none): when either changes, the files on disk may have.
 export type CheckoutState = {
   readonly behind: {
     readonly branch: string
@@ -60,6 +60,7 @@ export type CheckoutState = {
     readonly count: number
   } | null
   readonly moved: number
+  readonly head: string | null
 }
 
 // What an update of the checkout did: it moved (or had nothing to move), or git's reason.

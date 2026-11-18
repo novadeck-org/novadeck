@@ -1556,7 +1556,7 @@ describe("The Files panel", () => {
       mount(undefined, undefined, undefined, undefined, undefined, undefined, checkout)
 
     it("says how far, and updates on request", async () => {
-      const held = stand({ behind, moved: 0 })
+      const held = stand({ behind, moved: 0, head: "a" })
       const panel = await mountWith(held.checkout)
       const line = panel.view.container.querySelector(".files-behind")!
       expect(line.textContent).toContain("main is 3 behind origin")
@@ -1568,14 +1568,14 @@ describe("The Files panel", () => {
     })
 
     it("says nothing where the checkout is up to date", async () => {
-      const panel = await mountWith(stand({ behind: null, moved: 0 }).checkout)
+      const panel = await mountWith(stand({ behind: null, moved: 0, head: "a" }).checkout)
       expect(panel.view.container.querySelector(".files-behind")).toBeNull()
       await nextFrame()
       panel.view.unmount()
     })
 
     it("gives git's reason when the update is refused, and lets it be tried again", async () => {
-      const held = stand({ behind, moved: 0 })
+      const held = stand({ behind, moved: 0, head: "a" })
       held.update.mockResolvedValueOnce({ ok: false, said: "Your local changes would be lost." })
       const panel = await mountWith(held.checkout)
       act(() => panel.view.container.querySelector<HTMLButtonElement>(".files-update")!.click())
@@ -1589,10 +1589,10 @@ describe("The Files panel", () => {
 
     it("reads the folders again when the backend moved the checkout", async () => {
       vi.useFakeTimers()
-      const held = stand({ behind: null, moved: 0 })
+      const held = stand({ behind: null, moved: 0, head: "a" })
       const panel = await mountWith(held.checkout)
       const before = panel.reads.folders.length
-      held.set({ behind: null, moved: 1 })
+      held.set({ behind: null, moved: 1, head: "a" })
       await act(async () => {
         await vi.advanceTimersByTimeAsync(checkoutPollMs)
       })
@@ -1606,6 +1606,61 @@ describe("The Files panel", () => {
         await vi.advanceTimersByTimeAsync(checkoutPollMs)
       })
       expect(panel.reads.folders.length).toBe(unchanged)
+      panel.view.unmount()
+    })
+
+    it("reads the folders again when the commit it is at changes, as with the person's own pull", async () => {
+      vi.useFakeTimers()
+      const held = stand({ behind: null, moved: 0, head: "a" })
+      const panel = await mountWith(held.checkout)
+      const before = panel.reads.folders.length
+      held.set({ behind: null, moved: 0, head: "b" })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(checkoutPollMs)
+      })
+      await panel.settle()
+      expect(panel.reads.folders.length).toBeGreaterThan(before)
+      panel.view.unmount()
+    })
+
+    it("asks again only once the last answer is in", async () => {
+      vi.useFakeTimers()
+      let asked = 0
+      const slow: Checkout = {
+        read: () => {
+          asked += 1
+          return new Promise(() => {})
+        },
+        update: async () => ({ ok: true }),
+      }
+      const panel = await mountWith(slow)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(checkoutPollMs * 3)
+      })
+      expect(asked).toBe(1)
+      panel.view.unmount()
+    })
+
+    it("forgets a refusal once there is nothing to update", async () => {
+      vi.useFakeTimers()
+      const held = stand({ behind, moved: 0, head: "a" })
+      held.update.mockResolvedValueOnce({ ok: false, said: "Nope." })
+      const panel = await mountWith(held.checkout)
+      act(() => panel.view.container.querySelector<HTMLButtonElement>(".files-update")!.click())
+      await panel.settle()
+      expect(panel.view.container.querySelector(".files-behind")?.textContent).toContain("Nope.")
+      held.set({ behind: null, moved: 0, head: "b" })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(checkoutPollMs)
+      })
+      held.set({ behind, moved: 0, head: "c" })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(checkoutPollMs)
+      })
+      await panel.settle()
+      expect(panel.view.container.querySelector(".files-behind")?.textContent).not.toContain(
+        "Nope.",
+      )
       panel.view.unmount()
     })
   })

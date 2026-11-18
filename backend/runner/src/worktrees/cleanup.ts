@@ -22,6 +22,8 @@ export type CleanupHost = {
   /** How often the worktrees are looked at, in milliseconds (a minute when omitted). */
   readonly sweepMs?: number
   readonly fetcher?: MainFetcher
+  /** The runner's own folder for git's hooks to be pointed at while a checkout moves. */
+  readonly hooksFolder?: string
 }
 
 /** A worktree a look found holding something stays unlooked-at, in the queue, this long unless it changes. */
@@ -56,7 +58,12 @@ export class Cleanup {
     private readonly service: Worktrees,
     private readonly host: CleanupHost,
   ) {
-    this.fetcher = host.fetcher ?? new MainFetcher({ ...(host.now && { now: host.now }) })
+    this.fetcher =
+      host.fetcher ??
+      new MainFetcher({
+        ...(host.now && { now: host.now }),
+        ...(host.hooksFolder !== undefined && { hooksFolder: host.hooksFolder }),
+      })
   }
 
   /** When the repository's origin was last fetched. */

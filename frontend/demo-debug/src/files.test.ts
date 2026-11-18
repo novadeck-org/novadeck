@@ -142,7 +142,7 @@ describe("the debug panel's Files group", () => {
     expect((await files.checkout!("storefront")).behind).not.toBeNull()
     run(files, "Checkout is behind main")
     expect(await files.update!("storefront")).toEqual({ ok: true })
-    expect(await files.checkout!("storefront")).toEqual({ behind: null, moved: 1 })
+    expect(await files.checkout!("storefront")).toEqual({ behind: null, moved: 1, head: "demo-1" })
     run(files, "Main moves the checkout")
     expect((await files.checkout!("storefront")).moved).toBe(2)
     const names = (await files.list("storefront", "src/checkout")).entries.map(({ name }) => name)

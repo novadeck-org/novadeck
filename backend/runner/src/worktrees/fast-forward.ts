@@ -1,9 +1,12 @@
 import { existsSync } from "node:fs"
 import { join } from "node:path"
 
-import { git as realGit, gitScope } from "../checkouts/git.js"
+import { git as realGit, gitScope, type Run } from "../checkouts/git.js"
 import { behindMain } from "../checkouts/repository.js"
+import { logs } from "../log.js"
 import { said } from "./repo.js"
+
+const log = logs.for("worktrees")
 
 // Moving a repository's own checkout to the remote's main, when that is safe: a fast-forward and
 // nothing else, which touches no file the person changed.
@@ -32,6 +35,27 @@ export type FastForward = {
   readonly env?: NodeJS.ProcessEnv
   /** Tracked changes don't hold it back (git still refuses where one is in the way). */
   readonly allowChanges?: boolean
+}
+
+/**
+ * Why a merge was refused, in plain words: the files git named (up to three) and what is wrong
+ * with them, or git's first line without its `error:` and a trailing colon.
+ */
+export const refusal = (run: Extract<Run, { ok: false }>): string => {
+  const lines = run.err ?? [run.said]
+  const files = lines.filter((line) => !/^(error|fatal|hint|warning|please|aborting)\b/i.test(line))
+  const named =
+    files.length === 0
+      ? ""
+      : files.length > 3
+        ? `${files.slice(0, 3).join(", ")} and ${files.length - 3} more`
+        : files.join(", ")
+  const first = lines.find((line) => line !== "") ?? ""
+  if (named !== "" && /local changes/i.test(first))
+    return `Your changes to ${named} would be overwritten.`
+  if (named !== "" && /untracked/i.test(first)) return `${named} is in the way, and not tracked.`
+  const plain = first.replace(/^(error|fatal):\s*/i, "").replace(/:$/, "")
+  return named !== "" ? `${plain}: ${named}` : plain || said(run)
 }
 
 export type Forwarded =
@@ -95,6 +119,7 @@ export const fastForward = async (home: string, options: FastForward): Promise<F
     if (changed !== false)
       return { ok: false, said: changed ? "It has changes of its own." : "Git couldn't read it." }
   }
+  const hooks = await options.hooks()
   // A user's checkout or commit in the moment since: HEAD must be as it was checked.
   const still = await run(home, ["rev-parse", "--verify", "-q", "HEAD^{commit}"], small)
   const branch = await run(home, ["symbolic-ref", "-q", "HEAD"], small)
@@ -107,7 +132,6 @@ export const fastForward = async (home: string, options: FastForward): Promise<F
     return { ok: true, moved: false }
   // No time limit, and outside any scope that ends git runs: a merge stopped halfway through
   // its checkout leaves a half-updated tree, so it is let finish.
-  const hooks = await options.hooks()
   const merged = await gitScope.exit(() =>
     run(
       home,
@@ -129,5 +153,15 @@ export const fastForward = async (home: string, options: FastForward): Promise<F
       { cap: 64 * 1024, ms: untimed, env: { GIT_MERGE_AUTOEDIT: "no", ...options.env } },
     ),
   )
-  return merged.ok ? { ok: true, moved: true } : { ok: false, said: said(merged) }
+  // A checkout of the person's in the moment since may have been the one the merge moved.
+  const after = await run(home, ["symbolic-ref", "-q", "HEAD"], small)
+  if (!after.ok || after.out.trim() !== `refs/heads/${behind.branch}`)
+    log.warn(
+      "worktrees.checkout-switched",
+      "A repository's branch changed while Novadeck moved it",
+      {
+        data: { home, was: behind.branch, now: after.ok ? after.out.trim() : "detached" },
+      },
+    )
+  return merged.ok ? { ok: true, moved: true } : { ok: false, said: refusal(merged) }
 }

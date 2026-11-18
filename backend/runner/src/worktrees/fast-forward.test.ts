@@ -53,6 +53,27 @@ describe("fast-forwarding a checkout", () => {
     expect(existsSync(marker)).toBe(false)
   })
 
+  it("runs no hook of a folder the repository's own config points at, nor a reference-transaction", async ({
+    origin,
+    hooks,
+  }) => {
+    const mine = join(origin.repo, "my-hooks")
+    mkdirSync(mine)
+    const marker = join(origin.repo, "hook-ran").replaceAll("\\", "/")
+    for (const name of ["post-merge", "reference-transaction", "post-checkout"]) {
+      writeFileSync(join(mine, name), `#!/bin/sh\necho ${name} >> "${marker}"\n`)
+      chmodSync(join(mine, name), 0o755)
+    }
+    gitIn(origin.repo, "config", "core.hooksPath", mine.replaceAll("\\", "/"))
+    const landed = origin.land("b.txt")
+    origin.fetch()
+    // Git's own fetch ran the reference-transaction hook, so the marker is there to clear.
+    rmSync(join(origin.repo, "hook-ran"), { force: true })
+    await fastForward(origin.repo, { hooks: () => Promise.resolve(hooks) })
+    expect(head(origin.repo)).toBe(landed)
+    expect(existsSync(join(origin.repo, "hook-ran"))).toBe(false)
+  })
+
   it("leaves a checkout with tracked changes, staged or not, unless allowed", async ({
     origin,
     hooks,
@@ -85,7 +106,7 @@ describe("fast-forwarding a checkout", () => {
       hooks: () => Promise.resolve(hooks),
       allowChanges: true,
     })
-    expect(done).toMatchObject({ ok: false })
+    expect(done).toEqual({ ok: false, said: "Your changes to a.txt would be overwritten." })
     expect(head(origin.repo)).toBe(before)
     expect(other).not.toBe(before)
   })

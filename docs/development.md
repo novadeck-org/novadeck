@@ -489,7 +489,7 @@ Agents:
   ends them all. Every sample project has a small tree of its own. `node_modules` is the demo's
   empty folder: it opens onto a muted "Empty" row.
   The checkout's line over the tree ("main is 3 behind origin" with Update) shows where the runner
-  left the checkout alone: "Checkout is behind main" shows it, "Checkout can't update" makes Update
+  left the checkout behind main: "Checkout is behind main" shows it, "Checkout can't update" makes Update
   refuse with git's reason (and Retry), "Checkout is up to date" takes it away (the panel asks
   every 20 s while shown), and "Main moves the checkout" adds `src/checkout/Receipt.tsx` and
   removes `src/components/Price.tsx`, which the shown panel reads in within those seconds; Update

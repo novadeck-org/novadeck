@@ -94,7 +94,7 @@ export const filesGroups = (files: DemoFiles | undefined): readonly DemoActionGr
             },
             {
               label: "Checkout can't update",
-              hint: 'Open Files: the same line; Update gives way to "Can\'t update: Your local changes to src/cart/useCart.ts would be overwritten." with Retry',
+              hint: 'Open Files: the same line; Update gives way to "Can\'t update: Your changes to src/cart/useCart.ts would be overwritten." with Retry',
               run: () =>
                 files.stand({
                   count: 3,

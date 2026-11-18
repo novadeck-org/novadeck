@@ -1,8 +1,8 @@
 import type { CheckoutState, CheckoutUpdate } from "@novadeck/protocol"
 
 import { behindMain } from "../checkouts/repository.js"
-import { operationIn, trackedChanges, type Forwarded } from "./fast-forward.js"
-import { repositoryAt } from "./repo.js"
+import type { Forwarded } from "./fast-forward.js"
+import { commitAt, repositoryAt } from "./repo.js"
 
 /** What the checkout service asks of the worktrees service. */
 export type MainCheckoutHost = {
@@ -12,26 +12,30 @@ export type MainCheckoutHost = {
 
 /**
  * A project's own checkout against its remote's main, for the Files panel: how far behind it is
- * where the runner left it alone, and a move to main on the person's say.
+ * where the runner left it, and a move to main on the person's say.
  */
 export class MainCheckouts {
   constructor(private readonly host: MainCheckoutHost) {}
 
   /**
-   * `behind` only where the runner would not have moved the checkout by itself: it has tracked
-   * changes or an operation half done. Otherwise the next fetch moves it, and nothing is said.
+   * `behind` wherever the checkout is on main with main ahead of it: the runner moves one that
+   * nothing holds back on the next fetch, so this is what it left, for whatever reason (changes
+   * of its own, an operation half done, a file in the way); a clean one that has yet to be
+   * fetched shows too, which the person's Update moves. `head` is the commit HEAD is at.
    */
   async read(cwd: string): Promise<CheckoutState> {
     const found = await repositoryAt(cwd)
-    if (!found.ok) return { behind: null, moved: 0 }
+    if (!found.ok) return { behind: null, moved: 0, head: null }
     const { home, commonDir } = found.repository
     const moved = this.host.moved(commonDir)
+    const head = (await commitAt(home, "HEAD")) ?? null
     const behind = await behindMain(home)
-    if (behind === undefined) return { behind: null, moved }
-    const held = (await operationIn(home)) !== undefined || (await trackedChanges(home)) !== false
     return {
-      behind: held ? { branch: behind.branch, remote: behind.remote, count: behind.behind } : null,
+      behind: behind
+        ? { branch: behind.branch, remote: behind.remote, count: behind.behind }
+        : null,
       moved,
+      head,
     }
   }
 

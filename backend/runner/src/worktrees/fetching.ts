@@ -15,6 +15,8 @@ export const fetchEveryMs = 5 * 60 * 1000
 export const fetchTimeoutMs = 300 * 1000
 /** How long git has to stop after that, removing its lock files, before it is killed. */
 export const fetchGraceMs = 10 * 1000
+/** A repository fetched this recently is not fetched again for a new worktree's base. */
+export const recentFetchMs = 60 * 1000
 /** A repository that keeps failing is tried this seldom at the most. */
 const longestWaitMs = 60 * 60 * 1000
 
@@ -53,6 +55,12 @@ export type FetcherOptions = {
   readonly run?: typeof git
   readonly every?: number
   readonly environment?: NodeJS.ProcessEnv
+  /**
+   * The runner's own folder for git's `core.hooksPath` while it moves a checkout, emptied and
+   * made owner-only at first use and kept; a private temporary one, removed once no move is
+   * under way as the runner closes, when omitted.
+   */
+  readonly hooksFolder?: string
   /** Whether a fetch is followed by moving the repository's checkout; always, when omitted. */
   readonly follow?: () => boolean
 }
@@ -71,6 +79,7 @@ export class MainFetcher {
   private readonly every: number
   private readonly environment: NodeJS.ProcessEnv
   private readonly follow: () => boolean
+  private readonly hooksFolder: string | undefined
   private readonly ending = new AbortController()
   /** How many times each repository's checkout was moved, by common dir. */
   private readonly moves = new Map<string, number>()
@@ -87,6 +96,7 @@ export class MainFetcher {
     this.every = options.every ?? fetchEveryMs
     this.environment = options.environment ?? process.env
     this.follow = options.follow ?? (() => true)
+    this.hooksFolder = options.hooksFolder
   }
 
   /** When the repository was last fetched, or undefined if it never was. */
@@ -107,19 +117,37 @@ export class MainFetcher {
     return this.forward(commonDir, true)
   }
 
+  /** Resolves once no move of a checkout is under way (a test waits for the one a fetch started). */
+  async idle(): Promise<void> {
+    while (this.forwarding.size > 0) {
+      // eslint-disable-next-line no-await-in-loop -- Moves started meanwhile are waited for too.
+      await Promise.all(this.forwarding.values())
+    }
+  }
+
   /** Ends the fetch under way and starts no more, as the runner closes. */
   abort(): void {
     this.ending.abort()
-    void this.hooks?.then((dir) => rm(dir, { recursive: true, force: true })).catch(() => {})
+    // A merge under way is let finish; a folder of the runner's own stays for its next run.
+    if (this.hooksFolder === undefined)
+      void this.idle()
+        .then(() => this.hooks)
+        .then(async (dir) => {
+          if (dir) await rm(dir, { recursive: true, force: true })
+        })
+        .catch(() => {})
   }
 
   // A folder with nothing in it for `core.hooksPath`, which works on Windows where /dev/null
-  // doesn't; the runner's own, so a repository's hooks can't run in a checkout it moves.
+  // doesn't: the runner's own, owner-only, so a repository's hooks can't run in a checkout it
+  // moves, and nobody else can put one there. Emptied at first use, whatever was left in it.
   private emptyHooks(): Promise<string> {
-    this.hooks ??= mkdtemp(join(tmpdir(), "novadeck-no-hooks-")).then(async (dir) => {
-      await mkdir(dir, { recursive: true })
-      return dir
-    })
+    this.hooks ??= (async () => {
+      if (this.hooksFolder === undefined) return mkdtemp(join(tmpdir(), "novadeck-no-hooks-"))
+      await rm(this.hooksFolder, { recursive: true, force: true })
+      await mkdir(this.hooksFolder, { recursive: true, mode: 0o700 })
+      return this.hooksFolder
+    })()
     return this.hooks
   }
 
@@ -189,17 +217,26 @@ export class MainFetcher {
   }
 
   /**
-   * Fetches the repository now for a caller that can't wait long (a new worktree's base): a
-   * fetch already under way is waited for, a new one is given `ms`, and the caller is let go
-   * after `ms` either way, fetched or not. Never throws; a failure leaves the schedule as it was.
+   * Makes the repository's remote main current for a caller that can't wait long (a new
+   * worktree's base): nothing is fetched where it was fetched within `recentFetchMs`; otherwise a
+   * fetch under way is waited for, or one is started with the usual time limit, and the
+   * caller is let go after `ms` either way. The fetch itself is never cut short for the
+   * caller: it carries on, as a scheduled one would. Never throws.
    */
   async fetchBriefly(commonDir: string, ms: number): Promise<void> {
+    const state = this.stateOf(commonDir)
+    if (
+      !this.under.has(commonDir) &&
+      state.fetchedAt !== undefined &&
+      this.now() - state.fetchedAt < recentFetchMs
+    )
+      return
     let timer: ReturnType<typeof setTimeout> | undefined
     const late = new Promise<void>((resolve) => {
       timer = setTimeout(resolve, ms)
     })
     try {
-      await Promise.race([this.fetching(commonDir, this.stateOf(commonDir), true, ms), late])
+      await Promise.race([this.fetching(commonDir, state, true), late])
     } finally {
       clearTimeout(timer)
     }
@@ -212,17 +249,12 @@ export class MainFetcher {
   }
 
   // One fetch of a repository, shared by whoever asks while it is under way.
-  private fetching(
-    commonDir: string,
-    state: State,
-    asked: boolean,
-    ms: number = fetchTimeoutMs,
-  ): Promise<void> {
+  private fetching(commonDir: string, state: State, asked: boolean): Promise<void> {
     const under = this.under.get(commonDir)
     if (under) return under
     const run = (async () => {
       if (this.ending.signal.aborted) return
-      const done = await gitScope.run(this.ending.signal, () => this.fetch(commonDir, ms))
+      const done = await gitScope.run(this.ending.signal, () => this.fetch(commonDir))
       if (this.ending.signal.aborted) return
       const at = this.now()
       if (done.ok) {
@@ -245,7 +277,6 @@ export class MainFetcher {
 
   private async fetch(
     commonDir: string,
-    ms: number,
   ): Promise<{ readonly ok: true } | Extract<Run, { ok: false }>> {
     const home = homeOf(commonDir)
     // The person's own ssh command in their git config is theirs to keep.
@@ -271,14 +302,15 @@ export class MainFetcher {
       {
         cap: 64 * 1024,
         truncate: true,
-        ms,
+        ms: fetchTimeoutMs,
         graceMs: fetchGraceMs,
         env: fetchEnv(this.environment, ownSsh),
       },
     )
     if (!run.ok) return run
     // The fetch moved only `origin/*`; the checkout follows where it is safe to.
-    if (this.follow()) await this.forward(commonDir, false)
+    // Not waited for: a merge that hangs (a filter, a stalled disk) must not stall fetching.
+    if (this.follow()) void this.forward(commonDir, false)
     return { ok: true }
   }
 }

@@ -13,9 +13,11 @@ import {
 import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
 
+import { git as realGit } from "../checkouts/git.js"
 import { describe, expect, it as base } from "../test.js"
 import { withOrigin } from "../testing/origin.js"
 import { WorkspaceStore } from "../workspaces/store.js"
+import { fetchTimeoutMs, MainFetcher } from "./fetching.js"
 import { finishRemoval } from "./repo.js"
 import { Worktrees, folderName } from "./worktrees.js"
 
@@ -135,28 +137,92 @@ describe("opening a worktree", () => {
     expect(git(opened.path, "branch", "--show-current")).toBe("side")
   })
 
+  // A service whose fetcher records the fetches it runs, and what time limit each had.
+  const recording = (
+    resources: { defer: (cleanup: () => void) => void },
+    f: Fixture,
+    freshMainMs?: number,
+  ) => {
+    const fetches: { args: readonly string[]; ms: number | undefined }[] = []
+    const fetcher = new MainFetcher({
+      environment: {},
+      run: (cwd, args, limit) => {
+        if (args.includes("fetch")) fetches.push({ args, ms: limit.ms })
+        return realGit(cwd, args, limit)
+      },
+    })
+    const worktrees = new Worktrees(f.store, {
+      exists: (id) => f.live.has(id),
+      root: f.root,
+      projectFolder: () => f.repo,
+      cleanup: { fetcher },
+      ...(freshMainMs !== undefined && { freshMainMs }),
+    })
+    resources.defer(() => {
+      fetcher.abort()
+      void worktrees.stop()
+    })
+    return { fetches, fetcher, worktrees }
+  }
+
   it("starts from the remote's main when the checkout is on a main that is behind it", async ({
     resources,
     fx: f,
   }) => {
     const origin = withOrigin((cleanup) => resources.defer(cleanup))
     await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
-    // A change of its own keeps the checkout where it is, though main is fetched now.
+    // A change of its own keeps the checkout where it is, though main is fetched meanwhile.
     writeFileSync(join(origin.repo, "a.txt"), "mine\n")
-    // Not fetched here: the new worktree fetches main itself, for a moment.
     const landed = origin.land("b.txt")
-    const opened = await f.worktrees.open({
+    const { fetches, fetcher, worktrees } = recording(resources, f)
+    // Fetched a moment ago, so opening doesn't fetch again, and doesn't wait on the network.
+    await fetcher.fetchNow([join(origin.repo, ".git")])
+    await fetcher.idle()
+    const opened = await worktrees.open({
       projectId: "p2",
       terminalId: "t1",
       cwd: origin.repo,
       branch: "feat/new",
     })
     if (!opened.ok) throw new Error(opened.reason)
+    expect(fetches).toHaveLength(1)
     expect(opened.base).toBe(landed)
     expect(existsSync(join(opened.path, "b.txt"))).toBe(true)
     // The checkout itself is left alone.
     expect(existsSync(join(origin.repo, "b.txt"))).toBe(false)
   })
+
+  it.skipIf(process.platform === "win32")(
+    "doesn't wait past its bound for a remote that hangs, and doesn't cut the fetch short",
+    async ({ resources, fx: f }) => {
+      const origin = withOrigin((cleanup) => resources.defer(cleanup))
+      await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
+      const cached = git(origin.repo, "rev-parse", "origin/main")
+      // A remote that is a program which never answers.
+      git(origin.repo, "config", "protocol.ext.allow", "always")
+      git(origin.repo, "remote", "set-url", "origin", "ext::sleep 30")
+      const { fetches, fetcher, worktrees } = recording(resources, f, 400)
+      const started = Date.now()
+      const opened = await worktrees.open({
+        projectId: "p2",
+        terminalId: "t1",
+        cwd: origin.repo,
+        branch: "feat/hung",
+      })
+      if (!opened.ok) throw new Error(opened.reason)
+      expect(Date.now() - started).toBeLessThan(5000)
+      expect(opened.base).toBe(cached)
+      // The fetch went on with the usual limit, not the caller's, and is still going.
+      expect(fetches).toHaveLength(1)
+      expect(fetches[0]?.ms).toBe(fetchTimeoutMs)
+      expect(fetcher.fetchedAt(join(origin.repo, ".git"))).toBeUndefined()
+      // Still under way: asking again waits for it the whole bound, and starts no second one.
+      const asked = Date.now()
+      await fetcher.fetchBriefly(join(origin.repo, ".git"), 300)
+      expect(Date.now() - asked).toBeGreaterThanOrEqual(250)
+      expect(fetches).toHaveLength(1)
+    },
+  )
 
   it("starts from the cached main when the remote can't be reached", async ({
     resources,

@@ -98,7 +98,7 @@ const noWorks = {
 
 // What the Files panel's checkout state is without a worktrees service: nothing to say or move.
 const noCheckouts = {
-  read: () => Promise.resolve({ behind: null, moved: 0 }),
+  read: () => Promise.resolve({ behind: null, moved: 0, head: null }),
   update: () => Promise.resolve({ ok: false as const, said: "There is nothing to update." }),
 }
 

@@ -355,6 +355,11 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     exists: (terminalId) =>
       terminals.place(terminalId) !== undefined || store.terminalExists(terminalId),
     ...(options.worktreesRoot !== undefined && { root: options.worktreesRoot }),
+    // Beside the database, owner-only: where a repository's hooks are pointed away to.
+    ...(options.database !== undefined &&
+      options.database !== ":memory:" && {
+        hooksFolder: join(dirname(options.database), "no-hooks"),
+      }),
   })
   const rootFolder = new RootFolder({
     enabled: () => store.settings.runner().worktrees,

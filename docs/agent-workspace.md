@@ -742,8 +742,10 @@ with every safety check again at that time:
     `from` (left out: the checkout's `HEAD`, or the remote's main when the checkout is on the local
     branch that main is, as `main` for `origin/main`, and `HEAD` is a strict ancestor of it, so a stale
     checkout doesn't make a stale branch; a feature branch, a `HEAD` ahead or diverged, or no main
-    keeps `HEAD`; main is fetched first for at most five seconds, and a remote that is slow or
-    fails leaves the cached one, so creating never waits on the network), or checks out the branch if it exists, with 60 seconds,
+    keeps `HEAD`; main is fetched first, before the service's queue and not if it was fetched in the last
+    minute, and the call waits at most five seconds for it: the fetch keeps its usual time limit and
+    carries on in the background, and a remote that is slow or fails leaves the cached main, so creating
+    never waits on the network), or checks out the branch if it exists, with 60 seconds,
     and `core.longpaths` on Windows, after `git check-ref-format --branch`. It answers the path,
     the branch and the paths of AGENTS.md, CLAUDE.md and GEMINI.md at the worktree's top, and
     tells the agent to read them, as no harness loads them from an added folder.
@@ -833,18 +835,21 @@ with every safety check again at that time:
     there is no `index.lock`; no tracked file has changes, staged or not (untracked files don't count; git
     refuses to overwrite them); `HEAD` is a strict ancestor of main. The checks read with
     `--no-optional-locks` and run with the fetch's no-prompt environment; `HEAD` and the branch are read
-    again right before the move. It is `git -c core.hooksPath=<empty folder the runner owns, in the temp
-    folder> -c core.fsmonitor=false -c merge.autoStash=false merge --ff-only --no-verify-signatures
+    again right before the move, and the branch once more after it (a change is logged at warn level). It is
+    `git -c core.hooksPath=<an empty folder the runner owns, `no-hooks` beside its database, emptied and owner-only at first
+    use and kept; a private temporary one without a database> -c core.fsmonitor=false -c merge.autoStash=false merge --ff-only --no-verify-signatures
     --no-overwrite-ignore --quiet <the commit checked>`, with no time limit and outside the shutdown
-    scope, since a checkout stopped halfway leaves a half-updated tree. Moves of one repository run one
-    at a time. Any failure, a lock held by the person's git, a shallow clone or a missing ref is debug-logged
+    scope, since a checkout stopped halfway leaves a half-updated tree. The fetch doesn't wait for the
+    move, so a merge that hangs stalls nothing else. Moves of one repository run one at a time. Any failure, a lock held by the person's git, a shallow clone or a missing ref is debug-logged
     and ignored, and the next fetch tries again. It only happens for repositories with a tracked
     worktree, as only those are fetched. The one switch is `MainFetcher`'s `follow` option.
-    Where the checkout is on main and behind but a guard held it (tracked changes or an operation),
-    `projects.checkout` reports `behind`, and the Files panel says "main is N behind origin" with
+    Where the checkout is on main and behind and was not moved, whatever held it (tracked changes, an
+    operation, a file in the way, a repository not fetched since), `projects.checkout` reports `behind`, and the Files panel says "main is N behind origin" with
     Update (`projects.updateCheckout`): the same move with tracked changes allowed, where git itself
-    refuses if a changed file is in the way, and its reason is shown. The panel asks every 20 s
-    while shown and, when `moved` changes, reads its folders again, so added and removed files show.
+    refuses if a changed file is in the way, and its reason is shown in plain words ("Your changes to
+    src/a.ts would be overwritten."). The panel asks every 20 s while shown, one read at a time, and when
+    `moved` or `head` (the commit HEAD is at) changes, which the person's own pull does too, reads its
+    folders again, so added and removed files show.
   - **Restore and looking again.** A restore from History makes a new terminal id; when the restore
     is confirmed (or a newer row of the same conversation replaces the row) `ClosedTerminals` tells
     the service, which moves the old id's worktrees to the new one in its queue before the row goes.

@@ -467,8 +467,16 @@ export const createDemoFiles = (
   }
   const checkout = async (id: string): Promise<CheckoutState> =>
     id === projectId && standing
-      ? { behind: { branch: "main", remote: "origin/main", count: standing.count }, moved }
-      : { behind: null, moved: id === projectId ? moved : 0 }
+      ? {
+          behind: { branch: "main", remote: "origin/main", count: standing.count },
+          moved,
+          head: `demo-${moved}`,
+        }
+      : {
+          behind: null,
+          moved: id === projectId ? moved : 0,
+          head: id === projectId ? `demo-${moved}` : null,
+        }
   const update = async (id: string): Promise<CheckoutUpdate> => {
     if (id === projectId && standing?.refusal !== undefined)
       return { ok: false, said: standing.refusal }

@@ -8,7 +8,7 @@ import { startTestRunner } from "./testing/runner"
 
 // The checkout calls the files under test don't make.
 const noCheckout = {
-  checkout: async () => ({ behind: null, moved: 0 }),
+  checkout: async () => ({ behind: null, moved: 0, head: null }),
   updateCheckout: async () => ({ ok: true as const }),
 }
 
@@ -51,7 +51,11 @@ describe("the runner's files", () => {
       folder: async () => ({ entries: [], truncated: false }),
       checkout: async (input) => {
         asked.push(`checkout ${input.projectId}`)
-        return { behind: { branch: "main", remote: "origin/main", count: 3 }, moved: 1 }
+        return {
+          behind: { branch: "main", remote: "origin/main", count: 3 },
+          moved: 1,
+          head: "abc",
+        }
       },
       updateCheckout: async (input) => {
         asked.push(`update ${input.projectId}`)
@@ -89,7 +93,11 @@ describe("the runner's files", () => {
         await expect(files.list(project.id, "..")).rejects.toMatchObject({
           code: "INVALID_DIRECTORY",
         })
-        await expect(files.checkout?.(project.id)).resolves.toEqual({ behind: null, moved: 0 })
+        await expect(files.checkout?.(project.id)).resolves.toEqual({
+          behind: null,
+          moved: 0,
+          head: null,
+        })
       } finally {
         await runner.close()
       }

@@ -34,6 +34,8 @@ export type Run =
       readonly said: string
       /** What it printed before it failed, where it did (a `merge-tree` that conflicts). */
       readonly out?: string
+      /** What it said past its first line, as lines without invisible characters (up to 4 KiB). */
+      readonly err?: readonly string[]
     }
 
 // What git said, as one line without invisible characters.
@@ -167,7 +169,12 @@ export const git = (
         )
       if (code === 0) return finish({ ok: true, out, cut: false })
       const said = oneLine(errors.toString("utf8").split("\n")[0] ?? "", 200)
-      finish({ ok: false, kind: "exit", status: code ?? -1, said, out })
+      const err = errors
+        .toString("utf8")
+        .split("\n")
+        .map((each) => oneLine(each, 300))
+        .filter((each) => each !== "")
+      finish({ ok: false, kind: "exit", status: code ?? -1, said, out, err })
     })
   })
 

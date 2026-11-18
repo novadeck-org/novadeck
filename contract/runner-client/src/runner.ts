@@ -143,7 +143,8 @@ export type Runner = {
     folder(input: { readonly projectId: string; readonly folder: string }): Promise<FolderListing>
     /**
      * How the project's own checkout stands against its remote's main: how far behind it is
-     * where it is on main with main ahead of it, and how many times the runner moved it. Rejects
+     * where it is on main with main ahead of it, how many times the runner moved it, and the
+     * commit it is at. Rejects
      * with `NOT_FOUND` for a project the runner doesn't have.
      */
     checkout(input: { readonly projectId: string }): Promise<CheckoutState>
