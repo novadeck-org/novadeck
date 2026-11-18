@@ -353,10 +353,11 @@ refreshSession()") and the lines it spans; a change past 36 rows shows its start
 "N more changed lines · +N −N · Show", and the unchanged stretches between changes are folded
 with a click to show them. Esc or ‹ shrinks the heading back into its row; J and K step through
 the selection's files. Lines are unified, in classic green and red from the
-theme's own tokens (the row ground is `--color-success` / `--color-danger` mixed to 55%, 50% on a
-light scheme; bar, sign and number are the `-fg` inks; a changed token is that ink at 24%), the
-changed tokens of a replaced line marked, and lines whose tokens are the same with other
-whitespace shown once as plain lines and counted apart ("+4 −6 · 4 re-indented"). Monochrome
+theme's own `--color-success-fg` / `--color-danger-fg` inks (a sea green and a rose in Coolant),
+carried by the gutter: the number and sign sit on the ink at 20% (18% on a light scheme), the line
+on the ink at 5% (7%), with no bar. The changed tokens of a replaced line are marked, each
+changed run one mark at the ink's 30%, and lines whose tokens are the same with other
+whitespace are shown once as plain lines and counted apart ("+4 −6 · 4 re-indented"). Monochrome
 themes read by the `+` and `−` signs.
 
 What it says of a change is facts only, computed in the page from the two sides' text with the
