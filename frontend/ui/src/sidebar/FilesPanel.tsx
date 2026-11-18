@@ -29,6 +29,7 @@ import {
   type Listings,
   type FilesRow,
 } from "./files-tree"
+import { CheckoutLine, useCheckout, type Checkout } from "./FilesCheckout"
 import { FilesStrip } from "./FilesStrip"
 import { NoteRow, TreeRow, type Pointed } from "./FilesTreeRows"
 import { panelLabels } from "./panel-labels"
@@ -52,6 +53,7 @@ const FilesPanelView = ({
   project,
   list,
   turn,
+  checkout,
   watch,
   onOpenFile,
   onLit,
@@ -68,6 +70,8 @@ const FilesPanelView = ({
   list: (folder: string) => Promise<FolderListing>
   // When an agent's turn last ended in the project, which has the folders read again.
   turn: number
+  // The project's own checkout against its remote's main, where the backend has one to move.
+  checkout?: Checkout | undefined
   // Follows the works `project` comes from until the returned release is called, where it
   // comes from them.
   watch?: (() => () => void) | undefined
@@ -145,6 +149,9 @@ const FilesPanelView = ({
     if (!showing) return
     for (const folder of wanted) if (!listings.has(folder) && !isReading(folder)) read(folder)
   }, [showing, wanted, listings, read, isReading])
+  // The backend moved the checkout to main: the files on disk changed, so what is on screen is
+  // read again, added and removed files with it.
+  const checkoutState = useCheckout(checkout, showing, turn, () => wantedNow.current.forEach(read))
   const [selected, setSelected] = useState<string | null>(null)
   // A chip can leave from under the pointer, folded into `+N` by another agent's write or a
   // narrower tree, with no pointerleave to say so: the agent stays lit only while that row still
@@ -326,6 +333,14 @@ const FilesPanelView = ({
         </Tooltip>
       }
     >
+      {checkoutState.state && (
+        <CheckoutLine
+          state={checkoutState.state}
+          updating={checkoutState.updating}
+          refused={checkoutState.refused}
+          onUpdate={checkoutState.update}
+        />
+      )}
       {slots.length > 0 && (
         <FilesStrip
           slots={slots}

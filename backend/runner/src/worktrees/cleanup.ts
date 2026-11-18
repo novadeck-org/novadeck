@@ -22,6 +22,8 @@ export type CleanupHost = {
   /** How often the worktrees are looked at, in milliseconds (a minute when omitted). */
   readonly sweepMs?: number
   readonly fetcher?: MainFetcher
+  /** The runner's own folder for git's hooks to be pointed at while a checkout moves. */
+  readonly hooksFolder?: string
 }
 
 /** A worktree a look found holding something stays unlooked-at, in the queue, this long unless it changes. */
@@ -56,12 +58,32 @@ export class Cleanup {
     private readonly service: Worktrees,
     private readonly host: CleanupHost,
   ) {
-    this.fetcher = host.fetcher ?? new MainFetcher({ ...(host.now && { now: host.now }) })
+    this.fetcher =
+      host.fetcher ??
+      new MainFetcher({
+        ...(host.now && { now: host.now }),
+        ...(host.hooksFolder !== undefined && { hooksFolder: host.hooksFolder }),
+      })
   }
 
   /** When the repository's origin was last fetched. */
   fetchedAt(commonDir: string): number | undefined {
     return this.fetcher.fetchedAt(commonDir)
+  }
+
+  /** Fetches one repository's origin for a caller that can't wait: see `MainFetcher.fetchBriefly`. */
+  fetchBriefly(commonDir: string, ms: number): Promise<void> {
+    return this.fetcher.fetchBriefly(commonDir, ms)
+  }
+
+  /** How many times the repository's checkout was moved to its main: see `MainFetcher.moved`. */
+  moved(commonDir: string): number {
+    return this.fetcher.moved(commonDir)
+  }
+
+  /** Moves the repository's checkout to its main on the person's say: see `MainFetcher.update`. */
+  update(commonDir: string): ReturnType<MainFetcher["update"]> {
+    return this.fetcher.update(commonDir)
   }
 
   /** Fetches the repositories' origins now: see `MainFetcher.fetchNow`. */

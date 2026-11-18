@@ -1,4 +1,6 @@
 import type {
+  CheckoutState,
+  CheckoutUpdate,
   ProjectFiles,
   FolderEntry,
   TouchedFile,
@@ -380,7 +382,19 @@ const restMs = { min: 10_000, max: 20_000 }
 const between = (range: { min: number; max: number }, roll: number): number =>
   range.min + Math.floor(roll * (range.max - range.min + 1))
 
+// How the debug panel has the storefront's own checkout stand against main: `count` commits
+// behind where Novadeck left it alone, and `refusal`, git's reason, where an update is refused.
+export type DemoCheckout = { readonly count: number; readonly refusal?: string }
+
+// The file main brings to the checkout when it moves, and the one it takes away.
+export const movedFiles = { added: "src/checkout/Receipt.tsx", removed: "src/components/Price.tsx" }
+
 export type DemoFiles = ProjectFiles & {
+  // Has the storefront's checkout stand as `checkout` says (undefined: up to date).
+  readonly stand: (checkout: DemoCheckout | undefined) => void
+  // Has main move the checkout, as a fetch does where nothing holds it back: the files on disk
+  // change (`movedFiles`), which the panel, shown, reads again within a few seconds.
+  readonly move: () => void
   // Has the next reads of `folder` go as `fault` says, or normally for none. The panel reads
   // a folder again when it is shown again or an agent's turn ends.
   readonly degrade: (folder: string, fault: FilesFault | undefined) => void
@@ -440,6 +454,39 @@ export const createDemoFiles = (
   const mark = (handle: string, path: string, kind: TouchedFile["kind"] | undefined): void =>
     change((project) => markIn(project, handle, path, kind, clock.now()))
 
+  // The storefront's checkout, and how many times main moved it (an update counts).
+  let standing: DemoCheckout | undefined
+  let moved = 0
+  let movedOnDisk = false
+  const stand = (checkout: DemoCheckout | undefined): void => {
+    standing = checkout
+  }
+  const move = (): void => {
+    movedOnDisk = true
+    moved += 1
+  }
+  const checkout = async (id: string): Promise<CheckoutState> =>
+    id === projectId && standing
+      ? {
+          behind: { branch: "main", remote: "origin/main", count: standing.count },
+          moved,
+          head: `demo-${moved}`,
+        }
+      : {
+          behind: null,
+          moved: id === projectId ? moved : 0,
+          head: id === projectId ? `demo-${moved}` : null,
+        }
+  const update = async (id: string): Promise<CheckoutUpdate> => {
+    if (id === projectId && standing?.refusal !== undefined)
+      return { ok: false, said: standing.refusal }
+    if (id === projectId && standing) {
+      standing = undefined
+      move()
+    }
+    return { ok: true }
+  }
+
   const faults = new Map<string, FilesFault>()
   const degrade = (folder: string, fault: FilesFault | undefined): void => {
     if (fault) faults.set(folder, fault)
@@ -449,7 +496,17 @@ export const createDemoFiles = (
     const fault = faults.get(folder)
     if (fault === "fail") throw new Error("This folder can't be read")
     if (fault === "empty") return { entries: [], truncated: false }
-    const tree = treeOf(id)
+    const base = treeOf(id)
+    const tree =
+      id === projectId && movedOnDisk
+        ? {
+            ...base,
+            entries: [
+              ...base.entries.filter((path) => path !== movedFiles.removed),
+              movedFiles.added,
+            ],
+          }
+        : base
     const known = tree.entries.some(
       (path) => trimmed(path) === folder || path.startsWith(`${folder}/`),
     )
@@ -532,7 +589,21 @@ export const createDemoFiles = (
     }
   }
 
-  return { state, list, degrade, write, mark, endTurn, start, close, halt }
+  return {
+    state,
+    list,
+    checkout,
+    update,
+    stand,
+    move,
+    degrade,
+    write,
+    mark,
+    endTurn,
+    start,
+    close,
+    halt,
+  }
 }
 
 // A backend with the demo's files for the storefront project.

@@ -79,6 +79,16 @@ export const SidebarSection = memo((): React.JSX.Element => {
     (folder: string) => filesFeed!.list(projectId, folder),
     [filesFeed, projectId],
   )
+  const checkout = useMemo(
+    () =>
+      filesFeed?.checkout && filesFeed.update
+        ? {
+            read: () => filesFeed.checkout!(projectId),
+            update: () => filesFeed.update!(projectId),
+          }
+        : undefined,
+    [filesFeed, projectId],
+  )
   const selectedHandle = useWorkspaceState((workspace) => {
     const { roster, selected } = currentState(workspace)
     return roster.terminals.find((terminal) => terminal.id === selected)?.handle
@@ -310,6 +320,7 @@ export const SidebarSection = memo((): React.JSX.Element => {
             key={projectId}
             project={filesProject ?? worksOverlay}
             list={list}
+            checkout={checkout}
             watch={watchWorks}
             onOpenFile={onOpenFile}
             onLit={onLit}

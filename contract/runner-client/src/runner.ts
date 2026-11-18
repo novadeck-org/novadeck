@@ -15,6 +15,8 @@ import {
   type ClosedTerminal,
   type CompanionWindow,
   type FeedbackDraft,
+  type CheckoutState,
+  type CheckoutUpdate,
   type FolderListing,
   type ForgeIntegration,
   type ForgeName,
@@ -139,6 +141,19 @@ export type Runner = {
      * outside the project's directory.
      */
     folder(input: { readonly projectId: string; readonly folder: string }): Promise<FolderListing>
+    /**
+     * How the project's own checkout stands against its remote's main: how far behind it is
+     * where it is on main with main ahead of it, how many times the runner moved it, and the
+     * commit it is at. Rejects
+     * with `NOT_FOUND` for a project the runner doesn't have.
+     */
+    checkout(input: { readonly projectId: string }): Promise<CheckoutState>
+    /**
+     * Fast-forwards the project's own checkout to its remote's main on the person's say, tracked
+     * changes allowed; `ok: false` says git's reason. Rejects with `NOT_FOUND` for a project the
+     * runner doesn't have.
+     */
+    updateCheckout(input: { readonly projectId: string }): Promise<CheckoutUpdate>
   }
   readonly sessions: {
     list(input: { readonly projectId: string }): Promise<WorkspaceSession[]>
@@ -787,6 +802,8 @@ export const connectRunner = async (
           client.projects.arrange({ order: [...input.order], pinned: [...input.pinned] }),
         ),
       folder: (input) => call((client) => client.projects.folder(input)),
+      checkout: (input) => call((client) => client.projects.checkout(input)),
+      updateCheckout: (input) => call((client) => client.projects.updateCheckout(input)),
     },
     sessions: {
       list: (input) => call((client) => client.sessions.list(input)),

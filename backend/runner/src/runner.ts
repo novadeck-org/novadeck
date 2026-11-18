@@ -35,6 +35,7 @@ import {
   WorkspaceTooNewError,
 } from "./workspaces/store.js"
 import { keepWorktreeChanges } from "./worktrees/changes-shown.js"
+import { MainCheckouts } from "./worktrees/main-checkout.js"
 import { RootFolder } from "./worktrees/root-folder.js"
 import { Worktrees } from "./worktrees/worktrees.js"
 
@@ -354,6 +355,11 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     exists: (terminalId) =>
       terminals.place(terminalId) !== undefined || store.terminalExists(terminalId),
     ...(options.worktreesRoot !== undefined && { root: options.worktreesRoot }),
+    // Beside the database, owner-only: where a repository's hooks are pointed away to.
+    ...(options.database !== undefined &&
+      options.database !== ":memory:" && {
+        hooksFolder: join(dirname(options.database), "no-hooks"),
+      }),
   })
   const rootFolder = new RootFolder({
     enabled: () => store.settings.runner().worktrees,
@@ -492,6 +498,10 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     held: () => secrets(agents.environment()),
     ...(memory !== undefined && { memory }),
   })
+  const checkouts = new MainCheckouts({
+    moved: (commonDir) => worktrees.moved(commonDir),
+    update: (commonDir) => worktrees.update(commonDir),
+  })
   const uploads = new Uploads(options.uploads)
   void uploads.sweepOld()
   return {
@@ -503,6 +513,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     items,
     projects,
     works,
+    checkouts,
     forges,
     worktrees,
     snapshots,
@@ -579,6 +590,7 @@ const startRunner = (options: RunnerOptions): Runner => {
     agents,
     projects,
     works,
+    checkouts,
     forges,
     worktrees,
     snapshots,
@@ -599,6 +611,7 @@ const startRunner = (options: RunnerOptions): Runner => {
         feedback: terminals.feedback,
         history: terminals.history,
         works,
+        checkouts,
         forges,
         projects,
         items,

@@ -2,6 +2,7 @@ import { existsSync } from "node:fs"
 import { mkdir, realpath } from "node:fs/promises"
 import { join, resolve, sep } from "node:path"
 
+import { behindMain, onMain } from "../checkouts/repository.js"
 import { logs } from "../log.js"
 import { Cleanup, type CleanupHost, type OwnerState } from "./cleanup.js"
 import type { WorktreeRecord, WorktreeRecords } from "./records.js"
@@ -45,6 +46,10 @@ export type WorktreesHost = {
   readonly busy?: CleanupHost["busy"]
   /** Cleanup's own timing and fetcher, which tests replace. */
   readonly cleanup?: Pick<CleanupHost, "sweepMs" | "fetcher">
+  /** The runner's own folder for git's hooks to be pointed at while a checkout moves. */
+  readonly hooksFolder?: string
+  /** How long a new worktree waits for the remote's main; five seconds when omitted. */
+  readonly freshMainMs?: number
 }
 
 type Failure = { readonly ok: false; readonly reason: string }
@@ -116,6 +121,9 @@ export const folderName = (text: string): string =>
     .replaceAll(/^[-.]+|[-.]+$/g, "")
     .slice(0, 80)
 
+/** How long a new worktree waits for the remote's main before it starts from the one it has. */
+const freshMainMs = 5000
+
 /**
  * The git worktrees agents work in: who owns each, and how they are made, taken, given and
  * closed. Only agents move ownership; nothing here watches git for worktrees made another way.
@@ -140,6 +148,7 @@ export class Worktrees {
       owner: host.owner ?? ((id) => (host.exists(id) ? "open" : "gone")),
       ...(host.busy && { busy: host.busy }),
       ...(host.now && { now: host.now }),
+      ...(host.hooksFolder !== undefined && { hooksFolder: host.hooksFolder }),
       ...host.cleanup,
     })
   }
@@ -212,6 +221,16 @@ export class Worktrees {
     return this.cleanup.fetchedAt(commonDir)
   }
 
+  /** How many times the repository's checkout was moved to its main since the runner began. */
+  moved(commonDir: string): number {
+    return this.cleanup.moved(commonDir)
+  }
+
+  /** Moves the repository's checkout to its main on the person's say (`Cleanup.update`). */
+  update(commonDir: string): ReturnType<Cleanup["update"]> {
+    return this.cleanup.update(commonDir)
+  }
+
   /** Fetches the repositories' origins now, and waits for that (`Cleanup.fetchNow`). */
   fetchNow(commonDirs: Iterable<string>): Promise<void> {
     return this.cleanup.fetchNow(commonDirs)
@@ -277,8 +296,8 @@ export class Worktrees {
   }
 
   /**
-   * Makes a worktree for the terminal: a new branch from `from` (the checkout's HEAD when
-   * omitted), or an existing branch checked out. `cwd` is where the terminal is; `repo` a
+   * Makes a worktree for the terminal: a new branch from `from` (when omitted, the remote's main if the
+   * checkout is on a main that is behind it, else the checkout's HEAD), or an existing branch checked out. `cwd` is where the terminal is; `repo` a
    * folder in the repository, absolute or relative to it.
    */
   open(input: {
@@ -290,7 +309,26 @@ export class Worktrees {
     readonly from?: string | undefined
     readonly group?: string | undefined
   }): Promise<Opened | Failure> {
-    return this.serial(() => this.opening(input))
+    // Main is made current before the queue, which every repository's operations wait in.
+    return this.fresh(input).then(() => this.serial(() => this.opening(input)))
+  }
+
+  // A new branch from a checkout on main starts from the remote's main, fetched for a moment at
+  // most: a slow or failing remote leaves the cached one, and the fetch carries on meanwhile.
+  private async fresh(input: Parameters<Worktrees["open"]>[0]): Promise<void> {
+    if (input.from !== undefined) return
+    try {
+      const folder = resolve(input.cwd, input.repo ?? ".")
+      const found = await repositoryAt(folder)
+      if (!found.ok || (await onMain(folder)) === undefined) return
+      if ((await branchTip(found.repository.home, input.branch)) !== undefined) return
+      await this.cleanup.fetchBriefly(
+        found.repository.commonDir,
+        this.host.freshMainMs ?? freshMainMs,
+      )
+    } catch {
+      // The cached main stands.
+    }
   }
 
   private async opening(input: Parameters<Worktrees["open"]>[0]): Promise<Opened | Failure> {
@@ -315,7 +353,8 @@ export class Worktrees {
       return refused(
         `${input.branch} exists already, so it is checked out as it is: leave from out.`,
       )
-    const start = input.from ?? "HEAD"
+    // Left out, it starts from main when the checkout sits on a stale local main, else from HEAD.
+    const start = input.from ?? (await behindMain(folder))?.commit ?? "HEAD"
     const base = tip ?? (await commitAt(folder, start))
     if (base === undefined) return refused(`${start} isn't a commit in ${repository.name}.`)
     await mkdir(join(wanted, ".."), { recursive: true })
