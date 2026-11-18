@@ -842,6 +842,43 @@ describe("the frame's hold on the focus", () => {
     }
   })
 
+  it("goes back from the frame when nothing here held it", async () => {
+    // Left for empty space, nothing in the page holds the focus; the frame then takes it, and says
+    // so if a key reaches it.
+    const steal = `function steal({ port }) {
+      port.postMessage({ type: "ready" })
+      port.postMessage({ type: "busy", busy: false })
+      document.body.style.cssText = "height: 100vh; margin: 0"
+      let armed = false
+      document.addEventListener("pointerdown", () => {
+        if (armed) return
+        armed = true
+        setTimeout(() => {
+          window.focus()
+          document.body.tabIndex = 0
+          document.body.focus()
+        }, 1000)
+      })
+      document.addEventListener("keydown", () => port.postMessage({ type: "busy", busy: true }))
+    }`
+    const pane = paneIn()
+    mountIsolated(pane, pdfOf(1), { viewer: steal })
+    await new Promise((settled) => setTimeout(settled, 1500))
+    const host = pane.querySelector(".pdf-host")!
+    await expect.poll(() => host.getAttribute("aria-busy")).toBe("false")
+    await userEvent.click(pane.querySelector<HTMLElement>(".pdf-glass")!)
+    await userEvent.click(pane.querySelector("iframe")!)
+    // Empty space: nothing here takes the focus.
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    await userEvent.click(document.body, { position: { x: 600, y: 700 } })
+    expect(document.activeElement).toBe(document.body)
+    await new Promise((settled) => setTimeout(settled, 2500))
+    expect(document.activeElement).not.toBe(pane.querySelector("iframe"))
+    await userEvent.keyboard("q")
+    await new Promise((settled) => setTimeout(settled, 300))
+    expect(host.getAttribute("aria-busy")).toBe("false")
+  })
+
   it("is the frame's when the person presses on it, or Tabs to it", async () => {
     const pane = paneIn()
     mountIsolated(pane, pdfOf(1))

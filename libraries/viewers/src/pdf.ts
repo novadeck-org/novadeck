@@ -288,6 +288,10 @@ export const mountPdf: Mount<
   }
   document.addEventListener("focusin", remember, true)
   document.addEventListener("focusout", check, true)
+  // With nothing here holding the focus, no focusout comes: the window's blur does, as the focus
+  // goes into a frame, and a press anywhere checks too.
+  win.addEventListener("blur", check)
+  document.addEventListener("pointerdown", check, true)
   iframe.addEventListener("focus", () => {
     if (given) return void (glass.hidden = true)
     putBack()
@@ -351,6 +355,8 @@ export const mountPdf: Mount<
       win.clearTimeout(starting)
       document.removeEventListener("focusin", remember, true)
       document.removeEventListener("focusout", check, true)
+      win.removeEventListener("blur", check)
+      document.removeEventListener("pointerdown", check, true)
       win.clearTimeout(checking)
       opened?.close()
       scheme.removeEventListener("change", theme)
