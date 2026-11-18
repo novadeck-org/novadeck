@@ -436,26 +436,21 @@ describe("where a branch's work landed in main", () => {
 })
 
 describe.skipIf(!hasGit)("a checkout behind its remote's main", () => {
-  // About 37 git runs in a row, two clones, three pushes and a pull among them, each a few
-  // processes: on a Windows runner (some 17 times slower than Linux) that took 28 s a try, and
-  // as the runs are synchronous the 20 s timeout only fired after them, on all three tries.
-  it(
-    "counts the commits main has that a checkout on main lacks, and says nothing otherwise",
-    { timeout: 60_000 },
-    async ({ resources }) => {
-      const origin = withOrigin((cleanup) => resources.defer(cleanup))
-      expect(await behindMain(origin.repo)).toBeUndefined()
-      origin.land("b.txt")
-      const last = origin.land("c.txt")
-      origin.fetch()
-      expect(await behindMain(origin.repo)).toMatchObject({
-        branch: "main",
-        remote: "origin/main",
-        commit: last,
-        behind: 2,
-      })
-      gitIn(origin.repo, "checkout", "--quiet", "--detach")
-      expect(await behindMain(origin.repo)).toBeUndefined()
-    },
-  )
+  it("counts the commits main has that a checkout on main lacks, and says nothing otherwise", async ({
+    resources,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    expect(await behindMain(origin.repo)).toBeUndefined()
+    origin.land("b.txt")
+    const last = origin.land("c.txt")
+    origin.fetch()
+    expect(await behindMain(origin.repo)).toMatchObject({
+      branch: "main",
+      remote: "origin/main",
+      commit: last,
+      behind: 2,
+    })
+    gitIn(origin.repo, "checkout", "--quiet", "--detach")
+    expect(await behindMain(origin.repo)).toBeUndefined()
+  })
 })

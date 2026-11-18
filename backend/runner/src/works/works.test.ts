@@ -1242,41 +1242,39 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
     expect((await current(second.works)).get(main.root)).toMatchObject({ unreadAdded: 1 })
   })
 
-  // Each read is some 21 git runs (about 1.6 s on a loaded Windows runner), and this makes nine
-  // in all: some 14 s there, past the usual 20 s once the runner is busy. Six edits are
-  // enough for two rebuilds, and the test gets a minute.
-  it(
-    "rebuilds its object folder now and then, keeping the tree last read",
-    { timeout: 60_000 },
-    async ({ fixture, resources }) => {
-      const { main, holder } = fixture
-      const memory = join(holder, "state", "works.json")
-      main.write("b.txt", "one\n")
-      const there = [{ terminalId: terminal(1), root: main.root }]
-      const { works } = open(() => there, { memory, repackAfter: 3 })
-      resources.defer(() => works.close())
+  // Each read is some 21 git runs, and on a Windows runner the 12 reads this made took 15 to
+  // 18 s when it passed. Six edits, nine reads, still see two rebuilds at `repackAfter: 3`.
+  it("rebuilds its object folder now and then, keeping the tree last read", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main, holder } = fixture
+    const memory = join(holder, "state", "works.json")
+    main.write("b.txt", "one\n")
+    const there = [{ terminalId: terminal(1), root: main.root }]
+    const { works } = open(() => there, { memory, repackAfter: 3 })
+    resources.defer(() => works.close())
+    await current(works)
+    await works.look(main.root)
+    const folder = join(holder, "state", "works-objects")
+    const count = (path: string): number =>
+      readdirSync(path, { withFileTypes: true }).reduce(
+        (sum, entry) => sum + (entry.isDirectory() ? count(join(path, entry.name)) : 1),
+        0,
+      )
+    const sizes: number[] = []
+    for (let at = 1; at <= 6; at += 1) {
+      main.write("b.txt", `one\nedit ${at}\n`)
+      // eslint-disable-next-line no-await-in-loop -- Each read follows its edit.
       await current(works)
-      await works.look(main.root)
-      const folder = join(holder, "state", "works-objects")
-      const count = (path: string): number =>
-        readdirSync(path, { withFileTypes: true }).reduce(
-          (sum, entry) => sum + (entry.isDirectory() ? count(join(path, entry.name)) : 1),
-          0,
-        )
-      const sizes: number[] = []
-      for (let at = 1; at <= 6; at += 1) {
-        main.write("b.txt", `one\nedit ${at}\n`)
-        // eslint-disable-next-line no-await-in-loop -- Each read follows its edit.
-        await current(works)
-        sizes.push(count(join(folder, readdirSync(folder)[0]!)))
-      }
+      sizes.push(count(join(folder, readdirSync(folder)[0]!)))
+    }
 
-      // It does not grow with the reads, and the tree read is still known: only the edit is unread.
-      expect(Math.max(...sizes)).toBeLessThan(sizes.length * 3)
-      expect((await current(works)).get(main.root)).toMatchObject({ unreadAdded: 1 })
-      expect(readdirSync(folder).toSorted()).toHaveLength(1)
-    },
-  )
+    // It does not grow with the reads, and the tree read is still known: only the edit is unread.
+    expect(Math.max(...sizes)).toBeLessThan(sizes.length * 3)
+    expect((await current(works)).get(main.root)).toMatchObject({ unreadAdded: 1 })
+    expect(readdirSync(folder).toSorted()).toHaveLength(1)
+  })
 
   it("does not take a merge it could not make for no conflict, and reads again", async ({
     fixture,
