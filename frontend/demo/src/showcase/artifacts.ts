@@ -4,7 +4,11 @@ import type {
   FileContent,
   ItemContent,
   UnavailableReason,
+  FilePart,
 } from "@novadeck/core/items"
+
+import { clip, clipMime, clipSize } from "./clip"
+import { recording, recordingMime, recordingSize } from "./recording"
 
 // Something a sample agent shows: the item it points at, by an id that stays the same, and
 // what it holds there, or why it can't show.
@@ -17,6 +21,18 @@ export type SampleArtifact = {
   // A change's files read one at a time, as the runner reads them: the file's diff for the
   // layers selected.
   readonly changeFile?: (path: string, layers: readonly string[]) => ChangeFileDiff
+  // A video's or a recording's bytes, which its parts are cut from: `read` makes them when first asked, `part`
+  // is how many go in a part (the runner's 2 MiB unless given), and `delay` how long each
+  // part takes, in milliseconds, so a video can be seen loading.
+  readonly video?: {
+    readonly read: () => Promise<Uint8Array<ArrayBuffer>>
+    readonly part?: number
+    readonly delay?: number
+    // Why it can't be read, once the first part is: instead of its parts.
+    readonly reason?: Extract<FilePart, { state: "unavailable" }>["reason"]
+    // Its read fails, as when the link to the runner drops: the first part asked for rejects.
+    readonly fails?: true
+  }
 }
 
 export type SampleArtifacts = {
@@ -305,7 +321,7 @@ export const studioArtifacts: SampleArtifacts = {
 }
 
 // What the dev server's terminal holds that can't show, one of each reason, and text that
-// shows only in part: so each looks as it would.
+// shows only in part, a table among it: so each looks as it would.
 const unavailable = (
   id: string,
   item: Partial<SampleArtifact["item"]> & Pick<SampleArtifact["item"], "name">,
@@ -330,6 +346,191 @@ const cannot = (reason: UnavailableReason, size: number | null = null): ItemCont
   size,
 })
 
+// The videos an agent shows: one that plays at once, one that is read in small parts a moment
+// apart, one too large, one that can't be read, one the browser can't play, and one that may hold
+// secrets, so each state of the video pane can be reached. They all play the same clip.
+const videoItem = (
+  id: string,
+  name: string,
+  detail: string,
+  secret = false,
+): SampleArtifact["item"] => ({
+  id,
+  kind: "video",
+  name,
+  detail,
+  path: `${studio}/${secret ? ".private/" : "recordings/"}${name}`,
+  url: null,
+  lines: null,
+  secret,
+})
+
+// What a video holds: its format and size, from the stamp it is read at, shown `shown` times.
+export const videoContent = (
+  size: number,
+  { stamp = "1", shown = 1, at }: { stamp?: string; shown?: number; at?: number } = {},
+): ItemContent => ({
+  state: "ready",
+  stamp,
+  content: { kind: "video", mime: clipMime, size, shown, ...(at === undefined ? {} : { at }) },
+})
+
+const walkthrough: SampleArtifact = {
+  item: videoItem("studio-walkthrough", "walkthrough.webm", "640 × 360 WebM, 4 s"),
+  content: videoContent(clipSize),
+  video: { read: clip },
+}
+
+// The video again, as an agent shows it the `shown`th time, or after it rewrote the file (a
+// new stamp), starting `at` a second.
+export const videoAgain = (
+  sample: SampleArtifact,
+  fields: { stamp?: string; shown?: number; at?: number },
+): SampleArtifact => ({
+  ...sample,
+  content: videoContent(
+    sample.content.state === "ready" && sample.content.content.kind === "video"
+      ? sample.content.content.size
+      : clipSize,
+    fields,
+  ),
+})
+
+// Garbage in a video's or a recording's name: the file reads, and the browser can't play it.
+const garbage = new TextEncoder().encode("This is not a video. ".repeat(200))
+
+// A video or a recording as its render writes it in place, caught before it ends: a new file
+// of what the browser can't play yet, from `stamp`, shown the `shown`th time.
+export const caughtMidWrite = (
+  sample: SampleArtifact,
+  fields: { stamp: string; shown: number },
+): SampleArtifact => ({
+  ...sample,
+  content:
+    sample.item.kind === "audio"
+      ? recordingContent(garbage.length, fields)
+      : videoContent(garbage.length, fields),
+  video: { read: async () => garbage },
+})
+
+export const videoSamples = {
+  playable: walkthrough,
+  // About 12 parts, half a second each: its progress shows.
+  slow: {
+    item: videoItem("studio-slow", "slow-walkthrough.webm", "640 × 360 WebM, 4 s"),
+    content: videoContent(clipSize),
+    video: { read: clip, part: 8 * 1024, delay: 500 },
+  },
+  large: {
+    item: videoItem("studio-large", "launch-film.webm", "3840 × 2160 WebM"),
+    content: cannot("too-large", 740 * 1024 * 1024),
+  },
+  missing: {
+    item: videoItem("studio-gone", "old-cut.webm", "640 × 360 WebM"),
+    content: cannot("missing"),
+  },
+  unreadable: {
+    item: videoItem("studio-locked", "locked.webm", "640 × 360 WebM"),
+    content: videoContent(clipSize),
+    video: { read: clip, reason: "unreadable" },
+  },
+  failing: {
+    item: videoItem("studio-dropped", "dropped.webm", "640 × 360 WebM"),
+    content: videoContent(clipSize),
+    video: { read: clip, fails: true },
+  },
+  broken: {
+    item: videoItem("studio-broken", "broken.webm", "Not a video"),
+    content: videoContent(garbage.length),
+    video: { read: async () => garbage },
+  },
+  secret: {
+    item: videoItem("studio-private", "review.webm", "640 × 360 WebM", true),
+    content: videoContent(clipSize),
+    video: { read: clip },
+  },
+} satisfies Record<string, SampleArtifact>
+
+// The recordings an agent shows, the video's states over again: one that plays at once, one
+// read in small parts a moment apart, one too large, one gone, one that can't be read, one
+// the browser can't decode, and one that may hold secrets. They all play the same recording.
+const recordingItem = (
+  id: string,
+  name: string,
+  detail: string,
+  secret = false,
+): SampleArtifact["item"] => ({
+  ...videoItem(id, name, detail, secret),
+  kind: "audio",
+})
+
+// What a recording holds, as `videoContent` does a video.
+export const recordingContent = (
+  size: number,
+  { stamp = "1", shown = 1, at }: { stamp?: string; shown?: number; at?: number } = {},
+): ItemContent => ({
+  state: "ready",
+  stamp,
+  content: {
+    kind: "audio",
+    mime: recordingMime,
+    size,
+    shown,
+    ...(at === undefined ? {} : { at }),
+  },
+})
+
+// The recording again, as `videoAgain` does the video.
+export const recordingAgain = (
+  sample: SampleArtifact,
+  fields: { stamp?: string; shown?: number; at?: number },
+): SampleArtifact => ({
+  ...sample,
+  content: recordingContent(recordingSize, fields),
+})
+
+export const recordingSamples = {
+  playable: {
+    item: recordingItem("studio-voiceover", "voiceover.opus", "Ogg, 6 s"),
+    content: recordingContent(recordingSize),
+    video: { read: recording },
+  },
+  // About 4 parts, half a second each: its progress shows.
+  slow: {
+    item: recordingItem("studio-slow-voice", "slow-voiceover.opus", "Ogg, 6 s"),
+    content: recordingContent(recordingSize),
+    video: { read: recording, part: 8 * 1024, delay: 500 },
+  },
+  large: {
+    item: recordingItem("studio-long-voice", "interview.wav", "WAV, 2 h"),
+    content: cannot("too-large", 1.2 * 1024 * 1024 * 1024),
+  },
+  missing: {
+    item: recordingItem("studio-gone-voice", "old-take.mp3", "MP3"),
+    content: cannot("missing"),
+  },
+  unreadable: {
+    item: recordingItem("studio-locked-voice", "locked.mp3", "MP3"),
+    content: recordingContent(recordingSize),
+    video: { read: recording, reason: "unreadable" },
+  },
+  failing: {
+    item: recordingItem("studio-dropped-voice", "dropped.mp3", "MP3"),
+    content: recordingContent(recordingSize),
+    video: { read: recording, fails: true },
+  },
+  broken: {
+    item: recordingItem("studio-broken-voice", "broken.mp3", "Not a recording"),
+    content: recordingContent(garbage.length),
+    video: { read: async () => garbage },
+  },
+  secret: {
+    item: recordingItem("studio-private-voice", "call.opus", "Ogg", true),
+    content: recordingContent(recordingSize),
+    video: { read: recording },
+  },
+} satisfies Record<string, SampleArtifact>
+
 const logLines = Array.from(
   { length: 200 },
   (_, index) =>
@@ -348,6 +549,45 @@ const routeLines = [
   '    <Route path="/work/:slug" element={<Work />} />',
   "  </Routes>",
   ")",
+]
+
+// A long export the runner reads only the start of: a header, then visits, a few with quoted
+// fields, and a byte-order mark, as spreadsheets write one.
+const pages = ["/", "/work", "/work/harbour-press", "/about", "/journal, issue 4"]
+const visitLines = [
+  "\uFEFFday,page,visits,bounce rate,note",
+  ...Array.from({ length: 399 }, (_, index) => {
+    const page = pages[index % pages.length]!
+    // One note pasted in whole, past the line length the runner keeps, so its line is cut.
+    const pasted =
+      index === 200 ? `"${"Pasted from the newsletter: careful work. ".repeat(110)}"` : ""
+    const note = pasted || (index % 9 === 0 ? '"Newsletter went out; ""Careful work"" issue"' : "")
+    const day = new Date(Date.UTC(2025, 0, 1 + index)).toISOString().slice(0, 10)
+    const line = `${day},${page.includes(",") ? `"${page}"` : page},${120 + ((index * 37) % 900)},${((index * 13) % 70) + 10}%,${note}`
+    return line.slice(0, 4096)
+  }),
+]
+
+// Around lines an agent pointed at deep in a long export: no header among them, the first the
+// tail of a quoted note that began above them, and the file's length unknown past the budget.
+const orderLines = [
+  'packed twice, see ticket",shipped',
+  ...Array.from({ length: 90 }, (_, index) => {
+    const order = 48_960 + index
+    const note = index % 17 === 4 ? '"Gift wrap, no invoice"' : ""
+    return `${order},${["Oslo", "Rome", "Bern", "Lyon"][index % 4]},${(19 + ((index * 7) % 80)).toFixed(2)},${note},${index % 5 === 0 ? "returned" : "shipped"}`
+  }),
+]
+
+// A short table, whole, which the agent pointed at past its end; a size in inches opens one
+// row with a quote it never closes.
+const scoreLines = [
+  "font\tsize\tlegibility\tchosen",
+  "Harbour Serif\t11\t4.6\tyes",
+  "Harbour Serif Condensed\t9\t3.9\tyes",
+  "Grotesk\t10\t4.4\t",
+  '"Display 12 inch\t28\t4.8\tyes',
+  "Mono\t9\t3.1\tno",
 ]
 
 const envLines = [
@@ -392,6 +632,48 @@ export const devServerArtifacts: readonly SampleArtifact[] = [
     }),
   ),
   unavailable(
+    "dev-visits",
+    { name: "visits.csv", detail: "exports/visits.csv · its start" },
+    ready({
+      ...fileLines("exports/visits.csv", visitLines, { from: 1, to: visitLines.length }),
+      total: 12_034,
+    }),
+  ),
+  unavailable(
+    "dev-orders",
+    {
+      name: "orders.csv",
+      detail: "exports/orders.csv · lines 5,000–5,010",
+      lines: { from: 5000, to: 5010 },
+    },
+    ready({
+      ...fileLines("exports/orders.csv", orderLines, {
+        from: 5000,
+        to: 5010,
+        firstLine: 4960,
+      }),
+      total: null,
+      truncated: true,
+    }),
+  ),
+  unavailable(
+    "dev-signups",
+    { name: "signups.csv", detail: "exports/signups.csv" },
+    ready(fileLines("exports/signups.csv", ["email,joined,plan"], { from: 1, to: 1 })),
+  ),
+  unavailable(
+    "dev-fonts",
+    {
+      name: "type-tests.tsv",
+      detail: "research/type-tests.tsv · lines 6–9",
+      lines: { from: 6, to: 9 },
+    },
+    ready({
+      ...fileLines("research/type-tests.tsv", scoreLines, { from: 6, to: scoreLines.length }),
+      clamped: true,
+    }),
+  ),
+  unavailable(
     "dev-routes",
     { name: "routes.tsx", detail: "src/routes.tsx · lines 6–60", lines: { from: 6, to: 60 } },
     ready({
@@ -399,4 +681,6 @@ export const devServerArtifacts: readonly SampleArtifact[] = [
       clamped: true,
     }),
   ),
+  videoSamples.playable,
+  recordingSamples.playable,
 ]

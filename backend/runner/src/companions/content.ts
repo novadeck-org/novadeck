@@ -12,6 +12,9 @@ import {
   type ItemContent,
   type PlanSaveResult,
   type PlanUnwritable,
+  type FilePart,
+  partBytes,
+  videoLimits,
 } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
@@ -21,14 +24,45 @@ import type { ItemRecord } from "./records.js"
 import { failure, type RequestFailure } from "./request.js"
 import { secret } from "./secrets.js"
 
-// What is shown as an image, by extension.
+// What is shown as an image, by extension: what Chromium decodes itself, as the desktop app
+// and a browser both are, JPEG XL among them (probed in Electron 45.2.2, Chromium 156). HEIC,
+// TIFF and gzipped SVG aren't, so they stay files.
 const images: { readonly [extension: string]: string } = {
   ".png": "image/png",
+  ".apng": "image/apng",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
+  ".jpe": "image/jpeg",
+  ".jfif": "image/jpeg",
+  ".pjpeg": "image/jpeg",
+  ".pjp": "image/jpeg",
   ".gif": "image/gif",
   ".webp": "image/webp",
+  ".avif": "image/avif",
+  ".jxl": "image/jxl",
+  ".bmp": "image/bmp",
+  ".ico": "image/x-icon",
+  ".cur": "image/x-icon",
   ".svg": "image/svg+xml",
+}
+// What is played as a video, by extension: what Chromium plays, as the desktop app and a
+// browser both are. A QuickTime file plays where its codec is one of those.
+const videos: { readonly [extension: string]: string } = {
+  ".mp4": "video/mp4",
+  ".m4v": "video/mp4",
+  ".webm": "video/webm",
+  ".mov": "video/quicktime",
+}
+// What is played as a recording, by extension, as above.
+const recordings: { readonly [extension: string]: string } = {
+  ".mp3": "audio/mpeg",
+  ".m4a": "audio/mp4",
+  ".aac": "audio/aac",
+  ".wav": "audio/wav",
+  ".ogg": "audio/ogg",
+  ".oga": "audio/ogg",
+  ".opus": "audio/ogg",
+  ".flac": "audio/flac",
 }
 /** The largest image previewed; a larger one is listed without its picture. */
 export const maxImageBytes = 8 * 1024 * 1024
@@ -56,6 +90,16 @@ const unavailable = (reason: Unavailable["reason"], size: number | null = null):
 /** Whether a file is shown as an image, by its extension. */
 const isImage = (path: string): boolean => images[extname(path).toLowerCase()] !== undefined
 
+/** Whether a file is played as a video, by its extension. */
+const isVideo = (path: string): boolean => videos[extname(path).toLowerCase()] !== undefined
+
+/** Whether a file is played as a recording, by its extension. */
+const isAudio = (path: string): boolean => recordings[extname(path).toLowerCase()] !== undefined
+
+/** How a file is shown, by its extension: as an image, played as a video or a recording, or read. */
+const kindOf = (path: string): Pointed["kind"] =>
+  isImage(path) ? "image" : isVideo(path) ? "video" : isAudio(path) ? "audio" : "file"
+
 /**
  * The lines of a file of `total` lines shown, from `first` to `last`, and the ones
  * pointed at, `from` to `to`: every line of a short file; around `lines` in a longer
@@ -81,7 +125,7 @@ export type Pointed = {
   readonly ok: true
   /** Its path, symlinks resolved. */
   readonly path: string
-  readonly kind: "image" | "file"
+  readonly kind: "image" | "video" | "audio" | "file"
   readonly size: number
   readonly secret: boolean
 }
@@ -105,7 +149,7 @@ export const pointAt = async (
   return {
     ok: true,
     path,
-    kind: isImage(path) ? "image" : "file",
+    kind: kindOf(path),
     size: stats.size,
     secret: secret(path, env),
   }
@@ -458,6 +502,115 @@ export const loadFile = async (
     await handle.close().catch(() => {})
   }
 }
+
+/**
+ * A video or a recording, as it is now, symlinks resolved: its format and size, never its
+ * bytes, which `readPart` reads as the client plays it. Its stamp is the file's own, which each part
+ * is read against. One that may hold secrets is `secret` unless `reveal`; one past what the
+ * pane plays is `too-large`. `shown` is its item's version, and `at` the second its latest
+ * show starts it at.
+ */
+export const loadPlayed = async (
+  item: Pick<ItemRecord, "kind" | "path" | "secret">,
+  reveal: boolean,
+  show: { readonly shown: number; readonly at: number | undefined },
+  env?: NodeJS.ProcessEnv,
+): Promise<ItemContent> => {
+  if (item.path === null) return unavailable("missing")
+  let path: string
+  let stats: Stats
+  try {
+    path = await realpath(item.path)
+    stats = await stat(path)
+  } catch (error) {
+    return unavailable(reasonOf(error))
+  }
+  if (!stats.isFile()) return unavailable("not-a-file")
+  if ((item.secret || secret(path, env)) && !reveal) return unavailable("secret", stats.size)
+  if (stats.size > videoLimits.bytes) return unavailable("too-large", stats.size)
+  return {
+    state: "ready",
+    stamp: stampOf(stats),
+    content: {
+      kind: item.kind === "audio" ? "audio" : "video",
+      mime: mimeOf(path, item.kind),
+      size: stats.size,
+      shown: show.shown,
+      ...(show.at !== undefined && { at: show.at }),
+    },
+  }
+}
+
+/** A played file's format, by its extension, or by its kind where that names none. */
+const mimeOf = (path: string, kind: ItemRecord["kind"]): string => {
+  const extension = extname(path).toLowerCase()
+  return (
+    (kind === "audio" ? recordings[extension] : videos[extension]) ??
+    (kind === "audio" ? "audio/mpeg" : "video/mp4")
+  )
+}
+
+/** The kinds the client reads in parts, by the largest file each takes, in bytes. */
+export const partsOf: { readonly [kind in ItemRecord["kind"]]?: number } = {
+  video: videoLimits.bytes,
+  audio: videoLimits.bytes,
+}
+
+/**
+ * A part of an item's file from `offset`, up to `partBytes` bytes, read only while the
+ * file is as `stamp` names it: `changed` once it isn't, as when it was rendered again, so the
+ * client starts over from its new content. Past its end, the part is empty. A file past
+ * `largest` bytes, the most its kind takes, is `too-large`.
+ */
+export const readPart = async (
+  item: Pick<ItemRecord, "path" | "secret">,
+  part: { readonly stamp: string; readonly offset: number },
+  reveal: boolean,
+  largest: number,
+  env?: NodeJS.ProcessEnv,
+): Promise<FilePart> => {
+  if (item.path === null) return { state: "unavailable", reason: "missing" }
+  let path: string
+  let opened: Awaited<ReturnType<typeof openPlain>>
+  try {
+    path = await realpath(item.path)
+    opened = await openPlain(path)
+  } catch (error) {
+    const reason = reasonOf(error)
+    return { state: "unavailable", reason: reason === "missing" ? "missing" : unreadable(reason) }
+  }
+  if ("state" in opened) return { state: "unavailable", reason: "not-a-file" }
+  const { handle, stats } = opened
+  try {
+    if ((item.secret || secret(path, env)) && !reveal)
+      return { state: "unavailable", reason: "secret" }
+    if (stats.size > largest) return { state: "unavailable", reason: "too-large" }
+    if (stampOf(stats) !== part.stamp) return { state: "changed" }
+    const length = Math.max(0, Math.min(partBytes, stats.size - part.offset))
+    const buffer = Buffer.alloc(length)
+    let read = 0
+    while (read < length) {
+      // eslint-disable-next-line no-await-in-loop -- One chunk after another.
+      const { bytesRead } = await handle.read(buffer, read, length - read, part.offset + read)
+      if (bytesRead === 0) break
+      read += bytesRead
+    }
+    // Written to while it was read: what was read may be half of each.
+    const after = await handle.stat()
+    if (stampOf(after) !== part.stamp) return { state: "changed" }
+    return { state: "part", data: buffer.subarray(0, read).toString("base64") }
+  } catch (error) {
+    return { state: "unavailable", reason: unreadable(reasonOf(error)) }
+  } finally {
+    await handle.close().catch(() => {})
+  }
+}
+
+/** A reason a part can't be read for, of those a part can give. */
+const unreadable = (
+  reason: Unavailable["reason"],
+): Extract<FilePart, { state: "unavailable" }>["reason"] =>
+  reason === "not-a-file" || reason === "missing" ? reason : "unreadable"
 
 /** A plan's text, cut short past what the protocol takes, and when it last changed. */
 export type PlanText = {

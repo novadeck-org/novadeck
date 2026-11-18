@@ -232,3 +232,31 @@
   object-fit: cover;
   object-position: top;
 }
+/* A table in miniature: its header over its first rows, numbers to the right. */
+.peek-table {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 7px 8px;
+  font-size: 7.5px;
+  line-height: 1.6;
+  color: var(--prose-fg, var(--color-ink));
+  font-variant-numeric: tabular-nums;
+}
+.peek-table-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  border-bottom: var(--border-width) solid var(--color-line);
+}
+.peek-table-row[data-head] {
+  font-weight: 600;
+}
+.peek-table-row > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.peek-table-row > span[data-numeric] {
+  text-align: right;
+}

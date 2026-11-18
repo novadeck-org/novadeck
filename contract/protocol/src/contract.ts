@@ -39,6 +39,7 @@ import {
   pageTrouble,
   planSaveResult,
   planUnwritable,
+  filePart,
 } from "./companions.js"
 import { requestAnswer } from "./dialogs.js"
 import { feedbackDraft, maxFeedbackText } from "./feedback.js"
@@ -664,6 +665,21 @@ export const contract = {
     content: procedure
       .input(z.strictObject({ itemId: id, reveal: z.string().max(4096).optional() }))
       .output(eventIterator(itemContent)),
+    // An item's file from `offset`, up to `partBytes` bytes, for a kind the client reads in
+    // parts (a video, a recording), read only while the file is as `stamp` (its content's)
+    // names it: else `changed`. One that may hold secrets is `secret` unless `reveal` is the
+    // path the item points at, as in `content`. An unknown item, or one of a kind not read in
+    // parts, is NOT_FOUND.
+    part: procedure
+      .input(
+        z.strictObject({
+          itemId: id,
+          stamp: z.string().max(128),
+          offset: z.int().nonnegative(),
+          reveal: z.string().max(4096).optional(),
+        }),
+      )
+      .output(filePart),
     // One file of a changes item as a selection of its layers changed it: the file's diff
     // and the text of each side, as one range of layers (see
     // `changeFileDiff`). A layer no longer there is left out, as is a file the selection

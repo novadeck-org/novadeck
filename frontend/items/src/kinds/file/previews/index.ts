@@ -4,6 +4,7 @@ import type { ComponentType } from "react"
 
 import { data } from "./data"
 import { markdown } from "./markdown"
+import { table } from "./table"
 
 // The file types that read as something other than their source: a Markdown file as a
 // document, and so on. A file of one shows its preview first, and the pane's row gets a
@@ -41,7 +42,7 @@ export type FilePreview = {
 }
 
 // First match wins.
-export const previews: readonly FilePreview[] = [markdown, data]
+export const previews: readonly FilePreview[] = [markdown, table, data]
 
 // The preview of the file at `path`, if its type has one.
 export const previewFor = (path: string): FilePreview | undefined =>

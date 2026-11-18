@@ -39,7 +39,7 @@ export const artifactLook = (
 ): { readonly name: string; readonly label: string } => ({ name: item.name, label: item.name })
 
 // A size in bytes as a person reads it.
-const sizeText = (bytes: number): string =>
+export const sizeText = (bytes: number): string =>
   bytes < 1024
     ? `${bytes} bytes`
     : bytes < 1024 * 1024

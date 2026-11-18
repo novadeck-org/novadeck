@@ -2,10 +2,12 @@ import type { ShownKind, Item } from "@novadeck/core/items"
 import { messagesKey } from "@novadeck/core/items/companion-bar"
 import { itemFixture } from "@novadeck/core/testing"
 import {
+  AudioLines,
   BookText,
   FileCode2,
   FileStack,
   FileText,
+  Film,
   GitCompare,
   Globe,
   Image,
@@ -26,6 +28,8 @@ import { noLinks, type MessagesHandle } from "./messages/messages"
 // for every shape of member.
 const expectedKindIcons: Record<ShownKind | "shells", LucideIcon> = {
   image: Image,
+  video: Film,
+  audio: AudioLines,
   file: FileCode2,
   page: Globe,
   changes: GitCompare,
@@ -96,6 +100,8 @@ const markdown = itemFixture("voice", "01", { kind: "file", name: "brand-voice.m
 const upper = itemFixture("readme", "01", { kind: "file", name: "README.MARKDOWN" })
 const code = itemFixture("app", "01", { kind: "file", name: "App.tsx" })
 const picture = itemFixture("hero", "01", { kind: "image", name: "hero.png" })
+const clip = itemFixture("demo", "01", { kind: "video", name: "demo.mp4" })
+const voice = itemFixture("voice", "01", { kind: "audio", name: "voice.mp3" })
 const web = itemFixture("web", "01", { kind: "page", name: "localhost:5173", path: null })
 const change = itemFixture("change", "01", { kind: "changes", name: "Changes", path: "/repo" })
 const shellList = itemFixture("shells", "01", { kind: "shells", name: "Shells", path: null })
@@ -108,6 +114,8 @@ const shapes: Record<string, BarMember> = {
   "markdown file, upper case": itemMember(upper),
   "code file": itemMember(code),
   image: itemMember(picture),
+  video: itemMember(clip),
+  audio: itemMember(voice),
   page: itemMember(web),
   changes: itemMember(change),
   shells: itemMember(shellList),
@@ -132,6 +140,8 @@ describe("a terminal's drawing of its bar", () => {
         plan: [shapes.plan!, shapes["subagent plan"]!],
         file: [shapes["markdown file"]!, shapes["markdown file, upper case"]!],
         image: [shapes.image!, shapes.image!],
+        video: [shapes.video!, shapes.video!],
+        audio: [shapes.audio!, shapes.audio!],
         page: [shapes.page!, shapes.page!],
         changes: [shapes.changes!, shapes.changes!],
         shells: [shapes.shells!],

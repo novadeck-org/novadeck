@@ -1,0 +1,194 @@
+/* The video recipe: a video in the pane (`.video-viewer`, under the pane's row, see pane.css),
+   played by `.video-player`: the picture (`.video-picture`) letterboxed on a dark stage, and
+   the bar (`.video-bar`) below it, a scrubber (`.video-scrub`) over the buttons
+   (`.video-buttons`, each an `.icon-button.video-control`), the time (`.video-time`) and a
+   spacer (`.video-spacer`) between those that play and those that set. `.video-loading`
+   says how much of it has been read, centred while there is nothing to play, and a chip
+   over the picture while a newer file's bytes are read. A peek shows its format and size
+   (`.peek-video`). A recording (audio.css) shares the viewer, the loading, the peek, the
+   bar's buttons (`.video-control`) and the speed button (`.video-rate`) with it.
+
+   Hooks: aria-pressed="true" on a loop or mute that is on; aria-busy on the viewer until it
+   has something to play; data-over on `.video-loading` that is over a picture.
+
+   A narrow player (its own width, not the pane's: a full screen is wide, a Grid tile is
+   narrow) drops the frame steps under 440px and the speed under 340px; their keys stay.
+
+   Tokens, each optional (its fallback in brackets):
+   --video-stage-bg (shadow, near black in every scheme): behind the letterboxed picture.
+   --video-bar-bg (paper), --video-bar-border-color (line): the bar.
+   --video-scrub-track-bg (line-strong), --video-scrub-fill-bg (strong): the scrubber's
+   track, and what has played of it.
+   --video-chip-bg (paper), --video-chip-border-color (line): what says it's loading, over
+   a picture. */
+.video-viewer,
+.audio-viewer {
+  display: flex;
+  position: relative;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.video-player {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  container: video-player / inline-size;
+  background-color: var(--video-stage-bg, var(--color-shadow));
+}
+.video-picture {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  object-fit: contain;
+  background-color: var(--video-stage-bg, var(--color-shadow));
+  cursor: pointer;
+}
+.video-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px 4px;
+  border-top: var(--border-width) solid var(--video-bar-border-color, var(--color-line));
+  background-color: var(--video-bar-bg, var(--color-paper));
+  color: var(--color-ink);
+}
+.video-buttons {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.video-control {
+  width: 28px;
+  height: 26px;
+  padding: 0;
+}
+.video-rate {
+  width: auto;
+  min-width: 34px;
+  padding: 0 6px;
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
+  font-variant-numeric: tabular-nums;
+}
+.video-step,
+.video-speed {
+  display: contents;
+}
+.video-time {
+  margin-left: 6px;
+  color: var(--color-muted);
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.video-spacer {
+  flex: 1;
+}
+@container video-player (max-width: 440px) {
+  .video-step {
+    display: none;
+  }
+}
+@container video-player (max-width: 340px) {
+  .video-speed {
+    display: none;
+  }
+}
+
+/* The scrubber: a track that fills as it plays, with a thumb that shows on hover or focus. */
+.video-scrub {
+  --_played: 0%;
+  appearance: none;
+  width: 100%;
+  height: 16px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.video-scrub:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+.video-scrub::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--video-scrub-fill-bg, var(--color-strong)) var(--_played),
+    var(--video-scrub-track-bg, var(--color-line-strong)) var(--_played)
+  );
+}
+.video-scrub::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--video-scrub-track-bg, var(--color-line-strong));
+}
+.video-scrub::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--video-scrub-fill-bg, var(--color-strong));
+}
+.video-scrub::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border: 0;
+  border-radius: 50%;
+  background-color: var(--video-scrub-fill-bg, var(--color-strong));
+}
+.video-scrub::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background-color: var(--video-scrub-fill-bg, var(--color-strong));
+}
+
+.video-loading,
+.audio-loading {
+  display: grid;
+  flex: 1;
+  place-content: center;
+  justify-items: stretch;
+  gap: 8px;
+  width: min(260px, 70%);
+  margin: auto;
+  color: var(--artifact-status-fg, var(--color-muted));
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  text-align: center;
+}
+.video-loading p,
+.audio-loading p {
+  margin: 0;
+}
+.video-loading[data-over],
+.audio-loading[data-over] {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  flex: none;
+  width: 200px;
+  margin: 0;
+  padding: 8px 10px;
+  border: var(--border-width) solid var(--video-chip-border-color, var(--color-line));
+  border-radius: var(--radius-control);
+  background-color: var(--video-chip-bg, var(--color-paper));
+  box-shadow: var(--shadow-control);
+}
+
+/* A peek: no bytes read, only what the file is. */
+.peek-video {
+  display: grid;
+  height: 100%;
+  place-content: center;
+  justify-items: center;
+  gap: 2px;
+  color: var(--color-muted);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}

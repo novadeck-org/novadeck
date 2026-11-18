@@ -51,14 +51,15 @@
   --color-selection: #ccd6d0;
   --color-shadow: rgb(24 24 22);
   /* Tones: soft tints, each with a dark text colour of the same hue (every pair meets
-     WCAG AA). Notes the person leaves for an agent are a warm tint apart from the greys
-     and from the warning amber that marks what an agent changed. */
+     WCAG AA). Success and danger's texts are a sea green and a rose of one weight, leaning
+     toward the teal, and also draw diffs. Notes the person leaves for an agent are a warm
+     tint apart from the greys and from the warning amber that marks what an agent changed. */
   --color-success: #d7e6d8;
-  --color-success-fg: #24593a;
+  --color-success-fg: #00704e;
   --color-warning: #f0e2b4;
   --color-warning-fg: #6b4e0a;
   --color-danger: #fcdbd7;
-  --color-danger-fg: #8a2a22;
+  --color-danger-fg: #af333e;
   --color-note: #ebe0d9;
   --color-note-fg: #97502c;
   /* Syntax: muted hues that each meet WCAG AA on the paper and on the fill behind the
@@ -264,13 +265,14 @@
   --color-scrim: rgb(6 7 9 / 0.55);
   --color-selection: #323641;
   --color-shadow: rgb(3 4 6);
-  /* Tones: deep tints with light text of the same hue. */
+  /* Tones: deep tints with light text of the same hue; success and danger's are a sea green
+     and a rose of one weight, which also draw diffs. */
   --color-success: #1c3023;
-  --color-success-fg: #b9dcc0;
+  --color-success-fg: #69d6aa;
   --color-warning: #342a10;
   --color-warning-fg: #ecd592;
   --color-danger: #3f2422;
-  --color-danger-fg: #f1b8b1;
+  --color-danger-fg: #f68389;
   --color-note: #362921;
   --color-note-fg: #e0a07c;
   /* Syntax: light enough for a near-black ground. */

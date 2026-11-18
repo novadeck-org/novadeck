@@ -307,6 +307,7 @@ export const scriptedRunner = ({
       attach: api.companions.attach.handler(unplayed("companions.attach")),
       openInProject: api.companions.openInProject.handler(unplayed("companions.openInProject")),
       pageTrouble: api.companions.pageTrouble.handler(unplayed("companions.pageTrouble")),
+      part: api.companions.part.handler(unplayed("companions.part")),
       looks: api.companions.looks.handler(idle),
       answerLook: api.companions.answerLook.handler(unplayed("companions.answerLook")),
       move: api.companions.move.handler(unplayed("companions.move")),

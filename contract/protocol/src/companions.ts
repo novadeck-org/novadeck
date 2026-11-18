@@ -26,6 +26,17 @@ export const companionLimits = {
   data: 2 * 1024 * 1024,
 } as const
 
+/**
+ * How much of a file one `companions.part` carries, in bytes, for an item the client reads
+ * in parts rather than whole. A part travels as base64, so its text runs to `partText`
+ * characters.
+ */
+export const partBytes = 2 * 1024 * 1024
+export const partText = Math.ceil(partBytes / 3) * 4
+
+/** A video or a recording the pane plays: the largest one it takes, which it holds whole as it plays. */
+export const videoLimits = { bytes: 512 * 1024 * 1024 } as const
+
 // The files whose preview reads them as a whole, as a tree or a table, by extension.
 const dataExtensions = new Set(["json", "jsonl", "ndjson", "yaml", "yml", "csv", "tsv"])
 
@@ -43,12 +54,14 @@ export const isDataPath = (path: string): boolean =>
 // whether it is a file or text in the agent's own transcript or rollout. A shells item is
 // the background shells the agent in its terminal left running, one per terminal, which the
 // runner makes as the first one starts; it points at nothing (`path` and `url` are null).
+// A video or an audio recording is a file too, played rather than read, which the runner
+// tells by its extension.
 const itemHolder = z.union([z.strictObject({ terminalId: id }), z.strictObject({ windowId: id })])
 export const companionItem = z.strictObject({
   id,
   sessionId: id,
   holder: itemHolder,
-  kind: z.enum(["image", "file", "page", "plan", "changes", "shells"]),
+  kind: z.enum(["image", "video", "audio", "file", "page", "plan", "changes", "shells"]),
   name: z.string().max(companionLimits.name),
   detail: z.string().max(companionLimits.detail),
   path: z.string().max(companionLimits.path).nullable(),
@@ -287,8 +300,11 @@ export const changeFileDiff = z.strictObject({
 // Novadeck can read (a Codex command run in a terminal of its own, or under the person's own
 // `shell_environment_policy`); `unreadable` where its
 // file is there and Novadeck can't read it now (no permission, in use, not a regular file);
-// `gone` where its file was there and no longer is, as Claude Code's goes with its session. Or why it can't be shown,
-// with the file's size where known.
+// `gone` where its file was there and no longer is, as Claude Code's goes with its session.
+// A video or a recording (`audio`) is its format and size, which `companions.part` reads in
+// parts for the client to play, and its stamp names the file as those parts must be read from; `shown` counts
+// the agent's shows, as a page's does, and `at` is the second the latest show starts it at.
+// Or why it can't be shown, with the file's size where known.
 export const itemContent = z.discriminatedUnion("state", [
   z.strictObject({
     state: z.literal("ready"),
@@ -390,6 +406,20 @@ export const itemContent = z.discriminatedUnion("state", [
         // re-read the plan and apply the notes left in it.
         skill: z.boolean(),
       }),
+      z.strictObject({
+        kind: z.literal("video"),
+        mime: z.string().max(64),
+        size: z.int().nonnegative().max(videoLimits.bytes),
+        shown: z.int().min(1),
+        at: z.number().nonnegative().optional(),
+      }),
+      z.strictObject({
+        kind: z.literal("audio"),
+        mime: z.string().max(64),
+        size: z.int().nonnegative().max(videoLimits.bytes),
+        shown: z.int().min(1),
+        at: z.number().nonnegative().optional(),
+      }),
     ]),
   }),
   z.strictObject({
@@ -404,6 +434,19 @@ export const itemContent = z.discriminatedUnion("state", [
       "gone",
     ]),
     size: z.number().nullable(),
+  }),
+])
+
+// `companions.part`: the part of an item's file from the offset asked for, as base64, up to
+// `partBytes` bytes (fewer at the file's end); `changed` when the file is no longer
+// as the stamp asked with names it, so the client reads it again from its new content; or
+// why it can't be read now.
+export const filePart = z.discriminatedUnion("state", [
+  z.strictObject({ state: z.literal("part"), data: z.string().max(partText) }),
+  z.strictObject({ state: z.literal("changed") }),
+  z.strictObject({
+    state: z.literal("unavailable"),
+    reason: z.enum(["missing", "unreadable", "not-a-file", "too-large", "secret"]),
   }),
 ])
 
@@ -435,3 +478,4 @@ export type ChangeLayer = z.infer<typeof changeLayer>
 export type DiffHunk = z.infer<typeof diffHunk>
 export type ChangeFileDiff = z.infer<typeof changeFileDiff>
 export type PlanSaveResult = z.infer<typeof planSaveResult>
+export type FilePart = z.infer<typeof filePart>

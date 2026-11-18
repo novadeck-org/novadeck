@@ -1056,6 +1056,100 @@ describe("an item's content", () => {
     })
   })
 
+  it("plays a video from the second only the show that gave it starts at", async ({ fixture }) => {
+    writeFileSync(join(fixture.directory, "demo.mp4"), "frames")
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "demo.mp4", at: 12.5 } })
+    expect(shown).toMatchObject({ ok: true, kind: "video", name: "demo.mp4" })
+    const itemId = shown.ok ? shown.id : ""
+    expect(fixture.items.list(fixture.sessionId).items).toEqual([
+      expect.objectContaining({ id: itemId, kind: "video", detail: "6 B MP4" }),
+    ])
+    const first = await fixture.items.load(itemId, false)
+    expect(first).toEqual({
+      state: "ready",
+      stamp: expect.any(String),
+      content: { kind: "video", mime: "video/mp4", size: 6, shown: 1, at: 12.5 },
+    })
+    expect(itemContent.parse(first)).toEqual(first)
+    // Shown again without one, it plays on from where the person is.
+    await fixture.items.show(moth, { file: { path: "demo.mp4" } })
+    await expect(fixture.items.load(itemId, false)).resolves.toEqual({
+      state: "ready",
+      stamp: expect.any(String),
+      content: { kind: "video", mime: "video/mp4", size: 6, shown: 2 },
+    })
+    const stamp = first.state === "ready" ? first.stamp : ""
+    await expect(fixture.items.part({ itemId, stamp, offset: 0 })).resolves.toEqual({
+      state: "part",
+      data: Buffer.from("frames").toString("base64"),
+    })
+    writeFileSync(join(fixture.directory, "demo.mp4"), "frames, rendered again")
+    await expect(fixture.items.part({ itemId, stamp, offset: 0 })).resolves.toEqual({
+      state: "changed",
+    })
+  })
+
+  it("plays a recording as a video is played, from its parts", async ({ fixture }) => {
+    writeFileSync(join(fixture.directory, "take.mp3"), "sound")
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "take.mp3", at: 1 } })
+    expect(shown).toMatchObject({ ok: true, kind: "audio", name: "take.mp3" })
+    const itemId = shown.ok ? shown.id : ""
+    expect(fixture.items.list(fixture.sessionId).items).toEqual([
+      expect.objectContaining({ id: itemId, kind: "audio", detail: "5 B MP3" }),
+    ])
+    const loaded = await fixture.items.load(itemId, false)
+    expect(loaded).toMatchObject({
+      state: "ready",
+      content: { kind: "audio", mime: "audio/mpeg", size: 5, shown: 1, at: 1 },
+    })
+    expect(itemContent.parse(loaded)).toEqual(loaded)
+    const stamp = loaded.state === "ready" ? loaded.stamp : ""
+    await expect(fixture.items.part({ itemId, stamp, offset: 0 })).resolves.toEqual({
+      state: "part",
+      data: Buffer.from("sound").toString("base64"),
+    })
+  })
+
+  it("starts only a video at a second, and reads parts of nothing else", async ({ fixture }) => {
+    writeFileSync(join(fixture.directory, "a.ts"), "a\n")
+    const moth = fixture.terminal("moth")
+    await expect(fixture.items.show(moth, { file: { path: "a.ts", at: 3 } })).resolves.toEqual({
+      ok: false,
+      reason:
+        "Only a video or a recording starts at a second; give at only for a video or audio file.",
+    })
+    const shown = await fixture.items.show(moth, { file: { path: "a.ts" } })
+    await expect(
+      fixture.items.part({ itemId: shown.ok ? shown.id : "", stamp: "", offset: 0 }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    await expect(
+      fixture.items.part({ itemId: randomUUID(), stamp: "", offset: 0 }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+  })
+
+  it("reads no part of a video that may hold secrets until the person shows its path", async ({
+    fixture,
+  }) => {
+    mkdirSync(join(fixture.directory, ".ssh"))
+    const path = join(fixture.directory, ".ssh", "clip.mp4")
+    writeFileSync(path, "frames")
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path } })
+    expect(shown).toMatchObject({ ok: true, kind: "video", secret: true })
+    const itemId = shown.ok ? shown.id : ""
+    const held = await fixture.items.load(itemId, true)
+    const stamp = held.state === "ready" ? held.stamp : ""
+    await expect(fixture.items.part({ itemId, stamp, offset: 0 })).resolves.toEqual({
+      state: "unavailable",
+      reason: "secret",
+    })
+    await expect(
+      fixture.items.part({ itemId, stamp, offset: 0, reveal: path }),
+    ).resolves.toMatchObject({ state: "part" })
+  })
+
   it("holds a file that may hold secrets until revealed", async ({ fixture }) => {
     writeFileSync(join(fixture.directory, ".env"), "TOKEN=x\n")
     const moth = fixture.terminal("moth")

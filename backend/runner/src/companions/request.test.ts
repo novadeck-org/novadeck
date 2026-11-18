@@ -31,6 +31,22 @@ describe("a show request", () => {
     })
   })
 
+  it("takes a second to start a file at, from the start, up to a day in", () => {
+    expect(readShowRequest({ file: { path: "demo.mp4", at: 12.5 } })).toEqual({
+      ok: true,
+      request: { file: { path: "demo.mp4", at: 12.5 } },
+    })
+    for (const at of [-1, 86_401, "12"])
+      expect(readShowRequest({ file: { path: "demo.mp4", at } })).toEqual({
+        ok: false,
+        reason: 'The request\'s "file.at" is not valid.',
+      })
+    // What is beside the terminal is known by its path, whatever second it started at.
+    expect(readCloseShownRequest({ file: { path: "demo.mp4", at: 3 } })).toMatchObject({
+      ok: false,
+    })
+  })
+
   it("names a page by its url, or a file, never both, and lines only inside a file", () => {
     expect(readShowRequest({ page: { url: "http://localhost:5173/" }, open: true })).toEqual({
       ok: true,

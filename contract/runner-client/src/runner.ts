@@ -25,6 +25,7 @@ import {
   type InterruptResult,
   type ChangeFileDiff,
   type ItemContent,
+  type FilePart,
   type MurmurSettings,
   type MurmurState,
   type PageLook,
@@ -623,6 +624,18 @@ export type Runner = {
     renameWindow(windowId: string, title: string): Promise<void>
     /** Gives a window its item's name again; rejects as `renameWindow` does. */
     resetWindowTitle(windowId: string): Promise<void>
+    /**
+     * An item's file from `offset`, up to `partBytes` bytes, for a kind read in parts (a
+     * video, a recording), while it is as
+     * `stamp` names it; `changed` when it is not. Rejects with `NOT_FOUND` for an unknown
+     * item or one of a kind not read in parts.
+     */
+    part(input: {
+      readonly itemId: string
+      readonly stamp: string
+      readonly offset: number
+      readonly reveal?: string
+    }): Promise<FilePart>
     /** What went wrong on a page item during its show `shown`, as the pane saw it. */
     pageTrouble(input: {
       readonly itemId: string
@@ -962,6 +975,7 @@ export const connectRunner = async (
         call((client) => client.companions.renameWindow({ windowId, title })),
       resetWindowTitle: (windowId) =>
         call((client) => client.companions.resetWindowTitle({ windowId })),
+      part: (input) => call((client) => client.companions.part(input)),
       pageTrouble: (input) => call((client) => client.companions.pageTrouble(input)),
       looks: () =>
         followSession(connection, (client, signal) =>

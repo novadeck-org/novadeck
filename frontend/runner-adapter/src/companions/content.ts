@@ -83,6 +83,18 @@ const contentOf = (content: RunnerContent, livePages: boolean): ItemContent => {
   return { state: "ready", stamp, content: shown }
 }
 
+// A part's base64 as the bytes it stands for: by the browser's own decoder where it has one,
+// else a plain loop, as a callback per byte would cost a big video seconds of the page's time.
+const decode = (text: string): Uint8Array<ArrayBuffer> => {
+  const native = (Uint8Array as { fromBase64?: (text: string) => Uint8Array<ArrayBuffer> })
+    .fromBase64
+  if (native) return native(text)
+  const binary = atob(text)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+  return bytes
+}
+
 // What the runner holds no more.
 const gone: ItemContent = { state: "unavailable", reason: "gone", size: null }
 
@@ -116,7 +128,7 @@ export const troubleOf = (trouble: PageTrouble): RunnerTrouble => {
 export const createRunnerCompanions = (
   runner: Pick<
     Runner["companions"],
-    "content" | "changeFile" | "changeRead" | "openInProject" | "save" | "pageTrouble"
+    "content" | "changeFile" | "changeRead" | "openInProject" | "save" | "pageTrouble" | "part"
   >,
   {
     livePages = false,
@@ -160,6 +172,10 @@ export const createRunnerCompanions = (
   },
   changeFile: (_target, itemId, path, layers) => runner.changeFile({ itemId, path, layers }),
   changeRead: (_target, itemId, path) => runner.changeRead({ itemId, path }),
+  part: async (_target, itemId, { stamp, offset, reveal }) => {
+    const part = await runner.part({ itemId, stamp, offset, ...(reveal && { reveal }) })
+    return part.state === "part" ? { state: "part", bytes: decode(part.data) } : part
+  },
   save: async (_target, itemId, text, basedOn) => {
     // One the runner can't take in one message is never sent: past a WebSocket's limit, the
     // socket would close the whole link.

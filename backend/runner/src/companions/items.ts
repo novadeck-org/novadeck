@@ -4,7 +4,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { PlanSource } from "@novadeck/harness-core/events"
-import { companionLimits, onThisMachine, pageKey, titleFrom } from "@novadeck/protocol"
+import { companionLimits, onThisMachine, pageKey, titleFrom, videoLimits } from "@novadeck/protocol"
 import type {
   AgentName,
   ChangeFileDiff,
@@ -15,6 +15,7 @@ import type {
   PageLook,
   PageLookAnswer,
   PageTrouble,
+  FilePart,
 } from "@novadeck/protocol"
 import { KeyedChanges } from "@novadeck/wire/server"
 
@@ -31,11 +32,14 @@ import {
   hashOf,
   loadFile,
   loadPlan,
+  loadPlayed,
   maxImageBytes,
   pageAt,
+  partsOf,
   planTitle,
   pointAt,
   probe,
+  readPart,
   type PlanText,
   type Pointed,
 } from "./content.js"
@@ -306,13 +310,13 @@ export class CompanionItems {
   /** The ends of shells' output files, read for their items. */
   private readonly tails = new ShellTails()
   /**
-   * The element each page's latest show brings into view, with that show's version: only
-   * that show carries it out, so it stays here rather than with the item, and goes with the
-   * next show or the item.
+   * What each item's latest show carries out, with that show's version: the element a page
+   * brings into view, or the second a video starts at. Only that show carries it out, so it
+   * stays here rather than with the item, and goes with the next show or the item.
    */
-  private readonly scrolls = new Map<
+  private readonly cues = new Map<
     string,
-    { readonly version: number; readonly selector: string }
+    { readonly version: number; readonly scroll?: string; readonly at?: number }
   >()
   /** Agents' looks at pages, on their way to the client. */
   private readonly looks = new PageLooks()
@@ -424,8 +428,14 @@ export class CompanionItems {
     }
     if (!kept) return failure("Novadeck couldn't show it.")
     const scroll = "page" in request ? request.page.scroll : undefined
-    if (scroll === undefined) this.scrolls.delete(kept.item.id)
-    else this.scrolls.set(kept.item.id, { version: kept.item.version, selector: scroll })
+    const at = "file" in request ? request.file.at : undefined
+    if (scroll === undefined && at === undefined) this.cues.delete(kept.item.id)
+    else
+      this.cues.set(kept.item.id, {
+        version: kept.item.version,
+        ...(scroll !== undefined && { scroll }),
+        ...(at !== undefined && { at }),
+      })
     const moved = kept.item.terminalId !== place.terminalId
     return {
       ok: true,
@@ -1233,12 +1243,19 @@ export class CompanionItems {
         },
       }
     }
-    const { path, lines } = request.file
+    const { path, lines, at } = request.file
     const pointed = await pointAt(path, place.cwd, this.environment())
     if (!pointed.ok) return pointed
+    if (at !== undefined && pointed.kind !== "video" && pointed.kind !== "audio")
+      return failure(
+        "Only a video or a recording starts at a second; give at only for a video or audio file.",
+      )
     return {
       ok: true,
-      tooLarge: pointed.kind === "image" && pointed.size > maxImageBytes,
+      tooLarge:
+        (pointed.kind === "image" && pointed.size > maxImageBytes) ||
+        ((pointed.kind === "video" || pointed.kind === "audio") &&
+          pointed.size > videoLimits.bytes),
       pointer: this.filePointer(pointed, path, place.cwd, place.project, {
         ...(request.title !== undefined && { title: request.title }),
         ...(lines && { lines }),
@@ -1322,8 +1339,8 @@ export class CompanionItems {
   }
 
   /**
-   * How a file is described: an image by its size and format, a text file by its path and
-   * lines.
+   * How a file is described: an image, a video or a recording by its size and format, a text file by
+   * its path and lines.
    */
   private detail(
     pointed: Pointed,
@@ -1331,7 +1348,7 @@ export class CompanionItems {
     given: string,
     lines: { readonly from: number; readonly to: number } | undefined,
   ): string {
-    if (pointed.kind === "image") {
+    if (pointed.kind === "image" || pointed.kind === "video" || pointed.kind === "audio") {
       const format = pointed.path.split(".").at(-1)!.toUpperCase().replace("JPG", "JPEG")
       return `${size(pointed.size)} ${format}`
     }
@@ -1551,6 +1568,26 @@ export class CompanionItems {
   }
 
   /**
+   * A part of an item's file (see `companions.part`), of a kind read in parts: read only
+   * while the file is as `stamp` names it, and one that may hold secrets only once the person
+   * chose to show the path the item points at. NOT_FOUND for an unknown item or one of
+   * another kind.
+   */
+  async part(input: {
+    readonly itemId: string
+    readonly stamp: string
+    readonly offset: number
+    readonly reveal?: string | undefined
+  }): Promise<FilePart> {
+    if (this.stopping) throw new DomainError("CLOSING")
+    const item = this.item(input.itemId)
+    const largest = partsOf[item.kind]
+    if (largest === undefined) throw new DomainError("NOT_FOUND", "That item isn't read in parts")
+    const reveal = input.reveal !== undefined && input.reveal === item.path
+    return readPart(item, input, reveal, largest, this.environment())
+  }
+
+  /**
    * The person read a file of a changes item (see `companions.changeRead`): it reads as read
    * until it changes again. A file the change did not list as a whole when last read is not
    * marked. NOT_FOUND for an unknown item or one that is no change.
@@ -1571,8 +1608,10 @@ export class CompanionItems {
   ): Promise<ItemContent> {
     if (item.kind === "changes") return this.readChange(item)
     if (item.kind === "shells") return this.readShells(item)
+    const cue = this.cues.get(item.id)
+    const cued = cue?.version === item.version ? cue : undefined
     if (item.kind === "page") {
-      const scroll = this.scrolls.get(item.id)
+      const scroll = cued?.scroll
       return Promise.resolve({
         state: "ready",
         // Each show is content of its own.
@@ -1581,11 +1620,13 @@ export class CompanionItems {
           kind: "page",
           url: item.url ?? "",
           shown: item.version,
-          ...(scroll?.version === item.version && { scroll: scroll.selector }),
+          ...(scroll !== undefined && { scroll }),
         },
       })
     }
     if (item.kind === "plan") return loadPlan(item, live)
+    if (item.kind === "video" || item.kind === "audio")
+      return loadPlayed(item, reveal, { shown: item.version, at: cued?.at }, this.environment())
     return loadFile(item, reveal, this.environment())
   }
 
@@ -1594,7 +1635,7 @@ export class CompanionItems {
   }
 
   private removed(item: ItemRecord, window: WindowRecord | undefined): void {
-    this.scrolls.delete(item.id)
+    this.cues.delete(item.id)
     this.sink?.gone(item)
     for (const reader of this.readers.get(item.id) ?? []) reader.abort()
     this.emit(

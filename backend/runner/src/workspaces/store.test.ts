@@ -259,7 +259,7 @@ describe("workspace metadata", () => {
     expect(first.id).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(18)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(19)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       expect(() =>
         database
@@ -495,13 +495,13 @@ describe("workspace metadata", () => {
     const path = join(directory(), "workspace.sqlite")
     const future = new DatabaseSync(path)
     future.exec(
-      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 19",
+      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 20",
     )
     future.close()
     expect(() => new WorkspaceStore(path)).toThrow(/newer/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(19)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(20)
       expect(database.prepare("SELECT value FROM future_data").get()?.value).toBe("saved")
     } finally {
       database.close()
@@ -553,7 +553,7 @@ describe("workspace metadata", () => {
     new WorkspaceStore(path).close()
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(18)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(19)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       // Every old table is gone, and so are the old names.
       expect(Object.keys(rowsOf(database)).toSorted()).toEqual(
@@ -1946,8 +1946,8 @@ describe("workspace metadata", () => {
       // and adds a step in store.ts's migrations, from schemas/<version before>.sql, which
       // is added for it. Then record the new digest here.
       expect({ version, digest }).toEqual({
-        version: 18,
-        digest: "49897523bebb915854b8e88f176969fcf49d33e1b8f4b20468bf3525aa9779c2",
+        version: 19,
+        digest: "a337fd9e42427ab1f0c8addef9f0b274998ef1fb4b615c9f1766c12c034ea412",
       })
     } finally {
       database.close()
@@ -2006,6 +2006,69 @@ describe("workspace metadata", () => {
     }
     migrated.saveItem(compare)
     expect(migrated.item("compare")).toEqual(compare)
+    migrated.close()
+    const fresh = join(directory(), "fresh.sqlite")
+    new WorkspaceStore(fresh).close()
+    const [carried, created] = [path, fresh].map((file) => {
+      const database = new DatabaseSync(file)
+      try {
+        return normalisedSchemaOf(database)
+      } finally {
+        database.close()
+      }
+    })
+    expect(carried).toEqual(created)
+  })
+
+  it("lets items be videos and recordings in the step from 18, keeping the items, compares and order", ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/18.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 18;
+      INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'P', '/p');
+      INSERT INTO sessions (position, id, project_id, name) VALUES (1, 's', 'p', 'S');
+      INSERT INTO terminals (rowid, id, session_id, handle, cwd, agent_reports, prompted_at,
+        saved_at) VALUES (1, 't', 's', 'moth', '/p', '{}', 0, 0);
+      INSERT INTO companion_items (rowid, id, session_id, terminal_id, window_id, pointer_key,
+        kind, path, name, detail, secret, shown_by, from_terminal, from_handle, version,
+        open_asked, shown_at, compare_base, compare_head)
+        VALUES (7, 'compare', 's', 't', NULL, 'changes:/p
+main...feature', 'changes', '/p',
+          'Compare · feature', '', 0, 'agent', 't', 'moth', 2, 0, 20, 'main', 'feature'),
+          (5, 'clip', 's', 't', NULL, '/p/demo.mp4', 'file', '/p/demo.mp4', 'demo.mp4', '', 0,
+          'agent', 't', 'moth', 1, 1, 20, NULL, NULL);`)
+    old.close()
+    const migrated = new WorkspaceStore(path)
+    expect(
+      migrated
+        .barItems("t")
+        .map(({ id, kind, version, compare }) => ({ id, kind, version, compare })),
+    ).toEqual([
+      // A video shown before is a file until its next show.
+      { id: "clip", kind: "file", version: 1, compare: undefined },
+      { id: "compare", kind: "changes", version: 2, compare: { base: "main", head: "feature" } },
+    ])
+    const video: ItemRecord = {
+      ...migrated.item("clip")!,
+      kind: "video",
+      detail: "1.2 MB MP4",
+      version: 2,
+    }
+    migrated.saveItem(video)
+    expect(migrated.item("clip")).toEqual(video)
+    const recording: ItemRecord = {
+      ...video,
+      id: "take",
+      pointerKey: "/p/take.mp3",
+      kind: "audio",
+      path: "/p/take.mp3",
+      name: "take.mp3",
+      detail: "4.2 MB MP3",
+    }
+    migrated.saveItem(recording)
+    expect(migrated.item("take")).toEqual(recording)
     migrated.close()
     const fresh = join(directory(), "fresh.sqlite")
     new WorkspaceStore(fresh).close()

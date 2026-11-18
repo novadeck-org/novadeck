@@ -23,10 +23,13 @@
    data-kind="add" | "remove" | "context".
 
    Tokens, each optional (its fallback in brackets):
-   --changes-add-bg, --changes-remove-bg (the success and danger colours at 55% over the
-   ground, 50% on a light scheme): a changed line's ground. --changes-add-fg,
-   --changes-remove-fg (success-fg, danger-fg): its bar, sign, number and counts; a changed
-   token is that ink at 24%. --changes-rail-fg (strong): the selection's rail.
+   --changes-add-fg, --changes-remove-fg (success-fg, danger-fg): a changed line's ink, for
+   its counts, and a quarter of the way to the text for its sign and number, so they keep
+   4.5:1 on the gutter. The gutter carries the colour: --changes-add-gutter-bg,
+   --changes-remove-gutter-bg (the ink at 20%, 18% on a light scheme) behind the number and
+   sign, and --changes-add-bg, --changes-remove-bg (the ink at 5%, 7% on a light scheme) a
+   whisper under the line. A changed run of tokens is one mark, the ink at 30%.
+   --changes-rail-fg (strong): the selection's rail.
    --pane-bg (paper): the ground of every view. */
 /* How current a compare's remote refs are, where that is in doubt: amber once old or failed. In
    the row where a change's pull request is, at its size, one line, the first to give way. */
@@ -58,11 +61,19 @@
   --_remove: var(--changes-remove-fg, var(--color-danger-fg));
   --_add-bg: var(
     --changes-add-bg,
-    color-mix(in srgb, var(--color-success) var(--_diff-ground, 55%), transparent)
+    color-mix(in srgb, var(--_add) var(--_diff-line, 5%), transparent)
   );
   --_remove-bg: var(
     --changes-remove-bg,
-    color-mix(in srgb, var(--color-danger) var(--_diff-ground, 55%), transparent)
+    color-mix(in srgb, var(--_remove) var(--_diff-line, 5%), transparent)
+  );
+  --_add-gutter: var(
+    --changes-add-gutter-bg,
+    color-mix(in srgb, var(--_add) var(--_diff-gutter, 20%), transparent)
+  );
+  --_remove-gutter: var(
+    --changes-remove-gutter-bg,
+    color-mix(in srgb, var(--_remove) var(--_diff-gutter, 20%), transparent)
   );
   position: relative;
   display: flex;
@@ -73,9 +84,10 @@
   background: var(--_ground);
   outline: none;
 }
-/* A tint reads heavier on a light ground, so light takes a little less. */
+/* A light ground takes a line's whisper a step stronger, and its gutter a step lighter. */
 :root[data-scheme="light"] .changes-host {
-  --_diff-ground: 50%;
+  --_diff-line: 7%;
+  --_diff-gutter: 18%;
 }
 .changes-view {
   position: absolute;
@@ -430,7 +442,7 @@
 }
 .diff-row {
   display: grid;
-  grid-template-columns: 44px 16px minmax(0, 1fr);
+  grid-template-columns: 44px 22px minmax(0, 1fr);
   padding-right: 14px;
   background: var(--_ground);
 }
@@ -440,7 +452,9 @@
   opacity: 0.6;
   text-align: right;
 }
+/* The sign's cell is the gutter's last 16px; the 6px after it keeps the text off the tint. */
 .changes-sign {
+  margin-right: 6px;
   font-weight: var(--font-weight-semibold);
 }
 .changes-text {
@@ -450,18 +464,18 @@
 }
 .diff-row[data-kind="add"] {
   background: var(--_add-bg);
-  box-shadow: inset 2px 0 0 var(--_add);
 }
 .diff-row[data-kind="remove"] {
   background: var(--_remove-bg);
-  box-shadow: inset 2px 0 0 var(--_remove);
 }
 .diff-row[data-kind="add"] :is(.changes-sign, .changes-num) {
-  color: var(--_add);
+  background: var(--_add-gutter);
+  color: color-mix(in srgb, var(--_add) 75%, var(--color-ink));
   opacity: 1;
 }
 .diff-row[data-kind="remove"] :is(.changes-sign, .changes-num) {
-  color: var(--_remove);
+  background: var(--_remove-gutter);
+  color: color-mix(in srgb, var(--_remove) 75%, var(--color-ink));
   opacity: 1;
 }
 .changes-tok {
@@ -470,10 +484,10 @@
   color: inherit;
 }
 .diff-row[data-kind="add"] .changes-tok {
-  background: color-mix(in srgb, var(--_add) 24%, transparent);
+  background: color-mix(in srgb, var(--_add) 30%, transparent);
 }
 .diff-row[data-kind="remove"] .changes-tok {
-  background: color-mix(in srgb, var(--_remove) 24%, transparent);
+  background: color-mix(in srgb, var(--_remove) 30%, transparent);
 }
 /* A long change clipped in the middle, and unchanged lines folded. */
 .changes-clip {
@@ -502,7 +516,7 @@
 .changes-fold {
   display: block;
   width: 100%;
-  padding: 2px 0 2px 60px;
+  padding: 2px 0 2px 66px;
   background: none;
   color: var(--color-muted);
   font-family: var(--font-sans);
@@ -619,7 +633,9 @@ button.changes-fold:hover {
 }
 .changes-block[data-dim] .diff-row[data-kind="add"] {
   background: var(--_ground);
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--_add) 35%, transparent);
+}
+.changes-block[data-dim] .diff-row[data-kind="add"] :is(.changes-sign, .changes-num) {
+  background: color-mix(in srgb, var(--_add) 8%, transparent);
 }
 .changes-block[data-dim] .diff-row .changes-tok {
   background: none;
@@ -632,7 +648,7 @@ button.changes-fold:hover {
 }
 @keyframes preview-pulse {
   from {
-    background-color: color-mix(in srgb, var(--color-strong) 30%, var(--_add-bg));
+    background-color: color-mix(in srgb, var(--color-strong) 30%, var(--_ground));
   }
 }
 @media (prefers-reduced-motion: reduce) {

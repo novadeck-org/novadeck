@@ -205,7 +205,11 @@ export const tourSignals = (
           state.items.some(
             (item) =>
               item.by === "agent" &&
-              (item.kind === "image" || item.kind === "page" || item.kind === "file") &&
+              (item.kind === "image" ||
+                item.kind === "video" ||
+                item.kind === "audio" ||
+                item.kind === "page" ||
+                item.kind === "file") &&
               item.from?.terminalId === terminalId,
           ),
         ),
