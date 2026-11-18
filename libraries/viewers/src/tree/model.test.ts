@@ -1,7 +1,7 @@
 import { describe as context, describe, expect, it } from "vitest"
 
 import { copyText, countText, keyOf, pathText, previewText, rowsOf, scalarText } from "./model.js"
-import type { DataRoot } from "./parse.js"
+import { parseData, type DataRoot } from "./parse.js"
 
 const lone = (value: unknown): DataRoot[] => [{ kind: "value", label: null, line: 1, value }]
 const names = (rows: ReturnType<typeof rowsOf>) =>
@@ -102,6 +102,14 @@ describe("copyText", () => {
     expect(copyText(Number.POSITIVE_INFINITY)).toBe("Infinity")
   })
 
+  it("copies a large integer as written, alone or inside an object", () => {
+    const parsed = parseData('{"id": 12345678901234567890}', "json")
+    const value = parsed.ok && parsed.roots[0]?.kind === "value" ? parsed.roots[0].value : null
+    expect(copyText((value as { id: unknown }).id)).toBe("12345678901234567890")
+    expect(copyText(value)).toBe('{\n  "id": 12345678901234567890\n}')
+    expect(scalarText((value as { id: unknown }).id)).toBe("12345678901234567890")
+  })
+
   it("copies a value holding itself, as a YAML alias in its own anchor does, marking where", () => {
     const shared = { x: 1 }
     const looped: Record<string, unknown> = { shared, again: shared }
@@ -115,6 +123,10 @@ describe("copyText", () => {
 })
 
 describe("scalarText", () => {
+  it("never cuts an emoji in half", () => {
+    expect(scalarText("ab😀cd", 3)).toBe('"ab…"')
+  })
+
   it("quotes a string on one line, cutting a long one", () => {
     expect(scalarText("a\nb")).toBe('"a\\nb"')
     expect(scalarText("abcdef", 3)).toBe('"abc…"')

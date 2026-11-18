@@ -17,6 +17,9 @@ import type { PreviewProps } from "./previews"
 
 // The loads already sent to their source: switched back to the preview, they stay.
 const sent = new WeakSet<FileContent>()
+// The loads already brought to the lines their agent pointed at: shown again, they open
+// where they were left.
+const pointed = new WeakSet<FileContent>()
 
 // Whether only part of the file came: its start, up to the runner's budget for data files
 // (2 MiB of whole lines), or, from a runner before that, a window of its lines.
@@ -34,6 +37,11 @@ const partText = (file: FileContent): string => {
   return `Only the first ${last} lines${of} were read`
 }
 
+// Whether a file read from its start stops reading before the last line that came, which
+// may be the only one cut short: broken, not cut.
+const brokenWithin = (file: FileContent, error: DataError): boolean =>
+  file.firstLine === 1 && error.line < file.firstLine + file.lines.length - 1
+
 const errorText = (format: string, error: DataError): string =>
   `${format} doesn't read at line ${error.line}, column ${error.column}: ${error.message}.`
 
@@ -46,9 +54,11 @@ export const DataViewer = ({ id, content: file, toSource }: PreviewProps): React
     () => parseData(file.lines.join("\n"), format, { firstLine: file.firstLine }),
     [file, format],
   )
-  // A whole file that doesn't read shows as source, where it stops; one read in part can't
-  // be told from one that's broken, so it says so and offers the source.
-  const failed = !parsed.ok && !partial ? parsed.error : undefined
+  // A file that doesn't read shows as source, where it stops: a whole one, or one read from
+  // its start that stops before the lines that came end. Else it may only be cut short, so
+  // it says so and offers the source.
+  const failed =
+    !parsed.ok && (!partial || brokenWithin(file, parsed.error)) ? parsed.error : undefined
   const note = failed && errorText(formatNames[format], failed)
   useEffect(() => {
     if (!failed || !note || sent.has(file)) return
@@ -64,7 +74,14 @@ export const DataViewer = ({ id, content: file, toSource }: PreviewProps): React
     }),
     [parsed, file.path, format],
   )
-  const { ref } = useViewerSlot(mountTree, { id, content, label: file.path })
+  const { ref, viewer } = useViewerSlot(mountTree, { id, content, label: file.path })
+  // Lines pointed at past the first, as a record of a JSONL file or a YAML document:
+  // the row that holds them, once per load.
+  useEffect(() => {
+    if (!viewer || pointed.has(file) || file.from <= file.firstLine) return
+    pointed.add(file)
+    viewer.jumpTo({ line: file.from })
+  }, [viewer, file])
   const source = (
     <button type="button" className="artifact-open" onClick={() => toSource()}>
       Show source

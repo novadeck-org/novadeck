@@ -141,11 +141,32 @@ export const jsonErrorAt = (text: string): { offset: number; message: string } =
   } catch (error) {
     if (typeof error === "object" && error !== null && "offset" in error)
       return error as { offset: number; message: string }
-    throw error
+    // Nested deeper than the scanner's stack: no place to name, but no crash either.
+    return { offset: 0, message: "It's nested too deeply to say where it stops" }
   }
   // It reads after all: the engine refused it for another reason, as too deep.
   return { offset: 0, message: "It doesn't read as JSON" }
 }
+
+/**
+ * An integer JSON writes past what a number holds exactly, as a 64-bit id: its text, so it
+ * shows and copies as written rather than rounded.
+ */
+export class LargeNumber {
+  constructor(readonly text: string) {}
+}
+
+// Keeps a large integer's text, from the source text the engine hands a reviver.
+const exact = (_key: string, value: unknown, context?: { readonly source?: string }): unknown =>
+  typeof value === "number" &&
+  !Number.isSafeInteger(value) &&
+  context?.source !== undefined &&
+  /^-?\d+$/.test(context.source)
+    ? new LargeNumber(context.source)
+    : value
+
+const readJson = (text: string): unknown =>
+  (JSON.parse as (text: string, reviver: typeof exact) => unknown)(text, exact)
 
 const parseJson = (text: string, firstLine: number): Parsed => {
   // An empty file, as one just made, holds nothing yet.
@@ -153,7 +174,7 @@ const parseJson = (text: string, firstLine: number): Parsed => {
   try {
     return {
       ok: true,
-      roots: [{ kind: "value", label: null, line: firstLine, value: JSON.parse(text) }],
+      roots: [{ kind: "value", label: null, line: firstLine, value: readJson(text) }],
     }
   } catch {
     const { offset, message } = jsonErrorAt(text)
@@ -171,7 +192,7 @@ const parseJsonl = (text: string, firstLine: number, longest?: number): Parsed =
     const line = firstLine + index
     const label = `Line ${line}`
     try {
-      roots.push({ kind: "value", label, line, value: JSON.parse(source) })
+      roots.push({ kind: "value", label, line, value: readJson(source) })
     } catch {
       const cut = longest !== undefined && source.length >= longest
       const failed = cut ? undefined : jsonErrorAt(source)

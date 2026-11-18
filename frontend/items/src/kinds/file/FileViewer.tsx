@@ -1,7 +1,7 @@
 import type { Item, FileContent } from "@novadeck/core/items"
 import { mountCode, type CodeContent } from "@novadeck/viewers/code"
 import { CodeXml } from "lucide-react"
-import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from "react"
+import { useCallback, useMemo, useReducer, useRef, useState, type KeyboardEvent } from "react"
 
 import type { ArtifactBodyProps } from "../../ArtifactViewer"
 import { PaneTools, type PaneTool } from "../../pane-row"
@@ -96,6 +96,11 @@ const isSwitchKey = (event: KeyboardEvent): boolean =>
   !event.altKey &&
   (mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)
 
+// The loads of files their preview sent to their source, and why: not the person's choice,
+// so it isn't kept as one, and the file's next load, as once its agent fixes it, previews
+// again; by load, so the pane built again, as across views, shows it the same.
+const sentToSource = new WeakMap<FileContent, { readonly note: string; readonly line?: number }>()
+
 // A file of a type with a preview: the preview first, or its source as the person last
 // switched it for this item and file, with the switch in the pane's row after the preview's
 // own tools. The file takes focus from a click anywhere in it, so its key works from there,
@@ -113,21 +118,19 @@ const PreviewedFile = ({
   const [tools, setTools] = useState<readonly PaneTool[]>([])
   const holder = useRef<HTMLDivElement>(null)
   const setPreviewTools = useCallback((next: readonly PaneTool[]) => setTools(next), [])
-  // The source the preview sent this load of the file to, and why: not the person's choice,
-  // so it isn't kept, and the file's next load, as once its agent fixes it, previews again.
-  const [sent, setSent] = useState<{
-    readonly content: FileContent
-    readonly note: string
-    readonly line?: number
-  } | null>(null)
-  const note = sent?.content === content ? sent : null
+  const [, redraw] = useReducer((count: number) => count + 1, 0)
+  const note = sentToSource.get(content) ?? null
   const source = view === "source" || note !== null
   const toggle = (): void => {
-    setSent(null)
+    sentToSource.delete(content)
     choose(source ? "preview" : "source")
   }
   const toSource = useCallback<ToSource>(
-    (why) => (why ? setSent({ content, ...why }) : choose("source")),
+    (why) => {
+      if (!why) return choose("source")
+      sentToSource.set(content, why)
+      redraw()
+    },
     [choose, content],
   )
   const Preview = preview.View
