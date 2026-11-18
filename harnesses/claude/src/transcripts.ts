@@ -19,6 +19,7 @@ import { shellCall } from "@novadeck/harness-core/tools"
 
 import { taskNotification } from "./decode.js"
 import { interruption } from "./interruption.js"
+import { shownThinking } from "./narration.js"
 import { outcomeOf } from "./outcomes.js"
 import { describe } from "./tools.js"
 
@@ -50,9 +51,11 @@ const inOtherProject = async (reported: string, sessionId: string): Promise<stri
 /**
  * Claude Code's transcripts: the session's JSONL, and beside it a folder named for the
  * session with a JSONL per subagent. Each user or assistant record holds its message's
- * text, tool calls and tool results; thinking stays out, as do the records Claude Code
- * writes for itself (`isMeta`), its compaction summaries, and the notices of background
- * tasks it hands the model as the person's message. A command the person runs in shell
+ * text, tool calls and tool results. Its thinking stays out, but for what its terminal shows
+ * the person of it (the model's updates, see `shownThinking`), which reads as the agent's
+ * text marked `thinking`. Also out are the records Claude Code writes for itself (`isMeta`),
+ * its compaction summaries, and the notices of background tasks it hands the model as the
+ * person's message. A command the person runs in shell
  * mode (`!`) is two user records, the command and then its output, which read as the
  * person's `!command` and a Bash run (the output's record names the command's as its
  * parent, so they pair). A prompt the person gives while a turn runs, which Claude Code
@@ -300,6 +303,10 @@ export const transcripts: TranscriptDecoder = {
         return role === "user"
           ? textItems(role, text, time, fields)
           : [entry(role, "text", text, { at: time, interrupted: interruption(text) })]
+      if (type === "thinking" && role === "assistant") {
+        const shown = shownThinking(part as Fields)
+        return shown ? [entry(role, "text", shown, { at: time, thinking: true })] : []
+      }
       if (type === "tool_use")
         return [
           entry("assistant", "tool-call", textOf(input), {

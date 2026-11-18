@@ -712,3 +712,60 @@ describe("where a peer's agent works now", () => {
     expect((await whereabouts(root, [], true, running))?.working).toBe(true)
   })
 })
+
+describe("the host's load in the agents listing", () => {
+  const record = {
+    summary: { id: "t1", handle: "fox", cwd: "/nowhere", sessionId: "s", titleSource: {} },
+    naming: { summary: null },
+    work: null,
+    openedBy: null,
+    bound: null,
+  } as unknown as PeerRecord
+  const listing = async (
+    hostLoad: (id: string, peers: readonly PeerRecord[]) => string | undefined,
+    call: { readonly [key: string]: unknown } = {},
+  ) => {
+    const peers = new TerminalPeers(
+      {
+        messaging: {
+          agents: () => ({ ok: true, text: "You are @fox in Novadeck." }),
+        } as unknown as Messaging,
+        caller: () => record,
+        terminal: () => undefined,
+        running: () => [record],
+        projectFolder: () => undefined,
+        happenings: () => [],
+        bar: () => [],
+        worktrees: () => [],
+        stopping: () => false,
+        hostLoad,
+      },
+      new GitStates(async () => null),
+    )
+    return peers.agents({ type: "agents", terminalId: "t1", token: "k", request: call })
+  }
+
+  it("follows the listing as a section of its own, with the terminals of the caller's session", async () => {
+    const seen: unknown[] = []
+    const answer = await listing((id, peers) => {
+      seen.push(
+        id,
+        peers.map((peer) => peer.summary.handle),
+      )
+      return "Host load now: CPU 94%."
+    })
+    expect(answer).toEqual({
+      ok: true,
+      text: "You are @fox in Novadeck.\n\nHost load now: CPU 94%.",
+    })
+    expect(seen).toEqual(["t1", ["fox"]])
+  })
+
+  it("leaves the listing as it is where the host is quiet, and a lookup of terminals by handle alone", async () => {
+    expect(await listing(() => undefined)).toEqual({ ok: true, text: "You are @fox in Novadeck." })
+    expect(await listing(() => "Host load now: CPU 94%.", { handles: ["@fox"] })).toEqual({
+      ok: true,
+      text: "You are @fox in Novadeck.",
+    })
+  })
+})

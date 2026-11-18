@@ -141,6 +141,20 @@ impl Handle {
         let ticks = (u64::from(created.high) << 32) | u64::from(created.low);
         (ticks / 10_000).checked_sub(FILETIME_TO_UNIX_MS)
     }
+
+    /// The processor time the process has used, kernel and user, in whole milliseconds.
+    fn cpu(&self) -> Option<u64> {
+        let mut created = FileTime::default();
+        let mut other = [FileTime::default(); 3];
+        let [exited, kernel, user] = &mut other;
+        let read = unsafe { GetProcessTimes(self.0, &mut created, exited, kernel, user) };
+        if read == 0 {
+            return None;
+        }
+        let ticks = |time: &FileTime| (u64::from(time.high) << 32) | u64::from(time.low);
+        // FILETIME counts 100 ns.
+        Some((ticks(kernel) + ticks(user)) / 10_000)
+    }
 }
 
 impl Drop for Handle {
@@ -161,6 +175,16 @@ pub fn started(pid: u32) -> Option<u64> {
         return None;
     }
     handle.started()
+}
+
+/// The processor time process `pid` has used, in milliseconds, if it still runs as the process
+/// that started at `started`; None where it is gone, another's by now, or Windows won't say.
+fn cpu_ms(pid: u32, started: u64) -> Option<u64> {
+    let handle = Handle::open(pid, QUERY_LIMITED_INFORMATION)?;
+    if handle.started() != Some(started) {
+        return None;
+    }
+    handle.cpu()
 }
 
 /// The command line process `pid` was started with, program first, as Windows keeps it;
@@ -307,8 +331,9 @@ fn member_json(
 
 /// `novadeck-relay tree <pid>[:<started-ms>]...`: each root's tree, as JSON, a line for
 /// each root as it was named: `{"root":"<pid>[:<started-ms>]","processes":[{"pid":<pid>,
-/// "startedAt":<ms>,"name":"<program file>","parent":<pid>},...]}` (`parent` as the snapshot
-/// records it, absent for a process it no longer lists). False where Windows refused the snapshot, which tells nothing
+/// "startedAt":<ms>,"name":"<program file>","parent":<pid>,"cpuMs":<ms>},...]}` (`parent` as
+/// the snapshot records it, absent for a process it no longer lists; `cpuMs`, the processor
+/// time the process has used, absent where Windows won't say). False where Windows refused the snapshot, which tells nothing
 /// of any tree.
 pub fn print_trees(roots: &[(String, Root)]) -> bool {
     let before = now();
@@ -328,7 +353,13 @@ pub fn print_trees(roots: &[(String, Root)]) -> bool {
     for (named, root) in roots {
         let members: Vec<Value> = tree(*root, &parents, &started, before)
             .iter()
-            .map(|member| member_json(member, &files, &parents))
+            .map(|member| {
+                let mut fields = member_json(member, &files, &parents);
+                if let Some(ms) = cpu_ms(member.pid, member.started) {
+                    fields["cpuMs"] = json!(ms);
+                }
+                fields
+            })
             .collect();
         // A runner gone meanwhile reads none of it; `println!` would panic on that.
         let _ = writeln!(stdout, "{}", json!({ "root": named, "processes": members }));

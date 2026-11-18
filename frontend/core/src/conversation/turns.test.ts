@@ -664,6 +664,18 @@ describe("the times a turn records", () => {
     expect([...turnsWorked(blocks, true).keys()]).toEqual(["first"])
   })
 
+  it("ends a turn at its reply, not at the agent's thinking, which may come after it", () => {
+    const blocks = groupItems([
+      user(1000),
+      { ...said(2000), id: "reply" },
+      { ...said(9000), id: "update", thinking: true },
+    ])
+    expect([...turnsWorked(blocks, false)]).toEqual([["reply", 8000]])
+    expect(
+      turnsWorked(groupItems([user(1000), { ...said(2000), thinking: true }]), false).size,
+    ).toBe(0)
+  })
+
   it("leaves out a turn whose harness gave no times", () => {
     expect(turnsWorked(groupItems([user(null), said(null)]), false).size).toBe(0)
     expect(turnsWorked(groupItems([user(1000), said(null)]), false).size).toBe(0)
@@ -673,5 +685,35 @@ describe("the times a turn records", () => {
     expect(turnStartedAt(groupItems([user(1000), said(2000), user(5000)]))).toBe(5000)
     expect(turnStartedAt(groupItems([said(2000)]))).toBeNull()
     expect(turnStartedAt(groupItems([user(null)]))).toBeNull()
+  })
+})
+
+describe("the agent's thinking", () => {
+  it("is the agent's text block, marked as thinking", () => {
+    const blocks = groupItems([
+      item({ text: "Picking the first option.", thinking: true }),
+      item({ text: "Done." }),
+    ])
+    expect(blocks).toMatchObject([
+      { kind: "assistant", text: "Picking the first option.", thinking: true },
+      { kind: "assistant", text: "Done." },
+    ])
+    expect(blocks[1]).not.toHaveProperty("thinking")
+  })
+
+  it("stays among the tool calls it came between, which it ends a run of", () => {
+    const blocks = groupItems([
+      call("Bash", "c1"),
+      item({ text: "Update.", thinking: true }),
+      call("Bash", "c2"),
+    ])
+    expect(blocks.map((block) => block.kind)).toEqual(["tools", "assistant", "tools"])
+  })
+
+  it("differs, as a block, from the same words as a reply", () => {
+    const [update] = groupItems([item({ id: "a", text: "x", thinking: true })])
+    const [reply] = groupItems([item({ id: "a", text: "x" })])
+    expect(sameBlock(update!, update!)).toBe(true)
+    expect(sameBlock(update!, reply!)).toBe(false)
   })
 })

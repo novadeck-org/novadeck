@@ -52,6 +52,31 @@ describe("what Antigravity says between turns", () => {
     expect(decoded(prompt("Go on"))[0]).toMatchObject({ note: { type: "mode", mode: "not-plan" } })
   })
 
+  // Probed 2026-11-18 (1.5.9) by resuming a conversation of such steps under each verbosity: the
+  // terminal draws a response's `thinking` as "Thought for 5s, 454 tokens" and one line of the
+  // thought, or in its low verbosity as a token count; its whole text only once the person
+  // expands it. The model's reasoning, not its words to the person, so the chat has none.
+  it("gives a response's words and calls, and none of its thinking", () => {
+    const response = (fields: object) => ({
+      step_index: 3,
+      source: "MODEL",
+      type: "PLANNER_RESPONSE",
+      status: "DONE",
+      created_at: "2026-11-18T10:00:00Z",
+      ...fields,
+    })
+    const thinking = "The request names a file, so I should read it before I answer."
+    expect(
+      decoded(response({ thinking, content: "Done." })).map(({ role, text }) => `${role}: ${text}`),
+    ).toEqual(["assistant: Done."])
+    expect(
+      decoded(
+        response({ thinking, tool_calls: [{ name: "view_file", args: { AbsolutePath: "/p" } }] }),
+      ).map(({ role, kind }) => `${role} ${kind}`),
+    ).toEqual(["assistant tool-call"])
+    expect(decoded(response({ thinking }))).toEqual([])
+  })
+
   it("lists the images saved with a prompt on its words, from the media its step names", () => {
     const step = {
       ...prompt("See [Image #1] and [Image #2]"),

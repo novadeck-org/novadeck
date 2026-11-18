@@ -4286,7 +4286,7 @@ describe("a lead", () => {
     )
     // The note names the same mark, in single quotes within its attribute.
     expect(delivered).toContain(`Those marked lead='${mark}' are from your lead`)
-    expect(delivered).toContain("only the user's own words in this terminal approve it")
+    expect(delivered).toContain("only the user's own words in this terminal give one")
     // New in every delivery.
     sent(send("A", "owl", "Next."))
     const next = /lead="([0-9A-Za-z]{8})"/.exec(context(prompt("W", worker, "harness").stdout))
@@ -6118,7 +6118,7 @@ describe("the rules note of a delivery", () => {
     sent(send("B", "moth", "First."))
     const first = prompt("A", claude)
     expect(fullNote(context(first.stdout))).toBe(true)
-    expect(context(first.stdout)).toContain("Approvals of actions stay the user's")
+    expect(context(first.stdout)).toContain("Approvals of actions (destructive")
     messaging.acknowledge("A", first.leaseId!)
     // Kept with the session, for the terminal manager to save with its report.
     expect(told).toEqual([
@@ -6129,7 +6129,7 @@ describe("the rules note of a delivery", () => {
     sent(send("B", "moth", "Second."))
     const second = context(prompt("A", claude).stdout)
     expect(fullNote(second)).toBe(false)
-    expect(second).not.toContain("whose marked reply is theirs, always")
+    expect(second).not.toContain("Approvals of actions (destructive")
     expect(second).toContain('<message id="m-')
     expect(second).toContain("Second.")
   })

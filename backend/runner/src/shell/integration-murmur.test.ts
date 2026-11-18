@@ -128,6 +128,45 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       })
     })
 
+    it("lists what an agent says its work waits on, until it clears it", async ({ shell }) => {
+      const bin = standIn(shell.home)
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+        describer: new FakeDescriber({ reply: () => undefined }),
+        murmurTimes,
+      })
+      const claude = await create(manager, shell)
+      const codex = await create(manager, shell)
+      const { start, step } = driver(shell, manager)
+      await start(claude.id, "claude", "s-claude")
+      await start(codex.id, "codex", "s-codex")
+      const listed = async () =>
+        (JSON.parse(await step(claude.id, { call: "agents", request: {} })) as { text: string })
+          .text
+      const describeIt = async (extra: object) =>
+        JSON.parse(
+          await step(codex.id, {
+            call: "describe",
+            request: { title: "The work", summary: "Fixes the login bug.", ...extra },
+          }),
+        ) as Told
+
+      await describeIt({})
+      expect(await listed()).not.toContain("says it waits on")
+      await expect(describeIt({ waitingFor: "the macOS runner\nfor PR 12" })).resolves.toEqual({
+        ok: true,
+        text: "Described this terminal.",
+      })
+      expect(await listed()).toContain(
+        '  says it waits on: "the macOS runner for PR 12" (under a minute ago)',
+      )
+      // A describe that says nothing of it leaves it; an empty one clears it.
+      await describeIt({})
+      expect(await listed()).toContain("says it waits on")
+      await describeIt({ waitingFor: "  " })
+      expect(await listed()).not.toContain("says it waits on")
+    })
+
     it("nudges the agent to describe again after a compaction, which retitles nothing", async ({
       shell,
     }) => {

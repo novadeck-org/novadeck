@@ -198,6 +198,46 @@ describe("Codex's rollout records", () => {
     ).toEqual(["user: hi", "assistant: yo"])
   })
 
+  // Codex's terminal draws a reasoning summary only in its transcript overlay (Ctrl+T), never
+  // in the conversation, whatever `hide_agent_reasoning` says (its TUI's `ReasoningSummaryCell`
+  // is always `transcript_only`; 0.167.0 and 0.169.0): so, as in its terminal, the chat has none.
+  it("give no reasoning, its summary or the event that completes it, which Codex's conversation view shows none of", () => {
+    const summary = "**Weighing the options**\n\nThe first one is simpler, so I'll take it."
+    const completed = (payload: object) => ({
+      timestamp: "2026-11-07T20:38:12.000Z",
+      type: "event_msg",
+      payload: { type: "item_completed", thread_id: "t", turn_id: "u", item: payload },
+    })
+    expect(
+      items([
+        item({
+          type: "reasoning",
+          id: "rs_1",
+          summary: [{ type: "summary_text", text: summary }],
+          encrypted_content: "gAAAA",
+        }),
+        completed({
+          type: "Reasoning",
+          id: "rs_1",
+          summary_text: [summary],
+          raw_content: [],
+        }),
+        item({
+          type: "reasoning",
+          id: "rs_2",
+          summary: [],
+          content: null,
+          encrypted_content: "gAAAB",
+        }),
+        item({
+          type: "message",
+          role: "assistant",
+          content: [{ type: "output_text", text: "The first one." }],
+        }),
+      ]).map(({ role, text }) => `${role}: ${text}`),
+    ).toEqual(["assistant: The first one."])
+  })
+
   it("give a prompt with an image as its text, without the tags naming the image's file", () => {
     const image = { type: "input_image", image_url: "data:image/png;base64,iVBORw0K" }
     expect(

@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest"
 
 import { exit, mapOf, missing, ok, scripted, timeout } from "./fakes.js"
 import type { Repository } from "./forge.js"
-import { github } from "./github.js"
+import { forgetJobs, github } from "./github.js"
 import { parseRemote } from "./remote.js"
 
 const server = setupServer()
@@ -335,7 +335,7 @@ describe("github", () => {
         }),
       )
       await github.pullRequests(fetch, token, repo, ["a"])
-      expect(sent).toContain("statusCheckRollup { state }")
+      expect(sent).toContain("statusCheckRollup { state contexts(first: 50)")
     })
     it("leaves ci absent where the answer says the checks could not be read", async () => {
       server.use(
@@ -380,5 +380,216 @@ describe("github", () => {
 
   it("names its sign in", () => {
     expect(github.signIn("ghe.example.com")).toBe("gh auth login --hostname ghe.example.com")
+  })
+})
+
+describe("github unfinished checks", () => {
+  afterEach(() => forgetJobs())
+  const started = "2026-01-01T10:00:00Z"
+  const queuedAt = "2026-01-01T09:50:00Z"
+  const rolled = (nodes: unknown[]) => ({
+    baseRefName: "main",
+    commits: {
+      nodes: [
+        { commit: { oid: "abc", statusCheckRollup: { state: "PENDING", contexts: { nodes } } } },
+      ],
+    },
+  })
+  const runs = (status: string, jobs: unknown[]) => {
+    server.use(
+      http.get("https://api.github.com/repos/o/r/actions/runs", ({ request }) =>
+        HttpResponse.json({
+          workflow_runs:
+            new URL(request.url).searchParams.get("head_sha") === "abc" ? [{ id: 77, status }] : [],
+        }),
+      ),
+      http.get("https://api.github.com/repos/o/r/actions/runs/77/jobs", () =>
+        HttpResponse.json({ jobs }),
+      ),
+    )
+  }
+  const find = async () => mapOf(await github.pullRequests(fetch, token, repo, ["a"])).get("a")
+
+  it("lists queued and running checks with their runner labels and times", async () => {
+    server.use(
+      answer({
+        a: [
+          pr(
+            1,
+            "OPEN",
+            rolled([
+              {
+                __typename: "CheckRun",
+                name: "mac",
+                status: "QUEUED",
+                startedAt: null,
+                checkSuite: { createdAt: queuedAt },
+              },
+              {
+                __typename: "CheckRun",
+                name: "linux",
+                status: "IN_PROGRESS",
+                startedAt: started,
+                checkSuite: { createdAt: queuedAt },
+              },
+              {
+                __typename: "CheckRun",
+                name: "lint",
+                status: "COMPLETED",
+                startedAt: started,
+                checkSuite: { createdAt: queuedAt },
+              },
+            ]),
+          ),
+        ],
+      }),
+    )
+    runs("in_progress", [
+      {
+        name: "mac",
+        status: "queued",
+        labels: ["macos-latest"],
+        created_at: "2026-01-01T09:55:00Z",
+      },
+      {
+        name: "linux",
+        status: "in_progress",
+        labels: ["self-hosted", "linux"],
+        created_at: queuedAt,
+      },
+    ])
+    const found = await find()
+    expect(found?.base).toBe("main")
+    expect(found?.checks).toEqual([
+      {
+        name: "mac",
+        state: "queued",
+        since: Date.parse("2026-01-01T09:55:00Z"),
+        runner: "macos-latest",
+      },
+      { name: "linux", state: "running", since: Date.parse(started), runner: "self-hosted linux" },
+    ])
+  })
+
+  it("keeps the checks without a runner where the runs can't be read", async () => {
+    server.use(
+      answer({
+        a: [
+          pr(
+            1,
+            "OPEN",
+            rolled([
+              {
+                __typename: "CheckRun",
+                name: "mac",
+                status: "QUEUED",
+                checkSuite: { createdAt: queuedAt },
+              },
+            ]),
+          ),
+        ],
+      }),
+      http.get(
+        "https://api.github.com/repos/o/r/actions/runs",
+        () => new HttpResponse("{}", { status: 403 }),
+      ),
+    )
+    expect((await find())?.checks).toEqual([
+      { name: "mac", state: "queued", since: Date.parse(queuedAt) },
+    ])
+  })
+
+  it("asks no runs of a pull request whose checks all finished", async () => {
+    server.use(
+      answer({
+        a: [pr(1, "OPEN", rolled([{ __typename: "CheckRun", name: "x", status: "COMPLETED" }]))],
+      }),
+    )
+    expect((await find())?.checks).toBeUndefined()
+  })
+
+  const mac = (status = "QUEUED") =>
+    pr(
+      1,
+      "OPEN",
+      rolled([
+        {
+          __typename: "CheckRun",
+          name: "mac",
+          status,
+          checkSuite: { createdAt: queuedAt },
+        },
+      ]),
+    )
+
+  it("reads a commit's jobs once: labels don't change, so a later look asks nothing", async () => {
+    let asked = 0
+    server.use(answer({ a: [mac()] }))
+    runs("queued", [
+      { name: "mac", status: "queued", labels: ["macos-latest"], created_at: queuedAt },
+    ])
+    server.use(
+      http.get("https://api.github.com/repos/o/r/actions/runs", () => {
+        asked += 1
+        return HttpResponse.json({ workflow_runs: [{ id: 77, status: "queued" }] })
+      }),
+    )
+    expect((await find())?.checks?.[0]?.runner).toBe("macos-latest")
+    expect((await find())?.checks?.[0]?.runner).toBe("macos-latest")
+    expect(asked).toBe(1)
+  })
+
+  it("leaves the REST API alone for a repository until its limit resets", async () => {
+    let asked = 0
+    const reset = Math.floor(Date.now() / 1000) + 600
+    server.use(
+      answer({ a: [mac()] }),
+      http.get("https://api.github.com/repos/o/r/actions/runs", () => {
+        asked += 1
+        return new HttpResponse("{}", {
+          status: 429,
+          headers: { "x-ratelimit-reset": String(reset) },
+        })
+      }),
+    )
+    expect((await find())?.checks?.[0]?.runner).toBeUndefined()
+    await find()
+    await find()
+    expect(asked).toBe(1)
+  })
+
+  it("leaves the REST API alone for a few minutes after a refusal", async () => {
+    let asked = 0
+    server.use(
+      answer({ a: [mac()] }),
+      http.get("https://api.github.com/repos/o/r/actions/runs", () => {
+        asked += 1
+        return new HttpResponse("{}", { status: 403 })
+      }),
+    )
+    await find()
+    await find()
+    expect(asked).toBe(1)
+  })
+
+  it("lists an approval or a concurrency hold as held, not queued, and asks no jobs for it", async () => {
+    server.use(
+      answer({
+        a: [
+          pr(
+            1,
+            "OPEN",
+            rolled([
+              { __typename: "CheckRun", name: "deploy", status: "WAITING" },
+              { __typename: "CheckRun", name: "build", status: "PENDING" },
+            ]),
+          ),
+        ],
+      }),
+    )
+    expect((await find())?.checks).toEqual([
+      { name: "deploy", state: "held", hold: "approval" },
+      { name: "build", state: "held", hold: "concurrency" },
+    ])
   })
 })

@@ -8,6 +8,8 @@ import { z } from "zod"
 const describeRequest = z.strictObject({
   title: z.string().max(4096),
   summary: z.string().max(4096),
+  // What the work waits on, in the agent's words; empty clears it, absent leaves it as it is.
+  waitingFor: z.string().max(4096).optional(),
 })
 
 type DescribeRequest = z.infer<typeof describeRequest>
@@ -25,11 +27,36 @@ export const readDescribeRequest = (
   if (parsed.success) return { ok: true, request: parsed.data }
   const [issue] = parsed.error.issues
   const field = issue?.path[0]
+  const named = field === "title" || field === "summary" || field === "waitingFor"
   const reason =
-    (field === "title" || field === "summary") && issue?.code === "too_big"
+    named && issue?.code === "too_big"
       ? `The ${field} is far too long.`
-      : field === "title" || field === "summary"
+      : named
         ? `A description needs a \`${field}\`, as text.`
-        : "A description takes only `title` and `summary`."
+        : "A description takes only `title`, `summary` and `waitingFor`."
   return { ok: false, reason }
+}
+
+/** How much of what the work waits on is kept, in characters. */
+const waitingChars = 200
+
+/**
+ * What a `describe` says of what the work waits on: undefined where it said nothing (what
+ * was said before stands), null where it cleared it, else the words, in one short line.
+ */
+export const waitingForOf = (
+  said: string | undefined,
+  now: number,
+): { readonly text: string; readonly at: number } | null | undefined => {
+  if (said === undefined) return undefined
+  const text = [
+    ...said
+      .replace(/[\p{Cc}\p{Cf}]+/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  ]
+    .slice(0, waitingChars)
+    .join("")
+    .trim()
+  return text === "" ? null : { text, at: now }
 }

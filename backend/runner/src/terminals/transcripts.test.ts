@@ -434,6 +434,46 @@ describe("a shape its harness's decoder has never seen", () => {
     await reading
   })
 
+  it("gives the update of a line with an unknown shape, but not the line's signature", async ({
+    file,
+  }) => {
+    // A thinking block of the narration kind, as its signature names it.
+    const signature = Buffer.concat([
+      Buffer.from("080412130a110813180238014209", "hex"),
+      Buffer.from("narration"),
+    ]).toString("base64")
+    writeFileSync(
+      file.path,
+      line({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "thinking", thinking: "An update.", signature },
+            { type: "hologram", text: "x" },
+          ],
+        },
+      }),
+    )
+    const reader = new AbortController()
+    const changes: TranscriptChange[] = []
+    const reading = (async () => {
+      for await (const change of transcriptChanges(
+        file.path,
+        harnesses.claude.transcripts!,
+        reader.signal,
+      ))
+        changes.push(change)
+    })()
+    const found = () => changes.flatMap((change) => (change.type === "items" ? change.items : []))
+    await expect.poll(found).toHaveLength(2)
+    expect(found()).toMatchObject([
+      { role: "assistant", text: "An update.", thinking: true },
+      { role: "note", note: { type: "gap" }, text: "" },
+    ])
+    reader.abort()
+    await reading
+  })
+
   it("is logged once per shape and harness version, a tag by no name, a version's few", ({
     resources,
   }) => {

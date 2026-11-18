@@ -13,6 +13,7 @@ import { isLoopback } from "../config.js"
 import type { GitState } from "../terminals/git-state.js"
 import { mention } from "../terminals/handles.js"
 import { cut, shorten } from "../text.js"
+import { checksLine, pullsOf, statedLine, type Stack, type Statement } from "./coordination.js"
 import { agentLabel, clock, holdOf, isNotice, type Message } from "./messages.js"
 
 /**
@@ -50,6 +51,10 @@ export type Whereabouts = {
   readonly worktrees: readonly OwnedWorktree[]
   /** The folders its work wrote in most, inside its project, busiest first; for a lookup. */
   readonly folders?: readonly string[]
+  /** What its agent said, through `describe`, its work waits on; null or absent for nothing. */
+  readonly waitingFor?: Statement | null
+  /** The terminals whose work its worktrees' work is based on (see `Stack`); absent for none. */
+  readonly stacks?: readonly Stack[]
 }
 
 /**
@@ -63,6 +68,9 @@ export type OwnedWorktree = {
   readonly gone: boolean
   /** Its branch's pull request, where a forge the person switched on found one. */
   readonly pullRequest?: PullRequest | undefined
+  /** Its repository's git common dir and the commit it started from, where known. */
+  readonly commonDir?: string | undefined
+  readonly base?: string | undefined
 }
 
 /**
@@ -219,6 +227,10 @@ export type Peer = {
   readonly happenings: readonly Happening[]
   /** Whether the latest `done` in its happenings still stands (see `standingDone`). */
   readonly standing: boolean
+  /** What its agent said its work waits on, through `describe`; absent for nothing. */
+  readonly waitingFor?: Statement | null
+  /** The terminals whose work its work is based on; absent for none. */
+  readonly stacks?: readonly Stack[]
 }
 
 /**
@@ -328,6 +340,8 @@ export const peerOf = (input: {
     shell: agent || expecting || untrusted ? null : (where?.shell ?? null),
     happenings,
     standing: agent ? (where?.standing ?? false) : false,
+    waitingFor: agent ? (where?.waitingFor ?? null) : null,
+    stacks: agent ? (where?.stacks ?? []) : [],
   }
 }
 
@@ -755,6 +769,8 @@ export const renderPeer = (peer: Peer, now: number, viewer: Viewer): readonly st
     headLine(peer, now, viewer),
     detailLine(peer),
     worktreesLine(peer),
+    checksLine(pullsOf(peer.worktrees), now),
+    statedLine(peer.waitingFor, now),
     runningLine(peer, now),
     endedLine(peer, now),
     doneLine(peer, now),
@@ -892,10 +908,13 @@ export const renderAgents = (input: {
   }[]
   readonly unbound: boolean
   readonly now: number
+  /** The coordination lines (see `coordinationLines`): runners in use, and work based on work. */
+  readonly coordination?: readonly string[]
 }): string =>
   [
     `You are ${mention(input.handle)} in Novadeck.`,
     renderPeers(input.peers, input.now, { handle: input.handle, lead: input.lead }),
+    ...(input.coordination ?? []),
     ...(input.messages.length > 0
       ? [
           "Your messages not yet delivered:",

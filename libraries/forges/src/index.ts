@@ -1,4 +1,5 @@
 export {
+  type Check,
   type Ci,
   type Fetch,
   type Forge,

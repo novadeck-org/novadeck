@@ -55,6 +55,25 @@ const orphan = (text: string): object => ({
 
 const novadeck = "mcp__plugin_novadeck_novadeck__"
 
+// A thinking block's signature as Claude Code writes one: its kind in field 8 of the message in
+// field 1 of field 2 of a protobuf, the rest of its bytes opaque (zeroed here).
+const signature = (kind: string): string => {
+  const name = [...Buffer.from(kind)]
+  const inner = [0x08, 0x13, 0x18, 0x02, 0x38, 0x01, 0x42, name.length, ...name]
+  const message = [0x0a, inner.length, ...inner, 0x12, 0x0c, ...Array.from({ length: 12 }, () => 0)]
+  return Buffer.from([0x08, 0x04, 0x12, message.length, ...message]).toString("base64")
+}
+
+const thinking = (text: string, kind: string): object => ({
+  type: "assistant",
+  timestamp: stamp,
+  thinkingDisplay: "updates",
+  message: {
+    role: "assistant",
+    content: [{ type: "thinking", thinking: text, signature: signature(kind) }],
+  },
+})
+
 export const claudeVocabulary: readonly Written[] = [
   {
     name: "files-and-shell",
@@ -236,6 +255,28 @@ export const claudeVocabulary: readonly Written[] = [
         ["EnterWorktree", { path: "/home/user/project/.wt/a" }, "Entered"],
         ["ExitWorktree", { action: "keep" }, "Left"],
       ]),
+    ],
+  },
+  {
+    // What its terminal shows of the model's thinking: its updates, which it tags "summary".
+    // Thinking of any other kind, with no text or redacted shows only in its transcript view.
+    name: "thinking",
+    records: [
+      said("Which repos?"),
+      thinking("", "thinking"),
+      thinking("Choose the public ones and keep the default owner.", "narration"),
+      thinking(
+        "The model's own reasoning, which the terminal keeps to its transcript view.",
+        "thinking",
+      ),
+      {
+        type: "assistant",
+        timestamp: stamp,
+        message: { role: "assistant", content: [{ type: "redacted_thinking", data: "x" }] },
+      },
+      ...calls("thinking", [["Bash", { command: "ls" }, "a\nb"]]),
+      thinking("Both are listed.", "narration"),
+      replied("Those two."),
     ],
   },
   {

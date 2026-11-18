@@ -50,6 +50,9 @@ export type ChatBlock =
       readonly text: string
       readonly truncated: boolean
       readonly at: number | null
+      // On the agent's text, that it is its thinking, as its terminal shows it (`ChatItem.thinking`):
+      // an update, not a reply.
+      readonly thinking?: true | undefined
       // On the person's message, the images its prompt carried (`ChatItem.images`).
       readonly images?: readonly ChatImage[] | undefined
     }
@@ -391,6 +394,7 @@ export const groupItems = (
         text: item.text,
         truncated: item.truncated,
         at: item.at,
+        ...(item.thinking && { thinking: item.thinking }),
       })
   }
   return blocks
@@ -464,6 +468,7 @@ export const sameBlock = (a: ChatBlock, b: ChatBlock): boolean => {
     a.text === b.text &&
     a.truncated === b.truncated &&
     a.at === b.at &&
+    (a.kind !== "assistant" || (b.kind === "assistant" && a.thinking === b.thinking)) &&
     (a.kind !== "agent" || (b.kind === "agent" && a.author === b.author)) &&
     sameImages(a, b)
   )
@@ -499,7 +504,7 @@ const blockEnd = (block: ChatBlock): number | null => {
 
 // How long each turn that has ended worked, from its prompt (the person's or the doorbell's) to
 // the last time it records, by the id of its last words, the turn's last block of the agent's
-// text. A turn the agent still works on is left out, and so is one whose harness dated neither end.
+// text (its reply: an update of its thinking doesn't end a turn). A turn the agent still works on is left out, and so is one whose harness dated neither end.
 export const turnsWorked = (
   blocks: readonly ChatBlock[],
   working: boolean,
@@ -511,7 +516,7 @@ export const turnsWorked = (
     if (!start || live || (start.kind !== "user" && start.kind !== "doorbell") || start.at === null)
       return
     const turn = blocks.slice(from + 1, to)
-    const last = turn.findLast((block) => block.kind === "assistant")
+    const last = turn.findLast((block) => block.kind === "assistant" && !block.thinking)
     const end = turn.reduce<number | null>((latest, block) => {
       const at = blockEnd(block)
       return at === null ? latest : Math.max(latest ?? at, at)

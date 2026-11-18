@@ -356,9 +356,22 @@ const BlockView = memo(
         )
       case "assistant":
         return (
-          <article className="chat-message" data-role="assistant" aria-label={agent}>
+          <article
+            className="chat-message"
+            data-role="assistant"
+            data-thinking={block.thinking || undefined}
+            aria-label={block.thinking ? `${agent}, summary` : agent}
+          >
             <Markdown text={block.text} mention={mentionAt(mention, block.at)} />
             {block.truncated && <Shortened />}
+            {block.thinking && (
+              // The agent's update as its terminal shows it, which tags it "summary" after the
+              // words, dim: its thinking, not its reply.
+              <span className="chat-summary-tag" aria-hidden>
+                {" "}
+                · summary
+              </span>
+            )}
             {worked !== null ? (
               <Fact>worked {span(worked)}</Fact>
             ) : (
