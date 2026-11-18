@@ -47,7 +47,14 @@ import { forgeIntegration, forgeName } from "./forges.js"
 import { closedTerminal, historyChange } from "./history.js"
 import { askAnswer, inboxEntry } from "./inbox.js"
 import { terminalMessages, threadId } from "./messages.js"
-import { clientState, folderListing, project, workspaceSession } from "./projects.js"
+import {
+  checkoutState,
+  checkoutUpdate,
+  clientState,
+  folderListing,
+  project,
+  workspaceSession,
+} from "./projects.js"
 import { runnerSettings, runnerSettingsState } from "./settings.js"
 import { sliceChange } from "./slices.js"
 import {
@@ -151,6 +158,16 @@ export const contract = {
     folder: procedure
       .input(z.strictObject({ projectId: id, folder: z.string().max(4096) }))
       .output(folderListing),
+    // How the project's own checkout stands against its remote's main, as it is now (see
+    // `checkoutState`). A project outside a git repository, or one with no remote main, is
+    // `behind: null`. A project the runner doesn't have is NOT_FOUND.
+    checkout: procedure.input(z.strictObject({ projectId: id })).output(checkoutState),
+    // Fast-forwards the project's own checkout to its remote's main on the person's say: the
+    // same `git merge --ff-only` the runner does by itself, but with tracked changes allowed
+    // (git still refuses where one of them is in the way). Refused, with git's reason, while an
+    // operation is half done; answers ok where there is nothing to move. A project the runner
+    // doesn't have is NOT_FOUND.
+    updateCheckout: procedure.input(z.strictObject({ projectId: id })).output(checkoutUpdate),
   },
   sessions: {
     // In the order the person arranged them; a session created since comes first.

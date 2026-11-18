@@ -219,6 +219,14 @@ root). Entries come sorted, folders first, then by name ignoring case and a lead
 (nothing is ignored outside a repository). At most 2000 are listed, the first in that
 order, and `truncated` says there were more. A missing project is `NOT_FOUND`; a folder that is
 missing, not a folder, or outside the project's directory is `INVALID_DIRECTORY`.
+`projects.checkout({ projectId })` says how the project's own checkout stands against its remote's main:
+`{ behind: { branch, remote, count } | null, moved }`. `behind` is set only where the runner left the
+checkout alone (see agent-workspace.md, "Fetching"): it is on the branch main is, main is strictly ahead,
+and it has tracked changes or an operation half done. `moved` counts the times the runner moved the
+checkout since it began; a change in it says files on disk changed. A project outside a repository, or with no
+remote main, is `{ behind: null, moved: 0 }`. `projects.updateCheckout({ projectId })` fast-forwards it on the
+person's say, tracked changes allowed, answering `{ ok: true }` (also where there was nothing to move) or
+`{ ok: false, said }` with git's reason or the operation in progress.
 `sessions.save({ sessionId, state, visitedAt })` replaces a session's `state`, a string the
 runner stores with the session without reading it, such as a UI layout, and `visitedAt`,
 when the person last visited it (null: never). Sessions list both; the latest visit picks a

@@ -69,6 +69,16 @@ export class Cleanup {
     return this.fetcher.fetchBriefly(commonDir, ms)
   }
 
+  /** How many times the repository's checkout was moved to its main: see `MainFetcher.moved`. */
+  moved(commonDir: string): number {
+    return this.fetcher.moved(commonDir)
+  }
+
+  /** Moves the repository's checkout to its main on the person's say: see `MainFetcher.update`. */
+  update(commonDir: string): ReturnType<MainFetcher["update"]> {
+    return this.fetcher.update(commonDir)
+  }
+
   /** Fetches the repositories' origins now: see `MainFetcher.fetchNow`. */
   fetchNow(commonDirs: Iterable<string>): Promise<void> {
     return this.fetcher.fetchNow(commonDirs)

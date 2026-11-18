@@ -826,6 +826,25 @@ with every safety check again at that time:
     The main branch is `origin/HEAD` where the repository sets it; a clone with no `origin/HEAD`
     measures against its local `main`, which a fetch doesn't move, so such a work carries no
     `fetchedAt` and its row doesn't say "main as of".
+    **The checkout follows the fetch** (`worktrees/fast-forward.ts`). After each successful fetch the
+    repository's home checkout (`homeOf`, never a linked worktree) is fast-forwarded to origin's main,
+    but only when all of this holds: main is a remote-tracking ref `origin/<x>` and `HEAD` is the symbolic
+    ref `refs/heads/<x>`; no merge, cherry-pick, revert, rebase, bisect or sequencer is in progress and
+    there is no `index.lock`; no tracked file has changes, staged or not (untracked files don't count; git
+    refuses to overwrite them); `HEAD` is a strict ancestor of main. The checks read with
+    `--no-optional-locks` and run with the fetch's no-prompt environment; `HEAD` and the branch are read
+    again right before the move. It is `git -c core.hooksPath=<empty folder the runner owns, in the temp
+    folder> -c core.fsmonitor=false -c merge.autoStash=false merge --ff-only --no-verify-signatures
+    --no-overwrite-ignore --quiet <the commit checked>`, with no time limit and outside the shutdown
+    scope, since a checkout stopped halfway leaves a half-updated tree. Moves of one repository run one
+    at a time. Any failure, a lock held by the person's git, a shallow clone or a missing ref is debug-logged
+    and ignored, and the next fetch tries again. It only happens for repositories with a tracked
+    worktree, as only those are fetched. The one switch is `MainFetcher`'s `follow` option.
+    Where the checkout is on main and behind but a guard held it (tracked changes or an operation),
+    `projects.checkout` reports `behind`, and the Files panel says "main is N behind origin" with
+    Update (`projects.updateCheckout`): the same move with tracked changes allowed, where git itself
+    refuses if a changed file is in the way, and its reason is shown. The panel asks every 20 s
+    while shown and, when `moved` changes, reads its folders again, so added and removed files show.
   - **Restore and looking again.** A restore from History makes a new terminal id; when the restore
     is confirmed (or a newer row of the same conversation replaces the row) `ClosedTerminals` tells
     the service, which moves the old id's worktrees to the new one in its queue before the row goes.

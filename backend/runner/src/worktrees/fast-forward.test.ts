@@ -1,0 +1,145 @@
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
+import { describe, expect, it as base } from "../test.js"
+import { gitIn, withOrigin, type Origin } from "../testing/origin.js"
+import { fastForward } from "./fast-forward.js"
+
+const it = base.extend<{ origin: Origin; hooks: string }>({
+  origin: async ({ resources }, use) => {
+    await use(withOrigin((cleanup) => resources.defer(cleanup)))
+  },
+  hooks: async ({ resources }, use) => {
+    const dir = mkdtempSync(join(tmpdir(), "novadeck-test-hooks-"))
+    resources.defer(() => rmSync(dir, { recursive: true, force: true }))
+    await use(dir)
+  },
+})
+
+const head = (repo: string) => gitIn(repo, "rev-parse", "HEAD")
+
+describe("fast-forwarding a checkout", () => {
+  it("moves a clean checkout on main to origin's main, leaving untracked files", async ({
+    origin,
+    hooks,
+  }) => {
+    const landed = origin.land("b.txt")
+    origin.fetch()
+    writeFileSync(join(origin.repo, "scratch.txt"), "mine\n")
+    expect(await fastForward(origin.repo, { hooks: () => Promise.resolve(hooks) })).toEqual({
+      ok: true,
+      moved: true,
+    })
+    expect(head(origin.repo)).toBe(landed)
+    expect(existsSync(join(origin.repo, "b.txt"))).toBe(true)
+    expect(existsSync(join(origin.repo, "scratch.txt"))).toBe(true)
+    expect(await fastForward(origin.repo, { hooks: () => Promise.resolve(hooks) })).toEqual({
+      ok: true,
+      moved: false,
+    })
+  })
+
+  it("runs none of the repository's hooks", async ({ origin, hooks }) => {
+    const marker = join(origin.repo, "hook-ran")
+    const hook = join(origin.repo, ".git", "hooks", "post-merge")
+    mkdirSync(join(origin.repo, ".git", "hooks"), { recursive: true })
+    writeFileSync(hook, `#!/bin/sh\ntouch "${marker.replaceAll("\\", "/")}"\n`)
+    chmodSync(hook, 0o755)
+    const landed = origin.land("b.txt")
+    origin.fetch()
+    await fastForward(origin.repo, { hooks: () => Promise.resolve(hooks) })
+    expect(head(origin.repo)).toBe(landed)
+    expect(existsSync(marker)).toBe(false)
+  })
+
+  it("leaves a checkout with tracked changes, staged or not, unless allowed", async ({
+    origin,
+    hooks,
+  }) => {
+    const landed = origin.land("b.txt")
+    origin.fetch()
+    const before = head(origin.repo)
+    const options = { hooks: () => Promise.resolve(hooks) }
+    writeFileSync(join(origin.repo, "a.txt"), "changed\n")
+    expect(await fastForward(origin.repo, options)).toMatchObject({ ok: false })
+    gitIn(origin.repo, "add", "a.txt")
+    expect(await fastForward(origin.repo, options)).toMatchObject({ ok: false })
+    expect(head(origin.repo)).toBe(before)
+    expect(await fastForward(origin.repo, { ...options, allowChanges: true })).toEqual({
+      ok: true,
+      moved: true,
+    })
+    expect(head(origin.repo)).toBe(landed)
+  })
+
+  it("lets git refuse where a change is in the way, even when allowed", async ({
+    origin,
+    hooks,
+  }) => {
+    const other = origin.land("a.txt")
+    origin.fetch()
+    writeFileSync(join(origin.repo, "a.txt"), "mine\n")
+    const before = head(origin.repo)
+    const done = await fastForward(origin.repo, {
+      hooks: () => Promise.resolve(hooks),
+      allowChanges: true,
+    })
+    expect(done).toMatchObject({ ok: false })
+    expect(head(origin.repo)).toBe(before)
+    expect(other).not.toBe(before)
+  })
+
+  it("waits while an operation is in progress or a lock is held", async ({ origin, hooks }) => {
+    const landed = origin.land("b.txt")
+    origin.fetch()
+    const options = { hooks: () => Promise.resolve(hooks), allowChanges: true }
+    const before = head(origin.repo)
+    for (const name of [
+      "MERGE_HEAD",
+      "CHERRY_PICK_HEAD",
+      "REVERT_HEAD",
+      "BISECT_LOG",
+      "index.lock",
+    ]) {
+      const file = join(origin.repo, ".git", name)
+      writeFileSync(file, "x\n")
+      // eslint-disable-next-line no-await-in-loop -- One marker at a time.
+      expect(await fastForward(origin.repo, options)).toMatchObject({ ok: false })
+      rmSync(file)
+    }
+    for (const name of ["rebase-merge", "rebase-apply", "sequencer"]) {
+      const dir = join(origin.repo, ".git", name)
+      mkdirSync(dir)
+      // eslint-disable-next-line no-await-in-loop -- One marker at a time.
+      expect(await fastForward(origin.repo, options)).toMatchObject({ ok: false })
+      rmSync(dir, { recursive: true })
+    }
+    expect(head(origin.repo)).toBe(before)
+    expect(await fastForward(origin.repo, options)).toMatchObject({ ok: true, moved: true })
+    expect(head(origin.repo)).toBe(landed)
+  })
+
+  it("does nothing on a feature branch, a detached HEAD, or a main that is ahead or diverged", async ({
+    origin,
+    hooks,
+  }) => {
+    origin.land("b.txt")
+    origin.fetch()
+    const options = { hooks: () => Promise.resolve(hooks) }
+    const untouched = async () => {
+      const before = head(origin.repo)
+      expect(await fastForward(origin.repo, options)).toEqual({ ok: true, moved: false })
+      expect(head(origin.repo)).toBe(before)
+    }
+    gitIn(origin.repo, "checkout", "--quiet", "-b", "feature")
+    await untouched()
+    gitIn(origin.repo, "checkout", "--quiet", "--detach")
+    await untouched()
+    gitIn(origin.repo, "checkout", "--quiet", "main")
+    writeFileSync(join(origin.repo, "mine.txt"), "mine\n")
+    gitIn(origin.repo, "add", "-A")
+    gitIn(origin.repo, "commit", "--quiet", "-m", "mine")
+    await untouched()
+  })
+})

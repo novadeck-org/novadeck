@@ -5,6 +5,7 @@ import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { folderListings } from "../test/files"
+import { checkoutPollMs, type Checkout } from "./FilesCheckout"
 import { FilesPanel } from "./FilesPanel"
 import { readTimeoutMs } from "./useFolderReader"
 import { pulseMs } from "./usePulses"
@@ -103,6 +104,7 @@ const mount = async (
   reads: Reads = backend(),
   onOpenFile: (path: string) => Promise<void> = () => Promise.resolve(),
   watch?: () => () => void,
+  checkout?: Checkout,
 ) => {
   let visible = true
   let turn = 0
@@ -110,6 +112,7 @@ const mount = async (
     project: next,
     list: reads.list,
     turn,
+    checkout,
     watch,
     onOpenFile,
     selectedHandle: handle,
@@ -1534,6 +1537,75 @@ describe("The Files panel", () => {
         false,
       )
       await nextFrame()
+      panel.view.unmount()
+    })
+  })
+
+  context("when the checkout is behind its remote's main", () => {
+    const behind = { branch: "main", remote: "origin/main", count: 3 }
+    const stand = (state: Awaited<ReturnType<Checkout["read"]>>) => {
+      let current = state
+      const update = vi.fn<Checkout["update"]>(async () => ({ ok: true }))
+      return {
+        update,
+        set: (next: typeof current) => (current = next),
+        checkout: { read: async () => current, update } satisfies Checkout,
+      }
+    }
+    const mountWith = (checkout: Checkout) =>
+      mount(undefined, undefined, undefined, undefined, undefined, undefined, checkout)
+
+    it("says how far, and updates on request", async () => {
+      const held = stand({ behind, moved: 0 })
+      const panel = await mountWith(held.checkout)
+      const line = panel.view.container.querySelector(".files-behind")!
+      expect(line.textContent).toContain("main is 3 behind origin")
+      act(() => line.querySelector<HTMLButtonElement>(".files-update")!.click())
+      await panel.settle()
+      expect(held.update).toHaveBeenCalledTimes(1)
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("says nothing where the checkout is up to date", async () => {
+      const panel = await mountWith(stand({ behind: null, moved: 0 }).checkout)
+      expect(panel.view.container.querySelector(".files-behind")).toBeNull()
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("gives git's reason when the update is refused, and lets it be tried again", async () => {
+      const held = stand({ behind, moved: 0 })
+      held.update.mockResolvedValueOnce({ ok: false, said: "Your local changes would be lost." })
+      const panel = await mountWith(held.checkout)
+      act(() => panel.view.container.querySelector<HTMLButtonElement>(".files-update")!.click())
+      await panel.settle()
+      const line = panel.view.container.querySelector(".files-behind")!
+      expect(line.textContent).toContain("Can't update: Your local changes would be lost.")
+      expect(line.querySelector(".files-update")?.textContent).toBe("Retry")
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("reads the folders again when the backend moved the checkout", async () => {
+      vi.useFakeTimers()
+      const held = stand({ behind: null, moved: 0 })
+      const panel = await mountWith(held.checkout)
+      const before = panel.reads.folders.length
+      held.set({ behind: null, moved: 1 })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(checkoutPollMs)
+      })
+      await panel.settle()
+      expect(panel.reads.folders.length).toBeGreaterThan(before)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(checkoutPollMs)
+      })
+      const unchanged = panel.reads.folders.length
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(checkoutPollMs)
+      })
+      expect(panel.reads.folders.length).toBe(unchanged)
       panel.view.unmount()
     })
   })

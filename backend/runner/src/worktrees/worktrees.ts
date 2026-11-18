@@ -216,6 +216,16 @@ export class Worktrees {
     return this.cleanup.fetchedAt(commonDir)
   }
 
+  /** How many times the repository's checkout was moved to its main since the runner began. */
+  moved(commonDir: string): number {
+    return this.cleanup.moved(commonDir)
+  }
+
+  /** Moves the repository's checkout to its main on the person's say (`Cleanup.update`). */
+  update(commonDir: string): ReturnType<Cleanup["update"]> {
+    return this.cleanup.update(commonDir)
+  }
+
   /** Fetches the repositories' origins now, and waits for that (`Cleanup.fetchNow`). */
   fetchNow(commonDirs: Iterable<string>): Promise<void> {
     return this.cleanup.fetchNow(commonDirs)

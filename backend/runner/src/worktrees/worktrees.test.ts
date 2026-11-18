@@ -141,6 +141,8 @@ describe("opening a worktree", () => {
   }) => {
     const origin = withOrigin((cleanup) => resources.defer(cleanup))
     await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
+    // A change of its own keeps the checkout where it is, though main is fetched now.
+    writeFileSync(join(origin.repo, "a.txt"), "mine\n")
     // Not fetched here: the new worktree fetches main itself, for a moment.
     const landed = origin.land("b.txt")
     const opened = await f.worktrees.open({

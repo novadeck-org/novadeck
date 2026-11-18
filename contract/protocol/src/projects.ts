@@ -26,6 +26,26 @@ export const folderListing = z.strictObject({
   ),
   truncated: z.boolean(),
 })
+
+// The project's own checkout against its remote's main, as `projects.checkout` reports it.
+// `behind` is set where the checkout is on the branch main is (`main` for `origin/main`) with
+// main strictly ahead of it, which Novadeck leaves for the person when the checkout has changes of
+// its own or an operation half done; `count` is how many commits main has that it lacks. `moved`
+// counts the times the runner moved the checkout to main since it began: a change in it says the
+// files on disk changed.
+export const checkoutState = z.strictObject({
+  behind: z.strictObject({ branch: name, remote: name, count: z.number().int().min(1) }).nullable(),
+  moved: z.number().int().min(0),
+})
+export type CheckoutState = z.infer<typeof checkoutState>
+
+// What `projects.updateCheckout` did: moved to main (or found it there already), or why not.
+export const checkoutUpdate = z.discriminatedUnion("ok", [
+  z.strictObject({ ok: z.literal(true) }),
+  z.strictObject({ ok: z.literal(false), said: z.string().max(300) }),
+])
+export type CheckoutUpdate = z.infer<typeof checkoutUpdate>
+
 export const workspaceSession = z.strictObject({
   id,
   projectId: id,

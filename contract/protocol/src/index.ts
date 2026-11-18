@@ -158,6 +158,8 @@ export {
   type TerminalMessages,
 } from "./messages.js"
 export {
+  type CheckoutState,
+  type CheckoutUpdate,
   type FolderListing,
   maxClientStateLength,
   type Project,
