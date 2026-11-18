@@ -62,6 +62,17 @@ describe("the sample changes", () => {
     expect(change.files.map((file) => file.path)).toEqual(["src/pages/Contact.tsx"])
   })
 
+  it("show a compare of remote refs in each state of how current origin is", () => {
+    const origin = (state: string) =>
+      (changeOf(`change-compare-${state}`) as { origin?: unknown }).origin
+    const now = Date.now()
+    expect((origin("fresh") as { fetchedAt: number }).fetchedAt).toBeGreaterThan(now - 5 * 60_000)
+    expect((origin("stale") as { fetchedAt: number }).fetchedAt).toBeLessThan(now - 2 * 3_600_000)
+    expect(origin("failed")).toMatchObject({ failed: expect.any(String) })
+    expect(origin("unfetched")).toEqual({})
+    expect(changeOf("change-compare").origin).toBeUndefined()
+  })
+
   it("show an ordinary change in layers: the uncommitted work above the commits since main", () => {
     const change = changeOf("change")
     expect(change.base).toBe("main")

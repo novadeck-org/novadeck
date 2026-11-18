@@ -1,3 +1,4 @@
+import { fetchAge, staleFetchMs } from "@novadeck/core/fetch-age"
 import type { PullRequest } from "@novadeck/core/forges"
 import type { Work, WorkFile } from "@novadeck/core/works"
 
@@ -283,21 +284,14 @@ export const originOf = (
   const words = mainWords(oldest.fetchedAt, now)!.replace(/^main as of /, "")
   return {
     text: `${oldest.base}, ${words}`,
-    stale: now - oldest.fetchedAt! >= 60 * 60_000,
+    stale: now - oldest.fetchedAt! >= staleFetchMs,
   }
 }
 
 // How old main is, in words, from when the repository's origin was last fetched; none when it
 // never was. Rounded down to the minute, hour or day, so it does not change by the second.
-export const mainWords = (fetchedAt: number | undefined, now: number): string | undefined => {
-  if (fetchedAt === undefined) return undefined
-  const minutes = Math.max(0, Math.floor((now - fetchedAt) / 60_000))
-  if (minutes < 1) return "main as of just now"
-  if (minutes < 60) return `main as of ${minutes} min ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `main as of ${hours} h ago`
-  return `main as of ${Math.floor(hours / 24)} d ago`
-}
+export const mainWords = (fetchedAt: number | undefined, now: number): string | undefined =>
+  fetchedAt === undefined ? undefined : `main as of ${fetchAge(fetchedAt, now)}`
 
 // What its trash button does: waits while the owner's agent is working in the worktree.
 export const closeMode = (work: Work): CloseMode => (work.working ? "busy" : "close")

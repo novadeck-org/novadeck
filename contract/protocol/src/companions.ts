@@ -306,6 +306,14 @@ export const itemContent = z.discriminatedUnion("state", [
         root: z.string().max(companionLimits.path),
         base: z.string().max(256),
         head: z.string().max(maxCompareRef).optional(),
+        // For a compare that reads a remote-tracking ref: when the repository's origin was last
+        // fetched (epoch milliseconds; absent if never) and why its last fetch failed, if it did.
+        origin: z
+          .strictObject({
+            fetchedAt: z.number().optional(),
+            failed: z.string().max(300).optional(),
+          })
+          .optional(),
         layers: z.array(changeLayer).max(maxChangeLayers),
         // The files the change as a whole differs from main by, as git lists the range from
         // main to the newest layer (the layers' own files added up are not that), up to

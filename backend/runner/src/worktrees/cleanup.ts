@@ -22,6 +22,8 @@ export type CleanupHost = {
   /** How often the worktrees are looked at, in milliseconds (a minute when omitted). */
   readonly sweepMs?: number
   readonly fetcher?: MainFetcher
+  /** Repositories beyond the tracked worktrees' that are kept fetched (compares of remote refs). */
+  readonly repositories?: () => Promise<readonly string[]>
   /** The runner's own folder for git's hooks to be pointed at while a checkout moves. */
   readonly hooksFolder?: string
 }
@@ -69,6 +71,16 @@ export class Cleanup {
   /** When the repository's origin was last fetched. */
   fetchedAt(commonDir: string): number | undefined {
     return this.fetcher.fetchedAt(commonDir)
+  }
+
+  /** When the repository was last fetched and why its last fetch failed, if it did. */
+  originStatus(commonDir: string): { fetchedAt?: number; failed?: string } {
+    const failed = this.fetcher.failure(commonDir)
+    const fetchedAt = this.fetcher.fetchedAt(commonDir)
+    return {
+      ...(fetchedAt !== undefined && { fetchedAt }),
+      ...(failed !== undefined && { failed }),
+    }
   }
 
   /** Fetches one repository's origin for a caller that can't wait: see `MainFetcher.fetchBriefly`. */
@@ -171,7 +183,11 @@ export class Cleanup {
 
   private async sweep(fetch: boolean): Promise<void> {
     if (fetch) {
-      await this.fetcher.fetchDue(this.service.all().map(({ commonDir }) => commonDir))
+      const more = (await this.host.repositories?.().catch(() => [])) ?? []
+      await this.fetcher.fetchDue([
+        ...this.service.all().map(({ commonDir }) => commonDir),
+        ...more,
+      ])
     }
     const rows = this.service.all()
     const tracked = new Set(rows.map(({ path }) => path))

@@ -224,6 +224,33 @@ describe("opening a worktree", () => {
     },
   )
 
+  it("keeps a repository with no worktree on the fetch schedule while something asks for it", async ({
+    resources,
+    fx: f,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    const common = join(origin.repo, ".git")
+    let wanted: string[] = [common]
+    const fetcher = new MainFetcher({ environment: {}, follow: () => false, every: 0 })
+    const worktrees = new Worktrees(f.store, {
+      exists: (id) => f.live.has(id),
+      root: f.root,
+      cleanup: { fetcher },
+      repositories: () => Promise.resolve(wanted),
+    })
+    resources.defer(() => {
+      fetcher.abort()
+      void worktrees.stop()
+    })
+    await worktrees.tidy(true)
+    const first = fetcher.fetchedAt(common)
+    expect(first).toBeTypeOf("number")
+    // Asked for no more (its compare closed): it is forgotten, and not fetched again.
+    wanted = []
+    await worktrees.tidy(true)
+    expect(fetcher.fetchedAt(common)).toBeUndefined()
+  })
+
   it("starts from the cached main when the remote can't be reached", async ({
     resources,
     fx: f,

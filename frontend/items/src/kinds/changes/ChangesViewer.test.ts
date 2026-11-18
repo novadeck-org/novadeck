@@ -318,6 +318,30 @@ describe("a change beside a terminal", () => {
       expect(container.querySelector(".artifact-meta")?.textContent).toContain("against main")
     })
 
+    it("says nothing of origin where a compare's refs are current, and says when they are in doubt", () => {
+      const header = (origin: ChangesContent["origin"]) =>
+        show({ ...change(), head: "feature/login", origin }).container.querySelector(
+          ".artifact-meta",
+        )!
+      const now = Date.now()
+      expect(header({ fetchedAt: now - 120_000 }).querySelector(".changes-origin")).toBeNull()
+      const old = header({ fetchedAt: now - 3 * 3_600_000 }).querySelector(".changes-origin")
+      expect(old?.textContent).toBe("origin last fetched 3 h ago")
+      expect(old?.getAttribute("data-stale")).toBe("true")
+      const failed = header({ fetchedAt: now - 1_200_000, failed: "Could not resolve host" })
+      expect(failed.querySelector(".changes-origin")?.textContent).toBe(
+        "origin fetch failed · last fetched 20 min ago",
+      )
+      expect(failed.querySelector(".changes-origin")?.getAttribute("title")).toBe(
+        "Could not resolve host",
+      )
+      expect(header({}).querySelector(".changes-origin")?.textContent).toBe(
+        "origin not fetched yet",
+      )
+      // A change of the checkout's own says nothing, whatever.
+      expect(show(change()).container.querySelector(".changes-origin")).toBeNull()
+    })
+
     it("links none for a work without one, or a page that isn't on the web", () => {
       const none = show(change(), undefined, true, worksWith(undefined).pulls)
       expect(none.container.querySelector(".changes-pull")).toBeNull()

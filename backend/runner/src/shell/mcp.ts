@@ -269,8 +269,8 @@ const show: Tool<Shown> = {
             type: "string",
             description:
               "For a compare: the branch, tag or commit whose commits to show, such as " +
-              "feature/login or origin/feature/login; HEAD by default (its commits, without " +
-              "the work not committed yet).",
+              "feature/login or origin/feature/login (a remote branch is fetched first, briefly); " +
+              "HEAD by default (its commits, without the work not committed yet).",
           },
         },
         additionalProperties: false,

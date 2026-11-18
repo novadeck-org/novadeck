@@ -46,6 +46,8 @@ export type WorktreesHost = {
   readonly busy?: CleanupHost["busy"]
   /** Cleanup's own timing and fetcher, which tests replace. */
   readonly cleanup?: Pick<CleanupHost, "sweepMs" | "fetcher">
+  /** Repositories beyond the tracked worktrees' that are kept fetched (compares of remote refs). */
+  readonly repositories?: () => Promise<readonly string[]>
   /** The runner's own folder for git's hooks to be pointed at while a checkout moves. */
   readonly hooksFolder?: string
   /** How long a new worktree waits for the remote's main; five seconds when omitted. */
@@ -149,6 +151,7 @@ export class Worktrees {
       ...(host.busy && { busy: host.busy }),
       ...(host.now && { now: host.now }),
       ...(host.hooksFolder !== undefined && { hooksFolder: host.hooksFolder }),
+      ...(host.repositories && { repositories: host.repositories }),
       ...host.cleanup,
     })
   }
@@ -219,6 +222,16 @@ export class Worktrees {
   /** When the repository's origin was last fetched, in epoch milliseconds; undefined if never. */
   fetchedAt(commonDir: string): number | undefined {
     return this.cleanup.fetchedAt(commonDir)
+  }
+
+  /** Makes a repository's remote refs current for a caller that can't wait (`Cleanup.fetchBriefly`). */
+  fetchBriefly(commonDir: string, ms: number): Promise<void> {
+    return this.cleanup.fetchBriefly(commonDir, ms)
+  }
+
+  /** When a repository was last fetched and why its last fetch failed (`Cleanup.originStatus`). */
+  originStatus(commonDir: string): { fetchedAt?: number; failed?: string } {
+    return this.cleanup.originStatus(commonDir)
   }
 
   /** How many times the repository's checkout was moved to its main since the runner began. */

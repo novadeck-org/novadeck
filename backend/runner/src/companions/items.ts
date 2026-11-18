@@ -42,6 +42,7 @@ import {
 import { findRepository, LayerReader, type ReadMarks } from "./layers.js"
 import { PageLooks } from "./looks.js"
 import type { Compare, ItemRecord, ItemRecords, WindowRecord } from "./records.js"
+import { remoteCompare } from "./remote-compare.js"
 import {
   failure,
   named,
@@ -100,6 +101,17 @@ type CompanionOptions = {
   readonly environment?: () => NodeJS.ProcessEnv
   /** How often `content` looks at what an item points at, in milliseconds. */
   readonly pollMs?: number
+  /**
+   * Remote refs: makes a repository's current for a caller that waits at most `ms` (the fetch
+   * itself carries on), and tells when it was last fetched and why a fetch failed. Without it
+   * compares measure against the remote refs as they are.
+   */
+  readonly origin?: {
+    readonly fetchBriefly: (commonDir: string, ms: number) => Promise<void>
+    readonly status: (commonDir: string) => { fetchedAt?: number; failed?: string }
+  }
+  /** How long showing a compare of remote refs waits for a fetch, in milliseconds (five seconds). */
+  readonly fetchWaitMs?: number
   /** How often `content` reads a change again, in milliseconds: git runs each time. */
   readonly changesMs?: number
   /** How long an agent's look waits for the client's picture, in milliseconds. */
@@ -1191,6 +1203,8 @@ export class CompanionItems {
       if (!root.ok) return root
       const compare = await compareOf(root.root, request.changes)
       if (compare !== undefined && "ok" in compare) return compare
+      // A compare of remote refs is as old as the last fetch: made current first, for a moment.
+      if (compare) await this.freshen(root.root, compare)
       // As the agent left it, not as a snapshot of a moment ago.
       const read = await this.layers.read(root.root, true, compare)
       if (!read.ok) return read
@@ -1445,7 +1459,54 @@ export class CompanionItems {
     const { content, detail } = read.change
     const now = this.records.item(item.id)
     if (now && now.version === item.version && now.detail !== detail) this.save({ ...now, detail })
-    return content
+    // A compare of remote refs says how current they are, so a fetch that landed is read again.
+    const common = await this.remoteOf(item)
+    if (common === undefined || content.state !== "ready" || content.content.kind !== "changes")
+      return content
+    const origin = this.options.origin?.status(common) ?? {}
+    return {
+      ...content,
+      stamp: hashOf(`${content.stamp}\n${JSON.stringify(origin)}`),
+      content: { ...content.content, origin },
+    }
+  }
+
+  // The compares' remote-ness, found once per item: the common git dir of a compare that reads a
+  // remote-tracking ref, else undefined.
+  private readonly remotes = new Map<string, Promise<string | undefined>>()
+
+  private remoteOf(item: ItemRecord): Promise<string | undefined> {
+    if (item.kind !== "changes" || item.compare === undefined || item.path === null)
+      return Promise.resolve(undefined)
+    const { compare, path } = item
+    let known = this.remotes.get(item.pointerKey)
+    if (!known) {
+      known = findRepository(path).then((found) =>
+        found.ok ? remoteCompare(found.root, compare) : undefined,
+      )
+      this.remotes.set(item.pointerKey, known)
+    }
+    return known
+  }
+
+  /**
+   * The repositories (common git dirs) whose compares read remote refs: kept fetched on the
+   * runner's schedule for as long as such a compare is on a bar.
+   */
+  async remoteRepositories(): Promise<readonly string[]> {
+    const shown = this.records.items().filter((item) => item.compare !== undefined)
+    const live = new Set(shown.map((item) => item.pointerKey))
+    for (const key of this.remotes.keys()) if (!live.has(key)) this.remotes.delete(key)
+    const found = await Promise.all(shown.map((item) => this.remoteOf(item)))
+    return [...new Set(found.filter((each) => each !== undefined))]
+  }
+
+  /** Makes a compare's remote refs current, if it reads any: a fetch that outlasts the wait goes on. */
+  private async freshen(root: string, compare: Compare): Promise<void> {
+    if (!this.options.origin) return
+    const common = await remoteCompare(root, compare).catch(() => undefined)
+    if (common !== undefined)
+      await this.options.origin.fetchBriefly(common, this.options.fetchWaitMs ?? 5000)
   }
 
   /**

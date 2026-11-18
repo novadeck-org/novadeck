@@ -473,6 +473,31 @@ export const changesArtifacts: readonly SampleArtifact[] = [
       },
     ],
   }),
+  // The same compare of a remote-tracking ref, in each state of how current origin is: fetched a
+  // moment ago (the header says nothing), over an hour ago, a fetch that failed, and never.
+  ...(
+    [
+      ["fresh", { fetchedAgo: 2 * 60_000 }],
+      ["stale", { fetchedAgo: 3 * 60 * 60_000 }],
+      ["failed", { fetchedAgo: 20 * 60_000, failed: "Could not resolve host: github.com" }],
+      ["unfetched", {}],
+    ] as const
+  ).map(([state, origin]) =>
+    sample(`change-compare-${state}`, `Compare · studio · origin/main · ${state}`, {
+      base: "origin/main",
+      head: "feature/contact-form",
+      origin,
+      start: { "src/pages/Home.tsx": text("export const Home = () => null") },
+      steps: [
+        {
+          id: hash(`c0ffee3${state}`),
+          subject: "Add the contact form",
+          time: minutes(300),
+          set: { "src/pages/Contact.tsx": text("export const Contact = () => <form />") },
+        },
+      ],
+    }),
+  ),
   sample("change-none", "No changes", {
     start: { "README.md": readme },
     steps: [{ id: "uncommitted", subject: "", time: null }],

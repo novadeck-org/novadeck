@@ -35,6 +35,13 @@
   align-items: center;
   gap: 4px;
 }
+/* How current a compare's remote refs are, where that is in doubt: amber once old or failed. */
+.changes-origin {
+  color: var(--color-muted);
+}
+.changes-origin[data-stale="true"] {
+  color: var(--color-warning-fg);
+}
 .artifact-meta .changes-pull {
   margin-block: -2px;
 }
