@@ -201,3 +201,22 @@ describe("a data file", () => {
     )
   })
 })
+
+describe("a long file's source", () => {
+  it("draws the lines around the one pointed at, and says which", async () => {
+    const lines = Array.from({ length: 5000 }, (_, at) => `k${at + 1}: ${at + 1}`)
+    // A key with no value's indent past it: YAML stops reading there.
+    lines[2999] = "   bad: [1"
+    const { container } = await show("long-yaml", fileContent("long.yaml", lines))
+    expect(container.querySelector(".artifact-file")?.getAttribute("data-view")).toBe("source")
+    const rows = [...container.querySelectorAll(".code-viewer > div")]
+    expect(rows).toHaveLength(2000)
+    const first = Number(rows[0]!.firstElementChild?.textContent)
+    const pointed = container.querySelector(".code-viewer > [data-emphasized]")
+    const line = Number(pointed?.firstElementChild?.textContent)
+    expect(line - first).toBe(40)
+    expect(container.querySelector(".artifact-cut:not(.artifact-source-note)")?.textContent).toBe(
+      `Lines ${first}–${first + 1999} of the 5000 read are shown here.`,
+    )
+  })
+})

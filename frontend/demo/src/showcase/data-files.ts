@@ -3,8 +3,7 @@ import type { FileContent } from "@novadeck/core/items"
 import { fileLines, ready, type SampleArtifact } from "./artifacts"
 
 // Data files the dev server's terminal shows, one of each way the tree reads them: YAML with
-// anchors and two documents; a JSONL transcript read only in part, one record half written
-// and one cut short; a YAML file that doesn't read, which goes to its source; a long YAML
+// anchors and two documents; a JSONL transcript read only in part, one record half written; a YAML file that doesn't read, which goes to its source; a long YAML
 // file's start, which reads as far as it goes; an empty JSON object; and a long JSON file
 // shown from its middle, which can't read as a whole. Studio's projects.json is a plain
 // JSON tree.
@@ -117,15 +116,9 @@ const transcript = [
     },
   },
 ].map((record) => JSON.stringify(record))
-// The runner cuts a line at 4096 characters: a record past that arrives cut short.
-const cutRecord = JSON.stringify({
-  type: "user",
-  uuid: "5d88",
-  message: { role: "user", content: [{ type: "tool_result", content: "x".repeat(5000) }] },
-}).slice(0, 4096)
 // A record an agent stopped writing halfway, with others after it.
 const halfRecord = '{"type":"user","uuid":"4b90","message":{"role":'
-const transcriptLines = [...transcript.slice(0, 3), halfRecord, ...transcript.slice(3), cutRecord]
+const transcriptLines = [...transcript.slice(0, 3), halfRecord, ...transcript.slice(3)]
 
 const brokenLines = [
   "name: deploy",
