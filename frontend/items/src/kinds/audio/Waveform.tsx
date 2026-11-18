@@ -5,7 +5,7 @@ import { clock } from "../video/format"
 import { reduce } from "./peaks"
 
 // A bar and its gap, in pixels: how many bars fit is the width over this.
-const pitch = 4
+const pitch = 5
 // What a flat track's bars stand at, as a share of the height, and the least any bar does.
 const flat = 0.22
 const least = 0.06

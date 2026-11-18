@@ -103,11 +103,11 @@ describe("a recording's waveform", () => {
   })
 
   context("in its bars", () => {
-    it("draws as many as fit, 4 pixels to a bar, and the played part to where it has got", () => {
+    it("draws as many as fit, 5 pixels to a bar, and the played part to where it has got", () => {
       const { wave } = shown({ time: 25, duration: 100 })
       expect(
         wave.querySelectorAll(".wave-bars:not(.wave-played .wave-bars) > .wave-bar"),
-      ).toHaveLength(100)
+      ).toHaveLength(80)
       expect(wave.style.getPropertyValue("--_played")).toBe("25%")
       expect(wave.getAttribute("data-peaks")).toBe("ready")
     })

@@ -8,9 +8,9 @@ import { useMedia } from "../video/useMedia"
 import { usePeaks } from "./peaks"
 import { Waveform } from "./Waveform"
 
-// A recording played on a card: its name and facts, a play button beside its waveform (which
-// is the scrubber), and a bar of time, loop, speed and mute, whose keys a player in focus
-// reaches too. Nothing here is a picture: the element is never shown. What it does with the
+// A recording played as the whole pane, as a video is: a stage of its name and facts over its
+// waveform (which is the scrubber), and the video's bar below it, of play, time, loop, speed
+// and mute, whose keys a player in focus reaches too. Nothing here is a picture: the element is never shown. What it does with the
 // element is `useMedia`'s, as the video player's is.
 export const AudioPlayer = ({
   id,
@@ -76,7 +76,14 @@ export const AudioPlayer = ({
         act(action)
       }}
     >
-      <div className="audio-card">
+      {/* Clicking the stage around the waveform plays or pauses, as clicking a picture does. */}
+      {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Space does it from the player. */}
+      <div
+        className="audio-stage"
+        onClick={(event) => {
+          if (!(event.target instanceof Element) || !event.target.closest(".wave")) act("toggle")
+        }}
+      >
         <div className="audio-head">
           <strong className="audio-name" title={name}>
             {name}
@@ -86,29 +93,23 @@ export const AudioPlayer = ({
             {duration > 0 && ` · ${clock(duration)}`}
           </span>
         </div>
-        <div className="audio-deck">
-          <Tooltip content={`${paused ? "Play" : "Pause"} (Space)`}>
-            <button
-              type="button"
-              className="audio-play"
-              data-control="play"
-              aria-label={paused ? "Play" : "Pause"}
-              onClick={() => act("toggle")}
-            >
-              {paused ? (
-                <Play size={20} strokeWidth={1.75} fill="currentColor" aria-hidden />
-              ) : (
-                <Pause size={20} strokeWidth={1.75} fill="currentColor" aria-hidden />
-              )}
-            </button>
-          </Tooltip>
+        <div className="audio-wave">
           <Waveform peaks={peaks} time={time} duration={duration} onSeek={seek} />
         </div>
-        <div className="audio-bar">
-          <span className="audio-time" aria-hidden>
+      </div>
+      <div className="video-bar audio-bar">
+        <div className="video-buttons">
+          <Control
+            name="play"
+            icon={paused ? Play : Pause}
+            label={paused ? "Play" : "Pause"}
+            tip={`${paused ? "Play" : "Pause"} (Space)`}
+            onClick={() => act("toggle")}
+          />
+          <span className="video-time audio-time" aria-hidden>
             {clock(time, true)} / {clock(duration)}
           </span>
-          <span className="audio-spacer" />
+          <span className="video-spacer" />
           <Control
             name="loop"
             icon={Repeat}

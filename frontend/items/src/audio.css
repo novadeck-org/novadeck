@@ -1,10 +1,9 @@
 /* The audio recipe: a recording in the pane (`.audio-viewer`, shared with video.css, which
-   also styles its loading and its peek), played by `.audio-player`: a card (`.audio-card`)
-   centred in the pane, with nothing to see but the recording. In it, the file's name
-   (`.audio-name`) over its facts (`.audio-facts`); the deck (`.audio-deck`) with the round
-   play button (`.audio-play`) beside the waveform (`.wave`); and the bar (`.audio-bar`) of
-   the time (`.audio-time`), a spacer (`.audio-spacer`) between it and the buttons (each an
-   `.icon-button.video-control`, the speed one's wrapper `.audio-speed`).
+   also styles its loading and its peek), played by `.audio-player`, which is the whole pane as
+   a video's player is: a stage (`.audio-stage`) of the file's name (`.audio-name`) over its
+   facts (`.audio-facts`) and the waveform (`.audio-wave` holding `.wave`) across its width,
+   and the video's bar below it (`.video-bar.audio-bar`: play, the time, a spacer, loop, speed
+   in `.audio-speed`, mute). Clicking the stage around the waveform plays or pauses.
 
    The waveform is the scrubber: `.wave-bars` of `.wave-bar`s, drawn twice, the second
    (`.wave-played`) in the played colour and clipped to what has played (`--_played`), and
@@ -16,47 +15,40 @@
    in view.
 
    A narrow player (its own width, not the pane's) drops the speed under 340px; its keys stay.
+   A short one keeps its waveform at least 48px tall.
 
    Tokens, each optional (its fallback in brackets):
-   --audio-card-bg (paper), --audio-card-border-color (line), --audio-card-radius
-   (radius-panel), --audio-card-shadow (none): the card.
-   --audio-play-bg (strong), --audio-play-hover-bg (strong-hover), --audio-play-fg
-   (on-strong): the play button.
+   --audio-stage-bg (paper): behind the name and the waveform.
    --audio-wave-fg (line-strong), --audio-wave-played-fg (strong): the bars, and those that
-   have played. --audio-bar-radius (2px): a bar's corners.
+   have played. --audio-head-bg (ink): the line where it is. --audio-bar-radius (2px): a bar's corners.
    --audio-line-bg (ink), --audio-tip-bg (ink), --audio-tip-fg (paper): the hover line, and
-   its tooltip. */
+   its tooltip. The bar takes the video's tokens (video.css). */
 .audio-player {
   display: flex;
   flex: 1;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   min-height: 0;
-  padding: 16px;
   container: audio-player / inline-size;
-  overflow: auto;
   color: var(--color-ink);
 }
 .audio-player:focus-visible {
   outline-offset: -2px;
 }
-.audio-card {
+.audio-stage {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 14px;
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 640px;
-  padding: 16px 18px 10px;
-  border: var(--border-width) solid var(--audio-card-border-color, var(--color-line));
-  border-radius: var(--audio-card-radius, var(--radius-panel));
-  background-color: var(--audio-card-bg, var(--color-paper));
-  box-shadow: var(--audio-card-shadow, none);
+  gap: 12px;
+  min-height: 0;
+  padding: 14px 16px 18px;
+  background-color: var(--audio-stage-bg, var(--color-paper));
+  cursor: pointer;
 }
 .audio-head {
   display: grid;
   gap: 1px;
   min-width: 0;
+  cursor: default;
 }
 .audio-name {
   overflow: hidden;
@@ -72,43 +64,15 @@
   line-height: var(--text-control--line-height);
   font-variant-numeric: tabular-nums;
 }
-.audio-deck {
+/* The waveform takes the stage's height, as a picture would, up to a height it reads at. */
+.audio-wave {
   display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.audio-play {
-  display: grid;
-  flex: none;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background-color: var(--audio-play-bg, var(--color-strong));
-  color: var(--audio-play-fg, var(--color-on-strong));
-  cursor: pointer;
-}
-.audio-play:hover {
-  background-color: var(--audio-play-hover-bg, var(--color-strong-hover));
-}
-.audio-bar {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin: 0 -6px;
-}
-.audio-time {
-  margin-left: 6px;
-  color: var(--color-muted);
-  font-size: var(--text-control);
-  line-height: var(--text-control--line-height);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.audio-spacer {
   flex: 1;
+  align-items: center;
+  min-height: 48px;
+}
+.audio-wave .wave {
+  height: clamp(48px, 60%, 200px);
 }
 .audio-speed {
   display: contents;
@@ -117,11 +81,8 @@
   .audio-speed {
     display: none;
   }
-  .audio-card {
+  .audio-stage {
     padding-inline: 12px;
-  }
-  .audio-deck {
-    gap: 10px;
   }
 }
 
@@ -143,7 +104,7 @@
   inset: 0;
   display: flex;
   align-items: center;
-  gap: 1.5px;
+  gap: 2px;
   color: var(--audio-wave-fg, var(--color-line-strong));
 }
 .wave-bar {
@@ -160,6 +121,19 @@
 }
 .wave-played .wave-bars {
   color: var(--audio-wave-played-fg, var(--color-strong));
+}
+/* Where it is: a line at the edge of what has played, once it has a length. */
+.wave:not([aria-disabled="true"])::after {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  left: var(--_played, 0%);
+  width: 2px;
+  border-radius: 1px;
+  background-color: var(--audio-head-bg, var(--color-ink));
+  content: "";
+  transform: translateX(-1px);
+  pointer-events: none;
 }
 .wave[data-peaks="pending"] .wave-bars {
   opacity: 0.45;
