@@ -553,8 +553,9 @@ describe("what peers read of a terminal's reports and rest", () => {
       },
     }
     const worktrees = [{ path: "/missing/a", branch: "feat/a" }]
+    // Each path as its platform writes it.
     expect((await read({ work, worktrees }))?.folders).toEqual([
-      "src/api",
+      join("src", "api"),
       "feat/a: src",
       ".",
       "web",
