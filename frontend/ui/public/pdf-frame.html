@@ -10,7 +10,7 @@
     <meta charset="utf-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'sha256-QmbbzHhoAhlMfrSq0t2cBhmp9TFHw1sJbfRMOFJB+3s=' blob: 'wasm-unsafe-eval'; worker-src blob:; style-src 'unsafe-inline'; img-src blob: data:; font-src blob: data:; base-uri 'none'; form-action 'none'"
+      content="default-src 'none'; script-src 'sha256-BR1AtVi1q/ARaKsqCI0ZF3PPW5lwj4tzEuJnlRlu9Rg=' blob: 'wasm-unsafe-eval'; worker-src blob:; style-src 'unsafe-inline'; img-src blob: data:; font-src blob: data:; base-uri 'none'; form-action 'none'"
     />
     <title>PDF</title>
   </head>
@@ -18,7 +18,11 @@
     <script>
       // Only sandboxed, as the app frames it: a page that frames this one plainly would run its
       // script with this page's origin, the app's own.
-      if (self.origin === "null")
+      if (self.origin === "null") {
+        // No page policy covers WebRTC: what pdf.js would never use is taken away first.
+        Object.getOwnPropertyNames(self).forEach(function (name) {
+          if (/^(webkit)?RTC/.test(name)) delete self[name]
+        })
         addEventListener("message", function start(event) {
           var data = event.data
           var port = event.ports[0]
@@ -44,6 +48,7 @@
               self.pdfFrameViewer({ pdfjs: self.pdfjsLib, worker: url(data.worker), port: port })
             })
         })
+      }
     </script>
   </body>
 </html>

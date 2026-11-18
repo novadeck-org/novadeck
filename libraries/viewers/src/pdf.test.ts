@@ -651,8 +651,30 @@ const attack = `function attack({ port }) {
     }))
     await attempt("popup", () => { if (!window.open(data.page)) throw new Error("none") })
     await attempt("topNavigation", () => { top.location.href = data.page })
+    const rtc = { here: typeof self.RTCPeerConnection }
+    const child = document.createElement("iframe")
+    document.body.append(child)
+    await new Promise((settled) => setTimeout(settled, 100))
+    try {
+      rtc.child = typeof child.contentWindow.RTCPeerConnection
+    } catch (error) {
+      rtc.child = error && error.name
+    }
+    // A child given a script of its own: inline, or from a blob the frame made.
+    const said = []
+    addEventListener("message", (event) => said.push(String(event.data)))
+    const script = URL.createObjectURL(
+      new Blob(["parent.postMessage('blob ' + typeof RTCPeerConnection, '*')"], { type: "text/javascript" }),
+    )
+    const scripted = document.createElement("iframe")
+    scripted.srcdoc =
+      "<script>parent.postMessage('inline ' + typeof RTCPeerConnection, '*')</" +
+      "script><script src='" + script + "'></" + "script>"
+    document.body.append(scripted)
+    await new Promise((settled) => setTimeout(settled, 500))
+    rtc.scripted = said.join(",") || "nothing ran"
     await new Promise((settled) => setTimeout(settled, 200))
-    port.postMessage({ type: "report", results, violations })
+    port.postMessage({ type: "report", results, violations, rtc })
   }
   port.postMessage({ type: "ready" })
 }`
@@ -663,7 +685,9 @@ describe("the frame's walls", () => {
     const iframe = document.createElement("iframe")
     iframe.setAttribute("sandbox", "allow-scripts")
     pane.append(iframe)
-    let report: { results: Record<string, string>; violations: string[] } | undefined
+    let report:
+      | { results: Record<string, string>; violations: string[]; rtc: Record<string, string> }
+      | undefined
     const frame = openPdfFrame({
       iframe,
       url: frameUrl,
@@ -696,6 +720,13 @@ describe("the frame's walls", () => {
     })
     // The fetch and the socket were refused by the page's own rules, not by chance.
     expect(report!.violations.filter((each) => each === "connect-src")).toHaveLength(2)
+    // WebRTC, which no page policy covers, is gone from the frame, and a child frame of it, of
+    // an origin of its own and under its policy, neither hands it back nor runs a script.
+    expect(report!.rtc).toEqual({
+      here: "undefined",
+      child: "SecurityError",
+      scripted: "nothing ran",
+    })
     expect(document.body.dataset.reached).toBeUndefined()
     expect(localStorage.getItem("reached")).toBeNull()
   })

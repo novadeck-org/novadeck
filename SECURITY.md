@@ -157,10 +157,14 @@ nothing with the app's origin. That script takes one message, from its parent on
 worker and the viewer as text, with one end of a `MessageChannel`. The frame runs those from blob
 addresses, with WebAssembly for pdf.js's image decoders and a blob worker.
 
-No page policy covers WebRTC, so a script in the frame could open a peer connection. The
-desktop app sends no WebRTC traffic over UDP that doesn't go through a proxy
-(`setWebRTCIPHandlingPolicy("disable_non_proxied_udp")` on its windows; the app uses no
-WebRTC), which leaves a TURN server reached over TCP. In a browser, as `pnpm dev:web`, the
+No page policy covers WebRTC, so the frame's script deletes WebRTC's constructors
+(`RTCPeerConnection` and every other global named `RTC…` or `webkitRTC…`) from the frame before
+pdf.js runs. A child frame a script in it makes can't hand them back: the sandbox gives the child
+an opaque origin of its own, so its globals can't be read, and the frame's policy, which the
+child inherits, runs no script in it (pdf.test.ts checks both). Should a flaw still reach a
+peer connection, the desktop app sends no WebRTC traffic over UDP that doesn't go through a
+proxy (`setWebRTCIPHandlingPolicy("disable_non_proxied_udp")` on its windows; the app uses no
+WebRTC), which leaves a TURN server reached over TCP; in a browser, as `pnpm dev:web`, the
 browser's own WebRTC settings apply.
 
 A PDF's bytes go into the frame transferred over the channel; pdf.js's CMaps, fonts and decoders
@@ -183,7 +187,8 @@ is off.
 
 A flaw in pdf.js reaches only the frame: the bytes and pages of the PDF it shows, the keys the
 person types while the PDF has the focus, and what it may tell the app. It could draw a
-misleading PDF, keep its pane busy, or, through WebRTC as above, send what it has elsewhere.
+misleading PDF, or keep its pane busy; only a further way back to WebRTC, as above, could send
+what it has elsewhere.
 
 ## Packaged App Fuses
 
