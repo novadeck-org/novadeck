@@ -48,6 +48,24 @@ export type FolderListing = {
   readonly truncated: boolean
 }
 
+// How a project's own checkout stands against its remote's main. `behind` is set where the
+// checkout is on main and main is ahead of it, which the backend moves by itself where nothing is
+// in the way: the branch, the remote's name for it, and how many commits it lacks. `moved` counts
+// the times the backend moved the checkout to main, and `head` is the commit it is at (null
+// where there is none): when either changes, the files on disk may have.
+export type CheckoutState = {
+  readonly behind: {
+    readonly branch: string
+    readonly remote: string
+    readonly count: number
+  } | null
+  readonly moved: number
+  readonly head: string | null
+}
+
+// What an update of the checkout did: it moved (or had nothing to move), or git's reason.
+export type CheckoutUpdate = { readonly ok: true } | { readonly ok: false; readonly said: string }
+
 export type ProjectFiles = {
   readonly state: Store<FilesState>
   // A folder of the project's directory as it is now, by its path from the project's root
@@ -55,6 +73,12 @@ export type ProjectFiles = {
   // never listed. Rejects when the project or the folder has gone, or the path leads out
   // of the project's directory.
   readonly list: (projectId: string, folder: string) => Promise<FolderListing>
+  // How the project's own checkout stands as it is now. Rejects when the project has gone.
+  // Absent where a backend has no checkout to move.
+  readonly checkout?: (projectId: string) => Promise<CheckoutState>
+  // Fast-forwards the checkout to the remote's main on the person's say, tracked changes
+  // allowed; `ok: false` says why not. Absent where `checkout` is.
+  readonly update?: (projectId: string) => Promise<CheckoutUpdate>
 }
 
 // How an agent's trail fades once it stops writing a file: from this opacity, by this much every

@@ -478,6 +478,24 @@ with every safety check again at that time:
   (for the newest layer's commit, where that commit left main), so the whole of it is
   `git diff main...HEAD`.
 
+  A **compare** is a changes item of two refs an agent names, for a person who asks to see a
+  branch's commits, a run of commits or two branches side by side: `show { changes: { base?,
+  head?, path? } }`, with `base` defaulting to the repository's main branch (by its name, as
+  above) and `head` to `HEAD`. A ref is anything git reads as a commit (a branch, remote
+  branch, tag, hash or `HEAD~5`), never one that starts with `-` or holds `:`, white space or a
+  control or invisible format character. It is read as the checkout's change is, with `head` in place of `HEAD` and
+  `base` in place of main: `head`'s commits since its merge base with `base`, newest first, at
+  most 100, so the whole of it is `git diff base...head`, and a run of commits is the ref before
+  the first as `base`. It has no work not committed yet and takes no snapshot. It is an item of
+  its own beside the working tree's, keyed `changes:<repository root>\n<base>...<head>`,
+  named "Compare · <folder> · <head>", kept with its refs (`compare_base`, `compare_head`, as
+  the agent named them, read again each time, so a branch that moves moves it), and its
+  content names `head`, which the pane reads to link no pull request (the checkout's isn't
+  its). The files read in a compare are its own, kept in memory with its listing for the 32
+  compares read latest (the checkout's own marks keep only what its work changes), so they
+  don't outlast the runner. `close` takes the same refs; a ref git can't find refuses the
+  show, naming it. A repository whose worktree goes takes its compares with it.
+
   One snapshot service (`backend/runner/src/checkouts/snapshots.ts`) takes the working tree for
   both the changes item and the Worktrees panel (Works), so a checkout both read is taken once:
   a snapshot younger than 1.5 seconds serves whoever asks next (an agent's show and a look
@@ -739,7 +757,13 @@ with every safety check again at that time:
   terminal or one in History, null once orphaned), whether it was `adopted` and whether Novadeck made
   its branch (`branch_made`). A terminal may own several, and ownership moves only through agents.
   - **`open_worktree({ branch, repo?, from?, group? })`** runs `git worktree add -b` from
-    `from` (the checkout's `HEAD`), or checks out the branch if it exists, with 60 seconds,
+    `from` (left out: the checkout's `HEAD`, or the remote's main when the checkout is on the local
+    branch that main is, as `main` for `origin/main`, and `HEAD` is a strict ancestor of it, so a stale
+    checkout doesn't make a stale branch; a feature branch, a `HEAD` ahead or diverged, or no main
+    keeps `HEAD`; main is fetched first, before the service's queue and not if it was fetched in the last
+    minute, and the call waits at most five seconds for it: the fetch keeps its usual time limit and
+    carries on in the background, and a remote that is slow or fails leaves the cached main, so creating
+    never waits on the network), or checks out the branch if it exists, with 60 seconds,
     and `core.longpaths` on Windows, after `git check-ref-format --branch`. It answers the path,
     the branch and the paths of AGENTS.md, CLAUDE.md and GEMINI.md at the worktree's top, and
     tells the agent to read them, as no harness loads them from an added folder.
@@ -822,6 +846,28 @@ with every safety check again at that time:
     The main branch is `origin/HEAD` where the repository sets it; a clone with no `origin/HEAD`
     measures against its local `main`, which a fetch doesn't move, so such a work carries no
     `fetchedAt` and its row doesn't say "main as of".
+    **The checkout follows the fetch** (`worktrees/fast-forward.ts`). After each successful fetch the
+    repository's home checkout (`homeOf`, never a linked worktree) is fast-forwarded to origin's main,
+    but only when all of this holds: main is a remote-tracking ref `origin/<x>` and `HEAD` is the symbolic
+    ref `refs/heads/<x>`; no merge, cherry-pick, revert, rebase, bisect or sequencer is in progress and
+    there is no `index.lock`; no tracked file has changes, staged or not (untracked files don't count; git
+    refuses to overwrite them); `HEAD` is a strict ancestor of main. The checks read with
+    `--no-optional-locks` and run with the fetch's no-prompt environment; `HEAD` and the branch are read
+    again right before the move, and the branch once more after it (a change is logged at warn level). It is
+    `git -c core.hooksPath=<an empty folder the runner owns, `no-hooks` beside its database, emptied and owner-only at first
+    use and kept; a private temporary one without a database> -c core.fsmonitor=false -c merge.autoStash=false merge --ff-only --no-verify-signatures
+    --no-overwrite-ignore --quiet <the commit checked>`, with no time limit and outside the shutdown
+    scope, since a checkout stopped halfway leaves a half-updated tree. The fetch doesn't wait for the
+    move, so a merge that hangs stalls nothing else. Moves of one repository run one at a time. Any failure, a lock held by the person's git, a shallow clone or a missing ref is debug-logged
+    and ignored, and the next fetch tries again. It only happens for repositories with a tracked
+    worktree, as only those are fetched. The one switch is `MainFetcher`'s `follow` option.
+    Where the checkout is on main and behind and was not moved, whatever held it (tracked changes, an
+    operation, a file in the way, a repository not fetched since), `projects.checkout` reports `behind`, and the Files panel says "main is N behind origin" with
+    Update (`projects.updateCheckout`): the same move with tracked changes allowed, where git itself
+    refuses if a changed file is in the way, and its reason is shown in plain words ("Your changes to
+    src/a.ts would be overwritten."). The panel asks every 20 s while shown, one read at a time, and when
+    `moved` or `head` (the commit HEAD is at) changes, which the person's own pull does too, reads its
+    folders again, so added and removed files show.
   - **Restore and looking again.** A restore from History makes a new terminal id; when the restore
     is confirmed (or a newer row of the same conversation replaces the row) `ClosedTerminals` tells
     the service, which moves the old id's worktrees to the new one in its queue before the row goes.

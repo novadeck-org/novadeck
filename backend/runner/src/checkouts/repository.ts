@@ -54,6 +54,54 @@ export const mainBranch = async (root: string): Promise<Main | undefined> => {
   return undefined
 }
 
+/** A checkout on its repository's main branch with the remote's main ahead of it. */
+export type Behind = {
+  /** The local branch HEAD is on, as the remote names it (`main` for `origin/main`). */
+  readonly branch: string
+  /** The remote-tracking ref main is, as `origin/main`. */
+  readonly remote: string
+  /** The commit main is at, and the one HEAD is at. */
+  readonly commit: string
+  readonly head: string
+  /** How many commits main has that HEAD lacks. */
+  readonly behind: number
+}
+
+/**
+ * The repository's main when the checkout is on the local branch it is (HEAD `refs/heads/main`,
+ * main `origin/main`), with that branch's name; undefined otherwise.
+ */
+export const onMain = async (root: string): Promise<(Main & { branch: string }) | undefined> => {
+  const main = await mainBranch(root)
+  if (main === undefined || !main.name.startsWith("origin/")) return undefined
+  const branch = main.name.slice("origin/".length)
+  const head = line(await git(root, ["symbolic-ref", "-q", "HEAD"], small))
+  return head === `refs/heads/${branch}` ? { ...main, branch } : undefined
+}
+
+/**
+ * Whether the checkout is on the local branch its remote main is (HEAD `refs/heads/main`,
+ * main `origin/main`) and main is strictly ahead of it. Anything else, a feature branch, a
+ * detached HEAD, a HEAD that is level, ahead or has diverged, or no main, is undefined.
+ */
+export const behindMain = async (root: string): Promise<Behind | undefined> => {
+  const main = await onMain(root)
+  if (main === undefined) return undefined
+  const { branch } = main
+  const commit = line(await git(root, ["rev-parse", "--verify", "-q", "HEAD^{commit}"], small))
+  if (commit === undefined || commit === main.commit) return undefined
+  const held = await git(root, ["merge-base", "--is-ancestor", commit, main.commit], small)
+  if (!held.ok) return undefined
+  const count = line(await git(root, ["rev-list", "--count", `${commit}..${main.commit}`], small))
+  return {
+    branch,
+    remote: main.name,
+    commit: main.commit,
+    head: commit,
+    behind: Number(count) || 1,
+  }
+}
+
 /** The checkout's branch, or null when HEAD is detached. */
 export const branchOf = async (root: string): Promise<string | null> => {
   const name = line(await git(root, ["symbolic-ref", "-q", "--short", "HEAD"], small))

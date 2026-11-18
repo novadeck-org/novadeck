@@ -141,6 +141,8 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       remove: (input) =>
         note(`remove project ${input.projectId}`, () => runner.projects.remove(input)),
       folder: (input) => runner.projects.folder(input),
+      checkout: (input) => runner.projects.checkout(input),
+      updateCheckout: (input) => runner.projects.updateCheckout(input),
     },
     sessions: {
       list: (input) => runner.sessions.list(input),

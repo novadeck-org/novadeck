@@ -248,13 +248,29 @@ const show: Tool<Shown> = {
           "that differs from HEAD (staged, unstaged and new; the user's and other agents' edits " +
           "too), shown as diffs that update as the files change. Give {} for the terminal's " +
           "own folder; give path when you work in another folder or worktree than the " +
-          "terminal's.",
+          "terminal's. When the user asks to see commits or to compare branches, give base or " +
+          "head instead: a compare of two refs, head's commits since it left base, as " +
+          "git diff base...head reads, one per commit, beside the working tree's changes as " +
+          "an item of its own. For a run of commits, give the ref before the first as base.",
         properties: {
           path: {
             type: "string",
             description:
               "A folder inside the repository, absolute or relative to the terminal's " +
-              "current directory: the working tree to show.",
+              "current directory: the working tree to show, or the repository to compare in.",
+          },
+          base: {
+            type: "string",
+            description:
+              "For a compare: what head is measured against, a branch, tag or commit such as " +
+              "main, origin/main, v1.4 or HEAD~5; the repository's main branch by default.",
+          },
+          head: {
+            type: "string",
+            description:
+              "For a compare: the branch, tag or commit whose commits to show, such as " +
+              "feature/login or origin/feature/login; HEAD by default (its commits, without " +
+              "the work not committed yet).",
           },
         },
         additionalProperties: false,
@@ -392,10 +408,12 @@ const close: Tool<ClosedShown> = {
       changes: {
         type: "object",
         description:
-          "Instead of file or page: the changes you showed. Give {}, or the same path you " +
-          "gave show.",
+          "Instead of file or page: the changes you showed. Give {}, or the same path, base " +
+          "and head you gave show; for a compare, its refs as showing lists them.",
         properties: {
           path: { type: "string", description: "The folder you gave show, if you gave one." },
+          base: { type: "string", description: "The base you gave show, for a compare." },
+          head: { type: "string", description: "The head you gave show, for a compare." },
         },
         additionalProperties: false,
       },
@@ -1121,9 +1139,9 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     "own question tool and you'd stop to ask with it, do, as you normally would: the Inbox " +
     "shows that question as it is, so it needs no ask. Always ask every other question " +
     "you end your turn waiting on, such as which option to take or whether to open a pull " +
-    "request, unless it is already an open ask, and put the full question in your reply too: " +
-    "while the user looks at this terminal, an ask lands in the Inbox quietly, with no " +
-    "notification, so your reply is where they read it. A closing offer such as " +
+    "request, unless it is already an open ask. The ask is an extra copy for when they're " +
+    "elsewhere: your reply asks the question as fully as it would without Novadeck, and " +
+    "never says it's in the Inbox. A closing offer such as " +
     "'anything else?' isn't one, nor is an action your harness is already prompting them " +
     "for. With a lead, ask all the same, and send it the question too, so it knows what you " +
     "wait on; if your lead answers it first, act on that as its instruction and withdraw the " +
@@ -1240,13 +1258,15 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
   said: (answer) =>
     answer.withdrawn
       ? `Withdrew ask ${answer.id} from the Inbox.`
-      : `Ask ${answer.id} is in the user's Inbox. While they look at this terminal it lands there quietly, with no notification, so put the full question in your reply too. Their answer arrives later as a message; keep working on what doesn't depend on it, and end your turn once nothing else is left.`,
+      : `Ask ${answer.id} is in the user's Inbox, as an extra copy: your reply still asks the question in full, and doesn't mention the Inbox. Their answer arrives later as a message; keep working on what doesn't depend on it, and end your turn once nothing else is left.`,
   failed: "Novadeck couldn't save the ask.",
 }
 const tell: Tool<{ readonly id: string }> = {
   name: "tell",
   description:
     "Tell the user something through Novadeck's Inbox: a one-line subject and Markdown body. " +
+    "It adds to your reply, never replaces it: your reply says it as fully as it would " +
+    "without Novadeck, and doesn't mention the Inbox. " +
     "It appears as an Update they read by opening it, without badging the bell. It suits a " +
     "milestone they'd want to hear of while they're elsewhere: a pull request opened, its " +
     "checks passed or failed, a merge, or that you now wait on someone else; not each step. " +
@@ -1260,7 +1280,8 @@ const tell: Tool<{ readonly id: string }> = {
   },
   call: "tell",
   request: (args) => args,
-  said: (answer) => `Update ${answer.id} is in the user's Inbox.`,
+  said: (answer) =>
+    `Update ${answer.id} is in the user's Inbox, as an extra copy: your reply still says it in full, and doesn't mention the Inbox.`,
   failed: "Novadeck couldn't save the update.",
 }
 
@@ -1268,7 +1289,9 @@ const done: Tool<{ readonly id: string }> = {
   name: "done",
   description:
     "Report to the user through Novadeck's Inbox that the task you were given is finished: " +
-    "a one-line subject and a Markdown body with your own short report. It appears as an " +
+    "a one-line subject and a Markdown body with your own short report. It adds to your " +
+    "reply, never replaces it: your reply reports as fully as it would without Novadeck, and " +
+    "doesn't mention the Inbox. It appears as an " +
     "Update they read by opening it. Call it once the task is finished, not when you answer a " +
     "question or finish a step. With a lead, call done all the same, and send it your report too. " +
     "Use ask when you need an answer. Reports stay in Messages.",
@@ -1280,7 +1303,8 @@ const done: Tool<{ readonly id: string }> = {
   },
   call: "done",
   request: (args) => args,
-  said: (answer) => `Report ${answer.id} is in the user's Inbox.`,
+  said: (answer) =>
+    `Report ${answer.id} is in the user's Inbox, as an extra copy: your reply still reports in full, and doesn't mention the Inbox.`,
   failed: "Novadeck couldn't save the report.",
 }
 
@@ -1340,8 +1364,8 @@ const openWorktree: Tool<Worktree> = {
   description:
     "Make a git worktree for your work in Novadeck, on a branch you name, in a folder " +
     "Novadeck picks and tracks, and own it: change files there, not in the user's checkout. " +
-    "It starts from from (this checkout's HEAD when left out), or checks out the branch if " +
-    "it exists. Name the branch as the repository's conventions and instructions say. " +
+    "It starts from from (when left out: the remote's main if this checkout is on a main " +
+    "that is behind it, else this checkout's HEAD), or checks out the branch if it exists. Name the branch as the repository's conventions and instructions say. " +
     "repo is a folder in the repository when your terminal isn't in it; give the same " +
     "group to the worktrees of several repositories for one piece of work, and they share " +
     "a folder. The answer lists the worktree's instruction files (AGENTS.md, CLAUDE.md, " +
@@ -1364,7 +1388,7 @@ const openWorktree: Tool<Worktree> = {
       from: {
         type: "string",
         description:
-          "The commit, branch or tag a new branch starts from; the checkout's HEAD when left out.",
+          "The commit, branch or tag a new branch starts from; when left out, the remote's main if the checkout is on a main behind it, else its HEAD.",
       },
       group: {
         type: "string",
@@ -1581,6 +1605,13 @@ export const mcpAnswer = async (
 
 // What the server says of itself in a Novadeck terminal, which Claude Code reads up front,
 // before it loads a tool's description: when `ask` and `tell` serve better than the reply.
+// What the Inbox is beside an agent's reply: a copy for when the user is elsewhere, so the reply
+// never leans on it or points to it.
+const inboxExtra =
+  "Whatever you put in the Inbox is an extra copy for when they're elsewhere: your reply " +
+  "says it all as fully as it would without Novadeck, and never mentions the Inbox or what " +
+  "you put there."
+
 const instructions =
   together +
   " Novadeck's ask puts a question in the user's Inbox, where they see it: they rarely " +
@@ -1588,9 +1619,7 @@ const instructions =
   "has its own question tool and you'd stop to ask with it, do, as you normally would: " +
   "Novadeck shows that question in the Inbox as it is, so it needs no ask. Always ask " +
   "there every other question you end your turn waiting on, such as which option to take " +
-  "or whether to open a pull request, unless it is already an open ask, and put the full " +
-  "question in your reply too, as an ask lands in the Inbox quietly while they look at " +
-  "this terminal; a closing " +
+  "or whether to open a pull request, unless it is already an open ask; a closing " +
   "offer such as 'anything else?' isn't one, nor is an action your harness is already " +
   "prompting them for. When they write to you here, Novadeck takes your open asks out " +
   "of the Inbox and tells you; ask again only what their message leaves open. If they " +
@@ -1606,7 +1635,9 @@ const instructions =
   "your own short report when the task you were given is finished, not when you answer a " +
   "question or finish a step. With a lead, use ask, tell and done all the same, and send " +
   "your lead your report and your questions too; approvals of actions are still only the " +
-  "user's. Its feedback drafts a note about Novadeck for the user to read and send, when " +
+  "user's. " +
+  inboxExtra +
+  " Its feedback drafts a note about Novadeck for the user to read and send, when " +
   "they ask for one or you hit a bug in Novadeck itself."
 
 // The answer to the handshake: the protocol version the agent asked for when it is one of

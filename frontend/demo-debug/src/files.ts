@@ -88,6 +88,30 @@ export const filesGroups = (files: DemoFiles | undefined): readonly DemoActionGr
                 ),
             },
             {
+              label: "Checkout is behind main",
+              hint: 'Open Files: under the header a line says "main is 3 behind origin" with Update; Update moves the checkout (the line goes, Receipt.tsx appears in src/checkout and Price.tsx leaves src/components)',
+              run: () => files.stand({ count: 3 }),
+            },
+            {
+              label: "Checkout can't update",
+              hint: 'Open Files: the same line; Update gives way to "Can\'t update: Your changes to src/cart/useCart.ts would be overwritten." with Retry',
+              run: () =>
+                files.stand({
+                  count: 3,
+                  refusal: "Your local changes to src/cart/useCart.ts would be overwritten.",
+                }),
+            },
+            {
+              label: "Checkout is up to date",
+              hint: "Open Files: the behind line goes within a few seconds (the panel asks again every 20 s while shown, or when it is shown again)",
+              run: () => files.stand(undefined),
+            },
+            {
+              label: "Main moves the checkout",
+              hint: "Open Files with src/checkout and src/components open: within a few seconds src/checkout/Receipt.tsx is added and src/components/Price.tsx removed, as when a fetch fast-forwarded the checkout",
+              run: () => files.move(),
+            },
+            {
               label: "Agent creates a file in a folder",
               hint: "Open Files with src/api folded: the folder pulses and shows Crow's chip, and payments.ts is added inside",
               run: () => files.write(fallback, demoPaths.payments),

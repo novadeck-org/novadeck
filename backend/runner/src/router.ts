@@ -32,6 +32,7 @@ import type { Works } from "./works/works.js"
 import { listFolder } from "./workspaces/folder.js"
 import type { Projects } from "./workspaces/projects.js"
 import type { WorkspaceStore } from "./workspaces/store.js"
+import type { MainCheckouts } from "./worktrees/main-checkout.js"
 
 const log = logs.for("router")
 
@@ -96,6 +97,12 @@ const noWorks = {
   fetch: () => Promise.resolve(),
 }
 
+// What the Files panel's checkout state is without a worktrees service: nothing to say or move.
+const noCheckouts = {
+  read: () => Promise.resolve({ behind: null, moved: 0, head: null }),
+  update: () => Promise.resolve({ ok: false as const, said: "There is nothing to update." }),
+}
+
 const noTour: Pick<Tour, "prepare" | "brief" | "nudge"> = {
   prepare: () => Promise.reject(new DomainError("CONFLICT", "No tour is offered.")),
   brief: () => {
@@ -120,6 +127,8 @@ export const createRouter = (options: {
   history?: History
   /** Each terminal's work against main; without it the Worktrees panel is empty. */
   works?: Works
+  /** The projects' own checkouts against their remote's main. */
+  checkouts?: Pick<MainCheckouts, "read" | "update">
   agents: Harnesses
   /** The forges pull requests come from; without it none is offered. */
   forges?: Forges
@@ -140,6 +149,7 @@ export const createRouter = (options: {
   const { store, terminals, feedback, projects, items, agents, uploads, voice, murmur } = options
   const history = options.history ?? noHistory
   const works = options.works ?? noWorks
+  const checkouts = options.checkouts ?? noCheckouts
   const forges = options.forges ?? noForges
   const tour: Pick<Tour, "prepare" | "brief" | "nudge"> = options.tour ?? noTour
   // A plan's content says whether Novadeck's plugin is installed into its agent, which the
@@ -167,6 +177,12 @@ export const createRouter = (options: {
         projects.ensureNotRemoving(input.projectId)
         return listFolder(store.project(input.projectId).cwd, input.folder)
       }),
+      checkout: api.projects.checkout.handler(({ input }) =>
+        checkouts.read(store.project(input.projectId).cwd),
+      ),
+      updateCheckout: api.projects.updateCheckout.handler(({ input }) =>
+        checkouts.update(store.project(input.projectId).cwd),
+      ),
     },
     sessions: {
       list: api.sessions.list.handler(({ input }) => projects.sessions(input.projectId)),

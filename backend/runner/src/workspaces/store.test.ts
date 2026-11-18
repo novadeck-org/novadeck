@@ -259,7 +259,7 @@ describe("workspace metadata", () => {
     expect(first.id).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(17)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(18)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       expect(() =>
         database
@@ -495,13 +495,13 @@ describe("workspace metadata", () => {
     const path = join(directory(), "workspace.sqlite")
     const future = new DatabaseSync(path)
     future.exec(
-      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 18",
+      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 19",
     )
     future.close()
     expect(() => new WorkspaceStore(path)).toThrow(/newer/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(18)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(19)
       expect(database.prepare("SELECT value FROM future_data").get()?.value).toBe("saved")
     } finally {
       database.close()
@@ -553,7 +553,7 @@ describe("workspace metadata", () => {
     new WorkspaceStore(path).close()
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(17)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(18)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       // Every old table is gone, and so are the old names.
       expect(Object.keys(rowsOf(database)).toSorted()).toEqual(
@@ -1946,9 +1946,96 @@ describe("workspace metadata", () => {
       // and adds a step in store.ts's migrations, from schemas/<version before>.sql, which
       // is added for it. Then record the new digest here.
       expect({ version, digest }).toEqual({
-        version: 17,
-        digest: "2b220bb0d6cbb97b62bb055a7c55d185355f61a123296db8e93a663b90bdfc27",
+        version: 18,
+        digest: "49897523bebb915854b8e88f176969fcf49d33e1b8f4b20468bf3525aa9779c2",
       })
+    } finally {
+      database.close()
+    }
+  })
+
+  it("lets a changes item be a compare in the step from 17, keeping the items and their order", ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/17.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 17;
+      INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'P', '/p');
+      INSERT INTO sessions (position, id, project_id, name) VALUES (1, 's', 'p', 'S');
+      INSERT INTO terminals (rowid, id, session_id, handle, cwd, agent_reports, prompted_at,
+        saved_at) VALUES (1, 't', 's', 'moth', '/p', '{}', 0, 0);
+      INSERT INTO companion_items (rowid, id, session_id, terminal_id, window_id, pointer_key,
+        kind, path, name, detail, secret, shown_by, from_terminal, from_handle, version,
+        open_asked, shown_at)
+        VALUES (7, 'changes', 's', 't', NULL, 'changes:/p', 'changes', '/p', 'Changes · p', '',
+          0, 'agent', 't', 'moth', 2, 0, 20),
+          (5, 'file', 's', 't', NULL, '/p/a.ts', 'file', '/p/a.ts', 'a.ts', '', 0,
+          'person', NULL, NULL, 1, 1, 20);`)
+    old.close()
+    const migrated = new WorkspaceStore(path)
+    expect(
+      migrated
+        .barItems("t")
+        .map(({ id, kind, version, compare }) => ({ id, kind, version, compare })),
+    ).toEqual([
+      { id: "file", kind: "file", version: 1, compare: undefined },
+      { id: "changes", kind: "changes", version: 2, compare: undefined },
+    ])
+    const compare: ItemRecord = {
+      id: "compare",
+      sessionId: "s",
+      terminalId: "t",
+      windowId: null,
+      pointerKey: "changes:/p\nmain...feature",
+      kind: "changes",
+      path: "/p",
+      url: null,
+      lines: null,
+      plan: null,
+      name: "Compare · feature",
+      detail: "1 file · +1 −0",
+      secret: false,
+      by: "agent",
+      from: { terminalId: "t", handle: "moth" },
+      version: 1,
+      openAsked: true,
+      shownAt: 30,
+      observedAt: null,
+      compare: { base: "main", head: "feature" },
+    }
+    migrated.saveItem(compare)
+    expect(migrated.item("compare")).toEqual(compare)
+    migrated.close()
+    const fresh = join(directory(), "fresh.sqlite")
+    new WorkspaceStore(fresh).close()
+    const [carried, created] = [path, fresh].map((file) => {
+      const database = new DatabaseSync(file)
+      try {
+        return normalisedSchemaOf(database)
+      } finally {
+        database.close()
+      }
+    })
+    expect(carried).toEqual(created)
+  })
+
+  it("refuses a compare with one ref of its two", ({ directory }) => {
+    const path = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(path).close()
+    const database = new DatabaseSync(path)
+    try {
+      database.exec(`
+        INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'P', '/p');
+        INSERT INTO sessions (position, id, project_id, name) VALUES (1, 's', 'p', 'S');
+        INSERT INTO terminals (rowid, id, session_id, handle, cwd, agent_reports, prompted_at,
+          saved_at) VALUES (1, 't', 's', 'moth', '/p', '{}', 0, 0);`)
+      expect(() =>
+        database.exec(`INSERT INTO companion_items (id, session_id, terminal_id, pointer_key, kind,
+          path, name, detail, secret, shown_by, from_terminal, from_handle, version, open_asked,
+          shown_at, compare_base) VALUES ('c', 's', 't', 'k', 'changes', '/p', 'C', '', 0,
+          'agent', 't', 'moth', 1, 0, 1, 'main')`),
+      ).toThrow(/CHECK/)
     } finally {
       database.close()
     }

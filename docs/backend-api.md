@@ -219,6 +219,15 @@ root). Entries come sorted, folders first, then by name ignoring case and a lead
 (nothing is ignored outside a repository). At most 2000 are listed, the first in that
 order, and `truncated` says there were more. A missing project is `NOT_FOUND`; a folder that is
 missing, not a folder, or outside the project's directory is `INVALID_DIRECTORY`.
+`projects.checkout({ projectId })` says how the project's own checkout stands against its remote's main:
+`{ behind: { branch, remote, count } | null, moved, head }`. `behind` is set where the checkout is on
+the branch main is and main is strictly ahead of it, which the runner moves by itself where nothing is in the
+way (see agent-workspace.md, "Fetching"): what it reports is what was left, for whatever reason. `moved`
+counts the times the runner moved the checkout since it began, and `head` is the commit HEAD is at
+(`null` where there is none); a change in either says files on disk may have changed. A project outside a
+repository, or with no remote main, is `{ behind: null, moved: 0, head: null }`. `projects.updateCheckout({ projectId })` fast-forwards it on the
+person's say, tracked changes allowed, answering `{ ok: true }` (also where there was nothing to move) or
+`{ ok: false, said }` with git's reason or the operation in progress.
 `sessions.save({ sessionId, state, visitedAt })` replaces a session's `state`, a string the
 runner stores with the session without reading it, such as a UI layout, and `visitedAt`,
 when the person last visited it (null: never). Sessions list both; the latest visit picks a
@@ -348,7 +357,8 @@ terminal `TERMINAL_NOT_FOUND`.
 
 The MCP `ask`, `tell` and `done` tools add questions and updates to the Inbox. In a Novadeck
 terminal the server's `instructions` say when each serves: `ask` doesn't stop the work, as
-most decisions aren't blocking, and its question is also put in the reply; `tell` is for
+most decisions aren't blocking; everything put in the Inbox is an extra copy, so the
+reply still says it in full and never mentions the Inbox; `tell` is for
 milestones; `done` is the agent's own short report when the task it was given is finished,
 not when it answers a question or finishes a step. With a lead, the agent uses them all the
 same and also sends its lead the same. Claude Code reads the instructions up

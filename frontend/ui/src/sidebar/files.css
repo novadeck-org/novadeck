@@ -245,6 +245,46 @@
   color: var(--color-muted);
 }
 
+/* The line over the tree when the checkout is on main, behind its remote and left alone: the
+   words, and `.files-update`; data-refused when git said no. */
+.files-behind {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  margin: 4px 2px 0;
+  font-size: var(--text-caption);
+  color: var(--color-muted);
+}
+.files-behind[data-refused="true"] {
+  color: var(--color-warning-fg);
+}
+.files-update {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  height: 22px;
+  margin-left: auto;
+  padding: 0 8px;
+  border: var(--border-width) solid var(--color-line);
+  border-radius: var(--radius-control, 4px);
+  background: none;
+  color: var(--color-ink);
+  font-size: var(--text-caption);
+  cursor: pointer;
+}
+.files-update:hover:not(:disabled) {
+  background: var(--color-soft);
+}
+.files-update:disabled {
+  color: var(--color-muted);
+  cursor: default;
+}
+.files-update:focus-visible {
+  outline: 2px solid var(--focus-ring-color, var(--color-ink));
+  outline-offset: 1px;
+}
+
 .files-note-row {
   position: relative;
   display: flex;

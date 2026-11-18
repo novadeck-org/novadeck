@@ -1,4 +1,4 @@
-import { companionLimits, type CompanionItem } from "@novadeck/protocol"
+import { companionLimits, maxCompareRef, type CompanionItem } from "@novadeck/protocol"
 import { z } from "zod"
 
 import { ellipsized, list } from "../text.js"
@@ -10,7 +10,7 @@ import { ellipsized, list } from "../text.js"
  * asked to see it. A `file` is a path, absolute or from the terminal's directory, and
  * for a text file the lines it points at; a `page` is its http(s) address, and the element
  * to bring into view once it loads; `changes` is the whole change in a repository, the
- * terminal's unless it gives the folder `path`.
+ * terminal's unless it gives the folder `path`, or with `base` or `head` a compare of two refs.
  */
 // What every request takes: a short name to show, and whether the person asked to see it.
 const shared = {
@@ -44,12 +44,26 @@ const pageSource = z.strictObject({
 const pageRequest = z.strictObject({ page: pageSource, ...shared })
 
 /**
+ * A ref a compare names: a branch, a tag, a hash or an expression of one such as `HEAD~3`,
+ * which git is given as the start of an argument, so never an option (`-`), and never a path
+ * in a commit (`:`), white space, or a control or invisible format character.
+ */
+const compareRef = z
+  .string()
+  .min(1)
+  .max(maxCompareRef)
+  .regex(/^[^-\s:\\\p{Cc}\p{Cf}][^\s:\\\p{Cc}\p{Cf}]*$/u)
+
+/**
  * The change in a repository: its working tree against HEAD. The repository is the one
  * the folder `path` is in (absolute, or from the terminal's directory), by default the
- * terminal's own folder.
+ * terminal's own folder. With `base` or `head`, a compare in it instead: `head`'s commits
+ * since it left `base`, which default to the repository's main branch and HEAD.
  */
 const changesSource = z.strictObject({
   path: z.string().min(1).max(companionLimits.path).optional(),
+  base: compareRef.optional(),
+  head: compareRef.optional(),
 })
 
 const changesRequest = z.strictObject({ changes: changesSource, ...shared })
@@ -112,7 +126,7 @@ export const failure = (reason: string): RequestFailure => ({ ok: false, reason 
 const shapes = {
   file: "file: { path }",
   page: "page: { url }",
-  changes: "changes: { path? }",
+  changes: "changes: { path?, base?, head? }",
 } as const satisfies {
   readonly [name in (typeof sourceNames)[number]]: string
 }
