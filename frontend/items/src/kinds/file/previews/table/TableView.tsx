@@ -5,6 +5,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import type { PreviewProps } from ".."
 import { usePaneNote } from "../../../../pane-row"
+import { columnWidths, rowOffsets, rowsWindow } from "./rows-window"
 import { nextSort, partText, sortRows, tableOf, type Sort } from "./table"
 
 // Where each table was left, by the item showing it, and in which file: scrolled, and
@@ -18,10 +19,18 @@ type Left = {
 }
 const left = createKept<Left>(24)
 
+// Past this many rows a table draws only those in view (./rows-window.ts), its columns held to
+// widths from all its rows' text so they don't move as rows come and go.
+const windowFrom = 200
+// A row's height until it's drawn and measured, and how many rows past the view each side.
+const estimate = 27
+const spare = 12
+
 // A delimited file (CSV, TSV) as a table: its header held on top as it scrolls, each column
 // sortable from its header, numbers to the right, each row's line in the file at its start,
-// and the rows the agent pointed at marked. What the runner read of a long file is only part
-// of it, and lines it cut short lose their ends: it says so under the table.
+// and the rows the agent pointed at marked. A long one draws the rows in view. What the runner
+// read of a long file is only part of it, and lines it cut short lose their ends: it says so
+// under the table.
 export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Element => {
   const table = useMemo(
     () => tableOf(content.path, content.lines, content.firstLine),
@@ -48,6 +57,53 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
     content.from > content.firstLine || content.to < lastLine
       ? { from: content.from, to: content.to }
       : undefined
+  const isPointed = (line: number): boolean =>
+    pointed !== undefined && line >= pointed.from && line <= pointed.to
+
+  // A long table's rows, drawn as they come into view: the heights measured, by line, so a
+  // sort keeps them, and where the view is.
+  const windowed = rows.length > windowFrom
+  const [heights, setHeights] = useState<ReadonlyMap<number, number>>(new Map())
+  const head = useRef<HTMLTableSectionElement>(null)
+  const [view, setView] = useState({ top: 0, height: 800 })
+  const offsets = useMemo(
+    () =>
+      windowed
+        ? rowOffsets(rows.length, (index) => heights.get(rows[index]!.line) ?? estimate)
+        : undefined,
+    [windowed, rows, heights],
+  )
+  const shown = offsets
+    ? rowsWindow(offsets, { top: view.top, height: view.height, spare })
+    : { start: 0, end: rows.length, before: 0, after: 0 }
+  const widths = useMemo(
+    () => (windowed ? columnWidths(table.header, table.rows) : undefined),
+    [windowed, table],
+  )
+  const look = (): void => {
+    const element = scroller.current
+    if (!element) return
+    const below = head.current?.offsetHeight ?? 0
+    setView({
+      top: Math.max(0, element.scrollTop),
+      height: Math.max(element.clientHeight - below, 0) || 800,
+    })
+  }
+  // Each row drawn, measured; a change draws the window again from the new heights.
+  useLayoutEffect(() => {
+    if (!windowed) return
+    const drawn = scroller.current?.querySelectorAll<HTMLElement>("tbody tr[data-line]") ?? []
+    const changes = [...drawn].flatMap((row): [number, number][] => {
+      const line = Number(row.dataset.line)
+      const height = row.offsetHeight
+      const known = heights.get(line) ?? estimate
+      return height > 0 && Math.abs(known - height) > 0.5 ? [[line, height]] : []
+    })
+    if (changes.length > 0) setHeights(new Map([...heights, ...changes]))
+    // The rows drawn, and how wide: what changes their heights.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- See above.
+  }, [windowed, heights, shown.start, shown.end, rows, widths, scroller])
+
   // Opens where it was left in this file; a new file at the rows the agent pointed at, if it
   // pointed at some, else at its start.
   useLayoutEffect(() => {
@@ -55,15 +111,18 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
     if (!element) return
     const place = left.get(id)
     const at = place?.path === content.path ? place : undefined
-    if (!at && pointed) {
-      const row = element.querySelector<HTMLElement>("tbody tr[data-pointed]")
-      const head = element.querySelector("thead")?.offsetHeight ?? 0
-      element.scrollTop = row ? row.offsetTop - head : 0
+    const first = !at && pointed ? rows.findIndex((row) => isPointed(row.line)) : -1
+    if (first >= 0) {
+      element.scrollTop = offsets
+        ? offsets[first]!
+        : (element.querySelector<HTMLElement>("tbody tr[data-pointed]")?.offsetTop ?? 0) -
+          (head.current?.offsetHeight ?? 0)
       element.scrollLeft = 0
-      return
+    } else {
+      element.scrollTop = at?.top ?? 0
+      element.scrollLeft = at?.left ?? 0
     }
-    element.scrollTop = at?.top ?? 0
-    element.scrollLeft = at?.left ?? 0
+    look()
     // oxlint-disable-next-line react/exhaustive-effect-dependencies, react-hooks/exhaustive-deps -- Only as it opens, or another file comes.
   }, [id, content.path, scroller])
   // A file the item is re-pointed at starts in its own order.
@@ -71,6 +130,7 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
   if (shownPath !== content.path) {
     setShownPath(content.path)
     setSort(kept?.sort ?? null)
+    setHeights(new Map())
   }
   usePaneNote([
     `${table.rows.length.toLocaleString("en-US")} ${table.rows.length === 1 ? "row" : "rows"} · ${table.header.length} ${table.header.length === 1 ? "column" : "columns"}`,
@@ -92,10 +152,30 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
         aria-label={name}
         // Focusable, so it scrolls by keyboard.
         tabIndex={0}
-        onScroll={() => keep({})}
+        onScroll={() => {
+          keep({})
+          if (windowed) look()
+        }}
       >
-        <table>
-          <thead>
+        <table
+          data-windowed={windowed || undefined}
+          aria-rowcount={windowed ? rows.length + 1 : undefined}
+          style={
+            widths && {
+              width: `calc(${widths.reduce((sum, each) => sum + each, 0) + String(lastLine).length + 1}ch + ${(widths.length + 1) * 24}px)`,
+            }
+          }
+        >
+          {widths && (
+            <colgroup>
+              <col style={{ width: `calc(${String(lastLine).length + 1}ch + 22px)` }} />
+              {widths.map((width, column) => (
+                // oxlint-disable-next-line react/no-array-index-key -- A column is its place.
+                <col key={column} style={{ width: `calc(${width}ch + 24px)` }} />
+              ))}
+            </colgroup>
+          )}
+          <thead ref={head}>
             <tr>
               <th scope="col" className="artifact-table-line">
                 Line
@@ -133,12 +213,17 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {shown.before > 0 && (
+              <tr className="artifact-table-spacer" aria-hidden style={{ height: shown.before }}>
+                <td colSpan={table.header.length + 1} />
+              </tr>
+            )}
+            {rows.slice(shown.start, shown.end).map((row, at) => (
               <tr
                 key={row.line}
-                data-pointed={
-                  (pointed && row.line >= pointed.from && row.line <= pointed.to) || undefined
-                }
+                data-line={row.line}
+                data-pointed={isPointed(row.line) || undefined}
+                aria-rowindex={windowed ? shown.start + at + 2 : undefined}
               >
                 <th scope="row" className="artifact-table-line">
                   {row.line}
@@ -151,6 +236,11 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
                 ))}
               </tr>
             ))}
+            {shown.after > 0 && (
+              <tr className="artifact-table-spacer" aria-hidden style={{ height: shown.after }}>
+                <td colSpan={table.header.length + 1} />
+              </tr>
+            )}
           </tbody>
         </table>
         {table.rows.length === 0 && <p className="artifact-table-empty">No rows.</p>}

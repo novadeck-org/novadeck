@@ -315,7 +315,8 @@ and doubled quotes, a byte-order mark; a CSV's delimiter is the comma, semicolon
 first line holds most of): the header held on top, each column sorted from its header (up,
 down, the file's order; numbers by value, empty cells last), numbers to the right, each row
 led by the line it starts on, and where it was scrolled and sorted kept as the code viewer's
-place is. What the runner read of a long file is only part of it (its first 400 lines, or the
+place is. Past 200 rows it draws only the rows in view (`rows-window.ts`), its columns held to
+widths from all its rows' text, so a data file read whole stays quick. What the runner read of a long file is only part of it (its first 400 lines, or the
 lines around those pointed at, which it marks and opens at), and the table says so under it,
 with which lines, and that a line the runner cut at 4096 characters lost its last cells. Lines
 past the file's first have no header, so their columns are lettered, and may start inside a

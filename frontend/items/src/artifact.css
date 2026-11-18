@@ -349,6 +349,20 @@
   box-shadow: inset 2px 0 var(--color-strong);
   color: var(--color-ink);
 }
+/* A long table draws the rows in view between spacers, its columns held to fixed widths. */
+.artifact-table table[data-windowed] {
+  table-layout: fixed;
+}
+.artifact-table table[data-windowed] td > span {
+  max-width: none;
+}
+.artifact-table thead th button > span {
+  min-width: 0;
+}
+.artifact-table tr.artifact-table-spacer td {
+  padding: 0;
+  border: 0;
+}
 .artifact-table-empty {
   margin: 0;
   padding: 16px 14px;

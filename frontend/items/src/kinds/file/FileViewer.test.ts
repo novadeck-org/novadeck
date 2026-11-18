@@ -243,6 +243,32 @@ describe("a CSV file", () => {
   })
 })
 
+describe("a long CSV file", () => {
+  const long = fileContent("data/long.csv", [
+    "id,score",
+    ...Array.from({ length: 5000 }, (_, at) => `${at + 1},${(at * 7919) % 10007}`),
+  ])
+
+  it("draws only the rows in view, and says how many it has", async () => {
+    const { container } = await show("long-1", long)
+    const drawn = container.querySelectorAll("tbody tr[data-line]")
+    expect(drawn.length).toBeGreaterThan(10)
+    expect(drawn.length).toBeLessThan(200)
+    expect(container.querySelector("table")?.getAttribute("aria-rowcount")).toBe("5001")
+    expect(drawn[0]?.getAttribute("aria-rowindex")).toBe("2")
+  })
+
+  it("sorts all its rows, not only those drawn", async () => {
+    const { container } = await show("long-2", long)
+    act(() => container.querySelector<HTMLButtonElement>("thead th:nth-child(3) button")!.click())
+    act(() => container.querySelector<HTMLButtonElement>("thead th:nth-child(3) button")!.click())
+    const scores = long.lines.slice(1).map((line) => Number(line.split(",")[1]))
+    expect(container.querySelector("tbody tr[data-line] td:nth-of-type(2)")?.textContent).toBe(
+      String(Math.max(...scores)),
+    )
+  })
+})
+
 describe("a TSV file", () => {
   it("splits its columns on tabs", async () => {
     const { container } = await show(
