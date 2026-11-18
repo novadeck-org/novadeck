@@ -314,6 +314,29 @@ describe("the package graph", () => {
     ).toEqual([])
   })
 
+  it("keeps the data tree, and YAML with it, where it loads lazily", () => {
+    // A data file's preview loads its viewer through `lazy()`; a static import of the tree,
+    // of its parsers or of that viewer anywhere else would pull them into the first chunk.
+    const src = join(root, "frontend", "items", "src")
+    const viewer = "kinds/file/DataViewer"
+    const files = (readdirSync(src, { recursive: true }) as string[])
+      .map((file) => file.split("\\").join("/"))
+      .filter((file) => /\.tsx?$/.test(file) && !file.startsWith(viewer))
+    const imports = /^(?:import|export)\s+(?!type\s)(?:[^"']*?\s+from\s+)?["']([^"']+)["']/gm
+    const eager = (file: string, target: string): boolean =>
+      target === "yaml" ||
+      target === "@novadeck/viewers/tree" ||
+      (target.startsWith(".") &&
+        posix.normalize(posix.join(posix.dirname(file), target)) === viewer)
+    expect(
+      files.flatMap((file) =>
+        [...readFileSync(join(src, file), "utf8").matchAll(imports)]
+          .filter(([, target]) => eager(file, target!))
+          .map(([, target]) => `${file} -> ${target}`),
+      ),
+    ).toEqual([])
+  })
+
   it("keeps each harness, and what it reaches, off the runner and the other adapters", () => {
     const harnesses = [...packages.keys()].filter((folder) => folder.startsWith("harnesses/"))
     const offending = harnesses.flatMap((folder) =>

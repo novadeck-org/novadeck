@@ -19,9 +19,6 @@ import type { PreviewProps } from "./previews"
 // less when that would split an emoji): a line that long was likely cut short there.
 const longestLine = 4095
 
-/** Whether a file is one the tree reads. */
-export const isData = (path: string): boolean => dataFormatOf(path) !== undefined
-
 // The loads already sent to their source: switched back to the preview, they stay.
 const sent = new WeakSet<FileContent>()
 

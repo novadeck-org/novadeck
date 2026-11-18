@@ -1,18 +1,10 @@
 import { isAlias, LineCounter, parseAllDocuments, visit, type Document } from "yaml"
-
 // Reading a data file into what the tree viewer shows: a JSON value, a JSONL file's
 // records, or a YAML file's documents. Pure: the text in, the roots or where it failed out.
 
-export type DataFormat = "json" | "jsonl" | "yaml"
+import type { DataFormat } from "./format.js"
 
-/** The data format a file's name says, if it's one the tree reads. */
-export const dataFormatOf = (path: string): DataFormat | undefined => {
-  const extension = /\.([^./\\]+)$/.exec(path)?.[1]?.toLowerCase()
-  if (extension === "json") return "json"
-  if (extension === "jsonl" || extension === "ndjson") return "jsonl"
-  if (extension === "yaml" || extension === "yml") return "yaml"
-  return undefined
-}
+export { dataFormatOf, type DataFormat } from "./format.js"
 
 /**
  * One thing at the tree's top: a value (the JSON file's, one JSONL record, one YAML

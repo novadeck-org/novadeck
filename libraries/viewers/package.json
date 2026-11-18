@@ -58,6 +58,11 @@
       "default": "./dist/tree.js"
     },
     "./tree.css": "./src/tree.css",
+    "./data-format": {
+      "development": "./src/tree/format.ts",
+      "types": "./dist/tree/format.d.ts",
+      "default": "./dist/tree/format.js"
+    },
     "./browser": {
       "development": "./src/browser.ts",
       "types": "./dist/browser.d.ts",
