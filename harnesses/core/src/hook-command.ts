@@ -34,6 +34,7 @@ type HookCall = {
   /**
    * Whether the harness asks the person to review its hooks again when their text changes,
    * as Codex does: its PowerShell command keeps the `Test-Path` check it was trusted with.
+   * Only the `powershell` dialect reads it.
    */
   readonly reviewed?: boolean | undefined
 }
@@ -79,15 +80,17 @@ export const hookCommand = (
       // The command line is one quoted string for `/s`, which strips its outer quotes: a path
       // with a space or an `&` stays whole, as PowerShell wraps the argument in quotes itself.
       const cmd = "$(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' })"
+      // That cmd checks the launcher is there (`if exist`), not PowerShell: PowerShell looks a
+      // cmdlet up before it runs one, and Test-Path's lookup took 20 to 30 s a hook in the
+      // runner's tests on a Windows CI runner, where a hook that never got that far took
+      // under 1 s. Not .NET either, as `[IO.File]::Exists` throws in Constrained Language
+      // Mode, which AppLocker and WDAC put PowerShell in. A fallback needs PowerShell to know,
+      // and a harness that reviews its hooks' text keeps the Test-Path it was trusted with,
+      // as a change would ask every person to trust it again.
+      if (fallback === undefined && !reviewed)
+        return `if ($env:NOVADECK_HOOK) { $l = 'if exist "' + $env:NOVADECK_HOOK + '" "' + $env:NOVADECK_HOOK + '" ${run}'; & ${cmd} /d /s /c $l }`
       const line = `$l = '"' + $env:NOVADECK_HOOK + '" ${run}'; & ${cmd} /d /s /c $l`
-      // The launcher is checked with .NET, not a cmdlet: PowerShell looks a cmdlet up first,
-      // and Test-Path's lookup took 20 to 30 s each in the runner's tests on a Windows CI
-      // runner, where a hook that never got that far took under 1 s. A harness that reviews
-      // its hooks' text keeps Test-Path, as a change would ask every person to trust it again.
-      const exists = reviewed
-        ? "Test-Path -LiteralPath $env:NOVADECK_HOOK"
-        : "[IO.File]::Exists($env:NOVADECK_HOOK)"
-      const found = `if ($env:NOVADECK_HOOK -and (${exists})) { ${line} }`
+      const found = `if ($env:NOVADECK_HOOK -and (Test-Path -LiteralPath $env:NOVADECK_HOOK)) { ${line} }`
       return fallback === undefined ? found : `${found} else { ${psQuote(fallback)} }`
     }
     case "cmd": {

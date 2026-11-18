@@ -79,7 +79,7 @@ const runHook = (agent: AgentName, event: string, hook: string | undefined, stdi
 // quiet runner (probed on windows-latest). In this package's full run, beside hundreds of
 // other test files, a hook that reached Test-Path took 20 to 30 s, the first of them over
 // 45 s three times (#952, #959, #967), while one that never got that far took under 1 s.
-// Claude Code's hook checks its launcher with .NET now; Codex's keeps Test-Path (see
+// Claude Code's hook leaves the check to its cmd now; Codex's keeps Test-Path (see
 // hookCommand's `reviewed`). A hook that hangs still fails.
 const hookMs = windows ? 120_000 : 45_000
 
@@ -113,7 +113,7 @@ describe("agent plugin hook commands", () => {
       `if [ -x "$NOVADECK_HOOK" ]; then "$NOVADECK_HOOK" agy PreInvocation; else echo '{}'; fi`,
     )
     expect(harnesses.claude.hook("win32", "SessionStart")).toBe(
-      "if ($env:NOVADECK_HOOK -and ([IO.File]::Exists($env:NOVADECK_HOOK))) { $l = '\"' + $env:NOVADECK_HOOK + '\" claude SessionStart'; & $(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }) /d /s /c $l }",
+      "if ($env:NOVADECK_HOOK) { $l = 'if exist \"' + $env:NOVADECK_HOOK + '\" \"' + $env:NOVADECK_HOOK + '\" claude SessionStart'; & $(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }) /d /s /c $l }",
     )
     expect(harnesses.codex.hook("win32", "SessionStart")).toBe(
       "if ($env:NOVADECK_HOOK -and (Test-Path -LiteralPath $env:NOVADECK_HOOK)) { $l = '\"' + $env:NOVADECK_HOOK + '\" codex SessionStart'; & $(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }) /d /s /c $l }",

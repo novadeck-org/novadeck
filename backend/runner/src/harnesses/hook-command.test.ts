@@ -118,14 +118,25 @@ describe("a hook command", () => {
     })
 
   it("starts cmd with /d in PowerShell, as the launcher is a batch file and a printing AutoRun would stand before its JSON", () => {
-    for (const [agent, event, reviewed, exists] of [
-      ["claude", "Stop", false, "[IO.File]::Exists($env:NOVADECK_HOOK)"],
-      ["codex", "UserPromptSubmit", true, "Test-Path -LiteralPath $env:NOVADECK_HOOK"],
+    const cmd = "& $(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }) /d /s /c $l"
+    for (const [agent, event, reviewed, expected] of [
+      [
+        "claude",
+        "Stop",
+        false,
+        `if ($env:NOVADECK_HOOK) { $l = 'if exist "' + $env:NOVADECK_HOOK + '" "' + $env:NOVADECK_HOOK + '" claude Stop'; ${cmd} }`,
+      ],
+      [
+        "codex",
+        "UserPromptSubmit",
+        true,
+        `if ($env:NOVADECK_HOOK -and (Test-Path -LiteralPath $env:NOVADECK_HOOK)) { $l = '"' + $env:NOVADECK_HOOK + '" codex UserPromptSubmit'; ${cmd} }`,
+      ],
     ] as const) {
       const command = hookCommand("powershell", { agent, event, reviewed })
-      expect(command).toBe(
-        `if ($env:NOVADECK_HOOK -and (${exists})) { $l = '"' + $env:NOVADECK_HOOK + '" ${agent} ${event}'; & $(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }) /d /s /c $l }`,
-      )
+      expect(command).toBe(expected)
+      // No cmdlet, nor .NET, which Constrained Language Mode refuses, where nothing is reviewed.
+      if (!reviewed) expect(command).not.toMatch(/Test-Path|\[IO\./)
       // The launcher's path stays an argument read from the environment, so a space, `&` or
       // an 8.3 name (C:\Users\RUNNER~1\...) in it is quoted by PowerShell, never spliced.
       expect(command).not.toContain("RUNNER~1")
