@@ -493,8 +493,9 @@ with every safety check again at that time:
   Files panel row, kind `folder`) is listed, read-only, as a grid of thumbnails or a list
   (newest first, or by name or size): the runner reads its entries (name, kind by extension,
   size, modified time, and what a folder inside holds), watches it with the file system's own
-  watch (a few events together, at most about four reads a second, and every few seconds where
-  it can't watch), and pushes the listing again as files land, which the pane draws on top, or
+  watch (a few events together, at most about four reads a second, and every few seconds only where
+  it can't watch, as for a folder that is gone, which is polled for until it is back; a folder deleted and
+  made again is watched anew), and pushes the listing again as files land, which the pane draws on top, or
   holds in a "N new files" pill while the pointer is in the grid; a file whose size is
   changing shows the Files panel's write cursor. A folder with files landing behind another tab
   makes its taskbar icon new. Double-clicking a folder goes into it in the same tab, never above
@@ -504,7 +505,7 @@ with every safety check again at that time:
   and length, drawn by the page), are read through `companions.part` with the file's own stamp,
   lazily and nearest first; a PDF, a recording and a text file show their kind's icon. It is
   the same for Claude Code, Codex and Antigravity, as the runner reads the folder. Secrets
-  follow `companions/secrets.ts`: a folder that may hold secrets is refused (`show` answers
+  follow `companions/secrets.ts`: a folder that may hold secrets (by its name, by what lies under it, as gcloud's, or as one the person's environment moves a tool's logins to, as `GNUPGHOME`) is refused (`show` answers
   with why, and nothing in it is listed), a secret file or folder inside one is named and
   flagged, never opened, counted, read or given a thumbnail, and a symbolic link that leaves
   the opened folder is listed as a link and never followed. Of a folder holding more than 2000

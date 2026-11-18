@@ -290,7 +290,7 @@ const LIVE_PLAN_MS = 60_000
 // A folder is read at most about four times a second, and where nothing tells it changed, every
 // few seconds.
 const folderGapMs = 250
-const folderPollMs = 3_000
+export const folderPollMs = 3_000
 
 /**
  * What agents show and the person attaches beside terminals, kept as pointers: each item
@@ -892,10 +892,6 @@ export class CompanionItems {
     signal?.addEventListener("abort", abort, { once: true })
     if (signal?.aborted) reader.abort()
     try {
-      if (this.item(itemId).kind === "folder") {
-        yield* this.folderContent(itemId, within ?? "", reader.signal)
-        return
-      }
       let probed: string | undefined
       let sent: string | undefined
       // How long a change's last read took, which sets the wait for the next, and how many
@@ -905,6 +901,14 @@ export class CompanionItems {
       while (!reader.signal.aborted) {
         const item = this.records.item(itemId)
         if (!item) return
+        // A folder is listed as it changes until the item is something else (a path shown again
+        // as a file, or the reverse), when what was read of it before is read afresh.
+        if (item.kind === "folder") {
+          yield* this.folderContent(itemId, within ?? "", reader.signal)
+          probed = undefined
+          sent = undefined
+          continue
+        }
         const live = this.live(item)
         const lines = item.lines ? `${item.lines.from}-${item.lines.to}` : ""
         // A change has no one file to stat, nor have shells (their files are several): both
@@ -969,12 +973,12 @@ export class CompanionItems {
     try {
       while (!signal.aborted) {
         const item = this.records.item(itemId)
-        if (!item) return
+        if (item?.kind !== "folder") return
         const began = Date.now()
         // eslint-disable-next-line no-await-in-loop -- Each read follows the change before it.
-        const { content, dir } = await loadFolder(item, within, this.environment())
+        const { content, dir, ino } = await loadFolder(item, within, this.environment())
         if (signal.aborted) return
-        watcher.follow(dir)
+        watcher.follow(dir, ino)
         if (within === "") this.folderArrivals(item, content)
         const key = `${item.version}|${item.path}|${keyOf(content)}`
         if (key !== sent) {
@@ -1328,6 +1332,8 @@ export class CompanionItems {
       return failure(
         "Only a video or a recording starts at a second; give at only for a video or audio file.",
       )
+    if (lines !== undefined && pointed.kind === "folder")
+      return failure("A folder has no lines to point at; give lines only for a text file.")
     return {
       ok: true,
       tooLarge:

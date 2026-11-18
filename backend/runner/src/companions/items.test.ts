@@ -12,6 +12,7 @@ import {
   realpathSync,
   rmSync,
   symlinkSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
@@ -31,7 +32,7 @@ import type { Shell } from "../harnesses/shells.js"
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import type { PlanText } from "./content.js"
-import { CompanionItems, type TerminalPlace } from "./items.js"
+import { CompanionItems, folderPollMs, type TerminalPlace } from "./items.js"
 
 const gitInstalled = (() => {
   try {
@@ -2437,17 +2438,21 @@ describe("a folder beside its terminal", () => {
     try {
       expect(listed(await next(stream)).total).toBe(4)
       // A file written, then written to: each is a listing of its own, and only the first is news.
+      // Each comes from the file system's watch, well before the poll of a folder it can't watch.
+      const began = Date.now()
       writeFileSync(join(place, "new.png"), "a")
       expect(listed(await next(stream)).entries.map(({ name }) => name)).toContain("new.png")
+      expect(Date.now() - began).toBeLessThan(folderPollMs / 2)
       const arrived = fixture.items.bar(moth.terminalId)[0]!
       expect(arrived.version).toBeGreaterThan(before.version)
       expect(arrived.openAsked).toBe(false)
+      const wrote = Date.now()
+      appendFileSync(join(place, "new.png"), "bcde")
       let grown = listed(await next(stream))
-      while (grown.entries.find(({ name }) => name === "new.png")?.size !== 5) {
-        appendFileSync(join(place, "new.png"), "bcde")
-        // eslint-disable-next-line no-await-in-loop -- Each write is read before the next.
+      while (grown.entries.find(({ name }) => name === "new.png")?.size !== 5)
+        // eslint-disable-next-line no-await-in-loop -- Each listing is read before the next.
         grown = listed(await next(stream))
-      }
+      expect(Date.now() - wrote).toBeLessThan(folderPollMs / 2)
       // Written to, not new: the item is no newer for it.
       expect(fixture.items.bar(moth.terminalId)[0]!.version).toBe(arrived.version)
     } finally {
@@ -2466,8 +2471,12 @@ describe("a folder beside its terminal", () => {
     const stream = fixture.items.content(shown.ok ? shown.id : "", undefined, controller.signal)
     try {
       expect(listed(await next(stream)).total).toBe(4)
+      const began = Date.now()
       renameSync(place, `${place}-moved`)
       await expect(next(stream)).resolves.toMatchObject({ state: "unavailable", reason: "gone" })
+      // Told by the watch, not found by the poll.
+      expect(Date.now() - began).toBeLessThan(folderPollMs / 2)
+      // A folder that is gone can't be watched: it is polled for, and found again within a poll.
       renameSync(`${place}-moved`, place)
       expect(listed(await next(stream)).total).toBe(4)
     } finally {
@@ -2490,6 +2499,151 @@ describe("a folder beside its terminal", () => {
       truncated: true,
     })
     expect(listed(content).entries).toHaveLength(folderLimits.entries)
+  })
+
+  it("follows a folder deleted and made again, by the watch and not the poll", async ({
+    fixture,
+  }) => {
+    const place = render(fixture.directory)
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "render" } })
+    const controller = new AbortController()
+    const stream = fixture.items.content(shown.ok ? shown.id : "", undefined, controller.signal)
+    try {
+      expect(listed(await next(stream)).total).toBe(4)
+      // As a build tool does it: the folder is another one by the time it is read.
+      rmSync(place, { recursive: true })
+      mkdirSync(place)
+      writeFileSync(join(place, "one.png"), "1")
+      const began = Date.now()
+      expect(listed(await next(stream)).entries.map(({ name }) => name)).toEqual(["one.png"])
+      expect(Date.now() - began).toBeLessThan(folderPollMs / 2)
+      // The watch moved onto the new folder: what lands in it is told as fast.
+      const wrote = Date.now()
+      writeFileSync(join(place, "two.png"), "2")
+      expect(listed(await next(stream)).total).toBe(2)
+      expect(Date.now() - wrote).toBeLessThan(folderPollMs / 2)
+    } finally {
+      controller.abort()
+      await stream.return(undefined)
+    }
+  })
+
+  it("counts a folder inside again once it changed, and not before", async ({ fixture }) => {
+    const place = render(fixture.directory)
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "render" } })
+    const id = shown.ok ? shown.id : ""
+    const children = async () =>
+      listed(await fixture.items.load(id, false)).entries.find(({ name }) => name === "old-runs")
+        ?.children
+    expect(await children()).toBe(1)
+    expect(await children()).toBe(1)
+    writeFileSync(join(place, "old-runs", "two.png"), "2")
+    // A change to the folder moves its time, which is what is counted by.
+    utimesSync(join(place, "old-runs"), new Date(), new Date(Date.now() + 5000))
+    expect(await children()).toBe(2)
+  })
+
+  it("lists a folder that is only a folder by what is under it as secret", async ({ fixture }) => {
+    // gcloud's folder is matched by the files in it, and the others by where the environment puts them.
+    const gcloud = join(fixture.directory, ".config", "gcloud")
+    mkdirSync(join(gcloud, "legacy_credentials", "me@example.com"), { recursive: true })
+    const moth = fixture.terminal("moth")
+    const refusal = {
+      ok: false,
+      reason: "That folder may hold secrets, so Novadeck won't list what is in it.",
+    }
+    await expect(fixture.items.show(moth, { file: { path: gcloud } })).resolves.toEqual(refusal)
+    await expect(fixture.items.show(moth, { file: { path: `${gcloud}/` } })).resolves.toEqual(
+      refusal,
+    )
+    for (const variable of ["GNUPGHOME", "DOCKER_CONFIG", "AZURE_CONFIG_DIR", "CLOUDSDK_CONFIG"]) {
+      const moved = join(fixture.directory, `${variable.toLowerCase()}-store`)
+      mkdirSync(moved)
+      fixture.environment[variable] = moved
+      // eslint-disable-next-line no-await-in-loop -- One variable after another, in one environment.
+      await expect(fixture.items.show(moth, { file: { path: moved } }), variable).resolves.toEqual(
+        refusal,
+      )
+    }
+    // Entered or listed from a folder above, it is named and flagged, never listed or counted.
+    const above = join(fixture.directory, ".config")
+    const shown = await fixture.items.show(moth, { file: { path: above } })
+    const id = shown.ok ? shown.id : ""
+    expect(listed(await fixture.items.load(id, false)).entries).toMatchObject([
+      { name: "gcloud", kind: "folder", secret: true, children: null },
+    ])
+    const controller = new AbortController()
+    const stream = fixture.items.content(id, undefined, controller.signal, "gcloud")
+    await expect(next(stream)).resolves.toMatchObject({ state: "unavailable", reason: "secret" })
+    await stream.return(undefined)
+    controller.abort()
+    // The folder a link points to is judged by where it leads.
+    await expect(
+      fixture.items.part({
+        itemId: id,
+        stamp: "x",
+        offset: 0,
+        path: "gcloud/legacy_credentials/me@example.com/x.png",
+      }),
+    ).resolves.toEqual({ state: "unavailable", reason: "secret" })
+  })
+
+  it("restarts a stream whose item became another kind", async ({ fixture }) => {
+    const target = join(fixture.directory, "thing")
+    writeFileSync(target, "a file\n")
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "thing" } })
+    const id = shown.ok ? shown.id : ""
+    const controller = new AbortController()
+    const stream = fixture.items.content(id, undefined, controller.signal)
+    try {
+      expect(lines(await next(stream))).toEqual(["a file"])
+      rmSync(target)
+      mkdirSync(target)
+      writeFileSync(join(target, "in.png"), "x")
+      await fixture.items.show(moth, { file: { path: "thing" } })
+      expect(fixture.items.bar(moth.terminalId)[0]).toMatchObject({ kind: "folder" })
+      expect(listed(await next(stream)).entries.map(({ name }) => name)).toEqual(["in.png"])
+      rmSync(target, { recursive: true })
+      writeFileSync(target, "a file again\n")
+      await fixture.items.show(moth, { file: { path: "thing" } })
+      expect(lines(await next(stream))).toEqual(["a file again"])
+    } finally {
+      controller.abort()
+      await stream.return(undefined)
+    }
+  })
+
+  it("takes no lines for a folder", async ({ fixture }) => {
+    render(fixture.directory)
+    const moth = fixture.terminal("moth")
+    await expect(
+      fixture.items.show(moth, { file: { path: "render", lines: { from: 1, to: 2 } } }),
+    ).resolves.toEqual({
+      ok: false,
+      reason: "A folder has no lines to point at; give lines only for a text file.",
+    })
+  })
+
+  it("reads a file by what it is, not by the name a link inside the folder gives it", async ({
+    fixture,
+  }) => {
+    if (process.platform === "win32") return
+    const place = render(fixture.directory)
+    writeFileSync(join(place, "big.mp4"), Buffer.alloc(2 * 1024 * 1024 + 8))
+    symlinkSync(join(place, "big.mp4"), join(place, "fake.png"))
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "render" } })
+    const itemId = shown.ok ? shown.id : ""
+    const stamp = listed(await fixture.items.load(itemId, false)).entries.find(
+      ({ name }) => name === "fake.png",
+    )!.stamp
+    // A video is read up to a video's limit, whatever the link says it is.
+    expect((await fixture.items.part({ itemId, stamp, offset: 0, path: "fake.png" })).state).toBe(
+      "part",
+    )
   })
 
   it("is attached to a terminal as the person's own, and opens a file of it as that file's kind", async ({

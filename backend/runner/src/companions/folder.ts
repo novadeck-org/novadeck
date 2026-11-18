@@ -1,6 +1,6 @@
 import { watch, type FSWatcher } from "node:fs"
 import { lstat, readdir, realpath, stat } from "node:fs/promises"
-import { extname, isAbsolute, join, relative, sep } from "node:path"
+import { basename, extname, isAbsolute, join, relative, sep } from "node:path"
 
 import {
   folderLimits,
@@ -15,7 +15,7 @@ import { DomainError } from "../errors.js"
 import { tail } from "../text.js"
 import { hashOf, isAudio, isImage, isPdf, isVideo, readPart, stampOf } from "./content.js"
 import type { ItemRecord } from "./records.js"
-import { secrets } from "./secrets.js"
+import { folderSecrets, secrets } from "./secrets.js"
 
 // A folder item lists a folder read-only: what is in it, never what it holds, except through
 // `readFolderPart`, which reads a file by the rules its kind has anywhere else. Nothing here
@@ -114,6 +114,17 @@ const segmentsOf = (path: string): readonly string[] | undefined => {
     : segments
 }
 
+/** What says a file, or a folder, may hold secrets (see `secrets.ts`). */
+type Checks = {
+  readonly file: (path: string) => boolean
+  readonly folder: (path: string) => boolean
+}
+
+const checksOf = (env: NodeJS.ProcessEnv | undefined): Checks => ({
+  file: secrets(env),
+  folder: folderSecrets(env),
+})
+
 type Walked =
   | { readonly ok: true; readonly top: string; readonly path: string }
   | { readonly ok: false; readonly reason: "missing" | "secret" | "unreadable" }
@@ -122,18 +133,14 @@ type Walked =
  * The real path of `way` (from the top of the folder item, "/" between names), step by step:
  * each step resolved through links, which must stay inside the top, and may not hold secrets.
  */
-const walk = async (
-  folder: string,
-  way: string,
-  isSecret: (path: string) => boolean,
-): Promise<Walked> => {
+const walk = async (folder: string, way: string, checks: Checks): Promise<Walked> => {
   let top: string
   try {
     top = await realpath(folder)
   } catch (error) {
     return { ok: false, reason: errnoOf(error) === "EACCES" ? "unreadable" : "missing" }
   }
-  if (isSecret(top)) return { ok: false, reason: "secret" }
+  if (checks.folder(top)) return { ok: false, reason: "secret" }
   const segments = segmentsOf(way)
   if (!segments) return { ok: false, reason: "missing" }
   let path = top
@@ -145,7 +152,7 @@ const walk = async (
       return { ok: false, reason: errnoOf(error) === "EACCES" ? "unreadable" : "missing" }
     }
     if (!within(top, path)) return { ok: false, reason: "missing" }
-    if (isSecret(path)) return { ok: false, reason: "secret" }
+    if (checks.folder(path)) return { ok: false, reason: "secret" }
   }
   return { ok: true, top, path }
 }
@@ -178,19 +185,34 @@ const mapBounded = async <Item, Result>(
   return results
 }
 
-/** How many entries a folder holds, or null where it can't be read. */
-const countOf = (path: string): Promise<number | null> =>
-  readdir(path).then(
+// What folders held when last counted, by path, with the change time of the folder then: a
+// folder whose time is the same holds what it did, so a listing counts only what changed.
+const counted = new Map<string, { readonly changed: number; readonly count: number | null }>()
+const countedMost = 4000
+
+/** How many entries a folder holds, or null where it can't be read; `changed` is its mtime. */
+const countOf = async (path: string, changed: number): Promise<number | null> => {
+  const known = counted.get(path)
+  if (known?.changed === changed) return known.count
+  const count = await readdir(path).then(
     (names) => names.length,
     () => null,
   )
+  counted.delete(path)
+  counted.set(path, { changed, count })
+  for (const oldest of counted.keys()) {
+    if (counted.size <= countedMost) break
+    counted.delete(oldest)
+  }
+  return count
+}
 
 /** One entry of a folder as it is listed; undefined where it vanished meanwhile. */
 const entryOf = async (
   top: string,
   folder: string,
   name: string,
-  isSecret: (path: string) => boolean,
+  checks: Checks,
 ): Promise<FolderEntry | undefined> => {
   const full = join(folder, name)
   const own = await lstat(full).catch(() => undefined)
@@ -209,14 +231,16 @@ const entryOf = async (
         size: own.size,
         modifiedAt: own.mtimeMs,
         children: null,
-        secret: isSecret(full),
+        secret: checks.file(full),
         link: true,
         stamp: "",
       }
     real = target
     stats = targeted
   }
-  const held = isSecret(full) || isSecret(real)
+  const held = stats.isDirectory()
+    ? checks.folder(full) || checks.folder(real)
+    : checks.file(full) || checks.file(real)
   const base = {
     name,
     size: stats.size,
@@ -229,7 +253,7 @@ const entryOf = async (
       ...base,
       kind: "folder",
       size: 0,
-      children: held ? null : await countOf(real),
+      children: held ? null : await countOf(real, stats.mtimeMs),
       stamp: "",
     }
   const kind = stats.isFile() ? entryKindOf(name) : "other"
@@ -247,34 +271,49 @@ export const loadFolder = async (
   item: Pick<ItemRecord, "path">,
   inside: string,
   env?: NodeJS.ProcessEnv,
-): Promise<{ readonly content: ItemContent; readonly dir: string | undefined }> => {
-  const isSecret = secrets(env)
-  if (item.path === null) return { content: unavailable("gone"), dir: undefined }
-  const walked = await walk(item.path, inside, isSecret)
+): Promise<{
+  readonly content: ItemContent
+  readonly dir: string | undefined
+  // Which folder it is (its file and when it was made), so a folder deleted and made again is
+  // not taken for the one watched, though a file system may give it the same number.
+  readonly ino: string | undefined
+}> => {
+  const checks = checksOf(env)
+  if (item.path === null) return { content: unavailable("gone"), dir: undefined, ino: undefined }
+  const walked = await walk(item.path, inside, checks)
   if (!walked.ok) {
     const top = inside === "" || inside === "/"
     return {
       content: unavailable(walked.reason === "missing" && top ? "gone" : walked.reason),
       dir: undefined,
+      ino: undefined,
     }
   }
   const { top, path: dir } = walked
   let names: string[]
+  let ino: string
   try {
     const own = await stat(dir)
-    if (!own.isDirectory()) return { content: unavailable(inside === "" ? "gone" : "missing"), dir }
+    if (!own.isDirectory())
+      return {
+        content: unavailable(inside === "" ? "gone" : "missing"),
+        dir: undefined,
+        ino: undefined,
+      }
+    ino = `${own.ino}:${own.birthtimeMs}`
     names = (await readdir(dir)).toSorted()
   } catch (error) {
     const reason = errnoOf(error) === "EACCES" ? "unreadable" : inside === "" ? "gone" : "missing"
-    return { content: unavailable(reason), dir }
+    return { content: unavailable(reason), dir: undefined, ino: undefined }
   }
   const listed = names.slice(0, folderLimits.entries)
-  const found = await mapBounded(listed, (name) => entryOf(top, dir, name, isSecret))
+  const found = await mapBounded(listed, (name) => entryOf(top, dir, name, checks))
   const entries = found.filter((entry): entry is FolderEntry => entry !== undefined)
   const truncated = names.length > folderLimits.entries
   const path = tail(dir, 4096)
   return {
     dir,
+    ino,
     content: {
       state: "ready",
       stamp: hashOf(JSON.stringify([inside, truncated, entries])),
@@ -311,10 +350,11 @@ export const readFolderPart = async (
 ): Promise<FilePart> => {
   const name = segmentsOf(part.path)?.at(-1)
   if (item.path === null || name === undefined) return { state: "unavailable", reason: "missing" }
-  const largest = partLimits[entryKindOf(name)]
-  if (largest === undefined) throw new DomainError("NOT_FOUND", "That file isn't read in parts")
-  const walked = await walk(item.path, part.path, secrets(env))
+  const walked = await walk(item.path, part.path, checksOf(env))
   if (!walked.ok) return { state: "unavailable", reason: walked.reason }
+  // By what the file is, as listed: the kind its own name tells, not a link's name for it.
+  const largest = partLimits[entryKindOf(basename(walked.path))]
+  if (largest === undefined) throw new DomainError("NOT_FOUND", "That file isn't read in parts")
   return readPart({ path: walked.path, secret: false }, part, false, largest, env)
 }
 
@@ -325,39 +365,55 @@ const longest = 1000
 
 /**
  * Tells when a folder may have changed: the file system's own watch, a few events together as
- * one, and never later than `longest` after the first of them. Where it can't watch (a
- * network share, a limit of watches reached) it tells nothing, and the caller's own wait
- * ends the pause.
+ * one, and never later than `longest` after the first of them. Where the watch isn't working (a
+ * folder that is gone, a network share, a limit of watches reached) the wait ends after the
+ * `ms` it is given, which is how such a folder is polled; while it works, only a change ends it.
+ * A folder deleted and made again is another one (its `ino`): the watch moves onto it.
  */
 export class FolderWatch {
   private watcher: FSWatcher | undefined
   private dir: string | undefined
+  private ino: string | undefined
   private first: number | undefined
   private wake: (() => void) | undefined
 
-  /** Watches `dir`, in place of the folder watched before. */
-  follow(dir: string | undefined): void {
-    if (dir === this.dir) return
+  /** Whether the file system is telling of changes now. */
+  get working(): boolean {
+    return this.watcher !== undefined
+  }
+
+  /** Watches `dir`, in place of the folder watched before, and again if that one is gone or was closed. */
+  follow(dir: string | undefined, ino?: string): void {
+    if (dir === this.dir && ino === this.ino && this.watcher) return
     this.watcher?.close()
     this.watcher = undefined
     this.dir = dir
+    this.ino = ino
     this.first = undefined
     if (dir === undefined) return
     try {
-      this.watcher = watch(dir, { persistent: false }, () => {
+      const watcher = watch(dir, { persistent: false }, (_event, name) => {
+        // The folder itself deleted or moved: what is watched is gone, whatever comes in its place.
+        if (name === basename(dir)) {
+          watcher.close()
+          if (this.watcher === watcher) this.watcher = undefined
+        }
         this.first ??= Date.now()
         this.wake?.()
       })
-      this.watcher.on("error", () => {
-        this.watcher?.close()
-        this.watcher = undefined
+      watcher.on("error", () => {
+        watcher.close()
+        if (this.watcher === watcher) this.watcher = undefined
+        // A waiting caller now has only the poll to rely on.
+        this.wake?.()
       })
+      this.watcher = watcher
     } catch {
       this.watcher = undefined
     }
   }
 
-  /** Resolves when the folder changed and settled, or after `ms`, or when `signal` aborts. */
+  /** Resolves when the folder changed and settled, after `ms` where it is not watched, or when `signal` aborts. */
   wait(ms: number, signal: AbortSignal): Promise<void> {
     return new Promise((resolve) => {
       let timer: ReturnType<typeof setTimeout> | undefined
@@ -371,7 +427,7 @@ export class FolderWatch {
       const arm = (): void => {
         clearTimeout(timer)
         if (this.first === undefined) {
-          timer = setTimeout(done, ms)
+          if (!this.watcher) timer = setTimeout(done, ms)
           return
         }
         const left = Math.max(0, this.first + longest - Date.now())
@@ -388,5 +444,6 @@ export class FolderWatch {
     this.watcher?.close()
     this.watcher = undefined
     this.dir = undefined
+    this.ino = undefined
   }
 }

@@ -23,7 +23,7 @@ import { harnesses } from "../harnesses/registry.js"
 import { cut, tail } from "../text.js"
 import type { ItemRecord } from "./records.js"
 import { failure, type RequestFailure } from "./request.js"
-import { secret } from "./secrets.js"
+import { folderSecrets, secret } from "./secrets.js"
 
 // What is shown as an image, by extension: what Chromium decodes itself, as the desktop app
 // and a browser both are, JPEG XL among them (probed in Electron 45.2.2, Chromium 156). HEIC,
@@ -179,7 +179,7 @@ export const pointAt = async (
   const stats = await stat(path).catch(() => undefined)
   if (!stats) return failure("That file doesn't exist.")
   if (stats.isDirectory()) {
-    if (secret(path, env))
+    if (folderSecrets(env)(path))
       return failure("That folder may hold secrets, so Novadeck won't list what is in it.")
     return { ok: true, path, kind: "folder", size: 0, secret: false }
   }
