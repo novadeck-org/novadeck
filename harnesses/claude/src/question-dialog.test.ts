@@ -222,6 +222,29 @@ describe("Claude Code's AskUserQuestion", () => {
     expect(ticked!.until(step("ask-multi", "space-on-3"))).toBe(true)
     expect(third!.until(step("ask-multi-finish", "after-right"))).toBe(true)
     expect(afterThird!.until(step("ask-multi-finish", "after-q3"))).toBe(true)
+    // 2.1.327 dropped the line above Submit answers; the title and the choices still say it.
+    const reviewed = step("ask-multi-finish", "after-q3")
+    const terse = reviewed.filter((row) => row !== "Ready to submit your answers?")
+    expect(terse).not.toEqual(reviewed)
+    expect(afterThird!.until(terse)).toBe(true)
+    // A short pane scrolls the title away, and the answers above the choices still say it.
+    const title = terse.indexOf("Review your answers")
+    expect(title).toBeGreaterThan(0)
+    expect(afterThird!.until(reviewed.slice(title + 1))).toBe(true)
+    expect(afterThird!.until(terse.slice(title + 1))).toBe(true)
+    // The highlight on Cancel is still the review: a digit picks Submit answers anyway.
+    const onCancel = terse.map((row) =>
+      row === "❯ 1. Submit answers"
+        ? "  1. Submit answers"
+        : row === "  2. Cancel"
+          ? "❯ 2. Cancel"
+          : row,
+    )
+    expect(onCancel).not.toEqual(terse)
+    expect(afterThird!.until(onCancel)).toBe(true)
+    // Choices with neither the title nor an answer above them are no review.
+    const bare = terse.filter((row) => row === "❯ 1. Submit answers" || row === "  2. Cancel")
+    expect(afterThird!.until(["", ...bare])).toBe(false)
     expect(review).toBeUndefined()
     expect(dialog.answered(step("ask-multi-finish", "after-q3"))).toBe(false)
     expect(dialog.answered(step("k-ask-multi-full", "submitted"))).toBe(true)
