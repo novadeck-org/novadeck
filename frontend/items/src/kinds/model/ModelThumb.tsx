@@ -59,9 +59,7 @@ export const ModelThumb = ({
   }, [key, part, total, target, item.id, content, stamp])
   const url = still?.key === key ? still.url : null
   return url ? (
-    <span className="peek-model">
-      <img src={url} alt="" />
-    </span>
+    <img className="peek-model-still" src={url} alt="" />
   ) : (
     <span className="peek-model">
       <Box size={18} strokeWidth={1.5} aria-hidden />
