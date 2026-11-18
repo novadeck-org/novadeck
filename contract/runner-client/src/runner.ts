@@ -293,6 +293,8 @@ export type Runner = {
      * resting sees it), read from the system now (with `fresh`, by a read that starts after the call), and those the runner couldn't read (`unknown`, never
      * idle). Ask only while someone looks at the answer, or is about to act on it.
      */
+    /** The terminal this client's person uses now, or none; see the contract's `terminals.active`. */
+    active(terminalId: string | null): Promise<void>
     busy(options?: {
       readonly fresh?: true
     }): Promise<{ readonly busy: string[]; readonly unknown: string[] }>
@@ -820,6 +822,7 @@ export const connectRunner = async (
       rename: (terminalId, title) =>
         call((client) => client.terminals.rename({ terminalId, title })),
       resetTitle: (terminalId) => call((client) => client.terminals.resetTitle({ terminalId })),
+      active: (terminalId) => call((client) => client.terminals.active({ terminalId })),
       busy: (only) => call((client) => client.terminals.busy(only)),
       async upload(terminalId, { name, data }) {
         if (data.length > maxUploadBytes) throw new WireError<RunnerErrorCode>("UPLOAD_TOO_LARGE")

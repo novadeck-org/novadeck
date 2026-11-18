@@ -179,6 +179,7 @@ export const scriptedRunner = ({
       answerApproval: api.terminals.answerApproval.handler(unplayed("terminals.answerApproval")),
       release: api.terminals.release.handler(unplayed("terminals.release")),
       move: api.terminals.move.handler(unplayed("terminals.move")),
+      active: api.terminals.active.handler(() => {}),
       watch: api.terminals.watch.handler(async function* ({ signal }) {
         const changes = channel<TerminalChange>()
         watchers.add(changes)

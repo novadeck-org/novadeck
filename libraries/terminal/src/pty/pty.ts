@@ -2,6 +2,7 @@ import { constants as system } from "node:os"
 
 import { spawn as nodePtySpawn } from "node-pty"
 
+import { boosting, type Activity } from "./boost.js"
 import { agentProcesses, endFollowed, type Listing } from "./descendants.js"
 import { terminalForeground } from "./foreground.js"
 import type { Priority } from "./priority.js"
@@ -57,6 +58,14 @@ export type PtyOptions = {
   readonly scopes?: Scopes
   readonly priority?: Priority
   readonly trees?: Pick<ProcessTrees, "read">
+  /**
+   * Which terminal the person is using, as the host tells each pty its terminal's `id`: that
+   * one's programs run at normal priority, and the others' stay lowered.
+   */
+  readonly activity?: Activity
+  readonly id?: string
+  /** The process list, for raising and lowering the programs a shell has started. */
+  readonly listing?: Listing
 }
 
 /** A process's tree on Windows, read and ended as `Trees` does. */
@@ -275,6 +284,15 @@ export const spawnPty = (
     useConptyDll: platform === "win32",
   })
   const scope = child.pid > 0 ? options.scopes?.contain(child.pid) : undefined
+  const boost = boosting({
+    scope,
+    priority: options.priority,
+    platform,
+    shell: () => (child.pid > 0 ? child.pid : undefined),
+    running: () => !exited,
+    ...(options.trees && { trees: options.trees }),
+    ...(options.listing && { listing: options.listing }),
+  })
   let drawn = false
   // macOS names the shell's pid at once, so it is lowered before it can start anything. On
   // Windows node-pty's public `pid` stays 0 until its data pipe connects, by which time the
@@ -291,6 +309,8 @@ export const spawnPty = (
     child.onData(() => {
       if (lowered || !(child.pid > 0)) return
       lowered = true
+      // Its terminal in use already: it stays at normal.
+      if (boost.active) return
       const shell = child.pid
       options.priority?.lower(shell)
       if (options.priority)
@@ -308,9 +328,15 @@ export const spawnPty = (
   // node-pty's exit came, its fd closed, while the report may wait for its cause.
   let gone = false
   const exitListeners = new Set<(exit: PtyExit) => void>()
+  // Told at once whether its terminal is in use, and on each change until it exits.
+  const stopActivity =
+    options.activity && options.id !== undefined
+      ? options.activity.register(options.id, boost.set)
+      : undefined
   const report = (exit: PtyExit) => {
     if (exited) return
     exited = true
+    stopActivity?.()
     for (const listener of exitListeners) listener(exit)
   }
   let resolveExit: (() => void) | undefined

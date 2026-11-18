@@ -28,10 +28,17 @@ describe("lowering a program's priority", () => {
     expect(set).toEqual([[42, terminalPriority]])
   })
 
+  it("raises it back to normal", () => {
+    const set: [number, number][] = []
+    terminalPriorities("win32", (pid, priority) => void set.push([pid, priority]))?.raise(42)
+    expect(set).toEqual([[42, constants.priority.PRIORITY_NORMAL]])
+  })
+
   it("ignores a program that is gone or that the system won't let it change", () => {
     const priorities = terminalPriorities("win32", () => {
       throw Object.assign(new Error("EPERM"), { code: "EPERM" })
     })
     expect(() => priorities?.lower(42)).not.toThrow()
+    expect(() => priorities?.raise(42)).not.toThrow()
   })
 })

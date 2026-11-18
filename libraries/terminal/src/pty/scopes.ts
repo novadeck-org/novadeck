@@ -17,6 +17,12 @@ export type Scope = {
    * looked up, so the exit is reported at once.
    */
   cause(signal: string | null): Promise<ExitCause | undefined> | undefined
+  /**
+   * Sets the scope's CPU weight, once it exists, calls in order; it never rejects, as a scope
+   * that has ended or a systemd that is slow leaves the weight as it was. Nothing where the
+   * program has no scope.
+   */
+  weigh(weight: number): Promise<void>
 }
 
 /** Where each pty's program is kept apart from the app's own processes. */
@@ -84,6 +90,32 @@ export const scopePrefix = (cgroup: string): string => {
  */
 export const terminalCpuWeight = 10
 
+/** The weight of the terminal the person is using: the app's own, systemd's default. */
+export const activeCpuWeight = 100
+
+/**
+ * The user's systemd manager's call that sets `unit`'s CPU weight now, without keeping it
+ * past a reboot: the scope's own weight, so it covers everything the terminal's program
+ * started, as its tests and scripts.
+ */
+export const setScopeWeight = (unit: string, weight: number): readonly string[] => [
+  "--user",
+  "--quiet",
+  "--timeout=5",
+  "call",
+  "org.freedesktop.systemd1",
+  "/org/freedesktop/systemd1",
+  "org.freedesktop.systemd1.Manager",
+  "SetUnitProperties",
+  "sba(sv)",
+  unit,
+  "true",
+  "1",
+  "CPUWeight",
+  "t",
+  String(weight),
+]
+
 /**
  * The user's systemd manager's call that starts `unit`, a transient scope, with process
  * `pid` moved into it. Its `OOMPolicy` is `continue`: what the kernel kills for memory is
@@ -134,7 +166,7 @@ export const killsSince = (unit: string, since: number): readonly string[] => [
 ]
 
 /** A program left in the app's scope, as where systemd can't give it one. */
-const unscoped: Scope = { cause: () => undefined }
+const unscoped: Scope = { cause: () => undefined, weigh: () => Promise.resolve() }
 
 /**
  * Linux's scopes: each pty's program goes into a transient systemd scope of its own as it
@@ -176,7 +208,17 @@ export class UserScopes implements Scopes {
         return false
       },
     )
+    // Weights are set one after another, so the last asked is the last set.
+    let weighed: Promise<void> = started.then(() => undefined)
     return {
+      weigh: (weight) => {
+        weighed = weighed
+          .then(async () => {
+            if (await started) await this.run("busctl", setScopeWeight(unit, weight))
+          })
+          .catch(() => undefined)
+        return weighed
+      },
       cause: (signal) => {
         if (signal !== "SIGKILL") return undefined
         const exited = Date.now()

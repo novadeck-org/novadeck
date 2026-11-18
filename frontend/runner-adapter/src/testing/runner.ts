@@ -172,6 +172,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       close: (id) => note(`close ${id}`, () => runner.terminals.close(id)),
       rename: (id, title) => note(`rename ${id}`, () => runner.terminals.rename(id, title)),
       resetTitle: (id) => note(`reset title ${id}`, () => runner.terminals.resetTitle(id)),
+      active: (id) => note(`active ${id}`, () => runner.terminals.active(id)),
       busy: () => runner.terminals.busy(),
       upload: (id, file) => note(`upload ${id}`, () => runner.terminals.upload(id, file)),
       restart: (id, size) => note(`restart ${id}`, () => runner.terminals.restart(id, size)),

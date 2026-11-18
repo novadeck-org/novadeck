@@ -23,6 +23,7 @@ import type { History } from "./history.js"
 import { logs } from "./log.js"
 import type { Feedback } from "./messaging/feedback.js"
 import type { Murmur } from "./murmur/service.js"
+import type { ActiveTerminals } from "./terminals/active.js"
 import type { Terminals } from "./terminals/index.js"
 import type { Uploads } from "./terminals/uploads.js"
 import type { Tour } from "./tour/tour.js"
@@ -129,6 +130,8 @@ export const createRouter = (options: {
   transcriptsAvailable: () => Promise<boolean>
   /** Whether the runner is shutting down. */
   closing: () => boolean
+  /** Which terminals the people at the clients use; without it, reports of them are ignored. */
+  activity?: Pick<ActiveTerminals, "report">
   /** The runner settings were saved. */
   settingsSaved?: () => void
   /** Novadeck's tour; without it, starting one is a CONFLICT. */
@@ -224,6 +227,9 @@ export const createRouter = (options: {
           context.session.id,
           signal,
         ),
+      ),
+      active: api.terminals.active.handler(({ input, context }) =>
+        options.activity?.report(context.session.id, input.terminalId),
       ),
       write: api.terminals.write.handler(({ input, context }) =>
         terminals.write(input, context.session.id),

@@ -17,6 +17,7 @@ import { readStoredProjectArrangement } from "../projects/project-arrangement-st
 import { readSidebarCollapsed, readWindowedView } from "../shell/shell-storage"
 import { readFoldedTeams } from "../terminals/team-fold"
 import { createTeamNews, TeamNewsContext } from "../terminals/team-news"
+import { watchActiveTerminal } from "./active-terminal"
 import { followSavedPreferences, watchAppearance } from "./appearance"
 import { createNavigator, type NavigatorServices, type RouterBinding } from "./commands/navigator"
 import { createWorkspaceCommands } from "./commands/workspace"
@@ -194,6 +195,10 @@ export const WorkspaceProvider = ({
   }, [services])
   useEffect(() => watchChat(services.chat, services.workspace), [services])
   useEffect(() => watchPageFocus(services.ui, window, services.backend.windowFocus), [services])
+  useEffect(
+    () => watchActiveTerminal(services.workspace, services.ui, services.backend.activeTerminal),
+    [services],
+  )
   // Before the watchers below, which read the landed Inbox. The Inbox's own watchers, in child
   // effects, subscribe first; until it starts, the landed Inbox holds the rule's computed state.
   useEffect(() => services.landing.start(), [services])

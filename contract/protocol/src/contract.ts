@@ -302,6 +302,14 @@ export const contract = {
       .input(z.strictObject({ terminalId: id, cols: columns, rows }))
       .output(z.void()),
     ack: procedure.input(z.strictObject({ terminalId: id, sequence })).output(z.void()),
+    // The terminal this client's person is using now, null for none: the one on screen in Focus
+    // view, the selected one in Grid and Canvas, while the window has their focus. Each client
+    // has one, which replaces its last and lapses with its connection, and the runner gives
+    // the terminals in use the CPU of the app's own window, as the others' programs yield it
+    // (a CPU weight on Linux, a priority on macOS and Windows). Changes come a few a second at
+    // most to the system, however fast they are told. A terminal not there is not an error: the
+    // call stands for whenever it starts.
+    active: procedure.input(z.strictObject({ terminalId: id.nullable() })).output(z.void()),
     close: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
     // Renames a terminal: the runner keeps the title with the terminal, running or saved
     // to restore, and announces it on `watch`. One it keeps nothing of is

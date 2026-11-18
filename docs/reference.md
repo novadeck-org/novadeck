@@ -188,6 +188,20 @@ per session and each terminal is one, so nice only orders a terminal's own progr
 there is expected, not measured: the Linux figures above come from a Linux machine, and
 none of this has been measured on macOS or Windows.
 
+The terminal the person is using is the exception: it runs at the app's own share, so
+typing in a busy agent's TUI doesn't wait behind other terminals. The UI reports it for its
+window (`terminals.active`, from `watchActiveTerminal`): the selected terminal, which is the
+one Focus view shows and the one Grid and Canvas select, while the window has the person's
+focus, else none. The runner (`ActiveTerminals`, in `backend/runner/src/terminals/active.ts`)
+keeps one per connected window, drops a window's when its connection ends, and applies
+changes together, at most once every 150 ms. On Linux the terminal's scope is set to
+`CPUWeight=100` through systemd's `SetUnitProperties` (`setScopeWeight`) and back to 10, so
+the agent's tests and scripts, all in the scope, go with it. On Windows the shell and every
+process under it now (read through the relay) go to normal and back below it; on macOS the
+same by the process list. What the terminal starts meanwhile inherits. macOS lets only
+root lower a nice value, so there the raise is refused and skipped: a terminal stays at
+nice 10 (not verified on a Mac). Where nothing lowers a terminal, nothing is raised.
+
 While a program holds the foreground, its profile decides how the terminal looks.
 `frontend/ui/src/terminals/processes/profiles.ts` maps program names to a tab and
 header icon and a body around the terminal's content; programs it does not list,

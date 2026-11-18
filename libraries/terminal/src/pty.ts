@@ -29,5 +29,6 @@ export {
 export { processesUnder, startResolutionMs, type Spawn } from "./pty/spawned.js"
 export { anyRunning, chainTo, relayMs, Trees, type Member } from "./pty/trees.js"
 export type { ProcessTrees, Pty, PtyOptions } from "./pty/pty.js"
-export { terminalCpuWeight, userScopes } from "./pty/scopes.js"
+export { activeCpuWeight, setScopeWeight, terminalCpuWeight, userScopes } from "./pty/scopes.js"
+export type { Activity } from "./pty/boost.js"
 export { priorityFor, terminalPriorities, terminalPriority, type Priority } from "./pty/priority.js"

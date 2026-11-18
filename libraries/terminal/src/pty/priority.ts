@@ -22,9 +22,15 @@ export const terminalPriority = constants.priority.PRIORITY_BELOW_NORMAL
 export const priorityFor = (platform: NodeJS.Platform): number | undefined =>
   platform === "darwin" || platform === "win32" ? terminalPriority : undefined
 
-/** Lowers programs' priority as they start; it never throws. */
+/**
+ * Lowers programs' priority as they start, and gives it back to those of the terminal the
+ * person is using; it never throws. Windows lets a program's class be raised again by its
+ * owner; macOS lets only root lower a nice value, so there a raise is refused and skipped,
+ * and a program stays below normal.
+ */
 export type Priority = {
   lower(pid: number): void
+  raise(pid: number): void
 }
 
 /**
@@ -38,13 +44,15 @@ export const terminalPriorities = (
 ): Priority | undefined => {
   const priority = priorityFor(platform)
   if (priority === undefined) return undefined
+  const change = (pid: number, to: number): void => {
+    try {
+      set(pid, to)
+    } catch {
+      // Gone already, or not ours to change.
+    }
+  }
   return {
-    lower: (pid) => {
-      try {
-        set(pid, priority)
-      } catch {
-        // Gone already, or not ours to change.
-      }
-    },
+    lower: (pid) => change(pid, priority),
+    raise: (pid) => change(pid, constants.priority.PRIORITY_NORMAL),
   }
 }

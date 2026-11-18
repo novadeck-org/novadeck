@@ -461,6 +461,12 @@ export type BackendFields = {
   }) => Promise<
     { readonly busy: readonly string[]; readonly unknown: readonly string[] } | undefined
   >
+  // Optional. Tells the backend which terminal the person is using in this window (its id),
+  // or none (null): the one they look at while the window has their focus. A backend that runs
+  // the terminals' programs gives it the CPU share of the app's own, and the others' programs
+  // yield it. Told again, with no change, only where the link to the runner came back. Absent
+  // where terminals run no programs on this machine, as in the demo.
+  readonly activeTerminal?: (terminalId: string | null) => void
   // Optional. Asks the person for a folder to open as a project; null when cancelled.
   // Absent where the backend cannot offer one.
   readonly pickDirectory?: () => Promise<string | null>

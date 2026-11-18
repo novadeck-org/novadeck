@@ -4,6 +4,7 @@ import { once } from "node:events"
 import { describe, expect, it, vi } from "vitest"
 
 import { nativeStandIn } from "../testing.js"
+import type { Activity } from "./boost.js"
 import { forceKill, spawnPty, type NativeSpawn, type ProcessTrees } from "./pty.js"
 
 // A stand-in for node-pty's terminal, which on Windows throws on any signal.
@@ -151,7 +152,7 @@ describe("a pty", () => {
       rows: 24,
       platform: "darwin",
       native: standIn.spawn,
-      priority: { lower: (pid) => void lowered.push(pid) },
+      priority: { lower: (pid) => void lowered.push(pid), raise: () => {} },
     })
     expect(lowered).toEqual([77])
   })
@@ -172,7 +173,7 @@ describe("a pty", () => {
       rows: 24,
       platform: "win32",
       native: standIn.spawn,
-      priority: { lower: (pid) => void lowered.push(pid) },
+      priority: { lower: (pid) => void lowered.push(pid), raise: () => {} },
       trees: { read },
     })
     expect(lowered).toEqual([])
@@ -281,5 +282,77 @@ describe("a pty", () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe("a pty's terminal in use", () => {
+  const spawnWith = (platform: NodeJS.Platform, activity: Activity, id = "t1") => {
+    const standIn = nativeStandIn({ pid: 77, ...(platform === "win32" && { conpty: true }) })
+    const lowered: number[] = []
+    const raised: number[] = []
+    const weights: number[] = []
+    const pty = spawnPty({
+      file: "shell",
+      args: [],
+      cwd: "/",
+      env: {},
+      cols: 80,
+      rows: 24,
+      platform,
+      native: standIn.spawn,
+      id,
+      activity,
+      priority: { lower: (pid) => void lowered.push(pid), raise: (pid) => void raised.push(pid) },
+      listing: () =>
+        Promise.resolve([
+          { pid: 77, parent: 1, group: 77, foreground: 0, started: "1", zombie: false },
+        ]),
+      scopes: {
+        active: () => true,
+        contain: () => ({
+          cause: () => undefined,
+          weigh: async (weight) => void weights.push(weight),
+        }),
+      },
+    })
+    return { standIn, lowered, raised, weights, pty }
+  }
+  const registry = () => {
+    const sets = new Map<string, (active: boolean) => void>()
+    const stopped: string[] = []
+    const activity: Activity = {
+      register: (id, set) => {
+        sets.set(id, set)
+        return () => void stopped.push(id)
+      },
+    }
+    return { sets, stopped, activity }
+  }
+
+  it("registers under its terminal's id and follows what it is told", async () => {
+    const { sets, activity } = registry()
+    const { raised, lowered, weights } = spawnWith("darwin", activity)
+    expect(lowered).toEqual([77])
+    sets.get("t1")!(true)
+    await vi.waitFor(() => expect(raised).toEqual([77]))
+    sets.get("t1")!(false)
+    await vi.waitFor(() => expect(lowered).toEqual([77, 77]))
+    expect(weights).toEqual([100, 10])
+  })
+
+  it("stays at normal on Windows when its terminal is in use as its output shows its pid", async () => {
+    const { sets, activity } = registry()
+    const { standIn, lowered } = spawnWith("win32", activity)
+    sets.get("t1")!(true)
+    standIn.draw("$ ")
+    await Promise.resolve()
+    expect(lowered).toEqual([])
+  })
+
+  it("stops following once it has exited", () => {
+    const { stopped, activity } = registry()
+    const { standIn } = spawnWith("darwin", activity)
+    standIn.exit(0)
+    expect(stopped).toEqual(["t1"])
   })
 })

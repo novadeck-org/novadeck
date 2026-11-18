@@ -84,6 +84,7 @@ import {
 } from "./terminals/activity"
 import { createBootProgress } from "./terminals/boot-progress"
 import { failedToCreate, launchFailure, lostStatus } from "./terminals/failures"
+import { terminalInUse } from "./terminals/in-use"
 import { crashLoop, restartingTooOften, restartWindowMs } from "./terminals/restarts"
 import { resumableProgram } from "./terminals/resumable"
 import { screensOptions } from "./terminals/screens-options"
@@ -385,6 +386,7 @@ export const runnerBackend = (
     work.then(settled, settled)
     return work
   }
+  const inUse = terminalInUse((terminalId) => runner.terminals.active(terminalId))
   const created = Promise.resolve(true)
   // Whether each project and session exists on the runner yet; seeded ones already do.
   const projects = new Map(seed.projects.map((project) => [project.id, created]))
@@ -1803,7 +1805,10 @@ export const runnerBackend = (
         approvals.update((waiting) => (waiting.length ? [] : waiting))
       showConnection()
       noteRunner(status)
-      if (status.state === "connected") saves.schedule()
+      if (status.state === "connected") {
+        saves.schedule()
+        inUse.connected()
+      }
     }
     const changes = runner.terminals.watch()
     const statuses = runner.watch()
@@ -1970,6 +1975,7 @@ export const runnerBackend = (
     voice: voice.voice,
     murmur: murmur.murmur,
     typeInto: screens.typeInto,
+    activeTerminal: inUse.report,
     start,
     companions: createRunnerCompanions(runner.companions, {
       livePages: options.livePages === true,

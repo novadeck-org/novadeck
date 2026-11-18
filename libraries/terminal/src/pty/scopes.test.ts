@@ -9,6 +9,7 @@ import { spawnPty, type PtyExit } from "./pty.js"
 import {
   killsSince,
   scopePrefix,
+  setScopeWeight,
   startScope,
   userBus,
   userScopes,
@@ -118,6 +119,58 @@ describe("starting a terminal's scope", () => {
     scopes.contain(42)
     await vi.waitFor(() => expect(runs).toHaveLength(1))
     expect(scopes.active()).toBe(true)
+  })
+})
+
+describe("weighing a terminal's scope", () => {
+  it("sets the scope's CPU weight now, for everything in it", () => {
+    expect(setScopeWeight("app-novadeck-term42.scope", 100)).toEqual([
+      "--user",
+      "--quiet",
+      "--timeout=5",
+      "call",
+      "org.freedesktop.systemd1",
+      "/org/freedesktop/systemd1",
+      "org.freedesktop.systemd1.Manager",
+      "SetUnitProperties",
+      "sba(sv)",
+      "app-novadeck-term42.scope",
+      "true",
+      "1",
+      "CPUWeight",
+      "t",
+      "100",
+    ])
+  })
+
+  it("waits for the scope to exist, then sets weights in the order asked", async () => {
+    const { runs, run } = tools({ busctl: reachable })
+    const scope = new UserScopes("app-novadeck", run).contain(42)
+    await scope.weigh(100)
+    await scope.weigh(10)
+    expect(runs.map(({ args }) => args[7])).toEqual([
+      "StartTransientUnit",
+      "SetUnitProperties",
+      "SetUnitProperties",
+    ])
+    expect(runs.slice(1).map(({ args }) => args.at(-1))).toEqual(["100", "10"])
+  })
+
+  it("sets nothing for a program that never got a scope", async () => {
+    const { runs, run } = tools({ busctl: () => Promise.reject(new Error("No such process")) })
+    await new UserScopes("app-novadeck", run).contain(42).weigh(100)
+    expect(runs).toHaveLength(1)
+  })
+
+  it("never rejects, as when the scope has ended", async () => {
+    let calls = 0
+    const { run } = tools({
+      busctl: () =>
+        ++calls === 1 ? Promise.resolve("") : Promise.reject(new Error("Unit not loaded.")),
+    })
+    await expect(
+      new UserScopes("app-novadeck", run).contain(42).weigh(100),
+    ).resolves.toBeUndefined()
   })
 })
 
@@ -336,6 +389,7 @@ describe("a pty in a scope", () => {
             asked.push(signal)
             return signal === "SIGKILL" ? Promise.resolve(cause) : undefined
           },
+          weigh: () => Promise.resolve(),
         }
       },
     }
@@ -396,6 +450,7 @@ describe("a pty in a scope", () => {
       active: () => true,
       contain: () => ({
         cause: () => new Promise<"out-of-memory" | undefined>((resolve) => (answer = resolve)),
+        weigh: () => Promise.resolve(),
       }),
     }
     const { pty, stand, exits } = start(scopes)

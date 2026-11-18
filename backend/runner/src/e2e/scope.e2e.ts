@@ -1,8 +1,14 @@
 import { existsSync, readFileSync } from "node:fs"
 import { posix } from "node:path"
 
-import { terminalCpuWeight, terminalForeground, userScopes } from "@novadeck/terminal/pty"
+import {
+  activeCpuWeight,
+  terminalCpuWeight,
+  terminalForeground,
+  userScopes,
+} from "@novadeck/terminal/pty"
 
+import { activeDelayMs, type ActiveTerminals } from "../terminals/active.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
@@ -59,6 +65,29 @@ for (const setup of setups) {
         expect(cgroupOf(agent!)).toBe(cgroupOf(shell))
         const weight = cpuWeightOf(shell)
         if (weight !== undefined) expect(weight).toBe(terminalCpuWeight)
+      })
+
+      it("gives the CPU of the app's window to the terminal in use, agent and all, and takes it back", async ({
+        e2e: run,
+      }) => {
+        const terminal = await start(run, setup)
+        const shell = shellOf(run, terminal)
+        const agent = await terminalForeground(shell)
+        expect(agent).toBeDefined()
+        // What a client's `terminals.active` reports, as the router hands it on.
+        const { activity } = (
+          run.deck.terminals as unknown as { pty: { activity: ActiveTerminals } }
+        ).pty
+        const settled = () => new Promise((resolve) => setTimeout(resolve, activeDelayMs + 500))
+        // Where the slice gives no CPU controller, the weight is unset and there is nothing to read.
+        if (cpuWeightOf(shell) === undefined) return
+        activity.report("e2e", terminal.id)
+        await settled()
+        expect(cgroupOf(agent!)).toBe(cgroupOf(shell))
+        expect(cpuWeightOf(agent!)).toBe(activeCpuWeight)
+        activity.release("e2e")
+        await settled()
+        expect(cpuWeightOf(agent!)).toBe(terminalCpuWeight)
       })
     },
   )

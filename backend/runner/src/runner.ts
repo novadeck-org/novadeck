@@ -20,6 +20,7 @@ import { logs } from "./log.js"
 import { Murmur } from "./murmur/service.js"
 import { apiError, createRouter } from "./router.js"
 import { codexConfig, installShellFiles } from "./shell/install.js"
+import { ActiveTerminals } from "./terminals/active.js"
 import { Terminals, type TerminalOptions } from "./terminals/index.js"
 import { createTranscriptSealer, transcriptsAvailable } from "./terminals/sealing.js"
 import { Uploads } from "./terminals/uploads.js"
@@ -326,6 +327,9 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   const scopes = userScopes()
   // On macOS and Windows each shell and what it starts run below the window's priority.
   const priority = terminalPriorities()
+  // The terminal the person uses in each window keeps the normal share of both.
+  const activity = new ActiveTerminals()
+  started.push({ close: async () => activity.stop() })
   // Without a key from the app no transcript is saved or shown.
   const sealer = createTranscriptSealer(options.transcriptKey)
   // Whether an agent works in the worktree now, read afresh each time it is asked: a turn may
@@ -394,7 +398,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     // Without an engine nothing is described, so terminals have nothing to wait for.
     ...(options.murmur?.engine !== undefined && { describer: murmur }),
     ...((scopes || priority) && {
-      pty: { ...(scopes && { scopes }), ...(priority && { priority }) },
+      pty: { ...(scopes && { scopes }), ...(priority && { priority }), activity },
     }),
     ...(options.dialogs !== undefined && { answers: { saves: options.dialogs } }),
     ...options.terminals,
@@ -512,6 +516,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     sealer,
     rootFolder,
     tour,
+    activity,
   }
 }
 
@@ -588,6 +593,7 @@ const startRunner = (options: RunnerOptions): Runner => {
     sealer,
     rootFolder,
     tour,
+    activity,
   } = wire(options)
   let closing: Promise<void> | undefined
   return {
@@ -610,6 +616,7 @@ const startRunner = (options: RunnerOptions): Runner => {
         closing: () => closing !== undefined,
         settingsSaved: () => rootFolder.ensure(),
         tour,
+        activity,
       }),
       error: apiError,
       failed: logFailure,
@@ -618,6 +625,7 @@ const startRunner = (options: RunnerOptions): Runner => {
       // Whatever a client held through a session it lost or replaced: its shells keep running.
       closed: (session) => {
         log.info("client.closed", "A client's session ended.", { data: { session: session.id } })
+        activity.release(session.id)
         terminals.release(session.id)
         works.release(session.id)
         voice.release(session.id)
