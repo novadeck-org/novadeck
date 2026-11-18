@@ -1,11 +1,11 @@
 /* The messages recipe: a terminal's conversations with the other agents in its session and
-   the person's Inbox entries (`.message-view`), under the viewer's header (`.artifact-meta`, see
-   artifact.css) with the pause. A list of rows (`.message-rows`, each a `.message-row`) opens
+   the person's Inbox entries (`.message-view`), under the pane's row (see pane.css), which holds
+   the pause as a tool. A list of rows (`.message-rows`, each a `.message-row`) opens
    one as a chat (`.message-chat-head` over `.message-chat`): bubbles without borders, tinted in
    their sender's hue, the terminal's own agent (or the person, in their Inbox entries) on the
-   right. The bars that say messaging is paused (`.message-paused`), waiting on a screen the
-   doorbell cannot ring (`.message-waits`) or failed (`.message-error`) take their tone from
-   `data-tone`.
+   right. The notices that say messaging is paused (`.message-paused`, with its Resume), waiting
+   on a screen the doorbell cannot ring (`.message-waits`) or failed (`.message-error`) are the
+   pane's (`.pane-notice`, see pane.css).
 
    Avatars (`.message-av`) are each handle's critter on a small LED screen, dark in any theme:
    lit cells in the word's hue, unlit ones faintly there. Only this pane draws them.
@@ -18,8 +18,8 @@
    "danger" on a row's chip; data-kind and data-open on an entry's label.
 
    Tokens, each optional (its fallback in brackets):
-   --message-border-color (line): under the chat's head and the bars.
-   --message-fg (ink): names, the pause's label and a row's unread preview.
+   --message-border-color (line): under the chat's head.
+   --message-fg (ink): names and a row's unread preview.
    --message-meta-fg (muted): handles, times, previews and notes.
    --avatar-hue-1-fg … --avatar-hue-8-fg (terminal-ansi magenta, red, yellow, blue,
      magenta-bright, green, red-bright, cyan): the hues handles take by their word's rank,
@@ -40,28 +40,6 @@
   flex: 1;
   flex-direction: column;
   min-height: 0;
-}
-/* The switch centred on its label, the pair on the header's baseline by the label's: at
-   the end of the header's first line while there's room, else under what's before it. */
-.message-pause {
-  display: flex;
-  margin-left: auto;
-  align-items: center;
-  gap: 12px;
-}
-.message-pause-label {
-  color: var(--_fg);
-}
-/* The tone recipe paints the bars, their rule included. */
-.message-paused,
-.message-waits,
-.message-error {
-  margin: 0;
-  padding: 6px 14px;
-  border-bottom-width: var(--border-width);
-  border-bottom-style: solid;
-  font-size: var(--text-control);
-  line-height: var(--text-control--line-height);
 }
 .message-scroll {
   flex: 1;

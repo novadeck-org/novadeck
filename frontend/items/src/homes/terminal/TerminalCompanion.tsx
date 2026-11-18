@@ -387,6 +387,7 @@ export const TerminalCompanion = ({
     links,
     plans,
     originOf,
+    shells,
     onUndock: actions.undock,
     onMinimize: (each) => minimizeShown(each.key),
     onHide: () => commands.closeBarPane(terminal),

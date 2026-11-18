@@ -281,6 +281,8 @@ export const FileView = ({
           type="button"
           className="icon-button changes-back"
           aria-label="Back to the files"
+          aria-keyshortcuts="Escape"
+          title="Back to the files · Esc"
           onClick={onBack}
         >
           <ChevronLeft size={16} strokeWidth={1.5} />
@@ -301,6 +303,8 @@ export const FileView = ({
             type="button"
             className="icon-button"
             aria-label="Previous file"
+            aria-keyshortcuts="K"
+            title="Previous file · K"
             disabled={index === 0}
             onClick={() => onStep(-1)}
           >
@@ -313,6 +317,8 @@ export const FileView = ({
             type="button"
             className="icon-button"
             aria-label="Next file"
+            aria-keyshortcuts="J"
+            title="Next file · J"
             disabled={index === total - 1}
             onClick={() => onStep(1)}
           >
@@ -340,9 +346,6 @@ export const FileView = ({
       </div>
       <div className="changes-body">
         {!notice && run && <RunBody run={run} layout={layout} path={file.path} />}
-      </div>
-      <div className="changes-hint">
-        <kbd>Esc</kbd> back to the files · <kbd>J</kbd> <kbd>K</kbd> next and previous file
       </div>
     </div>
   )

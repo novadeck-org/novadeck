@@ -1,5 +1,6 @@
+import { shellCounts } from "@novadeck/core/agents/shells"
 import { kindRules } from "@novadeck/core/items"
-import type { WorkspaceTarget } from "@novadeck/core/types"
+import type { AgentShell, WorkspaceTarget } from "@novadeck/core/types"
 import { Shown, useShown } from "@novadeck/toolkit/shown"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { createLucideIcon, Minus, X } from "lucide-react"
@@ -8,11 +9,19 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type Reac
 import { AwakeContext, useWakeful } from "../../awake"
 import { isNew, isSecret, type BarMember, type BehindGroup } from "../../bar/bar"
 import { usePanePicture, useStandInPicture, type PanePicture } from "../../pane-pictures"
+import {
+  PaneChrome,
+  PaneTitle,
+  TabFace,
+  describeTab,
+  tabTip,
+  type TabLook,
+  type TabNote,
+} from "../../pane-row"
 import { usePaneTurn } from "../../pane-turns"
 import type { LookContext } from "../../registration"
 import { registrationOf, stackNames } from "../../registry"
 import type { ItemStore } from "../../store/item-store"
-import { UnderHeader } from "../../under-header"
 import { memberLook, MemberView, slotIcon } from "./drawing"
 import type { MessagesHandle, MessageLinks } from "./messages/messages"
 
@@ -23,7 +32,7 @@ const Restore = createLucideIcon("restore", [
   ["path", { d: "M8 8V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3", key: "back" }],
 ])
 
-// What the pane does with what it shows, at the end of its header, as a window's title
+// What the pane does with what it shows, at the end of its row, as a window's title
 // bar does on Windows: minimizes its icon's worth back to the taskbar, uncovering what's
 // open behind it; undocks it into a window of its own, where it can; and closes it, off
 // the taskbar, as the taskbar's menu does. Escape hides the whole pane, which is the same
@@ -242,7 +251,7 @@ const BehindStack = ({
 )
 
 // Where the pane's tab row was scrolled to, and which tab is to take focus: the row is
-// drawn anew under each thing's header, and again as it loads, so the pane keeps them.
+// drawn anew for each thing, and again as it loads, so the pane keeps them.
 type TabRowMemory = {
   readonly scrolled: (scroll: number) => void
   // The person picked `key`, with focus in the row or not.
@@ -253,17 +262,21 @@ type TabRowMemory = {
   readonly focuses: (key: string) => boolean
 }
 
-// The tabs of the icon the pane shows, under its header: each thing of it on the bar, the
-// shown one selected. A click shows one; the arrow keys, Home and End step along them as a
-// tab list's do, showing each, but only move to one that may hold secrets, which Enter
-// shows; Ctrl+PageDown and Ctrl+PageUp step from anywhere in the pane (see `stepTab`).
+// The row of what the pane shows: the tabs of the icon it shows, each thing of it on the
+// bar, the shown one selected; or, for one thing alone, its title in the same place, with no
+// tab to pick, close or mark. A click shows a tab; the arrow keys, Home and End step along
+// them as a tab list's do, showing each, but only move to one that may hold secrets, which
+// Enter shows; Ctrl+PageDown and Ctrl+PageUp step from anywhere in the pane (see `stepTab`).
 // Delete closes the tab with focus, as its × does under the pointer. The row scrolls
-// sideways under the wheel too, keeping the shown tab, × and all, in view.
+// sideways under the wheel too, keeping the shown tab, × and all, in view. The details of
+// each tab are its tooltip, and its description.
 const PaneTabs = ({
   tabs,
   shown,
   plans,
   memory,
+  note,
+  looks,
   onPick,
   onClose,
 }: {
@@ -271,6 +284,8 @@ const PaneTabs = ({
   shown: string
   plans: LookContext["plans"]
   memory: TabRowMemory
+  note: TabNote
+  looks: (member: BarMember, note: TabNote) => TabLook
   onPick: (member: BarMember) => void
   onClose: (member: BarMember) => void
 }): React.JSX.Element => {
@@ -293,6 +308,11 @@ const PaneTabs = ({
   const pick = (tab: BarMember): void => {
     memory.picked(tab.key, row.current?.contains(document.activeElement) ?? false)
     onPick(tab)
+  }
+  if (tabs.length === 1) {
+    const only = tabs[0]!
+    const { icon, name } = memberLook(only, { plans })
+    return <PaneTitle icon={icon} name={name} look={looks(only, note)} gone={note.gone} />
   }
   return (
     <div
@@ -329,29 +349,35 @@ const PaneTabs = ({
       }}
     >
       {tabs.map((tab) => {
-        const { icon: Icon, name } = memberLook(tab, { plans })
+        const { icon, name } = memberLook(tab, { plans })
         const open = tab.key === shown
+        const look = looks(tab, open ? note : noNote)
+        const gone = open && note.gone
         return (
           <span
             key={tab.key}
             className="pane-tab"
             data-state={open ? "open" : isNew(tab) ? "new" : undefined}
+            data-failed={look.failed || undefined}
+            data-gone={gone || undefined}
+            data-placed={look.origin !== undefined || undefined}
           >
-            <button
-              type="button"
-              role="tab"
-              className="pane-tab-open"
-              aria-selected={open}
-              aria-keyshortcuts="Delete"
-              tabIndex={open ? 0 : -1}
-              title={name}
-              onClick={() => {
-                if (!open) pick(tab)
-              }}
-            >
-              <Icon size={14} strokeWidth={1.5} aria-hidden="true" />
-              <span className="pane-tab-name">{name}</span>
-            </button>
+            <Tooltip content={look.tip.join("\n")} disabled={look.tip.length === 0}>
+              <button
+                type="button"
+                role="tab"
+                className="pane-tab-open"
+                aria-selected={open}
+                aria-keyshortcuts="Delete"
+                aria-description={describeTab(look)}
+                tabIndex={open ? 0 : -1}
+                onClick={() => {
+                  if (!open) pick(tab)
+                }}
+              >
+                <TabFace icon={icon} name={name} look={look} />
+              </button>
+            </Tooltip>
             {/* The pointer's close; the keyboard's is Delete on the tab, so the list holds
                 only tabs. */}
             <span
@@ -368,6 +394,8 @@ const PaneTabs = ({
     </div>
   )
 }
+
+const noNote: TabNote = { facts: [], gone: false, where: undefined }
 
 // The tab `by` along from the one shown, round the row's ends, as Ctrl+PageDown (1) and
 // Ctrl+PageUp (-1) step from anywhere in the pane: never one that may hold secrets, which
@@ -398,9 +426,10 @@ type LastShown = {
 
 // A terminal's companion pane, wherever it is presented: what it shows of the terminal's
 // taskbar, `member`: a plan, edited where it's read, something an agent showed, its
-// messages, or another terminal's item placed here, under a line saying whose it is. It's
-// the top of what's open in the pane, under its header the tabs of everything of its
-// icon; the other icons open wait behind it.
+// messages, or another terminal's item placed here, naming that terminal on its tab. It's
+// the top of what's open in the pane, with in the row above it the tabs of everything of its
+// icon (or its title, for one alone), its tools and the window's buttons; the other icons
+// open wait behind it.
 export const CompanionPane = ({
   member,
   leaving,
@@ -413,6 +442,7 @@ export const CompanionPane = ({
   links,
   plans,
   originOf,
+  shells,
   onUndock,
   onMinimize,
   onHide,
@@ -437,6 +467,9 @@ export const CompanionPane = ({
   // The bar's plans, as the taskbar names them.
   plans: LookContext["plans"]
   originOf: (member: BarMember) => string | undefined
+  // The background shells of the agents of the terminals the shells items are from, by
+  // terminal id: a failed one marks its tab.
+  shells?: Readonly<Record<string, readonly AgentShell[]>> | undefined
   // Undocks what's shown into a window of its own.
   onUndock: (member: BarMember) => void
   // Minimizes what's shown with the rest of its icon, uncovering what's behind; hides the
@@ -589,19 +622,42 @@ export const CompanionPane = ({
     onRaise(next)
   }
   const undock = member?.kind === "item" && !member.placed ? () => onUndock(member) : undefined
+  // What the row says of a tab: the item's own facts and, for the one shown, what its viewer
+  // adds; the terminal a moved one came from; and a shell that failed.
+  const looks = (each: BarMember, note: TabNote): TabLook => ({
+    tip:
+      each.kind === "item"
+        ? tabTip(each.item, note.facts, { own: !each.placed, where: note.where })
+        : [],
+    origin:
+      each.kind === "item" && each.placed ? (originOf(each) ?? "another terminal") : undefined,
+    failed:
+      each.kind === "item" &&
+      each.item.kind === "shells" &&
+      shellCounts(shells?.[each.item.from?.terminalId ?? ""]).failed > 0,
+  })
   const tab = member && (
-    <UnderHeader
-      value={
-        tabs.length > 1 ? (
-          <PaneTabs
-            tabs={tabs}
-            shown={member.key}
-            plans={plans}
-            memory={tabMemory}
-            onPick={onRaise}
-            onClose={handOff(onClose)}
-          />
-        ) : null
+    <PaneChrome
+      renderRow={(note) => (
+        <PaneTabs
+          tabs={tabs.length > 0 ? tabs : [member]}
+          shown={member.key}
+          plans={plans}
+          memory={tabMemory}
+          note={note}
+          looks={looks}
+          onPick={onRaise}
+          onClose={handOff(onClose)}
+        />
+      )}
+      end={
+        <PaneActions
+          name={tabs.length > 1 ? "all tabs" : memberLook(member, { plans }).name}
+          behind={behind.length > 0}
+          onUndock={undock}
+          onMinimize={handOff(() => onMinimize(member))}
+          onClose={handOff(onClosePane)}
+        />
       }
     >
       <MemberView
@@ -611,17 +667,8 @@ export const CompanionPane = ({
         target={target}
         messagesHandle={messagesHandle}
         links={links}
-        actions={
-          <PaneActions
-            name={tabs.length > 1 ? "all tabs" : memberLook(member, { plans }).name}
-            behind={behind.length > 0}
-            onUndock={undock}
-            onMinimize={handOff(() => onMinimize(member))}
-            onClose={handOff(onClosePane)}
-          />
-        }
       />
-    </UnderHeader>
+    </PaneChrome>
   )
   return (
     <>
@@ -673,18 +720,7 @@ export const CompanionPane = ({
             onPlayed={played}
             onElement={setSheet}
           >
-            {turn.built && (
-              <Shown value={inSight && !turn.waiting}>
-                {member.kind === "item" && member.placed ? (
-                  <div className="placed-tab">
-                    <p className="placed-from">From {originOf(member) ?? "another terminal"}</p>
-                    {tab}
-                  </div>
-                ) : (
-                  tab
-                )}
-              </Shown>
-            )}
+            {turn.built && <Shown value={inSight && !turn.waiting}>{tab}</Shown>}
             {turn.waiting && <StandIn member={member} plans={plans} picture={picture} />}
           </Sheet>
         )}

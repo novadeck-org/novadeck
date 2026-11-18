@@ -7,27 +7,23 @@ import {
   type UnavailableReason,
 } from "@novadeck/core/items"
 import type { WorkspaceTarget } from "@novadeck/core/types"
-import { useEffect, useState, type ComponentType, type ReactNode } from "react"
+import { useEffect, useState, type ComponentType } from "react"
 
+import { usePaneNote } from "./pane-row"
 import type { ItemProps, ViewProps } from "./registration"
 import type { ItemStore } from "./store/item-store"
 import { useContent } from "./store/use-item-store"
-import { UnderHeaderSlot } from "./under-header"
 
-// What the artifact kinds share: the chrome around what an agent showed beside its terminal
-// (the states of what hasn't loaded or can't show, and why), and the two components that
+// What the artifact kinds share: the states of what an agent showed beside its terminal that
+// hasn't loaded or can't show, and why (the row above them is the place's, see pane-row.tsx), and the two components that
 // give each kind its pane and its peek miniature from a body of its own. The viewers
 // themselves are the kinds' (`kinds/image`, `kinds/file`, `kinds/page`): each loads from the
 // file or page it points at now, or says why it can't show.
-
-// What the place showing an artifact offers for it, at the end of its viewer's header.
-type Actions = { actions?: ReactNode }
 
 // What an artifact kind's body is given once its content is ready.
 export type ArtifactBodyProps<K extends ShownKind> = {
   readonly item: Item
   readonly content: Extract<ShownContent, { readonly kind: K }>
-  readonly actions: ReactNode
   readonly itemStore: ItemStore
   // The content's stamp, which changes with it.
   readonly stamp: string
@@ -81,31 +77,6 @@ const reasonText = (reason: UnavailableReason, name: string, size: number | null
   }
 }
 
-// The header every viewer has: what it shows and what's known about it, wrapping onto more
-// lines as it must, then `actions`, which stay at the end of its first line however long
-// what it shows is named. Under it, what the place showing it puts there (under-header.tsx).
-export const ArtifactMeta = ({
-  className,
-  children,
-  actions,
-}: Actions & { className?: string; children: ReactNode }): React.JSX.Element => (
-  <>
-    <div className={className ? `artifact-meta ${className}` : "artifact-meta"}>
-      <div className="artifact-meta-info">{children}</div>
-      {actions}
-    </div>
-    <UnderHeaderSlot />
-  </>
-)
-
-// A path at the start of a viewer's header, whole on hover: too long for the header, it
-// gives up its start, so its file's name stays.
-export const MetaPath = ({ path }: { path: string }): React.JSX.Element => (
-  <code className="artifact-meta-name artifact-meta-path" title={path}>
-    <bdi dir="ltr">{path}</bdi>
-  </code>
-)
-
 // A button that puts `text` on the clipboard, and says so for a moment.
 export const CopyText = ({ text, label }: { text: string; label: string }): React.JSX.Element => {
   const [result, setResult] = useState<"copied" | "failed" | null>(null)
@@ -133,22 +104,20 @@ export const CopyText = ({ text, label }: { text: string; label: string }): Reac
 }
 
 // What can't show, and why, with its path to copy where it has one. One that may hold
-// secrets shows once the person asks.
+// secrets shows once the person asks. A gone one strikes its tab's name through.
 export const Unavailable = ({
   item,
   reason,
   size,
   onReveal,
-  actions,
-}: Actions & {
+}: {
   item: Pick<Item, "name" | "path" | "plan">
   reason: UnavailableReason
   size: number | null
   onReveal?: (() => void) | undefined
-}): React.JSX.Element => (
-  <>
-    {/* No header: what goes under one goes at its top. */}
-    <UnderHeaderSlot />
+}): React.JSX.Element => {
+  usePaneNote([], reason === "gone")
+  return (
     <div className="artifact-unavailable" data-reason={reason}>
       <p>{reasonText(reason, item.name, size)}</p>
       <div className="artifact-unavailable-actions">
@@ -158,11 +127,10 @@ export const Unavailable = ({
           </button>
         )}
         {pathOf(item) !== null && <CopyText text={pathOf(item)!} label="Copy path" />}
-        {actions}
       </div>
     </div>
-  </>
-)
+  )
+}
 
 // The pane's body for an artifact kind, once the kind's `Body` has its content: loads and
 // follows what the item holds while it shows, and draws what hasn't loaded or can't show.
@@ -172,7 +140,7 @@ export const artifactView = <K extends ShownKind>(
   Body: ComponentType<ArtifactBodyProps<K>>,
   document?: (content: Extract<ShownContent, { readonly kind: K }>) => boolean,
 ): ComponentType<ViewProps> => {
-  const View = ({ item, itemStore, target, actions }: ViewProps): React.JSX.Element => {
+  const View = ({ item, itemStore, target }: ViewProps): React.JSX.Element => {
     const load = useContent(itemStore, target, item)
     const ready = load?.state === "ready" ? load.content : undefined
     const content =
@@ -189,13 +157,11 @@ export const artifactView = <K extends ShownKind>(
             reason={load.reason}
             size={load.size}
             onReveal={() => itemStore.reveal(item.id, item.path)}
-            actions={actions}
           />
         ) : content ? (
           <Body
             item={item}
             content={content}
-            actions={actions}
             itemStore={itemStore}
             stamp={load?.state === "ready" ? load.stamp : ""}
             target={target}
@@ -204,10 +170,7 @@ export const artifactView = <K extends ShownKind>(
         ) : (
           // Nothing yet, or content of another kind than the item's, as while the runner
           // reclassifies a persisted item: busy until what fits it arrives.
-          <>
-            <UnderHeaderSlot />
-            <div className="artifact-status" />
-          </>
+          <div className="artifact-status" />
         )}
       </div>
     )

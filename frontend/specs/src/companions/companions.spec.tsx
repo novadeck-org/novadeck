@@ -30,6 +30,10 @@ import {
 } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
+/** The plan's title in its pane's row, the one item alone there. */
+const planTitle = (pane: ReturnType<typeof companionPane>) =>
+  pane.getByRole("heading", { level: 2, name: "A home for Studio" })
+
 describe("A terminal's taskbar", () => {
   it("shows its agent's plan, what it showed, and its messages, stacked by kind", async () => {
     await openShowcase()
@@ -47,9 +51,7 @@ describe("A terminal's taskbar", () => {
   it("marks the icon of what the pane shows as pressed", async () => {
     await openShowcase()
     await expect
-      .element(
-        companionPane("Build Studio").getByText("src/content/projects.json", { exact: true }),
-      )
+      .element(companionPane("Build Studio").getByRole("tab", { name: "projects.json" }))
       .toBeVisible()
     await expect
       .element(taskbarIcon("Build Studio", "2 files"), { timeout: 1000 })
@@ -68,16 +70,14 @@ describe("A terminal's taskbar", () => {
 
     await expect.element(icon).toHaveAttribute("data-state", "seen")
     await expect
-      .element(
-        companionPane("Build Studio").getByText("src/content/projects.json", { exact: true }),
-      )
+      .element(companionPane("Build Studio").getByRole("tab", { name: "projects.json" }))
       .toBeVisible()
   })
 
   it("minimizes its pane back to the taskbar, for what was shown and for messages", async () => {
     await openShowcase()
     const pane = companionPane("Build Studio")
-    const file = pane.getByText("src/content/projects.json", { exact: true })
+    const file = pane.getByRole("tab", { name: "projects.json" })
     await expect.element(file).toBeVisible()
 
     await pane.getByRole("button", { name: "Minimize to the taskbar" }).click()
@@ -87,7 +87,9 @@ describe("A terminal's taskbar", () => {
     await expect.element(file).toBeVisible()
 
     await taskbarIcon("Build Studio", "Messages").click()
-    await expect.element(pane.getByText("Pause all agents' messages")).toBeVisible()
+    await expect
+      .element(pane.getByRole("button", { name: "Pause all agents' messages" }))
+      .toBeVisible()
     await expect
       .element(taskbarIcon("Build Studio", "2 files"))
       .toHaveAttribute("data-state", "behind")
@@ -112,7 +114,7 @@ describe("A terminal's taskbar", () => {
   it("shows a stack's things as tabs, and what else is open as labelled sheets behind", async () => {
     await openShowcase()
     const pane = companionPane("Build Studio")
-    await expect.element(pane.getByText("src/content/projects.json", { exact: true })).toBeVisible()
+    await expect.element(pane.getByRole("tab", { name: "projects.json" })).toBeVisible()
     await expect
       .element(pane.getByRole("tab", { name: "projects.json", selected: true }))
       .toBeVisible()
@@ -131,7 +133,7 @@ describe("A terminal's taskbar", () => {
       name: "Bring forward 2 files, projects.json in front",
     })
     await files.click()
-    await expect.element(pane.getByText("src/content/projects.json", { exact: true })).toBeVisible()
+    await expect.element(pane.getByRole("tab", { name: "projects.json" })).toBeVisible()
   })
 
   it.each(["focus", "grid", "canvas"] as const)(
@@ -172,12 +174,12 @@ describe("A terminal's taskbar", () => {
   it("closes all of a pane's tabs, revealing the next pane or uncovering the terminal", async () => {
     await openShowcase()
     const pane = companionPane("Build Studio")
-    await expect.element(pane.getByText("src/content/projects.json", { exact: true })).toBeVisible()
+    await expect.element(pane.getByRole("tab", { name: "projects.json" })).toBeVisible()
     await taskbarIcon("Build Studio", "2 images").click()
     await expect.element(pane.getByRole("tablist")).toBeVisible()
     await pane.getByRole("button", { name: "Close all tabs", exact: true }).click()
     await expect.element(taskbarIcon("Build Studio", "2 images")).not.toBeInTheDocument()
-    await expect.element(pane.getByText("src/content/projects.json", { exact: true })).toBeVisible()
+    await expect.element(pane.getByRole("tab", { name: "projects.json" })).toBeVisible()
     expect(pane.getByRole("tab").elements()).toHaveLength(2)
 
     await pane.getByRole("button", { name: "Close all tabs", exact: true }).click()
@@ -188,13 +190,15 @@ describe("A terminal's taskbar", () => {
   it("closes what its pane shows, off the taskbar, and the pane with it", async () => {
     await openShowcase()
     const pane = companionPane("Build Studio")
-    await expect.element(pane.getByText("src/content/projects.json", { exact: true })).toBeVisible()
+    await expect.element(pane.getByRole("tab", { name: "projects.json" })).toBeVisible()
 
-    // Its tab's close, Delete on the tab: the other file shows, alone now, so without tabs,
-    // and closing that one from its header takes the pane.
+    // Its tab's close, Delete on the tab: the other file shows, alone now, so as a title
+    // without tabs, and closing that one from its row takes the pane.
     await pane.getByRole("tab", { name: "projects.json" }).click()
     await userEvent.keyboard("{Delete}")
-    await expect.element(pane.getByText("docs/brand-voice.md", { exact: true })).toBeVisible()
+    await expect
+      .element(pane.getByRole("heading", { level: 2, name: "brand-voice.md" }))
+      .toBeVisible()
     expect(pane.getByRole("tab").query()).toBeNull()
     await pane.getByRole("button", { name: "Close brand-voice.md", exact: true }).click()
 
@@ -330,7 +334,7 @@ describe("An image", () => {
   const viewerOf = (pane: ReturnType<typeof companionPane>) =>
     pane.getByRole("region", { name: pane.getByRole("img").element().getAttribute("alt")! })
 
-  it("zooms and moves under its header, which stays in view", async () => {
+  it("zooms and moves under its row, which stays in view", async () => {
     await openShowcase()
     await taskbarIcon("Build Studio", "2 images").click()
     const pane = companionPane("Build Studio")
@@ -352,7 +356,7 @@ describe("An image", () => {
 
     const area = viewer.parentElement!
     expect(area.scrollHeight).toBe(area.clientHeight)
-    // Its header, over the tabs of the two images, which name it too.
+    // The row, with the tabs of the two images, one of which names it.
     await expect
       .element(pane.getByText(image.element().getAttribute("alt")!, { exact: true }).first())
       .toBeInViewport()
@@ -393,7 +397,7 @@ describe("An image", () => {
 })
 
 describe("A file", () => {
-  it("scrolls its lines under its header, which stays in view", async () => {
+  it("scrolls its lines under its row, which stays in view", async () => {
     // The showcase opens with Build Studio showing this file.
     await openShowcase()
     const pane = companionPane("Build Studio")
@@ -405,9 +409,7 @@ describe("A file", () => {
     lines.scrollTop = lines.scrollHeight
 
     await expect.poll(() => lines.scrollTop).toBeGreaterThan(0)
-    await expect
-      .element(pane.getByText("src/content/projects.json", { exact: true }))
-      .toBeInViewport()
+    await expect.element(pane.getByRole("tab", { name: "projects.json" })).toBeInViewport()
   })
 
   it("opens where it was left, after the pane showed something else", async () => {
@@ -431,17 +433,17 @@ describe("A file", () => {
   })
 })
 
-describe("A viewer's header", () => {
+describe("A pane's row", () => {
   it("keeps the undock button in one place, beside a file, an image or a plan", async () => {
     // The showcase opens with Build Studio showing a file.
     await openShowcase()
     const pane = companionPane("Build Studio")
     const undock = pane.getByRole("button", { name: "Undock to its own window" })
-    // Within its header, once the pane has its width.
+    // Within its row, once the pane has its width.
     const offset = (): number => {
       const button = undock.element()
-      const header = button.closest(".artifact-meta")!
-      return button.getBoundingClientRect().top - header.getBoundingClientRect().top
+      const row = button.closest(".pane-row")!
+      return button.getBoundingClientRect().top - row.getBoundingClientRect().top
     }
     await expect
       .element(pane.getByRole("region", { name: "src/content/projects.json" }))
@@ -452,56 +454,52 @@ describe("A viewer's header", () => {
     await expect.element(pane.getByRole("img")).toBeVisible()
     expect(await settled(offset)).toBe(besideFile)
 
-    // A plan has the same header across the pane, its outline and document under it.
+    // A plan has the same row across the pane, its outline and document under it.
     await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
-    await expect.element(pane.getByText("plans/studio.md", { exact: true })).toBeVisible()
+    await expect.element(planTitle(pane)).toBeVisible()
     expect(await settled(offset)).toBe(besideFile)
   })
 
-  it("keeps its buttons on its first line, and the file's name in view, however long its path", async () => {
+  it("keeps its buttons at the row's end while the tabs scroll under them", async () => {
     await openShowcase()
     const pane = companionPane("Build Studio")
-    const path = pane.getByText("src/content/projects.json", { exact: true })
-    await expect.element(path).toBeVisible()
-    const code = path.element().closest("code")!
-    const header = code.closest<HTMLElement>(".artifact-meta")!
-    // Narrower than the path, what's known about it and the buttons together.
-    header.style.width = "260px"
+    const tab = pane.getByRole("tab", { name: "projects.json" })
+    await expect.element(tab).toBeVisible()
+    const row = tab.element().closest<HTMLElement>(".pane-row")!
+    // Narrower than the tabs and the buttons together.
+    row.style.width = "180px"
     const box = (element: Element): DOMRect => element.getBoundingClientRect()
     const minimize = pane.getByRole("button", { name: "Minimize to the taskbar" }).element()
-    // The button sits on the path's line, at the header's end.
-    const middle = (box(minimize).top + box(minimize).bottom) / 2
-    expect(middle).toBeGreaterThan(box(code).top)
-    expect(middle).toBeLessThan(box(code).bottom)
-    expect(box(minimize).right).toBeLessThanOrEqual(box(header).right)
-    // The path gives up its start, so its end, the file's name, stays.
-    const text = code.querySelector("bdi")!
-    expect(box(text).left).toBeLessThan(box(code).left)
-    expect(Math.round(box(text).right)).toBeLessThanOrEqual(Math.round(box(code).right))
+    const tabs = row.querySelector(".pane-tabs")!
+    expect(box(minimize).right).toBeLessThanOrEqual(box(row).right)
+    expect(box(minimize).top).toBeGreaterThanOrEqual(box(row).top)
+    expect(box(minimize).bottom).toBeLessThanOrEqual(box(row).bottom)
+    // The tabs give way to them: they scroll, and run under nothing.
+    expect(box(tabs).right).toBeLessThanOrEqual(box(minimize).left)
+    expect(tabs.scrollWidth).toBeGreaterThan(tabs.clientWidth)
   })
 
-  it("puts the messages' pause under their name when the pane is narrow", async () => {
+  it("holds the messages' pause as an icon among its buttons, however narrow", async () => {
     await openShowcase()
     await taskbarIcon("Build Studio", "Messages").click()
     const pane = companionPane("Build Studio")
-    const pause = pane.getByText("Pause all agents' messages")
+    const pause = pane.getByRole("button", { name: "Pause all agents' messages" })
     await expect.element(pause).toBeVisible()
-    const name = pane.getByText("Messages", { exact: true }).element()
-    const header = name.closest<HTMLElement>(".artifact-meta")!
-    header.style.width = "300px"
+    const row = pause.element().closest<HTMLElement>(".pane-row")!
+    row.style.width = "300px"
     const box = (element: Element): DOMRect => element.getBoundingClientRect()
     const minimize = pane.getByRole("button", { name: "Minimize to the taskbar" }).element()
-    expect(box(pause.element()).top).toBeGreaterThanOrEqual(box(name).bottom)
-    expect(box(minimize).bottom).toBeLessThanOrEqual(box(pause.element()).top)
+    expect(box(pause.element()).right).toBeLessThanOrEqual(box(minimize).left)
+    expect(Math.abs(box(pause.element()).top - box(minimize).top)).toBeLessThan(4)
   })
 })
 
 describe("A plan", () => {
-  it("scrolls under its header, which stays in view", async () => {
+  it("scrolls under its row, which stays in view", async () => {
     await openShowcase()
     await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
     const pane = companionPane("Build Studio")
-    const path = pane.getByText("plans/studio.md", { exact: true })
+    const path = planTitle(pane)
     await expect.element(path).toBeVisible()
     const scroll = path.element().closest(".pane-reader")!.querySelector(".pane-document-scroll")!
     await expect.poll(() => scroll.scrollHeight).toBeGreaterThan(scroll.clientHeight)
@@ -537,7 +535,7 @@ describe("A plan whose edits can't be saved", () => {
       )
       .toBeVisible()
     await expect.element(pane.getByRole("button", { name: "Copy my edits" })).toBeVisible()
-    const notice = (): Element | null => pane.element().querySelector(".plan-notice")
+    const notice = (): Element | null => pane.element().querySelector(".pane-notice")
     const before = notice()
     await pane.getByRole("button", { name: "Try saving again" }).click()
     // A new save was tried, which the folder refused again: the notice went and came back.
@@ -585,7 +583,7 @@ describe("Switching terminals in Focus", () => {
     await openShowcase("focus")
     await terminalTab("Build Studio").click()
     await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
-    const path = companionPane("Build Studio").getByText("plans/studio.md", { exact: true })
+    const path = planTitle(companionPane("Build Studio"))
     await expect.element(path).toBeVisible()
     const scroll = path.element().closest(".pane-reader")!.querySelector(".pane-document-scroll")!
     await expect.poll(() => scroll.querySelector(".cm-editor")).not.toBeNull()
@@ -914,7 +912,12 @@ describe("Undocking an item into a window of its own", () => {
       await expect.element(terminalTab("A home for Studio")).not.toBeInTheDocument()
       await expect.element(taskbarIcon("Build Studio", "Plan: A home for Studio")).toBeVisible()
       await expect
-        .element(companionPane("Build Studio").getByText("plans/studio.md", { exact: true }))
+        .element(
+          companionPane("Build Studio").getByRole("heading", {
+            level: 2,
+            name: "A home for Studio",
+          }),
+        )
         .toBeVisible()
     })
   })

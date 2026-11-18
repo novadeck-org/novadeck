@@ -32,26 +32,24 @@ describe("A pane coming into sight", () => {
     const pane = companionPane("Build Studio")
     await expect.element(standIn("Build Studio")).toBeVisible()
     await expect.element(standIn("Build Studio")).toHaveTextContent("projects.json")
-    await expect
-      .element(pane.getByText("src/content/projects.json", { exact: true }))
-      .not.toBeInTheDocument()
+    await expect.element(pane.getByRole("tab", { name: "projects.json" })).not.toBeInTheDocument()
 
     letGo()
     await expect.element(standIn("Build Studio")).not.toBeInTheDocument()
-    await expect.element(pane.getByText("src/content/projects.json", { exact: true })).toBeVisible()
+    await expect.element(pane.getByRole("tab", { name: "projects.json" })).toBeVisible()
   })
 
   it("shows something else at once once it has had its turn", async () => {
     await openShowcase("grid")
     await expect
-      .element(
-        companionPane("Build Studio").getByText("src/content/projects.json", { exact: true }),
-      )
+      .element(companionPane("Build Studio").getByRole("tab", { name: "projects.json" }))
       .toBeVisible()
     hold()
     await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
     await expect
-      .element(companionPane("Build Studio").getByText("plans/studio.md", { exact: true }))
+      .element(
+        companionPane("Build Studio").getByRole("heading", { level: 2, name: "A home for Studio" }),
+      )
       .toBeVisible()
     expect(standIn("Build Studio").elements()).toEqual([])
   })
@@ -78,9 +76,7 @@ describe("A pane coming into sight", () => {
     await openShowcase("focus")
     await terminalTab("Build Studio").click()
     await expect
-      .element(
-        companionPane("Build Studio").getByText("src/content/projects.json", { exact: true }),
-      )
+      .element(companionPane("Build Studio").getByRole("tab", { name: "projects.json" }))
       .toBeVisible()
     await new Promise((resolve) => setTimeout(resolve, picturedMs))
 

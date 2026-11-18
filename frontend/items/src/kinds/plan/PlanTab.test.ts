@@ -69,10 +69,10 @@ describe("a plan whose file can't be read for now", () => {
       await emit({ state: "unavailable", reason: "unreadable", size: null })
 
       expect(container.querySelector(".artifact-unavailable")).toBeNull()
-      expect(container.querySelector(".plan-notice")?.textContent).toContain(
+      expect(container.querySelector(".pane-notice")?.textContent).toContain(
         "Novadeck can't read this plan right now, so your edits can't be saved.",
       )
-      const buttons = [...container.querySelectorAll(".plan-notice button")].map(
+      const buttons = [...container.querySelectorAll(".pane-notice button")].map(
         (each) => each.textContent,
       )
       expect(buttons).toEqual(["Copy my edits", "Retry"])
@@ -93,5 +93,31 @@ describe("a plan in its editor", () => {
     const { container } = await shown()
     expect(container.querySelector(".document-editor .cm-editor")).not.toBeNull()
     expect(container.querySelector(".document-editor .cm-plan-note-gutter")).not.toBeNull()
+  })
+})
+
+describe("a plan the agent revised", () => {
+  it("has a tool in the row for the changes since it was read, a count on it, which hides and shows them", async () => {
+    const { container, emit } = await shown()
+    expect(container.querySelector(".pane-tool")).toBeNull()
+    await emit(ready("# Plan\nA new line\n", true, "2"))
+
+    const tool = container.querySelector<HTMLButtonElement>(".pane-tool")!
+    // A revision shows its changes at once.
+    expect(tool.getAttribute("aria-label")).toMatch(/^Hide the \d+ changes? since you last read$/)
+    expect(tool.getAttribute("aria-pressed")).toBe("true")
+    expect(tool.querySelector(".pane-tool-badge")?.textContent).toMatch(/^\d+$/)
+    // No toggle with words in a line of its own: the row says it.
+    expect(container.querySelector(".plan-changes-toggle")).toBeNull()
+
+    await act(async () => tool.click())
+    expect(container.querySelector(".pane-tool")?.getAttribute("aria-pressed")).toBe("false")
+    expect(container.querySelector(".pane-tool")?.getAttribute("aria-label")).toMatch(/^Show the/)
+  })
+
+  it("says nothing of where its edits save, only when they can't", async () => {
+    const { container } = await shown()
+    expect(container.textContent).not.toContain("Edits save to")
+    expect(container.querySelector(".pane-notice")).toBeNull()
   })
 })

@@ -76,17 +76,17 @@ const states: readonly {
   {
     label: "No pull request",
     state: undefined,
-    hint: "Open Worktrees: the row has no #812 at its detail line's end, and its work's changes item no PR #812 link",
+    hint: "Open Worktrees: the row has no #812 at its detail line's end, and its work's changes item has no #812 chip in its row",
   },
   {
     label: "Pull request: draft",
     state: "draft",
-    hint: "Open Worktrees: the row's detail line ends in a muted dashed glyph and #812, a link Tab reaches; select the row to open its changes item, whose header has PR #812 to open in the browser",
+    hint: "Open Worktrees: the row's detail line ends in a muted dashed glyph and #812, a link Tab reaches; select the row to open its changes item, whose row has a #812 chip to open in the browser",
   },
   {
     label: "Pull request: open",
     state: "open",
-    hint: "Open Worktrees: the row's detail line ends in #812 in the text color; its changes item's header has PR #812",
+    hint: "Open Worktrees: the row's detail line ends in #812 in the text color; its changes item's row has a #812 chip",
   },
   {
     label: "Pull request: merged",

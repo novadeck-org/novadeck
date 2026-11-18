@@ -180,7 +180,7 @@ describe("Pausing messaging", () => {
     await openMessagesDemo()
     const pane = await openMessages("Checkout review")
     const pause = pauseSwitch(pane)
-    await expect.element(pause).toHaveAttribute("aria-checked", "false")
+    await expect.element(pause).toHaveAttribute("aria-pressed", "false")
     // On its way, it takes no clicks, and keeps focus. The demo's runner hears it in less
     // time than a poll may take to look, so how it went is checked once it's there.
     const onItsWay = recordChanges(pause, "aria-disabled", (element) => ({
@@ -188,11 +188,11 @@ describe("Pausing messaging", () => {
       focused: element === document.activeElement,
     }))
     await pause.click()
-    await expect.element(pause).toHaveAttribute("aria-checked", "true")
+    await expect.element(pause).toHaveAttribute("aria-pressed", "true")
     await expect.element(pause).not.toHaveAttribute("aria-disabled")
     await expect.element(pause).toHaveFocus()
     expect(onItsWay()).toContainEqual({ disabled: "true", focused: true })
-    await expect.poll(() => textOf(pane.getByRole("status"))).toMatch(/Messaging is paused/)
+    await expect.poll(() => textOf(pane.getByRole("status"))).toMatch(/Agents' messages are paused/)
     // Codex's queued message is held, which the chat says only as waiting; the one already
     // being delivered goes on.
     const chat = await openConversation(pane, "Checkout implementation, @moth")
@@ -204,7 +204,7 @@ describe("Pausing messaging", () => {
         "Needs permission: pnpm test --filter checkout, 2 messages waiting, held while messaging is paused, 2 subagents: 2 explorer. Led by @moth",
       )
     await pause.click()
-    await expect.element(pane.getByText(/Messaging is paused/)).not.toBeInTheDocument()
+    await expect.element(pane.getByText(/Agents' messages are paused/)).not.toBeInTheDocument()
     await expect
       .poll(() => tabDescription("Checkout review"))
       .toBe(

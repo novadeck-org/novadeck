@@ -77,7 +77,7 @@ describe("an item undocked into a window", () => {
   })
 
   context("a page", () => {
-    it("shows its address in the browser frame", async () => {
+    it("shows its host as the title, with its address a link out", async () => {
       const url = "http://localhost:5173/"
       const item = itemFixture("web", "01", { kind: "page", name: "localhost", path: null, url })
       const { container } = await undocked(item, {
@@ -86,7 +86,14 @@ describe("an item undocked into a window", () => {
         content: { kind: "page", url, shown: 1, live: false },
       })
       expect(container.querySelector("section.pane-reader")).toBeNull()
-      expect(container.querySelector(".artifact-window .artifact-url")?.textContent).toBe(url)
+      expect(container.querySelector(".artifact-window .pane-tabs[data-lone]")?.textContent).toBe(
+        "localhost",
+      )
+      expect(
+        container.querySelector<HTMLAnchorElement>(
+          ".artifact-window a[aria-label='Open in browser']",
+        )?.href,
+      ).toBe(url)
     })
   })
 })

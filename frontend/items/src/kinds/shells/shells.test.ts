@@ -9,7 +9,6 @@ import {
   plain,
   shownLines,
   stateText,
-  summaryOf,
   tellText,
 } from "./shells"
 
@@ -47,17 +46,6 @@ describe("how a shell reads", () => {
     expect(stateText(shell("a", 0, { at: 1, code: 0 }), 5)).toBe("exited 0")
     expect(stateText(shell("a", 0, { at: 1, code: null }), 5)).toBe("stopped")
     expect(ageText(65 * 60_000)).toBe("1h 5m")
-  })
-
-  it("counts them for the header", () => {
-    expect(
-      summaryOf([
-        shell("a", 0),
-        shell("b", 0, { at: 1, code: 2 }),
-        shell("c", 0, { at: 1, code: 0 }),
-      ]),
-    ).toBe("1 running · 1 failed · 1 ended")
-    expect(summaryOf([])).toBe("none now")
   })
 })
 

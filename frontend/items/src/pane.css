@@ -2,32 +2,44 @@
    messages. Split (`.pane-split`), it shares the terminal's window across a divider
    (`.pane-divider`), or, in a window too narrow for that (864px, a Canvas window's width),
    covers the terminal; undocked, it fills a window of its own (`.artifact-window`, see artifact.css). In each, the
-   reader (`.pane-reader`) holds the outline (`.spine`) beside the document, under
-   the header every viewer has (`.artifact-meta`, see artifact.css), with the toggle for
-   the agent's changes (`.plan-changes-toggle`, toned as a warning) and its hints
-   (`.pane-meta-hint`), and under it the notice for edits that can't be saved
-   (`.plan-notice`); an item placed from another terminal
-   sits under a line saying whose it is (`.placed-from`). Under the header of what the
-   terminal's pane shows of a stack, the stack's tabs (`.pane-tabs`), each a `.pane-tab`
-   holding its button (`.pane-tab-open`, its name in `.pane-tab-name`) and its close
-   (`.pane-tab-close`, an `.icon-button`); above the reader, the icons open behind it
+   reader (`.pane-reader`) holds, on one ground (paper), the row on top (`.pane-row`) over the
+   body: the outline (`.spine`) beside the document, with the notice for what keeps an
+   item from saving or reading whole under the row (`.pane-notice`: a line of words in a
+   tone, its one action or two in `.pane-notice-actions`). The row holds the stack's tabs
+   (`.pane-tabs`, each a `.pane-tab` holding its button `.pane-tab-open`, its name in
+   `.pane-tab-name`, and its close `.pane-tab-close`, an `.icon-button`), or, for one item
+   alone (`data-lone` on the tabs), its title in the same place: no box, close, hover or mark.
+   An item moved here from another terminal names that terminal after its name
+   (`.pane-tab-origin`). The details of an item (its path, lines, size, version, who showed it
+   and when) are its tab's tooltip. At the row's end (`.pane-end`), held there as the tabs
+   scroll, the viewer's tools (`.pane-tools`: `.pane-tool` icon buttons, each with its tooltip;
+   a count on one is `.pane-tool-badge`; past two they fold into one menu,
+   `.pane-tools-more`, while the pane is narrow) over a hairline, then the window's buttons
+   (`.artifact-actions`). Above the reader, the icons open behind it
    (`.pane-stack`), each a `.pane-stack-sheet`, an edge that lifts to its label. Until its
    turn to be built and laid out (pane-turns.ts), what the pane shows stands in as its
    icon and name (`.pane-stand-in`, its name in `.pane-stand-in-name`), or a picture of the
    pane as it was last drawn (`.pane-stand-in-picture`, the stand-in data-pictured).
+
+   Marks, as the taskbar's (taskbar.css): under a tab, the shown one a 2px bar of 32px centred
+   under the whole tab, one open behind it a 14px bar centred under its name, a new one a 4px
+   dot, each over the row's line, moving in width and colour over 180ms. One item alone has
+   none.
 
    Hooks: on the split's pane, data-state="open" | "closed" as
    they come and go; on what it shows (`.pane-sheet`), data-entry="forward" |
    "arrive" as it comes to the top and data-waiting while it waits its turn, and on a
    sheet behind, data-entry="tuck" as it goes there, and data-state="new" while its
    icon holds something new; on a tab, data-state="open" for the one shown and "new"
-   for something new, and on its button aria-selected; on the reader's body,
+   for something new, and on its button aria-selected; on a tab or the title, data-failed
+   while something is wrong with what it holds (its icon turns red, and its mark when there
+   are several tabs), data-gone while it's gone (its name struck through), and data-placed
+   while it names the terminal it came from; on the reader's body,
    data-outline="false" without headings; on an outline entry, data-changed="true"
-   where the agent's changes are; on the changes toggle, aria-pressed="true" while the
-   changes show.
+   where the agent's changes are; on a tool, aria-pressed="true" while it's on.
 
    Tokens, each optional (its fallback in brackets):
-   --pane-bg (paper): the reader and an undocked window.
+   --pane-bg (paper): the reader, the row and an undocked window.
    --pane-border-color (line): the pane's edge beside the terminal.
    --pane-divider-hover-bg (line-strong): the divider under the pointer, or focused.
    --pane-stack-hover-border-color (line-strong): a sheet peeking out from behind what
@@ -36,21 +48,20 @@
    front casts on the one behind it.
    --pane-stack-fg (muted), --pane-stack-name-fg (ink): a sheet's label, and its kind or
    name.
-   --pane-tabs-bg (shell), --pane-tabs-border-color (line): the tab row.
-   --pane-tab-fg (muted), --pane-tab-hover-bg (soft), --pane-tab-hover-fg (ink): a tab.
-   --pane-tab-open-bg (paper), --pane-tab-open-fg (ink), --pane-tab-open-mark-bg (ink):
-   the tab shown, and the line along its top.
-   --pane-tab-new-bg (ink): the dot of a tab with something new.
+   --pane-tabs-border-color (line): the row's line.
+   --pane-tab-new-bg (ink): the dot at the end of a sheet behind that holds something new.
+   --pane-tab-fg (muted), --pane-tab-hover-fg (ink): a tab.
+   --pane-tab-open-fg (ink): the tab shown.
+   --pane-tab-failed-fg (danger-fg): the icon, and the mark, of a tab that failed.
+   --pane-tool-pressed-bg (soft), --pane-tool-badge-bg (warning), --pane-tool-badge-fg
+   (warning-fg): a tool that's on, and the count on its corner.
+   --taskbar-mark-bg (muted), --taskbar-mark-active-bg (ink): a mark, as the taskbar's.
    --spine-bg (shell), --spine-border-color (line): the outline.
    --spine-label-fg (muted): its label.
    --spine-fg (muted), --spine-hover-bg (soft), --spine-hover-fg (ink): an entry.
    --spine-count-bg (strong), --spine-count-fg (on-strong): an entry's count of notes.
    --spine-changed-bg (warning-fg): the dot by a changed entry.
-   --pane-meta-hint-fg (warning-fg): what keeps an item from saving, or reading whole.
-   --plan-changes-action-bg (paper): the changes toggle's Show or Hide.
-   --pane-stand-in-fg (muted): what stands in for what the pane shows until its turn.
-   --placed-from-bg (shell), --placed-from-fg (muted), --placed-from-border-color (line):
-   whose a placed item is. */
+   --pane-stand-in-fg (muted): what stands in for what the pane shows until its turn. */
 
 /* Split: the pane shares the terminal's window. */
 .pane-split {
@@ -307,50 +318,68 @@
   box-shadow: 0 -2px 5px -2px var(--_cast);
 }
 
-/* The tabs of a stack, under the header of what the pane shows: one row, scrolling sideways
-   under a thin bar when there are more than fit, the one shown joined to what's under it. */
-.pane-tabs {
+/* The row on top of what the pane shows: the tabs of a stack, or one item's title, and at its
+   end the viewer's tools and the window's buttons. On the pane's ground, whatever it shows. */
+.pane-row {
   display: flex;
   flex: none;
+  min-width: 0;
+  border-bottom: var(--border-width) solid var(--pane-tabs-border-color, var(--color-line));
+  background-color: var(--pane-bg, var(--color-paper));
+}
+/* The tabs: one row, scrolling sideways under a thin bar when there are more than fit. */
+.pane-tabs {
+  display: flex;
+  flex: 1;
   min-width: 0;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
-  border-bottom: var(--border-width) solid var(--pane-tabs-border-color, var(--color-line));
-  background-color: var(--pane-tabs-bg, var(--color-shell));
 }
 .pane-tab {
-  --_bg: transparent;
   --_fg: var(--pane-tab-fg, var(--color-muted));
+  --_mark-bg: var(--taskbar-mark-bg, var(--color-muted));
   position: relative;
   display: flex;
   flex: none;
   align-items: center;
   max-width: 220px;
-  margin-bottom: calc(var(--border-width) * -1);
-  border-right: var(--border-width) solid var(--pane-tabs-border-color, var(--color-line));
-  background-color: var(--_bg);
   color: var(--_fg);
-  transition:
-    background-color var(--motion-feedback) var(--ease-interface),
-    color var(--motion-feedback) var(--ease-interface);
+  transition: color var(--motion-feedback) var(--ease-interface);
+}
+/* Moved here from another terminal: room for its name. */
+.pane-tab[data-placed] {
+  max-width: 320px;
 }
 .pane-tab:hover {
-  --_bg: var(--pane-tab-hover-bg, var(--color-soft));
   --_fg: var(--pane-tab-hover-fg, var(--color-ink));
 }
 .pane-tab[data-state="open"] {
-  --_bg: var(--pane-tab-open-bg, var(--pane-bg, var(--color-paper)));
   --_fg: var(--pane-tab-open-fg, var(--color-ink));
+  --_mark-bg: var(--taskbar-mark-active-bg, var(--color-ink));
 }
-.pane-tab[data-state="open"]::before {
-  position: absolute;
-  inset: 0 0 auto;
-  height: 2px;
-  background-color: var(--pane-tab-open-mark-bg, var(--color-ink));
-  content: "";
+.pane-tab[data-state="open"] .pane-tab-name {
+  font-weight: var(--font-weight-medium);
+}
+/* One item alone is a title: no hover, and nothing under it. */
+.pane-tabs[data-lone] .pane-tab {
+  --_fg: var(--pane-tab-open-fg, var(--color-ink));
+  max-width: none;
+  min-width: 0;
+}
+.pane-tabs[data-lone] .pane-tab[data-placed] {
+  max-width: none;
+}
+.pane-tab[data-failed] .pane-tab-open > svg:first-child {
+  color: var(--pane-tab-failed-fg, var(--color-danger-fg));
+}
+.pane-tab[data-gone] .pane-tab-name {
+  color: var(--color-muted);
+  font-weight: normal;
+  text-decoration: line-through;
 }
 .pane-tab-open {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -359,7 +388,11 @@
   padding: 0 4px 0 12px;
   color: inherit;
   font-size: var(--text-control);
+  font-weight: normal;
   line-height: var(--text-control--line-height);
+}
+.pane-tabs[data-lone] .pane-tab-open {
+  padding-right: 12px;
 }
 .pane-tab-open svg {
   flex-shrink: 0;
@@ -370,19 +403,58 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.pane-tab[data-state="new"] .pane-tab-name::after {
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  margin-left: 6px;
-  border-radius: 50%;
-  background-color: var(--pane-tab-new-bg, var(--color-ink));
-  vertical-align: 2px;
-  content: "";
+/* The terminal a moved item came from, muted, after its name. */
+.pane-tab-origin {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  color: var(--color-muted);
+  font-weight: normal;
 }
 .pane-tab-open:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
   outline-offset: calc(var(--focus-ring-width) * -1);
+}
+/* The marks are the taskbar's (taskbar.css `.taskbar-item::after`): one bar per tab, on its
+   button's `::after`, so picking a tab moves and resizes it over 180ms as the taskbar's does. A
+   14px bar under a tab open behind the shown one, centred under its name; a 4px dot under one
+   with something new; and, under the shown one, a 32px bar centred under the whole tab, which
+   is the button and its close (22px and 6px beside it): half of that beyond the button's
+   middle. Each sits 5px (the dot 4px) above the row's line, and a tab that failed has its mark
+   red. */
+.pane-tabs:not([data-lone]) .pane-tab {
+  --_mark-bg: var(--taskbar-mark-active-bg, var(--color-ink));
+  --_close-slot: 28px;
+}
+.pane-tabs:not([data-lone]) .pane-tab[data-failed] {
+  --_mark-bg: var(--pane-tab-failed-fg, var(--color-danger-fg));
+}
+.pane-tabs:not([data-lone]) .pane-tab-open::after {
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  background-color: var(--_mark-bg);
+  content: "";
+  transform: translateX(-50%);
+  transition:
+    width 180ms,
+    background-color 180ms,
+    transform 180ms;
+}
+.pane-tabs:not([data-lone]) .pane-tab[data-state="new"] .pane-tab-open::after {
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+}
+.pane-tabs:not([data-lone]) .pane-tab[data-state="open"] .pane-tab-open::after {
+  width: 32px;
+  transform: translateX(calc(-50% + var(--_close-slot) / 2));
 }
 /* Its close, the pointer's, shows on the tab shown, and on any under the pointer or
    holding focus. */
@@ -403,6 +475,82 @@
 @media (hover: none) {
   .pane-tab-close {
     opacity: 1;
+  }
+}
+
+/* The row's end: the viewer's tools over a hairline from the window's buttons, held there as
+   the tabs scroll. */
+.pane-end {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px 0 4px;
+  background-color: var(--pane-bg, var(--color-paper));
+}
+.pane-tools,
+.pane-tools-inline {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.pane-tools-inline:empty,
+.pane-tools-more:empty {
+  display: none;
+}
+.pane-tools:has(> :not(.pane-tools-inline:empty)) {
+  margin-right: 2px;
+  padding-right: 6px;
+  border-right: var(--border-width) solid var(--pane-tabs-border-color, var(--color-line));
+}
+/* Where a viewer is drawn on its own, its tools are a line at its top. */
+.pane-tools-alone {
+  justify-content: flex-end;
+  padding: 4px 6px;
+  border-bottom: var(--border-width) solid var(--pane-tabs-border-color, var(--color-line));
+}
+.pane-tool {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+.pane-tool[aria-pressed="true"] {
+  background-color: var(--pane-tool-pressed-bg, var(--color-soft));
+  color: var(--color-ink);
+}
+.pane-tool-badge {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 7px;
+  background-color: var(--pane-tool-badge-bg, var(--color-warning));
+  color: var(--pane-tool-badge-fg, var(--color-warning-fg));
+  font-size: var(--text-label);
+  font-weight: var(--font-weight-semibold);
+  line-height: 13px;
+  text-align: center;
+}
+/* A change's pull request, a small chip beside the tools. */
+.pane-tools .artifact-open {
+  height: 24px;
+  padding: 0 6px;
+  gap: 4px;
+}
+.pane-tools-more {
+  display: none;
+}
+/* Past two tools, a narrow pane (a Grid tile) folds them into one menu. */
+@container pane-reader (max-width: 480px) {
+  .pane-tools-inline[data-fold] {
+    display: none;
+  }
+  .pane-tools-more {
+    display: flex;
   }
 }
 
@@ -622,92 +770,35 @@
   }
 }
 
-/* What keeps an item from saving, or reading whole, in the reader's header. */
-.pane-meta-hint {
-  color: var(--pane-meta-hint-fg, var(--color-warning-fg));
-}
-/* The edits that can't be saved, under the reader's header, with what to do about them. */
-.plan-notice {
+/* The one line of words under the row, when something needs the person: what's wrong, in a
+   tone (`data-tone`, which the tone recipe paints), and what can be done about it. */
+.pane-notice {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 12px;
-  padding: 8px 14px;
-  border-bottom: var(--border-width) solid var(--artifact-meta-border-color, var(--color-line));
+  gap: 4px 12px;
+  padding: 6px 14px;
+  border-bottom-width: var(--border-width);
+  border-bottom-style: solid;
   font-size: var(--text-control);
   line-height: 22px;
-  color: var(--pane-meta-hint-fg, var(--color-warning-fg));
 }
-.plan-notice p {
+.pane-notice p {
+  flex: 1;
+  min-width: 0;
   margin: 0;
 }
-/* Where a plan's edits are written, in full under the reader's header. */
-.plan-save-path {
-  margin: 0;
-  padding: 6px 14px;
-  border-bottom: var(--border-width) solid var(--artifact-meta-border-color, var(--color-line));
-  font-size: var(--text-control);
-  line-height: 20px;
-  color: var(--color-muted);
-}
-.plan-save-path {
-  overflow-wrap: anywhere;
-  user-select: text;
-}
-.plan-notice-actions {
+.pane-notice-actions {
   display: flex;
   gap: 6px;
 }
-/* The tone recipe paints it; shown, the changes take the tint and the toggle lets go of
-   it. */
-/* In the reader's header, as tall as its line. */
-.plan-changes-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 6px 0 9px;
-  line-height: 20px;
-  border-width: var(--border-width);
-  border-style: solid;
-  border-radius: var(--radius-control);
-  font-size: var(--text-control);
-}
-.plan-changes-toggle[aria-pressed="true"] {
-  background-color: transparent;
-}
-.plan-changes-toggle i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: currentColor;
-}
-.plan-changes-toggle span {
-  padding: 0 6px;
-  border-radius: var(--radius-control);
-  background-color: var(--plan-changes-action-bg, var(--color-paper));
-  font-weight: 500;
-}
-
-/* Another terminal's item, placed on this one's bar: as its own pane shows it, under a
-   line saying whose it is. */
-.placed-tab {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-}
-.placed-tab > .pane-reader-body,
-.placed-tab > .artifact-viewer {
-  flex: 1;
-  min-height: 0;
-}
-.placed-from {
+/* A note at the cut of what's shown only in part, in the body. */
+.artifact-cut {
   margin: 0;
-  padding: 6px 14px;
-  border-bottom: var(--border-width) solid var(--placed-from-border-color, var(--color-line));
-  background-color: var(--placed-from-bg, var(--color-shell));
+  padding: 8px 14px;
+  border-top: var(--border-width) solid var(--pane-tabs-border-color, var(--color-line));
+  color: var(--color-muted);
   font-size: var(--text-control);
   line-height: var(--text-control--line-height);
-  color: var(--placed-from-fg, var(--color-muted));
 }

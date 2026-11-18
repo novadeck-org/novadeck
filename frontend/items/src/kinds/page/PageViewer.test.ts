@@ -57,7 +57,6 @@ const show = (
     item,
     itemStore,
     target,
-    actions: undefined,
   })
   let pane = awake
   let visible = shown
@@ -125,7 +124,12 @@ describe("a page beside a terminal", () => {
       const rendered = show({ kind: "page", url, shown: 1, live: true })
       const size = () =>
         rendered.container.querySelector(".browser-viewer")!.getAttribute("data-size")
-      const phone = () => button(rendered.container, "Phone size")!
+      // It names what it does now, so it reads the same in the folded menu.
+      const phone = () =>
+        button(
+          rendered.container,
+          size() === "phone" ? "Back to desktop size" : "Show at phone size",
+        )!
       expect(size()).toBe("desktop")
       expect(phone().getAttribute("aria-pressed")).toBe("false")
       act(() => phone().click())
@@ -162,9 +166,10 @@ describe("a page beside a terminal", () => {
       })
       fire(pageOf(rendered.container), "did-navigate")
       rendered.show({ kind: "page", url: "https://example.com/", shown: 1, live: true })
-      expect(rendered.container.querySelector(".artifact-url")?.textContent).toBe(
-        "https://example.com/",
-      )
+      expect(
+        rendered.container.querySelector<HTMLAnchorElement>("a[aria-label='Open in browser']")
+          ?.href,
+      ).toBe("https://example.com/")
       expect((button(rendered.container, "Back") as HTMLButtonElement).disabled).toBe(true)
     })
     it("loads afresh when shown again, then brings that show's element into view", () => {
@@ -401,9 +406,9 @@ describe("a page beside a terminal", () => {
 
     it("lays out as the person last switched it, for a look to load it afresh", () => {
       const { rendered } = withPictures([shot])
-      act(() => button(rendered.container, "Phone size")!.click())
+      act(() => button(rendered.container, "Show at phone size")!.click())
       expect(pageSights.layout(item.id)).toBe("phone")
-      act(() => button(rendered.container, "Phone size")!.click())
+      act(() => button(rendered.container, "Back to desktop size")!.click())
       expect(pageSights.layout(item.id)).toBe("desktop")
     })
   })
@@ -515,14 +520,17 @@ describe("a page beside a terminal", () => {
       expect(container.querySelector("webview")).toBeNull()
       expect(container.querySelector("img")?.getAttribute("alt")).toBe(`${url} as shown`)
       expect(button(container, "Back")).toBeUndefined()
-      expect(button(container, "Phone size")).toBeUndefined()
+      expect(button(container, "Show at phone size")).toBeUndefined()
       expect(container.querySelector(".artifact-browser")?.getAttribute("aria-busy")).toBe("false")
     })
 
     it("says it opens in the browser, without a snapshot", () => {
       const { container } = show({ kind: "page", url, shown: 1, live: false })
       expect(container.textContent).toContain("This page opens in your browser.")
-      expect(container.querySelector(".artifact-url")?.textContent).toBe(url)
+      expect(container.querySelector(".artifact-url")).toBeNull()
+      expect(
+        container.querySelector<HTMLAnchorElement>("a[aria-label='Open in browser']")?.href,
+      ).toBe(url)
     })
   })
 })

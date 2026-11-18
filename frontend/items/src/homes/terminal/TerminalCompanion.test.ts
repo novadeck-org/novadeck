@@ -102,10 +102,12 @@ const Terminal = ({
   itemStore,
   messages,
   screen,
+  shells,
 }: {
   workspace: WorkspaceStore
   itemStore: ItemStore
   messages: Messages | undefined
+  shells: ComponentProps<typeof TerminalCompanion>["shells"]
   // Whether its window is on screen, as its view tells.
   screen: Store<boolean>
 }) => {
@@ -125,6 +127,7 @@ const Terminal = ({
     items: state.items.filter((item) => isOnBar(item, "01")),
     fresh: state.fresh,
     commands: commandsOf(workspace),
+    shells,
     children: createElement("textarea", { "data-terminal-input": "" }),
   }
   return createElement(TerminalCompanion, props)
@@ -142,7 +145,14 @@ const renderTerminal = (
     turns,
     onScreen = true,
     pictures,
-  }: { turns?: PaneTurns; onScreen?: boolean; pictures?: PanePictures } = {},
+    shells,
+  }: {
+    turns?: PaneTurns
+    onScreen?: boolean
+    pictures?: PanePictures
+    // The background shells of the agents the shells items are from, by terminal id.
+    shells?: ComponentProps<typeof TerminalCompanion>["shells"]
+  } = {},
 ): {
   container: HTMLElement
   workspace: WorkspaceStore
@@ -153,7 +163,7 @@ const renderTerminal = (
   const workspace = createWorkspaceStore(initial)
   const itemStore = createItemStore({ companions, workspace })
   const screen = createStore(onScreen)
-  const terminal = createElement(Terminal, { workspace, itemStore, messages, screen })
+  const terminal = createElement(Terminal, { workspace, itemStore, messages, screen, shells })
   const { container, unmount } = render(
     createElement(
       DragSessionContext,
@@ -844,9 +854,84 @@ describe("a terminal's taskbar", () => {
       expect(tabs(container)).toEqual(["hero.png *", "about.png"])
     })
 
-    it("shows no tabs for something alone on its icon", () => {
+    it("draws something alone on its icon as a title in the same place, with no tab to pick or close", () => {
       const { container } = renderTerminal(opening(notes))
-      expect(container.querySelector(".pane-tabs")).toBeNull()
+      const title = container.querySelector(".pane-row .pane-tabs[data-lone]")!
+      expect(title.textContent).toBe("notes")
+      expect(title.querySelector("[role='tab'], .pane-tab-close, button")).toBeNull()
+      expect(container.querySelector(".artifact-meta")).toBeNull()
+      // Its window's buttons are in the same row.
+      expect(container.querySelector(".pane-row .pane-end .artifact-actions")).not.toBeNull()
+    })
+
+    it("says an item's details in its tab's description, not in a line of its own", () => {
+      const { container } = renderTerminal(opening(hero))
+      expect(tab(container, "hero.png")?.getAttribute("aria-description")).toContain("/p/hero.png")
+    })
+
+    it("tints the tab of shells with a failure, and its mark when there are several tabs", () => {
+      const own = itemFixture("shells1", "01", { kind: "shells", name: "Shells", path: null })
+      const moved = itemFixture("shells2", "01", {
+        kind: "shells",
+        name: "Shells",
+        path: null,
+        from: { terminalId: "02", handle: "fox" },
+      })
+      const failed = { id: "a", command: "x", since: 0, exit: { at: 1, code: 1 } }
+      const bar = (items: readonly Item[]) =>
+        items.reduce((each, item) => workspaceReducer(each, shown(item)), workspaceFixture())
+      const alone = renderTerminal(
+        workspaceReducer(bar([own]), { type: "bar/open", target, terminalId: "01", key: own.id }),
+        undefined,
+        undefined,
+        { shells: { "01": [failed] } },
+      )
+      expect(
+        alone.container.querySelector(".pane-tabs[data-lone] .pane-tab[data-failed]"),
+      ).not.toBeNull()
+
+      const several = renderTerminal(
+        workspaceReducer(bar([own, moved]), {
+          type: "bar/open",
+          target,
+          terminalId: "01",
+          key: own.id,
+        }),
+        undefined,
+        undefined,
+        { shells: { "02": [failed] } },
+      )
+      const marked = [
+        ...several.container.querySelectorAll(".pane-tabs:not([data-lone]) .pane-tab"),
+      ]
+      // Only the one whose agent's shell failed.
+      expect(marked.map((each) => each.hasAttribute("data-failed"))).toEqual([false, true])
+    })
+
+    it("names the terminal something moved here came from after its name, with no line above", () => {
+      const moved = itemFixture("moved", "01", {
+        kind: "image",
+        name: "moved.png",
+        path: "/p/moved.png",
+        from: { terminalId: "02", handle: "fox" },
+      })
+      const workspace = [hero, moved].reduce(
+        (each, item) => workspaceReducer(each, shown(item)),
+        workspaceFixture(),
+      )
+      const { container } = renderTerminal(
+        workspaceReducer(workspace, { type: "bar/open", target, terminalId: "01", key: moved.id }),
+      )
+      expect(container.querySelector(".placed-from")).toBeNull()
+      expect(container.querySelector(".pane-tab[data-placed] .pane-tab-origin")?.textContent).toBe(
+        "another terminal",
+      )
+      // A screen reader gets it too, though the item has no more to say than its place.
+      expect(
+        container
+          .querySelector(".pane-tab[data-placed] [role='tab']")
+          ?.getAttribute("aria-description"),
+      ).toContain("From another terminal")
     })
 
     it("shows another tab on a click, as it is, without coming forward", async () => {

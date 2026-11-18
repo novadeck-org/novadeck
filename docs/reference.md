@@ -351,7 +351,7 @@ conversations in the companion pane: one per peer, each with its critter, and **
 for its entries to you, first while one waits on you, then latest first. Opening one
 reads it as a chat, the agent's text exactly as written, never formatted, saying where a
 message is only while it's on its way or lost. A thread held for your release is answered
-in the Inbox, not here. The pane's header has **Pause all agents' messages**, one switch
+in the Inbox, not here. The pane's row has **Pause all agents' messages**, one pause icon
 for every project and session. It pauses only messages between agents; your Inbox replies
 still go through. It all updates as messages move. The content preview
 (`pnpm dev:previews`) shows a conversation between its two agents; the behaviour specs'
