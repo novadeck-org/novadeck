@@ -297,7 +297,6 @@ const folderGapMs = 250
 // How long a folder waits for a change its watch may not tell (a share, a link retargeted, a file
 // written in a folder inside it), and while the watch isn't working at all.
 export const folderPolls = { safety: 20_000, unwatched: 3_000 } as const
-export const folderPollMs = folderPolls.unwatched
 
 /**
  * What agents show and the person attaches beside terminals, kept as pointers: each item

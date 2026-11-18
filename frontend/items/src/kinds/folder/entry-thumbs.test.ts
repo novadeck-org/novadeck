@@ -2,8 +2,8 @@ import type { FilePart } from "@novadeck/core/items"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
-import { entryThumbRenderer, registerEntryThumb } from "./entry-thumbs"
-import { holdThumb, loadThumb } from "./thumbs"
+import { entryThumbRenderer, registerEntryThumb, unregisterEntryThumb } from "./entry-thumbs"
+import { createQueue, hasNoThumb, holdThumb, loadThumb } from "./thumbs"
 
 // URLs as the page makes them, and which were revoked.
 let made = 0
@@ -25,7 +25,11 @@ const load = (index: number, signal = new AbortController().signal) =>
   loadThumb({ key: `model:${index}`, kind: "audio", name: `${index}.glb`, size: 2, read, signal })
 
 describe("what a kind registers to draw its files in a folder's grid", () => {
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    // What a test registered is not another's.
+    unregisterEntryThumb("audio")
+  })
 
   context("a registered renderer", () => {
     it("is given the file, its box and a way to read it, and its picture is kept as a URL with its length", async () => {
@@ -78,6 +82,97 @@ describe("what a kind registers to draw its files in a folder's grid", () => {
       stop.abort()
       expect(await loading).toBeUndefined()
       expect(seen?.aborted).toBe(true)
+    })
+
+    it("is asked once for a file as its stamp names it, whether it drew a picture or not", async () => {
+      urls()
+      let asked = 0
+      registerEntryThumb("audio", async () => {
+        asked += 1
+        return null
+      })
+      const key = "once:1"
+      const ask = () =>
+        loadThumb({
+          key,
+          kind: "audio",
+          name: "a.glb",
+          size: 2,
+          read,
+          signal: new AbortController().signal,
+        })
+      expect(hasNoThumb(key)).toBe(false)
+      expect(await ask()).toBeUndefined()
+      // What the grid does on each scroll back: it looks before it asks.
+      expect(hasNoThumb(key)).toBe(true)
+      expect(asked).toBe(1)
+      // A file that changed has another key, and is asked.
+      expect(hasNoThumb("once:2")).toBe(false)
+    })
+
+    it("is not remembered as having no picture where it was only stopped", async () => {
+      urls()
+      registerEntryThumb("audio", () => new Promise(() => {}))
+      const stop = new AbortController()
+      const loading = loadThumb({
+        key: "stopped:1",
+        kind: "audio",
+        name: "a.glb",
+        size: 2,
+        read,
+        signal: stop.signal,
+      })
+      stop.abort()
+      expect(await loading).toBeUndefined()
+      expect(hasNoThumb("stopped:1")).toBe(false)
+    })
+
+    it("is stopped at its deadline, which frees the queue whatever it does", async () => {
+      urls()
+      const signals: AbortSignal[] = []
+      // Three that never settle and ignore their signal, as a loader stuck on WebGL does.
+      registerEntryThumb("audio", (_file, _box, signal) => {
+        signals.push(signal)
+        return new Promise(() => {})
+      })
+      const queue = createQueue(3)
+      const ran: string[] = []
+      const job = (name: string) => (signal: AbortSignal) =>
+        loadThumb({
+          key: `hung:${name}`,
+          kind: "audio",
+          name,
+          size: 2,
+          read,
+          signal,
+          deadline: 50,
+        }).then(() => void ran.push(name))
+      for (const name of ["a", "b", "c", "d", "e"]) queue.want(() => 0, job(name))
+      await vi.waitFor(() => expect(ran).toHaveLength(5))
+      expect(signals.slice(0, 3).every((signal) => signal.aborted)).toBe(true)
+      // What it never drew is not asked for again.
+      expect(hasNoThumb("hung:a")).toBe(true)
+    })
+
+    it("passes its signal on to its reads, which a stopped renderer's end", async () => {
+      urls()
+      let reads: AbortSignal | undefined
+      registerEntryThumb("audio", async (file, _box, signal) => {
+        await file.read(0, signal)
+        return { blob: new Blob(["x"]) }
+      })
+      await loadThumb({
+        key: "reads:1",
+        kind: "audio",
+        name: "a.glb",
+        size: 2,
+        read: async (offset, signal) => {
+          reads = signal
+          return read(offset)
+        },
+        signal: new AbortController().signal,
+      })
+      expect(reads).toBeInstanceOf(AbortSignal)
     })
 
     it("shows the icon where it fails", async () => {

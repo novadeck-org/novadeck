@@ -25,7 +25,7 @@ import {
   modifiedText,
   sizeShort,
 } from "./model"
-import { createQueue, holdThumb, keptThumb, loadThumb, type Thumb } from "./thumbs"
+import { createQueue, hasNoThumb, holdThumb, keptThumb, loadThumb, type Thumb } from "./thumbs"
 
 // Three pictures are read at a time for the grids on screen, the nearest to the middle first.
 const queue = createQueue(3)
@@ -104,7 +104,7 @@ const useThumb = (
   }, [element])
   useEffect(() => {
     if (!kind || !reader) return
-    if (keptThumb(key) || !near) return
+    if (keptThumb(key) || hasNoThumb(key) || !near) return
     return queue.want(
       () => awayFromMiddle(element.current),
       async (signal) => {
@@ -113,7 +113,7 @@ const useThumb = (
           kind,
           name: entry.name,
           size: entry.size,
-          read: (offset) => reader(path, entry.stamp, offset),
+          read: (offset, _stop) => reader(path, entry.stamp, offset),
           signal,
         })
         if (made && !signal.aborted) setThumb(made)

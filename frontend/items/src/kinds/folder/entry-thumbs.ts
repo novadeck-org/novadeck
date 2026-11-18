@@ -26,8 +26,9 @@ export type EntryThumbBox = { readonly width: number; readonly height: number }
 export type EntryThumb = { readonly blob: Blob; readonly duration?: number }
 
 // Draws a file's picture, or answers null where it can't (too large, not what it says it is): the
-// folder then shows the kind's icon. It stops at once when `signal` aborts, and is not asked again
-// for the file while it is as its stamp names it.
+// folder then shows the kind's icon. It stops at once when `signal` aborts, which it also does
+// once a deadline of 15 s has passed (the icon is then shown whatever it does), and is not asked
+// again for the file while it is as its stamp names it, whether it drew a picture or not.
 export type EntryThumbRenderer = (
   entry: EntryThumbFile,
   box: EntryThumbBox,
@@ -36,9 +37,16 @@ export type EntryThumbRenderer = (
 
 const renderers = new Map<FolderEntryKind, EntryThumbRenderer>()
 
-// Makes `renderer` the one that draws the files of `kind`, in place of any before it.
+// Makes `renderer` the one that draws the files of `kind`. Registering again replaces it, and what
+// was drawn by the one before stays (kept pictures, and files it had no picture for) until the
+// file's stamp changes: tiles already drawn are not drawn again.
 export const registerEntryThumb = (kind: FolderEntryKind, renderer: EntryThumbRenderer): void => {
   renderers.set(kind, renderer)
+}
+
+// Takes the renderer of `kind` away, as a test that registered one does when it is done.
+export const unregisterEntryThumb = (kind: FolderEntryKind): void => {
+  renderers.delete(kind)
 }
 
 export const entryThumbRenderer = (kind: FolderEntryKind): EntryThumbRenderer | undefined =>

@@ -68,17 +68,21 @@ export const createQueue = (limit = 3): Queue => {
 }
 
 // What the pictures kept so far are, by key, the oldest first; a picture let go is revoked.
-const kept = new Map<string, Thumb>()
+// A file with no picture (a renderer answered null, failed or ran out of time) is kept as null, so
+// that its renderer is asked once for the file as its stamp names it, not at each scroll back.
+const kept = new Map<string, Thumb | null>()
 const keptMost = 300
 
 export const keptThumb = (key: string): Thumb | undefined => {
   const thumb = kept.get(key)
-  if (thumb) {
-    kept.delete(key)
-    kept.set(key, thumb)
-  }
-  return thumb
+  if (thumb === undefined) return undefined
+  kept.delete(key)
+  kept.set(key, thumb)
+  return thumb ?? undefined
 }
+
+/** Whether the file as `key` names it was asked for a picture, and has none. */
+export const hasNoThumb = (key: string): boolean => kept.get(key) === null
 
 // How many tiles show each picture, by its URL, and the ones let go of while shown: a picture is
 // revoked once it is neither kept nor shown.
@@ -105,21 +109,28 @@ export const holdThumb = (url: string): (() => void) => {
   }
 }
 
-const keep = (key: string, thumb: Thumb): void => {
+const keep = (key: string, thumb: Thumb | null): void => {
+  kept.delete(key)
   kept.set(key, thumb)
   for (const [oldest, was] of kept) {
     if (kept.size <= keptMost) break
     kept.delete(oldest)
-    revokeUnused(was.url)
+    if (was) revokeUnused(was.url)
   }
 }
+
+// How long a renderer has to draw a picture before it is stopped and the icon is shown, so one
+// that never settles takes no place in the queue for good.
+export const thumbDeadlineMs = 15_000
 
 // The box a picture is drawn in, which a renderer fits its picture to.
 const box = { width: 320, height: 200 }
 
 // Reads a file of the folder and makes its picture with what its kind registered (see
 // ./entry-thumbs): kept by `key`, with its length where it has one. Undefined where it can't be
-// drawn or it was stopped: the grid shows the kind's icon. `read` is the backend's part read of it.
+// drawn, failed, ran out of `deadline` or was stopped: the grid shows the kind's icon, and a file
+// that had none is not asked again as its stamp names it (a stopped one is). `read` is the
+// backend's part read of the file, which a stopped renderer's reads end with.
 export const loadThumb = async ({
   key,
   kind,
@@ -127,21 +138,52 @@ export const loadThumb = async ({
   size,
   read,
   signal,
+  deadline = thumbDeadlineMs,
 }: {
   readonly key: string
   readonly kind: FolderEntryKind
   readonly name: string
   readonly size: number
-  readonly read: (offset: number) => Promise<FilePart>
+  readonly read: (offset: number, signal: AbortSignal) => Promise<FilePart>
   readonly signal: AbortSignal
+  readonly deadline?: number
 }): Promise<Thumb | undefined> => {
   const render = entryThumbRenderer(kind)
   if (!render) return undefined
-  const made = await render({ name, size, read: (offset) => read(offset) }, box, signal).catch(
-    () => null,
-  )
-  if (!made || signal.aborted) return undefined
-  const thumb = { url: URL.createObjectURL(made.blob), duration: made.duration }
-  keep(key, thumb)
-  return thumb
+  // The renderer's own signal: aborted when the caller's is, and when its time is up.
+  const own = new AbortController()
+  const outer = (): void => own.abort()
+  signal.addEventListener("abort", outer, { once: true })
+  let timer: ReturnType<typeof setTimeout> | undefined
+  // Settles however the renderer behaves: with it, with nothing when it fails, or at the deadline or
+  // the caller's stopping, whichever comes first.
+  const ended = new Promise<"late" | "stopped">((resolve) => {
+    timer = setTimeout(() => {
+      own.abort()
+      resolve("late")
+    }, deadline)
+    own.signal.addEventListener("abort", () => resolve(signal.aborted ? "stopped" : "late"), {
+      once: true,
+    })
+  })
+  try {
+    const made = await Promise.race([
+      render({ name, size, read: (offset, stop) => read(offset, stop) }, box, own.signal).catch(
+        () => null,
+      ),
+      ended,
+    ])
+    if (made === "stopped" || signal.aborted) return undefined
+    if (made === "late" || made === null) {
+      keep(key, null)
+      return undefined
+    }
+    const thumb = { url: URL.createObjectURL(made.blob), duration: made.duration }
+    keep(key, thumb)
+    return thumb
+  } finally {
+    clearTimeout(timer)
+    signal.removeEventListener("abort", outer)
+    own.abort()
+  }
 }
