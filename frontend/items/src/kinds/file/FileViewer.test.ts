@@ -9,6 +9,7 @@ import { afterEach, vi } from "vitest"
 import { registry } from "../../registry"
 import { createItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
+import { FileThumb } from "./FileViewer"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
@@ -244,5 +245,17 @@ describe("a long file's source", () => {
     expect(container.querySelector(".artifact-cut:not(.artifact-source-note)")?.textContent).toBe(
       `Lines ${first}–${first + 1999} of the 5000 read are shown here.`,
     )
+  })
+})
+
+describe("a long file's miniature", () => {
+  it("shows no more than its first pointed lines, each cut short", () => {
+    const lines = Array.from({ length: 5000 }, () => "x".repeat(10_000))
+    const content = fileContent("big.csv", lines)
+    const { container, unmount } = render(createElement(FileThumb, { content }))
+    unmounts.push(unmount)
+    const shown = container.querySelector(".peek-code")?.textContent ?? ""
+    expect(shown.split("\n")).toHaveLength(40)
+    expect(shown.length).toBeLessThan(40 * 201)
   })
 })

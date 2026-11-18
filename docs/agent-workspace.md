@@ -326,11 +326,12 @@ that doesn't read showing why; YAML reads anchors, merge keys and several docume
 can send its file to its source with a note: a whole file that doesn't read goes there once per
 load, its note saying where it stops, with that line pointed at. A data file (JSON, JSONL,
 NDJSON, YAML, CSV or TSV, the protocol's `isDataPath`) is read whole from its start, up to 2 MiB
-of whole lines (`companionLimits.data`), none cut, while other text files are read up to 400
-lines around what was pointed at, each cut at 4,096 characters. A data file past its budget
-arrives in part: a JSONL file shows the records it holds, and a JSON or YAML file says only its
-start came and offers its source. Its source draws at most 2,000 lines, around the line pointed
-at.
+(`companionLimits.data`, each line's break counted) of whole lines, none cut, while other text
+files are read up to 400 lines around what was pointed at, each cut at 4,096 characters. When
+the lines pointed at lie past a data file's budget, it's read the same way from 40 lines before
+them. A data file past its budget arrives in part: a JSONL file shows the records it holds,
+and a JSON or YAML file says only its start came and offers its source. Its source draws at
+most 2,000 lines, around the line pointed at, and its miniature its first 40.
 
 A change (the `changes` item kind) is read-only and has two views, in `frontend/items/src/kinds/changes/`,
 on the pane's own ground (`--pane-bg`). The **list view** is where it opens: a row for the work

@@ -195,8 +195,16 @@ export const FileViewer = ({ item, content }: ArtifactBodyProps<"file">): React.
 }
 
 // The lines the agent pointed at, from the first one on.
+// No more than a miniature shows, as a data file comes whole: its lines up to 2 MiB.
+const thumbLines = 40
+const thumbLength = 200
 const pointedLines = (file: FileContent): readonly string[] =>
-  file.lines.slice(file.from - file.firstLine, file.to - file.firstLine + 1)
+  file.lines
+    .slice(
+      file.from - file.firstLine,
+      Math.min(file.to - file.firstLine + 1, file.from - file.firstLine + thumbLines),
+    )
+    .map((line) => line.slice(0, thumbLength))
 
 // A file in miniature: its preview's, where it has one, as a Markdown file's title over its
 // sections; else the lines the agent pointed at.

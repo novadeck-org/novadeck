@@ -18,7 +18,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import { companionLimits } from "@novadeck/protocol"
+import { companionLimits, itemContent } from "@novadeck/protocol"
 
 import { describe, expect, it as base } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
@@ -372,8 +372,50 @@ describe("a data file as it loads", () => {
     const content = await contentOf(path)
     expect(content).toMatchObject({ firstLine: 1, total: null, truncated: true, clamped: false })
     expect(content.lines.every((line) => line === "a".repeat(1023))).toBe(true)
-    expect(content.lines.length * 1025).toBeLessThanOrEqual(companionLimits.data)
-    expect((content.lines.length + 1) * 1025).toBeGreaterThan(companionLimits.data)
+    // Each line counts its break.
+    expect(content.lines.length * 1024).toBeLessThanOrEqual(companionLimits.data)
+    expect((content.lines.length + 1) * 1024).toBeGreaterThan(companionLimits.data)
+  })
+
+  it("reads around lines pointed at past its budget, from a little before them, whole", async ({
+    directory,
+  }) => {
+    const path = join(directory, "long.jsonl")
+    const record = (at: number) => JSON.stringify({ at, text: "x".repeat(6000) })
+    writeFileSync(path, Array.from({ length: 900 }, (_, at) => record(at + 1)).join("\n"))
+    const content = await contentOf(path, { from: 800, to: 802 })
+    expect(content).toMatchObject({ firstLine: 760, from: 800, to: 802, clamped: false })
+    expect(content.lines[40]).toBe(record(800))
+    expect(content.lines.at(-1)).toBe(record(900))
+    expect(content).toMatchObject({ total: 900, truncated: false })
+  })
+
+  it("reads its last lines when the lines pointed at lie past its end", async ({ directory }) => {
+    const path = join(directory, "long.jsonl")
+    writeFileSync(path, `${'{"x":"' + "y".repeat(3000) + '"}\n'}`.repeat(1000))
+    const content = await contentOf(path, { from: 5000, to: 5001 })
+    expect(content).toMatchObject({ firstLine: 960, from: 1000, to: 1000, total: 1000 })
+    expect(content).toMatchObject({ clamped: true, truncated: false })
+  })
+
+  it("holds every line that fits to the byte, the last whole one too", async ({ directory }) => {
+    const path = join(directory, "edge.csv")
+    // Each line costs its text and its break: exactly the budget.
+    const count = companionLimits.data / 1024
+    writeFileSync(path, `${"a".repeat(1023)}\n`.repeat(count))
+    const content = await contentOf(path)
+    expect(content).toMatchObject({ total: count, truncated: false })
+    expect(content.lines).toHaveLength(count)
+  })
+
+  it("holds no more lines than the protocol takes, however many empty ones", async ({
+    directory,
+  }) => {
+    const path = join(directory, "blank.jsonl")
+    writeFileSync(path, "\n".repeat(companionLimits.data * 2))
+    const loaded = await loadFile(file(path), false)
+    expect(itemContent.safeParse(loaded).success).toBe(true)
+    expect(loaded).toMatchObject({ content: { truncated: true } })
   })
 
   it("keeps a first line past its budget, cut short, so it shows something", async ({

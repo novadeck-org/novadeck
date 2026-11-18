@@ -256,34 +256,110 @@ const readLines = async (
 }
 
 /**
- * A data file's lines from its start, read as its preview reads it, as a whole: every line
- * whole, as many as `companionLimits.data` holds; `ended` once that's all of them. A line
- * the limit stops inside is left out, unless it's the first, which comes cut short, so the
- * file shows something. A NUL byte near its start makes it binary.
+ * A data file's lines from line `start` (its first by default), read as its preview reads
+ * it, as a whole: every line whole, as many as `companionLimits.data` holds, in UTF-16 code
+ * units and a unit for each line's break, which its UTF-8 bytes are never fewer than;
+ * `ended` once that's all of them,
+ * and `count`, the lines read in all. A line the limit stops inside is left out, unless
+ * it's the first kept, which comes cut short, so the file shows something. Lines before
+ * `start` are counted, not kept. A NUL byte near its start makes it binary.
  */
 const readWhole = async (
   handle: FileHandle,
-): Promise<{ lines: string[]; ended: boolean } | "binary"> => {
-  const { bytes, more } = await readUpTo(handle, companionLimits.data)
-  if (bytes.subarray(0, sniffBytes).includes(0)) return "binary"
-  // A character the limit cuts through decodes as a replacement, on a line left out.
-  const lines = bytes.toString("utf8").split(/\r\n|\r|\n/)
-  if (!more) {
-    // The line a final newline ends is the last; an empty file has one empty line.
-    if (lines.length > 1 && lines.at(-1) === "") lines.pop()
-    return { lines, ended: true }
+  start = 1,
+): Promise<{ lines: string[]; ended: boolean; count: number } | "binary"> => {
+  const decoder = new StringDecoder("utf8")
+  const breaks = /\r\n|\r|\n/g
+  const buffer = Buffer.alloc(chunkBytes)
+  const budget = companionLimits.data
+  const lines: string[] = []
+  let size = 0
+  let count = 0
+  // The line being read, held only once it's one to keep, and whether any of it came.
+  let line = ""
+  let begun = false
+  // A carriage return ended the last chunk, so a line feed opening the next is its pair.
+  let carriage = false
+  let position = 0
+  const keeping = (): boolean => count + 1 >= start
+  // Whether the line being read still fits, its break counted, so no more lines come than
+  // the limit; once one doesn't, the read stops there.
+  const fits = (): boolean => {
+    if (size + line.length + 1 <= budget) return true
+    if (lines.length === 0) lines.push(line.slice(0, budget))
+    return false
   }
-  if (lines.length > 1) lines.pop()
-  return { lines, ended: false }
+  const end = (): boolean => {
+    if (keeping()) {
+      if (!fits()) return false
+      lines.push(line)
+      size += line.length + 1
+    }
+    count += 1
+    line = ""
+    begun = false
+    return true
+  }
+  const take = (text: string): boolean => {
+    let at = carriage && text.startsWith("\n") ? 1 : 0
+    breaks.lastIndex = at
+    for (let found = breaks.exec(text); found; found = breaks.exec(text)) {
+      if (keeping()) line += text.slice(at, found.index)
+      if (!end()) return false
+      at = breaks.lastIndex
+    }
+    if (at < text.length) begun = true
+    if (keeping()) line += text.slice(at)
+    if (text.length > 0) carriage = text.endsWith("\r")
+    // A line still being read stops the read once it's past the limit: none has begun after
+    // a break that ends the text.
+    return !keeping() || !begun || fits()
+  }
+  for (;;) {
+    // eslint-disable-next-line no-await-in-loop -- One chunk after another.
+    const { bytesRead } = await handle.read(buffer, 0, chunkBytes, position)
+    if (bytesRead === 0) break
+    const chunk = buffer.subarray(0, bytesRead)
+    if (position < sniffBytes && chunk.subarray(0, sniffBytes - position).includes(0))
+      return "binary"
+    position += bytesRead
+    if (!take(decoder.write(chunk))) return { lines, ended: false, count }
+  }
+  if (!take(decoder.end())) return { lines, ended: false, count }
+  // The line a final newline ends is the last; an empty file has one empty line.
+  if ((begun || count === 0) && !end()) return { lines, ended: false, count }
+  return { lines, ended: true, count }
 }
 
-/** The lines pointed at, pulled back to the `count` lines there are, and whether they were. */
+/**
+ * A data file's lines as its item shows them: from its start, or, when the lines pointed at
+ * lie past what its start's budget holds, from a little before them, as a text file's
+ * window is; from its last lines when they lie past its end.
+ */
+const readData = async (
+  handle: FileHandle,
+  pointed: { readonly from: number; readonly to: number } | null,
+): Promise<{ first: number; lines: string[]; ended: boolean; count: number } | "binary"> => {
+  const whole = await readWhole(handle)
+  if (whole === "binary" || whole.ended || !pointed || pointed.to < whole.lines.length)
+    return whole === "binary" ? whole : { first: 1, ...whole }
+  const first = Math.max(1, pointed.from - contextLines)
+  const around = await readWhole(handle, first)
+  if (around === "binary" || around.lines.length > 0)
+    return around === "binary" ? around : { first, ...around }
+  const last = Math.max(1, around.count - contextLines)
+  const end = await readWhole(handle, last)
+  return end === "binary" ? end : { first: last, ...end }
+}
+
+/** The lines pointed at, pulled into the lines read, `first` to `last`, and whether they were. */
 const pointedAt = (
-  count: number,
+  first: number,
+  last: number,
   lines: { readonly from: number; readonly to: number } | null | undefined,
 ): { from: number; to: number; clamped: boolean } => {
-  const from = Math.max(1, Math.min(lines?.from ?? 1, count))
-  const to = Math.max(from, Math.min(lines?.to ?? count, count))
+  const from = Math.max(first, Math.min(lines?.from ?? first, last))
+  const to = Math.max(from, Math.min(lines?.to ?? last, last))
   return {
     from,
     to,
@@ -333,21 +409,21 @@ export const loadFile = async (
       }
     }
     if (isDataPath(path)) {
-      const whole = await readWhole(handle)
-      if (whole === "binary") return unavailable("binary", stats.size)
-      const { lines, ended } = whole
-      const pointed = pointedAt(lines.length, item.lines)
+      const read = await readData(handle, item.lines)
+      if (read === "binary") return unavailable("binary", stats.size)
+      const { first, lines, ended, count } = read
+      const pointed = pointedAt(first, first + lines.length - 1, item.lines)
       return {
         state: "ready",
         stamp,
         content: {
           kind: "file",
           path: tail(path, companionLimits.path),
-          firstLine: 1,
+          firstLine: first,
           lines,
           from: pointed.from,
           to: pointed.to,
-          total: ended ? lines.length : null,
+          total: ended ? count : null,
           truncated: !ended,
           // Only lines past the file's end are pulled back, never those past what was read.
           clamped: ended && pointed.clamped,
