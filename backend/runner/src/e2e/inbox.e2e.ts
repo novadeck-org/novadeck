@@ -159,7 +159,7 @@ for (const setup of setups) {
               ],
             }
           }
-          if (/Ask [a-f0-9-]+ is in the user's Inbox\./.test(result(call) ?? "")) {
+          if (/Ask [a-f0-9-]+ is in the user's Inbox\b/.test(result(call) ?? "")) {
             const name = tool(call, "tell")
             if (!name)
               throw new Error(
@@ -301,7 +301,7 @@ for (const setup of setups) {
             ],
           }
         }
-        if (result(call)?.includes(" is in the user's Inbox.")) {
+        if (result(call)?.includes(" is in the user's Inbox")) {
           await finishing.opened
           return { text: "Worked on." }
         }
@@ -327,7 +327,7 @@ for (const setup of setups) {
       const calls = run.model.mark()
       await terminal.submit("Ask and work on")
       await run.model.waitFor(
-        (call) => result(call)?.includes(" is in the user's Inbox.") === true,
+        (call) => result(call)?.includes(" is in the user's Inbox") === true,
         {
           after: calls,
         },
@@ -550,7 +550,7 @@ for (const setup of setups) {
       const calls = run.model.mark()
       await terminal.submit("Ask and work on")
       await run.model.waitFor(
-        (call) => result(call)?.includes(" is in the user's Inbox.") === true,
+        (call) => result(call)?.includes(" is in the user's Inbox") === true,
         {
           after: calls,
         },
@@ -641,7 +641,7 @@ for (const setup of setups) {
               ],
             }
           }
-          if (result(call)?.includes(" is in the user's Inbox."))
+          if (result(call)?.includes(" is in the user's Inbox"))
             return { text: "I continued while you sign in." }
           return undefined
         }),

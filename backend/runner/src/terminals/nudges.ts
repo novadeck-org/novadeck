@@ -334,8 +334,8 @@ export const inboxNotice =
   "tool and you'd stop to ask with it, do, as you normally would: Novadeck shows that " +
   "question in their Inbox as it is, so it needs no ask. Always put every other question " +
   "you end your turn waiting on, such as which option to take or whether to open a pull " +
-  "request, in their Inbox with Novadeck's ask tool, unless it is already an open ask, and put the " +
-  "full question in your reply too; a closing offer such as 'anything else?' isn't one, " +
+  "request, in their Inbox with Novadeck's ask tool, unless it is already an open ask; a " +
+  "closing offer such as 'anything else?' isn't one, " +
   "nor is an action your harness is already prompting them for. When you can't go on " +
   "without something only the user can do, such as a sign-in, access to a service or " +
   "repo, or a key put in place, that is an ask with the action shape, not just words in " +
@@ -343,8 +343,9 @@ export const inboxNotice =
   "report it with Novadeck's done tool, your own short report, not when you answer a " +
   "question or finish a step. With a lead, use ask, tell and done all the same, and send " +
   "your lead your report and your questions too; approvals of actions are still only the " +
-  "user's. " +
-  "When they write to you here, Novadeck takes your open asks out of their Inbox " +
+  "user's. Whatever you put in the Inbox is an extra copy for when they're elsewhere: your " +
+  "reply says it all as fully as it would without Novadeck, and never mentions the Inbox or " +
+  "what you put there. When they write to you here, Novadeck takes your open asks out of their Inbox " +
   "and tells you; ask again only what their message leaves open. If they answer one here " +
   "and no such notice came, withdraw it yourself. This notice needs no reply."
 
