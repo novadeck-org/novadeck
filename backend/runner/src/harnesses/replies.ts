@@ -12,16 +12,18 @@ export type Items = NonNullable<Harness["transcripts"]>["items"]
  * The start of what the agent said last since the person's latest prompt and its latest
  * tool step, as its transcript records it, through its harness's items: undefined when
  * it said nothing since, as before its final words are written, or the transcript can't
- * be read. Words before a tool call are its working notes, not its reply. Only its tail
+ * be read. Words before a tool call are its working notes, not its reply, and its thinking
+ * (what its terminal shows as updates) is no reply either. Only its tail
  * is read.
  */
 export const lastReply = async (path: string, items: Items): Promise<string | undefined> => {
   const lines = await tailLines(path)
   let reply: string | undefined
   for (const line of lines ?? [])
-    for (const { role, kind, text, scripted } of items(line)) {
+    for (const { role, kind, text, scripted, thinking } of items(line)) {
       // A command of a script may end after the agent's last words: no step of the agent's.
-      if (scripted) continue
+      // Nor is its thinking, which its terminal shows as an update, a reply.
+      if (scripted || thinking) continue
       if (role === "user" || role === "tool" || kind === "tool-call") reply = undefined
       else if (role === "assistant" && kind === "text" && text.trim()) reply = text
     }

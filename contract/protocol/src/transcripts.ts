@@ -78,8 +78,9 @@ export const toolOutcome = z.strictObject({
 // pairs a result with its call, `run` says what a call was, and `outcome` what came of it.
 // A `read` says the record was read to its end (see below).
 // `scripted` marks a call its harness made inside a script of the agent's, recorded after the
-// script's own call. Text past 16 KiB is cut short and marked `truncated`. Private reasoning
-// is never included.
+// script's own call. Text past 16 KiB is cut short and marked `truncated`. An agent's reasoning
+// is included only where its harness's own terminal shows that text to the person, which
+// `thinking` marks (see below); no other reasoning is ever carried.
 // The refinement on an item makes `.pick`, `.omit` and `.partial` of it throw; `.extend` works.
 // What a harness records of what changed between turns: the mode it says it is in, in its own
 // word (`default`, `acceptEdits`, `plan`, ...), on any item that says one, a change or not; a
@@ -149,6 +150,10 @@ export const transcriptItem = z
     // ring's nonce, and whether the line carries the person's Inbox replies (see
     // docs/agent-messaging.md, "The reply line"); null on every other item.
     ring: z.strictObject({ nonce: z.string().max(64), replies: z.boolean() }).nullable(),
+    // On an `assistant` text item, that it is the agent's thinking, as its harness's terminal shows
+    // it to the person (Claude Code's updates, which its terminal tags "summary"), not a reply.
+    // Absent on every other item.
+    thinking: z.literal(true).optional(),
     // On a `note` item, what its harness recorded between turns.
     note: transcriptNote.optional(),
     // On a `user` item, the images the prompt carried, in order; absent where it had none or the
@@ -163,6 +168,13 @@ export const transcriptItem = z
     message: "Only a tool call or its result has an outcome",
     path: ["outcome"],
   })
+  .refine(
+    (item) => item.thinking === undefined || (item.role === "assistant" && item.kind === "text"),
+    {
+      message: "Only the agent's text can be its thinking",
+      path: ["thinking"],
+    },
+  )
 export const transcriptChange = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("items"),

@@ -43,6 +43,8 @@ type EntryFields = {
   readonly interrupted?: boolean
   /** On a tool call or its result, what came of it, as the decoder read it from the record. */
   readonly outcome?: ToolOutcome | null
+  /** On the agent's text, that its harness's terminal shows it as the agent's thinking, not a reply. */
+  readonly thinking?: boolean
   /** On a tool call and its result, that the harness made the call inside an agent's script. */
   readonly scripted?: boolean
 }
@@ -91,6 +93,7 @@ export function entry(
     scripted: kind !== "text" && fields.scripted === true,
     interrupted: role === "user" && kind === "text" && fields.interrupted === true,
     ring: role === "user" && kind === "text" ? ringOf(cut) : null,
+    ...(role === "assistant" && kind === "text" && fields.thinking === true && { thinking: true }),
   }
 }
 

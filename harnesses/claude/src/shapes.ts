@@ -7,6 +7,7 @@ import {
   type TranscriptStore,
 } from "@novadeck/harness-core/shapes"
 
+import { shownThinking } from "./narration.js"
 import { holdsPaste, queuedPrompt, unwrapPasted } from "./transcripts.js"
 
 /**
@@ -30,6 +31,9 @@ export const lists: ShapeLists = {
     "block:user/tool_result",
     "block:assistant/text",
     "block:assistant/tool_use",
+    // Its updates to the person (a thinking block of the narration kind, with words), which
+    // its terminal shows as its own message tagged "summary".
+    "block:assistant/narration",
     // The person's prompt that a running turn took in beside a tool's result (#482).
     "attachment:queued_command/human/prompt",
     "attachment:queued_command/human/none",
@@ -56,7 +60,8 @@ export const lists: ShapeLists = {
     "attachment:queued_command/task-notification/task-notification",
   ],
   skipped: [
-    // The model's reasoning stays out of the chat.
+    // The rest of the model's reasoning stays out of the chat, as it does of the terminal's
+    // default view: a thinking block with no text or of another kind, and redacted ones.
     "block:assistant/thinking",
     "block:assistant/redacted_thinking",
     // Agents' messages Novadeck handed it as a prompt.
@@ -234,7 +239,12 @@ const keysOf = (fields: Fields): string[] => {
     return [`block:${type}/text`, ...(type === "user" ? userText(content) : [])]
   return (Array.isArray(content) ? content : []).flatMap((part) => {
     const { type: block, text } = (part ?? {}) as Fields
-    const kind = typeof block === "string" ? block : "untyped"
+    const kind =
+      block === "thinking" && type === "assistant" && shownThinking(part as Fields) !== undefined
+        ? "narration"
+        : typeof block === "string"
+          ? block
+          : "untyped"
     return [
       `block:${type}/${kind}`,
       ...(type === "user" && kind === "text" && typeof text === "string" ? userText(text) : []),

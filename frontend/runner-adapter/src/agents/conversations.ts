@@ -160,6 +160,7 @@ const itemOf = (session: string, item: TranscriptItem): ChatItem => ({
   interrupted: item.interrupted,
   ring: item.ring,
   note: item.note,
+  ...(item.thinking && { thinking: item.thinking }),
   ...(item.images && { images: item.images }),
 })
 

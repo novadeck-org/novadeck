@@ -290,6 +290,23 @@ export const agyVocabulary: readonly Written[] = [
     ),
   },
   {
+    // A response's `thinking`: its terminal draws it as "Thought for 5s, 454 tokens" with the
+    // thought's first line cut to one, whole only once the person expands it (Ctrl+O), and not
+    // at all in its low verbosity: no words of the model's to the person, so the chat leaves it out.
+    name: "thinking",
+    records: [
+      ...turn("Which repos?", "", [["run_command", { CommandLine: "ls" }, "a\nb"]], 0),
+      {
+        step_index: 3,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        content: "Those two.",
+        thinking: "Both are listed, so the answer is those two.",
+      },
+    ],
+  },
+  {
     name: "limits",
     records: turn(
       "Be extreme.",

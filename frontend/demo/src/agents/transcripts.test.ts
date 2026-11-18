@@ -64,6 +64,22 @@ describe("what the demo's results say of their calls", () => {
   })
 })
 
+describe("the agent's thinking in the demo", () => {
+  it("is an update of the Claude Code agent that plans, as its terminal shows them", () => {
+    const { items } = agentTranscripts(Date.now())["01"]!
+    expect(items.filter((item) => item.thinking)).toMatchObject([
+      { role: "assistant", kind: "text", thinking: true },
+    ])
+    // No other agent shows any.
+    const others = Object.entries(agentTranscripts(Date.now())).filter(
+      ([terminal]) => terminal !== "01",
+    )
+    expect(
+      others.flatMap(([, transcript]) => transcript.items).filter((item) => item.thinking),
+    ).toEqual([])
+  })
+})
+
 describe("the demo's conversation with several turns", () => {
   it("gives Build three prompts for the chat's held prompt line to hand off between", () => {
     const { items } = agentTranscripts(Date.now())["06"]!

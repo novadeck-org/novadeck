@@ -61,6 +61,21 @@ describe("the scrollback", () => {
     expect(labels).toEqual(["You", "Claude"])
   })
 
+  it("tags the agent's thinking as a summary, as its terminal does, and not its reply", () => {
+    const container = show([
+      words("1", "user", "Why?"),
+      { ...words("2", "assistant", "Looking first."), thinking: true } as ChatBlock,
+      words("3", "assistant", "Because."),
+    ])
+    const [, update, reply] = [...container.querySelectorAll("article")]
+    expect(update?.getAttribute("aria-label")).toBe("Claude, summary")
+    expect(update?.getAttribute("data-thinking")).toBe("true")
+    expect(update?.querySelector(".chat-fact")?.textContent).toBe("summary")
+    expect(reply?.getAttribute("aria-label")).toBe("Claude")
+    expect(reply?.hasAttribute("data-thinking")).toBe(false)
+    expect(reply?.querySelector(".chat-fact")).toBeNull()
+  })
+
   it("says a prompt was cut short", () => {
     const container = show([{ ...words("1", "user", "Long"), truncated: true } as ChatBlock])
     expect(container.querySelector(".chat-shortened")).not.toBeNull()

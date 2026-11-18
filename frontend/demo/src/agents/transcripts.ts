@@ -46,7 +46,16 @@ export type DemoDraft = Pick<ChatItem, "role" | "kind" | "text"> &
   Partial<
     Pick<
       ChatItem,
-      "tool" | "call" | "author" | "truncated" | "run" | "scripted" | "ring" | "note" | "images"
+      | "tool"
+      | "call"
+      | "author"
+      | "truncated"
+      | "run"
+      | "scripted"
+      | "ring"
+      | "note"
+      | "images"
+      | "thinking"
     >
   >
 
@@ -66,6 +75,8 @@ export const say = (text: string): DemoDraft => ({
   kind: "text",
   text,
 })
+// The agent's thinking as its harness's terminal shows it to the person (Claude Code's updates).
+export const think = (text: string): DemoDraft => ({ ...say(text), thinking: true })
 // A tool call, with the line the chat shows for it written beside it, as its harness's decoder
 // would have said it.
 export const use = (call: string, tool: string, input: unknown, run: ToolRun): DemoDraft => ({
@@ -190,6 +201,7 @@ export const written = (
     interrupted: false,
     ring: draft.ring ?? null,
     ...(draft.note && { note: draft.note }),
+    ...(draft.thinking && { thinking: draft.thinking }),
     ...(draft.images && { images: draft.images }),
   }))
 
@@ -312,6 +324,7 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
         { kind: "read", title: "Read", detail: "…/src/cart/use-cart.ts" },
       ),
       got("toolu_01b", cartSource, true),
+      think("The cart is already a store, so checkout can read it without new state."),
       use(
         "toolu_01c",
         "Task",

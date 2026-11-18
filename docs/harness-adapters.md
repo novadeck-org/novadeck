@@ -1223,7 +1223,8 @@ buffer before reading history, then reconcile the overlap by native item
 identity. If that cannot be done losslessly, coverage is partial and any gap is
 an explicit gap record. Changes are item upserts with revisions, append deltas
 with a base revision, or gap/reset records. Items represent exposed user and
-assistant text and tool calls/results; never invent private reasoning, and
+assistant text and tool calls/results; never invent private reasoning (what a harness's
+own terminal shows the person of its thinking is an item marked `thinking`), and
 never manufacture IDs, timestamps or coverage from PTY text.
 
 Each stream declares whether it supports incremental content, historical replay

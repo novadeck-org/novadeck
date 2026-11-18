@@ -167,3 +167,23 @@ describe("the images listed on a prompt", () => {
     expect(withImages(words, [])[0]).not.toHaveProperty("images")
   })
 })
+
+describe("an item's thinking", () => {
+  it("marks the agent's text its harness's terminal shows as thinking", () => {
+    const item = entry("assistant", "text", "x", { at: null, thinking: true })
+    expect(item.thinking).toBe(true)
+    expect(transcriptItem.safeParse({ ...item, index: 0 }).success).toBe(true)
+  })
+
+  it("is absent from every other item, and the protocol refuses it there", () => {
+    expect(entry("assistant", "text", "x", { at: null })).not.toHaveProperty("thinking")
+    for (const other of [
+      entry("user", "text", "x", { at: null, thinking: true }),
+      entry("tool", "tool-result", "x", { at: null, thinking: true }),
+      entry("assistant", "tool-call", "{}", { at: null, thinking: true, describe: seen }),
+    ])
+      expect(other).not.toHaveProperty("thinking")
+    const user = { ...entry("user", "text", "x", { at: null }), index: 0 }
+    expect(transcriptItem.safeParse({ ...user, thinking: true }).success).toBe(false)
+  })
+})

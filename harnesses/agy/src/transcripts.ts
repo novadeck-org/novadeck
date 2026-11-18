@@ -146,7 +146,10 @@ const inOwnFolder = async (reported: string, sessionId: string): Promise<string 
  * as the next step, as many steps on as it came in its call's list, and a background
  * subagent's end, from the message its going idle or failing wakes the root with or the
  * call that kills it, as its launch's result; its reasoning and its other system steps stay
- * out. It names no subagents.
+ * out. A response's `thinking` is the model's own reasoning, which its terminal draws as
+ * "Thought for 5s, 454 tokens" with the thought's first line cut to one, whole only when the
+ * person expands it (Ctrl+O), and not at all in its low verbosity (probed 2026-11-18, 1.5.9):
+ * never the model's words to the person, so the chat leaves it out. It names no subagents.
  */
 export const transcripts: TranscriptDecoder = {
   locate: async (reported, sessionId, subagent) =>
