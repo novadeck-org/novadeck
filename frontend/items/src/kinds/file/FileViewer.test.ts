@@ -116,9 +116,10 @@ describe("a file with a preview", () => {
 
   context("under the pane's row, where its switch is drawn", () => {
     const mac = /Mac|iPhone|iPad/.test(navigator.platform)
-    const key = (repeat = false) =>
+    const key = (repeat = false, { typed = "V", code = "KeyV" } = {}) =>
       new KeyboardEvent("keydown", {
-        key: "V",
+        key: typed,
+        code,
         shiftKey: true,
         ctrlKey: !mac,
         metaKey: mac,
@@ -141,6 +142,25 @@ describe("a file with a preview", () => {
       act(() => void switcher()!.dispatchEvent(key()))
       expect(container.querySelector(".artifact-file")?.getAttribute("data-view")).toBe("source")
       expect(document.activeElement).toBe(switcher())
+    })
+
+    it("switches on the letter V, wherever a Latin layout puts it", async () => {
+      const { container } = await show("row-5", readme, { inRow: true })
+      const file = container.querySelector<HTMLElement>(".artifact-file")!
+      act(() => file.focus())
+      // Dvorak's V sits where QWERTY's period is; QWERTY's V there types K.
+      act(() => void file.dispatchEvent(key(false, { typed: "k", code: "KeyV" })))
+      expect(file.getAttribute("data-view")).toBe("preview")
+      act(() => void file.dispatchEvent(key(false, { typed: "v", code: "Period" })))
+      expect(file.getAttribute("data-view")).toBe("source")
+    })
+
+    it("switches on the V key where the layout types another script", async () => {
+      const { container } = await show("row-6", readme, { inRow: true })
+      const file = container.querySelector<HTMLElement>(".artifact-file")!
+      act(() => file.focus())
+      act(() => void file.dispatchEvent(key(false, { typed: "м", code: "KeyV" })))
+      expect(file.getAttribute("data-view")).toBe("source")
     })
 
     it("switches once for a key held down", async () => {

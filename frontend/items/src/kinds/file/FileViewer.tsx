@@ -59,9 +59,13 @@ export const switchKey = {
   text: mac ? "⌘⇧V" : "Ctrl+Shift+V",
 }
 
-// By the letter it types, so it's the V the tooltip names on every layout.
+// By the letter it types, so it's the V the tooltip names on Latin layouts (Dvorak, AZERTY);
+// where the layout types another script (Cyrillic, Greek, Hebrew), by where V sits.
+const isV = (event: KeyboardEvent): boolean =>
+  /^[a-z]$/i.test(event.key) ? event.key.toLowerCase() === "v" : event.code === "KeyV"
+
 const isSwitchKey = (event: KeyboardEvent): boolean =>
-  event.key.toLowerCase() === "v" &&
+  isV(event) &&
   event.shiftKey &&
   !event.altKey &&
   (mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)
