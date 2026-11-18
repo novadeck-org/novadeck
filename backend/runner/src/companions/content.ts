@@ -21,7 +21,8 @@ import { failure, type RequestFailure } from "./request.js"
 import { secret } from "./secrets.js"
 
 // What is shown as an image, by extension: what Chromium decodes itself, as the desktop app
-// and a browser both are. HEIC and TIFF aren't among them, so they stay files.
+// and a browser both are. HEIC, TIFF, JPEG XL (behind a flag) and gzipped SVG aren't among
+// them, so they stay files.
 const images: { readonly [extension: string]: string } = {
   ".png": "image/png",
   ".apng": "image/apng",

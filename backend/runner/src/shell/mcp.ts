@@ -192,7 +192,7 @@ const show: Tool<Shown> = {
       file: {
         type: "object",
         description:
-          "A file: an image (PNG, JPEG, GIF, WebP, AVIF, BMP, ICO, SVG) or a text file, and " +
+          "A file: an image (PNG, APNG, JPEG, GIF, WebP, AVIF, BMP, ICO, SVG) or a text file, and " +
           "for a text file the lines to point at.",
         properties: {
           path: {
