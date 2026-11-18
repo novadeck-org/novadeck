@@ -1,0 +1,208 @@
+/* The audio recipe: a recording in the pane (`.audio-viewer`, shared with video.css, which
+   also styles its loading and its peek), played by `.audio-player`: a card (`.audio-card`)
+   centred in the pane, with nothing to see but the recording. In it, the file's name
+   (`.audio-name`) over its facts (`.audio-facts`); the deck (`.audio-deck`) with the round
+   play button (`.audio-play`) beside the waveform (`.wave`); and the bar (`.audio-bar`) of
+   the time (`.audio-time`), a spacer (`.audio-spacer`) between it and the buttons (each an
+   `.icon-button.video-control`, the speed one's wrapper `.audio-speed`).
+
+   The waveform is the scrubber: `.wave-bars` of `.wave-bar`s, drawn twice, the second
+   (`.wave-played`) in the played colour and clipped to what has played (`--_played`), and
+   while hovered a thin line (`.wave-line`) and the time there in a tooltip (`.wave-tip`).
+
+   Hooks: data-peaks="pending" | "none" | "ready" on `.wave` (pending pulses, as it waits for
+   the recording to be read; none is a flat track that still scrubs); aria-pressed="true" on
+   a loop or mute that is on; data-edge="start" | "end" on a tip near an end, which keeps it
+   in view.
+
+   A narrow player (its own width, not the pane's) drops the speed under 340px; its keys stay.
+
+   Tokens, each optional (its fallback in brackets):
+   --audio-card-bg (paper), --audio-card-border-color (line), --audio-card-radius
+   (radius-panel), --audio-card-shadow (none): the card.
+   --audio-play-bg (strong), --audio-play-hover-bg (strong-hover), --audio-play-fg
+   (on-strong): the play button.
+   --audio-wave-fg (line-strong), --audio-wave-played-fg (strong): the bars, and those that
+   have played. --audio-bar-radius (2px): a bar's corners.
+   --audio-line-bg (ink), --audio-tip-bg (ink), --audio-tip-fg (paper): the hover line, and
+   its tooltip. */
+.audio-player {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 16px;
+  container: audio-player / inline-size;
+  overflow: auto;
+  color: var(--color-ink);
+}
+.audio-player:focus-visible {
+  outline-offset: -2px;
+}
+.audio-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 640px;
+  padding: 16px 18px 10px;
+  border: var(--border-width) solid var(--audio-card-border-color, var(--color-line));
+  border-radius: var(--audio-card-radius, var(--radius-panel));
+  background-color: var(--audio-card-bg, var(--color-paper));
+  box-shadow: var(--audio-card-shadow, none);
+}
+.audio-head {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.audio-name {
+  overflow: hidden;
+  font-size: var(--text-lead);
+  font-weight: 600;
+  line-height: var(--text-lead--line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.audio-facts {
+  color: var(--color-muted);
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
+  font-variant-numeric: tabular-nums;
+}
+.audio-deck {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.audio-play {
+  display: grid;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background-color: var(--audio-play-bg, var(--color-strong));
+  color: var(--audio-play-fg, var(--color-on-strong));
+  cursor: pointer;
+}
+.audio-play:hover {
+  background-color: var(--audio-play-hover-bg, var(--color-strong-hover));
+}
+.audio-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 -6px;
+}
+.audio-time {
+  margin-left: 6px;
+  color: var(--color-muted);
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.audio-spacer {
+  flex: 1;
+}
+.audio-speed {
+  display: contents;
+}
+@container audio-player (max-width: 340px) {
+  .audio-speed {
+    display: none;
+  }
+  .audio-card {
+    padding-inline: 12px;
+  }
+  .audio-deck {
+    gap: 10px;
+  }
+}
+
+/* The waveform: a row of bars, as tall as the recording is loud there. */
+.wave {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+.wave[aria-disabled="true"] {
+  cursor: default;
+}
+.wave-bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 1.5px;
+  color: var(--audio-wave-fg, var(--color-line-strong));
+}
+.wave-bar {
+  flex: 1;
+  min-width: 1px;
+  border-radius: var(--audio-bar-radius, 2px);
+  background-color: currentcolor;
+}
+.wave-played {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(0 calc(100% - var(--_played, 0%)) 0 0);
+  pointer-events: none;
+}
+.wave-played .wave-bars {
+  color: var(--audio-wave-played-fg, var(--color-strong));
+}
+.wave[data-peaks="pending"] .wave-bars {
+  opacity: 0.45;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .wave[data-peaks="pending"] .wave-bars {
+    animation: wave-wait 1.4s ease-in-out infinite alternate;
+  }
+}
+@keyframes wave-wait {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: 0.55;
+  }
+}
+.wave-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background-color: var(--audio-line-bg, var(--color-ink));
+  opacity: 0.55;
+  pointer-events: none;
+}
+.wave-tip {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  padding: 1px 6px;
+  border-radius: var(--radius-control);
+  background-color: var(--audio-tip-bg, var(--color-ink));
+  color: var(--audio-tip-fg, var(--color-paper));
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.wave-tip[data-edge="start"] {
+  transform: translateX(-10%);
+}
+.wave-tip[data-edge="end"] {
+  transform: translateX(-90%);
+}

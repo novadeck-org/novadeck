@@ -171,10 +171,10 @@ const picked = (args: Arguments, names: readonly string[]): Arguments =>
 const show: Tool<Shown> = {
   name: "show",
   description:
-    "Show the user an image, a video or a text file, a web page, or the working tree's changes, in Novadeck, " +
+    "Show the user an image, a video, an audio recording or a text file, a web page, or the working tree's changes, in Novadeck, " +
     "beside the terminal they're talking to you in. Give one of file, page or changes. Show a " +
     "deliverable when it is done, not each file you touch: an image or screenshot, a " +
-    "rendered video or screen recording, a rendered page or a dev server's address, a report, mockup, diagram or generated " +
+    "rendered video, recording or screen capture, a rendered page or a dev server's address, a report, mockup, diagram or generated " +
     "document, the lines you mean, the one file the user asked you for, or whatever they ask " +
     "to see. Show a page you serve or just deployed, such as a dev server or a preview; a " +
     "link to someone else's site, which often wants a sign-in there, goes in your reply " +
@@ -186,16 +186,17 @@ const show: Tool<Shown> = {
     "so it opens at once; leave it off for anything supporting, which waits for them in " +
     "Novadeck, marked new. Showing the same file or page again updates it, beside you or wherever " +
     "the user moved it, so one item per deliverable; while they have it open, each save " +
-    "shows at once, a video rendered again plays on from where it was, and a page shown again reloads.",
+    "shows at once, a video or recording rendered again plays on from where it was, and a page shown again reloads.",
   inputSchema: {
     type: "object",
     properties: {
       file: {
         type: "object",
         description:
-          "A file: an image (PNG, JPEG, GIF, WebP, SVG), a video (MP4, WebM, MOV), which Novadeck " +
-          "plays, or a text file, and for a text file the lines to point at, or for a video " +
-          "the second to start at.",
+          "A file: an image (PNG, JPEG, GIF, WebP, SVG), a video (MP4, WebM, MOV) or an audio " +
+          "recording (MP3, M4A, WAV, OGG, Opus, FLAC), which Novadeck plays, or a text file, and " +
+          "for a text file the lines to point at, or for a video or recording the second to " +
+          "start at.",
         properties: {
           path: {
             type: "string",
@@ -215,7 +216,7 @@ const show: Tool<Shown> = {
             type: "number",
             minimum: 0,
             description:
-              "For a video, the second to start it at, such as 12.5 for the moment you mean; " +
+              "For a video or recording, the second to start it at, such as 12.5 for the moment you mean; " +
               "give it with each show that should start there.",
           },
         },
@@ -317,7 +318,7 @@ const show: Tool<Shown> = {
             (answer.again ? " is updated and" : " is") +
             " waiting for the user in Novadeck, marked new.") +
     (answer.tooLarge
-      ? answer.kind === "video"
+      ? answer.kind === "video" || answer.kind === "audio"
         ? " It's too large to play (over 512 MB), so Novadeck lists it by its name only."
         : " It's too large to preview, so Novadeck lists it by its name only."
       : ""),
@@ -327,7 +328,7 @@ const show: Tool<Shown> = {
 const showing: Tool<Listing> = {
   name: "showing",
   description:
-    "List what is showing beside your terminal in Novadeck now: each image, video, file, page, " +
+    "List what is showing beside your terminal in Novadeck now: each image, video, recording, file, page, " +
     "changes and plan, with where it points and whether you showed it, the user attached it, or " +
     "it was placed there from another terminal, and what you showed that the user moved " +
     "into a window or beside another terminal. Check it before showing after a while, " +

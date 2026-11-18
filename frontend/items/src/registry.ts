@@ -1,6 +1,7 @@
 import type { ShownKind, Item, ItemKind } from "@novadeck/core/items"
 import type { LucideIcon } from "lucide-react"
 
+import { audio } from "./kinds/audio"
 import { changes } from "./kinds/changes"
 import { file } from "./kinds/file"
 import { image } from "./kinds/image"
@@ -13,7 +14,16 @@ import type { ItemRegistration, LookContext, Registry } from "./registration"
 // Every kind of item, by its registration. A new artifact type is one folder in `kinds/`
 // and one line here, with its data parts in core; a kind that core adds without one fails
 // to compile, since `Registry` maps every `ItemKind`.
-export const registry = { image, video, file, page, changes, plan, shells } satisfies Registry
+export const registry = {
+  image,
+  video,
+  audio,
+  file,
+  page,
+  changes,
+  plan,
+  shells,
+} satisfies Registry
 
 // The registration that draws `item`.
 export const registrationOf = (item: Pick<Item, "kind">): ItemRegistration => registry[item.kind]

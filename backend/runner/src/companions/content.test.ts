@@ -29,7 +29,7 @@ import {
   captureWindow,
   loadFile,
   loadPlan,
-  loadVideo,
+  loadPlayed,
   pageAt,
   planTitle,
   pointAt,
@@ -101,6 +101,14 @@ describe("what a show points at", () => {
     // One Chromium doesn't play is read as a file, which says it isn't text.
     writeFileSync(join(directory, "old.avi"), "video")
     await expect(pointAt("old.avi", directory)).resolves.toMatchObject({ kind: "file" })
+  })
+
+  it("is a recording by its extension, whatever its case", async ({ directory }) => {
+    for (const name of ["take.mp3", "voice.M4A", "tone.wav", "mix.ogg", "note.opus", "a.flac"]) {
+      writeFileSync(join(directory, name), "sound")
+      // eslint-disable-next-line no-await-in-loop -- One file after another.
+      await expect(pointAt(name, directory)).resolves.toMatchObject({ ok: true, kind: "audio" })
+    }
   })
 
   it("may hold secrets where the environment it is given says a tool keeps its login", async ({
@@ -381,28 +389,29 @@ const sparse = (path: string, size: number) => {
   closeSync(handle)
 }
 
-const video = (path: string, secret = false) => ({ path, secret })
+const video = (path: string, secret = false) => ({ kind: "video" as const, path, secret })
+const recording = (path: string) => ({ kind: "audio" as const, path, secret: false })
 
-const videoStamp = (content: Awaited<ReturnType<typeof loadVideo>>): string =>
+const videoStamp = (content: Awaited<ReturnType<typeof loadPlayed>>): string =>
   content.state === "ready" ? content.stamp : ""
 
 describe("a video as it loads", () => {
   it("is its format, size and the file's stamp, never its bytes", async ({ directory }) => {
     const path = join(directory, "demo.webm")
     writeFileSync(path, "frames")
-    const loaded = await loadVideo(video(path), false, { shown: 2, at: 12.5 })
+    const loaded = await loadPlayed(video(path), false, { shown: 2, at: 12.5 })
     expect(loaded).toEqual({
       state: "ready",
       stamp: expect.any(String),
       content: { kind: "video", mime: "video/webm", size: 6, shown: 2, at: 12.5 },
     })
     // A show that gives no second starts it where the person is.
-    await expect(loadVideo(video(path), false, { shown: 3, at: undefined })).resolves.toEqual({
+    await expect(loadPlayed(video(path), false, { shown: 3, at: undefined })).resolves.toEqual({
       ...loaded,
       content: { kind: "video", mime: "video/webm", size: 6, shown: 3 },
     })
     writeFileSync(path, "frames, rendered again")
-    const again = await loadVideo(video(path), false, { shown: 3, at: undefined })
+    const again = await loadPlayed(video(path), false, { shown: 3, at: undefined })
     expect(videoStamp(again)).not.toBe(videoStamp(loaded))
   })
 
@@ -410,32 +419,52 @@ describe("a video as it loads", () => {
     directory,
   }) => {
     const shown = { shown: 1, at: undefined }
-    await expect(loadVideo(video(join(directory, "gone.mp4")), false, shown)).resolves.toEqual({
+    await expect(loadPlayed(video(join(directory, "gone.mp4")), false, shown)).resolves.toEqual({
       state: "unavailable",
       reason: "missing",
       size: null,
     })
     mkdirSync(join(directory, "folder.mp4"))
     await expect(
-      loadVideo(video(join(directory, "folder.mp4")), false, shown),
+      loadPlayed(video(join(directory, "folder.mp4")), false, shown),
     ).resolves.toMatchObject({ reason: "not-a-file" })
     const held = join(directory, "held.mp4")
     writeFileSync(held, "frames")
-    await expect(loadVideo(video(held, true), false, shown)).resolves.toEqual({
+    await expect(loadPlayed(video(held, true), false, shown)).resolves.toEqual({
       state: "unavailable",
       reason: "secret",
       size: 6,
     })
-    await expect(loadVideo(video(held, true), true, shown)).resolves.toMatchObject({
+    await expect(loadPlayed(video(held, true), true, shown)).resolves.toMatchObject({
       state: "ready",
     })
     const big = join(directory, "big.mp4")
     sparse(big, videoLimits.bytes + 1)
-    await expect(loadVideo(video(big), false, shown)).resolves.toEqual({
+    await expect(loadPlayed(video(big), false, shown)).resolves.toEqual({
       state: "unavailable",
       reason: "too-large",
       size: videoLimits.bytes + 1,
     })
+  })
+})
+
+describe("a recording as it loads", () => {
+  it("is its format, size and the file's stamp, as a video's are", async ({ directory }) => {
+    for (const [name, mime] of [
+      ["take.mp3", "audio/mpeg"],
+      ["voice.m4a", "audio/mp4"],
+      ["note.opus", "audio/ogg"],
+      ["a.flac", "audio/flac"],
+    ] as const) {
+      const path = join(directory, name)
+      writeFileSync(path, "sound")
+      // eslint-disable-next-line no-await-in-loop -- One file after another.
+      await expect(loadPlayed(recording(path), false, { shown: 1, at: 3 })).resolves.toEqual({
+        state: "ready",
+        stamp: expect.any(String),
+        content: { kind: "audio", mime, size: 5, shown: 1, at: 3 },
+      })
+    }
   })
 })
 
@@ -448,7 +477,7 @@ describe("a part of a video", () => {
       Array.from({ length: videoLimits.part + 10 }, (_, index) => index % 251),
     )
     writeFileSync(path, bytes)
-    const loaded = await loadVideo(video(path), false, { shown: 1, at: undefined })
+    const loaded = await loadPlayed(video(path), false, { shown: 1, at: undefined })
     const stamp = videoStamp(loaded)
     const first = await readVideoPart(video(path), { stamp, offset: 0 }, false)
     const second = await readVideoPart(video(path), { stamp, offset: videoLimits.part }, false)
@@ -464,7 +493,7 @@ describe("a part of a video", () => {
   it("is changed once the file isn't as its stamp names it", async ({ directory }) => {
     const path = join(directory, "demo.mp4")
     writeFileSync(path, "frames")
-    const loaded = await loadVideo(video(path), false, { shown: 1, at: undefined })
+    const loaded = await loadPlayed(video(path), false, { shown: 1, at: undefined })
     const stamp = videoStamp(loaded)
     writeFileSync(path, "frames, rendered again")
     await expect(readVideoPart(video(path), { stamp, offset: 0 }, false)).resolves.toEqual({
@@ -477,7 +506,7 @@ describe("a part of a video", () => {
   }) => {
     const path = join(directory, "held.mp4")
     writeFileSync(path, "frames")
-    const loaded = await loadVideo(video(path, true), true, { shown: 1, at: undefined })
+    const loaded = await loadPlayed(video(path, true), true, { shown: 1, at: undefined })
     const stamp = videoStamp(loaded)
     await expect(readVideoPart(video(path, true), { stamp, offset: 0 }, false)).resolves.toEqual({
       state: "unavailable",

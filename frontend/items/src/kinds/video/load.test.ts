@@ -109,6 +109,16 @@ describe("the videos kept loaded", () => {
     expect(kept.get("b", "1")).toBeUndefined()
   })
 
+  it("gives the bytes a URL plays while it is kept, for what reads them", () => {
+    const { urls: own } = urls()
+    const kept = createBlobs(1, own)
+    const blob = new Blob(["a"])
+    const url = kept.keep("a", "1", blob)
+    expect(kept.bytes(url)).toBe(blob)
+    kept.keep("b", "1", new Blob())
+    expect(kept.bytes(url)).toBeUndefined()
+  })
+
   it("lets the one used longest ago go past its limit, and revokes its URL", () => {
     const { urls: own, revoked } = urls()
     const kept = createBlobs(2, own)

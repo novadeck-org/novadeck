@@ -460,6 +460,14 @@ Agents:
   "Show the video again from 0:02" starts walkthrough.webm at 0:02, once, and "Rewrite the video"
   shows it under a new stamp, as if its file was rewritten: the old one plays on under a
   Loading chip, then the new one swaps in at the same time, playing or paused.
+- **Audio:** the same variant, the "Audio" group beside "Video". The dev server's terminal
+  also holds voiceover.opus, six seconds of a tone that swells and fades (`showcase/recording.ts`;
+  its bytes load only when played), on a card with its waveform, which scrubs, and no picture.
+  The group mirrors Video's: "Show a recording", "...that loads slowly" (four parts, about two
+  seconds), "...too large to play" / "...that's gone" / "...that can't be read" (the unavailable
+  states), "Show a recording the browser can't play" (garbage under a name), "...that may hold
+  secrets" (a tab that opens when picked), "Show the recording again from 0:02" and "Rewrite the
+  recording".
 - **Changes:** only in the `showcase` variant, no action needed: the dev server's terminal
   (`@fox`, the third) holds its items on the bar beside those that can't show, thirteen of them
   changes, one in each shape the changes pane draws: an ordinary change in layers (a refactor of

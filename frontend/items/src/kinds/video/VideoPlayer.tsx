@@ -1,4 +1,3 @@
-import { useShown } from "@novadeck/toolkit/shown"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import {
   Maximize,
@@ -10,62 +9,18 @@ import {
   StepForward,
   Volume2,
   VolumeX,
-  type LucideIcon,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
-import {
-  actionOf,
-  frame,
-  jump,
-  nextSpeed,
-  places,
-  within,
-  type Action,
-  type Place,
-} from "./controls"
+import { Control } from "./Control"
+import { actionOf, frame, jump, nextSpeed, type Action } from "./controls"
 import { clock } from "./format"
-
-// A control of the bar: an icon button with its tooltip, as the pane's tools are.
-const Control = ({
-  icon: Icon,
-  label,
-  tip,
-  onClick,
-  pressed,
-  name,
-}: {
-  icon: LucideIcon
-  label: string
-  tip: string
-  onClick: () => void
-  pressed?: boolean
-  name: string
-}): React.JSX.Element => (
-  <Tooltip content={tip}>
-    <button
-      type="button"
-      className="icon-button video-control"
-      data-control={name}
-      aria-label={label}
-      aria-pressed={pressed}
-      onClick={onClick}
-    >
-      <Icon size={14} strokeWidth={1.75} aria-hidden />
-    </button>
-  </Tooltip>
-)
-
-const play = (video: HTMLVideoElement): void => {
-  // A play the page isn't allowed to start, or one that a new source cut short, is no news.
-  void Promise.resolve(video.play()).catch(() => {})
-}
+import { useMedia } from "./useMedia"
 
 // A video played with its own bar: play, scrubber, time, frame steps, loop, speed, mute and
 // full screen, which the keys of a player in focus reach too. The video is letterboxed on a
-// dark ground. A new `src` (the file was rewritten) swaps in where the old one was, playing or
-// paused; where its item was left, its time and settings, is kept for when it's shown again,
-// and each later show of it that names a second (`at`) starts it there.
+// dark ground. What it does with the element (swapping a rewritten file in, remembering where
+// it was left, starting at a show's second) is `useMedia`'s.
 export const VideoPlayer = ({
   id,
   src,
@@ -83,87 +38,9 @@ export const VideoPlayer = ({
   onBroken: () => void
 }): React.JSX.Element => {
   const box = useRef<HTMLDivElement>(null)
-  const video = useRef<HTMLVideoElement>(null)
-  const [place] = useState(() => places.get(id))
-  const [paused, setPaused] = useState(true)
-  const [time, setTime] = useState(0)
-  const [duration, setDuration] = useState(0)
-  const [loop, setLoop] = useState(place?.loop ?? false)
-  const [speed, setSpeed] = useState(place?.speed ?? 1)
-  const [muted, setMuted] = useState(place?.muted ?? false)
+  const media = useMedia<HTMLVideoElement>({ id, src, shown, at })
+  const { ref, paused, time, duration, loop, speed, muted, seek, events } = media
   const [full, setFull] = useState(false)
-  // The latest show whose start was applied: the show the place was left at, or none yet.
-  const started = useRef(place?.shown ?? 0)
-
-  // What it keeps for when it comes back.
-  const latest = useRef<Place>({ time: place?.time ?? 0, loop, speed, muted, shown })
-  const sync = (): void => {
-    const element = video.current
-    if (!element) return
-    setPaused(element.paused)
-    setTime(element.currentTime)
-    latest.current = { ...latest.current, time: element.currentTime }
-    setDuration(Number.isFinite(element.duration) ? element.duration : 0)
-  }
-
-  // The source is set here, not by the element's attribute, to read where the old one was
-  // before the new one empties the element: it resumes there once it knows its length.
-  useEffect(() => {
-    const element = video.current!
-    const swapped = element.getAttribute("src") !== null
-    const resume = swapped
-      ? { time: element.currentTime, playing: !element.paused }
-      : { time: place?.time ?? 0, playing: false }
-    const loaded = (): void => {
-      element.currentTime = within(resume.time, element.duration)
-      if (resume.playing) play(element)
-    }
-    element.addEventListener("loadedmetadata", loaded, { once: true })
-    element.src = src
-    return () => element.removeEventListener("loadedmetadata", loaded)
-  }, [src, place])
-
-  // The default rate is what a new source starts at, so a swap keeps the speed.
-  useEffect(() => {
-    const element = video.current!
-    element.defaultPlaybackRate = speed
-    element.playbackRate = speed
-  }, [speed])
-
-  // A show that names a second starts there, once, when the video knows its length.
-  useEffect(() => {
-    const element = video.current!
-    if (duration === 0 || shown <= started.current) return
-    started.current = shown
-    if (at !== undefined) element.currentTime = within(at, element.duration)
-  }, [shown, at, duration])
-
-  useEffect(() => {
-    latest.current = { ...latest.current, loop, speed, muted }
-  })
-  useEffect(
-    () => () => {
-      places.keep(id, { ...latest.current, shown: started.current })
-    },
-    [id],
-  )
-
-  // The scrubber follows the picture, not the element's few reports a second.
-  useEffect(() => {
-    if (paused) return
-    const element = video.current!
-    let frameId = requestAnimationFrame(function tick() {
-      setTime(element.currentTime)
-      frameId = requestAnimationFrame(tick)
-    })
-    return () => cancelAnimationFrame(frameId)
-  }, [paused])
-
-  // Out of sight, it stops.
-  const visible = useShown()
-  useEffect(() => {
-    if (!visible) video.current?.pause()
-  }, [visible])
 
   useEffect(() => {
     const changed = (): void => setFull(document.fullscreenElement === box.current)
@@ -171,23 +48,16 @@ export const VideoPlayer = ({
     return () => document.removeEventListener("fullscreenchange", changed)
   }, [])
 
-  const seek = (to: number): void => {
-    const element = video.current!
-    element.currentTime = within(to, element.duration)
-    setTime(element.currentTime)
-  }
   const step = (by: number): void => {
-    const element = video.current!
+    const element = ref.current!
     element.pause()
     seek(element.currentTime + by)
   }
   const act = (action: Action): void => {
-    const element = video.current!
+    const element = ref.current!
     switch (action) {
       case "toggle":
-        if (element.paused) play(element)
-        else element.pause()
-        return
+        return media.toggle()
       case "back":
         return seek(element.currentTime - jump)
       case "forward":
@@ -197,9 +67,9 @@ export const VideoPlayer = ({
       case "after":
         return step(frame)
       case "loop":
-        return setLoop((on) => !on)
+        return media.setLoop((on) => !on)
       case "mute":
-        return setMuted((on) => !on)
+        return media.setMuted((on) => !on)
       case "full":
         if (document.fullscreenElement === box.current) void document.exitFullscreen()
         else void box.current?.requestFullscreen?.()
@@ -226,7 +96,7 @@ export const VideoPlayer = ({
       }}
     >
       <video
-        ref={video}
+        ref={ref}
         className="video-picture"
         playsInline
         preload="auto"
@@ -234,14 +104,8 @@ export const VideoPlayer = ({
         muted={muted}
         aria-label={name}
         onClick={() => act("toggle")}
-        onPlay={sync}
-        onPause={sync}
-        onEnded={sync}
-        onSeeked={sync}
-        onTimeUpdate={sync}
+        {...events}
         onError={onBroken}
-        onLoadedMetadata={sync}
-        onDurationChange={sync}
       />
       <div className="video-bar">
         <input
@@ -304,7 +168,7 @@ export const VideoPlayer = ({
                 className="icon-button video-control video-rate"
                 data-control="speed"
                 aria-label={`Speed ${speed}×`}
-                onClick={() => setSpeed(nextSpeed(speed))}
+                onClick={() => media.setSpeed(nextSpeed(speed))}
               >
                 {speed}×
               </button>

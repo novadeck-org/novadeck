@@ -23,3 +23,12 @@ describe("a video's facts", () => {
     expect(loadingText(12 * 1024 * 1024, 40 * 1024 * 1024)).toBe("Loading 12 of 40 MB")
   })
 })
+
+describe("a recording's facts", () => {
+  it("name its format as a person does", () => {
+    expect(factsText("audio/mpeg", 4.2 * 1024 * 1024)).toBe("MP3 · 4.2 MB")
+    expect(factsText("audio/x-wav", 900 * 1024)).toBe("WAV · 900 KB")
+    expect(factsText("audio/x-m4a", 5 * 1024 * 1024)).toBe("M4A · 5.0 MB")
+    expect(factsText("audio/x-speex", 1024 * 1024)).toBe("SPEEX · 1.0 MB")
+  })
+})

@@ -17,11 +17,19 @@ export type Blobs = {
   readonly keep: (item: string, stamp: string, blob: Blob) => string
   // Lets the item's file as `stamp` names it go, as one the browser can't play.
   readonly drop: (item: string, stamp: string) => void
+  // The bytes `url` plays, while it is kept: a page can't fetch its own blob URL under the
+  // app's content security policy, so what reads the bytes (as a waveform's peaks) asks here.
+  readonly bytes: (url: string) => Blob | undefined
   // A player plays `url` until the function it gets back is called.
   readonly hold: (url: string) => () => void
 }
 
-type Kept = { readonly item: string; readonly stamp: string; readonly url: string }
+type Kept = {
+  readonly item: string
+  readonly stamp: string
+  readonly url: string
+  readonly blob: Blob
+}
 
 export const createBlobs = (
   limit: number,
@@ -56,13 +64,14 @@ export const createBlobs = (
     keep: (item, stamp, blob) => {
       release(item)
       const url = urls.create(blob)
-      kept.set(item, { item, stamp, url })
+      kept.set(item, { item, stamp, url, blob })
       for (const oldest of kept.keys()) {
         if (kept.size <= limit) break
         release(oldest)
       }
       return url
     },
+    bytes: (url) => [...kept.values()].find((each) => each.url === url)?.blob,
     drop: (item, stamp) => {
       if (kept.get(item)?.stamp === stamp) release(item)
     },

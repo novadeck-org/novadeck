@@ -1,4 +1,4 @@
-// How a video's facts read: its format and size, its progress and its time.
+// How a video's or a recording's facts read: its format and size, its progress and its time.
 
 const names: Record<string, string> = {
   "video/mp4": "MP4",
@@ -7,6 +7,21 @@ const names: Record<string, string> = {
   "video/ogg": "Ogg",
   "video/x-matroska": "MKV",
   "video/x-m4v": "M4V",
+  "audio/mpeg": "MP3",
+  "audio/mp3": "MP3",
+  "audio/wav": "WAV",
+  "audio/x-wav": "WAV",
+  "audio/wave": "WAV",
+  "audio/ogg": "Ogg",
+  "audio/opus": "Opus",
+  "audio/flac": "FLAC",
+  "audio/x-flac": "FLAC",
+  "audio/mp4": "M4A",
+  "audio/x-m4a": "M4A",
+  "audio/aac": "AAC",
+  "audio/webm": "WebM",
+  "audio/aiff": "AIFF",
+  "audio/x-aiff": "AIFF",
 }
 
 // A MIME type as the format a person names: "video/mp4" is "MP4".

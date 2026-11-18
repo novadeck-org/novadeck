@@ -397,7 +397,7 @@ with every safety check again at that time:
   plugin manifest (with `env_vars` naming the terminal's variables, since Codex starts
   MCP servers without the terminal's environment), `mcp_config.json` for Antigravity.
   Its first tool, `show`, takes one source under the key that names it, with that
-  source's own options inside: a `file` (its path and optional lines, or for a video `at`,
+  source's own options inside: a `file` (its path and optional lines, or for a video or recording `at`,
   the second its show starts it at, which only that show carries out), a `page` (its
   `url`, and optionally `scroll`, a CSS selector of the element to bring into view once it
   loads) or `changes` (`{}` or `{ path }`: the whole change in a repository, see below);
@@ -427,8 +427,9 @@ with every safety check again at that time:
   path, a folder, a pipe or a device, and a page address that isn't http(s), carries a
   user name or password, or is too long. Binary files are accepted and load as
   `binary`; an image over 8 MB is accepted and loads as too large to preview, which the
-  answer says. A video (`.mp4`, `.m4v`, `.webm`, `.mov`, kind `video`) is played with the
-  pane's own controls: its content is its format and size, never its bytes, which the UI
+  answer says. A video (`.mp4`, `.m4v`, `.webm`, `.mov`, kind `video`) or an audio recording
+  (`.mp3`, `.m4a`, `.aac`, `.wav`, `.ogg`, `.oga`, `.opus`, `.flac`, kind `audio`, played as a
+  card with a waveform, not a picture) is played with the pane's own controls: its content is its format and size, never its bytes, which the UI
   reads with `companions.videoPart`, 2 MiB at a time while the file is as its stamp names it,
   and plays whole from a blob, so the desktop app, a browser and the demo play it alike.
   Rendered again, it reloads where the person was; one over 512 MB loads as too large to play. Showing the same file or page again updates the item on the agent's own

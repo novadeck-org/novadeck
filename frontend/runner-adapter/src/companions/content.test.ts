@@ -490,6 +490,24 @@ describe("the runner's companion content", () => {
     })
   })
 
+  context("a recording", () => {
+    it("holds its content as the runner has it, and reads its parts as a video's", async () => {
+      const app = following()
+      app.follow()
+      const content = { kind: "audio" as const, mime: "audio/mpeg", size: 9, shown: 1, at: 2 }
+      app.push({ state: "ready", stamp: "s", content })
+      await settle()
+      expect(app.seen).toEqual([{ state: "ready", stamp: "s", content }])
+      app.videoReturns({ state: "part", data: "AAEC" })
+      const part = await app.companions.videoPart?.(target, hero, {
+        stamp: "s",
+        offset: 0,
+        reveal: undefined,
+      })
+      expect(part).toEqual({ state: "part", bytes: new Uint8Array([0, 1, 2]) })
+    })
+  })
+
   context("on a real runner", () => {
     it("shows an item it doesn't have, or one deleted since, as gone", async () => {
       const runner = await startTestRunner()

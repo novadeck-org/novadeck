@@ -39,6 +39,17 @@ const videos: { readonly [extension: string]: string } = {
   ".webm": "video/webm",
   ".mov": "video/quicktime",
 }
+// What is played as a recording, by extension, as above.
+const recordings: { readonly [extension: string]: string } = {
+  ".mp3": "audio/mpeg",
+  ".m4a": "audio/mp4",
+  ".aac": "audio/aac",
+  ".wav": "audio/wav",
+  ".ogg": "audio/ogg",
+  ".oga": "audio/ogg",
+  ".opus": "audio/ogg",
+  ".flac": "audio/flac",
+}
 /** The largest image previewed; a larger one is listed without its picture. */
 export const maxImageBytes = 8 * 1024 * 1024
 // How much of a text file is read past the lines it shows, to count its lines; past it,
@@ -68,9 +79,12 @@ const isImage = (path: string): boolean => images[extname(path).toLowerCase()] !
 /** Whether a file is played as a video, by its extension. */
 const isVideo = (path: string): boolean => videos[extname(path).toLowerCase()] !== undefined
 
-/** How a file is shown, by its extension: as an image, played as a video, or read. */
+/** Whether a file is played as a recording, by its extension. */
+const isAudio = (path: string): boolean => recordings[extname(path).toLowerCase()] !== undefined
+
+/** How a file is shown, by its extension: as an image, played as a video or a recording, or read. */
 const kindOf = (path: string): Pointed["kind"] =>
-  isImage(path) ? "image" : isVideo(path) ? "video" : "file"
+  isImage(path) ? "image" : isVideo(path) ? "video" : isAudio(path) ? "audio" : "file"
 
 /**
  * The lines of a file of `total` lines shown, from `first` to `last`, and the ones
@@ -97,7 +111,7 @@ export type Pointed = {
   readonly ok: true
   /** Its path, symlinks resolved. */
   readonly path: string
-  readonly kind: "image" | "video" | "file"
+  readonly kind: "image" | "video" | "audio" | "file"
   readonly size: number
   readonly secret: boolean
 }
@@ -341,14 +355,14 @@ export const loadFile = async (
 }
 
 /**
- * A video, as it is now, symlinks resolved: its format and size, never its bytes, which
- * `readVideoPart` reads as the client plays it. Its stamp is the file's own, which each part
+ * A video or a recording, as it is now, symlinks resolved: its format and size, never its
+ * bytes, which `readVideoPart` reads as the client plays it. Its stamp is the file's own, which each part
  * is read against. One that may hold secrets is `secret` unless `reveal`; one past what the
  * pane plays is `too-large`. `shown` is its item's version, and `at` the second its latest
  * show starts it at.
  */
-export const loadVideo = async (
-  item: Pick<ItemRecord, "path" | "secret">,
+export const loadPlayed = async (
+  item: Pick<ItemRecord, "kind" | "path" | "secret">,
   reveal: boolean,
   show: { readonly shown: number; readonly at: number | undefined },
   env?: NodeJS.ProcessEnv,
@@ -369,8 +383,8 @@ export const loadVideo = async (
     state: "ready",
     stamp: stampOf(stats),
     content: {
-      kind: "video",
-      mime: videos[extname(path).toLowerCase()] ?? "video/mp4",
+      kind: item.kind === "audio" ? "audio" : "video",
+      mime: mimeOf(path, item.kind),
       size: stats.size,
       shown: show.shown,
       ...(show.at !== undefined && { at: show.at }),
@@ -378,8 +392,17 @@ export const loadVideo = async (
   }
 }
 
+/** A played file's format, by its extension, or by its kind where that names none. */
+const mimeOf = (path: string, kind: ItemRecord["kind"]): string => {
+  const extension = extname(path).toLowerCase()
+  return (
+    (kind === "audio" ? recordings[extension] : videos[extension]) ??
+    (kind === "audio" ? "audio/mpeg" : "video/mp4")
+  )
+}
+
 /**
- * A part of a video's file from `offset`, up to `videoLimits.part` bytes, read only while the
+ * A part of a video's or a recording's file from `offset`, up to `videoLimits.part` bytes, read only while the
  * file is as `stamp` names it: `changed` once it isn't, as when it was rendered again, so the
  * client starts over from its new content. Past its end, the part is empty.
  */

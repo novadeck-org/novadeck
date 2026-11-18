@@ -8,9 +8,9 @@ import type { CompanionWindowMeta, WorkspaceTarget } from "./types"
 // files and hooks, and from what they present through Novadeck's MCP server.
 
 // The kinds an agent shows (with `show`) or the person attaches: each points at a file, a
-// page or a change. A video is a file played rather than read. A plan is the one kind an
+// page or a change. A video or a recording (`audio`) is a file played rather than read. A plan is the one kind an
 // agent writes rather than shows.
-export type ShownKind = "image" | "video" | "file" | "page" | "changes"
+export type ShownKind = "image" | "video" | "audio" | "file" | "page" | "changes"
 
 // What an agent showed or the person attached, as the backend keeps it: a pointer to a
 // file or page, never a copy, held by exactly one terminal's bar or one undocked window.
@@ -90,6 +90,7 @@ type KindRule = {
 export const kindRules: Record<ItemKind, KindRule> = {
   image: { pointer: "file", follow: "shown", close: "remove" },
   video: { pointer: "file", follow: "shown", close: "remove" },
+  audio: { pointer: "file", follow: "shown", close: "remove" },
   file: { pointer: "file", follow: "shown", close: "remove" },
   page: { pointer: "page", follow: "shown", close: "remove" },
   changes: { pointer: "changes", follow: "shown", close: "remove" },
@@ -160,7 +161,10 @@ export type VideoContent = {
   readonly at?: number | undefined
 }
 
-// A part of a video's file, from the offset asked for (fewer bytes at its end, none past it);
+// A recording (`.mp3`, `.wav`…), played as a video is, with nothing to see: the same facts.
+export type AudioContent = Omit<VideoContent, "kind"> & { readonly kind: "audio" }
+
+// A part of a video's or a recording's file, from the offset asked for (fewer bytes at its end, none past it);
 // `changed` when the file is no longer as the stamp named it, so it's read again from its new
 // content; or why it can't be read now.
 export type VideoPart =
@@ -290,7 +294,13 @@ export type ChangesContent = {
   readonly truncated: boolean
 }
 
-export type ShownContent = ImageContent | VideoContent | FileContent | PageContent | ChangesContent
+export type ShownContent =
+  | ImageContent
+  | VideoContent
+  | AudioContent
+  | FileContent
+  | PageContent
+  | ChangesContent
 
 // How a background shell's output stands: its last `lines` (numbered from `firstLine`) of
 // `total` read; `none` where its harness writes it nowhere Novadeck can read; `unreadable`
@@ -445,7 +455,7 @@ export type Companions = {
   // changes again. Absent where the backend can't keep it: the pane then grays it for as
   // long as the content stays as it was.
   readonly changeRead?: (target: WorkspaceTarget, itemId: ItemId, path: string) => Promise<void>
-  // A video item's file from `offset`, while it is as `stamp` names it (see `VideoPart`). One
+  // A video or audio item's file from `offset`, while it is as `stamp` names it (see `VideoPart`). One
   // that may hold secrets is `secret` unless `reveal` is the path the item points at, as in
   // `follow`. Rejects where the item is gone or no video. Absent where the backend can't: a
   // video then says it can't be played here.

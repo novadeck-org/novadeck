@@ -23,8 +23,8 @@ export const companionLimits = {
 } as const
 
 /**
- * A video the pane plays: the largest one it takes, which it holds whole as it plays, and
- * how much of it one `companions.videoPart` carries, in bytes. A part travels as base64, so
+ * A video or a recording the pane plays: the largest one it takes, which it holds whole as it
+ * plays, and how much of it one `companions.videoPart` carries, in bytes. A part travels as base64, so
  * its text runs to `videoPartText` characters.
  */
 export const videoLimits = {
@@ -43,12 +43,14 @@ export const videoPartText = Math.ceil(videoLimits.part / 3) * 4
 // whether it is a file or text in the agent's own transcript or rollout. A shells item is
 // the background shells the agent in its terminal left running, one per terminal, which the
 // runner makes as the first one starts; it points at nothing (`path` and `url` are null).
+// A video or an audio recording is a file too, played rather than read, which the runner
+// tells by its extension.
 const itemHolder = z.union([z.strictObject({ terminalId: id }), z.strictObject({ windowId: id })])
 export const companionItem = z.strictObject({
   id,
   sessionId: id,
   holder: itemHolder,
-  kind: z.enum(["image", "video", "file", "page", "plan", "changes", "shells"]),
+  kind: z.enum(["image", "video", "audio", "file", "page", "plan", "changes", "shells"]),
   name: z.string().max(companionLimits.name),
   detail: z.string().max(companionLimits.detail),
   path: z.string().max(companionLimits.path).nullable(),
@@ -288,8 +290,8 @@ export const changeFileDiff = z.strictObject({
 // `shell_environment_policy`); `unreadable` where its
 // file is there and Novadeck can't read it now (no permission, in use, not a regular file);
 // `gone` where its file was there and no longer is, as Claude Code's goes with its session.
-// A video is its format and size, which `companions.videoPart` reads in parts for the client
-// to play, and its stamp names the file as those parts must be read from; `shown` counts
+// A video or a recording (`audio`) is its format and size, which `companions.videoPart` reads in
+// parts for the client to play, and its stamp names the file as those parts must be read from; `shown` counts
 // the agent's shows, as a page's does, and `at` is the second the latest show starts it at.
 // Or why it can't be shown, with the file's size where known.
 export const itemContent = z.discriminatedUnion("state", [
@@ -384,6 +386,13 @@ export const itemContent = z.discriminatedUnion("state", [
         shown: z.int().min(1),
         at: z.number().nonnegative().optional(),
       }),
+      z.strictObject({
+        kind: z.literal("audio"),
+        mime: z.string().max(64),
+        size: z.int().nonnegative().max(videoLimits.bytes),
+        shown: z.int().min(1),
+        at: z.number().nonnegative().optional(),
+      }),
     ]),
   }),
   z.strictObject({
@@ -401,7 +410,7 @@ export const itemContent = z.discriminatedUnion("state", [
   }),
 ])
 
-// `companions.videoPart`: the part of a video from the offset asked for, as base64, up to
+// `companions.videoPart`: the part of a video or a recording from the offset asked for, as base64, up to
 // `videoLimits.part` bytes (fewer at the file's end); `changed` when the file is no longer
 // as the stamp asked with names it, so the client reads it again from its new content; or
 // why it can't be read now.

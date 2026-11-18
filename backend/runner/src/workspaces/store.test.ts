@@ -1947,7 +1947,7 @@ describe("workspace metadata", () => {
       // is added for it. Then record the new digest here.
       expect({ version, digest }).toEqual({
         version: 19,
-        digest: "ad623d1c4c6c7b3daffea38a0da6b0d5da2ca7d076ed09bc2705d2c2b67c778b",
+        digest: "a337fd9e42427ab1f0c8addef9f0b274998ef1fb4b615c9f1766c12c034ea412",
       })
     } finally {
       database.close()
@@ -2020,7 +2020,7 @@ describe("workspace metadata", () => {
     expect(carried).toEqual(created)
   })
 
-  it("lets items be videos in the step from 18, keeping the items, compares and order", ({
+  it("lets items be videos and recordings in the step from 18, keeping the items, compares and order", ({
     directory,
   }) => {
     const path = join(directory(), "workspace.sqlite")
@@ -2058,6 +2058,17 @@ main...feature', 'changes', '/p',
     }
     migrated.saveItem(video)
     expect(migrated.item("clip")).toEqual(video)
+    const recording: ItemRecord = {
+      ...video,
+      id: "take",
+      pointerKey: "/p/take.mp3",
+      kind: "audio",
+      path: "/p/take.mp3",
+      name: "take.mp3",
+      detail: "4.2 MB MP3",
+    }
+    migrated.saveItem(recording)
+    expect(migrated.item("take")).toEqual(recording)
     migrated.close()
     const fresh = join(directory(), "fresh.sqlite")
     new WorkspaceStore(fresh).close()

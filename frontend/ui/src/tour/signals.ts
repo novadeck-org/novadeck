@@ -207,6 +207,7 @@ export const tourSignals = (
               item.by === "agent" &&
               (item.kind === "image" ||
                 item.kind === "video" ||
+                item.kind === "audio" ||
                 item.kind === "page" ||
                 item.kind === "file") &&
               item.from?.terminalId === terminalId,

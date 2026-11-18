@@ -1090,12 +1090,35 @@ describe("an item's content", () => {
     })
   })
 
+  it("plays a recording as a video is played, from its parts", async ({ fixture }) => {
+    writeFileSync(join(fixture.directory, "take.mp3"), "sound")
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "take.mp3", at: 1 } })
+    expect(shown).toMatchObject({ ok: true, kind: "audio", name: "take.mp3" })
+    const itemId = shown.ok ? shown.id : ""
+    expect(fixture.items.list(fixture.sessionId).items).toEqual([
+      expect.objectContaining({ id: itemId, kind: "audio", detail: "5 B MP3" }),
+    ])
+    const loaded = await fixture.items.load(itemId, false)
+    expect(loaded).toMatchObject({
+      state: "ready",
+      content: { kind: "audio", mime: "audio/mpeg", size: 5, shown: 1, at: 1 },
+    })
+    expect(itemContent.parse(loaded)).toEqual(loaded)
+    const stamp = loaded.state === "ready" ? loaded.stamp : ""
+    await expect(fixture.items.videoPart({ itemId, stamp, offset: 0 })).resolves.toEqual({
+      state: "part",
+      data: Buffer.from("sound").toString("base64"),
+    })
+  })
+
   it("starts only a video at a second, and reads parts of nothing else", async ({ fixture }) => {
     writeFileSync(join(fixture.directory, "a.ts"), "a\n")
     const moth = fixture.terminal("moth")
     await expect(fixture.items.show(moth, { file: { path: "a.ts", at: 3 } })).resolves.toEqual({
       ok: false,
-      reason: "Only a video starts at a second; give at only for a video file.",
+      reason:
+        "Only a video or a recording starts at a second; give at only for a video or audio file.",
     })
     const shown = await fixture.items.show(moth, { file: { path: "a.ts" } })
     await expect(

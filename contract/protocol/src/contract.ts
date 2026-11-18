@@ -665,10 +665,10 @@ export const contract = {
     content: procedure
       .input(z.strictObject({ itemId: id, reveal: z.string().max(4096).optional() }))
       .output(eventIterator(itemContent)),
-    // A video item's file from `offset`, up to `videoLimits.part` bytes, read only while the
+    // A video or audio item's file from `offset`, up to `videoLimits.part` bytes, read only while the
     // file is as `stamp` (its content's) names it: else `changed`. One that may hold secrets
     // is `secret` unless `reveal` is the path the item points at, as in `content`. An unknown
-    // item, or one that is no video, is NOT_FOUND.
+    // item, or one that is neither, is NOT_FOUND.
     videoPart: procedure
       .input(
         z.strictObject({

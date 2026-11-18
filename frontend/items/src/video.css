@@ -5,7 +5,8 @@
    spacer (`.video-spacer`) between those that play and those that set. `.video-loading`
    says how much of it has been read, centred while there is nothing to play, and a chip
    over the picture while a newer file's bytes are read. A peek shows its format and size
-   (`.peek-video`).
+   (`.peek-video`). A recording (audio.css) shares the viewer, the loading, the peek, the
+   bar's buttons (`.video-control`) and the speed button (`.video-rate`) with it.
 
    Hooks: aria-pressed="true" on a loop or mute that is on; aria-busy on the viewer until it
    has something to play; data-over on `.video-loading` that is over a picture.
@@ -20,7 +21,8 @@
    track, and what has played of it.
    --video-chip-bg (paper), --video-chip-border-color (line): what says it's loading, over
    a picture. */
-.video-viewer {
+.video-viewer,
+.audio-viewer {
   display: flex;
   position: relative;
   flex: 1;
@@ -146,7 +148,8 @@
   background-color: var(--video-scrub-fill-bg, var(--color-strong));
 }
 
-.video-loading {
+.video-loading,
+.audio-loading {
   display: grid;
   flex: 1;
   place-content: center;
@@ -159,10 +162,12 @@
   line-height: var(--text-body--line-height);
   text-align: center;
 }
-.video-loading p {
+.video-loading p,
+.audio-loading p {
   margin: 0;
 }
-.video-loading[data-over] {
+.video-loading[data-over],
+.audio-loading[data-over] {
   position: absolute;
   top: 8px;
   right: 8px;

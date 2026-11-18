@@ -32,7 +32,7 @@ import {
   hashOf,
   loadFile,
   loadPlan,
-  loadVideo,
+  loadPlayed,
   maxImageBytes,
   pageAt,
   planTitle,
@@ -1245,13 +1245,16 @@ export class CompanionItems {
     const { path, lines, at } = request.file
     const pointed = await pointAt(path, place.cwd, this.environment())
     if (!pointed.ok) return pointed
-    if (at !== undefined && pointed.kind !== "video")
-      return failure("Only a video starts at a second; give at only for a video file.")
+    if (at !== undefined && pointed.kind !== "video" && pointed.kind !== "audio")
+      return failure(
+        "Only a video or a recording starts at a second; give at only for a video or audio file.",
+      )
     return {
       ok: true,
       tooLarge:
         (pointed.kind === "image" && pointed.size > maxImageBytes) ||
-        (pointed.kind === "video" && pointed.size > videoLimits.bytes),
+        ((pointed.kind === "video" || pointed.kind === "audio") &&
+          pointed.size > videoLimits.bytes),
       pointer: this.filePointer(pointed, path, place.cwd, place.project, {
         ...(request.title !== undefined && { title: request.title }),
         ...(lines && { lines }),
@@ -1335,7 +1338,7 @@ export class CompanionItems {
   }
 
   /**
-   * How a file is described: an image or a video by its size and format, a text file by
+   * How a file is described: an image, a video or a recording by its size and format, a text file by
    * its path and lines.
    */
   private detail(
@@ -1344,7 +1347,7 @@ export class CompanionItems {
     given: string,
     lines: { readonly from: number; readonly to: number } | undefined,
   ): string {
-    if (pointed.kind === "image" || pointed.kind === "video") {
+    if (pointed.kind === "image" || pointed.kind === "video" || pointed.kind === "audio") {
       const format = pointed.path.split(".").at(-1)!.toUpperCase().replace("JPG", "JPEG")
       return `${size(pointed.size)} ${format}`
     }
@@ -1564,9 +1567,9 @@ export class CompanionItems {
   }
 
   /**
-   * A part of a video item's file (see `companions.videoPart`): read only while the file is
-   * as `stamp` names it, and one that may hold secrets only once the person chose to show the
-   * path the item points at. NOT_FOUND for an unknown item or one that is no video.
+   * A part of a video or audio item's file (see `companions.videoPart`): read only while the
+   * file is as `stamp` names it, and one that may hold secrets only once the person chose to
+   * show the path the item points at. NOT_FOUND for an unknown item or one that is neither.
    */
   async videoPart(input: {
     readonly itemId: string
@@ -1576,7 +1579,8 @@ export class CompanionItems {
   }): Promise<VideoPart> {
     if (this.stopping) throw new DomainError("CLOSING")
     const item = this.item(input.itemId)
-    if (item.kind !== "video") throw new DomainError("NOT_FOUND", "That item is no video")
+    if (item.kind !== "video" && item.kind !== "audio")
+      throw new DomainError("NOT_FOUND", "That item is no video or recording")
     const reveal = input.reveal !== undefined && input.reveal === item.path
     return readVideoPart(item, input, reveal, this.environment())
   }
@@ -1619,8 +1623,8 @@ export class CompanionItems {
       })
     }
     if (item.kind === "plan") return loadPlan(item, live)
-    if (item.kind === "video")
-      return loadVideo(item, reveal, { shown: item.version, at: cued?.at }, this.environment())
+    if (item.kind === "video" || item.kind === "audio")
+      return loadPlayed(item, reveal, { shown: item.version, at: cued?.at }, this.environment())
     return loadFile(item, reveal, this.environment())
   }
 

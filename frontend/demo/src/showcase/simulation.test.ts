@@ -4,9 +4,16 @@ import type { TerminalKey } from "@novadeck/core/types"
 
 import { context, describe, expect, it } from "../test"
 import { authAgent, studioAgent } from "./agents"
-import { devServerArtifacts, studioArtifacts, videoAgain, videoSamples } from "./artifacts"
+import {
+  devServerArtifacts,
+  recordingSamples,
+  studioArtifacts,
+  videoAgain,
+  videoSamples,
+} from "./artifacts"
 import { changesArtifacts } from "./changes"
 import { clip, clipSize } from "./clip"
+import { recording, recordingSize } from "./recording"
 import { createShowcase } from "./simulation"
 
 const session = { projectId: "p", workspaceSessionId: "s" }
@@ -528,5 +535,27 @@ describe("the showcase's videos", () => {
       }),
     ).toEqual({ state: "unavailable", reason: "unreadable" })
     await expect(read(itemIdOf("dev-notes"))).rejects.toThrow()
+  })
+})
+
+describe("the showcase's recordings", () => {
+  it("is a recording that is as large as its item says, among what the dev server's terminal shows", async () => {
+    expect(devServerArtifacts).toContain(recordingSamples.playable)
+    const part = await running().showcase.videoPart!(session, itemIdOf("studio-voiceover"), {
+      stamp: "1",
+      offset: 0,
+      reveal: undefined,
+    })
+    expect(part.state === "part" && part.bytes.length).toBe(recordingSize)
+    expect((await recording()).length).toBe(recordingSize)
+  })
+
+  it("is served in parts as a video is, and held back where secret", async () => {
+    const { showcase } = running()
+    showcase.present(devServer, "fox", recordingSamples.secret)
+    const id = itemIdOf("studio-private-voice")
+    expect(
+      await showcase.videoPart!(session, id, { stamp: "1", offset: 0, reveal: undefined }),
+    ).toEqual({ state: "unavailable", reason: "secret" })
   })
 })

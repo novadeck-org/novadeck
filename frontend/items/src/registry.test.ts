@@ -1,5 +1,14 @@
 import type { ShownKind, ItemKind } from "@novadeck/core/items"
-import { BookText, FileCode2, Film, GitCompare, Globe, Image, type LucideIcon } from "lucide-react"
+import {
+  AudioLines,
+  BookText,
+  FileCode2,
+  Film,
+  GitCompare,
+  Globe,
+  Image,
+  type LucideIcon,
+} from "lucide-react"
 
 import type { StackKind } from "./bar/bar"
 import { iconOf, registry, stackNames } from "./registry"
@@ -10,6 +19,7 @@ import { context, describe, expect, it } from "./test"
 const oldKindIcons: Record<ShownKind, LucideIcon> = {
   image: Image,
   video: Film,
+  audio: AudioLines,
   file: FileCode2,
   page: Globe,
   changes: GitCompare,
@@ -21,6 +31,7 @@ const oldStackNames: Record<StackKind, { one: string; many: string }> = {
   plan: { one: "plan", many: "Plans" },
   image: { one: "image", many: "Images" },
   video: { one: "video", many: "Videos" },
+  audio: { one: "recording", many: "Recordings" },
   file: { one: "file", many: "Files" },
   page: { one: "page", many: "Pages" },
   changes: { one: "change", many: "Changes" },
@@ -33,6 +44,7 @@ describe("the registry", () => {
       const kinds: Record<ItemKind, true> = {
         image: true,
         video: true,
+        audio: true,
         file: true,
         page: true,
         changes: true,

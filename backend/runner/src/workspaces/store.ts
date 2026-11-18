@@ -91,7 +91,7 @@ const projectOf = ({ pinned, ...project }: ProjectRow): Project => ({
 // 17: an item may be a terminal's background shells (`kind` takes 'shells').
 // 18: a changes item may be a compare of two refs an agent named (`compare_base`,
 // `compare_head`).
-// 19: an item may be a video (`kind` takes 'video').
+// 19: an item may be a video or a recording (`kind` takes 'video' and 'audio').
 const schemaVersion = 19
 const schema = `
   CREATE TABLE projects (
@@ -335,7 +335,7 @@ const schema = `
     window_id TEXT UNIQUE,
     -- A file's resolved path, a page's pageKey, or a plan's slot, unique on one bar.
     pointer_key TEXT NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('image', 'video', 'file', 'page', 'plan', 'changes', 'shells')),
+    kind TEXT NOT NULL CHECK (kind IN ('image', 'video', 'audio', 'file', 'page', 'plan', 'changes', 'shells')),
     path TEXT,
     url TEXT,
     lines_from INTEGER,
@@ -1023,8 +1023,9 @@ const migrations: Readonly<Record<number, Step>> = {
     ALTER TABLE companion_items ADD COLUMN compare_head TEXT
       CHECK ((compare_base IS NULL) = (compare_head IS NULL));
   `,
-  // An item may be a video, which the kind's CHECK must take: rebuilt as in the step from
-  // 16. A video shown before it is a file there, which its next show makes a video.
+  // An item may be a video or a recording, which the kind's CHECK must take: rebuilt as in
+  // the step from 16. One shown before it is a file there, which its next show makes a video
+  // or a recording.
   18: `
     ALTER TABLE companion_items RENAME TO companion_items_18;
     DROP INDEX IF EXISTS companion_items_bar;
@@ -1036,7 +1037,7 @@ const migrations: Readonly<Record<number, Step>> = {
       window_id TEXT UNIQUE,
       -- A file's resolved path, a page's pageKey, or a plan's slot, unique on one bar.
       pointer_key TEXT NOT NULL,
-      kind TEXT NOT NULL CHECK (kind IN ('image', 'video', 'file', 'page', 'plan', 'changes', 'shells')),
+      kind TEXT NOT NULL CHECK (kind IN ('image', 'video', 'audio', 'file', 'page', 'plan', 'changes', 'shells')),
       path TEXT,
       url TEXT,
       lines_from INTEGER,
