@@ -1090,6 +1090,16 @@ describe("an item's content", () => {
     })
   })
 
+  it("names an image by its format, a JFIF file as JPEG", async ({ fixture }) => {
+    writeFileSync(join(fixture.directory, "photo.jfif"), "pixels")
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "photo.jfif" } })
+    expect(shown).toMatchObject({ ok: true, kind: "image", name: "photo.jfif" })
+    expect(fixture.items.list(fixture.sessionId).items).toEqual([
+      expect.objectContaining({ kind: "image", detail: "6 B JPEG" }),
+    ])
+  })
+
   it("plays a recording as a video is played, from its parts", async ({ fixture }) => {
     writeFileSync(join(fixture.directory, "take.mp3"), "sound")
     const moth = fixture.terminal("moth")

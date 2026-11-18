@@ -27,6 +27,7 @@ import { describe, expect, it as base } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
 import {
   captureWindow,
+  formatOf,
   loadFile,
   loadPlan,
   loadPlayed,
@@ -405,6 +406,27 @@ describe("an image as it loads", () => {
         content: { kind: "image", src: expect.stringMatching(`^data:${type};`) },
       })
     }
+  })
+
+  it("names a format as a person does, JPEG's other extensions as JPEG", () => {
+    const named = {
+      "a.png": "PNG",
+      "a.jpg": "JPEG",
+      "a.JPEG": "JPEG",
+      "a.jpe": "JPEG",
+      "a.jfif": "JPEG",
+      "a.PJPEG": "JPEG",
+      "a.pjp": "JPEG",
+      "photo.jxl": "JPEG XL",
+      "favicon.ico": "ICO",
+      "pointer.cur": "CUR",
+      "a.svg": "SVG",
+      "demo.webm": "WEBM",
+      "take.mp3": "MP3",
+    }
+    expect(Object.fromEntries(Object.keys(named).map((name) => [name, formatOf(name)]))).toEqual(
+      named,
+    )
   })
 
   it("isn't a format Chromium can't draw, which stays a file", async ({ directory }) => {

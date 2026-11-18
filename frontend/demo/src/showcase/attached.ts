@@ -3,7 +3,9 @@ import { fileLines, ready, svg, type SampleArtifact } from "./artifacts"
 // What the demo shows of a file the person opened from the Files panel that no agent showed:
 // a short stand-in made from its path, so the pane has something plausible to read.
 
-const imageTypes = /\.(a?png|jpe?g?|jfif|pjp(eg)?|gif|webp|avif|jxl|bmp|ico|cur|svg)$/i
+// The runner's images (`images` in backend/runner/src/companions/content.ts), extension for
+// extension.
+const imageTypes = /\.(png|apng|jpg|jpeg|jpe|jfif|pjpeg|pjp|gif|webp|avif|jxl|bmp|ico|cur|svg)$/i
 
 // The runner's secret-looking names that a demo project could hold; such a file is held,
 // so the pane asks before it shows it.

@@ -95,6 +95,23 @@ const isVideo = (path: string): boolean => videos[extname(path).toLowerCase()] !
 /** Whether a file is played as a recording, by its extension. */
 const isAudio = (path: string): boolean => recordings[extname(path).toLowerCase()] !== undefined
 
+// The formats a person names otherwise than by their extension: JPEG's other extensions are
+// JPEG, and JPEG XL is spelt out.
+const formatNames: { readonly [extension: string]: string } = {
+  ".jpg": "JPEG",
+  ".jpe": "JPEG",
+  ".jfif": "JPEG",
+  ".pjpeg": "JPEG",
+  ".pjp": "JPEG",
+  ".jxl": "JPEG XL",
+}
+
+/** A file's format as a person names it, by its extension: "JPEG" for a.jfif, "PNG" for a.png. */
+export const formatOf = (path: string): string => {
+  const extension = extname(path).toLowerCase()
+  return formatNames[extension] ?? extension.slice(1).toUpperCase()
+}
+
 /** How a file is shown, by its extension: as an image, played as a video or a recording, or read. */
 const kindOf = (path: string): Pointed["kind"] =>
   isImage(path) ? "image" : isVideo(path) ? "video" : isAudio(path) ? "audio" : "file"
