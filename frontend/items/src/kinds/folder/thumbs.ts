@@ -1,6 +1,7 @@
 import type { FilePart } from "@novadeck/core/items"
 
-import { loadParts } from "../../parts/load"
+import { entryThumbRenderer, type FolderEntryKind } from "./entry-thumbs"
+import "./thumb-renderers"
 
 // The pictures of a folder's grid: each is read through the runner's `companions.part`, as the
 // kind's own viewer would read the file, a few at a time and the nearest to the middle of the
@@ -113,87 +114,12 @@ const keep = (key: string, thumb: Thumb): void => {
   }
 }
 
-export const mimeOfImage = (name: string): string => {
-  const extension = name.slice(name.lastIndexOf(".") + 1).toLowerCase()
-  return (
-    (
-      {
-        png: "image/png",
-        apng: "image/apng",
-        jpg: "image/jpeg",
-        jpeg: "image/jpeg",
-        jfif: "image/jpeg",
-        pjpeg: "image/jpeg",
-        pjp: "image/jpeg",
-        gif: "image/gif",
-        webp: "image/webp",
-        avif: "image/avif",
-        bmp: "image/bmp",
-        ico: "image/x-icon",
-        cur: "image/x-icon",
-        svg: "image/svg+xml",
-      } as Record<string, string | undefined>
-    )[extension] ?? "application/octet-stream"
-  )
-}
+// The box a picture is drawn in, which a renderer fits its picture to.
+const box = { width: 320, height: 200 }
 
-// The widest a video's frame is drawn.
-const frameWidth = 320
-
-// A video's first moment, drawn small, and its length; undefined where the page can't play it.
-const frameOf = (
-  video: Blob,
-  signal: AbortSignal,
-): Promise<{ readonly picture: Blob; readonly duration: number } | undefined> =>
-  new Promise((resolve) => {
-    const url = URL.createObjectURL(video)
-    const element = document.createElement("video")
-    element.muted = true
-    element.preload = "auto"
-    const done = (
-      result: { readonly picture: Blob; readonly duration: number } | undefined,
-    ): void => {
-      clearTimeout(timer)
-      signal.removeEventListener("abort", stop)
-      element.removeAttribute("src")
-      element.load()
-      URL.revokeObjectURL(url)
-      resolve(result)
-    }
-    // Whoever asked stopped waiting: the queue's place is free at once, not after the timeout.
-    const stop = (): void => done(undefined)
-    const timer = setTimeout(stop, 10_000)
-    signal.addEventListener("abort", stop, { once: true })
-    if (signal.aborted) return stop()
-    element.addEventListener("error", () => done(undefined))
-    element.addEventListener("loadedmetadata", () => {
-      // A moment in, past a fade from black, where the video is long enough.
-      element.currentTime = Math.min(1, (element.duration || 0) / 10)
-    })
-    element.addEventListener("seeked", () => {
-      const { videoWidth: width, videoHeight: height } = element
-      if (!width || !height) return done(undefined)
-      const canvas = document.createElement("canvas")
-      canvas.width = Math.min(frameWidth, width)
-      canvas.height = Math.round((canvas.width * height) / width)
-      canvas.getContext("2d")?.drawImage(element, 0, 0, canvas.width, canvas.height)
-      canvas.toBlob(
-        (picture) =>
-          done(
-            picture && Number.isFinite(element.duration)
-              ? { picture, duration: element.duration }
-              : undefined,
-          ),
-        "image/jpeg",
-        0.72,
-      )
-    })
-    element.src = url
-  })
-
-// Reads a file of the folder and makes its picture: an image is itself, a video its first
-// frame. `read` is the backend's part read for it; undefined where it can't be drawn (too
-// large, unreadable, changed while it was read: the grid shows the kind's icon).
+// Reads a file of the folder and makes its picture with what its kind registered (see
+// ./entry-thumbs): kept by `key`, with its length where it has one. Undefined where it can't be
+// drawn or it was stopped: the grid shows the kind's icon. `read` is the backend's part read of it.
 export const loadThumb = async ({
   key,
   kind,
@@ -203,28 +129,19 @@ export const loadThumb = async ({
   signal,
 }: {
   readonly key: string
-  readonly kind: "image" | "video"
+  readonly kind: FolderEntryKind
   readonly name: string
   readonly size: number
   readonly read: (offset: number) => Promise<FilePart>
   readonly signal: AbortSignal
 }): Promise<Thumb | undefined> => {
-  const loaded = await loadParts({
-    read,
-    size,
-    mime: kind === "image" ? mimeOfImage(name) : "video/mp4",
-    signal,
-    progress: () => {},
-  })
-  if (loaded.state !== "ready") return undefined
-  if (kind === "image") {
-    const thumb = { url: URL.createObjectURL(loaded.blob), duration: undefined }
-    keep(key, thumb)
-    return thumb
-  }
-  const frame = await frameOf(loaded.blob, signal)
-  if (!frame || signal.aborted) return undefined
-  const thumb = { url: URL.createObjectURL(frame.picture), duration: frame.duration }
+  const render = entryThumbRenderer(kind)
+  if (!render) return undefined
+  const made = await render({ name, size, read: (offset) => read(offset) }, box, signal).catch(
+    () => null,
+  )
+  if (!made || signal.aborted) return undefined
+  const thumb = { url: URL.createObjectURL(made.blob), duration: made.duration }
   keep(key, thumb)
   return thumb
 }

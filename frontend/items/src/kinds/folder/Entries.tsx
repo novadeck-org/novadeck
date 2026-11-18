@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { createElement, useEffect, useRef, useState } from "react"
 
+import { entryThumbRenderer } from "./entry-thumbs"
 import {
   countText,
   durationText,
@@ -23,7 +24,6 @@ import {
   kindText,
   modifiedText,
   sizeShort,
-  videoFrameBytes,
 } from "./model"
 import { createQueue, holdThumb, keptThumb, loadThumb, type Thumb } from "./thumbs"
 
@@ -66,14 +66,10 @@ export const heldText = (entry: FolderEntry): string | undefined =>
       ? `${entry.name} may hold secrets, so Novadeck doesn't open it from here.`
       : undefined
 
-// What an entry's picture is made of, if it has one: an image the pane reads in a part, or a video
-// small enough to be read whole for its first frame.
-const pictureOf = (entry: FolderEntry): "image" | "video" | undefined => {
-  if (entry.secret || entry.link || entry.stamp === "") return undefined
-  if (entry.kind === "image" && entry.size <= 2 * 1024 * 1024) return "image"
-  if (entry.kind === "video" && entry.size <= videoFrameBytes) return "video"
-  return undefined
-}
+// Whether an entry has a picture to draw: what its kind registered draws it (see ./entry-thumbs),
+// unless it is held back, or has no stamp to be read by.
+const hasPicture = (entry: FolderEntry): boolean =>
+  !entry.secret && !entry.link && entry.stamp !== "" && entryThumbRenderer(entry.kind) !== undefined
 
 // How far an element is from the middle of the grid it is in, as the queue measures nearness.
 const awayFromMiddle = (element: HTMLElement | null): number => {
@@ -92,7 +88,7 @@ const useThumb = (
   element: React.RefObject<HTMLElement | null>,
 ): Thumb | undefined => {
   const path = intoFolder(within, entry.name)
-  const kind = reader ? pictureOf(entry) : undefined
+  const kind = reader && hasPicture(entry) ? entry.kind : undefined
   const key = `${itemId}:${path}:${entry.stamp}`
   const [thumb, setThumb] = useState<Thumb | undefined>(() => (kind ? keptThumb(key) : undefined))
   const [near, setNear] = useState(typeof IntersectionObserver === "undefined")
