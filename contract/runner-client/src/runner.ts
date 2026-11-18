@@ -628,7 +628,7 @@ export type Runner = {
      * An item's file from `offset`, up to `partBytes` bytes, for a kind read in parts (a
      * video, a recording), while it is as
      * `stamp` names it; `changed` when it is not. Rejects with `NOT_FOUND` for an unknown
-     * item or one that is no video.
+     * item or one of a kind not read in parts.
      */
     part(input: {
       readonly itemId: string

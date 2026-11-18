@@ -30,6 +30,8 @@ export type SampleArtifact = {
     readonly delay?: number
     // Why it can't be read, once the first part is: instead of its parts.
     readonly reason?: Extract<FilePart, { state: "unavailable" }>["reason"]
+    // Its read fails, as when the link to the runner drops: the first part asked for rejects.
+    readonly fails?: true
   }
 }
 
@@ -432,6 +434,11 @@ export const videoSamples = {
     content: videoContent(clipSize),
     video: { read: clip, reason: "unreadable" },
   },
+  failing: {
+    item: videoItem("studio-dropped", "dropped.webm", "640 × 360 WebM"),
+    content: videoContent(clipSize),
+    video: { read: clip, fails: true },
+  },
   broken: {
     item: videoItem("studio-broken", "broken.webm", "Not a video"),
     content: videoContent(garbage.length),
@@ -506,6 +513,11 @@ export const recordingSamples = {
     item: recordingItem("studio-locked-voice", "locked.mp3", "MP3"),
     content: recordingContent(recordingSize),
     video: { read: recording, reason: "unreadable" },
+  },
+  failing: {
+    item: recordingItem("studio-dropped-voice", "dropped.mp3", "MP3"),
+    content: recordingContent(recordingSize),
+    video: { read: recording, fails: true },
   },
   broken: {
     item: recordingItem("studio-broken-voice", "broken.mp3", "Not a recording"),

@@ -265,7 +265,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       pageTrouble: (input) =>
         note(`page trouble ${input.itemId}`, () => runner.companions.pageTrouble(input)),
       part: (input) =>
-        note(`video part ${input.itemId} ${input.offset}`, () => runner.companions.part(input)),
+        note(`part ${input.itemId} ${input.offset}`, () => runner.companions.part(input)),
       looks: () => runner.companions.looks(),
       answerLook: (answer) =>
         note(`answer look ${answer.lookId}`, () => runner.companions.answerLook(answer)),

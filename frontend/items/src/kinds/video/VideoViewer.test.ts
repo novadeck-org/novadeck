@@ -549,6 +549,28 @@ describe("a video beside a terminal", () => {
       expect(element().currentTime).toBe(14)
     })
 
+    it("starts a new render at the second its show names, not the file before it", async () => {
+      const { element, show, ready } = await shown({ stamp: "s1" })
+      ready(8)
+      act(() => {
+        element().currentTime = 5
+      })
+      const before = element().getAttribute("src")
+      show({ shown: 2, at: 12 }, "s2", [6, 7, 8])
+      // The file before plays on where it is while the new one is read.
+      expect(element().currentTime).toBe(5)
+      await settle()
+      expect(element().getAttribute("src")).not.toBe(before)
+      ready(20)
+      expect(element().currentTime).toBe(12)
+      // Showing it again as it is leaves it where the person takes it.
+      act(() => {
+        element().currentTime = 3
+      })
+      show({ shown: 2, at: 12 }, "s2")
+      expect(element().currentTime).toBe(3)
+    })
+
     it("leaves it where it is when the show names no second", async () => {
       const { element, show, ready } = await shown()
       ready(20)

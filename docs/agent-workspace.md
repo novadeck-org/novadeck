@@ -441,8 +441,8 @@ with every safety check again at that time:
   user name or password, or is too long. Binary files are accepted and load as
   `binary`; an image over 8 MB is accepted and loads as too large to preview, which the
   answer says. A video (`.mp4`, `.m4v`, `.webm`, `.mov`, kind `video`) or an audio recording
-  (`.mp3`, `.m4a`, `.aac`, `.wav`, `.ogg`, `.oga`, `.opus`, `.flac`, kind `audio`, played as a
-  card with a waveform, not a picture) is played with the pane's own controls: its content is its format and size, never its bytes, which the UI
+  (`.mp3`, `.m4a`, `.aac`, `.wav`, `.ogg`, `.oga`, `.opus`, `.flac`, kind `audio`, played as the
+  whole pane with its name and a waveform, not a picture) is played with the pane's own controls: its content is its format and size, never its bytes, which the UI
   reads with `companions.part`, 2 MiB at a time while the file is as its stamp names it,
   and plays whole from a blob, so the desktop app, a browser and the demo play it alike.
   Rendered again, it reloads where the person was; one over 512 MB loads as too large to play. Showing the same file or page again updates the item on the agent's own

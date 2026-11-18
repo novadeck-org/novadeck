@@ -389,6 +389,7 @@ export const createShowcase = (
       if (sample.content.state === "ready" && sample.content.stamp !== stamp)
         return { state: "changed" }
       if (sample.video.reason) return { state: "unavailable", reason: sample.video.reason }
+      if (sample.video.fails) throw new Error("The link to the runner dropped")
       const bytes = await sample.video.read()
       const size = sample.video.part ?? partBytes
       if (sample.video.delay)

@@ -13,6 +13,7 @@ import { createWorkspaceStore, type WorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 import { afterEach, beforeEach, vi } from "vitest"
 
+import { blobs } from "../parts/blobs"
 import { context, describe, expect, it } from "../test"
 import { createItemStore, type PlanActions } from "./item-store"
 
@@ -855,5 +856,14 @@ describe("following items", () => {
     workspace.dispatch({ type: "item/close", target, itemId: planItem.id })
     expect(stopped).toEqual([planItem.id])
     expect(itemStore.store.getSnapshot().plans).toEqual({})
+  })
+
+  it("lets the bytes loaded for a closed item go, and only its", () => {
+    const drop = vi.spyOn(blobs, "drop")
+    const { companions } = backend()
+    const { workspace } = connected(companions)
+    workspace.dispatch({ type: "item/close", target, itemId: planItem.id })
+    expect(drop.mock.calls).toEqual([[planItem.id]])
+    drop.mockRestore()
   })
 })

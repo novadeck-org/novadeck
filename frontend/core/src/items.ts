@@ -458,8 +458,8 @@ export type Companions = {
   // An item's file from `offset`, for a kind read in parts (a video, a recording), while it
   // is as `stamp` names it (see `FilePart`). One
   // that may hold secrets is `secret` unless `reveal` is the path the item points at, as in
-  // `follow`. Rejects where the item is gone or no video. Absent where the backend can't: a
-  // video then says it can't be played here.
+  // `follow`. Rejects where the item is gone or of a kind not read in parts. Absent where the
+  // backend can't: a video or a recording then says it can't be played here.
   readonly part?: (
     target: WorkspaceTarget,
     itemId: ItemId,

@@ -9,22 +9,38 @@ export const play = (element: HTMLMediaElement): void => {
   void Promise.resolve(element.play()).catch(() => {})
 }
 
+// A show as a player has it: its count, the second it names, and whether the source playing is
+// the file it names.
+type Show = { readonly shown: number; readonly at: number | undefined; readonly current: boolean }
+
+// The second a show not yet applied (later than `started`) starts at, marking it applied, where
+// the source playing is the file it names; none where it names no second, or there is no such
+// show.
+const begin = (show: Show, started: { current: number }): number | undefined => {
+  if (!show.current || show.shown <= started.current) return undefined
+  started.current = show.shown
+  return show.at
+}
+
 // What a video or a recording player does with the element it drives, which only what it
 // draws differs in: where the element is, in what state (paused, time, length, loop, speed,
 // mute), and the handlers that keep that state as the element's. A new `src` (the file was
 // rewritten) swaps in where the old one was, playing or paused; where its item was left, its
 // time and settings, is kept for when it's shown again, and each later show of it that names
-// a second (`at`) starts it there.
+// a second (`at`) starts it there: the file that show names (`current`), not the one before,
+// which plays on while the new one is read.
 export const useMedia = <Element extends HTMLMediaElement>({
   id,
   src,
   shown,
   at,
+  current,
 }: {
   id: string
   src: string
   shown: number
   at: number | undefined
+  current: boolean
 }) => {
   const ref = useRef<Element>(null)
   const [place] = useState(() => places.get(id))
@@ -36,6 +52,11 @@ export const useMedia = <Element extends HTMLMediaElement>({
   const [muted, setMuted] = useState(place?.muted ?? false)
   // The latest show whose start was applied: the show the place was left at, or none yet.
   const started = useRef(place?.shown ?? 0)
+  // The show as it is now, for a source that knows its length later than it was set.
+  const show = useRef<Show>({ shown, at, current })
+  useEffect(() => {
+    show.current = { shown, at, current }
+  })
 
   // What it keeps for when it comes back.
   const latest = useRef<Place>({ time: place?.time ?? 0, loop, speed, muted, shown })
@@ -56,8 +77,9 @@ export const useMedia = <Element extends HTMLMediaElement>({
     const resume = swapped
       ? { time: element.currentTime, playing: !element.paused }
       : { time: place?.time ?? 0, playing: false }
+    // A show that names a second of this file starts there, else it resumes.
     const loaded = (): void => {
-      element.currentTime = within(resume.time, element.duration)
+      element.currentTime = within(begin(show.current, started) ?? resume.time, element.duration)
       if (resume.playing) play(element)
     }
     element.addEventListener("loadedmetadata", loaded, { once: true })
@@ -72,13 +94,14 @@ export const useMedia = <Element extends HTMLMediaElement>({
     element.playbackRate = speed
   }, [speed])
 
-  // A show that names a second starts there, once, when the element knows its length.
+  // A show that names a second starts there, once, where the element knows its length; one that
+  // doesn't yet (a new file is loading) starts there once it does.
   useEffect(() => {
     const element = ref.current!
-    if (duration === 0 || shown <= started.current) return
-    started.current = shown
-    if (at !== undefined) element.currentTime = within(at, element.duration)
-  }, [shown, at, duration])
+    if (Number.isNaN(element.duration)) return
+    const to = begin({ shown, at, current }, started)
+    if (to !== undefined) element.currentTime = within(to, element.duration)
+  }, [shown, at, current])
 
   useEffect(() => {
     latest.current = { ...latest.current, loop, speed, muted }

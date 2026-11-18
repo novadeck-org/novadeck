@@ -20,6 +20,7 @@ export const AudioViewer = (props: ArtifactBodyProps<"audio">): React.JSX.Elemen
         size={props.content.size}
         shown={props.content.shown}
         at={props.content.at}
+        current={stamp === props.stamp}
         onBroken={onBroken}
       />
     )}

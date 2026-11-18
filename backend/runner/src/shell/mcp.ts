@@ -194,8 +194,8 @@ const show: Tool<Shown> = {
         type: "object",
         description:
           "A file: an image (PNG, APNG, JPEG, GIF, WebP, AVIF, BMP, ICO, SVG), a video (MP4, " +
-          "WebM, MOV) or an audio recording (MP3, M4A, WAV, OGG, Opus, FLAC), which Novadeck " +
-          "plays, or a text file, and for a text file the lines to point at, or for a video or " +
+          "M4V, WebM, MOV) or an audio recording (MP3, M4A, AAC, WAV, OGG, Opus, FLAC), which " +
+          "Novadeck plays, or a text file, and for a text file the lines to point at, or for a video or " +
           "recording the second to start at.",
         properties: {
           path: {
@@ -215,6 +215,7 @@ const show: Tool<Shown> = {
           at: {
             type: "number",
             minimum: 0,
+            maximum: 86_400,
             description:
               "For a video or recording, the second to start it at, such as 12.5 for the moment you mean; " +
               "give it with each show that should start there.",

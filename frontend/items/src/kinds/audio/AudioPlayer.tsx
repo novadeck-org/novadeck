@@ -22,6 +22,7 @@ export const AudioPlayer = ({
   size,
   shown,
   at,
+  current,
   onBroken,
 }: {
   id: string
@@ -32,10 +33,12 @@ export const AudioPlayer = ({
   size: number
   shown: number
   at: number | undefined
+  // Whether `src` is the file the latest show names, not the one before it, still playing.
+  current: boolean
   // The browser can't play it: its bytes aren't a recording it can decode.
   onBroken: () => void
 }): React.JSX.Element => {
-  const media = useMedia<HTMLAudioElement>({ id, src, shown, at })
+  const media = useMedia<HTMLAudioElement>({ id, src, shown, at, current })
   const { ref, paused, time, duration, loop, speed, muted, seek, events } = media
   const peaks = usePeaks({ id, stamp, url: src, size, duration })
   // Whether the press the next click ends began on the stage itself.
