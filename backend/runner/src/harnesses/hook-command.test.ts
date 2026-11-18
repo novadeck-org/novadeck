@@ -82,6 +82,23 @@ describe("a hook command", () => {
       expect(run(dialect, command, { NOVADECK_HOOK: gone })).toEqual(fallback)
     })
 
+  it.runIf(windows)(
+    "runs the launcher, or nothing where it's gone, with the Test-Path a reviewed harness keeps",
+    ({ resources }) => {
+      const folder = mkdtempSync(join(tmpdir(), "novadeck-hook-command-"))
+      resources.defer(() => rmSync(folder, { recursive: true, force: true }))
+      const command = hookCommand("powershell", { agent: "codex", event: "Stop", reviewed: true })
+      expect(command).toContain("Test-Path")
+      expect(run("powershell", command, { NOVADECK_HOOK: launcher(folder, "hook") })).toEqual({
+        status: 0,
+        stdout: "launched codex Stop",
+      })
+      expect(run("powershell", command, { NOVADECK_HOOK: join(folder, "gone.cmd") })).toEqual(
+        nothing,
+      )
+    },
+  )
+
   for (const dialect of dialects)
     it(`prints nothing in ${dialect} without a fallback, and exits 0`, ({ resources }) => {
       const command = hookCommand(dialect, { agent: "codex", event: "Stop" })
@@ -101,13 +118,13 @@ describe("a hook command", () => {
     })
 
   it("starts cmd with /d in PowerShell, as the launcher is a batch file and a printing AutoRun would stand before its JSON", () => {
-    for (const [agent, event] of [
-      ["claude", "Stop"],
-      ["codex", "UserPromptSubmit"],
+    for (const [agent, event, reviewed, exists] of [
+      ["claude", "Stop", false, "[IO.File]::Exists($env:NOVADECK_HOOK)"],
+      ["codex", "UserPromptSubmit", true, "Test-Path -LiteralPath $env:NOVADECK_HOOK"],
     ] as const) {
-      const command = hookCommand("powershell", { agent, event })
+      const command = hookCommand("powershell", { agent, event, reviewed })
       expect(command).toBe(
-        `if ($env:NOVADECK_HOOK -and (Test-Path -LiteralPath $env:NOVADECK_HOOK)) { $l = '"' + $env:NOVADECK_HOOK + '" ${agent} ${event}'; & $(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }) /d /s /c $l }`,
+        `if ($env:NOVADECK_HOOK -and (${exists})) { $l = '"' + $env:NOVADECK_HOOK + '" ${agent} ${event}'; & $(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }) /d /s /c $l }`,
       )
       // The launcher's path stays an argument read from the environment, so a space, `&` or
       // an 8.3 name (C:\Users\RUNNER~1\...) in it is quoted by PowerShell, never spliced.

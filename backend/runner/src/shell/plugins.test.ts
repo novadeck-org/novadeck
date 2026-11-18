@@ -76,10 +76,11 @@ const runHook = (agent: AgentName, event: string, hook: string | undefined, stdi
 }
 
 // PowerShell, which runs Claude Code's and Codex's hook on Windows, starts in 0.4 s on a
-// quiet runner (probed on windows-latest). In this package's full run, beside
-// hundreds of other test files, its first Test-Path took 20 to 30 s in every case, and
-// the first of them over 45 s three times (#952, #959, #967: 75 to 78 s with its retry). A
-// hook that hangs still fails.
+// quiet runner (probed on windows-latest). In this package's full run, beside hundreds of
+// other test files, a hook that reached Test-Path took 20 to 30 s, the first of them over
+// 45 s three times (#952, #959, #967), while one that never got that far took under 1 s.
+// Claude Code's hook checks its launcher with .NET now; Codex's keeps Test-Path (see
+// hookCommand's `reviewed`). A hook that hangs still fails.
 const hookMs = windows ? 120_000 : 45_000
 
 const timedOut = (result: SpawnSyncReturns<string>) =>
@@ -89,9 +90,9 @@ const timedOut = (result: SpawnSyncReturns<string>) =>
 const events = { claude: "SessionStart", codex: "SessionStart", agy: "PreInvocation" } as const
 
 describe("agent plugin hook commands", () => {
-  // A cold Windows PowerShell's first cmdlet may take longer than the cases after it. Run
-  // once first, so the first case isn't the one to pay it; each case still takes what the
-  // load beside it lets (see hookMs).
+  // A cold Windows PowerShell's first cmdlet, as Codex's hook's Test-Path, may take longer
+  // than the cases after it. Run once first, so the first case isn't the one to pay it;
+  // each case still takes what the load beside it lets (see hookMs).
   beforeAll(() => {
     if (windows)
       spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "Test-Path ."], {
@@ -112,7 +113,7 @@ describe("agent plugin hook commands", () => {
       `if [ -x "$NOVADECK_HOOK" ]; then "$NOVADECK_HOOK" agy PreInvocation; else echo '{}'; fi`,
     )
     expect(harnesses.claude.hook("win32", "SessionStart")).toBe(
-      "if ($env:NOVADECK_HOOK -and (Test-Path -LiteralPath $env:NOVADECK_HOOK)) { $l = '\"' + $env:NOVADECK_HOOK + '\" claude SessionStart'; & $(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }) /d /s /c $l }",
+      "if ($env:NOVADECK_HOOK -and ([IO.File]::Exists($env:NOVADECK_HOOK))) { $l = '\"' + $env:NOVADECK_HOOK + '\" claude SessionStart'; & $(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }) /d /s /c $l }",
     )
     expect(harnesses.codex.hook("win32", "SessionStart")).toBe(
       "if ($env:NOVADECK_HOOK -and (Test-Path -LiteralPath $env:NOVADECK_HOOK)) { $l = '\"' + $env:NOVADECK_HOOK + '\" codex SessionStart'; & $(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }) /d /s /c $l }",

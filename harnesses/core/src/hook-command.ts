@@ -31,6 +31,11 @@ type HookCall = {
    * Without one it prints nothing there, and exits 0 whatever the launcher did.
    */
   readonly fallback?: string | undefined
+  /**
+   * Whether the harness asks the person to review its hooks again when their text changes,
+   * as Codex does: its PowerShell command keeps the `Test-Path` check it was trusted with.
+   */
+  readonly reviewed?: boolean | undefined
 }
 
 const shQuote = (value: string): string => `'${value.replaceAll("'", `'\\''`)}'`
@@ -56,7 +61,10 @@ const cmdSafe = /^[^"&|<>^%()\r\n]*$/
  *   with no runnable launcher, a broken line included, it prints nothing. Antigravity's PreToolUse needs that, as an answer that isn't JSON, or a
  *   non-zero exit, let the tool run unasked, where none left it to the person's policy.
  */
-export const hookCommand = (dialect: Dialect, { agent, event, fallback }: HookCall): string => {
+export const hookCommand = (
+  dialect: Dialect,
+  { agent, event, fallback, reviewed }: HookCall,
+): string => {
   if (!/^[A-Za-z]+$/.test(event)) throw new Error(`A hook event is a word: ${event}`)
   const run = `${agent} ${event}`
   switch (dialect) {
@@ -72,7 +80,14 @@ export const hookCommand = (dialect: Dialect, { agent, event, fallback }: HookCa
       // with a space or an `&` stays whole, as PowerShell wraps the argument in quotes itself.
       const cmd = "$(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' })"
       const line = `$l = '"' + $env:NOVADECK_HOOK + '" ${run}'; & ${cmd} /d /s /c $l`
-      const found = `if ($env:NOVADECK_HOOK -and (Test-Path -LiteralPath $env:NOVADECK_HOOK)) { ${line} }`
+      // The launcher is checked with .NET, not a cmdlet: PowerShell looks a cmdlet up first,
+      // and Test-Path's lookup took 20 to 30 s each in the runner's tests on a Windows CI
+      // runner, where a hook that never got that far took under 1 s. A harness that reviews
+      // its hooks' text keeps Test-Path, as a change would ask every person to trust it again.
+      const exists = reviewed
+        ? "Test-Path -LiteralPath $env:NOVADECK_HOOK"
+        : "[IO.File]::Exists($env:NOVADECK_HOOK)"
+      const found = `if ($env:NOVADECK_HOOK -and (${exists})) { ${line} }`
       return fallback === undefined ? found : `${found} else { ${psQuote(fallback)} }`
     }
     case "cmd": {
