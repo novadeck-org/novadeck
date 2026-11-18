@@ -1,4 +1,4 @@
-import type { DataRoot } from "./parse.js"
+import { LargeNumber, type DataRoot } from "./parse.js"
 
 // The tree as rows: which nodes show, from the roots and what's open, each a row the
 // viewer draws. Pure, so the viewer only places rows and the rules read on their own.
@@ -11,6 +11,7 @@ export type ValueType = "object" | "array" | "string" | "number" | "boolean" | "
 export const typeOf = (value: unknown): ValueType => {
   if (value === null) return "null"
   if (Array.isArray(value)) return "array"
+  if (value instanceof LargeNumber) return "number"
   const type = typeof value
   if (type === "object") return "object"
   if (type === "string" || type === "number" || type === "boolean") return type
@@ -171,11 +172,17 @@ export const pathText = (path: readonly Segment[]): string => {
 export const copyText = (value: unknown): string => {
   if (typeof value === "string") return value
   if (typeof value === "number" && !Number.isFinite(value)) return String(value)
+  if (value instanceof LargeNumber) return value.text
   // A YAML alias inside its own anchor holds itself: it copies as "[Circular]" there.
   const within: object[] = []
   const replacer = function (this: unknown, _key: string, item: unknown): unknown {
     while (within.length > 0 && within.at(-1) !== this) within.pop()
     if (typeof item !== "object" || item === null) return item
+    // As written: JSON.rawJSON where the engine has it, else as near as a number gets.
+    if (item instanceof LargeNumber)
+      return (
+        (JSON as { rawJSON?: (text: string) => unknown }).rawJSON?.(item.text) ?? Number(item.text)
+      )
     if (within.includes(item)) return "[Circular]"
     within.push(item)
     return item
@@ -185,11 +192,12 @@ export const copyText = (value: unknown): string => {
 
 /** A plain value as one line: a string in quotes with its breaks escaped, cut at `most`. */
 export const scalarText = (value: unknown, most = 400): string => {
-  const text =
-    typeof value === "string"
-      ? JSON.stringify(value.length > most ? value.slice(0, most) : value)
-      : String(value)
-  return typeof value === "string" && value.length > most ? `${text.slice(0, -1)}…"` : text
+  if (value instanceof LargeNumber) return value.text
+  if (typeof value !== "string") return String(value)
+  if (value.length <= most) return JSON.stringify(value)
+  // Never half of an emoji's pair.
+  const end = /[\uD800-\uDBFF]/.test(value[most - 1] ?? "") ? most - 1 : most
+  return `${JSON.stringify(value.slice(0, end)).slice(0, -1)}…"`
 }
 
 /** How many an object or array holds, in words: "3 keys", "1 item". */

@@ -109,6 +109,15 @@ describe("a data file's tree", () => {
       )
     })
 
+    it("sends one that stops reading well before its end to its source, where it stops", () => {
+      const lines = ["[", "  1,", "  2 3,", ...Array.from({ length: 397 }, () => "  4,")]
+      const { toSource } = shown(fileOf("big.json", lines, { total: 1000 }))
+      expect(toSource).toHaveBeenCalledWith({
+        note: expect.stringMatching(/^JSON doesn't read at line 3,/),
+        line: 3,
+      })
+    })
+
     it("shows a YAML file's start as a tree, saying it may be missing some", () => {
       const { container } = shown(fileOf("big.yaml", ["a: 1"], { truncated: true, total: null }))
       expect(container.querySelector(".tree-viewer")).not.toBeNull()

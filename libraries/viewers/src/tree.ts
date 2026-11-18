@@ -83,6 +83,8 @@ export const mountTree: Mount<TreeContent, TreeOptions> = (
   root.setAttribute("role", "tree")
   root.setAttribute("aria-label", label)
   root.tabIndex = 0
+  // Its rows' copy buttons are for the pointer; the keyboard copies with these.
+  root.setAttribute("aria-keyshortcuts", "Control+C Meta+C Control+Shift+C Meta+Shift+C")
   const space = document.createElement("div")
   space.className = "tree-space"
   root.append(space)
@@ -177,6 +179,8 @@ export const mountTree: Mount<TreeContent, TreeOptions> = (
     }
     const actions = document.createElement("span")
     actions.className = "tree-actions"
+    // Not part of the row's name: the tree's keys copy for assistive technology.
+    actions.setAttribute("aria-hidden", "true")
     actions.append(button("value", "Copy", "Copy value"), button("path", "Copy path", "Copy path"))
     line.append(actions)
     return line
@@ -239,9 +243,10 @@ export const mountTree: Mount<TreeContent, TreeOptions> = (
     layout()
   }
 
-  const copied = (target: HTMLElement): void => {
+  // Says on the button how copying went, for a moment.
+  const copied = (target: HTMLElement, done = true): void => {
     const was = target.textContent
-    target.textContent = "Copied"
+    target.textContent = done ? "Copied" : "Couldn't copy"
     target.dataset["copied"] = ""
     view?.setTimeout(() => {
       target.textContent = was
@@ -261,7 +266,10 @@ export const mountTree: Mount<TreeContent, TreeOptions> = (
     const action = (event.target as Element).closest?.("button[data-action]") as HTMLElement | null
     if (action) {
       const what = action.dataset["action"] === "path" ? "path" : "value"
-      void put(copyOf(row, what)).then(() => copied(action))
+      put(copyOf(row, what)).then(
+        () => copied(action),
+        () => copied(action, false),
+      )
       return
     }
     active = row.key
@@ -292,7 +300,8 @@ export const mountTree: Mount<TreeContent, TreeOptions> = (
       const picked = selection && !selection.isCollapsed && root.contains(selection.anchorNode)
       if (!row || picked) return
       event.preventDefault()
-      void put(copyOf(row, event.shiftKey ? "path" : "value"))
+      // Nothing to say it failed on: the keyboard's copy fails quietly, as a page's does.
+      put(copyOf(row, event.shiftKey ? "path" : "value")).catch(() => {})
       return
     }
     if (command || event.altKey) return
@@ -341,10 +350,19 @@ export const mountTree: Mount<TreeContent, TreeOptions> = (
   }
 
   // Draws again as it scrolls, as it's sized, and once a row can be measured.
+  // Reached by the keyboard, it has a row to be at, the first in sight, so focus shows.
+  const onFocus = (): void => {
+    if (active !== null || rows.length === 0) return
+    const at = Math.floor(Math.max(0, root.scrollTop - space.offsetTop) / rowHeight())
+    active = rows[Math.min(at, rows.length - 1)]!.key
+    mark()
+  }
+
   const onScroll = (): void => {
     const each = rowHeight()
     const from = Math.floor(root.scrollTop / each)
-    const to = Math.ceil((root.scrollTop + root.clientHeight) / each)
+    // Past the last row is only the tree's padding: nothing more to draw there.
+    const to = Math.min(rows.length, Math.ceil((root.scrollTop + root.clientHeight) / each))
     if (from < drawn.from || to > drawn.to) render()
   }
   const Observer = view?.ResizeObserver
@@ -358,6 +376,7 @@ export const mountTree: Mount<TreeContent, TreeOptions> = (
   root.addEventListener("scroll", onScroll, { passive: true })
   root.addEventListener("click", onClick)
   root.addEventListener("keydown", onKey)
+  root.addEventListener("focus", onFocus)
 
   measure()
   layout()
@@ -403,6 +422,7 @@ export const mountTree: Mount<TreeContent, TreeOptions> = (
       root.removeEventListener("scroll", onScroll)
       root.removeEventListener("click", onClick)
       root.removeEventListener("keydown", onKey)
+      root.removeEventListener("focus", onFocus)
       root.remove()
     },
   }

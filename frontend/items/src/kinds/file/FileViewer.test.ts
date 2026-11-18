@@ -191,6 +191,32 @@ describe("a data file", () => {
     expect(container.querySelector(".tree-viewer")).not.toBeNull()
   })
 
+  it("stays on its source when its pane is built again, as across views", async () => {
+    const content = broken()
+    const first = await show("broken-4", content)
+    expect(first.container.querySelector(".artifact-file")?.getAttribute("data-view")).toBe(
+      "source",
+    )
+    first.unmount()
+    const { container } = await show("broken-4", content)
+    expect(container.querySelector(".artifact-file")?.getAttribute("data-view")).toBe("source")
+    expect(container.querySelector(".artifact-source-note")).not.toBeNull()
+  })
+
+  it("opens a JSONL file at the record its agent pointed at", async () => {
+    const lines = Array.from({ length: 300 }, (_, at) => JSON.stringify({ at }))
+    const { container } = await show("records-1", {
+      ...fileContent("events.jsonl", lines),
+      from: 250,
+      to: 250,
+    })
+    await expect
+      .poll(
+        () => container.querySelector('.tree-row[aria-selected="true"] .tree-label')?.textContent,
+      )
+      .toBe("Line 250")
+  })
+
   it("switched back to the preview, says where it stops instead of going again", async () => {
     const { container, switcher } = await show("broken-2", broken())
     act(() => switcher()!.click())

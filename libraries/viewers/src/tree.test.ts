@@ -133,6 +133,33 @@ describe("the tree viewer", () => {
     })
   })
 
+  it("names each row by its own text, its copy buttons left out", () => {
+    const pane = paneIn()
+    mount({ roots: rootsOf('{"a":1}', "json") }, pane)
+    expect(pane.querySelector(".tree-actions")?.getAttribute("aria-hidden")).toBe("true")
+    expect(treeOf(pane).getAttribute("aria-keyshortcuts")).toContain("Control+C")
+  })
+
+  it("is at its first row in sight once the keyboard reaches it, so focus shows", () => {
+    const pane = paneIn()
+    mount({ roots: rootsOf('{"a":1,"b":2}', "json") }, pane)
+    treeOf(pane).focus()
+    expect(pane.querySelector('[aria-selected="true"] .tree-key')?.textContent).toBe("a")
+  })
+
+  it("says on the button when copying fails", async () => {
+    const pane = paneIn()
+    mountTree(pane, {
+      content: { roots: rootsOf('{"a":1}', "json") },
+      label: "data.json",
+      copy: () => Promise.reject(new Error("denied")),
+    })
+    rowNamed(pane, "a").querySelector<HTMLElement>('[data-action="value"]')!.click()
+    await expect
+      .poll(() => rowNamed(pane, "a").querySelector('[data-action="value"]')?.textContent)
+      .toBe("Couldn't copy")
+  })
+
   it("doesn't offer to expand an empty object", () => {
     const pane = paneIn()
     mount({ roots: rootsOf('{"a":{},"b":[1]}', "json") }, pane)

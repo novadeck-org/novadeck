@@ -60,6 +60,19 @@ describe("parseData", () => {
     expect(rootsOf(parseData('\uFEFF{"a":1}\n', "jsonl"))).toHaveLength(1)
   })
 
+  it("says where a file nested past the scanner's depth stops, rather than crashing", () => {
+    expect(errorOf(parseData("[".repeat(20_000), "json")).message).toBe(
+      "It's nested too deeply to say where it stops",
+    )
+  })
+
+  it("keeps an integer past a number's precision as written", () => {
+    const [root] = rootsOf(parseData('{"id": 12345678901234567890, "n": 2}', "json"))
+    const value = (root as { value: { id: { text: string }; n: number } }).value
+    expect(value.id.text).toBe("12345678901234567890")
+    expect(value.n).toBe(2)
+  })
+
   context("JSONL", () => {
     it("reads each line as a record named by its line, skipping blank ones", () => {
       const roots = rootsOf(parseData('{"n":1}\n\n[2]\n', "jsonl", { firstLine: 10 }))
