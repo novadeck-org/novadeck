@@ -224,3 +224,115 @@
   /* Its row folds the tools as a pane's does, for what a pane-reader doesn't hold. */
   container: pane-reader / inline-size;
 }
+
+/* A delimited file (CSV, TSV) as a table (`.artifact-table`): it scrolls both ways in
+   `.artifact-table-scroll` under its header, held on top; each column's name is a button that
+   sorts by it (its arrow, `data-shown` while sorted); numbers (`data-numeric`) sit right; each
+   row's line in the file leads it, muted (`.artifact-table-line`), held at the left. What it
+   shows of a long file is said under it, in `.artifact-cut`.
+   Tokens, each optional: --artifact-table-head-bg (soft), --artifact-table-rule (line), and
+   --artifact-table-hover-bg (soft): its header, its rules, and the row under the pointer. */
+.artifact-table {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.artifact-table-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  outline: none;
+}
+.artifact-table-scroll:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--color-strong);
+}
+.artifact-table table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+}
+.artifact-table :is(th, td) {
+  max-width: 32em;
+  padding: 4px 12px;
+  border-bottom: var(--border-width) solid var(--artifact-table-rule, var(--color-line));
+  text-align: left;
+  vertical-align: top;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.artifact-table :is(th, td)[data-numeric] {
+  text-align: right;
+}
+.artifact-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 0;
+  background-color: var(--artifact-table-head-bg, var(--color-soft));
+  font-weight: 600;
+  white-space: nowrap;
+}
+.artifact-table thead th button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 6px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.artifact-table thead th[data-numeric] button {
+  flex-direction: row-reverse;
+}
+.artifact-table thead th button:focus-visible {
+  outline: 2px solid var(--color-strong);
+  outline-offset: -2px;
+}
+.artifact-table thead th button svg {
+  flex: none;
+  opacity: 0;
+  color: var(--color-muted);
+}
+.artifact-table thead th button:is(:hover, :focus-visible) svg {
+  opacity: 0.6;
+}
+.artifact-table thead th button svg[data-shown] {
+  opacity: 1;
+  color: var(--color-ink);
+}
+.artifact-table .artifact-table-line {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: 1px;
+  padding-right: 10px;
+  background-color: var(--pane-bg, var(--color-paper));
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  font-weight: normal;
+  text-align: right;
+  white-space: nowrap;
+}
+.artifact-table thead .artifact-table-line {
+  z-index: 3;
+  padding: 6px 10px 6px 12px;
+  background-color: var(--artifact-table-head-bg, var(--color-soft));
+}
+.artifact-table tbody tr:hover :is(td, th) {
+  background-color: var(--artifact-table-hover-bg, var(--color-soft));
+}
+.artifact-table-empty {
+  margin: 0;
+  padding: 16px 14px;
+  color: var(--color-muted);
+  font-size: var(--text-control);
+}
