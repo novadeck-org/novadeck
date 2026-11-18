@@ -1726,7 +1726,7 @@ one from an earlier runner.
     disk now and again each time it changes, until the item is deleted; an unknown item
     is `NOT_FOUND`. It is `ready`, with a `stamp` that changes with it, or `unavailable`
     with a reason and the file's size where known: `missing`, `unreadable`, `not-a-file`,
-    `too-large` (an image over 8 MiB, a video over 512 MiB, a PDF over 128 MiB), `binary` (a NUL byte in its first 8 KiB), `secret`
+    `too-large` (an image over 8 MiB, a video over 512 MiB, a PDF over 128 MiB, a 3D model over 256 MiB), `binary` (a NUL byte in its first 8 KiB), `secret`
     (a file that may hold secrets, unless `reveal` is the path the item points at: the
     person's yes is to a file, so an item re-pointed to another reads `secret` again and, pointed
     back, revealed again), or `gone` (a plan no longer there).
@@ -1734,10 +1734,27 @@ one from an earlier runner.
     `shown`, its item's version, which each show raises and which loads it afresh, and the
     `scroll` that show gave, a CSS selector to bring into view once it has loaded. A video is
     its `mime` and `size`, with `shown` and the `at` its latest show gave; a PDF its `size`.
-    Neither carries its bytes, which `companions.part({ itemId, stamp, offset, reveal? })`
+    A 3D model (`model`: a `.glb`, `.gltf`, `.stl`, `.obj`, `.ply` or `.3mf` file; an `.obj` with
+    a NUL byte in its first 8 KiB is a compiled object file, and a file as before) is its
+    `format`, its `size` and the files beside it that it names: `files`, each `name` as the model
+    writes it, with its `size` and `stamp`, and `refused`, each `name` with why it isn't read:
+    `external` (a scheme, a drive or a leading `/` or `\`), `outside` (a path out of the
+    model's folder, by `..` or a symlink), `missing`, `not-a-file`, `secret`, `too-large` or
+    `unreadable`. A glTF names its `buffers` and `images` (their `uri`s, percent-decoded to
+    read), a GLB the same from its JSON chunk only, an OBJ its `mtllib` files and, from each,
+    the textures three.js's MTLLoader would ask for (named from the library's folder as
+    `folder/name`); an STL, PLY or 3MF names none. A `data:` name is embedded and not listed.
+    Names are paths from the model's real folder, subfolders included, listed once each, at
+    most 64 (`modelLimits.files`), and together with the model at most 256 MiB
+    (`modelLimits.bytes`), the first to pass it `too-large`. A file beside a model is never
+    revealed: one that may hold secrets is `secret` whatever `reveal` says.
+    None of them carries its bytes, which `companions.part({ itemId, stamp, offset, reveal?, file? })`
     reads, 2 MiB (`partBytes`) as base64 from `offset`, while the file is as the content's
     `stamp` names it (else `changed`, or `unavailable` with `missing`, `unreadable`,
-    `not-a-file`, `too-large` or `secret` as above); an item of another kind is `NOT_FOUND`. A text
+    `not-a-file`, `too-large` or `secret` as above); an item of another kind is `NOT_FOUND`.
+    With `file`, a model's, it reads that file beside the model, by its name in the content's
+    `files`, as its own `stamp` names it; an item that is no model, or a `file` its content
+    doesn't list for the model as it is now, is `NOT_FOUND`. A text
     file is the lines around those pointed at, read to the last of them and up to 4 MiB
     more to count the rest: `total` once it reached the file's end, else `truncated`;
     lines past the end are pulled back to it and marked `clamped`. A plan is its text, cut

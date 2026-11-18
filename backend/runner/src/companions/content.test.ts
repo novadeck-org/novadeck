@@ -21,13 +21,14 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import { companionLimits, partBytes, pdfLimits, videoLimits } from "@novadeck/protocol"
+import { companionLimits, modelLimits, partBytes, pdfLimits, videoLimits } from "@novadeck/protocol"
 
 import { describe, expect, it as base } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
 import {
   captureWindow,
   loadFile,
+  loadModel,
   loadPlan,
   loadPdf,
   loadPlayed,
@@ -644,6 +645,381 @@ describe("a PDF as it loads", () => {
       state: "unavailable",
       reason: "too-large",
     })
+  })
+})
+
+const modelAt = (path: string) => ({ path, secret: false })
+
+// What a model's content lists and refuses, by name.
+const named = async (path: string) => {
+  const loaded = await loadModel(modelAt(path), false)
+  if (loaded.state !== "ready" || loaded.content.kind !== "model") return loaded
+  return {
+    files: loaded.content.files.map((listed) => listed.name),
+    refused: Object.fromEntries(loaded.content.refused.map(({ name, reason }) => [name, reason])),
+  }
+}
+
+const gltf = (uris: readonly (string | undefined)[], images: readonly string[] = []) =>
+  JSON.stringify({
+    asset: { version: "2.0" },
+    buffers: uris.map((uri) => ({ byteLength: 4, ...(uri !== undefined && { uri }) })),
+    images: images.map((uri) => ({ uri })),
+  })
+
+const glb = (json: string, length = Buffer.byteLength(json)) => {
+  const head = Buffer.alloc(20)
+  head.write("glTF", 0, "latin1")
+  head.writeUInt32LE(2, 4)
+  head.writeUInt32LE(20 + Buffer.byteLength(json), 8)
+  head.writeUInt32LE(length, 12)
+  head.writeUInt32LE(0x4e4f534a, 16)
+  return Buffer.concat([head, Buffer.from(json)])
+}
+
+describe("a 3D model as it loads", () => {
+  it("is shown as a model by its extension, whatever its case", async ({ directory }) => {
+    for (const name of ["a.glb", "b.GLTF", "c.stl", "d.obj", "e.Ply", "f.3mf"]) {
+      writeFileSync(join(directory, name), "model")
+      // eslint-disable-next-line no-await-in-loop -- One file after another.
+      await expect(pointAt(name, directory)).resolves.toMatchObject({ ok: true, kind: "model" })
+    }
+  })
+
+  it("is not a model when an .obj holds a NUL byte at its start, as a compiled object does", async ({
+    directory,
+  }) => {
+    writeFileSync(join(directory, "main.obj"), Buffer.from([0x4c, 0x01, 0x00, 0x00, 0x2e]))
+    await expect(pointAt("main.obj", directory)).resolves.toMatchObject({ kind: "file" })
+    writeFileSync(join(directory, "cube.obj"), "v 0 0 0\n")
+    await expect(pointAt("cube.obj", directory)).resolves.toMatchObject({ kind: "model" })
+    // Only the start is read: a NUL later in the file is a model's own business.
+    writeFileSync(
+      join(directory, "late.obj"),
+      Buffer.concat([Buffer.alloc(9000, 0x76), Buffer.alloc(1)]),
+    )
+    await expect(pointAt("late.obj", directory)).resolves.toMatchObject({ kind: "model" })
+  })
+
+  it("is its format, size and the model file's stamp, listing nothing for a format that names none", async ({
+    directory,
+  }) => {
+    const path = join(directory, "part.stl")
+    writeFileSync(path, "solid part")
+    const loaded = await loadModel(modelAt(path), false)
+    expect(loaded).toEqual({
+      state: "ready",
+      stamp: expect.any(String),
+      content: { kind: "model", format: "stl", size: 10, files: [], refused: [] },
+    })
+    writeFileSync(path, "solid part, written again")
+    expect(await loadModel(modelAt(path), false)).not.toEqual(loaded)
+  })
+
+  it("says why it can't show: missing, a folder, secret unless revealed, too large", async ({
+    directory,
+  }) => {
+    await expect(loadModel(modelAt(join(directory, "gone.glb")), false)).resolves.toEqual({
+      state: "unavailable",
+      reason: "missing",
+      size: null,
+    })
+    mkdirSync(join(directory, "folder.glb"))
+    await expect(loadModel(modelAt(join(directory, "folder.glb")), false)).resolves.toMatchObject({
+      reason: "not-a-file",
+    })
+    const held = join(directory, "held.stl")
+    writeFileSync(held, "solid")
+    await expect(loadModel({ path: held, secret: true }, false)).resolves.toEqual({
+      state: "unavailable",
+      reason: "secret",
+      size: 5,
+    })
+    await expect(loadModel({ path: held, secret: true }, true)).resolves.toMatchObject({
+      state: "ready",
+    })
+    const big = join(directory, "big.stl")
+    sparse(big, modelLimits.bytes + 1)
+    await expect(loadModel(modelAt(big), false)).resolves.toEqual({
+      state: "unavailable",
+      reason: "too-large",
+      size: modelLimits.bytes + 1,
+    })
+  })
+
+  it("lists the buffers and images a glTF names, under the names it writes", async ({
+    directory,
+  }) => {
+    mkdirSync(join(directory, "tex"))
+    writeFileSync(join(directory, "scene.bin"), "bin!")
+    writeFileSync(join(directory, "tex", "wood.png"), png)
+    writeFileSync(join(directory, "my skin.png"), png)
+    writeFileSync(
+      join(directory, "scene.gltf"),
+      gltf(
+        ["scene.bin", "data:application/octet-stream;base64,AAAA", undefined],
+        ["tex/wood.png", "my%20skin.png", "scene.bin"],
+      ),
+    )
+    const loaded = await loadModel(modelAt(join(directory, "scene.gltf")), false)
+    expect(loaded).toMatchObject({
+      state: "ready",
+      content: {
+        kind: "model",
+        format: "gltf",
+        files: [
+          { name: "scene.bin", size: 4, stamp: expect.any(String) },
+          { name: "tex/wood.png", size: png.length, stamp: expect.any(String) },
+          { name: "my%20skin.png", size: png.length, stamp: expect.any(String) },
+        ],
+        refused: [],
+      },
+    })
+  })
+
+  it("refuses a name that is external, outside its folder, missing, a folder or secret", async ({
+    directory,
+  }) => {
+    const model = join(directory, "model")
+    const elsewhere = join(directory, "elsewhere")
+    mkdirSync(join(model, "dir"), { recursive: true })
+    mkdirSync(elsewhere)
+    writeFileSync(join(directory, "up.bin"), "up")
+    writeFileSync(join(elsewhere, "far.png"), png)
+    symlinkSync(join(elsewhere, "far.png"), join(model, "link.png"))
+    symlinkSync(elsewhere, join(model, "linked"))
+    writeFileSync(join(model, ".env"), "TOKEN=x\n")
+    writeFileSync(join(model, "id_rsa"), "key")
+    writeFileSync(
+      join(model, "scene.gltf"),
+      gltf([
+        "https://example.com/a.bin",
+        "file:///etc/passwd",
+        "/etc/passwd",
+        "\\share\\a.bin",
+        "C:\\a.bin",
+        "../up.bin",
+        "link.png",
+        "linked/far.png",
+        "nothing.bin",
+        "dir",
+        ".env",
+        "id_rsa",
+      ]),
+    )
+    await expect(named(join(model, "scene.gltf"))).resolves.toEqual({
+      files: [],
+      refused: {
+        "https://example.com/a.bin": "external",
+        "file:///etc/passwd": "external",
+        "/etc/passwd": "external",
+        "\\share\\a.bin": "external",
+        "C:\\a.bin": "external",
+        "../up.bin": "outside",
+        "link.png": "outside",
+        "linked/far.png": "outside",
+        "nothing.bin": "missing",
+        dir: "not-a-file",
+        ".env": "secret",
+        id_rsa: "secret",
+      },
+    })
+  })
+
+  it("reads a name it is given as a path from the model's real folder, symlinks resolved", async ({
+    directory,
+  }) => {
+    mkdirSync(join(directory, "real"))
+    writeFileSync(join(directory, "real", "a.bin"), "a")
+    symlinkSync(join(directory, "real"), join(directory, "link"))
+    writeFileSync(join(directory, "real", "m.gltf"), gltf(["a.bin"]))
+    await expect(named(join(directory, "link", "m.gltf"))).resolves.toEqual({
+      files: ["a.bin"],
+      refused: {},
+    })
+  })
+
+  it("lists the files up to the bytes it takes, in all, and refuses the rest too large", async ({
+    directory,
+  }) => {
+    writeFileSync(join(directory, "a.bin"), "a")
+    sparse(join(directory, "b.bin"), modelLimits.bytes - 10)
+    writeFileSync(join(directory, "c.bin"), "c")
+    writeFileSync(join(directory, "m.gltf"), gltf(["a.bin", "b.bin", "c.bin"]))
+    // The model is some 80 bytes: b.bin leaves too little room, and c.bin fits.
+    await expect(named(join(directory, "m.gltf"))).resolves.toEqual({
+      files: ["a.bin", "c.bin"],
+      refused: { "b.bin": "too-large" },
+    })
+  })
+
+  it("names each file once, and no more than the cap", async ({ directory }) => {
+    const uris = Array.from({ length: modelLimits.files + 10 }, (_, index) => `${index}.bin`)
+    for (const uri of uris) writeFileSync(join(directory, uri), "x")
+    writeFileSync(join(directory, "m.gltf"), gltf([...uris, "0.bin", "1.bin"]))
+    const listed = await named(join(directory, "m.gltf"))
+    expect(listed).toMatchObject({ files: uris.slice(0, modelLimits.files), refused: {} })
+  })
+
+  it("reads a GLB's names from its JSON chunk only", async ({ directory }) => {
+    writeFileSync(join(directory, "a.bin"), "a")
+    writeFileSync(join(directory, "a.png"), png)
+    writeFileSync(
+      join(directory, "scene.glb"),
+      Buffer.concat([glb(gltf(["a.bin"], ["a.png"])), Buffer.alloc(1024, 0x41)]),
+    )
+    await expect(named(join(directory, "scene.glb"))).resolves.toEqual({
+      files: ["a.bin", "a.png"],
+      refused: {},
+    })
+  })
+
+  it("names nothing from a GLB whose header or chunk doesn't hold up, and never reads past it", async ({
+    directory,
+  }) => {
+    writeFileSync(join(directory, "a.bin"), "a")
+    const json = gltf(["a.bin"])
+    // A length past the file's end, and one that is 4 GiB: the file's own end is the limit.
+    writeFileSync(join(directory, "long.glb"), glb(json, Buffer.byteLength(json) + 100))
+    writeFileSync(join(directory, "huge.glb"), glb(json, 0xffffffff))
+    // A length that cuts the JSON short, and one that is no JSON chunk or no GLB.
+    writeFileSync(join(directory, "short.glb"), glb(json, 10))
+    const bad = glb(json)
+    bad.writeUInt32LE(0x004e4942, 16)
+    writeFileSync(join(directory, "binary.glb"), bad)
+    writeFileSync(join(directory, "plain.glb"), "not a glb at all, not even close")
+    writeFileSync(join(directory, "tiny.glb"), "glTF")
+    for (const name of ["long", "huge"])
+      // eslint-disable-next-line no-await-in-loop -- One file after another.
+      await expect(named(join(directory, `${name}.glb`))).resolves.toEqual({
+        files: ["a.bin"],
+        refused: {},
+      })
+    for (const name of ["short", "binary", "plain", "tiny"])
+      // eslint-disable-next-line no-await-in-loop -- One file after another.
+      await expect(named(join(directory, `${name}.glb`))).resolves.toEqual({
+        files: [],
+        refused: {},
+      })
+  })
+
+  it("lists an OBJ's material libraries, each name as the rest of its line", async ({
+    directory,
+  }) => {
+    writeFileSync(join(directory, "a.mtl"), "newmtl a\n")
+    writeFileSync(join(directory, "my materials.mtl"), "newmtl b\n")
+    writeFileSync(join(directory, "gone.mtl"), "newmtl c\n")
+    unlinkSync(join(directory, "gone.mtl"))
+    writeFileSync(
+      join(directory, "m.obj"),
+      "# cube\r\nv 0 0 0\r\nmtllib a.mtl\r\n  mtllib   my materials.mtl  \r\nmtllib gone.mtl\nmtllib\nmtllib a.mtl\n",
+    )
+    await expect(named(join(directory, "m.obj"))).resolves.toEqual({
+      files: ["a.mtl", "my materials.mtl"],
+      refused: { "gone.mtl": "missing" },
+    })
+  })
+
+  it("lists the textures a material library names, as three.js's loader parses them", async ({
+    directory,
+  }) => {
+    mkdirSync(join(directory, "maps"))
+    for (const name of [
+      "plain.png",
+      "scaled.png",
+      "with space.png",
+      "bump.png",
+      "shifted.png",
+      "alpha.png",
+      "n.png",
+      "spec.png",
+      "emit.png",
+      "last.png",
+    ])
+      writeFileSync(join(directory, name), png)
+    writeFileSync(join(directory, "maps", "far.png"), png)
+    writeFileSync(
+      join(directory, "m.mtl"),
+      [
+        "# materials",
+        "newmtl one",
+        "Kd 1 1 1",
+        "map_Kd plain.png",
+        "map_Ks -s 1 1 1 scaled.png",
+        "map_Ke with space.png",
+        "map_bump -bm 0.5 bump.png",
+        "bump ignored.png",
+        "disp -mm 0 1 -o 0 0 0 shifted.png",
+        "map_d   alpha.png  ",
+        "norm n.png",
+        // Not read as a texture by MTLLoader 0.187.
+        "map_Ka ambient.png",
+        "map_Ns shine.png",
+        "refl -type sphere reflect.png",
+        "newmtl two",
+        "map_Kd first.png",
+        "MAP_KD last.png",
+        "map_Ks maps/far.png",
+        "map_Ke emit.png",
+        "newmtl three",
+        "map_Ks",
+        "newmtl dup",
+        "map_Kd never.png",
+        "newmtl dup",
+        "map_Kd spec.png",
+        "",
+      ].join("\r\n"),
+    )
+    writeFileSync(join(directory, "m.obj"), "mtllib m.mtl\n")
+    // A material takes its last line of a key and the first of a kind of map, and a later
+    // material of the same name replaces the one before.
+    await expect(named(join(directory, "m.obj"))).resolves.toEqual({
+      files: [
+        "m.mtl",
+        "plain.png",
+        "scaled.png",
+        "with space.png",
+        "bump.png",
+        "shifted.png",
+        "alpha.png",
+        "n.png",
+        "last.png",
+        "maps/far.png",
+        "emit.png",
+        "spec.png",
+      ],
+      refused: {},
+    })
+  })
+
+  it("names a library's textures from its own folder, and refuses the ones that leave the model's", async ({
+    directory,
+  }) => {
+    mkdirSync(join(directory, "mat"))
+    writeFileSync(join(directory, "mat", "a.png"), png)
+    writeFileSync(join(directory, "a.png"), png)
+    writeFileSync(
+      join(directory, "mat", "m.mtl"),
+      "newmtl a\nmap_Kd a.png\nmap_Ks ../a.png\nmap_Ke ../../b.png\nmap_d https://x.test/a.png\n",
+    )
+    writeFileSync(join(directory, "m.obj"), "mtllib mat/m.mtl\n")
+    await expect(named(join(directory, "m.obj"))).resolves.toEqual({
+      files: ["mat/m.mtl", "mat/a.png", "mat/../a.png"],
+      refused: { "mat/../../b.png": "outside", "https://x.test/a.png": "external" },
+    })
+  })
+})
+
+describe("a part of a model", () => {
+  it("is read up to the model's own limit", async ({ directory }) => {
+    expect(partsOf.model).toBe(modelLimits.bytes)
+    const path = join(directory, "part.stl")
+    writeFileSync(path, "solid part")
+    const loaded = await loadModel(modelAt(path), false)
+    const stamp = loaded.state === "ready" ? loaded.stamp : ""
+    await expect(
+      readPart({ ...modelAt(path) }, { stamp, offset: 0 }, false, partsOf.model!),
+    ).resolves.toEqual({ state: "part", data: Buffer.from("solid part").toString("base64") })
   })
 })
 

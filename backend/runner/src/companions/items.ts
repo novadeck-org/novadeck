@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { realpath } from "node:fs/promises"
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { PlanSource } from "@novadeck/harness-core/events"
@@ -8,6 +8,7 @@ import {
   companionLimits,
   onThisMachine,
   pageKey,
+  modelLimits,
   pdfLimits,
   titleFrom,
   videoLimits,
@@ -38,11 +39,14 @@ import { displayed, repositoryOf, samePlace, worktreeBranch } from "./changes.js
 import {
   hashOf,
   loadFile,
+  discoverModel,
+  type ModelLoad,
   loadPdf,
   loadPlan,
   loadPlayed,
   maxImageBytes,
   pageAt,
+  modelStamp,
   partsOf,
   planTitle,
   pointAt,
@@ -326,6 +330,11 @@ export class CompanionItems {
     string,
     { readonly version: number; readonly scroll?: string; readonly at?: number }
   >()
+  /**
+   * The files each model item's content lists, with the model's stamp then, so a part by name
+   * is read from what was listed; only for a model that isn't held, as a revealed one isn't kept.
+   */
+  private readonly modelFiles = new Map<string, ModelLoad>()
   /** Agents' looks at pages, on their way to the client. */
   private readonly looks = new PageLooks()
   private readonly lookMs: number
@@ -1264,7 +1273,8 @@ export class CompanionItems {
         (pointed.kind === "image" && pointed.size > maxImageBytes) ||
         ((pointed.kind === "video" || pointed.kind === "audio") &&
           pointed.size > videoLimits.bytes) ||
-        (pointed.kind === "pdf" && pointed.size > pdfLimits.bytes),
+        (pointed.kind === "pdf" && pointed.size > pdfLimits.bytes) ||
+        (pointed.kind === "model" && pointed.size > modelLimits.bytes),
       pointer: this.filePointer(pointed, path, place.cwd, place.project, {
         ...(request.title !== undefined && { title: request.title }),
         ...(lines && { lines }),
@@ -1349,7 +1359,7 @@ export class CompanionItems {
 
   /**
    * How a file is described: an image, a video, a recording or a PDF by its size and format,
-   * a text file by its path and lines.
+   * a 3D model by its format and size, a text file by its path and lines.
    */
   private detail(
     pointed: Pointed,
@@ -1366,6 +1376,8 @@ export class CompanionItems {
       const format = pointed.path.split(".").at(-1)!.toUpperCase().replace("JPG", "JPEG")
       return `${size(pointed.size)} ${format}`
     }
+    if (pointed.kind === "model")
+      return `${extname(pointed.path).slice(1).toUpperCase()}, ${size(pointed.size)}`
     const shown = project && inside(project, pointed.path) ? relative(project, pointed.path) : given
     const range = lines ? ` · lines ${lines.from}–${lines.to}` : ""
     return `${tail(shown, companionLimits.detail - range.length)}${range}`
@@ -1592,13 +1604,45 @@ export class CompanionItems {
     readonly stamp: string
     readonly offset: number
     readonly reveal?: string | undefined
+    readonly file?: string | undefined
   }): Promise<FilePart> {
     if (this.stopping) throw new DomainError("CLOSING")
     const item = this.item(input.itemId)
     const largest = partsOf[item.kind]
     if (largest === undefined) throw new DomainError("NOT_FOUND", "That item isn't read in parts")
     const reveal = input.reveal !== undefined && input.reveal === item.path
+    if (input.file !== undefined) {
+      const beside =
+        item.kind === "model" ? await this.modelFile(item, input.file, reveal) : undefined
+      if (!beside) throw new DomainError("NOT_FOUND", "That file isn't one the model names")
+      // Never shown when it may hold secrets, as the model's own reveal doesn't reach it.
+      return readPart(
+        { path: beside.path, secret: false },
+        input,
+        false,
+        largest,
+        this.environment(),
+      )
+    }
     return readPart(item, input, reveal, largest, this.environment())
+  }
+
+  /**
+   * A file a model's content lists, by its name there: kept while the model is as it was when
+   * it was read, and read again once it isn't, or when a name isn't there.
+   */
+  private async modelFile(
+    item: ItemRecord,
+    name: string,
+    reveal: boolean,
+  ): Promise<{ readonly path: string } | undefined> {
+    const kept = this.modelFiles.get(item.id)
+    if (kept?.content.state === "ready" && kept.content.stamp === (await modelStamp(item)))
+      return kept.files.get(name)
+    const model = await discoverModel(item, reveal, this.environment())
+    if (model.content.state !== "ready") return undefined
+    if (!reveal) this.modelFiles.set(item.id, model)
+    return model.files.get(name)
   }
 
   /**
@@ -1642,6 +1686,11 @@ export class CompanionItems {
     if (item.kind === "video" || item.kind === "audio")
       return loadPlayed(item, reveal, { shown: item.version, at: cued?.at }, this.environment())
     if (item.kind === "pdf") return loadPdf(item, reveal, this.environment())
+    if (item.kind === "model")
+      return discoverModel(item, reveal, this.environment()).then((model) => {
+        if (model.content.state === "ready" && !reveal) this.modelFiles.set(item.id, model)
+        return model.content
+      })
     return loadFile(item, reveal, this.environment())
   }
 
@@ -1651,6 +1700,7 @@ export class CompanionItems {
 
   private removed(item: ItemRecord, window: WindowRecord | undefined): void {
     this.cues.delete(item.id)
+    this.modelFiles.delete(item.id)
     this.sink?.gone(item)
     for (const reader of this.readers.get(item.id) ?? []) reader.abort()
     this.emit(

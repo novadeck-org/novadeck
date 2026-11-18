@@ -20,6 +20,7 @@ import {
   type CompanionChange,
   type ItemContent,
   type PageTrouble,
+  modelLimits,
   pdfLimits,
 } from "@novadeck/protocol"
 
@@ -1200,6 +1201,116 @@ describe("an item's content", () => {
         offset: 0,
       }),
     ).resolves.toEqual({ state: "unavailable", reason: "secret" })
+  })
+
+  it("shows a 3D model by its format and size, and reads the files it names by name", async ({
+    fixture,
+  }) => {
+    const folder = fixture.directory
+    writeFileSync(join(folder, "scene.bin"), "binary")
+    writeFileSync(join(folder, ".env"), "TOKEN=x\n")
+    writeFileSync(join(folder, "other.txt"), "not named")
+    writeFileSync(
+      join(folder, "scene.gltf"),
+      JSON.stringify({ buffers: [{ uri: "scene.bin" }, { uri: ".env" }] }),
+    )
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "scene.gltf" } })
+    expect(shown).toMatchObject({ ok: true, kind: "model", name: "scene.gltf" })
+    expect(shown).not.toHaveProperty("tooLarge")
+    const itemId = shown.ok ? shown.id : ""
+    expect(fixture.items.list(fixture.sessionId).items).toEqual([
+      expect.objectContaining({ id: itemId, kind: "model", detail: "GLTF, 48 B" }),
+    ])
+    const loaded = await fixture.items.load(itemId, false)
+    expect(itemContent.parse(loaded)).toEqual(loaded)
+    expect(loaded).toMatchObject({
+      state: "ready",
+      content: {
+        kind: "model",
+        format: "gltf",
+        files: [{ name: "scene.bin", size: 6 }],
+        refused: [{ name: ".env", reason: "secret" }],
+      },
+    })
+    const content =
+      loaded.state === "ready" && loaded.content.kind === "model" ? loaded.content : null
+    const stamp = loaded.state === "ready" ? loaded.stamp : ""
+    const bin = content!.files[0]!
+    // The model's own bytes, and a file it names, as that file's stamp names it.
+    await expect(fixture.items.part({ itemId, stamp, offset: 0 })).resolves.toMatchObject({
+      state: "part",
+    })
+    await expect(
+      fixture.items.part({ itemId, stamp: bin.stamp, offset: 0, file: "scene.bin" }),
+    ).resolves.toEqual({ state: "part", data: Buffer.from("binary").toString("base64") })
+    await expect(
+      fixture.items.part({ itemId, stamp: bin.stamp, offset: 2, file: "scene.bin" }),
+    ).resolves.toEqual({ state: "part", data: Buffer.from("nary").toString("base64") })
+    // A file it doesn't list is not one it names, a secret one among them.
+    for (const file of ["other.txt", ".env", "../x", "scene.gltf"])
+      // eslint-disable-next-line no-await-in-loop -- One file after another.
+      await expect(fixture.items.part({ itemId, stamp, offset: 0, file })).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      })
+    // Changed since it was listed: its stamp no longer names it.
+    writeFileSync(join(folder, "scene.bin"), "binary, written again")
+    await expect(
+      fixture.items.part({ itemId, stamp: bin.stamp, offset: 0, file: "scene.bin" }),
+    ).resolves.toEqual({ state: "changed" })
+  })
+
+  it("lists what a model names as its file is now, once it is written again", async ({
+    fixture,
+  }) => {
+    const folder = fixture.directory
+    writeFileSync(join(folder, "a.bin"), "a")
+    writeFileSync(join(folder, "b.bin"), "b")
+    writeFileSync(join(folder, "scene.gltf"), JSON.stringify({ buffers: [{ uri: "a.bin" }] }))
+    const shown = await fixture.items.show(fixture.terminal("moth"), {
+      file: { path: "scene.gltf" },
+    })
+    const itemId = shown.ok ? shown.id : ""
+    await fixture.items.load(itemId, false)
+    writeFileSync(
+      join(folder, "scene.gltf"),
+      JSON.stringify({ buffers: [{ uri: "a.bin" }, { uri: "b.bin" }] }),
+    )
+    const b = await fixture.items.load(itemId, false)
+    const listed = b.state === "ready" && b.content.kind === "model" ? b.content.files : []
+    expect(listed.map((file) => file.name)).toEqual(["a.bin", "b.bin"])
+    await expect(
+      fixture.items.part({ itemId, stamp: listed[1]!.stamp, offset: 0, file: "b.bin" }),
+    ).resolves.toEqual({ state: "part", data: Buffer.from("b").toString("base64") })
+  })
+
+  it("refuses a part by file of an item that is no model", async ({ fixture }) => {
+    writeFileSync(join(fixture.directory, "report.pdf"), "%PDF-1.4")
+    writeFileSync(join(fixture.directory, "note.txt"), "hi")
+    const moth = fixture.terminal("moth")
+    for (const path of ["report.pdf", "note.txt"]) {
+      // eslint-disable-next-line no-await-in-loop -- One file after another.
+      const shown = await fixture.items.show(moth, { file: { path } })
+      const itemId = shown.ok ? shown.id : ""
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await expect(
+        fixture.items.part({ itemId, stamp: "x", offset: 0, file: path }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    }
+  })
+
+  it("lists a model past what the pane takes by its name, and says so", async ({ fixture }) => {
+    const path = join(fixture.directory, "huge.stl")
+    const handle = openSync(path, "w")
+    ftruncateSync(handle, modelLimits.bytes + 1)
+    closeSync(handle)
+    const shown = await fixture.items.show(fixture.terminal("moth"), { file: { path: "huge.stl" } })
+    expect(shown).toMatchObject({ ok: true, kind: "model", tooLarge: true })
+    await expect(fixture.items.load(shown.ok ? shown.id : "", false)).resolves.toEqual({
+      state: "unavailable",
+      reason: "too-large",
+      size: modelLimits.bytes + 1,
+    })
   })
 
   it("lists a PDF past what the pane takes by its name, and says so", async ({ fixture }) => {
