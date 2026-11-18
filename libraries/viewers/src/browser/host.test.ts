@@ -623,18 +623,21 @@ describe("the requests of a page view that fail", () => {
     expect(told).toEqual([[3, { url: "http://localhost/a", status: 0, what: "script" }]])
   })
 
-  it("leave out a part of the page that missed the cache, which Chromium then fetches", () => {
-    const { told, errored, completed } = watched()
-    const font = { url: "http://localhost/fonts/Inter.woff2", resourceType: "font" }
-    errored("net::ERR_CACHE_MISS", font)
-    completed(200, font)
+  it("leave out a part of the page that missed the cache, as a font Chromium then fetches", () => {
+    const { told, errored } = watched()
+    for (const resourceType of ["font", "xhr", "image", "script"])
+      errored("net::ERR_CACHE_MISS", { resourceType })
     expect(told).toEqual([])
   })
 
-  it("include a page's own document that missed the cache", () => {
+  it("include a document that missed the cache, the page's own or a frame's", () => {
     const { told, errored } = watched()
+    errored("net::ERR_CACHE_MISS", { url: "http://localhost/posted", resourceType: "subFrame" })
     errored("net::ERR_CACHE_MISS", { url: "http://localhost/form", resourceType: "mainFrame" })
-    expect(told).toEqual([[3, { url: "http://localhost/form", status: 0, what: "page" }]])
+    expect(told).toEqual([
+      [3, { url: "http://localhost/posted", status: 0, what: "frame" }],
+      [3, { url: "http://localhost/form", status: 0, what: "page" }],
+    ])
   })
 
   it("are named as a viewer names them", () => {
