@@ -11,12 +11,18 @@ export const PreviewToolsSetter = createContext<((tools: readonly PaneTool[]) =>
 )
 
 // What sets the row apart from one drawn before: a tool's handler is new each draw, and
-// isn't.
+// isn't; its icon is, by name.
 const looksOf = (tools: readonly PaneTool[]): string =>
-  JSON.stringify(tools.map(({ onClick: _onClick, icon: _icon, ...rest }) => rest))
+  JSON.stringify(
+    tools.map(({ onClick: _onClick, icon, ...rest }) => ({
+      ...rest,
+      icon: icon.displayName ?? icon.name,
+    })),
+  )
 
 // The preview's tools, in the row while it shows. Each draw may pass new handlers: the row
-// calls the latest.
+// calls the latest. A preview calls it once, from one component: the row holds one list of
+// its tools, which the last call sets and its unmount clears.
 export const usePreviewTools = (tools: readonly PaneTool[]): void => {
   const set = useContext(PreviewToolsSetter)
   const latest = useRef(tools)

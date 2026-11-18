@@ -59,8 +59,9 @@ export const switchKey = {
   text: mac ? "⌘⇧V" : "Ctrl+Shift+V",
 }
 
+// By the letter it types, so it's the V the tooltip names on every layout.
 const isSwitchKey = (event: KeyboardEvent): boolean =>
-  event.code === "KeyV" &&
+  event.key.toLowerCase() === "v" &&
   event.shiftKey &&
   !event.altKey &&
   (mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)
@@ -68,7 +69,8 @@ const isSwitchKey = (event: KeyboardEvent): boolean =>
 // A file of a type with a preview: the preview first, or its source as the person last
 // switched it for this item and file, with the switch in the pane's row after the preview's
 // own tools. The file takes focus from a click anywhere in it, so its key works from there,
-// and keeps it as it switches, so the key switches it back.
+// and keeps it as it switches, so the key switches it back: a region named for the file and
+// what it shows now, ringed when the keyboard moved focus there. A key held down switches once.
 const PreviewedFile = ({
   item,
   content,
@@ -92,11 +94,14 @@ const PreviewedFile = ({
       data-file-preview={preview.name}
       data-view={view}
       tabIndex={-1}
+      role="region"
+      aria-label={`${item.name}, ${source ? "source" : "preview"}`}
       // The row's switch is drawn in the row, but its keys come here as from inside.
       onKeyDown={(event) => {
         if (!isSwitchKey(event)) return
         event.preventDefault()
         event.stopPropagation()
+        if (event.repeat) return
         // What has focus may be the view going away.
         if (holder.current?.contains(document.activeElement))
           holder.current.focus({ preventScroll: true })

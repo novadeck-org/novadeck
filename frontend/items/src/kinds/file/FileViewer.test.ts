@@ -6,6 +6,7 @@ import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
+import { PaneChrome } from "../../pane-row"
 import { registry } from "../../registry"
 import { createItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
@@ -27,8 +28,9 @@ const fileContent = (path: string, lines: readonly string[]): FileContent => ({
   truncated: false,
 })
 
-// The file kind's pane body for item `id`, showing `content`.
-const show = async (id: string, content: FileContent) => {
+// The file kind's pane body for item `id`, showing `content`: alone, or, `inRow`, under the
+// pane's row, where its tools are drawn.
+const show = async (id: string, content: FileContent, { inRow = false } = {}) => {
   const item = itemFixture(id, "01", { kind: "file", name: content.path, path: content.path })
   const loaded: ItemContent = { state: "ready", stamp: "1", content }
   const companions: Companions = {
@@ -44,7 +46,8 @@ const show = async (id: string, content: FileContent) => {
   )
   const itemStore = createItemStore({ companions, workspace })
   const disconnect = itemStore.connect()
-  const rendered = render(createElement(registry.file.View, { item, itemStore, target }))
+  const body = createElement(registry.file.View, { item, itemStore, target })
+  const rendered = render(inRow ? createElement(PaneChrome, { renderRow: () => null }, body) : body)
   const unmount = (): void => {
     rendered.unmount()
     disconnect()
@@ -109,6 +112,55 @@ describe("a file with a preview", () => {
     expect(file.contains(document.activeElement)).toBe(true)
     act(() => void press())
     expect(file.getAttribute("data-view")).toBe("source")
+  })
+
+  context("under the pane's row, where its switch is drawn", () => {
+    const mac = /Mac|iPhone|iPad/.test(navigator.platform)
+    const key = (repeat = false) =>
+      new KeyboardEvent("keydown", {
+        key: "V",
+        shiftKey: true,
+        ctrlKey: !mac,
+        metaKey: mac,
+        repeat,
+        bubbles: true,
+        cancelable: true,
+      })
+
+    it("draws the switch in the row, which switches the file below it", async () => {
+      const { container, switcher } = await show("row-1", readme, { inRow: true })
+      expect(switcher()?.closest(".pane-row")).not.toBeNull()
+      expect(switcher()?.closest(".artifact-file")).toBeNull()
+      act(() => switcher()!.click())
+      expect(container.querySelector(".artifact-file")?.getAttribute("data-view")).toBe("source")
+    })
+
+    it("switches on the key pressed on the switch, which keeps focus", async () => {
+      const { container, switcher } = await show("row-2", readme, { inRow: true })
+      act(() => switcher()!.focus())
+      act(() => void switcher()!.dispatchEvent(key()))
+      expect(container.querySelector(".artifact-file")?.getAttribute("data-view")).toBe("source")
+      expect(document.activeElement).toBe(switcher())
+    })
+
+    it("switches once for a key held down", async () => {
+      const { container } = await show("row-3", readme, { inRow: true })
+      const file = container.querySelector<HTMLElement>(".artifact-file")!
+      act(() => file.focus())
+      act(() => void file.dispatchEvent(key()))
+      act(() => void file.dispatchEvent(key(true)))
+      act(() => void file.dispatchEvent(key(true)))
+      expect(file.getAttribute("data-view")).toBe("source")
+    })
+
+    it("names the file, and what it shows now, to assistive technology", async () => {
+      const { container, switcher } = await show("row-4", readme, { inRow: true })
+      const file = () => container.querySelector(".artifact-file")!
+      expect(file().getAttribute("role")).toBe("region")
+      expect(file().getAttribute("aria-label")).toBe("docs/README.md, preview")
+      act(() => switcher()!.click())
+      expect(file().getAttribute("aria-label")).toBe("docs/README.md, source")
+    })
   })
 
   context("when its pane is built again", () => {
