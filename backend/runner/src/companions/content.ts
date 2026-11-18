@@ -7,6 +7,7 @@ import { StringDecoder } from "node:string_decoder"
 import type { PlanSource } from "@novadeck/harness-core/events"
 import {
   companionLimits,
+  isDataPath,
   type AgentName,
   type ItemContent,
   type PlanSaveResult,
@@ -255,10 +256,47 @@ const readLines = async (
 }
 
 /**
+ * A data file's lines from its start, read as its preview reads it, as a whole: every line
+ * whole, as many as `companionLimits.data` holds; `ended` once that's all of them. A line
+ * the limit stops inside is left out, unless it's the first, which comes cut short, so the
+ * file shows something. A NUL byte near its start makes it binary.
+ */
+const readWhole = async (
+  handle: FileHandle,
+): Promise<{ lines: string[]; ended: boolean } | "binary"> => {
+  const { bytes, more } = await readUpTo(handle, companionLimits.data)
+  if (bytes.subarray(0, sniffBytes).includes(0)) return "binary"
+  // A character the limit cuts through decodes as a replacement, on a line left out.
+  const lines = bytes.toString("utf8").split(/\r\n|\r|\n/)
+  if (!more) {
+    // The line a final newline ends is the last; an empty file has one empty line.
+    if (lines.length > 1 && lines.at(-1) === "") lines.pop()
+    return { lines, ended: true }
+  }
+  if (lines.length > 1) lines.pop()
+  return { lines, ended: false }
+}
+
+/** The lines pointed at, pulled back to the `count` lines there are, and whether they were. */
+const pointedAt = (
+  count: number,
+  lines: { readonly from: number; readonly to: number } | null | undefined,
+): { from: number; to: number; clamped: boolean } => {
+  const from = Math.max(1, Math.min(lines?.from ?? 1, count))
+  const to = Math.max(from, Math.min(lines?.to ?? count, count))
+  return {
+    from,
+    to,
+    clamped: lines !== null && lines !== undefined && (from !== lines.from || to !== lines.to),
+  }
+}
+
+/**
  * An image or a text file, as it is now, symlinks resolved. One that may hold secrets is
  * `secret` unless `reveal`; an image past the preview limit is `too-large`; a text file
  * with a NUL byte near its start is `binary`. A text file is read up to a budget, then
- * shown around its lines.
+ * shown around its lines; a data file (`isDataPath`), as a whole from its start, up to
+ * its own budget.
  */
 export const loadFile = async (
   item: Pick<ItemRecord, "kind" | "path" | "lines" | "secret">,
@@ -292,6 +330,28 @@ export const loadFile = async (
         state: "ready",
         stamp,
         content: { kind: "image", src: `data:${mime};base64,${bytes.toString("base64")}` },
+      }
+    }
+    if (isDataPath(path)) {
+      const whole = await readWhole(handle)
+      if (whole === "binary") return unavailable("binary", stats.size)
+      const { lines, ended } = whole
+      const pointed = pointedAt(lines.length, item.lines)
+      return {
+        state: "ready",
+        stamp,
+        content: {
+          kind: "file",
+          path: tail(path, companionLimits.path),
+          firstLine: 1,
+          lines,
+          from: pointed.from,
+          to: pointed.to,
+          total: ended ? lines.length : null,
+          truncated: !ended,
+          // Only lines past the file's end are pulled back, never those past what was read.
+          clamped: ended && pointed.clamped,
+        },
       }
     }
     const read = await readLines(handle, item.lines)

@@ -340,6 +340,71 @@ describe("a text file as it loads", () => {
   })
 })
 
+describe("a data file as it loads", () => {
+  const contentOf = async (path: string, lines?: { from: number; to: number }) => {
+    const loaded = await loadFile(file(path, lines ? { lines } : {}), false)
+    if (loaded.state !== "ready" || loaded.content.kind !== "file") throw new Error("not loaded")
+    return loaded.content
+  }
+
+  it("is read whole from its start, its long lines uncut, whatever lines were pointed at", async ({
+    directory,
+  }) => {
+    const path = join(directory, "rollout.jsonl")
+    const long = JSON.stringify({ text: "x".repeat(20_000) })
+    writeFileSync(path, `${long}\n${numbered(1000)}`)
+    const content = await contentOf(path, { from: 500, to: 510 })
+    expect(content).toMatchObject({
+      firstLine: 1,
+      from: 500,
+      to: 510,
+      total: 1001,
+      truncated: false,
+    })
+    expect(content.lines[0]).toBe(long)
+    expect(content.lines).toHaveLength(1001)
+  })
+
+  it("stops at its budget on a whole line, its line count then unknown", async ({ directory }) => {
+    const path = join(directory, "big.csv")
+    const row = `${"a".repeat(1023)}\r\n`
+    writeFileSync(path, row.repeat(3 * 1024))
+    const content = await contentOf(path)
+    expect(content).toMatchObject({ firstLine: 1, total: null, truncated: true, clamped: false })
+    expect(content.lines.every((line) => line === "a".repeat(1023))).toBe(true)
+    expect(content.lines.length * 1025).toBeLessThanOrEqual(companionLimits.data)
+    expect((content.lines.length + 1) * 1025).toBeGreaterThan(companionLimits.data)
+  })
+
+  it("keeps a first line past its budget, cut short, so it shows something", async ({
+    directory,
+  }) => {
+    const path = join(directory, "min.json")
+    writeFileSync(path, `[${'"x",'.repeat(companionLimits.data / 4)}"x"]`)
+    const content = await contentOf(path)
+    expect(content).toMatchObject({ total: null, truncated: true })
+    expect(content.lines).toHaveLength(1)
+    expect(content.lines[0]).toHaveLength(companionLimits.data)
+  })
+
+  it("pulls lines pointed at past its end back to it, and reads a NUL as binary", async ({
+    directory,
+  }) => {
+    const path = join(directory, "ci.yml")
+    writeFileSync(path, "a: 1\nb: 2\n")
+    await expect(contentOf(path, { from: 2, to: 9 })).resolves.toMatchObject({
+      lines: ["a: 1", "b: 2"],
+      from: 2,
+      to: 2,
+      total: 2,
+      clamped: true,
+    })
+    const binary = join(directory, "blob.json")
+    writeFileSync(binary, Buffer.from([0x7b, 0, 0x7d]))
+    await expect(loadFile(file(binary), false)).resolves.toMatchObject({ reason: "binary" })
+  })
+})
+
 describe("an image as it loads", () => {
   it("is a data URL of its type, up to the preview limit", async ({ directory }) => {
     const path = join(directory, "dot.png")
