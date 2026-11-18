@@ -1,25 +1,22 @@
 /* The artifact recipe: the viewers for what an agent shows beside its terminal
-   (`.artifact-viewer`), each under a header (`.artifact-meta`): an image on a checker
+   (`.artifact-viewer`), under the pane's row (see pane.css), which holds its title, tools and
+   buttons: an image on a checker
    (`.artifact-image`, holding the image viewer, @novadeck/viewers/image.css, its zoom a
    chip over it); a file's lines (`.artifact-code`, holding the code viewer,
    @novadeck/viewers/code.css); a page in a browser frame
-   (`.artifact-browser`, its bar `.artifact-browser-bar` with `.icon-button`s, its
-   address `.artifact-url` and a link to open it, `.artifact-open`, and the page in
-   `.artifact-page-frame`, holding the browser viewer, with `.artifact-page-failed`
-   over it when it didn't load); and a markdown document, which the prose recipe formats.
-   The header holds what it shows and what's known about it (`.artifact-meta-info`, its
-   name `.artifact-meta-name`, or `.artifact-meta-path` for a path), then what's at its end.
+   (`.artifact-browser`, with the page in `.artifact-page-frame`, holding the browser viewer,
+   with `.artifact-page-failed` over it when it didn't load, and `.artifact-open`, a small
+   link or button in a notice or on a page that didn't load); and a markdown document, which
+   the prose recipe formats.
    `.artifact-status` says when there's nothing to show yet; `.artifact-unavailable`
    says why something can't show, over `.artifact-unavailable-actions`, what can be done
-   about it. `.artifact-actions` holds what the place showing it offers, as
-   `.icon-button`s; `.artifact-window` fills a window of its own.
+   about it. `.artifact-actions` holds what the place showing it offers at the row's end,
+   as `.icon-button`s; `.artifact-window` fills a window of its own.
 
    Hooks: data-live on a page that loads live, data-document on a viewer holding a
    markdown document, and data-reason on what can't show.
 
    Tokens, each optional (its fallback in brackets):
-   --artifact-meta-fg (muted), --artifact-meta-border-color (line),
-   --artifact-meta-code-fg (ink): the header, and its name or path.
    --artifact-status-fg (muted): what says there's nothing to show yet.
    --artifact-unavailable-fg (muted): what says why something can't show.
    --artifact-image-image (a checker of soft and paper),
@@ -29,11 +26,8 @@
    --artifact-code-number-fg (muted), --artifact-code-pointed-bg (soft): a file's line
    numbers, and the lines the agent pointed at, as the code viewer's --code-number-fg and
    --code-emphasis-bg.
-   --artifact-browser-bg (shell), --artifact-browser-border-color (line): a page's bar.
-   --artifact-url-bg (paper), --artifact-url-border-color (line), --artifact-url-fg
-   (ink): its address.
    --artifact-open-fg (muted), --artifact-open-hover-bg (soft),
-   --artifact-open-hover-fg (ink): the link that opens it in the browser.
+   --artifact-open-hover-fg (ink): the small link or button.
    --artifact-webview-bg (paper): behind a live page until it paints, and its resting
    picture; pages assume a white ground, so a theme sets it to the page's white rather
    than its own paper.
@@ -79,8 +73,8 @@
   justify-content: center;
   gap: 4px;
 }
-/* Each viewer's header stays while what's under it scrolls: an image in its checker, a
-   file's lines, a page under its bar, a markdown document in its reader. */
+/* The row stays while what's under it scrolls: an image in its checker, a file's lines, a
+   page, a markdown document in its reader. */
 .artifact-viewer {
   display: flex;
   flex: 1;
@@ -88,52 +82,7 @@
   min-height: 0;
   overflow: hidden;
 }
-/* Each line of the header is as tall as the controls it may hold, so a header is one
-   height with them or without, and what sits at its end stays put: on its first line,
-   however long what it shows is named, while what's known about it wraps beside them. */
-.artifact-meta {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 8px 14px;
-  border-bottom: var(--border-width) solid var(--artifact-meta-border-color, var(--color-line));
-  font-size: var(--text-control);
-  line-height: 22px;
-  color: var(--artifact-meta-fg, var(--color-muted));
-}
-.artifact-meta code {
-  font-family: var(--font-mono);
-  font-size: var(--text-control);
-  font-weight: normal;
-  font-style: normal;
-  line-height: normal;
-  color: var(--artifact-meta-code-fg, var(--color-ink));
-}
-.artifact-meta-info {
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px 12px;
-  min-width: 0;
-}
-/* Nothing in it runs under what's at the header's end. */
-.artifact-meta-info > * {
-  max-width: 100%;
-}
-/* What it shows, too long for the header, gives up its end, or a path its start, so its
-   file's name stays. */
-.artifact-meta-name {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.artifact-meta-path {
-  direction: rtl;
-}
-/* What the place showing an artifact offers for it, at the end of the viewer's header:
-   centred on the header's first line, and as tall as it. */
+/* What the place showing an artifact offers for it, at the end of the row. */
 .artifact-actions {
   display: flex;
   flex-shrink: 0;
@@ -184,37 +133,6 @@
   flex: 1;
   flex-direction: column;
   min-height: 0;
-}
-.artifact-browser-bar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
-  border-bottom: var(--border-width) solid var(--artifact-browser-border-color, var(--color-line));
-  background-color: var(--artifact-browser-bg, var(--color-shell));
-}
-.artifact-browser-bar > .icon-button {
-  width: 26px;
-  height: 26px;
-  padding: 0;
-}
-.artifact-url {
-  flex: 1;
-  min-width: 0;
-  margin-left: 4px;
-  padding: 3px 12px;
-  overflow: hidden;
-  border: var(--border-width) solid var(--artifact-url-border-color, var(--color-line));
-  border-radius: var(--radius-control);
-  background-color: var(--artifact-url-bg, var(--color-paper));
-  color: var(--artifact-url-fg, var(--color-ink));
-  font-family: var(--font-mono);
-  font-size: var(--text-control);
-  font-weight: normal;
-  font-style: normal;
-  line-height: normal;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .artifact-open {
   --_bg: transparent;

@@ -2,15 +2,13 @@ import { pageTroublesPerCall, type PageContent } from "@novadeck/core/items"
 import { pageSights } from "@novadeck/core/items/page-sights"
 import { pagesPartition } from "@novadeck/core/items/pages"
 import { useShown } from "@novadeck/toolkit/shown"
-import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { mountBrowser, type Load, type Place, type Trouble } from "@novadeck/viewers/browser"
-import { ArrowLeft, ArrowRight, RotateCw, Smartphone } from "lucide-react"
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { ArrowLeft, ArrowRight, ExternalLink, RotateCw, Smartphone } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import type { ArtifactBodyProps } from "../../ArtifactViewer"
 import { useAwake } from "../../awake"
-import { OpenInBrowser } from "../../OpenInBrowser"
-import { UnderHeaderSlot } from "../../under-header"
+import { PaneTools, type PaneTool } from "../../pane-row"
 import { useViewerSlot } from "../../ViewerSlot"
 
 /** Whether two addresses share an origin: scheme, host and port. */
@@ -68,6 +66,14 @@ const useTroubles = (tell: Tell): ((trouble: Trouble, shown: number) => void) =>
   return batch.collect
 }
 
+// Opens the page in the person's browser, never in the pane.
+const openTool = (url: string): PaneTool => ({
+  key: "open",
+  icon: ExternalLink,
+  label: "Open in browser",
+  href: url,
+})
+
 // A page in the browser viewer: live where the app can load it, else its snapshot.
 // Where its viewer was, by item, is kept: where the person had taken it, and the picture
 // of it a live page rests as while the pane sleeps, which costs nothing to draw.
@@ -75,14 +81,12 @@ const ShownPage = ({
   id,
   content: page,
   trouble,
-  actions,
   picture,
   phone,
 }: {
   id: string
   content: PageContent
   trouble: ArtifactBodyProps<"page">["trouble"]
-  actions: ReactNode
   picture:
     | ((page: number, width?: number, forLook?: boolean) => Promise<string | undefined>)
     | undefined
@@ -165,48 +169,38 @@ const ShownPage = ({
       data-live={page.live || undefined}
       aria-busy={load === "loading"}
     >
-      <div className="artifact-browser-bar">
-        {page.live && (
-          <>
-            <button
-              className="icon-button"
-              aria-label="Back"
-              disabled={!place.back}
-              onClick={() => viewer?.back()}
-            >
-              <ArrowLeft size={14} />
-            </button>
-            <button
-              className="icon-button"
-              aria-label="Forward"
-              disabled={!place.forward}
-              onClick={() => viewer?.forward()}
-            >
-              <ArrowRight size={14} />
-            </button>
-            <button className="icon-button" aria-label="Reload" onClick={() => viewer?.reload()}>
-              <RotateCw size={14} />
-            </button>
-          </>
-        )}
-        <span className="artifact-url">{place.url}</span>
-        {page.live && (
-          <Tooltip content={size === "phone" ? "Back to desktop size" : "Show at phone size"}>
-            <button
-              type="button"
-              className="icon-button"
-              aria-label="Phone size"
-              aria-pressed={size === "phone"}
-              onClick={switchSize}
-            >
-              <Smartphone size={14} aria-hidden />
-            </button>
-          </Tooltip>
-        )}
-        <OpenInBrowser url={place.url} />
-        {actions}
-      </div>
-      <UnderHeaderSlot />
+      <PaneTools
+        tools={[
+          ...(page.live
+            ? [
+                {
+                  key: "back",
+                  icon: ArrowLeft,
+                  label: "Back",
+                  disabled: !place.back,
+                  onClick: () => viewer?.back(),
+                },
+                {
+                  key: "forward",
+                  icon: ArrowRight,
+                  label: "Forward",
+                  disabled: !place.forward,
+                  onClick: () => viewer?.forward(),
+                },
+                { key: "reload", icon: RotateCw, label: "Reload", onClick: () => viewer?.reload() },
+                {
+                  key: "phone",
+                  icon: Smartphone,
+                  label: "Phone size",
+                  tip: size === "phone" ? "Back to desktop size" : "Show at phone size",
+                  pressed: size === "phone",
+                  onClick: switchSize,
+                },
+              ]
+            : []),
+          openTool(place.url),
+        ]}
+      />
       <div className="artifact-page-frame">
         <div ref={ref} className="artifact-page-view" />
         {load === "failed" && (
@@ -228,7 +222,6 @@ const ShownPage = ({
 export const PageViewer = ({
   item,
   content: page,
-  actions,
   itemStore,
   trouble,
 }: ArtifactBodyProps<"page">): React.JSX.Element =>
@@ -239,18 +232,12 @@ export const PageViewer = ({
       id={item.id}
       content={page}
       trouble={trouble}
-      actions={actions}
       picture={itemStore.picture}
       phone={itemStore.phone}
     />
   ) : (
     <div className="artifact-browser">
-      <div className="artifact-browser-bar">
-        <span className="artifact-url">{page.url}</span>
-        <OpenInBrowser url={page.url} />
-        {actions}
-      </div>
-      <UnderHeaderSlot />
+      <PaneTools tools={[openTool(page.url)]} />
       <div className="artifact-status">This page opens in your browser.</div>
     </div>
   )

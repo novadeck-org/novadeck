@@ -2,7 +2,7 @@ import type { Item, FileContent } from "@novadeck/core/items"
 import { mountCode, type CodeContent } from "@novadeck/viewers/code"
 import { useMemo } from "react"
 
-import { ArtifactMeta, MetaPath, type ArtifactBodyProps } from "../../ArtifactViewer"
+import type { ArtifactBodyProps } from "../../ArtifactViewer"
 import { OutlineThumb } from "../../document/OutlineThumb"
 import { useViewerSlot } from "../../ViewerSlot"
 import { DocumentViewer } from "./DocumentViewer"
@@ -14,8 +14,7 @@ import { isMarkdown } from "./markdown"
 const CodeViewer = ({
   id,
   content: artifact,
-  actions,
-}: Pick<ArtifactBodyProps<"file">, "actions" | "content"> & {
+}: Pick<ArtifactBodyProps<"file">, "content"> & {
   id: Item["id"]
 }): React.JSX.Element => {
   const content = useMemo(
@@ -35,29 +34,27 @@ const CodeViewer = ({
   })
   return (
     <>
-      <ArtifactMeta actions={actions}>
-        <MetaPath path={artifact.path} />
-        <span>
-          lines {artifact.from}–{artifact.to} · read-only
-        </span>
-        {artifact.clamped && <span>The file ends at line {artifact.to}.</span>}
-        {artifact.truncated && <span>It's long, so only its start is shown.</span>}
-      </ArtifactMeta>
       <div ref={code} className="artifact-code" />
+      {(artifact.clamped || artifact.truncated) && (
+        <p className="artifact-cut">
+          {[
+            artifact.clamped && `The file ends at line ${artifact.to}.`,
+            artifact.truncated && "It's long, so only its start is shown.",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        </p>
+      )}
     </>
   )
 }
 
 // A file: Markdown reads as a document, formatted; anything else as code.
-export const FileViewer = ({
-  item,
-  content,
-  actions,
-}: ArtifactBodyProps<"file">): React.JSX.Element =>
+export const FileViewer = ({ item, content }: ArtifactBodyProps<"file">): React.JSX.Element =>
   isMarkdown(content.path) ? (
-    <DocumentViewer id={item.id} name={item.name} content={content} actions={actions} />
+    <DocumentViewer id={item.id} name={item.name} content={content} />
   ) : (
-    <CodeViewer id={item.id} content={content} actions={actions} />
+    <CodeViewer id={item.id} content={content} />
   )
 
 // The lines the agent pointed at, from the first one on.

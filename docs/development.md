@@ -716,7 +716,7 @@ App:
   the selected terminal's worktree, or the project's first (one is made if it has none): the row's
   detail line ends in its state's glyph and "#812" beside its trash button, a link to the pull request's page,
   and the work's changes item (in the showcase with "On, with Worktrees", select its row) has
-  "PR #812" in its header, which opens the page in the browser.
+  a "#812" chip in its row, which opens the page in the browser.
 - **Guides:** "Toggle icon guides" draws a dashed box over every icon (`svg.lucide`) and a
   dashed line through its middle, 20 px past each side, both 1 px and half see-through
   (`--icon-guide-color` changes them), for checking how icons line up with their text;

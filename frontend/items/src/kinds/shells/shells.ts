@@ -15,19 +15,6 @@ export const orderedShells = (shells: readonly ShellEntry[]): readonly ShellEntr
     (a, b) => rank[shellStateOf(a)] - rank[shellStateOf(b)] || recency(b) - recency(a),
   )
 
-// The header's count: "2 running · 1 failed", then what ended quietly; "no shells" for none.
-export const summaryOf = (shells: readonly Pick<ShellEntry, "exit">[]): string => {
-  const states = shells.map(shellStateOf)
-  const count = (state: ShellState): number => states.filter((each) => each === state).length
-  const quiet = count("ended") + count("stopped")
-  const parts = [
-    count("running") > 0 && `${count("running")} running`,
-    count("failed") > 0 && `${count("failed")} failed`,
-    quiet > 0 && `${quiet} ended`,
-  ].filter((part): part is string => part !== false)
-  return parts.length > 0 ? parts.join(" · ") : "none now"
-}
-
 // How long a shell has run, in the largest unit that reads plainly.
 export const ageText = (ms: number): string => {
   const seconds = Math.max(0, Math.floor(ms / 1000))

@@ -143,6 +143,9 @@ export type ContextMenuProps = {
   // click on the trigger (`click`), which opens it above, ending where the trigger does, and
   // gives focus back to the trigger.
   readonly opensOn?: "context" | "click"
+  // Where a `click` menu opens from its trigger: above (the default), or below it, for a trigger
+  // at the top of a window.
+  readonly placement?: "top-end" | "bottom-end"
   // What the trigger's tooltip says while the menu is closed, for a `click` trigger. The trigger's
   // Ark data attributes are then the tooltip's: style its open state by aria-expanded.
   readonly tooltip?: string
@@ -155,6 +158,7 @@ export const ContextMenu = ({
   trigger,
   items,
   opensOn = "context",
+  placement = "top-end",
   tooltip,
   onOpenChange,
 }: ContextMenuProps): React.JSX.Element => {
@@ -181,7 +185,7 @@ export const ContextMenu = ({
       positioning={{
         strategy: "fixed",
         overflowPadding: 12,
-        ...(clicked ? { placement: "top-end", gutter: 6 } : {}),
+        ...(clicked ? { placement, gutter: 6 } : {}),
       }}
       immediate
       onOpenChange={({ open: next }) => {

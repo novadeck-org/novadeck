@@ -63,6 +63,6 @@ export const bubbles = (chat: Locator): Element[] => [
   ...chat.element().querySelectorAll(".message-bubble-row"),
 ]
 
-/** The switch that pauses all agents' messages. */
+/** The tool in the pane's row that pauses all agents' messages, pressed while they're paused. */
 export const pauseSwitch = (pane: Locator): Locator =>
-  pane.getByRole("switch", { name: "Pause all agents' messages" })
+  pane.getByRole("button", { name: "Pause all agents' messages" })

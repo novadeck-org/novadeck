@@ -57,7 +57,6 @@ const show = (
     item,
     itemStore,
     target,
-    actions: undefined,
   })
   let pane = awake
   let visible = shown
@@ -162,9 +161,10 @@ describe("a page beside a terminal", () => {
       })
       fire(pageOf(rendered.container), "did-navigate")
       rendered.show({ kind: "page", url: "https://example.com/", shown: 1, live: true })
-      expect(rendered.container.querySelector(".artifact-url")?.textContent).toBe(
-        "https://example.com/",
-      )
+      expect(
+        rendered.container.querySelector<HTMLAnchorElement>("a[aria-label='Open in browser']")
+          ?.href,
+      ).toBe("https://example.com/")
       expect((button(rendered.container, "Back") as HTMLButtonElement).disabled).toBe(true)
     })
     it("loads afresh when shown again, then brings that show's element into view", () => {
@@ -522,7 +522,10 @@ describe("a page beside a terminal", () => {
     it("says it opens in the browser, without a snapshot", () => {
       const { container } = show({ kind: "page", url, shown: 1, live: false })
       expect(container.textContent).toContain("This page opens in your browser.")
-      expect(container.querySelector(".artifact-url")?.textContent).toBe(url)
+      expect(container.querySelector(".artifact-url")).toBeNull()
+      expect(
+        container.querySelector<HTMLAnchorElement>("a[aria-label='Open in browser']")?.href,
+      ).toBe(url)
     })
   })
 })

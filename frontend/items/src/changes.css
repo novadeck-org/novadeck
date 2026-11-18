@@ -12,8 +12,8 @@
    `.changes-text`, a changed token a `.changes-tok`), a long change clipped by
    `.changes-clip` and an unchanged stretch folded by `.changes-fold`. Labels are quiet kind
    words (`.changes-word`) and names in code; an edit's tokens are `.changes-was` and
-   `.changes-now`. The header's `.changes-pull` is the work's pull request ("PR #812"), the
-   page item's own `.artifact-open` link, before the item's actions.
+   `.changes-now`. The row's `.changes-pull` is the work's pull request ("#812"), a small
+   `.artifact-open` chip before the tools.
 
    Hooks: on a layer, data-on when selected, data-start and data-end where its rail begins
    and ends (joined to the selected rows above and below), data-kind="uncommitted" |
@@ -27,17 +27,6 @@
    --changes-remove-fg (success-fg, danger-fg): its bar, sign, number and counts; a changed
    token is that ink at 24%. --changes-rail-fg (strong): the selection's rail.
    --pane-bg (paper): the ground of every view. */
-/* The link and the actions, 4px apart as on a page's bar; the 26px link on the header's 22px
-   line, centred on it. */
-.changes-head-end {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 4px;
-}
-.artifact-meta .changes-pull {
-  margin-block: -2px;
-}
 .changes-host {
   --_ground: var(--pane-bg, var(--color-paper));
   --_add: var(--changes-add-fg, var(--color-success-fg));
@@ -301,26 +290,6 @@
 .changes-now {
   color: var(--_add);
 }
-.changes-hint {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 30px;
-  padding: 0 14px;
-  border-top: var(--border-width, 1px) solid var(--color-line);
-  color: var(--color-muted);
-  font-size: var(--text-label);
-}
-.changes-hint kbd {
-  margin: 0 1px;
-  padding: 0 4px;
-  border: 1px solid var(--color-line);
-  border-radius: 3px;
-  font-family: var(--font-mono);
-  font-size: var(--text-label);
-}
-
 /* The heading a file's row grows into: plain, as a row's name is. */
 .changes-head {
   flex: none;

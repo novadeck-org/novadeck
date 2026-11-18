@@ -2,19 +2,10 @@ import { shellStateOf, type ShellState } from "@novadeck/core/agents/shells"
 import type { ShellEntry, ShellsContent } from "@novadeck/core/items"
 import { useEffect, useRef, useState } from "react"
 
-import { ArtifactMeta } from "../../ArtifactViewer"
 import { useTell, type Tell } from "../../homes/terminal/tell"
 import type { ViewProps } from "../../registration"
 import { useContent, useUnfolded } from "../../store/use-item-store"
-import {
-  missingText,
-  orderedShells,
-  plain,
-  shownLines,
-  stateText,
-  summaryOf,
-  tellText,
-} from "./shells"
+import { missingText, orderedShells, plain, shownLines, stateText, tellText } from "./shells"
 
 // A terminal's agent's background shells in the pane, each a row: how it stands, its command,
 // and the end of its output, live. One row unfolds to its whole tail while the others fold to
@@ -196,8 +187,7 @@ const Body = ({
   item,
   content,
   itemStore,
-  actions,
-}: Pick<ViewProps, "item" | "itemStore" | "actions"> & {
+}: Pick<ViewProps, "item" | "itemStore"> & {
   content: ShellsContent
 }): React.JSX.Element => {
   const tell = useTell()
@@ -207,10 +197,6 @@ const Body = ({
   const beside = unfolded !== undefined && ordered.some((shell) => shell.id === unfolded)
   return (
     <>
-      <ArtifactMeta actions={actions}>
-        <span className="shells-title">Background shells of {content.agent}</span>
-        <span>{summaryOf(ordered)}</span>
-      </ArtifactMeta>
       {ordered.length === 0 ? (
         <div className="artifact-status">{content.agent} has no background shells now.</div>
       ) : (
@@ -233,7 +219,7 @@ const Body = ({
   )
 }
 
-export const ShellsView = ({ item, itemStore, target, actions }: ViewProps): React.JSX.Element => {
+export const ShellsView = ({ item, itemStore, target }: ViewProps): React.JSX.Element => {
   const load = useContent(itemStore, target, item)
   const content = load?.state === "ready" && load.content.kind === "shells" ? load.content : null
   return (
@@ -242,7 +228,7 @@ export const ShellsView = ({ item, itemStore, target, actions }: ViewProps): Rea
       aria-busy={!content && load?.state !== "unavailable"}
     >
       {content ? (
-        <Body item={item} content={content} itemStore={itemStore} actions={actions} />
+        <Body item={item} content={content} itemStore={itemStore} />
       ) : load?.state === "unavailable" ? (
         <div className="artifact-status">The shells are gone.</div>
       ) : (

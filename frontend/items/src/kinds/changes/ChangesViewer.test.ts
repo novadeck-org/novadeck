@@ -14,6 +14,7 @@ import { Shown } from "@novadeck/toolkit/shown"
 import { act, createElement } from "react"
 import { afterEach, beforeEach } from "vitest"
 
+import { PaneChrome, type TabNote } from "../../pane-row"
 import { createItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
 import { changes as registration } from "./index"
@@ -153,8 +154,17 @@ const show = (
   const itemStore = createItemStore({ companions, workspace })
   unmounts.push(itemStore.connect())
   const pane = () => {
-    const view = createElement(registration.View, { item, itemStore, target, actions: undefined })
-    const kept = createElement(Shown, { value: shown }, view)
+    const view = createElement(registration.View, { item, itemStore, target })
+    // Under a row that says what the viewer told its tab, and holds its tools.
+    const row = createElement(
+      PaneChrome,
+      {
+        renderRow: (note: TabNote) =>
+          createElement("p", { className: "note" }, note.facts.join(" · ")),
+      },
+      view,
+    )
+    const kept = createElement(Shown, { value: shown }, row)
     return pulls ? createElement(PullRequestsContext, { value: pulls }, kept) : kept
   }
   const rendered = render(pane())
@@ -286,11 +296,11 @@ const pullRequest: PullRequest = {
 
 describe("a change beside a terminal", () => {
   context("with its work's pull request", () => {
-    it("links it in the header, as a page's Open in browser, to open in the browser", () => {
+    it("links it in the row, as a chip, to open in the browser", () => {
       const { pulls, follows } = worksWith(pullRequest)
       const { container } = show(change(), undefined, true, pulls)
-      const link = container.querySelector<HTMLAnchorElement>(".artifact-meta a.changes-pull")!
-      expect(link.textContent).toBe("PR #812")
+      const link = container.querySelector<HTMLAnchorElement>(".pane-end a.changes-pull")!
+      expect(link.textContent).toBe("#812")
       expect(link.classList.contains("artifact-open")).toBe(true)
       expect(link.href).toBe(pullRequest.url)
       expect(link.target).toBe("_blank")
@@ -327,7 +337,7 @@ describe("a change beside a terminal", () => {
       const { pulls, follows } = worksWith(pullRequest)
       const { container } = show(change(), undefined, true, pulls, false)
       // What the works said is still shown, for when it comes back into sight.
-      expect(container.querySelector("a.changes-pull")?.textContent).toBe("PR #812")
+      expect(container.querySelector("a.changes-pull")?.textContent).toBe("#812")
       expect(follows).toEqual({ asked: 0, released: 0 })
     })
 
@@ -338,7 +348,7 @@ describe("a change beside a terminal", () => {
       await turn(false)
       expect(link()).toBeNull()
       await turn(true)
-      expect(link()?.textContent).toBe("PR #812")
+      expect(link()?.textContent).toBe("#812")
     })
 
     it("links none outside the workspace, where there are no works", () => {
@@ -353,10 +363,10 @@ describe("a change beside a terminal", () => {
   })
 
   context("with layers", () => {
-    it("says how much changed in all, against main", () => {
+    it("says how much changed in all, against main, in its tab's tooltip", () => {
       const { container } = show(change())
-      expect(container.querySelector(".artifact-meta")?.textContent).toContain(
-        "4 files · +36 −7 4 re-indented · against main · read-only",
+      expect(container.querySelector(".note")?.textContent).toContain(
+        "against main · 4 files · +36 −7 4 re-indented",
       )
     })
 
@@ -451,20 +461,21 @@ describe("a change beside a terminal", () => {
       expect(rail()).toEqual(["on start", "on", "on end"])
     })
 
-    it("says what a click does in a hint at the bottom", async () => {
+    it("says what a click does on the rows themselves, not in a hint", async () => {
       const { container, click, layers } = show(change())
-      const hint = () => container.querySelector(".changes-hint")?.textContent
-      const rest = " · click a file to unfold it · double-click opens it"
-      expect(hint()).toBe(`Click a commit to see only it${rest}`)
+      expect(container.querySelector(".changes-hint")).toBeNull()
+      expect(layers().map((each) => each.title)).toEqual([
+        "Click to see only the uncommitted work",
+        "Click to see only this commit",
+        "Click to see only this commit",
+      ])
 
       await click(layers()[1])
-      expect(hint()).toBe(`Click it again to see everything${rest}`)
+      expect(layers()[1]!.title).toBe("Click again to see everything")
+      expect(layers()[2]!.title).toBe("Click to see only this commit")
 
-      await click(layers()[2])
-      expect(hint()).toBe(`Click it again to see everything${rest}`)
-
-      await click(layers()[2])
-      expect(hint()).toBe(`Click a commit to see only it${rest}`)
+      await click(layers()[1])
+      expect(layers()[1]!.title).toBe("Click to see only this commit")
     })
 
     it("is kept when the change is shown again", async () => {
@@ -710,21 +721,21 @@ describe("a change beside a terminal", () => {
       await settle()
 
       expect(files()).toEqual(["src/auth/session.ts"])
-      expect(container.querySelector(".artifact-meta")?.textContent).toContain(
-        "1 file · +20 −0 · against main",
+      expect(container.querySelector(".note")?.textContent).toContain(
+        "against main · 1 file · +20 −0",
       )
     })
 
     it("says so when the change is over the files it lists", async () => {
       const { container, settle } = show(change({ truncated: true }))
       await settle()
-      expect(container.querySelector(".artifact-meta")?.textContent).toContain(", more than shown")
+      expect(container.querySelector(".note")?.textContent).toContain(", more than shown")
     })
 
     it("counts the lines that only changed whitespace", async () => {
       const { container, settle } = show(change())
       await settle()
-      expect(container.querySelector(".artifact-meta")?.textContent).toContain("4 re-indented")
+      expect(container.querySelector(".note")?.textContent).toContain("4 re-indented")
     })
   })
 
@@ -870,9 +881,7 @@ describe("a change beside a terminal", () => {
     it("says so", () => {
       const { container } = show(change({ layers: [layer("uncommitted", "", [])] }))
       expect(container.querySelector(".diff-empty")?.textContent).toBe("No changes against main.")
-      expect(container.querySelector(".artifact-meta")?.textContent).toContain(
-        "no changes against main · read-only",
-      )
+      expect(container.querySelector(".note")?.textContent).toContain("against main · no changes")
     })
 
     it("says a repository with no commit yet has nothing to compare", () => {
@@ -884,7 +893,7 @@ describe("a change beside a terminal", () => {
   context("when it is larger than the backend shows", () => {
     it("says so", () => {
       const { container } = show(change({ truncated: true }))
-      expect(container.querySelector(".artifact-meta")?.textContent).toContain(
+      expect(container.querySelector(".note")?.textContent).toContain(
         "4 files, more than shown · +36 −7",
       )
     })

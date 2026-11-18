@@ -3,9 +3,11 @@ import type { WorkspaceTarget } from "@novadeck/core/types"
 
 import { registrationOf } from "../../registry"
 import type { ItemStore } from "../../store/item-store"
+import { WindowItem } from "../WindowItem"
 
 // An item undocked into a window of its own: its registration's body, as in the pane, a
-// plan editable, or something an agent showed loading from where it points now. The
+// plan editable, or something an agent showed loading from where it points now, under the
+// title row a pane's one item has. The
 // window's menu docks it back into the terminal it was shown from.
 export const UndockedWindow = ({
   itemStore,
@@ -19,9 +21,7 @@ export const UndockedWindow = ({
   item: Item | undefined
 }): React.JSX.Element => {
   const registration = item && registrationOf(item)
-  const body = item && registration && (
-    <registration.View item={item} itemStore={itemStore} target={target} actions={undefined} />
-  )
+  const body = item && <WindowItem item={item} itemStore={itemStore} target={target} />
   return (
     <div className="artifact-window">
       {!registration ? null : registration.windowLabel ? (

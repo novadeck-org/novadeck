@@ -844,9 +844,39 @@ describe("a terminal's taskbar", () => {
       expect(tabs(container)).toEqual(["hero.png *", "about.png"])
     })
 
-    it("shows no tabs for something alone on its icon", () => {
+    it("draws something alone on its icon as a title in the same place, with no tab to pick or close", () => {
       const { container } = renderTerminal(opening(notes))
-      expect(container.querySelector(".pane-tabs")).toBeNull()
+      const title = container.querySelector(".pane-row .pane-tabs[data-lone]")!
+      expect(title.textContent).toBe("notes")
+      expect(title.querySelector("[role='tab'], .pane-tab-close, button")).toBeNull()
+      expect(container.querySelector(".artifact-meta")).toBeNull()
+      // Its window's buttons are in the same row.
+      expect(container.querySelector(".pane-row .pane-end .artifact-actions")).not.toBeNull()
+    })
+
+    it("says an item's details in its tab's description, not in a line of its own", () => {
+      const { container } = renderTerminal(opening(hero))
+      expect(tab(container, "hero.png")?.getAttribute("aria-description")).toContain("/p/hero.png")
+    })
+
+    it("names the terminal something moved here came from after its name, with no line above", () => {
+      const moved = itemFixture("moved", "01", {
+        kind: "image",
+        name: "moved.png",
+        path: "/p/moved.png",
+        from: { terminalId: "02", handle: "fox" },
+      })
+      const workspace = [hero, moved].reduce(
+        (each, item) => workspaceReducer(each, shown(item)),
+        workspaceFixture(),
+      )
+      const { container } = renderTerminal(
+        workspaceReducer(workspace, { type: "bar/open", target, terminalId: "01", key: moved.id }),
+      )
+      expect(container.querySelector(".placed-from")).toBeNull()
+      expect(container.querySelector(".pane-tab[data-placed] .pane-tab-origin")?.textContent).toBe(
+        "another terminal",
+      )
     })
 
     it("shows another tab on a click, as it is, without coming forward", async () => {

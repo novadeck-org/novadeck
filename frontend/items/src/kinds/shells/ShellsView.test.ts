@@ -59,7 +59,7 @@ const shown = async (
     createElement(
       TellContext.Provider,
       { value: tell },
-      createElement(ShellsView, { itemStore, target, item, actions: undefined }),
+      createElement(ShellsView, { itemStore, target, item }),
     ),
   )
   unmounts.push(unmount)
@@ -89,9 +89,8 @@ describe("the shells item", () => {
         ["cmd ok", "exited 0", 3],
         ["cmd stop", "stopped", 3],
       ])
-      expect(container.querySelector(".shells-meta, .artifact-meta")!.textContent).toContain(
-        "1 running · 1 failed · 2 ended",
-      )
+      // The row's own, none of it: a failed shell tints its tab, which the pane draws.
+      expect(container.querySelector(".artifact-meta")).toBeNull()
     })
   })
 

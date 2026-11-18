@@ -27,7 +27,7 @@ export const growHeading = (view: HTMLElement, head: HTMLElement, from: DOMRect)
     ],
     { duration, easing },
   )
-  for (const part of view.querySelectorAll(".changes-summary, .changes-body, .changes-hint"))
+  for (const part of view.querySelectorAll(".changes-summary, .changes-body"))
     part.animate(
       [
         { opacity: 0, transform: "translateY(10px)" },
@@ -41,7 +41,7 @@ export const growHeading = (view: HTMLElement, head: HTMLElement, from: DOMRect)
 export const shrinkHeading = (view: HTMLElement, head: HTMLElement, to: DOMRect): Promise<void> => {
   if (!canAnimate(head)) return Promise.resolve()
   const from = head.getBoundingClientRect()
-  for (const part of view.querySelectorAll(".changes-summary, .changes-body, .changes-hint"))
+  for (const part of view.querySelectorAll(".changes-summary, .changes-body"))
     part.animate([{ opacity: 1 }, { opacity: 0 }], { duration: duration * 0.5, fill: "forwards" })
   return head
     .animate(

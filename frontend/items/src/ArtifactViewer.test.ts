@@ -47,9 +47,7 @@ const show = () => {
   )
   const itemStore = createItemStore({ companions, workspace })
   unmounts.push(itemStore.connect())
-  const rendered = render(
-    createElement(registry.image.View, { item, itemStore, target, actions: undefined }),
-  )
+  const rendered = render(createElement(registry.image.View, { item, itemStore, target }))
   unmounts.push(rendered.unmount)
   return rendered
 }

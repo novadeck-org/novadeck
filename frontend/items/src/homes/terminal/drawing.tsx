@@ -1,7 +1,6 @@
 import { messageBadgeLabel } from "@novadeck/core/messages"
 import type { AgentShell, WorkspaceTarget } from "@novadeck/core/types"
 import { MessagesSquare, Pause, type LucideIcon } from "lucide-react"
-import type { ReactNode } from "react"
 
 import type { BarMember, BarSlot } from "../../bar/bar"
 import type { BarDrawing } from "../../bar/TaskbarSlot"
@@ -93,10 +92,9 @@ export const MemberView = ({
   target,
   messagesHandle,
   links,
-  actions,
-}: Sources & { member: BarMember; actions: ReactNode }): React.JSX.Element => {
+}: Sources & { member: BarMember }): React.JSX.Element => {
   if (member.kind === "messages")
-    return <MessagesView messagesHandle={messagesHandle} links={links} actions={actions} />
+    return <MessagesView messagesHandle={messagesHandle} links={links} />
   const { View } = registrationOf(member.item)
-  return <View item={member.item} itemStore={itemStore} target={target} actions={actions} />
+  return <View item={member.item} itemStore={itemStore} target={target} />
 }

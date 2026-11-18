@@ -1,9 +1,10 @@
 import type { PullRequest } from "@novadeck/core/forges"
 import { type ChangesContent, type Item } from "@novadeck/core/items"
+import { GitPullRequest } from "lucide-react"
 import { useCallback, useMemo, type KeyboardEvent } from "react"
 
-import { ArtifactMeta, type ArtifactBodyProps } from "../../ArtifactViewer"
-import { OpenInBrowser } from "../../OpenInBrowser"
+import type { ArtifactBodyProps } from "../../ArtifactViewer"
+import { PaneTools, usePaneNote } from "../../pane-row"
 import { FileTree } from "./FileTree"
 import { FileView } from "./FileView"
 import { LayerList } from "./LayerList"
@@ -27,17 +28,19 @@ const stateWords: Readonly<Record<PullRequest["state"], string>> = {
   closed: "closed",
 }
 
-// The work's pull request, opened in the browser as a page item's own link is: "PR #812". Only a
+// The work's pull request, a small chip in the row that opens it in the browser: "#812". Only a
 // web page's address is linked.
 const PullRequestLink = ({ pull }: { pull: PullRequest }): React.JSX.Element | null =>
   /^https?:\/\//i.test(pull.url) ? (
-    <OpenInBrowser
-      url={pull.url}
-      className="changes-pull"
-      label={`PR #${pull.number}, ${stateWords[pull.state]}, opens in browser`}
+    <a
+      className="artifact-open changes-pull"
+      href={pull.url}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={`PR #${pull.number}, ${stateWords[pull.state]}, opens in browser`}
     >
-      PR #{pull.number}
-    </OpenInBrowser>
+      <GitPullRequest size={12} aria-hidden="true" />#{pull.number}
+    </a>
   ) : null
 
 // What the whole change comes to, from its own list of files (the net against main).
@@ -56,7 +59,6 @@ export const ChangesViewer = ({
   stamp,
   target,
   itemStore,
-  actions,
 }: ArtifactBodyProps<"changes">): React.JSX.Element => {
   const [view, update] = useChangesView(itemStore, item.id)
   // What the files' diffs are read at: the content's stamp, kept where only the files
@@ -85,6 +87,14 @@ export const ChangesViewer = ({
   )
   const all = useMemo(() => sums(content), [content])
   const pull = usePullRequest(content.root)
+  // What the tab's tooltip says of the change, which the row's header used to: its base, and what
+  // the whole change comes to.
+  usePaneNote([
+    `against ${content.base}`,
+    all.files === 0
+      ? "no changes"
+      : `${noun(all.files)}${content.truncated ? ", more than shown" : ""} · +${all.added} −${all.removed}${all.reindented > 0 ? ` ${all.reindented} re-indented` : ""}`,
+  ])
 
   // A file opened is read: grayed at once, until the content comes again with the backend's word.
   const markRead = useCallback(
@@ -135,29 +145,7 @@ export const ChangesViewer = ({
 
   return (
     <>
-      <ArtifactMeta
-        actions={
-          pull ? (
-            // Beside the actions as a page's Open in browser is beside its buttons.
-            <span className="changes-head-end">
-              <PullRequestLink pull={pull} />
-              {actions}
-            </span>
-          ) : (
-            actions
-          )
-        }
-      >
-        <code className="artifact-meta-name" title={item.name}>
-          {item.name}
-        </code>
-        <span>
-          {all.files === 0
-            ? `no changes against ${content.base}`
-            : `${noun(all.files)}${content.truncated ? ", more than shown" : ""} · +${all.added} −${all.removed}${all.reindented > 0 ? ` ${all.reindented} re-indented` : ""} · against ${content.base}`}{" "}
-          · read-only
-        </span>
-      </ArtifactMeta>
+      <PaneTools chip={pull && <PullRequestLink pull={pull} />} tools={[]} />
       <div
         ref={host}
         className="changes-host"
@@ -188,6 +176,7 @@ export const ChangesViewer = ({
                 <LayerList
                   layers={content.layers}
                   selected={selected}
+                  only={alone(ids, view.picked)}
                   onPick={(id) => update((now) => ({ ...now, picked: pick(ids, now.picked, id) }))}
                 />
                 <div className="changes-files-head">
@@ -228,12 +217,6 @@ export const ChangesViewer = ({
                       layers={layers}
                     />
                   )}
-                </div>
-                <div className="changes-hint">
-                  {alone(ids, view.picked)
-                    ? "Click it again to see everything"
-                    : "Click a commit to see only it"}{" "}
-                  · click a file to unfold it · double-click opens it
                 </div>
               </>
             )}

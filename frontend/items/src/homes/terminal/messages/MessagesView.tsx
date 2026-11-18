@@ -1,8 +1,7 @@
 import { waitsText, type MessageParty, type MessagePeer } from "@novadeck/core/messages"
 import { handleText } from "@novadeck/core/terminals/handle"
 import { useShown } from "@novadeck/toolkit/shown"
-import { Switch } from "@novadeck/toolkit/Switch"
-import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react"
+import { ChevronLeft, ChevronRight, ExternalLink, Pause } from "lucide-react"
 import {
   useCallback,
   useEffect,
@@ -12,10 +11,9 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
-  type ReactNode,
 } from "react"
 
-import { ArtifactMeta } from "../../../ArtifactViewer"
+import { PaneTools } from "../../../pane-row"
 import { Avatar, type AvatarLive } from "./avatars/Avatar"
 import { hueOf } from "./avatars/critters"
 import {
@@ -440,21 +438,16 @@ const Chat = ({
 }
 
 // A terminal's messages: one list of its conversations, the person's entries first while
-// they wait on them, then latest first; one opened reads as a chat. The header holds the
-// pause for messages between agents; the person's replies go through. Holds stay with the
-// runner and the Inbox, never here.
+// they wait on them, then latest first; one opened reads as a chat. The row holds the
+// pause for messages between agents, a tool that says so while it holds; the person's
+// replies go through. Holds stay with the runner and the Inbox, never here.
 export const MessagesView = ({
   messagesHandle,
   links,
-  actions,
 }: {
   messagesHandle: MessagesHandle
   links: MessageLinks
-  // What the pane does, at the end of the header.
-  actions?: ReactNode
 }): React.JSX.Element => {
-  const label = useId()
-  const hint = useId()
   // Where the person left it, built again (another tab shown meanwhile, or the pane let go
   // out of sight); whether they opened the one open now here, which then takes focus.
   const { lastOpen, keepOpen } = messagesHandle
@@ -501,40 +494,45 @@ export const MessagesView = ({
   }, [opened])
   return (
     <div className="message-view" data-tour="messages">
-      <ArtifactMeta className="message-meta" actions={actions}>
-        <code>Messages</code>
-        {messagesHandle.threads && <span>{handleText(messagesHandle.threads.handle)}</span>}
-        <span className="message-pause">
-          <span id={label} className="message-pause-label">
-            Pause all agents' messages
-          </span>
-          <span id={hint} className="sr-only">
-            Between agents in every project and session, until you resume. Your replies still go
-            through.
-          </span>
-          <Switch
-            checked={messagesHandle.paused}
-            onChange={messagesHandle.pause}
-            labelledBy={label}
-            describedBy={hint}
-            pending={messagesHandle.pending}
-          />
-        </span>
-      </ArtifactMeta>
+      <PaneTools
+        tools={[
+          {
+            key: "pause",
+            icon: Pause,
+            label: "Pause all agents' messages",
+            tip: messagesHandle.paused
+              ? "Resume all agents' messages"
+              : "Pause all agents' messages, in every project, until you resume",
+            pressed: messagesHandle.paused,
+            pending: messagesHandle.pending,
+            onClick: () => messagesHandle.pause(!messagesHandle.paused),
+          },
+        ]}
+      />
       {messagesHandle.error && (
-        <p className="message-error" data-tone="danger" role="alert">
-          {messagesHandle.error}
-        </p>
+        <div className="pane-notice message-error" data-tone="danger" role="alert">
+          <p>{messagesHandle.error}</p>
+        </div>
       )}
       {messagesHandle.paused && (
-        <p className="message-paused" data-tone="warning" role="status">
-          Messaging is paused between agents. Your replies still go through.
-        </p>
+        <div className="pane-notice message-paused" data-tone="warning" role="status">
+          <p>Agents' messages are paused. Your replies still go through.</p>
+          <div className="pane-notice-actions">
+            <button
+              type="button"
+              className="artifact-open"
+              disabled={messagesHandle.pending}
+              onClick={() => messagesHandle.pause(false)}
+            >
+              Resume
+            </button>
+          </div>
+        </div>
       )}
       {messagesHandle.threads?.waits && messagesHandle.badge?.kind === "waiting" && (
-        <p className="message-waits" data-tone="warning" role="status">
-          {waitsText[messagesHandle.threads.waits]}
-        </p>
+        <div className="pane-notice message-waits" data-tone="warning" role="status">
+          <p>{waitsText[messagesHandle.threads.waits]}</p>
+        </div>
       )}
       {opened && messagesHandle.threads ? (
         <Chat

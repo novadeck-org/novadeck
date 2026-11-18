@@ -1,5 +1,5 @@
-/* The shells recipe: a terminal's agent's background shells in the pane, under the artifact
-   header (`.shells-title` names whose they are). Each shell is a row (`.shells-row` in the
+/* The shells recipe: a terminal's agent's background shells in the pane, under the pane's row
+   (see pane.css; a failed one tints its tab's icon there). Each shell is a row (`.shells-row` in the
    `.shells-list`): a head (`.shells-head`) holding the toggle that unfolds it (`.shells-toggle`:
    its dot `.shells-dot`, its command `.shells-command` and how it stands, `.shells-state`) and,
    on a failed one, the button that tells the agent (`.shells-tell`); then its output
@@ -30,10 +30,6 @@
 :root[data-scheme="light"] .shells-view {
   --_tint-ground: 50%;
 }
-.shells-title {
-  font-weight: var(--font-weight-medium, 500);
-  color: var(--color-ink);
-}
 .shells-list {
   flex: 1;
   min-height: 0;
@@ -43,7 +39,7 @@
   list-style: none;
 }
 .shells-row {
-  border-bottom: var(--border-width) solid var(--artifact-meta-border-color, var(--color-line));
+  border-bottom: var(--border-width) solid var(--pane-border-color, var(--color-line));
 }
 .shells-row[data-state="failed"] {
   background: var(--_tint);
@@ -145,7 +141,7 @@
   align-items: center;
   gap: 8px;
   padding: 6px 14px;
-  border-top: var(--border-width) solid var(--artifact-meta-border-color, var(--color-line));
+  border-top: var(--border-width) solid var(--pane-border-color, var(--color-line));
   font-size: var(--text-control);
   color: var(--color-muted);
 }

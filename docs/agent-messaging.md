@@ -3037,11 +3037,11 @@ optional `messages` capability (`core/messages.ts`):
   before says only that Novadeck holds the thread for the person. The item no longer
   carries the thread's `allowed`, which the listing drops. Release and Stop act on
   the thread.
-- **Pause switch.** The view's header has **Pause all agents' messages**
-  (`messages.pause`), one switch for the whole runner. It shows what the runner's listings
+- **Pause tool.** The pane's row has **Pause all agents' messages** as a pause
+  icon (`messages.pause`, pressed while paused), one for the whole runner. It shows what the runner's listings
   say, and a pause or resume the runner accepted, whichever comes first; it takes no
   clicks while one is on its way, and says why when the runner refuses one.
-  While paused, the view says so and every badge shows it.
+  While paused, the view says so in a notice with a Resume button, and every badge shows it.
 
 The person answers MCP asks through the Inbox; those answers are relayed as person
 messages, not as an agent send. They can also type in the terminal. The chat view's

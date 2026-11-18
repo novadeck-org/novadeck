@@ -1,9 +1,8 @@
 import type { FileContent } from "@novadeck/core/items"
 import { createKept, type Kept, type ViewerState } from "@novadeck/viewers"
 import { outline } from "@novadeck/viewers/text"
-import { useMemo, useRef, type ReactNode } from "react"
+import { useMemo, useRef } from "react"
 
-import { ArtifactMeta, MetaPath } from "../../ArtifactViewer"
 import type { MarkdownEditorHandle } from "../../document/editor/MarkdownEditor"
 import { MarkdownDocument } from "../../document/MarkdownDocument"
 
@@ -28,14 +27,12 @@ export const DocumentViewer = ({
   id,
   name,
   content,
-  actions,
 }: {
   // The item showing it, whose editor opens again as it was left, while it shows this file.
   id: string
   // The item's name, which labels the document: it reads as the file.
   name: string
   content: FileContent
-  actions?: ReactNode
 }): React.JSX.Element => {
   const editor = useRef<MarkdownEditorHandle | null>(null)
   const kept = useMemo(() => keptFor(content.path), [content.path])
@@ -43,13 +40,6 @@ export const DocumentViewer = ({
   const headings = outline(text)
   return (
     <div className="pane-reader artifact-document">
-      <ArtifactMeta actions={actions}>
-        <MetaPath path={content.path} />
-        <span>read-only</span>
-        {content.truncated && (
-          <span className="pane-meta-hint">It's long, so only its start is shown.</span>
-        )}
-      </ArtifactMeta>
       <div className="pane-reader-body" data-outline={headings.length > 0}>
         {headings.length > 0 && (
           <nav className="spine" aria-label="Document outline">
@@ -76,6 +66,9 @@ export const DocumentViewer = ({
               editor.current = handle
             }}
           />
+          {content.truncated && (
+            <p className="artifact-cut">It's long, so only its start is shown.</p>
+          )}
         </div>
       </div>
     </div>

@@ -13,10 +13,13 @@ export const shortHash = (layer: ChangeLayer): string =>
 export const LayerList = ({
   layers,
   selected,
+  only,
   onPick,
 }: {
   layers: readonly ChangeLayer[]
   selected: ReadonlySet<string>
+  // Whether one row is kept alone, which a click on it again takes back to all.
+  only: boolean
   onPick: (id: string) => void
 }): React.JSX.Element => {
   const rails = railOf(
@@ -40,6 +43,11 @@ export const LayerList = ({
             data-on={rail.on || undefined}
             data-start={rail.start || undefined}
             data-end={rail.end || undefined}
+            title={
+              only && rail.on
+                ? "Click again to see everything"
+                : `Click to see only ${layer.kind === "commit" ? "this commit" : "the uncommitted work"}`
+            }
             onClick={() => onPick(layer.id)}
             onKeyDown={(event) => {
               if (event.key !== "Enter" && event.key !== " ") return

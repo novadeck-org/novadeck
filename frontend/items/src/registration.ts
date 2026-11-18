@@ -1,7 +1,7 @@
 import type { Item, ItemId, ItemKind } from "@novadeck/core/items"
 import type { WorkspaceTarget } from "@novadeck/core/types"
 import type { LucideIcon } from "lucide-react"
-import type { ComponentType, ReactNode } from "react"
+import type { ComponentType } from "react"
 
 import type { PlanDoc } from "./kinds/plan/plan-doc"
 import type { ItemStore } from "./store/item-store"
@@ -24,10 +24,9 @@ export type ItemProps = {
   readonly target: WorkspaceTarget
 }
 
-// What the body is given, with what the place showing it offers at the end of its header.
-// The chrome around it is that place's: in a terminal's pane, its header, its actions, the
-// line saying whose it is and the states of what can't show.
-export type ViewProps = ItemProps & { readonly actions: ReactNode }
+// What the body is given. The chrome around it is that place's: in a terminal's pane, the row
+// of its tabs and actions (pane-row.tsx); the body adds its tools and its notice to that.
+export type ViewProps = ItemProps
 
 // A registration is everything a place needs to draw one kind of item. It lives in a
 // folder of `src/kinds/`, and the registry holds one line for it.
