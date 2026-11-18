@@ -5,6 +5,7 @@ import { audio } from "./kinds/audio"
 import { changes } from "./kinds/changes"
 import { file } from "./kinds/file"
 import { image } from "./kinds/image"
+import { model } from "./kinds/model"
 import { page } from "./kinds/page"
 import { pdf } from "./kinds/pdf"
 import { plan } from "./kinds/plan"
@@ -20,6 +21,7 @@ export const registry = {
   video,
   audio,
   pdf,
+  model,
   file,
   page,
   changes,

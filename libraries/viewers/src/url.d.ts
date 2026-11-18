@@ -11,3 +11,10 @@ interface ImportMeta {
     options: { readonly query: string; readonly import: string },
   ): Record<string, () => Promise<Value>>
 }
+
+// A viewer's code as its sandboxed frame runs it, bundled into one script, as the tests import it
+// (@novadeck/build-kit/frame-bundles).
+declare module "*?frame" {
+  const code: string
+  export default code
+}

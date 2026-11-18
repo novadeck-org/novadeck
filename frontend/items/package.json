@@ -31,6 +31,7 @@
     "./syntax.css": "./src/syntax.css",
     "./video.css": "./src/video.css",
     "./pdf.css": "./src/pdf.css",
+    "./model.css": "./src/model.css",
     "./TabKinds": "./src/homes/terminal/TabKinds.tsx",
     "./taskbar.css": "./src/taskbar.css",
     "./TerminalCompanion": "./src/homes/terminal/TerminalCompanion.tsx",

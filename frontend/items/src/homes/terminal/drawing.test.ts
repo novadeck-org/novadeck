@@ -3,6 +3,7 @@ import { messagesKey } from "@novadeck/core/items/companion-bar"
 import { itemFixture } from "@novadeck/core/testing"
 import {
   AudioLines,
+  Box,
   BookText,
   FileCode2,
   FileStack,
@@ -32,6 +33,7 @@ const expectedKindIcons: Record<ShownKind | "shells", LucideIcon> = {
   video: Film,
   audio: AudioLines,
   pdf: FileType,
+  model: Box,
   file: FileCode2,
   page: Globe,
   changes: GitCompare,
@@ -105,6 +107,7 @@ const picture = itemFixture("hero", "01", { kind: "image", name: "hero.png" })
 const clip = itemFixture("demo", "01", { kind: "video", name: "demo.mp4" })
 const voice = itemFixture("voice", "01", { kind: "audio", name: "voice.mp3" })
 const report = itemFixture("report", "01", { kind: "pdf", name: "report.pdf" })
+const part = itemFixture("part", "01", { kind: "model", name: "bracket.stl" })
 const web = itemFixture("web", "01", { kind: "page", name: "localhost:5173", path: null })
 const change = itemFixture("change", "01", { kind: "changes", name: "Changes", path: "/repo" })
 const shellList = itemFixture("shells", "01", { kind: "shells", name: "Shells", path: null })
@@ -120,6 +123,7 @@ const shapes: Record<string, BarMember> = {
   video: itemMember(clip),
   audio: itemMember(voice),
   pdf: itemMember(report),
+  model: itemMember(part),
   page: itemMember(web),
   changes: itemMember(change),
   shells: itemMember(shellList),
@@ -147,6 +151,7 @@ describe("a terminal's drawing of its bar", () => {
         video: [shapes.video!, shapes.video!],
         audio: [shapes.audio!, shapes.audio!],
         pdf: [shapes.pdf!, shapes.pdf!],
+        model: [shapes.model!, shapes.model!],
         page: [shapes.page!, shapes.page!],
         changes: [shapes.changes!, shapes.changes!],
         shells: [shapes.shells!],
