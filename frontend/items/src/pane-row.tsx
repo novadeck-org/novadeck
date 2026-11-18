@@ -159,6 +159,8 @@ export type PaneTool = {
   // Opens in the person's browser, never in the pane.
   readonly href?: string
   readonly pressed?: boolean
+  // The key that does the same, as `aria-keyshortcuts` names it; its tooltip says it too.
+  readonly keys?: string
   readonly disabled?: boolean
   // On its way to something: it takes no clicks, and keeps focus.
   readonly pending?: boolean
@@ -199,6 +201,7 @@ const ToolButton = ({ tool }: { tool: PaneTool }): React.JSX.Element => {
           className="icon-button pane-tool"
           aria-label={tool.label}
           aria-pressed={tool.pressed}
+          aria-keyshortcuts={tool.keys}
           aria-disabled={tool.pending || undefined}
           disabled={tool.disabled}
           onClick={tool.pending ? undefined : tool.onClick}

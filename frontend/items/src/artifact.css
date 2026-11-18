@@ -13,8 +13,12 @@
    about it. `.artifact-actions` holds what the place showing it offers at the row's end,
    as `.icon-button`s; `.artifact-window` fills a window of its own.
 
-   Hooks: data-live on a page that loads live, data-document on a viewer holding a
-   markdown document, and data-reason on what can't show.
+   A file with a preview (a Markdown file's document) is in `.artifact-file`, a column that
+   takes focus from a click anywhere in it, so the switch's key works from there.
+
+   Hooks: data-live on a page that loads live, data-file-preview (its type, as "markdown") and
+   data-view ("preview" or "source") on a file with a preview, and data-reason on what can't
+   show.
 
    Tokens, each optional (its fallback in brackets):
    --artifact-status-fg (muted): what says there's nothing to show yet.
@@ -35,6 +39,15 @@
    --artifact-stage-dot (line-strong, faint), --artifact-device-shadow (shadow, soft): the
    stage around a live page shown at a phone's size, and the phone's shadow on it.
    --pane-bg (paper): an undocked window, as the pane recipe draws it. */
+
+/* A file with a preview: its preview or its source, laid out as the viewer's own. */
+.artifact-file {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  outline: none;
+}
 
 /* While an artifact loads, or when it couldn't. */
 .artifact-status {

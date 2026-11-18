@@ -193,10 +193,10 @@ const show: Tool<Shown> = {
       file: {
         type: "object",
         description:
-          "A file: an image (PNG, JPEG, GIF, WebP, SVG), a video (MP4, WebM, MOV) or an audio " +
-          "recording (MP3, M4A, WAV, OGG, Opus, FLAC), which Novadeck plays, or a text file, and " +
-          "for a text file the lines to point at, or for a video or recording the second to " +
-          "start at.",
+          "A file: an image (PNG, APNG, JPEG, GIF, WebP, AVIF, BMP, ICO, SVG), a video (MP4, " +
+          "WebM, MOV) or an audio recording (MP3, M4A, WAV, OGG, Opus, FLAC), which Novadeck " +
+          "plays, or a text file, and for a text file the lines to point at, or for a video or " +
+          "recording the second to start at.",
         properties: {
           path: {
             type: "string",

@@ -54,7 +54,8 @@
    --chat-accent (strong): the person's mark. --chat-shell-fg (the terminal's yellow, then
    warning-fg): the mark in shell mode. --chat-caret (the terminal's cursor, then the accent).
    --chat-error-fg (the terminal's red, then danger-fg): what failed.
-   --chat-added-fg (the terminal's green, then success-fg): what an edit added.
+   --chat-added-fg (success-fg), --chat-removed-fg (danger-fg): what an edit added and removed,
+   in the changes pane's inks.
    --chat-line-color (line): the hairlines.
    --chat-stats-clear (0px): how far from the chat's right edge the window's stats reach at rest,
    which the held prompt's line and its steps stay clear of.
@@ -101,7 +102,8 @@
   --_mid: color-mix(in srgb, var(--_ink) 68%, var(--_muted));
   --_accent: var(--chat-accent, var(--color-strong));
   --_red: var(--chat-error-fg, var(--terminal-ansi-red, var(--color-danger-fg)));
-  --_green: var(--chat-added-fg, var(--terminal-ansi-green, var(--color-success-fg)));
+  --_added: var(--chat-added-fg, var(--color-success-fg));
+  --_removed: var(--chat-removed-fg, var(--color-danger-fg));
   --_line: var(--chat-line-color, var(--color-line));
   /* What the agent did: dimmer than the dim text, so its work reads as the footnote. */
   --_work: color-mix(in srgb, var(--_muted) 85%, transparent);
@@ -854,10 +856,10 @@
   color: var(--_red);
 }
 .chat-tool-added {
-  color: color-mix(in srgb, var(--_green) 75%, var(--_muted));
+  color: var(--_added);
 }
 .chat-tool-removed {
-  color: color-mix(in srgb, var(--_red) 75%, var(--_muted));
+  color: var(--_removed);
 }
 .chat-tool-body {
   display: flex;
@@ -889,10 +891,10 @@
   display: block;
 }
 .chat-diff[data-sign="+"] {
-  color: color-mix(in srgb, var(--_green) 70%, var(--_ink));
+  color: var(--_added);
 }
 .chat-diff[data-sign="-"] {
-  color: color-mix(in srgb, var(--_red) 70%, var(--_ink));
+  color: var(--_removed);
 }
 
 /* The agent's state, on the last line, with its clock and its stop at the edge. It is the log's
