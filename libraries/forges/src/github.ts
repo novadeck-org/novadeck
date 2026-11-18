@@ -1,7 +1,18 @@
 import { choose, time, type Candidate } from "./choose.js"
 import { failure, parse } from "./cli.js"
-import type { Ci, Forge, Problem, PullRequest, Remote, Repository, Run, Token } from "./forge.js"
-import { headers, record, send } from "./http.js"
+import type {
+  Check,
+  Ci,
+  Fetch,
+  Forge,
+  Problem,
+  PullRequest,
+  Remote,
+  Repository,
+  Run,
+  Token,
+} from "./forge.js"
+import { headers, pooled, record, send } from "./http.js"
 
 const defaultHost = "github.com"
 
@@ -56,7 +67,7 @@ const query = (count: number): string => {
   const fields = Array.from(
     { length: count },
     (_, at) =>
-      `p${at}: pullRequests(headRefName: $b${at}, states: [OPEN, MERGED, CLOSED], first: 20, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { number url title isDraft state mergedAt closedAt isCrossRepository commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } }`,
+      `p${at}: pullRequests(headRefName: $b${at}, states: [OPEN, MERGED, CLOSED], first: 20, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { number url title isDraft state mergedAt closedAt isCrossRepository baseRefName commits(last: 1) { nodes { commit { oid statusCheckRollup { state contexts(first: 50) { nodes { __typename ... on CheckRun { name status startedAt checkSuite { createdAt } } ... on StatusContext { context state createdAt } } } } } } } } }`,
   ).join(" ")
   return `query($owner: String!, $name: String!, ${vars}) { repository(owner: $owner, name: $name) { ${fields} } }`
 }
@@ -77,6 +88,48 @@ const ciOf = (pr: Record<string, unknown>, blind: boolean): Ci | undefined => {
   const known = typeof state === "string" ? rollups[state] : undefined
   // A rollup GraphQL answered with an error (a token that can't read checks) says nothing.
   return known ?? (blind ? undefined : "none")
+}
+
+// A check run's status: waiting for a runner, or running; COMPLETED is finished.
+const queuedStatuses = new Set(["QUEUED", "WAITING", "PENDING", "REQUESTED"])
+
+// The checks of the head commit that have not finished, as the rollup lists them; undefined
+// where it lists none (a rollup that can't be read, or no checks at all).
+const checksOf = (pr: Record<string, unknown>): Check[] | undefined => {
+  const commits = record(pr["commits"])?.["nodes"]
+  const commit = record(Array.isArray(commits) ? record(commits[0])?.["commit"] : undefined)
+  const nodes = record(record(commit?.["statusCheckRollup"])?.["contexts"])?.["nodes"]
+  if (!Array.isArray(nodes)) return undefined
+  return nodes.flatMap((node): Check[] => {
+    const each = record(node)
+    if (each === undefined) return []
+    if (each["__typename"] === "CheckRun") {
+      const { name, status } = each
+      if (typeof name !== "string" || typeof status !== "string") return []
+      const queued = queuedStatuses.has(status)
+      if (!queued && status !== "IN_PROGRESS") return []
+      const at = time(each["startedAt"]) || time(record(each["checkSuite"])?.["createdAt"])
+      return [{ name, state: queued ? "queued" : "running", ...(at > 0 && { since: at }) }]
+    }
+    // A commit status an outside service reports, still pending.
+    const { context } = each
+    if (
+      typeof context !== "string" ||
+      (each["state"] !== "PENDING" && each["state"] !== "EXPECTED")
+    )
+      return []
+    const at = time(each["createdAt"])
+    return [{ name: context, state: "running", ...(at > 0 && { since: at }) }]
+  })
+}
+
+// The head commit of each pull request found, which the runner lookup asks the runs of.
+const heads = new WeakMap<PullRequest, string>()
+
+const headOf = (pr: Record<string, unknown>): string | undefined => {
+  const commits = record(pr["commits"])?.["nodes"]
+  const oid = record(Array.isArray(commits) ? record(commits[0])?.["commit"] : undefined)?.["oid"]
+  return typeof oid === "string" ? oid : undefined
 }
 
 const states: Record<string, PullRequest["state"]> = {
@@ -104,16 +157,20 @@ const candidate = (node: unknown, blind = false): Candidate | undefined => {
   }
   const open = state === "open"
   const ci = open ? ciOf(pr, blind) : undefined
-  return {
-    pull: {
-      number,
-      url,
-      title,
-      state: open && pr["isDraft"] === true ? "draft" : state,
-      ...(open && ci !== undefined && { ci }),
-    },
-    at: time(pr["mergedAt"]) || time(pr["closedAt"]),
+  const checks = open && ci === "running" ? checksOf(pr) : undefined
+  const base = pr["baseRefName"]
+  const oid = headOf(pr)
+  const pull: PullRequest = {
+    number,
+    url,
+    title,
+    state: open && pr["isDraft"] === true ? "draft" : state,
+    ...(open && ci !== undefined && { ci }),
+    ...(open && typeof base === "string" && base !== "" && { base }),
+    ...(checks && checks.length > 0 && { checks }),
   }
+  if (oid !== undefined && checks && checks.length > 0) heads.set(pull, oid)
+  return { pull, at: time(pr["mergedAt"]) || time(pr["closedAt"]) }
 }
 
 const errorKind = (
@@ -135,6 +192,89 @@ const blinded = (body: Record<string, unknown>): ReadonlySet<string> =>
         : []
     }),
   )
+
+// The REST API of the host, which lists a workflow job's runner labels (GraphQL doesn't).
+const rest = (host: string): string =>
+  host === defaultHost
+    ? "https://api.github.com"
+    : host.endsWith(".ghe.com")
+      ? `https://api.${host}`
+      : `https://${host}/api/v3`
+
+/** The most workflow runs of one commit whose jobs are asked, and jobs read of each. */
+const runsAsked = 5
+
+const jobStates = new Set(["queued", "in_progress", "waiting", "pending", "requested"])
+
+// The runner labels and queue time of the jobs of the commit's unfinished workflow runs, by job
+// name. Never fails the lookup: a token that can't read Actions leaves the checks as they were.
+const runnersOf = async (
+  fetch: Fetch,
+  auth: Token,
+  repo: Repository & { readonly forge: "github" },
+  oid: string,
+): Promise<Map<string, { runner?: string; created: number }>> => {
+  const base = `${rest(repo.host)}/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}/actions/runs`
+  const get = (url: string) =>
+    send(fetch, url, { headers: headers(auth.value) }, { signIn: signIn(repo.host) })
+  const runs = await get(`${base}?head_sha=${encodeURIComponent(oid)}&per_page=20`)
+  const list = "body" in runs ? record(runs.body)?.["workflow_runs"] : undefined
+  const found = new Map<string, { runner?: string; created: number }>()
+  if (!Array.isArray(list)) return found
+  const open = list.flatMap((run) => {
+    const each = record(run)
+    return each !== undefined &&
+      typeof each["id"] === "number" &&
+      jobStates.has(String(each["status"]))
+      ? [each["id"]]
+      : []
+  })
+  const answers = await pooled(open.slice(0, runsAsked), (id) =>
+    get(`${base}/${id}/jobs?filter=latest&per_page=100`),
+  )
+  for (const answer of answers) {
+    const jobs = "body" in answer ? record(answer.body)?.["jobs"] : undefined
+    if (!Array.isArray(jobs)) continue
+    for (const job of jobs) {
+      const each = record(job)
+      if (each === undefined || typeof each["name"] !== "string") continue
+      if (!jobStates.has(String(each["status"]))) continue
+      const labels = Array.isArray(each["labels"])
+        ? each["labels"].filter((label): label is string => typeof label === "string")
+        : []
+      found.set(each["name"], {
+        ...(labels.length > 0 && { runner: labels.join(" ") }),
+        created: time(each["created_at"]),
+      })
+    }
+  }
+  return found
+}
+
+// Names each unfinished check's runner kind, and when a queued one was queued, by its job.
+const withRunners = async (
+  fetch: Fetch,
+  auth: Token,
+  repo: Repository & { readonly forge: "github" },
+  pull: PullRequest,
+  oid: string,
+): Promise<PullRequest> => {
+  if (!pull.checks) return pull
+  const jobs = await runnersOf(fetch, auth, repo, oid)
+  return {
+    ...pull,
+    checks: pull.checks.map((check) => {
+      const job = jobs.get(check.name)
+      if (job === undefined) return check
+      const since = check.state === "queued" && job.created > 0 ? job.created : check.since
+      return {
+        ...check,
+        ...(job.runner !== undefined && { runner: job.runner }),
+        ...(since !== undefined && { since }),
+      }
+    }),
+  }
+}
 
 const chunk = 40
 
@@ -178,6 +318,16 @@ const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) 
       )
       if (pull !== undefined) found.set(branch, pull)
     })
+    // One lookup of the runs for each pull request whose checks are unfinished.
+    const unfinished = [...found].flatMap(([branch, pull]) => {
+      const oid = heads.get(pull)
+      return oid !== undefined && group.includes(branch) ? [{ branch, pull, oid }] : []
+    })
+    // eslint-disable-next-line no-await-in-loop -- Groups go one after another, to be gentle on the API.
+    const enriched = await pooled(unfinished, ({ pull, oid }) =>
+      withRunners(fetch, auth, repo, pull, oid),
+    )
+    unfinished.forEach(({ branch }, index) => found.set(branch, enriched[index]!))
   }
   return found
 }

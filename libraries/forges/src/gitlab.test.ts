@@ -305,3 +305,47 @@ describe("gitlab", () => {
     })
   })
 })
+
+describe("gitlab unfinished checks", () => {
+  it("lists a running pipeline's pending and running jobs with their tags", async () => {
+    server.use(
+      byBranch({ a: [mr(1, "opened", { target_branch: "release" })] }),
+      http.get(`${url}/1`, () =>
+        HttpResponse.json({ head_pipeline: { id: 9, status: "running" } }),
+      ),
+      http.get("https://gitlab.com/api/v4/projects/g%2Fsub%2Fp/pipelines/9/jobs", () =>
+        HttpResponse.json([
+          {
+            name: "build",
+            status: "running",
+            started_at: "2026-01-01T10:00:00Z",
+            tag_list: ["macos"],
+          },
+          {
+            name: "test",
+            status: "pending",
+            created_at: "2026-01-01T09:50:00Z",
+            tag_list: ["macos", "arm"],
+          },
+          { name: "later", status: "created", created_at: "2026-01-01T09:50:00Z", tag_list: [] },
+        ]),
+      ),
+    )
+    const found = mapOf(await gitlab.pullRequests(fetch, token, repo, ["a"])).get("a")
+    expect(found?.base).toBe("release")
+    expect(found?.checks).toEqual([
+      {
+        name: "build",
+        state: "running",
+        since: Date.parse("2026-01-01T10:00:00Z"),
+        runner: "macos",
+      },
+      {
+        name: "test",
+        state: "queued",
+        since: Date.parse("2026-01-01T09:50:00Z"),
+        runner: "macos arm",
+      },
+    ])
+  })
+})

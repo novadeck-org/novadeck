@@ -32,7 +32,7 @@ import {
 } from "./closes.js"
 import { commandLine, sessionLaunch } from "./commands.js"
 import type { Companion } from "./companion.js"
-import { readDescribeRequest, type DescribeAnswer } from "./describe-request.js"
+import { readDescribeRequest, waitingForOf, type DescribeAnswer } from "./describe-request.js"
 import { mention } from "./handles.js"
 import type { Launcher } from "./launching.js"
 import { Leads, leadNotice, type LeadsHost } from "./leads.js"
@@ -796,6 +796,8 @@ export class Calls {
     // agent that summarized before agents gave titles describes only to add its title.
     const unchanged = record.naming.summary === summary && record.naming.murmur !== null
     record.naming = described(record.naming, title, summary)
+    const waiting = waitingForOf(read.request.waitingFor, Date.now())
+    if (waiting !== undefined) record.waitingFor = waiting ?? undefined
     record.nudges = afterSummary(record.nudges, facts)
     this.host.retitle(record)
     this.host.save(record)

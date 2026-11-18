@@ -123,6 +123,11 @@ export type Record = {
   /** What names it: the person's title, murmur's, and the opening agent's. */
   naming: Naming
   /**
+   * What its agent said, through `describe`, its work waits on, and when it said so; in
+   * memory only, so a restart forgets it and the agent says it again. Undefined for none.
+   */
+  waitingFor?: { readonly text: string; readonly at: number } | undefined
+  /**
    * The root session of the bound agent, which messages, its prompts and its activity are
    * for, followed as its harness's profile says (see `followRoot`); null without one.
    */

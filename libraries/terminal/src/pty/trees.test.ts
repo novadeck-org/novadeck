@@ -78,6 +78,21 @@ describe("Windows process trees", () => {
     ].join("\r\n")
     expect([...parseTrees(output)]).toEqual([["10", [{ pid: 10, startedAt: 1 }]]])
   })
+
+  it("carry the processor time a member used where the relay tells it, and no nonsense", () => {
+    const output =
+      '{"root":"10","processes":[{"pid":10,"startedAt":1,"cpuMs":2500},{"pid":11,"startedAt":2,"cpuMs":-4},{"pid":12,"startedAt":3,"cpuMs":"x"}]}'
+    expect([...parseTrees(output)]).toEqual([
+      [
+        "10",
+        [
+          { pid: 10, startedAt: 1, cpuMs: 2500 },
+          { pid: 11, startedAt: 2 },
+          { pid: 12, startedAt: 3 },
+        ],
+      ],
+    ])
+  })
 })
 
 describe("whether a tree's members still run", () => {

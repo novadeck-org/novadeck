@@ -71,6 +71,24 @@ export type PullRequest = {
   // How its checks stand on its latest commit, for an open one. Absent where the forge couldn't
   // say (a token that can't read checks, a read that failed), and on a merged or closed one.
   readonly ci?: Ci | undefined
+  // The branch it targets, where the forge says (a stacked pull request targets another's branch).
+  readonly base?: string | undefined
+  // The checks of an open one that have not finished, where the forge could list them; absent
+  // where it couldn't, which says nothing of whether any run.
+  readonly checks?: readonly Check[] | undefined
+}
+
+/**
+ * A check that has not finished: waiting for a runner (`queued`) or running. `since` is when
+ * it was queued or started, epoch milliseconds, where the forge says. `runner` names the kind
+ * of runner it needs or holds (GitHub's `runs-on` labels, GitLab's job tags, Azure's agent
+ * pool), where the forge says; a forge that can't leaves it out.
+ */
+export type Check = {
+  readonly name: string
+  readonly state: "queued" | "running"
+  readonly since?: number | undefined
+  readonly runner?: string | undefined
 }
 
 /** How a pull request's checks stand: one failed, any still running, all passed, or none ran. */

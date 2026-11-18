@@ -5,13 +5,16 @@ import { promisify } from "node:util"
 /**
  * A process of a terminal's tree: its pid and its start, which together name it alone; and,
  * where the relay tells, its program's file name and its parent's pid (none for a process the
- * snapshot no longer lists the parent of).
+ * snapshot no longer lists the parent of), and the processor time it has used so far, in
+ * milliseconds, where the relay tells (a relay older than that, or a process it couldn't open,
+ * tells none).
  */
 export type Member = {
   readonly pid: number
   readonly startedAt: number
   readonly name?: string
   readonly parent?: number
+  readonly cpuMs?: number
 }
 
 /**
@@ -171,11 +174,12 @@ export const parseTrees = (output: string): Map<string, readonly Member[]> => {
               Number.isSafeInteger((each as Member).pid) &&
               Number.isSafeInteger((each as Member).startedAt),
           )
-          .map(({ pid, startedAt, name, parent }) => ({
+          .map(({ pid, startedAt, name, parent, cpuMs }) => ({
             pid,
             startedAt,
             ...(typeof name === "string" && name !== "" && { name }),
             ...(Number.isSafeInteger(parent) && { parent }),
+            ...(typeof cpuMs === "number" && Number.isFinite(cpuMs) && cpuMs >= 0 && { cpuMs }),
           })),
       )
     } catch {

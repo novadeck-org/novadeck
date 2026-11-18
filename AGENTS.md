@@ -33,6 +33,13 @@ release finds on their computer is theirs, so it carries forward:
 Code moving inside the repository needs no shims, but nothing on a person's computer is
 code moving inside the repository.
 
+# Shared CI Runners
+
+macOS CI has three runners, shared by every pull request's Quality and E2E runs and the
+nights'. A draft runs no macOS job; marking a pull request ready, or pushing to a ready one,
+queues its macOS jobs, and a newer push cancels its run in progress. Moving a pull request
+back to draft doesn't stop jobs already queued or running; cancelling its run does.
+
 # Demo Debug Panel
 
 Every state a feature adds to the UI MUST be reachable on the demo backend, so it can be

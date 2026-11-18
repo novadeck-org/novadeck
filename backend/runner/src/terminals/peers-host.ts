@@ -7,6 +7,7 @@ import { planTitle } from "../companions/content.js"
 import { secrets } from "../companions/secrets.js"
 import { DomainError } from "../errors.js"
 import type { Activity } from "../harnesses/activity.js"
+import type { Statement } from "../messaging/coordination.js"
 import type { Messaging } from "../messaging/messaging.js"
 import {
   shownLabel,
@@ -43,6 +44,7 @@ import {
 import type { Facts } from "./nudges.js"
 import type { Bound, Record } from "./record.js"
 import { shownCommand } from "./shown-command.js"
+import { gitAncestry, stacksOf } from "./stacks.js"
 import type { AgentSummary } from "./summary.js"
 import type { Naming } from "./titles.js"
 import { busiestFolders, currentCheckout, type Work } from "./work.js"
@@ -56,10 +58,13 @@ export type PeerTerminal = {
   readonly activity: Activity | null
   /** The handle of the terminal whose agent opened it; null otherwise. */
   readonly openedBy: string | null
+  /** What its agent said, through `describe`, its work waits on; absent for nothing. */
+  readonly waitingFor?: Statement | undefined
 }
 
 /** What peers read of a terminal's record, as the terminal manager keeps it. */
 export type PeerRecord = Pick<Record, "summary" | "naming" | "work" | "openedBy"> &
+  Partial<Pick<Record, "waitingFor">> &
   Caller & {
     readonly bound: Pick<Bound, "activity"> | null
   }
@@ -83,6 +88,9 @@ export const peerOf = (record: PeerRecord): PeerTerminal => ({
   },
   get openedBy() {
     return record.openedBy
+  },
+  get waitingFor() {
+    return record.waitingFor
   },
 })
 
@@ -142,6 +150,9 @@ export type PeersOptions = {
     readonly path: string
     readonly branch: string
     readonly pullRequest?: PullRequest | undefined
+    readonly commonDir?: string | undefined
+    /** The commit it started from. */
+    readonly base?: string | undefined
   }[]
   /** Whether the runner is stopping. */
   readonly stopping: () => boolean
@@ -152,6 +163,11 @@ export type PeersOptions = {
    * project closed before `before`, if History still keeps it.
    */
   readonly former?: (sessionId: string, handle: string, before: number) => Former | undefined
+  /**
+   * What the listing says of the host's load for a terminal, given the terminals of its
+   * project and session (`HostWatch.listing`); undefined when the host is quiet.
+   */
+  readonly hostLoad?: (callerId: string, peers: readonly PeerRecord[]) => string | undefined
 }
 
 /**
@@ -197,6 +213,8 @@ export class TerminalPeers {
   >()
   /** Each checkout's commits ahead and uncommitted changes, read by `git status` now and then. */
   private readonly states: GitStates
+  /** Reads whether a commit lies in a branch, for the work based on another's. */
+  private readonly ancestry = gitAncestry()
   /** What each agent session was shown of the terminals it may call by handle. */
   private readonly introductions: Introductions
 
@@ -321,7 +339,12 @@ export class TerminalPeers {
     // A lookup shows only the terminals it names, which `strangers` introduced; its
     // refusal of a handle shows them all, as the listing does.
     if (handles.length === 0 || !answer.ok) this.listed(caller)
-    return answer
+    if (handles.length > 0 || !answer.ok) return answer
+    const host = this.options.hostLoad?.(
+      call.terminalId,
+      this.options.running(caller.summary.sessionId),
+    )
+    return host === undefined ? answer : { ok: true, text: `${answer.text}\n\n${host}` }
   }
 
   /**
@@ -437,6 +460,7 @@ export class TerminalPeers {
               at: item.shownAt,
             })),
             worktrees: owned,
+            waitingFor: terminal.waitingFor ?? null,
             folders: workedFolders(
               terminal.work?.folders ?? {},
               this.options.projectFolder(sessionId) ?? cwd,
@@ -450,17 +474,30 @@ export class TerminalPeers {
           return [terminal.summary.id, where] as const
         }),
     )
-    return new Map(entries)
+    // Whose work is based on whose: read across the terminals once all are known.
+    const stacks = await stacksOf(
+      this.options.running(sessionId).map((terminal) => ({
+        terminalId: terminal.summary.id,
+        handle: terminal.summary.handle,
+        worktrees: entries.find(([id]) => id === terminal.summary.id)?.[1].worktrees ?? [],
+      })),
+      this.ancestry,
+    )
+    return new Map(
+      entries.map(([id, where]) => [id, { ...where, stacks: stacks.get(id) ?? [] }] as const),
+    )
   }
 
   /** The worktrees a terminal owns with their states, as last read (see `GitStates`). */
   private owned(terminalId: string): Promise<OwnedWorktree[]> {
     return Promise.all(
-      this.options.worktrees(terminalId).map(async ({ path, branch, pullRequest }) => {
-        const gone = !existsSync(path)
-        const state = gone ? null : await this.states.of(path)
-        return { path, branch, gone, state, ...(pullRequest && { pullRequest }) }
-      }),
+      this.options
+        .worktrees(terminalId)
+        .map(async ({ path, branch, pullRequest, commonDir, base }) => {
+          const gone = !existsSync(path)
+          const state = gone ? null : await this.states.of(path)
+          return { path, branch, gone, state, commonDir, base, ...(pullRequest && { pullRequest }) }
+        }),
     )
   }
 

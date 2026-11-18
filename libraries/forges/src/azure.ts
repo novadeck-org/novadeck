@@ -1,6 +1,7 @@
 import { choose, time, type Candidate } from "./choose.js"
 import { failure, offline, parse } from "./cli.js"
 import type {
+  Check,
   Ci,
   Fetch,
   Forge,
@@ -123,12 +124,15 @@ const candidate = (item: unknown, pageOf: (id: number) => string): Candidate | u
   const { pullRequestId: number, title } = pr
   if (state === undefined || typeof number !== "number" || typeof title !== "string")
     return undefined
+  const target = pr["targetRefName"]
+  const base = typeof target === "string" ? target.replace(/^refs\/heads\//, "") : ""
   return {
     pull: {
       number,
       url: pageOf(number),
       title,
       state: state === "open" && pr["isDraft"] === true ? "draft" : state,
+      ...(state === "open" && base !== "" && { base }),
     },
     at: time(pr["closedDate"]) || time(pr["creationDate"]),
   }
@@ -240,6 +244,41 @@ const ciOf = async (
   return combine(signals, complete)
 }
 
+// The builds of a pull request's merge ref that wait for an agent or run, each with the agent
+// pool it needs, which is the kind of runner Azure names. Never fails the lookup.
+const checksOf = async (
+  fetch: Fetch,
+  auth: Token,
+  root: string,
+  number: number,
+): Promise<Check[] | undefined> => {
+  const answer = await send(
+    fetch,
+    `${root}/_apis/build/builds?branchName=${encodeURIComponent(`refs/pull/${number}/merge`)}&statusFilter=notStarted,inProgress&api-version=7.1`,
+    { headers: headers(auth.value), redirect: "manual" },
+    { signIn: signIn(), unauthorized },
+  )
+  const list = "body" in answer ? record(answer.body)?.["value"] : undefined
+  if (!Array.isArray(list)) return undefined
+  return list.flatMap((item): Check[] => {
+    const build = record(item)
+    const name = record(build?.["definition"])?.["name"]
+    if (build === undefined || typeof name !== "string") return []
+    const running = build["status"] === "inProgress"
+    if (!running && build["status"] !== "notStarted") return []
+    const at = running ? time(build["startTime"]) : time(build["queueTime"])
+    const pool = record(record(build["queue"])?.["pool"])?.["name"]
+    return [
+      {
+        name,
+        state: running ? "running" : "queued",
+        ...(at > 0 && { since: at }),
+        ...(typeof pool === "string" && pool !== "" && { runner: pool }),
+      },
+    ]
+  })
+}
+
 const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) => {
   if (repo.forge !== "azure") return { kind: "unknown", said: "not an Azure DevOps repository" }
   const root = `https://${repo.host}/${part(repo.organization)}/${part(repo.project)}`
@@ -279,7 +318,14 @@ const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) 
     pull,
     ci: await ciOf(fetch, auth, root, base, pull.number, projects.get(pull.number)),
   }))
-  for (const { branch, pull, ci } of cis) if (ci !== undefined) found.set(branch, { ...pull, ci })
+  const running = cis.filter(({ ci }) => ci === "running")
+  const builds = await pooled(running, ({ pull }) => checksOf(fetch, auth, root, pull.number))
+  const checked = new Map(running.map(({ branch }, index) => [branch, builds[index]]))
+  for (const { branch, pull, ci } of cis) {
+    if (ci === undefined) continue
+    const checks = checked.get(branch)
+    found.set(branch, { ...pull, ci, ...(checks && checks.length > 0 && { checks }) })
+  }
   return found
 }
 

@@ -1,6 +1,7 @@
 import { choose, time, type Candidate } from "./choose.js"
 import { failure, offline, parse } from "./cli.js"
 import type {
+  Check,
   Ci,
   Fetch,
   Forge,
@@ -109,8 +110,15 @@ const candidate = (item: unknown): Candidate | undefined => {
     return undefined
   }
   const draft = state === "open" && (mr["draft"] === true || mr["work_in_progress"] === true)
+  const target = mr["target_branch"]
   return {
-    pull: { number: iid, url, title, state: draft ? "draft" : state },
+    pull: {
+      number: iid,
+      url,
+      title,
+      state: draft ? "draft" : state,
+      ...(state === "open" && typeof target === "string" && target !== "" && { base: target }),
+    },
     at: time(mr["merged_at"]) || time(mr["closed_at"]) || time(mr["updated_at"]),
   }
 }
@@ -140,7 +148,7 @@ const ciOf = async (
   repo: Repository & { readonly forge: "gitlab" },
   base: string,
   number: number,
-): Promise<Ci | undefined> => {
+): Promise<{ readonly ci: Ci; readonly checks?: readonly Check[] } | undefined> => {
   const answer = await send(
     fetch,
     `${base}/${number}`,
@@ -149,9 +157,49 @@ const ciOf = async (
   )
   if (!("body" in answer)) return undefined
   const pipeline = record(record(answer.body)?.["head_pipeline"])
-  if (pipeline === undefined) return "none"
+  if (pipeline === undefined) return { ci: "none" }
   const status = pipeline["status"]
-  return (typeof status === "string" ? pipelines[status] : undefined) ?? "none"
+  const ci = (typeof status === "string" ? pipelines[status] : undefined) ?? "none"
+  if (ci !== "running" || typeof pipeline["id"] !== "number") return { ci }
+  const checks = await checksOf(fetch, auth, repo, pipeline["id"])
+  return { ci, ...(checks && checks.length > 0 && { checks }) }
+}
+
+// A pipeline's jobs waiting for a runner or running, with the tags that say what kind of runner
+// each needs; a job still `created` waits on an earlier stage, not on a runner. Never fails the
+// lookup.
+const checksOf = async (
+  fetch: Fetch,
+  auth: Token,
+  repo: Repository & { readonly forge: "gitlab" },
+  pipeline: number,
+): Promise<Check[] | undefined> => {
+  const answer = await send(
+    fetch,
+    `https://${repo.host}/api/v4/projects/${encodeURIComponent(repo.path)}/pipelines/${pipeline}/jobs?scope[]=pending&scope[]=running&per_page=100`,
+    { headers: headers(auth.value) },
+    { signIn: signIn(repo.host) },
+  )
+  if (!("body" in answer) || !Array.isArray(answer.body)) return undefined
+  return answer.body.flatMap((item): Check[] => {
+    const job = record(item)
+    const name = job?.["name"]
+    if (job === undefined || typeof name !== "string") return []
+    const running = job["status"] === "running"
+    if (!running && job["status"] !== "pending") return []
+    const at = running ? time(job["started_at"]) : time(job["queued_at"]) || time(job["created_at"])
+    const tags = Array.isArray(job["tag_list"])
+      ? job["tag_list"].filter((tag): tag is string => typeof tag === "string")
+      : []
+    return [
+      {
+        name,
+        state: running ? "running" : "queued",
+        ...(at > 0 && { since: at }),
+        ...(tags.length > 0 && { runner: tags.join(" ") }),
+      },
+    ]
+  })
 }
 
 const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) => {
@@ -182,7 +230,8 @@ const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) 
     pull,
     ci: await ciOf(fetch, auth, repo, base, pull.number),
   }))
-  for (const { branch, pull, ci } of cis) if (ci !== undefined) found.set(branch, { ...pull, ci })
+  for (const { branch, pull, ci } of cis)
+    if (ci !== undefined) found.set(branch, { ...pull, ...ci })
   return found
 }
 
