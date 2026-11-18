@@ -141,27 +141,31 @@ which in a dialog of the window the page is in; a cancelled or failed question c
 it. On macOS the app doesn't turn on Touch ID passkeys yet, so the person's own synced
 passkeys don't show there; a security key or a phone still can.
 
-## PDF Previews
+## PDF and 3D Model Previews
 
-A PDF an agent shows is parsed and drawn by pdf.js in a frame of its own
-(`libraries/viewers/src/pdf.ts`), never in the app's page. The frame is an `<iframe
+A PDF an agent shows is parsed and drawn by pdf.js, and a 3D model (GLB/glTF, STL, OBJ with its
+materials, PLY, 3MF) by three.js, each in a frame of its own (`libraries/viewers/src/frame`, used
+by `pdf.ts` and `model.ts`), never in the app's page. The frame is an `<iframe
 sandbox="allow-scripts">`, without `allow-same-origin`, so its origin is opaque: it can't read
 the app's page (`parent.document` throws), its storage, cookies or IndexedDB, and it can't open
 popups or move the app's window. In the desktop app it runs in a renderer process of its own.
-Its page, `pdf-frame.html` beside the app's own (`libraries/viewers/src/pdf/frame.html`, copied
-to `frontend/ui/public`), has a policy of its own, `default-src 'none'`: no fetch, no WebSocket
-(so no reach to the runner), no image, font, media or frame from any address. It allows one
-inline script, named by its hash, which runs only when the page's origin is opaque, so a page
+Its page, `viewer-frame.html` beside the app's own (`libraries/viewers/src/frame/frame.html`,
+copied to `frontend/ui/public`), has a policy of its own, `default-src 'none'`: no WebSocket (so
+no reach to the runner), no image, font, media or frame from any address, and fetches only of
+`blob:` and `data:` addresses (`connect-src blob: data:`), which are bytes the frame already
+holds, never the network; a `blob:` address another origin made can't be read from it. It allows
+one inline script, named by its hash, which runs only when the page's origin is opaque, so a page
 that frames it without the sandbox, as a site could frame a development server's copy, runs
-nothing with the app's origin. That script takes one message, from its parent only: pdf.js, its
-worker and the viewer as text, with one end of a `MessageChannel`. The frame runs those from blob
-addresses, with WebAssembly for pdf.js's image decoders and a blob worker.
+nothing with the app's origin. That script takes one message, from its parent only: the viewer's
+scripts as text (pdf.js and the PDF viewer, or three.js, its loaders and the 3D viewer bundled
+into one), a worker's if it has one, and one end of a `MessageChannel`. The frame runs those from
+blob addresses; pdf.js also with WebAssembly for its image decoders and a blob worker.
 
 No page policy covers WebRTC, so the frame's script deletes WebRTC's constructors
 (`RTCPeerConnection` and every other global named `RTC…` or `webkitRTC…`) from the frame before
-pdf.js runs. A child frame a script in it makes can't hand them back: the sandbox gives the child
-an opaque origin of its own, so its globals can't be read, and the frame's policy, which the
-child inherits, runs no script in it (pdf.test.ts checks both). Should a flaw still reach a
+the viewer runs. A child frame a script in it makes can't hand them back: the sandbox gives the
+child an opaque origin of its own, so its globals can't be read, and the frame's policy, which
+the child inherits, runs no script in it (pdf.test.ts checks both). Should a flaw still reach a
 peer connection, the desktop app sends no WebRTC traffic over UDP that doesn't go through a
 proxy (`setWebRTCIPHandlingPolicy("disable_non_proxied_udp")` on its windows; the app uses no
 WebRTC), which leaves a TURN server reached over TCP; in a browser, as `pnpm dev:web`, the
@@ -169,29 +173,45 @@ browser's own WebRTC settings apply.
 
 A PDF's bytes go into the frame transferred over the channel; pdf.js's CMaps, fonts and decoders
 too, asked for by a name the app checks (letters, digits, `.`, `_` and `-`), read once for every
-frame from the app's own copies, at most 16 a second. What comes out is only what
-`libraries/viewers/src/pdf/messages.ts` takes, each field checked and nothing more: the page at
-the top and the zoom, how many pages, why a PDF isn't drawn, whether it is opening, the files it
-needs, and three of the pane's actions for keys pressed in it (hide the pane, the next or
-previous tab). Those are names, never keys, so nothing from the frame types into a terminal or
-an agent's composer. The frame has the focus only when the person gives it: a press on the PDF,
-or Tab to it, through a glass in front of the frame, or the app focusing the viewer; the person
-leaving it takes the focus back from it. A script in the frame that takes the focus itself (which
-the browser allows a frame the person has just used) has it put back where it was as soon as it
-leaves anything in the app's page, so keys typed for a terminal don't reach it. The app acts on an
-action only while the frame has the focus it was given, at most five a second. The app listens to nothing the frame posts to its window, and its other window listeners
-check the sender is their own. A frame that loads another page than its own, which only a script
-in it could make it do, is taken away once that page has loaded; the app page's own policy keeps
-such a page to the app's origin, so in the desktop app it can load none at all (its files are
-refused to the frame), and under `pnpm dev:web` it can load another page of the development
-server, which runs without the frame's policy until then. Within the frame, only the pages are drawn, on canvases, with no annotation, text or form
-layer; pdf.js's scripting sandbox is never loaded, so a script a PDF carries never runs; and XFA
-is off.
+frame from the app's own copies, at most 16 a second. A model's bytes go in the same way, with
+the files beside it that it names (a glTF's buffers and textures, an OBJ's material libraries
+and theirs), which the runner reads for it: only a name the model itself writes, in the model's
+folder or under it (`..` and symlinks out of it are refused), never one that may hold secrets
+(whatever the person revealed), 64 at most and 256 MB with the model; an address of its own
+(`https:`, `file:`, an absolute path) is never read. In the frame, each file a loader asks for
+is answered from those by name, and anything else with nothing, so no address a model names is
+ever fetched. What a glTF's arrays and a 3MF's zip claim to hold is checked before a loader
+believes it, so a file that claims gigabytes isn't drawn rather than taking the frame's memory;
+the frame carries no decoder for Draco, Meshopt or Basis compression.
 
-A flaw in pdf.js reaches only the frame: the bytes and pages of the PDF it shows, the keys the
-person types while the PDF has the focus, and what it may tell the app. It could draw a
-misleading PDF, or keep its pane busy; only a further way back to WebRTC, as above, could send
-what it has elsewhere.
+What comes out is only what the viewer's own check takes
+(`libraries/viewers/src/pdf/messages.ts`, `model/messages.ts`), each field checked and nothing
+more: a PDF's page at the top, zoom and page count, or a model's camera and toggles; why it isn't
+drawn; whether it is opening; the files pdf.js needs; a still of a model, as a PNG of at most
+1 MB; and three of the pane's actions for keys pressed in it (hide the pane, the next or previous
+tab). Those are names, never keys, so nothing from the frame types into a terminal or an agent's
+composer. The frame has the focus only when the person gives it: a press on the PDF or model, or
+Tab to it, through a glass in front of the frame, or the app focusing the viewer; the person
+leaving it takes the focus back from it. A drag begun on the glass, which turns a model, goes to
+the frame as where the pointer is and which buttons are down, never as an event. A script in the
+frame that takes the focus itself (which the browser allows a frame the person has just used) has
+it put back where it was as soon as it leaves anything in the app's page, or the app's window
+loses it to the frame, so keys typed for a terminal don't reach it. The app acts on an action
+only while the frame has the focus it was given, at most five a second. Stills are drawn by one
+such frame out of sight, which takes no presses and is never given the focus. The app listens to
+nothing the frame posts to its window, and its other window listeners check the sender is their
+own. A frame that loads another page than its own, which only a script in it could make it do,
+is taken away once that page has loaded; the app page's own policy keeps such a page to the app's
+origin, so in the desktop app it can load none at all (its files are refused to the frame), and
+under `pnpm dev:web` it can load another page of the development server, which runs without the
+frame's policy until then. Within the PDF's frame, only the pages are drawn, on canvases, with no
+annotation, text or form layer; pdf.js's scripting sandbox is never loaded, so a script a PDF
+carries never runs; and XFA is off.
+
+A flaw in pdf.js or three.js reaches only its frame: the bytes of the PDF or model it shows (and
+the files beside a model), the keys the person types while it has the focus, and what it may tell
+the app. It could draw something misleading, or keep its pane busy; only a further way back to
+WebRTC, as above, could send what it has elsewhere.
 
 ## Packaged App Fuses
 

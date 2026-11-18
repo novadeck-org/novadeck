@@ -378,12 +378,23 @@ export const createShowcase = (
       for (const watcher of watching.get(id) ?? []) watcher.on(shownContent(id, watcher.reveal))
       return Promise.resolve()
     },
-    // As the runner reads a video's or PDF's file: in parts of `file.part` bytes while it is as
+    // As the runner reads a video's, PDF's or model's file: in parts of `file.part` bytes while it is as
     // its content's stamp says, `changed` once the sample shown anew has another stamp, and a
     // secret one only revealed.
-    part: async (_target, id, { stamp, offset, reveal }) => {
+    part: async (_target, id, { stamp, offset, reveal, file }) => {
       const sample = samples.get(id)
       if (!sample?.file) throw new Error(`No file to read in ${id}`)
+      // A file beside a model, by the name its content lists it by, as the runner reads it.
+      if (file !== undefined) {
+        const read = sample.file.beside?.[file]
+        if (!read) throw new Error("That file isn't one the model names")
+        if (sample.file.fails) throw new Error("The link to the runner dropped")
+        const bytes = await read()
+        const size = sample.file.part ?? partBytes
+        if (sample.file.delay)
+          await new Promise((resolve) => setTimeout(resolve, sample.file?.delay))
+        return { state: "part", bytes: bytes.slice(offset, offset + size) }
+      }
       if (sample.item.secret && (reveal === undefined || reveal !== sample.item.path))
         return { state: "unavailable", reason: "secret" }
       if (sample.content.state === "ready" && sample.content.stamp !== stamp)

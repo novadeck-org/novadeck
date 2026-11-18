@@ -489,6 +489,21 @@ Agents:
   shows the report under a new stamp, as if its file was rewritten, read in 512-byte parts 0.3 s
   apart: the old one stays on screen under a Loading chip for about 2 s, then the new one swaps
   in on the page you were on.
+- **3D model:** only in the `showcase` variant, on the selected terminal's bar. The models are
+  bytes made in code (`frontend/demo/src/showcase/model.ts`), drawn by the pane's 3D viewer:
+  "Show an STL bracket" is an L-bracket as a CAD loop writes it, 60 × 40 × 40 mm; "Show an
+  animated glTF" is an arm read with its `arm.bin` beside it, whose Play swings its boom; "Show an
+  OBJ with materials" is a crate coloured by its `crate.mtl`; "Show a PLY scan of points" is a
+  dome of coloured points; "Show a model that loads slowly" reads one in 1 KB parts 0.3 s apart;
+  "Show a model too large to preview" is the pane's "Novadeck previews 3D models up to 256 MB";
+  "Show a model that may hold secrets" joins the stack unopened until you pick its tab; "Show a
+  model whose read fails" is the pane's "couldn't be loaded"; "Show a glTF naming a texture
+  elsewhere" is drawn without it, under "Not read: https://cdn.example.com/arm-skin.png (an address
+  of its own)"; "Show a Draco-compressed glTF" says Novadeck can't read that compression yet;
+  "Show a file that isn't a model" says "This isn't a model Novadeck can read."; "Stop the 3D
+  viewer" sends the open model's frame to another page, and the pane says "The 3D viewer
+  stopped."; "Rewrite the bracket" writes it again 10 mm longer, read in small parts: the old one
+  stays in view under a Loading chip, then the new one is drawn from where you were looking.
 - **Changes:** only in the `showcase` variant, no action needed: the dev server's terminal
   (`@fox`, the third) holds its items on the bar beside those that can't show, thirteen of them
   changes, one in each shape the changes pane draws: an ordinary change in layers (a refactor of

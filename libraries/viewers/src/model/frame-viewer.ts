@@ -522,9 +522,10 @@ export const modelFrameViewer = ({ port }: { readonly port: MessagePort }): void
     drawn.getBoundingSphere(bounds)
     const size = box.getSize(new Vector3())
     const unit = next.millimetres
-    sizeText.textContent = `${[size.x, size.y, size.z].map((side) => number(side * (unit ?? 1))).join(" × ")} ${unit === undefined ? "units" : "mm"}`
+    // A format with no units (STL, OBJ, PLY) is read as CAD writes it, in millimetres.
+    sizeText.textContent = `${[size.x, size.y, size.z].map((side) => number(side * (unit ?? 1))).join(" × ")} mm`
     sizeBox.title =
-      unit === undefined ? "This format has no units: one unit may be a millimetre." : ""
+      unit === undefined ? "This format has no units: read as millimetres, as CAD writes it." : ""
     sizeBox.hidden = false
     // The grid on the floor, a little wider than the model, in round steps.
     const across = Math.max(drawn.max.x - drawn.min.x, drawn.max.z - drawn.min.z) * 1.5
