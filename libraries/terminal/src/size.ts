@@ -6,7 +6,7 @@ export const sizeBounds = {
 } as const
 
 // The most columns a view fits a terminal to, however wide its frame: past this the screen
-// stops growing and centres, as the chat's column stops at 180 characters
-// (frontend/chat's `--_ceiling`). A line past it is hard to follow, and a program that
+// stops growing, its lines left where they start, as the chat's column stops at 180
+// characters (frontend/chat's `--_ceiling`). A line past it is hard to follow, and a program that
 // redraws its whole width, as agents' TUIs do on every key, has that much more to draw.
 export const measureCols = 180

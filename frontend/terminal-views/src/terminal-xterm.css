@@ -6,8 +6,7 @@
    frontend/ui/src/app/mounted-terminal.css) and the toolkit's (the notice and the ending bar,
    frontend/toolkit/src/terminal-status.css).
 
-   Parts: `.terminal-xterm` (where xterm draws). Hooks: data-measured on `.terminal-xterm`,
-   while its frame is wider than the screen's measure (`measureCols`). */
+   Parts: `.terminal-xterm` (where xterm draws). */
 
 @layer components {
   /* xterm.css paints its scroll viewport black under the themed screen. At fractional
@@ -15,13 +14,6 @@
      as thin lines, so the viewport takes the surface's own background. */
   .terminal-xterm .xterm .xterm-viewport {
     background-color: transparent;
-  }
-
-  /* A frame wider than the measure centres the screen, as the chat centres its column, in
-     place of an empty band down its right. */
-  .terminal-xterm[data-measured] .xterm {
-    width: fit-content;
-    margin-inline: auto;
   }
 
   /* xterm draws its own scrollbar with a wide slider; thin it to the app's scrollbar

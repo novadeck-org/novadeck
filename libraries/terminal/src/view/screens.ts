@@ -314,14 +314,11 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
       resize: ({ cols, rows }) => {
         if (xterm.cols !== cols || xterm.rows !== rows) xterm.resize(cols, rows)
       },
-      // The frame's size, held to the measure: a wider frame centres the screen
-      // (data-measured, terminal-xterm.css) and leaves its own size as it is, so the next
-      // fit finds the same.
+      // The frame's size, held to the measure: a wider frame leaves the rest of its width
+      // empty, as a short line does.
       fit: () => {
         const size = view.fit()
-        if (!size) return undefined
-        container.toggleAttribute("data-measured", size.cols > measureCols)
-        return clampSize({ cols: Math.min(size.cols, measureCols), rows: size.rows })
+        return size && clampSize({ cols: Math.min(size.cols, measureCols), rows: size.rows })
       },
     }
     // The state a person sees, with the lock recomputed in the same step as the change that

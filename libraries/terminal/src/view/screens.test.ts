@@ -382,15 +382,14 @@ describe("a mount's hold on a screen", () => {
 })
 
 describe("the measure", () => {
-  it("fits a frame wider than the measure to it, and marks the frame to centre the screen", async () => {
+  it("fits a frame wider than the measure to it", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "requestAnimationFrame"] })
     try {
-      const { show, resized, hostOf } = capped(2)
+      const { show, resized } = capped(2)
       layOut({ cols: measureCols + 80, rows: 40 })
       show("wide")
       await vi.advanceTimersByTimeAsync(0)
       expect(resized).toHaveBeenLastCalledWith("wide", { cols: measureCols, rows: 40 })
-      expect(hostOf("wide")?.hasAttribute("data-measured")).toBe(true)
     } finally {
       closeScreens()
       vi.useRealTimers()
@@ -398,15 +397,14 @@ describe("the measure", () => {
     }
   })
 
-  it("fits a frame within the measure to the frame, unmarked", async () => {
+  it("fits a frame within the measure to the frame", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "requestAnimationFrame"] })
     try {
-      const { show, resized, hostOf } = capped(2)
+      const { show, resized } = capped(2)
       layOut({ cols: measureCols, rows: 40 })
       show("narrow")
       await vi.advanceTimersByTimeAsync(0)
       expect(resized).toHaveBeenLastCalledWith("narrow", { cols: measureCols, rows: 40 })
-      expect(hostOf("narrow")?.hasAttribute("data-measured")).toBe(false)
     } finally {
       closeScreens()
       vi.useRealTimers()
