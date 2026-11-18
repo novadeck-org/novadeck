@@ -9,7 +9,7 @@ import { VideoPlayer } from "./VideoPlayer"
 // A video of a pane, played with its own bar once its bytes are in, and its progress till then.
 export const VideoViewer = (props: ArtifactBodyProps<"video">): React.JSX.Element => (
   <Playback {...props} element="video">
-    {(url, onBroken) => (
+    {(url, _stamp, onBroken) => (
       <VideoPlayer
         id={props.item.id}
         src={url}

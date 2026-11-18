@@ -10,8 +10,10 @@ import { blobs } from "../video/blobs"
 // How many fine peaks a file gets, enough for a wide pane's bars to be reduced from.
 export const fineCount = 2000
 
-// Past these, a recording isn't decoded for its peaks: its whole decode would sit in memory.
-export const limits = { bytes: 60 * 1024 * 1024, seconds: 30 * 60 } as const
+// Past these, a recording isn't decoded for its peaks: the browser decodes it whole at its own
+// rate before it is brought down to the peaks' (ten minutes of 48 kHz stereo is some 230 MB
+// for a moment), so a long one is drawn flat.
+export const limits = { bytes: 60 * 1024 * 1024, seconds: 10 * 60 } as const
 
 // The fine peaks as `count` bars: each the loudest of its share. A share is never empty, so
 // `count` above the fine peaks stretches them.
@@ -86,8 +88,10 @@ export const usePeaks = ({
   const current = cached?.stamp === stamp ? cached : undefined
   // Too long to decode, or nothing here to decode with: flat, whatever the file holds.
   const flat = size > limits.bytes || duration > limits.seconds || !decoding()
+  // Decoded once its length is known, not again as the browser refines it.
+  const known = duration > 0
   useEffect(() => {
-    if (current || flat || duration === 0) return
+    if (current || flat || !known) return
     let stopped = false
     void (async () => {
       let peaks: Float32Array | undefined
@@ -104,7 +108,7 @@ export const usePeaks = ({
     return () => {
       stopped = true
     }
-  }, [id, stamp, url, flat, duration, current])
+  }, [id, stamp, url, flat, known, current])
   if (flat && duration > 0) return null
   return (current ?? got)?.peaks
 }

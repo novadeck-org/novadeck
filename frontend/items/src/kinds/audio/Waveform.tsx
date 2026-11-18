@@ -28,8 +28,8 @@ const Bars = memo(({ heights }: { heights: readonly number[] }): React.JSX.Eleme
 Bars.displayName = "Bars"
 
 // A recording's waveform, which is its scrubber: a click or a drag seeks, hovering shows the
-// time under the pointer, and the keys of a slider work too (the arrows jump, Home and End go
-// to the ends). `peaks` are the fine ones (undefined while they are worked out, null where
+// time under the pointer, and the keys of a slider work too (the arrows jump 5 seconds, the
+// page keys a tenth of it, Home and End go to the ends). `peaks` are the fine ones (undefined while they are worked out, null where
 // there are none): the bars are as many as fit and the track is flat without them.
 export const Waveform = ({
   peaks,
@@ -107,16 +107,22 @@ export const Waveform = ({
       onPointerLeave={() => setHover(undefined)}
       onKeyDown={(event) => {
         if (!known || event.ctrlKey || event.metaKey || event.altKey) return
+        // A tenth of it at a time by page, as a long recording's arrows would crawl.
+        const page = Math.max(jump, duration / 10)
         const to =
-          event.key === "ArrowLeft"
+          event.key === "ArrowLeft" || event.key === "ArrowDown"
             ? time - jump
-            : event.key === "ArrowRight"
+            : event.key === "ArrowRight" || event.key === "ArrowUp"
               ? time + jump
-              : event.key === "Home"
-                ? 0
-                : event.key === "End"
-                  ? duration
-                  : undefined
+              : event.key === "PageDown"
+                ? time - page
+                : event.key === "PageUp"
+                  ? time + page
+                  : event.key === "Home"
+                    ? 0
+                    : event.key === "End"
+                      ? duration
+                      : undefined
         if (to === undefined) return
         // The slider's keys are its own: the player's, which would jump again, don't see them.
         event.preventDefault()

@@ -15,8 +15,9 @@ export type Blobs = {
   // Keeps the URL of the item's file as `stamp` names it, in place of any other of the item's,
   // and lets the oldest go beyond the limit.
   readonly keep: (item: string, stamp: string, blob: Blob) => string
-  // Lets the item's file as `stamp` names it go, as one the browser can't play.
-  readonly drop: (item: string, stamp: string) => void
+  // The item's file kept now, whichever stamp it is at: what a pane that comes back plays
+  // while it reads a newer one.
+  readonly latest: (item: string) => { readonly stamp: string; readonly url: string } | undefined
   // The bytes `url` plays, while it is kept: a page can't fetch its own blob URL under the
   // app's content security policy, so what reads the bytes (as a waveform's peaks) asks here.
   readonly bytes: (url: string) => Blob | undefined
@@ -72,8 +73,9 @@ export const createBlobs = (
       return url
     },
     bytes: (url) => [...kept.values()].find((each) => each.url === url)?.blob,
-    drop: (item, stamp) => {
-      if (kept.get(item)?.stamp === stamp) release(item)
+    latest: (item) => {
+      const was = kept.get(item)
+      return was && { stamp: was.stamp, url: was.url }
     },
     hold: (url) => {
       holds.set(url, (holds.get(url) ?? 0) + 1)

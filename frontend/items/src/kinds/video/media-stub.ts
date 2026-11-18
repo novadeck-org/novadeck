@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, vi } from "vitest"
 
+import { timing } from "./source"
+
 // jsdom plays nothing: a media element here keeps what the player reads and sets, and
 // `load` is what the browser does once the new source has its length.
 type Media = { paused: boolean; time: number; duration: number }
@@ -14,6 +16,10 @@ const restore = ["paused", "currentTime", "duration", "play", "pause", "src"] as
 // Registers, for the test file that calls it, a media element that plays nothing and an object
 // URL of its own, named by `prefix`.
 export const stubMedia = (prefix: string): void => {
+  // A rewritten file is read at once, unless a test waits for it to settle.
+  beforeEach(() => {
+    timing.settleMs = 0
+  })
   beforeEach(() => {
     Object.defineProperties(HTMLMediaElement.prototype, {
       paused: {

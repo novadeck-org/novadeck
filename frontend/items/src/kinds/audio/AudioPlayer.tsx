@@ -1,5 +1,6 @@
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { Pause, Play, Repeat, Volume2, VolumeX } from "lucide-react"
+import { useRef } from "react"
 
 import { Control } from "../video/Control"
 import { actionOf, jump, nextSpeed, type Action } from "../video/controls"
@@ -37,6 +38,8 @@ export const AudioPlayer = ({
   const media = useMedia<HTMLAudioElement>({ id, src, shown, at })
   const { ref, paused, time, duration, loop, speed, muted, seek, events } = media
   const peaks = usePeaks({ id, stamp, url: src, size, duration })
+  // Whether the press the next click ends began on the stage itself.
+  const pressed = useRef(false)
 
   const act = (action: Action): void => {
     const element = ref.current!
@@ -80,8 +83,16 @@ export const AudioPlayer = ({
       {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Space does it from the player. */}
       <div
         className="audio-stage"
-        onClick={(event) => {
-          if (!(event.target instanceof Element) || !event.target.closest(".wave")) act("toggle")
+        onPointerDown={(event) => {
+          pressed.current =
+            event.target instanceof Element && !event.target.closest(".wave, .audio-head")
+        }}
+        onClick={() => {
+          // Only a press and release on the stage itself: not one that began on the waveform
+          // (a seek) or the name (a selection), wherever it ended.
+          const stage = pressed.current
+          pressed.current = false
+          if (stage && !window.getSelection()?.toString()) act("toggle")
         }}
       >
         <div className="audio-head">

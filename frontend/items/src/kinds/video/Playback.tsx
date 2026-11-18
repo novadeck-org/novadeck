@@ -10,21 +10,22 @@ import { useSource, type MediaProps } from "./source"
 // The body of a video or a recording of a pane: its player once its bytes are in, its progress
 // till then (centred while there is nothing to play, a chip over the player while a newer
 // file's are read), or why there is nothing to play. `children` draws the player of the
-// `url` it gets, and tells with `onBroken` that the browser can't decode what it was given.
+// `url` it gets (the file `stamp` names), and tells with `onBroken` that the browser can't
+// decode what it was given.
 export const Playback = ({
   element,
   children,
   ...props
 }: MediaProps & {
   readonly element: "video" | "audio"
-  readonly children: (url: string, onBroken: () => void) => React.ReactNode
+  readonly children: (url: string, stamp: string, onBroken: () => void) => React.ReactNode
 }): React.JSX.Element => {
   const { item, content, itemStore } = props
   const source = useSource(props, element)
   usePaneNote([factsText(content.mime, content.size)])
   // The URL of the bytes the browser couldn't play, so a newer file's are tried afresh.
   const [broken, setBroken] = useState<string>()
-  const { url, loaded, problem } = source
+  const { url, stamp, loaded, problem } = source
   // Held while it plays, so other files loading never revoke it under the player.
   useEffect(() => (url === undefined ? undefined : blobs.hold(url)), [url])
   if (problem === "here" || problem === "failed" || (url !== undefined && broken === url))
@@ -46,7 +47,7 @@ export const Playback = ({
     )
   return (
     <div className={`${element}-viewer`} aria-busy={url === undefined}>
-      {url !== undefined && children(url, () => setBroken(url))}
+      {url !== undefined && children(url, stamp ?? "", () => setBroken(url))}
       {loaded !== null && (
         <div
           className={`${element}-loading`}

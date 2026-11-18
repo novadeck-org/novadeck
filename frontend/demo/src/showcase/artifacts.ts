@@ -397,6 +397,20 @@ export const videoAgain = (
 // Garbage in a video's or a recording's name: the file reads, and the browser can't play it.
 const garbage = new TextEncoder().encode("This is not a video. ".repeat(200))
 
+// A video or a recording as its render writes it in place, caught before it ends: a new file
+// of what the browser can't play yet, from `stamp`, shown the `shown`th time.
+export const caughtMidWrite = (
+  sample: SampleArtifact,
+  fields: { stamp: string; shown: number },
+): SampleArtifact => ({
+  ...sample,
+  content:
+    sample.item.kind === "audio"
+      ? recordingContent(garbage.length, fields)
+      : videoContent(garbage.length, fields),
+  video: { read: async () => garbage },
+})
+
 export const videoSamples = {
   playable: walkthrough,
   // About 12 parts, half a second each: its progress shows.

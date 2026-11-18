@@ -17,6 +17,7 @@ import { context, describe, expect, it } from "../../test"
 import { video as registration } from "./index"
 import { stateOf, stubMedia } from "./media-stub"
 import { playable } from "./playable"
+import { timing } from "./source"
 
 // jsdom decodes nothing: every video plays, unless a test says its bytes don't.
 vi.mock("./playable", () => ({
@@ -214,6 +215,43 @@ describe("a video beside a terminal", () => {
       first.unmount()
       const again = await shown({ id: "back-changed", stamp: "two", file: [1, 2] })
       expect(again.asked.length).toBeGreaterThan(0)
+    })
+
+    it("plays on through a rewrite after it came back, never emptying the pane", async () => {
+      const first = await shown({ id: "back-rewrite", stamp: "r1", file: [1, 2] })
+      const src = first.element().getAttribute("src")
+      first.unmount()
+      const again = await shown({ id: "back-rewrite", stamp: "r1", file: [1, 2] })
+      again.ready(10)
+      act(() => {
+        again.element().currentTime = 4
+      })
+      click(again.container, "Play")
+      again.show({}, "r2", [9, 8, 7])
+      // The video it came back to plays while the new file is read.
+      expect(again.element().getAttribute("src")).toBe(src)
+      await settle()
+      expect(again.element().getAttribute("src")).not.toBe(src)
+      again.ready(6)
+      expect(again.element().currentTime).toBe(4)
+      expect(again.element().paused).toBe(false)
+    })
+
+    it("plays the item's latest file when it comes back to one newer than it read", async () => {
+      const first = await shown({ id: "back-newer", stamp: "n1", file: [1, 2] })
+      const src = first.element().getAttribute("src")
+      first.unmount()
+      let release: (part: VideoPart) => void = () => {}
+      const again = await shown({
+        id: "back-newer",
+        stamp: "n2",
+        videoPart: () => new Promise((resolve) => (release = resolve)),
+        content: { size: 2 },
+      })
+      expect(again.element().getAttribute("src")).toBe(src)
+      release({ state: "part", bytes: Uint8Array.from([3, 4]) })
+      await settle()
+      expect(again.element().getAttribute("src")).not.toBe(src)
     })
 
     it("finds the video where it was, with its loop and speed", async () => {
@@ -459,6 +497,20 @@ describe("a video beside a terminal", () => {
       expect(container.querySelector(".artifact-status")!.textContent).toContain(
         "demo.mp4 can't be played here",
       )
+    })
+
+    it("waits for a file rewritten while it plays to settle, reading only where it ends", async () => {
+      timing.settleMs = 40
+      const { show, asked, element } = await shown({ stamp: "s1" })
+      const before = element().getAttribute("src")
+      show({}, "s2", [9, 8, 7])
+      await settle()
+      show({}, "s3", [6, 5, 4])
+      await settle()
+      expect(asked.filter(({ stamp }) => stamp !== "s1")).toEqual([])
+      await act(() => new Promise<void>((resolve) => setTimeout(resolve, 80)))
+      expect([...new Set(asked.map(({ stamp }) => stamp))]).toEqual(["s1", "s3"])
+      expect(element().getAttribute("src")).not.toBe(before)
     })
 
     it("starts afresh when it was changed while it was read", async () => {

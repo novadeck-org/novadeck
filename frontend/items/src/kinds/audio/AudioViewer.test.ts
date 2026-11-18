@@ -18,12 +18,20 @@ import { context, describe, expect, it } from "../../test"
 import { stateOf, stubMedia } from "../video/media-stub"
 import { playable } from "../video/playable"
 import { audio as registration } from "./index"
+import { usePeaks } from "./peaks"
 
 // jsdom decodes nothing: every recording plays, unless a test says its bytes don't.
 vi.mock("../video/playable", () => ({
   playable: vi.fn<(blob: Blob, kind?: "video" | "audio") => Promise<boolean>>(async () => true),
 }))
 afterEach(() => vi.mocked(playable).mockReset().mockResolvedValue(true))
+
+// The waveform's peaks as the player asks for them: of which file, by its stamp and URL.
+vi.mock("./peaks", async (original) => {
+  const peaks = await original<typeof import("./peaks")>()
+  return { ...peaks, usePeaks: vi.fn<typeof peaks.usePeaks>(peaks.usePeaks) }
+})
+const peaksAsked = () => vi.mocked(usePeaks).mock.calls.map(([{ stamp, url }]) => ({ stamp, url }))
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
@@ -335,6 +343,28 @@ describe("a recording beside a terminal", () => {
       ready(6)
       expect(element().currentTime).toBe(4)
       expect(element().paused).toBe(false)
+    })
+
+    it("draws the waveform of the file it plays, the old one while the new one loads", async () => {
+      let release: (part: VideoPart) => void = () => {}
+      let hold = false
+      const { element, show } = await shown({
+        stamp: "w1",
+        videoPart: (_target, _id, { offset }) =>
+          hold && offset === 0
+            ? new Promise((resolve) => (release = resolve))
+            : Promise.resolve({ state: "part", bytes: Uint8Array.from([1, 2]) }),
+        content: { size: 2 },
+      })
+      const before = element().getAttribute("src")!
+      hold = true
+      vi.mocked(usePeaks).mockClear()
+      show({}, "w2")
+      await settle()
+      expect(peaksAsked().at(-1)).toEqual({ stamp: "w1", url: before })
+      release({ state: "part", bytes: Uint8Array.from([3, 4]) })
+      await settle()
+      expect(peaksAsked().at(-1)).toEqual({ stamp: "w2", url: element().getAttribute("src") })
     })
 
     it("plays on where it was when the new file can't play yet", async () => {

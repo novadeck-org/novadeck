@@ -6,14 +6,15 @@ import { bytesText, formatName } from "../video/format"
 import { Playback } from "../video/Playback"
 import { AudioPlayer } from "./AudioPlayer"
 
-// A recording of a pane, played on its card once its bytes are in, and its progress till then.
+// A recording of a pane, played as the whole pane once its bytes are in, and its progress till
+// then. Its waveform is of the file it plays, which is the one before while a newer one is read.
 export const AudioViewer = (props: ArtifactBodyProps<"audio">): React.JSX.Element => (
   <Playback {...props} element="audio">
-    {(url, onBroken) => (
+    {(url, stamp, onBroken) => (
       <AudioPlayer
         id={props.item.id}
         src={url}
-        stamp={props.stamp}
+        stamp={stamp}
         name={props.item.name}
         mime={props.content.mime}
         size={props.content.size}

@@ -142,14 +142,13 @@ describe("the videos kept loaded", () => {
     expect(kept.get("a", "2")).toBeUndefined()
   })
 
-  it("lets a file go that can't play, and only that one", () => {
-    const { urls: own, revoked } = urls()
+  it("gives an item's latest file, whatever its stamp, for a pane that comes back", () => {
+    const { urls: own } = urls()
     const kept = createBlobs(2, own)
+    expect(kept.latest("a")).toBeUndefined()
     kept.keep("a", "1", new Blob())
-    kept.drop("a", "2")
-    expect(revoked).toEqual([])
-    kept.drop("a", "1")
-    expect(revoked).toEqual(["blob:1"])
+    kept.keep("a", "2", new Blob())
+    expect(kept.latest("a")).toEqual({ stamp: "2", url: "blob:2" })
   })
 
   it("never revokes a URL a player holds, until the last player lets it go", () => {

@@ -1,5 +1,6 @@
 import type { Backend } from "@novadeck/core/port"
 import {
+  caughtMidWrite,
   recordingAgain,
   recordingSamples,
   videoAgain,
@@ -33,6 +34,14 @@ export const videoGroups = (companions: Backend["companions"]): readonly DemoAct
       shown += 1
       stamp = fields.stamp ?? stamp
       return show(videoAgain(videoSamples.playable, { shown, stamp, ...fields }))(context)
+    }
+  // A rewrite caught mid-write, then the render's end a moment later: `again` shows the file
+  // anew from a stamp of its own, as `play` or `hear` do.
+  const midWrite =
+    (sample: Parameters<typeof caughtMidWrite>[0], again: DemoAction["run"]): DemoAction["run"] =>
+    (context) => {
+      show(caughtMidWrite(sample, { stamp: `writing-${Date.now()}`, shown: 1 }))(context)
+      setTimeout(() => again(context), 2500)
     }
   // The recording as it stands, as the video is above.
   let heard = 0
@@ -96,6 +105,13 @@ export const videoGroups = (companions: Backend["companions"]): readonly DemoAct
           hint: "The video of Show a video is read again as a new file; the pane keeps playing the old one, a chip says Loading, then it swaps in where it was, playing or paused",
           run: play({ stamp: `rewritten-${shown + 1}` }),
         },
+        {
+          label: "Rewrite the video, caught mid-write",
+          hint: "The video of Show a video is rewritten in place: a second after it changes, the half-written file is read and can't play, so the old one plays on; 2.5 s later the render ends and swaps in where it was",
+          run: midWrite(videoSamples.playable, (context) =>
+            play({ stamp: `rewritten-${shown + 1}` })(context),
+          ),
+        },
       ],
     },
     {
@@ -104,12 +120,12 @@ export const videoGroups = (companions: Backend["companions"]): readonly DemoAct
       actions: [
         {
           label: "Show a recording",
-          hint: "The pane opens voiceover.opus, 6 s, paused, on a card with no picture: its name and facts, a play button beside its waveform (which scrubs), and time, loop, speed and mute",
+          hint: "The pane becomes the player of voiceover.opus, 6 s, paused, with no picture: its name and facts over its waveform (which scrubs), and the video's bar below of play, time, loop, speed and mute",
           run: hear({}),
         },
         {
           label: "Show a recording that loads slowly",
-          hint: "The pane says Loading and how much of the recording is in, for about 2 s, then its card shows",
+          hint: "The pane says Loading and how much of the recording is in, for about 2 s, then its player shows",
           run: show(recordingSamples.slow),
         },
         {
@@ -146,6 +162,13 @@ export const videoGroups = (companions: Backend["companions"]): readonly DemoAct
           label: "Rewrite the recording",
           hint: "The recording of Show a recording is read again as a new file; the pane keeps playing the old one, a chip says Loading, then it swaps in where it was, playing or paused",
           run: hear({ stamp: `rewritten-${heard + 1}` }),
+        },
+        {
+          label: "Rewrite the recording, caught mid-write",
+          hint: "The recording of Show a recording is rewritten in place: a second after it changes, the half-written file is read and can't play, so the old one plays on with its waveform; 2.5 s later the render ends and swaps in where it was",
+          run: midWrite(recordingSamples.playable, (context) =>
+            hear({ stamp: `rewritten-${heard + 1}` })(context),
+          ),
         },
       ],
     },
