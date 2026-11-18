@@ -478,7 +478,9 @@ Agents:
   "Show a PDF that loads slowly" reads it in 512-byte parts 0.6 s apart, so the pane says
   "Loading" with its progress for about 3 s; "Show a PDF too large to preview" is the pane's
   unavailable state, "Novadeck previews PDFs up to 128 MB."; "Show a PDF that may hold secrets"
-  joins the stack unopened until you pick its tab; "Show a file that isn't a PDF" is text under
+  joins the stack unopened until you pick its tab; "Show a PDF locked with a password" is a one-page PDF locked
+  by Ghostscript, which the viewer says "This PDF is locked with a password, which Novadeck doesn't
+  open."; "Show a file that isn't a PDF" is text under
   a PDF's name, which the viewer says "This file couldn't be read as a PDF."; "Rewrite the PDF"
   shows the report under a new stamp, as if its file was rewritten: the old one stays on screen
   under a Loading chip, then the new one swaps in on the page you were on.

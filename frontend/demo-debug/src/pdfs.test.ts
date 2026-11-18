@@ -54,6 +54,7 @@ describe("the debug panel's PDF group", () => {
       "Show a PDF that loads slowly",
       "Show a PDF too large to preview",
       "Show a PDF that may hold secrets",
+      "Show a PDF locked with a password",
       "Show a file that isn't a PDF",
       "Rewrite the PDF",
     ])
@@ -79,6 +80,16 @@ describe("the debug panel's PDF group", () => {
     expect(real.state === "part" && header(real.bytes)).toBe("%PDF-")
     const broken = await read("studio-report-broken")
     expect(broken.state === "part" && header(broken.bytes)).not.toBe("%PDF-")
+  })
+
+  it("serves a PDF locked with a password, which pdf.js won't open", async () => {
+    const { run, reported, read } = panel()
+    run("Show a PDF locked with a password")
+    expect(reported.map((item) => item.name)).toEqual(["locked.pdf"])
+    const locked = await read("studio-report-locked")
+    const text = locked.state === "part" ? new TextDecoder("latin1").decode(locked.bytes) : ""
+    expect(text.startsWith("%PDF-")).toBe(true)
+    expect(text).toContain("/Encrypt")
   })
 
   it("reads the slow one in small parts, and holds the secret one back until revealed", async () => {

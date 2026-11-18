@@ -10,8 +10,10 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Unavailable, type ArtifactBodyProps } from "../../ArtifactViewer"
 import { usePaneNote } from "../../pane-row"
 import { loadParts } from "../../parts/load"
+import { useRevealed } from "../../store/use-item-store"
 import { useViewerSlot } from "../../ViewerSlot"
 import { bytesText, loadingText } from "../video/format"
+import { pdfAssets } from "./assets"
 
 // The PDFs read for panes, by item and stamp, up to 256 MB in all: a pane that goes and comes
 // back, as a view switch, draws its PDF again without reading it.
@@ -39,13 +41,19 @@ const useSource = ({
   itemStore,
   target,
 }: ArtifactBodyProps<"pdf">): Source => {
-  const [read, setRead] = useState<Read>()
-  const [progress, setProgress] = useState<{ key: string; loaded: number }>()
   const { part: readPart } = itemStore
   const { size } = content
-  const reveal = item.path ?? undefined
+  // The person's yes to a file that may hold secrets, which its parts are read with.
+  const reveal = useRevealed(itemStore, item)
   const id = item.id
   const key = `${id}:${stamp}`
+  // A pane that comes back starts from the bytes read before, which it holds however long
+  // they stay kept, and keeps in view while a rewritten file is read.
+  const [read, setRead] = useState<Read | undefined>(() => {
+    const bytes = kept.get(key)
+    return bytes ? { key, bytes, problem: null } : undefined
+  })
+  const [progress, setProgress] = useState<{ key: string; loaded: number }>()
   // Where it's read for, which a read in progress takes as it is when it asks.
   const where = useRef(target)
   useEffect(() => {
@@ -77,9 +85,10 @@ const useSource = ({
     return () => stop.abort()
   }, [id, key, stamp, size, reveal, readPart])
   if (!readPart) return { bytes: undefined, loaded: null, problem: "here" }
+  if (read?.key === key) return { bytes: read.bytes, loaded: null, problem: read.problem }
+  // Kept from another pane of it since this one mounted.
   const bytes = kept.get(key)
   if (bytes) return { bytes, loaded: null, problem: null }
-  if (read?.key === key) return { bytes: read.bytes, loaded: null, problem: read.problem }
   return { bytes: read?.bytes, loaded: progress?.key === key ? progress.loaded : 0, problem: null }
 }
 
@@ -92,6 +101,7 @@ const Pages = ({ id, name, bytes }: { id: string; name: string; bytes: Blob }) =
     content,
     label: name,
     worker,
+    assets: pdfAssets,
     onTrouble: setTrouble,
   })
   return <div ref={ref} className="artifact-pdf" data-trouble={trouble ?? undefined} />

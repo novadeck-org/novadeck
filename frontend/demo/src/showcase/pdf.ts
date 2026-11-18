@@ -1,5 +1,7 @@
+import { lockedPdfData } from "./locked-pdf-data"
+
 // The demo's PDFs, written as bytes in code so the pane's viewer has something to draw: a
-// short quarterlyReport on Letter pages, each saying its number, in the plain Helvetica every viewer has.
+// short report on Letter pages, each saying its number, in the plain Helvetica every viewer has.
 
 const encoder = new TextEncoder()
 
@@ -51,8 +53,12 @@ export const makePdf = (title: string, count: number): Uint8Array<ArrayBuffer> =
   return encoder.encode(out)
 }
 
-// The quarterlyReport an agent shows: five pages.
-export const quarterlyReport = makePdf("Quarterly quarterlyReport", 5)
+// The report an agent shows: five pages.
+export const quarterlyReport = makePdf("Quarterly report", 5)
 
 // Bytes that aren't a PDF, under a PDF's name.
 export const notAPdf = encoder.encode("This is not a PDF. ".repeat(200))
+
+// A PDF locked with a password, which the pane can't open.
+export const lockedPdf = (): Uint8Array<ArrayBuffer> =>
+  Uint8Array.from(atob(lockedPdfData), (char) => char.charCodeAt(0))

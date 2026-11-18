@@ -141,6 +141,22 @@ which in a dialog of the window the page is in; a cancelled or failed question c
 it. On macOS the app doesn't turn on Touch ID passkeys yet, so the person's own synced
 passkeys don't show there; a security key or a phone still can.
 
+## PDF Previews
+
+A PDF an agent shows is drawn by pdf.js in the app's own page, not in the companion pane's
+sandboxed `<webview>` (`libraries/viewers/src/pdf.ts`), since Chromium's own PDF viewer there
+can't say which page it is on, which the pane keeps. So a PDF's bytes, which anything that
+wrote the file chose, are parsed by pdf.js in a worker of the app's origin, and its fonts and
+images are drawn in the app's page, which holds the runner connection. What limits that: only
+the pages are drawn, on canvases, with no annotation, text or form layer, so a link in a PDF
+goes nowhere and nothing in it is filled in; pdf.js's scripting sandbox is never loaded, so a
+script a PDF carries never runs (pdf.js 6 has no `eval` path for fonts either); XFA is off;
+and nothing a PDF names is fetched: pdf.js's own CMaps, standard fonts and image decoders come
+from the app (`frontend/items/src/kinds/pdf/assets.ts`), never from an address. A PDF reaches
+the page only through `companions.part`, under the same secret and size checks as any item
+(128 MB at most). A flaw in pdf.js's parser or renderer would run with the app page's reach,
+as a flaw in any of the app's own code would; pdf.js is kept to a current release.
+
 ## Packaged App Fuses
 
 The packaged binary's Electron fuses (`electronFuses` in `apps/desktop/electron-builder.yml`)

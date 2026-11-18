@@ -1,4 +1,4 @@
-import type { PDFDocumentProxy, PDFWorker, RenderTask } from "pdfjs-dist"
+import type { PDFDocumentLoadingTask, PDFDocumentProxy, PDFWorker, RenderTask } from "pdfjs-dist"
 
 import type { Mount, Viewer, ViewerState } from "./index.js"
 
@@ -14,7 +14,10 @@ import type { Mount, Viewer, ViewerState } from "./index.js"
 // sandbox, which isn't loaded), and nothing it holds is fetched. Its looks are pdf.css's.
 //
 // pdf.js reads PDFs in a worker, whose script (pdfjs-dist's `build/pdf.worker.min.mjs`) the
-// app serves and names in `worker`, as its bundler gives the file's address.
+// app serves and names in `worker`, as its bundler gives the file's address. What pdf.js reads
+// besides, the app hands it through `assets`, never fetched by an address: the Adobe CMaps a
+// PDF's fonts may name (`cmaps/`), the standard fonts (`standard_fonts/`), and the decoders
+// of scanned images, JPEG 2000 and JBIG2 (`wasm/`). Without it those draw as blanks.
 
 /** A PDF's bytes, read afresh for each time it is opened, since pdf.js takes them. */
 export type PdfContent = { readonly bytes: Blob }
@@ -25,6 +28,25 @@ export type PdfZoom = "fit" | number
 export type PdfViewer = Viewer<PdfContent> & {
   readonly zoom: (zoom: PdfZoom) => void
 }
+
+/**
+ * One of pdf.js's own files, by its folder in pdfjs-dist (`cmap`: `cmaps/`, `font`:
+ * `standard_fonts/`, `wasm`: `wasm/`) and its name there, as bytes.
+ */
+export type PdfAssets = (kind: "cmap" | "font" | "wasm", name: string) => Promise<Uint8Array>
+
+// How pdf.js names what it asks the app for.
+const assetKinds = { cMapUrl: "cmap", standardFontDataUrl: "font", wasmUrl: "wasm" } as const
+
+// pdf.js's factory for its files, answering from `assets`.
+const factoryOf = (assets: PdfAssets) =>
+  class {
+    fetch({ kind, filename }: { kind: string; filename: string }): Promise<Uint8Array> {
+      const asset = assetKinds[kind as keyof typeof assetKinds]
+      if (!asset) return Promise.reject(new Error(`pdf.js asked for an unknown ${kind}`))
+      return assets(asset, filename)
+    }
+  }
 
 /** Why a PDF isn't drawn: it asks for a password, or isn't a PDF pdf.js can read. */
 export type PdfTrouble = "password" | "unreadable"
@@ -93,14 +115,18 @@ const gestures = "Scroll with Ctrl or ⌘, or pinch, to zoom."
 const keyHelp = "Reached by Tab: plus and minus zoom, 0 fits, Page Up and Page Down move a view."
 
 /**
- * Mounts a PDF viewer, reading PDFs in the worker script at `worker`; `onTrouble` hears why
- * a PDF it was given isn't drawn.
+ * Mounts a PDF viewer, reading PDFs in the worker script at `worker`, with pdf.js's own files
+ * from `assets`; `onTrouble` hears why a PDF it was given isn't drawn.
  */
 export const mountPdf: Mount<
   PdfContent,
-  { readonly worker: string; readonly onTrouble?: (trouble: PdfTrouble | null) => void },
+  {
+    readonly worker: string
+    readonly assets?: PdfAssets
+    readonly onTrouble?: (trouble: PdfTrouble | null) => void
+  },
   PdfViewer
-> = (element, { content, label, saved, worker: workerSrc, onTrouble }) => {
+> = (element, { content, label, saved, worker: workerSrc, assets, onTrouble }) => {
   const document = element.ownerDocument
   const win = document.defaultView ?? window
   // The chip sits over the pages, which scroll under it.
@@ -134,7 +160,9 @@ export const mountPdf: Mount<
     readonly height: number
     readonly element: HTMLDivElement
     drawn: number | undefined
+    // The drawing under way, and the scale it draws at.
     task: RenderTask | undefined
+    drawing: number | undefined
   }
   let current: PDFDocumentProxy | undefined
   let list: Page[] = []
@@ -147,6 +175,12 @@ export const mountPdf: Mount<
   let opened = 0
   let destroyed = false
   let pass = 0
+  // Where it was, while it has no size (hidden, as a parked Focus terminal is), every offset
+  // reading 0: the place it last had, or one asked for since, to go to once it has a size.
+  let held: PdfState["pdf"] | undefined
+  // The place it had when last measured with a size.
+  let last: PdfState["pdf"] | undefined
+  const sized = (): boolean => root.clientWidth > 0 && root.clientHeight > 0
 
   // The scale pages are drawn at, as a share of 100%: fitted to the viewer's width, or zoomed.
   const scale = (): number => {
@@ -160,12 +194,14 @@ export const mountPdf: Mount<
   // The page at the view's top, and how far down it the view starts.
   const place = (): PdfState["pdf"] => {
     if (pending || list.length === 0) return pending ?? { page: 0, within: 0, zoom }
+    if (held || !sized()) return { ...(held ?? last ?? { page: 0, within: 0 }), zoom }
     const top = root.scrollTop
     let index = 0
     while (index + 1 < list.length && list[index + 1]!.element.offsetTop <= top) index += 1
     const page = list[index]!.element
     const within = clamp((top - page.offsetTop) / Math.max(page.offsetHeight, 1), 0, 1)
-    return { page: index, within, zoom }
+    last = { page: index, within, zoom }
+    return last
   }
 
   const goTo = ({ page, within }: { readonly page: number; readonly within: number }): void => {
@@ -186,11 +222,19 @@ export const mountPdf: Mount<
     chip.hidden = false
   }
 
-  const undraw = (page: Page): void => {
+  // Lets go of a page's drawing, and of what pdf.js keeps to draw it again.
+  const undraw = (page: Page, index: number): void => {
     page.task?.cancel()
     page.task = undefined
+    page.drawing = undefined
+    const drawn = page.drawn !== undefined
     page.drawn = undefined
     page.element.replaceChildren()
+    if (drawn)
+      void current?.getPage(index + 1).then(
+        (proxy) => proxy.cleanup(),
+        () => {},
+      )
   }
 
   // Draws a page at the current scale, unless it already is, in device pixels.
@@ -200,7 +244,7 @@ export const mountPdf: Mount<
     const at = scale()
     if (!page || !shown || page.drawn === at || page.task) return
     const proxy = await shown.getPage(index + 1)
-    if (destroyed || shown !== current || page.task || at !== scale()) return
+    if (destroyed || shown !== current || page.task || page.drawn === at || at !== scale()) return
     const viewport = proxy.getViewport({ scale: at * pointPixels })
     const ratio = Math.min(
       win.devicePixelRatio || 1,
@@ -215,17 +259,20 @@ export const mountPdf: Mount<
       ...(ratio !== 1 && { transform: [ratio, 0, 0, ratio, 0, 0] }),
     })
     page.task = task
+    page.drawing = at
     try {
       await task.promise
     } catch {
       // Cancelled for a new scale or a new file, or a page pdf.js couldn't draw: left blank.
-      if (page.task === task) page.task = undefined
+      if (page.task === task) page.task = page.drawing = undefined
       return
     }
     if (page.task !== task) return
-    page.task = undefined
+    page.task = page.drawing = undefined
     page.drawn = at
     page.element.replaceChildren(canvas)
+    // Zoomed or resized as it drew: drawn again at the scale it's at now.
+    if (at !== scale()) settle()
   }
 
   // Draws the pages in and around the view, and lets go of those far from it.
@@ -237,20 +284,28 @@ export const mountPdf: Mount<
       const start = page.element.offsetTop
       const end = start + page.element.offsetHeight
       if (end >= top - view * drawAhead && start <= top + view * (1 + drawAhead)) void draw(index)
-      else if (end < top - view * keepAhead || start > top + view * (1 + keepAhead)) undraw(page)
+      else if (end < top - view * keepAhead || start > top + view * (1 + keepAhead))
+        undraw(page, index)
     })
   }
 
   // Sizes each page for the current scale, keeping the page at the view's top where it is.
+  // Without a size it only holds the place, to lay out once it has one.
   const layout = (keep: PdfState["pdf"] | undefined = place()): void => {
+    if (!sized()) {
+      held = keep ?? held
+      return
+    }
+    held = undefined
     const at = scale()
     for (const page of list) {
       page.element.style.width = `${page.width * pointPixels * at}px`
       page.element.style.height = `${page.height * pointPixels * at}px`
-      if (page.drawn !== undefined && page.drawn !== at) {
-        // The old drawing stretches until the new one is in.
-        page.task?.cancel()
-        page.task = undefined
+      // A drawing at another scale is dropped; what was drawn before stretches until the new
+      // one is in.
+      if (page.task && page.drawing !== at) {
+        page.task.cancel()
+        page.task = page.drawing = undefined
       }
     }
     if (keep) goTo(keep)
@@ -270,7 +325,6 @@ export const mountPdf: Mount<
     const before = keep ?? place()
     zoom = next === "fit" ? "fit" : clamp(next, least, most)
     if (pending) return void (pending = { ...pending, zoom })
-    for (const page of list) page.drawn = undefined
     layout(before)
   }
 
@@ -285,6 +339,7 @@ export const mountPdf: Mount<
     const number = (opened += 1)
     root.setAttribute("aria-busy", "true")
     let loaded: PDFDocumentProxy
+    let task: PDFDocumentLoadingTask | undefined
     try {
       const [{ getDocument }, worker, data] = await Promise.all([
         pdfjs(),
@@ -292,19 +347,24 @@ export const mountPdf: Mount<
         bytes.arrayBuffer(),
       ])
       if (destroyed || number !== opened) return
-      loaded = await getDocument({
+      task = getDocument({
         data: new Uint8Array(data),
         worker,
-        // Nothing the PDF names is fetched: fonts it doesn't hold are the system's.
+        // Nothing the PDF names is fetched: fonts it doesn't hold are the system's, and pdf.js's
+        // own files come from the app.
         useSystemFonts: true,
         enableXfa: false,
         stopAtErrors: false,
-      }).promise
+        ...(assets && { useWorkerFetch: false, BinaryDataFactory: factoryOf(assets) }),
+      })
+      loaded = await task.promise
     } catch (error) {
+      // A document that didn't open still holds its bytes in the worker.
+      void task?.destroy()
       if (destroyed || number !== opened) return
       const name = (error as { readonly name?: unknown } | null)?.name
       trouble(name === "PasswordException" ? "password" : "unreadable")
-      for (const page of list) undraw(page)
+      list.forEach(undraw)
       list = []
       pages.replaceChildren()
       void current?.loadingTask.destroy()
@@ -323,12 +383,13 @@ export const mountPdf: Mount<
     if (destroyed || number !== opened) return void loaded.loadingTask.destroy()
     if (!sizes) {
       void loaded.loadingTask.destroy()
+      root.setAttribute("aria-busy", "false")
       return trouble("unreadable")
     }
     trouble(null)
     // Where it was as it opened: a place asked for since, or the last PDF's.
     const keep = pending ?? (list.length > 0 ? place() : undefined)
-    for (const page of list) undraw(page)
+    list.forEach(undraw)
     void current?.loadingTask.destroy()
     current = loaded
     list = sizes.map((size, index) => {
@@ -336,7 +397,7 @@ export const mountPdf: Mount<
       page.className = "pdf-page"
       page.dataset.page = String(index + 1)
       page.setAttribute("aria-label", `Page ${index + 1}`)
-      return { ...size, element: page, drawn: undefined, task: undefined }
+      return { ...size, element: page, drawn: undefined, task: undefined, drawing: undefined }
     })
     pages.replaceChildren(...list.map((page) => page.element))
     pending = undefined
@@ -356,7 +417,8 @@ export const mountPdf: Mount<
   }
 
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.target !== root || event.altKey) return
+    if (event.target !== root || event.defaultPrevented || event.isComposing) return
+    if (event.altKey || event.ctrlKey || event.metaKey) return
     const key = event.key
     if (key === "+" || key === "=") setZoom(scale() * keyStep)
     else if (key === "-" || key === "_") setZoom(scale() / keyStep)
@@ -372,6 +434,15 @@ export const mountPdf: Mount<
   // A new width refits a fitted PDF, keeping its place.
   let width = 0
   const observer = new win.ResizeObserver(() => {
+    // Hidden: it holds where it was. Shown again: back to it.
+    if (!sized()) {
+      held ??= last
+      return
+    }
+    if (held) {
+      width = root.clientWidth
+      return layout(held)
+    }
     if (root.clientWidth === width) return settle()
     width = root.clientWidth
     if (zoom === "fit" && list.length > 0) layout()
@@ -388,6 +459,11 @@ export const mountPdf: Mount<
       if (!isPdfState(state)) return
       if (pending || list.length === 0) {
         pending = state.pdf
+        zoom = state.pdf.zoom
+        return
+      }
+      if (!sized()) {
+        held = state.pdf
         zoom = state.pdf.zoom
         return
       }

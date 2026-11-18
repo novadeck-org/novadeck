@@ -45,6 +45,11 @@ export const pdfGroups = (companions: Backend["companions"]): readonly DemoActio
           run: show(pdfSamples.secret),
         },
         {
+          label: "Show a PDF locked with a password",
+          hint: "The pane loads locked.pdf, then says This PDF is locked with a password, which Novadeck doesn't open.",
+          run: show(pdfSamples.locked),
+        },
+        {
           label: "Show a file that isn't a PDF",
           hint: "The pane loads broken.pdf, then says This file couldn't be read as a PDF.",
           run: show(pdfSamples.broken),

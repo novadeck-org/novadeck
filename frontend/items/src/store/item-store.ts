@@ -85,7 +85,7 @@ export type ItemStore = {
   readonly changeRead: (target: WorkspaceTarget, itemId: ItemId, path: string) => void
   // Follows every plan in the workspace from here on; returns the stop.
   readonly connect: () => () => void
-  // A video's file in parts: the backend's, where it has one.
+  // An item's file in parts (a video's, a recording's, a PDF's): the backend's, where it has one.
   readonly part?: Companions["part"]
   // Takes a picture of a live page for it to rest as: the backend's, where it has one.
   readonly picture?: Companions["picture"]
