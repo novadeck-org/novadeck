@@ -4,6 +4,7 @@ import { useEffect, useRef, useSyncExternalStore } from "react"
 
 import type { PlanDoc } from "../kinds/plan/plan-doc"
 import type { ItemStore } from "./item-store"
+import { pointedAt } from "./pointing"
 
 // The item store's state as components use it: one part each, so a keystroke in one plan
 // re-renders only what shows that plan.
@@ -61,3 +62,14 @@ export const useUnfolded = (itemStore: ItemStore, itemId: ItemId): string | unde
     itemStore.store.subscribe,
     () => itemStore.store.getSnapshot().unfolded[itemId],
   )
+
+// The file the person said yes to seeing, for an item that may hold secrets, while the item
+// still points at it; undefined where they haven't, or it points elsewhere since.
+export const useRevealed = (
+  itemStore: ItemStore,
+  item: Pick<Item, "id" | "kind" | "path">,
+): string | undefined =>
+  useSyncExternalStore(itemStore.store.subscribe, () => {
+    const asked = itemStore.store.getSnapshot().revealed[item.id]
+    return asked !== undefined && asked === pointedAt(item) ? (item.path ?? undefined) : undefined
+  })

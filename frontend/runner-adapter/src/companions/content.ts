@@ -83,9 +83,17 @@ const contentOf = (content: RunnerContent, livePages: boolean): ItemContent => {
   return { state: "ready", stamp, content: shown }
 }
 
-// A part's base64 as the bytes it stands for.
-const decode = (text: string): Uint8Array<ArrayBuffer> =>
-  Uint8Array.from(atob(text), (char) => char.charCodeAt(0))
+// A part's base64 as the bytes it stands for: by the browser's own decoder where it has one,
+// else a plain loop, as a callback per byte would cost a big video seconds of the page's time.
+const decode = (text: string): Uint8Array<ArrayBuffer> => {
+  const native = (Uint8Array as { fromBase64?: (text: string) => Uint8Array<ArrayBuffer> })
+    .fromBase64
+  if (native) return native(text)
+  const binary = atob(text)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+  return bytes
+}
 
 // What the runner holds no more.
 const gone: ItemContent = { state: "unavailable", reason: "gone", size: null }

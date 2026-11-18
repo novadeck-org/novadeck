@@ -100,44 +100,57 @@ describe("the videos kept loaded", () => {
     }
   }
 
-  it("gives a video's URL back while it is kept", () => {
+  it("gives a video's URL back while it is kept, for the stamp it was kept at", () => {
     const { urls: own } = urls()
     const kept = createBlobs(2, own)
-    const url = kept.keep("a:1", new Blob())
-    expect(kept.get("a:1")).toBe(url)
-    expect(kept.get("b:1")).toBeUndefined()
+    const url = kept.keep("a", "1", new Blob())
+    expect(kept.get("a", "1")).toBe(url)
+    expect(kept.get("a", "2")).toBeUndefined()
+    expect(kept.get("b", "1")).toBeUndefined()
   })
 
   it("lets the one used longest ago go past its limit, and revokes its URL", () => {
     const { urls: own, revoked } = urls()
     const kept = createBlobs(2, own)
-    kept.keep("a:1", new Blob())
-    kept.keep("b:1", new Blob())
+    kept.keep("a", "1", new Blob())
+    kept.keep("b", "1", new Blob())
     // Used again, it is no longer the oldest.
-    kept.get("a:1")
-    kept.keep("c:1", new Blob())
+    kept.get("a", "1")
+    kept.keep("c", "1", new Blob())
     expect(revoked).toEqual(["blob:2"])
-    expect(kept.get("b:1")).toBeUndefined()
-    expect(kept.get("a:1")).toBe("blob:1")
+    expect(kept.get("b", "1")).toBeUndefined()
+    expect(kept.get("a", "1")).toBe("blob:1")
   })
 
-  it("revokes the URL a key had when it is kept again", () => {
+  it("keeps only an item's latest file, revoking each render before it", () => {
+    const { urls: own, revoked } = urls()
+    const kept = createBlobs(3, own)
+    kept.keep("a", "1", new Blob())
+    kept.keep("a", "2", new Blob())
+    expect(kept.keep("a", "3", new Blob())).toBe("blob:3")
+    expect(revoked).toEqual(["blob:1", "blob:2"])
+    expect(kept.get("a", "2")).toBeUndefined()
+  })
+
+  it("lets a file go that can't play, and only that one", () => {
     const { urls: own, revoked } = urls()
     const kept = createBlobs(2, own)
-    kept.keep("a:1", new Blob())
-    expect(kept.keep("a:1", new Blob())).toBe("blob:2")
+    kept.keep("a", "1", new Blob())
+    kept.drop("a", "2")
+    expect(revoked).toEqual([])
+    kept.drop("a", "1")
     expect(revoked).toEqual(["blob:1"])
   })
 
   it("never revokes a URL a player holds, until the last player lets it go", () => {
     const { urls: own, revoked } = urls()
     const kept = createBlobs(1, own)
-    const url = kept.keep("a:1", new Blob())
+    const url = kept.keep("a", "1", new Blob())
     const first = kept.hold(url)
     const second = kept.hold(url)
-    // Let go of by the cache, as another video loads, it plays on.
-    kept.keep("b:1", new Blob())
-    expect(kept.get("a:1")).toBeUndefined()
+    // Let go of by the cache, as the next render loads, it plays on.
+    kept.keep("a", "2", new Blob())
+    expect(kept.get("a", "1")).toBeUndefined()
     first()
     first()
     expect(revoked).toEqual([])

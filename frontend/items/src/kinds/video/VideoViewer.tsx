@@ -5,9 +5,11 @@ import { useEffect, useRef, useState } from "react"
 
 import { Unavailable, type ArtifactBodyProps } from "../../ArtifactViewer"
 import { usePaneNote } from "../../pane-row"
+import { useRevealed } from "../../store/use-item-store"
 import { blobs } from "./blobs"
 import { factsText, formatName, loadingText, bytesText } from "./format"
 import { loadVideo } from "./load"
+import { playable } from "./playable"
 import { VideoPlayer } from "./VideoPlayer"
 
 // Where a video's source stands: its URL once its bytes are in, kept while a newer file's are
@@ -28,7 +30,9 @@ type Read = {
 }
 
 // Loads the video's bytes while it shows, for the stamp it is at; each new stamp reads it
-// afresh, and a pane that comes back finds the last few already loaded.
+// afresh, and a pane that comes back finds the last few already loaded. Bytes the browser
+// can't play, as a file caught while it was rewritten in place, never replace a video that
+// played: it plays on until the next render.
 const useSource = ({
   item,
   content,
@@ -40,7 +44,8 @@ const useSource = ({
   const [progress, setProgress] = useState<{ key: string; loaded: number }>()
   const { videoPart } = itemStore
   const { size, mime } = content
-  const reveal = item.path ?? undefined
+  // Only the person's yes to a file that may hold secrets reads it.
+  const reveal = useRevealed(itemStore, item)
   const id = item.id
   const key = `${id}:${stamp}`
   // Where it's read for, which a read in progress takes as it is when it asks.
@@ -49,7 +54,7 @@ const useSource = ({
     where.current = target
   })
   useEffect(() => {
-    if (!videoPart || blobs.get(key)) return
+    if (!videoPart || blobs.get(id, stamp)) return
     const stop = new AbortController()
     void loadVideo({
       read: async (offset) => videoPart(where.current, id, { stamp, offset, reveal }),
@@ -57,13 +62,21 @@ const useSource = ({
       mime,
       signal: stop.signal,
       progress: (loaded) => setProgress({ key, loaded }),
-    }).then((result) => {
+    }).then(async (result) => {
       if (stop.signal.aborted || result.state === "stopped") return
       // A file rewritten while it was read ends the read: the content that follows has a
       // stamp of its own, and reads it again.
       if (result.state === "changed") return setProgress({ key, loaded: 0 })
-      if (result.state === "ready")
-        return setRead({ key, url: blobs.keep(key, result.blob), problem: null })
+      if (result.state === "ready") {
+        const plays = await playable(result.blob)
+        if (stop.signal.aborted) return
+        if (plays) return setRead({ key, url: blobs.keep(id, stamp, result.blob), problem: null })
+        return setRead((was) =>
+          was?.url !== undefined && was.problem === null
+            ? { key, url: was.url, problem: null }
+            : { key, url: undefined, problem: "here" },
+        )
+      }
       setRead({
         key,
         url: undefined,
@@ -73,7 +86,7 @@ const useSource = ({
     return () => stop.abort()
   }, [id, key, stamp, size, mime, reveal, videoPart])
   if (!videoPart) return { url: undefined, loaded: null, problem: "here" }
-  const kept = blobs.get(key)
+  const kept = blobs.get(id, stamp)
   if (kept) return { url: kept, loaded: null, problem: null }
   if (read?.key === key) return { url: read.url, loaded: null, problem: read.problem }
   // Still reading: what played before plays on.

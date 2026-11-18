@@ -15,6 +15,13 @@ import { afterEach, beforeEach, vi } from "vitest"
 import { createItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
 import { video as registration } from "./index"
+import { playable } from "./playable"
+
+// jsdom decodes nothing: every video plays, unless a test says its bytes don't.
+vi.mock("./playable", () => ({
+  playable: vi.fn<(blob: Blob) => Promise<boolean>>(async () => true),
+}))
+afterEach(() => vi.mocked(playable).mockReset().mockResolvedValue(true))
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
@@ -224,9 +231,9 @@ describe("a video beside a terminal", () => {
     it("plays from the blob of all the parts, read from the stamp it was shown at", async () => {
       const { container, asked, element } = await shown({ stamp: "7" })
       expect(asked).toEqual([
-        { offset: 0, stamp: "7", reveal: "/p/demo.mp4" },
-        { offset: 2, stamp: "7", reveal: "/p/demo.mp4" },
-        { offset: 4, stamp: "7", reveal: "/p/demo.mp4" },
+        { offset: 0, stamp: "7", reveal: undefined },
+        { offset: 2, stamp: "7", reveal: undefined },
+        { offset: 4, stamp: "7", reveal: undefined },
       ])
       expect(element().getAttribute("src")).toMatch(/^blob:video-/)
       expect(container.querySelector(".video-loading")).toBeNull()
@@ -495,6 +502,39 @@ describe("a video beside a terminal", () => {
       release({ state: "part", bytes: Uint8Array.from([3, 4]) })
       await settle()
       expect(element().getAttribute("src")).not.toBe(before)
+    })
+
+    it("plays on where it was when the new file can't play yet, as one rewritten in place", async () => {
+      const { container, element, show, ready } = await shown({ stamp: "e1" })
+      ready(10)
+      act(() => {
+        element().currentTime = 4
+      })
+      click(container, "Play")
+      const before = element().getAttribute("src")
+      // Caught while its render wrote it: empty, or without its index yet.
+      vi.mocked(playable).mockResolvedValueOnce(false)
+      show({}, "e2", [])
+      await settle()
+      expect(element().getAttribute("src")).toBe(before)
+      expect(element().currentTime).toBe(4)
+      expect(element().paused).toBe(false)
+      expect(container.querySelector(".artifact-status")).toBeNull()
+      // The render's end swaps in where it was.
+      show({}, "e3", [9, 8, 7])
+      await settle()
+      expect(element().getAttribute("src")).not.toBe(before)
+      ready(6)
+      expect(element().currentTime).toBe(4)
+      expect(element().paused).toBe(false)
+    })
+
+    it("says it can't be played here when the first file it read can't play", async () => {
+      vi.mocked(playable).mockResolvedValueOnce(false)
+      const { container } = await shown()
+      expect(container.querySelector(".artifact-status")!.textContent).toContain(
+        "demo.mp4 can't be played here",
+      )
     })
 
     it("starts afresh when it was changed while it was read", async () => {

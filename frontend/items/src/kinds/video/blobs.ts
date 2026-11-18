@@ -1,7 +1,8 @@
 // The videos a pane has loaded, as the object URLs that play them, for the last few: a pane
-// that goes and comes back plays its video again without reading it. A URL let go of is
-// revoked, so its bytes are freed with it, but never while a player holds it: one let go of
-// then is revoked once the last player lets go too.
+// that goes and comes back plays its video again without reading it. Each item keeps its
+// latest file only: a render that follows lets the one before go. A URL let go of is revoked,
+// so its bytes are freed with it, but never while a player holds it: one let go of then is
+// revoked once the last player lets go too.
 
 type Urls = {
   readonly create: (blob: Blob) => string
@@ -9,12 +10,18 @@ type Urls = {
 }
 
 export type Blobs = {
-  readonly get: (key: string) => string | undefined
-  // Keeps the URL of a blob under `key`, and lets the oldest go beyond the limit.
-  readonly keep: (key: string, blob: Blob) => string
+  // The URL of the item's file as `stamp` names it, while it is kept.
+  readonly get: (item: string, stamp: string) => string | undefined
+  // Keeps the URL of the item's file as `stamp` names it, in place of any other of the item's,
+  // and lets the oldest go beyond the limit.
+  readonly keep: (item: string, stamp: string, blob: Blob) => string
+  // Lets the item's file as `stamp` names it go, as one the browser can't play.
+  readonly drop: (item: string, stamp: string) => void
   // A player plays `url` until the function it gets back is called.
   readonly hold: (url: string) => () => void
 }
+
+type Kept = { readonly item: string; readonly stamp: string; readonly url: string }
 
 export const createBlobs = (
   limit: number,
@@ -23,37 +30,41 @@ export const createBlobs = (
     revoke: (url) => URL.revokeObjectURL(url),
   },
 ): Blobs => {
-  const kept = new Map<string, string>()
+  // By item, the oldest used first.
+  const kept = new Map<string, Kept>()
   // How many players hold each URL.
   const holds = new Map<string, number>()
   const free = (url: string): void => {
-    if (holds.has(url) || [...kept.values()].includes(url)) return
+    if (holds.has(url) || [...kept.values()].some((each) => each.url === url)) return
     urls.revoke(url)
   }
-  const drop = (key: string): void => {
-    const url = kept.get(key)
-    if (url === undefined) return
-    kept.delete(key)
-    free(url)
+  const release = (item: string): void => {
+    const was = kept.get(item)
+    if (!was) return
+    kept.delete(item)
+    free(was.url)
   }
   return {
     // Using it counts as using it lately.
-    get: (key) => {
-      const url = kept.get(key)
-      if (url === undefined) return undefined
-      kept.delete(key)
-      kept.set(key, url)
-      return url
+    get: (item, stamp) => {
+      const was = kept.get(item)
+      if (was?.stamp !== stamp) return undefined
+      kept.delete(item)
+      kept.set(item, was)
+      return was.url
     },
-    keep: (key, blob) => {
-      drop(key)
+    keep: (item, stamp, blob) => {
+      release(item)
       const url = urls.create(blob)
-      kept.set(key, url)
+      kept.set(item, { item, stamp, url })
       for (const oldest of kept.keys()) {
         if (kept.size <= limit) break
-        drop(oldest)
+        release(oldest)
       }
       return url
+    },
+    drop: (item, stamp) => {
+      if (kept.get(item)?.stamp === stamp) release(item)
     },
     hold: (url) => {
       holds.set(url, (holds.get(url) ?? 0) + 1)
