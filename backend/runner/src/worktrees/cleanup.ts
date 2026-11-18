@@ -64,6 +64,11 @@ export class Cleanup {
     return this.fetcher.fetchedAt(commonDir)
   }
 
+  /** Fetches one repository's origin for a caller that can't wait: see `MainFetcher.fetchBriefly`. */
+  fetchBriefly(commonDir: string, ms: number): Promise<void> {
+    return this.fetcher.fetchBriefly(commonDir, ms)
+  }
+
   /** Fetches the repositories' origins now: see `MainFetcher.fetchNow`. */
   fetchNow(commonDirs: Iterable<string>): Promise<void> {
     return this.fetcher.fetchNow(commonDirs)

@@ -13,7 +13,9 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { describe, expect, it as base } from "../test.js"
+import { gitIn, withOrigin } from "../testing/origin.js"
 import {
+  behindMain,
   landedIn,
   landingCandidates,
   mainBranch,
@@ -430,5 +432,25 @@ describe("where a branch's work landed in main", () => {
     expect(await landedIn(root, mainOf(root), "feature", undefined, tries)).toBeUndefined()
     // One try more reaches it: the tries are all that held it back.
     expect(await landedIn(root, mainOf(root), "feature", undefined, tries + 1)).toBe(landed)
+  })
+})
+
+describe.skipIf(!hasGit)("a checkout behind its remote's main", () => {
+  it("counts the commits main has that a checkout on main lacks, and says nothing otherwise", async ({
+    resources,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    expect(await behindMain(origin.repo)).toBeUndefined()
+    origin.land("b.txt")
+    const last = origin.land("c.txt")
+    origin.fetch()
+    expect(await behindMain(origin.repo)).toMatchObject({
+      branch: "main",
+      remote: "origin/main",
+      commit: last,
+      behind: 2,
+    })
+    gitIn(origin.repo, "checkout", "--quiet", "--detach")
+    expect(await behindMain(origin.repo)).toBeUndefined()
   })
 })

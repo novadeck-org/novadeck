@@ -739,7 +739,11 @@ with every safety check again at that time:
   terminal or one in History, null once orphaned), whether it was `adopted` and whether Novadeck made
   its branch (`branch_made`). A terminal may own several, and ownership moves only through agents.
   - **`open_worktree({ branch, repo?, from?, group? })`** runs `git worktree add -b` from
-    `from` (the checkout's `HEAD`), or checks out the branch if it exists, with 60 seconds,
+    `from` (left out: the checkout's `HEAD`, or the remote's main when the checkout is on the local
+    branch that main is, as `main` for `origin/main`, and `HEAD` is a strict ancestor of it, so a stale
+    checkout doesn't make a stale branch; a feature branch, a `HEAD` ahead or diverged, or no main
+    keeps `HEAD`; main is fetched first for at most five seconds, and a remote that is slow or
+    fails leaves the cached one, so creating never waits on the network), or checks out the branch if it exists, with 60 seconds,
     and `core.longpaths` on Windows, after `git check-ref-format --branch`. It answers the path,
     the branch and the paths of AGENTS.md, CLAUDE.md and GEMINI.md at the worktree's top, and
     tells the agent to read them, as no harness loads them from an added folder.

@@ -1342,8 +1342,8 @@ const openWorktree: Tool<Worktree> = {
   description:
     "Make a git worktree for your work in Novadeck, on a branch you name, in a folder " +
     "Novadeck picks and tracks, and own it: change files there, not in the user's checkout. " +
-    "It starts from from (this checkout's HEAD when left out), or checks out the branch if " +
-    "it exists. Name the branch as the repository's conventions and instructions say. " +
+    "It starts from from (when left out: the remote's main if this checkout is on a main " +
+    "that is behind it, else this checkout's HEAD), or checks out the branch if it exists. Name the branch as the repository's conventions and instructions say. " +
     "repo is a folder in the repository when your terminal isn't in it; give the same " +
     "group to the worktrees of several repositories for one piece of work, and they share " +
     "a folder. The answer lists the worktree's instruction files (AGENTS.md, CLAUDE.md, " +
@@ -1366,7 +1366,7 @@ const openWorktree: Tool<Worktree> = {
       from: {
         type: "string",
         description:
-          "The commit, branch or tag a new branch starts from; the checkout's HEAD when left out.",
+          "The commit, branch or tag a new branch starts from; when left out, the remote's main if the checkout is on a main behind it, else its HEAD.",
       },
       group: {
         type: "string",

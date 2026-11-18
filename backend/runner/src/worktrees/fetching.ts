@@ -108,6 +108,23 @@ export class MainFetcher {
     )
   }
 
+  /**
+   * Fetches the repository now for a caller that can't wait long (a new worktree's base): a
+   * fetch already under way is waited for, a new one is given `ms`, and the caller is let go
+   * after `ms` either way, fetched or not. Never throws; a failure leaves the schedule as it was.
+   */
+  async fetchBriefly(commonDir: string, ms: number): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const late = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, ms)
+    })
+    try {
+      await Promise.race([this.fetching(commonDir, this.stateOf(commonDir), true, ms), late])
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
   private stateOf(commonDir: string): State {
     const state = this.states.get(commonDir) ?? { fetchedAt: undefined, nextAt: 0, failures: 0 }
     this.states.set(commonDir, state)
@@ -115,12 +132,17 @@ export class MainFetcher {
   }
 
   // One fetch of a repository, shared by whoever asks while it is under way.
-  private fetching(commonDir: string, state: State, asked: boolean): Promise<void> {
+  private fetching(
+    commonDir: string,
+    state: State,
+    asked: boolean,
+    ms: number = fetchTimeoutMs,
+  ): Promise<void> {
     const under = this.under.get(commonDir)
     if (under) return under
     const run = (async () => {
       if (this.ending.signal.aborted) return
-      const done = await gitScope.run(this.ending.signal, () => this.fetch(commonDir))
+      const done = await gitScope.run(this.ending.signal, () => this.fetch(commonDir, ms))
       if (this.ending.signal.aborted) return
       const at = this.now()
       if (done.ok) {
@@ -143,6 +165,7 @@ export class MainFetcher {
 
   private async fetch(
     commonDir: string,
+    ms: number,
   ): Promise<{ readonly ok: true } | Extract<Run, { ok: false }>> {
     const home = homeOf(commonDir)
     // The person's own ssh command in their git config is theirs to keep.
@@ -168,7 +191,7 @@ export class MainFetcher {
       {
         cap: 64 * 1024,
         truncate: true,
-        ms: fetchTimeoutMs,
+        ms,
         graceMs: fetchGraceMs,
         env: fetchEnv(this.environment, ownSsh),
       },

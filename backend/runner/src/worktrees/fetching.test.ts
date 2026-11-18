@@ -271,6 +271,8 @@ describe("fetching for real", () => {
       owner: (id) => (owners.has(id) ? "open" : "history"),
       root: f.root,
       projectFolder: () => f.clone,
+      // Always due: opening the worktree fetched main for its base already.
+      cleanup: { fetcher: new MainFetcher({ every: 0 }) },
     })
     resources.defer(() => worktrees.stop())
     const opened = await worktrees.open({
@@ -296,7 +298,6 @@ describe("fetching for real", () => {
     // Not merged as far as this clone knows.
     await worktrees.tidy()
     expect(existsSync(opened.path)).toBe(true)
-    expect(worktrees.fetchedAt(common)).toBeUndefined()
     await worktrees.tidy(true)
     expect(existsSync(opened.path)).toBe(false)
     expect(sh(f.clone, "branch", "--list", "feature")).toBe("")

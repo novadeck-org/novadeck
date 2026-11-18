@@ -14,6 +14,7 @@ import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
 
 import { describe, expect, it as base } from "../test.js"
+import { withOrigin } from "../testing/origin.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import { finishRemoval } from "./repo.js"
 import { Worktrees, folderName } from "./worktrees.js"
@@ -132,6 +133,87 @@ describe("opening a worktree", () => {
     if (!opened.ok) throw new Error(opened.reason)
     expect(opened.existing).toBe(true)
     expect(git(opened.path, "branch", "--show-current")).toBe("side")
+  })
+
+  it("starts from the remote's main when the checkout is on a main that is behind it", async ({
+    resources,
+    fx: f,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
+    // Not fetched here: the new worktree fetches main itself, for a moment.
+    const landed = origin.land("b.txt")
+    const opened = await f.worktrees.open({
+      projectId: "p2",
+      terminalId: "t1",
+      cwd: origin.repo,
+      branch: "feat/new",
+    })
+    if (!opened.ok) throw new Error(opened.reason)
+    expect(opened.base).toBe(landed)
+    expect(existsSync(join(opened.path, "b.txt"))).toBe(true)
+    // The checkout itself is left alone.
+    expect(existsSync(join(origin.repo, "b.txt"))).toBe(false)
+  })
+
+  it("starts from the cached main when the remote can't be reached", async ({
+    resources,
+    fx: f,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
+    const landed = origin.land("b.txt")
+    origin.fetch()
+    origin.land("c.txt")
+    git(origin.repo, "remote", "set-url", "origin", join(f.root, "nowhere.git"))
+    const opened = await f.worktrees.open({
+      projectId: "p2",
+      terminalId: "t1",
+      cwd: origin.repo,
+      branch: "feat/offline",
+    })
+    if (!opened.ok) throw new Error(opened.reason)
+    expect(opened.base).toBe(landed)
+  })
+
+  it("starts from HEAD when it is on a feature branch, ahead of main, diverged, or there is no main", async ({
+    resources,
+    fx: f,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
+    const from = async (branch: string) => {
+      const opened = await f.worktrees.open({
+        projectId: "p2",
+        terminalId: "t1",
+        cwd: origin.repo,
+        branch,
+      })
+      if (!opened.ok) throw new Error(opened.reason)
+      return opened.base
+    }
+    origin.land("b.txt")
+    origin.fetch()
+    // A feature branch behind main.
+    git(origin.repo, "checkout", "--quiet", "-b", "side")
+    expect(await from("one")).toBe(git(origin.repo, "rev-parse", "HEAD"))
+    // Main with a commit of its own: diverged from origin's.
+    git(origin.repo, "checkout", "--quiet", "main")
+    writeFileSync(join(origin.repo, "mine.txt"), "mine\n")
+    git(origin.repo, "add", "-A")
+    git(origin.repo, "commit", "--quiet", "-m", "mine")
+    expect(await from("two")).toBe(git(origin.repo, "rev-parse", "HEAD"))
+    // Main ahead of origin's, as when everything is pushed and then some.
+    git(origin.repo, "reset", "--quiet", "--hard", "origin/main")
+    git(origin.repo, "push", "--quiet", "origin", "main")
+    writeFileSync(join(origin.repo, "c.txt"), "c\n")
+    git(origin.repo, "add", "-A")
+    git(origin.repo, "commit", "--quiet", "-m", "c")
+    expect(await from("three")).toBe(git(origin.repo, "rev-parse", "HEAD"))
+    // No remote main at all: the plain repository of the fixture is on its own main.
+    const plain = await open(f, "four")
+    if (!plain.ok) throw new Error(plain.reason)
+    expect(plain.base).toBe(git(f.repo, "rev-parse", "HEAD"))
   })
 
   it("finds the repository from a folder inside it, relative to the caller's", async ({

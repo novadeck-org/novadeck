@@ -2,6 +2,7 @@ import { existsSync } from "node:fs"
 import { mkdir, realpath } from "node:fs/promises"
 import { join, resolve, sep } from "node:path"
 
+import { behindMain, onMain } from "../checkouts/repository.js"
 import { logs } from "../log.js"
 import { Cleanup, type CleanupHost, type OwnerState } from "./cleanup.js"
 import type { WorktreeRecord, WorktreeRecords } from "./records.js"
@@ -115,6 +116,9 @@ export const folderName = (text: string): string =>
     .replaceAll(/[^A-Za-z0-9._-]+/g, "-")
     .replaceAll(/^[-.]+|[-.]+$/g, "")
     .slice(0, 80)
+
+/** How long a new worktree waits for the remote's main before it starts from the one it has. */
+const freshMainMs = 5000
 
 /**
  * The git worktrees agents work in: who owns each, and how they are made, taken, given and
@@ -277,8 +281,8 @@ export class Worktrees {
   }
 
   /**
-   * Makes a worktree for the terminal: a new branch from `from` (the checkout's HEAD when
-   * omitted), or an existing branch checked out. `cwd` is where the terminal is; `repo` a
+   * Makes a worktree for the terminal: a new branch from `from` (when omitted, the remote's main if the
+   * checkout is on a main that is behind it, else the checkout's HEAD), or an existing branch checked out. `cwd` is where the terminal is; `repo` a
    * folder in the repository, absolute or relative to it.
    */
   open(input: {
@@ -315,7 +319,11 @@ export class Worktrees {
       return refused(
         `${input.branch} exists already, so it is checked out as it is: leave from out.`,
       )
-    const start = input.from ?? "HEAD"
+    // Left out, it starts from main when the checkout sits on a stale local main, else from HEAD.
+    // Main is fetched first, for a moment at most: a slow or failing remote leaves the cached one.
+    if (input.from === undefined && tip === undefined && (await onMain(folder)) !== undefined)
+      await this.cleanup.fetchBriefly(repository.commonDir, freshMainMs)
+    const start = input.from ?? (await behindMain(folder))?.commit ?? "HEAD"
     const base = tip ?? (await commitAt(folder, start))
     if (base === undefined) return refused(`${start} isn't a commit in ${repository.name}.`)
     await mkdir(join(wanted, ".."), { recursive: true })
