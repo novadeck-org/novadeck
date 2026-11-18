@@ -668,8 +668,10 @@ export const contract = {
     // An item's file from `offset`, up to `partBytes` bytes, for a kind the client reads in
     // parts (a video, a recording), read only while the file is as `stamp` (its content's)
     // names it: else `changed`. One that may hold secrets is `secret` unless `reveal` is the
-    // path the item points at, as in `content`. An unknown item, or one of a kind not read in
-    // parts, is NOT_FOUND.
+    // path the item points at, as in `content`. With `file`, a model's, it is that file beside
+    // it, one its content lists, by its name there and as its own stamp names it; never shown
+    // when it may hold secrets, whatever `reveal`. An unknown item, or one of a kind not read in
+    // parts, is NOT_FOUND, as is a `file` its model doesn't name.
     part: procedure
       .input(
         z.strictObject({
@@ -677,6 +679,7 @@ export const contract = {
           stamp: z.string().max(128),
           offset: z.int().nonnegative(),
           reveal: z.string().max(4096).optional(),
+          file: z.string().max(4096).optional(),
         }),
       )
       .output(filePart),

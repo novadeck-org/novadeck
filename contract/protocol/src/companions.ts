@@ -39,6 +39,32 @@ export const videoLimits = { bytes: 512 * 1024 * 1024 } as const
  */
 export const pdfLimits = { bytes: 128 * 1024 * 1024 } as const
 
+/**
+ * A 3D model the pane previews: the most it takes, its file and the files beside it it names
+ * (a glTF's buffers and textures, an OBJ's materials and theirs) all told, in bytes, which it
+ * holds whole as it draws them; and how many such files it reads.
+ */
+export const modelLimits = { bytes: 256 * 1024 * 1024, files: 64 } as const
+
+/** The formats of model the pane draws, by the file's extension. */
+export const modelFormats = ["glb", "gltf", "stl", "obj", "ply", "3mf"] as const
+
+/**
+ * Why a file a model names isn't read with it: `external`, an address of its own (`https:`,
+ * `file:`, an absolute path), never read; `outside`, a path out of the model's folder; and as
+ * a part's, `missing`, `not-a-file`, `secret` (never shown beside a model), `too-large` (past
+ * what's left of `modelLimits.bytes`) or `unreadable`.
+ */
+export const modelRefusal = z.enum([
+  "external",
+  "outside",
+  "missing",
+  "not-a-file",
+  "secret",
+  "too-large",
+  "unreadable",
+])
+
 // What agents show and the person attaches beside a terminal: a pointer to a file, a
 // page or a plan, never a copy of it, which `companions.content` reads when it loads.
 // Each item has one holder, a terminal's bar or a window; `from` is the terminal it was
@@ -56,7 +82,18 @@ export const companionItem = z.strictObject({
   id,
   sessionId: id,
   holder: itemHolder,
-  kind: z.enum(["image", "video", "audio", "pdf", "file", "page", "plan", "changes", "shells"]),
+  kind: z.enum([
+    "image",
+    "video",
+    "audio",
+    "pdf",
+    "model",
+    "file",
+    "page",
+    "plan",
+    "changes",
+    "shells",
+  ]),
   name: z.string().max(companionLimits.name),
   detail: z.string().max(companionLimits.detail),
   path: z.string().max(companionLimits.path).nullable(),
@@ -300,6 +337,9 @@ export const changeFileDiff = z.strictObject({
 // parts for the client to play, and its stamp names the file as those parts must be read from; `shown` counts
 // the agent's shows, as a page's does, and `at` is the second the latest show starts it at.
 // A PDF is its size, its bytes read in parts as a video's are, and drawn by the client.
+// A 3D model is its format and size, read in parts as a PDF is, and the files beside it it
+// names, by name as the model writes it: each it reads with its size and stamp, which
+// `companions.part` reads by that name, and each it doesn't with why.
 // Or why it can't be shown, with the file's size where known.
 export const itemContent = z.discriminatedUnion("state", [
   z.strictObject({
@@ -403,6 +443,25 @@ export const itemContent = z.discriminatedUnion("state", [
       z.strictObject({
         kind: z.literal("pdf"),
         size: z.int().nonnegative().max(pdfLimits.bytes),
+      }),
+      z.strictObject({
+        kind: z.literal("model"),
+        format: z.enum(modelFormats),
+        size: z.int().nonnegative().max(modelLimits.bytes),
+        files: z
+          .array(
+            z.strictObject({
+              name: z.string().max(companionLimits.path),
+              size: z.int().nonnegative().max(modelLimits.bytes),
+              stamp: z.string().max(128),
+            }),
+          )
+          .max(modelLimits.files),
+        refused: z
+          .array(
+            z.strictObject({ name: z.string().max(companionLimits.path), reason: modelRefusal }),
+          )
+          .max(modelLimits.files),
       }),
     ]),
   }),

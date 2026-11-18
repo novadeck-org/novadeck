@@ -90,6 +90,9 @@ export {
   partBytes,
   partText,
   pdfLimits,
+  modelLimits,
+  modelFormats,
+  modelRefusal,
 } from "./companions.js"
 export {
   type ClosedTerminal,
