@@ -1,86 +1,116 @@
 // Delimited text (CSV, TSV) read into records, as RFC 4180 has it: fields split by the
 // delimiter, a field in double quotes may hold the delimiter, line breaks and quotes doubled
-// (""), and a byte-order mark opening the text is not part of the first field. It's lenient
-// where files stray: text after a closing quote joins the field, and a quote left open at the
-// end closes there.
+// (""), and a byte-order mark opening the text is not part of the first field. It reads the
+// lines as the runner sends them, and is lenient where files stray: spaces before an opening
+// quote go, text after a closing quote joins the field, a quoted field open at the end of a
+// line the runner cut short ends there, with its record, and one left open at the end closes
+// there.
 
 export type Parsed = {
   readonly records: readonly (readonly string[])[]
-  // The line each record starts on, counted from 0 in the text.
+  // The line each record starts on, counted from 0.
   readonly lines: readonly number[]
-  // The text ended inside a quoted field, as a file cut short does.
-  readonly open: boolean
+  // The lines ended inside a quoted field, which opened on line `open` (counted from 0).
+  readonly open: number | undefined
 }
 
 const quote = '"'
 
-export const parseDelimited = (text: string, delimiter: string): Parsed => {
-  const source = text.startsWith("﻿") ? text.slice(1) : text
+export const parseDelimited = (
+  lines: readonly string[],
+  delimiter: string,
+  {
+    cut = () => false,
+    quotes = true,
+  }: {
+    // Whether line `index` was cut short.
+    readonly cut?: (index: number) => boolean
+    // Whether quotes quote; without, they're text.
+    readonly quotes?: boolean
+  } = {},
+): Parsed => {
   const records: string[][] = []
-  const lines: number[] = []
+  const starts: number[] = []
   let record: string[] = []
   let field = ""
   let quoted = false
-  let line = 0
-  let start = 0
-  // Whether anything of the current record has been read, so a blank line makes no record.
-  let begun = false
-  const endField = (): void => {
+  let openedOn = 0
+  const endRecord = (line: number): void => {
     record.push(field)
+    records.push(record)
+    starts.push(line)
+    record = []
     field = ""
   }
-  const endRecord = (): void => {
-    endField()
-    records.push(record)
-    lines.push(start)
-    record = []
-    begun = false
-  }
-  for (let at = 0; at < source.length; at += 1) {
-    const char = source[at]!
-    if (!begun) {
-      begun = char !== "\n" && char !== "\r"
-      start = line
+  let start = 0
+  lines.forEach((raw, index) => {
+    const text = index === 0 && raw.startsWith("﻿") ? raw.slice(1) : raw
+    // A line that starts no record, outside quotes, makes none.
+    if (!quoted && record.length === 0 && field === "") {
+      if (text === "") return
+      start = index
     }
-    if (quoted) {
-      if (char === quote && source[at + 1] === quote) {
-        field += quote
-        at += 1
-      } else if (char === quote) quoted = false
-      else {
-        if (char === "\n") line += 1
-        field += char
-      }
-      continue
+    for (let at = 0; at < text.length; at += 1) {
+      const char = text[at]!
+      if (quoted) {
+        if (char === quote && text[at + 1] === quote) {
+          field += quote
+          at += 1
+        } else if (char === quote) quoted = false
+        else field += char
+      } else if (char === quote && quotes && field.trim() === "") {
+        field = ""
+        quoted = true
+        openedOn = index
+      } else if (char === delimiter) {
+        record.push(field)
+        field = ""
+      } else field += char
     }
-    if (char === quote && field === "") quoted = true
-    else if (char === delimiter) endField()
-    else if (char === "\n" || char === "\r") {
-      if (char === "\r" && source[at + 1] === "\n") at += 1
-      if (begun || record.length > 0) endRecord()
-      line += 1
-    } else field += char
+    if (quoted && cut(index)) quoted = false
+    if (quoted) field += "\n"
+    else endRecord(start)
+  })
+  const open = quoted ? openedOn : undefined
+  if (quoted) {
+    // Its last line's break isn't in it: the lines end there.
+    field = field.slice(0, -1)
+    endRecord(start)
   }
-  const open = quoted
-  if (begun || record.length > 0 || field !== "") endRecord()
-  return { records, lines, open }
+  return { records, lines: starts, open }
 }
 
-// The delimiter of a file: a tab for TSV; for CSV, whichever of comma, semicolon or tab its
-// first line holds most of outside quotes, as spreadsheets in many locales write semicolons.
-export const delimiterOf = (path: string, firstLine: string): string => {
-  if (/\.tsv$/i.test(path)) return "\t"
-  const counts = new Map([
-    [",", 0],
-    [";", 0],
-    ["\t", 0],
-  ])
+const candidates = [",", ";", "\t"]
+
+// How many of `char` a line holds outside quotes.
+const countOutside = (line: string, char: string): number => {
+  let count = 0
   let quoted = false
-  for (const char of firstLine) {
-    if (char === quote) quoted = !quoted
-    else if (!quoted && counts.has(char)) counts.set(char, counts.get(char)! + 1)
+  for (const each of line) {
+    if (each === quote) quoted = !quoted
+    else if (!quoted && each === char) count += 1
   }
+  return count
+}
+
+// The delimiter of a file: a tab for TSV; for CSV, the comma, semicolon or tab its first lines
+// hold most steadily, the same number in each, outside quotes: as spreadsheets in many locales
+// write semicolons, with commas in their numbers. A tie goes to the tab, then the semicolon,
+// as a comma is the likelier in a field.
+export const delimiterOf = (path: string, sample: readonly string[]): string => {
+  if (/\.tsv$/i.test(path)) return "\t"
+  const lines = sample.filter((line) => line !== "").slice(0, 20)
   let best = ","
-  for (const [each, count] of counts) if (count > counts.get(best)!) best = each
+  let bestScore = 0
+  for (const char of candidates.toReversed()) {
+    const counts = lines.map((line) => countOutside(line, char)).filter((count) => count > 0)
+    const tally = new Map<number, number>()
+    for (const count of counts) tally.set(count, (tally.get(count) ?? 0) + 1)
+    const steady = Math.max(0, ...tally.values())
+    if (steady > bestScore) {
+      best = char
+      bestScore = steady
+    }
+  }
   return best
 }

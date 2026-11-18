@@ -3,7 +3,7 @@ import { delimiterOf, parseDelimited } from "./parse"
 
 describe("reading delimited text", () => {
   it("splits records by line and fields by the delimiter", () => {
-    expect(parseDelimited("a,b,c\n1,2,3", ",").records).toEqual([
+    expect(parseDelimited(["a,b,c", "1,2,3"], ",").records).toEqual([
       ["a", "b", "c"],
       ["1", "2", "3"],
     ])
@@ -11,7 +11,7 @@ describe("reading delimited text", () => {
 
   it("keeps a quoted field's delimiters, line breaks and doubled quotes", () => {
     const { records, lines } = parseDelimited(
-      'name,note\n"Smith, J","said ""hi""\nthen left"\nx,y',
+      ["name,note", '"Smith, J","said ""hi""', 'then left"', "x,y"],
       ",",
     )
     expect(records).toEqual([
@@ -22,8 +22,8 @@ describe("reading delimited text", () => {
     expect(lines).toEqual([0, 1, 3])
   })
 
-  it("leaves out a byte-order mark, a trailing line break and blank lines", () => {
-    expect(parseDelimited("﻿id,name\r\n1,Ann\r\n\r\n2,Bo\r\n", ",").records).toEqual([
+  it("leaves out a byte-order mark and blank lines", () => {
+    expect(parseDelimited(["﻿id,name", "1,Ann", "", "2,Bo", ""], ",").records).toEqual([
       ["id", "name"],
       ["1", "Ann"],
       ["2", "Bo"],
@@ -31,7 +31,7 @@ describe("reading delimited text", () => {
   })
 
   it("keeps empty fields, a record's last one too", () => {
-    expect(parseDelimited("a,,c,\n,,,", ",").records).toEqual([
+    expect(parseDelimited(["a,,c,", ",,,"], ",").records).toEqual([
       ["a", "", "c", ""],
       ["", "", "", ""],
     ])
@@ -39,29 +39,57 @@ describe("reading delimited text", () => {
 
   context("where a file strays", () => {
     it("joins text after a closing quote to its field, and keeps a quote inside a bare one", () => {
-      expect(parseDelimited('"a"b,c"d', ",").records).toEqual([["ab", 'c"d']])
+      expect(parseDelimited(['"a"b,c"d'], ",").records).toEqual([["ab", 'c"d']])
     })
 
-    it("closes a quote left open at the end, and says so", () => {
-      const parsed = parseDelimited('id,text\n1,"cut sho', ",")
+    it("lets spaces lead an opening quote", () => {
+      expect(parseDelimited(['a, "b, c",d'], ",").records).toEqual([["a", "b, c", "d"]])
+    })
+
+    it("ends a quoted field, and its record, at the end of a line cut short", () => {
+      const parsed = parseDelimited(["h1,h2", 'a,"long text cut sh', "b,2", "c,3"], ",", {
+        cut: (index) => index === 1,
+      })
+      expect(parsed.records).toEqual([
+        ["h1", "h2"],
+        ["a", "long text cut sh"],
+        ["b", "2"],
+        ["c", "3"],
+      ])
+      expect(parsed.open).toBeUndefined()
+    })
+
+    it("closes a quote left open at the end, and says where it opened", () => {
+      const parsed = parseDelimited(["id,text", '1,"cut sho'], ",")
       expect(parsed.records).toEqual([
         ["id", "text"],
         ["1", "cut sho"],
       ])
-      expect(parsed.open).toBe(true)
+      expect(parsed.open).toBe(1)
+    })
+
+    it("reads quotes as text when asked", () => {
+      expect(parseDelimited(['"12 inch\tx', "b\ty"], "\t", { quotes: false }).records).toEqual([
+        ['"12 inch', "x"],
+        ["b", "y"],
+      ])
     })
   })
 })
 
 describe("a file's delimiter", () => {
   it("is a tab for TSV", () => {
-    expect(delimiterOf("data/people.TSV", "a,b,c")).toBe("\t")
+    expect(delimiterOf("data/people.TSV", ["a,b,c"])).toBe("\t")
   })
 
-  it("is what a CSV's first line holds most of, outside quotes", () => {
-    expect(delimiterOf("a.csv", "id,name,city")).toBe(",")
-    expect(delimiterOf("a.csv", 'id;name;"Smith, J"')).toBe(";")
-    expect(delimiterOf("a.csv", "id\tname\tcity")).toBe("\t")
-    expect(delimiterOf("a.csv", "single")).toBe(",")
+  it("is what a CSV's lines hold most steadily, outside quotes", () => {
+    expect(delimiterOf("a.csv", ["id,name,city", "1,Ann;Bo,Oslo", "2,Cy,Rome"])).toBe(",")
+    expect(delimiterOf("a.csv", ['id;name;"Smith, J"'])).toBe(";")
+    expect(delimiterOf("a.csv", ["id\tname\tcity"])).toBe("\t")
+    expect(delimiterOf("a.csv", ["single"])).toBe(",")
+  })
+
+  it("is the semicolon where numbers take decimal commas", () => {
+    expect(delimiterOf("a.csv", ["1,5;2,25;x", "3,75;4,1;y"])).toBe(";")
   })
 })

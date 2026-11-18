@@ -363,6 +363,17 @@ const visitLines = [
   }),
 ]
 
+// Around lines an agent pointed at deep in a long export: no header among them, the first the
+// tail of a quoted note that began above them, and the file's length unknown past the budget.
+const orderLines = [
+  'packed twice, see ticket",shipped',
+  ...Array.from({ length: 90 }, (_, index) => {
+    const order = 48_960 + index
+    const note = index % 17 === 4 ? '"Gift wrap, no invoice"' : ""
+    return `${order},${["Oslo", "Rome", "Bern", "Lyon"][index % 4]},${(19 + ((index * 7) % 80)).toFixed(2)},${note},${index % 5 === 0 ? "returned" : "shipped"}`
+  }),
+]
+
 // A short table, whole.
 const scoreLines = [
   "font\tsize\tlegibility\tchosen",
@@ -420,6 +431,28 @@ export const devServerArtifacts: readonly SampleArtifact[] = [
       ...fileLines("exports/visits.csv", visitLines, { from: 1, to: visitLines.length }),
       total: 12_034,
     }),
+  ),
+  unavailable(
+    "dev-orders",
+    {
+      name: "orders.csv",
+      detail: "exports/orders.csv · lines 5,000–5,010",
+      lines: { from: 5000, to: 5010 },
+    },
+    ready({
+      ...fileLines("exports/orders.csv", orderLines, {
+        from: 5000,
+        to: 5010,
+        firstLine: 4960,
+      }),
+      total: null,
+      truncated: true,
+    }),
+  ),
+  unavailable(
+    "dev-signups",
+    { name: "signups.csv", detail: "exports/signups.csv" },
+    ready(fileLines("exports/signups.csv", ["email,joined,plan"], { from: 1, to: 1 })),
   ),
   unavailable(
     "dev-fonts",

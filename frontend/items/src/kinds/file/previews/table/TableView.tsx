@@ -19,9 +19,9 @@ type Left = {
 const left = createKept<Left>(24)
 
 // A delimited file (CSV, TSV) as a table: its header held on top as it scrolls, each column
-// sortable from its header, numbers to the right, and each row's line in the file at its
-// start. What the runner read of a long file is only part of it, and it says so under the
-// table.
+// sortable from its header, numbers to the right, each row's line in the file at its start,
+// and the rows the agent pointed at marked. What the runner read of a long file is only part
+// of it, and lines it cut short lose their ends: it says so under the table.
 export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Element => {
   const table = useMemo(
     () => tableOf(content.path, content.lines, content.firstLine),
@@ -42,14 +42,29 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
       ...next,
     })
   }
-  // Opens where it was left in this file; a new file, at its start.
+  // The lines the agent pointed at, where it pointed at some of what's shown rather than all.
+  const lastLine = content.firstLine + content.lines.length - 1
+  const pointed =
+    content.from > content.firstLine || content.to < lastLine
+      ? { from: content.from, to: content.to }
+      : undefined
+  // Opens where it was left in this file; a new file at the rows the agent pointed at, if it
+  // pointed at some, else at its start.
   useLayoutEffect(() => {
     const element = scroller.current
     if (!element) return
     const place = left.get(id)
     const at = place?.path === content.path ? place : undefined
+    if (!at && pointed) {
+      const row = element.querySelector<HTMLElement>("tbody tr[data-pointed]")
+      const head = element.querySelector("thead")?.offsetHeight ?? 0
+      element.scrollTop = row ? row.offsetTop - head : 0
+      element.scrollLeft = 0
+      return
+    }
     element.scrollTop = at?.top ?? 0
     element.scrollLeft = at?.left ?? 0
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies, react-hooks/exhaustive-deps -- Only as it opens, or another file comes.
   }, [id, content.path, scroller])
   // A file the item is re-pointed at starts in its own order.
   const [shownPath, setShownPath] = useState(content.path)
@@ -66,6 +81,7 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
     total: content.total,
     truncated: content.truncated,
     named: table.named,
+    cut: table.cut,
   })
   return (
     <div className="artifact-table">
@@ -118,14 +134,19 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.line}>
+              <tr
+                key={row.line}
+                data-pointed={
+                  (pointed && row.line >= pointed.from && row.line <= pointed.to) || undefined
+                }
+              >
                 <th scope="row" className="artifact-table-line">
                   {row.line}
                 </th>
                 {row.cells.map((cell, column) => (
                   // oxlint-disable-next-line react/no-array-index-key -- A column is its place.
                   <td key={column} data-numeric={table.numeric[column] || undefined}>
-                    {cell}
+                    <span>{cell}</span>
                   </td>
                 ))}
               </tr>

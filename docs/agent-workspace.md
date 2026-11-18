@@ -316,8 +316,12 @@ first line holds most of): the header held on top, each column sorted from its h
 down, the file's order; numbers by value, empty cells last), numbers to the right, each row
 led by the line it starts on, and where it was scrolled and sorted kept as the code viewer's
 place is. What the runner read of a long file is only part of it (its first 400 lines, or the
-lines around those pointed at), and the table says so under it, with which lines; lines past
-the file's first have no header, so their columns are lettered. A
+lines around those pointed at, which it marks and opens at), and the table says so under it,
+with which lines, and that a line the runner cut at 4096 characters lost its last cells. Lines
+past the file's first have no header, so their columns are lettered, and may start inside a
+quoted record, so the table starts at the first line from which the rows read whole. A quote
+never closed reads as text, as a TSV's inch mark; a semicolon file's numbers take decimal
+commas, and digits led by a zero (IDs, postcodes) are text. A
 file with a preview opens on it, with a Show source tool in the pane's row (Ctrl+Shift+V, ⌘⇧V
 on a Mac, from anywhere in the file) that switches it to the bare file in the code viewer and
 back. A preview's own tools join the row before it (`usePreviewTools`); one that can't read its
