@@ -1,0 +1,29 @@
+import { describe, expect, it } from "vitest"
+
+import { readDescribeRequest, waitingForOf } from "./describe-request.js"
+
+describe("what a description says its work waits on", () => {
+  it("is read beside the title and summary, and left alone where absent", () => {
+    expect(
+      readDescribeRequest({ title: "T", summary: "S", waitingFor: "the review" }),
+    ).toMatchObject({ ok: true, request: { waitingFor: "the review" } })
+    expect(readDescribeRequest({ title: "T", summary: "S" })).toMatchObject({ ok: true })
+    expect(waitingForOf(undefined, 5)).toBeUndefined()
+  })
+
+  it("is kept as one short line with when it was said, and cleared by empty words", () => {
+    expect(waitingForOf("  the macOS\nrunner\u0007 ", 5)).toEqual({
+      text: "the macOS runner",
+      at: 5,
+    })
+    expect(waitingForOf("x".repeat(500), 5)?.text).toHaveLength(200)
+    expect(waitingForOf(" \n ", 5)).toBeNull()
+  })
+
+  it("names the fields a description takes", () => {
+    expect(readDescribeRequest({ title: "T", summary: "S", other: 1 })).toEqual({
+      ok: false,
+      reason: "A description takes only `title`, `summary` and `waitingFor`.",
+    })
+  })
+})

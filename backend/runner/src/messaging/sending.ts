@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { agents as allAgents, harnesses } from "../harnesses/registry.js"
 import { bareHandle, mention } from "../terminals/handles.js"
+import { coordinationLines, partiesOf } from "./coordination.js"
 import { midTurnCall, route } from "./delivery.js"
 import type { Holds } from "./holds.js"
 import type { Leading } from "./leading.js"
@@ -806,6 +807,10 @@ export class Sending {
       }),
       unbound: live.root === null,
       now: this.host.now(),
+      coordination: coordinationLines(
+        partiesOf(live, about(live.terminalId), peers),
+        this.host.now(),
+      ),
     })
     // As every answer to the caller does, it tells of its messages held long, once.
     const held = holds.heldFrom(terminalId)

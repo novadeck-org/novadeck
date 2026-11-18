@@ -321,6 +321,13 @@ describe("a change beside a terminal", () => {
       expect(follows).toEqual({ asked: 1, released: 1 })
     })
 
+    it("links none on a compare of two refs in its repository, which is no work of the checkout's", () => {
+      const { pulls } = worksWith(pullRequest)
+      const { container } = show({ ...change(), head: "feature/login" }, undefined, true, pulls)
+      expect(container.querySelector(".changes-pull")).toBeNull()
+      expect(container.querySelector(".note")?.textContent).toContain("against main")
+    })
+
     it("links none for a work without one, or a page that isn't on the web", () => {
       const none = show(change(), undefined, true, worksWith(undefined).pulls)
       expect(none.container.querySelector(".changes-pull")).toBeNull()

@@ -60,6 +60,7 @@ import { failed } from "./failures.js"
 import { Hibernation } from "./hibernation.js"
 import { historyHost } from "./history-host.js"
 import { ClosedTerminals, type Plan } from "./history.js"
+import { HostWatch } from "./host-watch.js"
 import { restored } from "./interrupted.js"
 import { Launcher, startedIn, startFailed } from "./launching.js"
 import { listTerminals } from "./listing.js"
@@ -71,6 +72,7 @@ import { OpenRequests } from "./opens.js"
 import type { TerminalOptions } from "./options.js"
 import { TerminalPeers } from "./peers-host.js"
 import { PendingOwners } from "./pending-owners.js"
+import { QueueNotices, queueEntries } from "./queue-notices.js"
 import type { Record } from "./record.js"
 import { createTranscriptRedactor } from "./redaction.js"
 import { reportKeeps } from "./report-keeps.js"
@@ -144,6 +146,20 @@ export class Terminals {
   private readonly confirms = new Approvals()
   /** Samples running terminals' foreground processes. */
   private readonly sampler: Sampler<Record>
+  /** The host's CPU and memory and who uses them, for agents' listings and strain notices. */
+  private readonly load = new HostWatch({
+    stopping: () => this.stopping,
+    records: () => this.records.values(),
+    trees: () => this.trees,
+    messaging: () => this.messaging,
+  })
+  /** Tells terminals of a long queue for a runner kind others in their session hold. */
+  private readonly queueNotices = new QueueNotices({
+    entries: () =>
+      queueEntries(this.records.values(), (id) => ownedWorktrees(this.options.worktrees, id)),
+    notice: (id, text) => this.messaging.notice(id, text),
+    stopping: () => this.stopping,
+  })
   /** The commands run in an agent's own shell mode, shown while a process of theirs lives. */
   private readonly shellCommands = new ShellCommands<Record>({
     profile: (record) => this.typing.boxOf(record),
@@ -375,6 +391,7 @@ export class Terminals {
         this.murmur?.sampled(record.summary.id)
       },
     })
+    this.load.start()
     this.startups = new StartupWatch<Record>({
       stopping: () => this.stopping,
       records: () => this.records.values(),
@@ -665,6 +682,7 @@ export class Terminals {
       save: (record) => this.saves.save(record as Record, false),
       former: (sessionId, handle, before) =>
         this.history.lastHolder(this.projectOf(sessionId), handle, before),
+      hostLoad: this.load.listing,
     })
     this.murmur = options.describer
       ? new Murmur(
@@ -736,6 +754,7 @@ export class Terminals {
     this.launcher.integrate(options.shellFiles)
     this.sleepers.start()
     this.hibernation.start()
+    this.queueNotices.start()
     void this.launcher.integrated().then((found) => !found && this.sleepers.integrationFailed())
   }
 
@@ -1697,7 +1716,9 @@ export class Terminals {
     this.stopping = true
     this.sleepers.stop()
     this.hibernation.stop()
+    this.queueNotices.stop()
     this.sampler.stop()
+    this.load.stop()
     this.shellCommands.stop()
     this.startups.stop()
     this.saves.stop()

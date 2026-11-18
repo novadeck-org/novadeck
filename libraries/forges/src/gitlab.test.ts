@@ -1,6 +1,6 @@
 import { http, HttpResponse } from "msw"
 import { setupServer } from "msw/node"
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest"
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
 import { exit, mapOf, missing, ok, scripted, timeout } from "./fakes.js"
 import type { Repository } from "./forge.js"
@@ -303,5 +303,56 @@ describe("gitlab", () => {
         state: "open",
       })
     })
+  })
+})
+
+describe("gitlab unfinished checks", () => {
+  afterEach(() => vi.useRealTimers())
+  it("lists a running pipeline's pending and running jobs with their tags", async () => {
+    // The Jobs API has no queued_at: a pending job says how many seconds it has queued.
+    const now = Date.parse("2026-01-01T10:00:00Z")
+    vi.useFakeTimers({ toFake: ["Date"], now })
+    server.use(
+      byBranch({ a: [mr(1, "opened", { target_branch: "release" })] }),
+      http.get(`${url}/1`, () =>
+        HttpResponse.json({ head_pipeline: { id: 9, status: "running" } }),
+      ),
+      http.get("https://gitlab.com/api/v4/projects/g%2Fsub%2Fp/pipelines/9/jobs", () =>
+        HttpResponse.json([
+          {
+            name: "build",
+            status: "running",
+            started_at: "2026-01-01T10:00:00Z",
+            tag_list: ["macos"],
+          },
+          {
+            name: "test",
+            status: "pending",
+            created_at: "2026-01-01T09:00:00Z",
+            queued_duration: 600.5,
+            tag_list: ["macos", "arm"],
+          },
+          { name: "old", status: "pending", created_at: "2026-01-01T09:30:00Z", tag_list: [] },
+          { name: "later", status: "created", created_at: "2026-01-01T09:50:00Z", tag_list: [] },
+        ]),
+      ),
+    )
+    const found = mapOf(await gitlab.pullRequests(fetch, token, repo, ["a"])).get("a")
+    expect(found?.base).toBe("release")
+    expect(found?.checks).toEqual([
+      {
+        name: "build",
+        state: "running",
+        since: Date.parse("2026-01-01T10:00:00Z"),
+        runner: "macos",
+      },
+      {
+        name: "test",
+        state: "queued",
+        since: now - 600_500,
+        runner: "macos arm",
+      },
+      { name: "old", state: "queued", since: Date.parse("2026-01-01T09:30:00Z") },
+    ])
   })
 })

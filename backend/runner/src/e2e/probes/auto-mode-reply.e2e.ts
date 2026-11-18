@@ -66,7 +66,7 @@ describe.skipIf(!supported || !probing)(setup.name, () => {
             ],
           }
         }
-        if (result(call)?.includes(" is in the user's Inbox.")) {
+        if (result(call)?.includes(" is in the user's Inbox")) {
           await finishing.opened
           return { text: "Worked on." }
         }
@@ -87,7 +87,7 @@ describe.skipIf(!supported || !probing)(setup.name, () => {
     const warmUp = transcripts(run.model.calls).length
     expect(warmUp).toBeGreaterThan(0)
     await terminal.submit("Ask and work on")
-    await run.model.waitFor((call) => result(call)?.includes(" is in the user's Inbox.") === true, {
+    await run.model.waitFor((call) => result(call)?.includes(" is in the user's Inbox") === true, {
       after: calls,
     })
     const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!

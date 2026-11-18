@@ -394,3 +394,79 @@ describe("azure", () => {
     })
   })
 })
+
+describe("azure unfinished checks", () => {
+  const root = "https://dev.azure.com/org/My%20Project/_apis"
+  it("lists the pull request's builds waiting for an agent or running, with their pool", async () => {
+    server.use(
+      byBranch({
+        a: [
+          pr(5, "active", {
+            targetRefName: "refs/heads/main",
+            repository: { project: { id: "g" } },
+          }),
+        ],
+      }),
+      http.get(`${root}/policy/evaluations`, () =>
+        HttpResponse.json({
+          value: [
+            {
+              status: "running",
+              configuration: { id: 1, isEnabled: true, type: { displayName: "Build" } },
+            },
+          ],
+        }),
+      ),
+      http.get(`${root}/git/repositories/repo/pullrequests/5/statuses`, () =>
+        HttpResponse.json({ value: [] }),
+      ),
+      http.get(`${root}/build/builds`, ({ request }) => {
+        expect(new URL(request.url).searchParams.get("branchName")).toBe("refs/pull/5/merge")
+        return HttpResponse.json({
+          value: [
+            {
+              definition: { name: "ci" },
+              status: "notStarted",
+              queueTime: "2026-01-01T09:50:00Z",
+              queue: { pool: { name: "Mac Pool" } },
+            },
+            {
+              definition: { name: "lint" },
+              status: "inProgress",
+              startTime: "2026-01-01T10:00:00Z",
+              queue: { pool: { name: "Azure Pipelines", isHosted: true } },
+            },
+            {
+              definition: { name: "unit" },
+              status: "inProgress",
+              startTime: "2026-01-01T10:01:00Z",
+              queue: { pool: { name: "Azure Pipelines", isHosted: true } },
+              agentSpecification: { identifier: "ubuntu-latest" },
+            },
+          ],
+        })
+      }),
+    )
+    const found = mapOf(await azure.pullRequests(fetch, token, repo, ["a"])).get("a")
+    expect(found?.base).toBe("main")
+    expect(found?.checks).toEqual([
+      {
+        name: "ci",
+        state: "queued",
+        since: Date.parse("2026-01-01T09:50:00Z"),
+        runner: "Mac Pool",
+      },
+      {
+        name: "lint",
+        state: "running",
+        since: Date.parse("2026-01-01T10:00:00Z"),
+      },
+      {
+        name: "unit",
+        state: "running",
+        since: Date.parse("2026-01-01T10:01:00Z"),
+        runner: "ubuntu-latest",
+      },
+    ])
+  })
+})

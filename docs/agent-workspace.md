@@ -478,6 +478,24 @@ with every safety check again at that time:
   (for the newest layer's commit, where that commit left main), so the whole of it is
   `git diff main...HEAD`.
 
+  A **compare** is a changes item of two refs an agent names, for a person who asks to see a
+  branch's commits, a run of commits or two branches side by side: `show { changes: { base?,
+  head?, path? } }`, with `base` defaulting to the repository's main branch (by its name, as
+  above) and `head` to `HEAD`. A ref is anything git reads as a commit (a branch, remote
+  branch, tag, hash or `HEAD~5`), never one that starts with `-` or holds `:`, white space or a
+  control or invisible format character. It is read as the checkout's change is, with `head` in place of `HEAD` and
+  `base` in place of main: `head`'s commits since its merge base with `base`, newest first, at
+  most 100, so the whole of it is `git diff base...head`, and a run of commits is the ref before
+  the first as `base`. It has no work not committed yet and takes no snapshot. It is an item of
+  its own beside the working tree's, keyed `changes:<repository root>\n<base>...<head>`,
+  named "Compare · <folder> · <head>", kept with its refs (`compare_base`, `compare_head`, as
+  the agent named them, read again each time, so a branch that moves moves it), and its
+  content names `head`, which the pane reads to link no pull request (the checkout's isn't
+  its). The files read in a compare are its own, kept in memory with its listing for the 32
+  compares read latest (the checkout's own marks keep only what its work changes), so they
+  don't outlast the runner. `close` takes the same refs; a ref git can't find refuses the
+  show, naming it. A repository whose worktree goes takes its compares with it.
+
   One snapshot service (`backend/runner/src/checkouts/snapshots.ts`) takes the working tree for
   both the changes item and the Worktrees panel (Works), so a checkout both read is taken once:
   a snapshot younger than 1.5 seconds serves whoever asks next (an agent's show and a look

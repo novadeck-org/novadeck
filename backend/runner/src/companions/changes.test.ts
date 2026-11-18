@@ -1354,3 +1354,139 @@ describe.skipIf(!hasGit)("a repository in a folder named with the alternates sep
     })
   })
 })
+
+describe.skipIf(!hasGit)("a compare of two refs", () => {
+  // main: base.txt; feature (checked out away from): f1 adds f.txt, f2 changes it; main moves
+  // on after feature left it with m1; the checkout is back on main with an uncommitted edit.
+  const forked = (repo: Repo) => {
+    branched(repo)
+    const f1 = commit(repo, "f1", { "f.txt": "1\n" })
+    const f2 = commit(repo, "f2", { "f.txt": "1\n2\n" })
+    repo.git("checkout", "--quiet", "main")
+    const m1 = commit(repo, "m1", { "m.txt": "main\n" })
+    repo.write("base.txt", "edited\n")
+    return { f1, f2, m1 }
+  }
+  const compareOf = async (
+    readers: LayerReader,
+    root: string,
+    compare: { base: string; head: string },
+  ) => {
+    const read = await readers.read(root, false, compare)
+    if (!read.ok) throw new Error(read.reason)
+    if (read.change.content.state !== "ready" || read.change.content.content.kind !== "changes")
+      throw new Error("not a change")
+    return { ...read.change, change: read.change.content.content }
+  }
+
+  it("is the head's commits since it left the base, with no work not committed yet", async ({
+    repo,
+  }) => {
+    const { f1, f2 } = forked(repo)
+    const read = await compareOf(reader(), repo.root, { base: "main", head: "feature" })
+
+    expect(read.change).toMatchObject({ base: "main", head: "feature" })
+    expect(read.change.layers.map(({ id, kind, subject }) => [id, kind, subject])).toEqual([
+      [f2, "commit", "f2"],
+      [f1, "commit", "f1"],
+    ])
+    // As git diff main...feature: main's own m1 and the checkout's edit are no part of it.
+    expect(read.change.files.map(({ path, added }) => [path, added])).toEqual([["f.txt", 2]])
+    expect(read.detail).toBe("1 file · +2 −0")
+    expect(read.name).toBe(`Compare · ${repo.root.split(/[\\/]/).at(-1)}`)
+  })
+
+  it("is a run of commits on one branch, from the ref before the first", async ({ repo }) => {
+    const { f1, f2 } = forked(repo)
+    const read = await compareOf(reader(), repo.root, { base: `${f1}~1`, head: "feature" })
+
+    expect(read.change.layers.map(({ id }) => id)).toEqual([f2, f1])
+    const later = await compareOf(reader(), repo.root, { base: f1, head: f2 })
+    expect(later.change.layers.map(({ id }) => id)).toEqual([f2])
+    expect(later.change.files.map(({ path, added, removed }) => [path, added, removed])).toEqual([
+      ["f.txt", 1, 0],
+    ])
+  })
+
+  it("has no layers where the head holds nothing the base doesn't", async ({ repo }) => {
+    forked(repo)
+    const read = await compareOf(reader(), repo.root, { base: "main", head: "main~1" })
+
+    expect(read.change.layers).toEqual([])
+    expect(read.change.files).toEqual([])
+  })
+
+  it("says which ref git can't find", async ({ repo }) => {
+    forked(repo)
+    await expect(
+      reader().read(repo.root, false, { base: "main", head: "nope" }),
+    ).resolves.toMatchObject({ ok: false, reason: 'Git can\'t find "nope" in this repository.' })
+    await expect(
+      reader().read(repo.root, false, { base: "gone", head: "feature" }),
+    ).resolves.toMatchObject({ ok: false, reason: 'Git can\'t find "gone" in this repository.' })
+  })
+
+  it("diffs a file over a selection of its layers, the whole of it from where the head left the base", async ({
+    repo,
+  }) => {
+    const { f1, f2 } = forked(repo)
+    const compare = { base: "main", head: "feature" }
+    const readers = reader()
+    const whole = await readers.file(repo.root, "f.txt", [f2, f1], compare)
+    const newest = await readers.file(repo.root, "f.txt", [f2], compare)
+    const main = await readers.file(repo.root, "m.txt", [f2, f1], compare)
+
+    expect(whole).toMatchObject({
+      ok: true,
+      diff: { run: { layers: [f2, f1], before: null, after: "1\n2\n" } },
+    })
+    expect(newest).toMatchObject({
+      ok: true,
+      diff: { run: { layers: [f2], before: "1\n", after: "1\n2\n" } },
+    })
+    // A file only main changed since is no part of the compare.
+    expect(main).toEqual({ ok: true, diff: { run: null } })
+    // The checkout's own change is read apart, its uncommitted layer and all.
+    const own = await layersOf(readers, repo.root)
+    expect(own.change.head).toBeUndefined()
+    expect(own.change.layers.map(({ kind }) => kind)).toEqual(["uncommitted"])
+  })
+
+  it("keeps what it last listed apart from the checkout's own change", async ({ repo }) => {
+    forked(repo)
+    const readers = reader()
+    await compareOf(readers, repo.root, { base: "main", head: "feature" })
+    await layersOf(readers, repo.root)
+
+    expect(readers.listedFile(repo.root, "f.txt", { base: "main", head: "feature" })).toMatchObject(
+      { path: "f.txt" },
+    )
+    expect(readers.listedFile(repo.root, "f.txt")).toBeUndefined()
+    expect(readers.listedFile(repo.root, "base.txt")).toMatchObject({ path: "base.txt" })
+  })
+
+  it("keeps the latest compares read, and lets the oldest go with its marks", async ({ repo }) => {
+    const { f1, f2 } = forked(repo)
+    const readers = reader()
+    const first = { base: f1, head: f2 }
+    await compareOf(readers, repo.root, first)
+    readers.markCompare(
+      repo.root,
+      first,
+      "f.txt",
+      readers.listedFile(repo.root, "f.txt", first)!.blob,
+    )
+    expect((await compareOf(readers, repo.root, first)).change.read).toEqual(["f.txt"])
+    for (let back = 0; back < 32; back += 1)
+      // eslint-disable-next-line no-await-in-loop -- One after the other, as an agent shows them.
+      await compareOf(readers, repo.root, {
+        base: `${f1}~1`,
+        head: `${f2}~${back % 2}` + "^0".repeat(Math.floor(back / 2)),
+      })
+    // The checkout's own change is kept whatever compares come.
+    await layersOf(readers, repo.root)
+    expect(readers.listedFile(repo.root, "f.txt", first)).toBeUndefined()
+    expect((await compareOf(readers, repo.root, first)).change.read).toEqual([])
+    expect(readers.listedFile(repo.root, "base.txt")).toMatchObject({ path: "base.txt" })
+  })
+})

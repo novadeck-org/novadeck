@@ -72,6 +72,7 @@ export {
   maxChangeLayers,
   maxChangesBytes,
   maxChangeSideBytes,
+  maxCompareRef,
   maxLayerFiles,
   maxLookPicture,
   maxPageTroubles,
