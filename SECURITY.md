@@ -175,13 +175,16 @@ the top and the zoom, how many pages, why a PDF isn't drawn, whether it is openi
 needs, and three of the pane's actions for keys pressed in it (hide the pane, the next or
 previous tab). Those are names, never keys, so nothing from the frame types into a terminal or
 an agent's composer. The frame has the focus only when the person gives it: a press on the PDF,
-or Tab to it, through a glass in front of the frame, or the app focusing the viewer; a script in
-the frame that takes the focus itself has it put back where it was, so keys typed for a terminal
-never reach it. The app acts on an action only while the frame has the focus, at most five a
-second. The app listens to nothing the frame posts to its window, and its other window listeners
+or Tab to it, through a glass in front of the frame, or the app focusing the viewer; the person
+leaving it takes the focus back from it. A script in the frame that takes the focus itself (which
+the browser allows a frame the person has just used) has it put back where it was as soon as it
+leaves anything in the app's page, so keys typed for a terminal don't reach it. The app acts on an
+action only while the frame has the focus it was given, at most five a second. The app listens to nothing the frame posts to its window, and its other window listeners
 check the sender is their own. A frame that loads another page than its own, which only a script
-in it could make it do, is taken away; the app page's own policy keeps such a page to the app's
-origin. Within the frame, only the pages are drawn, on canvases, with no annotation, text or form
+in it could make it do, is taken away once that page has loaded; the app page's own policy keeps
+such a page to the app's origin, so in the desktop app it can load none at all (its files are
+refused to the frame), and under `pnpm dev:web` it can load another page of the development
+server, which runs without the frame's policy until then. Within the frame, only the pages are drawn, on canvases, with no annotation, text or form
 layer; pdf.js's scripting sandbox is never loaded, so a script a PDF carries never runs; and XFA
 is off.
 

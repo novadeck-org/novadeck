@@ -55,6 +55,8 @@ describe("the debug panel's PDF group", () => {
       "Show a PDF too large to preview",
       "Show a PDF that may hold secrets",
       "Show a PDF locked with a password",
+      "Show a PDF whose read fails",
+      "Stop the PDF viewer",
       "Show a file that isn't a PDF",
       "Rewrite the PDF",
     ])

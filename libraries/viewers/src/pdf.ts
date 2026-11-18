@@ -140,11 +140,13 @@ export const mountPdf: Mount<
   let opened: OpenFrame | undefined
   let ready = false
   let destroyed = false
+  // Let go of: nothing more goes to it.
+  let stopped = false
   // What waits for the frame to be ready: of each kind but files, only the latest, so a
   // file rewritten again and again holds one copy of its bytes.
   let queue: { message: Record<string, unknown>; transfer: Transferable[] }[] = []
   const post = (message: Record<string, unknown>, transfer: Transferable[] = []): void => {
-    if (destroyed) return
+    if (destroyed || stopped) return
     if (ready && opened) return opened.post(message, transfer)
     if (message.type !== "asset") queue = queue.filter((each) => each.message.type !== message.type)
     if (queue.length < queued) queue.push({ message, transfer })
@@ -172,7 +174,13 @@ export const mountPdf: Mount<
     if (asked.length >= assetsPerSecond || !assets) return post({ type: "asset", id })
     asked.push(now)
     const key = `${kind}/${name}`
-    const known = read.get(key) ?? assets(kind, name).catch(() => undefined)
+    // One that couldn't be read, as a chunk that didn't load, is read again next time.
+    const known =
+      read.get(key) ??
+      assets(kind, name).catch(() => {
+        read.delete(key)
+        return undefined
+      })
     read.set(key, known)
     const bytes = await known
     if (!bytes) return post({ type: "asset", id })
@@ -182,8 +190,8 @@ export const mountPdf: Mount<
 
   let actions: number[] = []
   const act = (action: PdfPaneAction): void => {
-    // Only for a key the person pressed in this PDF: its frame has the focus.
-    if (document.activeElement !== iframe || !onAction) return
+    // Only for a key the person pressed in this PDF: its frame has the focus they gave it.
+    if (!given || document.activeElement !== iframe || !onAction) return
     const now = win.performance.now()
     actions = actions.filter((at) => now - at < 1000)
     if (actions.length >= actionsPerSecond) return
@@ -222,6 +230,7 @@ export const mountPdf: Mount<
   // The frame went somewhere else than its page, which only a script in it could do: it's
   // let go of, and says so.
   const stop = (): void => {
+    stopped = true
     ready = false
     queue = []
     opened?.close()
@@ -257,17 +266,31 @@ export const mountPdf: Mount<
   const give = (): void => {
     given = true
     iframe.focus({ preventScroll: true })
-    post({ type: "focus" })
+    // A frame that couldn't take it, as one hidden, wasn't given it.
+    given = document.activeElement === iframe
+    if (given) post({ type: "focus" })
   }
   const remember = (event: FocusEvent): void => {
     if (event.target !== iframe) before = event.target as Element
   }
-  document.addEventListener("focusin", remember, true)
-  iframe.addEventListener("focus", () => {
-    if (given) return void (glass.hidden = true)
+  // The frame has the focus it wasn't given: back where it was. A frame the person used may take
+  // it with no event on the iframe here, so each focus that leaves something here is checked too.
+  const putBack = (): void => {
+    if (given || stopped || document.activeElement !== iframe) return
     const back = before as HTMLElement | null
     if (back?.isConnected && back !== document.body) back.focus({ preventScroll: true })
     else iframe.blur()
+  }
+  let checking = 0
+  const check = (): void => {
+    win.clearTimeout(checking)
+    checking = win.setTimeout(putBack, 0)
+  }
+  document.addEventListener("focusin", remember, true)
+  document.addEventListener("focusout", check, true)
+  iframe.addEventListener("focus", () => {
+    if (given) return void (glass.hidden = true)
+    putBack()
   })
   iframe.addEventListener("blur", () => {
     given = false
@@ -327,6 +350,8 @@ export const mountPdf: Mount<
       destroyed = true
       win.clearTimeout(starting)
       document.removeEventListener("focusin", remember, true)
+      document.removeEventListener("focusout", check, true)
+      win.clearTimeout(checking)
       opened?.close()
       scheme.removeEventListener("change", theme)
       looks.disconnect()

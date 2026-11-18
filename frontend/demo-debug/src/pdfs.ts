@@ -50,6 +50,21 @@ export const pdfGroups = (companions: Backend["companions"]): readonly DemoActio
           run: show(pdfSamples.locked),
         },
         {
+          label: "Show a PDF whose read fails",
+          hint: "The pane says unreachable-report.pdf couldn't be loaded, as when the link to the runner drops",
+          run: show(pdfSamples.failing),
+        },
+        {
+          label: "Stop the PDF viewer",
+          hint: "The PDF showing in the pane says The PDF viewer stopped., as when its frame loads another page than its own",
+          // The frame sent elsewhere, as only a script in it could do.
+          run: ({ note }) => {
+            const frames = [...document.querySelectorAll<HTMLIFrameElement>("iframe.pdf-frame")]
+            if (frames.length === 0) return note("Show a PDF first.")
+            for (const frame of frames) frame.src = "about:blank"
+          },
+        },
+        {
           label: "Show a file that isn't a PDF",
           hint: "The pane loads broken.pdf, then says This file couldn't be read as a PDF.",
           run: show(pdfSamples.broken),

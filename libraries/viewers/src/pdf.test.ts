@@ -1,5 +1,6 @@
 import "./pdf.css"
 import { afterEach, describe, expect, it } from "vitest"
+import { userEvent } from "vitest/browser"
 
 import type { ViewerState } from "./index.js"
 import { mountPdf, type PdfAssets, type PdfTrouble, type PdfViewer } from "./pdf.js"
@@ -797,25 +798,45 @@ describe("the frame's walls", () => {
 })
 
 describe("the frame's hold on the focus", () => {
-  // A frame that waits, then takes the focus itself, as a script in it could.
-  const steal = `function steal({ port }) {
-    port.postMessage({ type: "ready" })
-    setTimeout(() => {
-      window.focus()
-      document.body.tabIndex = 0
-      document.body.focus()
-    }, 300)
-  }`
-
   it("goes back to where it was when a script in the frame takes it", async () => {
+    // A frame the person has used, which takes the focus a moment after they leave it, as a
+    // script in it could: what they then type is the field's, and the frame's key is no action.
+    const steal = `function steal({ port }) {
+      port.postMessage({ type: "ready" })
+      document.body.style.cssText = "height: 100vh; margin: 0"
+      let armed = false
+      document.addEventListener("pointerdown", () => {
+        if (armed) return
+        armed = true
+        setTimeout(() => {
+          window.focus()
+          document.body.tabIndex = 0
+          document.body.focus()
+        }, 1000)
+      })
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "q") port.postMessage({ type: "action", action: "hide" })
+      })
+    }`
     const pane = paneIn()
     const field = document.createElement("input")
-    document.body.append(field)
+    document.body.prepend(field)
+    const actions: string[] = []
     try {
-      field.focus()
-      mountIsolated(pane, pdfOf(1), { viewer: steal })
-      await new Promise((settled) => setTimeout(settled, 1200))
+      mountIsolated(pane, pdfOf(1), { viewer: steal, onAction: (action) => actions.push(action) })
+      await new Promise((settled) => setTimeout(settled, 1500))
+      const glass = pane.querySelector<HTMLElement>(".pdf-glass")!
+      const iframe = pane.querySelector("iframe")!
+      // Through the glass, then a press in the frame, which the frame hears; then the field.
+      await userEvent.click(glass)
+      await userEvent.click(iframe)
+      await userEvent.click(field)
       expect(document.activeElement).toBe(field)
+      await new Promise((settled) => setTimeout(settled, 2500))
+      expect(document.activeElement).toBe(field)
+      await userEvent.keyboard("q")
+      expect(field.value).toBe("q")
+      expect(actions).toEqual([])
     } finally {
       field.remove()
     }

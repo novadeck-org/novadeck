@@ -519,6 +519,12 @@ export const pdfSamples = {
     content: pdfContent(lockedPdfSize),
     file: { read: lockedPdf },
   },
+  // Its read fails, as when the link to the runner drops.
+  failing: {
+    item: pdfItem("studio-report-failing", "unreachable-report.pdf", "5 pages, Letter"),
+    content: pdfContent(quarterlyReport.length),
+    file: { read: async () => quarterlyReport, fails: true },
+  },
   broken: {
     item: pdfItem("studio-report-broken", "broken.pdf", "Not a PDF"),
     content: pdfContent(notAPdf.length),

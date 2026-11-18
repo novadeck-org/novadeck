@@ -465,7 +465,10 @@ export const pdfFrameViewer = ({ pdfjs, worker: workerUrl, port }: PdfFrameEnvir
     if (message.type === "open" && message.bytes instanceof ArrayBuffer)
       return void open(message.bytes)
     if (message.type === "place" && isPlace(message.place)) {
-      const wanted = message.place
+      const wanted = {
+        ...message.place,
+        zoom: message.place.zoom === "fit" ? "fit" : clamp(message.place.zoom, least, most),
+      } as Place
       zoom = wanted.zoom
       if (pending || list.length === 0) {
         pending = wanted

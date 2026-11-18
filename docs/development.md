@@ -482,7 +482,9 @@ Agents:
   unavailable state, "Novadeck previews PDFs up to 128 MB."; "Show a PDF that may hold secrets"
   joins the stack unopened until you pick its tab; "Show a PDF locked with a password" is a one-page PDF locked
   by Ghostscript, which the viewer says "This PDF is locked with a password, which Novadeck doesn't
-  open."; "Show a file that isn't a PDF" is text under
+  open."; "Show a PDF whose read fails" is the pane's "couldn't be loaded", as when the link to the runner
+  drops; "Stop the PDF viewer" sends the open PDF's frame to another page, as only a script in it
+  could, and the pane says "The PDF viewer stopped."; "Show a file that isn't a PDF" is text under
   a PDF's name, which the viewer says "This file couldn't be read as a PDF."; "Rewrite the PDF"
   shows the report under a new stamp, as if its file was rewritten, read in 512-byte parts 0.3 s
   apart: the old one stays on screen under a Loading chip for about 2 s, then the new one swaps
