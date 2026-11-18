@@ -14,7 +14,8 @@
    as `.icon-button`s; `.artifact-window` fills a window of its own.
 
    A file with a preview (a Markdown file's document) is in `.artifact-file`, a column that
-   takes focus from a click anywhere in it, so the switch's key works from there.
+   takes focus from a click anywhere in it, so the switch's key works from there, ringed
+   inside its edge when the keyboard put focus there.
 
    Hooks: data-live on a page that loads live, data-file-preview (its type, as "markdown") and
    data-view ("preview" or "source") on a file with a preview, and data-reason on what can't
@@ -46,7 +47,13 @@
   flex: 1;
   flex-direction: column;
   min-height: 0;
+}
+.artifact-file:focus {
   outline: none;
+}
+.artifact-file:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
+  outline-offset: calc(var(--focus-ring-width) * -1);
 }
 
 /* While an artifact loads, or when it couldn't. */
@@ -139,6 +146,28 @@
   --code-font-size: var(--text-code);
   --code-number-fg: var(--artifact-code-number-fg, var(--color-muted));
   --code-emphasis-bg: var(--artifact-code-pointed-bg, var(--color-soft));
+}
+
+/* A data file as a tree, in the tree viewer (@novadeck/viewers/tree.css), in the code's
+   type; its copy buttons sit on the pane's paper. */
+.artifact-tree {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  --tree-font: var(--font-mono);
+  --tree-font-size: var(--text-code);
+  --tree-muted-fg: var(--artifact-code-number-fg, var(--color-muted));
+  --tree-hover-bg: color-mix(in oklab, var(--color-soft) 60%, transparent);
+  --tree-active-bg: var(--artifact-code-pointed-bg, var(--color-soft));
+  --tree-focus-ring: var(--color-strong);
+  --tree-actions-bg: var(--pane-bg, var(--color-paper));
+}
+.artifact-tree-cut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .artifact-browser {

@@ -1,0 +1,178 @@
+/* The tree viewer: a scrolling tree (`.tree-viewer`) over a space as tall as all its rows
+   (`.tree-space`), holding the rows in sight (`.tree-row`), each placed at its own top. A
+   row: its twisty, its name (`.tree-key`, `.tree-index`, a root's `.tree-label`), then its
+   value (`.tree-value`), or a closed node's `.tree-preview` and `.tree-count`, or a broken
+   record's `.tree-broken` and `.tree-raw`; and `.tree-actions`, its copy buttons, showing
+   on the row under the pointer and the active one.
+
+   Hooks: aria-selected on the active row, data-type on a value (string, number, boolean,
+   null), data-open on a node's twisty, data-broken on a record that doesn't read,
+   data-copied on a button that just copied.
+
+   Tokens, each optional (its fallback in brackets):
+   --tree-font (monospace), --tree-font-size (inherit), --tree-row-height (22px): the type
+   and each row's height, which every row keeps.
+   --tree-indent (16px): how far in each level is.
+   --tree-muted-fg (the text, faded): punctuation, counts, previews and indices.
+   --tree-hover-bg, --tree-active-bg (the text, faintly): the row under the pointer, the
+   active one.
+   --tree-focus-ring (Highlight): the active row while the tree has the keyboard.
+   --tree-actions-bg (Canvas): behind the copy buttons, over a long row's end.
+   --syntax-{property,string,number,keyword} (the text): keys, strings, numbers and
+   booleans, null; --syntax-invalid (the text): a broken record. */
+.tree-viewer {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: 6px 0;
+  overflow: auto;
+  overflow-anchor: none;
+  font-family: var(--tree-font, monospace);
+  font-size: var(--tree-font-size, inherit);
+  outline: none;
+  --_muted: var(--tree-muted-fg, color-mix(in srgb, currentColor 55%, transparent));
+}
+.tree-space {
+  position: relative;
+}
+.tree-row {
+  position: absolute;
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: var(--tree-row-height, 22px);
+  padding-right: 12px;
+  padding-left: calc(var(--depth, 0) * var(--tree-indent, 16px) + 8px);
+  overflow: hidden;
+  white-space: pre;
+  cursor: default;
+  user-select: text;
+}
+.tree-row:hover {
+  background: var(--tree-hover-bg, color-mix(in srgb, currentColor 5%, transparent));
+}
+.tree-row[aria-selected="true"] {
+  background: var(--tree-active-bg, color-mix(in srgb, currentColor 9%, transparent));
+}
+.tree-viewer:focus-visible .tree-row[aria-selected="true"] {
+  box-shadow: inset 2px 0 0 var(--tree-focus-ring, Highlight);
+}
+.tree-row[aria-expanded] {
+  cursor: pointer;
+}
+
+.tree-twisty {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-right: 2px;
+  color: var(--_muted);
+}
+.tree-twisty[data-open]::before {
+  width: 5px;
+  height: 5px;
+  content: "";
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateX(-1px) rotate(-45deg);
+  transition: transform 120ms ease;
+}
+.tree-twisty[data-open="true"]::before {
+  transform: translateY(-1px) rotate(45deg);
+}
+
+.tree-key {
+  flex: none;
+  color: var(--syntax-property, inherit);
+}
+.tree-index,
+.tree-label,
+.tree-colon,
+.tree-count,
+.tree-preview {
+  flex: none;
+  color: var(--_muted);
+}
+.tree-label {
+  font-weight: 600;
+}
+.tree-preview {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tree-count {
+  margin-left: 8px;
+  font-size: 0.9em;
+}
+.tree-preview + .tree-count::before {
+  content: "· ";
+}
+.tree-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tree-value[data-type="string"] {
+  color: var(--syntax-string, inherit);
+}
+.tree-value[data-type="number"],
+.tree-value[data-type="boolean"] {
+  color: var(--syntax-number, inherit);
+}
+.tree-value[data-type="null"] {
+  color: var(--syntax-keyword, inherit);
+}
+.tree-broken {
+  flex: none;
+  margin-right: 8px;
+  color: var(--syntax-invalid, inherit);
+}
+.tree-raw {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--_muted);
+  text-overflow: ellipsis;
+}
+
+.tree-actions {
+  display: none;
+  flex: none;
+  gap: 4px;
+  margin-left: auto;
+  padding-left: 12px;
+  background: linear-gradient(to right, transparent, var(--tree-actions-bg, Canvas) 12px);
+}
+.tree-row:hover .tree-actions,
+.tree-row[aria-selected="true"] .tree-actions {
+  display: inline-flex;
+}
+.tree-actions button {
+  padding: 0 6px;
+  font: inherit;
+  font-size: 0.85em;
+  line-height: 18px;
+  color: var(--_muted);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 4px;
+}
+.tree-actions button:hover {
+  color: inherit;
+}
+.tree-actions button[data-copied] {
+  color: var(--syntax-string, inherit);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tree-twisty[data-open]::before {
+    transition: none;
+  }
+}

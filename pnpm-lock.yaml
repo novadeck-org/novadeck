@@ -66,7 +66,7 @@ importers:
         version: 0.28.2
       msw:
         specifier: ^3.0.4
-        version: 3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       oxfmt:
         specifier: ^0.78.0
         version: 0.78.0
@@ -87,7 +87,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -151,7 +151,7 @@ importers:
         version: link:../../libraries/wire
       '@tailwindcss/vite':
         specifier: ^4.3.5
-        version: 4.3.5(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 4.3.5(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -163,7 +163,7 @@ importers:
         version: 19.3.0(@types/react@19.3.0)
       '@vitejs/plugin-react':
         specifier: ^5.2.0
-        version: 5.2.0(supports-color@10.2.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.2.0(supports-color@10.2.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       concurrently:
         specifier: ^10.0.7
         version: 10.0.7
@@ -175,7 +175,7 @@ importers:
         version: 26.18.0(electron-builder-squirrel-windows@26.18.0)(supports-color@10.2.2)
       electron-vite:
         specifier: ^6.0.0
-        version: 6.0.0(supports-color@10.2.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 6.0.0(supports-color@10.2.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
@@ -196,10 +196,10 @@ importers:
         version: 7.0.2
       vite:
         specifier: ^7.3.8
-        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   apps/previews:
     dependencies:
@@ -221,7 +221,7 @@ importers:
         version: link:../../tools/build-kit
       '@tailwindcss/vite':
         specifier: ^4.3.5
-        version: 4.3.5(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 4.3.5(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -230,7 +230,7 @@ importers:
         version: 19.3.0
       '@vitejs/plugin-react':
         specifier: ^5.2.0
-        version: 5.2.0(supports-color@10.2.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.2.0(supports-color@10.2.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       jsdom:
         specifier: ^31.0.0
         version: 31.0.0(@noble/hashes@2.4.0)
@@ -239,10 +239,10 @@ importers:
         version: 7.0.2
       vite:
         specifier: ^7.3.8
-        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   apps/try:
     dependencies:
@@ -264,7 +264,7 @@ importers:
         version: link:../../tools/build-kit
       '@tailwindcss/vite':
         specifier: ^4.3.5
-        version: 4.3.5(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 4.3.5(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -273,7 +273,7 @@ importers:
         version: 19.3.0
       '@vitejs/plugin-react':
         specifier: ^5.2.0
-        version: 5.2.0(supports-color@10.2.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.2.0(supports-color@10.2.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       jsdom:
         specifier: ^31.0.0
         version: 31.0.0(@noble/hashes@2.4.0)
@@ -285,10 +285,10 @@ importers:
         version: 7.0.2
       vite:
         specifier: ^7.3.8
-        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   backend/relay:
     devDependencies:
@@ -388,7 +388,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   contract/protocol:
     dependencies:
@@ -410,7 +410,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   contract/runner-client:
     dependencies:
@@ -429,7 +429,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   engines/ggml-build:
     devDependencies:
@@ -441,7 +441,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   engines/murmur:
     devDependencies:
@@ -468,7 +468,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   frontend/chat:
     dependencies:
@@ -517,10 +517,10 @@ importers:
         version: 7.0.2
       vite:
         specifier: ^7.3.8
-        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   frontend/chat-contract:
     devDependencies:
@@ -571,10 +571,10 @@ importers:
         version: 7.0.2
       vite:
         specifier: ^7.3.8
-        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   frontend/core:
     dependencies:
@@ -596,7 +596,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   frontend/demo:
     dependencies:
@@ -630,7 +630,7 @@ importers:
         version: 19.3.0
       '@vitest/browser-playwright':
         specifier: 5.1.0
-        version: 5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(playwright@1.65.0)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))(vitest@5.1.0)
+        version: 5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(playwright@1.65.0)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.1.0)
       jsdom:
         specifier: ^31.0.0
         version: 31.0.0(@noble/hashes@2.4.0)
@@ -639,10 +639,10 @@ importers:
         version: 7.0.2
       vite:
         specifier: ^7.3.8
-        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   frontend/demo-debug:
     dependencies:
@@ -679,10 +679,10 @@ importers:
         version: 7.0.2
       vite:
         specifier: ^7.3.8
-        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   frontend/items:
     dependencies:
@@ -743,10 +743,10 @@ importers:
         version: 7.0.2
       vite:
         specifier: ^7.3.8
-        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   frontend/requests:
     dependencies:
@@ -783,10 +783,10 @@ importers:
         version: 7.0.2
       vite:
         specifier: ^7.3.8
-        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   frontend/runner-adapter:
     dependencies:
@@ -835,10 +835,10 @@ importers:
         version: 7.0.2
       vite:
         specifier: ^7.3.8
-        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   frontend/specs:
     devDependencies:
@@ -874,7 +874,7 @@ importers:
         version: link:../../libraries/wire
       '@tailwindcss/vite':
         specifier: ^4.3.5
-        version: 4.3.5(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 4.3.5(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -886,10 +886,10 @@ importers:
         version: 19.3.0(@types/react@19.3.0)
       '@vitejs/plugin-react':
         specifier: ^5.2.0
-        version: 5.2.0(supports-color@10.2.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.2.0(supports-color@10.2.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       '@vitest/browser-playwright':
         specifier: 5.1.0
-        version: 5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(playwright@1.65.0)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))(vitest@5.1.0)
+        version: 5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(playwright@1.65.0)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.1.0)
       '@xyflow/react':
         specifier: ^12.12.1
         version: 12.12.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -913,10 +913,10 @@ importers:
         version: 7.0.2
       vite:
         specifier: ^7.3.8
-        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       vitest-browser-react:
         specifier: ^2.3.0
         version: 2.3.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.1.0)
@@ -941,7 +941,7 @@ importers:
         version: link:../../tools/build-kit
       '@vitest/browser-playwright':
         specifier: 5.1.0
-        version: 5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(playwright@1.65.0)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))(vitest@5.1.0)
+        version: 5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(playwright@1.65.0)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.1.0)
       jsdom:
         specifier: ^31.0.0
         version: 31.0.0(@noble/hashes@2.4.0)
@@ -950,10 +950,10 @@ importers:
         version: 7.0.2
       vite:
         specifier: ^7.3.8
-        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   frontend/test-kit:
     dependencies:
@@ -987,7 +987,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   frontend/toolkit:
     dependencies:
@@ -1039,10 +1039,10 @@ importers:
         version: 7.0.2
       vite:
         specifier: ^7.3.8
-        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   frontend/ui:
     dependencies:
@@ -1106,7 +1106,7 @@ importers:
         version: link:../test-kit
       '@tailwindcss/vite':
         specifier: ^4.3.5
-        version: 4.3.5(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 4.3.5(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -1118,7 +1118,7 @@ importers:
         version: 19.3.0(@types/react@19.3.0)
       '@vitejs/plugin-react':
         specifier: ^5.2.0
-        version: 5.2.0(supports-color@10.2.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.2.0(supports-color@10.2.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       jsdom:
         specifier: ^31.0.0
         version: 31.0.0(@noble/hashes@2.4.0)
@@ -1130,10 +1130,10 @@ importers:
         version: 7.0.2
       vite:
         specifier: ^7.3.8
-        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   harnesses/agy:
     dependencies:
@@ -1158,7 +1158,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   harnesses/claude:
     dependencies:
@@ -1183,7 +1183,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   harnesses/codex:
     dependencies:
@@ -1211,7 +1211,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   harnesses/core:
     dependencies:
@@ -1233,7 +1233,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   libraries/emulator:
     dependencies:
@@ -1276,7 +1276,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   libraries/forges:
     devDependencies:
@@ -1285,13 +1285,13 @@ importers:
         version: 26.6.6
       msw:
         specifier: ^3.0.4
-        version: 3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   libraries/log:
     dependencies:
@@ -1307,7 +1307,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   libraries/sandbox:
     devDependencies:
@@ -1319,7 +1319,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   libraries/secrets:
     devDependencies:
@@ -1331,7 +1331,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   libraries/terminal:
     dependencies:
@@ -1359,7 +1359,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   libraries/tui-input:
     dependencies:
@@ -1375,7 +1375,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   libraries/viewers:
     dependencies:
@@ -1430,6 +1430,9 @@ importers:
       pdfjs-dist:
         specifier: ^6.5.438
         version: 6.5.438
+      yaml:
+        specifier: ^2.9.1
+        version: 2.9.1
     devDependencies:
       '@codemirror/state':
         specifier: ^6.7.6
@@ -1448,7 +1451,7 @@ importers:
         version: 19.3.0(@types/react@19.3.0)
       '@vitest/browser-playwright':
         specifier: 5.1.0
-        version: 5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(playwright@1.65.0)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))(vitest@5.1.0)
+        version: 5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(playwright@1.65.0)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.1.0)
       electron:
         specifier: 'catalog:'
         version: 45.2.2(supports-color@10.2.2)
@@ -1466,7 +1469,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   libraries/wire:
     dependencies:
@@ -1500,7 +1503,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       ws:
         specifier: 'catalog:'
         version: 8.22.2
@@ -1534,7 +1537,7 @@ importers:
         version: link:../../contract/protocol
       '@tailwindcss/vite':
         specifier: ^4.3.5
-        version: 4.3.5(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 4.3.5(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -1546,7 +1549,7 @@ importers:
         version: 19.3.0(@types/react@19.3.0)
       '@vitejs/plugin-react':
         specifier: ^5.2.0
-        version: 5.2.0(supports-color@10.2.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.2.0(supports-color@10.2.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       tailwindcss:
         specifier: ^4.3.5
         version: 4.3.5
@@ -1555,10 +1558,10 @@ importers:
         version: 7.0.2
       vite:
         specifier: ^7.3.8
-        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -1573,10 +1576,10 @@ importers:
         version: 7.0.2
       vite:
         specifier: ^7.3.8
-        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+        version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
 packages:
 
@@ -5828,6 +5831,11 @@ packages:
     resolution: {integrity: sha512-YgvUTfwqyc7UXVMrB+SImsVYSmTS8X/tSrtdNZMImM+n7+QTriRXyXim0mBrTXNeqzVF0KWGgHPeiyViFFrNDw==}
     engines: {node: '>=18'}
 
+  yaml@2.9.1:
+    resolution: {integrity: sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
   yargs-parser@21.1.1:
     resolution: {integrity: sha512-tVpsJW7DdjecAiFpbIB1e3qxIQsE6NoPc5/eTdrbbIC4h0LVsWhnoa3g+m2HclBIujHzsxZ4VJVA+GUuc2/LBw==}
     engines: {node: '>=12'}
@@ -7214,12 +7222,12 @@ snapshots:
       '@tailwindcss/oxide-win32-arm64-msvc': 4.3.5
       '@tailwindcss/oxide-win32-x64-msvc': 4.3.5
 
-  '@tailwindcss/vite@4.3.5(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))':
+  '@tailwindcss/vite@4.3.5(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
       '@tailwindcss/node': 4.3.5
       '@tailwindcss/oxide': 4.3.5
       tailwindcss: 4.3.5
-      vite: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+      vite: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
 
   '@turbo/darwin-64@2.11.10':
     optional: true
@@ -7407,7 +7415,7 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
-  '@vitejs/plugin-react@5.2.0(supports-color@10.2.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))':
+  '@vitejs/plugin-react@5.2.0(supports-color@10.2.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
       '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/plugin-transform-react-jsx-self': 7.29.7(@babel/core@7.29.7(supports-color@10.2.2))
@@ -7415,34 +7423,34 @@ snapshots:
       '@rolldown/pluginutils': 1.0.0-rc.3
       '@types/babel__core': 7.20.5
       react-refresh: 0.18.0
-      vite: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+      vite: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
     transitivePeerDependencies:
       - supports-color
 
-  '@vitest/browser-playwright@5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(playwright@1.65.0)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))(vitest@5.1.0)':
+  '@vitest/browser-playwright@5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(playwright@1.65.0)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.1.0)':
     dependencies:
-      '@vitest/browser': 5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))(vitest@5.1.0)
-      '@vitest/mocker': 5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+      '@vitest/browser': 5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.1.0)
+      '@vitest/mocker': 5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       playwright: 1.65.0
       tinyrainbow: 3.2.0
-      vitest: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+      vitest: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
     transitivePeerDependencies:
       - bufferutil
       - msw
       - utf-8-validate
       - vite
 
-  '@vitest/browser@5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))(vitest@5.1.0)':
+  '@vitest/browser@5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.1.0)':
     dependencies:
       '@blazediff/core': 1.10.0
-      '@vitest/mocker': 5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+      '@vitest/mocker': 5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       '@vitest/ui': 5.1.0(vitest@5.1.0)
       '@vitest/utils': 5.1.0
       magic-string: 1.4.5
       pngjs: 7.0.0
       sirv: 3.0.2
       tinyrainbow: 3.2.0
-      vitest: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+      vitest: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       ws: 8.22.2
     transitivePeerDependencies:
       - bufferutil
@@ -7450,15 +7458,15 @@ snapshots:
       - utf-8-validate
       - vite
 
-  '@vitest/mocker@5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))':
+  '@vitest/mocker@5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@vitest/spy': 5.1.0
       estree-walker: 3.0.3
       magic-string: 1.4.5
     optionalDependencies:
-      msw: 3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
-      vite: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+      msw: 3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
+      vite: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
 
   '@vitest/pretty-format@5.1.0':
     dependencies:
@@ -7474,7 +7482,7 @@ snapshots:
       pathe: 2.0.3
       sirv: 3.0.2
       tinyrainbow: 3.2.0
-      vitest: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+      vitest: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
 
   '@vitest/utils@5.1.0':
     dependencies:
@@ -8681,7 +8689,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron-vite@6.0.0(supports-color@10.2.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)):
+  electron-vite@6.0.0(supports-color@10.2.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/plugin-transform-arrow-functions': 7.29.7(@babel/core@7.29.7(supports-color@10.2.2))
@@ -8689,7 +8697,7 @@ snapshots:
       magic-string: 1.4.3
       picocolors: 1.1.1
       rolldown: 1.2.14
-      vite: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+      vite: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -9401,7 +9409,7 @@ snapshots:
 
   ms@2.1.3: {}
 
-  msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)):
+  msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@inquirer/confirm': 6.3.5(@types/node@26.6.6)
       '@msw/url': 0.1.2
@@ -9418,7 +9426,7 @@ snapshots:
     optionalDependencies:
       graphql: 16.14.2
       typescript: 7.0.2
-      vite: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+      vite: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
     transitivePeerDependencies:
       - '@types/node'
       - supports-color
@@ -10222,7 +10230,7 @@ snapshots:
 
   verkit@0.5.0: {}
 
-  vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15):
+  vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1):
     dependencies:
       esbuild: 0.28.2
       fdir: 6.5.0(picomatch@4.0.7)
@@ -10236,20 +10244,21 @@ snapshots:
       jiti: 2.7.0
       lightningcss: 1.33.0
       tsx: 4.23.15
+      yaml: 2.9.1
 
   vitest-browser-react@2.3.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.1.0):
     dependencies:
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
-      vitest: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+      vitest: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
     optionalDependencies:
       '@types/react': 19.3.0
       '@types/react-dom': 19.3.0(@types/react@19.3.0)
 
-  vitest@5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)):
+  vitest@5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+      '@vitest/mocker': 5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
@@ -10260,11 +10269,11 @@ snapshots:
       tinybench: 6.2.3
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
-      vite: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+      vite: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)
       why-is-node-running: 3.2.1
     optionalDependencies:
       '@types/node': 26.6.6
-      '@vitest/browser-playwright': 5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(playwright@1.65.0)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))(vitest@5.1.0)
+      '@vitest/browser-playwright': 5.1.0(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(playwright@1.65.0)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.1.0)
       '@vitest/ui': 5.1.0(vitest@5.1.0)
       jsdom: 31.0.0(@noble/hashes@2.4.0)
     transitivePeerDependencies:
@@ -10352,6 +10361,8 @@ snapshots:
   yallist@4.0.0: {}
 
   yallist@5.0.0: {}
+
+  yaml@2.9.1: {}
 
   yargs-parser@21.1.1: {}
 

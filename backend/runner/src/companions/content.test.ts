@@ -390,6 +390,8 @@ describe("an image as it loads", () => {
       "a.pjpeg": "image/jpeg",
       "a.pjp": "image/jpeg",
       "a.AVIF": "image/avif",
+      "photo.jxl": "image/jxl",
+      "a.jpe": "image/jpeg",
       "a.bmp": "image/bmp",
       "favicon.ico": "image/x-icon",
       "a.cur": "image/x-icon",
@@ -408,8 +410,8 @@ describe("an image as it loads", () => {
   })
 
   it("isn't a format Chromium can't draw, which stays a file", async ({ directory }) => {
-    // JPEG XL is behind a flag in Chromium, and a gzipped SVG has no encoding in a data URL.
-    for (const name of ["a.tiff", "a.tif", "a.heic", "a.heif", "a.jxl", "a.svgz"]) {
+    // A gzipped SVG has no encoding a data URL can carry.
+    for (const name of ["a.tiff", "a.tif", "a.heic", "a.heif", "a.svgz"]) {
       writeFileSync(join(directory, name), png)
       // eslint-disable-next-line no-await-in-loop -- One file after another.
       await expect(pointAt(name, directory), name).resolves.toMatchObject({ kind: "file" })

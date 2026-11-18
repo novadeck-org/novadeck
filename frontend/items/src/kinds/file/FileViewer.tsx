@@ -1,12 +1,12 @@
 import type { Item, FileContent } from "@novadeck/core/items"
 import { mountCode, type CodeContent } from "@novadeck/viewers/code"
 import { CodeXml } from "lucide-react"
-import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from "react"
+import { useCallback, useMemo, useReducer, useRef, useState, type KeyboardEvent } from "react"
 
 import type { ArtifactBodyProps } from "../../ArtifactViewer"
 import { PaneTools, type PaneTool } from "../../pane-row"
 import { useViewerSlot } from "../../ViewerSlot"
-import { previewFor, type FilePreview } from "./previews"
+import { previewFor, type FilePreview, type ToSource } from "./previews"
 import { PreviewToolsSetter } from "./previews/tools"
 import { useFileView } from "./view-choice"
 
@@ -16,8 +16,11 @@ import { useFileView } from "./view-choice"
 const CodeViewer = ({
   id,
   content: artifact,
+  at,
 }: Pick<ArtifactBodyProps<"file">, "content"> & {
   id: Item["id"]
+  // A line to point at instead of the agent's, as where a preview's file stops reading.
+  at?: number
 }): React.JSX.Element => {
   const content = useMemo(
     (): CodeContent => ({
@@ -25,9 +28,9 @@ const CodeViewer = ({
       firstLine: artifact.firstLine,
       path: artifact.path,
       // The lines the agent pointed at.
-      emphasis: { from: artifact.from, to: artifact.to },
+      emphasis: at === undefined ? { from: artifact.from, to: artifact.to } : { from: at, to: at },
     }),
-    [artifact],
+    [artifact, at],
   )
   const { ref: code } = useViewerSlot(mountCode, {
     id,
@@ -59,16 +62,27 @@ export const switchKey = {
   text: mac ? "⌘⇧V" : "Ctrl+Shift+V",
 }
 
+// By the letter it types, so it's the V the tooltip names on Latin layouts (Dvorak, AZERTY);
+// where the layout types another script (Cyrillic, Greek, Hebrew), by where V sits.
+const isV = (event: KeyboardEvent): boolean =>
+  /^[a-z]$/i.test(event.key) ? event.key.toLowerCase() === "v" : event.code === "KeyV"
+
 const isSwitchKey = (event: KeyboardEvent): boolean =>
-  event.code === "KeyV" &&
+  isV(event) &&
   event.shiftKey &&
   !event.altKey &&
   (mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)
 
+// The loads of files their preview sent to their source, and why: not the person's choice,
+// so it isn't kept as one, and the file's next load, as once its agent fixes it, previews
+// again; by load, so the pane built again, as across views, shows it the same.
+const sentToSource = new WeakMap<FileContent, { readonly note: string; readonly line?: number }>()
+
 // A file of a type with a preview: the preview first, or its source as the person last
 // switched it for this item and file, with the switch in the pane's row after the preview's
 // own tools. The file takes focus from a click anywhere in it, so its key works from there,
-// and keeps it as it switches, so the key switches it back.
+// and keeps it as it switches, so the key switches it back: a region named for the file and
+// what it shows now, ringed when the keyboard moved focus there. A key held down switches once.
 const PreviewedFile = ({
   item,
   content,
@@ -81,22 +95,38 @@ const PreviewedFile = ({
   const [view, choose] = useFileView(item.id, content.path)
   const [tools, setTools] = useState<readonly PaneTool[]>([])
   const holder = useRef<HTMLDivElement>(null)
-  const source = view === "source"
-  const toggle = (): void => choose(source ? "preview" : "source")
   const setPreviewTools = useCallback((next: readonly PaneTool[]) => setTools(next), [])
+  const [, redraw] = useReducer((count: number) => count + 1, 0)
+  const note = sentToSource.get(content) ?? null
+  const source = view === "source" || note !== null
+  const toggle = (): void => {
+    sentToSource.delete(content)
+    choose(source ? "preview" : "source")
+  }
+  const toSource = useCallback<ToSource>(
+    (why) => {
+      if (!why) return choose("source")
+      sentToSource.set(content, why)
+      redraw()
+    },
+    [choose, content],
+  )
   const Preview = preview.View
   return (
     <div
       ref={holder}
       className="artifact-file"
       data-file-preview={preview.name}
-      data-view={view}
+      data-view={source ? "source" : "preview"}
       tabIndex={-1}
+      role="region"
+      aria-label={`${item.name}, ${source ? "source" : "preview"}`}
       // The row's switch is drawn in the row, but its keys come here as from inside.
       onKeyDown={(event) => {
         if (!isSwitchKey(event)) return
         event.preventDefault()
         event.stopPropagation()
+        if (event.repeat) return
         // What has focus may be the view going away.
         if (holder.current?.contains(document.activeElement))
           holder.current.focus({ preventScroll: true })
@@ -118,10 +148,17 @@ const PreviewedFile = ({
         ]}
       />
       {source ? (
-        <CodeViewer id={item.id} content={content} />
+        <>
+          {note && <p className="artifact-cut artifact-source-note">{note.note}</p>}
+          <CodeViewer
+            id={item.id}
+            content={content}
+            {...(note?.line === undefined ? {} : { at: note.line })}
+          />
+        </>
       ) : (
         <PreviewToolsSetter value={setPreviewTools}>
-          <Preview id={item.id} name={item.name} content={content} />
+          <Preview id={item.id} name={item.name} content={content} toSource={toSource} />
         </PreviewToolsSetter>
       )}
     </div>

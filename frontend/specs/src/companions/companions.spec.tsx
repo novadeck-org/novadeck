@@ -383,7 +383,7 @@ describe("An image", () => {
 
     await taskbarIcon("Build Studio", "2 files").click()
     await expect
-      .element(pane.getByRole("region", { name: "src/content/projects.json" }))
+      .element(pane.getByRole("tree", { name: "src/content/projects.json" }))
       .toBeVisible()
     await taskbarIcon("Build Studio", "2 images").click()
 
@@ -396,12 +396,13 @@ describe("An image", () => {
   })
 })
 
+// projects.json, a data file, shows as a tree: its rows scroll as a listing's lines do.
 describe("A file", () => {
   it("scrolls its lines under its row, which stays in view", async () => {
     // The showcase opens with Build Studio showing this file.
     await openShowcase()
     const pane = companionPane("Build Studio")
-    const region = pane.getByRole("region", { name: "src/content/projects.json" })
+    const region = pane.getByRole("tree", { name: "src/content/projects.json" })
     await expect.element(region).toBeVisible()
     const lines = region.element()
     await expect.poll(() => lines.scrollHeight).toBeGreaterThan(lines.clientHeight)
@@ -416,7 +417,7 @@ describe("A file", () => {
     // The showcase opens with Build Studio showing this file.
     await openShowcase()
     const pane = companionPane("Build Studio")
-    const region = () => pane.getByRole("region", { name: "src/content/projects.json" })
+    const region = () => pane.getByRole("tree", { name: "src/content/projects.json" })
     await expect.element(region()).toBeVisible()
     const lines = region().element()
     await expect.poll(() => lines.scrollHeight).toBeGreaterThan(lines.clientHeight + 40)
@@ -446,7 +447,7 @@ describe("A pane's row", () => {
       return button.getBoundingClientRect().top - row.getBoundingClientRect().top
     }
     await expect
-      .element(pane.getByRole("region", { name: "src/content/projects.json" }))
+      .element(pane.getByRole("tree", { name: "src/content/projects.json" }))
       .toBeVisible()
     const besideFile = await settled(offset)
 
@@ -783,23 +784,23 @@ describe("A terminal's tab", () => {
 describe("A stack's menu", () => {
   it("offers only what's done with all of it, and each of its things to open", async () => {
     await openShowcase()
-    const menu = await iconMenu("Dev server", "11 files")
+    const menu = await iconMenu("Dev server", "18 files")
     const entries = menu
       .getByRole("menuitem")
       .elements()
       .map((entry) => entry.textContent)
-    expect(entries).toEqual(["Open", "Move left", "Move right", "Close 11 files"])
+    expect(entries).toEqual(["Open", "Move left", "Move right", "Close 18 files"])
 
-    await menu.getByRole("menuitem", { name: "Close 11 files" }).click()
+    await menu.getByRole("menuitem", { name: "Close 18 files" }).click()
 
-    await expect.element(taskbarIcon("Dev server", "11 files")).not.toBeInTheDocument()
+    await expect.element(taskbarIcon("Dev server", "18 files")).not.toBeInTheDocument()
   })
 })
 
 describe("Something that can't show", () => {
   it("says why, with its path to copy", async () => {
     await openShowcase()
-    await chooseFromIconSubmenu("Dev server", "11 files", "Open", "notes.md")
+    await chooseFromIconSubmenu("Dev server", "18 files", "Open", "notes.md")
     const pane = companionPane("Dev server")
     await expect.element(pane.getByText("notes.md isn't there any more.")).toBeVisible()
     await expect.element(pane.getByRole("button", { name: "Copy path" })).toBeVisible()
@@ -817,9 +818,9 @@ describe("Something that can't show", () => {
 
   it("shows what may hold secrets once the person picks it, and never in a peek", async () => {
     await openShowcase()
-    await taskbarIcon("Dev server", "11 files").hover()
+    await taskbarIcon("Dev server", "18 files").hover()
     await expect.element(page.getByText("May hold secrets. Click to open.")).toBeVisible()
-    await chooseFromIconSubmenu("Dev server", "11 files", "Open", ".env.local")
+    await chooseFromIconSubmenu("Dev server", "18 files", "Open", ".env.local")
     const pane = companionPane("Dev server")
     await expect.element(pane.getByText("VITE_API_URL=http://localhost:8787")).toBeVisible()
   })
@@ -828,7 +829,7 @@ describe("Something that can't show", () => {
 describe("A delimited file", () => {
   it("shows a long one as a table, its header held as it scrolls, drawing the rows in view", async () => {
     await openShowcase()
-    await chooseFromIconSubmenu("Dev server", "11 files", "Open", "visits.csv")
+    await chooseFromIconSubmenu("Dev server", "18 files", "Open", "visits.csv")
     const pane = companionPane("Dev server")
     await expect.element(pane.getByRole("columnheader", { name: "visits" })).toBeVisible()
     await expect
