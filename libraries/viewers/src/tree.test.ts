@@ -133,7 +133,43 @@ describe("the tree viewer", () => {
     })
   })
 
+  it("doesn't offer to expand an empty object", () => {
+    const pane = paneIn()
+    mount({ roots: rootsOf('{"a":{},"b":[1]}', "json") }, pane)
+    expect(rowNamed(pane, "a").hasAttribute("aria-expanded")).toBe(false)
+    expect(rowNamed(pane, "b").getAttribute("aria-expanded")).toBe("true")
+  })
+
+  it("keeps text picked out in a row through the click that ends the drag", () => {
+    const pane = paneIn()
+    mount({ roots: rootsOf('{"a":"hello world"}', "json") }, pane)
+    const value = pane.querySelector(".tree-value")!
+    const range = document.createRange()
+    range.setStart(value.firstChild!, 1)
+    range.setEnd(value.firstChild!, 6)
+    getSelection()!.removeAllRanges()
+    getSelection()!.addRange(range)
+    rowNamed(pane, "a").click()
+    expect(pane.querySelector(".tree-value")).toBe(value)
+    expect(getSelection()!.toString()).toBe("hello")
+    expect(rowNamed(pane, "a").getAttribute("aria-selected")).toBe("true")
+    getSelection()!.removeAllRanges()
+  })
+
   context("by keyboard", () => {
+    it("brings the active row wholly into sight, below the tree's padding", () => {
+      const pane = paneIn()
+      const keys = Object.fromEntries(Array.from({ length: 60 }, (_, at) => [`k${at}`, at]))
+      mount({ roots: rootsOf(JSON.stringify(keys), "json") }, pane)
+      key(pane, "PageDown")
+      for (let at = 0; at < 20; at += 1) key(pane, "ArrowDown")
+      const tree = treeOf(pane).getBoundingClientRect()
+      const row = pane.querySelector('[aria-selected="true"]')!.getBoundingClientRect()
+      expect(row.bottom).toBeLessThanOrEqual(tree.top + treeOf(pane).clientHeight)
+      key(pane, "Home")
+      expect(treeOf(pane).scrollTop).toBe(0)
+    })
+
     it("moves down and up, opens with right, closes and climbs with left", () => {
       const pane = paneIn()
       mount({ roots: rootsOf('{"a":{"b":{"c":1}},"d":1}', "json") }, pane)
@@ -152,6 +188,7 @@ describe("the tree viewer", () => {
       expect(textsOf(pane)).not.toContain("c: 1")
       key(pane, "End")
       expect(active()).toBe("d")
+
       expect(treeOf(pane).getAttribute("aria-activedescendant")).toBe(
         pane.querySelector('[aria-selected="true"]')!.id,
       )

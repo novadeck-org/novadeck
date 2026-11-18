@@ -15,9 +15,9 @@ import type { PreviewProps } from "./previews"
 // doesn't read goes to its source at the line it stops, once per load: switched back, it
 // says where it stops. A file read only in part says so.
 
-// How long the runner cuts a line at (the protocol's `companionLimits.lineLength`): a
-// record that long that doesn't read was likely cut short there.
-const longestLine = 4096
+// How long the runner cuts a line at (the protocol's `companionLimits.lineLength`, a unit
+// less when that would split an emoji): a line that long was likely cut short there.
+const longestLine = 4095
 
 /** Whether a file is one the tree reads. */
 export const isData = (path: string): boolean => dataFormatOf(path) !== undefined
@@ -25,19 +25,23 @@ export const isData = (path: string): boolean => dataFormatOf(path) !== undefine
 // The loads already sent to their source: switched back to the preview, they stay.
 const sent = new WeakSet<FileContent>()
 
-// Whether only part of the file came: read up to a budget, or a window of its lines.
+// Whether only part of the file came: read up to a budget, a window of its lines, or a line
+// cut short, as minified JSON's one line.
 const isPartial = (file: FileContent): boolean =>
   file.truncated ||
+  file.lines.some((line) => line.length >= longestLine) ||
   file.firstLine > 1 ||
   (file.total !== null && file.firstLine + file.lines.length - 1 < file.total)
 
-// The lines that came, as a person reads it.
+// What came of the file, as a person reads it: a window of its lines, its start, or its
+// lines whole but some cut short.
 const partText = (file: FileContent): string => {
   const last = file.firstLine + file.lines.length - 1
   const of = file.total === null ? "" : ` of ${file.total}`
-  return file.firstLine > 1
-    ? `lines ${file.firstLine}–${last}${of}`
-    : `the first ${last} lines${of}`
+  if (file.firstLine > 1) return `Only lines ${file.firstLine}–${last}${of} were read`
+  if (file.truncated || (file.total !== null && last < file.total))
+    return `Only the first ${last} lines${of} were read`
+  return "Some of its lines are too long and were cut short"
 }
 
 const errorText = (format: string, error: DataError): string =>
@@ -99,7 +103,7 @@ export const DataViewer = ({ id, content: file, toSource }: PreviewProps): React
     return (
       <div className="artifact-unavailable" data-reason="partial">
         <p>
-          Only {partText(file)} were read, so the {formatNames[format]} can't be read as a whole.
+          {partText(file)}, so the {formatNames[format]} can't be read as a whole.
         </p>
         <div className="artifact-unavailable-actions">{source}</div>
       </div>
@@ -110,8 +114,8 @@ export const DataViewer = ({ id, content: file, toSource }: PreviewProps): React
       {partial && (
         <p className="artifact-cut artifact-tree-cut">
           {format === "jsonl"
-            ? `Only ${partText(file)} were read: these are the records in them.`
-            : `Only ${partText(file)} were read, so the tree may be missing some.`}
+            ? `${partText(file)}, so some records may be missing or cut short.`
+            : `${partText(file)}, so the tree may be missing some.`}
           {source}
         </p>
       )}

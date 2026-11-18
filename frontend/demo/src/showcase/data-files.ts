@@ -3,9 +3,11 @@ import type { FileContent } from "@novadeck/core/items"
 import { fileLines, ready, type SampleArtifact } from "./artifacts"
 
 // Data files the dev server's terminal shows, one of each way the tree reads them: YAML with
-// anchors and two documents; a JSONL transcript read only in part, one record cut short; a
-// YAML file that doesn't read, which goes to its source; and a long JSON file shown from
-// its middle, which can't read as a whole.
+// anchors and two documents; a JSONL transcript read only in part, one record half written
+// and one cut short; a YAML file that doesn't read, which goes to its source; a long YAML
+// file's start, which reads as far as it goes; an empty JSON object; and a long JSON file
+// shown from its middle, which can't read as a whole. Studio's projects.json is a plain
+// JSON tree.
 
 const studio = "~/projects/studio"
 
@@ -121,7 +123,9 @@ const cutRecord = JSON.stringify({
   uuid: "5d88",
   message: { role: "user", content: [{ type: "tool_result", content: "x".repeat(5000) }] },
 }).slice(0, 4096)
-const transcriptLines = [...transcript, cutRecord]
+// A record an agent stopped writing halfway, with others after it.
+const halfRecord = '{"type":"user","uuid":"4b90","message":{"role":'
+const transcriptLines = [...transcript.slice(0, 3), halfRecord, ...transcript.slice(3), cutRecord]
 
 const brokenLines = [
   "name: deploy",
@@ -149,6 +153,23 @@ const lockLines = Array.from({ length: 60 }, (_, index) => {
         : "    },"
 })
 
+// The start of a long YAML file, which reads as far as it goes.
+const apiLines = [
+  "openapi: 3.1.0",
+  "info:",
+  "  title: Studio API",
+  "  version: 0.4.0",
+  "paths:",
+  "  /work:",
+  "    get:",
+  "      summary: List the case studies",
+  "      parameters:",
+  "        - { name: season, in: query, schema: { type: string } }",
+  "  /work/{slug}:",
+  "    get:",
+  "      summary: One case study",
+]
+
 export const dataArtifacts: readonly SampleArtifact[] = [
   file(
     "data-compose",
@@ -170,6 +191,13 @@ export const dataArtifacts: readonly SampleArtifact[] = [
     ".github/workflows/deploy.yml",
     fileLines(".github/workflows/deploy.yml", brokenLines, { from: 1, to: brokenLines.length }),
   ),
+  file(
+    "data-api",
+    "api/openapi.yaml",
+    { ...fileLines("api/openapi.yaml", apiLines, { from: 1, to: apiLines.length }), total: 2310 },
+    "api/openapi.yaml · its start",
+  ),
+  file("data-empty", "data/seed.json", fileLines("data/seed.json", ["{}"], { from: 1, to: 1 })),
   file(
     "data-lock",
     "package-lock.json",

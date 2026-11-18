@@ -15,6 +15,11 @@ describe("rowsOf", () => {
       expect(rows.find((row) => row.name === "b")).toMatchObject({ open: false, count: 1 })
     })
 
+    it("shows an empty object or array as its one row", () => {
+      expect(rowsOf(lone({}), new Map())).toMatchObject([{ name: null, type: "object", count: 0 }])
+      expect(rowsOf(lone([]), new Map())).toMatchObject([{ name: null, type: "array", count: 0 }])
+    })
+
     it("shows a plain value as its one row", () => {
       expect(rowsOf(lone("hi"), new Map())).toMatchObject([
         { name: null, type: "string", value: "hi" },
@@ -95,6 +100,17 @@ describe("copyText", () => {
     expect(copyText({ a: [1] })).toBe('{\n  "a": [\n    1\n  ]\n}')
     expect(copyText(null)).toBe("null")
     expect(copyText(Number.POSITIVE_INFINITY)).toBe("Infinity")
+  })
+
+  it("copies a value holding itself, as a YAML alias in its own anchor does, marking where", () => {
+    const shared = { x: 1 }
+    const looped: Record<string, unknown> = { shared, again: shared }
+    looped["self"] = looped
+    expect(JSON.parse(copyText(looped))).toEqual({
+      shared: { x: 1 },
+      again: { x: 1 },
+      self: "[Circular]",
+    })
   })
 })
 

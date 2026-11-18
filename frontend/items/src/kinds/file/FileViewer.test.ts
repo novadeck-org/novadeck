@@ -31,8 +31,11 @@ const fileContent = (path: string, lines: readonly string[]): FileContent => ({
 const show = async (id: string, content: FileContent) => {
   const item = itemFixture(id, "01", { kind: "file", name: content.path, path: content.path })
   const loaded: ItemContent = { state: "ready", stamp: "1", content }
+  // Hands the item the file as it is now, as the runner does once it changes.
+  let push: ((content: ItemContent) => void) | undefined
   const companions: Companions = {
     follow: (_target, _id, _options, on) => {
+      push = on
       on(loaded)
       return () => {}
     },
@@ -55,7 +58,9 @@ const show = async (id: string, content: FileContent) => {
   })
   const switcher = () =>
     rendered.container.querySelector<HTMLButtonElement>('button[aria-label="Show source"]')
-  return { ...rendered, unmount, switcher }
+  const load = (next: FileContent): void =>
+    act(() => push?.({ state: "ready", stamp: String(Math.random()), content: next }))
+  return { ...rendered, unmount, switcher, load }
 }
 
 const readme = fileContent("docs/README.md", ["# Readme", "", "## Install", "Run it."])
@@ -175,6 +180,15 @@ describe("a data file", () => {
     const pointed = [...container.querySelectorAll(".code-viewer > [data-emphasized]")]
     expect(pointed.map((row) => row.firstElementChild?.textContent)).toEqual([String(line)])
     expect(switcher()?.getAttribute("aria-pressed")).toBe("true")
+  })
+
+  it("previews again once the file reads, its source not kept as the person's choice", async () => {
+    const { container, load } = await show("broken-3", broken())
+    expect(container.querySelector(".artifact-file")?.getAttribute("data-view")).toBe("source")
+    load(fileContent("ci.yml", ["jobs:", "  build:", "    runs-on: ubuntu-latest"]))
+    expect(container.querySelector(".artifact-file")?.getAttribute("data-view")).toBe("preview")
+    expect(container.querySelector(".artifact-source-note")).toBeNull()
+    expect(container.querySelector(".tree-viewer")).not.toBeNull()
   })
 
   it("switched back to the preview, says where it stops instead of going again", async () => {

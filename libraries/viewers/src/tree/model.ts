@@ -128,7 +128,8 @@ export const rowsOf = (
   const [lone] = roots
   if (roots.length === 1 && lone?.kind === "value" && lone.label === null) {
     const type = typeOf(lone.value)
-    if (isContainer(type)) children(0, [], lone.value, type, 0)
+    // An empty one is its one row, so the file shows it's empty.
+    if (isContainer(type) && countOf(lone.value, type) > 0) children(0, [], lone.value, type, 0)
     else walk(0, [], null, lone.value, 0, 1, 1)
     return rows
   }
@@ -170,7 +171,16 @@ export const pathText = (path: readonly Segment[]): string => {
 export const copyText = (value: unknown): string => {
   if (typeof value === "string") return value
   if (typeof value === "number" && !Number.isFinite(value)) return String(value)
-  return JSON.stringify(value, null, 2) ?? String(value)
+  // A YAML alias inside its own anchor holds itself: it copies as "[Circular]" there.
+  const within: object[] = []
+  const replacer = function (this: unknown, _key: string, item: unknown): unknown {
+    while (within.length > 0 && within.at(-1) !== this) within.pop()
+    if (typeof item !== "object" || item === null) return item
+    if (within.includes(item)) return "[Circular]"
+    within.push(item)
+    return item
+  }
+  return JSON.stringify(value, replacer, 2) ?? String(value)
 }
 
 /** A plain value as one line: a string in quotes with its breaks escaped, cut at `most`. */

@@ -148,7 +148,8 @@ export const mountTree: Mount<TreeContent, TreeOptions> = (
     line.dataset["index"] = String(index)
     line.style.top = `${index * rowHeight()}px`
     line.style.setProperty("--depth", String(row.depth))
-    if (row.count !== undefined) line.setAttribute("aria-expanded", String(row.open))
+    // An empty object or array has nothing to expand.
+    if (row.count) line.setAttribute("aria-expanded", String(row.open))
     const twisty = part("tree-twisty", "")
     if (row.count !== undefined && row.count > 0) twisty.dataset["open"] = String(row.open)
     line.append(twisty)
@@ -164,7 +165,8 @@ export const mountTree: Mount<TreeContent, TreeOptions> = (
       line.dataset["broken"] = ""
       line.append(part("tree-broken", row.broken), part("tree-raw", scalarText(row.value, 200)))
     } else if (row.count !== undefined && (row.type === "object" || row.type === "array")) {
-      if (!row.open) line.append(part("tree-preview", previewText(row.value)))
+      // An empty one shows as what it is: {} or [].
+      if (!row.open || row.count === 0) line.append(part("tree-preview", previewText(row.value)))
       line.append(part("tree-count", countText(row.type, row.count)))
     } else {
       const value = part("tree-value", scalarText(row.value))
@@ -191,8 +193,19 @@ export const mountTree: Mount<TreeContent, TreeOptions> = (
     const lines: HTMLElement[] = []
     for (let index = from; index < to; index += 1) lines.push(draw(rows[index]!, index))
     space.replaceChildren(...lines)
+    mark()
+  }
+
+  // The active row, as the drawn rows and the tree say it, leaving the rows as they are.
+  const mark = (): void => {
     const at = indexOf(active)
-    if (at >= from && at < to) root.setAttribute("aria-activedescendant", `${prefix}-${at}`)
+    for (const line of space.children)
+      line.setAttribute(
+        "aria-selected",
+        String((line as HTMLElement).dataset["index"] === String(at)),
+      )
+    if (at >= drawn.from && at < drawn.to)
+      root.setAttribute("aria-activedescendant", `${prefix}-${at}`)
     else root.removeAttribute("aria-activedescendant")
   }
 
@@ -205,8 +218,9 @@ export const mountTree: Mount<TreeContent, TreeOptions> = (
   // Scrolls just enough to show the row at `index`.
   const reveal = (index: number): void => {
     const each = rowHeight()
-    const top = index * each
-    if (top < root.scrollTop) root.scrollTop = top
+    // The rows start below the tree's padding.
+    const top = space.offsetTop + index * each
+    if (top < root.scrollTop) root.scrollTop = index * each
     else if (top + each > root.scrollTop + root.clientHeight)
       root.scrollTop = top + each - root.clientHeight
   }
@@ -253,7 +267,8 @@ export const mountTree: Mount<TreeContent, TreeOptions> = (
     active = row.key
     // A drag that picked out text isn't a click to open.
     const selection = view?.getSelection()
-    if (selection && !selection.isCollapsed && root.contains(selection.anchorNode)) return render()
+    // Drawing the rows again would drop the text picked out.
+    if (selection && !selection.isCollapsed && root.contains(selection.anchorNode)) return mark()
     if (row.count !== undefined && row.count > 0) toggle(row)
     else render()
   }
@@ -273,8 +288,9 @@ export const mountTree: Mount<TreeContent, TreeOptions> = (
     const command = event.metaKey || event.ctrlKey
     if (command && event.key.toLowerCase() === "c") {
       const selection = view?.getSelection()
-      // Text the person picked out copies as text.
-      if (!row || (selection && !selection.isCollapsed)) return
+      // Text the person picked out in the tree copies as text.
+      const picked = selection && !selection.isCollapsed && root.contains(selection.anchorNode)
+      if (!row || picked) return
       event.preventDefault()
       void put(copyOf(row, event.shiftKey ? "path" : "value"))
       return
@@ -285,7 +301,7 @@ export const mountTree: Mount<TreeContent, TreeOptions> = (
       ArrowUp: () => activate(at < 0 ? 0 : at - 1),
       Home: () => activate(0),
       End: () => activate(rows.length - 1),
-      PageDown: () => activate(at + page),
+      PageDown: () => activate(at < 0 ? 0 : at + page),
       PageUp: () => activate(at < 0 ? 0 : at - page),
       ArrowRight: () => {
         if (!row) return activate(0)

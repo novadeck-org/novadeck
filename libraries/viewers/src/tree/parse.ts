@@ -1,4 +1,4 @@
-import { LineCounter, parseAllDocuments } from "yaml"
+import { isAlias, LineCounter, parseAllDocuments, visit, type Document } from "yaml"
 
 // Reading a data file into what the tree viewer shows: a JSON value, a JSONL file's
 // records, or a YAML file's documents. Pure: the text in, the roots or where it failed out.
@@ -156,6 +156,8 @@ export const jsonErrorAt = (text: string): { offset: number; message: string } =
 }
 
 const parseJson = (text: string, firstLine: number): Parsed => {
+  // An empty file, as one just made, holds nothing yet.
+  if (text.trim() === "") return { ok: true, roots: [] }
   try {
     return {
       ok: true,
@@ -183,7 +185,7 @@ const parseJsonl = (text: string, firstLine: number, longest?: number): Parsed =
       const failed = cut ? undefined : jsonErrorAt(source)
       const reason = failed
         ? `${failed.message}, at column ${failed.offset + 1}`
-        : `Cut short at ${longest} characters`
+        : "Cut short: too long to be read whole"
       roots.push({ kind: "broken", label, line, text: source, reason })
     }
   })
@@ -203,6 +205,8 @@ const parseYaml = (text: string, firstLine: number): Parsed => {
       prettyErrors: false,
       // `<<: *base` merges, as Compose and CI files write it.
       merge: true,
+      // A key given twice keeps its last value, as JSON.parse does, rather than failing.
+      uniqueKeys: false,
     })
     // An empty stream has its own errors when it's no YAML at all.
     if ("empty" in parsed) {
@@ -215,25 +219,59 @@ const parseYaml = (text: string, firstLine: number): Parsed => {
       if (first) return { ok: false, error: { message: first.message, ...where(first.pos[0]) } }
     }
     const many = documents.length > 1
-    return {
-      ok: true,
-      roots: documents.map((document, index) => ({
+    const roots: DataRoot[] = []
+    for (const [index, document] of documents.entries()) {
+      const value = valueOf(document)
+      if ("failed" in value) {
+        const at = value.at ?? document.range[0]
+        return { ok: false, error: { message: value.failed, ...where(at) } }
+      }
+      roots.push({
         kind: "value",
         label: many ? `Document ${index + 1}` : null,
         line: where(document.range[0]).line,
-        value: document.toJS({ maxAliasCount: 1000 }),
-      })),
+        value: value.value,
+      })
     }
+    return { ok: true, roots }
   } catch (error) {
-    // Aliases past the count, which a text built to blow up would need.
     const message = error instanceof Error ? error.message : String(error)
     return { ok: false, error: { message, line: firstLine, column: 1 } }
   }
 }
 
+// A document's value, aliases resolved, or why it has none and where: an alias with no
+// anchor, or aliases past a count, which a text built to blow up would need.
+const valueOf = (
+  document: Document.Parsed,
+): { value: unknown } | { failed: string; at?: number } => {
+  try {
+    return { value: document.toJS({ maxAliasCount: 1000 }) }
+  } catch (error) {
+    let at: number | undefined
+    visit(document, {
+      Alias: (_, node) => {
+        if (!isAlias(node) || node.resolve(document) !== undefined) return undefined
+        at = node.range?.[0]
+        return visit.BREAK
+      },
+    })
+    return {
+      failed: error instanceof Error ? error.message : String(error),
+      ...(at === undefined ? {} : { at }),
+    }
+  }
+}
+
 /** Reads a data file's text as `format`. */
-export const parseData = (text: string, format: DataFormat, options: ParseOptions = {}): Parsed => {
+export const parseData = (
+  source: string,
+  format: DataFormat,
+  options: ParseOptions = {},
+): Parsed => {
   const firstLine = options.firstLine ?? 1
+  // A byte order mark, as some Windows tools write, isn't part of the data.
+  const text = source.startsWith("\uFEFF") ? source.slice(1) : source
   if (format === "json") return parseJson(text, firstLine)
   if (format === "jsonl") return parseJsonl(text, firstLine, options.longest)
   return parseYaml(text, firstLine)

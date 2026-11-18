@@ -84,30 +84,31 @@ const PreviewedFile = ({
   const [view, choose] = useFileView(item.id, content.path)
   const [tools, setTools] = useState<readonly PaneTool[]>([])
   const holder = useRef<HTMLDivElement>(null)
-  const source = view === "source"
   const setPreviewTools = useCallback((next: readonly PaneTool[]) => setTools(next), [])
-  // Why the preview sent the file to its source, for the file it showed then: a switch by
-  // the person drops it.
-  const [why, setWhy] = useState<(Parameters<ToSource>[0] & { path: string }) | null>(null)
+  // The source the preview sent this load of the file to, and why: not the person's choice,
+  // so it isn't kept, and the file's next load, as once its agent fixes it, previews again.
+  const [sent, setSent] = useState<{
+    readonly content: FileContent
+    readonly note: string
+    readonly line?: number
+  } | null>(null)
+  const note = sent?.content === content ? sent : null
+  const source = view === "source" || note !== null
   const toggle = (): void => {
-    setWhy(null)
+    setSent(null)
     choose(source ? "preview" : "source")
   }
   const toSource = useCallback<ToSource>(
-    (reason) => {
-      setWhy(reason ? { ...reason, path: content.path } : null)
-      choose("source")
-    },
-    [choose, content.path],
+    (why) => (why ? setSent({ content, ...why }) : choose("source")),
+    [choose, content],
   )
-  const note = why?.path === content.path ? why : null
   const Preview = preview.View
   return (
     <div
       ref={holder}
       className="artifact-file"
       data-file-preview={preview.name}
-      data-view={view}
+      data-view={source ? "source" : "preview"}
       tabIndex={-1}
       // The row's switch is drawn in the row, but its keys come here as from inside.
       onKeyDown={(event) => {

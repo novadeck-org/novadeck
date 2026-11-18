@@ -36,6 +36,10 @@ describe("parseData", () => {
       ])
     })
 
+    it("reads an empty file as nothing", () => {
+      expect(rootsOf(parseData(" \n", "json"))).toEqual([])
+    })
+
     it("says where it stops reading, by line and column", () => {
       const parsed = parseData('{\n  "a": 1,\n  "b": }\n', "json")
       expect(parsed).toEqual({
@@ -49,6 +53,11 @@ describe("parseData", () => {
         "Expected ',' or ']' after a value, found the end",
       )
     })
+  })
+
+  it("reads past a byte order mark", () => {
+    expect(rootsOf(parseData('\uFEFF{"a":1}', "json"))[0]).toMatchObject({ value: { a: 1 } })
+    expect(rootsOf(parseData('\uFEFF{"a":1}\n', "jsonl"))).toHaveLength(1)
   })
 
   context("JSONL", () => {
@@ -75,7 +84,7 @@ describe("parseData", () => {
       const roots = rootsOf(parseData(long, "jsonl", { longest: long.length }))
       expect(roots[0]).toMatchObject({
         kind: "broken",
-        reason: `Cut short at ${long.length} characters`,
+        reason: "Cut short: too long to be read whole",
       })
     })
 
@@ -118,6 +127,16 @@ describe("parseData", () => {
     it("says where it stops reading, counting from the first line it was given", () => {
       const error = errorOf(parseData("a: 1\nb: [1, 2\nc: 3\n", "yaml", { firstLine: 5 }))
       expect(error.line).toBeGreaterThanOrEqual(6)
+    })
+
+    it("keeps a key given twice at its last value, as JSON does", () => {
+      expect(rootsOf(parseData("a: 1\na: 2\n", "yaml"))[0]).toMatchObject({ value: { a: 2 } })
+    })
+
+    it("says where an alias with no anchor is", () => {
+      expect(errorOf(parseData("a: 1\nb: *nope\n", "yaml", { firstLine: 3 }))).toMatchObject({
+        line: 4,
+      })
     })
 
     it("refuses an alias it has no anchor for", () => {

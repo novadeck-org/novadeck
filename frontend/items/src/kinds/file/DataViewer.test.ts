@@ -71,7 +71,7 @@ describe("a data file's tree", () => {
         fileOf("session.jsonl", ['{"a":1}', '{"b":'], { truncated: true, total: null }),
       )
       expect(container.querySelector(".artifact-cut")?.textContent).toContain(
-        "Only the first 2 lines were read: these are the records in them.",
+        "Only the first 2 lines were read, so some records may be missing or cut short.",
       )
     })
 
@@ -88,6 +88,24 @@ describe("a data file's tree", () => {
       expect(toSource).not.toHaveBeenCalled()
       container.querySelector<HTMLButtonElement>(".artifact-open")!.click()
       expect(toSource).toHaveBeenCalledWith()
+    })
+
+    it("takes minified JSON past the runner's line limit as cut short, not broken", () => {
+      const toSource = vi.fn<ToSource>()
+      const line = `[${'"x",'.repeat(2000)}`.slice(0, 4096)
+      const { container } = shown(fileOf("min.json", [line]), toSource)
+      expect(toSource).not.toHaveBeenCalled()
+      expect(container.textContent).toContain(
+        "Some of its lines are too long and were cut short, so the JSON can't be read as a whole.",
+      )
+    })
+
+    it("says how much of a long file's start came", () => {
+      const lines = Array.from({ length: 400 }, (_, at) => `k${at}: ${at}`)
+      const { container } = shown(fileOf("long.yaml", lines, { total: 1204 }))
+      expect(container.querySelector(".artifact-cut")?.textContent).toContain(
+        "Only the first 400 lines of 1204 were read, so the tree may be missing some.",
+      )
     })
 
     it("shows a YAML file's start as a tree, saying it may be missing some", () => {
