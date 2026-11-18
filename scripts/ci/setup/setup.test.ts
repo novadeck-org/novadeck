@@ -106,14 +106,15 @@ describe("the workflows' setup", () => {
     expect(action.slice(action.indexOf("\nruns:\n"))).toContain("using: composite")
   })
 
-  // Spotlight's indexing starved the specs' browser pages on 3-core Macs; it goes first, before
-  // the installs it would index.
-  it("turns Spotlight off on macOS before anything else", () => {
+  // Spotlight's indexing took CPU the specs' browser pages were short of on 3-core Macs; it goes
+  // first, before the installs it would index, and a runner that refuses only warns.
+  it("turns Spotlight off on macOS before anything else, never failing the job", () => {
     const action = read(".github/actions/setup/action.yml")
     const steps = action.slice(action.indexOf("\n  steps:\n"))
     const first = steps.slice(0, steps.indexOf("\n\n", steps.indexOf("- name:")))
     expect(first).toContain("- name: Turn Off Spotlight")
-    expect(first).toContain("if: runner.os == 'macOS'")
-    expect(first).toContain("sudo mdutil -a -i off")
+    expect(first).toMatch(/\n {6}if: runner\.os == 'macOS'\n/)
+    expect(first).toMatch(/\n {6}shell: bash\n/)
+    expect(first).toMatch(/\n {6}run: sudo -n mdutil -a -i off \|\| echo "::warning /)
   })
 })

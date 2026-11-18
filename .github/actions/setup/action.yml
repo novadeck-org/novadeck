@@ -37,16 +37,18 @@ outputs:
 runs:
   using: composite
   steps:
-    # On a 3-core Mac runner (Apple M1 (Virtual), 7 GB), Spotlight indexes the checkout and
-    # the installs for the whole job, taking about a quarter of a core from the specs' two
-    # browser pages. Off, the behaviour specs' samples had under 5% of the CPU idle in 16-19% of
-    # them rather than 64-66%, the load fell from 18 to 6, the project ran 8% faster, and its
-    # tests over 15 s fell from 7-8 to 1-4 (diagnostic runs 44195864523 and 44202487793). Nothing
-    # here searches with Spotlight. Best effort: a runner that refuses keeps indexing.
+    # On a 3-core Mac runner (Apple M1 (Virtual), 7 GB), Spotlight's processes used about a
+    # quarter of a core while the behaviour specs ran, beside their two browser pages, which
+    # were already short of CPU. With it off they used a hundredth, and on two runs against two
+    # (diagnostic runs 44195864523 and 44202487793): the CPU was under 5% idle in 16-19% of
+    # 2-second samples rather than 64-66%, the load fell from 18 to 6, the project ran 8%
+    # faster, and its tests over 15 s fell from 7-8 to 1-4. Fewer stalls, not none: the pages
+    # still want more than three cores. Nothing here searches with Spotlight. Best effort: a
+    # runner that refuses keeps indexing, with a warning.
     - name: Turn Off Spotlight
       if: runner.os == 'macOS'
       shell: bash
-      run: sudo mdutil -a -i off || echo "::warning title=Spotlight::Spotlight indexing couldn't be turned off"
+      run: sudo -n mdutil -a -i off || echo "::warning title=Spotlight::Spotlight indexing couldn't be turned off"
 
     - name: Set Up Toolchain
       id: toolchain
