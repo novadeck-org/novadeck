@@ -32,7 +32,7 @@ import type { Shell } from "../harnesses/shells.js"
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import type { PlanText } from "./content.js"
-import { CompanionItems, folderPollMs, type TerminalPlace } from "./items.js"
+import { CompanionItems, folderPollMs, folderPolls, type TerminalPlace } from "./items.js"
 
 const gitInstalled = (() => {
   try {
@@ -58,6 +58,8 @@ type Fixture = {
   live: Map<string, PlanText>
   /** The person's environment, as `environment` reads it: none of the machine's own. */
   environment: NodeJS.ProcessEnv
+  /** How long a folder waits for a change its watch may not tell, which a test may shorten. */
+  polls: { shown: number; hidden: number; unwatched: number }
   /** The files of changes read, by checkout, as `reads` keeps them. */
   marks: Map<string, Map<string, string>>
 }
@@ -73,6 +75,7 @@ const it = base.extend<{ fixture: Fixture }>({
     const places = new Map<string, TerminalPlace>()
     const live = new Map<string, PlanText>()
     const environment: NodeJS.ProcessEnv = {}
+    const polls = { ...folderPolls }
     const marks = new Map<string, Map<string, string>>()
     const items = new CompanionItems({
       environment: () => environment,
@@ -88,6 +91,7 @@ const it = base.extend<{ fixture: Fixture }>({
       livePlan: (item) => live.get(item.id),
       pollMs: 10,
       changesMs: 10,
+      folderPolls: polls,
     })
     resources.defer(() => items.shutdown())
     const terminal = (handle: string, sessionId = session.id): TerminalPlace => {
@@ -135,6 +139,7 @@ const it = base.extend<{ fixture: Fixture }>({
       items,
       live,
       environment,
+      polls,
       marks,
     })
   },
@@ -2529,7 +2534,9 @@ describe("a folder beside its terminal", () => {
     }
   })
 
-  it("counts a folder inside again once it changed, and not before", async ({ fixture }) => {
+  it("counts a folder inside again once it changed, and again where its time is too coarse to tell", async ({
+    fixture,
+  }) => {
     const place = render(fixture.directory)
     const moth = fixture.terminal("moth")
     const shown = await fixture.items.show(moth, { file: { path: "render" } })
@@ -2537,12 +2544,87 @@ describe("a folder beside its terminal", () => {
     const children = async () =>
       listed(await fixture.items.load(id, false)).entries.find(({ name }) => name === "old-runs")
         ?.children
+    const inner = join(place, "old-runs")
     expect(await children()).toBe(1)
-    expect(await children()).toBe(1)
-    writeFileSync(join(place, "old-runs", "two.png"), "2")
-    // A change to the folder moves its time, which is what is counted by.
-    utimesSync(join(place, "old-runs"), new Date(), new Date(Date.now() + 5000))
+    // A change moves the folder's time, which a count is kept by.
+    writeFileSync(join(inner, "two.png"), "2")
     expect(await children()).toBe(2)
+    // A file system with a coarse clock gives a change the time it had: within a moment of now
+    // that is not trusted, so the count is read again.
+    const stamped = new Date(Date.now() - 1000)
+    utimesSync(inner, stamped, stamped)
+    expect(await children()).toBe(2)
+    writeFileSync(join(inner, "three.png"), "3")
+    utimesSync(inner, stamped, stamped)
+    expect(await children()).toBe(3)
+    // A time long past is trusted, which is what saves reading what hasn't changed.
+    const old = new Date(Date.now() - 60_000)
+    utimesSync(inner, old, old)
+    expect(await children()).toBe(3)
+    writeFileSync(join(inner, "four.png"), "4")
+    utimesSync(inner, old, old)
+    expect(await children()).toBe(3)
+  })
+
+  it("lists a link by its target's kind, so the listing and a read of the file agree", async ({
+    fixture,
+  }) => {
+    if (process.platform === "win32") return
+    const place = render(fixture.directory)
+    writeFileSync(join(place, "blob"), "not a picture")
+    symlinkSync(join(place, "blob"), join(place, "photo.png"))
+    symlinkSync(join(place, "shot.png"), join(place, "picture.dat"))
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "render" } })
+    const itemId = shown.ok ? shown.id : ""
+    const entries = listed(await fixture.items.load(itemId, false)).entries
+    const entry = (name: string) => entries.find((each) => each.name === name)!
+    // A picture's name on what is no picture is no picture: it is not read as one.
+    expect(entry("photo.png")).toMatchObject({ kind: "other", link: false })
+    await expect(
+      fixture.items.part({ itemId, stamp: entry("photo.png").stamp, offset: 0, path: "photo.png" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    // And what is a picture under another name is one.
+    expect(entry("picture.dat")).toMatchObject({ kind: "image", link: false })
+    await expect(
+      fixture.items.part({
+        itemId,
+        stamp: entry("picture.dat").stamp,
+        offset: 0,
+        path: "picture.dat",
+      }),
+    ).resolves.toEqual({ state: "part", data: Buffer.from("pixels").toString("base64") })
+  })
+
+  it("finds what the watch can't tell, by a poll while a pane shows the folder", async ({
+    fixture,
+  }) => {
+    if (process.platform === "win32") return
+    fixture.polls.shown = 300
+    fixture.polls.hidden = 60_000
+    const place = render(fixture.directory)
+    mkdirSync(join(place, "runs", "1"), { recursive: true })
+    mkdirSync(join(place, "runs", "2"), { recursive: true })
+    writeFileSync(join(place, "runs", "1", "one.png"), "1")
+    writeFileSync(join(place, "runs", "2", "two.png"), "2")
+    symlinkSync(join(place, "runs", "1"), join(place, "latest"))
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "render" } })
+    const id = shown.ok ? shown.id : ""
+    const controller = new AbortController()
+    // In the folder the link leads to: the watch is on runs/1, which the retarget doesn't touch.
+    const stream = fixture.items.content(id, undefined, controller.signal, "latest", true)
+    try {
+      expect(listed(await next(stream)).entries.map(({ name }) => name)).toEqual(["one.png"])
+      const began = Date.now()
+      rmSync(join(place, "latest"))
+      symlinkSync(join(place, "runs", "2"), join(place, "latest"))
+      expect(listed(await next(stream)).entries.map(({ name }) => name)).toEqual(["two.png"])
+      expect(Date.now() - began).toBeLessThan(folderPolls.shown)
+    } finally {
+      controller.abort()
+      await stream.return(undefined)
+    }
   })
 
   it("lists a folder that is only a folder by what is under it as secret", async ({ fixture }) => {

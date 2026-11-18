@@ -52,7 +52,7 @@ import {
   type PlanText,
   type Pointed,
 } from "./content.js"
-import { FolderWatch, loadFolder, readFolderPart } from "./folder.js"
+import { FolderWatch, loadFolder, placeOfFolder, readFolderPart } from "./folder.js"
 import { findRepository, LayerReader, type ReadMarks } from "./layers.js"
 import { PageLooks } from "./looks.js"
 import type { Compare, ItemRecord, ItemRecords, WindowRecord } from "./records.js"
@@ -115,6 +115,12 @@ type CompanionOptions = {
   readonly environment?: () => NodeJS.ProcessEnv
   /** How often `content` looks at what an item points at, in milliseconds. */
   readonly pollMs?: number
+  /** How long a folder waits for a change its watch may not tell; see `folderPolls`. */
+  readonly folderPolls?: {
+    readonly shown: number
+    readonly hidden: number
+    readonly unwatched: number
+  }
   /**
    * Remote refs: makes a repository's current for a caller that waits at most `ms` (the fetch
    * itself carries on), and tells when it was last fetched and why a fetch failed. Without it
@@ -290,7 +296,10 @@ const LIVE_PLAN_MS = 60_000
 // A folder is read at most about four times a second, and where nothing tells it changed, every
 // few seconds.
 const folderGapMs = 250
-export const folderPollMs = 3_000
+// How long a folder waits for a change its watch may not tell: while a pane shows it, while none
+// does (its top only), and while the watch isn't working at all.
+export const folderPolls = { shown: 15_000, hidden: 60_000, unwatched: 3_000 } as const
+export const folderPollMs = folderPolls.unwatched
 
 /**
  * What agents show and the person attaches beside terminals, kept as pointers: each item
@@ -304,6 +313,7 @@ export const folderPollMs = 3_000
 export class CompanionItems {
   private readonly records: ItemRecords
   private readonly pollMs: number
+  private readonly folderPolls: NonNullable<CompanionOptions["folderPolls"]>
   private readonly changesMs: number
   /** What changes items read their layers and files' diffs with. */
   private readonly layers: LayerReader
@@ -346,6 +356,7 @@ export class CompanionItems {
   constructor(private readonly options: CompanionOptions) {
     this.records = options.records
     this.pollMs = options.pollMs ?? 500
+    this.folderPolls = options.folderPolls ?? folderPolls
     this.changesMs = options.changesMs ?? 2000
     this.lookMs = options.lookMs ?? defaultLookMs
     this.ownSnapshots = options.snapshots
@@ -882,6 +893,7 @@ export class CompanionItems {
     reveal: string | undefined,
     signal?: AbortSignal,
     within?: string,
+    shown?: boolean,
   ): AsyncGenerator<ItemContent> {
     if (this.stopping) throw new DomainError("CLOSING")
     this.item(itemId)
@@ -904,7 +916,12 @@ export class CompanionItems {
         // A folder is listed as it changes until the item is something else (a path shown again
         // as a file, or the reverse), when what was read of it before is read afresh.
         if (item.kind === "folder") {
-          yield* this.folderContent(itemId, within ?? "", reader.signal)
+          yield* this.folderContent(
+            itemId,
+            within ?? "",
+            shown === true || (within ?? "") !== "",
+            reader.signal,
+          )
           probed = undefined
           sent = undefined
           continue
@@ -966,19 +983,29 @@ export class CompanionItems {
   private async *folderContent(
     itemId: string,
     within: string,
+    shown: boolean,
     signal: AbortSignal,
   ): AsyncGenerator<ItemContent> {
     const watcher = new FolderWatch()
+    const safety = shown ? this.folderPolls.shown : this.folderPolls.hidden
     let sent: string | undefined
     try {
       while (!signal.aborted) {
         const item = this.records.item(itemId)
         if (item?.kind !== "folder") return
         const began = Date.now()
+        // The watch is armed before the folder is read, so a change in between is told; read again
+        // where what is read is not what was armed (replaced meanwhile).
         // eslint-disable-next-line no-await-in-loop -- Each read follows the change before it.
-        const { content, dir, ino } = await loadFolder(item, within, this.environment())
+        const place = await placeOfFolder(item, within, this.environment())
         if (signal.aborted) return
-        watcher.follow(dir, ino)
+        watcher.follow(place?.dir, place?.ino)
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        const { content, ino } = await loadFolder(item, within, this.environment())
+        if (signal.aborted) return
+        // Replaced meanwhile: what is read isn't what the watch was armed on, so it is armed anew.
+        const replaced = ino !== place?.ino
+        if (replaced) watcher.follow(undefined)
         if (within === "") this.folderArrivals(item, content)
         const key = `${item.version}|${item.path}|${keyOf(content)}`
         if (key !== sent) {
@@ -989,8 +1016,9 @@ export class CompanionItems {
         await sleep(Math.max(0, folderGapMs - (Date.now() - began)), undefined, { signal }).catch(
           () => {},
         )
+        if (replaced) continue
         // eslint-disable-next-line no-await-in-loop -- As above.
-        await watcher.wait(folderPollMs, signal)
+        await watcher.wait({ safety, unwatched: this.folderPolls.unwatched }, signal)
       }
     } finally {
       watcher.close()

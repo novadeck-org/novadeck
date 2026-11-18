@@ -555,7 +555,11 @@ export type Runner = {
      */
     content(
       itemId: string,
-      options?: { readonly reveal?: string; readonly within?: string },
+      options?: {
+        readonly reveal?: string
+        readonly within?: string
+        readonly shown?: boolean
+      },
     ): AsyncIterableIterator<ItemContent, undefined>
     /**
      * One file of a changes item as a selection of its layers changed it: one run, from the
@@ -956,13 +960,14 @@ export const connectRunner = async (
       list: (input) => call((client) => client.companions.list(input)),
       watch: () =>
         followAll(connection, (client, signal) => client.companions.watch(undefined, { signal })),
-      content: (itemId, { reveal, within } = {}) =>
+      content: (itemId, { reveal, within, shown } = {}) =>
         followRestarting(connection, (client, signal) =>
           client.companions.content(
             {
               itemId,
               ...(reveal !== undefined && { reveal }),
               ...(within !== undefined && { within }),
+              ...(shown && { shown }),
             },
             { signal },
           ),

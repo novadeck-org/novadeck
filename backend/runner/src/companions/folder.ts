@@ -189,11 +189,13 @@ const mapBounded = async <Item, Result>(
 // folder whose time is the same holds what it did, so a listing counts only what changed.
 const counted = new Map<string, { readonly changed: number; readonly count: number | null }>()
 const countedMost = 4000
+const coarseMs = 2000
 
 /** How many entries a folder holds, or null where it can't be read; `changed` is its mtime. */
 const countOf = async (path: string, changed: number): Promise<number | null> => {
   const known = counted.get(path)
-  if (known?.changed === changed) return known.count
+  // A time within what a coarse file system rounds to may not yet tell the next change.
+  if (known?.changed === changed && Date.now() - changed >= coarseMs) return known.count
   const count = await readdir(path).then(
     (names) => names.length,
     () => null,
@@ -256,8 +258,25 @@ const entryOf = async (
       children: held ? null : await countOf(real, stats.mtimeMs),
       stamp: "",
     }
-  const kind = stats.isFile() ? entryKindOf(name) : "other"
+  // A link inside the top is its target's, by its name, as `readFolderPart` reads it.
+  const kind = stats.isFile() ? entryKindOf(basename(real)) : "other"
   return { ...base, kind, children: null, stamp: held || !stats.isFile() ? "" : stampOf(stats) }
+}
+
+/**
+ * Where the folder `inside` names is, to be watched before it is read: its real path and which
+ * folder it is; undefined where it can't be read (gone, secret, outside the top).
+ */
+export const placeOfFolder = async (
+  item: Pick<ItemRecord, "path">,
+  inside: string,
+  env?: NodeJS.ProcessEnv,
+): Promise<{ readonly dir: string; readonly ino: string } | undefined> => {
+  if (item.path === null) return undefined
+  const walked = await walk(item.path, inside, checksOf(env))
+  if (!walked.ok) return undefined
+  const own = await stat(walked.path).catch(() => undefined)
+  return own?.isDirectory() ? { dir: walked.path, ino: `${own.ino}:${own.birthtimeMs}` } : undefined
 }
 
 /**
@@ -352,7 +371,7 @@ export const readFolderPart = async (
   if (item.path === null || name === undefined) return { state: "unavailable", reason: "missing" }
   const walked = await walk(item.path, part.path, checksOf(env))
   if (!walked.ok) return { state: "unavailable", reason: walked.reason }
-  // By what the file is, as listed: the kind its own name tells, not a link's name for it.
+  // By what the file is, as `entryOf` lists it: the kind its real name tells, not a link's.
   const largest = partLimits[entryKindOf(basename(walked.path))]
   if (largest === undefined) throw new DomainError("NOT_FOUND", "That file isn't read in parts")
   return readPart({ path: walked.path, secret: false }, part, false, largest, env)
@@ -365,10 +384,12 @@ const longest = 1000
 
 /**
  * Tells when a folder may have changed: the file system's own watch, a few events together as
- * one, and never later than `longest` after the first of them. Where the watch isn't working (a
- * folder that is gone, a network share, a limit of watches reached) the wait ends after the
- * `ms` it is given, which is how such a folder is polled; while it works, only a change ends it.
- * A folder deleted and made again is another one (its `ino`): the watch moves onto it.
+ * one, and never later than `longest` after the first of them. A watch can work and tell
+ * nothing: a share, a mount of another system's disk, a link retargeted under a folder in view, a
+ * file written in a folder inside the one watched. So a wait ends after `safety` milliseconds
+ * even where it works, and after the shorter `unwatched` where it doesn't (a folder that is gone,
+ * a limit of watches reached): that is how such changes are found. A folder deleted and made
+ * again is another one (its `ino`): the watch moves onto it.
  */
 export class FolderWatch {
   private watcher: FSWatcher | undefined
@@ -413,8 +434,11 @@ export class FolderWatch {
     }
   }
 
-  /** Resolves when the folder changed and settled, after `ms` where it is not watched, or when `signal` aborts. */
-  wait(ms: number, signal: AbortSignal): Promise<void> {
+  /** Resolves when the folder changed and settled, after the poll that applies, or when `signal` aborts. */
+  wait(
+    polls: { readonly safety: number; readonly unwatched: number },
+    signal: AbortSignal,
+  ): Promise<void> {
     return new Promise((resolve) => {
       let timer: ReturnType<typeof setTimeout> | undefined
       const done = (): void => {
@@ -427,7 +451,7 @@ export class FolderWatch {
       const arm = (): void => {
         clearTimeout(timer)
         if (this.first === undefined) {
-          if (!this.watcher) timer = setTimeout(done, ms)
+          timer = setTimeout(done, this.watcher ? polls.safety : polls.unwatched)
           return
         }
         const left = Math.max(0, this.first + longest - Date.now())
