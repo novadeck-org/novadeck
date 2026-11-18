@@ -308,12 +308,15 @@ they asked for: the item re-pointed to another file reads `secret` again.
 
 A file (the `file` item kind) shows as code, highlighted and numbered, unless its type has a
 preview: the previews are a list in `frontend/items/src/kinds/file/previews/`, each naming the
-paths it takes, its icon, its view and, optionally, its peek miniature, and a type joins with one
-line there. Markdown's is the read-only document with its outline. A file with a preview opens
-on it, with a Show source tool in the pane's row (Ctrl+Shift+V, ⌘⇧V on a Mac, from inside the
-file) that switches it to the bare file in the code viewer and back. The choice is the
-item's: it holds while the pane is built again, as across Focus, Grid and Canvas, for the files
-lately switched, and isn't saved past a reload. A plan is its own kind and has no switch.
+files it takes (by how the name ends), its icon, its view and, optionally, its peek miniature,
+and a type joins with one line there. Markdown's is the read-only document with its outline. A
+file with a preview opens on it, with a Show source tool in the pane's row (Ctrl+Shift+V, ⌘⇧V
+on a Mac, from anywhere in the file) that switches it to the bare file in the code viewer and
+back. A preview's own tools join the row before it (`usePreviewTools`); one that can't read its
+file says so in its body, the switch still there. The choice is the item's, for the file it
+shows: it holds while the pane is built again, as across Focus, Grid and Canvas, for the files
+lately switched, isn't saved past a reload, and another file the item is pointed at (as the
+project window's is) opens on its preview. A plan is its own kind and has no switch.
 
 A change (the `changes` item kind) is read-only and has two views, in `frontend/items/src/kinds/changes/`,
 on the pane's own ground (`--pane-bg`). The **list view** is where it opens: a row for the work

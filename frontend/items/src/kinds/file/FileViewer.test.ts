@@ -82,12 +82,13 @@ describe("a file with a preview", () => {
     expect(container.querySelector(".document-editor")).not.toBeNull()
   })
 
-  it("switches on its key from inside the file", async () => {
+  it("switches on its key from inside the file, and back, keeping focus in it", async () => {
     const { container } = await show("readme-3", readme)
     const file = container.querySelector<HTMLElement>(".artifact-file")!
     const mac = /Mac|iPhone|iPad/.test(navigator.platform)
+    // The key, pressed where focus is.
     const press = () =>
-      file.dispatchEvent(
+      (document.activeElement ?? document.body).dispatchEvent(
         new KeyboardEvent("keydown", {
           key: "V",
           code: "KeyV",
@@ -98,10 +99,16 @@ describe("a file with a preview", () => {
           cancelable: true,
         }),
       )
+    act(() => file.focus())
     act(() => void press())
     expect(file.getAttribute("data-view")).toBe("source")
+    // Into the code, which goes as the file switches back.
+    act(() => container.querySelector<HTMLElement>(".code-viewer")!.focus())
     act(() => void press())
     expect(file.getAttribute("data-view")).toBe("preview")
+    expect(file.contains(document.activeElement)).toBe(true)
+    act(() => void press())
+    expect(file.getAttribute("data-view")).toBe("source")
   })
 
   context("when its pane is built again", () => {
@@ -112,6 +119,15 @@ describe("a file with a preview", () => {
       const again = await show("readme-4", readme)
       expect(again.container.querySelector(".code-viewer")).not.toBeNull()
       expect(again.switcher()?.getAttribute("aria-pressed")).toBe("true")
+    })
+
+    it("opens another file the item is shown on its preview", async () => {
+      const first = await show("readme-7", readme)
+      act(() => first.switcher()!.click())
+      act(() => first.unmount())
+      const changelog = fileContent("docs/CHANGELOG.md", ["# Changelog", "", "## 1.0"])
+      const again = await show("readme-7", changelog)
+      expect(again.container.querySelector(".document-editor")).not.toBeNull()
     })
 
     it("keeps each item's choice its own", async () => {

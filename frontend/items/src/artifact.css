@@ -13,10 +13,10 @@
    about it. `.artifact-actions` holds what the place showing it offers at the row's end,
    as `.icon-button`s; `.artifact-window` fills a window of its own.
 
-   A file with a preview (a Markdown file's document) is in `.artifact-file`, which lays out
-   as if it weren't there.
+   A file with a preview (a Markdown file's document) is in `.artifact-file`, a column that
+   takes focus from a click anywhere in it, so the switch's key works from there.
 
-   Hooks: data-live on a page that loads live, data-preview (its type, as "markdown") and
+   Hooks: data-live on a page that loads live, data-file-preview (its type, as "markdown") and
    data-view ("preview" or "source") on a file with a preview, and data-reason on what can't
    show.
 
@@ -42,7 +42,11 @@
 
 /* A file with a preview: its preview or its source, laid out as the viewer's own. */
 .artifact-file {
-  display: contents;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  outline: none;
 }
 
 /* While an artifact loads, or when it couldn't. */

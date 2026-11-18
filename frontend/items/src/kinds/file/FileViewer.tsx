@@ -1,12 +1,13 @@
 import type { Item, FileContent } from "@novadeck/core/items"
 import { mountCode, type CodeContent } from "@novadeck/viewers/code"
 import { CodeXml } from "lucide-react"
-import { useMemo, type KeyboardEvent } from "react"
+import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from "react"
 
 import type { ArtifactBodyProps } from "../../ArtifactViewer"
-import { PaneTools } from "../../pane-row"
+import { PaneTools, type PaneTool } from "../../pane-row"
 import { useViewerSlot } from "../../ViewerSlot"
 import { previewFor, type FilePreview } from "./previews"
+import { PreviewToolsSetter } from "./previews/tools"
 import { useFileView } from "./view-choice"
 
 // A text file, as plain text at once, then highlighted when its language is one Novadeck
@@ -65,7 +66,9 @@ const isSwitchKey = (event: KeyboardEvent): boolean =>
   (mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)
 
 // A file of a type with a preview: the preview first, or its source as the person last
-// switched it for this item, with the switch in the pane's row.
+// switched it for this item and file, with the switch in the pane's row after the preview's
+// own tools. The file takes focus from a click anywhere in it, so its key works from there,
+// and keeps it as it switches, so the key switches it back.
 const PreviewedFile = ({
   item,
   content,
@@ -75,25 +78,34 @@ const PreviewedFile = ({
   content: FileContent
   preview: FilePreview
 }): React.JSX.Element => {
-  const [view, choose] = useFileView(item.id)
+  const [view, choose] = useFileView(item.id, content.path)
+  const [tools, setTools] = useState<readonly PaneTool[]>([])
+  const holder = useRef<HTMLDivElement>(null)
   const source = view === "source"
   const toggle = (): void => choose(source ? "preview" : "source")
+  const setPreviewTools = useCallback((next: readonly PaneTool[]) => setTools(next), [])
   const Preview = preview.View
   return (
     <div
+      ref={holder}
       className="artifact-file"
-      data-preview={preview.name}
+      data-file-preview={preview.name}
       data-view={view}
+      tabIndex={-1}
       // The row's switch is drawn in the row, but its keys come here as from inside.
       onKeyDown={(event) => {
         if (!isSwitchKey(event)) return
         event.preventDefault()
         event.stopPropagation()
+        // What has focus may be the view going away.
+        if (holder.current?.contains(document.activeElement))
+          holder.current.focus({ preventScroll: true })
         toggle()
       }}
     >
       <PaneTools
         tools={[
+          ...(source ? [] : tools),
           {
             key: "source",
             icon: CodeXml,
@@ -108,7 +120,9 @@ const PreviewedFile = ({
       {source ? (
         <CodeViewer id={item.id} content={content} />
       ) : (
-        <Preview id={item.id} name={item.name} content={content} />
+        <PreviewToolsSetter value={setPreviewTools}>
+          <Preview id={item.id} name={item.name} content={content} />
+        </PreviewToolsSetter>
       )}
     </div>
   )

@@ -8,7 +8,9 @@ import { markdown } from "./markdown"
 // document, and so on. A file of one shows its preview first, and the pane's row gets a
 // switch between it and its source, the bare file in the code viewer. A file of no type here
 // shows as code, with no switch. A type joins with a folder or module of its own here and one
-// line in `previews` below.
+// line in `previews` below. A preview that can't read its file (as JSON that doesn't parse)
+// says so in its body: the switch to the source stays in the row. Its own tools go in the row
+// beside the switch through `usePreviewTools` (./tools.ts).
 
 // What a preview is given: the file, and the item showing it, which keeps where its viewer was.
 export type PreviewProps = {
@@ -19,9 +21,10 @@ export type PreviewProps = {
 }
 
 export type FilePreview = {
-  // Names the preview to the stylesheet and tests: the file's `data-preview`.
+  // Names the preview to the stylesheet and tests: the file's `data-file-preview`.
   readonly name: string
-  // Whether a file, by its path, is of this type.
+  // Whether a file is of this type, by its name or its path: the bar's icon asks by the item's
+  // name, the pane by the shown file's path, so it matches by how the name ends.
   readonly matches: (path: string) => boolean
   // The file on its bar and tab, in place of a source file's.
   readonly icon: LucideIcon
@@ -37,3 +40,5 @@ export const previews: readonly FilePreview[] = [markdown]
 // The preview of the file at `path`, if its type has one.
 export const previewFor = (path: string): FilePreview | undefined =>
   previews.find((preview) => preview.matches(path))
+
+export { usePreviewTools } from "./tools"
