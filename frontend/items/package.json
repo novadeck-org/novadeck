@@ -28,6 +28,7 @@
     "./shells.css": "./src/shells.css",
     "./store": "./src/store/item-store.ts",
     "./syntax.css": "./src/syntax.css",
+    "./video.css": "./src/video.css",
     "./TabKinds": "./src/homes/terminal/TabKinds.tsx",
     "./taskbar.css": "./src/taskbar.css",
     "./TerminalCompanion": "./src/homes/terminal/TerminalCompanion.tsx",

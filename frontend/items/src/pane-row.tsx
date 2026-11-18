@@ -291,7 +291,7 @@ export const tabTip = (
   const details = [
     ...(item.kind === "plan" ? [`v${item.version}`] : []),
     ...(item.kind === "file" && item.lines ? [`lines ${item.lines.from}–${item.lines.to}`] : []),
-    ...(item.kind === "image" && item.detail ? [item.detail] : []),
+    ...((item.kind === "image" || item.kind === "video") && item.detail ? [item.detail] : []),
     ...facts,
   ]
   const ago = item.kind === "shells" || item.kind === "changes" ? "" : agoText(item.shownAt, now)

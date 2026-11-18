@@ -8,8 +8,9 @@ import type { CompanionWindowMeta, WorkspaceTarget } from "./types"
 // files and hooks, and from what they present through Novadeck's MCP server.
 
 // The kinds an agent shows (with `show`) or the person attaches: each points at a file, a
-// page or a change. A plan is the one kind an agent writes rather than shows.
-export type ShownKind = "image" | "file" | "page" | "changes"
+// page or a change. A video is a file played rather than read. A plan is the one kind an
+// agent writes rather than shows.
+export type ShownKind = "image" | "video" | "file" | "page" | "changes"
 
 // What an agent showed or the person attached, as the backend keeps it: a pointer to a
 // file or page, never a copy, held by exactly one terminal's bar or one undocked window.
@@ -88,6 +89,7 @@ type KindRule = {
 
 export const kindRules: Record<ItemKind, KindRule> = {
   image: { pointer: "file", follow: "shown", close: "remove" },
+  video: { pointer: "file", follow: "shown", close: "remove" },
   file: { pointer: "file", follow: "shown", close: "remove" },
   page: { pointer: "page", follow: "shown", close: "remove" },
   changes: { pointer: "changes", follow: "shown", close: "remove" },
@@ -145,6 +147,29 @@ export const shownItemWith = (
 
 // An image, by a URL the page can load.
 export type ImageContent = { readonly kind: "image"; readonly src: string }
+
+// A video, played from its bytes, which `Companions.videoPart` reads in parts while the file is
+// as `stamp` (its content's) names it: its format as a MIME type and its size in bytes.
+// `shown` counts the agent's shows of it, as its item's version: each later one that gives
+// `at` starts it from that second.
+export type VideoContent = {
+  readonly kind: "video"
+  readonly mime: string
+  readonly size: number
+  readonly shown: number
+  readonly at?: number | undefined
+}
+
+// A part of a video's file, from the offset asked for (fewer bytes at its end, none past it);
+// `changed` when the file is no longer as the stamp named it, so it's read again from its new
+// content; or why it can't be read now.
+export type VideoPart =
+  | { readonly state: "part"; readonly bytes: Uint8Array<ArrayBuffer> }
+  | { readonly state: "changed" }
+  | {
+      readonly state: "unavailable"
+      readonly reason: "missing" | "unreadable" | "not-a-file" | "too-large" | "secret"
+    }
 
 // A text file, with the lines it pointed at. `firstLine` numbers the first of `lines`.
 export type FileContent = {
@@ -265,7 +290,7 @@ export type ChangesContent = {
   readonly truncated: boolean
 }
 
-export type ShownContent = ImageContent | FileContent | PageContent | ChangesContent
+export type ShownContent = ImageContent | VideoContent | FileContent | PageContent | ChangesContent
 
 // How a background shell's output stands: its last `lines` (numbered from `firstLine`) of
 // `total` read; `none` where its harness writes it nowhere Novadeck can read; `unreadable`
@@ -420,6 +445,15 @@ export type Companions = {
   // changes again. Absent where the backend can't keep it: the pane then grays it for as
   // long as the content stays as it was.
   readonly changeRead?: (target: WorkspaceTarget, itemId: ItemId, path: string) => Promise<void>
+  // A video item's file from `offset`, while it is as `stamp` names it (see `VideoPart`). One
+  // that may hold secrets is `secret` unless `reveal` is the path the item points at, as in
+  // `follow`. Rejects where the item is gone or no video. Absent where the backend can't: a
+  // video then says it can't be played here.
+  readonly videoPart?: (
+    target: WorkspaceTarget,
+    itemId: ItemId,
+    part: { readonly stamp: string; readonly offset: number; readonly reveal: string | undefined },
+  ) => Promise<VideoPart>
   // Writes the person's edit to the plan, unless it changed since `basedOn`. Rejects with
   // a `PlanUnwritableError` when the plan can't be written at all.
   readonly save: (

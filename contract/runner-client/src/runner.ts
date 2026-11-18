@@ -25,6 +25,7 @@ import {
   type InterruptResult,
   type ChangeFileDiff,
   type ItemContent,
+  type VideoPart,
   type MurmurSettings,
   type MurmurState,
   type PageLook,
@@ -623,6 +624,17 @@ export type Runner = {
     renameWindow(windowId: string, title: string): Promise<void>
     /** Gives a window its item's name again; rejects as `renameWindow` does. */
     resetWindowTitle(windowId: string): Promise<void>
+    /**
+     * A video item's file from `offset`, up to `videoLimits.part` bytes, while it is as
+     * `stamp` names it; `changed` when it is not. Rejects with `NOT_FOUND` for an unknown
+     * item or one that is no video.
+     */
+    videoPart(input: {
+      readonly itemId: string
+      readonly stamp: string
+      readonly offset: number
+      readonly reveal?: string
+    }): Promise<VideoPart>
     /** What went wrong on a page item during its show `shown`, as the pane saw it. */
     pageTrouble(input: {
       readonly itemId: string
@@ -962,6 +974,7 @@ export const connectRunner = async (
         call((client) => client.companions.renameWindow({ windowId, title })),
       resetWindowTitle: (windowId) =>
         call((client) => client.companions.resetWindowTitle({ windowId })),
+      videoPart: (input) => call((client) => client.companions.videoPart(input)),
       pageTrouble: (input) => call((client) => client.companions.pageTrouble(input)),
       looks: () =>
         followSession(connection, (client, signal) =>

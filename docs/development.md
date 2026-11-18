@@ -448,6 +448,18 @@ Agents:
   edits and close keeps it open, saying its edits couldn't be copied; "Plan back to normal" lets
   saves and copies work again. Specs open the showcase
   with `&planFault=` `transcript`, `gone`, `folder`, `too-large` or `failing`.
+- **Video:** only in the `showcase` variant, on the selected terminal's bar. The dev server's
+  terminal (`@fox`) already holds walkthrough.webm, a four-second test card with a quiet tone
+  (`frontend/demo/src/showcase/clip.ts`; its bytes load only when played), played with the
+  pane's own bar. "Show a video" opens it again as a later show; "Show a video that loads
+  slowly" reads it in 8 KB parts half a second apart, so the pane says "Loading 24 of 79 KB"
+  for about five seconds; "Show a video too large to play" and "Show a video that's gone" and
+  "Show a video that can't be read" are the pane's unavailable states; "Show a file the browser
+  can't play" is garbage under a video's name, which the pane says it can't play here;
+  "Show a video that may hold secrets" joins the stack unopened until you pick its tab.
+  "Show the video again from 0:02" starts walkthrough.webm at 0:02, once, and "Rewrite the video"
+  shows it under a new stamp, as if its file was rewritten: the old one plays on under a
+  Loading chip, then the new one swaps in at the same time, playing or paused.
 - **Changes:** only in the `showcase` variant, no action needed: the dev server's terminal
   (`@fox`, the third) holds its items on the bar beside those that can't show, thirteen of them
   changes, one in each shape the changes pane draws: an ordinary change in layers (a refactor of

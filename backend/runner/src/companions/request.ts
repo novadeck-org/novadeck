@@ -8,7 +8,7 @@ import { ellipsized, list } from "../text.js"
  * that names it, with that source's own options inside it, and the options every source
  * shares beside it: a title in place of the source's name, and `open` when the person
  * asked to see it. A `file` is a path, absolute or from the terminal's directory, and
- * for a text file the lines it points at; a `page` is its http(s) address, and the element
+ * for a text file the lines it points at, or for a video the second it starts at; a `page` is its http(s) address, and the element
  * to bring into view once it loads; `changes` is the whole change in a repository, the
  * terminal's unless it gives the folder `path`, or with `base` or `head` a compare of two refs.
  */
@@ -23,10 +23,14 @@ const lineRange = z
   .strictObject({ from: z.int().min(1), to: z.int().min(1) })
   .refine(({ from, to }) => to >= from)
 
-/** A file to show, by its path, and the lines to point at. */
+/**
+ * A file to show, by its path; the lines to point at, or for a video the second to start
+ * at, which only this show carries out, as a page's scroll is (a day, at most, in seconds).
+ */
 const fileSource = z.strictObject({
   path: z.string().min(1).max(companionLimits.path),
   lines: lineRange.optional(),
+  at: z.number().nonnegative().max(86_400).optional(),
 })
 
 const fileRequest = z.strictObject({ file: fileSource, ...shared })
@@ -75,8 +79,8 @@ const sources = { file: fileRequest, page: pageRequest, changes: changesRequest 
 const sourceNames = Object.keys(sources) as readonly (keyof typeof sources)[]
 
 /**
- * What `close` takes: the source alone, as `show` named it, without a file's lines or a
- * page's scroll, since what is beside the terminal is known by its path or address,
+ * What `close` takes: the source alone, as `show` named it, without a file's lines or start,
+ * or a page's scroll, since what is beside the terminal is known by its path or address,
  * whatever it pointed at in it.
  */
 const closeShownSources = {
@@ -98,7 +102,7 @@ export type RequestFailure = { readonly ok: false; readonly reason: string }
  * The MCP server's answer: what the person now sees beside the terminal, or why not.
  * `opened` when it opened at once; `again` when it updated what was already there;
  * `secret` when it may hold secrets, so it waits for the person to open it; `tooLarge`
- * for an image too large to preview.
+ * for an image too large to preview, or a video too large to play.
  */
 export type ShowAnswer =
   | {

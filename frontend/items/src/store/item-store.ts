@@ -85,6 +85,8 @@ export type ItemStore = {
   readonly changeRead: (target: WorkspaceTarget, itemId: ItemId, path: string) => void
   // Follows every plan in the workspace from here on; returns the stop.
   readonly connect: () => () => void
+  // A video's file in parts: the backend's, where it has one.
+  readonly videoPart?: Companions["videoPart"]
   // Takes a picture of a live page for it to rest as: the backend's, where it has one.
   readonly picture?: Companions["picture"]
   // Makes a live page's view a phone's, or not: the backend's, where it has one.
@@ -661,7 +663,7 @@ export const createItemStore = ({
       for (const id of session.followed.keys()) unfollow(session, id)
     }
   }
-  const { picture, phone } = companions
+  const { picture, phone, videoPart } = companions
   const trouble: ItemStore["trouble"] = (target, itemId, shown, troubles) =>
     session.companions.trouble(target, itemId, shown, troubles)
   const changeFile: ItemStore["changeFile"] = (target, itemId, path, layers) =>
@@ -683,5 +685,6 @@ export const createItemStore = ({
     connect,
     ...(picture && { picture }),
     ...(phone && { phone }),
+    ...(videoPart && { videoPart }),
   }
 }

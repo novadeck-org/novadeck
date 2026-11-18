@@ -4,7 +4,10 @@ import type {
   FileContent,
   ItemContent,
   UnavailableReason,
+  VideoPart,
 } from "@novadeck/core/items"
+
+import { clip, clipMime, clipSize } from "./clip"
 
 // Something a sample agent shows: the item it points at, by an id that stays the same, and
 // what it holds there, or why it can't show.
@@ -17,6 +20,16 @@ export type SampleArtifact = {
   // A change's files read one at a time, as the runner reads them: the file's diff for the
   // layers selected.
   readonly changeFile?: (path: string, layers: readonly string[]) => ChangeFileDiff
+  // A video's bytes, which its parts are cut from: `read` makes them when first asked, `part`
+  // is how many go in a part (the runner's 2 MiB unless given), and `delay` how long each
+  // part takes, in milliseconds, so a video can be seen loading.
+  readonly video?: {
+    readonly read: () => Promise<Uint8Array<ArrayBuffer>>
+    readonly part?: number
+    readonly delay?: number
+    // Why it can't be read, once the first part is: instead of its parts.
+    readonly reason?: Extract<VideoPart, { state: "unavailable" }>["reason"]
+  }
 }
 
 export type SampleArtifacts = {
@@ -330,6 +343,92 @@ const cannot = (reason: UnavailableReason, size: number | null = null): ItemCont
   size,
 })
 
+// The videos an agent shows: one that plays at once, one that is read in small parts a moment
+// apart, one too large, one that can't be read, one the browser can't play, and one that may hold
+// secrets, so each state of the video pane can be reached. They all play the same clip.
+const videoItem = (
+  id: string,
+  name: string,
+  detail: string,
+  secret = false,
+): SampleArtifact["item"] => ({
+  id,
+  kind: "video",
+  name,
+  detail,
+  path: `${studio}/${secret ? ".private/" : "recordings/"}${name}`,
+  url: null,
+  lines: null,
+  secret,
+})
+
+// What a video holds: its format and size, from the stamp it is read at, shown `shown` times.
+export const videoContent = (
+  size: number,
+  { stamp = "1", shown = 1, at }: { stamp?: string; shown?: number; at?: number } = {},
+): ItemContent => ({
+  state: "ready",
+  stamp,
+  content: { kind: "video", mime: clipMime, size, shown, ...(at === undefined ? {} : { at }) },
+})
+
+const walkthrough: SampleArtifact = {
+  item: videoItem("studio-walkthrough", "walkthrough.webm", "640 × 360 WebM, 4 s"),
+  content: videoContent(clipSize),
+  video: { read: clip },
+}
+
+// The video again, as an agent shows it the `shown`th time, or after it rewrote the file (a
+// new stamp), starting `at` a second.
+export const videoAgain = (
+  sample: SampleArtifact,
+  fields: { stamp?: string; shown?: number; at?: number },
+): SampleArtifact => ({
+  ...sample,
+  content: videoContent(
+    sample.content.state === "ready" && sample.content.content.kind === "video"
+      ? sample.content.content.size
+      : clipSize,
+    fields,
+  ),
+})
+
+// Garbage in a video's name: the file reads, and the browser can't play it.
+const garbage = new TextEncoder().encode("This is not a video. ".repeat(200))
+
+export const videoSamples = {
+  playable: walkthrough,
+  // About 12 parts, half a second each: its progress shows.
+  slow: {
+    item: videoItem("studio-slow", "slow-walkthrough.webm", "640 × 360 WebM, 4 s"),
+    content: videoContent(clipSize),
+    video: { read: clip, part: 8 * 1024, delay: 500 },
+  },
+  large: {
+    item: videoItem("studio-large", "launch-film.webm", "3840 × 2160 WebM"),
+    content: cannot("too-large", 740 * 1024 * 1024),
+  },
+  missing: {
+    item: videoItem("studio-gone", "old-cut.webm", "640 × 360 WebM"),
+    content: cannot("missing"),
+  },
+  unreadable: {
+    item: videoItem("studio-locked", "locked.webm", "640 × 360 WebM"),
+    content: videoContent(clipSize),
+    video: { read: clip, reason: "unreadable" },
+  },
+  broken: {
+    item: videoItem("studio-broken", "broken.webm", "Not a video"),
+    content: videoContent(garbage.length),
+    video: { read: async () => garbage },
+  },
+  secret: {
+    item: videoItem("studio-private", "review.webm", "640 × 360 WebM", true),
+    content: videoContent(clipSize),
+    video: { read: clip },
+  },
+} satisfies Record<string, SampleArtifact>
+
 const logLines = Array.from(
   { length: 200 },
   (_, index) =>
@@ -399,4 +498,5 @@ export const devServerArtifacts: readonly SampleArtifact[] = [
       clamped: true,
     }),
   ),
+  videoSamples.playable,
 ]

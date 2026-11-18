@@ -48,6 +48,7 @@ import { createDemoStates } from "./states"
 import { sessionTarget } from "./terminals"
 import { tourGroups } from "./tour"
 import type { DemoActionContext } from "./types"
+import { videoGroups } from "./videos"
 import { voiceGroups } from "./voice"
 import { worksGroups } from "./works"
 
@@ -292,6 +293,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           ...chatOfferGroups(launch, inner.conversations !== undefined),
           ...feedbackGroups(launch, isDemoFeedback(inner.feedback) ? inner.feedback : undefined),
           ...planGroups(inner.companions),
+          ...videoGroups(inner.companions),
           ...babciaGroups(babciaCuesOf(inner)),
           ...launchGroups(launchCuesOf(inner)),
           ...doorbellGroups(inner.messages),

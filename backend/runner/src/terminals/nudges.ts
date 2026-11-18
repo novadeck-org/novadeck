@@ -300,7 +300,8 @@ export const nudgeText = (current: {
 export const companionNotice =
   "Novadeck: automatic notice, not from the user: beside this terminal is a bar where you " +
   "show the user what you make, with Novadeck's show tool. Show a deliverable when it is " +
-  "done, not each file you touch: an image or screenshot, a rendered page or a dev " +
+  "done, not each file you touch: an image or screenshot, a rendered video or screen " +
+  "recording, a rendered page or a dev " +
   "server's address, a report, mockup, diagram or generated document, the one file the " +
   "user asked you for, or whatever they ask to see. Show a page you serve or just " +
   "deployed, such as a dev server or a preview; a link to someone else's site, which often " +

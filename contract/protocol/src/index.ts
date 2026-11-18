@@ -84,6 +84,10 @@ export {
   planUnwritable,
   type PlanUnwritable,
   uncommittedLayer,
+  videoLimits,
+  videoPart,
+  type VideoPart,
+  videoPartText,
 } from "./companions.js"
 export {
   type ClosedTerminal,

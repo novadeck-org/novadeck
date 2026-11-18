@@ -83,6 +83,10 @@ const contentOf = (content: RunnerContent, livePages: boolean): ItemContent => {
   return { state: "ready", stamp, content: shown }
 }
 
+// A part's base64 as the bytes it stands for.
+const decode = (text: string): Uint8Array<ArrayBuffer> =>
+  Uint8Array.from(atob(text), (char) => char.charCodeAt(0))
+
 // What the runner holds no more.
 const gone: ItemContent = { state: "unavailable", reason: "gone", size: null }
 
@@ -116,7 +120,7 @@ export const troubleOf = (trouble: PageTrouble): RunnerTrouble => {
 export const createRunnerCompanions = (
   runner: Pick<
     Runner["companions"],
-    "content" | "changeFile" | "changeRead" | "openInProject" | "save" | "pageTrouble"
+    "content" | "changeFile" | "changeRead" | "openInProject" | "save" | "pageTrouble" | "videoPart"
   >,
   {
     livePages = false,
@@ -160,6 +164,10 @@ export const createRunnerCompanions = (
   },
   changeFile: (_target, itemId, path, layers) => runner.changeFile({ itemId, path, layers }),
   changeRead: (_target, itemId, path) => runner.changeRead({ itemId, path }),
+  videoPart: async (_target, itemId, { stamp, offset, reveal }) => {
+    const part = await runner.videoPart({ itemId, stamp, offset, ...(reveal && { reveal }) })
+    return part.state === "part" ? { state: "part", bytes: decode(part.data) } : part
+  },
   save: async (_target, itemId, text, basedOn) => {
     // One the runner can't take in one message is never sent: past a WebSocket's limit, the
     // socket would close the whole link.

@@ -4,8 +4,9 @@ import type { TerminalKey } from "@novadeck/core/types"
 
 import { context, describe, expect, it } from "../test"
 import { authAgent, studioAgent } from "./agents"
-import { devServerArtifacts, studioArtifacts } from "./artifacts"
+import { devServerArtifacts, studioArtifacts, videoAgain, videoSamples } from "./artifacts"
 import { changesArtifacts } from "./changes"
+import { clip, clipSize } from "./clip"
 import { createShowcase } from "./simulation"
 
 const session = { projectId: "p", workspaceSessionId: "s" }
@@ -451,5 +452,81 @@ describe("a change the dev server shows", () => {
     expect(heard[1]?.state === "ready" && heard[0]?.state === "ready" && heard[1].stamp).not.toBe(
       heard[0]?.state === "ready" && heard[0].stamp,
     )
+  })
+})
+
+describe("the showcase's videos", () => {
+  const video = itemIdOf("studio-walkthrough")
+  const read = (id = video, offset = 0, stamp = "1", reveal?: string) =>
+    running().showcase.videoPart!(session, id, { stamp, offset, reveal })
+
+  it("is a clip that is as large as its item says", async () => {
+    expect((await clip()).length).toBe(clipSize)
+  })
+
+  it("is among what the dev server's terminal shows", () => {
+    expect(devServerArtifacts).toContain(videoSamples.playable)
+  })
+
+  it("serves the file in parts, to its end, and none past it", async () => {
+    const part = await read()
+    expect(part).toMatchObject({ state: "part" })
+    expect(part.state === "part" && part.bytes.length).toBe(clipSize)
+    const { showcase } = running()
+    const small = videoSamples.slow
+    showcase.present(devServer, "fox", small)
+    const first = await showcase.videoPart!(session, itemIdOf("studio-slow"), {
+      stamp: "1",
+      offset: 0,
+      reveal: undefined,
+    })
+    expect(first.state === "part" && first.bytes.length).toBe(8 * 1024)
+    const past = await showcase.videoPart!(session, itemIdOf("studio-slow"), {
+      stamp: "1",
+      offset: clipSize,
+      reveal: undefined,
+    })
+    expect(past.state === "part" && past.bytes.length).toBe(0)
+  })
+
+  it("says the file changed once it is shown under another stamp", async () => {
+    const { showcase } = running()
+    showcase.present(devServer, "fox", videoAgain(videoSamples.playable, { stamp: "2", shown: 2 }))
+    expect(
+      await showcase.videoPart!(session, video, { stamp: "1", offset: 0, reveal: undefined }),
+    ).toEqual({ state: "changed" })
+    expect(
+      (await showcase.videoPart!(session, video, { stamp: "2", offset: 0, reveal: undefined }))
+        .state,
+    ).toBe("part")
+  })
+
+  it("holds a secret one back until its path is revealed", async () => {
+    const { showcase } = running()
+    showcase.present(devServer, "fox", videoSamples.secret)
+    const id = itemIdOf("studio-private")
+    expect(
+      await showcase.videoPart!(session, id, { stamp: "1", offset: 0, reveal: undefined }),
+    ).toEqual({
+      state: "unavailable",
+      reason: "secret",
+    })
+    const path = videoSamples.secret.item.path ?? undefined
+    expect(
+      (await showcase.videoPart!(session, id, { stamp: "1", offset: 0, reveal: path })).state,
+    ).toBe("part")
+  })
+
+  it("says why one can't be read, and rejects an item that is no video", async () => {
+    const { showcase } = running()
+    showcase.present(devServer, "fox", videoSamples.unreadable)
+    expect(
+      await showcase.videoPart!(session, itemIdOf("studio-locked"), {
+        stamp: "1",
+        offset: 0,
+        reveal: undefined,
+      }),
+    ).toEqual({ state: "unavailable", reason: "unreadable" })
+    await expect(read(itemIdOf("dev-notes"))).rejects.toThrow()
   })
 })

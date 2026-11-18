@@ -11,6 +11,8 @@ import {
   type ItemContent,
   type PlanSaveResult,
   type PlanUnwritable,
+  videoLimits,
+  type VideoPart,
 } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
@@ -28,6 +30,14 @@ const images: { readonly [extension: string]: string } = {
   ".gif": "image/gif",
   ".webp": "image/webp",
   ".svg": "image/svg+xml",
+}
+// What is played as a video, by extension: what Chromium plays, as the desktop app and a
+// browser both are. A QuickTime file plays where its codec is one of those.
+const videos: { readonly [extension: string]: string } = {
+  ".mp4": "video/mp4",
+  ".m4v": "video/mp4",
+  ".webm": "video/webm",
+  ".mov": "video/quicktime",
 }
 /** The largest image previewed; a larger one is listed without its picture. */
 export const maxImageBytes = 8 * 1024 * 1024
@@ -55,6 +65,13 @@ const unavailable = (reason: Unavailable["reason"], size: number | null = null):
 /** Whether a file is shown as an image, by its extension. */
 const isImage = (path: string): boolean => images[extname(path).toLowerCase()] !== undefined
 
+/** Whether a file is played as a video, by its extension. */
+const isVideo = (path: string): boolean => videos[extname(path).toLowerCase()] !== undefined
+
+/** How a file is shown, by its extension: as an image, played as a video, or read. */
+const kindOf = (path: string): Pointed["kind"] =>
+  isImage(path) ? "image" : isVideo(path) ? "video" : "file"
+
 /**
  * The lines of a file of `total` lines shown, from `first` to `last`, and the ones
  * pointed at, `from` to `to`: every line of a short file; around `lines` in a longer
@@ -80,7 +97,7 @@ export type Pointed = {
   readonly ok: true
   /** Its path, symlinks resolved. */
   readonly path: string
-  readonly kind: "image" | "file"
+  readonly kind: "image" | "video" | "file"
   readonly size: number
   readonly secret: boolean
 }
@@ -104,7 +121,7 @@ export const pointAt = async (
   return {
     ok: true,
     path,
-    kind: isImage(path) ? "image" : "file",
+    kind: kindOf(path),
     size: stats.size,
     secret: secret(path, env),
   }
@@ -322,6 +339,98 @@ export const loadFile = async (
     await handle.close().catch(() => {})
   }
 }
+
+/**
+ * A video, as it is now, symlinks resolved: its format and size, never its bytes, which
+ * `readVideoPart` reads as the client plays it. Its stamp is the file's own, which each part
+ * is read against. One that may hold secrets is `secret` unless `reveal`; one past what the
+ * pane plays is `too-large`. `shown` is its item's version, and `at` the second its latest
+ * show starts it at.
+ */
+export const loadVideo = async (
+  item: Pick<ItemRecord, "path" | "secret">,
+  reveal: boolean,
+  show: { readonly shown: number; readonly at: number | undefined },
+  env?: NodeJS.ProcessEnv,
+): Promise<ItemContent> => {
+  if (item.path === null) return unavailable("missing")
+  let path: string
+  let stats: Stats
+  try {
+    path = await realpath(item.path)
+    stats = await stat(path)
+  } catch (error) {
+    return unavailable(reasonOf(error))
+  }
+  if (!stats.isFile()) return unavailable("not-a-file")
+  if ((item.secret || secret(path, env)) && !reveal) return unavailable("secret", stats.size)
+  if (stats.size > videoLimits.bytes) return unavailable("too-large", stats.size)
+  return {
+    state: "ready",
+    stamp: stampOf(stats),
+    content: {
+      kind: "video",
+      mime: videos[extname(path).toLowerCase()] ?? "video/mp4",
+      size: stats.size,
+      shown: show.shown,
+      ...(show.at !== undefined && { at: show.at }),
+    },
+  }
+}
+
+/**
+ * A part of a video's file from `offset`, up to `videoLimits.part` bytes, read only while the
+ * file is as `stamp` names it: `changed` once it isn't, as when it was rendered again, so the
+ * client starts over from its new content. Past its end, the part is empty.
+ */
+export const readVideoPart = async (
+  item: Pick<ItemRecord, "path" | "secret">,
+  part: { readonly stamp: string; readonly offset: number },
+  reveal: boolean,
+  env?: NodeJS.ProcessEnv,
+): Promise<VideoPart> => {
+  if (item.path === null) return { state: "unavailable", reason: "missing" }
+  let path: string
+  let opened: Awaited<ReturnType<typeof openPlain>>
+  try {
+    path = await realpath(item.path)
+    opened = await openPlain(path)
+  } catch (error) {
+    const reason = reasonOf(error)
+    return { state: "unavailable", reason: reason === "missing" ? "missing" : unreadable(reason) }
+  }
+  if ("state" in opened) return { state: "unavailable", reason: "not-a-file" }
+  const { handle, stats } = opened
+  try {
+    if ((item.secret || secret(path, env)) && !reveal)
+      return { state: "unavailable", reason: "secret" }
+    if (stats.size > videoLimits.bytes) return { state: "unavailable", reason: "too-large" }
+    if (stampOf(stats) !== part.stamp) return { state: "changed" }
+    const length = Math.max(0, Math.min(videoLimits.part, stats.size - part.offset))
+    const buffer = Buffer.alloc(length)
+    let read = 0
+    while (read < length) {
+      // eslint-disable-next-line no-await-in-loop -- One chunk after another.
+      const { bytesRead } = await handle.read(buffer, read, length - read, part.offset + read)
+      if (bytesRead === 0) break
+      read += bytesRead
+    }
+    // Written to while it was read: what was read may be half of each.
+    const after = await handle.stat()
+    if (stampOf(after) !== part.stamp) return { state: "changed" }
+    return { state: "part", data: buffer.subarray(0, read).toString("base64") }
+  } catch (error) {
+    return { state: "unavailable", reason: unreadable(reasonOf(error)) }
+  } finally {
+    await handle.close().catch(() => {})
+  }
+}
+
+/** A reason a part can't be read for, of those a part can give. */
+const unreadable = (
+  reason: Unavailable["reason"],
+): Extract<VideoPart, { state: "unavailable" }>["reason"] =>
+  reason === "not-a-file" || reason === "missing" ? reason : "unreadable"
 
 /** A plan's text, cut short past what the protocol takes, and when it last changed. */
 export type PlanText = {

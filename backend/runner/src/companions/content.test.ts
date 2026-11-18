@@ -2,6 +2,9 @@ import { spawnSync } from "node:child_process"
 import {
   appendFileSync,
   chmodSync,
+  closeSync,
+  ftruncateSync,
+  openSync,
   lstatSync,
   readdirSync,
   readFileSync,
@@ -18,7 +21,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import { companionLimits } from "@novadeck/protocol"
+import { companionLimits, videoLimits } from "@novadeck/protocol"
 
 import { describe, expect, it as base } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
@@ -26,11 +29,13 @@ import {
   captureWindow,
   loadFile,
   loadPlan,
+  loadVideo,
   pageAt,
   planTitle,
   pointAt,
   readPlanFile,
   readTextPlan,
+  readVideoPart,
   savePlan as savePlanIn,
 } from "./content.js"
 
@@ -85,6 +90,17 @@ describe("what a show points at", () => {
       size: png.length,
     })
     await expect(pointAt(".env", directory)).resolves.toMatchObject({ ok: true, secret: true })
+  })
+
+  it("is a video by its extension, whatever its case", async ({ directory }) => {
+    for (const name of ["demo.mp4", "clip.WEBM", "take.mov", "cut.m4v"]) {
+      writeFileSync(join(directory, name), "video")
+      // eslint-disable-next-line no-await-in-loop -- One file after another.
+      await expect(pointAt(name, directory)).resolves.toMatchObject({ ok: true, kind: "video" })
+    }
+    // One Chromium doesn't play is read as a file, which says it isn't text.
+    writeFileSync(join(directory, "old.avi"), "video")
+    await expect(pointAt("old.avi", directory)).resolves.toMatchObject({ kind: "file" })
   })
 
   it("may hold secrets where the environment it is given says a tool keeps its login", async ({
@@ -354,6 +370,127 @@ describe("an image as it loads", () => {
       state: "unavailable",
       reason: "too-large",
       size: 8 * 1024 * 1024 + 1,
+    })
+  })
+})
+
+// A file of `size` bytes, with nothing written, which takes no room on disk.
+const sparse = (path: string, size: number) => {
+  const handle = openSync(path, "w")
+  ftruncateSync(handle, size)
+  closeSync(handle)
+}
+
+const video = (path: string, secret = false) => ({ path, secret })
+
+const videoStamp = (content: Awaited<ReturnType<typeof loadVideo>>): string =>
+  content.state === "ready" ? content.stamp : ""
+
+describe("a video as it loads", () => {
+  it("is its format, size and the file's stamp, never its bytes", async ({ directory }) => {
+    const path = join(directory, "demo.webm")
+    writeFileSync(path, "frames")
+    const loaded = await loadVideo(video(path), false, { shown: 2, at: 12.5 })
+    expect(loaded).toEqual({
+      state: "ready",
+      stamp: expect.any(String),
+      content: { kind: "video", mime: "video/webm", size: 6, shown: 2, at: 12.5 },
+    })
+    // A show that gives no second starts it where the person is.
+    await expect(loadVideo(video(path), false, { shown: 3, at: undefined })).resolves.toEqual({
+      ...loaded,
+      content: { kind: "video", mime: "video/webm", size: 6, shown: 3 },
+    })
+    writeFileSync(path, "frames, rendered again")
+    const again = await loadVideo(video(path), false, { shown: 3, at: undefined })
+    expect(videoStamp(again)).not.toBe(videoStamp(loaded))
+  })
+
+  it("says why it can't play: missing, a folder, secret unless revealed, too large", async ({
+    directory,
+  }) => {
+    const shown = { shown: 1, at: undefined }
+    await expect(loadVideo(video(join(directory, "gone.mp4")), false, shown)).resolves.toEqual({
+      state: "unavailable",
+      reason: "missing",
+      size: null,
+    })
+    mkdirSync(join(directory, "folder.mp4"))
+    await expect(
+      loadVideo(video(join(directory, "folder.mp4")), false, shown),
+    ).resolves.toMatchObject({ reason: "not-a-file" })
+    const held = join(directory, "held.mp4")
+    writeFileSync(held, "frames")
+    await expect(loadVideo(video(held, true), false, shown)).resolves.toEqual({
+      state: "unavailable",
+      reason: "secret",
+      size: 6,
+    })
+    await expect(loadVideo(video(held, true), true, shown)).resolves.toMatchObject({
+      state: "ready",
+    })
+    const big = join(directory, "big.mp4")
+    sparse(big, videoLimits.bytes + 1)
+    await expect(loadVideo(video(big), false, shown)).resolves.toEqual({
+      state: "unavailable",
+      reason: "too-large",
+      size: videoLimits.bytes + 1,
+    })
+  })
+})
+
+describe("a part of a video", () => {
+  it("is its bytes from the offset, a part at a time, and none past its end", async ({
+    directory,
+  }) => {
+    const path = join(directory, "demo.mp4")
+    const bytes = Buffer.from(
+      Array.from({ length: videoLimits.part + 10 }, (_, index) => index % 251),
+    )
+    writeFileSync(path, bytes)
+    const loaded = await loadVideo(video(path), false, { shown: 1, at: undefined })
+    const stamp = videoStamp(loaded)
+    const first = await readVideoPart(video(path), { stamp, offset: 0 }, false)
+    const second = await readVideoPart(video(path), { stamp, offset: videoLimits.part }, false)
+    const past = await readVideoPart(video(path), { stamp, offset: bytes.length }, false)
+    const read = [first, second].map((part) =>
+      part.state === "part" ? Buffer.from(part.data, "base64") : Buffer.alloc(0),
+    )
+    expect(read.map((part) => part.length)).toEqual([videoLimits.part, 10])
+    expect(Buffer.concat(read).equals(bytes)).toBe(true)
+    expect(past).toEqual({ state: "part", data: "" })
+  })
+
+  it("is changed once the file isn't as its stamp names it", async ({ directory }) => {
+    const path = join(directory, "demo.mp4")
+    writeFileSync(path, "frames")
+    const loaded = await loadVideo(video(path), false, { shown: 1, at: undefined })
+    const stamp = videoStamp(loaded)
+    writeFileSync(path, "frames, rendered again")
+    await expect(readVideoPart(video(path), { stamp, offset: 0 }, false)).resolves.toEqual({
+      state: "changed",
+    })
+  })
+
+  it("is never read from a file that may hold secrets, unless revealed, or that is gone", async ({
+    directory,
+  }) => {
+    const path = join(directory, "held.mp4")
+    writeFileSync(path, "frames")
+    const loaded = await loadVideo(video(path, true), true, { shown: 1, at: undefined })
+    const stamp = videoStamp(loaded)
+    await expect(readVideoPart(video(path, true), { stamp, offset: 0 }, false)).resolves.toEqual({
+      state: "unavailable",
+      reason: "secret",
+    })
+    await expect(readVideoPart(video(path, true), { stamp, offset: 0 }, true)).resolves.toEqual({
+      state: "part",
+      data: Buffer.from("frames").toString("base64"),
+    })
+    unlinkSync(path)
+    await expect(readVideoPart(video(path), { stamp, offset: 0 }, false)).resolves.toEqual({
+      state: "unavailable",
+      reason: "missing",
     })
   })
 })
