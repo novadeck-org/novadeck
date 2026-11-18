@@ -427,32 +427,13 @@ const follow = (
 const listen = (session: Session, id: ItemId, entry: Followed): void => {
   const { target, reveal } = entry
   let live = true
-  // A folder a pane shows is read again now and then, whatever its watch says.
-  const shown = entry.watchers > 0 && itemIn(session.workspace.getSnapshot(), id)?.kind === "folder"
-  const stop = session.companions.follow(
-    target,
-    id,
-    { reveal, ...(shown && { shown }) },
-    (content) => {
-      if (live && session.followed.get(id) === entry) received(session, target, id, content)
-    },
-  )
+  const stop = session.companions.follow(target, id, { reveal }, (content) => {
+    if (live && session.followed.get(id) === entry) received(session, target, id, content)
+  })
   entry.stop = () => {
     live = false
     stop()
   }
-}
-
-// A folder is followed again as a pane begins to show it, or stops, which the runner reads it
-// again for, and by the way it is told of (see `listen`).
-const relisten = (session: Session, id: ItemId, entry: Followed): void => {
-  if (
-    session.followed.get(id) !== entry ||
-    itemIn(session.workspace.getSnapshot(), id)?.kind !== "folder"
-  )
-    return
-  entry.stop()
-  listen(session, id, entry)
 }
 
 // An item pointed elsewhere is followed again: what it held is dropped, and so is the
@@ -620,13 +601,11 @@ export const createItemStore = ({
     clearTimeout(entry.lingering)
     entry.lingering = undefined
     entry.watchers += 1
-    if (entry.watchers === 1) relisten(session, id, entry)
     let released = false
     return () => {
       if (released) return
       released = true
       entry.watchers -= 1
-      if (entry.watchers === 0) relisten(session, id, entry)
       linger(session, id, entry)
     }
   }
@@ -673,7 +652,7 @@ export const createItemStore = ({
     })
   }
   const listing: ItemStore["listing"] = (target, id, within) =>
-    session.companions.follow(target, id, { reveal: undefined, within, shown: true }, (content) =>
+    session.companions.follow(target, id, { reveal: undefined, within }, (content) =>
       session.store.update((state) =>
         state.folders[id]?.within === within
           ? { ...state, listings: { ...state.listings, [id]: { within, content } } }

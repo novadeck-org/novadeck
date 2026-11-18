@@ -76,13 +76,6 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
   const refused = top?.state === "unavailable" && top.reason === "secret"
   usePaneNote(listed ? [countText(listed.total)] : [], gone, undefined, refused ? Lock : undefined)
 
-  // The runner reads a folder a pane shows again now and then, whatever its watch says.
-  const { projectId, workspaceSessionId } = target
-  useEffect(
-    () => itemStore.watch({ projectId, workspaceSessionId }, item.id),
-    [itemStore, projectId, workspaceSessionId, item.id],
-  )
-
   const root = useRef<HTMLDivElement>(null)
   const [inside, setInside] = useState(false)
   const arrivals = useArrivals(listed?.entries, inside, within)
