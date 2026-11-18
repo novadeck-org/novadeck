@@ -2,9 +2,9 @@ import type { UnavailableReason } from "@novadeck/core/items"
 import { useEffect, useRef, useState } from "react"
 
 import type { ArtifactBodyProps } from "../../ArtifactViewer"
+import { blobs } from "../../parts/blobs"
+import { loadParts } from "../../parts/load"
 import { useRevealed } from "../../store/use-item-store"
-import { blobs } from "./blobs"
-import { loadVideo } from "./load"
 import { playable } from "./playable"
 
 // What a video's or a recording's body is given.
@@ -50,7 +50,7 @@ export const useSource = (
   const [progress, setProgress] = useState<{ key: string; loaded: number }>()
   // What played last, from the cache where the pane comes back to an item it played before.
   const [good, setGood] = useState<Good | undefined>(() => blobs.latest(id))
-  const { videoPart } = itemStore
+  const { part: readPart } = itemStore
   const { size, mime } = content
   // Only the person's yes to a file that may hold secrets reads it.
   const reveal = useRevealed(itemStore, item)
@@ -61,7 +61,7 @@ export const useSource = (
     where.current = target
   })
   // What plays now: this file where it is kept, else the last that played.
-  const kept = videoPart ? blobs.get(id, stamp) : undefined
+  const kept = readPart ? blobs.get(id, stamp) : undefined
   const current = kept ? { stamp, url: kept } : good
   // Whether something plays before this file is read: then the file may still be being written,
   // and bytes that can't play leave it playing.
@@ -70,11 +70,11 @@ export const useSource = (
     playing.current = current
   })
   useEffect(() => {
-    if (!videoPart || blobs.get(id, stamp)) return
+    if (!readPart || blobs.get(id, stamp)) return
     const stop = new AbortController()
     const load = async (): Promise<void> => {
-      const result = await loadVideo({
-        read: async (offset) => videoPart(where.current, id, { stamp, offset, reveal }),
+      const result = await loadParts({
+        read: async (offset) => readPart(where.current, id, { stamp, offset, reveal }),
         size,
         mime,
         signal: stop.signal,
@@ -101,8 +101,8 @@ export const useSource = (
       clearTimeout(timer)
       stop.abort()
     }
-  }, [id, key, stamp, size, mime, reveal, videoPart, element])
-  if (!videoPart) return { url: undefined, stamp: undefined, loaded: null, problem: "here" }
+  }, [id, key, stamp, size, mime, reveal, readPart, element])
+  if (!readPart) return { url: undefined, stamp: undefined, loaded: null, problem: "here" }
   if (kept) return { url: kept, stamp, loaded: null, problem: null }
   const done = read?.key === key ? read : undefined
   if (done?.problem)

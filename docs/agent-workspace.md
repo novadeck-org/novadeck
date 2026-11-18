@@ -430,7 +430,7 @@ with every safety check again at that time:
   answer says. A video (`.mp4`, `.m4v`, `.webm`, `.mov`, kind `video`) or an audio recording
   (`.mp3`, `.m4a`, `.aac`, `.wav`, `.ogg`, `.oga`, `.opus`, `.flac`, kind `audio`, played as a
   card with a waveform, not a picture) is played with the pane's own controls: its content is its format and size, never its bytes, which the UI
-  reads with `companions.videoPart`, 2 MiB at a time while the file is as its stamp names it,
+  reads with `companions.part`, 2 MiB at a time while the file is as its stamp names it,
   and plays whole from a blob, so the desktop app, a browser and the demo play it alike.
   Rendered again, it reloads where the person was; one over 512 MB loads as too large to play. Showing the same file or page again updates the item on the agent's own
   bar, or else the latest it showed that the person moved into a window or onto another

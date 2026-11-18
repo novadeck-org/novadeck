@@ -3,7 +3,7 @@ import type {
   Companions,
   ItemContent,
   UnavailableReason,
-  VideoPart,
+  FilePart,
 } from "@novadeck/core/items"
 import { workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
@@ -58,18 +58,18 @@ const shown = async ({
   file = [1, 2, 3, 4, 5],
   content = {},
   stamp = "1",
-  videoPart,
+  part,
   id = `voice${++ids}`,
 }: {
   id?: string
   file?: number[]
   content?: Partial<AudioContent>
   stamp?: string
-  videoPart?: Companions["videoPart"] | null
+  part?: Companions["part"] | null
 } = {}): Promise<Show> => {
   const item = itemFixture(id, "01", { kind: "audio", name: "voiceover.mp3", path: "/p/v.mp3" })
   let bytes = file
-  const parts: Companions["videoPart"] = async (_target, _id, { offset }) => ({
+  const parts: Companions["part"] = async (_target, _id, { offset }) => ({
     state: "part",
     bytes: Uint8Array.from(bytes.slice(offset, offset + 2)),
   })
@@ -87,7 +87,7 @@ const shown = async ({
     },
     save: () => new Promise(() => {}),
     trouble: () => {},
-    ...(videoPart === null ? {} : { videoPart: videoPart ?? parts }),
+    ...(part === null ? {} : { part: part ?? parts }),
   }
   const workspace = createWorkspaceStore(
     workspaceReducer(workspaceFixture(), { type: "item/upsert", target, item }),
@@ -137,12 +137,12 @@ const wave = (container: HTMLElement) => container.querySelector<HTMLElement>(".
 describe("a recording beside a terminal", () => {
   context("while its bytes are read", () => {
     it("says how much is in, and shows no player until all of it is", async () => {
-      let release: (part: VideoPart) => void = () => {}
+      let release: (part: FilePart) => void = () => {}
       let calls = 0
       const { container } = await shown({
         file: [1, 2, 3, 4],
         content: { size: 4 * 1024 * 1024 },
-        videoPart: () =>
+        part: () =>
           ++calls === 1
             ? Promise.resolve({ state: "part", bytes: new Uint8Array(1024 * 1024) })
             : new Promise((resolve) => (release = resolve)),
@@ -165,7 +165,7 @@ describe("a recording beside a terminal", () => {
 
   context("when it can't load", () => {
     it("says it can't be played here where the backend can't read it in parts", async () => {
-      const { container } = await shown({ videoPart: null })
+      const { container } = await shown({ part: null })
       expect(container.textContent).toContain("voiceover.mp3 can't be played here")
     })
 
@@ -189,7 +189,7 @@ describe("a recording beside a terminal", () => {
       ["secret", "may hold secrets"],
     ])("says in words why the file is %s", async (reason, words) => {
       const { container } = await shown({
-        videoPart: async () => ({ state: "unavailable", reason }),
+        part: async () => ({ state: "unavailable", reason }),
       })
       expect(container.querySelector(".artifact-unavailable")!.textContent).toContain(words)
     })
@@ -222,8 +222,8 @@ describe("a recording beside a terminal", () => {
       const first = await shown({ id: "back", stamp: "same", file: [1, 2] })
       const src = first.element().getAttribute("src")
       first.unmount()
-      const spy = vi.fn<NonNullable<Companions["videoPart"]>>()
-      const again = await shown({ id: "back", stamp: "same", file: [1, 2], videoPart: spy })
+      const spy = vi.fn<NonNullable<Companions["part"]>>()
+      const again = await shown({ id: "back", stamp: "same", file: [1, 2], part: spy })
       expect(spy).not.toHaveBeenCalled()
       expect(again.element().getAttribute("src")).toBe(src)
     })
@@ -346,11 +346,11 @@ describe("a recording beside a terminal", () => {
     })
 
     it("draws the waveform of the file it plays, the old one while the new one loads", async () => {
-      let release: (part: VideoPart) => void = () => {}
+      let release: (part: FilePart) => void = () => {}
       let hold = false
       const { element, show } = await shown({
         stamp: "w1",
-        videoPart: (_target, _id, { offset }) =>
+        part: (_target, _id, { offset }) =>
           hold && offset === 0
             ? new Promise((resolve) => (release = resolve))
             : Promise.resolve({ state: "part", bytes: Uint8Array.from([1, 2]) }),
@@ -407,7 +407,7 @@ describe("a recording beside a terminal", () => {
         stamp: "1",
         content: { kind: "audio", mime: "audio/mpeg", size: 4.2 * 1024 * 1024, shown: 1 },
       }
-      const videoPart = vi.fn<NonNullable<Companions["videoPart"]>>()
+      const part = vi.fn<NonNullable<Companions["part"]>>()
       const companions: Companions = {
         follow: (_target, _id, _options, on) => {
           on(stamp)
@@ -415,7 +415,7 @@ describe("a recording beside a terminal", () => {
         },
         save: () => new Promise(() => {}),
         trouble: () => {},
-        videoPart,
+        part,
       }
       const workspace = createWorkspaceStore(
         workspaceReducer(workspaceFixture(), { type: "item/upsert", target, item }),
@@ -426,7 +426,7 @@ describe("a recording beside a terminal", () => {
       await settle()
       expect(container.textContent).toContain("MP3")
       expect(container.textContent).toContain("4.2 MB")
-      expect(videoPart).not.toHaveBeenCalled()
+      expect(part).not.toHaveBeenCalled()
     })
   })
 })

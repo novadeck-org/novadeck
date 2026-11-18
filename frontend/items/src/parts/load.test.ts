@@ -1,28 +1,28 @@
-import type { VideoPart } from "@novadeck/core/items"
+import type { FilePart } from "@novadeck/core/items"
 
-import { context, describe, expect, it } from "../../test"
+import { context, describe, expect, it } from "../test"
 import { createBlobs } from "./blobs"
-import { loadVideo } from "./load"
+import { loadParts } from "./load"
 
 const bytes = (...values: number[]): Uint8Array<ArrayBuffer> => Uint8Array.from(values)
-const part = (...values: number[]): VideoPart => ({ state: "part", bytes: bytes(...values) })
+const part = (...values: number[]): FilePart => ({ state: "part", bytes: bytes(...values) })
 
 // A file of `file`, read in parts of `size` bytes: what the backend does.
 const reading = (file: number[], size: number, asked: number[] = []) => ({
   asked,
-  read: async (offset: number): Promise<VideoPart> => {
+  read: async (offset: number): Promise<FilePart> => {
     asked.push(offset)
     return part(...file.slice(offset, offset + size))
   },
 })
 
 const load = (
-  read: (offset: number) => Promise<VideoPart>,
+  read: (offset: number) => Promise<FilePart>,
   size: number,
   { signal = new AbortController().signal, told = [] as number[] } = {},
-) => loadVideo({ read, size, mime: "video/mp4", signal, progress: (loaded) => told.push(loaded) })
+) => loadParts({ read, size, mime: "video/mp4", signal, progress: (loaded) => told.push(loaded) })
 
-describe("loading a video", () => {
+describe("loading a file in parts", () => {
   context("whose file is read in parts", () => {
     it("puts the parts together in order, as a blob of its format, and tells how far it is", async () => {
       const file = [1, 2, 3, 4, 5, 6, 7]

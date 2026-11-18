@@ -3,7 +3,7 @@ import { useEffect, useState } from "react"
 
 import { Unavailable } from "../../ArtifactViewer"
 import { usePaneNote } from "../../pane-row"
-import { blobs } from "./blobs"
+import { blobs } from "../../parts/blobs"
 import { factsText, loadingText } from "./format"
 import { useSource, type MediaProps } from "./source"
 

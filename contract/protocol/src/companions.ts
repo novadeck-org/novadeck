@@ -23,15 +23,15 @@ export const companionLimits = {
 } as const
 
 /**
- * A video or a recording the pane plays: the largest one it takes, which it holds whole as it
- * plays, and how much of it one `companions.videoPart` carries, in bytes. A part travels as base64, so
- * its text runs to `videoPartText` characters.
+ * How much of a file one `companions.part` carries, in bytes, for an item the client reads
+ * in parts rather than whole. A part travels as base64, so its text runs to `partText`
+ * characters.
  */
-export const videoLimits = {
-  bytes: 512 * 1024 * 1024,
-  part: 2 * 1024 * 1024,
-} as const
-export const videoPartText = Math.ceil(videoLimits.part / 3) * 4
+export const partBytes = 2 * 1024 * 1024
+export const partText = Math.ceil(partBytes / 3) * 4
+
+/** A video or a recording the pane plays: the largest one it takes, which it holds whole as it plays. */
+export const videoLimits = { bytes: 512 * 1024 * 1024 } as const
 
 // What agents show and the person attaches beside a terminal: a pointer to a file, a
 // page or a plan, never a copy of it, which `companions.content` reads when it loads.
@@ -290,7 +290,7 @@ export const changeFileDiff = z.strictObject({
 // `shell_environment_policy`); `unreadable` where its
 // file is there and Novadeck can't read it now (no permission, in use, not a regular file);
 // `gone` where its file was there and no longer is, as Claude Code's goes with its session.
-// A video or a recording (`audio`) is its format and size, which `companions.videoPart` reads in
+// A video or a recording (`audio`) is its format and size, which `companions.part` reads in
 // parts for the client to play, and its stamp names the file as those parts must be read from; `shown` counts
 // the agent's shows, as a page's does, and `at` is the second the latest show starts it at.
 // Or why it can't be shown, with the file's size where known.
@@ -410,12 +410,12 @@ export const itemContent = z.discriminatedUnion("state", [
   }),
 ])
 
-// `companions.videoPart`: the part of a video or a recording from the offset asked for, as base64, up to
-// `videoLimits.part` bytes (fewer at the file's end); `changed` when the file is no longer
+// `companions.part`: the part of an item's file from the offset asked for, as base64, up to
+// `partBytes` bytes (fewer at the file's end); `changed` when the file is no longer
 // as the stamp asked with names it, so the client reads it again from its new content; or
 // why it can't be read now.
-export const videoPart = z.discriminatedUnion("state", [
-  z.strictObject({ state: z.literal("part"), data: z.string().max(videoPartText) }),
+export const filePart = z.discriminatedUnion("state", [
+  z.strictObject({ state: z.literal("part"), data: z.string().max(partText) }),
   z.strictObject({ state: z.literal("changed") }),
   z.strictObject({
     state: z.literal("unavailable"),
@@ -451,4 +451,4 @@ export type ChangeLayer = z.infer<typeof changeLayer>
 export type DiffHunk = z.infer<typeof diffHunk>
 export type ChangeFileDiff = z.infer<typeof changeFileDiff>
 export type PlanSaveResult = z.infer<typeof planSaveResult>
-export type VideoPart = z.infer<typeof videoPart>
+export type FilePart = z.infer<typeof filePart>

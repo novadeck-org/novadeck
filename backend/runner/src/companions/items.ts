@@ -15,7 +15,7 @@ import type {
   PageLook,
   PageLookAnswer,
   PageTrouble,
-  VideoPart,
+  FilePart,
 } from "@novadeck/protocol"
 import { KeyedChanges } from "@novadeck/wire/server"
 
@@ -35,10 +35,11 @@ import {
   loadPlayed,
   maxImageBytes,
   pageAt,
+  partsOf,
   planTitle,
   pointAt,
   probe,
-  readVideoPart,
+  readPart,
   type PlanText,
   type Pointed,
 } from "./content.js"
@@ -1567,22 +1568,23 @@ export class CompanionItems {
   }
 
   /**
-   * A part of a video or audio item's file (see `companions.videoPart`): read only while the
-   * file is as `stamp` names it, and one that may hold secrets only once the person chose to
-   * show the path the item points at. NOT_FOUND for an unknown item or one that is neither.
+   * A part of an item's file (see `companions.part`), of a kind read in parts: read only
+   * while the file is as `stamp` names it, and one that may hold secrets only once the person
+   * chose to show the path the item points at. NOT_FOUND for an unknown item or one of
+   * another kind.
    */
-  async videoPart(input: {
+  async part(input: {
     readonly itemId: string
     readonly stamp: string
     readonly offset: number
     readonly reveal?: string | undefined
-  }): Promise<VideoPart> {
+  }): Promise<FilePart> {
     if (this.stopping) throw new DomainError("CLOSING")
     const item = this.item(input.itemId)
-    if (item.kind !== "video" && item.kind !== "audio")
-      throw new DomainError("NOT_FOUND", "That item is no video or recording")
+    const largest = partsOf[item.kind]
+    if (largest === undefined) throw new DomainError("NOT_FOUND", "That item isn't read in parts")
     const reveal = input.reveal !== undefined && input.reveal === item.path
-    return readVideoPart(item, input, reveal, this.environment())
+    return readPart(item, input, reveal, largest, this.environment())
   }
 
   /**

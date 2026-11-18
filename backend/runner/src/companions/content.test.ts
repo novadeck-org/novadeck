@@ -21,7 +21,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import { companionLimits, videoLimits } from "@novadeck/protocol"
+import { companionLimits, partBytes, videoLimits } from "@novadeck/protocol"
 
 import { describe, expect, it as base } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
@@ -35,7 +35,7 @@ import {
   pointAt,
   readPlanFile,
   readTextPlan,
-  readVideoPart,
+  readPart,
   savePlan as savePlanIn,
 } from "./content.js"
 
@@ -473,19 +473,27 @@ describe("a part of a video", () => {
     directory,
   }) => {
     const path = join(directory, "demo.mp4")
-    const bytes = Buffer.from(
-      Array.from({ length: videoLimits.part + 10 }, (_, index) => index % 251),
-    )
+    const bytes = Buffer.from(Array.from({ length: partBytes + 10 }, (_, index) => index % 251))
     writeFileSync(path, bytes)
     const loaded = await loadPlayed(video(path), false, { shown: 1, at: undefined })
     const stamp = videoStamp(loaded)
-    const first = await readVideoPart(video(path), { stamp, offset: 0 }, false)
-    const second = await readVideoPart(video(path), { stamp, offset: videoLimits.part }, false)
-    const past = await readVideoPart(video(path), { stamp, offset: bytes.length }, false)
+    const first = await readPart(video(path), { stamp, offset: 0 }, false, videoLimits.bytes)
+    const second = await readPart(
+      video(path),
+      { stamp, offset: partBytes },
+      false,
+      videoLimits.bytes,
+    )
+    const past = await readPart(
+      video(path),
+      { stamp, offset: bytes.length },
+      false,
+      videoLimits.bytes,
+    )
     const read = [first, second].map((part) =>
       part.state === "part" ? Buffer.from(part.data, "base64") : Buffer.alloc(0),
     )
-    expect(read.map((part) => part.length)).toEqual([videoLimits.part, 10])
+    expect(read.map((part) => part.length)).toEqual([partBytes, 10])
     expect(Buffer.concat(read).equals(bytes)).toBe(true)
     expect(past).toEqual({ state: "part", data: "" })
   })
@@ -496,7 +504,9 @@ describe("a part of a video", () => {
     const loaded = await loadPlayed(video(path), false, { shown: 1, at: undefined })
     const stamp = videoStamp(loaded)
     writeFileSync(path, "frames, rendered again")
-    await expect(readVideoPart(video(path), { stamp, offset: 0 }, false)).resolves.toEqual({
+    await expect(
+      readPart(video(path), { stamp, offset: 0 }, false, videoLimits.bytes),
+    ).resolves.toEqual({
       state: "changed",
     })
   })
@@ -508,16 +518,22 @@ describe("a part of a video", () => {
     writeFileSync(path, "frames")
     const loaded = await loadPlayed(video(path, true), true, { shown: 1, at: undefined })
     const stamp = videoStamp(loaded)
-    await expect(readVideoPart(video(path, true), { stamp, offset: 0 }, false)).resolves.toEqual({
+    await expect(
+      readPart(video(path, true), { stamp, offset: 0 }, false, videoLimits.bytes),
+    ).resolves.toEqual({
       state: "unavailable",
       reason: "secret",
     })
-    await expect(readVideoPart(video(path, true), { stamp, offset: 0 }, true)).resolves.toEqual({
+    await expect(
+      readPart(video(path, true), { stamp, offset: 0 }, true, videoLimits.bytes),
+    ).resolves.toEqual({
       state: "part",
       data: Buffer.from("frames").toString("base64"),
     })
     unlinkSync(path)
-    await expect(readVideoPart(video(path), { stamp, offset: 0 }, false)).resolves.toEqual({
+    await expect(
+      readPart(video(path), { stamp, offset: 0 }, false, videoLimits.bytes),
+    ).resolves.toEqual({
       state: "unavailable",
       reason: "missing",
     })

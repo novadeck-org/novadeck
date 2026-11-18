@@ -64,7 +64,7 @@ for (const setup of setups) {
           content: { kind, mime, size: clip.length, shown: 1, at: 2 },
         })
         const stamp = content.state === "ready" ? content.stamp : ""
-        await expect(run.deck.items.videoPart({ itemId, stamp, offset: 0 })).resolves.toEqual({
+        await expect(run.deck.items.part({ itemId, stamp, offset: 0 })).resolves.toEqual({
           state: "part",
           data: clip.toString("base64"),
         })

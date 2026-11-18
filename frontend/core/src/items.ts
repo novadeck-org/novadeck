@@ -149,7 +149,7 @@ export const shownItemWith = (
 // An image, by a URL the page can load.
 export type ImageContent = { readonly kind: "image"; readonly src: string }
 
-// A video, played from its bytes, which `Companions.videoPart` reads in parts while the file is
+// A video, played from its bytes, which `Companions.part` reads in parts while the file is
 // as `stamp` (its content's) names it: its format as a MIME type and its size in bytes.
 // `shown` counts the agent's shows of it, as its item's version: each later one that gives
 // `at` starts it from that second.
@@ -167,7 +167,7 @@ export type AudioContent = Omit<VideoContent, "kind"> & { readonly kind: "audio"
 // A part of a video's or a recording's file, from the offset asked for (fewer bytes at its end, none past it);
 // `changed` when the file is no longer as the stamp named it, so it's read again from its new
 // content; or why it can't be read now.
-export type VideoPart =
+export type FilePart =
   | { readonly state: "part"; readonly bytes: Uint8Array<ArrayBuffer> }
   | { readonly state: "changed" }
   | {
@@ -455,15 +455,16 @@ export type Companions = {
   // changes again. Absent where the backend can't keep it: the pane then grays it for as
   // long as the content stays as it was.
   readonly changeRead?: (target: WorkspaceTarget, itemId: ItemId, path: string) => Promise<void>
-  // A video or audio item's file from `offset`, while it is as `stamp` names it (see `VideoPart`). One
+  // An item's file from `offset`, for a kind read in parts (a video, a recording), while it
+  // is as `stamp` names it (see `FilePart`). One
   // that may hold secrets is `secret` unless `reveal` is the path the item points at, as in
   // `follow`. Rejects where the item is gone or no video. Absent where the backend can't: a
   // video then says it can't be played here.
-  readonly videoPart?: (
+  readonly part?: (
     target: WorkspaceTarget,
     itemId: ItemId,
     part: { readonly stamp: string; readonly offset: number; readonly reveal: string | undefined },
-  ) => Promise<VideoPart>
+  ) => Promise<FilePart>
   // Writes the person's edit to the plan, unless it changed since `basedOn`. Rejects with
   // a `PlanUnwritableError` when the plan can't be written at all.
   readonly save: (

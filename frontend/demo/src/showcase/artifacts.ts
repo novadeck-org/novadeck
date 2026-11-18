@@ -4,7 +4,7 @@ import type {
   FileContent,
   ItemContent,
   UnavailableReason,
-  VideoPart,
+  FilePart,
 } from "@novadeck/core/items"
 
 import { clip, clipMime, clipSize } from "./clip"
@@ -29,7 +29,7 @@ export type SampleArtifact = {
     readonly part?: number
     readonly delay?: number
     // Why it can't be read, once the first part is: instead of its parts.
-    readonly reason?: Extract<VideoPart, { state: "unavailable" }>["reason"]
+    readonly reason?: Extract<FilePart, { state: "unavailable" }>["reason"]
   }
 }
 

@@ -128,7 +128,7 @@ export const troubleOf = (trouble: PageTrouble): RunnerTrouble => {
 export const createRunnerCompanions = (
   runner: Pick<
     Runner["companions"],
-    "content" | "changeFile" | "changeRead" | "openInProject" | "save" | "pageTrouble" | "videoPart"
+    "content" | "changeFile" | "changeRead" | "openInProject" | "save" | "pageTrouble" | "part"
   >,
   {
     livePages = false,
@@ -172,8 +172,8 @@ export const createRunnerCompanions = (
   },
   changeFile: (_target, itemId, path, layers) => runner.changeFile({ itemId, path, layers }),
   changeRead: (_target, itemId, path) => runner.changeRead({ itemId, path }),
-  videoPart: async (_target, itemId, { stamp, offset, reveal }) => {
-    const part = await runner.videoPart({ itemId, stamp, offset, ...(reveal && { reveal }) })
+  part: async (_target, itemId, { stamp, offset, reveal }) => {
+    const part = await runner.part({ itemId, stamp, offset, ...(reveal && { reveal }) })
     return part.state === "part" ? { state: "part", bytes: decode(part.data) } : part
   },
   save: async (_target, itemId, text, basedOn) => {

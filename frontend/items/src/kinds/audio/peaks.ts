@@ -1,7 +1,7 @@
 import { createKept } from "@novadeck/viewers"
 import { useEffect, useState } from "react"
 
-import { blobs } from "../video/blobs"
+import { blobs } from "../../parts/blobs"
 
 // A recording's loudness along its length, which the waveform draws: fine peaks (0 to 1, a few
 // thousand to a file) from the decoded bytes, cached by item and stamp, and reduced to as many

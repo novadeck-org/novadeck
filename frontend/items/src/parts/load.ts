@@ -1,7 +1,7 @@
-import type { VideoPart } from "@novadeck/core/items"
+import type { FilePart } from "@novadeck/core/items"
 
-// A video's bytes, read in parts and put together, which the player plays from a blob. The
-// read is the backend's (`Companions.videoPart`, bound to the item and the stamp it was
+// An item's file, read in parts and put together as a blob, as a video's player plays it. The
+// read is the backend's (`Companions.part`, bound to the item and the stamp it was
 // loaded for); this only walks the file.
 
 export type Loaded =
@@ -12,7 +12,7 @@ export type Loaded =
   | { readonly state: "changed" }
   | {
       readonly state: "unavailable"
-      readonly reason: Extract<VideoPart, { state: "unavailable" }>["reason"]
+      readonly reason: Extract<FilePart, { state: "unavailable" }>["reason"]
     }
   // The backend failed the read, as a link that dropped.
   | { readonly state: "failed" }
@@ -21,14 +21,14 @@ export type Loaded =
 
 // Reads from offset 0 until `size` bytes are in, or the file ends sooner (a part with no
 // bytes), telling the bytes read so far after each part.
-export const loadVideo = async ({
+export const loadParts = async ({
   read,
   size,
   mime,
   signal,
   progress,
 }: {
-  readonly read: (offset: number) => Promise<VideoPart>
+  readonly read: (offset: number) => Promise<FilePart>
   readonly size: number
   readonly mime: string
   readonly signal: AbortSignal
@@ -37,7 +37,7 @@ export const loadVideo = async ({
   const parts: Uint8Array<ArrayBuffer>[] = []
   let offset = 0
   while (offset < size) {
-    let part: VideoPart
+    let part: FilePart
     try {
       // eslint-disable-next-line no-await-in-loop -- Each part is read from where the last ended.
       part = await read(offset)

@@ -264,10 +264,8 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
         note(`reset window ${windowId}`, () => runner.companions.resetWindowTitle(windowId)),
       pageTrouble: (input) =>
         note(`page trouble ${input.itemId}`, () => runner.companions.pageTrouble(input)),
-      videoPart: (input) =>
-        note(`video part ${input.itemId} ${input.offset}`, () =>
-          runner.companions.videoPart(input),
-        ),
+      part: (input) =>
+        note(`video part ${input.itemId} ${input.offset}`, () => runner.companions.part(input)),
       looks: () => runner.companions.looks(),
       answerLook: (answer) =>
         note(`answer look ${answer.lookId}`, () => runner.companions.answerLook(answer)),

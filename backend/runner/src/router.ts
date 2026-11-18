@@ -344,7 +344,7 @@ export const createRouter = (options: {
       }),
       changeFile: api.companions.changeFile.handler(({ input }) => items.changeFile(input)),
       changeRead: api.companions.changeRead.handler(({ input }) => items.changeRead(input)),
-      videoPart: api.companions.videoPart.handler(({ input }) => items.videoPart(input)),
+      part: api.companions.part.handler(({ input }) => items.part(input)),
       save: api.companions.save.handler(async ({ input }) => {
         const item = store.item(input.itemId)
         if (!item) throw new DomainError("NOT_FOUND", "Item not found")

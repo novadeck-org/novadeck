@@ -465,7 +465,7 @@ describe("a change the dev server shows", () => {
 describe("the showcase's videos", () => {
   const video = itemIdOf("studio-walkthrough")
   const read = (id = video, offset = 0, stamp = "1", reveal?: string) =>
-    running().showcase.videoPart!(session, id, { stamp, offset, reveal })
+    running().showcase.part!(session, id, { stamp, offset, reveal })
 
   it("is a clip that is as large as its item says", async () => {
     expect((await clip()).length).toBe(clipSize)
@@ -482,13 +482,13 @@ describe("the showcase's videos", () => {
     const { showcase } = running()
     const small = videoSamples.slow
     showcase.present(devServer, "fox", small)
-    const first = await showcase.videoPart!(session, itemIdOf("studio-slow"), {
+    const first = await showcase.part!(session, itemIdOf("studio-slow"), {
       stamp: "1",
       offset: 0,
       reveal: undefined,
     })
     expect(first.state === "part" && first.bytes.length).toBe(8 * 1024)
-    const past = await showcase.videoPart!(session, itemIdOf("studio-slow"), {
+    const past = await showcase.part!(session, itemIdOf("studio-slow"), {
       stamp: "1",
       offset: clipSize,
       reveal: undefined,
@@ -500,11 +500,10 @@ describe("the showcase's videos", () => {
     const { showcase } = running()
     showcase.present(devServer, "fox", videoAgain(videoSamples.playable, { stamp: "2", shown: 2 }))
     expect(
-      await showcase.videoPart!(session, video, { stamp: "1", offset: 0, reveal: undefined }),
+      await showcase.part!(session, video, { stamp: "1", offset: 0, reveal: undefined }),
     ).toEqual({ state: "changed" })
     expect(
-      (await showcase.videoPart!(session, video, { stamp: "2", offset: 0, reveal: undefined }))
-        .state,
+      (await showcase.part!(session, video, { stamp: "2", offset: 0, reveal: undefined })).state,
     ).toBe("part")
   })
 
@@ -512,23 +511,23 @@ describe("the showcase's videos", () => {
     const { showcase } = running()
     showcase.present(devServer, "fox", videoSamples.secret)
     const id = itemIdOf("studio-private")
-    expect(
-      await showcase.videoPart!(session, id, { stamp: "1", offset: 0, reveal: undefined }),
-    ).toEqual({
-      state: "unavailable",
-      reason: "secret",
-    })
+    expect(await showcase.part!(session, id, { stamp: "1", offset: 0, reveal: undefined })).toEqual(
+      {
+        state: "unavailable",
+        reason: "secret",
+      },
+    )
     const path = videoSamples.secret.item.path ?? undefined
-    expect(
-      (await showcase.videoPart!(session, id, { stamp: "1", offset: 0, reveal: path })).state,
-    ).toBe("part")
+    expect((await showcase.part!(session, id, { stamp: "1", offset: 0, reveal: path })).state).toBe(
+      "part",
+    )
   })
 
   it("says why one can't be read, and rejects an item that is no video", async () => {
     const { showcase } = running()
     showcase.present(devServer, "fox", videoSamples.unreadable)
     expect(
-      await showcase.videoPart!(session, itemIdOf("studio-locked"), {
+      await showcase.part!(session, itemIdOf("studio-locked"), {
         stamp: "1",
         offset: 0,
         reveal: undefined,
@@ -541,7 +540,7 @@ describe("the showcase's videos", () => {
 describe("the showcase's recordings", () => {
   it("is a recording that is as large as its item says, among what the dev server's terminal shows", async () => {
     expect(devServerArtifacts).toContain(recordingSamples.playable)
-    const part = await running().showcase.videoPart!(session, itemIdOf("studio-voiceover"), {
+    const part = await running().showcase.part!(session, itemIdOf("studio-voiceover"), {
       stamp: "1",
       offset: 0,
       reveal: undefined,
@@ -554,8 +553,8 @@ describe("the showcase's recordings", () => {
     const { showcase } = running()
     showcase.present(devServer, "fox", recordingSamples.secret)
     const id = itemIdOf("studio-private-voice")
-    expect(
-      await showcase.videoPart!(session, id, { stamp: "1", offset: 0, reveal: undefined }),
-    ).toEqual({ state: "unavailable", reason: "secret" })
+    expect(await showcase.part!(session, id, { stamp: "1", offset: 0, reveal: undefined })).toEqual(
+      { state: "unavailable", reason: "secret" },
+    )
   })
 })

@@ -1080,12 +1080,12 @@ describe("an item's content", () => {
       content: { kind: "video", mime: "video/mp4", size: 6, shown: 2 },
     })
     const stamp = first.state === "ready" ? first.stamp : ""
-    await expect(fixture.items.videoPart({ itemId, stamp, offset: 0 })).resolves.toEqual({
+    await expect(fixture.items.part({ itemId, stamp, offset: 0 })).resolves.toEqual({
       state: "part",
       data: Buffer.from("frames").toString("base64"),
     })
     writeFileSync(join(fixture.directory, "demo.mp4"), "frames, rendered again")
-    await expect(fixture.items.videoPart({ itemId, stamp, offset: 0 })).resolves.toEqual({
+    await expect(fixture.items.part({ itemId, stamp, offset: 0 })).resolves.toEqual({
       state: "changed",
     })
   })
@@ -1106,7 +1106,7 @@ describe("an item's content", () => {
     })
     expect(itemContent.parse(loaded)).toEqual(loaded)
     const stamp = loaded.state === "ready" ? loaded.stamp : ""
-    await expect(fixture.items.videoPart({ itemId, stamp, offset: 0 })).resolves.toEqual({
+    await expect(fixture.items.part({ itemId, stamp, offset: 0 })).resolves.toEqual({
       state: "part",
       data: Buffer.from("sound").toString("base64"),
     })
@@ -1122,10 +1122,10 @@ describe("an item's content", () => {
     })
     const shown = await fixture.items.show(moth, { file: { path: "a.ts" } })
     await expect(
-      fixture.items.videoPart({ itemId: shown.ok ? shown.id : "", stamp: "", offset: 0 }),
+      fixture.items.part({ itemId: shown.ok ? shown.id : "", stamp: "", offset: 0 }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" })
     await expect(
-      fixture.items.videoPart({ itemId: randomUUID(), stamp: "", offset: 0 }),
+      fixture.items.part({ itemId: randomUUID(), stamp: "", offset: 0 }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" })
   })
 
@@ -1141,12 +1141,12 @@ describe("an item's content", () => {
     const itemId = shown.ok ? shown.id : ""
     const held = await fixture.items.load(itemId, true)
     const stamp = held.state === "ready" ? held.stamp : ""
-    await expect(fixture.items.videoPart({ itemId, stamp, offset: 0 })).resolves.toEqual({
+    await expect(fixture.items.part({ itemId, stamp, offset: 0 })).resolves.toEqual({
       state: "unavailable",
       reason: "secret",
     })
     await expect(
-      fixture.items.videoPart({ itemId, stamp, offset: 0, reveal: path }),
+      fixture.items.part({ itemId, stamp, offset: 0, reveal: path }),
     ).resolves.toMatchObject({ state: "part" })
   })
 

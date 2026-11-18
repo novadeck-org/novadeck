@@ -15,7 +15,7 @@ import {
   type ChangeFileDiff,
   type ItemContent as RunnerContent,
   type PlanSaveResult,
-  type VideoPart,
+  type FilePart,
 } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
@@ -67,7 +67,7 @@ const following = ({ livePages = false } = {}) => {
   let changed: ChangeFileDiff = { run: null }
   let saving: PlanSaveResult = { saved: true, stamp: "b2" }
   const videoAsked: { itemId: string; stamp: string; offset: number; reveal?: string }[] = []
-  let videoReturns: VideoPart = { state: "changed" }
+  let videoReturns: FilePart = { state: "changed" }
   let failure: unknown
   const companions = createRunnerCompanions(
     {
@@ -94,7 +94,7 @@ const following = ({ livePages = false } = {}) => {
         return projectOpened
       },
       pageTrouble: async () => {},
-      videoPart: async (input) => {
+      part: async (input) => {
         videoAsked.push(input)
         return videoReturns
       },
@@ -110,7 +110,7 @@ const following = ({ livePages = false } = {}) => {
     changeAsked,
     readAsked,
     videoAsked,
-    videoReturns: (part: VideoPart) => {
+    videoReturns: (part: FilePart) => {
       videoReturns = part
     },
     changeReturns: (diff: ChangeFileDiff) => {
@@ -454,7 +454,7 @@ describe("the runner's companion content", () => {
     it("come as the bytes their base64 stands for, asked for from the stamp and offset", async () => {
       const app = following()
       app.videoReturns({ state: "part", data: "AAECA/8=" })
-      const part = await app.companions.videoPart?.(target, hero, {
+      const part = await app.companions.part?.(target, hero, {
         stamp: "s1",
         offset: 4,
         reveal: undefined,
@@ -467,12 +467,12 @@ describe("the runner's companion content", () => {
       const app = following()
       app.videoReturns({ state: "changed" })
       expect(
-        await app.companions.videoPart?.(target, hero, { stamp: "s", offset: 0, reveal: "/v.mp4" }),
+        await app.companions.part?.(target, hero, { stamp: "s", offset: 0, reveal: "/v.mp4" }),
       ).toEqual({ state: "changed" })
       expect(app.videoAsked[0]).toMatchObject({ reveal: "/v.mp4" })
       app.videoReturns({ state: "unavailable", reason: "secret" })
       expect(
-        await app.companions.videoPart?.(target, hero, {
+        await app.companions.part?.(target, hero, {
           stamp: "s",
           offset: 0,
           reveal: undefined,
@@ -499,7 +499,7 @@ describe("the runner's companion content", () => {
       await settle()
       expect(app.seen).toEqual([{ state: "ready", stamp: "s", content }])
       app.videoReturns({ state: "part", data: "AAEC" })
-      const part = await app.companions.videoPart?.(target, hero, {
+      const part = await app.companions.part?.(target, hero, {
         stamp: "s",
         offset: 0,
         reveal: undefined,
@@ -644,7 +644,7 @@ describe("what a page shows wrong", () => {
       changeRead: () => Promise.reject(new Error("unused")),
       save: () => Promise.reject(new Error("unused")),
       openInProject: () => Promise.reject(new Error("unused")),
-      videoPart: () => Promise.reject(new Error("unused")),
+      part: () => Promise.reject(new Error("unused")),
       pageTrouble: async (input) => {
         calls.push(input)
         if (failure) throw failure

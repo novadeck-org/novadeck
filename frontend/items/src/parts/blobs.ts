@@ -1,5 +1,5 @@
-// The videos a pane has loaded, as the object URLs that play them, for the last few: a pane
-// that goes and comes back plays its video again without reading it. Each item keeps its
+// The files a pane has loaded in parts, as object URLs, for the last few: a pane that goes
+// and comes back plays its video again without reading it. Each item keeps its
 // latest file only: a render that follows lets the one before go. A URL let go of is revoked,
 // so its bytes are freed with it, but never while a player holds it: one let go of then is
 // revoked once the last player lets go too.
@@ -92,5 +92,5 @@ export const createBlobs = (
   }
 }
 
-// One for the app: three videos is a pane or two, and the one just shown.
+// The players' for the app: three videos is a pane or two, and the one just shown.
 export const blobs = createBlobs(3)

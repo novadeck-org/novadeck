@@ -97,7 +97,7 @@ type Running = Holder & {
 }
 
 // How many bytes a part of a video holds, as the runner's does.
-const videoPartBytes = 2 * 1024 * 1024
+const partBytes = 2 * 1024 * 1024
 
 const noItems = (): readonly Item[] => []
 
@@ -381,7 +381,7 @@ export const createShowcase = (
     // As the runner reads a file: in parts of `video.part` bytes while it is as its content's
     // stamp says, `changed` once the sample shown anew has another stamp, and a secret one only
     // revealed.
-    videoPart: async (_target, id, { stamp, offset, reveal }) => {
+    part: async (_target, id, { stamp, offset, reveal }) => {
       const sample = samples.get(id)
       if (!sample?.video) throw new Error(`No video ${id}`)
       if (sample.item.secret && (reveal === undefined || reveal !== sample.item.path))
@@ -390,7 +390,7 @@ export const createShowcase = (
         return { state: "changed" }
       if (sample.video.reason) return { state: "unavailable", reason: sample.video.reason }
       const bytes = await sample.video.read()
-      const size = sample.video.part ?? videoPartBytes
+      const size = sample.video.part ?? partBytes
       if (sample.video.delay)
         await new Promise((resolve) => setTimeout(resolve, sample.video?.delay))
       return { state: "part", bytes: bytes.slice(offset, offset + size) }

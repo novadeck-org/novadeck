@@ -39,7 +39,7 @@ import {
   pageTrouble,
   planSaveResult,
   planUnwritable,
-  videoPart,
+  filePart,
 } from "./companions.js"
 import { requestAnswer } from "./dialogs.js"
 import { feedbackDraft, maxFeedbackText } from "./feedback.js"
@@ -665,11 +665,12 @@ export const contract = {
     content: procedure
       .input(z.strictObject({ itemId: id, reveal: z.string().max(4096).optional() }))
       .output(eventIterator(itemContent)),
-    // A video or audio item's file from `offset`, up to `videoLimits.part` bytes, read only while the
-    // file is as `stamp` (its content's) names it: else `changed`. One that may hold secrets
-    // is `secret` unless `reveal` is the path the item points at, as in `content`. An unknown
-    // item, or one that is neither, is NOT_FOUND.
-    videoPart: procedure
+    // An item's file from `offset`, up to `partBytes` bytes, for a kind the client reads in
+    // parts (a video, a recording), read only while the file is as `stamp` (its content's)
+    // names it: else `changed`. One that may hold secrets is `secret` unless `reveal` is the
+    // path the item points at, as in `content`. An unknown item, or one of a kind not read in
+    // parts, is NOT_FOUND.
+    part: procedure
       .input(
         z.strictObject({
           itemId: id,
@@ -678,7 +679,7 @@ export const contract = {
           reveal: z.string().max(4096).optional(),
         }),
       )
-      .output(videoPart),
+      .output(filePart),
     // One file of a changes item as a selection of its layers changed it: the file's diff
     // and the text of each side, as one range of layers (see
     // `changeFileDiff`). A layer no longer there is left out, as is a file the selection

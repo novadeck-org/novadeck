@@ -11,8 +11,9 @@ import {
   type ItemContent,
   type PlanSaveResult,
   type PlanUnwritable,
+  type FilePart,
+  partBytes,
   videoLimits,
-  type VideoPart,
 } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
@@ -356,7 +357,7 @@ export const loadFile = async (
 
 /**
  * A video or a recording, as it is now, symlinks resolved: its format and size, never its
- * bytes, which `readVideoPart` reads as the client plays it. Its stamp is the file's own, which each part
+ * bytes, which `readPart` reads as the client plays it. Its stamp is the file's own, which each part
  * is read against. One that may hold secrets is `secret` unless `reveal`; one past what the
  * pane plays is `too-large`. `shown` is its item's version, and `at` the second its latest
  * show starts it at.
@@ -401,17 +402,25 @@ const mimeOf = (path: string, kind: ItemRecord["kind"]): string => {
   )
 }
 
+/** The kinds the client reads in parts, by the largest file each takes, in bytes. */
+export const partsOf: { readonly [kind in ItemRecord["kind"]]?: number } = {
+  video: videoLimits.bytes,
+  audio: videoLimits.bytes,
+}
+
 /**
- * A part of a video's or a recording's file from `offset`, up to `videoLimits.part` bytes, read only while the
+ * A part of an item's file from `offset`, up to `partBytes` bytes, read only while the
  * file is as `stamp` names it: `changed` once it isn't, as when it was rendered again, so the
- * client starts over from its new content. Past its end, the part is empty.
+ * client starts over from its new content. Past its end, the part is empty. A file past
+ * `largest` bytes, the most its kind takes, is `too-large`.
  */
-export const readVideoPart = async (
+export const readPart = async (
   item: Pick<ItemRecord, "path" | "secret">,
   part: { readonly stamp: string; readonly offset: number },
   reveal: boolean,
+  largest: number,
   env?: NodeJS.ProcessEnv,
-): Promise<VideoPart> => {
+): Promise<FilePart> => {
   if (item.path === null) return { state: "unavailable", reason: "missing" }
   let path: string
   let opened: Awaited<ReturnType<typeof openPlain>>
@@ -427,9 +436,9 @@ export const readVideoPart = async (
   try {
     if ((item.secret || secret(path, env)) && !reveal)
       return { state: "unavailable", reason: "secret" }
-    if (stats.size > videoLimits.bytes) return { state: "unavailable", reason: "too-large" }
+    if (stats.size > largest) return { state: "unavailable", reason: "too-large" }
     if (stampOf(stats) !== part.stamp) return { state: "changed" }
-    const length = Math.max(0, Math.min(videoLimits.part, stats.size - part.offset))
+    const length = Math.max(0, Math.min(partBytes, stats.size - part.offset))
     const buffer = Buffer.alloc(length)
     let read = 0
     while (read < length) {
@@ -452,7 +461,7 @@ export const readVideoPart = async (
 /** A reason a part can't be read for, of those a part can give. */
 const unreadable = (
   reason: Unavailable["reason"],
-): Extract<VideoPart, { state: "unavailable" }>["reason"] =>
+): Extract<FilePart, { state: "unavailable" }>["reason"] =>
   reason === "not-a-file" || reason === "missing" ? reason : "unreadable"
 
 /** A plan's text, cut short past what the protocol takes, and when it last changed. */

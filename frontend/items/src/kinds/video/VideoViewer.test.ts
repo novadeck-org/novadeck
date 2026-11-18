@@ -3,7 +3,7 @@ import type {
   ItemContent,
   UnavailableReason,
   VideoContent,
-  VideoPart,
+  FilePart,
 } from "@novadeck/core/items"
 import { workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
@@ -51,7 +51,7 @@ const shown = async ({
   file = [1, 2, 3, 4, 5],
   content = {},
   stamp = "1",
-  videoPart,
+  part,
   secret = false,
   id = `clip${++ids}`,
 }: {
@@ -59,7 +59,7 @@ const shown = async ({
   file?: number[]
   content?: Partial<VideoContent>
   stamp?: string
-  videoPart?: Companions["videoPart"] | null
+  part?: Companions["part"] | null
   secret?: boolean
 } = {}): Promise<Show> => {
   const item = itemFixture(id, "01", {
@@ -70,7 +70,7 @@ const shown = async ({
   })
   let bytes = file
   const asked: Show["asked"] = []
-  const parts: Companions["videoPart"] = async (_target, _id, { stamp: read, offset, reveal }) => {
+  const parts: Companions["part"] = async (_target, _id, { stamp: read, offset, reveal }) => {
     asked.push({ offset, stamp: read, reveal })
     return { state: "part", bytes: Uint8Array.from(bytes.slice(offset, offset + 2)) }
   }
@@ -88,7 +88,7 @@ const shown = async ({
     },
     save: () => new Promise(() => {}),
     trouble: () => {},
-    ...(videoPart === null ? {} : { videoPart: videoPart ?? parts }),
+    ...(part === null ? {} : { part: part ?? parts }),
   }
   const workspace = createWorkspaceStore(
     workspaceReducer(workspaceFixture(), { type: "item/upsert", target, item }),
@@ -133,12 +133,12 @@ const scrub = (container: HTMLElement) => container.querySelector<HTMLInputEleme
 describe("a video beside a terminal", () => {
   context("while its bytes are read", () => {
     it("says how much is in, and plays nothing until all of it is", async () => {
-      let release: (part: VideoPart) => void = () => {}
+      let release: (part: FilePart) => void = () => {}
       let calls = 0
       const { container } = await shown({
         file: [1, 2, 3, 4],
         content: { size: 4 * 1024 * 1024 },
-        videoPart: () =>
+        part: () =>
           ++calls === 1
             ? Promise.resolve({ state: "part", bytes: new Uint8Array(1024 * 1024) })
             : new Promise((resolve) => (release = resolve)),
@@ -167,12 +167,12 @@ describe("a video beside a terminal", () => {
 
   context("when it can't load", () => {
     it("says it can't be played here where the backend can't read it in parts", async () => {
-      const { container } = await shown({ videoPart: null })
+      const { container } = await shown({ part: null })
       expect(container.textContent).toContain("can't be played here")
     })
 
     it("says so when the read fails", async () => {
-      const { container } = await shown({ videoPart: () => Promise.reject(new Error("gone")) })
+      const { container } = await shown({ part: () => Promise.reject(new Error("gone")) })
       expect(container.textContent).toContain("couldn't be loaded")
     })
 
@@ -193,7 +193,7 @@ describe("a video beside a terminal", () => {
       ["secret", "may hold secrets"],
     ])("says in words why the file is %s", async (reason, words) => {
       const { container } = await shown({
-        videoPart: async () => ({ state: "unavailable", reason }),
+        part: async () => ({ state: "unavailable", reason }),
       })
       expect(container.querySelector(".artifact-unavailable")!.textContent).toContain(words)
     })
@@ -241,11 +241,11 @@ describe("a video beside a terminal", () => {
       const first = await shown({ id: "back-newer", stamp: "n1", file: [1, 2] })
       const src = first.element().getAttribute("src")
       first.unmount()
-      let release: (part: VideoPart) => void = () => {}
+      let release: (part: FilePart) => void = () => {}
       const again = await shown({
         id: "back-newer",
         stamp: "n2",
-        videoPart: () => new Promise((resolve) => (release = resolve)),
+        part: () => new Promise((resolve) => (release = resolve)),
         content: { size: 2 },
       })
       expect(again.element().getAttribute("src")).toBe(src)
@@ -445,11 +445,11 @@ describe("a video beside a terminal", () => {
     })
 
     it("keeps the old video playing while the new one loads", async () => {
-      let release: (part: VideoPart) => void = () => {}
+      let release: (part: FilePart) => void = () => {}
       let hold = false
       const { container, element, show } = await shown({
         stamp: "c1",
-        videoPart: (_target, _id, { offset }) =>
+        part: (_target, _id, { offset }) =>
           hold && offset === 0
             ? new Promise((resolve) => (release = resolve))
             : Promise.resolve({ state: "part", bytes: Uint8Array.from([1, 2]) }),
@@ -518,7 +518,7 @@ describe("a video beside a terminal", () => {
       const asked: { stamp: string; offset: number }[] = []
       const { element, show } = await shown({
         stamp: "d1",
-        videoPart: async (_target, _id, { stamp, offset }) => {
+        part: async (_target, _id, { stamp, offset }) => {
           asked.push({ offset, stamp })
           return stamp === "d1" && changes-- > 0
             ? { state: "changed" }
@@ -568,7 +568,7 @@ describe("a video beside a terminal", () => {
         stamp: "1",
         content: { kind: "video", mime: "video/mp4", size: 12.3 * 1024 * 1024, shown: 1 },
       }
-      const videoPart = vi.fn<NonNullable<Companions["videoPart"]>>()
+      const part = vi.fn<NonNullable<Companions["part"]>>()
       const companions: Companions = {
         follow: (_target, _id, _options, on) => {
           on(stamp)
@@ -576,7 +576,7 @@ describe("a video beside a terminal", () => {
         },
         save: () => new Promise(() => {}),
         trouble: () => {},
-        videoPart,
+        part,
       }
       const workspace = createWorkspaceStore(
         workspaceReducer(workspaceFixture(), { type: "item/upsert", target, item }),
@@ -587,7 +587,7 @@ describe("a video beside a terminal", () => {
       await settle()
       expect(container.textContent).toContain("MP4")
       expect(container.textContent).toContain("12.3 MB")
-      expect(videoPart).not.toHaveBeenCalled()
+      expect(part).not.toHaveBeenCalled()
     })
   })
 })
