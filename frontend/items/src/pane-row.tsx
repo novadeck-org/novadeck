@@ -31,7 +31,7 @@ export type TabNote = {
   readonly icon: LucideIcon | undefined
 }
 
-const noNote: TabNote = { facts: [], gone: false, where: undefined, icon: undefined }
+export const noNote: TabNote = { facts: [], gone: false, where: undefined, icon: undefined }
 
 // Where the viewer puts its tools: the row's own spot, null until drawn, and undefined where
 // no row is drawn, as when a viewer is drawn on its own.

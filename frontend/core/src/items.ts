@@ -475,7 +475,12 @@ export type Companions = {
   readonly follow: (
     target: WorkspaceTarget,
     itemId: ItemId,
-    options: { readonly reveal: string | undefined; readonly within?: string | undefined },
+    options: {
+      readonly reveal: string | undefined
+      readonly within?: string | undefined
+      // A pane shows the item now (a folder is then read again now and then, whatever its watch says).
+      readonly shown?: boolean | undefined
+    },
     on: (content: ItemContent) => void,
   ) => () => void
   // One file of a changes item as a selection of its layers (ids) changed it, read when asked

@@ -15,6 +15,7 @@ import {
   PaneTitle,
   TabFace,
   describeTab,
+  noNote,
   tabTip,
   type TabLook,
   type TabNote,
@@ -397,8 +398,6 @@ const PaneTabs = ({
     </div>
   )
 }
-
-const noNote: TabNote = { facts: [], gone: false, where: undefined, icon: undefined }
 
 // The tab `by` along from the one shown, round the row's ends, as Ctrl+PageDown (1) and
 // Ctrl+PageUp (-1) step from anywhere in the pane: never one that may hold secrets, which

@@ -63,14 +63,16 @@ const shown = async ({
   })
   const followers = new Map<string, (content: ItemContent) => void>()
   const followed: string[] = []
+  const shownFollows: string[] = []
   // Folders the runner is slow to answer.
   const quiet = new Set<string>()
   const attached: { terminalId: string; path: string }[] = []
   const closed: string[] = []
   const companions: Companions = {
-    follow: (_target, _id, { within }, on) => {
+    follow: (_target, _id, { within, shown: asked }, on) => {
       const folder = within ?? ""
       followed.push(folder)
+      if (asked) shownFollows.push(folder)
       followers.set(folder, on)
       const content = listings[folder]
       if (content && !quiet.has(folder)) on(content)
@@ -105,6 +107,7 @@ const shown = async ({
     attached,
     closed,
     followed,
+    shownFollows,
     quiet,
     // The runner lists the folder again.
     list: async (content: ItemContent, folder = "") => {
@@ -195,13 +198,14 @@ describe("a folder in the pane", () => {
       expect(up.getAttribute("aria-disabled")).toBe("true")
       await app.click(up)
       // Only the item's own follow, of its top.
-      expect(app.followed).toEqual([""])
+      // The item's own follow, and the one a pane showing it asks for.
+      expect(app.followed).toEqual(["", ""])
     })
 
     it("go into a folder in the same tab and back out, by Up or Backspace, never higher", async () => {
       const app = await shown({ listings: inFolder })
       await app.open("old-runs")
-      expect(app.followed).toEqual(["", "old-runs"])
+      expect(app.followed).toEqual(["", "", "old-runs"])
       expect(app.names()).toEqual(["notes", "run-1.png"])
       expect(
         [...app.root.querySelectorAll(".folder-crumb")].map((each) => each.textContent),
@@ -291,6 +295,16 @@ describe("a folder in the pane", () => {
     })
   })
 
+  context("being shown", () => {
+    it("tells the runner a pane shows it, for the top and for a folder inside", async () => {
+      const app = await shown({ listings: inFolder })
+      // The item's own follow, which the pane's showing it follows again as shown.
+      expect(app.shownFollows).toEqual([""])
+      await app.open("old-runs")
+      expect(app.shownFollows).toEqual(["", "old-runs"])
+    })
+  })
+
   context("opening a file", () => {
     it("asks the runner to show it on its terminal's bar by its absolute path, as its kind", async () => {
       const app = await shown()
@@ -310,7 +324,7 @@ describe("a folder in the pane", () => {
       await app.open(".env")
       await app.open("latest")
       expect(app.attached).toEqual([])
-      expect(app.followed).toEqual([""])
+      expect(app.followed).toEqual(["", ""])
     })
 
     it("says so when it can't be opened", async () => {
