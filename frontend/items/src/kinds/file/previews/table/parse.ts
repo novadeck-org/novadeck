@@ -93,8 +93,8 @@ const countOutside = (line: string, char: string): number => {
   return count
 }
 
-// The delimiter of a file: a tab for TSV; for CSV, the comma, semicolon or tab its first lines
-// hold most steadily, the same number in each, outside quotes: as spreadsheets in many locales
+// The delimiter of a file: a tab for TSV; for CSV, the comma, semicolon or tab that at least
+// half its first lines hold, outside quotes, and most steadily (the same number in each): as spreadsheets in many locales
 // write semicolons, with commas in their numbers. A tie goes to the tab, then the semicolon,
 // as a comma is the likelier in a field.
 export const delimiterOf = (path: string, sample: readonly string[]): string => {
@@ -104,6 +104,8 @@ export const delimiterOf = (path: string, sample: readonly string[]): string => 
   let bestScore = 0
   for (const char of candidates.toReversed()) {
     const counts = lines.map((line) => countOutside(line, char)).filter((count) => count > 0)
+    // A delimiter splits most lines, not a few with that character in their text.
+    if (counts.length * 2 < lines.length) continue
     const tally = new Map<number, number>()
     for (const count of counts) tally.set(count, (tally.get(count) ?? 0) + 1)
     const steady = Math.max(0, ...tally.values())

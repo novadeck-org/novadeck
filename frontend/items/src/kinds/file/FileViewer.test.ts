@@ -243,6 +243,32 @@ describe("a CSV file", () => {
   })
 })
 
+describe("a CSV file the agent pointed into", () => {
+  it("marks the row a pointed line falls in, though the row starts above it", async () => {
+    const lines = ["id,text", '1,"one', "two", 'three"', "2,x", "3,y"]
+    const { container } = await show("pointed-1", {
+      ...fileContent("notes.csv", lines),
+      from: 3,
+      to: 3,
+    })
+    const marked = [...container.querySelectorAll("tbody tr[data-pointed]")]
+    expect(marked.map((row) => row.getAttribute("data-line"))).toEqual(["2"])
+  })
+
+  it("says so when the lines pointed at are past the file's end", async () => {
+    const lines = ["id,n", "1,2", "3,4"]
+    const { container } = await show("pointed-2", {
+      ...fileContent("short.csv", lines),
+      from: 3,
+      to: 3,
+      clamped: true,
+    })
+    expect(container.querySelector(".artifact-cut")?.textContent).toBe(
+      "The lines pointed at are past its end, line 3.",
+    )
+  })
+})
+
 describe("a long CSV file", () => {
   const long = fileContent("data/long.csv", [
     "id,score",

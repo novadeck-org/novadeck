@@ -4,10 +4,13 @@ import { delimiterOf, parseDelimited } from "./parse"
 // how much of the file they are. Pure, so the view only draws it.
 
 export type Row = {
-  // The file's line the row starts on.
+  // The file's lines the row spans, from its first to its last.
   readonly line: number
+  readonly last: number
   readonly cells: readonly string[]
 }
+
+export type Decimal = "dot" | "comma"
 
 export type Table = {
   // The header's cells; where the header isn't among the lines, the columns' letters.
@@ -17,8 +20,8 @@ export type Table = {
   readonly rows: readonly Row[]
   // By column, whether every cell that isn't empty is a number, and one is.
   readonly numeric: readonly boolean[]
-  // The mark its numbers' fractions take.
-  readonly decimal: "dot" | "comma"
+  // By column, the mark its numbers' fractions take, as its cells read.
+  readonly decimals: readonly Decimal[]
   // How many of its lines the runner cut short, losing their ends.
   readonly cut: number
 }
@@ -41,17 +44,17 @@ export const wasCut = (line: string): boolean => line.length >= lineLength - 1
 // spaces group. Digits led by a zero, as an ID or a postcode, are text.
 const numberPatterns = {
   dot: /^[-+]?(?:\d{1,3}(?:,\d{3})+|\d+)?(?:\.\d+)?(?:[eE][-+]?\d+)?%?$/,
-  comma: /^[-+]?(?:\d{1,3}(?:[. ]\d{3})+|\d+)?(?:,\d+)?(?:[eE][-+]?\d+)?%?$/,
+  comma: /^[-+]?(?:\d{1,3}(?:[. \u00a0\u202f]\d{3})+|\d+)?(?:,\d+)?(?:[eE][-+]?\d+)?%?$/,
 }
 
-export const numberOf = (cell: string, decimal: "dot" | "comma" = "dot"): number | undefined => {
+export const numberOf = (cell: string, decimal: Decimal = "dot"): number | undefined => {
   const trimmed = cell.trim()
   if (!/\d/.test(trimmed) || !numberPatterns[decimal].test(trimmed)) return undefined
   if (/^[-+]?0\d/.test(trimmed)) return undefined
   const plain =
     decimal === "dot"
       ? trimmed.replaceAll(",", "")
-      : trimmed.replaceAll(/[. ]/g, "").replace(",", ".")
+      : trimmed.replaceAll(/[. \u00a0\u202f]/g, "").replace(",", ".")
   const value = Number(plain.replace(/%$/, ""))
   return Number.isFinite(value) ? value : undefined
 }
@@ -86,10 +89,20 @@ const recordsFrom = (
   return best ?? { skipped: 0, parsed: parseDelimited(lines, delimiter, { cut }) }
 }
 
+// How many lines a record spans past its first: one for each line break its fields hold.
+const extraLines = (record: readonly string[]): number =>
+  record.reduce((sum, cell) => sum + cell.split("\n").length - 1, 0)
+
 // The table of a file's `lines`, which start at its line `firstLine`: the first row is its
-// header when the lines start the file. A quote never closed, opening well before the lines'
-// end, isn't quoting (a TSV's inch mark, say): the lines read again with quotes as text.
-export const tableOf = (path: string, lines: readonly string[], firstLine: number): Table => {
+// header when the lines start the file. In a file shown `whole`, a quote never closed isn't
+// quoting (a TSV's inch mark, say): the lines read again with quotes as text. Where only part
+// is shown, one open at the end is a field the part cut off, and ends there.
+export const tableOf = (
+  path: string,
+  lines: readonly string[],
+  firstLine: number,
+  { whole = false }: { readonly whole?: boolean } = {},
+): Table => {
   const delimiter = delimiterOf(path, lines)
   const cut = (index: number) => wasCut(lines[index] ?? "")
   const first =
@@ -97,7 +110,7 @@ export const tableOf = (path: string, lines: readonly string[], firstLine: numbe
       ? { skipped: 0, parsed: parseDelimited(lines, delimiter, { cut }) }
       : recordsFrom(lines, delimiter, cut)
   const { skipped } = first
-  const runsOn = first.parsed.open !== undefined && first.parsed.open < lines.length - skipped - 20
+  const runsOn = whole && first.parsed.open !== undefined
   const { records, lines: starts } = runsOn
     ? parseDelimited(lines.slice(skipped), delimiter, {
         cut: (at) => cut(at + skipped),
@@ -109,22 +122,28 @@ export const tableOf = (path: string, lines: readonly string[], firstLine: numbe
   const pad = (record: readonly string[]): readonly string[] =>
     record.length === width ? record : [...record, ...Array<string>(width - record.length).fill("")]
   const rows = records
-    .map((record, at) => ({ line: firstLine + skipped + starts[at]!, cells: pad(record) }))
+    .map((record, at) => {
+      const line = firstLine + skipped + starts[at]!
+      return { line, last: line + extraLines(record), cells: pad(record) }
+    })
     .slice(named ? 1 : 0)
   const header = named
     ? pad(records[0]!)
     : Array.from({ length: width }, (_, at) => columnLetters(at))
-  const decimal = delimiter === ";" ? "comma" : "dot"
-  const numeric = header.map((_, column) => {
+  // A column's decimal mark is the one all its numbers read with: a comma first in a file split
+  // by semicolons, as spreadsheets in those locales write it, else a dot first.
+  const marks: readonly Decimal[] = delimiter === ";" ? ["comma", "dot"] : ["dot", "comma"]
+  const columns = header.map((_, column) => {
     const filled = rows.map((row) => row.cells[column]!).filter((cell) => cell.trim() !== "")
-    return filled.length > 0 && filled.every((cell) => numberOf(cell, decimal) !== undefined)
+    const mark = marks.find((each) => filled.every((cell) => numberOf(cell, each) !== undefined))
+    return { numeric: filled.length > 0 && mark !== undefined, decimal: mark ?? marks[0]! }
   })
   return {
     header,
     named,
     rows,
-    numeric,
-    decimal,
+    numeric: columns.map((column) => column.numeric),
+    decimals: columns.map((column) => column.decimal),
     cut: lines.filter((line) => wasCut(line)).length,
   }
 }
@@ -149,19 +168,20 @@ export const sortRows = (table: Table, sort: Sort | null): readonly Row[] => {
   if (!sort || sort.column >= table.header.length) return table.rows
   const { column, direction } = sort
   const numeric = table.numeric[column] === true
+  const decimal = table.decimals[column] ?? "dot"
   const sign = direction === "ascending" ? 1 : -1
-  const compare = (one: string, other: string): number =>
-    numeric
-      ? numberOf(one, table.decimal)! - numberOf(other, table.decimal)!
-      : collator.compare(one, other)
-  return table.rows.toSorted((one, other) => {
-    const a = one.cells[column] ?? ""
-    const b = other.cells[column] ?? ""
-    const emptyA = a.trim() === ""
-    const emptyB = b.trim() === ""
-    if (emptyA || emptyB) return Number(emptyA) - Number(emptyB)
-    return sign * compare(a, b)
+  // Each row's key read once, not at each comparison.
+  const keyed = table.rows.map((row) => {
+    const cell = row.cells[column] ?? ""
+    const empty = cell.trim() === ""
+    return { row, cell, empty, number: numeric && !empty ? numberOf(cell, decimal)! : 0 }
   })
+  return keyed
+    .toSorted((one, other) => {
+      if (one.empty || other.empty) return Number(one.empty) - Number(other.empty)
+      return sign * (numeric ? one.number - other.number : collator.compare(one.cell, other.cell))
+    })
+    .map((each) => each.row)
 }
 
 // What a table shows of its file, as a person reads it, or nothing when it shows it whole:
@@ -174,6 +194,7 @@ export const partText = ({
   truncated,
   named,
   cut,
+  clamped = undefined,
 }: {
   readonly firstLine: number
   readonly count: number
@@ -181,6 +202,8 @@ export const partText = ({
   readonly truncated: boolean
   readonly named: boolean
   readonly cut: number
+  // Where lines pointed at past the file's end were pulled back to: its last line.
+  readonly clamped?: number | undefined
 }): string | undefined => {
   const last = firstLine + count - 1
   const whole = firstLine === 1 && !truncated && total !== null && last >= total
@@ -188,9 +211,16 @@ export const partText = ({
     cut === 0
       ? ""
       : `${cut === 1 ? "One line is" : `${cut.toLocaleString("en-US")} lines are`} too long to show whole, so ${cut === 1 ? "its" : "their"} last cells are missing.`
-  if (whole) return long || undefined
+  const ends =
+    clamped === undefined
+      ? ""
+      : `The lines pointed at are past its end, line ${clamped.toLocaleString("en-US")}.`
+  const notes = [ends, long].filter(Boolean).join(" ")
+  if (whole) return notes || undefined
   const span = `lines ${firstLine.toLocaleString("en-US")}–${last.toLocaleString("en-US")}`
   const of = total === null ? "of a longer file" : `of ${total.toLocaleString("en-US")}`
   const header = named ? "" : ", without its header row"
-  return [`Only part of the file is shown: ${span} ${of}${header}.`, long].filter(Boolean).join(" ")
+  return [`Only part of the file is shown: ${span} ${of}${header}.`, notes]
+    .filter(Boolean)
+    .join(" ")
 }

@@ -357,9 +357,13 @@ const visitLines = [
   "\uFEFFday,page,visits,bounce rate,note",
   ...Array.from({ length: 399 }, (_, index) => {
     const page = pages[index % pages.length]!
-    const note = index % 9 === 0 ? '"Newsletter went out; ""Careful work"" issue"' : ""
+    // One note pasted in whole, past the line length the runner keeps, so its line is cut.
+    const pasted =
+      index === 200 ? `"${"Pasted from the newsletter: careful work. ".repeat(110)}"` : ""
+    const note = pasted || (index % 9 === 0 ? '"Newsletter went out; ""Careful work"" issue"' : "")
     const day = new Date(Date.UTC(2025, 0, 1 + index)).toISOString().slice(0, 10)
-    return `${day},${page.includes(",") ? `"${page}"` : page},${120 + ((index * 37) % 900)},${((index * 13) % 70) + 10}%,${note}`
+    const line = `${day},${page.includes(",") ? `"${page}"` : page},${120 + ((index * 37) % 900)},${((index * 13) % 70) + 10}%,${note}`
+    return line.slice(0, 4096)
   }),
 ]
 
@@ -374,12 +378,14 @@ const orderLines = [
   }),
 ]
 
-// A short table, whole.
+// A short table, whole, which the agent pointed at past its end; a size in inches opens one
+// row with a quote it never closes.
 const scoreLines = [
   "font\tsize\tlegibility\tchosen",
   "Harbour Serif\t11\t4.6\tyes",
   "Harbour Serif Condensed\t9\t3.9\tyes",
   "Grotesk\t10\t4.4\t",
+  '"Display 12 inch\t28\t4.8\tyes',
   "Mono\t9\t3.1\tno",
 ]
 
@@ -456,8 +462,15 @@ export const devServerArtifacts: readonly SampleArtifact[] = [
   ),
   unavailable(
     "dev-fonts",
-    { name: "type-tests.tsv", detail: "research/type-tests.tsv" },
-    ready(fileLines("research/type-tests.tsv", scoreLines, { from: 1, to: scoreLines.length })),
+    {
+      name: "type-tests.tsv",
+      detail: "research/type-tests.tsv · lines 6–9",
+      lines: { from: 6, to: 9 },
+    },
+    ready({
+      ...fileLines("research/type-tests.tsv", scoreLines, { from: 6, to: scoreLines.length }),
+      clamped: true,
+    }),
   ),
   unavailable(
     "dev-routes",

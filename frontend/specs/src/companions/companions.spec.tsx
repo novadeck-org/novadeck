@@ -825,6 +825,41 @@ describe("Something that can't show", () => {
   })
 })
 
+describe("A delimited file", () => {
+  it("shows a long one as a table, its header held as it scrolls, drawing the rows in view", async () => {
+    await openShowcase()
+    await chooseFromIconSubmenu("Dev server", "11 files", "Open", "visits.csv")
+    const pane = companionPane("Dev server")
+    await expect.element(pane.getByRole("columnheader", { name: "visits" })).toBeVisible()
+    await expect
+      .element(
+        pane.getByText(
+          "Only part of the file is shown: lines 1–400 of 12,034. One line is too long to show whole, so its last cells are missing.",
+        ),
+      )
+      .toBeVisible()
+    const scroller = pane.getByRole("region", { name: "visits.csv" }).element() as HTMLElement
+    expect(scroller.querySelectorAll("tbody tr[data-line]").length).toBeLessThan(120)
+    scroller.scrollTop = 6000
+    await nextFrames(3)
+    const head = scroller.querySelector("thead th")!.getBoundingClientRect()
+    expect(Math.abs(head.top - scroller.getBoundingClientRect().top)).toBeLessThan(2)
+    const first = [...scroller.querySelectorAll<HTMLElement>("tbody tr[data-line]")].find(
+      (row) => row.getBoundingClientRect().bottom > head.bottom,
+    )
+    expect(Number(first?.dataset.line)).toBeGreaterThan(150)
+
+    // Sorted by visits, most first, over every row, not only those drawn.
+    await pane.getByRole("columnheader", { name: "visits" }).getByRole("button").click()
+    await pane.getByRole("columnheader", { name: "visits" }).getByRole("button").click()
+    scroller.scrollTop = 0
+    await nextFrames(3)
+    expect(scroller.querySelector("tbody tr[data-line] td:nth-of-type(3)")?.textContent).toBe(
+      "1013",
+    )
+  })
+})
+
 describe("Placing an item on another terminal's taskbar", () => {
   context("when an image is dragged onto it in Grid", () => {
     it("shows there, from its terminal, and goes back from its menu", async () => {

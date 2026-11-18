@@ -311,18 +311,21 @@ preview: the previews are a list in `frontend/items/src/kinds/file/previews/`, e
 files it takes (by how the name ends), its icon, its view and, optionally, its peek miniature,
 and a type joins with one line there. Markdown's is the read-only document with its outline. A CSV or TSV file's is a table
 (`previews/table/`, its own small RFC 4180 reader: quoted fields with delimiters, line breaks
-and doubled quotes, a byte-order mark; a CSV's delimiter is the comma, semicolon or tab its
-first line holds most of): the header held on top, each column sorted from its header (up,
-down, the file's order; numbers by value, empty cells last), numbers to the right, each row
-led by the line it starts on, and where it was scrolled and sorted kept as the code viewer's
-place is. Past 200 rows it draws only the rows in view (`rows-window.ts`), its columns held to
-widths from all its rows' text, so a data file read whole stays quick. What the runner read of a long file is only part of it (its first 400 lines, or the
-lines around those pointed at, which it marks and opens at), and the table says so under it,
-with which lines, and that a line the runner cut at 4096 characters lost its last cells. Lines
-past the file's first have no header, so their columns are lettered, and may start inside a
-quoted record, so the table starts at the first line from which the rows read whole. A quote
-never closed reads as text, as a TSV's inch mark; a semicolon file's numbers take decimal
-commas, and digits led by a zero (IDs, postcodes) are text. A
+and doubled quotes, a byte-order mark; a CSV's delimiter is the comma, semicolon or tab that at
+least half its first lines hold, most steadily): the header held on top, each column sorted
+from its header (up, down, the file's order; numbers by value, empty cells last), numbers to
+the right, each row led by the line it starts on, and where it was scrolled and sorted kept as
+the code viewer's place is. Past 200 rows it draws only the rows in view (`rows-window.ts`),
+its columns held to widths from all its rows' text, so a data file read whole stays quick.
+What the runner read of a long file is only part of it (its first 400 lines, or the lines
+around those pointed at, whose rows it marks and opens at), and the table says so under it,
+with which lines, that a line the runner cut at 4096 characters lost its last cells, and that
+lines pointed at past the file's end were pulled back to it. Lines past the file's first have
+no header, so their columns are lettered, and may start inside a quoted record, so the table
+starts at the first line from which the rows read whole; a quoted field the part cuts off ends
+there. In a file shown whole, a quote never closed reads as text, as a TSV's inch mark. Each
+column's decimal mark is the one all its numbers read with (a comma first in a semicolon file),
+and digits led by a zero (IDs, postcodes) are text. A
 file with a preview opens on it, with a Show source tool in the pane's row (Ctrl+Shift+V, ⌘⇧V
 on a Mac, from anywhere in the file) that switches it to the bare file in the code viewer and
 back. A preview's own tools join the row before it (`usePreviewTools`); one that can't read its

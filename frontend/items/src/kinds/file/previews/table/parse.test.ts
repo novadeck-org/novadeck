@@ -89,6 +89,12 @@ describe("a file's delimiter", () => {
     expect(delimiterOf("a.csv", ["single"])).toBe(",")
   })
 
+  it("isn't a character only a few lines hold in their text", () => {
+    expect(
+      delimiterOf("a.csv", ["id,name,city", "1,Ann", "2;3,Bo,Rome,x", "4,Cy,Bern", "5,Di"]),
+    ).toBe(",")
+  })
+
   it("is the semicolon where numbers take decimal commas", () => {
     expect(delimiterOf("a.csv", ["1,5;2,25;x", "3,75;4,1;y"])).toBe(";")
   })

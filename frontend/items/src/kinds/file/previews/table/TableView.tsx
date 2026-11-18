@@ -8,14 +8,17 @@ import { usePaneNote } from "../../../../pane-row"
 import { columnWidths, rowOffsets, rowsWindow } from "./rows-window"
 import { nextSort, partText, sortRows, tableOf, type Sort } from "./table"
 
-// Where each table was left, by the item showing it, and in which file: scrolled, and
-// sorted, so it opens again as it was when its pane is built again (a view switch, a tab
-// brought back). A place in one file means nothing in another.
+// Where each table was left, by the item showing it, and in which file and lines pointed at:
+// scrolled, sorted, and its rows' heights as measured, so it opens again as it was when its
+// pane is built again (a view switch, a tab brought back). A place in one file means nothing
+// in another, and the agent pointing at other lines of it opens it at them.
 type Left = {
   readonly path: string
+  readonly pointed: string
   readonly top: number
   readonly left: number
   readonly sort: Sort | null
+  readonly heights: ReadonlyMap<number, number>
 }
 const left = createKept<Left>(24)
 
@@ -32,10 +35,17 @@ const spare = 12
 // read of a long file is only part of it, and lines it cut short lose their ends: it says so
 // under the table.
 export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Element => {
+  const lastLine = content.firstLine + content.lines.length - 1
+  const whole =
+    content.firstLine === 1 &&
+    !content.truncated &&
+    content.total !== null &&
+    lastLine >= content.total
   const table = useMemo(
-    () => tableOf(content.path, content.lines, content.firstLine),
-    [content.path, content.lines, content.firstLine],
+    () => tableOf(content.path, content.lines, content.firstLine, { whole }),
+    [content.path, content.lines, content.firstLine, whole],
   )
+  const pointedKey = `${content.from}-${content.to}`
   const saved = left.get(id)
   const kept = saved?.path === content.path ? saved : undefined
   const [sort, setSort] = useState<Sort | null>(kept?.sort ?? null)
@@ -43,27 +53,32 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
   const scroller = useRef<HTMLDivElement>(null)
   const keep = (next: Partial<Left>): void => {
     const element = scroller.current
+    const before = left.get(id)
     left.keep(id, {
       path: content.path,
+      pointed: pointedKey,
       top: element?.scrollTop ?? 0,
       left: element?.scrollLeft ?? 0,
       sort,
+      heights: before?.path === content.path ? before.heights : new Map(),
       ...next,
     })
   }
-  // The lines the agent pointed at, where it pointed at some of what's shown rather than all.
-  const lastLine = content.firstLine + content.lines.length - 1
+  // The lines the agent pointed at, where it pointed at some of what's shown rather than all,
+  // and the rows they fall in: a row spans lines where its fields hold line breaks.
   const pointed =
     content.from > content.firstLine || content.to < lastLine
       ? { from: content.from, to: content.to }
       : undefined
-  const isPointed = (line: number): boolean =>
-    pointed !== undefined && line >= pointed.from && line <= pointed.to
+  const isPointed = (row: { readonly line: number; readonly last: number }): boolean =>
+    pointed !== undefined && row.line <= pointed.to && row.last >= pointed.from
 
   // A long table's rows, drawn as they come into view: the heights measured, by line, so a
   // sort keeps them, and where the view is.
   const windowed = rows.length > windowFrom
-  const [heights, setHeights] = useState<ReadonlyMap<number, number>>(new Map())
+  const [heights, setHeights] = useState<ReadonlyMap<number, number>>(
+    () => kept?.heights ?? new Map(),
+  )
   const head = useRef<HTMLTableSectionElement>(null)
   const [view, setView] = useState({ top: 0, height: 800 })
   const offsets = useMemo(
@@ -99,19 +114,23 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
       const known = heights.get(line) ?? estimate
       return height > 0 && Math.abs(known - height) > 0.5 ? [[line, height]] : []
     })
-    if (changes.length > 0) setHeights(new Map([...heights, ...changes]))
+    if (changes.length === 0) return
+    const next = new Map([...heights, ...changes])
+    setHeights(next)
+    const place = left.get(id)
+    if (place?.path === content.path) left.keep(id, { ...place, heights: next })
     // The rows drawn, and how wide: what changes their heights.
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- See above.
-  }, [windowed, heights, shown.start, shown.end, rows, widths, scroller])
+  }, [windowed, heights, shown.start, shown.end, rows, widths, scroller, id, content.path])
 
-  // Opens where it was left in this file; a new file at the rows the agent pointed at, if it
-  // pointed at some, else at its start.
+  // Opens where it was left in this file; a new file, or the agent pointing at other lines of
+  // it, at the rows pointed at, if it pointed at some, else at its start.
   useLayoutEffect(() => {
     const element = scroller.current
     if (!element) return
     const place = left.get(id)
-    const at = place?.path === content.path ? place : undefined
-    const first = !at && pointed ? rows.findIndex((row) => isPointed(row.line)) : -1
+    const at = place?.path === content.path && place.pointed === pointedKey ? place : undefined
+    const first = !at && pointed ? rows.findIndex((row) => isPointed(row)) : -1
     if (first >= 0) {
       element.scrollTop = offsets
         ? offsets[first]!
@@ -123,8 +142,8 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
       element.scrollLeft = at?.left ?? 0
     }
     look()
-    // oxlint-disable-next-line react/exhaustive-effect-dependencies, react-hooks/exhaustive-deps -- Only as it opens, or another file comes.
-  }, [id, content.path, scroller])
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies, react-hooks/exhaustive-deps -- Only as it opens, or another file or lines come.
+  }, [id, content.path, pointedKey, scroller])
   // A file the item is re-pointed at starts in its own order.
   const [shownPath, setShownPath] = useState(content.path)
   if (shownPath !== content.path) {
@@ -142,6 +161,7 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
     truncated: content.truncated,
     named: table.named,
     cut: table.cut,
+    clamped: content.clamped ? content.to : undefined,
   })
   return (
     <div className="artifact-table">
@@ -222,7 +242,7 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
               <tr
                 key={row.line}
                 data-line={row.line}
-                data-pointed={isPointed(row.line) || undefined}
+                data-pointed={isPointed(row) || undefined}
                 aria-rowindex={windowed ? shown.start + at + 2 : undefined}
               >
                 <th scope="row" className="artifact-table-line">

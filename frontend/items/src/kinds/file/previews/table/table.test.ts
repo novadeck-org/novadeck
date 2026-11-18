@@ -38,9 +38,41 @@ describe("a delimited file as a table", () => {
       '"12 inch\tscreen',
       ...Array.from({ length: 30 }, (_, at) => `${at}\tx`),
     ]
-    const table = tableOf("sizes.tsv", lines, 1)
+    const table = tableOf("sizes.tsv", lines, 1, { whole: true })
     expect(table.rows).toHaveLength(31)
     expect(table.rows[0]!.cells).toEqual(['"12 inch', "screen"])
+  })
+
+  it("keeps quoting where only part is shown, ending the field the part cut off", () => {
+    const lines = [
+      "id,note,n",
+      ...Array.from({ length: 30 }, (_, at) => `${at},"a, b",${at}`),
+      '31,"a long note',
+      ...Array.from({ length: 30 }, (_, at) => `that runs on, line ${at}`),
+    ]
+    const table = tableOf("notes.csv", lines, 1)
+    expect(table.rows[0]!.cells).toEqual(["0", "a, b", "0"])
+    expect(table.rows).toHaveLength(31)
+    expect(table.rows.at(-1)!.cells[1]).toMatch(/^a long note\nthat runs on, line 0/)
+  })
+
+  it("spans a row over the lines its fields break across", () => {
+    const table = tableOf("notes.csv", ["id,text", '1,"one', "two", 'three"', "2,x"], 1)
+    expect(table.rows.map((row) => [row.line, row.last])).toEqual([
+      [2, 4],
+      [5, 5],
+    ])
+  })
+
+  it("reads each column's decimal mark from its numbers", () => {
+    const dots = tableOf("prices.csv", ["name;price", "a;1.5", "b;10.25", "c;1.25"], 1)
+    expect(dots.numeric).toEqual([false, true])
+    expect(
+      sortRows(dots, { column: 1, direction: "ascending" }).map((row) => row.cells[1]),
+    ).toEqual(["1.25", "1.5", "10.25"])
+    const commas = tableOf("prices.tsv", ["name\tprice", "a\t1,5", "b\t10,25"], 1)
+    expect(commas.numeric).toEqual([false, true])
+    expect(commas.decimals[1]).toBe("comma")
   })
 
   it("reads decimal commas in a file split by semicolons", () => {
@@ -153,6 +185,20 @@ describe("what a table shows of its file", () => {
     expect(
       partText({ firstLine: 1, count: 5, total: 5, truncated: false, named: true, cut: 0 }),
     ).toBeUndefined()
+  })
+
+  it("says when the lines pointed at are past the file's end", () => {
+    expect(
+      partText({
+        firstLine: 1,
+        count: 5,
+        total: 5,
+        truncated: false,
+        named: true,
+        cut: 0,
+        clamped: 5,
+      }),
+    ).toBe("The lines pointed at are past its end, line 5.")
   })
 
   it("says when lines were cut short", () => {
