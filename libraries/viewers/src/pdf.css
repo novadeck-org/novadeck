@@ -1,0 +1,86 @@
+/* The PDF viewer: its pages (`.pdf-page`, each a canvas once drawn) one under another on
+   their ground, scrolling in `.pdf-viewer`, and over them a chip (`.pdf-chip`) naming the
+   page at the top and the zoom, which takes it back to fit. `.pdf-notice` says why a PDF
+   isn't drawn.
+
+   Hooks: aria-busy on the viewer while it opens a PDF.
+
+   Tokens, each optional (its fallback in brackets):
+   --pdf-ground (none): behind the pages.
+   --pdf-padding (20px): around them; --pdf-gap (12px): between them.
+   --pdf-page-bg (white), --pdf-page-shadow (0 1px 3px rgb(0 0 0 / 0.25)): a page, which is
+   white till it's drawn, as paper.
+   --pdf-notice-fg (inherit): the notice.
+   --pdf-chip-bg (a dark glass), --pdf-chip-fg (white), --pdf-chip-border (none),
+   --pdf-chip-radius (6px), --pdf-chip-shadow (none), --pdf-chip-font (inherit),
+   --pdf-chip-hover-bg (--pdf-chip-bg, else a darker glass): the chip. */
+.pdf-frame {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.pdf-viewer {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--pdf-padding, 20px);
+  overflow: auto;
+  background: var(--pdf-ground, none);
+  overscroll-behavior: contain;
+}
+.pdf-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pdf-gap, 12px);
+  width: max-content;
+  min-width: 100%;
+}
+.pdf-page {
+  flex: none;
+  overflow: hidden;
+  background: var(--pdf-page-bg, white);
+  box-shadow: var(--pdf-page-shadow, 0 1px 3px rgb(0 0 0 / 0.25));
+}
+.pdf-page canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* Centred in the viewer, as there are no pages under it. */
+.pdf-notice {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  margin: 0;
+  padding: 24px;
+  color: var(--pdf-notice-fg, inherit);
+  text-align: center;
+}
+.pdf-notice[hidden] {
+  display: none;
+}
+.pdf-chip {
+  position: absolute;
+  right: 18px;
+  bottom: 10px;
+  padding: 2px 8px;
+  border: var(--pdf-chip-border, none);
+  border-radius: var(--pdf-chip-radius, 6px);
+  background: var(--pdf-chip-bg, rgb(0 0 0 / 0.6));
+  box-shadow: var(--pdf-chip-shadow, none);
+  color: var(--pdf-chip-fg, white);
+  font: var(--pdf-chip-font, inherit);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.pdf-chip:hover {
+  background: var(--pdf-chip-hover-bg, var(--pdf-chip-bg, rgb(0 0 0 / 0.75)));
+}
+.pdf-chip[hidden] {
+  display: none;
+}

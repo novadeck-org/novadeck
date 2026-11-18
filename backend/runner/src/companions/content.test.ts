@@ -21,7 +21,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import { companionLimits, partBytes, videoLimits } from "@novadeck/protocol"
+import { companionLimits, partBytes, pdfLimits, videoLimits } from "@novadeck/protocol"
 
 import { describe, expect, it as base } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
@@ -29,7 +29,9 @@ import {
   captureWindow,
   loadFile,
   loadPlan,
+  loadPdf,
   loadPlayed,
+  partsOf,
   pageAt,
   planTitle,
   pointAt,
@@ -536,6 +538,78 @@ describe("a part of a video", () => {
     ).resolves.toEqual({
       state: "unavailable",
       reason: "missing",
+    })
+  })
+})
+
+// A PDF item's pointer, as a video's is.
+const pdfAt = video
+const pdfStamp = videoStamp
+
+describe("a PDF as it loads", () => {
+  it("is shown as a PDF, by its extension", async ({ directory }) => {
+    writeFileSync(join(directory, "report.PDF"), "%PDF-1.4")
+    await expect(pointAt("report.PDF", directory)).resolves.toMatchObject({
+      kind: "pdf",
+      size: 8,
+    })
+  })
+
+  it("is its size and the file's stamp, never its bytes", async ({ directory }) => {
+    const path = join(directory, "report.pdf")
+    writeFileSync(path, "%PDF-1.4")
+    const loaded = await loadPdf(pdfAt(path), false)
+    expect(loaded).toEqual({
+      state: "ready",
+      stamp: expect.any(String),
+      content: { kind: "pdf", size: 8 },
+    })
+    writeFileSync(path, "%PDF-1.4, written again")
+    expect(pdfStamp(await loadPdf(pdfAt(path), false))).not.toBe(pdfStamp(loaded))
+  })
+
+  it("says why it can't show: missing, a folder, secret unless revealed, too large", async ({
+    directory,
+  }) => {
+    await expect(loadPdf(pdfAt(join(directory, "gone.pdf")), false)).resolves.toEqual({
+      state: "unavailable",
+      reason: "missing",
+      size: null,
+    })
+    mkdirSync(join(directory, "folder.pdf"))
+    await expect(loadPdf(pdfAt(join(directory, "folder.pdf")), false)).resolves.toMatchObject({
+      reason: "not-a-file",
+    })
+    const held = join(directory, "held.pdf")
+    writeFileSync(held, "%PDF-1.4")
+    await expect(loadPdf(pdfAt(held, true), false)).resolves.toEqual({
+      state: "unavailable",
+      reason: "secret",
+      size: 8,
+    })
+    await expect(loadPdf(pdfAt(held, true), true)).resolves.toMatchObject({ state: "ready" })
+    const big = join(directory, "big.pdf")
+    sparse(big, pdfLimits.bytes + 1)
+    await expect(loadPdf(pdfAt(big), false)).resolves.toEqual({
+      state: "unavailable",
+      reason: "too-large",
+      size: pdfLimits.bytes + 1,
+    })
+  })
+
+  it("is read in parts up to its own limit, past which a part is too large", async ({
+    directory,
+  }) => {
+    expect(partsOf.pdf).toBe(pdfLimits.bytes)
+    const path = join(directory, "report.pdf")
+    writeFileSync(path, "%PDF-1.4")
+    const stamp = pdfStamp(await loadPdf(pdfAt(path), false))
+    await expect(readPart(pdfAt(path), { stamp, offset: 0 }, false, partsOf.pdf!)).resolves.toEqual(
+      { state: "part", data: Buffer.from("%PDF-1.4").toString("base64") },
+    )
+    await expect(readPart(pdfAt(path), { stamp, offset: 0 }, false, 4)).resolves.toEqual({
+      state: "unavailable",
+      reason: "too-large",
     })
   })
 })

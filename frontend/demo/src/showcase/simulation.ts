@@ -378,21 +378,20 @@ export const createShowcase = (
       for (const watcher of watching.get(id) ?? []) watcher.on(shownContent(id, watcher.reveal))
       return Promise.resolve()
     },
-    // As the runner reads a file: in parts of `video.part` bytes while it is as its content's
-    // stamp says, `changed` once the sample shown anew has another stamp, and a secret one only
-    // revealed.
+    // As the runner reads a video's or PDF's file: in parts of `file.part` bytes while it is as
+    // its content's stamp says, `changed` once the sample shown anew has another stamp, and a
+    // secret one only revealed.
     part: async (_target, id, { stamp, offset, reveal }) => {
       const sample = samples.get(id)
-      if (!sample?.video) throw new Error(`No video ${id}`)
+      if (!sample?.file) throw new Error(`No file to read in ${id}`)
       if (sample.item.secret && (reveal === undefined || reveal !== sample.item.path))
         return { state: "unavailable", reason: "secret" }
       if (sample.content.state === "ready" && sample.content.stamp !== stamp)
         return { state: "changed" }
-      if (sample.video.reason) return { state: "unavailable", reason: sample.video.reason }
-      const bytes = await sample.video.read()
-      const size = sample.video.part ?? partBytes
-      if (sample.video.delay)
-        await new Promise((resolve) => setTimeout(resolve, sample.video?.delay))
+      if (sample.file.reason) return { state: "unavailable", reason: sample.file.reason }
+      const bytes = await sample.file.read()
+      const size = sample.file.part ?? partBytes
+      if (sample.file.delay) await new Promise((resolve) => setTimeout(resolve, sample.file?.delay))
       return { state: "part", bytes: bytes.slice(offset, offset + size) }
     },
     follow: (target, id, { reveal }, on) => {
@@ -424,7 +423,13 @@ export const createShowcase = (
       const id = own?.id ?? `project-${(projectCount += 1)}`
       const window = own && known ? known.windowId : windowId
       projectWindows.set(sessionKey, { itemId: id, windowId: window })
-      samples.set(id, { item: { ...made.item, id }, content: wholeFile(full, made) })
+      const shownBefore = [...samples.values()].find((each) => each.item.path === full)
+      const file = shownBefore?.file ?? made.file
+      samples.set(id, {
+        item: { ...made.item, id },
+        content: wholeFile(full, made),
+        ...(file ? { file } : {}),
+      })
       const { kind, name, detail, url, lines, secret } = made.item
       const item: Item = {
         id: itemIdOf(id),

@@ -33,6 +33,12 @@ export const partText = Math.ceil(partBytes / 3) * 4
 /** A video or a recording the pane plays: the largest one it takes, which it holds whole as it plays. */
 export const videoLimits = { bytes: 512 * 1024 * 1024 } as const
 
+/**
+ * A PDF the pane previews: the largest one it takes, which it holds whole as it draws it, as
+ * pdf.js keeps a whole document in memory however it is read.
+ */
+export const pdfLimits = { bytes: 128 * 1024 * 1024 } as const
+
 // What agents show and the person attaches beside a terminal: a pointer to a file, a
 // page or a plan, never a copy of it, which `companions.content` reads when it loads.
 // Each item has one holder, a terminal's bar or a window; `from` is the terminal it was
@@ -50,7 +56,7 @@ export const companionItem = z.strictObject({
   id,
   sessionId: id,
   holder: itemHolder,
-  kind: z.enum(["image", "video", "audio", "file", "page", "plan", "changes", "shells"]),
+  kind: z.enum(["image", "video", "audio", "pdf", "file", "page", "plan", "changes", "shells"]),
   name: z.string().max(companionLimits.name),
   detail: z.string().max(companionLimits.detail),
   path: z.string().max(companionLimits.path).nullable(),
@@ -293,6 +299,7 @@ export const changeFileDiff = z.strictObject({
 // A video or a recording (`audio`) is its format and size, which `companions.part` reads in
 // parts for the client to play, and its stamp names the file as those parts must be read from; `shown` counts
 // the agent's shows, as a page's does, and `at` is the second the latest show starts it at.
+// A PDF is its size, its bytes read in parts as a video's are, and drawn by the client.
 // Or why it can't be shown, with the file's size where known.
 export const itemContent = z.discriminatedUnion("state", [
   z.strictObject({
@@ -392,6 +399,10 @@ export const itemContent = z.discriminatedUnion("state", [
         size: z.int().nonnegative().max(videoLimits.bytes),
         shown: z.int().min(1),
         at: z.number().nonnegative().optional(),
+      }),
+      z.strictObject({
+        kind: z.literal("pdf"),
+        size: z.int().nonnegative().max(pdfLimits.bytes),
       }),
     ]),
   }),

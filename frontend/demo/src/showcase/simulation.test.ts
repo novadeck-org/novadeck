@@ -7,12 +7,15 @@ import { authAgent, studioAgent } from "./agents"
 import {
   devServerArtifacts,
   recordingSamples,
+  pdfAgain,
+  pdfSamples,
   studioArtifacts,
   videoAgain,
   videoSamples,
 } from "./artifacts"
 import { changesArtifacts } from "./changes"
 import { clip, clipSize } from "./clip"
+import { makePdf, quarterlyReport } from "./pdf"
 import { recording, recordingSize } from "./recording"
 import { createShowcase } from "./simulation"
 
@@ -382,6 +385,18 @@ describe("the project window", () => {
     expect(image.item).toMatchObject({ kind: "image", secret: false })
   })
 
+  it("is a PDF item when the file attached is a .pdf", async () => {
+    const { showcase } = opening()
+    const opened = await showcase.openInProject!(session, "docs/spec.pdf", "pw")
+    expect(opened.item).toMatchObject({ kind: "pdf", name: "spec.pdf", secret: false })
+    const part = await showcase.part!(session, opened.item.id, {
+      stamp: "1",
+      offset: 0,
+      reveal: undefined,
+    })
+    expect(part.state === "part" && part.bytes.length).toBe(quarterlyReport.length)
+  })
+
   it("shows a held file only to a reveal asked for that file", async () => {
     const { showcase } = opening()
     const env = await showcase.openInProject!(session, ".env.local", "pw")
@@ -556,5 +571,48 @@ describe("the showcase's recordings", () => {
     expect(await showcase.part!(session, id, { stamp: "1", offset: 0, reveal: undefined })).toEqual(
       { state: "unavailable", reason: "secret" },
     )
+  })
+})
+
+describe("the showcase's PDFs", () => {
+  const pdf = itemIdOf("studio-report")
+  const read = (id = pdf, offset = 0, stamp = "1", reveal?: string) =>
+    running().showcase.part!(session, id, { stamp, offset, reveal })
+
+  it("is a PDF whose cross-reference table points at its objects", () => {
+    const text = new TextDecoder().decode(makePdf("Test", 3))
+    expect(text.startsWith("%PDF-1.4")).toBe(true)
+    expect(text).toContain("/Count 3")
+    const table = Number(/startxref\n(\d+)/.exec(text)![1])
+    expect(text.slice(table, table + 4)).toBe("xref")
+    const entries = [...text.slice(table).matchAll(/^(\d{10}) 00000 n $/gm)]
+    expect(entries.length).toBe(9)
+    entries.forEach((entry, index) => {
+      expect(text.slice(Number(entry[1]), Number(entry[1]) + 8)).toBe(`${index + 1} 0 obj\n`)
+    })
+  })
+
+  it("is among what the dev server's terminal shows, as large as its item says", async () => {
+    expect(devServerArtifacts).toContain(pdfSamples.shown)
+    const part = await read()
+    expect(part.state === "part" && part.bytes.length).toBe(quarterlyReport.length)
+    expect(pdfSamples.shown.content).toMatchObject({
+      content: { kind: "pdf", size: quarterlyReport.length },
+    })
+  })
+
+  it("serves the slow one in small parts, and says the file changed under a new stamp", async () => {
+    const { showcase } = running()
+    showcase.present(devServer, "fox", pdfSamples.slow)
+    const first = await showcase.part!(session, itemIdOf("studio-report-slow"), {
+      stamp: "1",
+      offset: 0,
+      reveal: undefined,
+    })
+    expect(first.state === "part" && first.bytes.length).toBe(512)
+    showcase.present(devServer, "fox", pdfAgain(pdfSamples.shown, "2"))
+    expect(
+      await showcase.part!(session, pdf, { stamp: "1", offset: 0, reveal: undefined }),
+    ).toEqual({ state: "changed" })
   })
 })

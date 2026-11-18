@@ -1,0 +1,78 @@
+/* The PDF recipe: a PDF beside a terminal (`.pdf-pane`), its pages in the PDF viewer
+   (`.artifact-pdf`, holding @novadeck/viewers/pdf.css), on the pane's soft ground with its
+   page chip a control on paper. `.pdf-loading` says how much of it has been read, centred
+   while there is nothing to draw, and a chip over the pages while a newer file's bytes are
+   read. A peek shows a badge and its size (`.peek-pdf`).
+
+   Hooks: aria-busy on the pane until it has bytes to draw; data-over on `.pdf-loading` that
+   is over pages; data-trouble on `.artifact-pdf` naming why its PDF isn't drawn.
+
+   Tokens, each optional (its fallback in brackets):
+   --artifact-pdf-ground (soft): behind the pages.
+   --artifact-pdf-page-shadow (shadow-floating): a page on it.
+   --pdf-loading-chip-bg (paper), --pdf-loading-chip-border-color (line): what says it's
+   loading, over pages. */
+.pdf-pane {
+  display: flex;
+  position: relative;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.artifact-pdf {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  --pdf-ground: var(--artifact-pdf-ground, var(--color-soft));
+  --pdf-page-shadow: var(--artifact-pdf-page-shadow, var(--shadow-floating));
+  --pdf-notice-fg: var(--artifact-unavailable-fg, var(--color-muted));
+  --pdf-chip-bg: var(--color-paper);
+  --pdf-chip-hover-bg: var(--color-soft);
+  --pdf-chip-fg: var(--color-ink);
+  --pdf-chip-border: 1px solid var(--color-line);
+  --pdf-chip-radius: var(--radius-control);
+  --pdf-chip-shadow: var(--shadow-control);
+  --pdf-chip-font: var(--text-control) / var(--text-control--line-height) var(--font-sans);
+}
+.pdf-loading {
+  display: grid;
+  flex: 1;
+  place-content: center;
+  justify-items: stretch;
+  gap: 8px;
+  width: min(260px, 70%);
+  margin: auto;
+  color: var(--artifact-status-fg, var(--color-muted));
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  text-align: center;
+}
+.pdf-loading p {
+  margin: 0;
+}
+.pdf-loading[data-over] {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  flex: none;
+  width: 200px;
+  margin: 0;
+  padding: 8px 10px;
+  border: var(--border-width) solid var(--pdf-loading-chip-border-color, var(--color-line));
+  border-radius: var(--radius-control);
+  background-color: var(--pdf-loading-chip-bg, var(--color-paper));
+  box-shadow: var(--shadow-control);
+}
+
+/* A peek: no bytes read, only what the file is. */
+.peek-pdf {
+  display: grid;
+  height: 100%;
+  place-content: center;
+  justify-items: center;
+  gap: 2px;
+  color: var(--color-muted);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}

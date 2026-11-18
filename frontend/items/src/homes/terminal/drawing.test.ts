@@ -7,6 +7,7 @@ import {
   FileCode2,
   FileStack,
   FileText,
+  FileType,
   Film,
   GitCompare,
   Globe,
@@ -30,6 +31,7 @@ const expectedKindIcons: Record<ShownKind | "shells", LucideIcon> = {
   image: Image,
   video: Film,
   audio: AudioLines,
+  pdf: FileType,
   file: FileCode2,
   page: Globe,
   changes: GitCompare,
@@ -102,6 +104,7 @@ const code = itemFixture("app", "01", { kind: "file", name: "App.tsx" })
 const picture = itemFixture("hero", "01", { kind: "image", name: "hero.png" })
 const clip = itemFixture("demo", "01", { kind: "video", name: "demo.mp4" })
 const voice = itemFixture("voice", "01", { kind: "audio", name: "voice.mp3" })
+const report = itemFixture("report", "01", { kind: "pdf", name: "report.pdf" })
 const web = itemFixture("web", "01", { kind: "page", name: "localhost:5173", path: null })
 const change = itemFixture("change", "01", { kind: "changes", name: "Changes", path: "/repo" })
 const shellList = itemFixture("shells", "01", { kind: "shells", name: "Shells", path: null })
@@ -116,6 +119,7 @@ const shapes: Record<string, BarMember> = {
   image: itemMember(picture),
   video: itemMember(clip),
   audio: itemMember(voice),
+  pdf: itemMember(report),
   page: itemMember(web),
   changes: itemMember(change),
   shells: itemMember(shellList),
@@ -142,6 +146,7 @@ describe("a terminal's drawing of its bar", () => {
         image: [shapes.image!, shapes.image!],
         video: [shapes.video!, shapes.video!],
         audio: [shapes.audio!, shapes.audio!],
+        pdf: [shapes.pdf!, shapes.pdf!],
         page: [shapes.page!, shapes.page!],
         changes: [shapes.changes!, shapes.changes!],
         shells: [shapes.shells!],

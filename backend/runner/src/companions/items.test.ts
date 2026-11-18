@@ -1,8 +1,11 @@
 import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import {
+  closeSync,
+  ftruncateSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -17,6 +20,7 @@ import {
   type CompanionChange,
   type ItemContent,
   type PageTrouble,
+  pdfLimits,
 } from "@novadeck/protocol"
 
 import { timing } from "../checkouts/git.js"
@@ -1148,6 +1152,68 @@ describe("an item's content", () => {
     await expect(
       fixture.items.part({ itemId, stamp, offset: 0, reveal: path }),
     ).resolves.toMatchObject({ state: "part" })
+  })
+
+  it("shows a PDF by its size, its bytes read in parts, and refuses a secret one's parts", async ({
+    fixture,
+  }) => {
+    writeFileSync(join(fixture.directory, "report.pdf"), "%PDF-1.4")
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "report.pdf" } })
+    expect(shown).toMatchObject({ ok: true, kind: "pdf", name: "report.pdf" })
+    expect(shown).not.toHaveProperty("tooLarge")
+    const itemId = shown.ok ? shown.id : ""
+    expect(fixture.items.list(fixture.sessionId).items).toEqual([
+      expect.objectContaining({ id: itemId, kind: "pdf", detail: "8 B PDF" }),
+    ])
+    const loaded = await fixture.items.load(itemId, false)
+    expect(loaded).toEqual({
+      state: "ready",
+      stamp: expect.any(String),
+      content: { kind: "pdf", size: 8 },
+    })
+    expect(itemContent.parse(loaded)).toEqual(loaded)
+    const stamp = loaded.state === "ready" ? loaded.stamp : ""
+    await expect(fixture.items.part({ itemId, stamp, offset: 0 })).resolves.toEqual({
+      state: "part",
+      data: Buffer.from("%PDF-1.4").toString("base64"),
+    })
+    await expect(
+      fixture.items.show(moth, { file: { path: "report.pdf", at: 3 } }),
+    ).resolves.toEqual({
+      ok: false,
+      reason:
+        "Only a video or a recording starts at a second; give at only for a video or audio file.",
+    })
+    mkdirSync(join(fixture.directory, ".ssh"))
+    const path = join(fixture.directory, ".ssh", "keys.pdf")
+    writeFileSync(path, "%PDF-1.4")
+    const held = await fixture.items.show(moth, { file: { path } })
+    expect(held).toMatchObject({ ok: true, kind: "pdf", secret: true })
+    const heldId = held.ok ? held.id : ""
+    await expect(fixture.items.load(heldId, false)).resolves.toMatchObject({ reason: "secret" })
+    const revealed = await fixture.items.load(heldId, true)
+    await expect(
+      fixture.items.part({
+        itemId: heldId,
+        stamp: revealed.state === "ready" ? revealed.stamp : "",
+        offset: 0,
+      }),
+    ).resolves.toEqual({ state: "unavailable", reason: "secret" })
+  })
+
+  it("lists a PDF past what the pane takes by its name, and says so", async ({ fixture }) => {
+    const path = join(fixture.directory, "scan.pdf")
+    const handle = openSync(path, "w")
+    ftruncateSync(handle, pdfLimits.bytes + 1)
+    closeSync(handle)
+    const shown = await fixture.items.show(fixture.terminal("moth"), { file: { path: "scan.pdf" } })
+    expect(shown).toMatchObject({ ok: true, kind: "pdf", tooLarge: true })
+    await expect(fixture.items.load(shown.ok ? shown.id : "", false)).resolves.toEqual({
+      state: "unavailable",
+      reason: "too-large",
+      size: pdfLimits.bytes + 1,
+    })
   })
 
   it("holds a file that may hold secrets until revealed", async ({ fixture }) => {

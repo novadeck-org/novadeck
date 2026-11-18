@@ -291,7 +291,11 @@ export const tabTip = (
   const details = [
     ...(item.kind === "plan" ? [`v${item.version}`] : []),
     ...(item.kind === "file" && item.lines ? [`lines ${item.lines.from}–${item.lines.to}`] : []),
-    ...((item.kind === "image" || item.kind === "video" || item.kind === "audio") && item.detail
+    ...((item.kind === "image" ||
+      item.kind === "video" ||
+      item.kind === "audio" ||
+      item.kind === "pdf") &&
+    item.detail
       ? [item.detail]
       : []),
     ...facts,

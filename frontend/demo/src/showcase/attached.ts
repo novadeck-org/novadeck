@@ -1,4 +1,5 @@
-import { fileLines, ready, svg, type SampleArtifact } from "./artifacts"
+import { fileLines, pdfContent, ready, svg, type SampleArtifact } from "./artifacts"
+import { quarterlyReport } from "./pdf"
 
 // What the demo shows of a file the person opened from the Files panel that no agent showed:
 // a short stand-in made from its path, so the pane has something plausible to read.
@@ -48,6 +49,7 @@ const stand = (relative: string): readonly string[] => {
 export type AttachedArtifact = {
   readonly item: Omit<SampleArtifact["item"], "id">
   readonly content: SampleArtifact["content"]
+  readonly file?: SampleArtifact["file"]
 }
 
 // The artifact for a file the person attached by its absolute path.
@@ -67,6 +69,12 @@ export const attachedArtifact = (path: string, directory?: string): AttachedArti
             `<text x="400" y="235" font-family="Helvetica, Arial, sans-serif" font-size="28" fill="#2d2a24" text-anchor="middle">${name.replace(/[<&]/g, "")}</text>`,
         ),
       }),
+    }
+  if (/\.pdf$/i.test(name))
+    return {
+      item: { kind: "pdf", name, detail: relative, path, url: null, lines: null, secret: held },
+      content: pdfContent(quarterlyReport.length),
+      file: { read: async () => quarterlyReport },
     }
   const lines = stand(relative)
   return {

@@ -8,6 +8,7 @@ import type {
 } from "@novadeck/core/items"
 
 import { clip, clipMime, clipSize } from "./clip"
+import { notAPdf, quarterlyReport } from "./pdf"
 import { recording, recordingMime, recordingSize } from "./recording"
 
 // Something a sample agent shows: the item it points at, by an id that stays the same, and
@@ -21,10 +22,10 @@ export type SampleArtifact = {
   // A change's files read one at a time, as the runner reads them: the file's diff for the
   // layers selected.
   readonly changeFile?: (path: string, layers: readonly string[]) => ChangeFileDiff
-  // A video's or a recording's bytes, which its parts are cut from: `read` makes them when first asked, `part`
-  // is how many go in a part (the runner's 2 MiB unless given), and `delay` how long each
-  // part takes, in milliseconds, so a video can be seen loading.
-  readonly video?: {
+  // A video's, a recording's or a PDF's bytes, which its parts are cut from: `read` makes them when first
+  // asked, `part` is how many go in a part (the runner's 2 MiB unless given), and `delay` how
+  // long each part takes, in milliseconds, so one can be seen loading.
+  readonly file?: {
     readonly read: () => Promise<Uint8Array<ArrayBuffer>>
     readonly part?: number
     readonly delay?: number
@@ -376,7 +377,7 @@ export const videoContent = (
 const walkthrough: SampleArtifact = {
   item: videoItem("studio-walkthrough", "walkthrough.webm", "640 × 360 WebM, 4 s"),
   content: videoContent(clipSize),
-  video: { read: clip },
+  file: { read: clip },
 }
 
 // The video again, as an agent shows it the `shown`th time, or after it rewrote the file (a
@@ -408,7 +409,7 @@ export const caughtMidWrite = (
     sample.item.kind === "audio"
       ? recordingContent(garbage.length, fields)
       : videoContent(garbage.length, fields),
-  video: { read: async () => garbage },
+  file: { read: async () => garbage },
 })
 
 export const videoSamples = {
@@ -417,7 +418,7 @@ export const videoSamples = {
   slow: {
     item: videoItem("studio-slow", "slow-walkthrough.webm", "640 × 360 WebM, 4 s"),
     content: videoContent(clipSize),
-    video: { read: clip, part: 8 * 1024, delay: 500 },
+    file: { read: clip, part: 8 * 1024, delay: 500 },
   },
   large: {
     item: videoItem("studio-large", "launch-film.webm", "3840 × 2160 WebM"),
@@ -430,17 +431,84 @@ export const videoSamples = {
   unreadable: {
     item: videoItem("studio-locked", "locked.webm", "640 × 360 WebM"),
     content: videoContent(clipSize),
-    video: { read: clip, reason: "unreadable" },
+    file: { read: clip, reason: "unreadable" },
   },
   broken: {
     item: videoItem("studio-broken", "broken.webm", "Not a video"),
     content: videoContent(garbage.length),
-    video: { read: async () => garbage },
+    file: { read: async () => garbage },
   },
   secret: {
     item: videoItem("studio-private", "review.webm", "640 × 360 WebM", true),
     content: videoContent(clipSize),
-    video: { read: clip },
+    file: { read: clip },
+  },
+} satisfies Record<string, SampleArtifact>
+
+// The PDFs an agent shows: one that draws at once, one read in small parts a moment apart,
+// one too large, one held as secret, and one that isn't a PDF, so each state of the PDF pane
+// can be reached. They all hold the same five-page report.
+const pdfItem = (
+  id: string,
+  name: string,
+  detail: string,
+  secret = false,
+): SampleArtifact["item"] => ({
+  id,
+  kind: "pdf",
+  name,
+  detail,
+  path: `${studio}/${secret ? ".private/" : "reports/"}${name}`,
+  url: null,
+  lines: null,
+  secret,
+})
+
+// What a PDF holds: its size, from the stamp it is read at.
+export const pdfContent = (size: number, stamp = "1"): ItemContent => ({
+  state: "ready",
+  stamp,
+  content: { kind: "pdf", size },
+})
+
+const quarterly: SampleArtifact = {
+  item: pdfItem("studio-report", "quarterly-report.pdf", "5 pages, Letter"),
+  content: pdfContent(quarterlyReport.length),
+  file: { read: async () => quarterlyReport },
+}
+
+// The PDF again, as it is after the agent rewrote the file: a new stamp.
+export const pdfAgain = (sample: SampleArtifact, stamp: string): SampleArtifact => ({
+  ...sample,
+  content: pdfContent(
+    sample.content.state === "ready" && sample.content.content.kind === "pdf"
+      ? sample.content.content.size
+      : quarterlyReport.length,
+    stamp,
+  ),
+})
+
+export const pdfSamples = {
+  shown: quarterly,
+  // Several parts of 512 bytes, 600 ms each: its progress shows.
+  slow: {
+    item: pdfItem("studio-report-slow", "slow-report.pdf", "5 pages, Letter"),
+    content: pdfContent(quarterlyReport.length),
+    file: { read: async () => quarterlyReport, part: 512, delay: 600 },
+  },
+  large: {
+    item: pdfItem("studio-report-large", "annual-review.pdf", "412 pages"),
+    content: cannot("too-large", 190 * 1024 * 1024),
+  },
+  secret: {
+    item: pdfItem("studio-report-private", "salaries.pdf", "2 pages, Letter", true),
+    content: pdfContent(quarterlyReport.length),
+    file: { read: async () => quarterlyReport },
+  },
+  broken: {
+    item: pdfItem("studio-report-broken", "broken.pdf", "Not a PDF"),
+    content: pdfContent(notAPdf.length),
+    file: { read: async () => notAPdf },
   },
 } satisfies Record<string, SampleArtifact>
 
@@ -486,13 +554,13 @@ export const recordingSamples = {
   playable: {
     item: recordingItem("studio-voiceover", "voiceover.opus", "Ogg, 6 s"),
     content: recordingContent(recordingSize),
-    video: { read: recording },
+    file: { read: recording },
   },
   // About 4 parts, half a second each: its progress shows.
   slow: {
     item: recordingItem("studio-slow-voice", "slow-voiceover.opus", "Ogg, 6 s"),
     content: recordingContent(recordingSize),
-    video: { read: recording, part: 8 * 1024, delay: 500 },
+    file: { read: recording, part: 8 * 1024, delay: 500 },
   },
   large: {
     item: recordingItem("studio-long-voice", "interview.wav", "WAV, 2 h"),
@@ -505,17 +573,17 @@ export const recordingSamples = {
   unreadable: {
     item: recordingItem("studio-locked-voice", "locked.mp3", "MP3"),
     content: recordingContent(recordingSize),
-    video: { read: recording, reason: "unreadable" },
+    file: { read: recording, reason: "unreadable" },
   },
   broken: {
     item: recordingItem("studio-broken-voice", "broken.mp3", "Not a recording"),
     content: recordingContent(garbage.length),
-    video: { read: async () => garbage },
+    file: { read: async () => garbage },
   },
   secret: {
     item: recordingItem("studio-private-voice", "call.opus", "Ogg", true),
     content: recordingContent(recordingSize),
-    video: { read: recording },
+    file: { read: recording },
   },
 } satisfies Record<string, SampleArtifact>
 
@@ -590,4 +658,5 @@ export const devServerArtifacts: readonly SampleArtifact[] = [
   ),
   videoSamples.playable,
   recordingSamples.playable,
+  pdfSamples.shown,
 ]

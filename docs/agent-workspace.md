@@ -432,7 +432,13 @@ with every safety check again at that time:
   card with a waveform, not a picture) is played with the pane's own controls: its content is its format and size, never its bytes, which the UI
   reads with `companions.part`, 2 MiB at a time while the file is as its stamp names it,
   and plays whole from a blob, so the desktop app, a browser and the demo play it alike.
-  Rendered again, it reloads where the person was; one over 512 MB loads as too large to play. Showing the same file or page again updates the item on the agent's own
+  Rendered again, it reloads where the person was; one over 512 MB loads as too large to play.
+  A PDF (`.pdf`, kind `pdf`) is read the same way and drawn page by page with pdf.js in the
+  UI itself, so the desktop app and a browser show it alike: only its pages are drawn, so a
+  link in it goes nowhere, no form or script it carries runs, and nothing it names is
+  fetched. It opens fitted to the pane's width, and keeps its page and zoom across views,
+  windows and a rewrite of the file; one over 128 MB loads as too large to preview, and one
+  locked with a password, or that isn't a PDF pdf.js can read, says so in the pane. Showing the same file or page again updates the item on the agent's own
   bar, or else the latest it showed that the person moved into a window or onto another
   bar, where it stays. Items are told apart by a file's real path or a page's `pageKey`
   (`protocol/src/pages.ts`): its address without the fragment, or for a server on this

@@ -13,6 +13,7 @@ import {
   type PlanUnwritable,
   type FilePart,
   partBytes,
+  pdfLimits,
   videoLimits,
 } from "@novadeck/protocol"
 
@@ -83,9 +84,23 @@ const isVideo = (path: string): boolean => videos[extname(path).toLowerCase()] !
 /** Whether a file is played as a recording, by its extension. */
 const isAudio = (path: string): boolean => recordings[extname(path).toLowerCase()] !== undefined
 
-/** How a file is shown, by its extension: as an image, played as a video or a recording, or read. */
+/** Whether a file is previewed as a PDF, by its extension. */
+const isPdf = (path: string): boolean => extname(path).toLowerCase() === ".pdf"
+
+/**
+ * How a file is shown, by its extension: as an image, played as a video or a recording,
+ * drawn as a PDF, or read.
+ */
 const kindOf = (path: string): Pointed["kind"] =>
-  isImage(path) ? "image" : isVideo(path) ? "video" : isAudio(path) ? "audio" : "file"
+  isImage(path)
+    ? "image"
+    : isVideo(path)
+      ? "video"
+      : isAudio(path)
+        ? "audio"
+        : isPdf(path)
+          ? "pdf"
+          : "file"
 
 /**
  * The lines of a file of `total` lines shown, from `first` to `last`, and the ones
@@ -112,7 +127,7 @@ export type Pointed = {
   readonly ok: true
   /** Its path, symlinks resolved. */
   readonly path: string
-  readonly kind: "image" | "video" | "audio" | "file"
+  readonly kind: "image" | "video" | "audio" | "pdf" | "file"
   readonly size: number
   readonly secret: boolean
 }
@@ -368,18 +383,9 @@ export const loadPlayed = async (
   show: { readonly shown: number; readonly at: number | undefined },
   env?: NodeJS.ProcessEnv,
 ): Promise<ItemContent> => {
-  if (item.path === null) return unavailable("missing")
-  let path: string
-  let stats: Stats
-  try {
-    path = await realpath(item.path)
-    stats = await stat(path)
-  } catch (error) {
-    return unavailable(reasonOf(error))
-  }
-  if (!stats.isFile()) return unavailable("not-a-file")
-  if ((item.secret || secret(path, env)) && !reveal) return unavailable("secret", stats.size)
-  if (stats.size > videoLimits.bytes) return unavailable("too-large", stats.size)
+  const file = await partsFile(item, reveal, videoLimits.bytes, env)
+  if ("state" in file) return file
+  const { path, stats } = file
   return {
     state: "ready",
     stamp: stampOf(stats),
@@ -402,10 +408,55 @@ const mimeOf = (path: string, kind: ItemRecord["kind"]): string => {
   )
 }
 
+/**
+ * A PDF, as it is now, symlinks resolved: its size, never its bytes, which `readPart` reads
+ * for the client to draw. As a video's, its stamp is the file's own, one that may hold secrets
+ * is `secret` unless `reveal`, and one past what the pane takes is `too-large`.
+ */
+export const loadPdf = async (
+  item: Pick<ItemRecord, "path" | "secret">,
+  reveal: boolean,
+  env?: NodeJS.ProcessEnv,
+): Promise<ItemContent> => {
+  const file = await partsFile(item, reveal, pdfLimits.bytes, env)
+  if ("state" in file) return file
+  return {
+    state: "ready",
+    stamp: stampOf(file.stats),
+    content: { kind: "pdf", size: file.stats.size },
+  }
+}
+
+/**
+ * The file of an item read in parts, symlinks resolved, with its stats; or why it can't be
+ * read: not there, no plain file, held as `secret` unless `reveal`, or past `largest` bytes.
+ */
+const partsFile = async (
+  item: Pick<ItemRecord, "path" | "secret">,
+  reveal: boolean,
+  largest: number,
+  env: NodeJS.ProcessEnv | undefined,
+): Promise<{ readonly path: string; readonly stats: Stats } | Unavailable> => {
+  if (item.path === null) return unavailable("missing")
+  let path: string
+  let stats: Stats
+  try {
+    path = await realpath(item.path)
+    stats = await stat(path)
+  } catch (error) {
+    return unavailable(reasonOf(error))
+  }
+  if (!stats.isFile()) return unavailable("not-a-file")
+  if ((item.secret || secret(path, env)) && !reveal) return unavailable("secret", stats.size)
+  if (stats.size > largest) return unavailable("too-large", stats.size)
+  return { path, stats }
+}
+
 /** The kinds the client reads in parts, by the largest file each takes, in bytes. */
 export const partsOf: { readonly [kind in ItemRecord["kind"]]?: number } = {
   video: videoLimits.bytes,
   audio: videoLimits.bytes,
+  pdf: pdfLimits.bytes,
 }
 
 /**

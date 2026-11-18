@@ -89,6 +89,7 @@ export {
   type FilePart,
   partBytes,
   partText,
+  pdfLimits,
 } from "./companions.js"
 export {
   type ClosedTerminal,

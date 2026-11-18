@@ -28,6 +28,11 @@ catalog:
   ws: 8.22.2
   zod: 4.6.7
 
+# pdf.js renders in the browser's own canvas; its optional Node canvas is a native module
+# nothing here uses, and installed it would also become jsdom's canvas in every test.
+ignoredOptionalDependencies:
+  - "@napi-rs/canvas"
+
 publicHoistPattern:
   - electron
 

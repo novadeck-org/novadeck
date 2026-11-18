@@ -8,9 +8,9 @@ import type { CompanionWindowMeta, WorkspaceTarget } from "./types"
 // files and hooks, and from what they present through Novadeck's MCP server.
 
 // The kinds an agent shows (with `show`) or the person attaches: each points at a file, a
-// page or a change. A video or a recording (`audio`) is a file played rather than read. A plan is the one kind an
-// agent writes rather than shows.
-export type ShownKind = "image" | "video" | "audio" | "file" | "page" | "changes"
+// page or a change. A video or a recording (`audio`) is a file played rather than read, and a
+// PDF one drawn page by page. A plan is the one kind an agent writes rather than shows.
+export type ShownKind = "image" | "video" | "audio" | "pdf" | "file" | "page" | "changes"
 
 // What an agent showed or the person attached, as the backend keeps it: a pointer to a
 // file or page, never a copy, held by exactly one terminal's bar or one undocked window.
@@ -91,6 +91,7 @@ export const kindRules: Record<ItemKind, KindRule> = {
   image: { pointer: "file", follow: "shown", close: "remove" },
   video: { pointer: "file", follow: "shown", close: "remove" },
   audio: { pointer: "file", follow: "shown", close: "remove" },
+  pdf: { pointer: "file", follow: "shown", close: "remove" },
   file: { pointer: "file", follow: "shown", close: "remove" },
   page: { pointer: "page", follow: "shown", close: "remove" },
   changes: { pointer: "changes", follow: "shown", close: "remove" },
@@ -164,7 +165,11 @@ export type VideoContent = {
 // A recording (`.mp3`, `.wav`…), played as a video is, with nothing to see: the same facts.
 export type AudioContent = Omit<VideoContent, "kind"> & { readonly kind: "audio" }
 
-// A part of a video's or a recording's file, from the offset asked for (fewer bytes at its end, none past it);
+// A PDF, drawn from its bytes, which `Companions.part` reads in parts while the file is as
+// `stamp` (its content's) names it, as a video's: its size in bytes.
+export type PdfContent = { readonly kind: "pdf"; readonly size: number }
+
+// A part of an item's file, from the offset asked for (fewer bytes at its end, none past it);
 // `changed` when the file is no longer as the stamp named it, so it's read again from its new
 // content; or why it can't be read now.
 export type FilePart =
@@ -298,6 +303,7 @@ export type ShownContent =
   | ImageContent
   | VideoContent
   | AudioContent
+  | PdfContent
   | FileContent
   | PageContent
   | ChangesContent

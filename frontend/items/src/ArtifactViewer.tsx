@@ -57,8 +57,17 @@ const shortReasons: Record<UnavailableReason, string> = {
   gone: "Gone",
 }
 
+// The largest file a kind previews, where the pane says it: the runner's `pdfLimits`.
+const largest: Partial<Record<Item["kind"], string>> = {
+  pdf: "Novadeck previews PDFs up to 128 MB.",
+}
+
 // Why it can't show, as the pane says it.
-const reasonText = (reason: UnavailableReason, name: string, size: number | null): string => {
+const reasonText = (
+  reason: UnavailableReason,
+  { name, kind }: Pick<Item, "name" | "kind">,
+  size: number | null,
+): string => {
   switch (reason) {
     case "missing":
       return `${name} isn't there any more.`
@@ -67,7 +76,10 @@ const reasonText = (reason: UnavailableReason, name: string, size: number | null
     case "not-a-file":
       return `${name} is no longer a file.`
     case "too-large":
-      return `${name} is too large to preview${size === null ? "" : ` (${sizeText(size)})`}.`
+      return [
+        `${name} is too large to preview${size === null ? "" : ` (${sizeText(size)})`}.`,
+        ...(largest[kind] ? [largest[kind]] : []),
+      ].join(" ")
     case "binary":
       return `${name} isn't text, so it can't be previewed.`
     case "secret":
@@ -111,7 +123,7 @@ export const Unavailable = ({
   size,
   onReveal,
 }: {
-  item: Pick<Item, "name" | "path" | "plan">
+  item: Pick<Item, "name" | "kind" | "path" | "plan">
   reason: UnavailableReason
   size: number | null
   onReveal?: (() => void) | undefined
@@ -119,7 +131,7 @@ export const Unavailable = ({
   usePaneNote([], reason === "gone")
   return (
     <div className="artifact-unavailable" data-reason={reason}>
-      <p>{reasonText(reason, item.name, size)}</p>
+      <p>{reasonText(reason, item, size)}</p>
       <div className="artifact-unavailable-actions">
         {reason === "secret" && onReveal && (
           <button type="button" className="artifact-open" onClick={onReveal}>

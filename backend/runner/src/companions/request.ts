@@ -102,7 +102,7 @@ export type RequestFailure = { readonly ok: false; readonly reason: string }
  * The MCP server's answer: what the person now sees beside the terminal, or why not.
  * `opened` when it opened at once; `again` when it updated what was already there;
  * `secret` when it may hold secrets, so it waits for the person to open it; `tooLarge`
- * for an image too large to preview, or a video too large to play.
+ * for an image or a PDF too large to preview, or a video too large to play.
  */
 export type ShowAnswer =
   | {

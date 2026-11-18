@@ -1726,13 +1726,18 @@ one from an earlier runner.
     disk now and again each time it changes, until the item is deleted; an unknown item
     is `NOT_FOUND`. It is `ready`, with a `stamp` that changes with it, or `unavailable`
     with a reason and the file's size where known: `missing`, `unreadable`, `not-a-file`,
-    `too-large` (an image over 8 MiB), `binary` (a NUL byte in its first 8 KiB), `secret`
+    `too-large` (an image over 8 MiB, a video over 512 MiB, a PDF over 128 MiB), `binary` (a NUL byte in its first 8 KiB), `secret`
     (a file that may hold secrets, unless `reveal` is the path the item points at: the
     person's yes is to a file, so an item re-pointed to another reads `secret` again and, pointed
     back, revealed again), or `gone` (a plan no longer there).
     An image is a data URL; a page its address, which the desktop app loads live, with
     `shown`, its item's version, which each show raises and which loads it afresh, and the
-    `scroll` that show gave, a CSS selector to bring into view once it has loaded. A text
+    `scroll` that show gave, a CSS selector to bring into view once it has loaded. A video is
+    its `mime` and `size`, with `shown` and the `at` its latest show gave; a PDF its `size`.
+    Neither carries its bytes, which `companions.part({ itemId, stamp, offset, reveal? })`
+    reads, 2 MiB (`partBytes`) as base64 from `offset`, while the file is as the content's
+    `stamp` names it (else `changed`, or `unavailable` with `missing`, `unreadable`,
+    `not-a-file`, `too-large` or `secret` as above); an item of another kind is `NOT_FOUND`. A text
     file is the lines around those pointed at, read to the last of them and up to 4 MiB
     more to count the rest: `total` once it reached the file's end, else `truncated`;
     lines past the end are pulled back to it and marked `clamped`. A plan is its text, cut

@@ -4,7 +4,14 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { PlanSource } from "@novadeck/harness-core/events"
-import { companionLimits, onThisMachine, pageKey, titleFrom, videoLimits } from "@novadeck/protocol"
+import {
+  companionLimits,
+  onThisMachine,
+  pageKey,
+  pdfLimits,
+  titleFrom,
+  videoLimits,
+} from "@novadeck/protocol"
 import type {
   AgentName,
   ChangeFileDiff,
@@ -31,6 +38,7 @@ import { displayed, repositoryOf, samePlace, worktreeBranch } from "./changes.js
 import {
   hashOf,
   loadFile,
+  loadPdf,
   loadPlan,
   loadPlayed,
   maxImageBytes,
@@ -1255,7 +1263,8 @@ export class CompanionItems {
       tooLarge:
         (pointed.kind === "image" && pointed.size > maxImageBytes) ||
         ((pointed.kind === "video" || pointed.kind === "audio") &&
-          pointed.size > videoLimits.bytes),
+          pointed.size > videoLimits.bytes) ||
+        (pointed.kind === "pdf" && pointed.size > pdfLimits.bytes),
       pointer: this.filePointer(pointed, path, place.cwd, place.project, {
         ...(request.title !== undefined && { title: request.title }),
         ...(lines && { lines }),
@@ -1339,8 +1348,8 @@ export class CompanionItems {
   }
 
   /**
-   * How a file is described: an image, a video or a recording by its size and format, a text file by
-   * its path and lines.
+   * How a file is described: an image, a video, a recording or a PDF by its size and format,
+   * a text file by its path and lines.
    */
   private detail(
     pointed: Pointed,
@@ -1348,7 +1357,12 @@ export class CompanionItems {
     given: string,
     lines: { readonly from: number; readonly to: number } | undefined,
   ): string {
-    if (pointed.kind === "image" || pointed.kind === "video" || pointed.kind === "audio") {
+    if (
+      pointed.kind === "image" ||
+      pointed.kind === "video" ||
+      pointed.kind === "audio" ||
+      pointed.kind === "pdf"
+    ) {
       const format = pointed.path.split(".").at(-1)!.toUpperCase().replace("JPG", "JPEG")
       return `${size(pointed.size)} ${format}`
     }
@@ -1627,6 +1641,7 @@ export class CompanionItems {
     if (item.kind === "plan") return loadPlan(item, live)
     if (item.kind === "video" || item.kind === "audio")
       return loadPlayed(item, reveal, { shown: item.version, at: cued?.at }, this.environment())
+    if (item.kind === "pdf") return loadPdf(item, reveal, this.environment())
     return loadFile(item, reveal, this.environment())
   }
 

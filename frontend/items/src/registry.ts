@@ -6,6 +6,7 @@ import { changes } from "./kinds/changes"
 import { file } from "./kinds/file"
 import { image } from "./kinds/image"
 import { page } from "./kinds/page"
+import { pdf } from "./kinds/pdf"
 import { plan } from "./kinds/plan"
 import { shells } from "./kinds/shells"
 import { video } from "./kinds/video"
@@ -18,6 +19,7 @@ export const registry = {
   image,
   video,
   audio,
+  pdf,
   file,
   page,
   changes,

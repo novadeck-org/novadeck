@@ -92,7 +92,8 @@ const projectOf = ({ pinned, ...project }: ProjectRow): Project => ({
 // 18: a changes item may be a compare of two refs an agent named (`compare_base`,
 // `compare_head`).
 // 19: an item may be a video or a recording (`kind` takes 'video' and 'audio').
-const schemaVersion = 19
+// 20: an item may be a PDF (`kind` takes 'pdf').
+const schemaVersion = 20
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -335,7 +336,7 @@ const schema = `
     window_id TEXT UNIQUE,
     -- A file's resolved path, a page's pageKey, or a plan's slot, unique on one bar.
     pointer_key TEXT NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('image', 'video', 'audio', 'file', 'page', 'plan', 'changes', 'shells')),
+    kind TEXT NOT NULL CHECK (kind IN ('image', 'video', 'audio', 'pdf', 'file', 'page', 'plan', 'changes', 'shells')),
     path TEXT,
     url TEXT,
     lines_from INTEGER,
@@ -1085,6 +1086,68 @@ const migrations: Readonly<Record<number, Step>> = {
       shown_by, from_terminal, from_handle, version, open_asked, shown_at, observed_at,
       compare_base, compare_head FROM companion_items_18;
     DROP TABLE companion_items_18;
+  `,
+  // An item may be a PDF, which the kind's CHECK must take: rebuilt as in the step from 18.
+  // A PDF shown before it is a file there, which its next show makes a PDF.
+  19: `
+    ALTER TABLE companion_items RENAME TO companion_items_19;
+    DROP INDEX IF EXISTS companion_items_bar;
+    DROP INDEX IF EXISTS companion_items_session;
+    CREATE TABLE companion_items (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      terminal_id TEXT,
+      window_id TEXT UNIQUE,
+      -- A file's resolved path, a page's pageKey, or a plan's slot, unique on one bar.
+      pointer_key TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('image', 'video', 'audio', 'pdf', 'file', 'page', 'plan', 'changes', 'shells')),
+      path TEXT,
+      url TEXT,
+      lines_from INTEGER,
+      lines_to INTEGER,
+      -- A plan's agent, session and actor (empty for the root), and whether it is a file
+      -- or text in the transcript or rollout at path.
+      plan_agent TEXT,
+      plan_agent_session TEXT,
+      plan_actor TEXT,
+      plan_format TEXT CHECK (plan_format IN ('file', 'text')),
+      name TEXT NOT NULL,
+      detail TEXT NOT NULL,
+      -- Whether it is a file that may hold secrets, which opens only when the person picks it.
+      secret INTEGER NOT NULL,
+      shown_by TEXT NOT NULL CHECK (shown_by IN ('agent', 'person')),
+      -- The terminal it was shown or attached in, and its handle; both null for a file the
+      -- person opened in their project window.
+      from_terminal TEXT,
+      from_handle TEXT,
+      version INTEGER NOT NULL,
+      -- Whether its latest show asked to open it.
+      open_asked INTEGER NOT NULL,
+      shown_at REAL NOT NULL,
+      observed_at REAL,
+      -- A changes item's two refs where it is a compare an agent named, as it named them:
+      -- head against base. Both null for a checkout's own change, and for every other kind.
+      compare_base TEXT,
+      compare_head TEXT CHECK ((compare_base IS NULL) = (compare_head IS NULL)),
+      FOREIGN KEY (terminal_id, session_id) REFERENCES terminals(id, session_id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+      FOREIGN KEY (window_id, session_id) REFERENCES companion_windows(id, session_id)
+        ON DELETE CASCADE,
+      CHECK ((terminal_id IS NULL) <> (window_id IS NULL)),
+      CHECK ((from_terminal IS NULL) = (from_handle IS NULL))
+    ) STRICT;
+    CREATE UNIQUE INDEX companion_items_bar ON companion_items(terminal_id, pointer_key)
+      WHERE terminal_id IS NOT NULL;
+    CREATE INDEX companion_items_session ON companion_items(session_id);
+    INSERT INTO companion_items (rowid, id, session_id, terminal_id, window_id, pointer_key, kind, path, url, lines_from,
+      lines_to, plan_agent, plan_agent_session, plan_actor, plan_format, name, detail, secret,
+      shown_by, from_terminal, from_handle, version, open_asked, shown_at, observed_at,
+      compare_base, compare_head)
+    SELECT rowid, id, session_id, terminal_id, window_id, pointer_key, kind, path, url, lines_from,
+      lines_to, plan_agent, plan_agent_session, plan_actor, plan_format, name, detail, secret,
+      shown_by, from_terminal, from_handle, version, open_asked, shown_at, observed_at,
+      compare_base, compare_head FROM companion_items_19;
+    DROP TABLE companion_items_19;
   `,
 }
 // SQLite's primary result codes that say a step doesn't fit the database it met, or that
