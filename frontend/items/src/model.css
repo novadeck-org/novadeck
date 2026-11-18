@@ -25,7 +25,6 @@
   flex-direction: column;
   min-height: 0;
   --model-ground: var(--artifact-model-ground, var(--color-soft));
-  --model-surface: var(--color-muted);
   --model-grid: var(--color-line);
   --model-notice-fg: var(--artifact-unavailable-fg, var(--color-muted));
   --model-chip-bg: var(--color-paper);

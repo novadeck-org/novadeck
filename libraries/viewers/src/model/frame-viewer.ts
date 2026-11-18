@@ -18,6 +18,7 @@ import {
   Scene,
   Sphere,
   Spherical,
+  SRGBColorSpace,
   Vector3,
   WebGLRenderer,
   type AnimationClip,
@@ -69,7 +70,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; }
 body {
   background: var(--model-ground, Canvas);
   color: var(--model-notice-fg, CanvasText);
-  font: 12px/1.4 var(--model-chip-font, system-ui, sans-serif);
+  font: var(--model-chip-font, 12px/1.4 system-ui, sans-serif);
   user-select: none;
 }
 canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; outline: none; }
@@ -268,7 +269,7 @@ export const modelFrameViewer = ({ port }: { readonly port: MessagePort }): void
     target.copy(bounds.center)
     const half = (camera.fov * Math.PI) / 360
     const across = Math.min(half, Math.atan(Math.tan(half) * camera.aspect))
-    spherical.radius = (Math.max(bounds.radius, 1e-6) / Math.sin(across)) * 1.1
+    spherical.radius = (Math.max(bounds.radius, 1e-6) / Math.sin(across)) * 1.25
     aim()
   }
   const goTo = (saved: ModelView): void => {
@@ -529,7 +530,7 @@ export const modelFrameViewer = ({ port }: { readonly port: MessagePort }): void
     sizeBox.hidden = false
     // The grid on the floor, a little wider than the model, in round steps.
     const across = Math.max(drawn.max.x - drawn.min.x, drawn.max.z - drawn.min.z) * 1.5
-    const step = 10 ** Math.floor(Math.log10(Math.max(across, 1e-9) / 10))
+    const step = roundStep(across / 12)
     const cells = Math.max(2, Math.ceil(across / step / 2) * 2)
     grid = new GridHelper(cells * step, cells, gridColor, gridColor)
     grid.position.set(bounds.center.x, drawn.min.y, bounds.center.z)
@@ -791,26 +792,29 @@ export const modelFrameViewer = ({ port }: { readonly port: MessagePort }): void
 const triple = (vector: Vector3): [number, number, number] => [vector.x, vector.y, vector.z]
 
 // A token's colour as three.js takes it, as the frame's page computes it, its alpha dropped.
+// A token's colour as three.js takes it, in any form CSS writes it (three.js reads only some),
+// as the frame's page computes it and a canvas paints it.
+const paint = document.createElement("canvas").getContext("2d", { willReadFrequently: true })
 const colourOf = (name: string, fallback: string): Color => {
-  const probe = document.createElement("i")
-  probe.style.color =
-    getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
-  document.body.append(probe)
-  const colour = getComputedStyle(probe).color
-  probe.remove()
-  try {
-    return new Color(colour.replace(/ \/ [\d.]+\)/, ")"))
-  } catch {
-    return new Color(fallback)
-  }
+  const given = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  if (!paint) return new Color(fallback)
+  paint.clearRect(0, 0, 1, 1)
+  paint.fillStyle = fallback
+  if (given) paint.fillStyle = given
+  paint.fillRect(0, 0, 1, 1)
+  const [red, green, blue] = paint.getImageData(0, 0, 1, 1).data
+  return new Color().setRGB(red! / 255, green! / 255, blue! / 255, SRGBColorSpace)
 }
 
+// The round step nearest above `wanted`: 1, 2 or 5 of a power of ten.
+const roundStep = (wanted: number): number => {
+  const power = 10 ** Math.floor(Math.log10(Math.max(wanted, 1e-9)))
+  return [1, 2, 5, 10].map((each) => each * power).find((each) => each >= wanted) ?? power * 10
+}
+
+// A length as the size chip gives it: three figures at most, no trailing zeros.
 const number = (value: number): string =>
-  Math.abs(value) >= 100
-    ? value.toFixed(0)
-    : Math.abs(value) >= 10
-      ? value.toFixed(1)
-      : value.toFixed(2)
+  String(Number(value.toFixed(Math.abs(value) >= 100 ? 0 : Math.abs(value) >= 10 ? 1 : 2)))
 
 const parseJson = (text: string): Record<string, unknown> | undefined => {
   try {
