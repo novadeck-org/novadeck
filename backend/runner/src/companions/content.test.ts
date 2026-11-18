@@ -356,6 +356,38 @@ describe("an image as it loads", () => {
       size: 8 * 1024 * 1024 + 1,
     })
   })
+
+  it("is any format Chromium decodes, typed by its extension", async ({ directory }) => {
+    const types = {
+      "a.apng": "image/apng",
+      "a.jfif": "image/jpeg",
+      "a.pjpeg": "image/jpeg",
+      "a.pjp": "image/jpeg",
+      "a.AVIF": "image/avif",
+      "a.bmp": "image/bmp",
+      "favicon.ico": "image/x-icon",
+      "a.cur": "image/x-icon",
+    }
+    for (const [name, type] of Object.entries(types)) {
+      const path = join(directory, name)
+      writeFileSync(path, png)
+      // eslint-disable-next-line no-await-in-loop -- One file after another.
+      await expect(pointAt(name, directory), name).resolves.toMatchObject({ kind: "image" })
+      // eslint-disable-next-line no-await-in-loop -- One file after another.
+      await expect(loadFile({ ...file(path), kind: "image" }, false), name).resolves.toMatchObject({
+        state: "ready",
+        content: { kind: "image", src: expect.stringMatching(`^data:${type};`) },
+      })
+    }
+  })
+
+  it("isn't a format Chromium can't draw, which stays a file", async ({ directory }) => {
+    for (const name of ["a.tiff", "a.tif", "a.heic", "a.heif"]) {
+      writeFileSync(join(directory, name), png)
+      // eslint-disable-next-line no-await-in-loop -- One file after another.
+      await expect(pointAt(name, directory), name).resolves.toMatchObject({ kind: "file" })
+    }
+  })
 })
 
 describe("captured lines", () => {
