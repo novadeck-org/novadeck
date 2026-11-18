@@ -4,6 +4,7 @@ import {
   parseMeminfo,
   parseProcStat,
   parsePs,
+  psArguments,
   parseVmStat,
   readProcesses,
   treeCpu,
@@ -50,6 +51,11 @@ describe("reading processor time", () => {
       { pid: 1, parent: 0, name: "launchd", selfMs: 10_000, totalMs: 10_000 },
       { pid: 500, parent: 400, name: "cargo", selfMs: 720_250, totalMs: 720_250 },
     ])
+  })
+
+  it("asks ps to add exited children's time to their parent, in the columns it parses", () => {
+    expect(psArguments).toContain("-S")
+    expect(psArguments).toContain("pid=,ppid=,time=,comm=")
   })
 
   it("adds up a terminal's shell and everything under it, and nothing beside it", () => {

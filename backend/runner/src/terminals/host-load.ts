@@ -1,5 +1,6 @@
 import { notice } from "./closes.js"
 import { mention } from "./handles.js"
+import { quotedText } from "./troubles.js"
 
 // What the host's load is read as, and when it is told. These are facts about when a machine
 // is hard pressed, never advice: agents judge what to do with them.
@@ -172,9 +173,15 @@ export class HostLoad {
 /** A length of time as people say it: "4 min". */
 const minutes = (ms: number): string => `${Math.max(1, Math.floor(ms / 60_000))} min`
 
-/** One terminal's use of the CPU as listed: "@fox 41% (rustc)". */
+/** How long a program's name shows, in bytes. */
+const programChars = 40
+
+/**
+ * One terminal's use of the CPU as listed: `@fox 41% ("rustc")`. The program's name is the
+ * machine's, not Novadeck's: quoted, one clipped line.
+ */
 const shown = (name: string, { percent, program }: Share): string =>
-  `${name} ${Math.round(percent)}%${program ? ` (${program})` : ""}`
+  `${name} ${Math.round(percent)}%${program ? ` (${quotedText(program, programChars)})` : ""}`
 
 /**
  * The terminals of `names` (a terminal's id to its handle) using at least `least` percent of
@@ -192,9 +199,12 @@ const heaviestOf = (
     })
     .toSorted((a, b) => b.share.percent - a.share.percent)
 
-/** How long a high stretch has lasted, where it lasted long enough to say: " (90% or more for 4 min)". */
-const forHow = (percent: number, held: number): string =>
-  held >= shownHighMs ? ` (${percent}% or more for ${minutes(held)})` : ""
+/**
+ * How long a high stretch has lasted, where it lasted long enough to say and the reading is
+ * itself high (a dip within a stretch is not): " (90% or more for 4 min)".
+ */
+const forHow = (percent: number, now: number, held: number): string =>
+  held >= shownHighMs && now >= percent ? ` (${percent}% or more for ${minutes(held)})` : ""
 
 /**
  * What a listing says of the host's load, for the terminals of `names` (their handles
@@ -211,10 +221,12 @@ export const renderHost = (
   const memoryShown = load.memory !== undefined && load.memory >= memoryHighPercent
   if (!cpuShown && !memoryShown) return undefined
   const parts = [
-    ...(cpuShown ? [`CPU ${Math.round(load.cpu)}%${forHow(cpuHighPercent, load.cpuHighFor)}`] : []),
+    ...(cpuShown
+      ? [`CPU ${Math.round(load.cpu)}%${forHow(cpuHighPercent, load.cpu, load.cpuHighFor)}`]
+      : []),
     ...(memoryShown
       ? [
-          `memory ${Math.round(load.memory!)}% in use${forHow(memoryHighPercent, load.memoryHighFor)}`,
+          `memory ${Math.round(load.memory!)}% in use${forHow(memoryHighPercent, load.memory!, load.memoryHighFor)}`,
         ]
       : []),
   ]
@@ -228,7 +240,7 @@ export const renderHost = (
     lines.push(
       `Most CPU, of the machine's: ${[
         ...named,
-        `everything else (other projects, other programs) ${Math.round(rest)}%`,
+        `everything else (smaller terminals here, other projects, other programs) ${Math.round(rest)}%`,
       ].join(", ")}.`,
     )
   }
@@ -265,7 +277,8 @@ export class Strain {
     send: (id: string, text: string) => boolean,
   ): readonly string[] {
     if (load.cpuHighFor === 0) this.told.clear()
-    if (load.cpuHighFor < strainMs) return []
+    // A reading under the high mark is a dip within the stretch: nothing is said from it.
+    if (load.cpuHighFor < strainMs || load.cpu < cpuHighPercent) return []
     const sent: string[] = []
     for (const sessionId of new Set(agents.map((agent) => agent.sessionId))) {
       const group = agents.filter((agent) => agent.sessionId === sessionId)

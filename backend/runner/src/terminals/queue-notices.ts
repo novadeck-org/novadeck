@@ -1,6 +1,6 @@
 import type { PullRequest } from "@novadeck/protocol"
 
-import { minutes, pullsOf, type Party, type Pull } from "../messaging/coordination.js"
+import { kindShown, minutes, pullsOf, type Party, type Pull } from "../messaging/coordination.js"
 import { listed } from "../messaging/peers.js"
 import { notice } from "./closes.js"
 import { mention } from "./handles.js"
@@ -18,6 +18,8 @@ export type QueueEntry = Party & {
   readonly sessionId: string
   /** Its agent waits on the person: no notice goes to it. */
   readonly waitingOnUser: boolean
+  /** An agent is bound to it: where none is, no notice can be taken. */
+  readonly bound: boolean
 }
 
 export type QueueNoticesHost = {
@@ -49,14 +51,22 @@ export const queueEntries = (
         pulls,
         stacks: [],
         waitingOnUser: waitingOf(record.bound?.activity ?? null) !== null,
+        bound: record.bound !== null,
       },
     ]
   })
 
 type Episode = {
+  readonly terminalId: string
+  readonly pull: number
+  readonly runner: string
   /** The recipients not yet told, each with the words for it. */
   readonly pending: Map<string, string>
 }
+
+/** Whether a pull request has a queued check whose runner the forge didn't tell (yet). */
+const queuedUnnamed = (pull: Pull): boolean =>
+  pull.checks.some((check) => check.state === "queued" && check.runner === undefined)
 
 /** The queued checks of a pull request for a runner kind: the earliest moment among them. */
 const queuedSince = (pull: Pull, runner: string): number | undefined => {
@@ -82,7 +92,8 @@ const running = (party: Party, runner: string): { pull: Pull; since: number | un
  * queued `queuedLongMs` for a kind of runner that other terminals in its session hold with
  * running checks, the queued terminal and the holders get one notice of the facts (who holds
  * the runners, since when). An episode ends when the check is no longer queued, so a later
- * queue is a new one. A terminal waiting on the person is not told (it is, once it no longer
+ * queue is a new one; a queued check whose runner the forge stops naming (a read that failed)
+ * keeps it going. A recipient with no bound agent is dropped. A terminal waiting on the person is not told (it is, once it no longer
  * waits, while the episode lasts), and a notice that wasn't sent is tried again.
  */
 export class QueueNotices {
@@ -102,13 +113,28 @@ export class QueueNotices {
     this.timer = undefined
   }
 
+  /**
+   * Whether an episode goes on: its pull request still has a check queued for its runner kind,
+   * or one queued whose runner kind isn't told now.
+   */
+  private lasts(episode: Episode, entries: readonly QueueEntry[]): boolean {
+    const pull = entries
+      .find((entry) => entry.terminalId === episode.terminalId)
+      ?.pulls.find((each) => each.number === episode.pull)
+    if (pull === undefined) return false
+    return queuedSince(pull, episode.runner) !== undefined || queuedUnnamed(pull)
+  }
+
   /** One reading of the terminals' checks: starts the episodes due, and sends what is pending. */
   tick(): void {
     if (this.host.stopping()) return
     const now = (this.host.now ?? Date.now)()
     const entries = this.host.entries()
     const waiting = new Map(entries.map((entry) => [entry.terminalId, entry.waitingOnUser]))
-    const live = new Set<string>()
+    // The terminals an agent is bound to.
+    const bound = new Map(
+      entries.filter((entry) => entry.bound).map((entry) => [entry.terminalId, true]),
+    )
     for (const party of entries) {
       const mates = entries.filter((each) => each.sessionId === party.sessionId)
       for (const pull of party.pulls) {
@@ -117,26 +143,31 @@ export class QueueNotices {
           const since = queuedSince(pull, runner)
           if (since === undefined || now - since < queuedLongMs) continue
           const key = `${party.terminalId}\0${pull.number}\0${runner}`
-          live.add(key)
           if (this.episodes.has(key)) continue
           const holders = mates.filter(
             (each) => each.terminalId !== party.terminalId && running(each, runner).length > 0,
           )
           if (holders.length === 0) continue
           this.episodes.set(key, {
+            terminalId: party.terminalId,
+            pull: pull.number,
+            runner,
             pending: recipients(party, pull, runner, since, holders, now),
           })
         }
       }
     }
     for (const [key, episode] of this.episodes) {
-      if (!live.has(key)) {
+      if (!this.lasts(episode, entries)) {
         this.episodes.delete(key)
         continue
       }
       for (const [terminalId, text] of episode.pending) {
-        if (!waiting.has(terminalId) || waiting.get(terminalId) === true) continue
-        if (this.host.notice(terminalId, text)) episode.pending.delete(terminalId)
+        const reader = bound.get(terminalId)
+        // Gone, or without an agent to take it: it is not tried again.
+        if (reader === undefined) episode.pending.delete(terminalId)
+        else if (waiting.get(terminalId) === true) continue
+        else if (this.host.notice(terminalId, text)) episode.pending.delete(terminalId)
       }
     }
   }
@@ -152,6 +183,8 @@ const recipients = (
   now: number,
 ): Map<string, string> => {
   const told = new Map<string, string>()
+  // The label is the forge's, not Novadeck's: quoted, one clipped line.
+  const kind = kindShown(runner)
   const held = (reader: string): string =>
     listed(
       holders.flatMap((holder) =>
@@ -163,14 +196,14 @@ const recipients = (
     )
   told.set(
     queued.terminalId,
-    `${notice}Your PR #${pull.number}'s ${runner} check has been queued ${minutes(since, now)}; ` +
-      `${runner} runners held by ${held(queued.terminalId)}.`,
+    `${notice}Your PR #${pull.number}'s ${kind} check has been queued ${minutes(since, now)}; ` +
+      `${kind} runners held by ${held(queued.terminalId)}.`,
   )
   for (const holder of holders)
     told.set(
       holder.terminalId,
-      `${notice}${mention(queued.handle)}'s PR #${pull.number}'s ${runner} check has been queued ` +
-        `${minutes(since, now)}; ${runner} runners held by ${held(holder.terminalId)}.`,
+      `${notice}${mention(queued.handle)}'s PR #${pull.number}'s ${kind} check has been queued ` +
+        `${minutes(since, now)}; ${kind} runners held by ${held(holder.terminalId)}.`,
     )
   return told
 }

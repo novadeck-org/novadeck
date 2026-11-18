@@ -1,8 +1,8 @@
 import type { Check } from "@novadeck/forges"
 import type { PullRequest } from "@novadeck/protocol"
-import { redact } from "@novadeck/secrets"
 
 import { mention } from "../terminals/handles.js"
+import { quotedText } from "../terminals/troubles.js"
 import { shorten } from "../text.js"
 import type { Peer, Whereabouts } from "./peers.js"
 
@@ -65,6 +65,20 @@ export const unnamedRunner = "a runner kind the forge doesn't report"
 
 const runnerOf = (check: Check): string => check.runner ?? unnamedRunner
 
+/** How long a runner kind shows, in bytes. */
+const runnerChars = 60
+
+/**
+ * Text from outside Novadeck (a forge's runner label, a check's name, an agent's own words) as
+ * a quoted string of one clipped line, without control or invisible characters or secrets, so
+ * it can neither close its quote nor read as Novadeck's own words.
+ */
+export const outside = (text: string, max: number): string => quotedText(text, max)
+
+/** How a listing shows a runner kind: quoted, but for the one named for the forge's silence. */
+export const kindShown = (kind: string): string =>
+  kind === unnamedRunner ? kind : outside(kind, runnerChars)
+
 /** How long since a moment, in words: "6 min". */
 export const minutes = (since: number, now: number): string => {
   const min = Math.floor((now - since) / 60_000)
@@ -89,6 +103,8 @@ export const occupancy = (parties: readonly Party[]): ReadonlyMap<string, Occupa
   for (const party of parties)
     for (const pull of party.pulls)
       for (const check of pull.checks) {
+        // Held by an approval or a concurrency group, not for a runner: no kind holds or lacks it.
+        if (check.state === "held") continue
         const kind = runnerOf(check)
         const held = kinds.get(kind) ?? { running: new Map(), queued: new Map() }
         kinds.set(kind, held)
@@ -137,10 +153,20 @@ export const runnerLines = (parties: readonly Party[], now: number): readonly st
         running.size > 0 ? `running: ${held(running.values(), now)}` : null,
         queued.size > 0 ? `queued: ${held(queued.values(), now)}` : null,
       ].filter((part): part is string => part !== null)
-      return `- ${kind}: ${parts.join(" · ")}`
+      return `- ${kindShown(kind)}: ${parts.join(" · ")}`
     }),
   ]
 }
+
+/** A check's state in words: a held one says by what it is held. */
+const stateShown = (check: Check): string =>
+  check.state !== "held"
+    ? check.state
+    : check.hold === "approval"
+      ? "waiting for approval"
+      : check.hold === "concurrency"
+        ? "held by a concurrency group"
+        : "held"
 
 /** How many checks one pull request names in a terminal's own line. */
 const namedChecks = 4
@@ -151,8 +177,8 @@ export const checksLine = (pulls: readonly Pull[], now: number): string | null =
   const parts = pulls.map(({ number, checks }) => {
     const shown = checks.slice(0, namedChecks).map((check) => {
       const since = check.since === undefined ? "" : ` ${minutes(check.since, now)}`
-      const runner = check.runner === undefined ? "" : ` (${shorten(check.runner, 60)})`
-      return `${shorten(check.name, 60)} ${check.state}${since}${runner}`
+      const runner = check.runner === undefined ? "" : ` (${outside(check.runner, runnerChars)})`
+      return `${outside(check.name, 60)} ${stateShown(check)}${since}${runner}`
     })
     const more = checks.length - shown.length
     return `PR #${number}: ${[...shown, ...(more > 0 ? [`and ${more} more`] : [])].join(", ")}`
@@ -162,9 +188,7 @@ export const checksLine = (pulls: readonly Pull[], now: number): string | null =
 
 /** What an agent says its work waits on, in one line, with when it said so. */
 export const statedLine = (said: Statement | null | undefined, now: number): string | null =>
-  said
-    ? `  says it waits on: "${shorten(redact(said.text), 200)}" (${minutes(said.at, now)} ago)`
-    : null
+  said ? `  says it waits on: ${outside(said.text, 200)} (${minutes(said.at, now)} ago)` : null
 
 /**
  * Whose work is based on whose, from pull requests that target another terminal's branch and

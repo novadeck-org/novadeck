@@ -597,9 +597,17 @@ answers it in the Inbox.
     11. its last turn, when that failed and the agent is not at work again: `  last turn
         failed 12 min ago: API Error …`, with the error cut to about 120 characters.
     12. where a forge is on, its pull requests' unfinished checks, one line: `  checks: PR
-        #12: mac queued 14 min (macos-latest), linux running 3 min (ubuntu-latest)`, the
-        runner kind as the forge names it (GitHub's `runs-on` labels, GitLab's job tags,
-        Azure's agent pool);
+        #12: "mac" queued 14 min ("macos-latest"), "linux" running 3 min ("ubuntu-latest")`,
+        the runner kind as the forge names it (GitHub's `runs-on` labels, GitLab's job tags,
+        Azure's agent pool, or for its hosted pool the build's agent specification where it
+        gives one, else none). A GitHub check that waits for an environment's approval or a
+        concurrency group's earlier run isn't waiting for a runner: it shows as `waiting for
+        approval` or `held by a concurrency group`, and is left out of the runner lines and
+        the queue notice. GitHub's jobs are read for a check's labels and queue time once per
+        commit and check, since those don't change; they are not asked again while a
+        repository's REST limit lasts (or for five minutes after a refusal), and a check read
+        without them keeps its place and shows no runner. GitLab's queue time is now less the
+        job's `queued_duration`;
     13. what its agent said its work waits on, through `describe`'s `waitingFor`: `  says it
         waits on: "…" (5 min ago)`. It is kept in memory only, so a runner restart drops it.
 
@@ -610,18 +618,27 @@ answers it in the Inbox.
     - the CI checks running or queued in the project and session by kind of runner, who
       holds each kind and who waits for it, the caller's own as "your";
     - work based on another terminal's work: a pull request targeting another terminal's
-      branch, or a worktree started from that branch's own commits, within one repository
-      (`terminals/stacks.ts`);
+      branch, or a worktree whose base commit is not in the repository's default branch
+      (local or remote-tracking) and is in that other branch, within one repository
+      (`terminals/stacks.ts`): a branch that merged newer main into itself doesn't make
+      the worktrees opened from that main depend on it;
     - the host's load when CPU is at 60% or more or memory at 90% or more, how long it has
-      been high, and which of the session's terminals use the most CPU (each at 5% of the
-      machine or more, top five, by its process tree), everything else summed as one.
+      been high (said only while the reading itself is at 90% or more), and which of the
+      session's terminals use the most CPU (each at 5% of the machine or more, top five, by
+      its process tree), everything else ("smaller terminals here, other projects, other
+      programs") summed as one. A short-lived child counts where the system tells it: Linux
+      keeps an exited child's time with its parent, macOS does with `ps -S`; Windows
+      doesn't (its process times are per process), so a burst of short processes there can
+      go unseen between two readings.
 
     Two notices, facts only, go once per episode to the agents concerned, through the same
     notice path as a lead's: when the host's CPU has been at 90% or more for 3 minutes and
     two or more of the session's agent terminals each use 10% of it or more
     (`terminals/host-watch.ts`), and when a pull request's check has been queued 10 minutes
     for a runner kind another terminal's pull request holds, to the queued one and the
-    holders (`terminals/queue-notices.ts`). An agent waiting on the person isn't sent one.
+    holders (`terminals/queue-notices.ts`). An agent waiting on the person isn't sent one,
+    nor from a reading of the host under 90%; a recipient with no agent bound is dropped,
+    and a queue whose runner the forge stops naming for a look stays the same episode.
 
     The reports and turns come from the report log, not the Inbox (see below);
 
@@ -639,7 +656,10 @@ answers it in the Inbox.
 
   Text an agent or the person wrote (titles, summaries, report subjects, message and reply
   excerpts) is flattened to one line and cut short wherever a listing shows it, so it can't
-  begin a line of its own that reads as Novadeck's.
+  begin a line of its own that reads as Novadeck's. What comes from a forge or the machine
+  (runner labels, check names, program names) and what an agent says it waits on is also
+  stripped of control and invisible characters and secrets, and shown in quotes with its own
+  quotes escaped; a notice puts a runner label in quotes the same way.
 
   The checkout an agent works in now: its terminal's folder, which follows the harness's
   own directory, unless its agent's latest tool calls are mostly in another git checkout,
@@ -724,7 +744,8 @@ their judgement (the server's instructions open with the same, for Claude Code):
 `agents()` lists share the machine, its repositories and what they reach; when an agent's
 work meets theirs it works it out with them directly, and what they settle between them
 needs no one's approval; what matters most to the person goes first, not whoever got there
-first; each changes only its own things. Then: the person comes first, and what they type
+first; each changes only its own things, and what they agree settles who does
+what and when, never an approval of an action. Then: the person comes first, and what they type
 in the agent's own terminal outranks every message; the agent that opened your terminal as
 its teammate, or the one the person let lead you, is your lead until it lets go, and its
 messages, under a mark new in every delivery that text can't fake, are instructions, acted

@@ -165,6 +165,15 @@ const ciOf = async (
   return { ci, ...(checks && checks.length > 0 && { checks }) }
 }
 
+// When a pending job was queued: the Jobs API has no `queued_at`, only `queued_duration`, the
+// seconds it has waited; `created_at` is the fallback where that is absent.
+const queuedSince = (job: Record<string, unknown>): number => {
+  const waited = job["queued_duration"]
+  if (typeof waited === "number" && Number.isFinite(waited) && waited >= 0)
+    return Date.now() - waited * 1000
+  return time(job["created_at"])
+}
+
 // A pipeline's jobs waiting for a runner or running, with the tags that say what kind of runner
 // each needs; a job still `created` waits on an earlier stage, not on a runner. Never fails the
 // lookup.
@@ -187,7 +196,7 @@ const checksOf = async (
     if (job === undefined || typeof name !== "string") return []
     const running = job["status"] === "running"
     if (!running && job["status"] !== "pending") return []
-    const at = running ? time(job["started_at"]) : time(job["queued_at"]) || time(job["created_at"])
+    const at = running ? time(job["started_at"]) : queuedSince(job)
     const tags = Array.isArray(job["tag_list"])
       ? job["tag_list"].filter((tag): tag is string => typeof tag === "string")
       : []

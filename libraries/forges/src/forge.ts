@@ -79,14 +79,17 @@ export type PullRequest = {
 }
 
 /**
- * A check that has not finished: waiting for a runner (`queued`) or running. `since` is when
- * it was queued or started, epoch milliseconds, where the forge says. `runner` names the kind
- * of runner it needs or holds (GitHub's `runs-on` labels, GitLab's job tags, Azure's agent
- * pool), where the forge says; a forge that can't leaves it out.
+ * A check that has not finished: waiting for a runner (`queued`), running, or `held` by
+ * something other than a runner shortage (`hold` says what: an environment's approval, or a
+ * concurrency group's earlier run). `since` is when it was queued or started, epoch
+ * milliseconds, where the forge says. `runner` names the kind of runner it needs or holds
+ * (GitHub's `runs-on` labels, GitLab's job tags, Azure's agent pool), where the forge says; a
+ * forge that can't leaves it out.
  */
 export type Check = {
   readonly name: string
-  readonly state: "queued" | "running"
+  readonly state: "queued" | "running" | "held"
+  readonly hold?: "approval" | "concurrency" | undefined
   readonly since?: number | undefined
   readonly runner?: string | undefined
 }

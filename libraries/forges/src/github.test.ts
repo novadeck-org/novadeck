@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest"
 
 import { exit, mapOf, missing, ok, scripted, timeout } from "./fakes.js"
 import type { Repository } from "./forge.js"
-import { github } from "./github.js"
+import { forgetJobs, github } from "./github.js"
 import { parseRemote } from "./remote.js"
 
 const server = setupServer()
@@ -384,6 +384,7 @@ describe("github", () => {
 })
 
 describe("github unfinished checks", () => {
+  afterEach(() => forgetJobs())
   const started = "2026-01-01T10:00:00Z"
   const queuedAt = "2026-01-01T09:50:00Z"
   const rolled = (nodes: unknown[]) => ({
@@ -505,5 +506,90 @@ describe("github unfinished checks", () => {
       }),
     )
     expect((await find())?.checks).toBeUndefined()
+  })
+
+  const mac = (status = "QUEUED") =>
+    pr(
+      1,
+      "OPEN",
+      rolled([
+        {
+          __typename: "CheckRun",
+          name: "mac",
+          status,
+          checkSuite: { createdAt: queuedAt },
+        },
+      ]),
+    )
+
+  it("reads a commit's jobs once: labels don't change, so a later look asks nothing", async () => {
+    let asked = 0
+    server.use(answer({ a: [mac()] }))
+    runs("queued", [
+      { name: "mac", status: "queued", labels: ["macos-latest"], created_at: queuedAt },
+    ])
+    server.use(
+      http.get("https://api.github.com/repos/o/r/actions/runs", () => {
+        asked += 1
+        return HttpResponse.json({ workflow_runs: [{ id: 77, status: "queued" }] })
+      }),
+    )
+    expect((await find())?.checks?.[0]?.runner).toBe("macos-latest")
+    expect((await find())?.checks?.[0]?.runner).toBe("macos-latest")
+    expect(asked).toBe(1)
+  })
+
+  it("leaves the REST API alone for a repository until its limit resets", async () => {
+    let asked = 0
+    const reset = Math.floor(Date.now() / 1000) + 600
+    server.use(
+      answer({ a: [mac()] }),
+      http.get("https://api.github.com/repos/o/r/actions/runs", () => {
+        asked += 1
+        return new HttpResponse("{}", {
+          status: 429,
+          headers: { "x-ratelimit-reset": String(reset) },
+        })
+      }),
+    )
+    expect((await find())?.checks?.[0]?.runner).toBeUndefined()
+    await find()
+    await find()
+    expect(asked).toBe(1)
+  })
+
+  it("leaves the REST API alone for a few minutes after a refusal", async () => {
+    let asked = 0
+    server.use(
+      answer({ a: [mac()] }),
+      http.get("https://api.github.com/repos/o/r/actions/runs", () => {
+        asked += 1
+        return new HttpResponse("{}", { status: 403 })
+      }),
+    )
+    await find()
+    await find()
+    expect(asked).toBe(1)
+  })
+
+  it("lists an approval or a concurrency hold as held, not queued, and asks no jobs for it", async () => {
+    server.use(
+      answer({
+        a: [
+          pr(
+            1,
+            "OPEN",
+            rolled([
+              { __typename: "CheckRun", name: "deploy", status: "WAITING" },
+              { __typename: "CheckRun", name: "build", status: "PENDING" },
+            ]),
+          ),
+        ],
+      }),
+    )
+    expect((await find())?.checks).toEqual([
+      { name: "deploy", state: "held", hold: "approval" },
+      { name: "build", state: "held", hold: "concurrency" },
+    ])
   })
 })

@@ -96,8 +96,15 @@ const listProc = async (): Promise<ProcessRow[]> => {
   })
 }
 
+/**
+ * What `ps` is run with: `-S` adds the time of the children a process has waited for to its own,
+ * as Linux's cutime does, so a short-lived child (a compiler run) isn't lost between two
+ * readings. The column reads as without it, so a row's own time is then its total.
+ */
+export const psArguments = ["-S", "-axo", "pid=,ppid=,time=,comm="] as const
+
 const listPs = async (): Promise<ProcessRow[]> => {
-  const { stdout } = await promisify(execFile)("ps", ["-axo", "pid=,ppid=,time=,comm="], {
+  const { stdout } = await promisify(execFile)("ps", psArguments, {
     encoding: "utf8",
     env: { ...process.env, LC_ALL: "C" },
     maxBuffer: 64 * 1024 * 1024,

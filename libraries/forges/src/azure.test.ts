@@ -434,7 +434,14 @@ describe("azure unfinished checks", () => {
               definition: { name: "lint" },
               status: "inProgress",
               startTime: "2026-01-01T10:00:00Z",
-              queue: { pool: { name: "Azure Pipelines" } },
+              queue: { pool: { name: "Azure Pipelines", isHosted: true } },
+            },
+            {
+              definition: { name: "unit" },
+              status: "inProgress",
+              startTime: "2026-01-01T10:01:00Z",
+              queue: { pool: { name: "Azure Pipelines", isHosted: true } },
+              agentSpecification: { identifier: "ubuntu-latest" },
             },
           ],
         })
@@ -453,7 +460,12 @@ describe("azure unfinished checks", () => {
         name: "lint",
         state: "running",
         since: Date.parse("2026-01-01T10:00:00Z"),
-        runner: "Azure Pipelines",
+      },
+      {
+        name: "unit",
+        state: "running",
+        since: Date.parse("2026-01-01T10:01:00Z"),
+        runner: "ubuntu-latest",
       },
     ])
   })

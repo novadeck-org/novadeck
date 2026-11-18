@@ -96,7 +96,7 @@ describe("watching the host", () => {
     expect(watch.listing("a", records)).toBe(
       [
         "Host load now: CPU 95%.",
-        "Most CPU, of the machine's: you 50%, @b 30%, everything else (other projects, other programs) 15%.",
+        "Most CPU, of the machine's: you 50%, @b 30%, everything else (smaller terminals here, other projects, other programs) 15%.",
       ].join("\n"),
     )
   })

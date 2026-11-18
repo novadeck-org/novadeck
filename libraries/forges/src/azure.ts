@@ -244,6 +244,18 @@ const ciOf = async (
   return combine(signals, complete)
 }
 
+// The kind of runner a build needs: its own agent pool; for the hosted pool, which is named
+// "Azure Pipelines" whatever the image, the agent specification where the build says one
+// (`ubuntu-latest`), else none, so the check is listed under the unnamed kind.
+const runnerOf = (build: Record<string, unknown>): string | undefined => {
+  const pool = record(record(build["queue"])?.["pool"])
+  const name = pool?.["name"]
+  if (typeof name !== "string" || name === "") return undefined
+  if (pool?.["isHosted"] !== true && name !== "Azure Pipelines") return name
+  const image = record(build["agentSpecification"])?.["identifier"]
+  return typeof image === "string" && image !== "" ? image : undefined
+}
+
 // The builds of a pull request's merge ref that wait for an agent or run, each with the agent
 // pool it needs, which is the kind of runner Azure names. Never fails the lookup.
 const checksOf = async (
@@ -267,13 +279,13 @@ const checksOf = async (
     const running = build["status"] === "inProgress"
     if (!running && build["status"] !== "notStarted") return []
     const at = running ? time(build["startTime"]) : time(build["queueTime"])
-    const pool = record(record(build["queue"])?.["pool"])?.["name"]
+    const runner = runnerOf(build)
     return [
       {
         name,
         state: running ? "running" : "queued",
         ...(at > 0 && { since: at }),
-        ...(typeof pool === "string" && pool !== "" && { runner: pool }),
+        ...(runner !== undefined && { runner }),
       },
     ]
   })

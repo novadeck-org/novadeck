@@ -90,8 +90,13 @@ const ciOf = (pr: Record<string, unknown>, blind: boolean): Ci | undefined => {
   return known ?? (blind ? undefined : "none")
 }
 
-// A check run's status: waiting for a runner, or running; COMPLETED is finished.
-const queuedStatuses = new Set(["QUEUED", "WAITING", "PENDING", "REQUESTED"])
+// A check run's status: waiting for a runner, or running; COMPLETED is finished. WAITING is an
+// environment's approval and PENDING a concurrency group's earlier run: held, not for a runner.
+const queuedStatuses = new Set(["QUEUED", "REQUESTED"])
+const heldStatuses: Record<string, "approval" | "concurrency"> = {
+  WAITING: "approval",
+  PENDING: "concurrency",
+}
 
 // The checks of the head commit that have not finished, as the rollup lists them; undefined
 // where it lists none (a rollup that can't be read, or no checks at all).
@@ -106,10 +111,18 @@ const checksOf = (pr: Record<string, unknown>): Check[] | undefined => {
     if (each["__typename"] === "CheckRun") {
       const { name, status } = each
       if (typeof name !== "string" || typeof status !== "string") return []
+      const hold = heldStatuses[status]
       const queued = queuedStatuses.has(status)
-      if (!queued && status !== "IN_PROGRESS") return []
+      if (!queued && hold === undefined && status !== "IN_PROGRESS") return []
       const at = time(each["startedAt"]) || time(record(each["checkSuite"])?.["createdAt"])
-      return [{ name, state: queued ? "queued" : "running", ...(at > 0 && { since: at }) }]
+      return [
+        {
+          name,
+          state: hold !== undefined ? "held" : queued ? "queued" : "running",
+          ...(hold !== undefined && { hold }),
+          ...(at > 0 && { since: at }),
+        },
+      ]
     }
     // A commit status an outside service reports, still pending.
     const { context } = each
@@ -206,21 +219,77 @@ const runsAsked = 5
 
 const jobStates = new Set(["queued", "in_progress", "waiting", "pending", "requested"])
 
+/** What a job's runner labels and queue time were; they don't change, so they are read once. */
+type Job = { readonly runner?: string | undefined; readonly created: number }
+
+/** How many jobs are remembered, oldest forgotten first. */
+const jobsKept = 4000
+
+/** How long a check no job was found for is left alone before it is asked again. */
+const unmatchedMs = 5 * 60_000
+
+/** How long the REST API is left alone for a repository after a refusal that names no reset. */
+const refusedMs = 5 * 60_000
+
+// By repository, commit and check name. A check no job was found for is kept as `undefined`,
+// with when, so a check no run names (a status an app reports) is not asked of every look.
+const jobs = new Map<string, { readonly job: Job | undefined; readonly at: number }>()
+
+// The moment, by repository, before which the REST API is not asked (rate limited or refused).
+const backoff = new Map<string, number>()
+
+const keyOf = (
+  repo: Repository & { readonly forge: "github" },
+  oid: string,
+  name: string,
+): string => `${repo.host}/${repo.owner}/${repo.name}\0${oid}\0${name}`
+
+const remember = (key: string, job: Job | undefined, at: number): void => {
+  jobs.delete(key)
+  jobs.set(key, { job, at })
+  if (jobs.size > jobsKept) jobs.delete(jobs.keys().next().value!)
+}
+
+/** Forgets what was read of workflow jobs and any back off, as a fresh start does. */
+export const forgetJobs = (): void => {
+  jobs.clear()
+  backoff.clear()
+}
+
 // The runner labels and queue time of the jobs of the commit's unfinished workflow runs, by job
-// name. Never fails the lookup: a token that can't read Actions leaves the checks as they were.
-const runnersOf = async (
+// name, read into `jobs`. Never fails the lookup: a token that can't read Actions leaves the
+// checks as they were, and a rate limit or refusal leaves REST alone for the repository until
+// the reset, or a few minutes.
+const readJobs = async (
   fetch: Fetch,
   auth: Token,
   repo: Repository & { readonly forge: "github" },
   oid: string,
-): Promise<Map<string, { runner?: string; created: number }>> => {
+  names: readonly string[],
+): Promise<void> => {
+  const where = `${repo.host}/${repo.owner}/${repo.name}`
+  const now = Date.now()
+  if ((backoff.get(where) ?? 0) > now) return
   const base = `${rest(repo.host)}/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}/actions/runs`
-  const get = (url: string) =>
-    send(fetch, url, { headers: headers(auth.value) }, { signIn: signIn(repo.host) })
+  const get = async (url: string) => {
+    const got = await send(
+      fetch,
+      url,
+      { headers: headers(auth.value) },
+      { signIn: signIn(repo.host) },
+    )
+    if ("problem" in got) {
+      const { problem } = got
+      if (problem.kind === "limited") backoff.set(where, problem.until)
+      else if (problem.kind === "refused") backoff.set(where, Date.now() + refusedMs)
+    }
+    return got
+  }
   const runs = await get(`${base}?head_sha=${encodeURIComponent(oid)}&per_page=20`)
-  const list = "body" in runs ? record(runs.body)?.["workflow_runs"] : undefined
-  const found = new Map<string, { runner?: string; created: number }>()
-  if (!Array.isArray(list)) return found
+  // Neither answer says what the checks run on: they are asked again at the next look.
+  if (!("body" in runs)) return
+  const list = record(runs.body)?.["workflow_runs"]
+  if (!Array.isArray(list)) return
   const open = list.flatMap((run) => {
     const each = record(run)
     return each !== undefined &&
@@ -229,29 +298,36 @@ const runnersOf = async (
       ? [each["id"]]
       : []
   })
-  const answers = await pooled(open.slice(0, runsAsked), (id) =>
-    get(`${base}/${id}/jobs?filter=latest&per_page=100`),
-  )
+  const asked = open.slice(0, runsAsked)
+  const answers = await pooled(asked, (id) => get(`${base}/${id}/jobs?filter=latest&per_page=100`))
+  if (answers.some((each) => "problem" in each)) return
+  const found = new Set<string>()
   for (const answer of answers) {
-    const jobs = "body" in answer ? record(answer.body)?.["jobs"] : undefined
-    if (!Array.isArray(jobs)) continue
-    for (const job of jobs) {
+    const listed = "body" in answer ? record(answer.body)?.["jobs"] : undefined
+    if (!Array.isArray(listed)) continue
+    for (const job of listed) {
       const each = record(job)
       if (each === undefined || typeof each["name"] !== "string") continue
       if (!jobStates.has(String(each["status"]))) continue
       const labels = Array.isArray(each["labels"])
         ? each["labels"].filter((label): label is string => typeof label === "string")
         : []
-      found.set(each["name"], {
-        ...(labels.length > 0 && { runner: labels.join(" ") }),
-        created: time(each["created_at"]),
-      })
+      found.add(each["name"])
+      remember(
+        keyOf(repo, oid, each["name"]),
+        {
+          ...(labels.length > 0 && { runner: labels.join(" ") }),
+          created: time(each["created_at"]),
+        },
+        now,
+      )
     }
   }
-  return found
+  for (const name of names) if (!found.has(name)) remember(keyOf(repo, oid, name), undefined, now)
 }
 
-// Names each unfinished check's runner kind, and when a queued one was queued, by its job.
+// Names each unfinished check's runner kind, and when a queued one was queued, by its job. The
+// jobs are asked only where a queued or running check's job isn't known yet.
 const withRunners = async (
   fetch: Fetch,
   auth: Token,
@@ -260,12 +336,19 @@ const withRunners = async (
   oid: string,
 ): Promise<PullRequest> => {
   if (!pull.checks) return pull
-  const jobs = await runnersOf(fetch, auth, repo, oid)
+  const known = (name: string): boolean => {
+    const seen = jobs.get(keyOf(repo, oid, name))
+    return seen !== undefined && (seen.job !== undefined || Date.now() - seen.at < unmatchedMs)
+  }
+  const unknown = pull.checks.flatMap((check) =>
+    check.state !== "held" && !known(check.name) ? [check.name] : [],
+  )
+  if (unknown.length > 0) await readJobs(fetch, auth, repo, oid, unknown)
   return {
     ...pull,
     checks: pull.checks.map((check) => {
-      const job = jobs.get(check.name)
-      if (job === undefined) return check
+      const job = jobs.get(keyOf(repo, oid, check.name))?.job
+      if (job === undefined || check.state === "held") return check
       const since = check.state === "queued" && job.created > 0 ? job.created : check.since
       return {
         ...check,
