@@ -134,11 +134,9 @@ export const Unavailable = ({
 
 // The pane's body for an artifact kind, once the kind's `Body` has its content: loads and
 // follows what the item holds while it shows, and draws what hasn't loaded or can't show.
-// `document` marks the content a place shows as a document, which the stylesheet reads.
 export const artifactView = <K extends ShownKind>(
   kind: K,
   Body: ComponentType<ArtifactBodyProps<K>>,
-  document?: (content: Extract<ShownContent, { readonly kind: K }>) => boolean,
 ): ComponentType<ViewProps> => {
   const View = ({ item, itemStore, target }: ViewProps): React.JSX.Element => {
     const load = useContent(itemStore, target, item)
@@ -146,11 +144,7 @@ export const artifactView = <K extends ShownKind>(
     const content =
       ready?.kind === kind ? (ready as Extract<ShownContent, { readonly kind: K }>) : undefined
     return (
-      <div
-        className="artifact-viewer"
-        aria-busy={!content && load?.state !== "unavailable"}
-        data-document={(content && document?.(content)) || undefined}
-      >
+      <div className="artifact-viewer" aria-busy={!content && load?.state !== "unavailable"}>
         {load?.state === "unavailable" ? (
           <Unavailable
             item={item}
