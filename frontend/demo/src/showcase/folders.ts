@@ -322,6 +322,16 @@ export const renderFiles = (now: number): DemoFile[] => [
   },
 ]
 
+// `count` files named by their number, as a folder that holds more than the pane lists whole
+// would list its first: they are all there is to see of it.
+export const numberedFiles = (count: number, now: number): DemoFile[] =>
+  Array.from({ length: count }, (_, index) => ({
+    name: `chunk-${String(index + 1).padStart(4, "0")}.js`,
+    kind: "text" as const,
+    size: 1_000 + index * 37,
+    modifiedAt: now - index * 60_000,
+  }))
+
 export const folderItem = (
   id: string,
   name: string,

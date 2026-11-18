@@ -346,6 +346,23 @@
   cursor: pointer;
 }
 
+/* A folder that may hold secrets, refused whole: a lock, what is not shown and why, and no tools. */
+.folder-refused {
+  display: grid;
+  flex: 1;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  padding: 24px;
+  color: var(--color-muted);
+  text-align: center;
+}
+.folder-refused b {
+  color: var(--color-ink);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
 /* Nothing in it yet. */
 .folder-empty {
   display: grid;

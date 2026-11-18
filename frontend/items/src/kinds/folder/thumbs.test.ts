@@ -1,5 +1,7 @@
+import { afterEach, vi } from "vitest"
+
 import { context, describe, expect, it } from "../../test"
-import { createQueue } from "./thumbs"
+import { createQueue, holdThumb, loadThumb } from "./thumbs"
 
 // A job that runs until it is let go, noting when it began.
 const jobs = () => {
@@ -64,5 +66,42 @@ describe("the pictures of a folder's grid", () => {
       expect(began).toEqual(["running", "last"])
       expect(release.has("waiting")).toBe(false)
     })
+  })
+})
+
+describe("the pictures kept for a folder's grid", () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  const load = (index: number) =>
+    loadThumb({
+      key: `item:${index}`,
+      kind: "image",
+      name: `${index}.png`,
+      size: 2,
+      read: async () => ({ state: "part", bytes: new Uint8Array([1, 2]) }),
+      signal: new AbortController().signal,
+    })
+
+  it("lets go of the oldest beyond the limit, but not while a tile shows it", async () => {
+    let made = 0
+    const revoked: string[] = []
+    vi.stubGlobal("URL", {
+      createObjectURL: () => `blob:${(made += 1)}`,
+      revokeObjectURL: (url: string) => revoked.push(url),
+    })
+    const first = await load(0)
+    const release = holdThumb(first!.url)
+    // eslint-disable-next-line no-await-in-loop -- Each is kept in the order it is loaded.
+    for (let index = 1; index <= 300; index += 1) await load(index)
+    // The oldest was let go of by the cache, but a tile still draws it.
+    expect(revoked).not.toContain(first!.url)
+    expect(revoked).toHaveLength(0)
+    await load(301)
+    expect(revoked).toEqual(["blob:2"])
+    release()
+    expect(revoked).toEqual(["blob:2", first!.url])
+    // One nothing shows goes at once.
+    release()
+    expect(revoked).toHaveLength(2)
   })
 })

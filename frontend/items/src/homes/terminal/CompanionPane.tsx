@@ -313,7 +313,9 @@ const PaneTabs = ({
   if (tabs.length === 1) {
     const only = tabs[0]!
     const { icon, name } = memberLook(only, { plans })
-    return <PaneTitle icon={icon} name={name} look={looks(only, note)} gone={note.gone} />
+    return (
+      <PaneTitle icon={note.icon ?? icon} name={name} look={looks(only, note)} gone={note.gone} />
+    )
   }
   return (
     <div
@@ -376,7 +378,7 @@ const PaneTabs = ({
                   if (!open) pick(tab)
                 }}
               >
-                <TabFace icon={icon} name={name} look={look} />
+                <TabFace icon={(open && note.icon) || icon} name={name} look={look} />
               </button>
             </Tooltip>
             {/* The pointer's close; the keyboard's is Delete on the tab, so the list holds
@@ -396,7 +398,7 @@ const PaneTabs = ({
   )
 }
 
-const noNote: TabNote = { facts: [], gone: false, where: undefined }
+const noNote: TabNote = { facts: [], gone: false, where: undefined, icon: undefined }
 
 // The tab `by` along from the one shown, round the row's ends, as Ctrl+PageDown (1) and
 // Ctrl+PageUp (-1) step from anywhere in the pane: never one that may hold secrets, which

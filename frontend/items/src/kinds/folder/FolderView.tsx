@@ -1,6 +1,6 @@
 import type { FolderContent, FolderEntry, Item, UnavailableReason } from "@novadeck/core/items"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { ArrowUp, ArrowUpDown, FolderOpen, LayoutGrid, LayoutList } from "lucide-react"
+import { ArrowUp, ArrowUpDown, FolderOpen, LayoutGrid, LayoutList, Lock } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { useItemCommands } from "../../item-commands"
@@ -72,12 +72,14 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
   const gone = top?.state === "unavailable" && top.reason === "gone"
   const shown = listed ?? (trouble && last?.within === within ? last.content : undefined)
   const commands = useItemCommands()
-  usePaneNote(listed ? [countText(listed.total)] : [], gone)
+  // A top that may hold secrets is refused whole, the tab wearing a lock.
+  const refused = top?.state === "unavailable" && top.reason === "secret"
+  usePaneNote(listed ? [countText(listed.total)] : [], gone, undefined, refused ? Lock : undefined)
 
   const root = useRef<HTMLDivElement>(null)
   const [inside, setInside] = useState(false)
   const arrivals = useArrivals(listed?.entries, inside, within)
-  const writing = useWriting(listed?.entries)
+  const writing = useWriting(listed?.entries, within)
   const entries = useMemo(() => sorted(arrivals.visible, sort), [arrivals.visible, sort])
   const [selected, setSelected] = useState<string>()
   const [problem, setProblem] = useState<string>()
@@ -147,6 +149,17 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
     onSelect: () => setSelected(entry.name),
     onOpen: () => open(entry),
   })
+
+  if (refused)
+    return (
+      <div className="artifact-viewer folder-viewer" data-refused="">
+        <div className="folder-refused" role="status">
+          <Lock size={30} strokeWidth={1.25} aria-hidden />
+          <b>{item.path ?? item.name} isn't shown</b>
+          <span>It may hold secrets, so Novadeck doesn't open it or list what's in it.</span>
+        </div>
+      </div>
+    )
 
   return (
     <div
@@ -238,7 +251,7 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
           </button>
         )}
         {!shown && !trouble && <div className="artifact-status" aria-busy="true" />}
-        {shown && listed && entries.length === 0 && (
+        {shown && listed && listed.total === 0 && (
           <div className="folder-empty">
             <FolderOpen size={28} strokeWidth={1.25} aria-hidden />
             <b>Nothing in {name} yet</b>

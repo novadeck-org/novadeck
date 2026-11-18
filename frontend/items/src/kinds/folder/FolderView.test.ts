@@ -63,6 +63,8 @@ const shown = async ({
   })
   const followers = new Map<string, (content: ItemContent) => void>()
   const followed: string[] = []
+  // Folders the runner is slow to answer.
+  const quiet = new Set<string>()
   const attached: { terminalId: string; path: string }[] = []
   const closed: string[] = []
   const companions: Companions = {
@@ -71,7 +73,7 @@ const shown = async ({
       followed.push(folder)
       followers.set(folder, on)
       const content = listings[folder]
-      if (content) on(content)
+      if (content && !quiet.has(folder)) on(content)
       return () => followers.delete(folder)
     },
     save: () => new Promise(() => {}),
@@ -103,6 +105,7 @@ const shown = async ({
     attached,
     closed,
     followed,
+    quiet,
     // The runner lists the folder again.
     list: async (content: ItemContent, folder = "") => {
       act(() => followers.get(folder)?.(content))
@@ -252,6 +255,42 @@ describe("a folder in the pane", () => {
     })
   })
 
+  context("moving between folders", () => {
+    // `a` holds a file of the name the top's has, of another size.
+    const sized = (name: string, size: number) => entry(name, { size })
+    const tree = (topSize: number) => ({
+      "": listing([
+        sized("same.png", topSize),
+        entry("a", { kind: "folder", size: 0, children: 1 }),
+      ]),
+      a: listing([sized("same.png", 7)], { path: "/tmp/render/a", within: "a" }),
+    })
+
+    it("marks no file written for being another folder's of the same name", async () => {
+      const app = await shown({ listings: tree(1) })
+      await app.open("a")
+      await app.click(app.root.querySelector(".folder-crumb")!)
+      expect(app.root.querySelector(".files-cursor")).toBeNull()
+      // A real write to the folder the view is in still shows.
+      await app.list(
+        listing([sized("same.png", 99), entry("a", { kind: "folder", size: 0, children: 1 })]),
+      )
+      expect(app.tile("same.png").querySelector(".files-cursor")).not.toBeNull()
+    })
+
+    it("shows nothing of a folder's earlier visit while it is read again", async () => {
+      const app = await shown({ listings: tree(1) })
+      await app.open("a")
+      expect(app.names()).toEqual(["same.png"])
+      await app.click(app.root.querySelector(".folder-crumb")!)
+      app.quiet.add("a")
+      await app.open("a")
+      expect(app.names()).toEqual([])
+      await app.list(tree(1).a, "a")
+      expect(app.names()).toEqual(["same.png"])
+    })
+  })
+
   context("opening a file", () => {
     it("asks the runner to show it on its terminal's bar by its absolute path, as its kind", async () => {
       const app = await shown()
@@ -350,14 +389,18 @@ describe("a folder in the pane", () => {
       expect(app.names()).toHaveLength(5)
     })
 
-    it("refuses a folder that may hold secrets with a sentence", async () => {
+    it("refuses a folder that may hold secrets whole, with no tools and no way up", async () => {
       const app = await shown({
         listings: { "": { state: "unavailable", reason: "secret", size: null } },
       })
-      expect(app.root.querySelector(".pane-notice")?.textContent).toBe(
-        "render may hold secrets, so Novadeck won't list what is in it.",
+      const refused = app.root.querySelector(".folder-refused")!
+      expect(refused.textContent).toBe(
+        "/tmp/render isn't shownIt may hold secrets, so Novadeck doesn't open it or list what's in it.",
       )
+      expect(refused.querySelector("svg")).not.toBeNull()
       expect(app.names()).toEqual([])
+      expect(app.root.querySelector(".folder-crumbs")).toBeNull()
+      expect(app.root.querySelector('button[aria-label="Sort"]')).toBeNull()
     })
 
     it("says a folder inside it is gone, and lets the person go up", async () => {
@@ -372,6 +415,11 @@ describe("a folder in the pane", () => {
         "old-runs isn't there any more.",
       )
       expect(app.root.querySelector(".folder-up")?.hasAttribute("aria-disabled")).toBe(false)
+    })
+
+    it("never calls a folder empty that holds more than is listed", async () => {
+      const app = await shown({ listings: { "": listing([], { total: 5000, truncated: true }) } })
+      expect(app.root.querySelector(".folder-empty")).toBeNull()
     })
 
     it("says a folder is too large to list whole", async () => {

@@ -25,7 +25,7 @@ import {
   sizeShort,
   videoFrameBytes,
 } from "./model"
-import { createQueue, keptThumb, loadThumb, type Thumb } from "./thumbs"
+import { createQueue, holdThumb, keptThumb, loadThumb, type Thumb } from "./thumbs"
 
 // Three pictures are read at a time for the grids on screen, the nearest to the middle first.
 const queue = createQueue(3)
@@ -124,7 +124,11 @@ const useThumb = (
       },
     )
   }, [kind, key, near, reader, path, entry.name, entry.size, entry.stamp, element])
-  return kind ? (keptThumb(key) ?? thumb) : undefined
+  const picture = kind ? (keptThumb(key) ?? thumb) : undefined
+  const url = picture?.url
+  // Shown, a picture isn't revoked when the cache lets go of it.
+  useEffect(() => (url === undefined ? undefined : holdThumb(url)), [url])
+  return picture
 }
 
 export type EntryProps = {

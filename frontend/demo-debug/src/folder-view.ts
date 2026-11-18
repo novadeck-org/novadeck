@@ -3,6 +3,7 @@ import {
   createFolder,
   folderItem,
   folderSamples,
+  numberedFiles,
   type DemoFile,
 } from "@novadeck/demo/showcase/folders"
 import { isShowcase } from "@novadeck/demo/showcase/simulation"
@@ -28,7 +29,7 @@ export const folderViewGroups = (companions: Backend["companions"]): readonly De
   const huge = folderItem(
     "debug-folder-huge",
     "node_modules",
-    createFolder("~/node_modules", [], "huge"),
+    createFolder("~/node_modules", numberedFiles(48, Date.now()), "huge"),
   )
   const secret = folderItem("debug-folder-secret", ".ssh", createFolder("~/.ssh", [], "secret"))
   const show =
@@ -77,7 +78,7 @@ export const folderViewGroups = (companions: Backend["companions"]): readonly De
         },
         {
           label: "Show a folder too large to list whole",
-          hint: "The pane lists no files and says node_modules holds 5,000 items, more than Novadeck lists whole",
+          hint: "The pane lists the first 48 files of node_modules and says it holds 5,000 items, more than Novadeck lists whole",
           run: show(huge),
         },
         {

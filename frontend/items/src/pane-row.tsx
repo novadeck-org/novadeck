@@ -27,9 +27,11 @@ export type TabNote = {
   readonly gone: boolean
   // Where it points now, where that isn't where it was shown: a page's live address.
   readonly where: string | undefined
+  // The icon its tab wears instead of its kind's, as a folder that may hold secrets wears a lock.
+  readonly icon: LucideIcon | undefined
 }
 
-const noNote: TabNote = { facts: [], gone: false, where: undefined }
+const noNote: TabNote = { facts: [], gone: false, where: undefined, icon: undefined }
 
 // Where the viewer puts its tools: the row's own spot, null until drawn, and undefined where
 // no row is drawn, as when a viewer is drawn on its own.
@@ -66,14 +68,19 @@ export const PaneChrome = ({
 }
 
 // Tells the tab of what's shown what its viewer knows of it: `facts` for its tooltip, whether
-// it's `gone`, and `where` it points now. Let go as the viewer is.
-export const usePaneNote = (facts: readonly string[], gone = false, where?: string): void => {
+// it's `gone`, `where` it points now, and the `icon` it wears instead of its kind's. Let go as the viewer is.
+export const usePaneNote = (
+  facts: readonly string[],
+  gone = false,
+  where?: string,
+  icon?: LucideIcon,
+): void => {
   const set = useContext(NoteSetter)
   const joined = facts.join("\n")
   useEffect(() => {
-    set?.({ facts: joined === "" ? [] : joined.split("\n"), gone, where })
+    set?.({ facts: joined === "" ? [] : joined.split("\n"), gone, where, icon })
     return () => set?.(noNote)
-  }, [set, joined, gone, where])
+  }, [set, joined, gone, where, icon])
 }
 
 // What the row says of one tab beyond its name and icon.

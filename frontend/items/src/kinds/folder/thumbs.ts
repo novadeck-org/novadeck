@@ -79,12 +79,37 @@ export const keptThumb = (key: string): Thumb | undefined => {
   return thumb
 }
 
+// How many tiles show each picture, by its URL, and the ones let go of while shown: a picture is
+// revoked once it is neither kept nor shown.
+const shown = new Map<string, number>()
+const letGo = new Set<string>()
+
+const revokeUnused = (url: string): void => {
+  if (shown.has(url)) return void letGo.add(url)
+  letGo.delete(url)
+  URL.revokeObjectURL(url)
+}
+
+/** A tile shows the picture at `url` until the function it gets back is called. */
+export const holdThumb = (url: string): (() => void) => {
+  shown.set(url, (shown.get(url) ?? 0) + 1)
+  let held = true
+  return () => {
+    if (!held) return
+    held = false
+    const left = (shown.get(url) ?? 1) - 1
+    if (left > 0) return void shown.set(url, left)
+    shown.delete(url)
+    if (letGo.has(url)) revokeUnused(url)
+  }
+}
+
 const keep = (key: string, thumb: Thumb): void => {
   kept.set(key, thumb)
   for (const [oldest, was] of kept) {
     if (kept.size <= keptMost) break
     kept.delete(oldest)
-    URL.revokeObjectURL(was.url)
+    revokeUnused(was.url)
   }
 }
 
@@ -118,6 +143,7 @@ const frameWidth = 320
 // A video's first moment, drawn small, and its length; undefined where the page can't play it.
 const frameOf = (
   video: Blob,
+  signal: AbortSignal,
 ): Promise<{ readonly picture: Blob; readonly duration: number } | undefined> =>
   new Promise((resolve) => {
     const url = URL.createObjectURL(video)
@@ -128,12 +154,17 @@ const frameOf = (
       result: { readonly picture: Blob; readonly duration: number } | undefined,
     ): void => {
       clearTimeout(timer)
+      signal.removeEventListener("abort", stop)
       element.removeAttribute("src")
       element.load()
       URL.revokeObjectURL(url)
       resolve(result)
     }
-    const timer = setTimeout(() => done(undefined), 10_000)
+    // Whoever asked stopped waiting: the queue's place is free at once, not after the timeout.
+    const stop = (): void => done(undefined)
+    const timer = setTimeout(stop, 10_000)
+    signal.addEventListener("abort", stop, { once: true })
+    if (signal.aborted) return stop()
     element.addEventListener("error", () => done(undefined))
     element.addEventListener("loadedmetadata", () => {
       // A moment in, past a fade from black, where the video is long enough.
@@ -191,7 +222,7 @@ export const loadThumb = async ({
     keep(key, thumb)
     return thumb
   }
-  const frame = await frameOf(loaded.blob)
+  const frame = await frameOf(loaded.blob, signal)
   if (!frame || signal.aborted) return undefined
   const thumb = { url: URL.createObjectURL(frame.picture), duration: frame.duration }
   keep(key, thumb)

@@ -14,7 +14,9 @@ export const useFolderView = (itemStore: ItemStore, itemId: Item["id"]): FolderV
   )
 
 // What the folder the view is in holds. The item's own content is its top's, followed while the
-// item exists; a folder inside is followed here, for as long as the body is in it.
+// item exists; a folder inside is followed here, for as long as the body is in it, and what the
+// item store holds of it is cleared as the view moves, so another folder's listing never stands
+// for it.
 export const useListing = (
   itemStore: ItemStore,
   target: WorkspaceTarget,
@@ -22,15 +24,15 @@ export const useListing = (
   within: string,
 ): { readonly top: ItemContent | undefined; readonly here: ItemContent | undefined } => {
   const top = useContent(itemStore, target, item)
-  const [inside, setInside] = useState<{ within: string; content: ItemContent }>()
+  const inside = useSyncExternalStore(
+    itemStore.store.subscribe,
+    () => itemStore.store.getSnapshot().listings[item.id],
+  )
   const { projectId, workspaceSessionId } = target
   useEffect(() => {
     if (within === "") return
-    return itemStore.listing({ projectId, workspaceSessionId }, item.id, within, (content) =>
-      setInside({ within, content }),
-    )
+    return itemStore.listing({ projectId, workspaceSessionId }, item.id, within)
   }, [itemStore, projectId, workspaceSessionId, item.id, within])
-  // What came for another folder, as the one before this, is not what it holds.
   return {
     top,
     here: within === "" ? top : inside?.within === within ? inside.content : undefined,
@@ -71,43 +73,64 @@ export const useArrivals = (
   }
 }
 
-// The files being written now: those whose size changed between two listings, for a while after
-// the change, each with how many changes it has had meanwhile, which tells one write from the next.
+// The files being written now: those whose size changed between two listings of the folder
+// `within` names, for a while after the change, each with how many changes it has had meanwhile,
+// which tells one write from the next. A folder is its own: the files of another, though they
+// have the names of these, are not written to by the view having moved.
 export const useWriting = (
   entries: readonly FolderEntry[] | undefined,
+  within: string,
 ): ReadonlyMap<string, number> => {
-  const [writing, setWriting] = useState<ReadonlyMap<string, number>>(new Map())
-  const before = useRef<readonly FolderEntry[] | undefined>(undefined)
+  const [kept, setKept] = useState<{ within: string; writing: ReadonlyMap<string, number> }>({
+    within,
+    writing: new Map(),
+  })
+  const before = useRef<{ within: string; entries: readonly FolderEntry[] | undefined }>({
+    within,
+    entries: undefined,
+  })
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   useEffect(() => {
     const was = before.current
-    before.current = entries
-    if (!was || !entries) return
-    const changed = grown(was, entries)
+    before.current = { within, entries }
+    if (was.within !== within || !was.entries || !entries) return
+    const changed = grown(was.entries, entries)
     if (changed.length === 0) return
-    setWriting(
-      (now) =>
-        new Map([...now, ...changed.map((name) => [name, (now.get(name) ?? 0) + 1] as const)]),
-    )
+    setKept((now) => {
+      const base = now.within === within ? now.writing : new Map<string, number>()
+      return {
+        within,
+        writing: new Map([
+          ...base,
+          ...changed.map((name) => [name, (base.get(name) ?? 0) + 1] as const),
+        ]),
+      }
+    })
     for (const name of changed) {
       clearTimeout(timers.current.get(name))
       timers.current.set(
         name,
         setTimeout(() => {
           timers.current.delete(name)
-          setWriting((now) => new Map([...now].filter(([each]) => each !== name)))
+          setKept((now) =>
+            now.within === within
+              ? { within, writing: new Map([...now.writing].filter(([each]) => each !== name)) }
+              : now,
+          )
         }, writingMs),
       )
     }
-  }, [entries])
+  }, [entries, within])
   useEffect(
     () => () => {
       for (const timer of timers.current.values()) clearTimeout(timer)
     },
     [],
   )
-  return writing
+  return kept.within === within ? kept.writing : none
 }
+
+const none: ReadonlyMap<string, number> = new Map()
 
 export const listedFolder = (content: ItemContent | undefined): FolderContent | undefined =>
   content?.state === "ready" && content.content.kind === "folder" ? content.content : undefined
