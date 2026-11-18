@@ -53,11 +53,13 @@ export const loadingText = (loaded: number, total: number): string =>
 // step of a frame or a cut a moment in shows in it.
 export const clock = (seconds: number, fine = false): string => {
   const time = Math.max(0, Number.isFinite(seconds) ? seconds : 0)
-  const whole = Math.floor(time)
+  // In hundredths, so a time such as 0.29 that floats a hair under still reads 0:00.29.
+  const hundredths = Math.floor(time * 100 + 1e-6)
+  const whole = Math.floor(hundredths / 100)
   const s = String(whole % 60).padStart(2, "0")
   const m = Math.floor(whole / 60) % 60
   const h = Math.floor(whole / 3600)
   const shown = h > 0 ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`
   if (!fine) return shown
-  return `${shown}.${String(Math.floor((time - whole) * 100)).padStart(2, "0")}`
+  return `${shown}.${String(hundredths % 100).padStart(2, "0")}`
 }

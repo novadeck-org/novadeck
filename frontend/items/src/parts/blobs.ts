@@ -23,6 +23,8 @@ export type Blobs = {
   readonly bytes: (url: string) => Blob | undefined
   // A player plays `url` until the function it gets back is called.
   readonly hold: (url: string) => () => void
+  // Lets the item's file go, as for an item that was closed.
+  readonly drop: (item: string) => void
 }
 
 type Kept = {
@@ -73,10 +75,15 @@ export const createBlobs = (
       return url
     },
     bytes: (url) => [...kept.values()].find((each) => each.url === url)?.blob,
+    // Using it counts as using it lately: a pane that comes back plays it at once.
     latest: (item) => {
       const was = kept.get(item)
-      return was && { stamp: was.stamp, url: was.url }
+      if (!was) return undefined
+      kept.delete(item)
+      kept.set(item, was)
+      return { stamp: was.stamp, url: was.url }
     },
+    drop: release,
     hold: (url) => {
       holds.set(url, (holds.get(url) ?? 0) + 1)
       let held = true

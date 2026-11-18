@@ -31,6 +31,8 @@ export type SampleArtifact = {
     readonly delay?: number
     // Why it can't be read, once the first part is: instead of its parts.
     readonly reason?: Extract<FilePart, { state: "unavailable" }>["reason"]
+    // Its read fails, as when the link to the runner drops: the first part asked for rejects.
+    readonly fails?: true
   }
 }
 
@@ -320,7 +322,7 @@ export const studioArtifacts: SampleArtifacts = {
 }
 
 // What the dev server's terminal holds that can't show, one of each reason, and text that
-// shows only in part: so each looks as it would.
+// shows only in part, a table among it: so each looks as it would.
 const unavailable = (
   id: string,
   item: Partial<SampleArtifact["item"]> & Pick<SampleArtifact["item"], "name">,
@@ -432,6 +434,11 @@ export const videoSamples = {
     item: videoItem("studio-locked", "locked.webm", "640 × 360 WebM"),
     content: videoContent(clipSize),
     file: { read: clip, reason: "unreadable" },
+  },
+  failing: {
+    item: videoItem("studio-dropped", "dropped.webm", "640 × 360 WebM"),
+    content: videoContent(clipSize),
+    file: { read: clip, fails: true },
   },
   broken: {
     item: videoItem("studio-broken", "broken.webm", "Not a video"),
@@ -582,6 +589,11 @@ export const recordingSamples = {
     content: recordingContent(recordingSize),
     file: { read: recording, reason: "unreadable" },
   },
+  failing: {
+    item: recordingItem("studio-dropped-voice", "dropped.mp3", "MP3"),
+    content: recordingContent(recordingSize),
+    file: { read: recording, fails: true },
+  },
   broken: {
     item: recordingItem("studio-broken-voice", "broken.mp3", "Not a recording"),
     content: recordingContent(garbage.length),
@@ -612,6 +624,45 @@ const routeLines = [
   '    <Route path="/work/:slug" element={<Work />} />',
   "  </Routes>",
   ")",
+]
+
+// A long export the runner reads only the start of: a header, then visits, a few with quoted
+// fields, and a byte-order mark, as spreadsheets write one.
+const pages = ["/", "/work", "/work/harbour-press", "/about", "/journal, issue 4"]
+const visitLines = [
+  "\uFEFFday,page,visits,bounce rate,note",
+  ...Array.from({ length: 399 }, (_, index) => {
+    const page = pages[index % pages.length]!
+    // One note pasted in whole, past the line length the runner keeps, so its line is cut.
+    const pasted =
+      index === 200 ? `"${"Pasted from the newsletter: careful work. ".repeat(110)}"` : ""
+    const note = pasted || (index % 9 === 0 ? '"Newsletter went out; ""Careful work"" issue"' : "")
+    const day = new Date(Date.UTC(2025, 0, 1 + index)).toISOString().slice(0, 10)
+    const line = `${day},${page.includes(",") ? `"${page}"` : page},${120 + ((index * 37) % 900)},${((index * 13) % 70) + 10}%,${note}`
+    return line.slice(0, 4096)
+  }),
+]
+
+// Around lines an agent pointed at deep in a long export: no header among them, the first the
+// tail of a quoted note that began above them, and the file's length unknown past the budget.
+const orderLines = [
+  'packed twice, see ticket",shipped',
+  ...Array.from({ length: 90 }, (_, index) => {
+    const order = 48_960 + index
+    const note = index % 17 === 4 ? '"Gift wrap, no invoice"' : ""
+    return `${order},${["Oslo", "Rome", "Bern", "Lyon"][index % 4]},${(19 + ((index * 7) % 80)).toFixed(2)},${note},${index % 5 === 0 ? "returned" : "shipped"}`
+  }),
+]
+
+// A short table, whole, which the agent pointed at past its end; a size in inches opens one
+// row with a quote it never closes.
+const scoreLines = [
+  "font\tsize\tlegibility\tchosen",
+  "Harbour Serif\t11\t4.6\tyes",
+  "Harbour Serif Condensed\t9\t3.9\tyes",
+  "Grotesk\t10\t4.4\t",
+  '"Display 12 inch\t28\t4.8\tyes',
+  "Mono\t9\t3.1\tno",
 ]
 
 const envLines = [
@@ -653,6 +704,48 @@ export const devServerArtifacts: readonly SampleArtifact[] = [
       ...fileLines("build.log", logLines, { from: 1, to: 40 }),
       total: null,
       truncated: true,
+    }),
+  ),
+  unavailable(
+    "dev-visits",
+    { name: "visits.csv", detail: "exports/visits.csv · its start" },
+    ready({
+      ...fileLines("exports/visits.csv", visitLines, { from: 1, to: visitLines.length }),
+      total: 12_034,
+    }),
+  ),
+  unavailable(
+    "dev-orders",
+    {
+      name: "orders.csv",
+      detail: "exports/orders.csv · lines 5,000–5,010",
+      lines: { from: 5000, to: 5010 },
+    },
+    ready({
+      ...fileLines("exports/orders.csv", orderLines, {
+        from: 5000,
+        to: 5010,
+        firstLine: 4960,
+      }),
+      total: null,
+      truncated: true,
+    }),
+  ),
+  unavailable(
+    "dev-signups",
+    { name: "signups.csv", detail: "exports/signups.csv" },
+    ready(fileLines("exports/signups.csv", ["email,joined,plan"], { from: 1, to: 1 })),
+  ),
+  unavailable(
+    "dev-fonts",
+    {
+      name: "type-tests.tsv",
+      detail: "research/type-tests.tsv · lines 6–9",
+      lines: { from: 6, to: 9 },
+    },
+    ready({
+      ...fileLines("research/type-tests.tsv", scoreLines, { from: 6, to: scoreLines.length }),
+      clamped: true,
     }),
   ),
   unavailable(

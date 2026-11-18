@@ -1169,6 +1169,23 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
         },
       ],
     })
+    // A video or a recording too large to play says so, with the limit.
+    const tooLarge = (name: string) => ({
+      content: [
+        {
+          type: "text",
+          text:
+            `Showing ${name} to the user in Novadeck. It's too large to play (over 512 MB), ` +
+            "so Novadeck lists it by its name only.",
+        },
+      ],
+    })
+    await expect(
+      said({ ok: true, id: "d", kind: "video", name: "film.mp4", opened: true, tooLarge: true }),
+    ).resolves.toMatchObject(tooLarge("film.mp4"))
+    await expect(
+      said({ ok: true, id: "e", kind: "audio", name: "take.wav", opened: true, tooLarge: true }),
+    ).resolves.toMatchObject(tooLarge("take.wav"))
   })
 
   it("lists what is showing beside the terminal, as the runner renders it", async () => {

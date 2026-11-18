@@ -306,6 +306,34 @@ port's optional `companions` capability (`frontend/core/src/items.ts`):
 A file that may hold secrets is `secret` until the person asks to see it, and `reveal` is the path
 they asked for: the item re-pointed to another file reads `secret` again.
 
+A file (the `file` item kind) shows as code, highlighted and numbered, unless its type has a
+preview: the previews are a list in `frontend/items/src/kinds/file/previews/`, each naming the
+files it takes (by how the name ends), its icon, its view and, optionally, its peek miniature,
+and a type joins with one line there. Markdown's is the read-only document with its outline. A CSV or TSV file's is a table
+(`previews/table/`, its own small RFC 4180 reader: quoted fields with delimiters, line breaks
+and doubled quotes, a byte-order mark; a CSV's delimiter is the comma, semicolon or tab that at
+least half its first lines hold, most steadily): the header held on top, each column sorted
+from its header (up, down, the file's order; numbers by value, empty cells last), numbers to
+the right, each row led by the line it starts on, and where it was scrolled and sorted kept as
+the code viewer's place is. Past 200 rows it draws only the rows in view (`rows-window.ts`),
+its columns held to widths from all its rows' text, so a data file read whole stays quick.
+What the runner read of a long file is only part of it (its first 400 lines, or the lines
+around those pointed at, whose rows it marks and opens at), and the table says so under it,
+with which lines, that a line the runner cut at 4096 characters lost its last cells, and that
+lines pointed at past the file's end were pulled back to it. Lines past the file's first have
+no header, so their columns are lettered, and may start inside a quoted record, so the table
+starts at the first line from which the rows read whole; a quoted field the part cuts off ends
+there. In a file shown whole, a quote never closed reads as text, as a TSV's inch mark. Each
+column's decimal mark is the one all its numbers read with (a comma first in a semicolon file),
+and digits led by a zero (IDs, postcodes) are text. A
+file with a preview opens on it, with a Show source tool in the pane's row (Ctrl+Shift+V, ⌘⇧V
+on a Mac, from anywhere in the file) that switches it to the bare file in the code viewer and
+back. A preview's own tools join the row before it (`usePreviewTools`); one that can't read its
+file says so in its body, the switch still there. The choice is the item's, for the file it
+shows: it holds while the pane is built again, as across Focus, Grid and Canvas, for the files
+lately switched, isn't saved past a reload, and another file the item is pointed at (as the
+project window's is) opens on its preview. A plan is its own kind and has no switch.
+
 A change (the `changes` item kind) is read-only and has two views, in `frontend/items/src/kinds/changes/`,
 on the pane's own ground (`--pane-bg`). The **list view** is where it opens: a row for the work
 not committed yet ("Uncommitted") and one for each commit since the merge base with main, newest
@@ -328,10 +356,11 @@ refreshSession()") and the lines it spans; a change past 36 rows shows its start
 "N more changed lines · +N −N · Show", and the unchanged stretches between changes are folded
 with a click to show them. Esc or ‹ shrinks the heading back into its row; J and K step through
 the selection's files. Lines are unified, in classic green and red from the
-theme's own tokens (the row ground is `--color-success` / `--color-danger` mixed to 55%, 50% on a
-light scheme; bar, sign and number are the `-fg` inks; a changed token is that ink at 24%), the
-changed tokens of a replaced line marked, and lines whose tokens are the same with other
-whitespace shown once as plain lines and counted apart ("+4 −6 · 4 re-indented"). Monochrome
+theme's own `--color-success-fg` / `--color-danger-fg` inks (a sea green and a rose in Coolant),
+carried by the gutter: the number and sign sit on the ink at 20% (18% on a light scheme), the line
+on the ink at 5% (7%), with no bar. The changed tokens of a replaced line are marked, each
+changed run one mark at the ink's 30%, and lines whose tokens are the same with other
+whitespace are shown once as plain lines and counted apart ("+4 −6 · 4 re-indented"). Monochrome
 themes read by the `+` and `−` signs.
 
 What it says of a change is facts only, computed in the page from the two sides' text with the
@@ -428,8 +457,8 @@ with every safety check again at that time:
   user name or password, or is too long. Binary files are accepted and load as
   `binary`; an image over 8 MB is accepted and loads as too large to preview, which the
   answer says. A video (`.mp4`, `.m4v`, `.webm`, `.mov`, kind `video`) or an audio recording
-  (`.mp3`, `.m4a`, `.aac`, `.wav`, `.ogg`, `.oga`, `.opus`, `.flac`, kind `audio`, played as a
-  card with a waveform, not a picture) is played with the pane's own controls: its content is its format and size, never its bytes, which the UI
+  (`.mp3`, `.m4a`, `.aac`, `.wav`, `.ogg`, `.oga`, `.opus`, `.flac`, kind `audio`, played as the
+  whole pane with its name and a waveform, not a picture) is played with the pane's own controls: its content is its format and size, never its bytes, which the UI
   reads with `companions.part`, 2 MiB at a time while the file is as its stamp names it,
   and plays whole from a blob, so the desktop app, a browser and the demo play it alike.
   Rendered again, it reloads where the person was; one over 512 MB loads as too large to play.

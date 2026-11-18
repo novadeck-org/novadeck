@@ -42,3 +42,20 @@ export const segmentsOf = (
   }
   return out
 }
+
+// A line's pieces as stretches, so a changed run draws as one mark however many kinds of token it
+// crosses: neighbours that are both marked join one stretch, and each unmarked piece is its own.
+export type Stretch<Piece> = {
+  readonly marked: boolean
+  readonly pieces: readonly Piece[]
+}
+
+export const stretchesOf = <Piece extends { readonly marked: boolean }>(
+  pieces: readonly Piece[],
+): Stretch<Piece>[] =>
+  pieces.reduce<Stretch<Piece>[]>((out, piece) => {
+    const last = out.at(-1)
+    if (piece.marked && last?.marked)
+      return [...out.slice(0, -1), { marked: true, pieces: [...last.pieces, piece] }]
+    return [...out, { marked: piece.marked, pieces: [piece] }]
+  }, [])

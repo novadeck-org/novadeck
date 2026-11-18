@@ -389,9 +389,11 @@ export const createShowcase = (
       if (sample.content.state === "ready" && sample.content.stamp !== stamp)
         return { state: "changed" }
       if (sample.file.reason) return { state: "unavailable", reason: sample.file.reason }
+      if (sample.file.fails) throw new Error("The link to the runner dropped")
       const bytes = await sample.file.read()
       const size = sample.file.part ?? partBytes
-      if (sample.file.delay) await new Promise((resolve) => setTimeout(resolve, sample.file?.delay))
+      if (sample.file.delay)
+        await new Promise((resolve) => setTimeout(resolve, sample.file?.delay))
       return { state: "part", bytes: bytes.slice(offset, offset + size) }
     },
     follow: (target, id, { reveal }, on) => {

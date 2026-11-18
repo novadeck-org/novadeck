@@ -50,8 +50,10 @@ export const Waveform = ({
 
   useLayoutEffect(() => {
     const element = track.current!
+    // Its width as laid out, which a zoomed Canvas doesn't scale: the bars are the same at
+    // every zoom.
     const measure = (): void => {
-      const width = element.getBoundingClientRect().width
+      const width = element.offsetWidth
       if (width > 0) setCount(Math.max(8, Math.floor(width / pitch)))
     }
     measure()

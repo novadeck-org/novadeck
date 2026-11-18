@@ -8,14 +8,31 @@ import { Waveform } from "./Waveform"
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
 
-// The waveform at 400px wide from x = 100, as jsdom measures nothing.
+// The waveform laid out 400px wide from x = 100, as jsdom measures nothing, on screen at `zoom`
+// of that, as a zoomed Canvas shows it.
 const shown = (
   props: Partial<Parameters<typeof Waveform>[0]> = {},
+  zoom = 1,
 ): { wave: HTMLElement; seeks: number[]; container: HTMLElement } => {
   const seeks: number[] = []
-  const rect = { left: 100, width: 400, right: 500, top: 0, bottom: 56, height: 56, x: 100, y: 0 }
+  const width = 400 * zoom
+  const rect = {
+    left: 100,
+    width,
+    right: 100 + width,
+    top: 0,
+    bottom: 56,
+    height: 56,
+    x: 100,
+    y: 0,
+  }
   const original = Element.prototype.getBoundingClientRect
   Element.prototype.getBoundingClientRect = () => ({ ...rect, toJSON: () => rect })
+  const laidOut = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth")!
+  Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
+    configurable: true,
+    get: () => 400,
+  })
   const { container, unmount } = render(
     createElement(Waveform, {
       peaks: [0.2, 1, 0.5, 0.8],
@@ -25,7 +42,10 @@ const shown = (
       ...props,
     }),
   )
-  unmounts.push(unmount, () => (Element.prototype.getBoundingClientRect = original))
+  unmounts.push(unmount, () => {
+    Element.prototype.getBoundingClientRect = original
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", laidOut)
+  })
   return { wave: container.querySelector<HTMLElement>(".wave")!, seeks, container }
 }
 const pointer = (wave: HTMLElement, type: string, clientX: number) =>
@@ -110,6 +130,14 @@ describe("a recording's waveform", () => {
       ).toHaveLength(80)
       expect(wave.style.getPropertyValue("--_played")).toBe("25%")
       expect(wave.getAttribute("data-peaks")).toBe("ready")
+    })
+
+    it("draws as many on a zoomed Canvas, where it shows smaller than it is laid out", () => {
+      const { wave } = shown({ time: 25, duration: 100 }, 0.5)
+      expect(wave.getBoundingClientRect().width).toBe(200)
+      expect(
+        wave.querySelectorAll(".wave-bars:not(.wave-played .wave-bars) > .wave-bar"),
+      ).toHaveLength(80)
     })
 
     it("draws a flat track without peaks, which waits while they are worked out", () => {

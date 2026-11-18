@@ -13,6 +13,8 @@ describe("a video's time", () => {
     expect(clock(0.75, true)).toBe("0:00.75")
     expect(clock(1 + 1 / 30, true)).toBe("0:01.03")
     expect(clock(62.5, true)).toBe("1:02.50")
+    expect(clock(0.29, true)).toBe("0:00.29")
+    expect(clock(59.999, true)).toBe("0:59.99")
   })
 })
 

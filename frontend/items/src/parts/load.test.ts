@@ -151,6 +151,31 @@ describe("the videos kept loaded", () => {
     expect(kept.latest("a")).toEqual({ stamp: "2", url: "blob:2" })
   })
 
+  it("counts a pane that comes back to an item as using it lately", () => {
+    const { urls: own, revoked } = urls()
+    const kept = createBlobs(2, own)
+    kept.keep("a", "1", new Blob())
+    kept.keep("b", "1", new Blob())
+    kept.latest("a")
+    kept.keep("c", "1", new Blob())
+    expect(revoked).toEqual(["blob:2"])
+  })
+
+  it("lets a closed item's file go, unless a player still holds it", () => {
+    const { urls: own, revoked } = urls()
+    const kept = createBlobs(3, own)
+    kept.keep("a", "1", new Blob())
+    const held = kept.keep("b", "1", new Blob())
+    const release = kept.hold(held)
+    kept.drop("a")
+    kept.drop("b")
+    kept.drop("none")
+    expect(revoked).toEqual(["blob:1"])
+    expect(kept.latest("a")).toBeUndefined()
+    release()
+    expect(revoked).toEqual(["blob:1", "blob:2"])
+  })
+
   it("never revokes a URL a player holds, until the last player lets it go", () => {
     const { urls: own, revoked } = urls()
     const kept = createBlobs(1, own)

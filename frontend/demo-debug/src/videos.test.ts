@@ -80,6 +80,25 @@ describe("the debug panel's Video group", () => {
     const rewritten = content("studio-walkthrough")
     expect(rewritten).toMatchObject({ content: { shown: 3 } })
     expect(rewritten?.state === "ready" && rewritten.stamp).not.toBe("1")
+    // Each rewrite is a file of its own.
+    run("Rewrite the video")
+    const again = content("studio-walkthrough")
+    expect(again?.state === "ready" && again.stamp).not.toBe(
+      rewritten?.state === "ready" && rewritten.stamp,
+    )
+  })
+
+  it("shows a video and a recording whose reads fail, as when the link drops", async () => {
+    const { run, showcase } = panel()
+    run("Show a video whose read fails")
+    run("Show a recording whose read fails")
+    await Promise.all(
+      ["studio-dropped", "studio-dropped-voice"].map((id) =>
+        expect(
+          showcase.part!(key, itemIdOf(id), { stamp: "1", offset: 0, reveal: undefined }),
+        ).rejects.toThrow("dropped"),
+      ),
+    )
   })
 
   it("asks for a terminal first", () => {
@@ -126,6 +145,11 @@ describe("the debug panel's Audio group", () => {
     const rewritten = content("studio-voiceover")
     expect(rewritten).toMatchObject({ content: { shown: 3 } })
     expect(rewritten?.state === "ready" && rewritten.stamp).not.toBe("1")
+    run("Rewrite the recording")
+    const again = content("studio-voiceover")
+    expect(again?.state === "ready" && again.stamp).not.toBe(
+      rewritten?.state === "ready" && rewritten.stamp,
+    )
   })
 
   it("asks for a terminal first", () => {

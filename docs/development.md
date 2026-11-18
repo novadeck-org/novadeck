@@ -454,8 +454,9 @@ Agents:
   pane's own bar. "Show a video" opens it again as a later show; "Show a video that loads
   slowly" reads it in 8 KB parts half a second apart, so the pane says "Loading 24 of 79 KB"
   for about five seconds; "Show a video too large to play" and "Show a video that's gone" and
-  "Show a video that can't be read" are the pane's unavailable states; "Show a file the browser
-  can't play" is garbage under a video's name, which the pane says it can't play here;
+  "Show a video that can't be read" are the pane's unavailable states; "Show a video whose read
+  fails" rejects its first part, as a dropped link to the runner does, so the pane says
+  dropped.webm couldn't be loaded; "Show a file the browser can't play" is garbage under a video's name, which the pane says it can't play here;
   "Show a video that may hold secrets" joins the stack unopened until you pick its tab.
   "Show the video again from 0:02" starts walkthrough.webm at 0:02, once, and "Rewrite the video"
   shows it under a new stamp, as if its file was rewritten: the old one plays on under a
@@ -468,7 +469,8 @@ Agents:
   which scrubs, and the video's bar below, with no picture.
   The group mirrors Video's: "Show a recording", "...that loads slowly" (four parts, about two
   seconds), "...too large to play" / "...that's gone" / "...that can't be read" (the unavailable
-  states), "Show a recording the browser can't play" (garbage under a name), "...that may hold
+  states), "...whose read fails" (couldn't be loaded), "Show a recording the browser can't
+  play" (garbage under a name), "...that may hold
   secrets" (a tab that opens when picked), "Show the recording again from 0:02", "Rewrite the
   recording" and "Rewrite the recording, caught mid-write".
 - **PDF:** only in the `showcase` variant, on the selected terminal's bar. The dev server's

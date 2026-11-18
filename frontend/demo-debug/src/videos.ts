@@ -86,6 +86,11 @@ export const videoGroups = (companions: Backend["companions"]): readonly DemoAct
           run: show(videoSamples.unreadable),
         },
         {
+          label: "Show a video whose read fails",
+          hint: "The pane starts loading dropped.webm, then says it couldn't be loaded, as when the link to the runner drops",
+          run: show(videoSamples.failing),
+        },
+        {
           label: "Show a file the browser can't play",
           hint: "The pane loads broken.webm, then says it can't be played here",
           run: show(videoSamples.broken),
@@ -103,7 +108,7 @@ export const videoGroups = (companions: Backend["companions"]): readonly DemoAct
         {
           label: "Rewrite the video",
           hint: "The video of Show a video is read again as a new file; the pane keeps playing the old one, a chip says Loading, then it swaps in where it was, playing or paused",
-          run: play({ stamp: `rewritten-${shown + 1}` }),
+          run: (context) => play({ stamp: `rewritten-${shown + 1}` })(context),
         },
         {
           label: "Rewrite the video, caught mid-write",
@@ -144,6 +149,11 @@ export const videoGroups = (companions: Backend["companions"]): readonly DemoAct
           run: show(recordingSamples.unreadable),
         },
         {
+          label: "Show a recording whose read fails",
+          hint: "The pane starts loading dropped.mp3, then says it couldn't be loaded, as when the link to the runner drops",
+          run: show(recordingSamples.failing),
+        },
+        {
           label: "Show a recording the browser can't play",
           hint: "The pane loads broken.mp3, then says it can't be played here",
           run: show(recordingSamples.broken),
@@ -161,7 +171,7 @@ export const videoGroups = (companions: Backend["companions"]): readonly DemoAct
         {
           label: "Rewrite the recording",
           hint: "The recording of Show a recording is read again as a new file; the pane keeps playing the old one, a chip says Loading, then it swaps in where it was, playing or paused",
-          run: hear({ stamp: `rewritten-${heard + 1}` }),
+          run: (context) => hear({ stamp: `rewritten-${heard + 1}` })(context),
         },
         {
           label: "Rewrite the recording, caught mid-write",

@@ -27,6 +27,7 @@ export const VideoPlayer = ({
   name,
   shown,
   at,
+  current,
   onBroken,
 }: {
   id: string
@@ -34,11 +35,13 @@ export const VideoPlayer = ({
   name: string
   shown: number
   at: number | undefined
+  // Whether `src` is the file the latest show names, not the one before it, still playing.
+  current: boolean
   // The browser can't play it: its bytes aren't a video it can decode.
   onBroken: () => void
 }): React.JSX.Element => {
   const box = useRef<HTMLDivElement>(null)
-  const media = useMedia<HTMLVideoElement>({ id, src, shown, at })
+  const media = useMedia<HTMLVideoElement>({ id, src, shown, at, current })
   const { ref, paused, time, duration, loop, speed, muted, seek, events } = media
   const [full, setFull] = useState(false)
 
