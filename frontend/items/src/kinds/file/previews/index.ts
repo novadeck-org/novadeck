@@ -2,6 +2,7 @@ import type { FileContent, ItemId } from "@novadeck/core/items"
 import type { LucideIcon } from "lucide-react"
 import type { ComponentType } from "react"
 
+import { data } from "./data"
 import { markdown } from "./markdown"
 
 // The file types that read as something other than their source: a Markdown file as a
@@ -18,7 +19,12 @@ export type PreviewProps = {
   // The item's name, as the file reads to assistive technology.
   readonly name: string
   readonly content: FileContent
+  // Shows the file's source instead, as when it doesn't read as its type, with a note why
+  // above it and the line it stops at pointed at.
+  readonly toSource: ToSource
 }
+
+export type ToSource = (why?: { readonly note: string; readonly line?: number }) => void
 
 export type FilePreview = {
   // Names the preview to the stylesheet and tests: the file's `data-file-preview`.
@@ -35,7 +41,7 @@ export type FilePreview = {
 }
 
 // First match wins.
-export const previews: readonly FilePreview[] = [markdown]
+export const previews: readonly FilePreview[] = [markdown, data]
 
 // The preview of the file at `path`, if its type has one.
 export const previewFor = (path: string): FilePreview | undefined =>

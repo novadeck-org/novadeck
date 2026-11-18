@@ -141,6 +141,28 @@
   --code-emphasis-bg: var(--artifact-code-pointed-bg, var(--color-soft));
 }
 
+/* A data file as a tree, in the tree viewer (@novadeck/viewers/tree.css), in the code's
+   type; its copy buttons sit on the pane's paper. */
+.artifact-tree {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  --tree-font: var(--font-mono);
+  --tree-font-size: var(--text-code);
+  --tree-muted-fg: var(--artifact-code-number-fg, var(--color-muted));
+  --tree-hover-bg: color-mix(in oklab, var(--color-soft) 60%, transparent);
+  --tree-active-bg: var(--artifact-code-pointed-bg, var(--color-soft));
+  --tree-focus-ring: var(--color-strong);
+  --tree-actions-bg: var(--pane-bg, var(--color-paper));
+}
+.artifact-tree-cut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .artifact-browser {
   display: flex;
   flex: 1;

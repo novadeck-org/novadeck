@@ -318,6 +318,17 @@ shows: it holds while the pane is built again, as across Focus, Grid and Canvas,
 lately switched, isn't saved past a reload, and another file the item is pointed at (as the
 project window's is) opens on its preview. A plan is its own kind and has no switch.
 
+JSON, JSONL/NDJSON and YAML files preview as a tree (`previews/data.tsx`, drawn by
+`@novadeck/viewers/tree`): objects and arrays open and close, a closed one shows its first
+entries and its count, and a row copies its value or its jq path. Only the rows in sight are
+drawn; what's open and the scroll are kept by item. JSONL reads one row per record, a record
+that doesn't read showing why; YAML reads anchors, merge keys and several documents. A preview
+can send its file to its source with a note: a whole file that doesn't read goes there once per
+load, its note saying where it stops, with that line pointed at. The runner reads a text file
+up to 400 lines, each cut at 4,096 characters, so a longer data file arrives in part: a JSONL
+file shows the records it holds, and a JSON or YAML file says it was read in part and offers its
+source.
+
 A change (the `changes` item kind) is read-only and has two views, in `frontend/items/src/kinds/changes/`,
 on the pane's own ground (`--pane-bg`). The **list view** is where it opens: a row for the work
 not committed yet ("Uncommitted") and one for each commit since the merge base with main, newest

@@ -150,3 +150,40 @@ describe("a file with no preview", () => {
     expect(switcher()).toBeNull()
   })
 })
+
+describe("a data file", () => {
+  const compose = fileContent("compose.yaml", ["services:", "  web:", "    image: node"])
+  // A new load each time: one already sent to its source isn't sent again.
+  const broken = (): FileContent =>
+    fileContent("ci.yml", ["jobs:", "  build:", "    - a", "   b: 1"])
+
+  it("shows a tree first, with the switch to its source", async () => {
+    const { container, switcher } = await show("compose-1", compose)
+    expect(container.querySelector(".artifact-file")?.getAttribute("data-file-preview")).toBe(
+      "data",
+    )
+    expect(container.querySelector(".tree-viewer")).not.toBeNull()
+    expect(switcher()?.getAttribute("aria-pressed")).toBe("false")
+  })
+
+  it("goes to its source when it doesn't read, saying where, with that line pointed at", async () => {
+    const { container, switcher } = await show("broken-1", broken())
+    expect(container.querySelector(".artifact-file")?.getAttribute("data-view")).toBe("source")
+    const note = container.querySelector(".artifact-source-note")?.textContent ?? ""
+    expect(note).toMatch(/^YAML doesn't read at line (\d+)/)
+    const line = Number(/line (\d+)/.exec(note)![1])
+    const pointed = [...container.querySelectorAll(".code-viewer > [data-emphasized]")]
+    expect(pointed.map((row) => row.firstElementChild?.textContent)).toEqual([String(line)])
+    expect(switcher()?.getAttribute("aria-pressed")).toBe("true")
+  })
+
+  it("switched back to the preview, says where it stops instead of going again", async () => {
+    const { container, switcher } = await show("broken-2", broken())
+    act(() => switcher()!.click())
+    expect(container.querySelector(".artifact-file")?.getAttribute("data-view")).toBe("preview")
+    expect(container.querySelector(".artifact-source-note")).toBeNull()
+    expect(container.querySelector(".artifact-unavailable")?.textContent).toMatch(
+      /^YAML doesn't read at line \d+/,
+    )
+  })
+})

@@ -6,7 +6,7 @@ import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from "reac
 import type { ArtifactBodyProps } from "../../ArtifactViewer"
 import { PaneTools, type PaneTool } from "../../pane-row"
 import { useViewerSlot } from "../../ViewerSlot"
-import { previewFor, type FilePreview } from "./previews"
+import { previewFor, type FilePreview, type ToSource } from "./previews"
 import { PreviewToolsSetter } from "./previews/tools"
 import { useFileView } from "./view-choice"
 
@@ -16,8 +16,11 @@ import { useFileView } from "./view-choice"
 const CodeViewer = ({
   id,
   content: artifact,
+  at,
 }: Pick<ArtifactBodyProps<"file">, "content"> & {
   id: Item["id"]
+  // A line to point at instead of the agent's, as where a preview's file stops reading.
+  at?: number
 }): React.JSX.Element => {
   const content = useMemo(
     (): CodeContent => ({
@@ -25,9 +28,9 @@ const CodeViewer = ({
       firstLine: artifact.firstLine,
       path: artifact.path,
       // The lines the agent pointed at.
-      emphasis: { from: artifact.from, to: artifact.to },
+      emphasis: at === undefined ? { from: artifact.from, to: artifact.to } : { from: at, to: at },
     }),
-    [artifact],
+    [artifact, at],
   )
   const { ref: code } = useViewerSlot(mountCode, {
     id,
@@ -82,8 +85,22 @@ const PreviewedFile = ({
   const [tools, setTools] = useState<readonly PaneTool[]>([])
   const holder = useRef<HTMLDivElement>(null)
   const source = view === "source"
-  const toggle = (): void => choose(source ? "preview" : "source")
   const setPreviewTools = useCallback((next: readonly PaneTool[]) => setTools(next), [])
+  // Why the preview sent the file to its source, for the file it showed then: a switch by
+  // the person drops it.
+  const [why, setWhy] = useState<(Parameters<ToSource>[0] & { path: string }) | null>(null)
+  const toggle = (): void => {
+    setWhy(null)
+    choose(source ? "preview" : "source")
+  }
+  const toSource = useCallback<ToSource>(
+    (reason) => {
+      setWhy(reason ? { ...reason, path: content.path } : null)
+      choose("source")
+    },
+    [choose, content.path],
+  )
+  const note = why?.path === content.path ? why : null
   const Preview = preview.View
   return (
     <div
@@ -118,10 +135,17 @@ const PreviewedFile = ({
         ]}
       />
       {source ? (
-        <CodeViewer id={item.id} content={content} />
+        <>
+          {note && <p className="artifact-cut artifact-source-note">{note.note}</p>}
+          <CodeViewer
+            id={item.id}
+            content={content}
+            {...(note?.line === undefined ? {} : { at: note.line })}
+          />
+        </>
       ) : (
         <PreviewToolsSetter value={setPreviewTools}>
-          <Preview id={item.id} name={item.name} content={content} />
+          <Preview id={item.id} name={item.name} content={content} toSource={toSource} />
         </PreviewToolsSetter>
       )}
     </div>
