@@ -43,7 +43,7 @@
   --color-warning: #f0e2b4;
   --color-warning-fg: #6b4e0a;
   --color-danger: #fcdbd7;
-  --color-danger-fg: #8a2a22;
+  --color-danger-fg: #af333e;
   /* Syntax */
   --color-syntax-keyword: #8b3a8f;
   --color-syntax-string: #2f6b3a;
@@ -119,7 +119,7 @@
     --color-warning: #342a10;
     --color-warning-fg: #ecd592;
     --color-danger: #3f2422;
-    --color-danger-fg: #f1b8b1;
+    --color-danger-fg: #f68389;
     --color-syntax-keyword: #d7a5e8;
     --color-syntax-string: #a6d4ac;
     --color-syntax-number: #efb27f;

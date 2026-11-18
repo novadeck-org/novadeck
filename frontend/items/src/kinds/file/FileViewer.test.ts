@@ -156,6 +156,160 @@ describe("a file with no preview", () => {
   })
 })
 
+describe("a CSV file", () => {
+  const people = fileContent("data/people.csv", [
+    "﻿name,age,city",
+    'Ann,34,"Oslo, NO"',
+    "Bo,7,Rome",
+    "Cy,1200,Bern",
+  ])
+  // The table's cells by row, header first.
+  const cells = (container: HTMLElement) =>
+    [...container.querySelectorAll(".artifact-table tr")].map((row) =>
+      [...row.querySelectorAll("th, td")].map((cell) => cell.textContent),
+    )
+
+  it("shows as a table, its header named by the file's first row, each row led by its line", async () => {
+    const { container, switcher } = await show("people-1", people)
+    expect(cells(container)).toEqual([
+      ["Line", "name", "age", "city"],
+      ["2", "Ann", "34", "Oslo, NO"],
+      ["3", "Bo", "7", "Rome"],
+      ["4", "Cy", "1200", "Bern"],
+    ])
+    expect(container.querySelector("td[data-numeric]")?.textContent).toBe("34")
+    expect(container.querySelector(".artifact-cut")).toBeNull()
+    expect(switcher()).not.toBeNull()
+  })
+
+  it("sorts by a column from its header: up, down, then as the file has it", async () => {
+    const { container } = await show("people-2", people)
+    const age = () =>
+      [...container.querySelectorAll("thead th")].find((cell) => cell.textContent === "age")!
+    const ages = () =>
+      cells(container)
+        .slice(1)
+        .map((row) => row[2])
+    act(() => age().querySelector("button")!.click())
+    expect(age().getAttribute("aria-sort")).toBe("ascending")
+    expect(ages()).toEqual(["7", "34", "1200"])
+    act(() => age().querySelector("button")!.click())
+    expect(age().getAttribute("aria-sort")).toBe("descending")
+    expect(ages()).toEqual(["1200", "34", "7"])
+    act(() => age().querySelector("button")!.click())
+    expect(age().getAttribute("aria-sort")).toBe("none")
+    expect(ages()).toEqual(["34", "7", "1200"])
+  })
+
+  it("opens again sorted and scrolled as it was left", async () => {
+    const first = await show("people-3", people)
+    const scroller = first.container.querySelector<HTMLElement>(".artifact-table-scroll")!
+    act(() =>
+      first.container.querySelector<HTMLButtonElement>("thead th:nth-child(3) button")!.click(),
+    )
+    scroller.scrollTop = 120
+    act(() => void scroller.dispatchEvent(new Event("scroll")))
+    act(() => first.unmount())
+    const again = await show("people-3", people)
+    expect(again.container.querySelector(".artifact-table-scroll")!.scrollTop).toBe(120)
+    expect(again.container.querySelector("thead th:nth-child(3)")!.getAttribute("aria-sort")).toBe(
+      "ascending",
+    )
+  })
+
+  it("shows its raw text once switched to its source", async () => {
+    const { container, switcher } = await show("people-4", people)
+    act(() => switcher()!.click())
+    expect(container.querySelector(".artifact-table")).toBeNull()
+    expect(container.querySelector(".code-viewer")?.textContent).toContain('Ann,34,"Oslo, NO"')
+  })
+
+  context("when the runner read only part of it", () => {
+    it("says so under the table, with which lines", async () => {
+      const { container } = await show("people-5", { ...people, total: 12034, to: 4 })
+      expect(container.querySelector(".artifact-cut")?.textContent).toBe(
+        "Only part of the file is shown: lines 1–4 of 12,034.",
+      )
+    })
+
+    it("letters its columns where the lines start past the header", async () => {
+      const { container } = await show("people-6", {
+        ...fileContent("data/people.csv", ["Ann,34", "Bo,7"]),
+        firstLine: 960,
+        from: 960,
+        to: 961,
+        total: 5000,
+      })
+      expect(cells(container)[0]).toEqual(["Line", "A", "B"])
+      expect(container.querySelector(".artifact-cut")?.textContent).toContain(
+        "without its header row",
+      )
+    })
+  })
+})
+
+describe("a CSV file the agent pointed into", () => {
+  it("marks the row a pointed line falls in, though the row starts above it", async () => {
+    const lines = ["id,text", '1,"one', "two", 'three"', "2,x", "3,y"]
+    const { container } = await show("pointed-1", {
+      ...fileContent("notes.csv", lines),
+      from: 3,
+      to: 3,
+    })
+    const marked = [...container.querySelectorAll("tbody tr[data-pointed]")]
+    expect(marked.map((row) => row.getAttribute("data-line"))).toEqual(["2"])
+  })
+
+  it("says so when the lines pointed at are past the file's end", async () => {
+    const lines = ["id,n", "1,2", "3,4"]
+    const { container } = await show("pointed-2", {
+      ...fileContent("short.csv", lines),
+      from: 3,
+      to: 3,
+      clamped: true,
+    })
+    expect(container.querySelector(".artifact-cut")?.textContent).toBe(
+      "The lines pointed at are past its end, line 3.",
+    )
+  })
+})
+
+describe("a long CSV file", () => {
+  const long = fileContent("data/long.csv", [
+    "id,score",
+    ...Array.from({ length: 5000 }, (_, at) => `${at + 1},${(at * 7919) % 10007}`),
+  ])
+
+  it("draws only the rows in view, and says how many it has", async () => {
+    const { container } = await show("long-1", long)
+    const drawn = container.querySelectorAll("tbody tr[data-line]")
+    expect(drawn.length).toBeGreaterThan(10)
+    expect(drawn.length).toBeLessThan(200)
+    expect(container.querySelector("table")?.getAttribute("aria-rowcount")).toBe("5001")
+    expect(drawn[0]?.getAttribute("aria-rowindex")).toBe("2")
+  })
+
+  it("sorts all its rows, not only those drawn", async () => {
+    const { container } = await show("long-2", long)
+    act(() => container.querySelector<HTMLButtonElement>("thead th:nth-child(3) button")!.click())
+    act(() => container.querySelector<HTMLButtonElement>("thead th:nth-child(3) button")!.click())
+    const scores = long.lines.slice(1).map((line) => Number(line.split(",")[1]))
+    expect(container.querySelector("tbody tr[data-line] td:nth-of-type(2)")?.textContent).toBe(
+      String(Math.max(...scores)),
+    )
+  })
+})
+
+describe("a TSV file", () => {
+  it("splits its columns on tabs", async () => {
+    const { container } = await show(
+      "tsv-1",
+      fileContent("out/scores.tsv", ["team\tscore", "red, blue\t3"]),
+    )
+    expect(container.querySelector("tbody tr")?.textContent).toBe("2red, blue3")
+  })
+})
+
 describe("a data file", () => {
   const compose = fileContent("compose.yaml", ["services:", "  web:", "    image: node"])
   // A new load each time: one already sent to its source isn't sent again.

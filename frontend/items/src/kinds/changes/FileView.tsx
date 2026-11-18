@@ -15,7 +15,7 @@ import {
   type Line,
 } from "./diff-rows"
 import { headParts, summaryParts } from "./labels"
-import { segmentsOf } from "./paint"
+import { segmentsOf, stretchesOf, type Segment } from "./paint"
 import { Counts, Parts, startsOf } from "./Parts"
 import type { TreeFile } from "./tree"
 import { useFileDiff } from "./use-file-diff"
@@ -59,8 +59,8 @@ const useHighlights = (path: string, run: ChangeFileRun | undefined): Sides => {
 
 export const signs = { add: "+", remove: "−", context: "" } as const
 
-// A piece is keyed by where its text starts in the line. `children` follow the text, as the file
-// preview's cursor does.
+// A piece is keyed by where its text starts in the line, and a changed run of pieces is one mark,
+// keyed by its first. `children` follow the text, as the file preview's cursor does.
 export const Code = ({
   line,
   runs,
@@ -72,28 +72,31 @@ export const Code = ({
 }): React.JSX.Element => {
   const pieces = segmentsOf(line.text, runs, line.marks)
   const starts = startsOf(pieces.map((piece) => piece.text))
+  const placed = pieces.map((piece, at) => ({ ...piece, key: starts[at] }))
   return (
     <span className="changes-text">
-      {pieces.map((piece, at) => {
-        const key = starts[at]
-        if (piece.marked)
-          return (
-            <mark key={key} className={`changes-tok ${piece.classes}`}>
-              {piece.text}
-            </mark>
-          )
-        return piece.classes ? (
-          <span key={key} className={piece.classes}>
-            {piece.text}
-          </span>
+      {stretchesOf(placed).map((stretch) =>
+        stretch.marked ? (
+          <mark key={stretch.pieces[0]?.key} className="changes-tok">
+            {stretch.pieces.map(pieceView)}
+          </mark>
         ) : (
-          piece.text
-        )
-      })}
+          stretch.pieces.map(pieceView)
+        ),
+      )}
       {children}
     </span>
   )
 }
+
+const pieceView = (piece: Segment & { readonly key: number | undefined }): React.ReactNode =>
+  piece.classes ? (
+    <span key={piece.key} className={piece.classes}>
+      {piece.text}
+    </span>
+  ) : (
+    piece.text
+  )
 
 /** What names a line among those of a change. */
 const lineKey = (line: Line): string => `${line.old ?? "-"}:${line.now ?? "-"}:${line.kind}`

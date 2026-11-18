@@ -309,7 +309,23 @@ they asked for: the item re-pointed to another file reads `secret` again.
 A file (the `file` item kind) shows as code, highlighted and numbered, unless its type has a
 preview: the previews are a list in `frontend/items/src/kinds/file/previews/`, each naming the
 files it takes (by how the name ends), its icon, its view and, optionally, its peek miniature,
-and a type joins with one line there. Markdown's is the read-only document with its outline. A
+and a type joins with one line there. Markdown's is the read-only document with its outline. A CSV or TSV file's is a table
+(`previews/table/`, its own small RFC 4180 reader: quoted fields with delimiters, line breaks
+and doubled quotes, a byte-order mark; a CSV's delimiter is the comma, semicolon or tab that at
+least half its first lines hold, most steadily): the header held on top, each column sorted
+from its header (up, down, the file's order; numbers by value, empty cells last), numbers to
+the right, each row led by the line it starts on, and where it was scrolled and sorted kept as
+the code viewer's place is. Past 200 rows it draws only the rows in view (`rows-window.ts`),
+its columns held to widths from all its rows' text, so a data file read whole stays quick.
+What the runner read of a long file is only part of it (its first 400 lines, or the lines
+around those pointed at, whose rows it marks and opens at), and the table says so under it,
+with which lines, that a line the runner cut at 4096 characters lost its last cells, and that
+lines pointed at past the file's end were pulled back to it. Lines past the file's first have
+no header, so their columns are lettered, and may start inside a quoted record, so the table
+starts at the first line from which the rows read whole; a quoted field the part cuts off ends
+there. In a file shown whole, a quote never closed reads as text, as a TSV's inch mark. Each
+column's decimal mark is the one all its numbers read with (a comma first in a semicolon file),
+and digits led by a zero (IDs, postcodes) are text. A
 file with a preview opens on it, with a Show source tool in the pane's row (Ctrl+Shift+V, ⌘⇧V
 on a Mac, from anywhere in the file) that switches it to the bare file in the code viewer and
 back. A preview's own tools join the row before it (`usePreviewTools`); one that can't read its
@@ -351,10 +367,11 @@ refreshSession()") and the lines it spans; a change past 36 rows shows its start
 "N more changed lines · +N −N · Show", and the unchanged stretches between changes are folded
 with a click to show them. Esc or ‹ shrinks the heading back into its row; J and K step through
 the selection's files. Lines are unified, in classic green and red from the
-theme's own tokens (the row ground is `--color-success` / `--color-danger` mixed to 55%, 50% on a
-light scheme; bar, sign and number are the `-fg` inks; a changed token is that ink at 24%), the
-changed tokens of a replaced line marked, and lines whose tokens are the same with other
-whitespace shown once as plain lines and counted apart ("+4 −6 · 4 re-indented"). Monochrome
+theme's own `--color-success-fg` / `--color-danger-fg` inks (a sea green and a rose in Coolant),
+carried by the gutter: the number and sign sit on the ink at 20% (18% on a light scheme), the line
+on the ink at 5% (7%), with no bar. The changed tokens of a replaced line are marked, each
+changed run one mark at the ink's 30%, and lines whose tokens are the same with other
+whitespace are shown once as plain lines and counted apart ("+4 −6 · 4 re-indented"). Monochrome
 themes read by the `+` and `−` signs.
 
 What it says of a change is facts only, computed in the page from the two sides' text with the

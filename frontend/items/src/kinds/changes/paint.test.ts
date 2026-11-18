@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { segmentsOf } from "./paint"
+import { segmentsOf, stretchesOf } from "./paint"
 
 describe("a line's pieces", () => {
   it("is the line as one piece without runs or marks", () => {
@@ -34,5 +34,38 @@ describe("a line's pieces", () => {
 
   it("has no pieces for an empty line", () => {
     expect(segmentsOf("", undefined, [])).toEqual([])
+  })
+})
+
+describe("a line's stretches", () => {
+  const piece = (text: string, marked: boolean) => ({ text, classes: "", marked })
+
+  it("joins neighbouring marked pieces into one stretch, so a changed run is one mark", () => {
+    const pieces = [
+      piece("{ hour", false),
+      piece(", ", true),
+      piece("hour12", true),
+      piece(" })", false),
+    ]
+    expect(
+      stretchesOf(pieces).map((stretch) => [
+        stretch.marked,
+        stretch.pieces.map((each) => each.text),
+      ]),
+    ).toEqual([
+      [false, ["{ hour"]],
+      [true, [", ", "hour12"]],
+      [false, [" })"]],
+    ])
+  })
+
+  it("keeps unmarked pieces apart, each with its own classes", () => {
+    const pieces = [piece("const", false), piece(" a", false)]
+    expect(stretchesOf(pieces).map((stretch) => stretch.pieces.length)).toEqual([1, 1])
+  })
+
+  it("keeps two marked runs apart when an unmarked piece sits between them", () => {
+    const pieces = [piece("7", true), piece(" * ", false), piece("day", true)]
+    expect(stretchesOf(pieces).map((stretch) => stretch.marked)).toEqual([true, false, true])
   })
 })

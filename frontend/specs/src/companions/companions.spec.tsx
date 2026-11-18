@@ -784,23 +784,23 @@ describe("A terminal's tab", () => {
 describe("A stack's menu", () => {
   it("offers only what's done with all of it, and each of its things to open", async () => {
     await openShowcase()
-    const menu = await iconMenu("Dev server", "14 files")
+    const menu = await iconMenu("Dev server", "18 files")
     const entries = menu
       .getByRole("menuitem")
       .elements()
       .map((entry) => entry.textContent)
-    expect(entries).toEqual(["Open", "Move left", "Move right", "Close 14 files"])
+    expect(entries).toEqual(["Open", "Move left", "Move right", "Close 18 files"])
 
-    await menu.getByRole("menuitem", { name: "Close 14 files" }).click()
+    await menu.getByRole("menuitem", { name: "Close 18 files" }).click()
 
-    await expect.element(taskbarIcon("Dev server", "14 files")).not.toBeInTheDocument()
+    await expect.element(taskbarIcon("Dev server", "18 files")).not.toBeInTheDocument()
   })
 })
 
 describe("Something that can't show", () => {
   it("says why, with its path to copy", async () => {
     await openShowcase()
-    await chooseFromIconSubmenu("Dev server", "14 files", "Open", "notes.md")
+    await chooseFromIconSubmenu("Dev server", "18 files", "Open", "notes.md")
     const pane = companionPane("Dev server")
     await expect.element(pane.getByText("notes.md isn't there any more.")).toBeVisible()
     await expect.element(pane.getByRole("button", { name: "Copy path" })).toBeVisible()
@@ -818,11 +818,46 @@ describe("Something that can't show", () => {
 
   it("shows what may hold secrets once the person picks it, and never in a peek", async () => {
     await openShowcase()
-    await taskbarIcon("Dev server", "14 files").hover()
+    await taskbarIcon("Dev server", "18 files").hover()
     await expect.element(page.getByText("May hold secrets. Click to open.")).toBeVisible()
-    await chooseFromIconSubmenu("Dev server", "14 files", "Open", ".env.local")
+    await chooseFromIconSubmenu("Dev server", "18 files", "Open", ".env.local")
     const pane = companionPane("Dev server")
     await expect.element(pane.getByText("VITE_API_URL=http://localhost:8787")).toBeVisible()
+  })
+})
+
+describe("A delimited file", () => {
+  it("shows a long one as a table, its header held as it scrolls, drawing the rows in view", async () => {
+    await openShowcase()
+    await chooseFromIconSubmenu("Dev server", "18 files", "Open", "visits.csv")
+    const pane = companionPane("Dev server")
+    await expect.element(pane.getByRole("columnheader", { name: "visits" })).toBeVisible()
+    await expect
+      .element(
+        pane.getByText(
+          "Only part of the file is shown: lines 1–400 of 12,034. One line is too long to show whole, so its last cells are missing.",
+        ),
+      )
+      .toBeVisible()
+    const scroller = pane.getByRole("region", { name: "visits.csv" }).element() as HTMLElement
+    expect(scroller.querySelectorAll("tbody tr[data-line]").length).toBeLessThan(120)
+    scroller.scrollTop = 6000
+    await nextFrames(3)
+    const head = scroller.querySelector("thead th")!.getBoundingClientRect()
+    expect(Math.abs(head.top - scroller.getBoundingClientRect().top)).toBeLessThan(2)
+    const first = [...scroller.querySelectorAll<HTMLElement>("tbody tr[data-line]")].find(
+      (row) => row.getBoundingClientRect().bottom > head.bottom,
+    )
+    expect(Number(first?.dataset.line)).toBeGreaterThan(150)
+
+    // Sorted by visits, most first, over every row, not only those drawn.
+    await pane.getByRole("columnheader", { name: "visits" }).getByRole("button").click()
+    await pane.getByRole("columnheader", { name: "visits" }).getByRole("button").click()
+    scroller.scrollTop = 0
+    await nextFrames(3)
+    expect(scroller.querySelector("tbody tr[data-line] td:nth-of-type(3)")?.textContent).toBe(
+      "1013",
+    )
   })
 })
 

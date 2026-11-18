@@ -20,13 +20,23 @@ import type { ItemRecord } from "./records.js"
 import { failure, type RequestFailure } from "./request.js"
 import { secret } from "./secrets.js"
 
-// What is shown as an image, by extension.
+// What is shown as an image, by extension: what Chromium decodes itself, as the desktop app
+// and a browser both are. HEIC, TIFF, JPEG XL (behind a flag) and gzipped SVG aren't among
+// them, so they stay files.
 const images: { readonly [extension: string]: string } = {
   ".png": "image/png",
+  ".apng": "image/apng",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
+  ".jfif": "image/jpeg",
+  ".pjpeg": "image/jpeg",
+  ".pjp": "image/jpeg",
   ".gif": "image/gif",
   ".webp": "image/webp",
+  ".avif": "image/avif",
+  ".bmp": "image/bmp",
+  ".ico": "image/x-icon",
+  ".cur": "image/x-icon",
   ".svg": "image/svg+xml",
 }
 /** The largest image previewed; a larger one is listed without its picture. */
