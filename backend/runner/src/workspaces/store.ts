@@ -89,7 +89,9 @@ const projectOf = ({ pinned, ...project }: ProjectRow): Project => ({
 // where its handle comes in the order they were given (`handle_seq`) and when it was
 // given (`handle_given_at`).
 // 17: an item may be a terminal's background shells (`kind` takes 'shells').
-const schemaVersion = 17
+// 18: a changes item may be a compare of two refs an agent named (`compare_base`,
+// `compare_head`).
+const schemaVersion = 18
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -357,6 +359,10 @@ const schema = `
     open_asked INTEGER NOT NULL,
     shown_at REAL NOT NULL,
     observed_at REAL,
+    -- A changes item's two refs where it is a compare an agent named, as it named them:
+    -- head against base. Both null for a checkout's own change, and for every other kind.
+    compare_base TEXT,
+    compare_head TEXT CHECK ((compare_base IS NULL) = (compare_head IS NULL)),
     FOREIGN KEY (terminal_id, session_id) REFERENCES terminals(id, session_id)
       ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (window_id, session_id) REFERENCES companion_windows(id, session_id)
@@ -1010,6 +1016,12 @@ const migrations: Readonly<Record<number, Step>> = {
       shown_by, from_terminal, from_handle, version, open_asked, shown_at, observed_at FROM companion_items_16;
     DROP TABLE companion_items_16;
   `,
+  // A changes item may be a compare of two refs; every item there is is none.
+  17: `
+    ALTER TABLE companion_items ADD COLUMN compare_base TEXT;
+    ALTER TABLE companion_items ADD COLUMN compare_head TEXT
+      CHECK ((compare_base IS NULL) = (compare_head IS NULL));
+  `,
 }
 // SQLite's primary result codes that say a step doesn't fit the database it met, or that
 // it is damaged, as against a full disk, an I/O error or a lock, after which a later start
@@ -1561,6 +1573,8 @@ type ItemRow = {
   open_asked: number
   shown_at: number
   observed_at: number | null
+  compare_base: string | null
+  compare_head: string | null
 }
 
 const itemOf = (row: ItemRow): ItemRecord => ({
@@ -1598,6 +1612,8 @@ const itemOf = (row: ItemRow): ItemRecord => ({
   openAsked: row.open_asked === 1,
   shownAt: row.shown_at,
   observedAt: row.observed_at,
+  ...(row.compare_base !== null &&
+    row.compare_head !== null && { compare: { base: row.compare_base, head: row.compare_head } }),
 })
 
 type WindowRow = {
@@ -2696,20 +2712,21 @@ export class WorkspaceStore
 
   /** Adds or changes an item; TERMINAL_NOT_FOUND when its terminal or session is gone. */
   saveItem(item: ItemRecord): void {
-    const { plan, lines, from } = item
+    const { plan, lines, from, compare } = item
     referencing(
       "TERMINAL_NOT_FOUND",
       () => this.queries.run`
       INSERT INTO companion_items (id, session_id, terminal_id, window_id, pointer_key, kind, path,
         url, lines_from, lines_to, plan_agent, plan_agent_session, plan_actor, plan_format, name,
         detail, secret, shown_by, from_terminal, from_handle, version, open_asked, shown_at,
-        observed_at)
+        observed_at, compare_base, compare_head)
       VALUES (${item.id}, ${item.sessionId}, ${item.terminalId}, ${item.windowId},
         ${item.pointerKey}, ${item.kind}, ${item.path}, ${item.url}, ${lines?.from ?? null},
         ${lines?.to ?? null}, ${plan?.agent ?? null}, ${plan?.session ?? null},
         ${plan ? (plan.actor ?? "") : null}, ${plan?.format ?? null}, ${item.name},
         ${item.detail}, ${item.secret ? 1 : 0}, ${item.by}, ${from?.terminalId ?? null}, ${from?.handle ?? null},
-        ${item.version}, ${item.openAsked ? 1 : 0}, ${item.shownAt}, ${item.observedAt})
+        ${item.version}, ${item.openAsked ? 1 : 0}, ${item.shownAt}, ${item.observedAt},
+        ${compare?.base ?? null}, ${compare?.head ?? null})
       ON CONFLICT (id) DO UPDATE SET terminal_id = excluded.terminal_id,
         window_id = excluded.window_id, pointer_key = excluded.pointer_key, kind = excluded.kind,
         path = excluded.path, url = excluded.url, lines_from = excluded.lines_from,
@@ -2719,7 +2736,8 @@ export class WorkspaceStore
         secret = excluded.secret, shown_by = excluded.shown_by,
         from_terminal = excluded.from_terminal, from_handle = excluded.from_handle,
         version = excluded.version, open_asked = excluded.open_asked, shown_at = excluded.shown_at,
-        observed_at = excluded.observed_at
+        observed_at = excluded.observed_at, compare_base = excluded.compare_base,
+        compare_head = excluded.compare_head
     `,
     )
   }

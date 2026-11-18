@@ -180,6 +180,8 @@ export const maxChangeLayers = 100
 export const maxLayerFiles = 2000
 export const maxChangesBytes = 4 * 1024 * 1024
 export const maxChangeSideBytes = 512 * 1024
+/** How long a ref a compare names runs at most: a branch, a tag, a hash or an expression of one. */
+export const maxCompareRef = 256
 
 // One file a layer changed: its path (and its old one when renamed), how it changed, and
 // how many lines were added and removed. Lines that differ from their old ones only by
@@ -262,7 +264,9 @@ export const changeFileDiff = z.strictObject({
 // or is HEAD where there is none): its layers, newest first, each the files it changed with
 // their counts, not their diffs, which `companions.changeFile` gives one file at a time.
 // The layers are the checkout's commits since the merge base with main, then, above
-// them, the work not committed yet (staged, unstaged and untracked, not ignored). At most
+// them, the work not committed yet (staged, unstaged and untracked, not ignored). A compare
+// (`head` set) is two refs an agent named instead: `head`'s commits since its merge base with
+// `base`, as `git diff base...head` reads, with no work not committed yet. At most
 // `maxChangeLayers` layers and `maxLayerFiles` files are listed, `truncated` says when
 // more changed (in `files` too); `root` is the repository's folder, which its paths are from.
 // `read` names the files of `files` the person read (`companions.changeRead`) that are still as
@@ -301,6 +305,7 @@ export const itemContent = z.discriminatedUnion("state", [
         kind: z.literal("changes"),
         root: z.string().max(companionLimits.path),
         base: z.string().max(256),
+        head: z.string().max(maxCompareRef).optional(),
         layers: z.array(changeLayer).max(maxChangeLayers),
         // The files the change as a whole differs from main by, as git lists the range from
         // main to the newest layer (the layers' own files added up are not that), up to

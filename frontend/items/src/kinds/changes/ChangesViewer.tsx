@@ -15,7 +15,8 @@ import { useChangesView } from "./view-state"
 
 // An agent's change, measured against main: its layers (the uncommitted work and each commit
 // since the merge base) to pick from, the files they changed as a tree, and one file at a time
-// opened into its changes. Read-only. What was picked and opened is kept by item; the files read
+// opened into its changes; or a compare an agent showed, a head's commits since it left a base,
+// which has no uncommitted work. Read-only. What was picked and opened is kept by item; the files read
 // are the backend's, kept until each changes again.
 
 const noun = (count: number): string => `${count} ${count === 1 ? "file" : "files"}`
@@ -84,7 +85,9 @@ export const ChangesViewer = ({
     [rows],
   )
   const all = useMemo(() => sums(content), [content])
-  const pull = usePullRequest(content.root)
+  const worktreePull = usePullRequest(content.root)
+  // A compare is of the refs the agent named, not the checkout's work: its pull request isn't.
+  const pull = content.head === undefined ? worktreePull : undefined
 
   // A file opened is read: grayed at once, until the content comes again with the backend's word.
   const markRead = useCallback(

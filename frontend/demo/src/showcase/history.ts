@@ -35,8 +35,10 @@ export type Step = {
 
 export type History = {
   readonly root: string
-  /** The main branch the checkout is measured against. */
+  /** The main branch the checkout is measured against, or a compare's base. */
   readonly base: string
+  /** A compare's head, where the history is one an agent showed as a compare of two refs. */
+  readonly head?: string
   /** The files of main. */
   readonly start: Files
   /** Oldest first. */
@@ -242,6 +244,7 @@ export const contentOf = (history: History): ChangesContent => {
     kind: "changes",
     root: history.root,
     base: history.base,
+    ...(history.head !== undefined && { head: history.head }),
     layers,
     read: [],
     // The whole change's own list: the range over every layer.

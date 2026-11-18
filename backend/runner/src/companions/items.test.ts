@@ -1508,6 +1508,79 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     expect(fixture.items.bar(place.terminalId)).toMatchObject([{ name: "Changes · work" }])
   })
 
+  it("is one item per compare beside the working tree's, read from its refs, and closed by them", async ({
+    fixture,
+  }) => {
+    const { root, git, place } = repository(fixture)
+    const main = execFileSync("git", ["symbolic-ref", "--short", "HEAD"], { cwd: root })
+      .toString()
+      .trim()
+    git("stash", "--quiet")
+    git("checkout", "--quiet", "-b", "feature")
+    writeFileSync(join(root, "b.txt"), "b\n")
+    git("add", "-A")
+    git("commit", "--quiet", "-m", "Add b")
+    const added = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root }).toString().trim()
+    git("checkout", "--quiet", main)
+    git("stash", "pop", "--quiet")
+
+    await fixture.items.show(place, { changes: {} })
+    const shown = await fixture.items.show(place, { changes: { head: "feature" }, open: true })
+    expect(shown).toMatchObject({ ok: true, kind: "changes", again: false, opened: true })
+    expect(fixture.items.bar(place.terminalId)).toMatchObject([
+      { name: "Changes · work", detail: "1 file · +1 −0" },
+      { name: "Compare · work · feature", detail: "1 file · +1 −0" },
+    ])
+    // Its base is the repository's main branch, as it is named.
+    expect(fixture.store.item(shown.ok ? shown.id : "")?.compare).toEqual({
+      base: main,
+      head: "feature",
+    })
+    const watch = new AbortController()
+    const content = await next(
+      fixture.items.content(shown.ok ? shown.id : "", undefined, watch.signal),
+    )
+    watch.abort()
+    expect(content).toMatchObject({
+      state: "ready",
+      content: { kind: "changes", base: main, head: "feature", files: [{ path: "b.txt" }] },
+    })
+    expect(itemContent.parse(content)).toEqual(content)
+    expect(
+      content?.state === "ready" && content.content.kind === "changes"
+        ? content.content.layers.map(({ id }) => id)
+        : [],
+    ).toEqual([added])
+    const diff = await fixture.items.changeFile({
+      itemId: shown.ok ? shown.id : "",
+      path: "b.txt",
+      layers: [added],
+    })
+    expect(diff.run).toMatchObject({ layers: [added], before: null, after: "b\n" })
+    expect(fixture.items.listing(place.terminalId)).toContain(`compare: feature against ${main}`)
+
+    // The same refs again update it; a ref that isn't there shows nothing.
+    await expect(
+      fixture.items.show(place, { changes: { base: main, head: "feature" } }),
+    ).resolves.toMatchObject({ ok: true, again: true })
+    await expect(fixture.items.show(place, { changes: { head: "nope" } })).resolves.toMatchObject({
+      ok: false,
+      reason: 'Git can\'t find "nope" in this repository.',
+    })
+    expect(fixture.items.bar(place.terminalId)).toHaveLength(2)
+
+    // Closed by its refs, leaving the working tree's.
+    await expect(
+      fixture.items.closeShown(place, { changes: { head: "feature" } }),
+    ).resolves.toMatchObject({ ok: true, kind: "changes" })
+    expect(fixture.items.bar(place.terminalId)).toMatchObject([{ name: "Changes · work" }])
+
+    // The repository's worktree gone, its compares go with its own change.
+    await fixture.items.show(place, { changes: { head: "feature" } })
+    fixture.items.closeChangesAt(root)
+    expect(fixture.items.bar(place.terminalId)).toEqual([])
+  })
+
   it("gives one file's diff for a selection of layers, and refuses an item that is no change", async ({
     fixture,
   }) => {

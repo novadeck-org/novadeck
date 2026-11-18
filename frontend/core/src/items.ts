@@ -249,6 +249,9 @@ export type ChangesContent = {
   readonly kind: "changes"
   readonly root: string
   readonly base: string
+  // The ref a compare an agent showed measures against `base`; absent for a checkout's own
+  // change, which is its work against main.
+  readonly head?: string | undefined
   readonly layers: readonly ChangeLayer[]
   // The files the change as a whole differs from main by, as git lists the range from main to
   // the newest layer: its own counts, not its layers' added up.

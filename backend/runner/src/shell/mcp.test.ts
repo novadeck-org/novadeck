@@ -1048,10 +1048,13 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       return reply.result.content[0]?.text
     }
     const cases = [
-      [{ path: "a.ts" }, "Give one source, file: { path }, page: { url } or changes: { path? }."],
+      [
+        { path: "a.ts" },
+        "Give one source, file: { path }, page: { url } or changes: { path?, base?, head? }.",
+      ],
       [
         { url: "http://a/" },
-        "Give one source, file: { path }, page: { url } or changes: { path? }.",
+        "Give one source, file: { path }, page: { url } or changes: { path?, base?, head? }.",
       ],
       [{ file: { path: "a.ts" }, extra: 1 }, 'The request\'s "extra" is not valid.'],
       [

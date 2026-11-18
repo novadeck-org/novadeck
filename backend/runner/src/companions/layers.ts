@@ -32,6 +32,7 @@ import {
   type ChangeFailure,
 } from "./changes.js"
 import { hashOf } from "./content.js"
+import type { Compare } from "./records.js"
 import { secrets } from "./secrets.js"
 
 // A change as layers: a checkout measured against its repository's main branch. The layers
@@ -40,6 +41,8 @@ import { secrets } from "./secrets.js"
 // of a snapshot, see `Snapshots`) taken as a tree through a private index and a private object
 // folder, so neither the person's index nor their object store is written. A file's diff is
 // read when it is asked for, for the layers that were selected, which are always one range.
+// A compare is two refs an agent named instead of the checkout and main: its layers are the
+// head's commits since its merge base with the base, and there is no work not committed yet.
 
 const small = { cap: 64 * 1024 }
 // How many layers' files are listed at once.
@@ -150,7 +153,61 @@ type Standing = {
   readonly commits: readonly Commit[]
 }
 
-const standing = async (root: string): Promise<Standing | ChangeFailure> => {
+/** The commit a ref names, or undefined where it names none. */
+const commitOf = async (root: string, ref: string): Promise<string | undefined> =>
+  printed(await git(root, ["rev-parse", "--verify", "-q", `${ref}^{commit}`], small)) || undefined
+
+/** How many commits a change lists as layers: all of its bound, less one for the work not committed yet. */
+const commitRoom = (compare: Compare | undefined): number =>
+  compare ? maxChangeLayers : maxChangeLayers - 1
+
+/**
+ * The commits from `since` to `head`, as `base` names where they are measured from; a shallow
+ * repository's oldest commit, which has no parent to be diffed against, is no layer.
+ */
+const measured = async (
+  root: string,
+  head: string,
+  base: string,
+  since: string,
+): Promise<Standing | ChangeFailure> => {
+  const found = await commitsSince(root, since, head)
+  if ("ok" in found) return found
+  const shallow =
+    printed(await git(root, ["rev-parse", "--is-shallow-repository"], small)) === "true"
+  const commits = shallow ? found.filter((commit) => commit.parent !== undefined) : found
+  return { head, base, since, cut: commits.length < found.length, commits }
+}
+
+/** Where a compare stands: its head's commits since its merge base with its base. */
+const compared = async (root: string, compare: Compare): Promise<Standing | ChangeFailure> => {
+  const [head, base] = await Promise.all([
+    commitOf(root, compare.head),
+    commitOf(root, compare.base),
+  ])
+  for (const [ref, commit] of [
+    [compare.head, head],
+    [compare.base, base],
+  ] as const)
+    if (commit === undefined)
+      return failure("failed", `Git can't find ${JSON.stringify(ref)} in this repository.`)
+  const since = await mergeBase(root, base!, head!)
+  if (!since)
+    return {
+      head,
+      base: `${ellipsized(compare.base, 200)} (no common history)`,
+      since: undefined,
+      cut: false,
+      commits: [],
+    }
+  return measured(root, head!, compare.base, since)
+}
+
+const standing = async (
+  root: string,
+  compare?: Compare | undefined,
+): Promise<Standing | ChangeFailure> => {
+  if (compare) return compared(root, compare)
   const head = printed(await git(root, ["rev-parse", "--verify", "-q", "HEAD^{commit}"], small))
   if (!head)
     return {
@@ -173,13 +230,7 @@ const standing = async (root: string): Promise<Standing | ChangeFailure> => {
       cut: false,
       commits: [],
     }
-  const found = await commitsSince(root, since, head)
-  if ("ok" in found) return found
-  // A shallow repository's oldest commit has no parent to be diffed against: it is not a layer.
-  const shallow =
-    printed(await git(root, ["rev-parse", "--is-shallow-repository"], small)) === "true"
-  const commits = shallow ? found.filter((commit) => commit.parent !== undefined) : found
-  return { head, base: main.name, since, cut: commits.length < found.length, commits }
+  return measured(root, head, main.name, since)
 }
 
 type Held = (path: string, oldPath: string | null) => boolean
@@ -249,6 +300,10 @@ type Span = {
 /** The files of a checkout read, each by its object when read (see `Works.marks`). */
 export type ReadMarks = (root: string) => ReadonlyMap<string, string>
 
+/** What a checkout's change or one of its compares was last listed under. */
+const listedKey = (root: string, compare: Compare | undefined): string =>
+  compare ? `${root}\n${compare.base}...${compare.head}` : root
+
 /**
  * Reads checkouts' changes and files' diffs, one read at a time per checkout (its snapshots
  * share a private index), through the snapshots it shares with the Worktrees panel.
@@ -259,7 +314,10 @@ export class LayerReader {
   private readonly stop = new AbortController()
   /** The reads under way, which closing waits for. */
   private readonly reading = new Set<Promise<unknown>>()
-  /** Each checkout's files as its change last listed them as a whole, by name, with their objects. */
+  /**
+   * Each checkout's files as its change (or a compare in it, see `listedKey`) last listed them
+   * as a whole, by name, with their objects.
+   */
   private readonly listed = new Map<string, ReadonlyMap<string, Listed>>()
 
   constructor(
@@ -274,10 +332,10 @@ export class LayerReader {
 
   /**
    * A checkout's layers as they are now: the work not committed yet as a snapshot of a moment
-   * ago serves (see `Snapshots`), unless `fresh`.
+   * ago serves (see `Snapshots`), unless `fresh`. With `compare`, that compare's layers instead.
    */
-  read(root: string, fresh = false): Promise<Read> {
-    return this.exclusive(root, (checkout) => this.layers(root, checkout, fresh))
+  read(root: string, fresh = false, compare?: Compare): Promise<Read> {
+    return this.exclusive(root, (checkout) => this.layers(root, checkout, fresh, compare))
   }
 
   /**
@@ -285,8 +343,13 @@ export class LayerReader {
    * the newest (layers between are taken in). Layers no longer there are left out; a file the
    * selection did not change has no run.
    */
-  file(root: string, path: string, selected: readonly string[]): Promise<ReadFile> {
-    return this.exclusive(root, (checkout) => this.diff(root, path, selected, checkout))
+  file(
+    root: string,
+    path: string,
+    selected: readonly string[],
+    compare?: Compare,
+  ): Promise<ReadFile> {
+    return this.exclusive(root, (checkout) => this.diff(root, path, selected, checkout, compare))
   }
 
   /**
@@ -296,8 +359,9 @@ export class LayerReader {
   listedFile(
     root: string,
     path: string,
+    compare?: Compare,
   ): { readonly path: string; readonly blob: string } | undefined {
-    const entry = this.listed.get(root)?.get(path)
+    const entry = this.listed.get(listedKey(root, compare))?.get(path)
     return entry && entry.blob !== "" ? { path: entry.path, blob: entry.blob } : undefined
   }
 
@@ -359,33 +423,51 @@ export class LayerReader {
     return (this.mergeTree ??= (async () => this.options.mergeTree ?? (await canMergeTree()))())
   }
 
-  private async layers(root: string, checkout: Checkout, fresh: boolean): Promise<Read> {
-    const where = await standing(root)
+  /** The work not committed yet, taken as a tree; undefined where it could not be. */
+  private async work(
+    checkout: Checkout,
+    head: string | undefined,
+    fresh: boolean,
+  ): Promise<Taken | undefined> {
+    const taken = await checkout.take(fresh)
+    // One that serves was taken on another HEAD: the work not committed yet is taken again.
+    return taken && taken.head !== (head ?? "") ? checkout.take(true) : taken
+  }
+
+  private async layers(
+    root: string,
+    checkout: Checkout,
+    fresh: boolean,
+    compare: Compare | undefined,
+  ): Promise<Read> {
+    const where = await standing(root, compare)
     if ("ok" in where) return where
     const { head, base, since, commits } = where
-    const name = `Changes · ${basename(root)}`
+    const name = `${compare ? "Compare" : "Changes"} · ${basename(root)}`
     const held = holder(root, this.environment())
     const room = { left: maxLayerFiles }
-    let taken = await checkout.take(fresh)
-    // One that serves was taken on another HEAD: the work not committed yet is taken again.
-    if (taken && taken.head !== (head ?? "")) taken = await checkout.take(true)
-    if (!taken) return this.unsnapped()
+    // A compare is commits only: it takes no snapshot of the working tree.
+    const taken = compare ? undefined : await this.work(checkout, head, fresh)
+    if (!compare && !taken) return this.unsnapped()
     const own = await checkout.objects()
     if (!own) return this.unsnapped()
     const empty = await emptyTreeOf(root)
     const merges = await this.merges()
-    const dirty = await listDiff(root, head ?? empty, taken.tree, taken.env)
-    if ("ok" in dirty) return dirty
-    const layers: ChangeLayer[] = [
-      layerOf(
-        [...dirty, ...named(taken)].toSorted(byPath),
-        held,
-        { id: uncommittedLayer, kind: "uncommitted", subject: "", time: null },
-        room,
-        taken.skipped,
-      ),
-    ]
-    const shown = commits.slice(0, maxChangeLayers - 1)
+    const layers: ChangeLayer[] = []
+    if (taken) {
+      const dirty = await listDiff(root, head ?? empty, taken.tree, taken.env)
+      if ("ok" in dirty) return dirty
+      layers.push(
+        layerOf(
+          [...dirty, ...named(taken)].toSorted(byPath),
+          held,
+          { id: uncommittedLayer, kind: "uncommitted", subject: "", time: null },
+          room,
+          taken.skipped,
+        ),
+      )
+    }
+    const shown = commits.slice(0, commitRoom(compare))
     const lists = await pooled(shown, poolSize, async (commit) => {
       const from = await this.fromOf(root, commit, since, empty, own, merges)
       // A merge's own work is read with the objects the merge in memory made.
@@ -413,10 +495,16 @@ export class LayerReader {
       unread ||
       commits.length > shown.length ||
       layers.some((layer) => layer.truncated)
-    const netList = await listDiff(root, since ?? head ?? empty, taken.tree, taken.env)
-    const net = "ok" in netList ? netList : [...netList, ...named(taken)].toSorted(byPath)
+    // A compare as a whole is `git diff base...head`, which a listing kept may serve.
+    const netList = taken
+      ? await listDiff(root, since ?? head ?? empty, taken.tree, taken.env)
+      : await listDiff(root, since ?? head ?? empty, head ?? empty, undefined, true)
+    const net = "ok" in netList || !taken ? netList : [...netList, ...named(taken)].toSorted(byPath)
     if (!("ok" in net))
-      this.listed.set(root, new Map(net.map((entry) => [displayed(entry.path), entry])))
+      this.listed.set(
+        listedKey(root, compare),
+        new Map(net.map((entry) => [displayed(entry.path), entry])),
+      )
     return {
       ok: true,
       change: this.made(
@@ -424,10 +512,11 @@ export class LayerReader {
         layers,
         truncated,
         name,
-        `${head ?? ""} ${taken.tree}`,
+        `${head ?? ""} ${taken?.tree ?? ""}`,
         net,
         held,
         root,
+        compare?.head,
       ),
     }
   }
@@ -441,6 +530,7 @@ export class LayerReader {
     net: readonly Listed[] | ChangeFailure,
     held: Held,
     root: string,
+    head: string | undefined,
   ): ReadLayers {
     // The change as a whole: what it differs from main by, not what its layers add up to. The
     // stamp follows the snapshot too, so a line edited with its counts unchanged is news.
@@ -470,6 +560,7 @@ export class LayerReader {
       kind: "changes" as const,
       root,
       base,
+      ...(head !== undefined && { head }),
       layers,
       files: listed,
       read,
@@ -496,42 +587,47 @@ export class LayerReader {
     root: string,
     selected: readonly string[],
     checkout: Checkout,
+    compare: Compare | undefined,
   ): Promise<Span | undefined | ChangeFailure> {
-    const where = await standing(root)
+    const where = await standing(root, compare)
     if ("ok" in where) return where
     const { head, since, commits } = where
     const wanted = new Set(selected)
-    const shown = commits.slice(0, maxChangeLayers - 1)
-    // Every layer there is, newest first, as the list shows them.
-    const all = [uncommittedLayer, ...shown.map((commit) => commit.id)]
+    const shown = commits.slice(0, commitRoom(compare))
+    // Every layer there is, newest first, as the list shows them: the work not committed yet
+    // on top, but in a compare, then the commits, the first of them at `top`.
+    const top = compare ? 0 : 1
+    const all = [...(compare ? [] : [uncommittedLayer]), ...shown.map((commit) => commit.id)]
     const at = all.flatMap((id, place) => (wanted.has(id) ? [place] : []))
     if (at.length === 0) return undefined
     const newest = at[0]!
     const oldest = at.at(-1)!
     const layers = all.slice(newest, oldest + 1)
+    // Whether the range ends at the work not committed yet.
+    const working = top === 1 && newest === 0
     const empty = await emptyTreeOf(root)
     const own = await checkout.objects()
     if (!own) return this.unsnapped()
     let taken: Taken | undefined = checkout.latest()
     let to: string
-    if (newest === 0) {
+    if (working) {
       // The tree the list was last read at serves while HEAD stands, so stepping through the
       // files does not take the snapshot again for each.
       if (!taken || taken.head !== (head ?? "")) taken = await checkout.take(true)
       if (!taken) return this.unsnapped()
       to = taken.tree
-    } else to = shown[newest - 1]!.id
+    } else to = shown[newest - top]!.id
     let from: string
-    if (oldest === 0) from = head ?? empty
+    if (top === 1 && oldest === 0) from = head ?? empty
     else {
-      const first = shown[oldest - 1]!
+      const first = shown[oldest - top]!
       // A range that reaches back to where the checkout left main starts from there, which
       // for the whole of it is what `git diff main...HEAD` shows; for one that ends at an
       // older commit, where that commit left main.
       const reaches = oldest === all.length - 1 && commits.length <= shown.length
       const left =
         since !== undefined && reaches
-          ? newest === 0
+          ? working
             ? since
             : await mergeBase(root, since, to)
           : undefined
@@ -540,11 +636,11 @@ export class LayerReader {
         // Else from the parent of its oldest layer. Where the range holds a merge, and main's
         // work as `to` has it is not in that parent yet, it starts from the parent with it
         // merged in (in memory), so main's own changes are no part of the range's work.
-        const inside = shown.slice(newest === 0 ? 0 : newest - 1, oldest)
+        const inside = shown.slice(working ? 0 : newest - top, oldest - top + 1)
         const merging = since !== undefined && inside.some((commit) => commit.parents.length > 1)
         if (!merging || !(await this.merges())) from = first.parent ?? empty
         else {
-          const main = newest === 0 ? since : await mergeBase(root, since, to)
+          const main = working ? since : await mergeBase(root, since, to)
           const start = await startOf(root, first.parent, main, empty, own)
           if (typeof start !== "string") return start
           from = start
@@ -557,8 +653,8 @@ export class LayerReader {
       layers,
       env: own,
       // Where the snapshot is an end, its listing is not kept (a new tree each time).
-      store: newest !== 0,
-      named: newest === 0 && taken ? named(taken) : [],
+      store: !working,
+      named: working && taken ? named(taken) : [],
     }
   }
 
@@ -567,8 +663,9 @@ export class LayerReader {
     path: string,
     selected: readonly string[],
     checkout: Checkout,
+    compare: Compare | undefined,
   ): Promise<ReadFile> {
-    const span = await this.span(root, selected, checkout)
+    const span = await this.span(root, selected, checkout, compare)
     if (span === undefined) return { ok: true, diff: { run: null } }
     if ("ok" in span) return span
     const run = await this.run(root, path, span, holder(root, this.environment()))

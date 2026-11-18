@@ -34,7 +34,12 @@ export type ItemRecord = {
   readonly shownAt: number
   /** When the plan it points at was last observed, by its harness's clock; null otherwise. */
   readonly observedAt: number | null
+  /** A changes item that is a compare an agent named: `head` against `base`; absent otherwise. */
+  readonly compare?: Compare | undefined
 }
+
+/** Two refs a compare names, as the agent named them: `head`'s work since it left `base`. */
+export type Compare = { readonly base: string; readonly head: string }
 
 /**
  * A window: its item, by a join, and the title the person gave it, if any. `home` says

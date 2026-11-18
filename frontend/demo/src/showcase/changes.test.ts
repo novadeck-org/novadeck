@@ -55,6 +55,13 @@ describe("the sample changes", () => {
             }
   })
 
+  it("show a compare an agent showed: a head's commits since main, with no uncommitted work", () => {
+    const change = changeOf("change-compare")
+    expect(change).toMatchObject({ base: "main", head: "feature/contact-form" })
+    expect(change.layers.map((layer) => layer.kind)).toEqual(["commit", "commit"])
+    expect(change.files.map((file) => file.path)).toEqual(["src/pages/Contact.tsx"])
+  })
+
   it("show an ordinary change in layers: the uncommitted work above the commits since main", () => {
     const change = changeOf("change")
     expect(change.base).toBe("main")

@@ -19,6 +19,7 @@ import type {
 import { KeyedChanges } from "@novadeck/wire/server"
 
 import { waitAfter } from "../checkouts/git.js"
+import { mainBranch } from "../checkouts/repository.js"
 import { Snapshots } from "../checkouts/snapshots.js"
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
@@ -40,7 +41,7 @@ import {
 } from "./content.js"
 import { findRepository, LayerReader, type ReadMarks } from "./layers.js"
 import { PageLooks } from "./looks.js"
-import type { ItemRecord, ItemRecords, WindowRecord } from "./records.js"
+import type { Compare, ItemRecord, ItemRecords, WindowRecord } from "./records.js"
 import {
   failure,
   named,
@@ -136,7 +137,16 @@ export type LookPicture = Exclude<PageLookAnswer, { readonly reason: string }>
 /** What an item points at, and what it says of it, before it is kept. */
 type Pointer = Pick<
   ItemRecord,
-  "pointerKey" | "kind" | "path" | "url" | "lines" | "plan" | "name" | "detail" | "secret"
+  | "pointerKey"
+  | "kind"
+  | "path"
+  | "url"
+  | "lines"
+  | "plan"
+  | "name"
+  | "detail"
+  | "secret"
+  | "compare"
 >
 
 const size = (bytes: number): string => {
@@ -170,9 +180,29 @@ const changesFailures = 2
 const unavailable = (reason: "missing" | "unreadable") =>
   ({ state: "unavailable", reason, size: null }) as const
 
-/** What keys the change of a repository on a bar: one item per repository. */
-const changesKey = (root: string): string =>
-  `changes:${process.platform === "win32" ? root.toLowerCase() : root}`
+/**
+ * What keys the change of a repository on a bar: one item per repository, and one per compare
+ * of two refs in it, which no ref can be confused with (none holds a line break).
+ */
+const changesKey = (root: string, compare?: Compare): string =>
+  `changes:${process.platform === "win32" ? root.toLowerCase() : root}${
+    compare ? `\n${compare.base}...${compare.head}` : ""
+  }`
+
+/**
+ * The compare a changes request names, if it names one: its `head` against its `base`, which
+ * default to HEAD and the repository's main branch; why not where it has no main to default to.
+ */
+const compareOf = async (
+  root: string,
+  given: { readonly base?: string | undefined; readonly head?: string | undefined },
+): Promise<Compare | RequestFailure | undefined> => {
+  if (given.base === undefined && given.head === undefined) return undefined
+  const base = given.base ?? (await mainBranch(root))?.name
+  if (base === undefined)
+    return failure("This repository has no main branch to compare with: give base too.")
+  return { base, head: given.head ?? "HEAD" }
+}
 
 /** What keys the shells item of a terminal: one on its bar, never a path or an address. */
 const shellsKey = (terminalId: string): string => `shells:${terminalId}`
@@ -322,13 +352,17 @@ export class CompanionItems {
   }
 
   /**
-   * Closes every changes item of the repository whose top is `root`, wherever it is held: its
-   * worktree is gone, so there is nothing left for it to show.
+   * Closes every changes item of the repository whose top is `root`, wherever it is held, its
+   * compares too: its worktree is gone, so there is nothing left for them to show.
    */
   closeChangesAt(root: string): void {
     const key = changesKey(root)
     for (const item of this.records.items())
-      if (item.kind === "changes" && item.pointerKey === key) this.delete(item.id)
+      if (
+        item.kind === "changes" &&
+        (item.pointerKey === key || item.pointerKey.startsWith(`${key}\n`))
+      )
+        this.delete(item.id)
   }
 
   /**
@@ -477,8 +511,13 @@ export class CompanionItems {
           own ? "your" : item.from ? `${mention(item.from.handle)}'s` : "its agent's"
         } background shells, as Novadeck lists them)`
       // A repository's folder is named by the repository: shown without invisible characters.
+      const compared = item.compare
+        ? `, compare: ${displayed(item.compare.head)} against ${displayed(item.compare.base)}`
+        : ""
       const where =
-        item.kind === "changes" ? displayed(item.path ?? "") : (item.url ?? item.path ?? "")
+        item.kind === "changes"
+          ? `${displayed(item.path ?? "")}${compared}`
+          : (item.url ?? item.path ?? "")
       const placed =
         item.terminalId !== terminalId
           ? `moved by the user ${this.whereMoved(item)}`
@@ -1150,18 +1189,26 @@ export class CompanionItems {
     if ("changes" in request) {
       const root = await repositoryOf(resolve(place.cwd, request.changes.path ?? "."))
       if (!root.ok) return root
+      const compare = await compareOf(root.root, request.changes)
+      if (compare !== undefined && "ok" in compare) return compare
       // As the agent left it, not as a snapshot of a moment ago.
-      const read = await this.layers.read(root.root, true)
+      const read = await this.layers.read(root.root, true, compare)
       if (!read.ok) return read
       const { detail } = read.change
-      const branch = request.title === undefined ? await worktreeBranch(root.root) : undefined
+      // A compare is named by its head, as the header says what it is against.
+      const branch = compare
+        ? compare.head
+        : request.title === undefined
+          ? await worktreeBranch(root.root)
+          : undefined
       const name = branch === undefined ? read.change.name : `${read.change.name} · ${branch}`
       return {
         ok: true,
         tooLarge: false,
         pointer: {
-          pointerKey: changesKey(root.root),
+          pointerKey: changesKey(root.root, compare),
           kind: "changes",
+          compare,
           path: root.root,
           url: null,
           lines: null,
@@ -1230,17 +1277,29 @@ export class CompanionItems {
     if ("changes" in request) {
       const folder = resolve(place.cwd, request.changes.path ?? ".")
       const root = await repositoryOf(folder)
-      if (root.ok) return { ok: true, key: changesKey(root.root), given: root.root }
+      if (root.ok) {
+        const compare = await compareOf(root.root, request.changes)
+        if (compare !== undefined && "ok" in compare) return compare
+        return { ok: true, key: changesKey(root.root, compare), given: root.root }
+      }
       if (root.kind !== "missing") return root
       // The folder is gone (a worktree removed): the change shown from it is still on the
-      // bar, found by where it was shown from, as a file's is by the folders that remain.
+      // bar, found by where it was shown from, as a file's is by the folders that remain, and
+      // by the compare named, if one was.
+      const { base, head } = request.changes
+      const compared = base !== undefined || head !== undefined
       const shown = this.records
         .barItems(place.terminalId)
         .find(
           (item) =>
             item.kind === "changes" &&
             item.path !== null &&
-            (samePlace(item.path, folder) || inside(item.path, folder)),
+            (samePlace(item.path, folder) || inside(item.path, folder)) &&
+            (compared
+              ? item.compare !== undefined &&
+                (base === undefined || item.compare.base === base) &&
+                (head === undefined || item.compare.head === head)
+              : item.compare === undefined),
         )
       return shown ? { ok: true, key: shown.pointerKey, given: shown.path ?? folder } : root
     }
@@ -1381,7 +1440,7 @@ export class CompanionItems {
     if (item.path === null) return unavailable("missing")
     const found = await findRepository(item.path)
     if (!found.ok) return unavailable(found.missing ? "missing" : "unreadable")
-    const read = await this.layers.read(found.root)
+    const read = await this.layers.read(found.root, false, item.compare)
     if (!read.ok) return unavailable("unreadable")
     const { content, detail } = read.change
     const now = this.records.item(item.id)
@@ -1400,15 +1459,20 @@ export class CompanionItems {
     return this.tails.content(shells)
   }
 
-  /** The changes item's repository, for a call about it; NOT_FOUND where there is none. */
-  private async changeRoot(itemId: string): Promise<string> {
+  /**
+   * The changes item's repository, and the compare it is if it is one, for a call about it;
+   * NOT_FOUND where there is none.
+   */
+  private async changeRoot(
+    itemId: string,
+  ): Promise<{ readonly root: string; readonly compare: Compare | undefined }> {
     if (this.stopping) throw new DomainError("CLOSING")
     const item = this.item(itemId)
     if (item.kind !== "changes" || item.path === null)
       throw new DomainError("NOT_FOUND", "Item is no change")
     const found = await findRepository(item.path)
     if (!found.ok) throw new DomainError("NOT_FOUND", "The repository is gone")
-    return found.root
+    return { root: found.root, compare: item.compare }
   }
 
   /**
@@ -1420,11 +1484,8 @@ export class CompanionItems {
     readonly path: string
     readonly layers: readonly string[]
   }): Promise<ChangeFileDiff> {
-    const read = await this.layers.file(
-      await this.changeRoot(input.itemId),
-      input.path,
-      input.layers,
-    )
+    const { root, compare } = await this.changeRoot(input.itemId)
+    const read = await this.layers.file(root, input.path, input.layers, compare)
     if (!read.ok) throw new Error(read.reason)
     return read.diff
   }
@@ -1435,8 +1496,8 @@ export class CompanionItems {
    * marked. NOT_FOUND for an unknown item or one that is no change.
    */
   async changeRead(input: { readonly itemId: string; readonly path: string }): Promise<void> {
-    const root = await this.changeRoot(input.itemId)
-    const listed = this.layers.listedFile(root, input.path)
+    const { root, compare } = await this.changeRoot(input.itemId)
+    const listed = this.layers.listedFile(root, input.path, compare)
     if (listed) await this.options.reads?.mark(root, listed.path, listed.blob)
   }
 

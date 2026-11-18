@@ -248,13 +248,29 @@ const show: Tool<Shown> = {
           "that differs from HEAD (staged, unstaged and new; the user's and other agents' edits " +
           "too), shown as diffs that update as the files change. Give {} for the terminal's " +
           "own folder; give path when you work in another folder or worktree than the " +
-          "terminal's.",
+          "terminal's. When the user asks to see commits or to compare branches, give base or " +
+          "head instead: a compare of two refs, head's commits since it left base, as " +
+          "git diff base...head reads, one per commit, beside the working tree's changes as " +
+          "an item of its own. For a run of commits, give the ref before the first as base.",
         properties: {
           path: {
             type: "string",
             description:
               "A folder inside the repository, absolute or relative to the terminal's " +
-              "current directory: the working tree to show.",
+              "current directory: the working tree to show, or the repository to compare in.",
+          },
+          base: {
+            type: "string",
+            description:
+              "For a compare: what head is measured against, a branch, tag or commit such as " +
+              "main, origin/main, v1.4 or HEAD~5; the repository's main branch by default.",
+          },
+          head: {
+            type: "string",
+            description:
+              "For a compare: the branch, tag or commit whose commits to show, such as " +
+              "feature/login or origin/feature/login; HEAD by default (its commits, without " +
+              "the work not committed yet).",
           },
         },
         additionalProperties: false,
@@ -392,10 +408,12 @@ const close: Tool<ClosedShown> = {
       changes: {
         type: "object",
         description:
-          "Instead of file or page: the changes you showed. Give {}, or the same path you " +
-          "gave show.",
+          "Instead of file or page: the changes you showed. Give {}, or the same path, base " +
+          "and head you gave show.",
         properties: {
           path: { type: "string", description: "The folder you gave show, if you gave one." },
+          base: { type: "string", description: "The base you gave show, for a compare." },
+          head: { type: "string", description: "The head you gave show, for a compare." },
         },
         additionalProperties: false,
       },
