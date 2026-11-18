@@ -217,7 +217,7 @@ const signedOut: {
             how,
             await wrapped(run, how, "claude", { ANTHROPIC_API_KEY: null }),
           )
-          await t.until(/Not logged in · Run \/login/, 60_000)
+          await t.until(/Not logged in · [Rr]un \/login/, 60_000)
           await held(t, "its prompt to read as signed out")
           // A session bound, at a prompt whose first prompt would fail.
           expect(t.summary()).toMatchObject({

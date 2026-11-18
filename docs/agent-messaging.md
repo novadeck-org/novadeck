@@ -2525,8 +2525,8 @@ Codex 0.167.0, Antigravity 1.5.7; `probes/startup-screens.e2e.ts`):
 
 Claude Code without a key, past its onboarding, shows no sign-in screen: its prompt draws, its
 SessionStart binds a session, and a footer at the right edge above its box reads "Not logged in ·
-Run /login" until the person signs in; a prompt there fails with "Not logged in · Please run
-/login" (`Harness.signedOut`). The person has to sign in before anything Novadeck sends can
+Run /login" (from 2.1.327 "run /login") until the person signs in; a prompt there fails with
+"Not logged in · Please run /login" (`Harness.signedOut`). The person has to sign in before anything Novadeck sends can
 work, as at a sign-in screen, so the state is `sign-in` with the session bound: the watch looks
 at a bound session's prompt for three delays after it binds, where the harness can say so, for
 as long as it says so, and for ten minutes after it last did; its mark ends once the footer

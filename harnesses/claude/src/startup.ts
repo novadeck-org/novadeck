@@ -24,9 +24,11 @@ export const heldScreen: NonNullable<Harness["heldScreen"]> = (rows) =>
  * SessionStart binds, and a footer above the box, at its right edge, reads "Not logged in ·
  * Run /login" until the person signs in; a prompt there fails with "Not logged in · Please
  * run /login" (probed 2026-11-15, 2.1.316 and 2.1.325; fixtures/startup.probe.json,
- * `signedOut`). The footer stands alone on its row, which a reply quoting it never does.
+ * `signedOut`). 2.1.327 writes the footer's "run" in lower case (the nightly on the latest
+ * harnesses, 2026-11-18). The footer stands alone on its row, which a reply quoting it never
+ * does.
  */
-const signedOutFooter = /^\s{8,}Not logged in · Run \/login\s*$/
+const signedOutFooter = /^\s{8,}Not logged in · [Rr]un \/login\s*$/
 
 export const signedOut: NonNullable<Harness["signedOut"]> = (rows) =>
   rows.some((row) => signedOutFooter.test(row))
