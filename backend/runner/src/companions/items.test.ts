@@ -1569,6 +1569,18 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     })
     expect(fixture.items.bar(place.terminalId)).toHaveLength(2)
 
+    // A file read in it reads as read there, and is no mark of the checkout's own.
+    const reading = new AbortController()
+    const stream = fixture.items.content(shown.ok ? shown.id : "", undefined, reading.signal)
+    await next(stream)
+    await fixture.items.changeRead({ itemId: shown.ok ? shown.id : "", path: "b.txt" })
+    const marked = await next(stream)
+    reading.abort()
+    expect(
+      marked?.state === "ready" && marked.content.kind === "changes" ? marked.content.read : [],
+    ).toEqual(["b.txt"])
+    expect([...fixture.marks.values()].flatMap((each) => [...each.keys()])).toEqual([])
+
     // Closed by its refs, leaving the working tree's.
     await expect(
       fixture.items.closeShown(place, { changes: { head: "feature" } }),

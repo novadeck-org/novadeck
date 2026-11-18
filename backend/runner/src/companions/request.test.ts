@@ -160,7 +160,17 @@ describe("a request for the changes", () => {
     expect(readCloseShownRequest({ changes: { base: "main", head: "feature" } })).toMatchObject({
       ok: true,
     })
-    for (const ref of ["", "--output=x", "-p", "main:a.ts", "a b", "a\nb", "a\\b", "x".repeat(257)])
+    for (const ref of [
+      "",
+      "--output=x",
+      "-p",
+      "main:a.ts",
+      "a b",
+      "a\nb",
+      "a\\b",
+      "a\u202eb",
+      "x".repeat(257),
+    ])
       expect(readShowRequest({ changes: { head: ref } })).toEqual({
         ok: false,
         reason: 'The request\'s "changes.head" is not valid.',

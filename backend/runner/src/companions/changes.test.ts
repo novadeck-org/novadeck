@@ -1464,4 +1464,29 @@ describe.skipIf(!hasGit)("a compare of two refs", () => {
     expect(readers.listedFile(repo.root, "f.txt")).toBeUndefined()
     expect(readers.listedFile(repo.root, "base.txt")).toMatchObject({ path: "base.txt" })
   })
+
+  it("keeps the latest compares read, and lets the oldest go with its marks", async ({ repo }) => {
+    const { f1, f2 } = forked(repo)
+    const readers = reader()
+    const first = { base: f1, head: f2 }
+    await compareOf(readers, repo.root, first)
+    readers.markCompare(
+      repo.root,
+      first,
+      "f.txt",
+      readers.listedFile(repo.root, "f.txt", first)!.blob,
+    )
+    expect((await compareOf(readers, repo.root, first)).change.read).toEqual(["f.txt"])
+    for (let back = 0; back < 32; back += 1)
+      // eslint-disable-next-line no-await-in-loop -- One after the other, as an agent shows them.
+      await compareOf(readers, repo.root, {
+        base: `${f1}~1`,
+        head: `${f2}~${back % 2}` + "^0".repeat(Math.floor(back / 2)),
+      })
+    // The checkout's own change is kept whatever compares come.
+    await layersOf(readers, repo.root)
+    expect(readers.listedFile(repo.root, "f.txt", first)).toBeUndefined()
+    expect((await compareOf(readers, repo.root, first)).change.read).toEqual([])
+    expect(readers.listedFile(repo.root, "base.txt")).toMatchObject({ path: "base.txt" })
+  })
 })

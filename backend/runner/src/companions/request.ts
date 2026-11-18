@@ -46,13 +46,13 @@ const pageRequest = z.strictObject({ page: pageSource, ...shared })
 /**
  * A ref a compare names: a branch, a tag, a hash or an expression of one such as `HEAD~3`,
  * which git is given as the start of an argument, so never an option (`-`), and never a path
- * in a commit (`:`), white space or a control character.
+ * in a commit (`:`), white space, or a control or invisible format character.
  */
 const compareRef = z
   .string()
   .min(1)
   .max(maxCompareRef)
-  .regex(/^[^-\s:\\\p{Cc}][^\s:\\\p{Cc}]*$/u)
+  .regex(/^[^-\s:\\\p{Cc}\p{Cf}][^\s:\\\p{Cc}\p{Cf}]*$/u)
 
 /**
  * The change in a repository: its working tree against HEAD. The repository is the one

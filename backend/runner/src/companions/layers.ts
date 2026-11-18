@@ -49,6 +49,9 @@ const small = { cap: 64 * 1024 }
 const poolSize = 4
 // How long closing waits for the reads under way, whose git runs it has ended.
 const closeWaitMs = 2000
+// How many compares' listings and read marks are kept, the latest read: an agent may name any
+// number of them over a runner's life, a checkout's own change only one each.
+const maxCompares = 32
 
 /** A commit of the checkout since main, and the commit it is diffed against. */
 type Commit = {
@@ -319,6 +322,13 @@ export class LayerReader {
    * as a whole, by name, with their objects.
    */
   private readonly listed = new Map<string, ReadonlyMap<string, Listed>>()
+  /**
+   * The files read in each compare kept (see `listedKey`), by name, each by its object when read:
+   * kept here, in memory, as a checkout's own marks hold only the files its working tree changes.
+   */
+  private readonly compareMarks = new Map<string, Map<string, string>>()
+  /** The compares kept, the one read least lately first. */
+  private readonly compares = new Set<string>()
 
   constructor(
     private readonly snapshots: Snapshots,
@@ -363,6 +373,29 @@ export class LayerReader {
   ): { readonly path: string; readonly blob: string } | undefined {
     const entry = this.listed.get(listedKey(root, compare))?.get(path)
     return entry && entry.blob !== "" ? { path: entry.path, blob: entry.blob } : undefined
+  }
+
+  /** Marks a file of a compare read as the object it is now, while that compare is kept. */
+  markCompare(root: string, compare: Compare, path: string, blob: string): void {
+    const key = listedKey(root, compare)
+    if (!this.compares.has(key)) return
+    const marks = this.compareMarks.get(key) ?? new Map<string, string>()
+    marks.set(path, blob)
+    this.compareMarks.set(key, marks)
+  }
+
+  /** Keeps what a change was listed as; a compare among the latest `maxCompares` read. */
+  private keepListed(key: string, compare: boolean, listing: ReadonlyMap<string, Listed>): void {
+    this.listed.set(key, listing)
+    if (!compare) return
+    this.compares.delete(key)
+    this.compares.add(key)
+    for (const oldest of this.compares) {
+      if (this.compares.size <= maxCompares) break
+      this.compares.delete(oldest)
+      this.listed.delete(oldest)
+      this.compareMarks.delete(oldest)
+    }
   }
 
   /** Ends the git runs under way, and waits a moment for their reads, which fail; nothing is read after. */
@@ -501,8 +534,9 @@ export class LayerReader {
       : await listDiff(root, since ?? head ?? empty, head ?? empty, undefined, true)
     const net = "ok" in netList || !taken ? netList : [...netList, ...named(taken)].toSorted(byPath)
     if (!("ok" in net))
-      this.listed.set(
+      this.keepListed(
         listedKey(root, compare),
+        compare !== undefined,
         new Map(net.map((entry) => [displayed(entry.path), entry])),
       )
     return {
@@ -516,7 +550,7 @@ export class LayerReader {
         net,
         held,
         root,
-        compare?.head,
+        compare,
       ),
     }
   }
@@ -530,13 +564,15 @@ export class LayerReader {
     net: readonly Listed[] | ChangeFailure,
     held: Held,
     root: string,
-    head: string | undefined,
+    compare: Compare | undefined,
   ): ReadLayers {
     // The change as a whole: what it differs from main by, not what its layers add up to. The
     // stamp follows the snapshot too, so a line edited with its counts unchanged is news.
     const files = "ok" in net ? undefined : net
     // A file reads as read while it is the object it was read as.
-    const marks = this.options.marks?.(root)
+    const marks = compare
+      ? this.compareMarks.get(listedKey(root, compare))
+      : this.options.marks?.(root)
     const read =
       files && marks && marks.size > 0
         ? files
@@ -560,7 +596,7 @@ export class LayerReader {
       kind: "changes" as const,
       root,
       base,
-      ...(head !== undefined && { head }),
+      ...(compare && { head: compare.head }),
       layers,
       files: listed,
       read,

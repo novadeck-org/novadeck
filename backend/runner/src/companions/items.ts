@@ -1298,7 +1298,7 @@ export class CompanionItems {
             (compared
               ? item.compare !== undefined &&
                 (base === undefined || item.compare.base === base) &&
-                (head === undefined || item.compare.head === head)
+                item.compare.head === (head ?? "HEAD")
               : item.compare === undefined),
         )
       return shown ? { ok: true, key: shown.pointerKey, given: shown.path ?? folder } : root
@@ -1498,7 +1498,10 @@ export class CompanionItems {
   async changeRead(input: { readonly itemId: string; readonly path: string }): Promise<void> {
     const { root, compare } = await this.changeRoot(input.itemId)
     const listed = this.layers.listedFile(root, input.path, compare)
-    if (listed) await this.options.reads?.mark(root, listed.path, listed.blob)
+    if (!listed) return
+    // A compare's reads are its own: the checkout's are kept only for what its work changes.
+    if (compare) this.layers.markCompare(root, compare, listed.path, listed.blob)
+    else await this.options.reads?.mark(root, listed.path, listed.blob)
   }
 
   private read(

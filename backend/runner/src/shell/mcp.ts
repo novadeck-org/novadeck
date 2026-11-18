@@ -409,7 +409,7 @@ const close: Tool<ClosedShown> = {
         type: "object",
         description:
           "Instead of file or page: the changes you showed. Give {}, or the same path, base " +
-          "and head you gave show.",
+          "and head you gave show; for a compare, its refs as showing lists them.",
         properties: {
           path: { type: "string", description: "The folder you gave show, if you gave one." },
           base: { type: "string", description: "The base you gave show, for a compare." },
