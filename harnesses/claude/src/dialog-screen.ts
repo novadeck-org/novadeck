@@ -11,6 +11,22 @@ export const Right = "\x1b[C"
 export const Down = "\x1b[B"
 export const Up = "\x1b[A"
 export const Enter = "\r"
+export const CtrlEnd = "\x1b[1;5F"
+
+const waitingPill = /Waiting for your answer \(ctrl\+End\) ↓$/
+
+/**
+ * Whether Claude Code's fullscreen renderer (`"tui": "fullscreen"`) holds a dialog below
+ * the view: one that came while the person had the transcript scrolled up stays out of
+ * sight, and only a pill on the last row, "Waiting for your answer (ctrl+End) ↓", over
+ * the transcript's last line, says it waits. Ctrl+End scrolls it into view and answers
+ * nothing; so does any key, a digit too, which is taken for the scroll alone (2.1.328, a
+ * question and a Bash permission alike, `e2e/probes/fullscreen-scrolled.e2e.ts`).
+ */
+export const scrolledAway = (rows: readonly string[]): boolean => {
+  const last = rows.findLastIndex((each) => each !== "")
+  return last >= 0 && waitingPill.test(rows[last]!)
+}
 
 /** How long a step waits for the screen to show what the next one needs. */
 export const timeoutMs = 3000

@@ -1,4 +1,4 @@
-import { copyFileSync } from "node:fs"
+import { copyFileSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
@@ -1163,6 +1163,67 @@ describe.skipIf(!supported || !codexSetup)("Codex's async question", () => {
     await dialogOf(t1, "questions")
     await t1.prompt("Never mind")
     await t1.until("OK.", 30_000)
+    await unrequested(t1)
+  })
+})
+
+// Claude Code's fullscreen renderer (`"tui": "fullscreen"`) keeps a dialog that comes while
+// the person has its transcript scrolled up out of sight, under a "Waiting for your answer
+// (ctrl+End) ↓" pill (`probes/fullscreen-scrolled.e2e.ts`). Only Claude Code draws its own
+// scrolled transcript: Codex's and Antigravity's dialogs stand on the live screen, which the
+// terminal's own scrollback never hides. A question reads from what its hook asked, and the
+// answer scrolls it into view first, leaving the screen alone until then.
+const claudeSetup = setups.find(({ agent }) => agent === "claude")
+describe.skipIf(!supported || !claudeSetup)("Claude Code's fullscreen view scrolled up", () => {
+  const it = e2e(claudeSetup!)
+
+  it("answers a question held below the view, scrolling it in only to answer", async ({
+    e2e: run,
+  }) => {
+    const settings = join(run.sandbox.home, ".claude", "settings.json")
+    writeFileSync(
+      settings,
+      JSON.stringify({ ...JSON.parse(readFileSync(settings, "utf8")), tui: "fullscreen" }),
+    )
+    const tall = Array.from({ length: 120 }, (_, n) => `Line ${n + 1}: as it stands.`).join("\n\n")
+    let waited = false
+    run.model.use(
+      // A wait after the reply, for the test to scroll up before the question comes.
+      answers("Show the plan", () => ({
+        text: tall,
+        calls: [{ name: "Bash", input: { command: "sleep 8", description: "Wait" } }],
+      })),
+      own((call) => {
+        if (result(call) === undefined || waited) return undefined
+        waited = true
+        return { calls: [{ name: "AskUserQuestion", input: { questions: [colour] } }] }
+      }),
+      noted,
+    )
+    const t1 = await start(run, claudeSetup!)
+    t1.resize(120, 33)
+    await sleep(800)
+    await t1.submit("Show the plan")
+    await t1.until(/Line 120:/, 30_000)
+    await sleep(800)
+    t1.press("\x1b[5~")
+    await sleep(300)
+    t1.press("\x1b[5~")
+
+    const request = await dialogOf(t1, "questions")
+    const dialog = questionsOf(request)
+    expect(dialog.questions[0]!.options.map(({ label }) => label)).toEqual(["Blue", "Green"])
+    // Read without moving the person's view.
+    expect(await t1.screen()).toContain("Waiting for your answer")
+    const calls = run.model.calls.length
+    await t1.answer(request.ref, {
+      dialog: idOf(request),
+      type: "questions",
+      answers: [
+        { question: dialog.questions[0]!.id, options: [dialog.questions[0]!.options[1]!.id] },
+      ],
+    })
+    await resulting(run.model, "Green", calls)
     await unrequested(t1)
   })
 })

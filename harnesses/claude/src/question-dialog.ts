@@ -9,6 +9,7 @@ import { fieldsOf } from "@novadeck/harness-core/fields"
 import type { RequestAnswer } from "@novadeck/protocol"
 
 import {
+  CtrlEnd,
   digit,
   Down,
   editorHintWithin,
@@ -20,6 +21,7 @@ import {
   nonBlank,
   Right,
   rule,
+  scrolledAway,
   settled,
   timeoutMs,
   typeable,
@@ -304,6 +306,8 @@ export const questions = (rows: readonly string[], facts: RequestFacts): DialogR
     return refuse("question.questions.3")
   }
 
+  const place = { asked: asked.length, final: asked.length === 1 }
+  if (scrolledAway(rows)) return hidden(asked, place)
   const shown = questionScreen(rows)
   if (!shown) return refuse("question.questions.4")
   // A lone multi-select question has a tab bar too, for its Submit; a lone single-select
@@ -319,38 +323,73 @@ export const questions = (rows: readonly string[], facts: RequestFacts): DialogR
     return refuse("question.questions.9")
   }
 
-  const place = { asked: asked.length, final: asked.length === 1 }
   const entries = optionsOf(rows, shown, ask, place)
   if (!entries) return refuse("question.questions.10")
 
   const marker = entries.findIndex((each) => each.marker)
-  const dialog: AnswerableDialog = {
-    type: "questions",
-    // The "Chat about this" row, read in full above: it rejects the questions, tells the
-    // model the person wants to clarify them, and the person's words go as the next prompt.
-    chat: "prompt",
-    questions: asked.map((each, index) => ({
-      id: `q${index + 1}`,
-      header: each.header,
-      question: each.question,
-      options: each.options.map(({ label, description }, at) => ({
-        id: String(at + 1),
-        label,
-        description: description === "" ? null : description,
-      })),
-      multiSelect: each.multiSelect,
-      text: !each.preview,
-    })),
-  }
-
   return {
-    dialog,
+    dialog: dialogOf(asked),
     keys: (answer) =>
       answer.type === "chat"
         ? chatKeys(ask.options.length, ask.preview, marker)
         : keysFor(asked, marker, answer),
-    answered: (later) =>
-      idle(later) && !reviewing(later) && !(footerAt(later) >= 0 && showing(later, ask, place)),
+    answered: answeredOf(ask, place),
+  }
+}
+
+/** The questions as the person answers them: all the hook said they ask, none of the screen. */
+const dialogOf = (asked: readonly Ask[]): AnswerableDialog => ({
+  type: "questions",
+  // The "Chat about this" row, read in full above: it rejects the questions, tells the
+  // model the person wants to clarify them, and the person's words go as the next prompt.
+  chat: "prompt",
+  questions: asked.map((each, index) => ({
+    id: `q${index + 1}`,
+    header: each.header,
+    question: each.question,
+    options: each.options.map(({ label, description }, at) => ({
+      id: String(at + 1),
+      label,
+      description: description === "" ? null : description,
+    })),
+    multiSelect: each.multiSelect,
+    text: !each.preview,
+  })),
+})
+
+const answeredOf =
+  (ask: Ask, place: Place) =>
+  (later: readonly string[]): boolean =>
+    idle(later) && !reviewing(later) && !(footerAt(later) >= 0 && showing(later, ask, place))
+
+/**
+ * The questions held below a fullscreen view the person scrolled up (see `scrolledAway`):
+ * the hook's own words are the whole dialog, as a read of the screen gives it, so the card
+ * shows what the dialog will. The answer scrolls it into view first, then waits for the
+ * first question to show untouched, its highlight on its first row, before the keys a
+ * fresh dialog takes; one the person had moved before scrolling away fails there, having
+ * pressed only the scroll.
+ */
+const hidden = (asked: readonly Ask[], place: Place): DialogRead => {
+  const ask = asked[0]!
+  const reveal: readonly KeyStep[] = [
+    { press: CtrlEnd },
+    {
+      until: settled((rows) => showing(rows, ask, place) && marked(rows, questionOption, 1)),
+      timeoutMs,
+      why: "the question scrolled into view",
+    },
+  ]
+  const after = (steps: readonly KeyStep[] | undefined) => steps && [...reveal, ...steps]
+  return {
+    dialog: dialogOf(asked),
+    keys: (answer) =>
+      after(
+        answer.type === "chat"
+          ? chatKeys(ask.options.length, ask.preview, 0)
+          : keysFor(asked, 0, answer),
+      ),
+    answered: answeredOf(ask, place),
   }
 }
 

@@ -1,0 +1,511 @@
+{
+  "version": "2.1.328",
+  "facts": {
+    "question": {
+      "name": "AskUserQuestion",
+      "input": {
+        "questions": [
+          {
+            "question": "Should I merge it when it's green?",
+            "header": "Merge",
+            "multiSelect": false,
+            "options": [
+              {
+                "label": "Merge when green (Recommended)",
+                "description": "Squash-merge it, pinned to its head."
+              },
+              {
+                "label": "Leave it for me",
+                "description": "Get it green and report."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "permission": {
+      "name": "Bash",
+      "input": {
+        "command": "touch made-by-probe.txt",
+        "description": "Make a file"
+      }
+    }
+  },
+  "states": {
+    "questionHidden": {
+      "height": 33,
+      "columns": 120,
+      "cursor": {
+        "row": 32,
+        "column": 0
+      },
+      "rows": {
+        "0": "❯ Show the plan                                                                                                         ",
+        "1": "  Line 97: the text as it stands.",
+        "3": "  Line 98: the text as it stands.",
+        "5": "  Line 99: the text as it stands.",
+        "7": "  Line 100: the text as it stands.",
+        "9": "  Line 101: the text as it stands.",
+        "11": "  Line 102: the text as it stands.",
+        "13": "  Line 103: the text as it stands.",
+        "15": "  Line 104: the text as it stands.",
+        "17": "  Line 105: the text as it stands.",
+        "19": "  Line 106: the text as it stands.",
+        "21": "  Line 107: the text as it stands.",
+        "23": "  Line 108: the text as it stands.",
+        "24": "  ",
+        "25": "  Line 109: the text as it stands.",
+        "26": "                                  ",
+        "27": "  Line 110: the text as it stands.",
+        "29": "  Line 111: the text as it stands.",
+        "31": "  Line 112: the text as it stands.",
+        "32": "                                          Waiting for your answer (ctrl+End) ↓ "
+      },
+      "bright": {
+        "0": "❯ Show the plan",
+        "24": "",
+        "26": "",
+        "32": "                                          Waiting for your answer (ctrl+End) ↓"
+      }
+    },
+    "questionHiddenNarrow": {
+      "height": 32,
+      "columns": 49,
+      "cursor": {
+        "row": 31,
+        "column": 0
+      },
+      "rows": {
+        "0": "❯ Show the plan                                  ",
+        "1": "  Line 97: the text as it stands.",
+        "3": "  Line 98: the text as it stands.",
+        "5": "  Line 99: the text as it stands.",
+        "7": "  Line 100: the text as it stands.",
+        "9": "  Line 101: the text as it stands.",
+        "11": "  Line 102: the text as it stands.",
+        "13": "  Line 103: the text as it stands.",
+        "15": "  Line 104: the text as it stands.",
+        "17": "  Line 105: the text as it stands.",
+        "19": "  Line 106: the text as it stands.",
+        "21": "  Line 107: the text as it stands.",
+        "23": "  Line 108: the text as it stands.",
+        "25": "  Line 109: the text as it stands.",
+        "27": "  Line 110: the text as it stands.",
+        "29": "  Line 111: the text as it stands.",
+        "31": "  Line Waiting for your answer (ctrl+End) ↓ "
+      },
+      "bright": {
+        "0": "❯ Show the plan",
+        "31": "  Line Waiting for your answer (ctrl+End) ↓"
+      }
+    },
+    "questionRevealed": {
+      "height": 33,
+      "columns": 120,
+      "cursor": {
+        "row": 24,
+        "column": 0
+      },
+      "rows": {
+        "0": "  Line 112: the text as it stands.",
+        "2": "  Line 113: the text as it stands.",
+        "4": "  Line 114: the text as it stands.",
+        "6": "  Line 115: the text as it stands.",
+        "8": "  Line 116: the text as it stands.",
+        "10": "  Line 117: the text as it stands.",
+        "12": "  Line 118: the text as it stands.",
+        "14": "  Line 119: the text as it stands.",
+        "16": "  Line 120: the text as it stands.",
+        "18": "  Ran 1 shell command ",
+        "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "20": " ☐ Merge ",
+        "22": "Should I merge it when it's green?",
+        "24": "❯ 1. Merge when green (Recommended)",
+        "25": "     Squash-merge it, pinned to its head.",
+        "26": "  2. Leave it for me",
+        "27": "     Get it green and report.",
+        "28": "  3. Type something.",
+        "29": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "30": "  4. Chat about this",
+        "32": "Enter to select · ↑/↓ to navigate · Esc to cancel"
+      },
+      "bright": {
+        "18": "  Ran 1 shell command",
+        "20": " ☐ Merge"
+      }
+    },
+    "questionRevealedAgain": {
+      "height": 33,
+      "columns": 120,
+      "cursor": {
+        "row": 24,
+        "column": 0
+      },
+      "rows": {
+        "0": "  Line 112: the text as it stands.",
+        "2": "  Line 113: the text as it stands.",
+        "4": "  Line 114: the text as it stands.",
+        "6": "  Line 115: the text as it stands.",
+        "8": "  Line 116: the text as it stands.",
+        "10": "  Line 117: the text as it stands.",
+        "12": "  Line 118: the text as it stands.",
+        "14": "  Line 119: the text as it stands.",
+        "16": "  Line 120: the text as it stands.",
+        "18": "  Ran 1 shell command ",
+        "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "20": " ☐ Merge ",
+        "22": "Should I merge it when it's green?",
+        "24": "❯ 1. Merge when green (Recommended)",
+        "25": "     Squash-merge it, pinned to its head.",
+        "26": "  2. Leave it for me",
+        "27": "     Get it green and report.",
+        "28": "  3. Type something.",
+        "29": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "30": "  4. Chat about this",
+        "32": "Enter to select · ↑/↓ to navigate · Esc to cancel"
+      },
+      "bright": {
+        "18": "  Ran 1 shell command",
+        "20": " ☐ Merge"
+      }
+    },
+    "questionHiddenAgain": {
+      "height": 33,
+      "columns": 120,
+      "cursor": {
+        "row": 32,
+        "column": 0
+      },
+      "rows": {
+        "0": "❯ Show the plan                                                                                                         ",
+        "2": "  Line 105: the text as it stands.",
+        "4": "  Line 106: the text as it stands.",
+        "6": "  Line 107: the text as it stands.",
+        "8": "  Line 108: the text as it stands.",
+        "10": "  Line 109: the text as it stands.",
+        "12": "  Line 110: the text as it stands.",
+        "14": "  Line 111: the text as it stands.",
+        "16": "  Line 112: the text as it stands.",
+        "18": "  Line 113: the text as it stands.",
+        "20": "  Line 114: the text as it stands.",
+        "22": "  Line 115: the text as it stands.",
+        "24": "  Line 116: the text as it stands.",
+        "25": "     ",
+        "26": "  Line 117: the text as it stands.",
+        "27": "     ",
+        "28": "  Line 118: the text as it stands.",
+        "30": "  Line 119: the text as it stands.",
+        "32": "  Line 120: the text as it stands.        Waiting for your answer (ctrl+End) ↓ "
+      },
+      "bright": {
+        "0": "❯ Show the plan",
+        "25": "",
+        "27": "",
+        "32": "  Line 120: the text as it stands.        Waiting for your answer (ctrl+End) ↓"
+      }
+    },
+    "questionDigitWhileHidden": {
+      "height": 33,
+      "columns": 120,
+      "cursor": {
+        "row": 24,
+        "column": 0
+      },
+      "rows": {
+        "0": "  Line 112: the text as it stands.",
+        "2": "  Line 113: the text as it stands.",
+        "4": "  Line 114: the text as it stands.",
+        "6": "  Line 115: the text as it stands.",
+        "8": "  Line 116: the text as it stands.",
+        "10": "  Line 117: the text as it stands.",
+        "12": "  Line 118: the text as it stands.",
+        "14": "  Line 119: the text as it stands.",
+        "16": "  Line 120: the text as it stands.",
+        "18": "  Ran 1 shell command ",
+        "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "20": " ☐ Merge ",
+        "22": "Should I merge it when it's green?",
+        "24": "❯ 1. Merge when green (Recommended)",
+        "25": "     Squash-merge it, pinned to its head.",
+        "26": "  2. Leave it for me",
+        "27": "     Get it green and report.",
+        "28": "  3. Type something.",
+        "29": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "30": "  4. Chat about this",
+        "32": "Enter to select · ↑/↓ to navigate · Esc to cancel"
+      },
+      "bright": {
+        "18": "  Ran 1 shell command",
+        "20": " ☐ Merge"
+      }
+    },
+    "questionAnswered": {
+      "height": 33,
+      "columns": 120,
+      "cursor": {
+        "row": 29,
+        "column": 2
+      },
+      "rows": {
+        "0": "❯ Show the plan                                                                                                         ",
+        "2": "  Line 105: the text as it stands.",
+        "4": "  Line 106: the text as it stands.",
+        "6": "  Line 107: the text as it stands.",
+        "8": "  Line 108: the text as it stands.",
+        "10": "  Line 109: the text as it stands.",
+        "12": "  Line 110: the text as it stands.",
+        "14": "  Line 111: the text as it stands.",
+        "16": "  Line 112: the text as it stands.",
+        "18": "  Line 113: the text as it stands.",
+        "20": "  Line 114: the text as it stands.",
+        "22": "  Line 115: the text as it stands.",
+        "24": "  Line 116: the text as it stands.",
+        "25": "     ",
+        "26": "                                               1 new message (ctrl+End) ↓ ",
+        "27": "     ",
+        "28": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "29": "❯  ",
+        "30": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "32": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "0": "❯ Show the plan",
+        "25": "",
+        "26": "                                               1 new message (ctrl+End) ↓",
+        "27": "",
+        "29": "❯"
+      }
+    },
+    "permissionHidden": {
+      "height": 33,
+      "columns": 120,
+      "cursor": {
+        "row": 32,
+        "column": 0
+      },
+      "rows": {
+        "0": "❯ Show the plan                                                                                                         ",
+        "2": "  Line 98: the text as it stands.",
+        "4": "  Line 99: the text as it stands.",
+        "6": "  Line 100: the text as it stands.",
+        "8": "  Line 101: the text as it stands.",
+        "10": "  Line 102: the text as it stands.",
+        "12": "  Line 103: the text as it stands.",
+        "14": "  Line 104: the text as it stands.",
+        "16": "  Line 105: the text as it stands.",
+        "18": "  Line 106: the text as it stands.",
+        "20": "  Line 107: the text as it stands.",
+        "22": "  Line 108: the text as it stands.",
+        "23": "  ",
+        "24": "  Line 109: the text as it stands.",
+        "25": " ",
+        "26": "  Line 110: the text as it stands.",
+        "27": "     ",
+        "28": "  Line 111: the text as it stands.",
+        "30": "  Line 112: the text as it stands.",
+        "32": "  Line 113: the text as it stands.        Waiting for your answer (ctrl+End) ↓ "
+      },
+      "bright": {
+        "0": "❯ Show the plan",
+        "23": "",
+        "25": "",
+        "27": "",
+        "32": "  Line 113: the text as it stands.        Waiting for your answer (ctrl+End) ↓"
+      }
+    },
+    "permissionHiddenNarrow": {
+      "height": 32,
+      "columns": 49,
+      "cursor": {
+        "row": 31,
+        "column": 0
+      },
+      "rows": {
+        "0": "❯ Show the plan                                  ",
+        "2": "  Line 98: the text as it stands.",
+        "4": "  Line 99: the text as it stands.",
+        "6": "  Line 100: the text as it stands.",
+        "8": "  Line 101: the text as it stands.",
+        "10": "  Line 102: the text as it stands.",
+        "12": "  Line 103: the text as it stands.",
+        "14": "  Line 104: the text as it stands.",
+        "16": "  Line 105: the text as it stands.",
+        "18": "  Line 106: the text as it stands.",
+        "20": "  Line 107: the text as it stands.",
+        "22": "  Line 108: the text as it stands.",
+        "24": "  Line 109: the text as it stands.",
+        "26": "  Line 110: the text as it stands.",
+        "28": "  Line 111: the text as it stands.",
+        "30": "  Line 112: the text as it stands.",
+        "31": "       Waiting for your answer (ctrl+End) ↓ "
+      },
+      "bright": {
+        "0": "❯ Show the plan",
+        "31": "       Waiting for your answer (ctrl+End) ↓"
+      }
+    },
+    "permissionRevealed": {
+      "height": 33,
+      "columns": 120,
+      "cursor": {
+        "row": 28,
+        "column": 1
+      },
+      "rows": {
+        "0": "  Line 112: the text as it stands.",
+        "2": "  Line 113: the text as it stands.",
+        "4": "  Line 114: the text as it stands.",
+        "6": "  Line 115: the text as it stands.",
+        "8": "  Line 116: the text as it stands.",
+        "10": "  Line 117: the text as it stands.",
+        "12": "  Line 118: the text as it stands.",
+        "14": "  Line 119: the text as it stands.",
+        "16": "  Line 120: the text as it stands.",
+        "18": "● Making a file",
+        "19": "  ⎿  $ touch made-by-probe.txt",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "22": " Bash command",
+        "23": " Make a file",
+        "24": "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+        "25": " touch made-by-probe.txt",
+        "26": "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+        "27": " Do you want to proceed?",
+        "28": " ❯ 1. Yes",
+        "29": "   2. Yes, and always allow access to /project from this project",
+        "30": "   3. No",
+        "32": " Esc to cancel · Tab to amend"
+      },
+      "bright": {}
+    },
+    "permissionRevealedAgain": {
+      "height": 33,
+      "columns": 120,
+      "cursor": {
+        "row": 28,
+        "column": 1
+      },
+      "rows": {
+        "0": "  Line 112: the text as it stands.",
+        "2": "  Line 113: the text as it stands.",
+        "4": "  Line 114: the text as it stands.",
+        "6": "  Line 115: the text as it stands.",
+        "8": "  Line 116: the text as it stands.",
+        "10": "  Line 117: the text as it stands.",
+        "12": "  Line 118: the text as it stands.",
+        "14": "  Line 119: the text as it stands.",
+        "16": "  Line 120: the text as it stands.",
+        "18": "● Making a file",
+        "19": "  ⎿  $ touch made-by-probe.txt",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "22": " Bash command",
+        "23": " Make a file",
+        "24": "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+        "25": " touch made-by-probe.txt",
+        "26": "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+        "27": " Do you want to proceed?",
+        "28": " ❯ 1. Yes",
+        "29": "   2. Yes, and always allow access to /project from this project",
+        "30": "   3. No",
+        "32": " Esc to cancel · Tab to amend"
+      },
+      "bright": {}
+    },
+    "permissionHiddenAgain": {
+      "height": 33,
+      "columns": 120,
+      "cursor": {
+        "row": 32,
+        "column": 0
+      },
+      "rows": {
+        "0": "❯ Show the plan                                                                                                         ",
+        "2": "  Line 105: the text as it stands.",
+        "4": "  Line 106: the text as it stands.",
+        "6": "  Line 107: the text as it stands.",
+        "8": "  Line 108: the text as it stands.",
+        "10": "  Line 109: the text as it stands.",
+        "12": "  Line 110: the text as it stands.",
+        "14": "  Line 111: the text as it stands.",
+        "16": "  Line 112: the text as it stands.",
+        "18": "  Line 113: the text as it stands.",
+        "20": "  Line 114: the text as it stands.",
+        "22": "  Line 115: the text as it stands.",
+        "24": "  Line 116: the text as it stands.",
+        "26": "  Line 117: the text as it stands.",
+        "28": "  Line 118: the text as it stands.",
+        "30": "  Line 119: the text as it stands.",
+        "32": "  Line 120: the text as it stands.        Waiting for your answer (ctrl+End) ↓ "
+      },
+      "bright": {
+        "0": "❯ Show the plan",
+        "32": "  Line 120: the text as it stands.        Waiting for your answer (ctrl+End) ↓"
+      }
+    },
+    "permissionDigitWhileHidden": {
+      "height": 33,
+      "columns": 120,
+      "cursor": {
+        "row": 28,
+        "column": 1
+      },
+      "rows": {
+        "0": "  Line 112: the text as it stands.",
+        "2": "  Line 113: the text as it stands.",
+        "4": "  Line 114: the text as it stands.",
+        "6": "  Line 115: the text as it stands.",
+        "8": "  Line 116: the text as it stands.",
+        "10": "  Line 117: the text as it stands.",
+        "12": "  Line 118: the text as it stands.",
+        "14": "  Line 119: the text as it stands.",
+        "16": "  Line 120: the text as it stands.",
+        "18": "● Making a file",
+        "19": "  ⎿  $ touch made-by-probe.txt",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "22": " Bash command",
+        "23": " Make a file",
+        "24": "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+        "25": " touch made-by-probe.txt",
+        "26": "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+        "27": " Do you want to proceed?",
+        "28": " ❯ 1. Yes",
+        "29": "   2. Yes, and always allow access to /project from this project",
+        "30": "   3. No",
+        "32": " Esc to cancel · Tab to amend"
+      },
+      "bright": {}
+    },
+    "permissionAnswered": {
+      "height": 33,
+      "columns": 120,
+      "cursor": {
+        "row": 29,
+        "column": 2
+      },
+      "rows": {
+        "0": "❯ Show the plan                                                                                                         ",
+        "2": "  Line 105: the text as it stands.",
+        "4": "  Line 106: the text as it stands.",
+        "6": "  Line 107: the text as it stands.",
+        "8": "  Line 108: the text as it stands.",
+        "10": "  Line 109: the text as it stands.",
+        "12": "  Line 110: the text as it stands.",
+        "14": "  Line 111: the text as it stands.",
+        "16": "  Line 112: the text as it stands.",
+        "18": "  Line 113: the text as it stands.",
+        "20": "  Line 114: the text as it stands.",
+        "22": "  Line 115: the text as it stands.",
+        "24": "  Line 116: the text as it stands.",
+        "26": "  Line 117: the text as it stands.             1 new message (ctrl+End) ↓ ",
+        "28": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "29": "❯  ",
+        "30": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "32": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "0": "❯ Show the plan",
+        "26": "  Line 117: the text as it stands.             1 new message (ctrl+End) ↓",
+        "29": "❯"
+      }
+    }
+  }
+}
