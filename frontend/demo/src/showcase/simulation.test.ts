@@ -15,7 +15,15 @@ import {
 } from "./artifacts"
 import { changesArtifacts } from "./changes"
 import { clip, clipSize } from "./clip"
-import { lockedPdf, lockedPdfSize, makePdf, quarterlyReport } from "./pdf"
+import {
+  lockedPdf,
+  lockedPdfSize,
+  notAPdf,
+  notAPdfSize,
+  quarterlyReport,
+  quarterlyReportSize,
+} from "./pdf"
+import { makePdf } from "./pdf-data"
 import { recording, recordingSize } from "./recording"
 import { createShowcase } from "./simulation"
 
@@ -394,7 +402,7 @@ describe("the project window", () => {
       offset: 0,
       reveal: undefined,
     })
-    expect(part.state === "part" && part.bytes.length).toBe(quarterlyReport.length)
+    expect(part.state === "part" && part.bytes.length).toBe(quarterlyReportSize)
   })
 
   it("shows a held file only to a reveal asked for that file", async () => {
@@ -592,16 +600,18 @@ describe("the showcase's PDFs", () => {
     })
   })
 
-  it("has a locked PDF as large as its item says, though its bytes load only when read", async () => {
+  it("has PDFs as large as their items say, though their bytes load only when read", async () => {
+    expect((await quarterlyReport()).length).toBe(quarterlyReportSize)
+    expect((await notAPdf()).length).toBe(notAPdfSize)
     expect((await lockedPdf()).length).toBe(lockedPdfSize)
   })
 
   it("is among what the dev server's terminal shows, as large as its item says", async () => {
     expect(devServerArtifacts).toContain(pdfSamples.shown)
     const part = await read()
-    expect(part.state === "part" && part.bytes.length).toBe(quarterlyReport.length)
+    expect(part.state === "part" && part.bytes.length).toBe(quarterlyReportSize)
     expect(pdfSamples.shown.content).toMatchObject({
-      content: { kind: "pdf", size: quarterlyReport.length },
+      content: { kind: "pdf", size: quarterlyReportSize },
     })
   })
 

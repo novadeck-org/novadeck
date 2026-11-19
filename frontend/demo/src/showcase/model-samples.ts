@@ -1,4 +1,4 @@
-import type { ItemContent, ModelFormat } from "@novadeck/core/items"
+import type { FilePart, ItemContent, ModelFormat } from "@novadeck/core/items"
 
 import { cannot, studio, type SampleArtifact } from "./artifacts"
 import { arm, armWith, bracket, crate, emptyStl, notAModel, scan, spacer } from "./model"
@@ -48,8 +48,17 @@ export const modelContent = (
   },
 })
 
-const besideOf = (files: readonly Beside[]) =>
-  Object.fromEntries(files.map(({ name, bytes }) => [name, async () => bytes]))
+// The files beside a model, read as the runner reads them: in parts of `part` bytes (its 2 MiB
+// unless given), each `delay` ms, and only those the model names. They're read here, in the
+// samples that load with a model, not in the demo's simulation, which loads with the demo.
+const besideOf =
+  (files: readonly Beside[], { part = 2 * 1024 * 1024, delay = 0 } = {}) =>
+  async (name: string, offset: number): Promise<FilePart> => {
+    const bytes = files.find((file) => file.name === name)?.bytes
+    if (!bytes) throw new Error("That file isn't one the model names")
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
+    return { state: "part", bytes: bytes.slice(offset, offset + part) }
+  }
 
 const armFiles = (): { gltf: Uint8Array<ArrayBuffer>; files: Beside[] } => {
   const { gltf, bin } = arm()
@@ -117,7 +126,12 @@ export const modelSamples = {
   slow: {
     item: modelItem("studio-arm-slow", "slow-arm.gltf", "glTF, animated"),
     content: modelContent("gltf", arm().gltf.length, armBeside),
-    file: { read: async () => arm().gltf, beside: besideOf(armBeside), part: 1024, delay: 300 },
+    file: {
+      read: async () => arm().gltf,
+      beside: besideOf(armBeside, { part: 1024, delay: 300 }),
+      part: 1024,
+      delay: 300,
+    },
   },
   large: {
     item: modelItem("studio-hull", "hull-scan.glb", "glTF, 2.4 M triangles"),
@@ -170,7 +184,7 @@ export const modelSamples = {
     content: modelContent("gltf", arm().gltf.length, armBeside),
     file: {
       read: async () => arm().gltf,
-      beside: { "arm.bin": () => Promise.reject(new Error("The link to the runner dropped")) },
+      beside: () => Promise.reject(new Error("The link to the runner dropped")),
     },
   },
   claims: {

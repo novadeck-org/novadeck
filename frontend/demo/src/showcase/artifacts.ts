@@ -8,7 +8,14 @@ import type {
 } from "@novadeck/core/items"
 
 import { clip, clipMime, clipSize } from "./clip"
-import { lockedPdf, lockedPdfSize, notAPdf, quarterlyReport } from "./pdf"
+import {
+  lockedPdf,
+  lockedPdfSize,
+  notAPdf,
+  notAPdfSize,
+  quarterlyReport,
+  quarterlyReportSize,
+} from "./pdf"
 import { recording, recordingMime, recordingSize } from "./recording"
 
 // Something a sample agent shows: the item it points at, by an id that stays the same, and
@@ -33,8 +40,9 @@ export type SampleArtifact = {
     readonly reason?: Extract<FilePart, { state: "unavailable" }>["reason"]
     // Its read fails, as when the link to the runner drops: the first part asked for rejects.
     readonly fails?: true
-    // A model's files beside it, by the name its content lists them by.
-    readonly beside?: Readonly<Record<string, () => Promise<Uint8Array<ArrayBuffer>>>>
+    // A part of a file beside a model, by the name its content lists it by, read as the runner
+    // reads it.
+    readonly beside?: (name: string, offset: number) => Promise<FilePart>
   }
 }
 
@@ -482,8 +490,8 @@ export const pdfContent = (size: number, stamp = "1"): ItemContent => ({
 
 const quarterly: SampleArtifact = {
   item: pdfItem("studio-report", "quarterly-report.pdf", "5 pages, Letter"),
-  content: pdfContent(quarterlyReport.length),
-  file: { read: async () => quarterlyReport },
+  content: pdfContent(quarterlyReportSize),
+  file: { read: quarterlyReport },
 }
 
 // The PDF again, as it is after the agent rewrote the file: a new stamp.
@@ -494,7 +502,7 @@ export const pdfAgain = (sample: SampleArtifact, stamp: string): SampleArtifact 
   content: pdfContent(
     sample.content.state === "ready" && sample.content.content.kind === "pdf"
       ? sample.content.content.size
-      : quarterlyReport.length,
+      : quarterlyReportSize,
     stamp,
   ),
 })
@@ -504,8 +512,8 @@ export const pdfSamples = {
   // Several parts of 512 bytes, 600 ms each: its progress shows.
   slow: {
     item: pdfItem("studio-report-slow", "slow-report.pdf", "5 pages, Letter"),
-    content: pdfContent(quarterlyReport.length),
-    file: { read: async () => quarterlyReport, part: 512, delay: 600 },
+    content: pdfContent(quarterlyReportSize),
+    file: { read: quarterlyReport, part: 512, delay: 600 },
   },
   large: {
     item: pdfItem("studio-report-large", "annual-review.pdf", "412 pages"),
@@ -513,8 +521,8 @@ export const pdfSamples = {
   },
   secret: {
     item: pdfItem("studio-report-private", "salaries.pdf", "2 pages, Letter", true),
-    content: pdfContent(quarterlyReport.length),
-    file: { read: async () => quarterlyReport },
+    content: pdfContent(quarterlyReportSize),
+    file: { read: quarterlyReport },
   },
   locked: {
     item: pdfItem("studio-report-locked", "locked.pdf", "1 page, locked"),
@@ -524,13 +532,13 @@ export const pdfSamples = {
   // Its read fails, as when the link to the runner drops.
   failing: {
     item: pdfItem("studio-report-failing", "unreachable-report.pdf", "5 pages, Letter"),
-    content: pdfContent(quarterlyReport.length),
-    file: { read: async () => quarterlyReport, fails: true },
+    content: pdfContent(quarterlyReportSize),
+    file: { read: quarterlyReport, fails: true },
   },
   broken: {
     item: pdfItem("studio-report-broken", "broken.pdf", "Not a PDF"),
-    content: pdfContent(notAPdf.length),
-    file: { read: async () => notAPdf },
+    content: pdfContent(notAPdfSize),
+    file: { read: notAPdf },
   },
 } satisfies Record<string, SampleArtifact>
 

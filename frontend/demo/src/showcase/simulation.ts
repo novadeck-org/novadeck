@@ -384,16 +384,10 @@ export const createShowcase = (
     part: async (_target, id, { stamp, offset, reveal, file }) => {
       const sample = samples.get(id)
       if (!sample?.file) throw new Error(`No file to read in ${id}`)
-      // A file beside a model, by the name its content lists it by, as the runner reads it.
+      // A file beside a model, which its sample reads.
       if (file !== undefined) {
-        const read = sample.file.beside?.[file]
-        if (!read) throw new Error("That file isn't one the model names")
-        if (sample.file.fails) throw new Error("The link to the runner dropped")
-        const bytes = await read()
-        const size = sample.file.part ?? partBytes
-        if (sample.file.delay)
-          await new Promise((resolve) => setTimeout(resolve, sample.file?.delay))
-        return { state: "part", bytes: bytes.slice(offset, offset + size) }
+        if (!sample.file.beside) throw new Error("That file isn't one the model names")
+        return sample.file.beside(file, offset)
       }
       if (sample.item.secret && (reveal === undefined || reveal !== sample.item.path))
         return { state: "unavailable", reason: "secret" }
