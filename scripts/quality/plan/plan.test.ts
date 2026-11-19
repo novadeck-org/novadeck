@@ -797,7 +797,10 @@ describe("Quality's workflow", () => {
     ).scripts
     expect(scripts["test:macos2"]).toContain("--filter=@novadeck/specs")
     expect(scripts["test:macos2"]).toContain("--maxWorkers=1")
-    expect(scripts["test:macos1"]).toContain("--filter=!@novadeck/specs")
+    // The first part is `test` but for the specs, so a filter `test` gains reaches macOS too.
+    expect(scripts["test:macos1"]).toBe(
+      scripts.test!.replace(" --concurrency=1 ", " --filter=!@novadeck/specs --concurrency=1 "),
+    )
     for (const name of ["test", "test:macos1", "test:shard1", "test:shard2"])
       expect(scripts[name], name).not.toContain("--maxWorkers")
     expect(job("macos")).toContain("fail-fast: false")
