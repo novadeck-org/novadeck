@@ -10,6 +10,7 @@ import {
   lockPagesSession,
   maxForwardedRequests,
   maxRequestOrigins,
+  ownZoom,
   pagesSession,
   countSignIns,
   emulatePhone,
@@ -301,6 +302,35 @@ describe("a page view", () => {
         }),
       ).toEqual({ action: "deny" })
     })
+  })
+})
+
+describe("a page view's zoom", () => {
+  const pages = {} as Session
+  const zoomOf = (type: string, session: Session): string[] => {
+    const modes: string[] = []
+    ownZoom(
+      {
+        getType: () => type,
+        session,
+        setZoomMode: (mode: string) => modes.push(mode),
+      } as unknown as WebContents,
+      pages,
+    )
+    return modes
+  }
+
+  it("is its own, not its site's", () => {
+    expect(zoomOf("webview", pages)).toEqual(["isolated"])
+  })
+
+  it("leaves the app's own page and windows, and a page's sign-in windows, as they are", () => {
+    // The app's page and its windows, on its own session.
+    expect(zoomOf("window", {} as Session)).toEqual([])
+    // A page's sign-in window, on the pages' session but no page view.
+    expect(zoomOf("window", pages)).toEqual([])
+    // A <webview> on another session isn't a page view.
+    expect(zoomOf("webview", {} as Session)).toEqual([])
   })
 })
 

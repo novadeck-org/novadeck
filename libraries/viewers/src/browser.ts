@@ -32,8 +32,13 @@ import type { Mount, Viewer, ViewerState } from "./index.js"
 // nothing; woken, it loads again under the picture, where the person had scrolled, and the
 // picture fades once it's there. While the page has a sign-in window open, which closes
 // with its view, it stays live instead, and rests once the last one closes. A live page lays
-// out as a desktop's window or a phone's screen, scaled down to fit where the viewer is
-// narrower (see `framingOf`). Where live pages aren't available (a plain browser, a demo),
+// out as a desktop's window or a phone's screen, made to fit where the viewer is narrower
+// (see `framingOf`). A desktop's is zoomed out in a view the size it's drawn, not a bigger
+// view scaled down, as Chromium places what a page opens over itself, as a select's list, a
+// date's picker or autofill, by its view's own box, scaled or not, and the page's zoom; the
+// desktop app keeps each view's zoom its own (`ownZoom` in ./browser/host.ts), not its
+// site's. A phone's is scaled down whole, as its emulated screen draws at its own size
+// whatever the zoom. Where live pages aren't available (a plain browser, a demo),
 // it shows a snapshot of the page, or nothing, for the app to say why. Its looks are
 // browser.css's.
 
@@ -142,6 +147,7 @@ type Webview = HTMLElement & {
   getURL(): string
   getWebContentsId(): number
   setAudioMuted(muted: boolean): void
+  setZoomFactor(factor: number): void
   insertCSS(css: string): Promise<string>
   removeInsertedCSS(key: string): Promise<void>
 }
@@ -396,9 +402,12 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     }, uncoverMs)
   }
 
+  // The live page while there is one: none while it rests.
+  let page: Webview | undefined
+
   // What the page lays out as, and where its view and picture go for that in the viewer,
-  // which browser.css reads; framed again as the viewer resizes. By its layout box, which a
-  // zoomed canvas around it doesn't change.
+  // which browser.css reads, and how far the page is zoomed out in its view; framed again as
+  // the viewer resizes. By its layout box, which a zoomed canvas around it doesn't change.
   let size = startSize ?? "desktop"
   // The viewer's size as its resizes report it, to the fraction of a pixel, so a scaled
   // page reaches its edges; its whole pixels where none has reported it yet, or the last
@@ -420,6 +429,12 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   }
   // Where its phone is, for a press on the stage around it, not on it.
   let framed: Framing | undefined
+  // A desktop's page zoomed out as its framing says, once its view is attached, and a
+  // phone's not at all (browser.css scales it); dom-ready catches up with a view attached late.
+  const zoom = (): void => {
+    const view = page
+    if (view) attached(() => view.setZoomFactor(size === "desktop" ? (framed?.scale ?? 1) : 1))
+  }
   const frame = (): void => {
     root.dataset.size = size
     const { width, height } = sizeNow()
@@ -436,6 +451,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       if (value === undefined) root.style.removeProperty(name)
       else root.style.setProperty(name, value)
     }
+    zoom()
   }
   // Where there's nothing to report a resize, as outside a browser, it's framed as it mounts.
   const resizing = win?.ResizeObserver
@@ -458,8 +474,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   // Whether it's drawn: not inside an element kept out of sight, as with display: none.
   const shownNow = (): boolean =>
     document.visibilityState !== "hidden" && root.checkVisibility?.() !== false
-  // The live page while there is one: none while it rests; and whether a wake opened it.
-  let page: Webview | undefined
+  // Whether a wake opened the live page.
   let woken = false
   // A picture of the live page under way, after its load, to rest as.
   let freshening: ReturnType<typeof setTimeout> | undefined
@@ -793,6 +808,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     ["dom-ready", painting],
     ["dom-ready", dress],
     ["dom-ready", becomeSize],
+    ["did-attach", zoom],
+    ["dom-ready", zoom],
     ["did-navigate", moved],
     ["did-navigate-in-page", movedInPage],
     ["did-start-loading", started],
@@ -911,8 +928,9 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     const reading = attached(() =>
       Promise.race([view.executeJavaScript(scrollRead), wait(scrollReadMs)]),
     )?.catch(() => undefined)
-    // As wide as it's drawn: a page scaled down to fit lays out, and is pictured, wider.
-    // Drawn no width at all, it's pictured as it is.
+    // As wide as it's drawn: a phone's page scaled down to fit is pictured as it lays out,
+    // wider (a desktop's view is already as wide as it's drawn). Drawn no width at all, it's
+    // pictured as it is.
     const drawn = Math.round(drawnWidth() * (win?.devicePixelRatio ?? 1))
     const width = drawn >= 1 ? drawn : undefined
     const [src, where] = await Promise.all([take(id, width).catch(() => undefined), reading])

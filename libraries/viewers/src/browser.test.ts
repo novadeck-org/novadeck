@@ -619,13 +619,27 @@ describe("the browser viewer", () => {
   })
 
   context("framing its page", () => {
-    // The page's view as it lays out, and as it's drawn on screen.
+    // The page's view, attached, keeping the zoom it's given, as Electron's does.
+    const zoomed = (pane: HTMLElement): HTMLElement & { zoom: number } => {
+      const page = pageOf(pane) as HTMLElement & { zoom: number }
+      if (!("setZoomFactor" in page)) {
+        Object.assign(page, {
+          zoom: 1,
+          setZoomFactor: (factor: number) => (page.zoom = factor),
+        })
+        page.dispatchEvent(event("did-attach"))
+      }
+      return page
+    }
+    // The page as it lays out, its view's own box over its zoom, and its view as it's drawn on
+    // screen, scaled or not.
     const boxes = (pane: HTMLElement) => {
-      const page = pageOf(pane)
+      const page = zoomed(pane)
       const drawn = page.getBoundingClientRect()
       const viewer = pane.querySelector(".browser-viewer")!.getBoundingClientRect()
+      const laid = (length: number) => Math.round((length / page.zoom) * 100) / 100
       return {
-        laid: [page.offsetWidth, page.offsetHeight],
+        laid: [laid(page.offsetWidth), laid(page.offsetHeight)],
         // To the pixel: scaled, it can fall a hair short of one.
         drawn: [drawn.left - viewer.left, drawn.top - viewer.top, drawn.width, drawn.height].map(
           Math.round,
@@ -641,6 +655,29 @@ describe("the browser viewer", () => {
         laid: [desktopWidth, (300 * desktopWidth) / 400],
         drawn: [0, 0, 400, 300],
       })
+    })
+
+    it("zooms its page out in a view as big as it's drawn, never scaling the view", async () => {
+      const pane = paneIn()
+      live(pane)
+      const page = zoomed(pane)
+      expect(page.zoom).toBe(400 / desktopWidth)
+      expect(getComputedStyle(page).transform).toBe("none")
+      expect([page.offsetWidth, page.offsetHeight]).toEqual([400, 300])
+      // Zoomed again as it resizes, and not at all once it fills the viewer as it is.
+      pane.style.width = "512px"
+      await expect.poll(() => page.zoom).toBe(0.5)
+      pane.style.width = `${desktopWidth + 100}px`
+      await expect.poll(() => page.zoom).toBe(1)
+    })
+
+    it("zooms a page each time it's ready, as one that attached late", () => {
+      const pane = paneIn()
+      live(pane)
+      const page = zoomed(pane)
+      page.zoom = 1
+      page.dispatchEvent(event("dom-ready"))
+      expect(page.zoom).toBe(400 / desktopWidth)
     })
 
     it("fills a viewer as wide as a desktop's window, as it is", async () => {
@@ -675,7 +712,10 @@ describe("the browser viewer", () => {
       const half = [phoneScreen.width / 2, phoneScreen.height / 2]
       expect(boxes(pane).laid).toEqual([phoneScreen.width, phoneScreen.height])
       expect(boxes(pane).drawn).toEqual([room, (1000 - half[1]!) / 2, half[0], half[1]])
+      // Scaled down whole, not zoomed: a phone's emulated screen draws at its own size.
+      expect(zoomed(pane).zoom).toBe(1)
       viewer.size("desktop")
+      expect(zoomed(pane).zoom).toBe((phoneScreen.width / 2 + 2 * room) / desktopWidth)
       expect(boxes(pane).laid[0]).toBe(desktopWidth)
       expect(boxes(pane).drawn).toEqual([0, 0, phoneScreen.width / 2 + 2 * room, 1000])
       viewer.size("phone")

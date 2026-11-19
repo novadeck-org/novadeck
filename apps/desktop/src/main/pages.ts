@@ -10,6 +10,7 @@ import {
   guardPage,
   holdPhoneLoads,
   lockPagesSession,
+  ownZoom,
   pagesSession,
   passkeyLabels,
   phonePage,
@@ -121,6 +122,7 @@ export const livePages = () => {
       })
       forgetPageRequests = pageRequests.forget
       app.on("web-contents-created", (_event, contents) => {
+        ownZoom(contents, pages)
         if (contents.getType() === "webview") {
           guardPage(contents, (url) => shell.openExternal(url), pagesPartition)
           const { id } = contents

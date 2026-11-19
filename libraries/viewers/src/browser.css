@@ -2,10 +2,14 @@
    scrolls itself, or a snapshot of the page (`.browser-snapshot`), which scrolls under
    whatever the app draws above it.
 
-   A live page lays out at the size its viewer frames it as (see `framingOf`), scaled to
-   fit: --browser-width, --browser-height, --browser-scale, --browser-left and
-   --browser-top, set on the viewer while it doesn't simply fill it; its picture takes the
-   same box on the viewer.
+   A live page lays out at the size its viewer frames it as (see `framingOf`), made to fit
+   by --browser-scale: --browser-width, --browser-height, --browser-scale, --browser-left
+   and --browser-top, set on the viewer while it doesn't simply fill it; its picture takes
+   the same box on the viewer. A desktop's page is zoomed out by the scale in a view as big
+   as it's drawn, which the viewer zooms, as Chromium places a page's own popups, as a
+   select's list or a date's picker, by its view's box, whatever transform scales it. A
+   phone's view is as big as its screen, scaled down whole: a phone's emulated screen draws
+   at its own size whatever the page's zoom, so its popups still land as if unscaled.
 
    Hooks: data-load="loading" | "ready" | "failed" on the viewer: how the page's latest
    load went. data-size="desktop" | "phone" on a live one: what its page lays out as;
@@ -151,6 +155,11 @@
   transform: scale(var(--browser-scale, 1));
   transform-origin: 0 0;
   border: 0;
+}
+.browser-viewer[data-size="desktop"] > webview {
+  width: calc(var(--browser-width, 100%) * var(--browser-scale, 1));
+  height: calc(var(--browser-height, 100%) * var(--browser-scale, 1));
+  transform: none;
 }
 /* Only until it paints: where the viewer's edges fall between device pixels, Electron
    draws the page a device pixel short of the <webview>'s box, and a ground kept under a

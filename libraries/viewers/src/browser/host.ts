@@ -426,6 +426,19 @@ export const guardPage = (
   })
 }
 
+/**
+ * Keeps a page view's zoom its own, through every navigation: its viewer zooms its page out
+ * to fit (see `framingOf`), and Chromium would otherwise give that zoom to every view and
+ * window on the same host, as two panes of two ports of `localhost`, and take it back as the
+ * view goes to another host. Only a page view, a <webview> on the pages' session `pages`:
+ * the app's own page and windows, and a page's sign-in windows, zoom as they always have.
+ * From `web-contents-created`, before its viewer can zoom it.
+ */
+export const ownZoom = (contents: WebContents, pages: Session): void => {
+  if (contents.getType() === "webview" && contents.session === pages)
+    contents.setZoomMode("isolated")
+}
+
 // How a picture of a page is encoded: JPEG, which a page's text survives at this quality.
 export const pictureQuality = 85
 // How long a picture may take: one of a view out of sight never comes, as Chromium draws it
