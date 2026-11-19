@@ -115,7 +115,16 @@ export const resetAnswering = (chat: Chat): void => void chat.update(answeringRe
 
 // Where a terminal's chat keeps what the person opened and shut in it (see ./use-open).
 export const openedMemory = (chat: Chat, context: string, terminalId: string): OpenedMemory => ({
-  subscribe: chat.store.subscribe,
+  // Told only as this terminal's change: the chat's state changes as each draft is typed.
+  subscribe: (listener) => {
+    let was = chatOpenedOf(chat.store.getSnapshot().opened, context, terminalId)
+    return chat.store.subscribe(() => {
+      const now = chatOpenedOf(chat.store.getSnapshot().opened, context, terminalId)
+      if (now === was) return
+      was = now
+      listener()
+    })
+  },
   opened: (key) => chatOpenedOf(chat.store.getSnapshot().opened, context, terminalId)[key],
   setOpened: (key, open) =>
     void chat.update((state) => {

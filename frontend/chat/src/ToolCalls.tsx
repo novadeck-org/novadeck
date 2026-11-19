@@ -292,12 +292,22 @@ const RunBox = ({
     watch.observe(list)
     return () => watch.disconnect()
   }, [capped])
+  // Whether the box was placed since it was drawn, boxed: at first it comes to a line the person
+  // had opened (kept as the box drew again; see ./use-open), else to the latest call.
+  const placed = useRef(false)
   useLayoutEffect(() => {
     const element = box.current
-    if (!element || !capped) return
-    // A line the person opened stays where they read it.
-    if (following.current && !element.querySelector('[aria-expanded="true"]'))
-      element.scrollTop = element.scrollHeight
+    if (!element || !capped) {
+      placed.current = false
+      return
+    }
+    const line = element.querySelector('[aria-expanded="true"]')?.closest("li")
+    if (!placed.current) {
+      placed.current = true
+      following.current = !line
+      element.scrollTop = line instanceof HTMLElement ? line.offsetTop : element.scrollHeight
+      // A line the person opened stays where they read it.
+    } else if (following.current && !line) element.scrollTop = element.scrollHeight
     setOut(sameOut(outOfView(element, callsKey.split(",").map(Number))))
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A line opened moves the rest.
   }, [callsKey, capped, opened])
