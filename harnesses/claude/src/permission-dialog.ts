@@ -31,6 +31,10 @@ const permissionTitle = /^ (Do you want to .+\?)$/
 const permissionOption = /^ (❯| ) (\d+)\. (.+)$/
 const permissionContinuation = /^ {6,}\S/
 const permissionFooter = /^ Esc to cancel · Tab to amend$/
+// From 2.1.328 a dialog taller than the screen says under its options how many of its rows
+// scrolled away above them (` ↑ 145 more lines`, fixtures/tall.probe.json); what shows of it is
+// read as before.
+const scrolledAway = /^ ↑ [\d,]+ more lines? *$/
 
 // A row of the command a Bash dialog quotes.
 const quoteRow = /^ ?│(?: |$)/
@@ -192,7 +196,8 @@ export const permission = (
   if (at < 0) return refuse("permission.permission.2")
   const read = numbered(rows, at + 1, permissionOption, permissionContinuation)
   if (!read) return refuse("permission.permission.3")
-  if (read.rest.length > 1 || (read.rest.length === 1 && !permissionFooter.test(read.rest[0]!))) {
+  const rest = scrolledAway.test(read.rest[0] ?? "") ? read.rest.slice(1) : read.rest
+  if (rest.length > 1 || (rest.length === 1 && !permissionFooter.test(rest[0]!))) {
     return refuse("permission.permission.4")
   }
   const detail = shows(rows, at, facts)
