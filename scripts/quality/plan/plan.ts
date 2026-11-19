@@ -77,8 +77,37 @@ export const systemWindows: readonly Row[] = [
   },
 ]
 
-/** macOS's row for every test (the root's `test`): what it ran before it followed the change. */
+/**
+ * macOS's rows for every test, in two parts: the root's `test:macos1`, every test but the UI
+ * specs', and `test:macos2`, the specs alone, one worker at a time. macOS's runners are three
+ * vCPU Macs (Apple M1 virtual, 7 GB) on 23 of 29 jobs measured, where two spec workers starved
+ * each other of CPU and the specs timed out (the chat screen, Canvas sessions, dictation,
+ * process windows, shells and Inbox ones); the fast five-core ones had no spec retries. A run with
+ * one worker had no spec over 15 s, for about 38% more time on the specs (10.5 minutes), so they
+ * have a job of their own to fit the time limit. The specs are `neutral`: they run here only in
+ * a whole-suite run, as Quality's `all` and the nightly's. quality.yml falls back to these.
+ */
 export const wholeMacos: readonly Row[] = [
+  {
+    name: "Test (macOS, 1/2)",
+    os: "macos-latest",
+    browser: true,
+    relay: true,
+    electron: true,
+    shard: 1,
+    command: "npm run test:macos1",
+  },
+  {
+    name: "Test (macOS, 2/2)",
+    os: "macos-latest",
+    browser: true,
+    shard: 2,
+    command: "npm run test:macos2",
+  },
+]
+
+/** macOS's row for the `system` packages a change affects, one at a time (`test:system`). */
+export const systemMacos: readonly Row[] = [
   {
     name: "Test (macOS)",
     os: "macos-latest",
@@ -86,12 +115,9 @@ export const wholeMacos: readonly Row[] = [
     relay: true,
     electron: true,
     shard: 0,
-    command: "npm run test",
+    command: "npm run test:system",
   },
 ]
-
-/** macOS's row for the `system` packages a change affects, one at a time (`test:system`). */
-export const systemMacos: readonly Row[] = [{ ...wholeMacos[0]!, command: "npm run test:system" }]
 
 /**
  * The changes whose plans the proof rows run: what the plan gives a one-file change to each
