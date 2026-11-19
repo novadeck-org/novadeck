@@ -343,6 +343,7 @@ export const createRouter = (options: {
           yield await withSkill(content, store.item(input.itemId)?.plan?.agent)
       }),
       changeFile: api.companions.changeFile.handler(({ input }) => items.changeFile(input)),
+      changeRange: api.companions.changeRange.handler(({ input }) => items.changeRange(input)),
       changeRead: api.companions.changeRead.handler(({ input }) => items.changeRead(input)),
       part: api.companions.part.handler(({ input }) => items.part(input)),
       save: api.companions.save.handler(async ({ input }) => {

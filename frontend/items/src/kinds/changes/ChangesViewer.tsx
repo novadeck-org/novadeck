@@ -13,6 +13,7 @@ import { usePullRequest } from "./pull-requests"
 import { alone, idsOf, pick, selectedOf, selectionName } from "./selection"
 import { filesOf, filesOfRange, rowsOf } from "./tree"
 import { useDrillDown } from "./use-drill-down"
+import { useRange } from "./use-range"
 import { useChangesView } from "./view-state"
 
 // An agent's change, measured against main: its layers (the uncommitted work and each commit
@@ -81,15 +82,19 @@ export const ChangesViewer = ({
   const ids = useMemo(() => idsOf(content.layers), [content.layers])
   const selected = useMemo(() => selectedOf(ids, view.picked), [ids, view.picked])
   const layers = useMemo(() => ids.filter((id) => selected.has(id)), [ids, selected])
-  // All the layers are the change as a whole, whose files the content carries; one layer is its
-  // own files.
+  // All the layers are the change as a whole, whose files the content carries; a range of two or
+  // more (a Shift+click) is listed by git when asked; until it answers, or where the backend
+  // can't, and for one layer, the layers' files added up.
   const whole = layers.length === ids.length
+  const ranged = useRange(itemStore, target, item.id, diffStamp, whole ? [] : layers)
   const files = useMemo(
     () =>
       whole
         ? filesOfRange(content.files, content.layers, layers)
-        : filesOf(content.layers, selected),
-    [whole, layers, content.files, content.layers, selected],
+        : ranged
+          ? filesOfRange(ranged.files, content.layers, layers)
+          : filesOf(content.layers, selected),
+    [whole, ranged, layers, content.files, content.layers, selected],
   )
   const rows = useMemo(() => rowsOf(files), [files])
   // The files in the order the tree shows them, which J and K step through.
@@ -217,7 +222,10 @@ export const ChangesViewer = ({
                   layers={content.layers}
                   selected={selected}
                   only={alone(ids, view.picked)}
-                  onPick={(id) => update((now) => ({ ...now, picked: pick(ids, now.picked, id) }))}
+                  anchored={view.picked[0] !== undefined && ids.includes(view.picked[0])}
+                  onPick={(id, range) =>
+                    update((now) => ({ ...now, picked: pick(ids, now.picked, id, range) }))
+                  }
                 />
                 <div className="changes-files-head">
                   <h3 className="section-label">Files</h3>

@@ -5,7 +5,8 @@ import { railOf } from "./selection"
 import { timeLabel } from "./time"
 
 // The change's layers, the uncommitted work and each commit since main, newest first. A
-// selected row has a rail on its left edge, joined to the selected rows next to it.
+// selected row has a rail on its left edge, joined to the selected rows next to it. A click
+// picks a row, a Shift+click (or Shift+Enter) the range from the row picked last to it.
 
 export const shortHash = (layer: ChangeLayer): string =>
   layer.kind === "commit" ? layer.id.slice(0, 7) : ""
@@ -14,13 +15,16 @@ export const LayerList = ({
   layers,
   selected,
   only,
+  anchored,
   onPick,
 }: {
   layers: readonly ChangeLayer[]
   selected: ReadonlySet<string>
   // Whether one row is kept alone, which a click on it again takes back to all.
   only: boolean
-  onPick: (id: string) => void
+  // Whether a row was picked, which a Shift+click takes a range from.
+  anchored: boolean
+  onPick: (id: string, range: boolean) => void
 }): React.JSX.Element => {
   const rails = railOf(
     layers.map((layer) => layer.id),
@@ -46,13 +50,13 @@ export const LayerList = ({
             title={
               only && rail.on
                 ? "Click again to see everything"
-                : `Click to see only ${layer.kind === "commit" ? "this commit" : "the uncommitted work"}`
+                : `Click to see only ${layer.kind === "commit" ? "this commit" : "the uncommitted work"}${anchored ? ", Shift+click to see the range to it" : ""}`
             }
-            onClick={() => onPick(layer.id)}
+            onClick={(event) => onPick(layer.id, event.shiftKey)}
             onKeyDown={(event) => {
               if (event.key !== "Enter" && event.key !== " ") return
               event.preventDefault()
-              onPick(layer.id)
+              onPick(layer.id, event.shiftKey)
             }}
           >
             {/* The work not committed yet has no hash yet: dots hold its place, unread. */}
