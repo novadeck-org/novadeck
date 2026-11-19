@@ -1468,11 +1468,11 @@ describe("the browser viewer", () => {
         sent.length = 0
         mouse("dblclick", stage)
         await expect.poll(() => scale(), { timeout: 3000 }).toBeCloseTo(fit(560), 6)
-        // Zoomed back to fit once the phone had eased there.
-        expect(sent.at(-1)).toBeCloseTo(
-          Math.floor(phoneScreen.width * fit(560)) / phoneScreen.width,
-          3,
-        )
+        // Zoomed back to fit once the phone had eased there: a frame after it arrives, which a
+        // slow machine can take a while to draw.
+        await expect
+          .poll(() => sent.at(-1), { timeout: 3000 })
+          .toBeCloseTo(Math.floor(phoneScreen.width * fit(560)) / phoneScreen.width, 3)
         expect(new Set(sent.map((factor) => factor.toFixed(4))).size).toBeLessThanOrEqual(2)
       }, 15_000)
     })
