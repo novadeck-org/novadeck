@@ -1076,7 +1076,7 @@ describe("Scale preference", () => {
     await openWorkspace()
     await openAppearance()
     await expect
-      .element(preferencesDialog().getByRole("combobox", { name: "Text size" }))
+      .element(preferencesDialog().getByRole("slider", { name: "Text size" }))
       .toBeVisible()
     expect(scaleSelect().query()).toBeNull()
   })
