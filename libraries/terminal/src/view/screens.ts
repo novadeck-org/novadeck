@@ -114,6 +114,9 @@ type OpenScreen = {
   // Tells it what the person can see of it, which with its renderer sets how often it draws
   // its output (`paceFor`).
   readonly attend: (seen: { readonly selected?: boolean; readonly visible?: boolean }) => void
+  // Measures the font again where the screen draws (the owner's family or the theme's), and
+  // fits once its cells are measured.
+  readonly takeFont: () => void
   // The input's accessible name, as last written.
   label: string
   // The shell's stage, as the mount last said.
@@ -215,8 +218,18 @@ export type TerminalScreens<K> = {
   readonly typeInto: (key: K, text: string) => boolean
 }
 
-// The terminal font the owner asks for.
-export type TerminalFont = { readonly size: number }
+// The terminal font the owner asks for: the size, and a family that goes in front of the
+// theme's own chain (so the chain's symbol fonts still draw what the family lacks).
+export type TerminalFont = { readonly size: number; readonly family?: string }
+
+// A family name as one CSS font-family entry, quoted so a name with spaces, digits or
+// punctuation stays one family, and with the characters that would end the quotes escaped.
+const quoted = (family: string): string =>
+  `"${family.replaceAll(/[\\"]/g, "\\$&").replaceAll(/[\n\r]/g, " ")}"`
+
+// The chain a terminal draws in: the owner's family, if any, then the theme's.
+export const familyChain = (font: TerminalFont, theme: string): string =>
+  font.family?.trim() ? `${quoted(font.family.trim())}, ${theme}` : theme
 
 // The size screens open in until the owner says: Preferences' own default.
 const defaultFontSize = 13
@@ -281,7 +294,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
     const resolved = o.theme.resolve(container)
     const view = o.emulator(container, {
       fontSize: font.size,
-      fontFamily: resolved.fontFamily,
+      fontFamily: familyChain(font, resolved.fontFamily),
       theme: resolved.theme,
     })
     const xterm = view.terminal
@@ -364,6 +377,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
         attention = { ...attention, ...seen }
         repace()
       },
+      takeFont: () => takeFont(),
       label,
       get phase() {
         return stage
@@ -448,7 +462,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
     // and the terminal keeps the font it has until then. A new font changes the cell size,
     // so the terminal fits again.
     const takeFont = (theme = o.theme.resolve(container)): void => {
-      void view.setFont(theme.fontFamily).then((measured) => {
+      void view.setFont(familyChain(font, theme.fontFamily)).then((measured) => {
         if (measured && !gone) followed.refit()
       })
     }
@@ -656,12 +670,17 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
       }
     },
     setFont: (next) => {
+      const familyChanged = familyChain(font, "") !== familyChain(next, "")
       font = next
       const changed: OpenScreen[] = []
       for (const { screen } of entries.values()) {
-        if (!screen || screen.xterm.options.fontSize === next.size) continue
-        screen.xterm.options.fontSize = next.size
-        changed.push(screen)
+        if (!screen) continue
+        const sized = screen.xterm.options.fontSize !== next.size
+        if (sized) screen.xterm.options.fontSize = next.size
+        // A new family changes the cell size once it is measured, which fits the screen again
+        // (`takeFont`); a size alone fits now.
+        if (familyChanged) screen.takeFont()
+        if (sized) changed.push(screen)
       }
       if (!changed.length) return
       // A slider sends a size per step. The first fits at once; while the steps keep coming,

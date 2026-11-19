@@ -448,6 +448,13 @@ export const describeBackendContract = (name: string, options: BackendContractOp
         expect(() => backend.setFont({ size: 12 })).not.toThrow()
         await settle(backend)
         expect(probe.io()).toEqual(mountedIo)
+        // A family measures the cells again where the screen is drawn, and tells the host nothing
+        // but the fitted size it already sends.
+        expect(() => backend.setFont({ size: 12, family: "Fira Code" })).not.toThrow()
+        await settle(backend)
+        expect(() => backend.setFont({ size: 12 })).not.toThrow()
+        await settle(backend)
+        expect(probe.io()).toEqual(mountedIo)
       })
 
       it("ignores input to a mount made before the UI closed its terminal", async () => {

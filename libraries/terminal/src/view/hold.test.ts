@@ -21,6 +21,7 @@ import {
   screensOf,
 } from "./fakes.test-support.js"
 import type { Lifecycle } from "./follow.js"
+import { familyChain } from "./screens.js"
 import { createStore, type ViewLink } from "./view-state.js"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
@@ -391,6 +392,44 @@ describe("a hold on a terminal's screen", () => {
       page.apply("New Mono")
 
       expect(opened[0]?.options.fontFamily).toBe("New Mono")
+    })
+  })
+
+  context("when the owner chooses a font family", () => {
+    it("draws in it in front of the theme's chain, in screens opened after and before", () => {
+      const opened = openedTerminals()
+      const page = themed()
+      page.apply("Theme Mono, monospace")
+      const screens = screensOf(optionsOf({ theme: page.theme }))
+      screens.setFont({ size: 13, family: "Fira Code" })
+      shown(screens, "a")
+      expect(opened[0]?.options.fontFamily).toBe('"Fira Code", Theme Mono, monospace')
+
+      screens.setFont({ size: 13, family: "Iosevka Term" })
+      expect(opened[0]?.options.fontFamily).toBe('"Iosevka Term", Theme Mono, monospace')
+
+      screens.setFont({ size: 13 })
+      expect(opened[0]?.options.fontFamily).toBe("Theme Mono, monospace")
+    })
+
+    it("keeps its own chain after a theme change, so the family overrides the theme's font", () => {
+      const opened = openedTerminals()
+      const page = themed()
+      page.apply("Old Mono")
+      const screens = screensOf(optionsOf({ theme: page.theme }))
+      screens.setFont({ size: 13, family: "Fira Code" })
+      shown(screens, "a")
+
+      page.apply("New Mono")
+
+      expect(opened[0]?.options.fontFamily).toBe('"Fira Code", New Mono')
+    })
+
+    it("quotes a name so one with a quote or a comma stays one family", () => {
+      expect(familyChain({ size: 13, family: 'Odd "Name", Mono' }, "monospace")).toBe(
+        '"Odd \\"Name\\", Mono", monospace',
+      )
+      expect(familyChain({ size: 13, family: "   " }, "monospace")).toBe("monospace")
     })
   })
 

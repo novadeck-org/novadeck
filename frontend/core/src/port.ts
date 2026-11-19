@@ -113,8 +113,9 @@ export type ViewState = {
   // did, or that a copy reached the clipboard, for a moment.
   readonly notice: string | null
 }
-// The terminal font from Preferences, in CSS pixels.
-export type TerminalFont = { readonly size: number }
+// The terminal font from Preferences: the size in CSS pixels, and the family the person chose,
+// which goes in front of the theme's own chain; none is the theme's font.
+export type TerminalFont = { readonly size: number; readonly family?: string }
 
 // The page's theme, as a backend reads it for what it paints outside CSS, such as a
 // terminal's colours: the tokens' values where `element` draws, and each time a theme is
@@ -128,7 +129,7 @@ export type ThemeSource = {
 export type TerminalPort = {
   // Created once per backend instance so its identity is stable across renders.
   readonly mountTerminal: MountTerminal
-  // The font size from Preferences, called once before the first mount and again when it
+  // The font from Preferences, called once before the first mount and again when it
   // changes. Synchronous bookkeeping with no I/O.
   readonly setFont: (font: TerminalFont) => void
 }

@@ -71,6 +71,10 @@ describe("the app's permissions", () => {
       expect(app.asks("clipboard-sanitized-write")).toEqual({ checked: true, requested: true })
     })
 
+    it("allow listing the installed fonts, for the terminal font", () => {
+      expect(session().asks("local-fonts")).toEqual({ checked: true, requested: true })
+    })
+
     it("refuse everything else", () => {
       const app = session()
       for (const permission of ["notifications", "geolocation", "openExternal"])
@@ -129,6 +133,14 @@ describe("the app's permissions", () => {
         requested: false,
       })
       expect(app.asks("clipboard-read", contents("webview", appUrl))).toEqual({
+        checked: false,
+        requested: false,
+      })
+    })
+
+    it("refuse the font list to another page", () => {
+      const app = session()
+      expect(app.asks("local-fonts", contents("window", "https://example.com/"))).toEqual({
         checked: false,
         requested: false,
       })

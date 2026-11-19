@@ -34,6 +34,10 @@ export type ScreenReaderPreference = (typeof screenReaderPreferences)[number]
 
 export type PreferencesValue = {
   fontSize: number
+  // The terminal's font family, in front of the theme's monospace chain; "" (or unset) is the
+  // bundled one. Any family name the person's computer lists, installed or not: one that is
+  // gone draws as the rest of the chain does.
+  fontFamily?: string
   enabledViews: ViewMode[]
   // The theme and the scheme chosen for it; the theme is a plain id the app may not know.
   // See docs/theming.md.

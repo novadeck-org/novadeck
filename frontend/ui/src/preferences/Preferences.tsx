@@ -21,6 +21,7 @@ import { themes, type ThemeEntry, type ThemeId } from "../theme/themes"
 import { AddonRow } from "./addon-parts"
 import { agentsExplanation, type AgentSwitch } from "./agent-switches"
 import { AgentSwitches } from "./AgentSwitches"
+import { builtInFont, fontChoices } from "./font-choices"
 import { forgesExplanation, type ForgeSwitch } from "./forge-switches"
 import { ForgeSwitches } from "./ForgeSwitches"
 import { murmurDescription } from "./murmur-addon"
@@ -34,6 +35,7 @@ import {
   type PreferencesTab,
 } from "./settings"
 import { UninstallApp, type UninstallValue } from "./UninstallApp"
+import { useInstalledFonts } from "./useInstalledFonts"
 import { VoiceInput, type VoiceAddon } from "./VoiceInput"
 
 const themeItems = themes.map(({ id, name }) => ({ label: name, value: id }))
@@ -334,6 +336,8 @@ export const Preferences = ({
     (id === "experimental" && !hasExperimental)
   // Where no tab is named, Agents opens where there is one, else General.
   const shown = tab === null ? (hasAgentsTab ? "agents" : "general") : hidden(tab) ? "general" : tab
+  const { fonts: installed } = useInstalledFonts(open && shown === "appearance")
+  const terminalFonts = fontChoices(installed, value.fontFamily ?? "")
   // The Experimental tab's switches, one row each.
   const experimentalToggles = [
     {
@@ -655,6 +659,18 @@ export const Preferences = ({
                     </span>
                   </span>
                 </div>
+                <Select
+                  className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-52`}
+                  label="Terminal font"
+                  items={terminalFonts.items}
+                  value={terminalFonts.value}
+                  onValueChange={(choice) =>
+                    onChange({ ...value, fontFamily: choice === builtInFont ? "" : choice })
+                  }
+                  open={open && shown === "appearance" && openSelect === "terminal-font"}
+                  onOpenChange={(expanded) => setOpenSelect(expanded ? "terminal-font" : null)}
+                  portalContainer={dialog}
+                />
                 <div className={`preference-row ${settingRowClasses}`}>
                   <SettingText
                     id="ligatures-label"
