@@ -51,17 +51,31 @@ describe("keeping the scale between launches", () => {
     expect([one.zoom, two.zoom, closed.zoom]).toEqual([1.5, 1.5, 1])
   })
 
+  it("tells who zooms each page it showed the scale in, once it has", async () => {
+    const [one, closed] = [page(), page()]
+    closed.gone = true
+    const told: number[] = []
+    const kept = keepScale(
+      join(directory, "scale.json"),
+      () => [one, closed],
+      (zoomed) => void told.push(zoomed.zoom),
+    )
+    await kept.set(1.5)
+    expect(told).toEqual([1.5])
+  })
+
   it("opens a later window at the scale, wherever its page loads again", async () => {
-    const kept = keepScale(join(directory, "scale.json"), () => [])
-    await kept.set(2)
     const later = page()
+    const kept = keepScale(join(directory, "scale.json"), () => [later])
+    await kept.set(2)
+    later.zoom = 1
     kept.apply(later)
     expect(later.zoom).toBe(2)
   })
 
   it("starts the next launch at the last scale", async () => {
     const file = join(directory, "scale.json")
-    void keepScale(file, () => []).set(0.8)
+    await keepScale(file, () => []).set(0.8)
     await keepScale(file, () => []).set(1.75)
     const next = keepScale(file, () => [])
     expect(await next.load()).toBe(1.75)

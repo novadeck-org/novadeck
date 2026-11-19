@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url"
 import { consoleLogger, logPath, openSession, type Logger, type Session } from "@novadeck/log"
 import type { DesktopBadge, DesktopFeedbackAbout } from "@novadeck/protocol/bridge"
 import { startHttpServer, type HttpServer } from "@novadeck/runner/http"
+import { rezoomPages } from "@novadeck/viewers/browser/host"
 import { brokerPorts } from "@novadeck/wire/electron"
 import {
   app,
@@ -23,6 +24,7 @@ import {
   nativeTheme,
   net,
   Notification,
+  webContents,
   powerMonitor,
   safeStorage,
   session,
@@ -253,7 +255,12 @@ const currentDirectory = dirname(fileURLToPath(import.meta.url))
 const appearance = keepAppearance(join(app.getPath("userData"), "appearance.json"))
 // The scale the person chose in Preferences, which every window shows, the next launch's
 // first paint too.
-const scale = keepScale(join(app.getPath("userData"), "scale.json"), () => appPages(appWindows()))
+const scale = keepScale(
+  join(app.getPath("userData"), "scale.json"),
+  () => appPages(appWindows()),
+  // Electron gives the views a page hosts its zoom whenever the page's changes.
+  (page) => rezoomPages(page, webContents.getAllWebContents()),
+)
 // What the app remembers about updating: the channel, a failed install, how long this copy
 // is behind.
 const updateState = keepUpdateState(join(app.getPath("userData"), "update.json"))
@@ -339,6 +346,7 @@ const createWindow = (origin: string): BrowserWindow => {
   const apiUrl = new URL("/api/", origin).href
   const window = openAppWindow({
     ground: appearance.current()?.ground ?? "#ffffff",
+    zoomFactor: scale.current(),
     preloadArguments: [
       `${apiUrlArgumentPrefix}${apiUrl}`,
       webglContextsArgument(webglContexts),

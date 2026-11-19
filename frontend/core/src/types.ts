@@ -28,11 +28,11 @@ export const panelNamed = (name: string): SidebarPanel | undefined =>
   sidebarPanels.find((panel) => panel === name) ??
   (Object.hasOwn(formerPanels, name) ? formerPanels[name] : undefined)
 export type WindowedView = Exclude<ViewMode, "focus">
-// When terminals keep their text for a screen reader; see `PreferencesValue.screenReader`.
 // The scales of the whole app the person may choose, as a percent of its normal size.
 export const appScales = [80, 90, 100, 110, 125, 150, 175, 200] as const
 export type AppScale = (typeof appScales)[number]
 
+// When terminals keep their text for a screen reader; see `PreferencesValue.screenReader`.
 export const screenReaderPreferences = ["auto", "on", "off"] as const
 export type ScreenReaderPreference = (typeof screenReaderPreferences)[number]
 

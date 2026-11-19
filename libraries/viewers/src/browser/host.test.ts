@@ -28,6 +28,7 @@ import {
   signInWindow,
   watchPageRequests,
   webAddress,
+  rezoomPages,
   zoomPage,
 } from "./host.js"
 import { chromeMajorOf, phoneUserAgent } from "./phone.js"
@@ -366,6 +367,51 @@ describe("a page view zoomed out to fit", () => {
     for (const factor of [0, -1, 1.5, Number.NaN, "0.5", undefined])
       expect(zoomPage(app, 7, factor, byId(contents))).toBe(false)
     expect(zooms).toEqual([])
+  })
+})
+
+describe("a page view after the app's zoom changes", () => {
+  // An app page whose zoom the test moves, and views it hosts that record their zoom.
+  const hosted = () => {
+    const app = { zoom: 1, getZoomFactor: () => app.zoom } as unknown as WebContents & {
+      zoom: number
+    }
+    const view = (owner: WebContents = app) => {
+      const zooms: number[] = []
+      const contents = {
+        getType: () => "webview",
+        isDestroyed: () => false,
+        hostWebContents: owner,
+        setZoomFactor: (factor: number) => zooms.push(factor),
+      } as unknown as WebContents
+      return { contents, zooms }
+    }
+    return { app, view }
+  }
+  const byId =
+    (contents: WebContents) =>
+    (id: number): WebContents | undefined =>
+      id === 7 ? contents : undefined
+
+  it("is zoomed again by the factor its viewer last asked, of the app's zoom now", () => {
+    const { app, view } = hosted()
+    const { contents, zooms } = view()
+    zoomPage(app, 7, 0.5, byId(contents))
+    app.zoom = 2
+    rezoomPages(app, [contents])
+    expect(zooms).toEqual([0.5, 1])
+  })
+
+  it("is left alone when its viewer never asked, or it is another window's", () => {
+    const { app, view } = hosted()
+    const never = view()
+    const other = hosted()
+    const elsewhere = other.view()
+    zoomPage(other.app, 7, 0.5, byId(elsewhere.contents))
+    app.zoom = 2
+    rezoomPages(app, [never.contents, elsewhere.contents])
+    expect(never.zooms).toEqual([])
+    expect(elsewhere.zooms).toEqual([0.5])
   })
 })
 

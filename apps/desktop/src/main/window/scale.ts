@@ -36,19 +36,23 @@ export type ScaledPage = {
  * The app's scale, as the page's Preferences set it, kept in `file` so a window opened by
  * the next launch starts at it, not at normal until its page says. One value for every
  * window: a change reaches each page `pages` lists, and a window opened later takes it with
- * `apply`. Saves run one after another and each writes a temporary file and renames it
+ * `apply`; `after` hears of each page zoomed, to put right what the zoom took from the views it
+ * hosts. Saves run one after another and each writes a temporary file and renames it
  * over, so a failed write leaves the last kept scale whole.
  */
-export const keepScale = (
+export const keepScale = <Page extends ScaledPage = ScaledPage>(
   file: string,
-  pages: () => readonly ScaledPage[],
+  pages: () => readonly Page[],
+  after: (page: Page) => void = () => {},
   files: Files = { readFile, writeFile, rename, rm },
 ) => {
   let current = normalScale
   let written = normalScale
   let saving: Promise<void> = Promise.resolve()
-  const apply = (page: ScaledPage): void => {
-    if (!page.isDestroyed()) page.setZoomFactor(current)
+  const apply = (page: Page): void => {
+    if (page.isDestroyed()) return
+    page.setZoomFactor(current)
+    after(page)
   }
   const write = async (value: number): Promise<void> => {
     const temporary = `${file}.${randomUUID()}.tmp`

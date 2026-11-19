@@ -454,7 +454,32 @@ export const zoomPage = (
   const page = pageViewOf(app, id, fromId)
   if (!page || typeof factor !== "number" || !(factor > 0 && factor <= 1)) return false
   page.setZoomFactor(factor * app.getZoomFactor())
+  zoomed.set(page, factor)
   return true
+}
+
+// The factor each page view was last zoomed by (see `zoomPage`), of the app's own zoom.
+const zoomed = new WeakMap<WebContents, number>()
+
+/**
+ * Zooms again the page views of `app` among `all` (Electron's `webContents.getAllWebContents()`)
+ * by the factor their viewers last asked, of the app's zoom as it is now. Electron copies the
+ * app's zoom into every view it hosts whenever it changes, whatever the view's own zoom, so a
+ * change of the app's, as Preferences' scale, takes each view's from it until its viewer asks
+ * again, which a view whose box keeps its CSS size, as a Canvas node, never does. One view's
+ * zoom set right after the app's holds.
+ */
+export const rezoomPages = (app: WebContents, all: readonly WebContents[]): void => {
+  for (const page of all) {
+    const factor = zoomed.get(page)
+    if (
+      factor !== undefined &&
+      !page.isDestroyed() &&
+      page.getType() === "webview" &&
+      page.hostWebContents === app
+    )
+      page.setZoomFactor(factor * app.getZoomFactor())
+  }
 }
 
 // How a picture of a page is encoded: JPEG, which a page's text survives at this quality.

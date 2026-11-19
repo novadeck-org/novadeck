@@ -1398,11 +1398,9 @@ Preferences > Appearance > Scale (80% to 200%, `appScale` in the preferences) se
 the whole desktop app is. The page tells its window (`showScale` on the bridge, as
 `showAppearance` does); the main process (`apps/desktop/src/main/window/scale.ts`) clamps it,
 keeps it in `scale.json` in the data folder, and sets every app window's zoom factor, those
-opened later at their `dom-ready`. Terminals refit through their container's resize, as for
-any window resize; the browser pane's views keep their own zoom (`zoomPage` multiplies it by
-the app's). Nothing else zooms the page: the View menu carries no zoom role (so no Ctrl+- or
-Ctrl+0 is taken from a terminal on Linux or Windows), pinch is limited to 1, and Electron
-applies no Ctrl+wheel zoom. A browser has no `showScale`, so the row is hidden there and the
+opened later at their `zoomFactor` and again at `dom-ready`. Electron gives every `<webview>` a page hosts the page's zoom whenever it changes, so `rezoomPages` (viewers' `browser/host.ts`) puts each view back at the factor its viewer last asked (`zoomPage`) right after; a Canvas node's box keeps its CSS size, so its viewer would never ask again. Terminals refit through their container's resize, as for
+any window resize; the browser pane's views keep their own zoom. Nothing else zooms the page: the View menu carries no zoom role (so no Ctrl+- or
+Ctrl+0 is taken from a terminal on Linux or Windows), and Electron applies no pinch or Ctrl+wheel zoom. A browser has no `showScale`, so the row is hidden there and the
 browser's own zoom does it; the previews demo scales by CSS `zoom` instead.
 
 ### UI behaviour specs
