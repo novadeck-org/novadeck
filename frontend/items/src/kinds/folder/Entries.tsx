@@ -113,6 +113,8 @@ const useThumb = (
           kind,
           name: entry.name,
           size: entry.size,
+          // A part read can't be called off: a stopped renderer asks for no more, and the one
+          // on its way is dropped when it comes.
           read: (offset, _stop) => reader(path, entry.stamp, offset),
           signal,
         })
@@ -189,6 +191,8 @@ export const Tile = ({
   now,
 }: EntryProps): React.JSX.Element => {
   const ref = useRef<HTMLButtonElement>(null)
+  // The picture the page failed to draw, by its URL.
+  const [broken, setBroken] = useState<string>()
   const thumb = useThumb(entry, { itemId, within, reader }, ref)
   const held = heldText(entry)
   const meta = held
@@ -215,8 +219,9 @@ export const Tile = ({
       onKeyDown={openOnEnter(onOpen)}
     >
       <span className="folder-thumb">
-        {thumb ? (
-          <img src={thumb.url} alt="" draggable={false} />
+        {thumb && thumb.url !== broken ? (
+          // One the page can't draw after all shows the icon.
+          <img src={thumb.url} alt="" draggable={false} onError={() => setBroken(thumb.url)} />
         ) : (
           <>
             <EntryIcon entry={entry} strokeWidth={1.5} />
@@ -225,7 +230,7 @@ export const Tile = ({
             )}
           </>
         )}
-        {thumb?.duration !== undefined && (
+        {thumb?.duration !== undefined && thumb.url !== broken && (
           <span className="folder-badge">
             <Play aria-hidden />
             {durationText(thumb.duration)}

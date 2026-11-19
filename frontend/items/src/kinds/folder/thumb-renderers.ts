@@ -107,14 +107,30 @@ const frameOf = (
     element.src = url
   })
 
+// Whether the page can draw an image: one being written, cut short or misnamed can't.
+const decodes = async (blob: Blob): Promise<boolean> => {
+  const url = URL.createObjectURL(blob)
+  try {
+    const image = new Image()
+    image.src = url
+    await image.decode()
+    return true
+  } catch {
+    return false
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
 registerEntryThumb("image", async (file, _box, signal) => {
-  if (file.size > imageBytes) return null
+  // An empty file is one an agent has only begun: its stamp changes as it is written.
+  if (file.size === 0 || file.size > imageBytes) return null
   const blob = await wholeFile(
     file,
     imageMimes[extensionOf(file.name)] ?? "application/octet-stream",
     signal,
   )
-  return blob && { blob }
+  return blob && (await decodes(blob)) ? { blob } : null
 })
 
 // A video is read whole to learn its first frame and length (its index may be at the end), so a

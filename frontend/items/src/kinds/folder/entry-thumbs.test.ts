@@ -175,6 +175,77 @@ describe("what a kind registers to draw its files in a folder's grid", () => {
       expect(reads).toBeInstanceOf(AbortSignal)
     })
 
+    it("is asked again where a read failed, or was still on its way at its deadline", async () => {
+      urls()
+      registerEntryThumb("audio", async (file, _box, signal) => {
+        await file.read(0, signal)
+        return { blob: new Blob(["x"]) }
+      })
+      const failing = await loadThumb({
+        key: "dropped:1",
+        kind: "audio",
+        name: "a.glb",
+        size: 2,
+        read: async () => {
+          throw new Error("the link dropped")
+        },
+        signal: new AbortController().signal,
+      })
+      expect(failing).toBeUndefined()
+      expect(hasNoThumb("dropped:1")).toBe(false)
+      const unreadable = await loadThumb({
+        key: "dropped:2",
+        kind: "audio",
+        name: "a.glb",
+        size: 2,
+        read: async () => ({ state: "unavailable", reason: "unreadable" }),
+        signal: new AbortController().signal,
+      })
+      expect(unreadable).toEqual({ url: expect.stringMatching(/^blob:/), duration: undefined })
+      unregisterEntryThumb("audio")
+      registerEntryThumb("audio", async (file, _box, signal) => {
+        const part = await file.read(0, signal)
+        return part.state === "part" ? { blob: new Blob(["x"]) } : null
+      })
+      await loadThumb({
+        key: "dropped:3",
+        kind: "audio",
+        name: "a.glb",
+        size: 2,
+        read: async () => ({ state: "unavailable", reason: "unreadable" }),
+        signal: new AbortController().signal,
+      })
+      expect(hasNoThumb("dropped:3")).toBe(false)
+      const slow = await loadThumb({
+        key: "slow:1",
+        kind: "audio",
+        name: "a.glb",
+        size: 2,
+        read: () => new Promise(() => {}),
+        signal: new AbortController().signal,
+        deadline: 20,
+      })
+      expect(slow).toBeUndefined()
+      expect(hasNoThumb("slow:1")).toBe(false)
+    })
+
+    it("revokes a picture a second load of the same file replaced", async () => {
+      const revoked = urls()
+      registerEntryThumb("audio", async () => ({ blob: new Blob(["drawn"]) }))
+      const twice = () =>
+        loadThumb({
+          key: "twice:1",
+          kind: "audio",
+          name: "a.glb",
+          size: 2,
+          read,
+          signal: new AbortController().signal,
+        })
+      const [first, second] = await Promise.all([twice(), twice()])
+      expect(first!.url).not.toBe(second!.url)
+      expect(revoked).toEqual([first!.url])
+    })
+
     it("shows the icon where it fails", async () => {
       registerEntryThumb("audio", async () => {
         throw new Error("no webgl")

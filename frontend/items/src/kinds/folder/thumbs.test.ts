@@ -1,7 +1,8 @@
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
-import { createQueue, holdThumb, loadThumb } from "./thumbs"
+import { entryThumbRenderer, registerEntryThumb, unregisterEntryThumb } from "./entry-thumbs"
+import { createQueue, hasNoThumb, holdThumb, loadThumb } from "./thumbs"
 
 // A job that runs until it is let go, noting when it began.
 const jobs = () => {
@@ -70,12 +71,15 @@ describe("the pictures of a folder's grid", () => {
 })
 
 describe("the pictures kept for a folder's grid", () => {
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    unregisterEntryThumb("other")
+  })
 
   const load = (index: number) =>
     loadThumb({
       key: `item:${index}`,
-      kind: "image",
+      kind: "other",
       name: `${index}.png`,
       size: 2,
       read: async () => ({ state: "part", bytes: new Uint8Array([1, 2]) }),
@@ -89,6 +93,7 @@ describe("the pictures kept for a folder's grid", () => {
       createObjectURL: () => `blob:${(made += 1)}`,
       revokeObjectURL: (url: string) => revoked.push(url),
     })
+    registerEntryThumb("other", async () => ({ blob: new Blob(["drawn"]) }))
     const first = await load(0)
     const release = holdThumb(first!.url)
     // eslint-disable-next-line no-await-in-loop -- Each is kept in the order it is loaded.
@@ -103,5 +108,60 @@ describe("the pictures kept for a folder's grid", () => {
     // One nothing shows goes at once.
     release()
     expect(revoked).toHaveLength(2)
+  })
+})
+
+describe("an image's picture in a folder's grid", () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  // Images that decode or not, as the page's would, and the URLs made for them.
+  const page = (decodes: boolean) => {
+    let made = 0
+    vi.stubGlobal("URL", {
+      createObjectURL: () => `blob:${(made += 1)}`,
+      revokeObjectURL: () => {},
+    })
+    vi.stubGlobal(
+      "Image",
+      class {
+        src = ""
+        decode = () => (decodes ? Promise.resolve() : Promise.reject(new Error("broken")))
+      },
+    )
+  }
+  const draw = (key: string, size: number) => {
+    let reads = 0
+    const made = loadThumb({
+      key,
+      kind: "image",
+      name: "shot.png",
+      size,
+      read: async () => {
+        reads += 1
+        return { state: "part", bytes: new Uint8Array(size) }
+      },
+      signal: new AbortController().signal,
+    })
+    return { made, reads: () => reads }
+  }
+
+  it("is drawn from the file where the page can draw it", async () => {
+    page(true)
+    expect(entryThumbRenderer("image")).toBeDefined()
+    expect(await draw("png:ok", 4).made).toEqual({ url: "blob:2", duration: undefined })
+  })
+
+  it("is the icon for a file only begun, which is read not at all", async () => {
+    page(true)
+    const { made, reads } = draw("png:empty", 0)
+    expect(await made).toBeUndefined()
+    expect(reads()).toBe(0)
+  })
+
+  it("is the icon for a file the page can't draw, as one cut short or misnamed", async () => {
+    page(false)
+    expect(await draw("png:broken", 4).made).toBeUndefined()
+    // For that file as its stamp names it.
+    expect(hasNoThumb("png:broken")).toBe(true)
   })
 })

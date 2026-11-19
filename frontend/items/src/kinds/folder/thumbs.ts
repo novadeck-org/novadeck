@@ -69,7 +69,8 @@ export const createQueue = (limit = 3): Queue => {
 
 // What the pictures kept so far are, by key, the oldest first; a picture let go is revoked.
 // A file with no picture (a renderer answered null, failed or ran out of time) is kept as null, so
-// that its renderer is asked once for the file as its stamp names it, not at each scroll back.
+// that its renderer is asked once for the file as its stamp names it, not at each scroll back;
+// unless a read of it failed or was still on its way, which says nothing of the file.
 const kept = new Map<string, Thumb | null>()
 const keptMost = 300
 
@@ -110,8 +111,11 @@ export const holdThumb = (url: string): (() => void) => {
 }
 
 const keep = (key: string, thumb: Thumb | null): void => {
+  const replaced = kept.get(key)
   kept.delete(key)
   kept.set(key, thumb)
+  // Two tiles of one file that loaded at once: the first picture is no longer kept.
+  if (replaced && replaced.url !== thumb?.url) revokeUnused(replaced.url)
   for (const [oldest, was] of kept) {
     if (kept.size <= keptMost) break
     kept.delete(oldest)
@@ -129,8 +133,10 @@ const box = { width: 320, height: 200 }
 // Reads a file of the folder and makes its picture with what its kind registered (see
 // ./entry-thumbs): kept by `key`, with its length where it has one. Undefined where it can't be
 // drawn, failed, ran out of `deadline` or was stopped: the grid shows the kind's icon, and a file
-// that had none is not asked again as its stamp names it (a stopped one is). `read` is the
-// backend's part read of the file, which a stopped renderer's reads end with.
+// that had none is not asked again as its stamp names it. One that was stopped is, and so is one
+// whose read failed (a link that dropped, a runner that restarted, a file it couldn't read then)
+// or was still on its way at the deadline (a slow link). `read` is the backend's part read of
+// the file: a stopped renderer asks for no more parts, and what it asked for is dropped.
 export const loadThumb = async ({
   key,
   kind,
@@ -166,16 +172,30 @@ export const loadThumb = async ({
       once: true,
     })
   })
+  // Whether a read failed, and how many are on their way: then no picture says nothing of the file.
+  let failed = false
+  let pending = 0
+  const reading = async (offset: number, stop: AbortSignal): Promise<FilePart> => {
+    pending += 1
+    try {
+      const part = await read(offset, stop)
+      if (part.state === "unavailable" && part.reason === "unreadable") failed = true
+      return part
+    } catch (error) {
+      failed = true
+      throw error
+    } finally {
+      pending -= 1
+    }
+  }
   try {
     const made = await Promise.race([
-      render({ name, size, read: (offset, stop) => read(offset, stop) }, box, own.signal).catch(
-        () => null,
-      ),
+      render({ name, size, read: reading }, box, own.signal).catch(() => null),
       ended,
     ])
     if (made === "stopped" || signal.aborted) return undefined
     if (made === "late" || made === null) {
-      keep(key, null)
+      if (!failed && (made === null || pending === 0)) keep(key, null)
       return undefined
     }
     const thumb = { url: URL.createObjectURL(made.blob), duration: made.duration }

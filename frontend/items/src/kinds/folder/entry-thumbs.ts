@@ -28,7 +28,8 @@ export type EntryThumb = { readonly blob: Blob; readonly duration?: number }
 // Draws a file's picture, or answers null where it can't (too large, not what it says it is): the
 // folder then shows the kind's icon. It stops at once when `signal` aborts, which it also does
 // once a deadline of 15 s has passed (the icon is then shown whatever it does), and is not asked
-// again for the file while it is as its stamp names it, whether it drew a picture or not.
+// again for the file while it is as its stamp names it, whether it drew a picture or not; unless
+// one of its reads failed, or was still on its way at the deadline, which says nothing of the file.
 export type EntryThumbRenderer = (
   entry: EntryThumbFile,
   box: EntryThumbBox,
