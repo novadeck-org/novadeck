@@ -621,10 +621,18 @@ export const maxForwardedRequests = 100
 /** How many origins of one page view have a count of their own per navigation; those past it share one. */
 export const maxRequestOrigins = 32
 
+/** The kinds of request that load a document, the page's own or a frame's. */
+const documents: ReadonlySet<string> = new Set(["mainFrame", "subFrame"])
+
 /**
  * Tells of each request of the pages' session that fails, with the page view it is for: an
  * HTTP error answer (4xx, 5xx), or none at all (status 0), but not one cancelled, as by a
- * page that aborts its own fetch or goes elsewhere (`net::ERR_ABORTED`). The page's own
+ * page that aborts its own fetch or goes elsewhere (`net::ERR_ABORTED`), nor a part of a
+ * page that misses Chromium's cache (`net::ERR_CACHE_MISS`): Chromium looks for a web font
+ * there first and, on a miss, fetches it again from the server, so the miss is no failure,
+ * and a page that asks only its cache meant to go without. A document that misses it, the
+ * page's own or a frame's, as one gone back to after a form, didn't load, and is told:
+ * nothing else tells of a frame's failed load. The page's own
  * performance entries can't say as much: their buffer fills, and an abort reads as no
  * answer. Electron keeps one listener per request event for a session, so nothing else
  * may use these two on it. A page view that fails requests without end, as one polling a
@@ -681,7 +689,9 @@ export const watchPageRequests = (
   })
   pages.webRequest.onErrorOccurred((details) => {
     navigating(details)
-    if (details.error !== "net::ERR_ABORTED") tell(details, 0)
+    if (details.error === "net::ERR_ABORTED") return
+    if (details.error === "net::ERR_CACHE_MISS" && !documents.has(details.resourceType)) return
+    tell(details, 0)
   })
   // A page view gone, as each rest of a page drops one: its counts go with it.
   return { forget: (contentsId) => void told.delete(contentsId) }

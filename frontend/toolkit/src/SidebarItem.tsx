@@ -3,7 +3,7 @@ import { useId, type ComponentPropsWithoutRef, type ReactNode, type Ref } from "
 import { Tooltip } from "./Tooltip"
 
 export const sidebarListClasses =
-  "sidebar-list mt-2.5 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-3"
+  "sidebar-list sidebar-scroll mt-2.5 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-3"
 
 // A sidebar row's parts, for a list whose rows are drawn as an item's without being one, such as
 // the History panel's one-line rows: the row (the item recipe draws it, its selection bar

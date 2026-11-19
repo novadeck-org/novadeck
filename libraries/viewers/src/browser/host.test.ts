@@ -688,6 +688,23 @@ describe("the requests of a page view that fail", () => {
     expect(told).toEqual([[3, { url: "http://localhost/a", status: 0, what: "script" }]])
   })
 
+  it("leave out a part of the page that missed the cache, as a font Chromium then fetches", () => {
+    const { told, errored } = watched()
+    for (const resourceType of ["font", "xhr", "image", "script"])
+      errored("net::ERR_CACHE_MISS", { resourceType })
+    expect(told).toEqual([])
+  })
+
+  it("include a document that missed the cache, the page's own or a frame's", () => {
+    const { told, errored } = watched()
+    errored("net::ERR_CACHE_MISS", { url: "http://localhost/posted", resourceType: "subFrame" })
+    errored("net::ERR_CACHE_MISS", { url: "http://localhost/form", resourceType: "mainFrame" })
+    expect(told).toEqual([
+      [3, { url: "http://localhost/posted", status: 0, what: "frame" }],
+      [3, { url: "http://localhost/form", status: 0, what: "page" }],
+    ])
+  })
+
   it("are named as a viewer names them", () => {
     const { told, completed } = watched()
     const kinds = ["mainFrame", "subFrame", "xhr", "script", "image", "stylesheet", "font", "media"]

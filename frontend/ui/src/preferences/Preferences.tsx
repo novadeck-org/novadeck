@@ -58,20 +58,17 @@ const agentPresentations = [
 
 const fontSizes = [12, 13, 15].map((size) => ({ label: `${size}px`, value: String(size) }))
 
-// Screen reader support's choices: Automatic only where the app can tell when one runs.
+// Screen reader support's choices: Automatic only where the app can tell when one runs. Plain
+// words, as the menu is as wide as its button; the row's description says what they do.
 const screenReaderChoices = (known: boolean) => [
-  ...(known
-    ? [
-        {
-          label: "Automatic",
-          value: "auto",
-          description: "On while the system reports a screen reader",
-        },
-      ]
-    : []),
-  { label: "On", value: "on", description: "Terminals always keep text a reader can read" },
-  { label: "Off", value: "off", description: "Terminals keep no text for a reader" },
+  ...(known ? [{ label: "Automatic", value: "auto" }] : []),
+  { label: "On", value: "on" },
+  { label: "Off", value: "off" },
 ]
+
+const screenReaderExplanation = (known: boolean): string =>
+  "Lets a screen reader read the terminal you're in, at some cost to speed." +
+  (known ? " Automatic turns it on while the system reports one." : "")
 
 // Section titles match the sidebar's panel titles.
 const sectionTitleClasses = "section-label m-0 text-label font-medium"
@@ -662,26 +659,36 @@ export const Preferences = ({
                     describedBy="ligatures-description"
                   />
                 </div>
-                <Select
-                  className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
-                  label="Screen reader support"
-                  items={screenReaderChoices(screenReaderKnown)}
-                  // Where nothing can tell, Automatic keeps the text, as On does.
-                  value={
-                    value.screenReader === "auto" && !screenReaderKnown ? "on" : value.screenReader
-                  }
-                  onValueChange={(choice) =>
-                    onChange({
-                      ...value,
-                      screenReader:
-                        screenReaderPreferences.find((each) => each === choice) ??
-                        value.screenReader,
-                    })
-                  }
-                  open={open && shown === "appearance" && openSelect === "screen-reader"}
-                  onOpenChange={(expanded) => setOpenSelect(expanded ? "screen-reader" : null)}
-                  portalContainer={dialog}
-                />
+                <div className={`preference-row ${settingRowClasses}`}>
+                  <SettingText
+                    id="screen-reader-label"
+                    label="Screen reader support"
+                    description={screenReaderExplanation(screenReaderKnown)}
+                    descriptionId="screen-reader-description"
+                  />
+                  <Select
+                    className="shrink-0 [&_[data-part=label]]:sr-only [&_[data-part=trigger]]:w-36"
+                    label="Screen reader support"
+                    items={screenReaderChoices(screenReaderKnown)}
+                    // Where nothing can tell, Automatic keeps the text, as On does.
+                    value={
+                      value.screenReader === "auto" && !screenReaderKnown
+                        ? "on"
+                        : value.screenReader
+                    }
+                    onValueChange={(choice) =>
+                      onChange({
+                        ...value,
+                        screenReader:
+                          screenReaderPreferences.find((each) => each === choice) ??
+                          value.screenReader,
+                      })
+                    }
+                    open={open && shown === "appearance" && openSelect === "screen-reader"}
+                    onOpenChange={(expanded) => setOpenSelect(expanded ? "screen-reader" : null)}
+                    portalContainer={dialog}
+                  />
+                </div>
               </div>
             </Section>
           </TabPanel>

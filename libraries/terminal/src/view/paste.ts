@@ -5,7 +5,7 @@ import type { Terminal } from "@novadeck/emulator/browser"
 // cannot reach the owner's own.
 export type Platform = "mac" | "windows" | "other"
 
-const currentPlatform = (): Platform =>
+export const currentPlatform = (): Platform =>
   /Mac|iPhone|iPad/.test(navigator.platform)
     ? "mac"
     : navigator.platform.startsWith("Win")

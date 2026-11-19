@@ -283,8 +283,8 @@ const bridge = {
       ipcRenderer.removeListener(windowFocusChannel, relay)
     }
   },
-  // Only where the app can tell whether a screen reader runs (macOS and Windows); elsewhere the
-  // page hears nothing and keeps a reader's text. Only a boolean comes back; the request makes
+  // Only where the app can tell whether a screen reader runs (macOS, Windows, Linux); elsewhere
+  // the page hears nothing and keeps a reader's text. Only a boolean comes back; the request makes
   // the main process answer with the current one, as a reader may have started before the page
   // listened, or the page loaded again.
   ...(tellsScreenReader(process.platform)

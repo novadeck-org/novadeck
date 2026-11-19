@@ -109,7 +109,8 @@ import { registerWindowFocusIpc } from "./window/focus.js"
 import { linuxMenu, macMenu } from "./window/menu.js"
 import { registerPanePictureIpc } from "./window/pane-pictures.js"
 import { limitPermissions } from "./window/permissions.js"
-import { registerScreenReaderIpc } from "./window/screen-reader.js"
+import { atspiReaders, runIn } from "./window/screen-reader-linux.js"
+import { electronReaders, registerScreenReaderIpc } from "./window/screen-reader.js"
 import { keepSpellcheckOffline } from "./window/spellcheck.js"
 
 const appId = "dev.mzpk.novadeck"
@@ -533,13 +534,19 @@ const launch = async (): Promise<void> => {
   // The page asks for its window's focus when it starts listening, as when it loads again.
   registerWindowFocusIpc(ipcMain, { window: appWindow, request: tellWindowFocus })
   // The page asks whether a screen reader runs when it starts listening, and hears of each
-  // change: its terminals keep a reader's text only while one does (terminal-views). Only
-  // where Electron can tell; elsewhere the page keeps the text.
-  if (tellsScreenReader(process.platform))
-    registerScreenReaderIpc(ipcMain, app, {
+  // change: its terminals keep a reader's text only while one may (terminal-views). Electron
+  // tells on macOS and Windows; on Linux the desktop's accessibility bus does, read with the
+  // system's own gdbus, outside an AppImage's mount.
+  if (tellsScreenReader(process.platform)) {
+    const systemEnv = installedEnvironment(process.env, appImageMounts())
+    const readers =
+      process.platform === "linux" ? atspiReaders({ run: runIn(systemEnv) }) : electronReaders(app)
+    const stopReaders = registerScreenReaderIpc(ipcMain, readers, {
       page: (event) => appWindow(event)?.webContents,
       pages: () => appPages(appWindows()),
     })
+    process.once("exit", stopReaders)
+  }
   // The page learns of an update, can open the page of one it must install itself, and
   // chooses the releases the build follows.
   registerUpdateIpc(ipcMain, {

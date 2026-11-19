@@ -436,7 +436,7 @@ const FilesPanelView = ({
                 ? `The work of ${namedAgents(lit)} is lit; files and folders they did not touch are dimmed.`
                 : "No agent is lit."
           }
-          className="files-tree mt-2.5 flex min-h-0 flex-1 flex-col overflow-y-auto pb-3"
+          className="files-tree sidebar-scroll mt-2.5 flex min-h-0 flex-1 flex-col overflow-y-auto pb-3"
           data-lit={lit.size > 0 ? [...lit].join(" ") : undefined}
           onKeyDown={onKeyDown}
           onPointerLeave={() => setHovered(undefined)}

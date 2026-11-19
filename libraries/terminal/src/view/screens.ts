@@ -7,7 +7,7 @@ import {
 } from "@novadeck/emulator/browser"
 
 import { measureCols, sizeBounds } from "../size.js"
-import { copyOnSelect, takeClipboardWrites } from "./copy.js"
+import { copyOnSelect, readClipboard, takeClipboardWrites } from "./copy.js"
 import { followTerminal, type FollowedTerminal, type FollowOptions, type Screen } from "./follow.js"
 import { takeClipboardKeys, takeFilePastes, type PasteFailure, type PasteTarget } from "./paste.js"
 import { silenceQueries } from "./queries.js"
@@ -435,11 +435,12 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
     // A mouse selection copies as it ends, and a program may copy with OSC 52 while the
     // person is in this terminal; on every platform.
     const selections = copyOnSelect(xterm, container, copy)
-    const writes = takeClipboardWrites(
-      xterm,
+    const writes = takeClipboardWrites(xterm, {
+      focused: () => document.hasFocus() && document.activeElement === xterm.textarea,
+      read: readClipboard,
       copy,
-      () => document.hasFocus() && document.activeElement === xterm.textarea,
-    )
+      copied,
+    })
     let settling: ReturnType<typeof setTimeout> | undefined
     // The theme's font, once it has loaded: a bundled font still on its way arrives later,
     // and the terminal keeps the font it has until then. A new font changes the cell size,

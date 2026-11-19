@@ -126,14 +126,17 @@ describe("The Files panel", () => {
       await sidebarPanel("Files").click()
 
       const tree = page.getByRole("tree", { name: "Project files" }).element() as HTMLElement
+      // The rows take the panel's width (the tree reaches past it, into the sidebar's margin),
+      // so the panel is what's resized.
+      const panel = tree.closest<HTMLElement>(".sidebar-panel")!
       const select = page.getByRole("treeitem", { name: /^Checkout\.tsx,/ })
       await expect.element(select).toBeVisible()
-      const row = select.element().closest(".files-row")!
+      const row = select.element().closest<HTMLElement>(".files-row")!
       const name = row.querySelector<HTMLElement>(".files-name")!
       const chips = (): number => row.querySelectorAll(".files-chip").length
       const resizeTo = async (width: number): Promise<void> => {
-        tree.style.width = `${width}px`
-        await expect.poll(() => tree.clientWidth).toBe(width)
+        panel.style.width = `${width}px`
+        await expect.poll(() => row.offsetWidth).toBe(width)
         await layoutSettled()
       }
 
