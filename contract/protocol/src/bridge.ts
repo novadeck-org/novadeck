@@ -273,6 +273,12 @@ export type DesktopBridge = {
    * page view of the asking page, and when it can't. Absent from apps that came before it.
    */
   pagePhone?(page: number, phone: boolean): Promise<boolean>
+  /**
+   * Zooms a live page's view, by its view's `getWebContentsId()`, by `factor` (0 to 1) of the
+   * app's own zoom, as its viewer zooms it out to fit. False for anything but a page view of
+   * the asking page. Absent from apps that came before it.
+   */
+  pageZoom?(page: number, factor: number): Promise<boolean>
 }
 
 /** What `DesktopBridge.lookAtPage` answers: a look at a page, or why there is none. */

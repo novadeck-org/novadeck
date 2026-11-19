@@ -198,6 +198,12 @@ export const pageLookChannel = "novadeck:page-look"
 export const pagePhoneChannel = "novadeck:page-phone"
 
 /**
+ * Renderer-to-main request to zoom a live page's view by a factor of the app's own zoom, by
+ * its web contents id; answers whether it did. See the viewers' `zoomPage`.
+ */
+export const pageZoomChannel = "novadeck:page-zoom"
+
+/**
  * Renderer-to-main report of an error the page didn't catch, `{ kind, name, message, stack }`,
  * which the main process logs.
  */

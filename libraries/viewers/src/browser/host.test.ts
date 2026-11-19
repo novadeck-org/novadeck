@@ -28,6 +28,7 @@ import {
   signInWindow,
   watchPageRequests,
   webAddress,
+  zoomPage,
 } from "./host.js"
 import { chromeMajorOf, phoneUserAgent } from "./phone.js"
 
@@ -331,6 +332,40 @@ describe("a page view's zoom", () => {
     expect(zoomOf("window", pages)).toEqual([])
     // A <webview> on another session isn't a page view.
     expect(zoomOf("webview", {} as Session)).toEqual([])
+  })
+})
+
+describe("a page view zoomed out to fit", () => {
+  const app = { getZoomFactor: () => 0.9 } as unknown as WebContents
+  const view = (owner: WebContents = app) => {
+    const zooms: number[] = []
+    const contents = {
+      getType: () => "webview",
+      isDestroyed: () => false,
+      hostWebContents: owner,
+      setZoomFactor: (factor: number) => zooms.push(factor),
+    } as unknown as WebContents
+    return { contents, zooms }
+  }
+  const byId =
+    (contents: WebContents) =>
+    (id: number): WebContents | undefined =>
+      id === 7 ? contents : undefined
+
+  it("is zoomed by its factor of the app's own zoom", () => {
+    const { contents, zooms } = view()
+    expect(zoomPage(app, 7, 0.5, byId(contents))).toBe(true)
+    expect(zooms).toEqual([0.45])
+  })
+
+  it("is nothing for another window's page, an id that's no view's, or a factor no zoom is", () => {
+    const other = view({ getZoomFactor: () => 1 } as unknown as WebContents)
+    expect(zoomPage(app, 7, 0.5, byId(other.contents))).toBe(false)
+    const { contents, zooms } = view()
+    for (const id of [8, "7", 7.5]) expect(zoomPage(app, id, 0.5, byId(contents))).toBe(false)
+    for (const factor of [0, -1, 1.5, Number.NaN, "0.5", undefined])
+      expect(zoomPage(app, 7, factor, byId(contents))).toBe(false)
+    expect(zooms).toEqual([])
   })
 })
 

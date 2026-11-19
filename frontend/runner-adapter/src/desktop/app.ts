@@ -331,6 +331,7 @@ export const desktopOptions = (
   const pagePicture = app?.pagePicture
   const pageLook = app?.lookAtPage
   const pagePhone = app?.pagePhone
+  const pageZoom = app?.pageZoom
   const panePicture = app?.panePicture
   const notices = desktopNotices(app)
   const badge = desktopBadge(app)
@@ -363,6 +364,7 @@ export const desktopOptions = (
       : {}),
     ...(pageLook ? { pageLook: (request) => pageLook(request) } : {}),
     ...(pagePhone ? { pagePhone: (page, phone) => pagePhone(page, phone) } : {}),
+    ...(pageZoom ? { pageZoom: (page, factor) => pageZoom(page, factor) } : {}),
     ...(panePicture ? { panePicture: (rect) => panePicture(rect) } : {}),
   }
 }

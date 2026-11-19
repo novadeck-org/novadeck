@@ -26,6 +26,7 @@ import {
   pagePictureChannel,
   panePictureChannel,
   pagePhoneChannel,
+  pageZoomChannel,
   portableChannel,
   portableStateChannel,
   quitAppChannel,
@@ -372,6 +373,16 @@ describe("a live page made a phone's", () => {
       return electron.exposed.pagePhone?.(7, false)
     })
     expect(await Promise.all(phones)).toEqual(answers.map(() => false))
+  })
+})
+
+describe("a live page zoomed out to fit", () => {
+  it("is asked for by the page's view id, and did only when the main process says so", async () => {
+    electron.answer = true
+    expect(await electron.exposed.pageZoom?.(7, 0.5)).toBe(true)
+    expect(electron.messages).toEqual([[pageZoomChannel, 7, 0.5]])
+    electron.answer = "true"
+    expect(await electron.exposed.pageZoom?.(7, 0.5)).toBe(false)
   })
 })
 

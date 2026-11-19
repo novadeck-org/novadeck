@@ -167,6 +167,7 @@ export type RunnerBackendOptions = {
   // Where the app loads a page afresh, out of sight, to picture it for an agent's look.
   readonly pageLook?: Looks["fresh"]
   readonly pagePhone?: NonNullable<Backend["companions"]>["phone"]
+  readonly pageZoom?: NonNullable<Backend["companions"]>["zoom"]
   readonly now?: () => number
   // Whether the runner keeps transcripts, as it said at startup; unknown when absent.
   readonly transcripts?: boolean
@@ -1981,6 +1982,7 @@ export const runnerBackend = (
       livePages: options.livePages === true,
       ...(options.pagePicture ? { picture: options.pagePicture } : {}),
       ...(options.pagePhone ? { phone: options.pagePhone } : {}),
+      ...(options.pageZoom ? { zoom: options.pageZoom } : {}),
       inOrder: items.inOrder,
     }),
     messages,

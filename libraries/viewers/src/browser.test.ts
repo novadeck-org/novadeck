@@ -5,6 +5,7 @@ import {
   fadeMs,
   freshenMs,
   keepMs,
+  minZoom,
   mountBrowser,
   scrollWaitMs,
   uncoverMs,
@@ -637,7 +638,8 @@ describe("the browser viewer", () => {
       const page = zoomed(pane)
       const drawn = page.getBoundingClientRect()
       const viewer = pane.querySelector(".browser-viewer")!.getBoundingClientRect()
-      const laid = (length: number) => Math.round((length / page.zoom) * 100) / 100
+      // To the pixel: zoomed a hair under its drawn width, it lays out a hair over its own.
+      const laid = (length: number) => Math.round(length / page.zoom)
       return {
         laid: [laid(page.offsetWidth), laid(page.offsetHeight)],
         // To the pixel: scaled, it can fall a hair short of one.
@@ -661,14 +663,28 @@ describe("the browser viewer", () => {
       const pane = paneIn()
       live(pane)
       const page = zoomed(pane)
-      expect(page.zoom).toBe(400 / desktopWidth)
+      expect(page.zoom).toBeCloseTo(400 / desktopWidth, 4)
+      // A hair under, so it lays out at least as wide as a desktop's window, never a pixel short.
+      expect(page.zoom).toBeLessThan(400 / desktopWidth)
+      expect(pane.querySelector(".browser-viewer")!.hasAttribute("data-zoomed")).toBe(true)
       expect(getComputedStyle(page).transform).toBe("none")
       expect([page.offsetWidth, page.offsetHeight]).toEqual([400, 300])
       // Zoomed again as it resizes, and not at all once it fills the viewer as it is.
       pane.style.width = "512px"
-      await expect.poll(() => page.zoom).toBe(0.5)
+      await expect.poll(() => page.zoom).toBeCloseTo(0.5, 4)
       pane.style.width = `${desktopWidth + 100}px`
       await expect.poll(() => page.zoom).toBe(1)
+      expect(pane.querySelector(".browser-viewer")!.hasAttribute("data-zoomed")).toBe(false)
+    })
+
+    it("zooms a page drawn between device pixels by its whole ones, so it lays out no narrower", async () => {
+      const pane = paneIn()
+      pane.style.width = "400.6px"
+      live(pane)
+      const page = zoomed(pane)
+      // Once its resize reports the fraction: 400 whole pixels, a hair under.
+      await expect.poll(() => page.zoom * desktopWidth).toBeCloseTo(400, 1)
+      expect(page.zoom * desktopWidth).toBeLessThan(400)
     })
 
     it("zooms a page each time it's ready, as one that attached late", () => {
@@ -677,7 +693,48 @@ describe("the browser viewer", () => {
       const page = zoomed(pane)
       page.zoom = 1
       page.dispatchEvent(event("dom-ready"))
-      expect(page.zoom).toBe(400 / desktopWidth)
+      expect(page.zoom).toBeCloseTo(400 / desktopWidth, 4)
+    })
+
+    it("has the app zoom its page, as a factor of its own zoom, where it can", async () => {
+      const pane = paneIn()
+      const asked: [number, number][] = []
+      let answer = true
+      mountBrowser(pane, {
+        content: { url: "http://localhost:5173/" },
+        label: "page",
+        live: true,
+        partition: "pages",
+        zoom: async (id, factor) => {
+          asked.push([id, factor])
+          return answer
+        },
+      })
+      const page = pageOf(pane) as HTMLElement & { zoom?: number }
+      Object.assign(page, {
+        getWebContentsId: () => 7,
+        setZoomFactor: (factor: number) => (page.zoom = factor),
+      })
+      page.dispatchEvent(event("did-attach"))
+      await expect.poll(() => asked.length).toBe(1)
+      expect(asked[0]![0]).toBe(7)
+      expect(asked[0]![1]).toBeCloseTo(400 / desktopWidth, 4)
+      expect(page.zoom).toBeUndefined()
+      // Where the app can't, the view zooms itself.
+      answer = false
+      page.dispatchEvent(event("dom-ready"))
+      await expect.poll(() => page.zoom).toBeCloseTo(400 / desktopWidth, 4)
+    })
+
+    it("scales a page down, not zooming it, past the least a page zooms", () => {
+      const pane = paneIn()
+      pane.style.width = `${desktopWidth * (minZoom / 2)}px`
+      live(pane)
+      const page = zoomed(pane)
+      expect(page.zoom).toBe(1)
+      expect(pane.querySelector(".browser-viewer")!.hasAttribute("data-zoomed")).toBe(false)
+      expect(getComputedStyle(page).transform).not.toBe("none")
+      expect(boxes(pane).laid[0]).toBe(desktopWidth)
     })
 
     it("fills a viewer as wide as a desktop's window, as it is", async () => {
@@ -715,7 +772,8 @@ describe("the browser viewer", () => {
       // Scaled down whole, not zoomed: a phone's emulated screen draws at its own size.
       expect(zoomed(pane).zoom).toBe(1)
       viewer.size("desktop")
-      expect(zoomed(pane).zoom).toBe((phoneScreen.width / 2 + 2 * room) / desktopWidth)
+      // So narrow a desktop's window is scaled down, past the least a page zooms.
+      expect(zoomed(pane).zoom).toBe(1)
       expect(boxes(pane).laid[0]).toBe(desktopWidth)
       expect(boxes(pane).drawn).toEqual([0, 0, phoneScreen.width / 2 + 2 * room, 1000])
       viewer.size("phone")
@@ -2183,22 +2241,37 @@ describe("the browser viewer", () => {
       expect(viewer.seen()).toBeUndefined()
       page.dispatchEvent(event("did-stop-loading"))
       page.dispatchEvent(event("page-title-updated", { title: "Work" }))
-      // 400 wide and 300 high, scaled down to fit from a desktop's 1024.
+      // 400 wide and 300 high: a phone's screen, scaled down whole to fit.
+      viewer.size("phone")
       expect(viewer.seen()).toEqual({
         page: 7,
         url: "http://localhost:5173/work",
         title: "Work",
-        width: desktopWidth,
-        height: Math.round(300 / (400 / desktopWidth)),
+        width: phoneScreen.width,
+        height: phoneScreen.height,
       })
-      viewer.size("phone")
-      expect(viewer.seen()).toMatchObject({ width: phoneScreen.width })
+    })
+
+    it("isn't seen zoomed out further than its picture has pixels for, where a fresh load is sharper", async () => {
+      const pane = paneIn()
+      const viewer = live(pane)
+      const page = attached(pane)
+      page.dispatchEvent(event("did-stop-loading"))
+      // 400 wide, a desktop's 1024 zoomed out into it: a picture 400 pixels across.
+      expect(window.devicePixelRatio).toBe(1)
+      expect(viewer.seen()).toBeUndefined()
+      // As wide as a desktop's window, as it is.
+      pane.style.width = `${desktopWidth + 100}px`
+      await expect
+        .poll(() => viewer.seen())
+        .toMatchObject({ width: desktopWidth + 100, height: 300 })
     })
 
     it("isn't seen while it loads, has failed, rests as its picture or is kept out of sight", () => {
       const pane = paneIn()
       const viewer = live(pane)
       const page = attached(pane)
+      viewer.size("phone")
       expect(viewer.seen()).toBeUndefined()
       page.dispatchEvent(event("did-stop-loading"))
       expect(viewer.seen()).toBeDefined()

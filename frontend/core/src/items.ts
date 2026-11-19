@@ -594,6 +594,9 @@ export type Companions = {
   // touched, with a phone's screen and browser; false when it can't. Absent where pages
   // don't load live, or the app can't: a page at a phone's size is then only as narrow.
   readonly phone?: (page: number, phone: boolean) => Promise<boolean>
+  // Zooms a live page's view, by its web contents id, by a factor of the app's own zoom, as
+  // its viewer zooms it out to fit; false when it can't. Absent where pages don't load live.
+  readonly zoom?: (page: number, factor: number) => Promise<boolean>
 }
 
 // Items with nothing to show, for a backend whose terminals have only their messages

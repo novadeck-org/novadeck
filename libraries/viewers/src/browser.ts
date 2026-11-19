@@ -83,6 +83,13 @@ export type BrowserOptions = {
    * one is named a phone's, for the app to make it one before it loads.
    */
   readonly phone?: (page: number, phone: boolean) => Promise<boolean>
+  /**
+   * Zooms the live page's view, by its web contents id, by `factor` of the app's own zoom,
+   * as the app's page is zoomed by the person (Ctrl+-): its view's zoom is its own, so the
+   * app sets it as the two together; false when it can't. Without it, the view is zoomed by
+   * `factor` alone.
+   */
+  readonly zoom?: (page: number, factor: number) => Promise<boolean>
   /** Whether a live page starts awake, as it does unless told; it rests only as a picture. */
   readonly awake?: boolean
   /** What a live page lays out as, a desktop's window unless told. */
@@ -121,7 +128,9 @@ export type BrowserViewer = Viewer<BrowserContent> & {
    * The live page as the person sees it now, for a picture of it to be taken: its view's web
    * contents id, where it is, its title, and the size it lays out at in CSS pixels. Undefined
    * unless the page is live, loaded and drawn on screen: not resting as its picture, not
-   * loading or failed, not kept out of sight.
+   * loading or failed, not kept out of sight; nor while it's zoomed out so far that a
+   * picture of it would have fewer device pixels across than it lays out, too small to read,
+   * where a fresh load at its size is sharper.
    */
   readonly seen: () => PageSeen | undefined
 }
@@ -234,6 +243,15 @@ const painting = (event: Event): void => {
   ;(event.currentTarget as HTMLElement).dataset.painting = ""
 }
 
+/**
+ * The least a page is zoomed out in its view: Chromium zooms no further than a quarter, and
+ * the app's own zoom can take it further still. Past it, the view is scaled instead.
+ */
+export const minZoom = 0.3
+// How far under its drawn width a zoomed page is zoomed, for the zoom's own rounding, so
+// it lays out at its framing's width, not a hair under.
+const zoomRounding = 1e-4
+
 /** How long a show's scroll waits for its element to appear once the page has loaded. */
 export const scrollWaitMs = 5_000
 
@@ -266,6 +284,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     partition,
     picture: take,
     phone: becomePhone,
+    zoom: zoomView,
     awake: startAwake,
     size: startSize,
     on,
@@ -429,17 +448,41 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   }
   // Where its phone is, for a press on the stage around it, not on it.
   let framed: Framing | undefined
-  // A desktop's page zoomed out as its framing says, once its view is attached, and a
-  // phone's not at all (browser.css scales it); dom-ready catches up with a view attached late.
+  // How far the page is zoomed in its view, of the app's own zoom: a desktop's zoomed out as
+  // its framing says, unless further than a page zooms (`minZoom`), which browser.css then
+  // scales instead, as it does a phone's. The view is as wide as it's drawn, to the device
+  // pixel down, so the page lays out at least as wide as its framing, never a pixel short of
+  // a breakpoint at its width; a hair under it, for the zoom's own rounding.
+  let zoomed = 1
+  const zoomFor = (framing: Framing | undefined): number => {
+    if (size !== "desktop" || !framing || framing.scale < minZoom) return 1
+    const ratio = win?.devicePixelRatio || 1
+    const drawn = Math.floor(framing.width * framing.scale * ratio) / ratio
+    return (drawn / framing.width) * (1 - zoomRounding)
+  }
+  // Its view zoomed so, once attached, by the app where it can, else by itself; dom-ready
+  // catches up with a view attached late.
   const zoom = (): void => {
     const view = page
-    if (view) attached(() => view.setZoomFactor(size === "desktop" ? (framed?.scale ?? 1) : 1))
+    if (!view) return
+    const factor = zoomed
+    const id = zoomView ? attached(() => view.getWebContentsId()) : undefined
+    if (zoomView && id !== undefined)
+      void zoomView(id, factor)
+        .catch(() => false)
+        .then((done) => {
+          if (!done && page === view) attached(() => view.setZoomFactor(factor))
+        })
+    else attached(() => view.setZoomFactor(factor))
   }
   const frame = (): void => {
     root.dataset.size = size
     const { width, height } = sizeNow()
     const framing = framingOf(size, width, height)
     framed = framing
+    zoomed = zoomFor(framing)
+    if (zoomed === 1) delete root.dataset.zoomed
+    else root.dataset.zoomed = ""
     const values: Record<string, string | undefined> = {
       "--browser-width": framing && `${framing.width}px`,
       "--browser-height": framing && `${framing.height}px`,
@@ -1067,6 +1110,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       if (id === undefined) return undefined
       const { width, height } = sizeNow()
       const framing = framingOf(size, width, height)
+      if (framing && zoomed < 1 && drawnWidth() * (win?.devicePixelRatio || 1) < framing.width)
+        return undefined
       return {
         page: id,
         url: attached(() => page!.getURL()) || place.url,

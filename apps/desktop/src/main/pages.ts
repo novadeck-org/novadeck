@@ -17,6 +17,7 @@ import {
   pictureForApp,
   pickPasskeys,
   watchPageRequests,
+  zoomPage,
 } from "@novadeck/viewers/browser/host"
 import { pageSignInChannel } from "@novadeck/viewers/browser/sign-in"
 import { pageRequestChannel } from "@novadeck/viewers/browser/trouble"
@@ -32,7 +33,12 @@ import {
   type WebContents,
 } from "electron"
 
-import { pageLookChannel, pagePhoneChannel, pagePictureChannel } from "../bridge.js"
+import {
+  pageLookChannel,
+  pagePhoneChannel,
+  pagePictureChannel,
+  pageZoomChannel,
+} from "../bridge.js"
 
 /** What `forgetWhenGone` needs of a page's contents: Electron's `WebContents`, or a test's. */
 type Forgettable = {
@@ -184,6 +190,11 @@ export const livePages = () => {
       ipcMain.handle(pagePhoneChannel, (event, id: unknown, phone: unknown) =>
         fromApp(event)
           ? phonePage(event.sender, id, phone, (page) => webContents.fromId(page))
+          : false,
+      )
+      ipcMain.handle(pageZoomChannel, (event, id: unknown, factor: unknown) =>
+        fromApp(event)
+          ? zoomPage(event.sender, id, factor, (page) => webContents.fromId(page))
           : false,
       )
     },

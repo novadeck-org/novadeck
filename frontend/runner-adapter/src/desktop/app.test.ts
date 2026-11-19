@@ -883,6 +883,7 @@ describe("what the desktop app gives the backend", () => {
       pagePicture: note("picture"),
       lookAtPage: note("look"),
       pagePhone: note("phone"),
+      pageZoom: note("zoom"),
       panePicture: note("pane picture"),
     } as unknown as DesktopApp)
     expect(options.livePages).toBe(true)
@@ -894,6 +895,7 @@ describe("what the desktop app gives the backend", () => {
     options.pagePicture!("page" as never, 640, true)
     options.pageLook!({ url: "https://example.com", layout: "phone", before: 1 })
     options.pagePhone!("page" as never, true as never)
+    options.pageZoom!("page" as never, 0.5)
     void options.panePicture!({ x: 1, y: 2, width: 300, height: 200 })
     expect(calls).toEqual([
       ["pick"],
@@ -903,6 +905,7 @@ describe("what the desktop app gives the backend", () => {
       ["picture", "page", 640, true],
       ["look", { url: "https://example.com", layout: "phone", before: 1 }],
       ["phone", "page", true],
+      ["zoom", "page", 0.5],
       ["pane picture", { x: 1, y: 2, width: 300, height: 200 }],
     ])
     // The parts the app lacks are left off, not set to undefined.

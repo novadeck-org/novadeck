@@ -56,6 +56,7 @@ import {
   pageLookChannel,
   pagePictureChannel,
   pagePhoneChannel,
+  pageZoomChannel,
   panePictureChannel,
   portableChannel,
   rendererPoolChannel,
@@ -428,6 +429,8 @@ const bridge = {
   // Only whether it did comes back; the main process checks the page is one of this page's.
   pagePhone: async (page, phone) =>
     (await ipcRenderer.invoke(pagePhoneChannel, page, phone)) === true,
+  pageZoom: async (page, factor) =>
+    (await ipcRenderer.invoke(pageZoomChannel, page, factor)) === true,
   pathForFile: (file) => {
     try {
       return webUtils.getPathForFile(file)
