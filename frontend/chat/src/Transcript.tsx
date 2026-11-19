@@ -5,21 +5,19 @@ import { shownControls } from "@novadeck/requests/shown-controls"
 import { Markdown } from "@novadeck/toolkit/Markdown"
 import { MentionedText } from "@novadeck/toolkit/Mentioned"
 import { mentionAt, type Mention } from "@novadeck/toolkit/mentions"
-import { memo, useId, useMemo, useRef } from "react"
+import { memo, useId, useMemo, useState } from "react"
 
 import { withBubbles, type SentBubble } from "./bubbles"
 import type { Echo } from "./echoes"
 import { Fact, Since, TimeFact } from "./Fact"
 import { longMs, span } from "./facts"
-import { MoreKey, useFold, useOutOfSight, useReplyFold } from "./fold"
-import { foldableReplies, mayFold } from "./long-replies"
+import { MoreKey, useFold } from "./fold"
 import { Mark } from "./Mark"
 import type { MarkPhase } from "./mark-phase"
 import { PersonWords, Shortened } from "./PersonWords"
 import { Slice } from "./Slice"
 import { ToolCalls } from "./ToolCalls"
 import { currentPrompt } from "./turn-holds"
-import { useOpen } from "./use-open"
 
 // What a turn the doorbell started brought: other agents' messages, and the person's own answers
 // through the Inbox, which are theirs and read as such.
@@ -88,7 +86,6 @@ const keyFocus = (target: EventTarget): boolean => {
 // Another agent's message: its face in the gutter, its handle and where it runs, its words. A
 // long one is cut to its first lines, with a key that says how many more.
 const PeerMessage = ({
-  id,
   from,
   text,
   truncated,
@@ -97,8 +94,6 @@ const PeerMessage = ({
   at,
   written = at,
 }: {
-  // What keeps whether the person opened it (see ./use-open).
-  readonly id: string
   // As the harness names it: "@handle" for a Novadeck agent.
   readonly from: string
   // When it was said, where the record says.
@@ -111,7 +106,7 @@ const PeerMessage = ({
   readonly mention: Mention | undefined
 }): React.JSX.Element => {
   const look = from.startsWith("@") ? (looks?.(from.slice(1), written) ?? null) : null
-  const [ref, fold] = useFold<HTMLDivElement>(text, `peer:${id}`)
+  const [ref, fold] = useFold<HTMLDivElement>(text)
   const { folds, open, setOpen } = fold
   return (
     <article
@@ -159,7 +154,7 @@ const SubagentLine = ({
   // The agent's session has ended: what still ran stopped with it, saying nothing more.
   readonly gone: boolean
 }): React.JSX.Element => {
-  const [open, setOpen] = useOpen(`subagent:${block.id}`, false)
+  const [open, setOpen] = useState(false)
   const body = useId()
   const running = block.running && !gone
   const stopped = block.running && gone
@@ -235,7 +230,6 @@ const SubagentLine = ({
 // A line of the record that is no one's words: a compaction, a part the chat can't read. It reads
 // as a tool line does, dim, and opens to what it holds, where it holds anything.
 const RecordLine = ({
-  id: key,
   kind,
   words,
   what,
@@ -244,8 +238,6 @@ const RecordLine = ({
   truncated,
   at = null,
 }: {
-  // What keeps whether the person opened it (see ./use-open).
-  readonly id: string
   readonly kind: "compaction" | "gap"
   readonly at?: number | null
   readonly words: string
@@ -254,7 +246,7 @@ const RecordLine = ({
   readonly body: string
   readonly truncated: boolean
 }): React.JSX.Element => {
-  const [open, setOpen] = useOpen(`record:${key}`, false)
+  const [open, setOpen] = useState(false)
   const id = useId()
   const opens = body !== ""
   const line = (
@@ -308,43 +300,6 @@ const RecordLine = ({
   )
 }
 
-// An agent's reply that may fold (Preferences > Experimental > Fold long replies): past
-// `replyFoldedAt` lines it shows its first parts, and a key the rest, as a long message does.
-// It folds only once it's out of sight, never under the person's eyes: a reply they scrolled up
-// to read again stays whole as the next turn ends, until they scroll away from it.
-const ReplyWords = ({
-  id,
-  text,
-  truncated,
-  mention,
-}: {
-  readonly id: string
-  readonly text: string
-  readonly truncated: boolean
-  readonly mention: Mention | undefined
-}): React.JSX.Element => {
-  const ref = useRef<HTMLDivElement>(null)
-  const away = useOutOfSight(ref)
-  const fold = useReplyFold(ref, text, `reply:${id}`, away)
-  const { folds, open, setOpen } = fold
-  return (
-    <>
-      <div
-        ref={ref}
-        id={fold.id}
-        className="chat-words"
-        {...fold.cut}
-        // As a long message's: keys taking focus into the cut-off lines open the rest.
-        onFocus={folds && !open ? (event) => keyFocus(event.target) && setOpen(true) : undefined}
-      >
-        <Markdown text={text} mention={mention} />
-      </div>
-      {truncated && <Shortened />}
-      <MoreKey fold={fold} />
-    </>
-  )
-}
-
 // Whether a block draws other agents, and so their looks.
 const showsPeers = (block: ChatBlock): boolean =>
   block.kind === "agent" || (block.kind === "doorbell" && fromAgents(block).length > 0)
@@ -368,10 +323,7 @@ const BlockView = memo(
     gone,
     worked,
     phase,
-    folds,
   }: {
-    // An agent's reply that folds once it runs long (see ./long-replies).
-    readonly folds: boolean
     readonly worked: number | null
     // The window's phase, on the mark of the prompt that started the latest turn.
     readonly phase: MarkPhase | undefined
@@ -410,19 +362,8 @@ const BlockView = memo(
             data-thinking={block.thinking || undefined}
             aria-label={block.thinking ? `${agent}, summary` : agent}
           >
-            {folds ? (
-              <ReplyWords
-                id={block.id}
-                text={block.text}
-                truncated={block.truncated}
-                mention={mentionAt(mention, block.at)}
-              />
-            ) : (
-              <>
-                <Markdown text={block.text} mention={mentionAt(mention, block.at)} />
-                {block.truncated && <Shortened />}
-              </>
-            )}
+            <Markdown text={block.text} mention={mentionAt(mention, block.at)} />
+            {block.truncated && <Shortened />}
             {block.thinking && (
               // The agent's update as its terminal shows it, which tags it "summary" after the
               // words, dim: its thinking, not its reply.
@@ -441,7 +382,6 @@ const BlockView = memo(
       case "agent":
         return (
           <PeerMessage
-            id={block.id}
             from={block.author}
             text={block.text}
             truncated={block.truncated}
@@ -476,7 +416,6 @@ const BlockView = memo(
             {fromAgents(block).map((message, index) => (
               <PeerMessage
                 key={message.id}
-                id={message.id}
                 from={handleOf(message.from)}
                 text={message.text}
                 truncated={false}
@@ -516,7 +455,6 @@ const BlockView = memo(
       case "compaction":
         return (
           <RecordLine
-            id={block.id}
             kind="compaction"
             words="compacted"
             what="the conversation"
@@ -530,7 +468,6 @@ const BlockView = memo(
       case "gap":
         return (
           <RecordLine
-            id={block.id}
             kind="gap"
             words="part of the record the chat can't read"
             said={null}
@@ -549,7 +486,6 @@ const BlockView = memo(
   (before, after) =>
     before.agent === after.agent &&
     before.live === after.live &&
-    before.folds === after.folds &&
     before.worked === after.worked &&
     before.phase === after.phase &&
     before.personFace === after.personFace &&
@@ -667,8 +603,6 @@ const EchoView = ({ echo }: { readonly echo: Echo }): React.JSX.Element => (
   </div>
 )
 
-const noReplies: ReadonlySet<string> = new Set()
-
 // The blocks of a conversation, in order, with the person's prompts not in the record yet and
 // the commands they ran through a harness's own menu among them (see `withBubbles`).
 export const Transcript = ({
@@ -682,7 +616,6 @@ export const Transcript = ({
   mention: given,
   personFace,
   phase,
-  foldReplies = false,
   onResend,
   onEdit,
   onShowTerminal,
@@ -704,17 +637,11 @@ export const Transcript = ({
   readonly personFace?: React.ReactNode
   // The window's phase, which the mark of the prompt that started the latest turn wears.
   readonly phase?: MarkPhase | undefined
-  // Whether the agent's long replies fold, all but its latest (Preferences > Experimental).
-  readonly foldReplies?: boolean
 }): React.JSX.Element => {
   const last = blocks.at(-1)
   const fromLooks = useMemo(() => mentionOf(looks), [looks])
   const mention = given ?? fromLooks
   const current = useMemo(() => currentPrompt(blocks), [blocks])
-  const foldable = useMemo(
-    () => (foldReplies ? foldableReplies(blocks, working) : noReplies),
-    [foldReplies, blocks, working],
-  )
   const worked = useMemo(() => turnsWorked(blocks, working), [blocks, working])
   const actions = useMemo(
     () => ({ onResend, onEdit, onShowTerminal }),
@@ -737,11 +664,6 @@ export const Transcript = ({
             gone={gone}
             worked={longWork(worked.get(each.block.id))}
             phase={each.block.id === current ? phase : undefined}
-            folds={
-              each.block.kind === "assistant" &&
-              foldable.has(each.block.id) &&
-              mayFold(each.block.text)
-            }
           />
         ) : (
           <SentView

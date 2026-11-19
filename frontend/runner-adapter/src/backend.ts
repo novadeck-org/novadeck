@@ -171,6 +171,7 @@ export type RunnerBackendOptions = {
   readonly pageLook?: Looks["fresh"]
   readonly pagePhone?: NonNullable<Backend["companions"]>["phone"]
   readonly pageZoom?: NonNullable<Backend["companions"]>["zoom"]
+  readonly pageLoupe?: NonNullable<Backend["companions"]>["loupe"]
   readonly now?: () => number
   // Whether the runner keeps transcripts, as it said at startup; unknown when absent.
   readonly transcripts?: boolean
@@ -1986,6 +1987,7 @@ export const runnerBackend = (
       ...(options.pagePicture ? { picture: options.pagePicture } : {}),
       ...(options.pagePhone ? { phone: options.pagePhone } : {}),
       ...(options.pageZoom ? { zoom: options.pageZoom } : {}),
+      ...(options.pageLoupe ? { loupe: options.pageLoupe } : {}),
       inOrder: items.inOrder,
     }),
     messages,

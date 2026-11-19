@@ -170,6 +170,87 @@ describe("Claude Code's clear hint", () => {
   })
 })
 
+describe("the words of a queued message, from 2.1.328 on, which Up brings back as a placeholder", () => {
+  // The screen of 2.1.328 at 120 columns (probed 2026-11-19, e2e/interrupt.e2e.ts, a five-line
+  // message queued behind a held turn), its rows as they stood above the box.
+  const frame = (above: readonly string[]): ScreenText => {
+    const wide = "─".repeat(120)
+    const all = [
+      ...above,
+      "· Flibbertigibbeting… (1s · ↓ 1 tokens)",
+      wide,
+      "❯ Press up to edit queued messages",
+      wide,
+    ]
+    return {
+      rows: all,
+      bright: all,
+      columns: 120,
+      cursor: { row: all.length - 2, column: 2 },
+      bracketedPaste: true,
+      alternate: false,
+    }
+  }
+  const hint = "  ⎿  Queued · ctrl+x ctrl+s to send now"
+  const shown = (above: readonly string[]) => box.takeQueued!.shown!(frame(above))
+
+  it("reads the lines of the one message queued", () => {
+    expect(
+      shown([
+        "❯ Hold on",
+        "",
+        "❯ Queued beta",
+        "  second line",
+        "  third line",
+        "  fourth line",
+        "  fifth line",
+        hint,
+      ]),
+    ).toEqual(["Queued beta", "second line", "third line", "fourth line", "fifth line"])
+  })
+
+  it("keeps a blank line, and the indent a line itself has", () => {
+    expect(shown(["❯ Hold on", "", "❯ one", "", "      indented", hint])).toEqual([
+      "one",
+      "",
+      "    indented",
+    ])
+  })
+
+  it("reads none where two messages are queued", () => {
+    expect(shown(["❯ Hold on", "", "❯ a", "  b", hint, "", "❯ c", "  d", hint])).toBeUndefined()
+  })
+
+  it("reads none where another message stands under the hint, with none of its own", () => {
+    expect(shown(["❯ Hold on", "", "❯ a", "  b", hint, "❯ c", "  d"])).toBeUndefined()
+    expect(shown(["❯ Hold on", "", "❯ a", "  b", hint, "", "❯ c"])).toBeUndefined()
+  })
+
+  it("tells whether a queued message's hint still shows above the box", () => {
+    const { waiting } = box.takeQueued!
+    expect(waiting!(frame(["❯ Hold on", "", "❯ a", "  b", hint]))).toBe(true)
+    expect(waiting!(frame(["❯ Hold on", "", "❯ a", "  b"]))).toBe(false)
+  })
+
+  it("reads none where nothing is queued or no message leads the row", () => {
+    expect(shown(["❯ Hold on", "", "● Held reply."])).toBeUndefined()
+    expect(shown(["● Held reply.", hint])).toBeUndefined()
+  })
+
+  it("reads none where a row between does not continue the message", () => {
+    expect(shown(["❯ a", "● elsewhere", hint])).toBeUndefined()
+  })
+
+  it("names the lines a placeholder stands for, where it counts them", () => {
+    const { stands } = box.takeQueued!
+    expect(stands!("[Pasted text #1 +4 lines]")).toBe(4)
+    expect(stands!("[Pasted text #12 +29 lines]")).toBe(29)
+    expect(stands!("[Pasted text #1]")).toBeUndefined()
+    expect(stands!("[Pasted text #1 +4 lines] and more")).toBeUndefined()
+    expect(stands!("Queued beta")).toBeUndefined()
+  })
+})
+
 describe("its status row, as a turn ends and one its queue starts begins", () => {
   // Frames of 2.1.316 at 70x40 (2026-11-07, e2e/probes/queued-busy.e2e.ts), one queued prompt.
   const frame = (rows: { readonly [row: number]: string }, field = "❯"): ScreenText => {

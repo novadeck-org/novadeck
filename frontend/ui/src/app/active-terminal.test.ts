@@ -37,7 +37,6 @@ const setup = () => {
         agentAvatars: false,
         onboardingTour: false,
         appScale: 100,
-        foldLongReplies: false,
         sound: true,
         soundVolume: 0.6,
         soundChoice: "theme",

@@ -86,7 +86,6 @@ const uiWith = (appearance: PreferencesValue["appearance"]): UiStore =>
         agentAvatars: false,
         onboardingTour: false,
         appScale: 100,
-        foldLongReplies: false,
       },
     }),
   )

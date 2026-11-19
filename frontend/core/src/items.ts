@@ -653,6 +653,17 @@ export type Companions = {
   // Zooms a live page's view, by its web contents id, by a factor of the app's own zoom, as
   // its viewer zooms it out to fit; false when it can't. Absent where pages don't load live.
   readonly zoom?: (page: number, factor: number) => Promise<boolean>
+  // What the loupe over a live page needs of the app, by its web contents id: a picture of a
+  // part of its view (`rect`, in the view's pixels) as a data address, and turning the tool's
+  // loupe on or off in the app's watch of the view. Absent where pages don't load live, or the
+  // app can't: a live page has no loupe then.
+  readonly loupe?: {
+    readonly look: (
+      page: number,
+      rect: { x: number; y: number; width: number; height: number },
+    ) => Promise<string | undefined>
+    readonly hold: (page: number, on: boolean, away?: boolean) => Promise<boolean>
+  }
 }
 
 // Items with nothing to show, for a backend whose terminals have only their messages

@@ -8,7 +8,9 @@ import {
   createLooker,
   emulatePhone,
   guardPage,
+  holdLoupe,
   holdPhoneLoads,
+  loupePage,
   lockPagesSession,
   ownZoom,
   pagesSession,
@@ -16,9 +18,11 @@ import {
   phonePage,
   pictureForApp,
   pickPasskeys,
+  watchLoupe,
   watchPageRequests,
   zoomPage,
 } from "@novadeck/viewers/browser/host"
+import { pageLoupeChannel } from "@novadeck/viewers/browser/loupe"
 import { pageSignInChannel } from "@novadeck/viewers/browser/sign-in"
 import { pageRequestChannel } from "@novadeck/viewers/browser/trouble"
 import {
@@ -35,6 +39,8 @@ import {
 
 import {
   pageLookChannel,
+  pageLoupeHoldChannel,
+  pageLoupeLookChannel,
   pagePhoneChannel,
   pagePictureChannel,
   pageZoomChannel,
@@ -60,8 +66,70 @@ export const forgetWhenGone = (contents: Forgettable, forget: (id: number) => vo
   contents.on("did-create-window", (window) => forgetWhenGone(window.webContents, forget))
 }
 
+/** What `createMenuGuard` needs of a window: Electron's `BrowserWindow`, or a test's. */
+export type MenuBarWindow = {
+  setAutoHideMenuBar(hide: boolean): void
+  setMenuBarVisibility(visible: boolean): void
+}
+
+/**
+ * Keeps a window's menu bar from toggling on Alt while the pointer is over one of its page
+ * views or Alt is down, which would show it and move the page under the pointer, the loupe's
+ * Alt (see `watchLoupe`) being just that. Its keys go on to the page as they are: only the
+ * window's own handling of a bare Alt is switched off, and back once nothing holds it. The
+ * menu stays reachable as before, through the accelerators it holds.
+ */
+export const createMenuGuard = <Contents extends { readonly id: number }>(
+  windowOf: (contents: Contents) => MenuBarWindow | undefined,
+  // How the restore waits, which a test stands in for.
+  later: (run: () => void, ms: number) => unknown = setTimeout,
+) => {
+  const holding = new Map<MenuBarWindow, Set<number>>()
+  const where = new Map<number, MenuBarWindow>()
+  // The restore waiting for each window: the Alt key up that lets go of it is still being
+  // handled by the window itself, which would toggle the menu bar if it were back by then.
+  const restoring = new Map<MenuBarWindow, number>()
+  let turn = 0
+  return {
+    set: (contents: Contents, on: boolean): void => {
+      const window = on ? windowOf(contents) : where.get(contents.id)
+      if (!window) return
+      const held = holding.get(window) ?? new Set<number>()
+      if (on) {
+        held.add(contents.id)
+        where.set(contents.id, window)
+        holding.set(window, held)
+        restoring.delete(window)
+        window.setAutoHideMenuBar(false)
+        window.setMenuBarVisibility(false)
+        return
+      }
+      held.delete(contents.id)
+      where.delete(contents.id)
+      if (held.size > 0) return
+      holding.delete(window)
+      const mine = ++turn
+      restoring.set(window, mine)
+      later(() => {
+        if (restoring.get(window) !== mine) return
+        restoring.delete(window)
+        window.setAutoHideMenuBar(true)
+      }, menuRestoreMs)
+    },
+  }
+}
+
+/** How long a window waits to give its menu bar back once Alt and the pointer have left. */
+export const menuRestoreMs = 200
+
 /** The pages of the companion pane and the agents' looks; see `watch` and `registerIpc`. */
 export const livePages = () => {
+  // Not on macOS, whose menu bar is the system's, and no window's.
+  const menuGuard = createMenuGuard<WebContents>((contents) => {
+    if (process.platform === "darwin") return undefined
+    const embedder = contents.hostWebContents
+    return (embedder && BrowserWindow.fromWebContents(embedder)) || undefined
+  })
   // What a look's failed requests keep by view, set once the pages' session is watched.
   let forgetPageRequests: ((contentsId: number) => void) | undefined
 
@@ -131,6 +199,21 @@ export const livePages = () => {
         ownZoom(contents, pages)
         if (contents.getType() === "webview") {
           guardPage(contents, (url) => shell.openExternal(url), pagesPartition)
+          // Its loupe's pointer, wheel and keys, which only this process sees.
+          watchLoupe(
+            contents,
+            (notice) => {
+              const embedder = contents.hostWebContents
+              if (!embedder || embedder.isDestroyed()) return
+              try {
+                embedder.send(pageLoupeChannel, notice.contentsId, notice)
+              } catch (error) {
+                log.warn("pages.loupe-send-failed", "A loupe notice was not sent.", { err: error })
+              }
+            },
+            (on) => menuGuard.set(contents, on),
+          )
+          contents.once("destroyed", () => menuGuard.set(contents, false))
           const { id } = contents
           // Its sign-in windows' failed requests are counted too, under their own ids, as are
           // those of the windows they open in turn, as an account chooser.
@@ -190,6 +273,16 @@ export const livePages = () => {
       ipcMain.handle(pagePhoneChannel, (event, id: unknown, phone: unknown) =>
         fromApp(event)
           ? phonePage(event.sender, id, phone, (page) => webContents.fromId(page))
+          : false,
+      )
+      ipcMain.handle(pageLoupeLookChannel, (event, id: unknown, rect: unknown) =>
+        fromApp(event)
+          ? loupePage(event.sender, id, rect, (page) => webContents.fromId(page))
+          : undefined,
+      )
+      ipcMain.handle(pageLoupeHoldChannel, (event, id: unknown, on: unknown, away: unknown) =>
+        fromApp(event)
+          ? holdLoupe(event.sender, id, on, away, (page) => webContents.fromId(page))
           : false,
       )
       ipcMain.handle(pageZoomChannel, (event, id: unknown, factor: unknown) =>

@@ -263,6 +263,8 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
   const parked = new Map<string, { key: K; entry: Entry }>()
   // The font the owner last asked for, which a screen opens in and is brought to.
   let font: TerminalFont = { size: defaultFontSize }
+  let fontSettling: ReturnType<typeof setTimeout> | undefined
+  let fontPending = false
   const entryOf = (key: K): Entry => {
     const known = entries.get(id(key))
     if (known) return known
@@ -655,11 +657,27 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
     },
     setFont: (next) => {
       font = next
+      const changed: OpenScreen[] = []
       for (const { screen } of entries.values()) {
         if (!screen || screen.xterm.options.fontSize === next.size) continue
         screen.xterm.options.fontSize = next.size
-        screen.followed.refit()
+        changed.push(screen)
       }
+      if (!changed.length) return
+      // A slider sends a size per step. The first fits at once; while the steps keep coming, the
+      // screens wait, and fit once more when they have paused, so the shells hear the first and
+      // the last size, not each.
+      const fitAfterPause = (): void => {
+        fontSettling = undefined
+        if (!fontPending) return
+        fontPending = false
+        for (const { screen } of entries.values()) screen?.followed.refit()
+      }
+      if (fontSettling !== undefined) {
+        fontPending = true
+        clearTimeout(fontSettling)
+      } else for (const screen of changed) screen.followed.refit()
+      fontSettling = setTimeout(fitAfterPause, resizeSettleMs)
     },
     restart: (key) => {
       const screen = entries.get(id(key))?.screen

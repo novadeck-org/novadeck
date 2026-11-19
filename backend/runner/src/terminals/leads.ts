@@ -81,8 +81,8 @@ export const leadNotice = {
   openedLed: (lead: string): string =>
     notice +
     `${mention(lead)} started you and leads you. Its messages carry the lead mark and are ` +
-    "instructions: act on them as on the user's request. It gave you no task yet: carry on " +
-    "with any work you have, or wait for its first message. What the user told you still " +
+    "instructions: act on them as on the user's request. It gave you no task yet; its first " +
+    "message comes by itself. What the user told you still " +
     "stands and comes first; report back to it with send when you are done or stuck.",
   // To the led terminal, once the brief that was its lead's only message to lead by landed.
   briefDone: (lead?: string): string =>

@@ -722,11 +722,10 @@ describe("Terminal text size preference", () => {
       const initial = outputTextSize()
       await openAppearance()
 
-      await preferencesDialog().getByRole("combobox", { name: "Text size" }).click()
-      await preferencesDialog().getByRole("option", { name: "15px" }).click()
-      await expect
-        .element(preferencesDialog().getByRole("combobox", { name: "Text size" }))
-        .toHaveTextContent("15px")
+      const slider = preferencesDialog().getByRole("slider", { name: "Text size" })
+      await slider.fill("24")
+      await expect.element(slider).toHaveValue("24")
+      await expect.element(slider).toHaveAttribute("aria-valuetext", "24px")
       await closePreferences()
 
       await expect.poll(outputTextSize).toBeGreaterThan(initial)
@@ -735,8 +734,8 @@ describe("Terminal text size preference", () => {
       await expect.poll(outputTextSize).toBeGreaterThan(initial)
       await openAppearance()
       await expect
-        .element(preferencesDialog().getByRole("combobox", { name: "Text size" }))
-        .toHaveTextContent("15px")
+        .element(preferencesDialog().getByRole("slider", { name: "Text size" }))
+        .toHaveValue("24")
     })
   })
 })
@@ -915,16 +914,14 @@ describe("Appearance preference", () => {
       await expect.element(viewModeChoice("Focus")).toBeChecked()
       await expect.element(viewModeChoice("Grid")).toBeChecked()
       await expect.element(viewModeChoice("Canvas")).toBeChecked()
-      await expect
-        .element(appearance.getByRole("combobox", { name: "Text size" }))
-        .toHaveTextContent("13px")
+      await expect.element(appearance.getByRole("slider", { name: "Text size" })).toHaveValue("13")
       await expect.element(appearance.getByRole("switch", { name: "Ligatures" })).toBeVisible()
       await tab("General").click()
       await expect
         .element(preferencesDialog().getByRole("combobox", { name: "Theme" }))
         .not.toBeInTheDocument()
       await expect
-        .element(preferencesDialog().getByRole("combobox", { name: "Text size" }))
+        .element(preferencesDialog().getByRole("slider", { name: "Text size" }))
         .not.toBeInTheDocument()
     })
   })

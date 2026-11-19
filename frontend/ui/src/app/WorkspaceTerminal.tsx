@@ -7,7 +7,6 @@ import {
   chatSendsOf,
   chatShellsOf,
   chatShown,
-  openedMemory,
 } from "@novadeck/chat/state"
 import { useBoxHandover } from "@novadeck/chat/use-box-handover"
 import { useChat } from "@novadeck/chat/use-chat"
@@ -76,7 +75,7 @@ import {
 } from "./selectors"
 import { useFoldTeam } from "./team-fold"
 import { useBarShells, useShellsHome, useTerminalBar } from "./terminal-bar"
-import { agentAvatarsOn, chatViewOn, foldLongRepliesOn } from "./ui-store"
+import { agentAvatarsOn, chatViewOn } from "./ui-store"
 import { useWorktreesShown } from "./use-worktrees-shown"
 import { useTerminalMarks } from "./useTerminalMarks"
 
@@ -307,7 +306,6 @@ export const WorkspaceTerminal = memo(
     // A terminal whose agent has a conversation to show, with the chat view on (an
     // experimental feature), on a backend that reads it.
     const chatView = useUiState(chatViewOn)
-    const foldReplies = useUiState(foldLongRepliesOn)
     // Listen before showing chat: an agent without reported activity can still have a
     // bound conversation. A program name or an empty, loaded transcript alone is no session.
     const available = chatView && chatAvailable(terminal)
@@ -340,11 +338,6 @@ export const WorkspaceTerminal = memo(
       chatImageNoteOf(state.imageNotes, chatContext, terminalId),
     )
     const shells = useChat(chat, (state) => chatShellsOf(state.shells, chatContext, terminalId))
-    // What the person opened and shut in the chat, kept as its rows go and come back.
-    const opened = useMemo(
-      () => openedMemory(chat, chatContext, terminalId),
-      [chat, chatContext, terminalId],
-    )
     const conversation = showChat ? candidate : undefined
     // The terminal's shells item, wherever it sits, whose pane the chat's shell lines open, and
     // whose output gives each its last line, which the lines follow themselves.
@@ -446,8 +439,6 @@ export const WorkspaceTerminal = memo(
                     onReplyTo={(to) => commands.setChatReply(chatContext, terminalId, to)}
                     sending={sending}
                     shells={shells}
-                    opened={opened}
-                    foldReplies={foldReplies}
                     shellTails={shellTails}
                     onOpenShell={onOpenShell}
                     attachments={attachments}

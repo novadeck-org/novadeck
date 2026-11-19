@@ -104,7 +104,6 @@ const backgrounded = (notifyNeeds = true) => {
       agentAvatars: false,
       onboardingTour: false,
       appScale: 100,
-      foldLongReplies: false,
     },
   })
   return createUiStore({ ...base, pageFocused: false })

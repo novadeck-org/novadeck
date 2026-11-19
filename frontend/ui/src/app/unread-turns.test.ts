@@ -83,7 +83,6 @@ const setup = ({
       agentAvatars: false,
       onboardingTour: false,
       appScale: 100,
-      foldLongReplies: false,
     },
   })
   const ui = createUiStore({ ...initial, pageFocused: focused })

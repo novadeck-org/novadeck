@@ -22,7 +22,6 @@ const preferences: PreferencesValue = {
   agentAvatars: false,
   onboardingTour: false,
   appScale: 100,
-  foldLongReplies: false,
 }
 const panels = availablePanels(true)
 const base = "/projects/project/sessions/initial/grid"

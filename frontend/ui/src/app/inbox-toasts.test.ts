@@ -81,7 +81,6 @@ const setup = (items: InboxRow[] = [], pings = true) => {
         agentAvatars: false,
         onboardingTour: false,
         appScale: 100,
-        foldLongReplies: false,
       },
     }),
   )

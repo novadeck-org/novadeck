@@ -70,7 +70,6 @@ export const openCommands = ({
     agentAvatars: false,
     onboardingTour: false,
     appScale: 100,
-    foldLongReplies: false,
   },
   desktop = true,
   canvas,

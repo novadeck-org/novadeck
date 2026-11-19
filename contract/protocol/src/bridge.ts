@@ -292,6 +292,23 @@ export type DesktopBridge = {
    * the asking page. Absent from apps that came before it.
    */
   pageZoom?(page: number, factor: number): Promise<boolean>
+  /**
+   * A picture of part of a live page's view, by its view's `getWebContentsId()`, `rect` in the
+   * view's pixels (whole numbers, inside it), as a JPEG `data:` address at the density it is
+   * drawn at, for the loupe over the page to magnify; nothing for anything but a page view of
+   * the asking page. Absent from apps that came before it.
+   */
+  pageLoupe?(
+    page: number,
+    rect: { x: number; y: number; width: number; height: number },
+  ): Promise<string | undefined>
+  /**
+   * Turns the tool's loupe over a live page's view on or off, by its view's id, or, with
+   * `away`, tells it the viewer is out of sight, with no pointer over it; the loupe's pointer
+   * and keys are followed in the main process, which tells the page of them.
+   * False for anything but a page view of the asking page. Absent from apps that came before it.
+   */
+  pageLoupeHold?(page: number, on: boolean, away?: boolean): Promise<boolean>
 }
 
 /** What `DesktopBridge.lookAtPage` answers: a look at a page, or why there is none. */

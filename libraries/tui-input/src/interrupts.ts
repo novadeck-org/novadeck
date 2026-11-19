@@ -63,6 +63,12 @@ export type InterruptHost = {
    * can give back: only then may the text come out without them. Omitted where none are.
    */
   readonly ownImages?: (terminalId: string, text: string) => boolean
+  /**
+   * The words of the one prompt Novadeck gave that waits queued behind the turn, as it gave
+   * them, where its lines are exactly `lines`; undefined where none or more than one is. Omitted
+   * where none are known.
+   */
+  readonly queuedWords?: (terminalId: string, lines: readonly string[]) => string | undefined
 }
 
 /**
@@ -175,7 +181,8 @@ export class Interrupts {
     let looked = profile ? await host.screen(terminalId) : undefined
     if (profile?.takeQueued && looked && takesQueue(profile, looked)) {
       const taking = await this.takeQueue(terminalId, profile, entry)
-      if (taking.hold) return await this.takenBack(terminalId, profile, taking.hold, escaped)
+      if (taking.hold)
+        return await this.takenBack(terminalId, profile, taking.hold, escaped, taking.shown)
       // Not taken: what follows goes by the screen as it is now.
       looked = taking.screen
     }
@@ -276,7 +283,12 @@ export class Interrupts {
     terminalId: string,
     profile: BoxProfile,
     entry: InputEntry | undefined,
-  ): Promise<{ readonly hold?: InputHold; readonly screen: ScreenText | undefined }> {
+  ): Promise<{
+    readonly hold?: InputHold
+    readonly screen: ScreenText | undefined
+    /** The lines of the one message the screen showed queued before the keys, where it showed that. */
+    readonly shown?: readonly string[] | undefined
+  }> {
     const { host } = this
     const { keys, recalled, leave } = profile.takeQueued!
     // As long as the keys may take, and then all a clear may.
@@ -298,6 +310,7 @@ export class Interrupts {
       hold?.settle()
       throw error
     }
+    const shown = profile.takeQueued!.shown?.(screen)
     host.write(terminalId, keys)
     const until = Date.now() + this.restoreMs
     while (Date.now() < until) {
@@ -313,7 +326,7 @@ export class Interrupts {
         break
       }
       const box = profile.read(screen)
-      if (box !== undefined && !isEmpty(box)) return { hold: hold ?? inert, screen }
+      if (box !== undefined && !isEmpty(box)) return { hold: hold ?? inert, screen, shown }
     }
     hold?.settle()
     // What the hold let go is on its way to the box: the look at it mustn't miss that, or the
@@ -331,6 +344,7 @@ export class Interrupts {
     profile: BoxProfile,
     hold: InputHold,
     escaped: () => void,
+    shown?: readonly string[],
   ): Promise<InterruptOutcome> {
     const { host } = this
     try {
@@ -343,13 +357,16 @@ export class Interrupts {
       if (!host.alive(terminalId)) return { returned: undefined }
       if (box === undefined) throw new BoxNotCleared()
       if (isEmpty(box)) return { returned: undefined }
-      const rows = (await host.screen(terminalId))?.rows.length ?? 0
+      const after = await host.screen(terminalId)
+      const rows = after?.rows.length ?? 0
       // Words it can't give back whole stay in the box, and are said.
       const erase = box.mode === "shell" ? profile.shell.leave : profile.erase
+      // A placeholder is given back only as the words it is proven to stand for.
+      const proven = this.proven(terminalId, profile, box, shown, after)
       if (
         !erase ||
-        profile.collapsed(box) ||
-        profile.stands(this.words(terminalId, box.text)) ||
+        (proven === undefined &&
+          (profile.collapsed(box) || profile.stands(this.words(terminalId, box.text)))) ||
         hidesText(profile, box, rows)
       )
         throw new BoxNotCleared()
@@ -358,10 +375,37 @@ export class Interrupts {
       // more. These keys stop nothing and open nothing, whenever they land.
       const gone = await this.cleared(terminalId, profile, box, undefined, hold, erase)
       if (gone === undefined) throw new BoxNotCleared()
-      return { returned: wordsOf(gone) }
+      return { returned: proven ?? wordsOf(gone) }
     } finally {
       hold.settle()
     }
+  }
+
+  /**
+   * The words a box holding only a placeholder stands for, where all of these agree: the box
+   * is nothing but the placeholder, and its count of lines is those of the one message the
+   * screen showed queued before the keys that took it back, and the host knows exactly one
+   * prompt of its own queued with those lines, none with image marks, and the screen after the
+   * keys shows no message queued still. Anything less (a paste of the person's, two messages,
+   * a row that wrapped, a placeholder with no count) proves nothing, and the words stay in the box.
+   */
+  private proven(
+    terminalId: string,
+    profile: BoxProfile,
+    box: InputBox,
+    shown: readonly string[] | undefined,
+    after: ScreenText | undefined,
+  ): string | undefined {
+    const taking = profile.takeQueued
+    const count = taking?.stands?.(box.text)
+    if (box.mode !== "prompt" || !shown || count === undefined || !profile.collapsed(box))
+      return undefined
+    if (shown.length !== count + 1) return undefined
+    // The queue came whole into the box: no message is still shown queued.
+    if (!taking?.waiting || !after || taking.waiting(after)) return undefined
+    const words = this.host.queuedWords?.(terminalId, shown)
+    // Image marks in them are read as images by whoever takes the words back, which would drop them.
+    return words === undefined || hasImages(words) ? undefined : words
   }
 
   /** The box's text without its images, where all of them are Novadeck's own. */

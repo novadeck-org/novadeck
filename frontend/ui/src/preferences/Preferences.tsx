@@ -26,6 +26,7 @@ import { ForgeSwitches } from "./ForgeSwitches"
 import { murmurDescription } from "./murmur-addon"
 import { MurmurAddon, type MurmurAddonValue } from "./MurmurAddon"
 import {
+  fontSizeRange,
   preferencesTabs,
   settingRowClasses,
   settingsCardClasses,
@@ -57,8 +58,6 @@ const agentPresentations = [
 ] as const
 
 const scaleItems = appScales.map((scale) => ({ label: `${scale}%`, value: String(scale) }))
-
-const fontSizes = [12, 13, 15].map((size) => ({ label: `${size}px`, value: String(size) }))
 
 // Screen reader support's choices: Automatic only where the app can tell when one runs. Plain
 // words, as the menu is as wide as its button; the row's description says what they do.
@@ -349,15 +348,6 @@ export const Preferences = ({
         "Show each terminal's critter from Messages in its tab and window header. On a zoomed-out Canvas, it grows so you can still tell windows apart.",
       checked: value.agentAvatars,
       onToggle: (agentAvatars: boolean) => onChange({ ...value, agentAvatars }),
-      disabled: false,
-    },
-    {
-      id: "fold-long-replies",
-      label: "Fold long replies",
-      description:
-        "In Agent Chat, an agent's older long replies show their opening lines and a key for the rest. Its latest reply always shows in full.",
-      checked: value.foldLongReplies,
-      onToggle: (foldLongReplies: boolean) => onChange({ ...value, foldLongReplies }),
       disabled: false,
     },
     {
@@ -659,16 +649,27 @@ export const Preferences = ({
             </Section>
             <Section title="Text">
               <div className={settingsCardClasses}>
-                <Select
-                  className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
-                  label="Text size"
-                  items={fontSizes}
-                  value={String(value.fontSize)}
-                  onValueChange={(size) => onChange({ ...value, fontSize: Number(size) })}
-                  open={open && shown === "appearance" && openSelect === "font-size"}
-                  onOpenChange={(expanded) => setOpenSelect(expanded ? "font-size" : null)}
-                  portalContainer={dialog}
-                />
+                <div className={`preference-row ${settingRowClasses}`}>
+                  <span id="font-size-label">Text size</span>
+                  <span className="flex shrink-0 items-center gap-3">
+                    <input
+                      type="range"
+                      min={fontSizeRange.min}
+                      max={fontSizeRange.max}
+                      step={1}
+                      value={value.fontSize}
+                      onChange={(event) =>
+                        onChange({ ...value, fontSize: Number(event.target.value) })
+                      }
+                      aria-labelledby="font-size-label"
+                      aria-valuetext={`${value.fontSize}px`}
+                      className="settings-range w-40 cursor-pointer"
+                    />
+                    <span aria-hidden="true" className="w-10 text-right tabular-nums">
+                      {value.fontSize}px
+                    </span>
+                  </span>
+                </div>
                 <div className={`preference-row ${settingRowClasses}`}>
                   <SettingText
                     id="ligatures-label"

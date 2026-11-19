@@ -9,7 +9,6 @@ import {
 } from "./attachments"
 import { keepTerminals, type ByTerminal } from "./by-terminal"
 import { chatDraftOf, noChatDrafts, setChatDraft, type ChatDrafts } from "./drafts"
-import { chatOpenedOf, noChatOpened, withOpened, type ChatOpened } from "./opened"
 import { noChatReplies, settleChatReplies, type ChatReplies } from "./replies"
 import { noChatSends, type ChatSends } from "./sends"
 import { noChatShells, type ChatShells } from "./shells"
@@ -20,7 +19,6 @@ import {
   setAnsweringInTerminal,
   type TerminalAnswers,
 } from "./shown"
-import type { OpenedMemory } from "./use-open"
 
 // What the app reads of the state, from the package's one door: the selectors, and the
 // pure update its tests set a draft with.
@@ -50,8 +48,6 @@ export type ChatState = {
   // The terminals showing their screen though the chat view is on, as the person went to
   // answer their agent there.
   readonly answering: TerminalAnswers
-  // What the person opened and shut in each terminal's chat.
-  readonly opened: ChatOpened
 }
 
 const initialChat: ChatState = {
@@ -62,7 +58,6 @@ const initialChat: ChatState = {
   sends: noChatSends,
   shells: noChatShells,
   answering: noTerminalAnswers,
-  opened: noChatOpened,
 }
 
 export type Chat = {
@@ -113,26 +108,6 @@ export const answerInTerminal = (chat: Chat, context: string, terminalId: string
 // Shows every terminal's chat again, as when the chat view is turned on or off.
 export const resetAnswering = (chat: Chat): void => void chat.update(answeringReset)
 
-// Where a terminal's chat keeps what the person opened and shut in it (see ./use-open).
-export const openedMemory = (chat: Chat, context: string, terminalId: string): OpenedMemory => ({
-  // Told only as this terminal's change: the chat's state changes as each draft is typed.
-  subscribe: (listener) => {
-    let was = chatOpenedOf(chat.store.getSnapshot().opened, context, terminalId)
-    return chat.store.subscribe(() => {
-      const now = chatOpenedOf(chat.store.getSnapshot().opened, context, terminalId)
-      if (now === was) return
-      was = now
-      listener()
-    })
-  },
-  opened: (key) => chatOpenedOf(chat.store.getSnapshot().opened, context, terminalId)[key],
-  setOpened: (key, open) =>
-    void chat.update((state) => {
-      const opened = withOpened(state.opened, context, terminalId, key, open)
-      return opened === state.opened ? state : { ...state, opened }
-    }),
-})
-
 // Every terminal of every session, by `${context}/${terminalId}`.
 const terminalsOf = (workspace: Workspace): Map<string, TerminalMetadata> =>
   new Map(
@@ -161,8 +136,7 @@ export const watchChat = (chat: Chat, workspace: Store<Workspace>): (() => void)
       held.answering === noTerminalAnswers &&
       held.drafts === noChatDrafts &&
       held.attachments === noChatAttachments &&
-      held.replies === noChatReplies &&
-      held.opened === noChatOpened
+      held.replies === noChatReplies
     )
       return
     const terminals = terminalsOf(snapshot)
@@ -201,16 +175,14 @@ export const watchChat = (chat: Chat, workspace: Store<Workspace>): (() => void)
         (context, id) => open(context, id) && !keep(context, id),
       )
       const shells = keepTerminals(state.shells, open)
-      const opened = keepTerminals(state.opened, open)
       return answering === state.answering &&
         drafts === state.drafts &&
         attachments === state.attachments &&
         imageNotes === state.imageNotes &&
         replies === state.replies &&
-        shells === state.shells &&
-        opened === state.opened
+        shells === state.shells
         ? state
-        : { ...state, answering, drafts, attachments, imageNotes, replies, shells, opened }
+        : { ...state, answering, drafts, attachments, imageNotes, replies, shells }
     })
   })
 }

@@ -304,12 +304,12 @@ export const companionNotice =
   "not each file you touch: an " +
   "image or screenshot, a rendered video, recording or screen capture, a rendered page or " +
   "a dev server's address, a mockup or diagram, a rendered document such as a PDF, the one file the " +
-  "user asked you for, or whatever they ask to see. Show a page you serve or just " +
+  "user asked you for, or an existing file or page, or the working tree's changes, that they ask to see. Show a page you serve or just " +
   "deployed, such as a dev server or a preview; a link to someone else's site, which often " +
   "wants a sign-in in the pane, goes in your reply unless they ask to see it there. A " +
   "source file is one too while it is " +
   "the file you are working on together, so show it and keep it shown; the files a change " +
-  "touches on the way aren't: once a piece of work is done, show the working tree's " +
+  "touches on the way aren't: to show a change, show the working tree's " +
   "changes with changes, as diffs. Show a deliverable " +
   "with open when you finish it or they asked to see it, so it opens at once; leave open " +
   "off for anything supporting, which waits for them marked new. Showing the same file or page again " +

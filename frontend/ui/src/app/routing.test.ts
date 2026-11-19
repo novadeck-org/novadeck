@@ -28,7 +28,6 @@ const preferences: PreferencesValue = {
   agentAvatars: false,
   onboardingTour: false,
   appScale: 100,
-  foldLongReplies: false,
 }
 const target = { projectId: "project", workspaceSessionId: "initial" }
 const fixture = (): Workspace => ({

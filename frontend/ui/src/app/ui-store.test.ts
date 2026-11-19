@@ -17,7 +17,6 @@ import {
   initialUi,
   keepProjectArrangement,
   notePortableCardShown,
-  foldLongRepliesOn,
   onboardingTourOn,
   persist,
   setFeatureFlag,
@@ -67,7 +66,6 @@ const initial = (): UiState =>
       agentAvatars: false,
       onboardingTour: false,
       appScale: 100,
-      foldLongReplies: false,
     },
   })
 
@@ -512,14 +510,6 @@ describe("the IS_EXPERIMENTAL flag", () => {
     expect(agentAvatarsOn({ preferences: on, flags: { IS_EXPERIMENTAL: false } })).toBe(false)
     expect(agentAvatarsOn({ preferences: on, flags: { IS_EXPERIMENTAL: true } })).toBe(true)
     expect(agentAvatarsOn({ preferences, flags: { IS_EXPERIMENTAL: true } })).toBe(false)
-  })
-
-  it("folds long replies only with its switch and Experimental both on", () => {
-    const { preferences } = initial()
-    const on = { ...preferences, foldLongReplies: true }
-    expect(foldLongRepliesOn({ preferences: on, flags: { IS_EXPERIMENTAL: false } })).toBe(false)
-    expect(foldLongRepliesOn({ preferences: on, flags: { IS_EXPERIMENTAL: true } })).toBe(true)
-    expect(foldLongRepliesOn({ preferences, flags: { IS_EXPERIMENTAL: true } })).toBe(false)
   })
 
   it("offers the onboarding tour only with its switch and Experimental both on", () => {

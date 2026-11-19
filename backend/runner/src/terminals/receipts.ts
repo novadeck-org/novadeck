@@ -485,6 +485,26 @@ export class Receipts {
   }
 
   /**
+   * The words, as given, of the one prompt sent and still waiting on the record whose lines are
+   * exactly `lines` (a screen's rows of a queued message, trailing white space aside); undefined
+   * where none is, or more than one is, or it carried images.
+   */
+  queuedWords(terminalId: string, lines: readonly string[]): string | undefined {
+    const same = (text: string): boolean => {
+      const own = text.trim().split("\n")
+      return own.length === lines.length && own.every((line, at) => line.trimEnd() === lines[at])
+    }
+    const found = (this.tracks.get(terminalId)?.entries ?? []).filter(
+      (entry) =>
+        entry.state === "pending" &&
+        entry.sentAt !== null &&
+        entry.files.length === 0 &&
+        same(entry.text),
+    )
+    return found.length === 1 ? found[0]!.text.trim() : undefined
+  }
+
+  /**
    * The words of the prompts back in the agent's box, where they are all the box's `text`, as
    * they were given; undefined where any of it is not theirs, or none is back.
    */

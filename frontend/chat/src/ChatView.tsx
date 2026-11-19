@@ -56,7 +56,6 @@ import { mentionOf, Transcript, type PeerLooks } from "./Transcript"
 import { currentPrompt, logPadding, scrollFor, startBefore, startRows } from "./turn-holds"
 import { Unproven } from "./Unproven"
 import { useBoxReturn } from "./use-box-return"
-import { Opened, sessionMemory, useOpenIn, type OpenedMemory } from "./use-open"
 import { useTranscriptMotion } from "./use-transcript-motion"
 import { useTurnHold } from "./use-turn-hold"
 
@@ -133,8 +132,6 @@ const ChatBody = ({
   onKeys,
   onPassing,
   onLeftMenu,
-  opened = null,
-  foldReplies = false,
 }: {
   readonly conversation: Store<Conversation>
   readonly terminalName: string
@@ -218,11 +215,6 @@ const ChatBody = ({
   // the chat leaves with a menu up, whatever session shows by then.
   readonly onPassing?: ((state: PassingState) => void) | undefined
   readonly onLeftMenu?: (() => void) | undefined
-  // Where the app keeps what the person opened and shut in this terminal's chat, so the rows that
-  // draw again find it so (see ./use-open); without it, each row keeps its own.
-  readonly opened?: OpenedMemory | null
-  // Whether the agent's long replies fold, all but its latest (Preferences > Experimental).
-  readonly foldReplies?: boolean
 }): React.JSX.Element => {
   const {
     agent: harness,
@@ -260,8 +252,7 @@ const ChatBody = ({
   const working = status?.working === true
   // The background shells still running or failed, which stand under the working line.
   const listed = listedShells(agent?.shells)
-  const memory = useMemo(() => opened && sessionMemory(opened, session), [opened, session])
-  const [shellsOpen, setShellsOpen] = useOpenIn(memory, "shells", false)
+  const [shellsOpen, setShellsOpen] = useState(false)
   // When the turn began, for the working line's clock.
   const turnStart = useMemo(() => turnStartedAt(blocks), [blocks])
 
@@ -774,29 +765,25 @@ const ChatBody = ({
                         : "Nothing said yet. Send a prompt below."}
                   </p>
                 ))}
-              {/* The rows find there what the person opened, as they draw again (see ./use-open). */}
-              <Opened value={memory}>
-                <ThumbsContext.Provider value={thumbs}>
-                  <Transcript
-                    blocks={shown}
-                    agent={name}
-                    working={working}
-                    gone={agent === undefined}
-                    sent={bubbles}
-                    echoes={shownEchoes}
-                    looks={peerLooks}
-                    mention={mention}
-                    personFace={personFace}
-                    phase={phase}
-                    foldReplies={foldReplies}
-                    {...(plain &&
-                      draft.trim() === "" &&
-                      attachments.length === 0 && { onResend: resend })}
-                    {...(plain && { onEdit: edit })}
-                    onShowTerminal={onAnswerInTerminal}
-                  />
-                </ThumbsContext.Provider>
-              </Opened>
+              <ThumbsContext.Provider value={thumbs}>
+                <Transcript
+                  blocks={shown}
+                  agent={name}
+                  working={working}
+                  gone={agent === undefined}
+                  sent={bubbles}
+                  echoes={shownEchoes}
+                  looks={peerLooks}
+                  mention={mention}
+                  personFace={personFace}
+                  phase={phase}
+                  {...(plain &&
+                    draft.trim() === "" &&
+                    attachments.length === 0 && { onResend: resend })}
+                  {...(plain && { onEdit: edit })}
+                  onShowTerminal={onAnswerInTerminal}
+                />
+              </ThumbsContext.Provider>
               {(status || listed.length > 0) && (
                 // While the agent works, or a shell runs, the log's last rows: the turn's clock and
                 // stop and a line for each shell. They scroll with the log.
