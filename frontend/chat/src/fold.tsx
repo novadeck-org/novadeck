@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState, type RefObject } from "react"
+import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from "react"
 
 import { useOpen } from "./use-open"
 
@@ -76,9 +76,9 @@ export type Part = { readonly top: number; readonly bottom: number; readonly hea
 
 /**
  * How many of a long reply's lines show while it's folded: its first parts, up to the end of one
- * that isn't a heading and at least `replyAtLeast` lines down, with the first line of what
- * follows, which fades. A part that would take it past `replyAtMost` isn't begun: it ends at the
- * part before, or, where even the first runs past, cuts that short.
+ * that isn't a heading and at least `replyAtLeast` lines down, and the blank line after it, where
+ * the fade falls. A part that would take it past `replyAtMost` isn't begun: it ends at the part
+ * before, or, where even the first runs past, cuts that short. Nothing laid out shows the least.
  */
 export const replyShown = (parts: readonly Part[], lineHeight: number): number => {
   let end = 0
@@ -91,7 +91,8 @@ export const replyShown = (parts: readonly Part[], lineHeight: number): number =
     end = part.bottom
     if (end >= replyAtLeast * lineHeight) break
   }
-  return Math.min(replyAtMost, Math.max(replyAtLeast, Math.ceil(end / lineHeight) + 1))
+  if (end === 0) return replyAtLeast
+  return Math.min(replyAtMost, Math.ceil(end / lineHeight) + 1)
 }
 
 // The top-level parts of the Markdown the element holds, as laid out.
@@ -105,15 +106,16 @@ const partsOf = (element: HTMLElement): readonly Part[] => {
 }
 
 /**
- * `useFold` for an agent's reply, where `on`: it folds past `replyFoldedAt` lines, to its first
- * parts (see `replyShown`) rather than a set number of lines. Off, it measures nothing.
+ * `useFold` for an agent's reply in the element `ref` holds, which folds once `on`: past
+ * `replyFoldedAt` lines, to its first parts (see `replyShown`) rather than a set number of lines.
+ * Until then it measures nothing.
  */
-export const useReplyFold = <T extends HTMLElement>(
+export const useReplyFold = (
+  ref: RefObject<HTMLElement | null>,
   text: string,
   key: string,
   on: boolean,
-): readonly [RefObject<T | null>, Fold] => {
-  const ref = useRef<T>(null)
+): Fold => {
   const [laid, setLaid] = useState({ lines: 0, shown: 0 })
   const [open, setOpen] = useOpen(key, false)
   const id = useId()
@@ -133,7 +135,7 @@ export const useReplyFold = <T extends HTMLElement>(
     if (element.firstElementChild) watch.observe(element.firstElementChild)
     return () => watch.disconnect()
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- New text is new lines to count.
-  }, [text, on])
+  }, [ref, text, on])
   const folds = on && laid.lines > replyFoldedAt
   const cut =
     folds && !open
@@ -142,7 +144,25 @@ export const useReplyFold = <T extends HTMLElement>(
           style: { "--_shown": `calc(${laid.shown} * var(--_lh))` } as React.CSSProperties,
         }
       : {}
-  return [ref, { id, folds, open, setOpen, lines: laid.lines, more: laid.lines - laid.shown, cut }]
+  return { id, folds, open, setOpen, lines: laid.lines, more: laid.lines - laid.shown, cut }
+}
+
+/**
+ * Whether the element `ref` holds has been out of sight since it was drawn: once it is, it stays
+ * so. Where nothing can tell (no IntersectionObserver), it is from the start.
+ */
+export const useOutOfSight = (ref: RefObject<HTMLElement | null>): boolean => {
+  const [away, setAway] = useState(() => typeof IntersectionObserver === "undefined")
+  useEffect(() => {
+    const element = ref.current
+    if (away || !element) return
+    const watch = new IntersectionObserver(([entry]) => {
+      if (entry && !entry.isIntersecting) setAway(true)
+    })
+    watch.observe(element)
+    return () => watch.disconnect()
+  }, [ref, away])
+  return away
 }
 
 // The key under a folded text: how many more lines it has, or that it shows them all.

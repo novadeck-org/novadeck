@@ -709,6 +709,29 @@ describe("long replies, folding", () => {
     expect(key.textContent).toBe("show less")
   })
 
+  it("folds a reply in sight only once the person has scrolled away from it", async () => {
+    lay()
+    // What the page's IntersectionObserver tells, by hand: jsdom has none.
+    const watching: ((entries: { isIntersecting: boolean }[]) => void)[] = []
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(tell: (entries: { isIntersecting: boolean }[]) => void) {
+          watching.push(tell)
+        }
+        observe() {}
+        disconnect() {}
+      },
+    )
+    const earlier = reply(draw(turns(long, long), true), 0)
+    expect(earlier.querySelector(".chat-words")?.hasAttribute("data-folded")).toBe(false)
+    await act(async () => watching.forEach((tell) => tell([{ isIntersecting: true }])))
+    expect(earlier.querySelector(".chat-words")?.hasAttribute("data-folded")).toBe(false)
+    await act(async () => watching.forEach((tell) => tell([{ isIntersecting: false }])))
+    expect(earlier.querySelector(".chat-words")?.hasAttribute("data-folded")).toBe(true)
+    vi.unstubAllGlobals()
+  })
+
   it("never folds the latest reply", () => {
     lay()
     expect(reply(draw(turns(long, long), true), 1).querySelector(".chat-more")).toBeNull()

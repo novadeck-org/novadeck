@@ -5,13 +5,13 @@ import { shownControls } from "@novadeck/requests/shown-controls"
 import { Markdown } from "@novadeck/toolkit/Markdown"
 import { MentionedText } from "@novadeck/toolkit/Mentioned"
 import { mentionAt, type Mention } from "@novadeck/toolkit/mentions"
-import { memo, useId, useMemo } from "react"
+import { memo, useId, useMemo, useRef } from "react"
 
 import { withBubbles, type SentBubble } from "./bubbles"
 import type { Echo } from "./echoes"
 import { Fact, Since, TimeFact } from "./Fact"
 import { longMs, span } from "./facts"
-import { MoreKey, useFold, useReplyFold } from "./fold"
+import { MoreKey, useFold, useOutOfSight, useReplyFold } from "./fold"
 import { foldableReplies, mayFold } from "./long-replies"
 import { Mark } from "./Mark"
 import type { MarkPhase } from "./mark-phase"
@@ -310,16 +310,22 @@ const RecordLine = ({
 
 // An agent's reply that may fold (Preferences > Experimental > Fold long replies): past
 // `replyFoldedAt` lines it shows its first parts, and a key the rest, as a long message does.
+// It folds only once it's out of sight, never under the person's eyes: a reply they scrolled up
+// to read again stays whole as the next turn ends, until they scroll away from it.
 const ReplyWords = ({
   id,
   text,
+  truncated,
   mention,
 }: {
   readonly id: string
   readonly text: string
+  readonly truncated: boolean
   readonly mention: Mention | undefined
 }): React.JSX.Element => {
-  const [ref, fold] = useReplyFold<HTMLDivElement>(text, `reply:${id}`, true)
+  const ref = useRef<HTMLDivElement>(null)
+  const away = useOutOfSight(ref)
+  const fold = useReplyFold(ref, text, `reply:${id}`, away)
   const { folds, open, setOpen } = fold
   return (
     <>
@@ -333,6 +339,7 @@ const ReplyWords = ({
       >
         <Markdown text={text} mention={mention} />
       </div>
+      {truncated && <Shortened />}
       <MoreKey fold={fold} />
     </>
   )
@@ -404,11 +411,18 @@ const BlockView = memo(
             aria-label={block.thinking ? `${agent}, summary` : agent}
           >
             {folds ? (
-              <ReplyWords id={block.id} text={block.text} mention={mentionAt(mention, block.at)} />
+              <ReplyWords
+                id={block.id}
+                text={block.text}
+                truncated={block.truncated}
+                mention={mentionAt(mention, block.at)}
+              />
             ) : (
-              <Markdown text={block.text} mention={mentionAt(mention, block.at)} />
+              <>
+                <Markdown text={block.text} mention={mentionAt(mention, block.at)} />
+                {block.truncated && <Shortened />}
+              </>
             )}
-            {block.truncated && <Shortened />}
             {block.thinking && (
               // The agent's update as its terminal shows it, which tags it "summary" after the
               // words, dim: its thinking, not its reply.
