@@ -12,7 +12,7 @@ import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
 import { Shown } from "@novadeck/toolkit/shown"
 import { act, createElement } from "react"
-import { afterEach, beforeEach } from "vitest"
+import { afterEach, beforeEach, vi } from "vitest"
 
 import { PaneChrome, type TabNote } from "../../pane-row"
 import { createItemStore } from "../../store/item-store"
@@ -534,9 +534,15 @@ describe("a change beside a terminal", () => {
 
       const unfolded = container.querySelector(".changes-item[data-open]")
       expect(unfolded?.querySelector(".terminal-tab-branches")).not.toBeNull()
-      expect(
-        [...unfolded!.querySelectorAll("[data-branch]")].map((each) => each.textContent),
-      ).toEqual(["└in cookieMaxAge 7 → 30+1 −1"])
+      // The first file unfolded parses for as long as the machine takes: a loaded macOS runner
+      // still showed "Reading the changes…" after settle's 120 ms.
+      await vi.waitFor(
+        () =>
+          expect(
+            [...unfolded!.querySelectorAll("[data-branch]")].map((each) => each.textContent),
+          ).toEqual(["└in cookieMaxAge 7 → 30+1 −1"]),
+        { timeout: 5_000 },
+      )
       expect(asked).toEqual([
         { path: "src/auth/cookies.ts", layers: ["uncommitted", "c2c2c2c2c2", "c1c1c1c1c1"] },
       ])
