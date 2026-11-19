@@ -941,6 +941,26 @@ describe("a terminal's taskbar", () => {
       expect(container.querySelector(".pane-sheet")?.hasAttribute("data-entry")).toBe(false)
     })
 
+    it("eases the marks of the tab picked and the one it left, and of no tab once drawn", async () => {
+      const { container } = renderTerminal(opening(hero))
+      const marks = () =>
+        [...container.querySelectorAll<HTMLElement>(".pane-tab")].map(
+          (each) => each.dataset.mark ?? null,
+        )
+      expect(marks()).toEqual([null, null])
+      await act(async () => tab(container, "about.png")?.click())
+      expect(marks()).toEqual(["left", "picked"])
+      // Once eased they go, so a parked terminal shown again doesn't play them again.
+      const eased = new Event("transitionend", { bubbles: true })
+      Object.defineProperty(eased, "pseudoElement", { value: "::after" })
+      await act(async () => {
+        container.querySelector(".pane-tab .pane-tab-label")?.dispatchEvent(eased)
+      })
+      expect(marks()).toEqual([null, null])
+      // Its words, not its icon or close, carry the mark.
+      expect(container.querySelector(".pane-tab .pane-tab-label .pane-tab-name")).not.toBeNull()
+    })
+
     it("steps along the tabs with the arrow keys, the tab it lands on keeping focus", async () => {
       const { container } = renderTerminal(opening(hero))
       tab(container, "hero.png")?.focus()

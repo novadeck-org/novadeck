@@ -269,6 +269,10 @@ type TabRowMemory = {
   // Whether the tab of `key` takes focus as its row is drawn: picked with focus in the
   // row a moment ago.
   readonly focuses: (key: string) => boolean
+  // The tab the row showed when last drawn, whose mark eases from the shown one's as a row
+  // drawn for another tab comes; and that the row drew showing `key`.
+  readonly lastShown: () => string | undefined
+  readonly drew: (key: string | undefined) => void
 }
 
 // The row of what the pane shows: the tabs of the icon it shows, each thing of it on the
@@ -326,6 +330,18 @@ const PaneTabs = ({
       tab.querySelector<HTMLElement>('[role="tab"]')?.focus({ preventScroll: true })
     return () => sized?.disconnect()
   }, [memory, shown])
+  // Drawn for another tab than last time: the marks of both ease to their new sizes. Read once
+  // as the row comes, so drawing it again before the browser styles it keeps them; let go once
+  // eased, so a terminal parked out of sight and shown again doesn't play them again. A lone
+  // title has no mark to ease from, so it's no tab the row left.
+  const [left] = useState(memory.lastShown)
+  const [eased, setEased] = useState(false)
+  const lone = tabs.length === 1
+  useLayoutEffect(() => memory.drew(lone ? undefined : shown), [memory, shown, lone])
+  const moved = !eased && left !== undefined && left !== shown
+  const ease = (event: React.TransitionEvent): void => {
+    if (event.pseudoElement === "::after") setEased(true)
+  }
   const pick = (tab: BarMember): void => {
     memory.picked(tab.key, row.current?.contains(document.activeElement) ?? false)
     onPick(tab)
@@ -347,6 +363,8 @@ const PaneTabs = ({
       onScroll={(event) => {
         memory.scrolled(event.currentTarget.scrollLeft)
       }}
+      onTransitionEnd={moved ? ease : undefined}
+      onTransitionCancel={moved ? ease : undefined}
       onWheel={(event) => {
         if (event.deltaY !== 0 && event.deltaX === 0) event.currentTarget.scrollLeft += event.deltaY
       }}
@@ -381,6 +399,7 @@ const PaneTabs = ({
             key={tab.key}
             className="pane-tab"
             data-state={open ? "open" : isNew(tab) ? "new" : undefined}
+            data-mark={!moved ? undefined : open ? "picked" : tab.key === left ? "left" : undefined}
             data-failed={look.failed || undefined}
             data-gone={gone || undefined}
             data-placed={look.origin !== undefined || undefined}
@@ -611,9 +630,14 @@ export const CompanionPane = ({
       section.current?.focus({ preventScroll: true })
   }, [member?.key])
   // Where the tab row was, for each row drawn: the pane's own, as long as it shows.
-  const tabRow = useRef<{ scroll: number; focus: { key: string; at: number } | null }>({
+  const tabRow = useRef<{
+    scroll: number
+    focus: { key: string; at: number } | null
+    shown: string | undefined
+  }>({
     scroll: 0,
     focus: null,
+    shown: undefined,
   })
   const tabMemory = useMemo(
     (): TabRowMemory => ({
@@ -627,6 +651,10 @@ export const CompanionPane = ({
       focuses: (key) => {
         const wanted = tabRow.current.focus
         return wanted?.key === key && performance.now() - wanted.at < handOffMs
+      },
+      lastShown: () => tabRow.current.shown,
+      drew: (key) => {
+        tabRow.current.shown = key
       },
     }),
     [],
