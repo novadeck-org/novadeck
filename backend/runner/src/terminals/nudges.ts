@@ -302,7 +302,7 @@ export const companionNotice =
   "show the user what the task makes, with Novadeck's show tool. Show a deliverable, a " +
   "file or page the task itself calls for, when it is done, not each file you touch: an " +
   "image or screenshot, a rendered video, recording or screen capture, a rendered page or " +
-  "a dev server's address, a mockup, diagram or generated document, the one file the " +
+  "a dev server's address, a mockup or diagram, a rendered document such as a PDF, the one file the " +
   "user asked you for, or whatever they ask to see. Show a page you serve or just " +
   "deployed, such as a dev server or a preview; a link to someone else's site, which often " +
   "wants a sign-in in the pane, goes in your reply unless they ask to see it there. A " +

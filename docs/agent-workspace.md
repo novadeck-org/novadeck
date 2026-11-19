@@ -259,12 +259,12 @@ Nothing opens on its own unless the user asked for it; everything else waits in 
 taskbar, marked new.
 
 What belongs there is a deliverable: a file or page the task itself calls for, made to
-be looked at (an image or screenshot, a rendered page or dev server, a mockup, diagram or
-generated document, the one file the user asked for, or whatever they ask to see), shown
+be looked at (an image or screenshot, a rendered page or dev server, a mockup or diagram, a
+rendered document such as a PDF, the one file the user asked for, or whatever they ask to see), shown
 once it is done, with `open` so it opens at once; without `open` for anything supporting, which
-waits marked new. It is defined by what the task calls for, not by kinds of document: a
-list that named "a report" drew agents to write their answer to a file only to show it,
-where the reply was its place. A page is one the agent serves or just deployed, such as a dev server
+waits marked new. It is defined by what the task calls for, not by kinds of document: when the list named
+"a report" or "a generated document", agents wrote answers that belonged in their reply
+to a file just to show them. A page is one the agent serves or just deployed, such as a dev server
 or a preview: a link to someone else's site often wants a sign-in in the pane and helps
 little there, so it goes in the agent's reply unless the user asks to see it in the pane. A source file counts while it is the one
 the user and the agent work on together; the files a change touches on the way do not,

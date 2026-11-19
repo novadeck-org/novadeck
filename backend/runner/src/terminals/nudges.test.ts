@@ -268,6 +268,8 @@ describe("a nudge", () => {
     expect(companionNotice).toMatch(/^Novadeck: automatic notice, not from the user: /)
     expect(companionNotice).not.toContain("\n")
     expect(companionNotice).not.toContain("report")
+    for (const kind of ["an image or screenshot", "a mockup or diagram", "a rendered document"])
+      expect(companionNotice).toContain(kind)
     for (const word of [
       "show tool",
       "deliverable, a file or page the task itself calls for",
