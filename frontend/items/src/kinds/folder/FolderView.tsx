@@ -136,9 +136,21 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
     if (entry.kind === "folder") return goTo(intoFolder(within, entry.name))
     if (!terminal || !listed) return setProblem(`${entry.name} can't be opened from here.`)
     setProblem(undefined)
-    itemStore.attach(target, terminal, absoluteOf(listed.path, entry.name)).catch(() => {
-      setProblem(`${entry.name} couldn't be opened.`)
-    })
+    // The file opens in its own kind's tab, which takes the folder's place: focus goes with it
+    // to the pane (or the window), so the file's keys, as an image's ← →, work at once.
+    const pane = root.current?.closest<HTMLElement>("[data-workspace-companion], .artifact-window")
+    itemStore
+      .attach(target, terminal, absoluteOf(listed.path, entry.name))
+      .then(() =>
+        requestAnimationFrame(() => {
+          const now = document.activeElement
+          if (pane?.isConnected && (!now || now === document.body || !now.isConnected))
+            pane.focus({ preventScroll: true })
+        }),
+      )
+      .catch(() => {
+        setProblem(`${entry.name} couldn't be opened.`)
+      })
   }
 
   const tools: PaneTool[] = [

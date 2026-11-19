@@ -382,6 +382,17 @@ describe("a folder in the pane", () => {
       expect(app.attached).toEqual([{ terminalId: "01", path: "/tmp/render/shot.png" }])
     })
 
+    it("hands focus to the pane once the file opens in place of the folder, so its keys work", async () => {
+      const app = await shown()
+      // The pane the folder is drawn in, as the terminal's pane reader is.
+      app.root.setAttribute("data-workspace-companion", "")
+      app.root.tabIndex = -1
+      await app.open("shot.png")
+      // The file's tab took the folder's place, and the tile that had focus went with it.
+      ;(app.root.ownerDocument.activeElement as HTMLElement | null)?.blur()
+      await vi.waitFor(() => expect(app.root.ownerDocument.activeElement).toBe(app.root))
+    })
+
     it("opens a file of a folder inside it by the folder's own path", async () => {
       const app = await shown({ listings: inFolder })
       await app.open("old-runs")
