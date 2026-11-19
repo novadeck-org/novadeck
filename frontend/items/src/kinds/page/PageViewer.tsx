@@ -17,6 +17,7 @@ import type { ArtifactBodyProps } from "../../ArtifactViewer"
 import { useAwake } from "../../awake"
 import { PaneTools, usePaneNote, type PaneTool } from "../../pane-row"
 import { useViewerSlot } from "../../ViewerSlot"
+import { AddressField } from "./AddressField"
 import { pageMenuItems } from "./page-menu"
 
 /** Whether two addresses share an origin: scheme, host and port. */
@@ -209,6 +210,19 @@ const ShownPage = ({
       aria-busy={load === "loading"}
     >
       <PaneTools
+        chip={
+          <AddressField
+            where={place.url}
+            live={page.live}
+            onGo={(url) => {
+              if (!page.live) return openOut(url)
+              viewer?.visit(url)
+              // Resting, it goes there as it wakes.
+              wake()
+            }}
+            onReturn={() => viewer?.focus()}
+          />
+        }
         tools={[
           ...(page.live
             ? [
@@ -308,7 +322,10 @@ export const PageViewer = ({
     />
   ) : (
     <div className="artifact-browser">
-      <PaneTools tools={[openTool(page.url)]} />
+      <PaneTools
+        chip={<AddressField where={page.url} live={false} onGo={openOut} onReturn={() => {}} />}
+        tools={[openTool(page.url)]}
+      />
       <div className="artifact-status">This page opens in your browser.</div>
     </div>
   )

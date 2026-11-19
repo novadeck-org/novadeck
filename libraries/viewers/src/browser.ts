@@ -1,4 +1,4 @@
-import { webAddress } from "./browser/address.js"
+import { addressOf, webAddress } from "./browser/address.js"
 import { framingOf, onPhone, type Framing, type PageSize } from "./browser/framing.js"
 import {
   isScrolled,
@@ -43,6 +43,7 @@ import type { Mount, Viewer, ViewerState } from "./index.js"
 // browser.css's.
 
 export type { PageSize, Trouble }
+export { addressOf }
 
 /**
  * A page by its address, as its app shows it. `shown` counts the app's shows of it: a
@@ -134,6 +135,11 @@ export type BrowserViewer = Viewer<BrowserContent> & {
   readonly reload: () => void
   /** Does an edit on the live page, where its menu was asked for; nothing on a snapshot. */
   readonly edit: (edit: PageEdit) => void
+  /**
+   * Goes to `url` as the person asked, as a link they followed would: an http(s) address
+   * only. Resting, it goes there once woken. False where it can't, as a snapshot can't.
+   */
+  readonly visit: (url: string) => boolean
   /** Quiet while kept out of sight: it stops drawing on its own, but not playing. */
   readonly muted: (muted: boolean) => void
   /**
@@ -431,6 +437,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       forward: nothing,
       reload: nothing,
       edit: nothing,
+      visit: () => false,
       muted: nothing,
       // A snapshot is its picture already.
       awake: nothing,
@@ -1183,6 +1190,30 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
         return true
       })
       if (!reloading) stale = true
+    },
+    visit: (url) => {
+      if (!webAddress(url)) return false
+      // The person's own way from here: what a show was still to do, or a wake to load
+      // afresh, isn't any more, nor is where it was scrolled.
+      scrollTo = undefined
+      then = undefined
+      moving = false
+      stale = false
+      place = { url, back: place.back, forward: place.forward }
+      // Where it was scrolled was of where it was, as is its picture: at rest it goes there
+      // once woken; woken, and still loading under its picture, it goes there now, and the
+      // picture with it.
+      scrolled = undefined
+      if (page) {
+        if (!go(url)) page.setAttribute("src", url)
+        used = true
+        clearTimeout(fading)
+        fading = undefined
+        still.remove()
+        delete still.dataset.fading
+      } else if (!cover()) still.remove()
+      on?.navigate?.(place)
+      return true
     },
     muted: (next) => {
       muted = next
