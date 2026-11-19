@@ -258,11 +258,14 @@ the terminal (inside its window; in a window 864px wide or less, as every Canvas
 Nothing opens on its own unless the user asked for it; everything else waits in the
 taskbar, marked new.
 
-What belongs there is a deliverable: something made to be looked at (an image or
-screenshot, a rendered page or dev server, a report, mockup, diagram or generated
-document, the one file the user asked for, or whatever they ask to see), shown once it
-is done, with `open` so it opens at once; without `open` for anything supporting, which
-waits marked new. A page is one the agent serves or just deployed, such as a dev server
+What belongs there is a deliverable: a file or page the task itself calls for that the
+agent's reply can't carry, made to be looked at (an image or screenshot, a rendered page or dev server, a mockup or diagram, a
+rendered document such as a PDF, the one file the user asked for, or whatever they ask to see), shown
+once it is done, with `open` so it opens at once; without `open` for anything supporting, which
+waits marked new. It is defined by what the task calls for and the reply can't carry, not by kinds of
+document: when the list named "a report" or "a generated document", agents wrote answers
+that belonged in their reply to a file just to show them, and with "the task calls for"
+alone, a task asking for a write-up still read as asking for a file. A page is one the agent serves or just deployed, such as a dev server
 or a preview: a link to someone else's site often wants a sign-in in the pane and helps
 little there, so it goes in the agent's reply unless the user asks to see it in the pane. A source file counts while it is the one
 the user and the agent work on together; the files a change touches on the way do not,
@@ -303,6 +306,8 @@ port's optional `companions` capability (`frontend/core/src/items.ts`):
 | `repoint?(target, itemId, path)`            | A file's item shown another file of its kind, as stepping through a folder does; absent where it can't be    |
 | `changeFile?(target, itemId, path, layers)` | One file of a change for the layers selected: its diff and both sides' text; absent where it can't be        |
 | `changeRead?(target, itemId, path)`         | The person read a file of a change: the content's `read` names it until it changes; absent where it can't be |
+| `folders?(target, terminalId, path)`        | The folders a typed path may be, for a folder view's path field; absent where it can't be                    |
+| `wroteTo?(target, terminalId)`              | The folders outside the project agents wrote in, with who, which harness and when; absent where it can't be  |
 
 A file that may hold secrets is `secret` until the person asks to see it, and `reveal` is the path
 they asked for: the item re-pointed to another file reads `secret` again.
@@ -555,7 +560,25 @@ with every safety check again at that time:
   with why, and nothing in it is listed), a secret file or folder inside one is named and
   flagged, never opened, counted, read or given a thumbnail, and a symbolic link that leaves
   the opened folder is listed as a link and never followed. Of a folder holding more than 2000
-  entries, the first 2000 by name are listed and the pane says so. Showing the same file or page again updates the item on the agent's own
+  entries, the first 2000 by name are listed and the pane says so.
+  The first line's path is typed over with Ctrl+L (Cmd+L on a Mac) while the folder view has
+  focus, or a click on the path's text (a crumb still goes to its folder): the line becomes a text
+  field holding the folder's absolute path, selected. Escape, or focus leaving, puts the crumbs
+  back. Enter opens the typed path as a new tab on the terminal's bar through `companions.attach`,
+  with its own top, so Up still stops at what was opened: a folder opens as a folder, a file in
+  its kind's group, a path that is neither shows the runner's reason (`INVALID_FILE`) under the
+  field, and `~` is the person's home. Under it a floating list, a combobox (up and down move,
+  Enter opens the highlighted one, Tab completes it into the field), offers in this order,
+  each group only when it has something: the folders the typed text may be
+  (`companions.folders`, none until the text is changed from the folder's own path); folders an
+  agent showed in the session, with its handle and how long ago (the workspace's items, by an
+  agent); folders agents wrote in outside the project (`companions.wroteTo`: the handle, the
+  harness and how long ago, from the `file-touched` events of Claude Code, Codex and
+  Antigravity alike, named in `work.wrote`, which keeps the latest 20 folders outside the one
+  the terminal works in, with the time, in the terminal's own record so it outlives a restart;
+  what a shell command wrote is told by no harness and is not listed); and folders the person
+  opened in the session. The suggestions come from the session's items as they stand when the
+  field opens; nothing new is stored for them. Showing the same file or page again updates the item on the agent's own
   bar, or else the latest it showed that the person moved into a window or onto another
   bar, where it stays. Items are told apart by a file's real path or a page's `pageKey`
   (`protocol/src/pages.ts`): its address without the fragment, or for a server on this
@@ -1052,11 +1075,12 @@ with every safety check again at that time:
   that names no passkey asks the person which, when more than one fits
   (`libraries/viewers/src/browser/host.ts`). A right-click or the menu key on the page
   opens Novadeck's own menu, not the browser's: a field's Cut, Copy, Paste and Select
-  all, Copy on a selection, a link's address to copy, or open in the browser, Back,
-  Forward and Reload, and the page's own address (`frontend/items/src/kinds/page/page-menu.ts`, which leaves
+  all, Copy on a selection, a link's address to copy, or open in the browser, and the page
+  to open in the browser; going back, forward and reloading are the pane's tools, and its
+  address is the address bar's (`frontend/items/src/kinds/page/page-menu.ts`, which leaves
   a first group for what a later feature offers there). Where the host can't, as the web
-  version, a page is a link to open in the browser, and a snapshot's menu has the page's
-  address alone. Each show of a page loads it afresh: the
+  version, a page is a link to open in the browser, and a snapshot's menu has only the page
+  to open in the browser. Each show of a page loads it afresh: the
   page's content carries `shown`, its item's version, and a later one reloads it, past
   the cache so changed styles and scripts show too, or loads the address it was shown at
   if the person went to another document. Shown at a

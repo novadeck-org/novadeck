@@ -22,9 +22,6 @@ const menuOf = (
   const done: string[] = []
   const actions: PageMenuActions = {
     edit: (edit) => done.push(`edit ${edit}`),
-    back: () => done.push("back"),
-    forward: () => done.push("forward"),
-    reload: () => done.push("reload"),
     copy: (text) => done.push(`copy ${text}`),
     open: (url) => done.push(`open ${url}`),
   }
@@ -39,20 +36,11 @@ const menuOf = (
 }
 
 describe("a page's menu", () => {
-  it("offers going back, forward and reloading, then the page's own address", () => {
+  it("offers only opening the page in the person's browser on a blank spot", () => {
     const { rows, done, choose } = menuOf({})
-    expect(rows).toEqual([
-      "Back",
-      "Forward (off)",
-      "Reload",
-      "—",
-      "Copy page address",
-      "Open page in your browser",
-    ])
-    choose("Copy page address")
+    expect(rows).toEqual(["Open page in your browser"])
     choose("Open page in your browser")
-    choose("Reload")
-    expect(done).toEqual([`copy ${place.url}`, `open ${place.url}`, "reload"])
+    expect(done).toEqual([`open ${place.url}`])
   })
 
   it("copies what's selected, first", () => {
@@ -92,19 +80,18 @@ describe("a page's menu", () => {
     ])
   })
 
-  it("offers only the page's address on a snapshot, which has no edits or history", () => {
+  it("offers only opening the page on a snapshot, which has no edits", () => {
     expect(menuOf({ selection: "text", editable: true }, { live: false }).rows).toEqual([
-      "Copy page address",
       "Open page in your browser",
     ])
   })
 
   it("puts what a later feature offers on the same spot first, as its own group", () => {
     const comment = { value: "comment", label: "Comment on this", onSelect: () => {} }
-    expect(menuOf({}, { leading: [comment] }).rows.slice(0, 3)).toEqual([
+    expect(menuOf({}, { leading: [comment] }).rows).toEqual([
       "Comment on this",
       "—",
-      "Back",
+      "Open page in your browser",
     ])
   })
 })

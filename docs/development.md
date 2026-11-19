@@ -121,8 +121,9 @@ the last thing opened, by you or by the agent when you asked for it, and for a s
 rest of that icon's things as tabs under its header, each with its ×, Delete closing the
 tab with focus. The arrow keys, Home and End move along the tabs, and Ctrl+PageDown and
 Ctrl+PageUp step through them from anywhere in the pane; neither opens something that may
-hold secrets until you pick it. Every other icon with something open waits behind it as a
-thin card edge above the pane, as in a file drawer: the edges stay compact on hover,
+hold secrets until you pick it. Every other icon with something open waits behind it, the
+nearest five as thin card edges above the pane, as in a file drawer (the rest only on the
+taskbar): the edges stay compact on hover,
 and a click brings its icon forward. The mark under
 an icon says whether it's new, showing, open behind, or seen: something new gets a dot,
 quietly, and nothing opens on its own unless you asked for it. Something the agent opens
@@ -534,7 +535,14 @@ Agents:
   in a pill while the pointer is in the grid); "A file is being written" grows one for about 3 s
   (write cursor and pulse); "Show a folder with nothing in it", "...too large to list whole" and
   "...that may hold secrets" are the pane's other states; "The folder goes away" strikes its tab
-  through and says it is gone, with a Close action; "Bring the folder back" undoes it.
+  through and says it is gone, with a Close action; "Bring the folder back" undoes it. Every state
+  of the path field needs no action: with the `render` pane in focus, Ctrl+L (Cmd+L) turns the
+  crumbs into the field with the groups "Shown by agents" (`render` itself), "Agents wrote to,
+  outside the project" (three folders, one by an agent of each harness) and, once something has
+  been opened, "You opened"; typing `~/re` adds the matches with `render` marked open
+  (`frontend/demo/src/showcase/path-field.ts` holds the folders it knows); Enter on `~/Downloads`
+  opens a stand-in, and on a name with an extension nothing is there for (`missing.txt`) the
+  field shows the reason under itself.
 - **Changes:** only in the `showcase` variant, no action needed: the dev server's terminal
   (`@fox`, the third) holds its items on the bar beside those that can't show, thirteen of them
   changes, one in each shape the changes pane draws: an ordinary change in layers (a refactor of

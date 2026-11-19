@@ -263,6 +263,12 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   const items = new CompanionItems({
     records: store,
     terminal: (terminalId) => terminals.place(terminalId),
+    harnessBookkeeping: () => agents.bookkeeping(),
+    terminals: (sessionId) =>
+      terminals
+        .list()
+        .filter((terminal) => terminal.sessionId === sessionId)
+        .flatMap(({ id }) => terminals.place(id) ?? []),
     project: (sessionId) => {
       try {
         return store.project(store.session(sessionId).projectId).cwd

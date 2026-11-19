@@ -523,3 +523,6 @@ export const placed = (
           ?.id
   return { id, sample: { ...opened, item: { ...opened.item, id } }, item, twin }
 }
+
+// What the path field suggests, which loads with the folders.
+export { near, wrote } from "./path-field"

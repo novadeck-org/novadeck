@@ -26,6 +26,8 @@ import {
   type ChangeFileDiff,
   type ItemContent,
   type FilePart,
+  type FolderMatch,
+  type WroteFolder,
   type MurmurSettings,
   type MurmurState,
   type PageLook,
@@ -595,6 +597,16 @@ export type Runner = {
       readonly title?: string
     }): Promise<CompanionItem>
     /**
+     * The folders a path being typed may be (see the contract): those under its parent whose
+     * names start as its last part does. Rejects with `TERMINAL_NOT_FOUND`.
+     */
+    folders(input: { readonly terminalId: string; readonly path: string }): Promise<FolderMatch[]>
+    /**
+     * The folders outside the project a terminal's session's agents wrote a file in, the latest
+     * first. Rejects with `TERMINAL_NOT_FOUND`.
+     */
+    wroteTo(input: { readonly terminalId: string }): Promise<WroteFolder[]>
+    /**
      * Points a file's item at another file of its own kind, by a path absolute or from the
      * folder of the file it points at now: the same item and holder, with a later version.
      * Rejects with `NOT_FOUND`, `CONFLICT` for a project window's item, or `INVALID_FILE`
@@ -981,6 +993,8 @@ export const connectRunner = async (
       changeRead: (input) => call((client) => client.companions.changeRead(input)),
       save: (input) => call((client) => client.companions.save(input)),
       attach: (input) => call((client) => client.companions.attach(input)),
+      folders: (input) => call((client) => client.companions.folders(input)),
+      wroteTo: (input) => call((client) => client.companions.wroteTo(input)),
       repoint: (input) => call((client) => client.companions.repoint(input)),
       openInProject: (input) => call((client) => client.companions.openInProject(input)),
       move: (itemId, terminalId) =>

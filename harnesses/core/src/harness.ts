@@ -96,6 +96,17 @@ export type Harness = {
    */
   readonly planFoldersOf?: (transcript: string) => readonly string[]
   /**
+   * The folders under its home that it writes for itself (its plans, memory, conversations,
+   * logs), not for the person: what an agent writes there is no work the person asked for, and
+   * what it writes elsewhere in its home (a skill, a settings file) is.
+   */
+  readonly bookkeeping?: (install: Install) => readonly string[]
+  /**
+   * The same folders for one session, from the path of its transcript, as `planFoldersOf`:
+   * a terminal started with another home keeps them there. Empty where the path says nothing.
+   */
+  readonly bookkeepingOf?: (transcript: string) => readonly string[]
+  /**
    * Whether a conversation of this id can still be found in its files, by `stat` and
    * `readdir` alone: it never opens one. `gone` only where the file is missing from a folder
    * that holds such files and is there; any other failure is `unknown`.

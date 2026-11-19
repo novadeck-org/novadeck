@@ -97,6 +97,12 @@ export {
   folderLimits,
   folderEntry,
   type FolderEntry,
+  folderMatch,
+  type FolderMatch,
+  folderMatchLimits,
+  maxWroteFolders,
+  wroteFolder,
+  type WroteFolder,
 } from "./companions.js"
 export {
   type ClosedTerminal,

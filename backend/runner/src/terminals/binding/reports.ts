@@ -616,7 +616,16 @@ export class Reports {
     events: readonly HarnessEvent[],
     changes: readonly RootChange[],
   ): boolean {
-    const after = workAfter(record.work, record.root, events, Date.now(), changes)
+    const after = workAfter(
+      record.work,
+      record.root,
+      events,
+      Date.now(),
+      changes,
+      events.some((event) => event.type === "file-touched")
+        ? this.host.companion().ownFolders(record)
+        : undefined,
+    )
     if (after === record.work) return false
     const started = after !== null && after.session !== record.work?.session
     const work = started && record.awaitsOpened ? { ...after, opened: true as const } : after

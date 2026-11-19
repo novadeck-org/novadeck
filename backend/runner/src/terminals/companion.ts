@@ -1,5 +1,12 @@
+import { realpath } from "node:fs/promises"
+
 import type { ActivityEvent } from "@novadeck/harness-core/events"
-import type { PageTrouble, TerminalSummary } from "@novadeck/protocol"
+import {
+  companionLimits,
+  isAgentName,
+  type PageTrouble,
+  type TerminalSummary,
+} from "@novadeck/protocol"
 
 import type { PlanText } from "../companions/content.js"
 import type { CompanionItems, TerminalPlace } from "../companions/items.js"
@@ -21,6 +28,7 @@ import { peerOf, type TerminalPeers } from "./peers-host.js"
 import type { Record } from "./record.js"
 import type { SavedTerminal } from "./saved-terminals.js"
 import { itemGone, lookedAt, troubled } from "./troubles.js"
+import type { Work } from "./work.js"
 
 /** What `look` answers: words and the picture, or why there is none. */
 export type LookAnswer =
@@ -39,6 +47,27 @@ export type Checkout = {
   /** Its agent is mid-turn, or a command runs in its shell: the same as a listing's "working". */
   readonly working: boolean
 }
+
+// What a terminal's agent session wrote outside the folder the terminal works in, and which
+// harness it is, as a place tells it; nothing for a session that wrote none.
+// A work kept before it held any, or by a build that knew another shape, has none that is
+// shaped so; only those that are are told.
+const wroteOf = (work: Work | null): Pick<TerminalPlace, "wrote" | "agent"> => {
+  const agent = work?.session?.split(":")[0]
+  const wrote = Array.isArray(work?.wrote)
+    ? work.wrote.filter(
+        (each) =>
+          typeof each?.folder === "string" &&
+          each.folder.length <= companionLimits.path &&
+          Number.isFinite(each.at),
+      )
+    : []
+  return wrote.length > 0 && isAgentName(agent) ? { wrote, agent } : {}
+}
+
+// How long a folder's resolved path is kept, and how long a failure to resolve one is.
+const resolvedFor = 60_000
+const failedFor = 3_000
 
 export type CompanionHost = {
   /** Every terminal the runner holds, by id. */
@@ -185,6 +214,46 @@ export class Companion {
   }
 
   /**
+   * The folders a terminal and its project work in, as written and, once known, as they resolve
+   * through links, with those its agent's harness keeps for itself under the home its session
+   * runs in (by its transcript, which is known as a write is told): what its agents' writes
+   * are not kept apart from (see `wroteIn`), so a moved home's plans are never stored. A
+   * folder is resolved off this call, so a slow mount never holds a report up; until it is
+   * known the folder stands as written (the list's read applies the links too).
+   */
+  ownFolders(record: Record): readonly string[] {
+    const { root, transcript } = record
+    const kept = root && transcript ? (harnesses[root.agent].bookkeepingOf?.(transcript) ?? []) : []
+    const found = [record.summary.cwd, this.host.projectFolder(record.summary.sessionId), ...kept]
+    const now = Date.now()
+    return [
+      ...new Set(
+        found.flatMap((folder) => {
+          if (folder === undefined) return []
+          const known = this.resolved.get(folder)
+          if (known === undefined || now - known.at >= resolvedFor) {
+            if (this.resolved.size >= 200) this.resolved.clear()
+            // Asked once for a while; a failure is asked again after a moment, and until then
+            // the folder stands as written.
+            this.resolved.set(folder, { at: now, real: known?.real })
+            void realpath(folder).then(
+              (path) => this.resolved.set(folder, { at: Date.now(), real: path }),
+              () => this.resolved.set(folder, { at: Date.now() - resolvedFor + failedFor }),
+            )
+          }
+          return known?.real === undefined ? [folder] : [folder, known.real]
+        }),
+      ),
+    ]
+  }
+
+  /** What each folder resolved to, by the folder as written, and when it was asked. */
+  private readonly resolved = new Map<
+    string,
+    { readonly at: number; readonly real?: string | undefined }
+  >()
+
+  /**
    * Where a terminal kept by the runner is, running or saved, as items shown in it or
    * placed on it need: its session, handle, directory and project folder.
    */
@@ -198,6 +267,7 @@ export class Companion {
       handle: terminal.handle,
       cwd: terminal.cwd,
       project: this.host.projectFolder(terminal.sessionId),
+      ...wroteOf(live ? live.work : (this.host.saved(terminalId)?.work ?? null)),
       transcript: live?.transcript ?? null,
       ...(live?.bound && {
         shells: { agent: live.bound.binding.agent, shells: live.bound.activity.shells },

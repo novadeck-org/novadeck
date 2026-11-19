@@ -941,6 +941,26 @@ describe("a terminal's taskbar", () => {
       expect(container.querySelector(".pane-sheet")?.hasAttribute("data-entry")).toBe(false)
     })
 
+    it("eases the marks of the tab picked and the one it left, and of no tab once drawn", async () => {
+      const { container } = renderTerminal(opening(hero))
+      const marks = () =>
+        [...container.querySelectorAll<HTMLElement>(".pane-tab")].map(
+          (each) => each.dataset.mark ?? null,
+        )
+      expect(marks()).toEqual([null, null])
+      await act(async () => tab(container, "about.png")?.click())
+      expect(marks()).toEqual(["left", "picked"])
+      // Once eased they go, so a parked terminal shown again doesn't play them again.
+      const eased = new Event("transitionend", { bubbles: true })
+      Object.defineProperty(eased, "pseudoElement", { value: "::after" })
+      await act(async () => {
+        container.querySelector(".pane-tab .pane-tab-label")?.dispatchEvent(eased)
+      })
+      expect(marks()).toEqual([null, null])
+      // Its words, not its icon or close, carry the mark.
+      expect(container.querySelector(".pane-tab .pane-tab-label .pane-tab-name")).not.toBeNull()
+    })
+
     it("steps along the tabs with the arrow keys, the tab it lands on keeping focus", async () => {
       const { container } = renderTerminal(opening(hero))
       tab(container, "hero.png")?.focus()
@@ -1083,6 +1103,42 @@ describe("a terminal's taskbar", () => {
         ["Bring forward changes", "1"],
         ["Bring forward notes", "0"],
       ])
+    })
+
+    it("shows only the nearest five icons behind it, the taskbar keeping the rest", () => {
+      const behind = (["file", "changes", "folder", "video", "audio", "pdf"] as const).map((kind) =>
+        itemFixture(kind, "01", { kind, name: kind, path: `/p/${kind}` }),
+      )
+      const { container } = renderTerminal(
+        [...behind, hero].reduce(
+          (workspace, item) =>
+            workspaceReducer(workspace, {
+              type: "bar/open",
+              target,
+              terminalId: "01",
+              key: item.id,
+            }),
+          [...behind, hero].reduce(
+            (workspace, item) => workspaceReducer(workspace, shown(item)),
+            opening(),
+          ),
+        ),
+      )
+      const stack = container.querySelector<HTMLElement>(".pane-stack")
+      expect(stack?.style.getPropertyValue("--_count")).toBe("5")
+      expect(
+        [...container.querySelectorAll<HTMLElement>(".pane-stack-sheet")].map((each) => [
+          each.getAttribute("aria-label"),
+          each.style.getPropertyValue("--_depth"),
+        ]),
+      ).toEqual([
+        ["Bring forward changes", "4"],
+        ["Bring forward folder", "3"],
+        ["Bring forward video", "2"],
+        ["Bring forward audio", "1"],
+        ["Bring forward pdf", "0"],
+      ])
+      expect(icon(container, "file")?.getAttribute("data-state")).toBe("behind")
     })
 
     it("minimizes everything open of the stack from its icon, uncovering what's behind it", async () => {

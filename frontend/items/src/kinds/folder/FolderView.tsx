@@ -23,6 +23,7 @@ import {
   sorted,
   type FolderSort,
 } from "./model"
+import { PathField } from "./PathField"
 import { QuickLook } from "./QuickLook"
 
 // The terminal a folder's files open on: its own, or where it was shown from.
@@ -46,6 +47,9 @@ const troubleText = (reason: UnavailableReason, name: string): string => {
       return `Novadeck can't read ${name}.`
   }
 }
+
+// Whether the platform's shortcuts use Command, as a Mac's do.
+const mac = /Mac|iPhone|iPad/.test(navigator.platform)
 
 // Copies a path: the folder's own, or a file's of it. A page that may not write the clipboard
 // simply doesn't copy.
@@ -116,6 +120,8 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
   const entries = useMemo(() => sorted(arrivals.visible, sort), [arrivals.visible, sort])
   const [selected, setSelected] = useState<string>()
   const [problem, setProblem] = useState<string>()
+  // The person is typing a path where the crumbs are (Ctrl+L, or a click on the path).
+  const [typing, setTyping] = useState(false)
   // The entry the open menu was asked for, as it was then (so the menu doesn't change under the
   // pointer if the file goes), and the one being looked at, by name and the folder it is in.
   const [menuFor, setMenuFor] = useState<{
@@ -247,6 +253,11 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
         },
       ]
 
+  const closeField = (refocus: boolean): void => {
+    setTyping(false)
+    if (refocus) body?.focus({ preventScroll: true })
+  }
+
   const tools: PaneTool[] = [
     {
       key: "layout",
@@ -310,6 +321,17 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
           if (event.key === "Escape") event.stopPropagation()
           return
         }
+        // What is typed in the path field is its own: Backspace there is no way up, and Space no
+        // quick look.
+        if ((event.target as HTMLElement).closest(".folder-field")) return
+        if (event.key.toLowerCase() === "l" && (mac ? event.metaKey : event.ctrlKey)) {
+          if (event.altKey || event.shiftKey) return
+          event.preventDefault()
+          // The field takes the keys, so a look under way ends.
+          setLooking(undefined)
+          setTyping(true)
+          return
+        }
         // Going up is not done under a look, which holds the keys while it is up.
         if (event.key === "Backspace" || (event.altKey && event.key === "ArrowUp")) {
           event.preventDefault()
@@ -351,7 +373,13 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
     >
       <PaneTools tools={tools} />
       <div className="folder-crumbs">
-        <Tooltip content={parent === null ? `${crumbs[0]!.name} is the top of this folder` : "Up"}>
+        <Tooltip
+          content={
+            parent === null
+              ? `${crumbs[0]!.name} is the top of this folder · ${mac ? "⌘L" : "Ctrl+L"} opens another`
+              : "Up"
+          }
+        >
           <button
             type="button"
             className="icon-button folder-up"
@@ -362,31 +390,49 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
             <ArrowUp size={14} strokeWidth={1.75} aria-hidden />
           </button>
         </Tooltip>
-        <nav className="folder-path" aria-label="Folder path">
-          {above !== "" && (
-            <span className="folder-above" aria-hidden="true">
-              {above}
-            </span>
-          )}
-          {crumbs.map((crumb, index) => (
-            <span key={crumb.within} className="folder-crumb-part">
-              {index > 0 && (
-                <span className="folder-sep" aria-hidden="true">
-                  /
-                </span>
-              )}
-              <button
-                type="button"
-                className="folder-crumb"
-                aria-current={index === crumbs.length - 1 ? "location" : undefined}
-                onClick={() => goTo(crumb.within)}
-              >
-                {crumb.name}
-              </button>
-            </span>
-          ))}
-        </nav>
-        {listed && <span className="folder-count">{countText(listed.total)}</span>}
+        {typing ? (
+          <PathField
+            itemStore={itemStore}
+            target={target}
+            terminal={terminal}
+            initial={listed?.path ?? item.path ?? ""}
+            now={now}
+            close={closeField}
+          />
+        ) : (
+          <nav
+            className="folder-path"
+            aria-label="Folder path"
+            onClick={(event) => {
+              // A crumb goes to its folder; the rest of the path, which is text, is typed over.
+              if (!(event.target as HTMLElement).closest("button")) setTyping(true)
+            }}
+          >
+            {above !== "" && (
+              <span className="folder-above" aria-hidden="true">
+                {above}
+              </span>
+            )}
+            {crumbs.map((crumb, index) => (
+              <span key={crumb.within} className="folder-crumb-part">
+                {index > 0 && (
+                  <span className="folder-sep" aria-hidden="true">
+                    /
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="folder-crumb"
+                  aria-current={index === crumbs.length - 1 ? "location" : undefined}
+                  onClick={() => goTo(crumb.within)}
+                >
+                  {crumb.name}
+                </button>
+              </span>
+            ))}
+          </nav>
+        )}
+        {listed && !typing && <span className="folder-count">{countText(listed.total)}</span>}
       </div>
       {gone && (
         <div className="pane-notice" data-tone="warning" role="status">

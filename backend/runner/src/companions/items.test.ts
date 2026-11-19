@@ -21,6 +21,7 @@ import { join } from "node:path"
 
 import {
   itemContent,
+  type AgentName,
   type CompanionChange,
   type ItemContent,
   type PageTrouble,
@@ -33,9 +34,11 @@ import { vi } from "vitest"
 import { timing } from "../checkouts/git.js"
 import type { Shell } from "../harnesses/shells.js"
 import { describe, expect, it as base } from "../test.js"
+import type { Resources } from "../testing/resources.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import type { PlanText } from "./content.js"
 import { CompanionItems, type TerminalPlace } from "./items.js"
+import { abbreviateHome } from "./path-field.js"
 
 const gitInstalled = (() => {
   try {
@@ -54,11 +57,20 @@ type Fixture = {
   terminal: (handle: string, sessionId?: string) => TerminalPlace
   /** The terminal as its agent's activity now lists these shells (none: no agent is bound). */
   shell: (place: TerminalPlace, shells: readonly Shell[] | undefined) => TerminalPlace
+  /** The terminal as it tells what its agent session wrote outside the folder it works in. */
+  wrote: (
+    place: TerminalPlace,
+    agent: AgentName,
+    folders: readonly { folder: string; at: number }[],
+    transcript?: string,
+  ) => TerminalPlace
   /** Closes a terminal as the terminals do: its items first, then its record. */
   close: (terminalId: string) => void
   items: CompanionItems
   /** What a text plan's live terminal has, as `livePlan` reads it. */
   live: Map<string, PlanText>
+  /** The folders the harnesses keep for themselves, as `harnessBookkeeping` tells them. */
+  bookkeeping: string[]
   /** The person's environment, as `environment` reads it: none of the machine's own. */
   environment: NodeJS.ProcessEnv
   /** How long a folder waits for a change its watch may not tell, which a test may shorten. */
@@ -86,6 +98,7 @@ const it = base.extend<{ fixture: Fixture }>({
     // that wants a poll to deliver shortens the one it means.
     const polls = { safety: 600_000, unwatched: 600_000 }
     const asked = { environment: 0 }
+    const bookkeeping: string[] = []
     const steps: Fixture["steps"] = {}
     const marks = new Map<string, Map<string, string>>()
     const items = new CompanionItems({
@@ -98,6 +111,8 @@ const it = base.extend<{ fixture: Fixture }>({
       },
       records: store,
       terminal: (terminalId) => places.get(terminalId),
+      harnessBookkeeping: async () => bookkeeping,
+      terminals: (sessionId) => [...places.values()].filter((each) => each.sessionId === sessionId),
       project: (sessionId) => (sessionId === session.id ? directory : undefined),
       livePlan: (item) => live.get(item.id),
       pollMs: 10,
@@ -144,16 +159,23 @@ const it = base.extend<{ fixture: Fixture }>({
       places.set(place.terminalId, moved)
       return moved
     }
+    const wrote: Fixture["wrote"] = (place, agent, folders, transcript) => {
+      const moved = { ...place, agent, wrote: folders, ...(transcript && { transcript }) }
+      places.set(place.terminalId, moved)
+      return moved
+    }
     await use({
       directory,
       store,
       sessionId: session.id,
       terminal,
       shell,
+      wrote,
       close,
       items,
       live,
       environment,
+      bookkeeping,
       polls,
       asked,
       steps,
@@ -578,6 +600,125 @@ describe("what the person attaches", () => {
     await expect(
       fixture.items.attach({ terminalId: randomUUID(), path: "notes.md" }),
     ).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
+  })
+})
+
+describe("what the person types in a folder's path field", () => {
+  // A folder of its own outside the project's, removed when the test ends.
+  const away = (resources: Resources, name: string) => {
+    const outside = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-outside-")))
+    resources.defer(() => rmSync(outside, { recursive: true, force: true }))
+    return join(outside, name)
+  }
+
+  it("opens a path with a tilde from the home folder, a folder as a folder item", async ({
+    fixture,
+  }) => {
+    const moth = fixture.terminal("moth")
+    mkdirSync(join(fixture.directory, "Downloads"))
+    writeFileSync(join(fixture.directory, "notes.md"), "# Notes\n")
+    vi.stubEnv("HOME", fixture.directory)
+    vi.stubEnv("USERPROFILE", fixture.directory)
+    try {
+      await expect(
+        fixture.items.attach({ terminalId: moth.terminalId, path: "~/Downloads" }),
+      ).resolves.toMatchObject({ kind: "folder", path: join(fixture.directory, "Downloads") })
+      await expect(
+        fixture.items.attach({ terminalId: moth.terminalId, path: "~/notes.md" }),
+      ).resolves.toMatchObject({ kind: "file", path: join(fixture.directory, "notes.md") })
+      await expect(
+        fixture.items.attach({ terminalId: moth.terminalId, path: "~/missing" }),
+      ).rejects.toMatchObject({ code: "INVALID_FILE" })
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it("names the folders it may be, marking one a folder item already shows", async ({
+    fixture,
+  }) => {
+    const moth = fixture.terminal("moth")
+    mkdirSync(join(fixture.directory, "render"))
+    mkdirSync(join(fixture.directory, "release"))
+    await fixture.items.attach({ terminalId: moth.terminalId, path: "render" })
+    await expect(
+      fixture.items.folders({ terminalId: moth.terminalId, path: "re" }),
+    ).resolves.toEqual([
+      { path: "release", real: join(fixture.directory, "release"), count: 0, open: false },
+      { path: "render", real: join(fixture.directory, "render"), count: 0, open: true },
+    ])
+    await expect(
+      fixture.items.folders({ terminalId: randomUUID(), path: "re" }),
+    ).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
+  })
+
+  it("names no folder the person's environment moves a tool's logins to", async ({ fixture }) => {
+    const moth = fixture.terminal("moth")
+    mkdirSync(join(fixture.directory, "keys"))
+    mkdirSync(join(fixture.directory, "keep"))
+    fixture.environment.DOCKER_CONFIG = join(fixture.directory, "keys")
+    await expect(
+      fixture.items.folders({ terminalId: moth.terminalId, path: "k" }),
+    ).resolves.toEqual([
+      { path: "keep", real: join(fixture.directory, "keep"), count: 0, open: false },
+    ])
+  })
+
+  it("lists the folders outside the project its session's agents wrote in, whichever the harness", async ({
+    fixture,
+    resources,
+  }) => {
+    const [a, b, c, d] = ["a", "b", "c", "d"].map((name) => away(resources, name))
+    for (const folder of [a!, b!, c!, d!]) mkdirSync(folder)
+    mkdirSync(join(fixture.directory, "inside"))
+    const moth = fixture.wrote(fixture.terminal("moth"), "claude", [
+      { folder: a!, at: 10 },
+      { folder: join(fixture.directory, "inside"), at: 99 },
+    ])
+    fixture.wrote(fixture.terminal("raven"), "codex", [{ folder: b!, at: 30 }])
+    fixture.wrote(fixture.terminal("kite"), "agy", [{ folder: c!, at: 20 }])
+    const other = fixture.store.createSession({
+      id: randomUUID(),
+      projectId: fixture.store.session(fixture.sessionId).projectId,
+      name: "Other",
+    })
+    fixture.wrote(fixture.terminal("owl", other.id), "claude", [{ folder: d!, at: 40 }])
+    // Shown with `~` for the home, which a machine's temporary folder may lie in (as on Windows).
+    const shown = (real: string) => ({ path: abbreviateHome(real), real })
+    await expect(fixture.items.wroteTo({ terminalId: moth.terminalId })).resolves.toEqual([
+      { ...shown(b!), handle: "raven", agent: "codex", at: 30 },
+      { ...shown(c!), handle: "kite", agent: "agy", at: 20 },
+      { ...shown(a!), handle: "moth", agent: "claude", at: 10 },
+    ])
+    // What a harness keeps in its own home is not the agent's work for the person.
+    fixture.bookkeeping.push(b!)
+    const without = await fixture.items.wroteTo({ terminalId: moth.terminalId })
+    expect(without.map(({ real }) => real)).toEqual([c, a])
+    await expect(fixture.items.wroteTo({ terminalId: randomUUID() })).rejects.toMatchObject({
+      code: "TERMINAL_NOT_FOUND",
+    })
+  })
+
+  it("leaves out what a session's own home keeps, by its transcript, though no global folder names it", async ({
+    fixture,
+    resources,
+  }) => {
+    const moved = away(resources, "second-account")
+    const plans = join(moved, "plans")
+    const skills = join(moved, "skills")
+    mkdirSync(plans, { recursive: true })
+    mkdirSync(skills)
+    const moth = fixture.wrote(
+      fixture.terminal("moth"),
+      "claude",
+      [
+        { folder: plans, at: 9 },
+        { folder: skills, at: 8 },
+      ],
+      join(moved, "projects", "p", "s.jsonl"),
+    )
+    const found = await fixture.items.wroteTo({ terminalId: moth.terminalId })
+    expect(found.map(({ path, real }) => [path, real])).toEqual([[abbreviateHome(skills), skills]])
   })
 })
 

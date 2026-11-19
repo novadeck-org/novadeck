@@ -24,6 +24,8 @@ import type {
   PageLookAnswer,
   PageTrouble,
   FilePart,
+  FolderMatch,
+  WroteFolder,
 } from "@novadeck/protocol"
 import { KeyedChanges } from "@novadeck/wire/server"
 
@@ -31,6 +33,7 @@ import { waitAfter } from "../checkouts/git.js"
 import { mainBranch } from "../checkouts/repository.js"
 import { Snapshots } from "../checkouts/snapshots.js"
 import { DomainError } from "../errors.js"
+import { harnesses } from "../harnesses/registry.js"
 import { logs } from "../log.js"
 import { agentLabel } from "../messaging/messages.js"
 import { mention } from "../terminals/handles.js"
@@ -60,6 +63,7 @@ import {
 import { FolderWatch, loadFolder, placeOfFolder, readFolderPart } from "./folder.js"
 import { findRepository, LayerReader, type ReadMarks } from "./layers.js"
 import { PageLooks } from "./looks.js"
+import { expandHome, matchFolders, wroteFolders } from "./path-field.js"
 import type { Compare, ItemRecord, ItemRecords, WindowRecord } from "./records.js"
 import { remoteCompare } from "./remote-compare.js"
 import {
@@ -72,7 +76,7 @@ import {
   type RequestFailure,
   type ShowRequest,
 } from "./request.js"
-import { secrets } from "./secrets.js"
+import { folderSecrets, secrets } from "./secrets.js"
 import { ShellTails, shellsDetail, type PlaceShells } from "./shell-output.js"
 
 const log = logs.for("companions")
@@ -88,6 +92,13 @@ export type TerminalPlace = {
   readonly project: string | undefined
   /** The transcript of the agent session it runs, where its hooks named one. */
   readonly transcript?: string | null
+  /**
+   * The folders its agent session wrote a file in outside the folder it works in, each with
+   * when it last did, the latest first, and the harness that session is of; absent where
+   * it wrote none (see `Work.wrote`).
+   */
+  readonly wrote?: readonly { readonly folder: string; readonly at: number }[]
+  readonly agent?: AgentName
   /**
    * The background shells of the agent bound in it, with the agent's name; undefined where
    * none is bound. What a shells item shows, and what makes and updates it.
@@ -106,6 +117,10 @@ type CompanionOptions = {
   readonly records: ItemRecords
   /** A terminal the runner keeps, running or saved; undefined once it is closed. */
   readonly terminal: (terminalId: string) => TerminalPlace | undefined
+  /** The folders every harness keeps for itself, which its agents' writes there are not listed from. */
+  readonly harnessBookkeeping?: () => Promise<readonly string[]>
+  /** The terminals the runner keeps in a session, as `terminal` tells them. */
+  readonly terminals?: (sessionId: string) => readonly TerminalPlace[]
   /** The folder of a session's project, which the person's project window opens files from; undefined for an unknown session. */
   readonly project: (sessionId: string) => string | undefined
   /**
@@ -561,7 +576,7 @@ export class CompanionItems {
     if (this.stopping) throw new DomainError("CLOSING")
     const place = this.place(input.terminalId)
     const pointed = await this.pointer(place, {
-      file: { path: input.path, ...(input.lines && { lines: input.lines }) },
+      file: { path: expandHome(input.path), ...(input.lines && { lines: input.lines }) },
       ...(input.title !== undefined && { title: input.title }),
     })
     if (!pointed.ok) throw new DomainError("INVALID_FILE", pointed.reason)
@@ -571,6 +586,45 @@ export class CompanionItems {
     })
     if (!kept) throw new DomainError("TERMINAL_NOT_FOUND")
     return wireItem(kept.item)
+  }
+
+  /**
+   * The folders a path typed for a terminal's folder tab may be (see `companions.folders`);
+   * TERMINAL_NOT_FOUND for a terminal not kept.
+   */
+  async folders(input: {
+    readonly terminalId: string
+    readonly path: string
+  }): Promise<FolderMatch[]> {
+    const place = this.place(input.terminalId)
+    const shown = new Set(
+      this.records
+        .items(place.sessionId)
+        .flatMap((item) => (item.kind === "folder" && item.path !== null ? [item.path] : [])),
+    )
+    return matchFolders(input.path, place.cwd, folderSecrets(this.environment()), shown)
+  }
+
+  /**
+   * The folders outside the project that the agents of a terminal's session wrote in (see
+   * `companions.wroteTo`); TERMINAL_NOT_FOUND for a terminal not kept.
+   */
+  async wroteTo(input: { readonly terminalId: string }): Promise<WroteFolder[]> {
+    const place = this.place(input.terminalId)
+    const wrote = (this.options.terminals?.(place.sessionId) ?? []).flatMap(
+      ({ wrote: folders = [], agent, handle, cwd, transcript }) => {
+        if (agent === undefined) return []
+        // The folders its session's own home keeps, which a home moved for it alone names.
+        const own = transcript ? (harnesses[agent].bookkeepingOf?.(transcript) ?? []) : []
+        return folders.map((each) => ({ ...each, handle, agent, cwd, own }))
+      },
+    )
+    return wroteFolders(
+      wrote,
+      place.project,
+      folderSecrets(this.environment()),
+      (await this.options.harnessBookkeeping?.()) ?? [],
+    )
   }
 
   /**

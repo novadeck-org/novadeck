@@ -175,8 +175,12 @@ const whenCut =
 // take focus: the change follows at once, so anything later wasn't theirs.
 const handOffMs = 1000
 
-// The icons with something open behind the pane's, every one, peeking out above it as the
-// cards of a file drawer do: each further back narrower and fainter, the nearest last. Each
+// How many of the icons open behind the pane peek out above it: past that, the cards further
+// back only thicken the stack's edge, and the taskbar still has them.
+export const stackCap = 5
+
+// The icons with something open behind the pane's, the nearest `stackCap`, peeking out above
+// it as the cards of a file drawer do: each further back narrower and fainter, the nearest last. Each
 // stays compact under the pointer and comes forward when clicked. One just shown tucks
 // in behind what took its place, so the two read as swapped. Escape hides the pane from here
 // too, as from what it shows, and Ctrl+PageDown and Ctrl+PageUp step through its tabs.
@@ -199,58 +203,61 @@ const BehindStack = ({
   onHide: () => void
   // Steps through the tabs of what the pane shows, as from anywhere in it.
   onStepKey: (event: React.KeyboardEvent) => void
-}): React.JSX.Element => (
-  <div
-    className="pane-stack nodrag nopan"
-    style={{ "--_count": behind.length } as React.CSSProperties}
-    data-workspace-companion
-    onKeyDown={(event) => {
-      if (event.key === "Escape") {
-        event.stopPropagation()
-        onHide()
-      }
-      onStepKey(event)
-    }}
-  >
-    {behind
-      .map(({ slot, front }, depth) => {
-        const { name } = memberLook(front, { plans })
-        const Icon = slotIcon(slot)
-        const names = slot.stack && stackNames(slot.stack)
-        const count = slot.members.length
-        return (
-          <button
-            key={slot.key}
-            type="button"
-            className="pane-stack-sheet"
-            style={{ "--_depth": depth } as React.CSSProperties}
-            data-entry={front.key === tucked ? "tuck" : undefined}
-            data-state={slot.members.some(isNew) ? "new" : undefined}
-            aria-label={
-              names
-                ? `Bring forward ${count} ${names.one}s, ${name} in front`
-                : `Bring forward ${name}`
-            }
-            onClick={() => onRaise(front)}
-            onAnimationEnd={onTucked}
-            ref={whenCut(onTucked)}
-          >
-            <Icon size={12} strokeWidth={1.5} aria-hidden="true" />
-            {names ? (
-              <>
-                <b>{names.many}</b>
-                <span className="pane-stack-count">{count}</span>
-                <span className="pane-stack-name">· {name}</span>
-              </>
-            ) : (
-              <b className="pane-stack-name">{name}</b>
-            )}
-          </button>
-        )
-      })
-      .toReversed()}
-  </div>
-)
+}): React.JSX.Element => {
+  const sheets = behind.slice(0, stackCap)
+  return (
+    <div
+      className="pane-stack nodrag nopan"
+      style={{ "--_count": sheets.length } as React.CSSProperties}
+      data-workspace-companion
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.stopPropagation()
+          onHide()
+        }
+        onStepKey(event)
+      }}
+    >
+      {sheets
+        .map(({ slot, front }, depth) => {
+          const { name } = memberLook(front, { plans })
+          const Icon = slotIcon(slot)
+          const names = slot.stack && stackNames(slot.stack)
+          const count = slot.members.length
+          return (
+            <button
+              key={slot.key}
+              type="button"
+              className="pane-stack-sheet"
+              style={{ "--_depth": depth } as React.CSSProperties}
+              data-entry={front.key === tucked ? "tuck" : undefined}
+              data-state={slot.members.some(isNew) ? "new" : undefined}
+              aria-label={
+                names
+                  ? `Bring forward ${count} ${names.one}s, ${name} in front`
+                  : `Bring forward ${name}`
+              }
+              onClick={() => onRaise(front)}
+              onAnimationEnd={onTucked}
+              ref={whenCut(onTucked)}
+            >
+              <Icon size={12} strokeWidth={1.5} aria-hidden="true" />
+              {names ? (
+                <>
+                  <b>{names.many}</b>
+                  <span className="pane-stack-count">{count}</span>
+                  <span className="pane-stack-name">· {name}</span>
+                </>
+              ) : (
+                <b className="pane-stack-name">{name}</b>
+              )}
+            </button>
+          )
+        })
+        .toReversed()}
+    </div>
+  )
+}
 
 // Where the pane's tab row was scrolled to, and which tab is to take focus: the row is
 // drawn anew for each thing, and again as it loads, so the pane keeps them.
@@ -262,6 +269,10 @@ type TabRowMemory = {
   // Whether the tab of `key` takes focus as its row is drawn: picked with focus in the
   // row a moment ago.
   readonly focuses: (key: string) => boolean
+  // The tab the row showed when last drawn, whose mark eases from the shown one's as a row
+  // drawn for another tab comes; and that the row drew showing `key`.
+  readonly lastShown: () => string | undefined
+  readonly drew: (key: string | undefined) => void
 }
 
 // The row of what the pane shows: the tabs of the icon it shows, each thing of it on the
@@ -296,17 +307,68 @@ const PaneTabs = ({
     const element = row.current
     const tab = element?.querySelector<HTMLElement>(".pane-tab[data-state='open']")
     if (!element || !tab) return
-    // Where the tab starts along the row, however far the row is scrolled now.
-    const start =
-      tab.getBoundingClientRect().left - element.getBoundingClientRect().left + element.scrollLeft
-    const end = start + tab.offsetWidth
-    element.scrollLeft = Math.min(
-      Math.max(memory.scroll(), end - element.clientWidth),
-      Math.max(0, start),
-    )
+    // Where the tab starts and ends along the row, however far it's scrolled now, in the row's
+    // own pixels: a Canvas zoom scales what the rects measure, not scrolls and widths.
+    const along = (): { start: number; end: number } => {
+      const scale = element.getBoundingClientRect().width / element.offsetWidth || 1
+      const start =
+        (tab.getBoundingClientRect().left - element.getBoundingClientRect().left) / scale +
+        element.scrollLeft
+      return { start, end: start + tab.offsetWidth }
+    }
+    // Where placing it last left the row's scroll: a scroll to there is the pane's own.
+    let placed = -1
+    const place = (): void => {
+      markOverflow(element)
+      const { start, end } = along()
+      element.scrollLeft = Math.min(
+        Math.max(memory.scroll(), end + fadeRoom(element) - element.clientWidth),
+        Math.max(0, start),
+      )
+      placed = element.scrollLeft
+    }
+    place()
+    // Whether the tab is in view, clear of the fade, as the person last left the row: a resize
+    // (its font loading, what its viewer says of it, the row narrowing) brings it back into
+    // view only if it was, never from where the person scrolled away to.
+    let clear = true
+    const scrolled = (): void => {
+      if (Math.abs(element.scrollLeft - placed) < 1) return
+      const { start, end } = along()
+      clear =
+        start >= element.scrollLeft - 1 &&
+        end + fadeRoom(element) <= element.scrollLeft + element.clientWidth + 1
+    }
+    element.addEventListener("scroll", scrolled, { passive: true })
+    const sized =
+      typeof ResizeObserver === "undefined"
+        ? undefined
+        : new ResizeObserver(() => (clear ? place() : markOverflow(element)))
+    sized?.observe(tab)
+    sized?.observe(element)
     if (memory.focuses(shown))
       tab.querySelector<HTMLElement>('[role="tab"]')?.focus({ preventScroll: true })
+    return () => {
+      sized?.disconnect()
+      element.removeEventListener("scroll", scrolled)
+    }
   }, [memory, shown])
+  // Tabs come and go without the row changing size.
+  useLayoutEffect(() => {
+    if (row.current) markOverflow(row.current)
+  })
+  // Drawn for another tab than last time: the marks of both ease to their new sizes. Read once
+  // as the row comes, so drawing it again before the browser styles it keeps them; let go once
+  // eased, so a terminal parked out of sight and shown again doesn't play them again. A lone
+  // title has no mark to ease from, so it's no tab the row left.
+  const [left] = useState(memory.lastShown)
+  const [eased, setEased] = useState(false)
+  const lone = tabs.length === 1
+  useLayoutEffect(() => memory.drew(lone ? undefined : shown), [memory, shown, lone])
+  const moved = !eased && left !== undefined && left !== shown
+  const ease = (event: React.TransitionEvent): void => {
+    if (event.pseudoElement === "::after") setEased(true)
+  }
   const pick = (tab: BarMember): void => {
     memory.picked(tab.key, row.current?.contains(document.activeElement) ?? false)
     onPick(tab)
@@ -328,6 +390,8 @@ const PaneTabs = ({
       onScroll={(event) => {
         memory.scrolled(event.currentTarget.scrollLeft)
       }}
+      onTransitionEnd={moved ? ease : undefined}
+      onTransitionCancel={moved ? ease : undefined}
       onWheel={(event) => {
         if (event.deltaY !== 0 && event.deltaX === 0) event.currentTarget.scrollLeft += event.deltaY
       }}
@@ -362,6 +426,7 @@ const PaneTabs = ({
             key={tab.key}
             className="pane-tab"
             data-state={open ? "open" : isNew(tab) ? "new" : undefined}
+            data-mark={!moved ? undefined : open ? "picked" : tab.key === left ? "left" : undefined}
             data-failed={look.failed || undefined}
             data-gone={gone || undefined}
             data-placed={look.origin !== undefined || undefined}
@@ -397,6 +462,20 @@ const PaneTabs = ({
       })}
     </div>
   )
+}
+
+// The room the tools' fade takes past the last tab, while the tabs run past the row (pane.css
+// `--_pane-fade`); none while they fit.
+const fadeRoom = (row: HTMLElement): number =>
+  row.hasAttribute("data-overflowing")
+    ? parseFloat(getComputedStyle(row).getPropertyValue("--_pane-fade")) || 0
+    : 0
+
+// Marks the row while its tabs run past it, the fade's own room aside, for it to fade into the
+// tools and keep that room past the last tab; while they fit, it needs neither, and no room
+// that would scroll.
+const markOverflow = (row: HTMLElement): void => {
+  row.toggleAttribute("data-overflowing", row.scrollWidth - fadeRoom(row) > row.clientWidth + 1)
 }
 
 // The tab `by` along from the one shown, round the row's ends, as Ctrl+PageDown (1) and
@@ -557,7 +636,8 @@ export const CompanionPane = ({
           : "arrive",
       tucked: !swapped
         ? entry.tucked
-        : behind.some((each) => each.front.key === entry.key)
+        : // Only onto a card drawn, whose tuck plays and clears it.
+          behind.slice(0, stackCap).some((each) => each.front.key === entry.key)
           ? entry.key
           : undefined,
     })
@@ -591,9 +671,14 @@ export const CompanionPane = ({
       section.current?.focus({ preventScroll: true })
   }, [member?.key])
   // Where the tab row was, for each row drawn: the pane's own, as long as it shows.
-  const tabRow = useRef<{ scroll: number; focus: { key: string; at: number } | null }>({
+  const tabRow = useRef<{
+    scroll: number
+    focus: { key: string; at: number } | null
+    shown: string | undefined
+  }>({
     scroll: 0,
     focus: null,
+    shown: undefined,
   })
   const tabMemory = useMemo(
     (): TabRowMemory => ({
@@ -607,6 +692,10 @@ export const CompanionPane = ({
       focuses: (key) => {
         const wanted = tabRow.current.focus
         return wanted?.key === key && performance.now() - wanted.at < handOffMs
+      },
+      lastShown: () => tabRow.current.shown,
+      drew: (key) => {
+        tabRow.current.shown = key
       },
     }),
     [],
