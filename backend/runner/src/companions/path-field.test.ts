@@ -1,12 +1,20 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join, sep } from "node:path"
+import { join, sep, win32 } from "node:path"
 
 import { companionLimits, folderMatchLimits, maxWroteFolders } from "@novadeck/protocol"
 import { vi } from "vitest"
 
+import { harnesses } from "../harnesses/registry.js"
 import { it as base, describe, expect } from "../test.js"
-import { abbreviateHome, expandHome, matchFolders, wroteFolders, type Wrote } from "./path-field.js"
+import {
+  abbreviateHome,
+  expandHome,
+  lies,
+  matchFolders,
+  wroteFolders,
+  type Wrote,
+} from "./path-field.js"
 import { folderSecrets } from "./secrets.js"
 
 const it = base.extend<{ directory: string }>({
@@ -238,5 +246,52 @@ describe("the folders agents wrote in outside the project", () => {
     const found = await wroteFolders(each, project, secret)
     expect(found).toHaveLength(maxWroteFolders)
     expect(found[0]!.at).toBe(11)
+  })
+})
+
+// Windows reads either slash and any case, so a write Windows reports lies in the folder a
+// harness keeps for itself however each is spelled.
+describe("a folder on Windows", () => {
+  it("holds what lies under it, by either slash and any case, and nothing beside it", () => {
+    const brain = "C:\\Users\\Ann\\.gemini\\antigravity-cli\\brain"
+    expect(lies(`${brain}\\c1`, brain, win32)).toBe(true)
+    expect(lies(brain, brain, win32)).toBe(true)
+    expect(lies("c:/users/ann/.gemini/antigravity-cli/brain/c1", brain, win32)).toBe(true)
+    expect(lies(`${brain}-old\\c1`, brain, win32)).toBe(false)
+    expect(lies("D:\\Users\\Ann\\.gemini\\antigravity-cli\\brain\\c1", brain, win32)).toBe(false)
+    expect(lies("C:\\Users\\Ann\\.gemini", brain, win32)).toBe(false)
+  })
+
+  // Each harness's own folders, named from where its transcript lies in a Windows home, hold
+  // the folders its agent writes there, and not the person's own folders beside them.
+  it.each([
+    {
+      agent: "claude" as const,
+      transcript: "C:\\Users\\Ann\\.claude\\projects\\C--work-p\\s.jsonl",
+      kept: ["C:\\Users\\Ann\\.claude\\plans", "C:\\Users\\Ann\\.claude\\agent-memory\\reviewer"],
+      listed: "C:\\Users\\Ann\\.claude\\skills\\render",
+    },
+    {
+      agent: "codex" as const,
+      transcript: "C:\\Users\\Ann\\.codex\\sessions\\2026\\11\\19\\rollout-1.jsonl",
+      kept: ["C:\\Users\\Ann\\.codex\\memories", "C:\\Users\\Ann\\.codex\\log"],
+      listed: "C:\\Users\\Ann\\.codex\\generated_images",
+    },
+    {
+      agent: "agy" as const,
+      transcript:
+        "C:\\Users\\Ann\\.gemini\\antigravity-cli\\brain\\c1\\.system\\logs\\overview.txt",
+      kept: [
+        "C:\\Users\\Ann\\.gemini\\antigravity-cli\\brain\\c1",
+        "c:/users/ann/.gemini/antigravity-cli/brain/c2/artifacts",
+      ],
+      listed: "C:\\Users\\Ann\\.gemini\\antigravity-cli\\skills",
+    },
+  ])("keeps $agent's own writes apart", ({ agent, transcript, kept, listed }) => {
+    const own = harnesses[agent].bookkeepingOf?.(transcript) ?? []
+    expect(own.length).toBeGreaterThan(0)
+    for (const folderPath of kept)
+      expect(own.some((each) => lies(folderPath, each, win32))).toBe(true)
+    expect(own.some((each) => lies(listed, each, win32))).toBe(false)
   })
 })

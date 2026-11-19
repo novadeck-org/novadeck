@@ -1,6 +1,6 @@
 import { opendir, realpath, stat } from "node:fs/promises"
 import { homedir } from "node:os"
-import { isAbsolute, join, relative, resolve, sep } from "node:path"
+import { isAbsolute, join, relative, resolve, sep, type posix } from "node:path"
 
 import {
   companionLimits,
@@ -32,10 +32,19 @@ export const abbreviateHome = (path: string, home: string = homedir()): string =
   return `~/${from.split(sep).join("/")}`
 }
 
-/** Whether `path` is `folder` or lies under it, by the paths as given. */
-export const lies = (path: string, folder: string): boolean => {
-  const from = relative(folder, path)
-  return from === "" || (from !== ".." && !from.startsWith(`..${sep}`) && !isAbsolute(from))
+/**
+ * Whether `path` is `folder` or lies under it, by the paths as given, in this machine's path
+ * rules (`rules`): on Windows either slash and any case, as Windows reads them.
+ */
+export const lies = (
+  path: string,
+  folder: string,
+  rules: Pick<typeof posix, "isAbsolute" | "relative" | "sep"> = { isAbsolute, relative, sep },
+): boolean => {
+  const from = rules.relative(folder, path)
+  return (
+    from === "" || (from !== ".." && !from.startsWith(`..${rules.sep}`) && !rules.isAbsolute(from))
+  )
 }
 
 // How many entries a folder holds, counted up to `counted`; 0 for one that can't be read.

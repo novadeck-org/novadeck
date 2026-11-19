@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, posix } from "node:path"
 
 import { rolloutEvents } from "@novadeck/harness-codex/rollout"
 import type { HarnessEvent } from "@novadeck/harness-core/events"
@@ -375,15 +375,16 @@ describe("the folders each harness keeps for itself", () => {
         ).toBe(true)
     })
 
+  // In the rules the transcript's path is written in, whatever machine reads it.
   it("names its folders from where each harness's transcript sits", () => {
     expect(harnesses.claude.bookkeepingOf!("/a/.claude-2/projects/p/s.jsonl")).toContain(
-      join("/a/.claude-2", "plans"),
+      posix.join("/a/.claude-2", "plans"),
     )
     expect(
       harnesses.codex.bookkeepingOf!("/a/.codex-2/sessions/2026/11/19/rollout-1.jsonl"),
-    ).toContain(join("/a/.codex-2", "memories"))
+    ).toContain(posix.join("/a/.codex-2", "memories"))
     expect(harnesses.agy.bookkeepingOf!("/a/.gemini/antigravity-cli/brain/c1/log.txt")).toEqual([
-      join("/a/.gemini/antigravity-cli", "brain"),
+      posix.join("/a/.gemini/antigravity-cli", "brain"),
     ])
     expect(harnesses.claude.bookkeepingOf!("/elsewhere/s.jsonl")).toEqual([])
   })
