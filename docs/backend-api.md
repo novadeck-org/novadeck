@@ -1844,8 +1844,12 @@ one from an earlier runner.
     latest 20 folders written in outside the folder the terminal works in, each with when; kept
     with the terminal, so it outlives a restart, and shaped as the rest of `work`, so no schema
     change). A command's output is told by no harness, so a folder only a shell command wrote in
-    is not named. Never named: a folder in the session's project or in the folder its terminal
-    works in, one that may hold secrets, one that is gone. `path` leads with `~` for a folder in
+    is not named. Each time is the fact's own (the hook's start, or the rollout line's stamp), so a
+    backlog told again after a restart is no newer. Never named: a folder in the session's
+    project or in the folder its terminal works in (as written and as they resolve through
+    links, also left out when kept), one in a harness's own home (Claude Code's config folder,
+    Codex's, Antigravity's, as each says where it is: their plans, memory and conversation
+    files), one that may hold secrets, one that is gone. `path` leads with `~` for a folder in
     the person's home. `TERMINAL_NOT_FOUND` for a terminal not kept.
   - `companions.openInProject({ sessionId, path, windowId })` opens a file the person
     picked in the session's project window, by a path absolute or from the project's

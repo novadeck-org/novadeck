@@ -111,6 +111,8 @@ type CompanionOptions = {
   readonly records: ItemRecords
   /** A terminal the runner keeps, running or saved; undefined once it is closed. */
   readonly terminal: (terminalId: string) => TerminalPlace | undefined
+  /** Every harness's own home, which its agents' writes there are not listed from. */
+  readonly harnessHomes?: () => Promise<readonly string[]>
   /** The terminals the runner keeps in a session, as `terminal` tells them. */
   readonly terminals?: (sessionId: string) => readonly TerminalPlace[]
   /** The folder of a session's project, which the person's project window opens files from; undefined for an unknown session. */
@@ -581,7 +583,12 @@ export class CompanionItems {
       ({ wrote: folders = [], agent, handle, cwd }) =>
         agent === undefined ? [] : folders.map((each) => ({ ...each, handle, agent, cwd })),
     )
-    return wroteFolders(wrote, place.project, folderSecrets(this.environment()))
+    return wroteFolders(
+      wrote,
+      place.project,
+      folderSecrets(this.environment()),
+      (await this.options.harnessHomes?.()) ?? [],
+    )
   }
 
   /**

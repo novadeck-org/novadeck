@@ -109,6 +109,8 @@ export const suggestionGroups = ({
 // What opening the text asks for: trimmed, without separators at its end (the root's own stays).
 export const targetOf = (text: string): string => {
   const trimmed = text.trim()
+  // A drive's root (`C:\`) stays whole: `C:` alone is the drive's current folder, not its root.
+  if (/^[A-Za-z]:[\\/]+$/.test(trimmed)) return trimmed.slice(0, 3)
   const stripped = trimmed.replace(/[\\/]+$/, "")
   return stripped === "" ? trimmed.slice(0, 1) : stripped
 }
@@ -116,3 +118,12 @@ export const targetOf = (text: string): string => {
 // A suggestion's path as completing it writes it, ready for what is inside it to be typed.
 export const completion = (path: string): string =>
   /[\\/]$/.test(path) ? path : `${path}${path.includes("\\") && !path.includes("/") ? "\\" : "/"}`
+
+// Whether a folder the runner named answers the text now typed: one whose path continues the
+// text by a name alone, as the runner names them (a bare `~` asks for the home's folders). An
+// answer to what was typed before the last keystroke may not.
+export const answersText = (path: string, text: string): boolean => {
+  const typed = (text === "~" ? "~/" : text).toLowerCase()
+  const lower = path.toLowerCase()
+  return lower.startsWith(typed) && !/[\\/]/.test(lower.slice(typed.length))
+}

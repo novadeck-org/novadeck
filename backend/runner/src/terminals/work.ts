@@ -148,23 +148,28 @@ export const placed = (places: Work["places"], folder: string): readonly string[
 }
 
 /**
- * The folders written in outside the terminal's own with `folder` the latest at `at`, once each,
- * kept to the `keptWrote` latest. A folder at or under `own`, the folder the terminal works in,
- * is no place the person wouldn't find: the list is the same one then.
+ * The folders written in outside the terminal's own with `folder` written in at `at`, once each
+ * (the later time kept), the latest first, kept to the `keptWrote` latest. A folder at or under
+ * one of `own`, the folders the terminal and its project work in, is a place the person finds
+ * anyway: the list is the same one then. Times come from the facts, so a backlog told again
+ * after a restart keeps its old ones.
  */
 export const wroteIn = (
   wrote: Work["wrote"],
   folder: string,
   at: number,
-  own: string | undefined,
-): Work["wrote"] =>
+  own: readonly string[] = [],
+): Work["wrote"] => {
   // A path longer than the protocol carries is never kept, nor one inside the terminal's own.
-  folder.length > companionLimits.path || (own !== undefined && lies(folder, own))
-    ? wrote
-    : [{ folder, at }, ...(wrote ?? []).filter((each) => each.folder !== folder)].slice(
-        0,
-        keptWrote,
-      )
+  if (folder.length > companionLimits.path || own.some((each) => lies(folder, each))) return wrote
+  const before = wrote?.find((each) => each.folder === folder)
+  return [
+    { folder, at: Math.max(at, before?.at ?? at) },
+    ...(wrote ?? []).filter((each) => each.folder !== folder),
+  ]
+    .toSorted((a, b) => b.at - a.at)
+    .slice(0, keptWrote)
+}
 
 /** The folders a session wrote in most, by edits, at most `count` of them. */
 export const busiestFolders = (
@@ -204,8 +209,8 @@ export const currentCheckout = (
  * The work of the root's session after its root `changes` and a report's facts: the same
  * session keeps what it worked on, and so does a guess at it corrected to another
  * session, as Antigravity's root once its status line names it; another session starts
- * afresh, and none has none. `own` is the folder its terminal works in, which the writes under
- * it are not kept apart from (see `wroteIn`).
+ * afresh, and none has none. `own` is the folders its terminal and its project work in, which
+ * the writes under them are not kept apart from (see `wroteIn`).
  */
 export const workAfter = (
   work: Work | null,
@@ -213,7 +218,7 @@ export const workAfter = (
   events: readonly HarnessEvent[],
   now: number,
   changes: readonly RootChange[] = [],
-  own?: string,
+  own?: readonly string[],
 ): Work | null => {
   if (!root) return work
   let carried = work
@@ -237,7 +242,12 @@ export const workAfter = (
       }
     } else if (event.type === "turn-ended") next = { ...next, activeAt: now }
     else if (event.type === "file-touched") {
-      const wrote = wroteIn(next.wrote, dirname(event.path), now, own)
+      const wrote = wroteIn(
+        next.wrote,
+        dirname(event.path),
+        Number.isFinite(event.startedAt) ? event.startedAt : now,
+        own,
+      )
       next = {
         ...next,
         folders: tallied(next.folders, dirname(event.path)),

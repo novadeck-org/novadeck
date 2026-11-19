@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from "node:os"
 import { join, sep } from "node:path"
 
-import { folderMatchLimits, maxWroteFolders } from "@novadeck/protocol"
+import { companionLimits, folderMatchLimits, maxWroteFolders } from "@novadeck/protocol"
 import { vi } from "vitest"
 
 import { it as base, describe, expect } from "../test.js"
@@ -146,6 +146,20 @@ describe("the folders a typed path may be", () => {
     expect(await matchFolders(`${directory}/nope/x`, directory, secret, none)).toEqual([])
     expect(await matchFolders(`${directory}/file/x`, directory, secret, none)).toEqual([])
     expect(await matchFolders("", directory, secret, none)).toEqual([])
+  })
+
+  it("names no folder whose path would be past what the protocol carries", async ({
+    directory,
+  }) => {
+    folder(directory, "a")
+    const long = "x".repeat(200)
+    folder(directory, long)
+    folder(directory, "short")
+    // A typed path that detours through `a/..`, so it is long and still names the folder.
+    const typed = `${directory}/${"a/../".repeat(780)}`
+    expect(typed.length + long.length).toBeGreaterThan(companionLimits.path)
+    const found = await matchFolders(typed, directory, secret, none)
+    expect(found.map(({ path }) => path.slice(typed.length))).toEqual(["a", "short"])
   })
 
   it("names at most twenty, and counts a folder's entries only up to a bound", async ({

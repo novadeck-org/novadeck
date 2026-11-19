@@ -403,6 +403,16 @@ export const createHarnesses = (
       }
       return harnesses[agent].planFolders?.(where) ?? []
     },
+    /**
+     * Every harness's own home (Claude Code's config folder, Codex's, Antigravity's), where it
+     * keeps its plans, memory and conversation files: places it writes for itself, not for
+     * the person.
+     */
+    homes: async (): Promise<readonly string[]> => {
+      const installed = (await installs()) ?? (() => undefined)
+      const fallback: Install = { env: latest ?? base, home, platform, plugin: "" }
+      return Object.values(harnesses).map((each) => each.home(installed(each.id) ?? fallback))
+    },
     /** Whether Novadeck's plugin is installed into the agent. */
     connected: async (agent: AgentName): Promise<boolean> => {
       const install = await installs()

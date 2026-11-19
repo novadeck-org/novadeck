@@ -622,7 +622,9 @@ export class Reports {
       events,
       Date.now(),
       changes,
-      record.summary.cwd,
+      events.some((event) => event.type === "file-touched")
+        ? this.host.companion().ownFolders(record)
+        : undefined,
     )
     if (after === record.work) return false
     const started = after !== null && after.session !== record.work?.session

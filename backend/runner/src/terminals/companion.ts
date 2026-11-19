@@ -1,3 +1,5 @@
+import { realpathSync } from "node:fs"
+
 import type { ActivityEvent } from "@novadeck/harness-core/events"
 import {
   companionLimits,
@@ -205,6 +207,26 @@ export class Companion {
       ),
       picture: { data: base64, mimeType: "image/jpeg" },
     }
+  }
+
+  /**
+   * The folders a terminal and its project work in, as written and as they resolve through
+   * links: what its agents' writes are not listed apart from (see `wroteIn`).
+   */
+  ownFolders(record: Record): readonly string[] {
+    const found = [record.summary.cwd, this.host.projectFolder(record.summary.sessionId)]
+    return [
+      ...new Set(
+        found.flatMap((folder) => {
+          if (folder === undefined) return []
+          try {
+            return [folder, realpathSync(folder)]
+          } catch {
+            return [folder]
+          }
+        }),
+      ),
+    ]
   }
 
   /**

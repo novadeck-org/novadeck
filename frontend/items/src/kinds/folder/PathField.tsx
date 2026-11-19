@@ -5,7 +5,7 @@ import { Folder, PenLine } from "lucide-react"
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import type { ItemStore } from "../../store/item-store"
-import { completion, suggestionGroups, targetOf, type Suggestion } from "./path-field"
+import { answersText, completion, suggestionGroups, targetOf, type Suggestion } from "./path-field"
 
 // How long typing pauses before the runner is asked which folders the text may be.
 const askAfterMs = 120
@@ -98,7 +98,12 @@ export const PathField = ({
   }, [completed])
 
   // The folders the text may be are those of the latest answer, once the text was changed.
-  const matches = edited ? answered : none
+  // An answer to the text before the last keystroke is held back where it no longer fits, so a
+  // quick Tab or Enter never takes a folder of an earlier prefix.
+  const matches = useMemo(
+    () => (edited ? answered.filter((match) => answersText(match.path, text)) : none),
+    [edited, answered, text],
+  )
   const groups = useMemo(
     () => suggestionGroups({ matches, items, wrote, now }),
     [matches, items, wrote, now],

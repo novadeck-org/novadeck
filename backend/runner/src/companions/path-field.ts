@@ -3,6 +3,7 @@ import { homedir } from "node:os"
 import { isAbsolute, join, relative, resolve, sep } from "node:path"
 
 import {
+  companionLimits,
   folderMatchLimits,
   maxWroteFolders,
   type AgentName,
@@ -117,6 +118,8 @@ export const matchFolders = async (
     // eslint-disable-next-line no-await-in-loop -- Only as many as are named are asked about.
     const real = await realFolder(join(parent, name))
     if (real === undefined || secret(real) || secret(join(parent, name))) continue
+    // A name that would make a path the protocol can't carry is no match.
+    if (before.length + name.length > companionLimits.path) continue
     found.push({ path: before + name, count: 0, open: shown.has(real) })
   }
   const counts = await Promise.all(
@@ -138,12 +141,14 @@ export type Wrote = {
 /**
  * The folders outside the project the session's agents wrote in (see `companions.wroteTo`):
  * the latest first, once each, at most `maxWroteFolders`. A folder in the project or in the
- * folder its terminal works in, one that may hold secrets and one that is gone are left out.
+ * folder its terminal works in, one in a harness's own home (`homes`: where it keeps its plans,
+ * memory and conversation files), one that may hold secrets and one that is gone are left out.
  */
 export const wroteFolders = async (
   wrote: readonly Wrote[],
   project: string | undefined,
   secret: (path: string) => boolean,
+  homes: readonly string[] = [],
 ): Promise<WroteFolder[]> => {
   const realProject =
     project === undefined ? undefined : await realpath(project).catch(() => project)
@@ -159,6 +164,7 @@ export const wroteFolders = async (
     const inside = (folder: string) =>
       [project, realProject].some((top) => top !== undefined && lies(folder, top))
     if (inside(each.folder) || inside(real)) continue
+    if (homes.some((home) => lies(each.folder, home) || lies(real, home))) continue
     // eslint-disable-next-line no-await-in-loop -- As the folder above.
     const own = await realpath(each.cwd).catch(() => each.cwd)
     if (lies(each.folder, each.cwd) || lies(real, own)) continue

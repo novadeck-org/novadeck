@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs"
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -52,9 +52,16 @@ const listed = async (
   agent: AgentName,
   sessionId: string,
   events: readonly HarnessEvent[],
-  { project, cwd, at }: { project: string; cwd: string; at: number },
+  {
+    project,
+    cwd,
+    at,
+    homes = [],
+  }: { project: string; cwd: string; at: number; homes?: readonly string[] },
 ) => {
-  const work = workAfter(null, rootOf(agent, sessionId), events, at, [], cwd) as Work
+  // The facts as timed `at`, as a hook that started then would tell them.
+  const timed = events.map((event) => ({ ...event, startedAt: at }))
+  const work = workAfter(null, rootOf(agent, sessionId), timed, at, [], [cwd]) as Work
   const record = { summary: { sessionId: "workspace", handle: "moth", cwd }, work } as Record
   const companion = new Companion(undefined, {
     records: () => new Map([["t", record]]),
@@ -73,6 +80,7 @@ const listed = async (
     })),
     place.project,
     folderSecrets({}),
+    homes,
   )
 }
 
@@ -221,9 +229,11 @@ describe("a work kept before it listed the folders written in", () => {
       tool_name: "Write",
       tool_input: { file_path: "/elsewhere/a.md" },
     })
-    const next = workAfter(old, rootOf("claude", "s"), events, 9, [], "/p")!
-    expect(next.wrote).toEqual([{ folder: "/elsewhere", at: 9 }])
-    expect(place(next)).toMatchObject({ agent: "claude", wrote: [{ folder: "/elsewhere", at: 9 }] })
+    const next = workAfter(old, rootOf("claude", "s"), events, 9, [], ["/p"])!
+    // Timed as the hook that told it was.
+    const at = events[0]!.startedAt
+    expect(next.wrote).toEqual([{ folder: "/elsewhere", at }])
+    expect(place(next)).toMatchObject({ agent: "claude", wrote: [{ folder: "/elsewhere", at }] })
   })
 
   it("lists only the entries that are shaped so, and keeps no path past what the protocol carries", () => {
@@ -247,6 +257,106 @@ describe("a work kept before it listed the folders written in", () => {
       tool_name: "Write",
       tool_input: { file_path: long },
     })
-    expect(workAfter(old, rootOf("claude", "s"), events, 9, [], "/p")).not.toHaveProperty("wrote")
+    expect(workAfter(old, rootOf("claude", "s"), events, 9, [], ["/p"])).not.toHaveProperty("wrote")
+  })
+})
+
+describe("the folders each harness keeps for itself", () => {
+  // Where each harness puts what it writes for itself, under the home it keeps: Claude Code's
+  // plans and auto memory, Codex's session and memory files, Antigravity's conversation artifacts.
+  const insideHome: [AgentName, readonly string[]][] = [
+    ["claude", ["plans", join("projects", "p", "memory")]],
+    ["codex", ["memories", join("sessions", "2026")]],
+    ["agy", [join("brain", "c1")]],
+  ]
+
+  const writing = (agent: AgentName, file: string): readonly HarnessEvent[] =>
+    agent === "claude"
+      ? hook("claude", "PostToolUse", {
+          session_id: "s",
+          tool_name: "Write",
+          tool_input: { file_path: file },
+        })
+      : agent === "codex"
+        ? hook("codex", "PostToolUse", {
+            session_id: "s",
+            cwd: "/",
+            tool_name: "apply_patch",
+            tool_input: { command: `*** Begin Patch\n*** Add File: ${file}\n+x\n*** End Patch` },
+          })
+        : hook("agy", "PostToolUse", {
+            conversationId: "s",
+            toolCall: { name: "write_to_file", args: { TargetFile: file } },
+          })
+
+  for (const [agent, folders] of insideHome)
+    it(`leaves out what ${agent} writes in its own home, and lists a folder outside it`, async ({
+      directory,
+    }) => {
+      const project = join(directory, "project")
+      const outside = join(directory, "outside")
+      mkdirSync(project)
+      mkdirSync(outside)
+      // The home as the harness itself says where it is: moved by its variable, or under the person's.
+      const home = harnesses[agent].home({
+        env: {},
+        home: join(directory, "person"),
+        platform: process.platform,
+        plugin: "",
+      })
+      for (const folder of folders) {
+        const where = join(home, folder)
+        mkdirSync(where, { recursive: true })
+        const events = writing(agent, join(where, "file.md"))
+        // Without the homes it is listed, which is what the exclusion is for.
+        expect(
+          // eslint-disable-next-line no-await-in-loop -- One folder after another.
+          await listed(agent, "s", events, { project, cwd: project, at: 5 }),
+          folder,
+        ).toHaveLength(1)
+        expect(
+          // eslint-disable-next-line no-await-in-loop -- One folder after another.
+          await listed(agent, "s", events, { project, cwd: project, at: 5, homes: [home] }),
+          folder,
+        ).toEqual([])
+      }
+      const events = writing(agent, join(outside, "x.md"))
+      expect(
+        await listed(agent, "s", events, { project, cwd: project, at: 5, homes: [home] }),
+      ).toHaveLength(1)
+    })
+
+  it("takes every harness's home from the runner's own knowledge of them", () => {
+    const homes = Object.values(harnesses).map((each) =>
+      each.home({
+        env: { CLAUDE_CONFIG_DIR: "/moved/claude", CODEX_HOME: "/moved/codex" },
+        home: "/h",
+        platform: "linux",
+        plugin: "",
+      }),
+    )
+    expect(homes).toContain("/moved/claude")
+    expect(homes).toContain("/moved/codex")
+    expect(homes.some((home) => home.startsWith(join("/h", ".gemini")))).toBe(true)
+  })
+})
+
+describe("the folders a terminal and its project work in", () => {
+  it("are told as written and as they resolve through a link", ({ directory }) => {
+    const real = join(directory, "real")
+    const project = join(directory, "project")
+    mkdirSync(real)
+    mkdirSync(project)
+    const link = join(directory, "link")
+    symlinkSync(real, link, "dir")
+    const record = { summary: { sessionId: "workspace", handle: "moth", cwd: link } } as Record
+    const companion = new Companion(undefined, {
+      records: () => new Map(),
+      saved: () => undefined,
+      projectFolder: () => project,
+      peers: () => undefined as never,
+      stopping: () => false,
+    })
+    expect(companion.ownFolders(record)).toEqual([link, real, project])
   })
 })

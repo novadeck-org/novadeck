@@ -11,11 +11,20 @@ import { createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
-import { afterEach, beforeAll } from "vitest"
+import { afterEach, beforeAll, vi } from "vitest"
 
 import { createItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
 import { folder as registration } from "./index"
+
+// jsdom has no resizes; the tooltip over Up asks for them as it shows.
+vi.hoisted(() => {
+  globalThis.ResizeObserver ??= class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  }
+})
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
@@ -136,6 +145,13 @@ const shown = async ({
       await keydown({ key: "l", ctrlKey: true }, root.querySelector(".folder-viewer")!)
       await settle()
     },
+    // Types the text and returns at once, before the runner could have been asked.
+    typeNow: (text: string) =>
+      act(() => {
+        const input = field()!
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, text)
+        input.dispatchEvent(new Event("input", { bubbles: true }))
+      }),
     type: async (text: string) => {
       act(() => {
         const input = field()!
@@ -273,7 +289,7 @@ describe("a folder's path field", () => {
     const matches: FolderMatch[] = [
       { path: "/tmp/render", count: 7, more: false, open: true },
       { path: "/tmp/release-notes", count: 2, more: false, open: false },
-      { path: "/tmp/big", count: 1000, more: true, open: false },
+      { path: "/tmp/rebig", count: 1000, more: true, open: false },
     ]
     const wrote: WroteFolder[] = [
       { path: "/tmp/notes", handle: "raven", harness: "Codex", at: Date.now() - 4 * minute },
@@ -309,7 +325,7 @@ describe("a folder's path field", () => {
       expect(app.options()).toEqual([
         { path: "/tmp/render", meta: "open", highlighted: false },
         { path: "/tmp/release-notes", meta: "2 items", highlighted: false },
-        { path: "/tmp/big", meta: "1000+ items", highlighted: false },
+        { path: "/tmp/rebig", meta: "1000+ items", highlighted: false },
         { path: "/work/by-agent", meta: "@moth · 2m ago", highlighted: false },
         { path: "/tmp/notes", meta: "@raven · Codex · 4m ago", highlighted: false },
         { path: "~/.cache/probe", meta: "@kite · Antigravity · 20m ago", highlighted: false },
@@ -317,6 +333,25 @@ describe("a folder's path field", () => {
         { path: "/work/by-person", meta: "1h ago", highlighted: false },
       ])
       expect(app.asked).toEqual(["/tmp/re"])
+    })
+
+    it("never complete or open a folder of an earlier prefix, while the runner has yet to answer", async () => {
+      const app = await shown({ matches, wrote, others })
+      await app.open()
+      await app.type("/tmp/re")
+      // Typed on at once: the answers still held are those of "/tmp/re".
+      await app.typeNow("/tmp/ren")
+      expect(app.options().map((each) => each.path)).toContain("/tmp/render")
+      expect(app.options().map((each) => each.path)).not.toContain("/tmp/release-notes")
+      await app.keydown({ key: "Tab" })
+      expect(app.field()!.value).toBe("/tmp/render/")
+      await app.typeNow("/tmp/x")
+      expect(app.options().map((each) => each.path)).not.toContain("/tmp/release-notes")
+      const tab = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })
+      act(() => void app.field()!.dispatchEvent(tab))
+      expect(tab.defaultPrevented).toBe(false)
+      await app.keydown({ key: "Enter" })
+      expect(app.attached).toEqual(["/tmp/x"])
     })
 
     it("move with the arrows, wrapping round, and name the highlighted one to assistive technology", async () => {
@@ -341,6 +376,7 @@ describe("a folder's path field", () => {
       await app.keydown({ key: "Tab" })
       expect(app.field()!.value).toBe("/tmp/render/")
       expect(app.field()).not.toBeNull()
+      await app.type("/tmp/re")
       await app.keydown({ key: "ArrowDown" })
       await app.keydown({ key: "ArrowDown" })
       await app.keydown({ key: "Tab" })

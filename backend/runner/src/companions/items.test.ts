@@ -66,6 +66,8 @@ type Fixture = {
   items: CompanionItems
   /** What a text plan's live terminal has, as `livePlan` reads it. */
   live: Map<string, PlanText>
+  /** The harnesses' homes, as `harnessHomes` tells them. */
+  homes: string[]
   /** The person's environment, as `environment` reads it: none of the machine's own. */
   environment: NodeJS.ProcessEnv
   /** How long a folder waits for a change its watch may not tell, which a test may shorten. */
@@ -93,6 +95,7 @@ const it = base.extend<{ fixture: Fixture }>({
     // that wants a poll to deliver shortens the one it means.
     const polls = { safety: 600_000, unwatched: 600_000 }
     const asked = { environment: 0 }
+    const homes: string[] = []
     const steps: Fixture["steps"] = {}
     const marks = new Map<string, Map<string, string>>()
     const items = new CompanionItems({
@@ -105,6 +108,7 @@ const it = base.extend<{ fixture: Fixture }>({
       },
       records: store,
       terminal: (terminalId) => places.get(terminalId),
+      harnessHomes: async () => homes,
       terminals: (sessionId) => [...places.values()].filter((each) => each.sessionId === sessionId),
       project: (sessionId) => (sessionId === session.id ? directory : undefined),
       livePlan: (item) => live.get(item.id),
@@ -168,6 +172,7 @@ const it = base.extend<{ fixture: Fixture }>({
       items,
       live,
       environment,
+      homes,
       polls,
       asked,
       steps,
@@ -678,6 +683,10 @@ describe("what the person types in a folder's path field", () => {
       { path: c, handle: "kite", agent: "agy", at: 20 },
       { path: a, handle: "moth", agent: "claude", at: 10 },
     ])
+    // What a harness keeps in its own home is not the agent's work for the person.
+    fixture.homes.push(b!)
+    const without = await fixture.items.wroteTo({ terminalId: moth.terminalId })
+    expect(without.map(({ path }) => path)).toEqual([c, a])
     await expect(fixture.items.wroteTo({ terminalId: randomUUID() })).rejects.toMatchObject({
       code: "TERMINAL_NOT_FOUND",
     })
