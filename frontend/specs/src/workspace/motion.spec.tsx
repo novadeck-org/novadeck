@@ -17,6 +17,7 @@ import {
   nextFrames,
   openWorkspace,
   press,
+  sidebarPanel,
   terminal,
   terminalTab,
   typeInto,
@@ -402,5 +403,42 @@ describe("Grid opening", () => {
     await expectStaysTrue(() => !opened(runner.terminalIds[0]!), "the first tile's screen", {
       ms: 1_000,
     })
+  })
+})
+
+// Keeping an agent filters the Files tree to its work: the rows that stay slide together and the
+// rest fade, drawn once more over the view as they go (useFilterMotion.tsx).
+describe("The Files tree's filter", () => {
+  it("fades the rows that go and brings them back, leaving nothing behind", async () => {
+    await openWorkspace("/?demo=agents")
+    await sidebarPanel("Files").click()
+    const tree = page.getByRole("tree", { name: "Project files" })
+    const untouched = page.getByRole("treeitem", { name: /^index\.html/ })
+    await expect.element(untouched).toBeVisible()
+    const ghosts = tree.element().querySelector(".files-ghosts")!
+    let ghosted = 0
+    const watch = new MutationObserver(() => {
+      ghosted = Math.max(ghosted, ghosts.childElementCount)
+    })
+    watch.observe(ghosts, { childList: true })
+    onTestFinished(() => watch.disconnect())
+    // The rows' own motion, not a file's trail or a cursor's blink.
+    const settled = (): boolean =>
+      ghosts.childElementCount === 0 &&
+      [...tree.element().querySelectorAll(".files-rows > .files-slot")].every(
+        (slot) => slot.getAnimations().length === 0,
+      )
+    const moth = page.getByRole("group", { name: "Show agents' work" }).getByRole("button", {
+      name: "@moth",
+    })
+
+    await moth.click()
+    await expect.element(untouched).not.toBeInTheDocument()
+    await expect.poll(() => ghosted).toBeGreaterThan(0)
+    await expect.poll(settled).toBe(true)
+
+    await moth.click()
+    await expect.element(untouched).toBeVisible()
+    await expect.poll(settled).toBe(true)
   })
 })

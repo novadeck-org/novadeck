@@ -7,7 +7,8 @@
    sits inside. A file's marks are a `.files-cursor` for each agent writing it now, or else a
    `.files-trail` fading from its latest write. A panel with no tree shows `.files-empty`; an open folder
    that could not be read in full, or holds nothing, ends with a `.files-note` (in a
-   `.files-note-row`, which carries the guides).
+   `.files-note-row`, which carries the guides). While keeping an agent filters the tree, the
+   rows that go fade in `.files-ghosts`, over the view.
 
    Hooks: on a row, data-kind="modified" | "added" | "deleted" (absent: untouched),
    data-folder, data-ignored, data-dim (an agent is lit and did not touch it), data-pulse="a" |
@@ -35,12 +36,26 @@
 .files-rows {
   position: relative;
   flex: none;
+  overflow: clip;
 }
 .files-slot {
   position: absolute;
   right: 0;
   left: 0;
   height: 26px;
+}
+/* As keeping an agent filters the tree, or letting go brings it back (useFilterMotion.tsx), a row
+   sliding in from past the view's edge shows once it is inside the rows, and the rows that go
+   fade or slide away in `.files-ghosts`, a layer over the view that clips them, so neither
+   stretches what the tree scrolls. */
+.files-tree {
+  position: relative;
+}
+.files-ghosts {
+  position: absolute;
+  left: 0;
+  overflow: clip;
+  pointer-events: none;
 }
 .files-row {
   display: flex;
