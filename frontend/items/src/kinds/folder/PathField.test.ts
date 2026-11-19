@@ -303,19 +303,38 @@ describe("a folder's path field", () => {
 
   context("its suggestions", () => {
     const matches: FolderMatch[] = [
-      { path: "/tmp/render", count: 7, more: false, open: true },
-      { path: "/tmp/release-notes", count: 2, more: false, open: false },
-      { path: "/tmp/rebig", count: 1000, more: true, open: false },
+      { path: "/tmp/render", real: "/tmp/render", count: 7, more: false, open: true },
+      {
+        path: "/tmp/release-notes",
+        real: "/tmp/release-notes",
+        count: 2,
+        more: false,
+        open: false,
+      },
+      { path: "/tmp/rebig", real: "/tmp/rebig", count: 1000, more: true, open: false },
     ]
     const wrote: WroteFolder[] = [
-      { path: "/tmp/notes", handle: "raven", harness: "Codex", at: Date.now() - 4 * minute },
+      {
+        path: "/tmp/notes",
+        real: "/tmp/notes",
+        handle: "raven",
+        harness: "Codex",
+        at: Date.now() - 4 * minute,
+      },
       {
         path: "~/.cache/probe",
+        real: "/home/u/.cache/probe",
         handle: "kite",
         harness: "Antigravity",
         at: Date.now() - 20 * minute,
       },
-      { path: "/tmp/copy", handle: "moth", harness: "Claude Code", at: Date.now() - 6 * minute },
+      {
+        path: "/tmp/copy",
+        real: "/tmp/copy",
+        handle: "moth",
+        harness: "Claude Code",
+        at: Date.now() - 6 * minute,
+      },
     ]
     const others = [
       moth("/work/by-agent"),
@@ -478,7 +497,9 @@ describe("a folder's path field", () => {
 
     it("name no folder twice", async () => {
       const app = await shown({
-        matches: [{ path: "/work/by-agent", count: 1, more: false, open: false }],
+        matches: [
+          { path: "/work/by-agent", real: "/work/by-agent", count: 1, more: false, open: false },
+        ],
         others: [moth("/work/by-agent")],
       })
       await app.open()

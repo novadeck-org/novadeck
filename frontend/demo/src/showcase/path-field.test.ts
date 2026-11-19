@@ -7,7 +7,13 @@ describe("the folders the demo's path field may suggest", () => {
   it("names those under the typed parent that start as the typed name does, in the typed form", () => {
     expect(near("~/Down", []).map(({ path }) => path)).toEqual(["~/Downloads"])
     expect(near("~/Downloads/", [])).toEqual([
-      { path: "~/Downloads/storefront-assets", count: 12, more: false, open: false },
+      {
+        path: "~/Downloads/storefront-assets",
+        real: "~/Downloads/storefront-assets",
+        count: 12,
+        more: false,
+        open: false,
+      },
     ])
     expect(near("/tmp/", []).map(({ path }) => path)).toEqual([
       "/tmp/checkout-copy",

@@ -42,6 +42,22 @@ describe("a path with a home folder", () => {
     expect(expandHome("a/~", home)).toBe("a/~")
   })
 
+  // A temporary folder lies under the home on Windows (`AppData\\Local\\Temp`), so "wrote to"
+  // shows it with `~` and forward slashes: picking it must open the same folder.
+  it("reads back on Windows what it writes there, `~` with forward slashes", () => {
+    const home = "C:\\Users\\Ann"
+    const temp = "C:\\Users\\Ann\\AppData\\Local\\Temp\\novadeck-outside-1\\b"
+    const shown = abbreviateHome(temp, home, win32)
+    expect(shown).toBe("~/AppData/Local/Temp/novadeck-outside-1/b")
+    expect(expandHome(shown, home, win32)).toBe(temp)
+    expect(expandHome("~\\AppData\\Local", home, win32)).toBe("C:\\Users\\Ann\\AppData\\Local")
+    expect(expandHome("~", home, win32)).toBe(home)
+    // Windows reads the home without case, and a folder on another drive is written whole.
+    expect(abbreviateHome("c:\\users\\ann\\Work", home, win32)).toBe("~/Work")
+    expect(abbreviateHome("D:\\Ann\\Work", home, win32)).toBe("D:\\Ann\\Work")
+    expect(abbreviateHome("C:\\Users\\Annie", home, win32)).toBe("C:\\Users\\Annie")
+  })
+
   it("is written with a tilde under the home folder, and as it is elsewhere", () => {
     const home = join(sep, "home", "u")
     expect(abbreviateHome(join(home, ".cache", "probe"), home)).toBe("~/.cache/probe")
@@ -64,8 +80,13 @@ describe("the folders a typed path may be", () => {
     const typed = `${directory}${sep}re`
     const found = await matchFolders(typed, directory, secret, none)
     expect(found).toEqual([
-      { path: `${directory}${sep}Release-notes`, count: 0, open: false },
-      { path: `${directory}${sep}render`, count: 2, open: false },
+      {
+        path: `${directory}${sep}Release-notes`,
+        real: join(directory, "Release-notes"),
+        count: 0,
+        open: false,
+      },
+      { path: `${directory}${sep}render`, real: join(directory, "render"), count: 2, open: false },
     ])
   })
 
@@ -101,6 +122,9 @@ describe("the folders a typed path may be", () => {
     try {
       const found = await matchFolders("~/Down", "/", secret, none)
       expect(found.map(({ path }) => path)).toEqual(["~/Downloads"])
+      // Its real path is the one a folder item showing it holds, as other lists compare it.
+      expect(found.map(({ real }) => real)).toEqual([join(directory, "Downloads")])
+      expect(expandHome(found[0]!.path)).toBe(join(directory, "Downloads"))
       expect((await matchFolders("~", "/", secret, none)).map(({ path }) => path)).toEqual([
         "~/Downloads",
       ])
@@ -206,9 +230,10 @@ describe("the folders agents wrote in outside the project", () => {
       project,
       secret,
     )
+    // Shown with `~` for the home, which a machine's temporary folder may lie in (as on Windows).
     expect(found).toEqual([
-      { path: a, handle: "moth", agent: "claude", at: 9 },
-      { path: b, handle: "owl", agent: "codex", at: 5 },
+      { path: abbreviateHome(a), real: a, handle: "moth", agent: "claude", at: 9 },
+      { path: abbreviateHome(b), real: b, handle: "owl", agent: "codex", at: 5 },
     ])
   })
 
@@ -235,7 +260,7 @@ describe("the folders agents wrote in outside the project", () => {
       project,
       secret,
     )
-    expect(found.map(({ path }) => path)).toEqual([kept])
+    expect(found.map(({ real }) => real)).toEqual([kept])
   })
 
   it("keeps at most eight", async ({ directory }) => {

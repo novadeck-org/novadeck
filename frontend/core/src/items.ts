@@ -513,19 +513,23 @@ export const pageTroublesPerCall = 20
 // Where the items' content comes from. The items themselves reach the workspace store
 // as the backend's seed and actions, like terminals.
 // A folder a typed path may be: written as the person typed its parent, so it completes the text;
-// how many entries it holds (`count`, and `more` when it holds more than were counted); whether a
-// folder item shows it.
+// its absolute path through links (`real`), as a folder item showing it holds it; how many entries
+// it holds (`count`, and `more` when it holds more than were counted); whether a folder item shows
+// it.
 export type FolderMatch = {
   readonly path: string
+  readonly real: string
   readonly count: number
   readonly more: boolean
   readonly open: boolean
 }
 
 // A folder outside the project that an agent wrote a file in, as it is told in a path field's
-// suggestions: absolute, or led by `~`, with the terminal's handle, the harness's name and when.
+// suggestions: absolute, or led by `~`, with its absolute path through links (`real`, as
+// `FolderMatch`'s), the terminal's handle, the harness's name and when.
 export type WroteFolder = {
   readonly path: string
+  readonly real: string
   readonly handle: string
   readonly harness: string
   readonly at: number

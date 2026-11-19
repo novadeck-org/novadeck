@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -119,14 +119,20 @@ const following = ({ livePages = false } = {}) => {
       folders: async (input) => {
         foldersAsked.push(input)
         return [
-          { path: "~/render", count: 7, open: true },
-          { path: "~/rest", count: folderMatchLimits.counted, open: false },
+          { path: "~/render", real: "/home/u/render", count: 7, open: true },
+          { path: "~/rest", real: "/home/u/rest", count: folderMatchLimits.counted, open: false },
         ]
       },
       wroteTo: async () => [
-        { path: "/tmp/notes", handle: "raven", agent: "codex", at: 5 },
-        { path: "~/.cache/probe", handle: "kite", agent: "agy", at: 4 },
-        { path: "/tmp/copy", handle: "moth", agent: "claude", at: 3 },
+        { path: "/tmp/notes", real: "/tmp/notes", handle: "raven", agent: "codex", at: 5 },
+        {
+          path: "~/.cache/probe",
+          real: "/home/u/.cache/probe",
+          handle: "kite",
+          agent: "agy",
+          at: 4,
+        },
+        { path: "/tmp/copy", real: "/tmp/copy", handle: "moth", agent: "claude", at: 3 },
       ],
       repoint: async (input) => {
         repointed.push(input)
@@ -235,8 +241,14 @@ describe("a folder's path field", () => {
     const found = await app.companions.folders?.(target, "t1", "~/re")
     expect(app.foldersAsked).toEqual([{ terminalId: "t1", path: "~/re" }])
     expect(found).toEqual([
-      { path: "~/render", count: 7, more: false, open: true },
-      { path: "~/rest", count: folderMatchLimits.counted, more: true, open: false },
+      { path: "~/render", real: "/home/u/render", count: 7, more: false, open: true },
+      {
+        path: "~/rest",
+        real: "/home/u/rest",
+        count: folderMatchLimits.counted,
+        more: true,
+        open: false,
+      },
     ])
   })
 
@@ -702,7 +714,13 @@ describe("the runner's companion content", () => {
         await expect(
           companions.folders?.(target, terminal.id, join(directory, "re")),
         ).resolves.toEqual([
-          { path: join(directory, "render"), count: 1, more: false, open: false },
+          {
+            path: join(directory, "render"),
+            real: await realpath(join(directory, "render")),
+            count: 1,
+            more: false,
+            open: false,
+          },
         ])
         await expect(companions.wroteTo?.(target, terminal.id)).resolves.toEqual([])
         await expect(

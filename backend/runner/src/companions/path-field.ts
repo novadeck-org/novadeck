@@ -14,33 +14,41 @@ import {
 // What a terminal's folder tab's path field asks the runner: which folders a typed path may be,
 // and which folders outside the project the session's agents wrote in.
 
-/**
- * A path the person typed with a leading `~` (alone, or before a separator) read from their home
- * folder; any other path as it is.
- */
-export const expandHome = (path: string, home: string = homedir()): string =>
-  path === "~" || /^~[\\/]/.test(path) ? join(home, path.slice(1)) : path
+// The path rules of the machine the runner is on, which the functions below read paths in unless
+// told others (as tests tell Windows' on any machine).
+type Rules = Pick<typeof posix, "isAbsolute" | "join" | "relative" | "sep">
+const hostRules: Rules = { isAbsolute, join, relative, sep }
 
 /**
- * A path under the person's home folder written as `~/…`, as it is typed and shown; any other
- * path as it is.
+ * A path the person typed with a leading `~` (alone, or before a separator) read from their home
+ * folder; any other path as it is. On Windows `~/…` reads as `~\…` does.
  */
-export const abbreviateHome = (path: string, home: string = homedir()): string => {
-  const from = relative(home, path)
+export const expandHome = (
+  path: string,
+  home: string = homedir(),
+  rules: Rules = hostRules,
+): string => (path === "~" || /^~[\\/]/.test(path) ? rules.join(home, path.slice(1)) : path)
+
+/**
+ * A path under the person's home folder written as `~/…`, as it is typed and shown, with forward
+ * slashes on Windows too (which `expandHome` reads back); any other path as it is.
+ */
+export const abbreviateHome = (
+  path: string,
+  home: string = homedir(),
+  rules: Rules = hostRules,
+): string => {
+  const from = rules.relative(home, path)
   if (from === "") return "~"
-  if (from.startsWith("..") || isAbsolute(from)) return path
-  return `~/${from.split(sep).join("/")}`
+  if (from.startsWith("..") || rules.isAbsolute(from)) return path
+  return `~/${from.split(rules.sep).join("/")}`
 }
 
 /**
  * Whether `path` is `folder` or lies under it, by the paths as given, in this machine's path
  * rules (`rules`): on Windows either slash and any case, as Windows reads them.
  */
-export const lies = (
-  path: string,
-  folder: string,
-  rules: Pick<typeof posix, "isAbsolute" | "relative" | "sep"> = { isAbsolute, relative, sep },
-): boolean => {
+export const lies = (path: string, folder: string, rules: Rules = hostRules): boolean => {
   const from = rules.relative(folder, path)
   return (
     from === "" || (from !== ".." && !from.startsWith(`..${rules.sep}`) && !rules.isAbsolute(from))
@@ -128,8 +136,9 @@ export const matchFolders = async (
     const real = await realFolder(join(parent, name))
     if (real === undefined || secret(real) || secret(join(parent, name))) continue
     // A name that would make a path the protocol can't carry is no match.
-    if (before.length + name.length > companionLimits.path) continue
-    found.push({ path: before + name, count: 0, open: shown.has(real) })
+    if (before.length + name.length > companionLimits.path || real.length > companionLimits.path)
+      continue
+    found.push({ path: before + name, real, count: 0, open: shown.has(real) })
   }
   const counts = await Promise.all(
     found.map(({ path }) => countEntries(resolve(cwd, expandHome(path)))),
@@ -206,7 +215,14 @@ export const wroteFolders = async (
     if (!isAbsolute(each.folder)) continue
     // eslint-disable-next-line no-await-in-loop -- The latest first, until enough are named.
     const real = await realFolder(each.folder)
-    if (real === undefined || seen.has(real) || secret(real) || secret(each.folder)) continue
+    if (
+      real === undefined ||
+      real.length > companionLimits.path ||
+      seen.has(real) ||
+      secret(real) ||
+      secret(each.folder)
+    )
+      continue
     seen.add(real)
     const under = (folders: readonly string[]) =>
       folders.some((top) => lies(each.folder, top) || lies(real, top))
@@ -215,6 +231,7 @@ export const wroteFolders = async (
     if (under(await tops([each.cwd, ...(each.own ?? [])]))) continue
     found.push({
       path: abbreviateHome(each.folder),
+      real,
       handle: each.handle,
       agent: each.agent,
       at: each.at,

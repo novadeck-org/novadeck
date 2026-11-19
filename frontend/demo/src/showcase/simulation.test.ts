@@ -409,7 +409,9 @@ describe("the project window", () => {
   it("suggests the folders a typed path may be, one a folder item shows marked open", async () => {
     const { showcase } = opening()
     const before = await showcase.folders!(session, "01", "~/Down")
-    expect(before).toEqual([{ path: "~/Downloads", count: 34, more: false, open: false }])
+    expect(before).toEqual([
+      { path: "~/Downloads", real: "~/Downloads", count: 34, more: false, open: false },
+    ])
     await showcase.attach!(session, "01", "~/Downloads")
     const after = await showcase.folders!(session, "01", "~/Down")
     expect(after[0]).toMatchObject({ path: "~/Downloads", open: true })

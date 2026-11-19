@@ -43,10 +43,18 @@ const foldersOf = (items: readonly Item[], by: Item["by"]): readonly Item[] => {
     .slice(0, offeredItems)
 }
 
+// A folder's real path as lists are compared by: separators alike, none at its end but a root's, and
+// case folded on a Windows drive or share, whose names Windows reads without case.
+const sameKey = (path: string): string => {
+  const slashed = path.replace(/\\/g, "/").replace(/(?<=[^:/])\/+$/, "")
+  return /^(?:[A-Za-z]:\/|\/\/)/.test(slashed) ? slashed.toLowerCase() : slashed
+}
+
 // The groups under the field, in their order, each only when it has something: the folders the
 // typed text may be (`matches`), those agents showed and those the person opened (the session's
 // `items`), and those agents wrote in outside the project (`wrote`). A folder the matches already
-// name is not named twice.
+// name is not named twice, by its real path: the matches write it as typed (`~/…`, or relative),
+// the items by their real path, and `wrote` with `~` for the home.
 export const suggestionGroups = ({
   matches,
   items,
@@ -58,10 +66,10 @@ export const suggestionGroups = ({
   readonly wrote: readonly WroteFolder[]
   readonly now: number
 }): readonly SuggestionGroup[] => {
-  const named = new Set(matches.map((match) => match.path))
+  const named = new Set(matches.map((match) => sameKey(match.real)))
   const shownBy = (by: Item["by"], meta: (item: Item) => string): readonly Suggestion[] =>
     foldersOf(items, by)
-      .filter((item) => !named.has(item.path!))
+      .filter((item) => !named.has(sameKey(item.path!)))
       .map((item) => ({
         path: item.path!,
         icon: "folder" as const,
@@ -90,7 +98,7 @@ export const suggestionGroups = ({
       id: "wrote",
       label: labels.wrote,
       suggestions: wrote
-        .filter((folder) => !named.has(folder.path))
+        .filter((folder) => !named.has(sameKey(folder.real)))
         .map((folder) => ({
           path: folder.path,
           icon: "pen",

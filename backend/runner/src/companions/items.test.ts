@@ -38,6 +38,7 @@ import type { Resources } from "../testing/resources.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import type { PlanText } from "./content.js"
 import { CompanionItems, type TerminalPlace } from "./items.js"
+import { abbreviateHome } from "./path-field.js"
 
 const gitInstalled = (() => {
   try {
@@ -643,8 +644,8 @@ describe("what the person types in a folder's path field", () => {
     await expect(
       fixture.items.folders({ terminalId: moth.terminalId, path: "re" }),
     ).resolves.toEqual([
-      { path: "release", count: 0, open: false },
-      { path: "render", count: 0, open: true },
+      { path: "release", real: join(fixture.directory, "release"), count: 0, open: false },
+      { path: "render", real: join(fixture.directory, "render"), count: 0, open: true },
     ])
     await expect(
       fixture.items.folders({ terminalId: randomUUID(), path: "re" }),
@@ -658,7 +659,9 @@ describe("what the person types in a folder's path field", () => {
     fixture.environment.DOCKER_CONFIG = join(fixture.directory, "keys")
     await expect(
       fixture.items.folders({ terminalId: moth.terminalId, path: "k" }),
-    ).resolves.toEqual([{ path: "keep", count: 0, open: false }])
+    ).resolves.toEqual([
+      { path: "keep", real: join(fixture.directory, "keep"), count: 0, open: false },
+    ])
   })
 
   it("lists the folders outside the project its session's agents wrote in, whichever the harness", async ({
@@ -680,15 +683,17 @@ describe("what the person types in a folder's path field", () => {
       name: "Other",
     })
     fixture.wrote(fixture.terminal("owl", other.id), "claude", [{ folder: d!, at: 40 }])
+    // Shown with `~` for the home, which a machine's temporary folder may lie in (as on Windows).
+    const shown = (real: string) => ({ path: abbreviateHome(real), real })
     await expect(fixture.items.wroteTo({ terminalId: moth.terminalId })).resolves.toEqual([
-      { path: b, handle: "raven", agent: "codex", at: 30 },
-      { path: c, handle: "kite", agent: "agy", at: 20 },
-      { path: a, handle: "moth", agent: "claude", at: 10 },
+      { ...shown(b!), handle: "raven", agent: "codex", at: 30 },
+      { ...shown(c!), handle: "kite", agent: "agy", at: 20 },
+      { ...shown(a!), handle: "moth", agent: "claude", at: 10 },
     ])
     // What a harness keeps in its own home is not the agent's work for the person.
     fixture.bookkeeping.push(b!)
     const without = await fixture.items.wroteTo({ terminalId: moth.terminalId })
-    expect(without.map(({ path }) => path)).toEqual([c, a])
+    expect(without.map(({ real }) => real)).toEqual([c, a])
     await expect(fixture.items.wroteTo({ terminalId: randomUUID() })).rejects.toMatchObject({
       code: "TERMINAL_NOT_FOUND",
     })
@@ -713,7 +718,7 @@ describe("what the person types in a folder's path field", () => {
       join(moved, "projects", "p", "s.jsonl"),
     )
     const found = await fixture.items.wroteTo({ terminalId: moth.terminalId })
-    expect(found.map(({ path }) => path)).toEqual([skills])
+    expect(found.map(({ path, real }) => [path, real])).toEqual([[abbreviateHome(skills), skills]])
   })
 })
 

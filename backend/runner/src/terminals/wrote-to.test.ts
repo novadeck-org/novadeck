@@ -8,7 +8,7 @@ import type { Report } from "@novadeck/harness-core/report"
 import { companionLimits, type AgentName } from "@novadeck/protocol"
 import { vi } from "vitest"
 
-import { wroteFolders } from "../companions/path-field.js"
+import { abbreviateHome, wroteFolders } from "../companions/path-field.js"
 import { folderSecrets } from "../companions/secrets.js"
 import { harnesses } from "../harnesses/registry.js"
 import type { Root } from "../harnesses/roots.js"
@@ -50,6 +50,10 @@ const rootOf = (agent: AgentName, sessionId: string): Root => ({
 })
 
 // The list a terminal whose agent just wrote `events` has, the project being `project`.
+// A folder as the list shows it, with `~` for the home, which a machine's temporary folder may lie
+// in (as on Windows), and as it really is.
+const shown = (real: string) => ({ path: abbreviateHome(real), real })
+
 const listed = async (
   agent: AgentName,
   sessionId: string,
@@ -107,7 +111,7 @@ describe("the folders agents wrote in outside the project, per harness", () => {
       tool_input: { file_path: join(outside, "notes.md") },
     })
     expect(await listed("claude", "s", events, { project, cwd: project, at: 50 })).toEqual([
-      { path: outside, handle: "moth", agent: "claude", at: 50 },
+      { ...shown(outside), handle: "moth", agent: "claude", at: 50 },
     ])
   })
 
@@ -125,7 +129,7 @@ describe("the folders agents wrote in outside the project, per harness", () => {
       },
     })
     expect(await listed("codex", "s", events, { project, cwd: project, at: 51 })).toEqual([
-      { path: outside, handle: "moth", agent: "codex", at: 51 },
+      { ...shown(outside), handle: "moth", agent: "codex", at: 51 },
     ])
   })
 
@@ -151,7 +155,7 @@ describe("the folders agents wrote in outside the project, per harness", () => {
       { sessionId: "s", instance: "7" },
     )
     expect(await listed("codex", "s", events, { project, cwd: project, at: 52 })).toEqual([
-      { path: outside, handle: "moth", agent: "codex", at: 52 },
+      { ...shown(outside), handle: "moth", agent: "codex", at: 52 },
     ])
   })
 
@@ -165,7 +169,7 @@ describe("the folders agents wrote in outside the project, per harness", () => {
       toolCall: { name: "write_to_file", args: { TargetFile: join(outside, "c.md") } },
     })
     expect(await listed("agy", "c", events, { project, cwd: project, at: 53 })).toEqual([
-      { path: outside, handle: "moth", agent: "agy", at: 53 },
+      { ...shown(outside), handle: "moth", agent: "agy", at: 53 },
     ])
   })
 

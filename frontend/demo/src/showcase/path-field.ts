@@ -54,6 +54,7 @@ export const near = (typed: string, items: readonly Item[]): FolderMatch[] => {
     .toSorted((a, b) => a.name.localeCompare(b.name))
     .map(({ name, count, path }) => ({
       path: before + name,
+      real: path,
       count,
       more: false,
       open: open.has(path),
@@ -63,12 +64,26 @@ export const near = (typed: string, items: readonly Item[]): FolderMatch[] => {
 const minute = 60_000
 
 // The folders outside the project that agents wrote in, one by an agent of each harness, the
-// latest first, as of `now`: what `companions.wroteTo` tells.
+// latest first, as of `now`: what `companions.wroteTo` tells. The demo's real paths are the ones
+// its items hold, as its folders above are written.
 export const wrote = (now = Date.now()): WroteFolder[] => [
-  { path: "/tmp/release-notes", handle: "moth", harness: "Codex", at: now - 4 * minute },
-  { path: "/tmp/checkout-copy", handle: "owl", harness: "Claude Code", at: now - 6 * minute },
+  {
+    path: "/tmp/release-notes",
+    real: "/tmp/release-notes",
+    handle: "moth",
+    harness: "Codex",
+    at: now - 4 * minute,
+  },
+  {
+    path: "/tmp/checkout-copy",
+    real: "/tmp/checkout-copy",
+    handle: "owl",
+    harness: "Claude Code",
+    at: now - 6 * minute,
+  },
   {
     path: "~/.cache/storefront-probe",
+    real: "~/.cache/storefront-probe",
     handle: "kite",
     harness: "Antigravity",
     at: now - 20 * minute,
