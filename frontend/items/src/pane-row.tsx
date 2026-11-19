@@ -113,13 +113,16 @@ export const TabFace = ({
 }): React.JSX.Element => (
   <>
     <Icon size={14} strokeWidth={1.5} aria-hidden="true" />
-    <span className="pane-tab-name">{name}</span>
-    {look.origin !== undefined && (
-      <span className="pane-tab-origin" aria-hidden="true">
-        <SquareTerminal size={12} strokeWidth={1.5} />
-        {look.origin}
-      </span>
-    )}
+    {/* Its words, which a tab's mark sits under. */}
+    <span className="pane-tab-label">
+      <span className="pane-tab-name">{name}</span>
+      {look.origin !== undefined && (
+        <span className="pane-tab-origin" aria-hidden="true">
+          <SquareTerminal size={12} strokeWidth={1.5} />
+          {look.origin}
+        </span>
+      )}
+    </span>
   </>
 )
 

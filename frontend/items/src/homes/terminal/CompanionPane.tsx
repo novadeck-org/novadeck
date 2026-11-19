@@ -262,6 +262,10 @@ type TabRowMemory = {
   // Whether the tab of `key` takes focus as its row is drawn: picked with focus in the
   // row a moment ago.
   readonly focuses: (key: string) => boolean
+  // The tab the row showed when last drawn, whose mark eases from the shown one's as a row
+  // drawn for another tab comes; and that the row drew showing `key`.
+  readonly lastShown: () => string | undefined
+  readonly drew: (key: string) => void
 }
 
 // The row of what the pane shows: the tabs of the icon it shows, each thing of it on the
@@ -307,6 +311,11 @@ const PaneTabs = ({
     if (memory.focuses(shown))
       tab.querySelector<HTMLElement>('[role="tab"]')?.focus({ preventScroll: true })
   }, [memory, shown])
+  // Drawn for another tab than last time: the marks of both ease to their new sizes. Read once
+  // as the row comes, so drawing it again before the browser styles it keeps them.
+  const [left] = useState(memory.lastShown)
+  useLayoutEffect(() => memory.drew(shown), [memory, shown])
+  const moved = left !== undefined && left !== shown
   const pick = (tab: BarMember): void => {
     memory.picked(tab.key, row.current?.contains(document.activeElement) ?? false)
     onPick(tab)
@@ -362,6 +371,7 @@ const PaneTabs = ({
             key={tab.key}
             className="pane-tab"
             data-state={open ? "open" : isNew(tab) ? "new" : undefined}
+            data-mark={!moved ? undefined : open ? "picked" : tab.key === left ? "left" : undefined}
             data-failed={look.failed || undefined}
             data-gone={gone || undefined}
             data-placed={look.origin !== undefined || undefined}
@@ -591,9 +601,14 @@ export const CompanionPane = ({
       section.current?.focus({ preventScroll: true })
   }, [member?.key])
   // Where the tab row was, for each row drawn: the pane's own, as long as it shows.
-  const tabRow = useRef<{ scroll: number; focus: { key: string; at: number } | null }>({
+  const tabRow = useRef<{
+    scroll: number
+    focus: { key: string; at: number } | null
+    shown: string | undefined
+  }>({
     scroll: 0,
     focus: null,
+    shown: undefined,
   })
   const tabMemory = useMemo(
     (): TabRowMemory => ({
@@ -607,6 +622,10 @@ export const CompanionPane = ({
       focuses: (key) => {
         const wanted = tabRow.current.focus
         return wanted?.key === key && performance.now() - wanted.at < handOffMs
+      },
+      lastShown: () => tabRow.current.shown,
+      drew: (key) => {
+        tabRow.current.shown = key
       },
     }),
     [],
