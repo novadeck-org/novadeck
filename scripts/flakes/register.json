@@ -528,6 +528,32 @@
       "seen": ["#1002 run 44053570165 job 133946302766 (macOS), retried and passed"]
     },
     {
+      "id": "runner-captures-simultaneous-looks",
+      "jobs": ["^Test \\((?:macOS|Linux|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/harnesses/captures.test.ts > finding the capture of a shell > does not give two simultaneous looks the same record",
+      "signature": "AssertionError: expected \\[ …\\(2\\) \\] to deeply equal \\[ Array\\(1\\) \\]",
+      "status": "fixed",
+      "cause": "The test's own, fixed before it merged. On #900's branch only the first of its two looks was given the logs already taken (`claimed`); the second's was an empty set. Captures.find holds a log it hands on only while `found` runs, so whichever look's folder read finished second took the same record again if it was the first look: the order of two concurrent reads, which a loaded runner turns either way. #900 merged (2026-11-13 12:02 UTC) with both looks given what `found` holds, as the terminal's shells do, and none of its retries came after it.",
+      "seen": [
+        "#900 run 43387539270 job 131759449381 (Linux, 3/3), retried and passed",
+        "#903 run 43387546920 job 131764346632 (macOS), retried and passed",
+        "#900 run 43390960247 jobs 131770918598 (Windows, 3/3) and 131775951537 (macOS), retried and passed"
+      ]
+    },
+    {
+      "id": "runner-plugins-hook-launcher-gone-windows",
+      "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/shell/plugins.test.ts > agent plugin hook commands > do nothing where the launcher is set but gone for claude, as one that outlived its Novadeck",
+      "signature": "AssertionError: expected true to be false // Object\\.is equality",
+      "status": "fixed",
+      "cause": "Claude Code's hook ran past the test's 45 s, so `timedOut` was true. With its launcher gone, the hook did nothing but PowerShell's Test-Path, whose cmdlet lookup took 20 to 32 s in this package's full run on Windows: each case took 75 to 78 s for its two runs, its retry about 30 s. Fixed by #1045 (2026-11-19): Claude Code's hook leaves the check to its cmd (`if exist`), and the hook cases get 120 s on Windows. Codex's hook keeps Test-Path, as changing its text asks people to trust it again, and its case passed in 22 to 32 s in the same runs.",
+      "seen": [
+        "#952 run 43698298081 job 132763711406 (Windows), retried and passed",
+        "#959 run 43758106291 job 132946695449 (Windows), retried and passed",
+        "#967 run 43924547757 job 133500723141 (Windows), retried and passed"
+      ]
+    },
+    {
       "id": "ui-views-canvas-sessions-return-timeout",
       "jobs": ["^Test \\(macOS(?:, [1-3]/3)?\\)$"],
       "test": "src/views/canvas-sessions.spec.tsx > Canvas across workspace sessions > when switching session right after moving the camera > frames every window afresh on returning, as on opening",
