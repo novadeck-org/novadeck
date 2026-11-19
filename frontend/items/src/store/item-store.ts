@@ -142,6 +142,8 @@ export type ItemStore = {
   readonly phone?: Companions["phone"]
   // Zooms a live page's view by a factor of the app's own zoom: the backend's, where it has one.
   readonly zoom?: Companions["zoom"]
+  // What the loupe over a live page needs of the app: the backend's, where it has one.
+  readonly loupe?: Companions["loupe"]
 }
 
 type Followed = {
@@ -759,7 +761,7 @@ export const createItemStore = ({
       for (const id of session.followed.keys()) unfollow(session, id)
     }
   }
-  const { picture, phone, zoom, part, folders, wroteTo, repoint: pointed } = companions
+  const { picture, phone, zoom, loupe, part, folders, wroteTo, repoint: pointed } = companions
   const sessionItems: ItemStore["sessionItems"] = (target) =>
     workspace
       .getSnapshot()
@@ -794,6 +796,7 @@ export const createItemStore = ({
     ...(picture && { picture }),
     ...(phone && { phone }),
     ...(zoom && { zoom }),
+    ...(loupe && { loupe }),
     ...(part && { part }),
     ...(folders && { folders }),
     ...(wroteTo && { wroteTo }),

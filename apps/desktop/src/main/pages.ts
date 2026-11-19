@@ -8,7 +8,9 @@ import {
   createLooker,
   emulatePhone,
   guardPage,
+  holdLoupe,
   holdPhoneLoads,
+  loupePage,
   lockPagesSession,
   ownZoom,
   pagesSession,
@@ -16,9 +18,11 @@ import {
   phonePage,
   pictureForApp,
   pickPasskeys,
+  watchLoupe,
   watchPageRequests,
   zoomPage,
 } from "@novadeck/viewers/browser/host"
+import { pageLoupeChannel } from "@novadeck/viewers/browser/loupe"
 import { pageSignInChannel } from "@novadeck/viewers/browser/sign-in"
 import { pageRequestChannel } from "@novadeck/viewers/browser/trouble"
 import {
@@ -35,6 +39,8 @@ import {
 
 import {
   pageLookChannel,
+  pageLoupeHoldChannel,
+  pageLoupeLookChannel,
   pagePhoneChannel,
   pagePictureChannel,
   pageZoomChannel,
@@ -131,6 +137,16 @@ export const livePages = () => {
         ownZoom(contents, pages)
         if (contents.getType() === "webview") {
           guardPage(contents, (url) => shell.openExternal(url), pagesPartition)
+          // Its loupe's pointer, wheel and keys, which only this process sees.
+          watchLoupe(contents, (notice) => {
+            const embedder = contents.hostWebContents
+            if (!embedder || embedder.isDestroyed()) return
+            try {
+              embedder.send(pageLoupeChannel, notice.contentsId, notice)
+            } catch (error) {
+              log.warn("pages.loupe-send-failed", "A loupe notice was not sent.", { err: error })
+            }
+          })
           const { id } = contents
           // Its sign-in windows' failed requests are counted too, under their own ids, as are
           // those of the windows they open in turn, as an account chooser.
@@ -190,6 +206,16 @@ export const livePages = () => {
       ipcMain.handle(pagePhoneChannel, (event, id: unknown, phone: unknown) =>
         fromApp(event)
           ? phonePage(event.sender, id, phone, (page) => webContents.fromId(page))
+          : false,
+      )
+      ipcMain.handle(pageLoupeLookChannel, (event, id: unknown, rect: unknown) =>
+        fromApp(event)
+          ? loupePage(event.sender, id, rect, (page) => webContents.fromId(page))
+          : undefined,
+      )
+      ipcMain.handle(pageLoupeHoldChannel, (event, id: unknown, on: unknown) =>
+        fromApp(event)
+          ? holdLoupe(event.sender, id, on, (page) => webContents.fromId(page))
           : false,
       )
       ipcMain.handle(pageZoomChannel, (event, id: unknown, factor: unknown) =>

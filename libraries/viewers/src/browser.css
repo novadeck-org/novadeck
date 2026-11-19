@@ -33,7 +33,10 @@
    `phoneBezel`. --browser-screen-radius (28px): its screen's corners, as drawn.
    --browser-rail-bg, --browser-rail-thumb: a zoomed phone's rail and its thumb.
    --browser-hint-bg, --browser-hint-fg: the one-time line about zooming a phone.
-   data-zoom="in" | "out" on a phone's viewer: a double-click around it zooms it in, or back. */
+   data-zoom="in" | "out" on a phone's viewer: a double-click around it zooms it in, or back.
+   --browser-loupe-edge (a light line), --browser-loupe-shadow (a drop shadow),
+   --browser-loupe-label-bg (a near black), --browser-loupe-label-fg (white): the loupe's
+   rim, its shadow and its level's chip. */
 .browser-viewer {
   display: flex;
   position: relative;
@@ -279,6 +282,56 @@
 }
 .browser-hint[data-shown] {
   opacity: 1;
+}
+/* The loupe: a round lens as wide as `loupeSize` (190px), moved by the viewer to sit on the
+   pointer (a translate), over everything in the viewer and letting the pointer through. Its
+   glass shows a picture of the page under it, which the viewer sizes and places; its level
+   is a chip at its foot. */
+.browser-loupe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  width: 190px;
+  height: 190px;
+  pointer-events: none;
+}
+.browser-loupe[hidden] {
+  display: none;
+}
+.browser-loupe-glass {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--browser-page-bg, white);
+  box-shadow:
+    0 0 0 2px var(--browser-loupe-edge, rgb(255 255 255 / 0.85)),
+    0 0 0 3px rgb(0 0 0 / 0.35),
+    var(--browser-loupe-shadow, 0 8px 24px rgb(0 0 0 / 0.35));
+}
+.browser-loupe-glass img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: none;
+  transform-origin: 0 0;
+  user-select: none;
+}
+.browser-loupe-level {
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--browser-loupe-label-bg, rgb(20 20 22 / 0.85));
+  color: var(--browser-loupe-label-fg, white);
+  font:
+    600 11px/16px system-ui,
+    sans-serif;
+  font-variant-numeric: tabular-nums;
 }
 @media (prefers-reduced-motion: reduce) {
   .browser-picture,

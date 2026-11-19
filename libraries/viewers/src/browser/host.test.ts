@@ -20,12 +20,16 @@ import {
   phonePage,
   phoneWaitMs,
   pictureQuality,
+  holdLoupe,
   holdsOffsiteFrame,
+  loupeMaxSide,
+  loupePage,
   picturePage,
   pictureForApp,
   pictureWaitMs,
   signInTitle,
   signInWindow,
+  watchLoupe,
   watchPageRequests,
   webAddress,
   maxPageZoom,
@@ -374,6 +378,164 @@ describe("a page view zoomed out to fit", () => {
     for (const factor of [0, -1, 5.5, Number.POSITIVE_INFINITY, Number.NaN, "0.5", undefined])
       expect(zoomPage(app, 7, factor, byId(contents))).toBe(false)
     expect(zooms).toEqual([])
+  })
+})
+
+describe("a picture of part of a page view, for the loupe", () => {
+  const app = {} as WebContents
+  const view = ({ owner = app, empty = false }: { owner?: WebContents; empty?: boolean } = {}) => {
+    const asked: unknown[] = []
+    const contents = {
+      hostWebContents: owner,
+      getType: () => "webview",
+      isDestroyed: () => false,
+      capturePage: async (rect: unknown) => {
+        asked.push(rect)
+        return { isEmpty: () => empty, toPNG: () => Buffer.from("png") }
+      },
+    } as unknown as WebContents
+    return { contents, asked }
+  }
+  const byId =
+    (contents: WebContents) =>
+    (id: number): WebContents | undefined =>
+      id === 7 ? contents : undefined
+  const rect = { x: 10, y: 20, width: 95, height: 96 }
+
+  it("is the PNG of that part of a page view of the asking page, as it's drawn", async () => {
+    const { contents, asked } = view()
+    expect(await loupePage(app, 7, rect, byId(contents))).toBe(
+      `data:image/png;base64,${Buffer.from("png").toString("base64")}`,
+    )
+    expect(asked).toEqual([rect])
+  })
+
+  it("is nothing for a rect that isn't whole pixels inside a view, too big, or nothing drawn", async () => {
+    const { contents, asked } = view()
+    const bad = [
+      undefined,
+      { ...rect, x: -1 },
+      { ...rect, y: 1.5 },
+      { ...rect, width: 0 },
+      { ...rect, height: "9" },
+      { ...rect, width: loupeMaxSide + 1 },
+    ]
+    expect(await Promise.all(bad.map((each) => loupePage(app, 7, each, byId(contents))))).toEqual(
+      bad.map(() => undefined),
+    )
+    expect(asked).toEqual([])
+    expect(await loupePage(app, 7, rect, byId(view({ empty: true }).contents))).toBeUndefined()
+  })
+
+  it("is nothing for another window's page, or an id that's no view's", async () => {
+    const other = view({ owner: {} as WebContents }).contents
+    const { contents } = view()
+    expect(await loupePage(app, 7, rect, byId(other))).toBeUndefined()
+    const others = await Promise.all(
+      [8, "7", 7.5].map((id) => loupePage(app, id, rect, byId(contents))),
+    )
+    expect(others).toEqual([undefined, undefined, undefined])
+  })
+})
+
+describe("the loupe over a page view", () => {
+  type Told = { shown: boolean; toggled: boolean; x: number; y: number; wheel?: number }
+  const watched = () => {
+    const host = new EventEmitter()
+    const page = Object.assign(new EventEmitter(), {
+      id: 7,
+      hostWebContents: host,
+      getType: () => "webview",
+      isDestroyed: () => false,
+    })
+    const told: Told[] = []
+    watchLoupe(page as unknown as WebContents, (notice) => told.push(notice))
+    const stop = {
+      prevented: 0,
+      preventDefault() {
+        stop.prevented += 1
+      },
+    }
+    const mouse = (type: string, extra: object = {}) =>
+      page.emit("before-mouse-event", stop, { type, x: 40, y: 50, modifiers: [], ...extra })
+    const key = (where: EventEmitter, type: string, name: string) =>
+      where.emit("before-input-event", stop, { type, key: name })
+    return { page, host, told, stop, mouse, key }
+  }
+
+  it("shows for Alt over the page, follows the pointer, and hides when Alt goes", () => {
+    const { page, told, mouse, key } = watched()
+    mouse("mouseMove")
+    expect(told).toEqual([])
+    mouse("mouseMove", { modifiers: ["alt"], x: 41, y: 52 })
+    mouse("mouseMove", { modifiers: ["alt"], x: 45, y: 55 })
+    key(page, "keyUp", "Alt")
+    expect(told.map(({ shown, x, y }) => [shown, x, y])).toEqual([
+      [true, 41, 52],
+      [true, 45, 55],
+      [false, 45, 55],
+    ])
+  })
+
+  it("hears Alt from the page's own keys, or the app's where focus is in it (a terminal)", () => {
+    const { page, host, told, mouse, key } = watched()
+    mouse("mouseMove")
+    key(page, "keyDown", "Alt")
+    key(page, "keyUp", "Alt")
+    // Hears the app's keys once the pointer has been over the page, which is what names its app.
+    key(host, "keyDown", "Alt")
+    key(host, "keyUp", "Alt")
+    expect(told.map(({ shown }) => shown)).toEqual([true, false, true, false])
+  })
+
+  it("keeps letting go of Alt from the window while the pointer is over the page, as its menu bar would show", () => {
+    const { page, stop, mouse, key } = watched()
+    key(page, "keyDown", "Alt")
+    key(page, "keyUp", "Alt")
+    expect(stop.prevented).toBe(0)
+    mouse("mouseMove")
+    // Not the key down, which would take its key up with it, and so leave the loupe up.
+    key(page, "keyDown", "Alt")
+    expect(stop.prevented).toBe(0)
+    key(page, "keyUp", "Alt")
+    expect(stop.prevented).toBe(1)
+    mouse("mouseLeave")
+    key(page, "keyUp", "Alt")
+    expect(stop.prevented).toBe(1)
+  })
+
+  it("lets the loupe have Esc while it shows, and the page otherwise", () => {
+    const { page, host, told, stop, mouse, key } = watched()
+    mouse("mouseMove")
+    key(page, "keyDown", "Escape")
+    expect(stop.prevented).toBe(0)
+    expect(
+      holdLoupe(host as unknown as WebContents, 7, true, () => page as unknown as WebContents),
+    ).toBe(true)
+    expect(told.at(-1)).toMatchObject({ shown: true, toggled: true })
+    key(host, "keyDown", "Escape")
+    expect(stop.prevented).toBe(1)
+    expect(told.at(-1)).toMatchObject({ shown: false, toggled: false })
+  })
+
+  it("turns the tool's loupe off when the pointer leaves, or the window loses focus with Alt held", () => {
+    const { page, host, told, mouse, key } = watched()
+    holdLoupe(host as unknown as WebContents, 7, true, () => page as unknown as WebContents)
+    mouse("mouseMove")
+    mouse("mouseLeave")
+    expect(told.at(-1)).toMatchObject({ shown: false, toggled: false })
+    mouse("mouseMove")
+    key(page, "keyDown", "Alt")
+    page.emit("blur")
+    expect(told.at(-1)).toMatchObject({ shown: false })
+  })
+
+  it("is held only for a page view of the asking page that is watched", () => {
+    const { page } = watched()
+    const byPage = (id: number) => (id === 7 ? (page as unknown as WebContents) : undefined)
+    expect(holdLoupe({} as WebContents, 7, true, byPage)).toBe(false)
+    expect(holdLoupe(page.hostWebContents as unknown as WebContents, 7, "yes", byPage)).toBe(false)
+    expect(holdLoupe(page.hostWebContents as unknown as WebContents, 8, true, byPage)).toBe(false)
   })
 })
 

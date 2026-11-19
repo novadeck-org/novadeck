@@ -10,6 +10,7 @@ import type {
 
 import { webAddress } from "./address.js"
 import { lockedPreferences } from "./lockdown.js"
+import { createLoupeWatch, type PageLoupeNotice } from "./loupe.js"
 import { chromeMajorOf, phoneEmulation, phoneTouch, phoneUserAgent } from "./phone.js"
 import { originOf, type PageRequestFailure } from "./trouble.js"
 import { within } from "./wait.js"
@@ -698,6 +699,108 @@ export const watchPageRequests = (
   })
   // A page view gone, as each rest of a page drops one: its counts go with it.
   return { forget: (contentsId) => void told.delete(contentsId) }
+}
+
+// The most a loupe's picture is asked to cover, in a page view's pixels either way.
+export const loupeMaxSide = 2_000
+
+/**
+ * A picture of part of the page view `id`, `rect` of its view in its device-independent
+ * pixels, as a PNG `data:` address at the density the view is drawn at, for a loupe to
+ * magnify; no blink, as it reads what's drawn, where a capture of a clip at another scale
+ * would move the page itself while it's taken. Undefined unless `id` is a page view of
+ * `app`, the app's page that asks, `rect` is whole pixels inside the view, and the page
+ * draws something. `fromId` is Electron's `webContents.fromId`.
+ */
+export const loupePage = async (
+  app: WebContents,
+  id: unknown,
+  rect: unknown,
+  fromId: (id: number) => WebContents | undefined,
+): Promise<string | undefined> => {
+  const page = pageViewOf(app, id, fromId)
+  const { x, y, width, height } = (rect ?? {}) as Record<string, unknown>
+  const whole = (value: unknown, least: number): value is number =>
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= least &&
+    value <= loupeMaxSide * 8
+  if (!page || !whole(x, 0) || !whole(y, 0) || !whole(width, 1) || !whole(height, 1))
+    return undefined
+  if (width > loupeMaxSide || height > loupeMaxSide) return undefined
+  const image = await within(page.capturePage({ x, y, width, height }), pictureWaitMs)
+  if (!image || image.isEmpty()) return undefined
+  return `data:image/png;base64,${image.toPNG().toString("base64")}`
+}
+
+// The loupe watch of each page view that has one.
+const loupes = new WeakMap<WebContents, ReturnType<typeof createLoupeWatch>>()
+
+/**
+ * Follows the pointer and Alt and Esc over the page view `page` for its loupe,
+ * and tells `tell` of it as the app's page needs to know (see `createLoupeWatch`). The app's
+ * page never hears of them, as its view takes them: the pointer through the view's mouse
+ * events, keys through the view's own, or the app page's where focus is in it
+ * (a terminal's, say). Its Esc while it shows is the loupe's, and doesn't reach the page; nor
+ * does letting go of Alt while the pointer is over it. The wheel, which a view gives no word of, is
+ * the viewer's to take (`loupeWheelScript`).
+ */
+export const watchLoupe = (page: WebContents, tell: (notice: PageLoupeNotice) => void): void => {
+  if (loupes.has(page)) return
+  const watch = createLoupeWatch((notice) => tell({ contentsId: page.id, ...notice }))
+  loupes.set(page, watch)
+  const key = (
+    event: { preventDefault: () => void },
+    input: { type: string; key: string },
+  ): void => {
+    const down = input.type === "keyDown"
+    if (input.key === "Alt") {
+      // Over the page, letting go of Alt is the loupe's, not the window's: on Windows and Linux
+      // it would show the menu bar, which moves the page under the pointer. Only the key up:
+      // a key down kept from the page takes its key up with it.
+      if (!down && watch.state().over) event.preventDefault()
+      watch.alt(down)
+    } else if (input.key === "Escape" && down && watch.escape()) event.preventDefault()
+  }
+  page.on("before-mouse-event", (event, mouse) => {
+    if (mouse.type === "mouseLeave") return watch.leave()
+    if (mouse.type === "mouseMove" || mouse.type === "mouseEnter")
+      watch.pointer(mouse.x, mouse.y, mouse.modifiers?.includes("alt") === true)
+  })
+  page.on("before-input-event", key)
+  page.on("blur", () => watch.alt(false))
+  // Where focus is in the app's page, as a terminal's, the keys go to it, not the view.
+  let host: WebContents | undefined
+  const hostBlur = (): void => watch.alt(false)
+  page.on("before-mouse-event", () => {
+    const embedder = page.hostWebContents
+    if (!embedder || embedder === host) return
+    host = embedder
+    embedder.on("before-input-event", key)
+    embedder.on("blur", hostBlur)
+    page.once("destroyed", () => {
+      if (embedder.isDestroyed()) return
+      embedder.off("before-input-event", key)
+      embedder.off("blur", hostBlur)
+    })
+  })
+}
+
+/**
+ * Turns the tool's loupe on or off over the page view `id` of `app`, the app's page that
+ * asks. False for anything but a page view of `app` that has a watch (`watchLoupe`).
+ */
+export const holdLoupe = (
+  app: WebContents,
+  id: unknown,
+  on: unknown,
+  fromId: (id: number) => WebContents | undefined,
+): boolean => {
+  const page = pageViewOf(app, id, fromId)
+  const watch = page && loupes.get(page)
+  if (!watch || typeof on !== "boolean") return false
+  watch.toggle(on)
+  return true
 }
 
 export { createLooker, type Looker, type LookResult } from "./look.js"

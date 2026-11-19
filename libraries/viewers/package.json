@@ -90,6 +90,11 @@
       "types": "./dist/browser/trouble.d.ts",
       "default": "./dist/browser/trouble.js"
     },
+    "./browser/loupe": {
+      "development": "./src/browser/loupe.ts",
+      "types": "./dist/browser/loupe.d.ts",
+      "default": "./dist/browser/loupe.js"
+    },
     "./browser/sign-in": {
       "development": "./src/browser/sign-in.ts",
       "types": "./dist/browser/sign-in.d.ts",

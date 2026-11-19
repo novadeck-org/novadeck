@@ -10,7 +10,7 @@ import {
   type Place,
   type Trouble,
 } from "@novadeck/viewers/browser"
-import { ArrowLeft, ArrowRight, ExternalLink, RotateCw, Smartphone } from "lucide-react"
+import { ArrowLeft, ArrowRight, ExternalLink, RotateCw, Smartphone, ZoomIn } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import type { ArtifactBodyProps } from "../../ArtifactViewer"
@@ -123,6 +123,7 @@ const ShownPage = ({
   picture,
   phone,
   zoom,
+  loupe,
 }: {
   id: string
   content: PageContent
@@ -132,6 +133,7 @@ const ShownPage = ({
     | undefined
   phone: ((page: number, phone: boolean) => Promise<boolean>) | undefined
   zoom: ((page: number, factor: number) => Promise<boolean>) | undefined
+  loupe: NonNullable<ArtifactBodyProps<"page">["itemStore"]["loupe"]> | undefined
 }): React.JSX.Element => {
   const collect = useTroubles(trouble)
   const [place, setPlace] = useState<Place>({ url: page.url, back: false, forward: false })
@@ -142,6 +144,8 @@ const ShownPage = ({
   // back to the page, which the app's page hears only as its window losing focus to the
   // page's view, as it does to another app, where a menu goes too.
   const [menu, setMenu] = useState<PageMenu | undefined>(undefined)
+  // Whether the loupe tool is on: it goes off by itself on Esc, or as the pointer leaves the page.
+  const [loupeOn, setLoupeOn] = useState(false)
   const menuOpen = menu !== undefined
   useEffect(() => {
     if (!menuOpen) return
@@ -174,6 +178,7 @@ const ShownPage = ({
     ...(phone ? { phone } : {}),
     ...(zoom ? { zoom } : {}),
     zoomHint,
+    ...(loupe ? { loupe } : {}),
     awake,
     size,
     on: {
@@ -181,6 +186,7 @@ const ShownPage = ({
       unmobile: setUnmobile,
       load: setLoad,
       menu: setMenu,
+      loupe: setLoupeOn,
       ...(page.live ? { trouble: collect } : {}),
     },
   })
@@ -189,6 +195,13 @@ const ShownPage = ({
   useEffect(() => viewer?.muted(!shown), [viewer, shown])
   useEffect(() => viewer?.awake(awake), [viewer, awake])
   useEffect(() => viewer?.size(size), [viewer, size])
+  const loupeTool: PaneTool = {
+    key: "loupe",
+    icon: ZoomIn,
+    label: "Loupe · hold Alt",
+    pressed: loupeOn,
+    onClick: () => viewer?.loupe(!loupeOn),
+  }
   const switchSize = (): void => {
     const next = size === "phone" ? "desktop" : "phone"
     pageSights.setLayout(id, next)
@@ -280,6 +293,8 @@ const ShownPage = ({
                 },
               ]
             : []),
+          // A live page has one where the app can follow its pointer, a snapshot always.
+          ...(page.live ? (loupe ? [loupeTool] : []) : [loupeTool]),
           openTool(place.url),
         ]}
       />
@@ -353,6 +368,7 @@ export const PageViewer = ({
       picture={itemStore.picture}
       phone={itemStore.phone}
       zoom={itemStore.zoom}
+      loupe={itemStore.loupe}
     />
   ) : (
     <div className="artifact-browser">
