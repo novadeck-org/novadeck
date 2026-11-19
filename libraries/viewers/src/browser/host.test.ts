@@ -860,6 +860,7 @@ describe("a page view as a phone's", () => {
       "attach",
       "agent phone",
       "Emulation.setDeviceMetricsOverride",
+      "Emulation.setScrollbarsHidden",
       "Emulation.setTouchEmulationEnabled",
       "Emulation.setUserAgentOverride",
     ])

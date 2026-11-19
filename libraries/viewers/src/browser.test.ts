@@ -786,8 +786,11 @@ describe("the browser viewer", () => {
       const half = [phoneScreen.width / 2, phoneScreen.height / 2]
       expect(boxes(pane).laid).toEqual([phoneScreen.width, phoneScreen.height])
       expect(boxes(pane).drawn).toEqual([room, (1000 - half[1]!) / 2, half[0], half[1]])
-      // Scaled down whole, not zoomed: a phone's emulated screen draws at its own size.
-      expect(zoomed(pane).zoom).toBe(1)
+      // Zoomed out in a view as big as it's drawn, as a desktop's is, for its popups to land
+      // where it draws them; it lays out a screen wide all the same (the boxes above).
+      expect(zoomed(pane).zoom).toBeCloseTo(0.5, 3)
+      expect(pageOf(pane).offsetWidth).toBe(half[0])
+      expect(pane.querySelector(".browser-viewer")!.hasAttribute("data-zoomed")).toBe(true)
       viewer.size("desktop")
       // So narrow a desktop's window is scaled down, past the least a page zooms.
       expect(zoomed(pane).zoom).toBe(1)
@@ -809,6 +812,27 @@ describe("the browser viewer", () => {
         .poll(() => boxes(pane).drawn)
         .toEqual([205, 78, phoneScreen.width, phoneScreen.height])
       expect(boxes(pane).laid).toEqual([phoneScreen.width, phoneScreen.height])
+      // At its own size it isn't zoomed at all.
+      expect(zoomed(pane).zoom).toBe(1)
+      expect(pane.querySelector(".browser-viewer")!.hasAttribute("data-zoomed")).toBe(false)
+    })
+
+    it("scales a phone down, not zooming it, past the least a page zooms, as a desktop", () => {
+      const pane = paneIn()
+      const room = 2 * (phoneBezel + phoneMargin)
+      pane.style.width = `${phoneScreen.width * (minZoom / 2) + room}px`
+      pane.style.height = "1000px"
+      mountBrowser(pane, {
+        content: { url: "http://localhost:5173/" },
+        label: "page",
+        live: true,
+        partition: "pages",
+        size: "phone",
+      })
+      const page = zoomed(pane)
+      expect(page.zoom).toBe(1)
+      expect([page.offsetWidth, page.offsetHeight]).toEqual([phoneScreen.width, phoneScreen.height])
+      expect(getComputedStyle(page).transform).not.toBe("none")
     })
 
     it("hides a phone's page's own scrollbar in each document it loads, and only a phone's", async () => {
