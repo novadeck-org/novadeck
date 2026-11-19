@@ -2,7 +2,7 @@ import type { IpcMainEvent } from "electron"
 
 import { screenReaderChannel, screenReaderRequestChannel, tellsScreenReader } from "../../bridge.js"
 import { describe, expect, it } from "../../test"
-import { registerScreenReaderIpc, screenReaderPollMs } from "./screen-reader"
+import { electronReaders, registerScreenReaderIpc, screenReaderPollMs } from "./screen-reader"
 
 type Told = { readonly page: string; readonly running: boolean }
 
@@ -18,22 +18,25 @@ const registered = ({ own = true, running = false }: { own?: boolean; running?: 
       if (channel === screenReaderChannel) told.push({ page: name, running: value })
     },
   })
-  registerScreenReaderIpc(
-    { on: (channel, listener) => void listeners.set(channel, listener) },
+  const readers = electronReaders(
     {
       isAccessibilitySupportEnabled: () => enabled,
       on: (_event, listener) => {
         changed = listener
       },
     },
+    (check, ms) => {
+      poll = check
+      pollMs = ms
+      return () => {}
+    },
+  )
+  registerScreenReaderIpc(
+    { on: (channel, listener) => void listeners.set(channel, listener) },
+    readers,
     {
       page: () => (own ? pageNamed("asking") : undefined),
       pages: () => [pageNamed("first"), pageNamed("second")],
-      every: (check, ms) => {
-        poll = check
-        pollMs = ms
-        return () => {}
-      },
     },
   )
   const ask = (): void => listeners.get(screenReaderRequestChannel)?.({} as IpcMainEvent)
@@ -84,9 +87,10 @@ describe("telling the app's pages whether a screen reader runs", () => {
 })
 
 describe("tellsScreenReader", () => {
-  it("is on macOS and Windows, where Electron reports assistive technology", () => {
+  it("is on macOS and Windows, where Electron tells, and Linux, where the bus does", () => {
     expect(tellsScreenReader("darwin")).toBe(true)
     expect(tellsScreenReader("win32")).toBe(true)
-    expect(tellsScreenReader("linux")).toBe(false)
+    expect(tellsScreenReader("linux")).toBe(true)
+    expect(tellsScreenReader("freebsd")).toBe(false)
   })
 })
