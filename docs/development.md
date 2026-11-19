@@ -513,8 +513,13 @@ Agents:
   terminal (`@fox`) already holds `render`, a folder an agent wrote into (`frontend/demo/src/showcase/folders.ts`:
   SVG stills, a clip, a PDF, a log, a folder inside it, a secret file and folder and a link out),
   listed as thumbnails, newest first; double-clicking a file opens it in its kind's group,
-  and opening a folder from the Files panel (`agents` demo) lists a stand-in. The Folder group:
-  "Show a folder" shows it again; "A file lands in the folder" puts a new picture on top (held
+  and opening a folder from the Files panel (`agents` demo) lists a stand-in. A file opened from
+  it, while the folder is on the bar, has ‹ and › through the folder's files of its kind (a
+  still: ← and → too; ‹ is off on the first still and › on the last, and the log, the only
+  text file, has both off) and Show in render, which goes back to the folder with the file selected
+  (a still of `old-runs` has "Show in old-runs", which opens that folder inside render). The Folder group:
+  "Show a folder" shows it again; "Open a file of the folder" opens the newest still of it as a
+  double-click would; "A file lands in the folder" puts a new picture on top (held
   in a pill while the pointer is in the grid); "A file is being written" grows one for about 3 s
   (write cursor and pulse); "Show a folder with nothing in it", "...too large to list whole" and
   "...that may hold secrets" are the pane's other states; "The folder goes away" strikes its tab

@@ -136,6 +136,7 @@ export const createRunnerCompanions = (
     | "pageTrouble"
     | "part"
     | "attach"
+    | "repoint"
   >,
   {
     livePages = false,
@@ -227,6 +228,8 @@ export const createRunnerCompanions = (
       .catch(() => {})
   },
   attach: async (_target, terminalId, path) => itemOf(await runner.attach({ terminalId, path })),
+  repoint: async (target, itemId, path) =>
+    itemOf(await inOrder(target, () => runner.repoint({ itemId, path }))),
   openInProject: async (target, path, windowId) => {
     const { item, window } = await inOrder(target, () =>
       runner.openInProject({ sessionId: target.workspaceSessionId, path, windowId }),

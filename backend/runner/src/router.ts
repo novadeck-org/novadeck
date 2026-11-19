@@ -382,6 +382,7 @@ export const createRouter = (options: {
         }
       }),
       attach: api.companions.attach.handler(({ input }) => items.attach(input)),
+      repoint: api.companions.repoint.handler(({ input }) => items.repoint(input)),
       openInProject: api.companions.openInProject.handler(({ input }) =>
         items.openInProject(input),
       ),

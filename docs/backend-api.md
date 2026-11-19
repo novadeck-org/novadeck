@@ -1841,6 +1841,16 @@ one from an earlier runner.
     person picked on a terminal's bar, by a path absolute or from the terminal's directory:
     `TERMINAL_NOT_FOUND`, or `INVALID_FILE` saying why for a missing path, a folder that may
     hold secrets, a pipe or a device. Binary files are accepted. A folder is a `folder` item.
+  - `companions.repoint({ itemId, path })` points a file's item (an image, video, audio,
+    PDF or file, held by a terminal's bar or an undocked window) at another file of the same
+    kind, by a path absolute or from the folder of the file it points at now, as the person
+    stepping through a folder's files does. It answers the same item (the same `id` and holder)
+    with a later `version`, `by` `person`, `openAsked` set and `shownAt` now; the pointer is
+    built as `attach` builds it, so a file that may hold secrets opens onto its gate. An item the
+    bar held under the new pointer is replaced. `NOT_FOUND` for an unknown item, `CONFLICT` for the
+    item of a project window (which `openInProject` points), or `INVALID_FILE` saying why for an item
+    that is no file's, a path that is no file, a folder, or a file of another kind. Nothing in it
+    depends on an agent or its harness.
   - `companions.openInProject({ sessionId, path, windowId })` opens a file the person
     picked in the session's project window, by a path absolute or from the project's
     folder, and answers the `item` and `window`. A session has one such window (`home` is

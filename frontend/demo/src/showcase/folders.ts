@@ -1,4 +1,12 @@
-import type { FilePart, FolderEntry, ItemContent } from "@novadeck/core/items"
+import {
+  isOnBar,
+  itemIdOf,
+  type FilePart,
+  type FolderEntry,
+  type Item,
+  type ItemContent,
+  type ItemId,
+} from "@novadeck/core/items"
 
 import type { SampleArtifact } from "./artifacts"
 
@@ -141,6 +149,9 @@ export const readFolderPart = async (
 
 const hour = 3_600_000
 
+// Where the render folder's files are, as their items name them.
+const renderTop = "~/render"
+
 // A picture drawn on a 16:10 canvas, as a still of the page an agent rendered.
 const still = (name: string, tint: string, label: string): string =>
   `data:image/svg+xml,${encodeURIComponent(
@@ -148,8 +159,17 @@ const still = (name: string, tint: string, label: string): string =>
       `<rect width="800" height="450" fill="${tint}"/><rect x="40" y="40" width="720" height="60" rx="6" fill="#ffffff" opacity=".7"/><rect x="40" y="130" width="330" height="240" rx="6" fill="#ffffff" opacity=".5"/><rect x="400" y="130" width="360" height="110" rx="6" fill="#ffffff" opacity=".5"/><text x="60" y="78" font-family="Arial, sans-serif" font-size="26" fill="#2d2a24">${label}</text><text x="60" y="420" font-family="Arial, sans-serif" font-size="18" fill="#2d2a24">${name}</text></svg>`,
   )}`
 
-const picture = (name: string, tint: string, label: string, age: number, now: number): DemoFile => {
+// `within` is the folder of the render folder the picture is in, which its item's path names.
+const picture = (
+  name: string,
+  tint: string,
+  label: string,
+  age: number,
+  now: number,
+  within = "",
+): DemoFile => {
   const source = still(name, tint, label)
+  const path = within === "" ? `${renderTop}/${name}` : `${renderTop}/${within}/${name}`
   return {
     name,
     kind: "image",
@@ -162,7 +182,7 @@ const picture = (name: string, tint: string, label: string, age: number, now: nu
         kind: "image",
         name,
         detail: "38 KB SVG",
-        path: `~/render/${name}`,
+        path,
         url: null,
         lines: null,
         secret: false,
@@ -320,8 +340,8 @@ export const renderFiles = (now: number, media: RenderMedia): DemoFile[] => [
     size: 0,
     modifiedAt: now - 26 * hour,
     children: [
-      picture("run-1-home.svg", "#e3edf1", "Run 1 · home", 26 * hour, now),
-      picture("run-1-cart.svg", "#f3ece0", "Run 1 · cart", 26 * hour, now),
+      picture("run-1-home.svg", "#e3edf1", "Run 1 · home", 26 * hour, now, "old-runs"),
+      picture("run-1-cart.svg", "#f3ece0", "Run 1 · cart", 26 * hour, now, "old-runs"),
       {
         name: "notes",
         kind: "folder",
@@ -407,4 +427,71 @@ export const openedAt = (
     samples.find((each) => each.folder?.top === path) ??
     folderItem(`folder-${path}`, base, createFolder(path, renderFiles(now, media)))
   )
+}
+
+// What a file the person picked opens as, and where: `terminalId` puts it on that bar as a new
+// item, or the one the bar already holds of it (the one under that file's own id, or under any
+// other), shown again; `itemId` points that file item at it, which keeps its id and its holder.
+// What the bar held of the file an item is pointed at is `twin`, which gives way to it. The item
+// is the person's own and asks to open, with a later version. Throws for a file that can't be
+// shown, or, for `itemId`, an item that is none or of another kind.
+export const placed = (
+  {
+    samples,
+    items,
+    terminalId,
+    itemId,
+    path,
+    projects = [],
+  }: {
+    readonly samples: readonly SampleArtifact[]
+    readonly items: readonly Item[]
+    // The items the project windows hold, which stay on their file.
+    readonly projects?: readonly string[]
+    readonly terminalId?: string | undefined
+    readonly itemId?: ItemId | undefined
+    readonly path: string
+  },
+  now: number,
+  media: RenderMedia,
+): { id: string; sample: SampleArtifact; item: Item; twin: ItemId | undefined } => {
+  const opened = openedAt(samples, path, now, media)
+  if (!opened) throw new Error("That file can't be shown")
+  const { kind, name, detail, path: shown, url, lines, secret } = opened.item
+  const before = items.find((each) => each.id === itemId)
+  if (before && projects.includes(before.id))
+    throw new Error("The project window's file stays in its window")
+  if (itemId !== undefined && (!before || before.kind !== kind || kind === "folder"))
+    throw new Error("That item can't show this file")
+  // As the runner keeps a file on a bar: by what that bar holds under its pointer.
+  const own = before ?? items.find((each) => isOnBar(each, terminalId ?? "") && each.path === shown)
+  // A sample's id is the file's: one another bar already holds is not this bar's item.
+  const taken = items.some((each) => each.id === itemIdOf(opened.item.id))
+  const id = own?.id ?? (taken ? `${opened.item.id}@${terminalId}` : opened.item.id)
+  const item: Item = {
+    ...(own ?? {
+      id: itemIdOf(id),
+      holder: { terminalId: terminalId ?? "" },
+      from: { terminalId: terminalId ?? "", handle: "" },
+      plan: null,
+    }),
+    kind,
+    name,
+    detail,
+    path: shown,
+    url,
+    lines,
+    secret,
+    by: "person",
+    version: own ? own.version + 1 : 1,
+    openAsked: true,
+    shownAt: now,
+  }
+  const home = before && "terminalId" in before.holder ? before.holder.terminalId : undefined
+  const twin =
+    home === undefined
+      ? undefined
+      : items.find((each) => each.id !== before?.id && each.path === shown && isOnBar(each, home))
+          ?.id
+  return { id, sample: { ...opened, item: { ...opened.item, id } }, item, twin }
 }

@@ -12,7 +12,12 @@ export const ImageViewer = ({
   content: image,
 }: ArtifactBodyProps<"image">): React.JSX.Element => {
   const content = useMemo((): Image => ({ src: image.src, alt: item.name }), [image, item])
-  const { ref } = useViewerSlot(mountImage, { id: item.id, content, label: item.name })
+  const { ref } = useViewerSlot(mountImage, {
+    // Another file under the item is another place: one opens fitted, not at the last one's zoom.
+    id: `${item.id}\n${item.path}`,
+    content,
+    label: item.name,
+  })
   return <div ref={ref} className="artifact-image" />
 }
 
