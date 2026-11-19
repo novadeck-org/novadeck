@@ -401,6 +401,35 @@ describe("a mount's hold on a screen", () => {
       vi.useRealTimers()
     }
   })
+
+  it("fits at the first and the last size of a drag that outlasts the settle time", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "requestAnimationFrame"] })
+    try {
+      const { screens, show, resized } = capped(2)
+      layOut({ cols: 100, rows: 30 })
+      const opened = openedTerminals()
+      show("a")
+      await vi.advanceTimersByTimeAsync(0)
+      resized.mockClear()
+      // Twenty steps 50 ms apart: a second, far past one settle time, with no pause of one.
+      let afterTwo = 0
+      for (let size = 14; size <= 33; size++) {
+        screens.setFont({ size })
+        await vi.advanceTimersByTimeAsync(50)
+        // The first step fits at once, and the renderer's own change after it fits once more.
+        if (size === 15) afterTwo = resized.mock.calls.length
+      }
+      // No fit through the rest of the drag, however long it runs.
+      expect(resized.mock.calls.length).toBe(afterTwo)
+      await vi.advanceTimersByTimeAsync(500)
+      // One after the pause, for the last size, which every screen has by now.
+      expect(resized.mock.calls.length).toBe(afterTwo + 1)
+      expect(opened[0]?.options.fontSize).toBe(33)
+    } finally {
+      closeScreens()
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe("the measure", () => {
