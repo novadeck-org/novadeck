@@ -42,6 +42,37 @@ describe("the layers selected", () => {
     expect(selectedOf(["uncommitted", "c1"], picked)).toEqual(new Set(["uncommitted", "c1"]))
   })
 
+  it("takes the rows from the row picked to the row Shift+clicked, either way", () => {
+    expect(pick(ids, ["c3"], "c1", true)).toEqual(["c3", "c1"])
+    expect(selectedOf(ids, ["c3", "c1"])).toEqual(new Set(["c3", "c2", "c1"]))
+    expect(selectedOf(ids, ["c1", "c3"])).toEqual(new Set(["c3", "c2", "c1"]))
+    expect(alone(ids, ["c3", "c1"])).toBe(false)
+  })
+
+  it("moves a range's end from the same anchor on the next Shift+click", () => {
+    expect(pick(ids, ["c3", "c1"], "uncommitted", true)).toEqual(["c3", "uncommitted"])
+    expect(pick(ids, ["c3", "c1"], "c3", true)).toEqual(["c3"])
+  })
+
+  it("keeps only the row a click lands on in a range, without Shift", () => {
+    expect(pick(ids, ["c3", "c1"], "c2")).toEqual(["c2"])
+    expect(pick(ids, ["c3", "c1"], "c3")).toEqual(["c3"])
+  })
+
+  it("is a click on a Shift+click with no row picked, or its row gone", () => {
+    expect(pick(ids, [], "c2", true)).toEqual(["c2"])
+    expect(pick(ids, ["gone"], "c2", true)).toEqual(["c2"])
+  })
+
+  it("keeps none for a range of every row, so layers that come after show too", () => {
+    expect(pick(ids, ["uncommitted"], "c1", true)).toEqual([])
+  })
+
+  it("keeps the anchor alone where a range's end has gone", () => {
+    expect(selectedOf(ids, ["c3", "gone"])).toEqual(new Set(["c3"]))
+    expect(alone(ids, ["c3", "gone"])).toBe(true)
+  })
+
   it("lists the ids of the layers in their order", () => {
     expect(idsOf([{ id: "a" }, { id: "b" }] as ChangeLayer[])).toEqual(["a", "b"])
   })
@@ -91,5 +122,6 @@ describe("what the files below are of", () => {
     )
     expect(selectionName(layers, new Set(["uncommitted"]))).toBe("uncommitted")
     expect(selectionName(layers, new Set(["abcdef0123"]))).toBe("abcdef0")
+    expect(selectionName(layers, new Set(["uncommitted", "abcdef0123"]))).toBe("2 of 3")
   })
 })

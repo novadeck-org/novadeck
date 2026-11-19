@@ -30,7 +30,10 @@
    pooled behind the phone that fades into it, and a fine grid of dots over it.
    --browser-device-bg (a near black), --browser-device-edge (a faint light line),
    --browser-device-shadow (a soft drop shadow): a phone's frame, its bezel as wide as
-   `phoneBezel`. --browser-screen-radius (28px): its screen's corners, as drawn. */
+   `phoneBezel`. --browser-screen-radius (28px): its screen's corners, as drawn.
+   --browser-rail-bg, --browser-rail-thumb: a zoomed phone's rail and its thumb.
+   --browser-hint-bg, --browser-hint-fg: the one-time line about zooming a phone.
+   data-zoom="in" | "out" on a phone's viewer: a double-click around it zooms it in, or back. */
 .browser-viewer {
   display: flex;
   position: relative;
@@ -64,6 +67,16 @@
 }
 .browser-viewer[data-tilting] {
   cursor: grabbing;
+}
+/* The stage around a phone says a double-click zooms it, or zooms it back. */
+.browser-viewer[data-size="phone"][data-zoom="in"]:not([data-tilting]) {
+  cursor: zoom-in;
+}
+.browser-viewer[data-size="phone"][data-zoom="out"]:not([data-tilting]) {
+  cursor: zoom-out;
+}
+.browser-viewer:focus {
+  outline: none;
 }
 /* A page view takes the pointer from the app's page whatever holds it: while the phone turns,
    its page lets the pointer pass, for the drag to go on over it. */
@@ -163,12 +176,17 @@
   height: var(--browser-view-height, calc(var(--browser-height, 100%) * var(--browser-scale, 1)));
   transform: none;
 }
-/* A phone's page, zoomed in its view, still turns as one with its picture and frame, and its
-   screen's corners are as drawn: the view isn't scaled. */
+/* A phone's page, zoomed in its view, still turns as one with its picture and frame. Its view
+   is drawn at --browser-view-scale and shown at --browser-scale: the same but for a zoom
+   easing, when its view, drawn at the larger, is scaled down to the scale it's shown at; its
+   screen's corners are as drawn. */
 .browser-viewer[data-size="phone"][data-zoomed] > webview {
   transform: translate(var(--_mid-x), var(--_mid-y)) var(--_turn)
-    translate(calc(var(--_mid-x) * -1), calc(var(--_mid-y) * -1));
-  border-radius: var(--browser-screen-radius, 28px);
+    translate(calc(var(--_mid-x) * -1), calc(var(--_mid-y) * -1))
+    scale(calc(var(--browser-scale, 1) / var(--browser-view-scale, 1)));
+  border-radius: calc(
+    var(--browser-screen-radius, 28px) * var(--browser-view-scale, 1) / var(--browser-scale, 1)
+  );
 }
 /* Only until it paints: where the viewer's edges fall between device pixels, Electron
    draws the page a device pixel short of the <webview>'s box, and a ground kept under a
@@ -216,8 +234,55 @@
   width: 100%;
   height: auto;
 }
+/* A zoomed phone's rail, in the viewer's right margin: which part of the phone is in view, as
+   a scrollbar's thumb in its track, which moves it up and down. */
+.browser-rail {
+  position: absolute;
+  z-index: 3;
+  border-radius: 999px;
+  background: var(--browser-rail-bg, rgb(128 128 128 / 0.18));
+  cursor: default;
+  touch-action: none;
+}
+.browser-rail:focus-visible {
+  outline: 2px solid var(--browser-rail-thumb, rgb(128 128 128 / 0.7));
+  outline-offset: 2px;
+}
+.browser-rail-thumb {
+  position: absolute;
+  right: 0;
+  left: 0;
+  border-radius: 999px;
+  background: var(--browser-rail-thumb, rgb(128 128 128 / 0.6));
+  cursor: grab;
+}
+.browser-rail:active .browser-rail-thumb {
+  cursor: grabbing;
+}
+/* The one-time line at the stage's foot about zooming, which fades in and, a while later, out. */
+.browser-hint {
+  position: absolute;
+  z-index: 3;
+  bottom: 14px;
+  left: 50%;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--browser-hint-bg, rgb(20 20 22 / 0.82));
+  color: var(--browser-hint-fg, rgb(255 255 255 / 0.92));
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity 200ms ease-out;
+  pointer-events: none;
+}
+.browser-hint[data-shown] {
+  opacity: 1;
+}
 @media (prefers-reduced-motion: reduce) {
-  .browser-picture {
+  .browser-picture,
+  .browser-hint {
     transition: none;
   }
 }

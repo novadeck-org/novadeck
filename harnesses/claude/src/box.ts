@@ -175,6 +175,46 @@ const queued = (screen: ScreenText): boolean => {
 }
 
 /**
+ * The lines of the one message the screen shows queued above its box (probed 2.1.328, 2026-11-19):
+ * `❯ first line`, the rest indented two columns, then `  ⎿  Queued · ctrl+x ctrl+s to send now`.
+ * Undefined where no row says "Queued" or two do, or no `❯` row leads the message. The rows
+ * are the screen's, so a line longer than the screen wraps into more of them: whoever uses
+ * this checks them against the words as they were sent.
+ */
+const queuedHints = (
+  screen: ScreenText,
+): { above: readonly string[]; hints: number[] } | undefined => {
+  const first = read(screen)?.first
+  if (first === undefined) return undefined
+  const above = screen.rows.slice(0, first)
+  return { above, hints: above.flatMap((row, at) => (/^\s*⎿\s+Queued\b/.test(row) ? [at] : [])) }
+}
+
+/** Whether the screen shows a queued message's hint above its box. */
+const queuedShown = (screen: ScreenText): boolean => (queuedHints(screen)?.hints.length ?? 0) > 0
+
+const queuedMessage = (screen: ScreenText): readonly string[] | undefined => {
+  const found = queuedHints(screen)
+  if (!found || found.hints.length !== 1) return undefined
+  const { above } = found
+  const end = found.hints[0]!
+  // A message still in its prompt hook may stand under the hint with none of its own.
+  if (above.slice(end + 1).some((row) => row.startsWith("❯ "))) return undefined
+  const start = above.slice(0, end).findLastIndex((row) => row.startsWith("❯ "))
+  if (start < 0) return undefined
+  const rows = above.slice(start, end)
+  const lines: string[] = []
+  for (const [at, row] of rows.entries()) {
+    if (at === 0) lines.push(row.slice(2).trimEnd())
+    else if (row.trim() === "") lines.push("")
+    else if (row.startsWith("  ")) lines.push(row.slice(2).trimEnd())
+    else return undefined
+  }
+  while (lines.at(-1) === "") lines.pop()
+  return lines
+}
+
+/**
  * Its status row, while a turn runs: one of its spinner's marks, its words for the turn ending in
  * `…`, and in brackets its clock and what the turn is doing. It stands last over the box, but
  * for the effort row and a tip under it: a reply above may hold what reads the same, and an idle
@@ -264,6 +304,14 @@ export const box: BoxProfile = {
       screen.rows
         .slice(screen.rows.findLastIndex(rule) + 1)
         .some((row) => row.includes("/ for commands")),
+    // From 2.1.328 Up brings a message of more than three lines back as `[Pasted text #1 +4
+    // lines]`, which the box can't say the words of: the screen did, above the box, before it.
+    shown: queuedMessage,
+    waiting: queuedShown,
+    stands: (text) => {
+      const count = /^\[Pasted text #\d+ \+(\d+) lines?\]$/.exec(text.trim())?.[1]
+      return count === undefined ? undefined : Number(count)
+    },
   },
   // Enter runs a command shown as a placeholder as the text it stands for. It binds its session
   // before any command, so none starts one (`starts`).

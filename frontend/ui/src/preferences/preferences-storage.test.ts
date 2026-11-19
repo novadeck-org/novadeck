@@ -119,15 +119,6 @@ describe("readPreferences", () => {
     expect(readPreferences().onboardingTour).toBe(true)
   })
 
-  it("keeps long replies unfolded unless it was switched on, as preferences saved before it read", () => {
-    localStorage.setItem(preferencesStorageKey, JSON.stringify({ agentAvatars: true }))
-    expect(readPreferences().foldLongReplies).toBe(false)
-    localStorage.setItem(preferencesStorageKey, JSON.stringify({ foldLongReplies: "yes" }))
-    expect(readPreferences().foldLongReplies).toBe(false)
-    localStorage.setItem(preferencesStorageKey, JSON.stringify({ foldLongReplies: true }))
-    expect(readPreferences().foldLongReplies).toBe(true)
-  })
-
   it("reads screen reader support, Automatic where it was never saved or is unknown", () => {
     const saveSupport = (screenReader: unknown): void =>
       localStorage.setItem(preferencesStorageKey, JSON.stringify({ screenReader }))

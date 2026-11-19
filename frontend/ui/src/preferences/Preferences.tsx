@@ -357,15 +357,6 @@ export const Preferences = ({
       disabled: false,
     },
     {
-      id: "fold-long-replies",
-      label: "Fold long replies",
-      description:
-        "In Agent Chat, an agent's older long replies show their opening lines and a key for the rest. Its latest reply always shows in full.",
-      checked: value.foldLongReplies,
-      onToggle: (foldLongReplies: boolean) => onChange({ ...value, foldLongReplies }),
-      disabled: false,
-    },
-    {
       id: "onboarding-tour",
       label: "Onboarding tour",
       description: tour

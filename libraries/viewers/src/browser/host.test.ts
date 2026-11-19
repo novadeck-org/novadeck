@@ -28,6 +28,7 @@ import {
   signInWindow,
   watchPageRequests,
   webAddress,
+  maxPageZoom,
   zoomPage,
 } from "./host.js"
 import { chromeMajorOf, phoneUserAgent } from "./phone.js"
@@ -358,12 +359,19 @@ describe("a page view zoomed out to fit", () => {
     expect(zooms).toEqual([0.45])
   })
 
+  it("is zoomed in too, as a phone's is, up to as far as Chromium zooms a page", () => {
+    const { contents, zooms } = view()
+    expect(zoomPage(app, 7, 1.5, byId(contents))).toBe(true)
+    expect(zoomPage(app, 7, maxPageZoom, byId(contents))).toBe(true)
+    expect(zooms).toEqual([1.35, 4.5])
+  })
+
   it("is nothing for another window's page, an id that's no view's, or a factor no zoom is", () => {
     const other = view({ getZoomFactor: () => 1 } as unknown as WebContents)
     expect(zoomPage(app, 7, 0.5, byId(other.contents))).toBe(false)
     const { contents, zooms } = view()
     for (const id of [8, "7", 7.5]) expect(zoomPage(app, id, 0.5, byId(contents))).toBe(false)
-    for (const factor of [0, -1, 1.5, Number.NaN, "0.5", undefined])
+    for (const factor of [0, -1, 5.5, Number.POSITIVE_INFINITY, Number.NaN, "0.5", undefined])
       expect(zoomPage(app, 7, factor, byId(contents))).toBe(false)
     expect(zooms).toEqual([])
   })

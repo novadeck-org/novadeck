@@ -125,6 +125,30 @@ describe("prompt receipts", () => {
     expect(receipts.waiting(terminal)).toBe(true)
   })
 
+  it("tells the words of the one prompt waiting whose lines a screen shows, and no other", async ({
+    resources,
+  }) => {
+    const { receipts, state, give } = await setup(resources)
+    const words = "Queued beta\nsecond line\n\nfourth line"
+    const lines = ["Queued beta", "second line", "", "fourth line"]
+    expect(receipts.queuedWords(terminal, lines)).toBeUndefined()
+    await receipts.expect(terminal, words, "r1")
+    // Not sent yet: it is no queued message.
+    expect(receipts.queuedWords(terminal, lines)).toBeUndefined()
+    receipts.sent(terminal, "r1")
+    expect(receipts.queuedWords(terminal, lines)).toBe(words)
+    // A row the screen wrapped, or any word more or less, is not those lines.
+    expect(
+      receipts.queuedWords(terminal, ["Queued beta", "second", "line", "", "fourth line"]),
+    ).toBe(undefined)
+    expect(receipts.queuedWords(terminal, lines.slice(0, 3))).toBeUndefined()
+    expect(receipts.queuedWords(terminal, lines.with(0, "Queued"))).toBeUndefined()
+    // The same words given twice are no one prompt.
+    await give(words, "r2")
+    expect(receipts.queuedWords(terminal, lines)).toBeUndefined()
+    expect(state("r1")).toBe("pending")
+  })
+
   it("withdraws a prompt back in the agent's box once a Stop hands its words back", async ({
     resources,
   }) => {

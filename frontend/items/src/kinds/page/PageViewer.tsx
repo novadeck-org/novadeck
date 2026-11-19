@@ -29,6 +29,26 @@ const sameOrigin = (a: string, b: string): boolean => {
   }
 }
 
+// The one-time line that says a phone can be zoomed: seen once, kept across launches in
+// local storage, which may be unavailable (a private window), where it shows each launch.
+const zoomHintKey = "novadeck.page-zoom-hint"
+const zoomHint = {
+  seen: (): boolean => {
+    try {
+      return localStorage.getItem(zoomHintKey) === "1"
+    } catch {
+      return false
+    }
+  },
+  see: (): void => {
+    try {
+      localStorage.setItem(zoomHintKey, "1")
+    } catch {
+      /* It shows again next launch. */
+    }
+  },
+}
+
 // How long troubles are gathered before they are told, so a page that logs a burst of them
 // makes one call.
 const troubleBatch = 500
@@ -153,6 +173,7 @@ const ShownPage = ({
     ...(picture && sleeps ? { picture } : {}),
     ...(phone ? { phone } : {}),
     ...(zoom ? { zoom } : {}),
+    zoomHint,
     awake,
     size,
     on: {
@@ -211,6 +232,12 @@ const ShownPage = ({
       className="artifact-browser"
       data-live={page.live || undefined}
       aria-busy={load === "loading"}
+      // Escape brings a zoomed phone back to fit before it's the pane's, which hides.
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || event.defaultPrevented || !viewer?.unzoom()) return
+        event.preventDefault()
+        event.stopPropagation()
+      }}
     >
       <PaneTools
         chip={

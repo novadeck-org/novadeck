@@ -103,7 +103,6 @@ const backgrounded = (notifyNeeds = true) => {
       chatView: false,
       agentAvatars: false,
       onboardingTour: false,
-      foldLongReplies: false,
     },
   })
   return createUiStore({ ...base, pageFocused: false })

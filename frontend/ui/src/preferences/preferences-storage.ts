@@ -42,7 +42,6 @@ export const readPreferences = (): PreferencesValue => {
     chatView: false,
     agentAvatars: false,
     onboardingTour: false,
-    foldLongReplies: false,
   }
   try {
     const saved = JSON.parse(
@@ -75,10 +74,6 @@ export const readPreferences = (): PreferencesValue => {
         typeof saved?.agentAvatars === "boolean" ? saved.agentAvatars : defaults.agentAvatars,
       onboardingTour:
         typeof saved?.onboardingTour === "boolean" ? saved.onboardingTour : defaults.onboardingTour,
-      foldLongReplies:
-        typeof saved?.foldLongReplies === "boolean"
-          ? saved.foldLongReplies
-          : defaults.foldLongReplies,
     }
   } catch {
     return defaults

@@ -65,6 +65,31 @@ describe("A change's pane", () => {
       .toHaveAttribute("title", "Click to see only this commit")
   })
 
+  it("takes a range of rows with Shift+click, from the row clicked last, selecting no text", async () => {
+    const pane = await openChange()
+
+    await layer(pane, /^Uncommitted/).click()
+    await expect
+      .element(layer(pane, /Test verifySession/))
+      .toHaveAttribute("title", "Click to see only this commit, Shift+click to see the range to it")
+    await userEvent.keyboard("{Shift>}")
+    await layer(pane, /Test verifySession/).click()
+    await userEvent.keyboard("{/Shift}")
+
+    await expect.element(layer(pane, /^Uncommitted/)).toHaveAttribute("aria-selected", "true")
+    await expect.element(layer(pane, /Test verifySession/)).toHaveAttribute("aria-selected", "true")
+    await expect
+      .element(layer(pane, /Check session expiry/))
+      .toHaveAttribute("aria-selected", "false")
+    await expect.element(pane.getByText(/· 2 of 3$/)).toBeVisible()
+    expect(window.getSelection()?.toString() ?? "").toBe("")
+
+    // A plain click inside the range keeps that row alone.
+    await layer(pane, /Test verifySession/).click()
+    await expect.element(layer(pane, /^Uncommitted/)).toHaveAttribute("aria-selected", "false")
+    await expect.element(pane.getByText(/· 7d02b4a$/)).toBeVisible()
+  })
+
   it("unfolds what a file changed, one file at a time, then opens it, steps and goes back", async () => {
     const pane = await openChange()
 

@@ -281,6 +281,90 @@ for (const setup of setups) {
       await through(t1, ["working", "settled"], { after: next })
     })
 
+    gated(it, setup.agent === "codex" ? "it steers what is queued into the turn" : undefined)(
+      "stops a turn with a five-line message queued behind it, and gives all five lines back",
+      async ({ e2e: run }) => {
+        const held = gate()
+        const queuedHeld = gate()
+        const message = "Queued beta\nsecond line\nthird line\nfourth line\nfifth line"
+        run.model.use(
+          replies("Carry on", "Carried on."),
+          own(async (call) => {
+            if (asked(call, "Queued beta")) {
+              await queuedHeld.opened
+              return { text: "Queued late." }
+            }
+            if (!asked(call, "Hold on")) return undefined
+            await held.opened
+            return { text: "Too late." }
+          }),
+        )
+        const t1 = await start(run, setup)
+        const calls = run.model.mark()
+        const mark = t1.mark()
+
+        await t1.prompt("Hold on")
+        await run.model.waitFor((call) => !call.side && latest(call).includes("Hold on"), {
+          after: calls,
+        })
+        await t1.reached("working", { after: mark })
+        await t1.prompt(message)
+        await t1.until(/Press up to edit queued messages/)
+        await sleep(1500)
+        const stopped = await t1.interrupt()
+        held.open()
+        queuedHeld.open()
+        await sleep(2500)
+
+        // Claude Code (from 2.1.328 it takes the queued message back as a paste) and Antigravity
+        // give all five lines back, whole.
+        expect(stopped.returned).toBe(message)
+        const shown = await t1.screen()
+        expect(shown).not.toContain("Queued late.")
+        expect(shown).not.toMatch(/Pasted text/)
+        expect(t1.summary().activity?.state).not.toBe("working")
+
+        const next = t1.mark()
+        await t1.prompt("Carry on")
+        await t1.until("Carried on.")
+        await through(t1, ["working", "settled"], { after: next })
+      },
+    )
+
+    // Claude Code takes the two back as one placeholder of both, whose lines are no one
+    // prompt's: it can't be told word for word, so it stays in the box.
+    gated(it, setup.agent === "claude" ? undefined : "only Claude Code takes them back as a paste")(
+      "leaves two five-line messages queued behind a turn in the box as one placeholder, giving nothing back",
+      async ({ e2e: run }) => {
+        const held = gate()
+        run.model.use(
+          own(async (call) => {
+            if (!asked(call, "Hold on")) return undefined
+            await held.opened
+            return { text: "Too late." }
+          }),
+          own((call) => (asked(call, "Queued") ? { text: "Queued late." } : undefined)),
+        )
+        const t1 = await start(run, setup)
+        const calls = run.model.mark()
+        const mark = t1.mark()
+        await t1.prompt("Hold on")
+        await run.model.waitFor((call) => !call.side && latest(call).includes("Hold on"), {
+          after: calls,
+        })
+        await t1.reached("working", { after: mark })
+        await t1.prompt("Queued beta\nsecond line\nthird line\nfourth line\nfifth line")
+        await t1.until(/Press up to edit queued messages/)
+        await t1.prompt("Queued gamma\nsecond line\nthird line\nfourth line\nfifth line")
+        await sleep(2000)
+        await expect(t1.interrupt()).rejects.toMatchObject({ code: "BOX_NOT_CLEARED" })
+        held.open()
+        await sleep(1000)
+        expect((await run.deck.terminals.takeBox(t1.id)).returned).toBeNull()
+        expect(await t1.screen()).toMatch(/\[Pasted text #\d+ \+\d+ lines\]/)
+      },
+    )
+
     // Two prompts queued behind a held turn, a Stop once `ready` says it may come: both come
     // back, or as a steer stop (Codex), and neither runs as a turn of its own.
     const twoQueued = async (
@@ -515,7 +599,13 @@ for (const setup of setups) {
           held.open()
           await sleep(1000)
           expect((await run.deck.terminals.takeBox(t1.id)).returned).toBeNull()
-          expect(await t1.screen()).toContain("queued line 30")
+          // The queue is back in the box: as its text, or, from Claude Code 2.1.328, which
+          // takes a queued message back as a paste, as its placeholder.
+          expect(await t1.screen()).toMatch(
+            setup.agent === "claude"
+              ? /queued line 30|\[Pasted text #\d+ \+29 lines\]/
+              : /queued line 30/,
+          )
 
           const next = run.model.mark()
           await t1.prompt(message)

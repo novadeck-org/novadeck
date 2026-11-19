@@ -16,6 +16,7 @@ import {
 import type {
   AgentName,
   ChangeFileDiff,
+  ChangeRange,
   CompanionChange,
   CompanionItem,
   CompanionWindow,
@@ -1908,6 +1909,17 @@ export class CompanionItems {
     // A compare's reads are its own: the checkout's are kept only for what its work changes.
     if (compare) this.layers.markCompare(root, compare, listed.path, listed.blob)
     else await this.options.reads?.mark(root, listed.path, listed.blob)
+  }
+
+  /** The files a selection of layers changed as one range (see `companions.changeRange`). */
+  async changeRange(input: {
+    readonly itemId: string
+    readonly layers: readonly string[]
+  }): Promise<ChangeRange> {
+    const { root, compare } = await this.changeRoot(input.itemId)
+    const read = await this.layers.range(root, input.layers, compare)
+    if (!read.ok) throw new Error(read.reason)
+    return read.range
   }
 
   private read(
