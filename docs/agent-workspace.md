@@ -1052,11 +1052,12 @@ with every safety check again at that time:
   that names no passkey asks the person which, when more than one fits
   (`libraries/viewers/src/browser/host.ts`). A right-click or the menu key on the page
   opens Novadeck's own menu, not the browser's: a field's Cut, Copy, Paste and Select
-  all, Copy on a selection, a link's address to copy, or open in the browser, Back,
-  Forward and Reload, and the page's own address (`frontend/items/src/kinds/page/page-menu.ts`, which leaves
+  all, Copy on a selection, a link's address to copy, or open in the browser, and the page
+  to open in the browser; going back, forward and reloading are the pane's tools, and its
+  address is the address bar's (`frontend/items/src/kinds/page/page-menu.ts`, which leaves
   a first group for what a later feature offers there). Where the host can't, as the web
-  version, a page is a link to open in the browser, and a snapshot's menu has the page's
-  address alone. Each show of a page loads it afresh: the
+  version, a page is a link to open in the browser, and a snapshot's menu has only the page
+  to open in the browser. Each show of a page loads it afresh: the
   page's content carries `shown`, its item's version, and a later one reloads it, past
   the cache so changed styles and scripts show too, or loads the address it was shown at
   if the person went to another document. Shown at a
