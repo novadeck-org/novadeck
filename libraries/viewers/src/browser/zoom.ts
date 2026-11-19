@@ -17,8 +17,9 @@ import {
 } from "./framing.js"
 
 // A phone zooms from fit to one level on a double-click around it, easing about the pointer,
-// and back on another or Esc. Zoomed, it's taller than the viewer: a rail in the viewer's
-// right margin shows which part is in view, and moves it, as Shift+scroll does. The viewer
+// and back on another, or on Esc, which the pane asks of the viewer (`unzoom`) before it hides.
+// Zoomed, it's taller than the viewer: a rail in the viewer's
+// right margin shows which part is in view, and moves it, as Shift+scroll over the stage does. The viewer
 // sets --browser-view-scale and the rest of its framing from `framing` and `viewScale` (see
 // browser.css), and data-zoom on itself for the cursor: "in" where a double-click would
 // zoom, "out" where it would zoom back.
@@ -32,44 +33,6 @@ export const hintFadeMs = 200
 const dragPx = 4
 /** How far an arrow key moves the phone, of its travel. */
 const arrowLift = 0.1
-
-/** Where the page tells the viewer of keys and wheels it doesn't hear itself, as its logs. */
-export const guestMark = "novadeck-phone-zoom:"
-
-/**
- * The script to run in each document of a zoomed phone's page, which hears what the viewer
- * can't, its view being another process's: Esc and Shift+scroll, told by `console.debug`, and
- * the Shift+scroll swallowed only while it's zoomed (`zoomed` in the document, set by
- * `guestZoomed`).
- */
-export const guestScript = (zoomed: boolean): string => `(() => {
-  if (window.novadeckPhoneZoom) return
-  const say = console.debug.bind(console)
-  const state = (window.novadeckPhoneZoom = { zoomed: ${zoomed} })
-  addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && state.zoomed) say(${JSON.stringify(guestMark)} + "esc")
-  }, true)
-  addEventListener("wheel", (event) => {
-    if (!event.shiftKey || !state.zoomed) return
-    event.preventDefault()
-    say(${JSON.stringify(guestMark)} + "wheel " + (event.deltaY || event.deltaX))
-  }, { capture: true, passive: false })
-})()`
-
-/** Tells the documents with the script whether the phone is zoomed. */
-export const guestZoomed = (zoomed: boolean): string =>
-  `window.novadeckPhoneZoom && (window.novadeckPhoneZoom.zoomed = ${zoomed})`
-
-/** What a page said with `guestScript`'s, or undefined for anything else it logged. */
-export const parseGuest = (
-  message: unknown,
-): { readonly key: "esc" } | { readonly wheel: number } | undefined => {
-  if (typeof message !== "string" || !message.startsWith(guestMark)) return undefined
-  const said = message.slice(guestMark.length)
-  if (said === "esc") return { key: "esc" }
-  const by = Number(said.startsWith("wheel ") ? said.slice(6) : Number.NaN)
-  return Number.isFinite(by) ? { wheel: by } : undefined
-}
 
 /** Where a zoomed phone was left, kept with the page. */
 export type KeptZoom = { readonly lift: number }
@@ -88,8 +51,8 @@ export type ZoomOptions = {
   readonly phone: () => Framing | undefined
   /** The framing changed: the viewer frames its page again. */
   readonly changed: () => void
-  /** The pane the viewer is in: Esc anywhere inside it brings a zoomed phone back to fit. */
-  readonly pane: () => Element
+  /** Whether the viewer is shown: on screen, not hidden. */
+  readonly shown: () => boolean
   /** Where the phone was left when the page was last shown. */
   readonly kept?: KeptZoom
   /** The one-time line about zooming: whether the person has seen it, and that they now have. */
@@ -107,9 +70,12 @@ export type PhoneZoom = {
   readonly zoomed: () => boolean
   /** What the page keeps of it. */
   readonly kept: () => KeptZoom | undefined
-  /** Esc: back to fit. */
-  readonly out: () => void
-  /** Moves the phone up or down by `by` of its travel, as Shift+scroll in the page does. */
+  /**
+   * Esc: back to fit, true where it eased there. False, and nothing done, where the phone
+   * isn't drawn zoomed: the key is the pane's then.
+   */
+  readonly out: () => boolean
+  /** Moves the phone up or down by `by` of its travel, as Shift+scroll over the stage does. */
   readonly lift: (by: number) => void
   /** Brings the cursor, the rail and the hint up to date with the viewer's size and layout. */
   readonly sync: () => void
@@ -117,7 +83,7 @@ export type PhoneZoom = {
 }
 
 export const createPhoneZoom = (root: HTMLElement, options: ZoomOptions): PhoneZoom => {
-  const { size, stage, phone, changed, pane, calm } = options
+  const { size, stage, phone, changed, shown, calm } = options
   const win = root.ownerDocument.defaultView
   // Where it rests: zoomed or at fit, and how far up or down it's lifted.
   let resting = options.kept !== undefined
@@ -210,7 +176,7 @@ export const createPhoneZoom = (root: HTMLElement, options: ZoomOptions): PhoneZ
   let hinted = false
   const remind = (): void => {
     const { hint: once } = options
-    if (hinted || !once || once.seen()) return
+    if (hinted || !once || !shown() || once.seen()) return
     hinted = true
     const line = root.ownerDocument.createElement("div")
     line.className = "browser-hint"
@@ -261,11 +227,15 @@ export const createPhoneZoom = (root: HTMLElement, options: ZoomOptions): PhoneZ
     const shape = rail()
     if (press.button !== 0 || !shape) return
     press.preventDefault()
+    // Pointer and rect are in the screen's pixels, the rail's own in the page's: a viewer
+    // inside a zoomed canvas is drawn smaller or larger than it lays out.
     const box = track.getBoundingClientRect()
+    const scale = track.offsetHeight > 0 ? box.height / track.offsetHeight : 1
+    const local = (y: number): number => (y - box.top) / scale
     // On the thumb, it's held where it was grabbed; elsewhere on the track it jumps there.
     const onThumb = thumb.contains(press.target as Node)
-    const held = onThumb ? press.clientY - box.top - shape.at - shape.thumb / 2 : 0
-    const to = (y: number): number => liftAtRail(y - held, box.top, shape.length, shape.thumb)
+    const held = onThumb ? local(press.clientY) - shape.at - shape.thumb / 2 : 0
+    const to = (y: number): number => liftAtRail(local(y) - held, 0, shape.length, shape.thumb)
     try {
       track.setPointerCapture(press.pointerId)
     } catch {
@@ -335,20 +305,11 @@ export const createPhoneZoom = (root: HTMLElement, options: ZoomOptions): PhoneZ
     event.preventDefault()
     lift(event.deltaY || event.deltaX)
   }
-  const keyed = (event: KeyboardEvent): void => {
-    if (event.key !== "Escape" || event.defaultPrevented || !wants() || size() !== "phone") return
-    const inside = pane()
-    if (!inside || !(event.target instanceof Node) || !inside.contains(event.target)) return
-    event.preventDefault()
-    event.stopPropagation()
-    ease(false)
-  }
   root.tabIndex = -1
   root.addEventListener("pointerdown", pressing)
   root.addEventListener("pointermove", dragging)
   root.addEventListener("dblclick", doubled)
   root.addEventListener("wheel", wheeled, { passive: false })
-  win?.addEventListener("keydown", keyed, true)
 
   return {
     framing,
@@ -356,7 +317,11 @@ export const createPhoneZoom = (root: HTMLElement, options: ZoomOptions): PhoneZ
     zoomed: wants,
     kept: () => (resting || easing?.toZoomed ? { lift: lifted } : undefined),
     out: () => {
-      if (wants() && size() === "phone") ease(false)
+      // Only a phone drawn zoomed, or on its way: one the viewer is too narrow to zoom now
+      // isn't, and the key goes on.
+      if (!wants() || size() !== "phone" || level() === undefined) return false
+      ease(false)
+      return true
     },
     lift,
     sync: () => {
@@ -377,7 +342,6 @@ export const createPhoneZoom = (root: HTMLElement, options: ZoomOptions): PhoneZ
       root.removeEventListener("pointermove", dragging)
       root.removeEventListener("dblclick", doubled)
       root.removeEventListener("wheel", wheeled)
-      win?.removeEventListener("keydown", keyed, true)
     },
   }
 }

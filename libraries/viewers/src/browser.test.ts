@@ -18,8 +18,7 @@ import {
 } from "./browser.js"
 import { desktopWidth, framingOf, phoneBezel, phoneMargin, zoomedShare } from "./browser/framing.js"
 import { chromeMajorOf, phoneScreen, phoneUserAgent } from "./browser/phone.js"
-import { tiltMaxDeg, tiltPerPx, tiltToward } from "./browser/tilt.js"
-import { guestMark } from "./browser/zoom.js"
+import { tiltMaxDeg, tiltPerPx, tiltStartPx, tiltToward } from "./browser/tilt.js"
 import type { ViewerState } from "./index.js"
 
 const panes: HTMLElement[] = []
@@ -744,6 +743,50 @@ describe("the browser viewer", () => {
       await expect.poll(() => page.zoom).toBeCloseTo(400 / desktopWidth, 4)
     })
 
+    it("zooms a phone in past the app's own, and never lets a late refusal undo a newer zoom", async () => {
+      const pane = paneIn()
+      pane.style.width = "520px"
+      pane.style.height = "560px"
+      const answers: ((done: boolean) => void)[] = []
+      const asked: number[] = []
+      mountBrowser(pane, {
+        content: { url: "http://localhost:5173/" },
+        label: "page",
+        live: true,
+        partition: "pages",
+        size: "phone",
+        zoom: (_id, factor) =>
+          new Promise((done) => {
+            asked.push(factor)
+            answers.push(done)
+          }),
+      })
+      const page = pageOf(pane) as HTMLElement & { zoom?: number }
+      Object.assign(page, {
+        getWebContentsId: () => 7,
+        setZoomFactor: (factor: number) => (page.zoom = factor),
+      })
+      page.dispatchEvent(event("did-attach"))
+      await expect.poll(() => asked.length).toBe(1)
+      const root = pane.querySelector<HTMLElement>(".browser-viewer")!
+      root.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, clientX: 8, clientY: 280 }))
+      page.dispatchEvent(event("dom-ready"))
+      await expect.poll(() => asked.length).toBeGreaterThan(1)
+      // The zoom asked for is more than the fit's, and as the app can zoom it is more than 1.
+      expect(Math.max(...asked)).toBeGreaterThan(asked[0]!)
+      // The newest is answered, the older refused after: its factor isn't set.
+      answers.at(-1)!(true)
+      answers[0]!(false)
+      await new Promise((done) => setTimeout(done, 30))
+      expect(page.zoom).toBeUndefined()
+      // But the latest, refused, is set by the view itself.
+      const latest = asked.at(-1)!
+      page.dispatchEvent(event("dom-ready"))
+      await expect.poll(() => asked.length).toBeGreaterThan(2)
+      answers.at(-1)!(false)
+      await expect.poll(() => page.zoom).toBeCloseTo(latest, 4)
+    })
+
     it("scales a page down, not zooming it, past the least a page zooms", () => {
       const pane = paneIn()
       pane.style.width = `${desktopWidth * (minZoom / 2)}px`
@@ -974,8 +1017,13 @@ describe("the browser viewer", () => {
       pointer("pointerdown", pageOf(pane), 10, 10)
       expect(root.hasAttribute("data-tilting")).toBe(false)
       pointer("pointerdown", root, 10, 10)
-      expect(root.hasAttribute("data-tilting")).toBe(true)
+      // Not until it has moved a little: a click isn't a tilt.
+      expect(root.hasAttribute("data-tilting")).toBe(false)
+      pointer("pointermove", root, 10 + tiltStartPx - 1, 10)
+      expect(root.hasAttribute("data-tilting")).toBe(false)
+      expect(turned()).toEqual([0, 0])
       pointer("pointermove", root, 10 + 40, 10 - 20)
+      expect(root.hasAttribute("data-tilting")).toBe(true)
       expect(turned()[0]).toBeCloseTo(tiltToward(20), 2)
       expect(turned()[1]).toBeCloseTo(tiltToward(40), 2)
       // However far it's dragged, no further than it turns.
@@ -1017,8 +1065,17 @@ describe("the browser viewer", () => {
         phoneScreen.width * ((height - 2 * (phoneBezel + phoneMargin)) / phoneScreen.height)
       press(left + (width - phoneWide) / 2 - phoneBezel + 2, top + height / 2)
       expect(root.hasAttribute("data-tilting")).toBe(false)
-      // The stage, outside its frame.
+      // The stage, outside its frame, once the press has moved.
       press(left + 4, top + 4)
+      root.dispatchEvent(
+        new PointerEvent("pointermove", {
+          bubbles: true,
+          buttons: 1,
+          pointerId: 1,
+          clientX: left + 44,
+          clientY: top + 4,
+        }),
+      )
       expect(root.hasAttribute("data-tilting")).toBe(true)
     })
 
@@ -1143,30 +1200,32 @@ describe("the browser viewer", () => {
         expect(root.dataset.zoom).toBe("in")
       })
 
-      it("comes back to fit on Esc inside the pane, and not outside it", () => {
-        const { pane, root, scale, mouse, stage } = zoomable()
+      it("comes back to fit when the pane's Esc asks, and says whether it did", () => {
+        const { viewer, scale, mouse, stage } = zoomable()
+        // At fit the key is the pane's.
+        expect(viewer.unzoom()).toBe(false)
         mouse("dblclick", stage)
-        const other = document.body.appendChild(document.createElement("button"))
-        other.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
-        expect(scale()).toBeCloseTo(level(560), 6)
-        other.remove()
-        const press = new KeyboardEvent("keydown", {
-          key: "Escape",
-          bubbles: true,
-          cancelable: true,
-        })
-        pageOf(pane).dispatchEvent(press)
+        expect(viewer.unzoom()).toBe(true)
         expect(scale()).toBeCloseTo(fit(560), 6)
-        // The key was the zoom's: it goes no further.
-        expect(press.defaultPrevented).toBe(true)
-        // At fit, Esc is anyone's.
-        const again = new KeyboardEvent("keydown", {
-          key: "Escape",
-          bubbles: true,
-          cancelable: true,
-        })
-        root.dispatchEvent(again)
-        expect(again.defaultPrevented).toBe(false)
+        expect(viewer.unzoom()).toBe(false)
+      })
+
+      it("leaves Esc to the pane while the viewer is too narrow to draw it zoomed", () => {
+        const wide = zoomable()
+        wide.mouse("dblclick", wide.stage)
+        // The pane narrows past where a zoom gains: kept, but not drawn, and no key's.
+        wide.pane.style.width = "360px"
+        wide.pane.style.height = "1000px"
+        return expect
+          .poll(() => wide.root.dataset.zoom)
+          .toBeUndefined()
+          .then(() => {
+            expect(wide.viewer.unzoom()).toBe(false)
+            // Wide again, it's as it was left.
+            wide.pane.style.width = "520px"
+            wide.pane.style.height = "560px"
+            return expect.poll(() => wide.root.dataset.zoom).toBe("out")
+          })
       })
 
       it("moves up and down by Shift+scroll, and leaves a plain scroll to the page", () => {
@@ -1241,6 +1300,29 @@ describe("the browser viewer", () => {
         expect(top()).toBe(phoneMargin + phoneBezel)
       })
 
+      it("moves by the rail as drawn, in a viewer a zoomed canvas scales", () => {
+        const { pane, root, top, mouse, stage } = zoomable()
+        mouse("dblclick", stage)
+        // The canvas around it zoomed out: the viewer lays out as it did, drawn half the size.
+        pane.style.transform = "scale(0.5)"
+        pane.style.transformOrigin = "0 0"
+        const rail = root.querySelector<HTMLElement>(".browser-rail")!
+        const track = rail.getBoundingClientRect()
+        expect(track.height).toBeCloseTo(rail.offsetHeight / 2, 0)
+        rail.dispatchEvent(
+          new PointerEvent("pointerdown", {
+            bubbles: true,
+            button: 0,
+            buttons: 1,
+            pointerId: 4,
+            clientY: track.bottom - 0.5,
+          }),
+        )
+        // The far end of the track, as drawn, is the far end of the phone's travel.
+        const travel = phoneScreen.height * level(560) + 2 * phoneBezel + 2 * phoneMargin - 560
+        expect(top()).toBeCloseTo(phoneMargin + phoneBezel - travel, 0)
+      })
+
       it("has no rail at fit, and none for a phone that fits", async () => {
         const { root, mouse, stage } = zoomable()
         expect(root.querySelector(".browser-rail")).toBeNull()
@@ -1255,8 +1337,9 @@ describe("the browser viewer", () => {
         mouse("dblclick", stage)
         const turned = () => Number(root.style.getPropertyValue("--browser-tilt-y"))
         pointer("pointerdown", stage)
-        expect(root.hasAttribute("data-tilting")).toBe(true)
+        expect(root.hasAttribute("data-tilting")).toBe(false)
         pointer("pointermove", [stage[0] + 40, stage[1]])
+        expect(root.hasAttribute("data-tilting")).toBe(true)
         expect(turned()).toBeCloseTo(tiltToward(40), 2)
         pointer("pointerup", [stage[0] + 40, stage[1]])
         expect(turned()).toBe(0)
@@ -1327,6 +1410,28 @@ describe("the browser viewer", () => {
         expect(told).toBe(1)
       })
 
+      it("keeps the line for when the viewer is shown, not spending it unseen", async () => {
+        let told = 0
+        const hint = { seen: () => false, see: () => void (told += 1) }
+        const pane = paneIn()
+        pane.style.display = "none"
+        pane.style.width = "520px"
+        pane.style.height = "560px"
+        mountBrowser(pane, {
+          content: { url: "http://localhost:5173/" },
+          label: "page",
+          live: true,
+          partition: "pages",
+          size: "phone",
+          zoomHint: hint,
+        })
+        expect(told).toBe(0)
+        expect(pane.querySelector(".browser-hint")).toBeNull()
+        pane.style.display = "flex"
+        await expect.poll(() => pane.querySelector(".browser-hint")).not.toBeNull()
+        expect(told).toBe(1)
+      })
+
       it("says nothing where it can't zoom, and is not marked as seen", () => {
         let told = 0
         const narrow = zoomable(
@@ -1335,39 +1440,6 @@ describe("the browser viewer", () => {
         )
         expect(narrow.root.querySelector(".browser-hint")).toBeNull()
         expect(told).toBe(0)
-      })
-
-      it("hears Esc and Shift+scroll the page itself gets, from what it logs", () => {
-        const { pane, root, scale, top, mouse } = zoomable()
-        const said = (message: string) =>
-          pageOf(pane).dispatchEvent(Object.assign(event("console-message"), { message, level: 1 }))
-        mouse("dblclick", [8, 0])
-        const start = top()
-        said(guestMark + "wheel 50")
-        expect(top()).toBe(start - 50)
-        said("something else it logged")
-        said(guestMark + "wheel nope")
-        expect(top()).toBe(start - 50)
-        said(guestMark + "esc")
-        expect(scale()).toBeCloseTo(fit(560), 6)
-        expect(root.dataset.zoom).toBe("in")
-      })
-
-      it("tells each document of a zoomed phone to hear them, and whether it's zoomed", async () => {
-        const { pane, mouse, stage } = zoomable()
-        const page = pageOf(pane)
-        const ran: string[] = []
-        Object.assign(page, {
-          executeJavaScript: async (code: string) => void ran.push(code),
-          insertCSS: async () => "key",
-        })
-        mouse("dblclick", stage)
-        await expect.poll(() => ran.some((code) => code.includes("zoomed = true"))).toBe(true)
-        // A new document is given the script with where it is now.
-        page.dispatchEvent(event("dom-ready"))
-        await expect.poll(() => ran.some((code) => code.includes("{ zoomed: true }"))).toBe(true)
-        mouse("dblclick", stage)
-        await expect.poll(() => ran.at(-1)).toContain("zoomed = false")
       })
 
       it("zooms the page once as it eases, then back, not at each step", async () => {
@@ -1472,6 +1544,7 @@ describe("the browser viewer", () => {
           }),
         )
       pointer("pointerdown", left + 4, 1)
+      pointer("pointermove", left + 40, 1)
       expect(root.hasAttribute("data-tilting")).toBe(true)
       pointer("pointermove", left + 60, 0)
       expect(root.hasAttribute("data-tilting")).toBe(false)

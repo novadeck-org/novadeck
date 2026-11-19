@@ -232,6 +232,12 @@ const ShownPage = ({
       className="artifact-browser"
       data-live={page.live || undefined}
       aria-busy={load === "loading"}
+      // Escape brings a zoomed phone back to fit before it's the pane's, which hides.
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || event.defaultPrevented || !viewer?.unzoom()) return
+        event.preventDefault()
+        event.stopPropagation()
+      }}
     >
       <PaneTools
         chip={

@@ -504,6 +504,21 @@ describe("a page beside a terminal", () => {
     })
   })
 
+  context("Escape", () => {
+    it("goes on to the pane, which hides, where there's no zoomed phone to bring back", () => {
+      const heard: string[] = []
+      const { container } = show({ kind: "page", url, shown: 1, live: true }, true, {
+        onKeyDown: (event) => void heard.push(event.key),
+      })
+      act(() => {
+        pageOf(container).dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+        )
+      })
+      expect(heard).toEqual(["Escape"])
+    })
+  })
+
   context("while the pane sleeps", () => {
     const shot = "data:image/jpeg;base64,c2hvdA=="
     // A view attached as Electron attaches it, at `at`, recording what's asked of it.
