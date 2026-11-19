@@ -149,6 +149,24 @@ release fixes what it fixes.
   throw the write patch above recovers from). The runner's headless screens resize the same way.
   Upstream keeps the same guard; make it again on 6.1 unless it is gone. `src/alt-buffer.test.ts`
   pins it in all four bundles, and runs the steps that dropped rows in each package.
+- `@xterm/xterm` 6.0.0, the same two bundles: with screen-reader mode on, the `AccessibilityManager`
+  renders only the rows that changed. `_renderRows` rewrote every row of the dirty range (text,
+  `aria-posinset`, `aria-setsize`), and `_alignRowWidth` then cleared that row's transform,
+  read its width with `getBoundingClientRect()` and set `scaleX`: one forced layout per row, each
+  between writes. Now a row whose text, column map, position, set size and the cell width it was
+  aligned under are all as last time is skipped (`_rowAligned`, a `WeakMap` from row element to
+  those values). The rows left are written first, then their widths are read in one pass (one
+  layout, `_alignRows`) and their transforms set. A change of dimensions or pixel ratio
+  (`_refreshRowsDimensions`) aligns every row again the same way. In a profile of the UI with an agent's TUI redrawing the focused terminal,
+  that `getBoundingClientRect` was about 30% of the main thread's busy time. Redrawing two rows of
+  a 24-row screen ten times a second, a render of the tree took 0.4 ms against 1.4 to 3.4 ms on a
+  near-empty page, and more where the page has more to lay out. The text, the `_rowColumns` map and what
+  `_announceCharacters` says are as before. xterm 6.1's beta (6.1.0-beta.338) still has the old
+  code and no issue is open for it that we found; check 6.1, and make the patch again in
+  `_renderRows`, `_refreshRowsDimensions` and `_alignRowWidth` unless it has the same. `src/a11y-rows.test.ts` pins it in each bundle, and
+  terminal-views' `src/a11y-rows.spec.ts` checks in a real browser that a redraw of one row touches
+  only that row's element, which still gets its `scaleX`, and that a change of cell size aligns
+  all rows.
 - `@xterm/addon-webgl` 0.19.0: `WebglRenderer` registers its cursor-blink manager with the renderer
   (`this._register(new be)` in `lib/addon-webgl.mjs`, `this._register(new m.MutableDisposable)` in
   `lib/addon-webgl.js`) in place of leaving it undisposed. The manager exists once a program turns
