@@ -21,7 +21,8 @@ export const formatOf = (name: string): ModelFormat | undefined => {
 const largest = 512
 
 // The largest model a grid draws: less than a peek reads, as a grid may ask for many at once, one
-// after another through the frame every still shares, within the grid's 15 s for each.
+// after another through the frame every still shares, within the grid's 15 s for each (its wait
+// for its turn in that frame not counted).
 export const gridBytes = 8 * 1024 * 1024
 
 export const folderStill: EntryThumbRenderer = async (file, box, signal) => {
@@ -38,6 +39,11 @@ export const folderStill: EntryThumbRenderer = async (file, box, signal) => {
   if (loaded.state !== "ready" || signal.aborted) return null
   const density = globalThis.devicePixelRatio || 1
   const size = Math.min(largest, Math.ceil(Math.max(box.width, box.height) * density))
-  const blob = await stillBlob({ format, bytes: loaded.blob, files: [], refused: [] }, size, signal)
+  const blob = await stillBlob(
+    { format, bytes: loaded.blob, files: [], refused: [] },
+    size,
+    signal,
+    file.queued,
+  )
   return blob ? { blob } : null
 }

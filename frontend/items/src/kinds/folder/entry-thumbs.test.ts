@@ -154,6 +154,75 @@ describe("what a kind registers to draw its files in a folder's grid", () => {
       expect(hasNoThumb("hung:a")).toBe(true)
     })
 
+    context(
+      "waiting its turn outside the file, as a 3D model's still in the frame every still shares",
+      () => {
+        afterEach(() => vi.useRealTimers())
+
+        // A renderer that works `before`, waits its turn in a line the test lets go of, then
+        // draws, or never settles where `stalls`.
+        const queuedRenderer = ({ before = 0, stalls = false } = {}) => {
+          const line: { go?: () => void; signal?: AbortSignal } = {}
+          registerEntryThumb("audio", async (file, _box, signal) => {
+            line.signal = signal
+            await new Promise((resolve) => setTimeout(resolve, before))
+            const turn = file.queued()
+            await new Promise<void>((resolve) => (line.go = resolve))
+            turn()
+            return stalls ? new Promise(() => {}) : { blob: new Blob(["drawn"]) }
+          })
+          return line
+        }
+        const loadQueued = (key: string, signal = new AbortController().signal) =>
+          loadThumb({ key, kind: "audio", name: "a.glb", size: 2, read, signal })
+
+        it("gets its picture though its wait ran past the deadline", async () => {
+          urls()
+          vi.useFakeTimers()
+          const line = queuedRenderer({ before: 5_000 })
+          const loading = loadQueued("queued:1")
+          await vi.advanceTimersByTimeAsync(5_000 + 60_000)
+          expect(line.signal?.aborted).toBe(false)
+          line.go!()
+          expect(await loading).toEqual({
+            url: expect.stringMatching(/^blob:/),
+            duration: undefined,
+          })
+          expect(hasNoThumb("queued:1")).toBe(false)
+        })
+
+        it("is stopped where it stalls once its turn comes, at the deadline less what it worked before", async () => {
+          urls()
+          vi.useFakeTimers()
+          const line = queuedRenderer({ before: 5_000, stalls: true })
+          let result: unknown = "pending"
+          void loadQueued("queued:2").then((thumb) => (result = thumb))
+          await vi.advanceTimersByTimeAsync(5_000 + 60_000)
+          line.go!()
+          await vi.advanceTimersByTimeAsync(9_999)
+          expect(line.signal?.aborted).toBe(false)
+          expect(result).toBe("pending")
+          await vi.advanceTimersByTimeAsync(1)
+          expect(line.signal?.aborted).toBe(true)
+          expect(result).toBeUndefined()
+          // As any renderer that stalls with no read on its way: not asked again.
+          expect(hasNoThumb("queued:2")).toBe(true)
+        })
+
+        it("is stopped at once where it is no longer wanted while it waits", async () => {
+          urls()
+          const line = queuedRenderer()
+          const stop = new AbortController()
+          const loading = loadQueued("queued:3", stop.signal)
+          await vi.waitFor(() => expect(line.go).toBeDefined())
+          stop.abort()
+          expect(await loading).toBeUndefined()
+          expect(line.signal?.aborted).toBe(true)
+          expect(hasNoThumb("queued:3")).toBe(false)
+        })
+      },
+    )
+
     it("passes its signal on to its reads, which a stopped renderer's end", async () => {
       urls()
       let reads: AbortSignal | undefined

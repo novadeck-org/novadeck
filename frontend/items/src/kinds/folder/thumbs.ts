@@ -124,7 +124,8 @@ const keep = (key: string, thumb: Thumb | null): void => {
 }
 
 // How long a renderer has to draw a picture before it is stopped and the icon is shown, so one
-// that never settles takes no place in the queue for good.
+// that never settles takes no place in the queue for good; its time waiting its turn outside the
+// file, as a 3D model's still in the frame every still shares, doesn't count.
 export const thumbDeadlineMs = 15_000
 
 // The box a grid's picture is drawn in, which a renderer fits its picture to.
@@ -132,11 +133,12 @@ const gridBox = { width: 320, height: 200 }
 
 // Reads a file of the folder and makes its picture with what its kind registered (see
 // ./entry-thumbs): kept by `key`, with its length where it has one. Undefined where it can't be
-// drawn, failed, ran out of `deadline` or was stopped: the grid shows the kind's icon, and a file
-// that had none is not asked again as its stamp names it. One that was stopped is, and so is one
-// whose read failed (a link that dropped, a runner that restarted, a file it couldn't read then)
-// or was still on its way at the deadline (a slow link). `read` is the backend's part read of
-// the file: a stopped renderer asks for no more parts, and what it asked for is dropped.
+// drawn, failed, ran out of `deadline` (its time waiting its turn not counted) or was stopped: the
+// grid shows the kind's icon, and a file that had none is not asked again as its stamp names it.
+// One that was stopped is, and so is one whose read failed (a link that dropped, a runner that
+// restarted, a file it couldn't read then) or was still on its way at the deadline (a slow link).
+// `read` is the backend's part read of the file: a stopped renderer asks for no more parts, and
+// what it asked for is dropped.
 export const loadThumb = async ({
   key,
   kind,
@@ -163,18 +165,34 @@ export const loadThumb = async ({
   const own = new AbortController()
   const outer = (): void => own.abort()
   signal.addEventListener("abort", outer, { once: true })
-  let timer: ReturnType<typeof setTimeout> | undefined
   // Settles however the renderer behaves: with it, with nothing when it fails, or at the deadline or
   // the caller's stopping, whichever comes first.
   const ended = new Promise<"late" | "stopped">((resolve) => {
-    timer = setTimeout(() => {
-      own.abort()
-      resolve("late")
-    }, deadline)
     own.signal.addEventListener("abort", () => resolve(signal.aborted ? "stopped" : "late"), {
       once: true,
     })
   })
+  // The deadline, which doesn't run while the renderer waits its turn outside the file (`queued`).
+  let left = deadline
+  let since = Date.now()
+  let timer = setTimeout(() => own.abort(), left)
+  let queues = 0
+  const queued = (): (() => void) => {
+    queues += 1
+    if (queues === 1) {
+      clearTimeout(timer)
+      left -= Date.now() - since
+    }
+    let waiting = true
+    return () => {
+      if (!waiting) return
+      waiting = false
+      queues -= 1
+      if (queues > 0 || own.signal.aborted) return
+      since = Date.now()
+      timer = setTimeout(() => own.abort(), left)
+    }
+  }
   // Whether a read failed, and how many are on their way: then no picture says nothing of the file.
   let failed = false
   let pending = 0
@@ -193,7 +211,7 @@ export const loadThumb = async ({
   }
   try {
     const made = await Promise.race([
-      render({ name, size, read: reading }, box, own.signal).catch(() => null),
+      render({ name, size, read: reading, queued }, box, own.signal).catch(() => null),
       ended,
     ])
     if (made === "stopped" || signal.aborted) return undefined
