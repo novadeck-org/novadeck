@@ -71,7 +71,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // and asks for a title and a summary.
       const first = (await prompt(codex.id, "Fix the login bug")).split("\n\n")
       expect(first[0]).toMatch(/^Novadeck: automatic notice, not from the user: beside this/)
-      expect(first[1]).toMatch(/the user rarely watches this terminal/)
+      expect(first[1]).toMatch(/Novadeck's Inbox shows the user a copy/)
       expect(first[2]).toMatch(/this terminal has no summary yet.*describe tool/)
       // Its prompt titles nothing.
       await new Promise((resolve) => setTimeout(resolve, 300))
@@ -203,7 +203,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const after = (await prompt("and now?")).split("\n\n")
       // All: the bar and the Inbox again, then the summary to update only for another subject.
       expect(after[0]).toMatch(/beside this terminal/)
-      expect(after[1]).toMatch(/the user rarely watches this terminal/)
+      expect(after[1]).toMatch(/Novadeck's Inbox shows the user a copy/)
       expect(after[2]).toMatch(
         /summary is "Fixes the build\."; if the work here is now about something else/,
       )
@@ -285,7 +285,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(after[0]).toContain("Third.")
       expect(after[0]).not.toContain(pointer)
       expect(after[1]).toMatch(/beside this terminal/)
-      expect(after[2]).toMatch(/the user rarely watches this terminal/)
+      expect(after[2]).toMatch(/Novadeck's Inbox shows the user a copy/)
       await second.shutdown()
     })
 

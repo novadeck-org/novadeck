@@ -356,10 +356,10 @@ next part within a minute. A file past `maxUploadBytes` (32 MiB) is
 terminal `TERMINAL_NOT_FOUND`.
 
 The MCP `ask`, `tell` and `done` tools add questions and updates to the Inbox. In a Novadeck
-terminal the server's `instructions` say when each serves: `ask` doesn't stop the work, as
-most decisions aren't blocking; everything put in the Inbox is an extra copy, so the
-reply still says it in full and never mentions the Inbox; `tell` is for
-milestones; `done` is the agent's own short report when the task it was given is finished,
+terminal the server's `instructions` say when each serves: `ask` is a copy of every
+question the agent's turn ends waiting on; everything put in the Inbox is an extra copy,
+so the reply still says it in full and never mentions the Inbox; `tell` is for news such
+as a milestone; `done` is the agent's own short report when the task it was given is finished,
 not when it answers a question or finishes a step. With a lead, the agent uses them all the
 same and also sends its lead the same. Claude Code reads the instructions up
 front, before it loads a tool's description; the prompt-time notice every harness gets says the

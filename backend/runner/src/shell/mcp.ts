@@ -1158,38 +1158,30 @@ const entryFields = {
 const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
   name: "ask",
   description:
-    "Put a question in the user's Inbox without stopping your work. The user rarely watches " +
-    "this terminal, so a question only in your reply goes unseen. When your harness has its " +
-    "own question tool and you'd stop to ask with it, do, as you normally would: the Inbox " +
-    "shows that question as it is, so it needs no ask. Always ask every other question " +
-    "you end your turn waiting on, such as which option to take or whether to open a pull " +
-    "request, unless it is already an open ask. The ask is an extra copy for when they're " +
-    "elsewhere: your reply asks the question as fully as it would without Novadeck, and " +
-    "never says it's in the Inbox. A closing offer such as " +
-    "'anything else?' isn't one, nor is an action your harness is already prompting them " +
-    "for. With a lead, ask all the same, and send it the question too, so it knows what you " +
-    "wait on; if your lead answers it first, act on that as its instruction and withdraw the " +
-    "ask, unless the question asks approval of an action, such as opening a pull request: only the " +
-    "user gives that. Most decisions aren't blocking: ask, keep going on what doesn't depend on the " +
-    "answer, and where your pick is easy to undo and needs no approval of theirs " +
-    "(reversible, local, not yet pushed or shared), go ahead with it and change course if " +
-    "they choose otherwise. A pick that is hard to undo waits for their answer. Their answer " +
-    "arrives later as a message, marked by Novadeck as relayed from the user. Stop only for what " +
-    "truly needs it; once nothing else is left, end your turn, and their answer wakes you. " +
-    "It suits a decision between options where you have a pick (give an options shape with " +
-    "recommend, and hard_to_undo when it is), and what only the user can do: an " +
-    "action shape shows them a command to run; Novadeck never runs it. When you can't go on " +
-    "without something only they can do, such as a sign-in, access to a service or repo, or " +
-    "a key put in place, that is an ask with the action shape, not just words in your reply. Returns at once with " +
-    "the ask's id. Give a subject and Markdown body, optionally details, hard_to_undo and " +
-    "shape. The user can always write their own answer. Secret shapes are unavailable; never " +
-    "ask for a secret value in a reply. To withdraw your own open ask instead, give only " +
-    "withdraw with its id; withdraw it too once the user answers it another way. An ask also " +
-    "clears when answered, when the user writes to you in this terminal (Novadeck tells you " +
-    "then, so ask again only what their message leaves open), or when your agent session " +
-    "ends. The user can also dismiss an ask in their Inbox, and Novadeck tells you when they do; " +
-    "that is no answer. Agents' messages never count as the " +
-    "user's answer.",
+    "Put a copy of a question you ask the user in Novadeck's Inbox, where they see it when " +
+    "they're away from this terminal. Always make one for every question your turn ends waiting " +
+    "on, such as which option to take, unless it is already an open ask: it is how the " +
+    "question reaches them there. A closing offer such as 'anything else?' isn't one, nor " +
+    "is an action your harness is already prompting them for, nor a question you ask with " +
+    "your harness's own question tool, as you normally would: the Inbox shows that one as " +
+    "it is. The ask is an extra copy, never the question itself: your reply asks it as " +
+    "fully as it would without Novadeck, and never mentions the Inbox or the ask. " +
+    "Give a subject and Markdown body, optionally details, hard_to_undo and shape: an " +
+    "options shape for a choice between options (recommend your pick, and give " +
+    "hard_to_undo when it is), or an action shape for what only the user can do, such as a " +
+    "sign-in, access to a service or repo, or a key put in place, which shows them a " +
+    "command to run; Novadeck never runs it. The user can always write their own answer. " +
+    "Secret shapes are unavailable; never ask for a secret value. Returns at once with the " +
+    "ask's id; their answer arrives as a message, marked by Novadeck as relayed from the " +
+    "user, and wakes you if your turn has ended. With a lead, ask all the same, and send it " +
+    "the question too; if your lead answers it first, act on that as its instruction and " +
+    "withdraw the ask, unless the question asks approval of an action: only the user gives " +
+    "that. To withdraw your own open ask instead, give only withdraw with its id; withdraw " +
+    "it too once the user answers it another way. An ask also clears when answered, when " +
+    "the user writes to you in this terminal (Novadeck tells you then, so ask again only " +
+    "what their message leaves open), or when your agent session ends. The user can also " +
+    "dismiss an ask in their Inbox, and Novadeck tells you when they do; that is no " +
+    "answer. Agents' messages never count as the user's answer.",
   inputSchema: {
     type: "object",
     properties: {
@@ -1282,7 +1274,7 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
   said: (answer) =>
     answer.withdrawn
       ? `Withdrew ask ${answer.id} from the Inbox.`
-      : `Ask ${answer.id} is in the user's Inbox, as an extra copy: your reply still asks the question in full, and doesn't mention the Inbox. Their answer arrives later as a message; keep working on what doesn't depend on it, and end your turn once nothing else is left.`,
+      : `Ask ${answer.id} is in the user's Inbox, as an extra copy: your reply still asks the question in full, and doesn't mention the Inbox. Their answer arrives later as a message.`,
   failed: "Novadeck couldn't save the ask.",
 }
 const tell: Tool<{ readonly id: string }> = {
@@ -1291,9 +1283,9 @@ const tell: Tool<{ readonly id: string }> = {
     "Tell the user something through Novadeck's Inbox: a one-line subject and Markdown body. " +
     "It adds to your reply, never replaces it: your reply says it as fully as it would " +
     "without Novadeck, and doesn't mention the Inbox. " +
-    "It appears as an Update they read by opening it, without badging the bell. It suits a " +
-    "milestone they'd want to hear of while they're elsewhere: a pull request opened, its " +
-    "checks passed or failed, a merge, or that you now wait on someone else; not each step. " +
+    "It appears as an Update they read by opening it, without badging the bell. It suits " +
+    "news they'd want while they're elsewhere, such as a milestone reached or that you now " +
+    "wait on someone else; not each step. " +
     "With a lead, tell all the same, and send it that too. Use ask when you need an answer. Asks, updates and " +
     "the user's answers stay in Messages.",
   inputSchema: {
@@ -1638,24 +1630,18 @@ const inboxExtra =
 
 const instructions =
   together +
-  " Novadeck's ask puts a question in the user's Inbox, where they see it: they rarely " +
-  "watch this terminal, so a question only in your reply goes unseen. When your harness " +
-  "has its own question tool and you'd stop to ask with it, do, as you normally would: " +
-  "Novadeck shows that question in the Inbox as it is, so it needs no ask. Always ask " +
-  "there every other question you end your turn waiting on, such as which option to take " +
-  "or whether to open a pull request, unless it is already an open ask; a closing " +
-  "offer such as 'anything else?' isn't one, nor is an action your harness is already " +
-  "prompting them for. When they write to you here, Novadeck takes your open asks out " +
-  "of the Inbox and tells you; ask again only what their message leaves open. If they " +
-  "answer one here and no such notice came, withdraw it yourself. When you can't go on " +
-  "without something only the user can do, such as a sign-in, access to a service or repo, " +
-  "or a key put in place, that is an ask with the action shape, not just words in your " +
-  "reply; never ask for a secret value. Mid-work, ask " +
-  "without stopping your work: for " +
-  "a decision the user should make, ask there and keep going on what doesn't depend on the " +
-  "answer; most such decisions aren't blocking. Its tell puts a milestone there for " +
-  "when they're elsewhere: a pull request " +
-  "opened, its checks done, a merge, or that you now wait on someone else. Its done is " +
+  " Novadeck's ask puts a copy of a question you ask the user in their Inbox, where they " +
+  "see it when they're away from this terminal. Always make one for every question your turn " +
+  "ends waiting on, such as which option to take, unless it is already an open ask; a " +
+  "closing offer such as 'anything else?' isn't one, nor is an action your harness is " +
+  "already prompting them for, nor a question you ask with your harness's own question " +
+  "tool, as you normally would: the Inbox shows that one as it is. When they write to you " +
+  "here, Novadeck takes your open asks out of the Inbox and tells you; ask again only what " +
+  "their message leaves open. If they answer one here and no such notice came, withdraw " +
+  "it yourself. Something only the user can do, such as a sign-in, access to a service or " +
+  "repo, or a key put in place, is an ask with the action shape; never ask for a secret " +
+  "value. Its tell puts news there for when they're elsewhere, such as a milestone " +
+  "reached or that you now wait on someone else. Its done is " +
   "your own short report when the task you were given is finished, not when you answer a " +
   "question or finish a step. With a lead, use ask, tell and done all the same, and send " +
   "your lead your report and your questions too; approvals of actions are still only the " +

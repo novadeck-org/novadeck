@@ -317,8 +317,9 @@ export const companionNotice =
   "looking at unless they asked; showing lists what is there. This notice needs no reply."
 
 /**
- * What a session is told once of the Inbox, with the bar's notice: that the person
- * rarely watches the terminal, so a question the agent's turn ends waiting on goes there:
+ * What a session is told once of the Inbox, with the bar's notice: that the Inbox shows
+ * the person a copy when they're away from the terminal, so a question the agent's turn
+ * ends waiting on goes there:
  * through its harness's own question tool where it would use one, which the Inbox shows
  * as it is, else with `ask` and in the reply in full; that something only they can do (a sign-in, access,
  * a key) is an `ask` with the action shape; that a finished task is reported with `done`;
@@ -330,25 +331,24 @@ export const companionNotice =
  * one.
  */
 export const inboxNotice =
-  "Novadeck: automatic notice, not from the user: the user rarely watches this terminal, " +
-  "so a question only in your reply goes unseen. When your harness has its own question " +
-  "tool and you'd stop to ask with it, do, as you normally would: Novadeck shows that " +
-  "question in their Inbox as it is, so it needs no ask. Always put every other question " +
-  "you end your turn waiting on, such as which option to take or whether to open a pull " +
-  "request, in their Inbox with Novadeck's ask tool, unless it is already an open ask; a " +
-  "closing offer such as 'anything else?' isn't one, " +
-  "nor is an action your harness is already prompting them for. When you can't go on " +
-  "without something only the user can do, such as a sign-in, access to a service or " +
-  "repo, or a key put in place, that is an ask with the action shape, not just words in " +
-  "your reply; never ask for a secret value. When the task you were given is finished, " +
-  "report it with Novadeck's done tool, your own short report, not when you answer a " +
-  "question or finish a step. With a lead, use ask, tell and done all the same, and send " +
-  "your lead your report and your questions too; approvals of actions are still only the " +
-  "user's. Whatever you put in the Inbox is an extra copy for when they're elsewhere: your " +
-  "reply says it all as fully as it would without Novadeck, and never mentions the Inbox or " +
-  "what you put there. When they write to you here, Novadeck takes your open asks out of their Inbox " +
-  "and tells you; ask again only what their message leaves open. If they answer one here " +
-  "and no such notice came, withdraw it yourself. This notice needs no reply."
+  "Novadeck: automatic notice, not from the user: Novadeck's Inbox shows the user a copy " +
+  "of your questions and reports when they're away from this terminal. Always put every question " +
+  "your turn ends waiting on, such as which option to take, in their Inbox with " +
+  "Novadeck's ask tool, unless it is already an open ask; a closing offer such as " +
+  "'anything else?' isn't one, nor is an action your harness is already prompting them " +
+  "for, nor a question you ask with your harness's own question tool, as you normally " +
+  "would: Novadeck shows that one in their Inbox as it is. Something only the user can " +
+  "do, such as a sign-in, access to a service or repo, or a key put in place, is an ask " +
+  "with the action shape; never ask for a secret value. When the task you were given is " +
+  "finished, report it with Novadeck's done tool, your own short report, not when you " +
+  "answer a question or finish a step. With a lead, use ask, tell and done all the same, " +
+  "and send your lead your report and your questions too; approvals of actions are still " +
+  "only the user's. Whatever you put in the Inbox is an extra copy, never the thing " +
+  "itself: your reply says it all as fully as it would without Novadeck, and never " +
+  "mentions the Inbox or what you put there. When they write to you here, Novadeck takes " +
+  "your open asks out of their Inbox and tells you; ask again only what their message " +
+  "leaves open. If they answer one here and no such notice came, withdraw it yourself. " +
+  "This notice needs no reply."
 
 /**
  * What a session is told of agent worktrees (see docs/agent-messaging.md,

@@ -272,8 +272,8 @@ and the runner's prompt-time hook adds Novadeck's companion notice, one paragrap
 the first turn the person's prompt or the doorbell begins in each root session, and after a compaction
 (`companionNotice` in `terminals/nudges.ts`; it rides with the summary nudge but a
 `describe` never clears it; see [Agent messaging](agent-messaging.md), "Nudges"), with
-the Inbox notice beside it (`inboxNotice`): the person rarely watches the terminal, so
-a question the agent's turn ends waiting on goes to the Inbox: through the harness's own
+the Inbox notice beside it (`inboxNotice`): the Inbox shows the person a copy when
+they're away from the terminal, so a question the agent's turn ends waiting on goes there: through the harness's own
 question tool where the agent would use one, which the Inbox shows as it is, else with
 `ask`. A
 worker another agent runs by briefs alone hears them at the person's first prompt there,

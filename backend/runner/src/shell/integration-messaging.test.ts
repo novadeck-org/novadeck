@@ -84,7 +84,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         /^Novadeck: automatic notice, not from the user: beside this terminal/,
       )
       expect(paragraphs[1]).toMatch(
-        /^Novadeck: automatic notice, not from the user: the user rarely watches/,
+        /^Novadeck: automatic notice, not from the user: Novadeck's Inbox shows the user a copy/,
       )
       expect(paragraphs[2]).toMatch(
         /^Novadeck: automatic notice, not from the user: this terminal has no/,
@@ -176,7 +176,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         const notices = rung.slice(rung.indexOf("</novadeck-messages>")).split("\n\n").slice(1)
         expect(notices).toHaveLength(3)
         expect(notices[0]).toMatch(/^Novadeck: automatic notice, not from the user: beside this/)
-        expect(notices[1]).toMatch(/the user rarely watches this terminal/)
+        expect(notices[1]).toMatch(/Novadeck's Inbox shows the user a copy/)
         expect(notices[2]).toMatch(/this terminal has no summary yet/)
         await expect
           .poll(() => manager.messages(worker.id).threads[0]?.messages[0]?.state)
