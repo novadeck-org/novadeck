@@ -678,11 +678,13 @@ export const contract = {
     // parts (a video, a recording), read only while the file is as `stamp` (its content's)
     // names it: else `changed`. One that may hold secrets is `secret` unless `reveal` is the
     // path the item points at, as in `content`. An unknown item, or one of a kind not read in
-    // parts, is NOT_FOUND. A folder item's `path` is a file of the folder, from its top, which
-    // is read as the file's own kind is (an image up to `folderLimits.thumbnail` bytes, for a
-    // thumbnail; a video, a recording or a PDF as an item of its kind is), with the stamp its
-    // listing gave: never one outside the folder, through a link too, nor a secret one
-    // (`secret`), nor one in a secret folder.
+    // parts, is NOT_FOUND. With `file`, a model's, it is that file beside it, one its content
+    // lists, by its name there and as its own stamp names it; never shown when it may hold
+    // secrets, whatever `reveal`; a `file` its model doesn't name is NOT_FOUND. A folder item's
+    // `path` is a file of the folder, from its top, which is read as the file's own kind is (an
+    // image up to `folderLimits.thumbnail` bytes, for a thumbnail; a video, a recording, a PDF or
+    // a 3D model as an item of its kind is), with the stamp its listing gave: never one outside
+    // the folder, through a link too, nor a secret one (`secret`), nor one in a secret folder.
     part: procedure
       .input(
         z.strictObject({
@@ -690,6 +692,7 @@ export const contract = {
           stamp: z.string().max(128),
           offset: z.int().nonnegative(),
           reveal: z.string().max(4096).optional(),
+          file: z.string().max(4096).optional(),
           path: z.string().min(1).max(4096).optional(),
         }),
       )

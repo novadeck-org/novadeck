@@ -169,6 +169,7 @@ export const kindText = (entry: FolderEntry): string =>
           video: "Video",
           audio: "Audio",
           pdf: "PDF",
+          model: "3D model",
           text: "Text",
           other: "File",
         } as const

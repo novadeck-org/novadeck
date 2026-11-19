@@ -7,7 +7,7 @@ import { vi } from "vitest"
 import { describe, expect, it } from "./test"
 import { channel } from "./testing/channel"
 import { id } from "./testing/scripted"
-import { createRunnerWorks } from "./works"
+import { createRunnerWorks, worksBatchMs } from "./works"
 
 const root = (n: number) => `/shop/${n}`
 
@@ -107,6 +107,69 @@ describe("Works, as the runner reports them", () => {
     expect(ids()).toEqual([root(1)])
     stream.push({ type: "synced" })
     await vi.waitFor(() => expect(ids()).toEqual([root(4)]))
+  })
+
+  it("publishes a poll's changes together, a moment after the first", async () => {
+    vi.useFakeTimers()
+    try {
+      const { works, stream, ids } = followed()
+      stream.push({ type: "reset" })
+      stream.push({ type: "changed", work: work(1) })
+      stream.push({ type: "changed", work: work(2) })
+      stream.push({ type: "synced" })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(ids()).toEqual([root(1), root(2)])
+      let published = 0
+      works.state.subscribe(() => (published += 1))
+      stream.push({ type: "changed", work: work(1, { unreadAdded: 0 }) })
+      stream.push({ type: "changed", work: work(3) })
+      stream.push({ type: "removed", root: root(2), projectId: "p" })
+      await vi.advanceTimersByTimeAsync(worksBatchMs - 1)
+      expect(published).toBe(0)
+      expect(ids()).toEqual([root(1), root(2)])
+      await vi.advanceTimersByTimeAsync(1)
+      expect(published).toBe(1)
+      expect(ids()).toEqual([root(1), root(3)])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("publishes the changes still waiting at once as the following ends, or the works are read", async () => {
+    vi.useFakeTimers()
+    try {
+      const { works, stream, ids, release } = followed()
+      stream.push({ type: "reset" })
+      stream.push({ type: "synced" })
+      await vi.advanceTimersByTimeAsync(0)
+      stream.push({ type: "changed", work: work(1) })
+      await vi.advanceTimersByTimeAsync(0)
+      // A look publishes what it reads with whatever waits.
+      works.look(root(1))
+      expect(ids()).toEqual([root(1)])
+      stream.push({ type: "changed", work: work(2) })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(ids()).toEqual([root(1)])
+      release()
+      expect(ids()).toEqual([root(1), root(2)])
+      expect(works.state.getSnapshot().synced).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("publishes a change still waiting as the following ends, though nothing was synced", async () => {
+    vi.useFakeTimers()
+    try {
+      const { stream, ids, release } = followed()
+      stream.push({ type: "changed", work: work(1) })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(ids()).toEqual([])
+      release()
+      expect(ids()).toEqual([root(1)])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("is synced once the first sequence is, and not after the last watcher lets go", async () => {

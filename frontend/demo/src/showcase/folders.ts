@@ -215,11 +215,14 @@ const textFile = (name: string, lines: readonly string[], age: number, now: numb
 export type RenderMedia = {
   readonly clip: () => Promise<Uint8Array<ArrayBuffer>>
   readonly clipSize: number
-  readonly report: Uint8Array<ArrayBuffer>
+  readonly report: () => Promise<Uint8Array<ArrayBuffer>>
+  readonly reportSize: number
+  readonly model: () => Promise<Uint8Array<ArrayBuffer>>
+  readonly modelSize: number
 }
 
-// What an agent rendered: stills, a clip, a report, a log, a folder of its own, a secret and a
-// link out of the folder. `now` is when the demo started.
+// What an agent rendered: stills, a clip, a report, a 3D bracket, a log, a folder of its own, a
+// secret and a link out of the folder. `now` is when the demo started.
 export const renderFiles = (now: number, media: RenderMedia): DemoFile[] => [
   picture("checkout-desktop.svg", "#f6f1e7", "Checkout", 4 * 60_000, now),
   picture("checkout-mobile.svg", "#e4e9d6", "Checkout · mobile", 9 * 60_000, now),
@@ -258,9 +261,9 @@ export const renderFiles = (now: number, media: RenderMedia): DemoFile[] => [
   {
     name: "quarterly-report.pdf",
     kind: "pdf",
-    size: media.report.length,
+    size: media.reportSize,
     modifiedAt: now - 5 * hour,
-    read: async () => media.report,
+    read: media.report,
     opens: () => ({
       item: {
         id: "folder-open-report",
@@ -275,9 +278,34 @@ export const renderFiles = (now: number, media: RenderMedia): DemoFile[] => [
       content: {
         state: "ready",
         stamp: "1",
-        content: { kind: "pdf", size: media.report.length },
+        content: { kind: "pdf", size: media.reportSize },
       },
-      file: { read: async () => media.report },
+      file: { read: media.report },
+    }),
+  },
+  {
+    name: "bracket.stl",
+    kind: "model",
+    size: media.modelSize,
+    modifiedAt: now - 3 * 60_000,
+    read: media.model,
+    opens: () => ({
+      item: {
+        id: "folder-open-bracket",
+        kind: "model",
+        name: "bracket.stl",
+        detail: "STL, CAD output",
+        path: "~/render/bracket.stl",
+        url: null,
+        lines: null,
+        secret: false,
+      },
+      content: {
+        state: "ready",
+        stamp: "1",
+        content: { kind: "model", format: "stl", size: media.modelSize, files: [], refused: [] },
+      },
+      file: { read: media.model },
     }),
   },
   textFile(

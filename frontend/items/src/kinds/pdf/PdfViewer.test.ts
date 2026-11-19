@@ -11,6 +11,10 @@ import { createItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
 import { pdf as registration } from "./index"
 
+// The viewer the registration loads when a PDF first shows, loaded before any test: on a busy
+// run, loading it inside the first test took that test past its wait.
+await import("./PdfViewer")
+
 // jsdom runs no pdf.js: the viewer is a stand-in that notes the bytes it's given.
 const drawn = vi.hoisted(() => [] as Blob[])
 vi.mock("@novadeck/viewers/pdf", () => ({

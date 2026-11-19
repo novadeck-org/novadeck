@@ -1,8 +1,7 @@
-import type { PdfContent, UnavailableReason } from "@novadeck/core/items"
+import type { UnavailableReason } from "@novadeck/core/items"
 import { Progress } from "@novadeck/toolkit/Progress"
 import { createKept } from "@novadeck/viewers"
 import { mountPdf, type PdfTrouble } from "@novadeck/viewers/pdf"
-import { FileType } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { Unavailable, type ArtifactBodyProps } from "../../ArtifactViewer"
@@ -154,12 +153,3 @@ export const PdfViewer = (props: ArtifactBodyProps<"pdf">): React.JSX.Element =>
     </div>
   )
 }
-
-// A PDF's badge and size, for its peek: its bytes are never read for it.
-export const PdfThumb = ({ content }: { content: PdfContent }): React.JSX.Element => (
-  <span className="peek-pdf">
-    <FileType size={18} strokeWidth={1.5} aria-hidden />
-    <span>PDF</span>
-    <span>{bytesText(content.size)}</span>
-  </span>
-)

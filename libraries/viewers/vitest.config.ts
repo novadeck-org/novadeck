@@ -2,6 +2,7 @@ import { playwright } from "@vitest/browser-playwright"
 import { defineConfig } from "vitest/config"
 
 import { retryOnCi } from "../../scripts/flakes/retry/vitest"
+import { frameBundles } from "../../tools/build-kit/src/frame-bundles"
 
 // Viewers draw into the DOM, and keeping their place is about real layout and scrolling,
 // so their tests run in a real browser. What they wait for comes with rendered frames (a
@@ -16,6 +17,8 @@ const config = defineConfig({
   test: {
     projects: [
       {
+        // The 3D model viewer's code, bundled as its frame runs it.
+        plugins: [frameBundles()],
         test: {
           name: "browser",
           include: ["src/**/*.test.ts"],

@@ -142,7 +142,7 @@ const vendors: Record<string, readonly string[]> = {
     "sidebar/SessionsPanel.tsx",
   ],
   "react-router": ["app/", "shell/"],
-  "react-dom": ["layouts/transition.ts", "entries/start.tsx"],
+  "react-dom": ["layouts/transition.ts", "entries/start.tsx", "sidebar/useTreeScroll.ts"],
 }
 
 // The packages that hold what used to be folders of src, named as the layers above know them.
