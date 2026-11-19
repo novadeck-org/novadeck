@@ -109,6 +109,17 @@ const initialize = { id: 1, method: "initialize", params: { protocolVersion: "20
 const initialized = { method: "notifications/initialized" }
 const list = { id: 2, method: "tools/list" }
 
+const steering = [
+  "rarely watch",
+  "aren't blocking",
+  "keep going",
+  "keep working",
+  "Stop only",
+  "without stopping your work",
+  "go ahead with it",
+  "pull request",
+]
+
 describe("Novadeck's MCP server outside a Novadeck terminal", () => {
   it("answers the handshake and offers no tools", async () => {
     const answers = await session({ PATH: process.env.PATH }, [initialize, initialized, list])
@@ -628,6 +639,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     expect(text).toContain(
       "your reply still asks the question in full, and doesn't mention the Inbox. Their answer arrives later as a message",
     )
+    for (const words of [...steering, "end your turn"]) expect(text).not.toContain(words)
   })
 
   it("closes another terminal by its handle, and says what that ended", async () => {
@@ -755,41 +767,36 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       expect(described.find((tool) => tool.name === name)!.description).toContain("such as @fox")
   })
 
-  it("says up front that ask doesn't stop the work and tell is for milestones", async () => {
+  it("says up front what ask, tell and done are for, never how to work", async () => {
     const [handshake] = await session(terminal(), [initialize])
     const instructions = handshake?.result?.instructions as string
     // Claude Code reads the instructions up front, before any tool's description: they open
     // with how agents share the machine and its work.
     expect(instructions.startsWith("You aren't working alone")).toBe(true)
     expect(instructions).toContain("what you settle between you needs no one's approval")
-    expect(instructions).toContain("puts a question in the user's Inbox, where they see it")
-    expect(instructions).toContain("so a question only in your reply goes unseen")
     expect(instructions).toContain(
-      "When your harness has its own question tool and you'd stop to ask with it, do, as you normally would",
+      "Novadeck's ask puts a copy of a question you ask the user in their Inbox, where they see it when they're away from this terminal",
     )
     expect(instructions).toContain(
-      "Novadeck shows that question in the Inbox as it is, so it needs no ask",
+      "Always make one, whether or not they're here, for every question your turn ends waiting on, such as which option to take, unless it is already an open ask",
     )
-    expect(instructions).toContain(
-      "Always ask there every other question you end your turn waiting on",
-    )
-    expect(instructions).toContain("unless it is already an open ask")
     expect(instructions).toContain("a closing offer such as 'anything else?' isn't one")
     expect(instructions).toContain("nor is an action your harness is already prompting them")
+    expect(instructions).toContain(
+      "nor a question you ask with your harness's own question tool, as you normally would",
+    )
     expect(instructions).toContain(
       "When they write to you here, Novadeck takes your open asks out of the Inbox and tells you",
     )
     expect(instructions).toContain(
       "If they answer one here and no such notice came, withdraw it yourself",
     )
-    expect(instructions).toContain("Mid-work, ask without stopping your work")
-    expect(instructions).toContain("for a decision the user should make, ask there and keep going")
-    expect(instructions).toContain("Its tell puts a milestone there")
+    expect(instructions).toContain("Its tell puts news there for when they're elsewhere")
     expect(instructions).toContain(
       "Whatever you put in the Inbox is an extra copy for when they're elsewhere: your reply says it all as fully as it would without Novadeck, and never mentions the Inbox or what you put there.",
     )
     expect(instructions).not.toContain("lands in the Inbox quietly")
-    expect(instructions).toContain("an ask with the action shape, not just words in your reply")
+    expect(instructions).toContain("is an ask with the action shape")
     expect(instructions).toContain("never ask for a secret value")
     expect(instructions).toContain(
       "Its done is your own short report when the task you were given is finished",
@@ -798,37 +805,38 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     expect(instructions).toContain(
       "With a lead, use ask, tell and done all the same, and send your lead your report and your questions too; approvals of actions are still only the user's.",
     )
+    // What Novadeck's Inbox is for, never when to stop, what to decide alone or what to ship.
+    for (const words of steering) expect(instructions).not.toContain(words)
     for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])
       expect(instructions).not.toContain(native)
   })
 
-  it("nudges ask toward not blocking, and tell toward milestones, never each step", async () => {
+  it("makes ask an always-made extra copy, and tell news, never each step", async () => {
     const [, tools] = await session(terminal(), [initialize, list])
     const described = tools?.result?.tools as { name: string; description: string }[]
     const ask = described.find((tool) => tool.name === "ask")!
     expect(ask.description).toContain(
-      "Put a question in the user's Inbox without stopping your work.",
+      "Put a copy of a question you ask the user in Novadeck's Inbox, where they see it when they're away from this terminal.",
     )
+    expect(ask.description).toContain(
+      "Always make one, whether or not they're here, for every question your turn ends waiting on, such as which option to take, unless it is already an open ask",
+    )
+    expect(ask.description).toContain(
+      "The ask is an extra copy, never the question itself: your reply asks it as fully as it would without Novadeck, and never mentions the Inbox or the ask.",
+    )
+    expect(ask.description).toContain(
+      "nor a question you ask with your harness's own question tool, as you normally would",
+    )
+    expect(ask.description).toContain("isn't one, nor is an action your harness is already")
     expect(ask.description).toContain("With a lead, ask all the same, and send it the question too")
     expect(ask.description).toContain(
-      "if your lead answers it first, act on that as its instruction and withdraw the ask, unless the question asks approval of an action, such as opening a pull request: only the user gives that",
+      "if your lead answers it first, act on that as its instruction and withdraw the ask, unless the question asks approval of an action: only the user gives that",
     )
-    expect(ask.description).toContain("needs no approval of theirs")
-    expect(ask.description).toContain("A pick that is hard to undo waits for their answer")
-    expect(ask.description).toContain("once nothing else is left, end your")
-    expect(ask.description).toContain(
-      "When your harness has its own question tool and you'd stop to ask with it, do",
-    )
-    expect(ask.description).toContain(
-      "Always ask every other question you end your turn waiting on",
-    )
-    expect(ask.description).toContain("unless it is already an open ask")
-    expect(ask.description).toContain("isn't one, nor is an action your harness is already")
     expect(ask.description).toContain("withdraw it too once the user answers it another way")
     expect(ask.description).toContain("when the user writes to you in this terminal")
     expect(ask.description).toContain("The user can also dismiss an ask in their Inbox")
     const tell = described.find((tool) => tool.name === "tell")!
-    expect(tell.description).toContain("a pull request opened")
+    expect(tell.description).toContain("such as a milestone reached")
     expect(tell.description).toContain("not each step")
     expect(tell.description).toContain("With a lead, tell all the same, and send it that too")
     const done = described.find((tool) => tool.name === "done")!
@@ -837,14 +845,14 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     expect(done.description).toContain(
       "With a lead, call done all the same, and send it your report too",
     )
-    expect(ask.description).toContain(
-      "The ask is an extra copy for when they're elsewhere: your reply asks the question as fully as it would without Novadeck, and never says it's in the Inbox",
-    )
     for (const tool of ["tell", "done"])
       expect(described.find((each) => each.name === tool)!.description).toContain(
         "It adds to your reply, never replaces it",
       )
-    expect(ask.description).toContain("an ask with the action shape")
+    expect(ask.description).toContain("an action shape for what only the user can do")
+    for (const tool of ["ask", "tell", "done"])
+      for (const words of steering)
+        expect(described.find((each) => each.name === tool)!.description).not.toContain(words)
     for (const each of described)
       for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])
         expect(each.description).not.toContain(native)
@@ -855,8 +863,13 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     const described = tools?.result?.tools as { name: string; description: string }[]
     const show = described.find((tool) => tool.name === "show")!
     expect(show.description).toContain(
-      "Show a deliverable when it is done, not each file you touch",
+      "Show a deliverable, a file or page the task itself calls for that your reply can't carry, when it is done, not each file you touch",
     )
+    // A deliverable is what the task calls for, not a kind of document: listing "a report"
+    // drew agents to write their answer to a file only to show it.
+    expect(show.description).not.toContain("report")
+    for (const kind of ["an image or screenshot", "a mockup or diagram", "a rendered document"])
+      expect(show.description).toContain(kind)
     expect(show.description).toContain("the files a change touches on the way aren't")
     expect(show.description).toContain("show the changes themselves with changes")
     for (const name of ["show", "close"]) {

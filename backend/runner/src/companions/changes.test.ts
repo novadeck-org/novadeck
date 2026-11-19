@@ -14,6 +14,7 @@ import { join } from "node:path"
 
 import {
   companionLimits,
+  type ChangedFile,
   itemContent,
   maxChangedFiles,
   maxChangeLayers,
@@ -1199,6 +1200,33 @@ describe.skipIf(!hasGit)("the merges of a change", { timeout: 60_000 }, () => {
     )
   })
 
+  it("lists a range's files as its files' own runs have them, however it is cut", async ({
+    repo,
+  }) => {
+    const { f1, resolved, f2, mergeX, o1, octopus } = featured(repo)
+    const readers = reader()
+    const cuts = [
+      [octopus, o1, mergeX, f2, resolved, f1],
+      [octopus, o1, mergeX, f2, resolved],
+      [mergeX, f2, resolved],
+      [f2, resolved, f1],
+      [o1, mergeX],
+    ]
+    const facts = (files: readonly ChangedFile[]) =>
+      files.map(({ path, status, added, removed }) => [path, status, added, removed])
+    const read = await Promise.all(
+      cuts.map(async (layers) => ({
+        listed: await readers.range(repo.root, layers),
+        runs: await rangeOf(readers, repo, layers),
+      })),
+    )
+    for (const { listed, runs } of read) {
+      if (!listed.ok) throw new Error(listed.reason)
+      expect(facts(listed.range.files)).toEqual(facts(runs))
+      expect(listed.range.truncated).toBe(false)
+    }
+  })
+
   it("lists the layers of a merge with very many conflicts", async ({ repo }) => {
     branched(repo)
     const many = (text: string) =>
@@ -1450,6 +1478,24 @@ describe.skipIf(!hasGit)("a compare of two refs", () => {
     const own = await layersOf(readers, repo.root)
     expect(own.change.head).toBeUndefined()
     expect(own.change.layers.map(({ kind }) => kind)).toEqual(["uncommitted"])
+  })
+
+  it("lists a range of its layers, not the checkout's own", async ({ repo }) => {
+    const { f1, f2 } = forked(repo)
+    const compare = { base: "main", head: "feature" }
+    const readers = reader()
+
+    const whole = await readers.range(repo.root, [f2, f1], compare)
+    const newest = await readers.range(repo.root, [f2], compare)
+
+    expect(whole).toMatchObject({
+      ok: true,
+      range: { files: [{ path: "f.txt", status: "added" }], truncated: false },
+    })
+    expect(newest).toMatchObject({
+      ok: true,
+      range: { files: [{ path: "f.txt", status: "modified", added: 1 }] },
+    })
   })
 
   it("keeps what it last listed apart from the checkout's own change", async ({ repo }) => {

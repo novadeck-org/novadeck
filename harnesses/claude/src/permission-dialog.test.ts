@@ -1534,6 +1534,22 @@ describe("Claude Code's dialog for a command taller than the screen", () => {
     ).toBeUndefined()
   })
 
+  it("reads it under its options' count of the rows scrolled away, and no other row there", () => {
+    const drawn = rows("120x40")
+    const count = drawn.findIndex((row) => row.includes("more lines"))
+    expect(drawn[count]).toMatch(/↑ \d+ more lines/)
+    // Without the count, as 2.1.327 and earlier drew it.
+    expect(dialogs.read(drawn.toSpliced(count, 1), facts(command))).toBeDefined()
+    for (const row of [" ↓ 145 more lines", " ↑ many more lines", " Press q to quit"]) {
+      expect(dialogs.read(drawn.with(count, row), facts(command)), row).toBeUndefined()
+    }
+    // Only under the options, before the footer.
+    const footer = drawn.findIndex((row) => row.includes("Esc to cancel"))
+    expect(footer).toBe(count + 1)
+    const swapped = [...drawn.slice(0, count), drawn[footer]!, drawn[count]!]
+    expect(dialogs.read(swapped, facts(command))).toBeUndefined()
+  })
+
   it("reads no end that isn't the request's, nor rows that aren't its quote", () => {
     expect(dialogs.read(rows("120x40"), facts(`${command}\ntouch more`))).toBeUndefined()
     const drawn = rows("120x40")

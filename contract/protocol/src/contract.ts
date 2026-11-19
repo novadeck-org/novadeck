@@ -27,6 +27,7 @@ import {
 } from "./agents.js"
 import {
   changeFileDiff,
+  changeRange,
   companionChange,
   companionLimits,
   companionItem,
@@ -714,6 +715,18 @@ export const contract = {
         }),
       )
       .output(changeFileDiff),
+    // The files a selection of a changes item's layers changed as one range (see
+    // `changeRange`), with the range's own counts: what the pane lists for a range of two or more
+    // layers (a Shift+click), instead of its layers' files added up. An unknown item, or one that
+    // is no change, is NOT_FOUND.
+    changeRange: procedure
+      .input(
+        z.strictObject({
+          itemId: id,
+          layers: z.array(z.string().min(1).max(128)).min(1).max(maxChangeLayers),
+        }),
+      )
+      .output(changeRange),
     // The person read a file of a changes item, by the name its content lists it under: the
     // item's content names it in `read` until the file changes again. Kept across restarts
     // with the Worktrees panel's memory. A file the change as a whole does not list is not

@@ -81,7 +81,7 @@
       "test": "src/companions/companions.spec.tsx > Undocking an item into a window of its own > when dragged onto the Grid's free space > opens a window there",
       "signature": "(AssertionError|VitestBrowserElementError)",
       "status": "known",
-      "cause": "Unresolved (FLAKY_RAPORT_POST_FIX.md P2): the 12-move drag reordered the taskbar instead of undocking. Failure-only diagnostics now record the gesture. It passed in every failed or cancelled Windows and macOS Test job of the 79 Quality runs after #184, to 2026-10-17.",
+      "cause": "Unresolved (#184's flake report, P2): the 12-move drag reordered the taskbar instead of undocking. Failure-only diagnostics now record the gesture. It passed in every failed or cancelled Windows and macOS Test job of the 79 Quality runs after #184, to 2026-10-17.",
       "seen": [
         "#184 run 38808698594 attempt 3 job 116697521292 (Windows)",
         "2676eabb job 116832231400 (macOS)"
@@ -93,7 +93,7 @@
       "test": "src/e2e/controls.e2e.ts > Codex, its folder untrusted > never rings an agent at its folder-trust question",
       "signature": "Timed out after \\d+ ms",
       "status": "fixed",
-      "cause": "FLAKY_RAPORT_POST_FIX.md P1: an unknown trust lookup was cached and never retried. #184 retries it and ends the helper's process tree. It passed in every Codex (Windows) job of the 49 E2E runs after #184, to 2026-10-17.",
+      "cause": "#184's flake report, P1: an unknown trust lookup was cached and never retried. #184 retries it and ends the helper's process tree. It passed in every Codex (Windows) job of the 49 E2E runs after #184, to 2026-10-17.",
       "seen": ["#184 run 38808698573 attempt 1 job 116676274507"]
     },
     {
@@ -102,7 +102,7 @@
       "test": "src/e2e/lifecycle.mixed.e2e.ts > Claude Code, Codex, Antigravity > makes Antigravity's messages gone when Claude Code starts in its terminal",
       "signature": "Timed out after \\d+ ms",
       "status": "fixed",
-      "cause": "FLAKY_RAPORT_POST_FIX.md P3: a reused Windows PID kept a stale binding. #184 tells a reused PID by its process start. No Mixed (Windows) job failed in the 49 E2E runs after #184, to 2026-10-17.",
+      "cause": "#184's flake report, P3: a reused Windows PID kept a stale binding. #184 tells a reused PID by its process start. No Mixed (Windows) job failed in the 49 E2E runs after #184, to 2026-10-17.",
       "seen": ["#184 run 38808698573 attempt 13 job 116775134648"]
     },
     {

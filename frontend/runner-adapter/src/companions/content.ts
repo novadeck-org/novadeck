@@ -131,6 +131,7 @@ export const createRunnerCompanions = (
     Runner["companions"],
     | "content"
     | "changeFile"
+    | "changeRange"
     | "changeRead"
     | "openInProject"
     | "save"
@@ -191,6 +192,7 @@ export const createRunnerCompanions = (
     }
   },
   changeFile: (_target, itemId, path, layers) => runner.changeFile({ itemId, path, layers }),
+  changeRange: (_target, itemId, layers) => runner.changeRange({ itemId, layers }),
   changeRead: (_target, itemId, path) => runner.changeRead({ itemId, path }),
   part: async (_target, itemId, { stamp, offset, reveal, file, path }) => {
     const part = await runner.part({

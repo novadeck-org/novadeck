@@ -267,9 +267,12 @@ describe("a nudge", () => {
     }
     expect(companionNotice).toMatch(/^Novadeck: automatic notice, not from the user: /)
     expect(companionNotice).not.toContain("\n")
+    expect(companionNotice).not.toContain("report")
+    for (const kind of ["an image or screenshot", "a mockup or diagram", "a rendered document"])
+      expect(companionNotice).toContain(kind)
     for (const word of [
       "show tool",
-      "deliverable",
+      "deliverable, a file or page the task itself calls for that your reply can't carry",
       "not each file you touch",
       "a page you serve or just deployed",
       "a link to someone else's site",
@@ -281,18 +284,18 @@ describe("a nudge", () => {
     expect(inboxNotice).toMatch(/^Novadeck: automatic notice, not from the user: /)
     expect(inboxNotice).not.toContain("\n")
     for (const words of [
-      "the user rarely watches this terminal",
-      "When your harness has its own question tool and you'd stop to ask with it, do, as you normally would",
-      "Novadeck shows that question in their Inbox as it is, so it needs no ask",
-      "Always put every other question you end your turn waiting on",
+      "Novadeck's Inbox shows the user a copy of your questions and reports when they're away from this terminal",
+      "Always put every question your turn ends waiting on, whether or not they're here, such as which option to take",
       "in their Inbox with Novadeck's ask tool, unless it is already an open ask",
       "a closing offer such as 'anything else?' isn't one",
       "nor is an action your harness is already prompting them for",
+      "nor a question you ask with your harness's own question tool, as you normally would",
+      "Novadeck shows that one in their Inbox as it is",
       "With a lead, use ask, tell and done all the same, and send your lead your report and your questions too",
       "approvals of actions are still only the user's",
-      "Whatever you put in the Inbox is an extra copy for when they're elsewhere",
+      "Whatever you put in the Inbox is an extra copy, never the thing itself",
       "never mentions the Inbox or what you put there",
-      "that is an ask with the action shape, not just words in your reply",
+      "is an ask with the action shape",
       "never ask for a secret value",
       "report it with Novadeck's done tool, your own short report",
       "not when you answer a question or finish a step",
@@ -301,6 +304,18 @@ describe("a nudge", () => {
       "If they answer one here and no such notice came, withdraw it yourself",
     ])
       expect(inboxNotice).toContain(words)
+    // What the Inbox is for, never when to stop, what to decide alone or what to ship.
+    for (const words of [
+      "rarely watch",
+      "aren't blocking",
+      "keep going",
+      "keep working",
+      "Stop only",
+      "without stopping your work",
+      "go ahead with it",
+      "pull request",
+    ])
+      expect(inboxNotice).not.toContain(words)
     for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])
       expect(inboxNotice).not.toContain(native)
   })

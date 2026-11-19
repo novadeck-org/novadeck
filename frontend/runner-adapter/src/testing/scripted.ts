@@ -301,6 +301,7 @@ export const scripted = ({
         return content(...input)
       },
       changeFile: note("change file", (input) => respond("change file", input)),
+      changeRange: note("change range", (input) => respond("change range", input)),
       changeRead: note("change read", (input) => respond("change read", input)),
       attach: note("attach", (input) => respond("attach", input)),
       folders: note("folders", (input) => respond("folders", input)),

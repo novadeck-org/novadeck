@@ -258,11 +258,14 @@ the terminal (inside its window; in a window 864px wide or less, as every Canvas
 Nothing opens on its own unless the user asked for it; everything else waits in the
 taskbar, marked new.
 
-What belongs there is a deliverable: something made to be looked at (an image or
-screenshot, a rendered page or dev server, a report, mockup, diagram or generated
-document, the one file the user asked for, or whatever they ask to see), shown once it
-is done, with `open` so it opens at once; without `open` for anything supporting, which
-waits marked new. A page is one the agent serves or just deployed, such as a dev server
+What belongs there is a deliverable: a file or page the task itself calls for that the
+agent's reply can't carry, made to be looked at (an image or screenshot, a rendered page or dev server, a mockup or diagram, a
+rendered document such as a PDF, the one file the user asked for, or whatever they ask to see), shown
+once it is done, with `open` so it opens at once; without `open` for anything supporting, which
+waits marked new. It is defined by what the task calls for and the reply can't carry, not by kinds of
+document: when the list named "a report" or "a generated document", agents wrote answers
+that belonged in their reply to a file just to show them, and with "the task calls for"
+alone, a task asking for a write-up still read as asking for a file. A page is one the agent serves or just deployed, such as a dev server
 or a preview: a link to someone else's site often wants a sign-in in the pane and helps
 little there, so it goes in the agent's reply unless the user asks to see it in the pane. A source file counts while it is the one
 the user and the agent work on together; the files a change touches on the way do not,
@@ -272,8 +275,8 @@ and the runner's prompt-time hook adds Novadeck's companion notice, one paragrap
 the first turn the person's prompt or the doorbell begins in each root session, and after a compaction
 (`companionNotice` in `terminals/nudges.ts`; it rides with the summary nudge but a
 `describe` never clears it; see [Agent messaging](agent-messaging.md), "Nudges"), with
-the Inbox notice beside it (`inboxNotice`): the person rarely watches the terminal, so
-a question the agent's turn ends waiting on goes to the Inbox: through the harness's own
+the Inbox notice beside it (`inboxNotice`): the Inbox shows the person a copy when
+they're away from the terminal, so a question the agent's turn ends waiting on goes there: through the harness's own
 question tool where the agent would use one, which the Inbox shows as it is, else with
 `ask`. A
 worker another agent runs by briefs alone hears them at the person's first prompt there,
@@ -302,6 +305,7 @@ port's optional `companions` capability (`frontend/core/src/items.ts`):
 | `openInProject?(target, path, windowId)`    | A file the person opened from Files, in the project window; absent where it can't be                         |
 | `repoint?(target, itemId, path)`            | A file's item shown another file of its kind, as stepping through a folder does; absent where it can't be    |
 | `changeFile?(target, itemId, path, layers)` | One file of a change for the layers selected: its diff and both sides' text; absent where it can't be        |
+| `changeRange?(target, itemId, layers)`      | The files the layers selected changed as one range, with the range's own counts; absent where it can't be    |
 | `changeRead?(target, itemId, path)`         | The person read a file of a change: the content's `read` names it until it changes; absent where it can't be |
 | `folders?(target, terminalId, path)`        | The folders a typed path may be, for a folder view's path field; absent where it can't be                    |
 | `wroteTo?(target, terminalId)`              | The folders outside the project agents wrote in, with who, which harness and when; absent where it can't be  |
@@ -362,13 +366,16 @@ A change (the `changes` item kind) is read-only and has two views, in `frontend/
 on the pane's own ground (`--pane-bg`). The **list view** is where it opens: a row for the work
 not committed yet ("Uncommitted") and one for each commit since the merge base with main, newest
 first (short hash, subject, time, `+N −N`), then a "Files" tree, as the Files panel draws its
-own, of what the selected rows changed together (their counts added up, names coloured by how the
-file changed, folders with guides), and a hint line saying what a click does. All rows are
+own, of what the selected rows changed together (for one row its own counts, for a range or all of
+them the range's own as git lists it, names coloured by how the file changed, folders with guides), and a hint line saying what a click does. All rows are
 selected to start; the selection is a 2px `--color-strong` rail on a row's left edge, joined across
 selected neighbours, growing and shrinking by scale and opacity and sliding its ends over
 `--motion-state` (none under reduced motion). A click on a row keeps only that row, a click on
-another row keeps only that one instead, and clicking the row kept alone is all again: a selection
-is all the rows or one (`selection.ts`). A file the person opened is gray in the tree, in
+another row keeps only that one instead, and clicking the row kept alone is all again. A
+Shift+click (or Shift+Enter) takes every row from the row clicked last (the anchor) to it, either
+way, and another moves the range's end from the same anchor; with no row kept it is a click, and a
+range of every row is all again, so later commits show too. A selection is all the rows, one, or
+one unbroken range (`selection.ts`), whose files `changeRange` lists. A file the person opened is gray in the tree, in
 any selection, until the file changes again: the runner keeps it read (`changeRead`, in the
 content's `read`), across restarts, and the pane grays it at once until the content comes again. One click on a file unfolds what it changed under its row, one file
 at a time, as `.terminal-tab-branches` unfold a terminal tab's subagents (├ └ rows with the
@@ -617,7 +624,7 @@ with every safety check again at that time:
   linked worktree on a branch (worktrees of one repository share their folder's name),
   unless a title is given; showing it again updates it. Its detail counts the files the change
   as a whole differs from main by and their lines (the net, not its layers added up), and follows each read the pane triggers. The content
-  (`companions.content`) is each layer's files with their counts, and the whole change's own list of files (the net), not their diffs; for every layer selected the pane reads that list, and for one layer that layer's own files: it is read
+  (`companions.content`) is each layer's files with their counts, and the whole change's own list of files (the net), not their diffs; for every layer selected the pane reads that list, and for one layer that layer's own files, and for a range of two or more `companions.changeRange`'s list (the layers' files added up until it answers, or where the backend can't): it is read
   with git at the start and again about every 2 seconds while followed, and sent only
   when it changed. One file's diff for a selection of layers is `companions.changeFile`: the
   selection is one range, diffed from the oldest layer's parent to the newest (the uncommitted
@@ -625,7 +632,10 @@ with every safety check again at that time:
   work as the range's end holds it merged in (in memory) where the parent lacks it, so the range
   shows its own work only; only a range that reaches the oldest layer starts at the merge base
   (for the newest layer's commit, where that commit left main), so the whole of it is
-  `git diff main...HEAD`.
+  `git diff main...HEAD`. `companions.changeRange` lists the files of a run of layers over the
+  same span, git's own listing for the range (a file added and dropped inside it is not there, a
+  rename is one row, the counts are the range's) up to the file bound, with `truncated` where more
+  exist; in a compare, of the compare's layers.
 
   A **compare** is a changes item of two refs an agent names, for a person who asks to see a
   branch's commits, a run of commits or two branches side by side: `show { changes: { base?,
@@ -795,8 +805,9 @@ with every safety check again at that time:
   name and the old one of a rename, tracked or not) carry no hunks and no text: they are
   listed by name with their counts, and `changeFile` never reads them. v1 has no way to
   reveal either. An untracked file that may hold secrets (a stray `.env`) is never read or
-  hashed into the snapshot, but the uncommitted layer, the change's own list of files and
-  `changeFile`'s run over a range that takes it in name it, `added` and `secret`, with no counts.
+  hashed into the snapshot, but the uncommitted layer, the change's own list of files,
+  `changeRange`'s list and `changeFile`'s run over a range that takes it in name it, `added` and
+  `secret`, with no counts.
 
   The runner finds `git` once on the PATH (absolute entries only) and runs it with a
   fixed argument list, no shell, in the repository, for at most 5 seconds, ending its

@@ -12,6 +12,7 @@ import {
   type ChangedFile,
   type ChangeFileDiff,
   type ChangeLayer,
+  type ChangeRange,
   type ItemContent,
 } from "@novadeck/protocol"
 
@@ -285,6 +286,7 @@ export type ReadLayers = {
 
 type Read = { readonly ok: true; readonly change: ReadLayers } | ChangeFailure
 type ReadFile = { readonly ok: true; readonly diff: ChangeFileDiff } | ChangeFailure
+type ReadRange = { readonly ok: true; readonly range: ChangeRange } | ChangeFailure
 type RunOfFile = Omit<NonNullable<ChangeFileDiff["run"]>, "layers">
 
 /** What a selection of layers spans: the commits or trees it runs between. */
@@ -360,6 +362,14 @@ export class LayerReader {
     compare?: Compare,
   ): Promise<ReadFile> {
     return this.exclusive(root, (checkout) => this.diff(root, path, selected, checkout, compare))
+  }
+
+  /**
+   * The files the layers selected changed as one range, with their lines as the range has them.
+   * With `compare`, of that compare's layers.
+   */
+  range(root: string, selected: readonly string[], compare?: Compare): Promise<ReadRange> {
+    return this.exclusive(root, (checkout) => this.listRange(root, selected, checkout, compare))
   }
 
   /**
@@ -691,6 +701,28 @@ export class LayerReader {
       // Where the snapshot is an end, its listing is not kept (a new tree each time).
       store: !working,
       named: working && taken ? named(taken) : [],
+    }
+  }
+
+  private async listRange(
+    root: string,
+    selected: readonly string[],
+    checkout: Checkout,
+    compare: Compare | undefined,
+  ): Promise<ReadRange> {
+    const span = await this.span(root, selected, checkout, compare)
+    if (span === undefined) return { ok: true, range: { files: [], truncated: false } }
+    if ("ok" in span) return span
+    const found = await listDiff(root, span.from, span.to, span.env, span.store)
+    if ("ok" in found) return found
+    const listed = [...found, ...span.named].toSorted(byPath)
+    const held = holder(root, this.environment())
+    return {
+      ok: true,
+      range: {
+        files: listed.slice(0, maxChangedFiles).map((entry) => fileOf(entry, held)),
+        truncated: listed.length > maxChangedFiles,
+      },
     }
   }
 

@@ -815,23 +815,26 @@ again with its harness's own resume command, on whatever model that restores.
 
 ## Inbox asks and updates
 
-`ask({ subject, body, details?, hard_to_undo?, shape? })` puts a question in the person's
-Inbox and returns its id immediately. The person rarely watches an agent's terminal, so
-a question only in the reply goes unseen. A question the agent would stop to ask with its
+`ask({ subject, body, details?, hard_to_undo?, shape? })` puts a copy of a question the
+agent asks in the person's Inbox, where they see it when they're away from the terminal,
+and returns its id immediately. A question the agent would stop to ask with its
 harness's own question tool (Claude Code's AskUserQuestion, Codex's request_user_input in
 Plan mode or request_user_input_async, Antigravity's ask_question) it still asks there, as it normally would: the Inbox
 shows that request as it is, so it needs no `ask`, and the wording never names a tool, as
 it is the same in every harness. Every other question it ends its turn waiting on (which
-option? open a pull request?) it always asks with `ask`, and in full in its reply, unless
+option?) it always asks with `ask`, and in full in its reply, unless
 it is already an open ask; a closing offer such as "anything else?" isn't one, nor is an
 action the harness is already prompting for. A worker asks the same way, and sends its lead
 the question too. Whatever the agent puts in the Inbox (an ask, a `tell`, a `done`) is an
 extra copy for when the person is elsewhere: its reply says it all as fully as it would
 without Novadeck, and never mentions the Inbox or what it put there, as someone reading the
 reply is already looking at it. `ask`, `tell` and `done` say so, as do their answers, the
-server's instructions and the prompt-time notice. Mid-work, the agent keeps
-working on what doesn't depend on the answer, and ends its turn once nothing else is
-left, until the answer arrives.
+server's instructions and the prompt-time notice. They say what the Inbox is for and
+nothing of how the agent works: whether it asks, waits for the answer or goes on, and what
+it ships, are its harness's and the person's setup, as without Novadeck. Texts that said
+"most decisions aren't blocking" and "the person rarely watches" made agents build with
+their own pick and then raise a decision they'd otherwise have settled, and examples
+naming pull requests drew agents toward them.
 `shape` defaults to `{ type: "text" }`. It can instead offer one to three options (`label`, optional `summary`, Markdown `details` and `code: { path, text }`),
 with `recommend` a zero-based index or null; or an action (`command`, optional `directory`,
 `done_label`). Action commands are shown for the person to run, never executed by

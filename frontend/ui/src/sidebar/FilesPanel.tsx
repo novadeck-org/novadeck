@@ -26,6 +26,7 @@ import {
   marksOf,
   visibleLines,
   type Chips as ChipSet,
+  type FilesNote,
   type Listings,
   type FilesRow,
 } from "./files-tree"
@@ -35,6 +36,7 @@ import { FilesStrip } from "./FilesStrip"
 import { NoteRow, TreeRow, type Pointed } from "./FilesTreeRows"
 import { panelLabels } from "./panel-labels"
 import { SidebarPanel } from "./SidebarPanel"
+import { useFilterMotion } from "./useFilterMotion"
 import { useFolderReader } from "./useFolderReader"
 import { usePulses } from "./usePulses"
 import { useTreeMeasure } from "./useTreeMeasure"
@@ -45,6 +47,10 @@ const noListings: Listings = new Map()
 
 const parentOf = (path: string): string => path.slice(0, Math.max(0, path.lastIndexOf("/")))
 
+// A line's key among the slots, and its slot's data-line.
+const lineKey = (line: FilesRow | FilesNote): string =>
+  isNote(line) ? `${line.path}\0${line.note}` : line.node.path
+
 // The project's files, a folder read when the person opens it, and read again when the panel is
 // shown again or an agent's turn ends. Every line is one fixed height, so the tree draws only the
 // rows in view (and a few past each edge) in a box as tall as the whole tree: a long tree open
@@ -54,6 +60,7 @@ const parentOf = (path: string): string => path.slice(0, Math.max(0, path.lastIn
 // demo), every live agent's work is in them: who owns each file, what they did and which one they
 // are writing now. Keeping agents' chips in the strip leaves only their work in the tree: the files
 // they touched or are writing and the folders those are in; with nothing kept every file shows.
+// Keeping or letting go moves the rows on screen: those that stay slide, the rest fade.
 // Lighting an agent otherwise, by selecting its terminal or pointing at a chip, only dims the rest.
 const FilesPanelView = ({
   project,
@@ -170,6 +177,7 @@ const FilesPanelView = ({
   // The strip's chip under the pointer: its agent, or a lead's whole squad.
   const [stripHover, setStripHover] = useState<string | undefined>()
   const [treeNode, setTreeNode] = useState<HTMLDivElement | null>(null)
+  const [rowsNode, setRowsNode] = useState<HTMLDivElement | null>(null)
   const [drawnKey, setDrawnKey] = useState(0)
   const { width: treeWidth, height: treeHeight, fonts } = useTreeMeasure(treeNode, drawnKey)
   const scroll = useTreeScroll(treeNode)
@@ -253,6 +261,8 @@ const FilesPanelView = ({
     [lines],
   )
   const places = useMemo(() => placesOf(lines.map((line) => line.depth)), [lines])
+  const keyOf = useMemo(() => new Map(lines.map((line, index) => [lineKey(line), index])), [lines])
+  const filter = useMemo(() => [...stillKept].toSorted().join(" "), [stillKept])
   // The lines drawn: those in view, and the Tab stop's row where it is not, so it holds focus and
   // the tree stays one Tab stop (a view with no height draws nothing, the stop included).
   const stopLine = treeHeight !== undefined && tabStop !== null ? lineOf.get(tabStop) : undefined
@@ -306,7 +316,7 @@ const FilesPanelView = ({
   // and gets focus once it is.
   const focusWanted = useRef<string | null>(null)
   const focusDrawn = (path: string): boolean => {
-    const element = treeNode?.querySelector<HTMLElement>(`[data-path="${CSS.escape(path)}"]`)
+    const element = rowsNode?.querySelector<HTMLElement>(`[data-path="${CSS.escape(path)}"]`)
     element?.focus()
     return element !== undefined && element !== null
   }
@@ -379,6 +389,14 @@ const FilesPanelView = ({
     })()
     if (handled) event.preventDefault()
   }
+  // Keeping an agent, or letting go, slides the rows that stay and fades the rest.
+  const ghosts = useFilterMotion({
+    tree: treeNode,
+    rows: rowsNode,
+    filter,
+    lineOf: keyOf,
+    viewport: treeHeight,
+  })
   return (
     <SidebarPanel
       id="files-panel"
@@ -441,14 +459,21 @@ const FilesPanelView = ({
           onKeyDown={onKeyDown}
           onPointerLeave={() => setHovered(undefined)}
         >
-          <div role="none" className="files-rows" style={{ height: lines.length * rowHeight }}>
+          <div
+            ref={setRowsNode}
+            role="none"
+            className="files-rows"
+            style={{ height: lines.length * rowHeight }}
+          >
             {drawn.map((index) => {
               const line = lines[index]!
               const place = places[index]!
+              const key = lineKey(line)
               return (
                 <div
                   role="none"
-                  key={isNote(line) ? `${line.path}\0${line.note}` : line.node.path}
+                  key={key}
+                  data-line={key}
                   className="files-slot"
                   style={{ top: index * rowHeight }}
                 >
@@ -475,6 +500,7 @@ const FilesPanelView = ({
               )
             })}
           </div>
+          <div ref={ghosts} role="none" className="files-ghosts" aria-hidden="true" inert />
         </div>
       )}
     </SidebarPanel>

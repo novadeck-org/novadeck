@@ -314,9 +314,9 @@ export const withdrawnNotice = (subjects: readonly string[]): string => {
     `so Novadeck took your open ${one ? "ask" : "asks"} out of their Inbox: ` +
     `${firstFew(named, noticedSubjects)}. ` +
     `${one ? "It is" : "They are"} closed and can no longer be answered in the Inbox. ` +
-    `Read their message as their reply to ${one ? "it" : "them"}; whatever it leaves open, ` +
-    "ask again with the ask tool before ending the turn, rather than saying it waits in the " +
-    "Inbox. This notice needs no reply."
+    `What ${one ? "it" : "they"} asked that their message leaves open and your turn ends ` +
+    "waiting on, ask again as before: in your reply, with an ask as its copy, never " +
+    "mentioning the Inbox. This notice needs no reply."
   )
 }
 
@@ -337,17 +337,15 @@ export const dismissedNotice = (
   const acts = asks.filter((each) => each.action === "action").length
   if (acts === asks.length)
     return (
-      `${head}your ${one ? "ask" : "asks"} ${list} from their Inbox. ` +
-      `They won't do ${one ? "it" : "them"} for now: go on without ${one ? "it" : "them"}, ` +
-      `or stop at that step and say so.${tail}`
+      `${head}your ${one ? "ask" : "asks"} ${list} from their Inbox without doing ` +
+      `${one ? "it" : "them"}.${tail}`
     )
   const options = asks.some((each) => each.action === "options")
   return (
     `${head}your ${one ? "ask" : "asks"} ${list} from their Inbox without answering ` +
-    `${one ? "it" : "them"}. Don't read that as an answer` +
+    `${one ? "it" : "them"}. That is no answer` +
     (options ? `: they chose none of ${one ? "its" : "their"} options` : "") +
-    `. Take it that they don't need ${one ? "it" : "them"} now, and don't ask ` +
-    `${one ? "it" : "them"} again unless ${one ? "it matters" : "they matter"} again.${tail}`
+    `.${tail}`
   )
 }
 

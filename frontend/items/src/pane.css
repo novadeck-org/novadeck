@@ -6,8 +6,9 @@
    body: the outline (`.spine`) beside the document, with the notice for what keeps an
    item from saving or reading whole under the row (`.pane-notice`: a line of words in a
    tone, its one action or two in `.pane-notice-actions`). The row holds the stack's tabs
-   (`.pane-tabs`, each a `.pane-tab` holding its button `.pane-tab-open`, its name in
-   `.pane-tab-name`, and its close `.pane-tab-close`, an `.icon-button`), or, for one item
+   (`.pane-tabs`, each a `.pane-tab` holding its button `.pane-tab-open`, its words in
+   `.pane-tab-label` (its name in `.pane-tab-name`), and its close `.pane-tab-close`, an
+   `.icon-button`), or, for one item
    alone (`data-lone` on the tabs), its title in the same place: no box, close, hover or mark.
    An item moved here from another terminal names that terminal after its name
    (`.pane-tab-origin`). The details of an item (its path, lines, size, version, who showed it
@@ -321,6 +322,8 @@
 /* The row on top of what the pane shows: the tabs of a stack, or one item's title, and at its
    end the viewer's tools and the window's buttons. On the pane's ground, whatever it shows. */
 .pane-row {
+  /* How far the tabs fade before the tools (`.pane-end::before`). */
+  --_pane-fade: 28px;
   display: flex;
   flex: none;
   min-width: 0;
@@ -335,6 +338,12 @@
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
+}
+/* Tabs running past the row (`data-overflowing`, which the pane sets): room past the last one
+   for the tools' fade, so it scrolls clear of it, as the shown tab is kept clear of it as it's
+   scrolled into view. While they fit there's no fade, and no room that would scroll. */
+.pane-tabs[data-overflowing] {
+  padding-inline-end: var(--_pane-fade);
 }
 .pane-tab {
   --_fg: var(--pane-tab-fg, var(--color-muted));
@@ -397,6 +406,15 @@
 .pane-tab-open svg {
   flex-shrink: 0;
 }
+/* The name and where it came from, as tall as the row, so a mark can sit under them. */
+.pane-tab-label {
+  position: relative;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  gap: 7px;
+  min-width: 0;
+}
 .pane-tab-name {
   min-width: 0;
   overflow: hidden;
@@ -417,21 +435,21 @@
   outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
   outline-offset: calc(var(--focus-ring-width) * -1);
 }
-/* The marks are the taskbar's (taskbar.css `.taskbar-item::after`): one bar per tab, on its
-   button's `::after`, so picking a tab moves and resizes it over 180ms as the taskbar's does. A
-   14px bar under a tab open behind the shown one, centred under its name; a 4px dot under one
-   with something new; and, under the shown one, a 32px bar centred under the whole tab, which
-   is the button and its close (22px and 6px beside it): half of that beyond the button's
-   middle. Each sits 5px (the dot 4px) above the row's line, and a tab that failed has its mark
-   red. */
+/* The marks are the taskbar's (taskbar.css `.taskbar-item::after`): one bar per tab, centred
+   under its words (`.pane-tab-label::after`), not its icon or close: a 14px bar under a tab
+   open behind the shown one, a 4px dot under one with something new, and a 32px bar under the
+   shown one. Each sits 5px (the dot 4px) above the row's line, and a tab that failed has its
+   mark red. The row is drawn anew for each tab shown, so a pick marks the tab it left
+   (`data-mark="left"`) and the one it shows (`data-mark="picked"`), and each mark eases from
+   its old size to its new one over 180ms, as the taskbar's does; the marks go once eased, so
+   a terminal shown again after it was parked doesn't play them again. */
 .pane-tabs:not([data-lone]) .pane-tab {
   --_mark-bg: var(--taskbar-mark-active-bg, var(--color-ink));
-  --_close-slot: 28px;
 }
 .pane-tabs:not([data-lone]) .pane-tab[data-failed] {
   --_mark-bg: var(--pane-tab-failed-fg, var(--color-danger-fg));
 }
-.pane-tabs:not([data-lone]) .pane-tab-open::after {
+.pane-tabs:not([data-lone]) .pane-tab-label::after {
   position: absolute;
   bottom: 5px;
   left: 50%;
@@ -443,18 +461,24 @@
   transform: translateX(-50%);
   transition:
     width 180ms,
-    background-color 180ms,
-    transform 180ms;
+    background-color 180ms;
 }
-.pane-tabs:not([data-lone]) .pane-tab[data-state="new"] .pane-tab-open::after {
+.pane-tabs:not([data-lone]) .pane-tab[data-state="new"] .pane-tab-label::after {
   bottom: 4px;
   width: 4px;
   height: 4px;
   border-radius: 50%;
 }
-.pane-tabs:not([data-lone]) .pane-tab[data-state="open"] .pane-tab-open::after {
+.pane-tabs:not([data-lone]) .pane-tab[data-state="open"] .pane-tab-label::after {
   width: 32px;
-  transform: translateX(calc(-50% + var(--_close-slot) / 2));
+}
+@starting-style {
+  .pane-tabs:not([data-lone]) .pane-tab[data-mark="picked"] .pane-tab-label::after {
+    width: 14px;
+  }
+  .pane-tabs:not([data-lone]) .pane-tab[data-mark="left"] .pane-tab-label::after {
+    width: 32px;
+  }
 }
 /* Its close, the pointer's, shows on the tab shown, and on any under the pointer or
    holding focus. */
@@ -481,12 +505,24 @@
 /* The row's end: the viewer's tools over a hairline from the window's buttons, held there as
    the tabs scroll. */
 .pane-end {
+  position: relative;
   display: flex;
   flex: none;
   align-items: center;
   gap: 2px;
   padding: 0 6px 0 4px;
   background-color: var(--pane-bg, var(--color-paper));
+}
+/* Tabs that run under the tools fade into their ground, rather than being cut off. */
+.pane-row:has(> .pane-tabs[data-overflowing]) > .pane-end::before {
+  position: absolute;
+  top: 0;
+  right: 100%;
+  bottom: 0;
+  width: var(--_pane-fade);
+  background: linear-gradient(to left, var(--pane-bg, var(--color-paper)), transparent);
+  content: "";
+  pointer-events: none;
 }
 .pane-tools,
 .pane-tools-inline {
