@@ -1403,13 +1403,15 @@ describe("answering a dialog held out of view", () => {
   })
 
   it("fails with only the scroll pressed, locking nothing, where the dialog never comes into view", async () => {
-    const { tui, answers, read, locks } = held({ held: "stuck" })
+    const { tui, answers, read, locks, calls } = held({ held: "stuck" })
     const id = identifiedRead(read()!)!.id
     expect(
       await fails(answers.answer("t", "r1", { dialog: id, type: "choice", option: "1" })),
     ).toBe("CONFLICT")
     expect(tui.written).toEqual(["R"])
     expect(locks).toEqual([])
+    // What the person typed meanwhile was meant for a dialog not in view: dropped, not flushed.
+    expect(calls).toContain("discard")
   })
 
   it("is no read where another request waits too, pressing nothing", async () => {

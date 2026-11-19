@@ -123,6 +123,8 @@ describe("a terminal drawn by a backend's mount", () => {
         onScreen: true,
         selected: true,
         visible: true,
+        // A running terminal in Focus is the one displayed: in sight.
+        seen: true,
       })
       change({ view: "grid" })
       change({ renderWindow: inFirst })
@@ -134,6 +136,8 @@ describe("a terminal drawn by a backend's mount", () => {
         onScreen: true,
         selected: true,
         visible: true,
+        // Without an observer a tile counts as in sight.
+        seen: true,
       })
     })
 
@@ -490,13 +494,6 @@ describe("a sleeping agent's terminal", () => {
     )
   })
 
-  it("watches nothing for a terminal that runs", () => {
-    sees()
-    const { created } = show({ view: "grid" })
-    expect(FakeObserver.all).toHaveLength(0)
-    expect(created[0]!.props).not.toHaveProperty("seen")
-  })
-
   it("stands a bare z in its screen and says nothing of starting", () => {
     const { container } = show({ terminal: sleeper() })
     expect(container.querySelector(".wake-screen")?.textContent).toBe("z")
@@ -514,5 +511,50 @@ describe("a sleeping agent's terminal", () => {
       terminal: { ...terminalFixture(1, "~"), state: "starting", restoredProcess: "codex" },
     })
     expect(container.querySelector(".wake-screen")?.textContent).toBe("waking codex… █")
+  })
+})
+
+describe("a running terminal the person is looking at", () => {
+  const sees = () => {
+    vi.stubGlobal("IntersectionObserver", FakeObserver)
+    FakeObserver.all = []
+  }
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it("is seen in Focus while it is the one displayed, and not once off screen", () => {
+    const { created, mounts, change } = show({ view: "focus" })
+    expect(created[0]!.props).toMatchObject({ status: "running", seen: true })
+    change({ onScreen: false })
+    expect(mounts[0]!.update).toHaveBeenLastCalledWith(expect.not.objectContaining({ seen: true }))
+  })
+
+  it("is not seen in Focus behind its chat, which is what the person reads", () => {
+    const { created } = show({ view: "focus", covered: true })
+    expect(created[0]!.props).not.toHaveProperty("seen")
+  })
+
+  it("is seen in Grid only while a quarter of its tile is in sight, and not behind its chat", () => {
+    sees()
+    const { created, mounts, change } = show({ view: "grid" })
+    expect(created[0]!.props).not.toHaveProperty("seen")
+    act(() => FakeObserver.all[0]!.see(0.3))
+    expect(mounts[0]!.update).toHaveBeenLastCalledWith(expect.objectContaining({ seen: true }))
+    change({ covered: true })
+    expect(mounts[0]!.update).toHaveBeenLastCalledWith(expect.not.objectContaining({ seen: true }))
+    change({ covered: false })
+    act(() => FakeObserver.all[0]!.see(0))
+    expect(mounts[0]!.update).toHaveBeenLastCalledWith(expect.not.objectContaining({ seen: true }))
+  })
+
+  it("is not seen in Canvas zoomed out too far to read, though in sight", () => {
+    sees()
+    const { mounts, change } = show({ view: "canvas", legible: false })
+    act(() => FakeObserver.all[0]!.see(1))
+    expect(mounts[0]!.update).not.toHaveBeenCalledWith(expect.objectContaining({ seen: true }))
+    change({ legible: true })
+    expect(mounts[0]!.update).toHaveBeenLastCalledWith(expect.objectContaining({ seen: true }))
   })
 })

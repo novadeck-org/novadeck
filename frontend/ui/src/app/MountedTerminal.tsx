@@ -116,15 +116,22 @@ export const MountedTerminal = ({
   const [mount, setMount] = useState<TerminalMount | null>(null)
   const name = terminal.name
   const status = terminal.state
-  // A sleeping agent wakes once it is seen: in Focus, the one displayed (a parked one is not),
+  // Whether the person is looking at it: in Focus, the one displayed (a parked one is not),
   // in Grid and Canvas, a tile a quarter of which is in sight and legible. Minimized or
-  // hidden does not count; unfocused but visible does. Only a sleeper asks, so a running
-  // terminal costs no observer.
+  // hidden does not count; unfocused but visible does, and so does a terminal whose chat
+  // stands over it only where it sleeps, as its wake never asked for more. A sleeping agent
+  // wakes once it is seen. The runner is told of every one seen (it moves nothing the person
+  // is looking at), so each terminal in Grid and Canvas has one observer, which tells only as
+  // the tile crosses a quarter in sight: a pan or zoom re-renders just the tiles that cross.
   const asleep = terminal.state === "sleeping"
   const shown = useShown()
   const pageVisible = usePageVisible()
-  const inSight = useInSight(element, asleep && view !== "focus")
-  const seen = asleep && pageVisible && onScreen && (view === "focus" ? shown : inSight && legible)
+  const inSight = useInSight(element, view !== "focus")
+  const seen =
+    pageVisible &&
+    onScreen &&
+    (view === "focus" ? shown : inSight && legible) &&
+    (asleep || !covered)
   const props = useMemo(
     () => ({
       name,

@@ -69,8 +69,9 @@ export type TerminalMountProps = {
   // created off screen takes none until it is on screen. Absent means on screen.
   readonly onScreen?: boolean
   // Whether the person is looking at it: really in sight and legible, in the view that shows
-  // it. A backend whose terminals can sleep wakes one it is told is seen for a moment; any
-  // other ignores it. Absent means not seen.
+  // it, for every terminal. A backend whose terminals can sleep wakes a sleeper it is told is
+  // seen for a moment, and one with a runner tells it which are seen, so it moves nothing
+  // there; any other ignores it. Absent means not seen.
   readonly seen?: boolean
   // Whether it is the selected terminal. Absent means selected.
   readonly selected?: boolean

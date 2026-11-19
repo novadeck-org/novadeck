@@ -33,8 +33,8 @@ export const seenIn = (
 export const viewportOf = (element: Element): Element | null =>
   element.closest("[data-workspace-viewport]")
 
-// Whether at least a quarter of `element` is really in sight. Used only while `enabled` (a
-// sleeping terminal's tile), so a running one costs no observer. Where the browser has no
+// Whether at least a quarter of `element` is really in sight. Observed only while `enabled`
+// (a tile in Grid or Canvas, not Focus's one displayed). Where the browser has no
 // observer it counts as in sight, as Canvas does for its nodes.
 export const useInSight = (element: Element | null, enabled: boolean): boolean => {
   const observable = typeof IntersectionObserver !== "undefined"

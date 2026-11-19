@@ -684,6 +684,8 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         // Seconds, not the setting's minutes, once a scenario turns stopping idle agents on
         // (`hibernated`); off until then, so no other scenario's agent is stopped mid-test.
         hibernation: { windowMs: 5_000, sweepMs: 1_000 },
+        // No window reports what it looks at here: a held dialog is scrolled in after a moment.
+        answers: { graceMs: 300 },
       },
     })
     // The runner carries on without its shell files; a test can't, as no agent would report.

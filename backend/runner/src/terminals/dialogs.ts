@@ -62,6 +62,8 @@ export type DialogsHost = {
   readonly clear: (terminalId: string, ref: string) => void
   /** Some request's dialog changed. */
   readonly changed: (terminalId: string) => void
+  /** Whether other work holds the terminal's input box (a prompt, a message, an answer). */
+  readonly busy: (terminalId: string) => boolean
   /**
    * Presses keys in the terminal's agent as the person's, through the bookkeeping their own
    * keys get; false once the terminal is gone.
@@ -97,6 +99,13 @@ export type DialogsOptions = {
    * (`DialogAdapter.reveal`) only for a terminal none has; without it, every terminal is unseen.
    */
   readonly seen?: SeenTerminals
+  /**
+   * How long a terminal must have gone unseen before a held dialog is scrolled into view, in
+   * milliseconds, from the runner's start, from the last time a client had it in sight, and
+   * from a connection's release: a window that reloads or reconnects reports what it looks
+   * at only after a moment.
+   */
+  readonly graceMs?: number
 }
 
 /**
@@ -271,6 +280,7 @@ export class Dialogs {
   private readonly diagnostics: DialogDiagnostics
   private readonly saves: DialogSaves
   private readonly seen: SeenTerminals | undefined
+  private readonly graceMs: number
 
   constructor(
     private readonly host: DialogsHost,
@@ -285,6 +295,7 @@ export class Dialogs {
     this.rawAgeMs = options.rawAgeMs ?? 2_000
     this.rawLatestMs = options.rawLatestMs ?? 6_000
     this.seen = options.seen
+    this.graceMs = options.graceMs ?? 5_000
     // A terminal turning seen ends its held dialog's spell; turning unseen is a look at it.
     this.seen?.subscribe((terminalId, seen) => {
       const state = this.states.get(terminalId)
@@ -567,7 +578,10 @@ export class Dialogs {
       if (entry?.locked || entry?.done) continue
       const read: DialogRead | undefined = adapter?.read(rows, request.facts)
       // A read from the facts alone names no dialog on screen: it counts for the only request.
-      const sole = read?.reveal === undefined || requests.length === 1
+      // Requests answered already are gone from the screen, as the answer driver counts them.
+      const sole =
+        read?.reveal === undefined ||
+        requests.every(({ ref }) => ref === request.ref || state.entries.get(ref)?.done === true)
       if (read && sole && identifiedRead(read)) reads.push({ request, read })
       else unread.push(request)
     }
@@ -648,36 +662,46 @@ export class Dialogs {
     }
     this.announce(terminalId, state)
     if (unread.length === 0 || recognised) state.revealed = undefined
-    else if (this.reveal(terminalId, state, found, unread[0]!))
-      wake = Math.max(wake, state.since + this.settleMs)
+    else {
+      const after = this.reveal(terminalId, state, found, unread[0]!)
+      if (after > 0) wake = Math.max(wake, this.now() + after - 10)
+    }
     if (waiting) wake = Math.max(wake, state.since + this.settleMs)
     if (wake > 0) this.later(terminalId, state, wake - this.now() + 10)
   }
 
   /**
-   * Brings a dialog its harness holds out of view into view, for an unseen terminal, once
-   * for each screen it is held on: the keys of the adapter's `reveal`, which answer nothing,
-   * pressed as the person's would be once the screen is still. True while it waits for that.
+   * Brings a dialog its harness holds out of view into view, for a terminal nobody has in
+   * sight, once for each screen it is held on: the keys of the adapter's `reveal`, which
+   * answer nothing, pressed as the person's would be once the screen is still, no other work
+   * holds the terminal's input, and the terminal has been unseen for the grace period (a
+   * window that reloads or reconnects says what it looks at only a moment later). Gives how
+   * long to wait before looking again, in milliseconds; 0 for no need to.
    */
   private reveal(
     terminalId: string,
     state: State,
     adapter: DialogAdapter | undefined,
     request: Waiting,
-  ): boolean {
+  ): number {
     const keys = adapter?.reveal ? attempt(state, () => adapter.reveal!(state.rows)) : undefined
     if (keys === undefined) {
       // No longer held out of view: the next spell may press again.
       state.revealed = undefined
-      return false
+      return 0
     }
-    if (this.seen?.has(terminalId) || state.revealed === state.text) return false
-    if (this.now() - state.since < this.settleMs) return true
+    if (this.seen?.has(terminalId) || state.revealed === state.text) return 0
+    const still = this.settleMs - (this.now() - state.since)
+    if (still > 0) return still
+    const unseen = this.seen ? this.graceMs - this.seen.unseenFor(terminalId) : 0
+    if (unseen > 0) return unseen
+    // A prompt, message or answer under way holds the input box: looked at again soon.
+    if (this.host.busy(terminalId)) return 250
     state.revealed = state.text
-    if (!this.host.press(terminalId, keys)) return false
+    if (!this.host.press(terminalId, keys)) return 0
     const subject = this.subject(terminalId, state, request.ref)
     if (subject) this.diagnostics.revealed(subject)
-    return false
+    return 0
   }
 
   /** Tells the manager when any request's dialog differs from what it last told. */

@@ -361,6 +361,9 @@ export class Answers {
     let words: string | undefined
     // Whether the dialog takes the whole answer as the agent's next prompt, pressing nothing.
     let byPrompt = false
+    // Whether keys went (or were about to) to bring a held dialog into view: what the person
+    // typed meanwhile was meant for a dialog not yet in view, and is dropped on failure.
+    let revealing = false
     try {
       await this.ringDone(terminalId)
       await this.turnSettled(terminalId)
@@ -402,11 +405,13 @@ export class Answers {
       // keys of the read that shows it, as the screen draws it now. Escape is not a scroll
       // key there: it acts on the dialog as it would in view, so it goes at once, and the
       // person's view stays where it is.
+      // (So Escape declines whatever dialog is held, as a Stop means for any pending one.)
       const escapes =
         answer.type === "aside" && !(answer.escape === "skips" && answer.text !== undefined)
       const held = read.reveal !== undefined && !escapes
       if (held) {
         if (answer.type === "aside") answer.guard()
+        revealing = true
         const shown = await this.reveal(terminalId, ref, adapter, self, found)
         rows = shown.rows
         read = shown.read
@@ -492,7 +497,8 @@ export class Answers {
           adapter,
           self,
           others,
-          found.rows,
+          // The screen the keys were pressed on: the one in view, not the held one.
+          rows,
           pressedAt,
         )
         rows = taken.rows
@@ -508,10 +514,11 @@ export class Answers {
       }
     } catch (error) {
       // What the person typed meanwhile is dropped: it was meant for a dialog gone by now.
-      if (error instanceof Failed && error.pressed) hold?.discard()
+      const pressed = error instanceof Failed ? error.pressed : revealing
+      if (pressed) hold?.discard()
       hold?.release()
       // The window's resizes go on at once where no key was pressed, else once they have.
-      if (error instanceof Failed && error.pressed && hold) this.settleLater(hold)
+      if (pressed && hold) this.settleLater(hold)
       else hold?.settle()
       if (!(error instanceof Failed)) throw error
       // Whatever the dialog was, nothing is pressed for the request again.

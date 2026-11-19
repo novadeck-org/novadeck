@@ -62,6 +62,7 @@ const terminal = (
       ask: () => {},
       clear: () => {},
       changed: () => {},
+      busy: () => false,
       press: () => true,
     },
     {

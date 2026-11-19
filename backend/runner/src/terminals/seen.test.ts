@@ -27,4 +27,17 @@ describe("the terminals in sight", () => {
     seen.release("two")
     expect(told).toEqual(["a:true", "b:true", "b:false", "a:false"])
   })
+
+  it("says how long a terminal went unseen: from the start, and from each time it left sight", () => {
+    let now = 1_000
+    const seen = new SeenTerminals(() => now)
+    now = 3_000
+    expect(seen.unseenFor("a")).toBe(2_000)
+    seen.report("one", ["a"])
+    now = 4_000
+    expect(seen.unseenFor("a")).toBe(0)
+    seen.release("one")
+    now = 4_500
+    expect(seen.unseenFor("a")).toBe(500)
+  })
 })

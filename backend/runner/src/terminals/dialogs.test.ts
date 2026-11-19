@@ -28,6 +28,10 @@ const terminal = (
     requests?: Waiting[]
     raw?: { still: number; age: number; latest?: number }
     seen?: SeenTerminals
+    /** Other work holds the terminal's input while it says so. */
+    busy?: () => boolean
+    /** How long a terminal must be unseen before a reveal, 0 by default. */
+    grace?: number
     /** What pressing keys does to the screen, as the TUI's own would. */
     press?: (data: string, tui: FakeTui) => void
   } = {},
@@ -64,6 +68,7 @@ const terminal = (
         state.requests = state.requests.filter((each) => each.ref !== ref)
       },
       changed: () => told.push(JSON.stringify([...dialogs.view("t")])),
+      busy: () => options.busy?.() ?? false,
       press: (_terminal, data) => {
         pressed.push(data)
         options.press?.(data, tui)
@@ -78,6 +83,7 @@ const terminal = (
       rawAgeMs: options.raw?.age ?? 40,
       rawLatestMs: options.raw?.latest ?? Number.POSITIVE_INFINITY,
       ...(options.seen && { seen: options.seen }),
+      graceMs: options.grace ?? 0,
     },
   )
   return {
@@ -766,5 +772,82 @@ describe("a dialog read from the facts while held out of view", () => {
     await until(() => two.pressed.length > 0)
     expect(two.pressed).toEqual(["R"])
     expect(two.dialogs.shown("t", "r1")).not.toMatchObject({ type: "choices" })
+  })
+})
+
+describe("a dialog held out of view, for a terminal unseen only a moment", () => {
+  const REVEAL = "<reveal>"
+  const holding = (): DialogAdapter => ({
+    ...fakeAdapter(),
+    reveal: (rows) => (rows.includes("FAKE ELSEWHERE") ? REVEAL : undefined),
+  })
+  const scrolls = (data: string, tui: FakeTui) => {
+    if (data === REVEAL) tui.state = "ask"
+  }
+  const settle = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+  const held = (options: Parameters<typeof terminal>[0] = {}) => {
+    const made = terminal({ adapter: holding(), press: scrolls, ...options })
+    made.tui.state = "other"
+    return made
+  }
+
+  it("waits out the grace period from the runner's start", async () => {
+    const seen = new SeenTerminals()
+    const { dialogs, pressed } = held({ seen, grace: 300 })
+    const started = Date.now()
+    dialogs.changed("t")
+    await settle(150)
+    expect(pressed).toEqual([])
+    await until(() => pressed.length > 0)
+    expect(Date.now() - started).toBeGreaterThanOrEqual(280)
+  })
+
+  it("counts the grace from the connection's release, as a window that reloads", async () => {
+    const seen = new SeenTerminals()
+    seen.report("window", ["t"])
+    const { dialogs, pressed } = held({ seen, grace: 300 })
+    dialogs.changed("t")
+    await settle(350)
+    seen.release("window")
+    await settle(150)
+    expect(pressed).toEqual([])
+    await until(() => pressed.length > 0)
+  })
+
+  it("is not pressed for while another entry holds the terminal's input", async () => {
+    let busy = true
+    const { dialogs, pressed } = held({ busy: () => busy })
+    dialogs.changed("t")
+    await settle(200)
+    expect(pressed).toEqual([])
+    busy = false
+    await until(() => pressed.length > 0)
+  })
+
+  it("counts the only request that waits, not one answered already", async () => {
+    const other = { ...request("r2", "ls"), facts: { ...request("r2", "ls").facts, cwd: "/else" } }
+    const { dialogs } = held({
+      adapter: {
+        read: (rows, facts) => {
+          const read = fakeAdapter().read(new FakeTui().rows(), facts)
+          return rows.includes("FAKE ELSEWHERE") && read
+            ? { ...read, reveal: REVEAL, keys: () => undefined }
+            : fakeAdapter().read(rows, facts)
+        },
+      },
+      requests: [request("r1", "ls"), other],
+      seen: (() => {
+        const seen = new SeenTerminals()
+        seen.report("window", ["t"])
+        return seen
+      })(),
+    })
+    dialogs.changed("t")
+    await until(() => dialogs.shown("t", "r1") !== null)
+    // Two requests wait: neither reads from the pill.
+    expect(dialogs.shown("t", "r1")).not.toMatchObject({ type: "choices" })
+    dialogs.done("t", "r2")
+    dialogs.changed("t")
+    await until(() => dialogs.shown("t", "r1")?.type === "choices")
   })
 })

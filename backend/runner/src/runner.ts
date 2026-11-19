@@ -422,8 +422,13 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     ...((scopes || priority) && {
       pty: { ...(scopes && { scopes }), ...(priority && { priority }), activity },
     }),
-    answers: { ...(options.dialogs !== undefined && { saves: options.dialogs }), seen },
     ...options.terminals,
+    // Whatever a test says of the answers, the dialogs still see which terminals are in sight.
+    answers: {
+      ...(options.dialogs !== undefined && { saves: options.dialogs }),
+      ...options.terminals?.answers,
+      seen,
+    },
   })
   const projects = new Projects(store, terminals, items, worktrees)
   // In the person's home, where the agents are looked for too.

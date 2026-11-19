@@ -8,6 +8,22 @@
 export class SeenTerminals {
   private readonly lists = new Map<string, ReadonlySet<string>>()
   private readonly listeners = new Set<(terminalId: string, seen: boolean) => void>()
+  /** When each terminal last turned unseen. */
+  private readonly unseenAt = new Map<string, number>()
+  private readonly startedAt: number
+
+  constructor(private readonly now: () => number = Date.now) {
+    this.startedAt = now()
+  }
+
+  /**
+   * How long the terminal has gone unseen, in milliseconds: since a client last had it in
+   * sight or its client's connection went, else since the runner began. Zero while seen.
+   */
+  unseenFor(terminalId: string): number {
+    if (this.has(terminalId)) return 0
+    return this.now() - (this.unseenAt.get(terminalId) ?? this.startedAt)
+  }
 
   /** Whether some client has the terminal in sight. */
   has(terminalId: string): boolean {
@@ -39,6 +55,7 @@ export class SeenTerminals {
     for (const [id, was] of before) {
       const now = this.has(id)
       if (now === was) continue
+      if (!now) this.unseenAt.set(id, this.now())
       for (const listener of this.listeners)
         try {
           listener(id, now)
