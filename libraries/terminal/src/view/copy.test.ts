@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
 
-import { clipboardWrite, copyOnSelect, takeClipboardWrites } from "./copy.js"
+import { clipboardWrite, copyOnSelect, programCopyMs, takeClipboardWrites } from "./copy.js"
 
 const base64 = (text: string): string =>
   btoa(String.fromCharCode(...new TextEncoder().encode(text)))
@@ -187,11 +187,19 @@ describe("an OSC 52 write", () => {
 })
 
 describe("a program copying with OSC 52", () => {
-  // A terminal whose OSC 52 handler the test calls as the parser would.
-  const terminal = (focused: () => boolean) => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  // A terminal whose OSC 52 handler the test calls as the parser would, over a clipboard
+  // that holds `held` as the page reads it (undefined where it may not read it).
+  const terminal = ({ focused = true, held }: { focused?: boolean; held?: string } = {}) => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
     let handler: ((data: string) => boolean | Promise<boolean>) | undefined
     const disposed = vi.fn<() => void>()
     const copied: string[] = []
+    const said = vi.fn<() => void>()
+    const clipboard = { held }
     const parser = {
       registerOscHandler: (ident: number, callback: (data: string) => boolean) => {
         expect(ident).toBe(52)
@@ -201,33 +209,87 @@ describe("a program copying with OSC 52", () => {
     }
     const taken = takeClipboardWrites(
       { parser } as unknown as Parameters<typeof takeClipboardWrites>[0],
-      (text) => void copied.push(text),
-      focused,
+      {
+        focused: () => focused,
+        read: async () => clipboard.held,
+        copy: (text) => void copied.push(text),
+        copied: said,
+      },
     )
-    return { copied, taken, disposed, send: (data: string) => handler?.(data) }
+    return {
+      copied,
+      said,
+      clipboard,
+      taken,
+      disposed,
+      send: (data: string) => handler?.(data),
+      // Lets the wait for the program's own copy pass, and the read after it.
+      settle: async () => {
+        await vi.advanceTimersByTimeAsync(programCopyMs)
+      },
+    }
   }
 
-  it("puts its text on the clipboard while the person is in the terminal", () => {
-    const page = terminal(() => true)
+  it("puts its text on the clipboard while the person is in the terminal", async () => {
+    const page = terminal({ held: "copied before" })
     expect(page.send(`c;${base64("copied in vim")}`)).toBe(true)
+    await page.settle()
     expect(page.copied).toEqual(["copied in vim"])
   })
 
-  it("is dropped while the person is elsewhere, and never reaches the screen", () => {
-    const page = terminal(() => false)
+  it("writes where the page can't read the clipboard", async () => {
+    const page = terminal()
+    page.send(`c;${base64("copied over ssh")}`)
+    await page.settle()
+    expect(page.copied).toEqual(["copied over ssh"])
+  })
+
+  context("when the program copied the same text itself, as Claude Code does with wl-copy", () => {
+    it("leaves the clipboard be and still says it's copied", async () => {
+      const page = terminal({ held: "copied before" })
+      page.send(`c;${base64("selected in Claude Code")}`)
+      page.clipboard.held = "selected in Claude Code"
+      await page.settle()
+      expect(page.copied).toEqual([])
+      expect(page.said).toHaveBeenCalledOnce()
+    })
+  })
+
+  it("waits for the program's own copy before it writes", async () => {
+    const page = terminal({ held: "copied before" })
+    page.send(`c;${base64("copied in vim")}`)
+    await vi.advanceTimersByTimeAsync(programCopyMs - 1)
+    expect(page.copied).toEqual([])
+  })
+
+  it("writes only the last of several in quick succession", async () => {
+    const page = terminal({ held: "copied before" })
+    page.send(`c;${base64("first")}`)
+    page.send(`c;${base64("second")}`)
+    await page.settle()
+    expect(page.copied).toEqual(["second"])
+  })
+
+  it("is dropped while the person is elsewhere, and never reaches the screen", async () => {
+    const page = terminal({ focused: false })
     expect(page.send(`c;${base64("out of sight")}`)).toBe(true)
+    await page.settle()
     expect(page.copied).toEqual([])
   })
 
-  it("answers no read", () => {
-    const page = terminal(() => true)
+  it("answers no read", async () => {
+    const page = terminal()
     expect(page.send("c;?")).toBe(true)
+    await page.settle()
     expect(page.copied).toEqual([])
   })
 
-  it("stops with its disposal", () => {
-    const page = terminal(() => true)
+  it("stops with its disposal, a write still waiting included", async () => {
+    const page = terminal({ held: "copied before" })
+    page.send(`c;${base64("copied in vim")}`)
     page.taken.dispose()
+    await page.settle()
     expect(page.disposed).toHaveBeenCalledOnce()
+    expect(page.copied).toEqual([])
   })
 })
