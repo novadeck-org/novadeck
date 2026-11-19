@@ -106,9 +106,10 @@ import {
 } from "./window/app-window.js"
 import { keepAppearance, registerAppearanceIpc } from "./window/appearance.js"
 import { registerWindowFocusIpc } from "./window/focus.js"
-import { linuxMenu, macMenu } from "./window/menu.js"
+import { linuxMenu, macMenu, windowsMenu } from "./window/menu.js"
 import { registerPanePictureIpc } from "./window/pane-pictures.js"
 import { limitPermissions } from "./window/permissions.js"
+import { keepScale, registerScaleIpc } from "./window/scale.js"
 import { atspiReaders, runIn } from "./window/screen-reader-linux.js"
 import { electronReaders, registerScreenReaderIpc } from "./window/screen-reader.js"
 import { keepSpellcheckOffline } from "./window/spellcheck.js"
@@ -250,6 +251,9 @@ const currentDirectory = dirname(fileURLToPath(import.meta.url))
 // The page's last appearance, which new windows open on so a dark theme never flashes
 // white.
 const appearance = keepAppearance(join(app.getPath("userData"), "appearance.json"))
+// The scale the person chose in Preferences, which every window shows, the next launch's
+// first paint too.
+const scale = keepScale(join(app.getPath("userData"), "scale.json"), () => appPages(appWindows()))
 // What the app remembers about updating: the channel, a failed install, how long this copy
 // is behind.
 const updateState = keepUpdateState(join(app.getPath("userData"), "update.json"))
@@ -341,6 +345,8 @@ const createWindow = (origin: string): BrowserWindow => {
       ...(feedbackTo ? [`${feedbackArgumentPrefix}1`] : []),
     ],
   })
+  // Its page opens at the scale, and takes it again whenever it loads.
+  window.webContents.on("dom-ready", () => scale.apply(window.webContents))
   // Closing the last window quits, which ends the shells, except on macOS; either way
   // the page saves first.
   saveBeforeClose(
@@ -383,6 +389,8 @@ const loadKey = (): Promise<string | null> =>
 let transcriptKey: Promise<string | null> = Promise.resolve(null)
 
 const launch = async (): Promise<void> => {
+  // The scale windows open at, read before the first one does.
+  await scale.load()
   // The signature is not asked here: it takes a moment, and a portable copy is told
   // without it.
   const known = await build.unsignedBuild()
@@ -533,6 +541,11 @@ const launch = async (): Promise<void> => {
   })
   // The page asks for its window's focus when it starts listening, as when it loads again.
   registerWindowFocusIpc(ipcMain, { window: appWindow, request: tellWindowFocus })
+  registerScaleIpc(
+    ipcMain,
+    (event) => appWindow(event) !== undefined,
+    (value) => void scale.set(value),
+  )
   // The page asks whether a screen reader runs when it starts listening, and hears of each
   // change: its terminals keep a reader's text only while one may (terminal-views). Electron
   // tells on macOS and Windows; on Linux the desktop's accessibility bus does, read with the
@@ -772,6 +785,7 @@ app.whenReady().then(() => {
   // macOS shows its menu bar: Help opens the logs folder. Elsewhere Preferences does.
   if (process.platform === "darwin")
     Menu.setApplicationMenu(Menu.buildFromTemplate(macMenu(openLogs)))
+  if (process.platform === "win32") Menu.setApplicationMenu(Menu.buildFromTemplate(windowsMenu))
   limitPermissions(
     session.defaultSession,
     isAppPage,

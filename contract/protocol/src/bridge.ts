@@ -31,6 +31,13 @@ export type DesktopBridge = {
     readonly ground: string
   }): void
   /**
+   * Scales every window of the app, as a fraction of its normal size, 0.8 to 2: its page, its
+   * terminals and its dialogs, so the person's own choice of how large the app is. The app
+   * clamps what it is given, and keeps it for the next launch. Absent from apps that came
+   * before it.
+   */
+  showScale?(scale: number): void
+  /**
    * The path on this machine of a file the person pasted, such as one copied
    * in a file manager, or "" for one that is no file there, as a copied image's bytes.
    * Absent from apps that came before it.

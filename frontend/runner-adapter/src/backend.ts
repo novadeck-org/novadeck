@@ -141,6 +141,8 @@ export type RunnerBackendOptions = {
   readonly pickDirectory?: () => Promise<string | null>
   // Where the app's window follows the page's appearance.
   readonly showAppearance?: Backend["showAppearance"]
+  // Where the app's windows follow the person's scale.
+  readonly showScale?: Backend["showScale"]
   // Where the app shows desktop notifications.
   readonly notices?: Backend["notices"]
   // Where the app shows the Inbox count on the app icon.
@@ -2086,6 +2088,7 @@ export const runnerBackend = (
     ...(runner.tour && { tour: runnerTour(runner.tour, track) }),
     ...(options.pickDirectory ? { pickDirectory: options.pickDirectory } : {}),
     ...(options.showAppearance ? { showAppearance: options.showAppearance } : {}),
+    ...(options.showScale ? { showScale: options.showScale } : {}),
     ...(options.notices ? { notices: options.notices } : {}),
     ...(options.badge ? { badge: options.badge } : {}),
     ...(options.windowFocus ? { windowFocus: options.windowFocus } : {}),

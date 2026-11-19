@@ -1,8 +1,9 @@
 import { afterEach, onTestFinished, vi } from "vitest"
+import { cleanup } from "vitest-browser-react"
 import { page, userEvent, type Locator } from "vitest/browser"
 
 import { pageScheme, saveFromAnotherWindow, systemScheme } from "../support/appearance"
-import { setScreenReaderRunning } from "../support/backend"
+import { scalesShown, setScreenReaderRunning } from "../support/backend"
 import {
   closePreferences,
   escapeFrom,
@@ -1067,6 +1068,45 @@ describe("Preferences' tabs in a narrow window", () => {
       expect(tabBox.top - ring).toBeGreaterThanOrEqual(box.top)
       expect(tabBox.bottom + ring).toBeLessThanOrEqual(box.bottom)
       expect(tabBox.right + ring).toBeLessThanOrEqual(box.right)
+    })
+  })
+})
+
+describe("Scale preference", () => {
+  const scaleSelect = () => preferencesDialog().getByRole("combobox", { name: "Scale" })
+
+  it("is offered only where the app can scale its windows", async () => {
+    await openWorkspace()
+    await openAppearance()
+    await expect
+      .element(preferencesDialog().getByRole("combobox", { name: "Text size" }))
+      .toBeVisible()
+    expect(scaleSelect().query()).toBeNull()
+  })
+
+  context("in the desktop app", () => {
+    it("tells the window each scale chosen, and keeps it after reopening", async () => {
+      await openWorkspace("/?scale=desktop")
+      expect(scalesShown.at(-1)).toBe(1)
+      await openAppearance()
+      await expect.element(scaleSelect()).toHaveTextContent("100%")
+
+      await scaleSelect().click()
+      await Promise.all(
+        ["80%", "90%", "100%", "110%", "125%", "150%", "175%", "200%"].map((name) =>
+          expect.element(preferencesDialog().getByRole("option", { name })).toBeVisible(),
+        ),
+      )
+      await preferencesDialog().getByRole("option", { name: "200%" }).click()
+      await expect.element(scaleSelect()).toHaveTextContent("200%")
+      expect(scalesShown.at(-1)).toBe(2)
+      expect(JSON.parse(localStorage.getItem("novadeck.preferences")!).appScale).toBe(200)
+
+      await cleanup()
+      await openWorkspace("/?scale=desktop")
+      await openAppearance()
+      await expect.element(scaleSelect()).toHaveTextContent("200%")
+      await expect.poll(() => scalesShown.at(-1)).toBe(2)
     })
   })
 })

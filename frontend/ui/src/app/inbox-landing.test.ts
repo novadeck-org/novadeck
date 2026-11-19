@@ -77,6 +77,7 @@ const setup = (initiallyWide = true) => {
         chatView: false,
         agentAvatars: false,
         onboardingTour: false,
+        appScale: 100,
         foldLongReplies: false,
         sound: true,
         soundVolume: 0.6,

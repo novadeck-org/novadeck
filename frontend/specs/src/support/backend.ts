@@ -131,6 +131,10 @@ const requestedScreenReader = (): boolean | undefined => {
   return undefined
 }
 
+// Specs open the demo as a desktop app that scales its windows with `?scale=desktop`; the
+// scales it was told, as fractions, are `scalesShown`. Without it, nothing scales, as in a browser.
+export const scalesShown: number[] = []
+
 // Specs open the demo on a portable copy with `?portable=` one of the debug panel's
 // portable scenarios (see @novadeck/demo-debug/desktop/scenarios). Installing takes no time there,
 // unless `&installMs=` says how long, or `&installMs=stepped` holds each step for the spec
@@ -545,7 +549,11 @@ const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   const standIn = reader === undefined ? undefined : createDemoScreenReader(reader)
   if (standIn) screenReaderStandIns.push(standIn)
   const withReader = standIn ? { ...withSandbox, screenReader: standIn.screenReader } : withSandbox
-  const withUninstall = uninstall ? { ...withReader, uninstall } : withReader
+  const withScale =
+    addressParams().get("scale") === "desktop"
+      ? { ...withReader, showScale: (scale: number) => void scalesShown.push(scale) }
+      : withReader
+  const withUninstall = uninstall ? { ...withScale, uninstall } : withScale
   return portable
     ? {
         ...withUninstall,
@@ -561,6 +569,7 @@ const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
  */
 export const forgetEarlierPages = (): void => {
   screenReaderStandIns.length = 0
+  scalesShown.length = 0
   approvalBackends.length = 0
   made.length = 0
   desktops.length = 0

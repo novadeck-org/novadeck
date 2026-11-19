@@ -12,6 +12,7 @@ import {
   feedbackSendChannel,
   webglContextsArgumentPrefix,
   appearanceChannel,
+  scaleChannel,
   installAppChannel,
   badgeChannel,
   noticeChannel,
@@ -250,6 +251,17 @@ describe("the page's appearance", () => {
     } as const
     electron.exposed.showAppearance(appearance)
     expect(electron.messages).toEqual([[appearanceChannel, { scheme: "dark", ground: "#0f1114" }]])
+  })
+})
+
+describe("the app's scale", () => {
+  it("goes to the main process as a number, and nothing else does", () => {
+    electron.exposed.showScale?.(1.5)
+    electron.exposed.showScale?.("2" as unknown as number)
+    expect(electron.messages).toEqual([
+      [scaleChannel, 1.5],
+      [scaleChannel, undefined],
+    ])
   })
 })
 

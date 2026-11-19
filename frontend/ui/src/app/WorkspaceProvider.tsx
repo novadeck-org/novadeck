@@ -33,6 +33,7 @@ import { nameFinished, watchFinishes } from "./murmur-offer"
 import { watchPageFocus } from "./page-focus"
 import { pullRequestsOf } from "./pull-requests"
 import { availablePanels, historyShown, resolveRoute, filesShown, reportsWorks } from "./routing"
+import { watchScale } from "./scale"
 import { currentContext } from "./selectors"
 import {
   createUiStore,
@@ -160,6 +161,7 @@ export const WorkspaceProvider = ({
   }, [services])
   useEffect(() => persistUi(services.ui, services.workspace), [services])
   useEffect(() => watchAppearance(services.ui, window, services.backend.showAppearance), [services])
+  useEffect(() => watchScale(services.ui, services.backend.showScale), [services])
   useEffect(
     () => followSavedPreferences(services.ui, window, services.commands.updatePreferences),
     [services],

@@ -29,6 +29,10 @@ export const panelNamed = (name: string): SidebarPanel | undefined =>
   (Object.hasOwn(formerPanels, name) ? formerPanels[name] : undefined)
 export type WindowedView = Exclude<ViewMode, "focus">
 // When terminals keep their text for a screen reader; see `PreferencesValue.screenReader`.
+// The scales of the whole app the person may choose, as a percent of its normal size.
+export const appScales = [80, 90, 100, 110, 125, 150, 175, 200] as const
+export type AppScale = (typeof appScales)[number]
+
 export const screenReaderPreferences = ["auto", "on", "off"] as const
 export type ScreenReaderPreference = (typeof screenReaderPreferences)[number]
 
@@ -66,6 +70,9 @@ export type PreferencesValue = {
   // Whether the footer offers the onboarding tour, in its Help menu. Off by default, and only
   // with Experimental on.
   onboardingTour: boolean
+  // How large the whole app is drawn, as a percent of its normal size: its text, terminals and
+  // dialogs together. The desktop app scales its windows by it; a browser has its own zoom.
+  appScale: AppScale
   // Whether Agent Chat folds an agent's long replies, all but its latest, to their first lines.
   // Off by default, and only with Experimental on.
   foldLongReplies: boolean

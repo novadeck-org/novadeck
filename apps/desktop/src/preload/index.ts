@@ -36,6 +36,7 @@ import {
   apiUrlArgumentPrefix,
   webglContextsArgumentPrefix,
   appearanceChannel,
+  scaleChannel,
   badgeChannel,
   directoryPickerChannel,
   dismissWhatsNewChannel,
@@ -235,6 +236,10 @@ const bridge = {
       scheme: appearance?.scheme,
       ground: appearance?.ground,
     })
+  },
+  // Only a number crosses; the main process clamps it.
+  showScale: (scale) => {
+    ipcRenderer.send(scaleChannel, typeof scale === "number" ? scale : undefined)
   },
   beforeQuit: (save) => {
     beforeQuit = save

@@ -473,6 +473,9 @@ export type BackendFields = {
   // Optional. Tells the window around the page how the page looks, so its native parts
   // match; absent where nothing surrounds the page, as in a browser.
   readonly showAppearance?: (appearance: WindowAppearance) => void
+  // Optional. Scales the app's windows, by a fraction of their normal size; absent where
+  // nothing surrounds the page, as in a browser, whose own zoom does it.
+  readonly showScale?: (scale: number) => void
   // Optional. Desktop notifications about terminals, as when an agent finishes while the
   // person looks elsewhere: `show` shows one, a newer one for the same terminal replacing
   // it, and `onClick` hears the terminal id of each the person clicks, once the window

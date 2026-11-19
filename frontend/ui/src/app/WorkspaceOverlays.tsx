@@ -597,6 +597,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           tour={tour !== undefined}
           notices={backend.notices !== undefined}
           screenReaderKnown={backend.screenReader !== undefined}
+          scalable={backend.showScale !== undefined}
           systemSounds={backend.notices?.sounds === true}
           hearSound={dingOf(backend, ui).preview}
           chat={backend.conversations !== undefined}

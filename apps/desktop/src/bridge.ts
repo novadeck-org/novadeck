@@ -48,6 +48,12 @@ export const saveBeforeQuitChannel = "novadeck:save-before-quit"
 export const appearanceChannel = "novadeck:appearance"
 
 /**
+ * Renderer-to-main report of the scale the person chose for the app, a fraction of its normal
+ * size, which every window shows; see main/window/scale.ts.
+ */
+export const scaleChannel = "novadeck:scale"
+
+/**
  * Renderer-to-main request to show a desktop notification about a terminal,
  * `{ id, title, body }`; see main/notices/notices.ts.
  */

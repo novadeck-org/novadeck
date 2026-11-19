@@ -80,6 +80,7 @@ const setup = (items: InboxRow[] = [], pings = true) => {
         chatView: false,
         agentAvatars: false,
         onboardingTour: false,
+        appScale: 100,
         foldLongReplies: false,
       },
     }),

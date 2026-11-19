@@ -103,3 +103,29 @@ describe("readPreferences", () => {
     }
   })
 })
+
+describe("the app's scale", () => {
+  const saveScale = (appScale: unknown): void =>
+    localStorage.setItem(preferencesStorageKey, JSON.stringify({ appScale }))
+
+  it("is 100% where it was never saved", () => {
+    expect(readPreferences().appScale).toBe(100)
+  })
+
+  it("reads each scale the Preferences offer, and keeps it through a save", () => {
+    for (const scale of [80, 90, 100, 110, 125, 150, 175, 200]) {
+      saveScale(scale)
+      expect(readPreferences().appScale).toBe(scale)
+    }
+    saveScale(150)
+    writePreferences({ ...readPreferences(), fontSize: 15 })
+    expect(JSON.parse(localStorage.getItem(preferencesStorageKey)!).appScale).toBe(150)
+  })
+
+  it("clamps a scale the app doesn't offer to 100%", () => {
+    for (const bad of [0, 50, 79, 105, 400, -100, "200", 1.5, null, Number.NaN, {}]) {
+      saveScale(bad)
+      expect(readPreferences().appScale).toBe(100)
+    }
+  })
+})

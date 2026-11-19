@@ -337,6 +337,7 @@ export const desktopOptions = (
   const pick = app?.pickDirectory
   const beforeQuit = app?.beforeQuit
   const showAppearance = app?.showAppearance
+  const showScale = app?.showScale
   const openLogs = app?.openLogs
   const pagePicture = app?.pagePicture
   const pageLook = app?.lookAtPage
@@ -358,6 +359,7 @@ export const desktopOptions = (
     ...(pick ? { pickDirectory: () => pick() } : {}),
     ...(beforeQuit ? { beforeQuit: (save) => beforeQuit(save) } : {}),
     ...(showAppearance ? { showAppearance: (look) => showAppearance(look) } : {}),
+    ...(showScale ? { showScale: (scale) => showScale(scale) } : {}),
     ...(notices ? { notices } : {}),
     ...(badge ? { badge } : {}),
     ...(windowFocus ? { windowFocus } : {}),

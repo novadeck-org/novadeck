@@ -125,6 +125,11 @@ export const openAppWindow = ({
   window.on("focus", () => tellWindowFocus(window))
   window.on("blur", () => tellWindowFocus(window))
 
+  // Only the scale in Preferences zooms the page: no pinch, which would zoom it apart from
+  // that, and so beside what the panes lay out by. Ctrl and the wheel is left to Canvas,
+  // as Electron zooms nothing by it.
+  void window.webContents.setVisualZoomLevelLimits(1, 1)
+
   window.webContents.on("will-navigate", (event) => event.preventDefault())
   // The app uses no WebRTC, and no page policy can keep a frame in it from opening a peer
   // connection, as a PDF's (libraries/viewers/src/pdf.ts) could: none of it sends UDP that

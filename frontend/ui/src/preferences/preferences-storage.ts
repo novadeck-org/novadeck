@@ -1,5 +1,5 @@
 import { viewModes } from "@novadeck/core/state"
-import { screenReaderPreferences, type PreferencesValue } from "@novadeck/core/types"
+import { appScales, screenReaderPreferences, type PreferencesValue } from "@novadeck/core/types"
 
 import { soundChoiceOf } from "../sounds"
 import { appearancePreferenceOf, defaultPreference } from "../theme/apply"
@@ -22,6 +22,7 @@ export const readPreferences = (): PreferencesValue => {
     chatView: false,
     agentAvatars: false,
     onboardingTour: false,
+    appScale: 100,
     foldLongReplies: false,
   }
   try {
@@ -54,6 +55,8 @@ export const readPreferences = (): PreferencesValue => {
         typeof saved?.agentAvatars === "boolean" ? saved.agentAvatars : defaults.agentAvatars,
       onboardingTour:
         typeof saved?.onboardingTour === "boolean" ? saved.onboardingTour : defaults.onboardingTour,
+      // A saved scale the app doesn't offer is the normal one.
+      appScale: appScales.find((scale) => scale === saved?.appScale) ?? defaults.appScale,
       foldLongReplies:
         typeof saved?.foldLongReplies === "boolean"
           ? saved.foldLongReplies

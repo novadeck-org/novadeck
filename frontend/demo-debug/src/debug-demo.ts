@@ -31,6 +31,7 @@ import { chatOfferGroups } from "./chat-offer"
 import { createDebugPanel, type DebugPanel } from "./DebugPanel"
 import { createDemoPortable, type DemoPortable } from "./desktop/portable"
 import { createDemoSandbox } from "./desktop/sandbox"
+import { demoShowScale } from "./desktop/scale"
 import { createDemoScreenReader } from "./desktop/screen-reader"
 import { createDemoUninstall, type DemoUninstall } from "./desktop/uninstall"
 import { updatesGroup, type DemoUpdates } from "./desktop/updates"
@@ -284,6 +285,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
       : { screenReader: createDemoScreenReader(launch.screenReader).screenReader }),
     ...(launch.portable ? { portable: createDemoPortable(launch.portable).portable } : {}),
     ...(launch.uninstall ? { uninstall: createDemoUninstall(launch.uninstall).uninstall } : {}),
+    showScale: demoShowScale,
     pickDirectory: states.pickDirectory,
     ...(inner.moveTerminal ? { moveTerminal: states.moveTerminal(inner.moveTerminal) } : {}),
     ...(inner.conversations ? { conversations: states.chat(inner.conversations) } : {}),

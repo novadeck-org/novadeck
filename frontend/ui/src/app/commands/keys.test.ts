@@ -323,6 +323,7 @@ describe("key commands", () => {
           chatView: false,
           agentAvatars: false,
           onboardingTour: false,
+          appScale: 100,
           foldLongReplies: false,
         },
         workspace: workspaceFixture({ view: "canvas" }),
@@ -474,6 +475,7 @@ describe("key commands", () => {
           chatView: false,
           agentAvatars: false,
           onboardingTour: false,
+          appScale: 100,
           foldLongReplies: false,
         },
       })

@@ -21,6 +21,7 @@ const preferences: PreferencesValue = {
   chatView: false,
   agentAvatars: false,
   onboardingTour: false,
+  appScale: 100,
   foldLongReplies: false,
 }
 const panels = availablePanels(true)

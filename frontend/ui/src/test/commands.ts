@@ -69,6 +69,7 @@ export const openCommands = ({
     chatView: false,
     agentAvatars: false,
     onboardingTour: false,
+    appScale: 100,
     foldLongReplies: false,
   },
   desktop = true,
