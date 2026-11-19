@@ -233,8 +233,13 @@ describe("Quality's systems", () => {
       "npm run test:shard3",
     ])
     expect(systemWindows).toMatchObject([{ shard: 0, command: "npm run test:system" }])
-    for (const row of [...wholeMacos, ...systemMacos])
-      expect(row).toMatchObject({ name: "Test (macOS)", os: "macos-latest", shard: 0 })
+    for (const row of [...wholeMacos, ...systemMacos]) expect(row.os).toBe("macos-latest")
+    expect(wholeMacos.map(({ name, shard }) => [name, shard])).toEqual([
+      ["Test (macOS, 1/3)", 1],
+      ["Test (macOS, 2/3)", 2],
+      ["Test (macOS, 3/3)", 3],
+    ])
+    expect(systemMacos).toMatchObject([{ name: "Test (macOS)", shard: 0 }])
   })
 })
 
@@ -742,10 +747,9 @@ describe("Quality's workflow", () => {
   // Known Flakes names a whole-suite macOS run that runs out of time (scripts/flakes/register.json,
   // `test-macos-job-timeout`) by the step's own line: it must still match at the limit set here.
   it("leaves the macOS timeout's register entry matching at the whole suite's limit", () => {
-    const minutes =
-      /matrix\.command == 'npm run test' && (\d+) \|\| \d+\) \|\| runner\.os == 'Windows'/.exec(
-        job("quality"),
-      )![1]
+    const minutes = /matrix\.command == 'npm run test:macos2' && (\d+) \|\| /.exec(
+      job("quality"),
+    )![1]
     const { flakes } = JSON.parse(
       readFileSync(join(root, "scripts", "flakes", "register.json"), "utf8"),
     ) as { flakes: { id: string; jobs: string[]; signature: string }[] }
@@ -755,18 +759,65 @@ describe("Quality's workflow", () => {
         `##[error]The action 'Run Test (macOS)' has timed out after ${minutes} minutes.`,
       ),
     ).toBe(true)
-    expect(entry.jobs.some((pattern) => new RegExp(pattern).test("Test (macOS)"))).toBe(true)
+    // Both of the whole suite's parts, and the system packages' row, are its jobs.
+    for (const name of [
+      "Test (macOS)",
+      "Test (macOS, 1/3)",
+      "Test (macOS, 2/3)",
+      "Test (macOS, 3/3)",
+    ]) {
+      expect(
+        entry.jobs.some((pattern) => new RegExp(pattern).test(name)),
+        name,
+      ).toBe(true)
+      expect(
+        new RegExp(entry.signature).test(
+          `##[error]The action 'Run ${name}' has timed out after 40 minutes`,
+        ),
+        name,
+      ).toBe(true)
+    }
   })
 
-  it("gives each row's tests their time: macOS's whole suite 65, its system packages 30", () => {
+  it("gives each row's tests their time: macOS's whole suite 40 and 45, its system packages 30", () => {
     expect(job("quality")).toContain(
-      "runner.os == 'macOS' && (matrix.command == 'npm run test' && 65 || 30) || runner.os == 'Windows' && matrix.shard == 0 && 22 ||",
+      "runner.os == 'macOS' && (matrix.command == 'npm run test:macos2' && 45 || matrix.command == 'npm run test:macos3' && 45 || matrix.command == 'npm run test:macos1' && 40 || 30) || runner.os == 'Windows' && matrix.shard == 0 && 22 ||",
     )
     expect(job("macos")).toContain(
-      "timeout-minutes: ${{ matrix.command == 'npm run test' && 75 || 40 }}",
+      "timeout-minutes: ${{ matrix.command == 'npm run test:macos2' && 55 || matrix.command == 'npm run test:macos3' && 55 || matrix.command == 'npm run test:macos1' && 50 || 40 }}",
     )
     expect(job("proof-macos")).toContain("timeout-minutes: 40")
-    expect(wholeMacos).toMatchObject([{ name: "Test (macOS)", command: "npm run test" }])
+    expect(wholeMacos).toMatchObject([
+      { name: "Test (macOS, 1/3)", command: "npm run test:macos1" },
+      { name: "Test (macOS, 2/3)", command: "npm run test:macos2" },
+      { name: "Test (macOS, 3/3)", command: "npm run test:macos3" },
+    ])
+  })
+
+  // The specs' job runs them with one worker, which no other row or system does: Linux's
+  // shards keep their parallelism. A failed first part must not cancel the specs' job.
+  it("runs the specs in halves on one worker, and every other test in the first", () => {
+    const scripts = (
+      JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+        scripts: Record<string, string>
+      }
+    ).scripts
+    // The specs in two halves of Vitest's shards, each on one worker.
+    for (const [name, shard] of [
+      ["test:macos2", "1/2"],
+      ["test:macos3", "2/2"],
+    ] as const) {
+      expect(scripts[name], name).toContain("--filter=@novadeck/specs")
+      expect(scripts[name], name).toContain("--maxWorkers=1")
+      expect(scripts[name], name).toContain(`--shard=${shard}`)
+    }
+    // The first part is `test` but for the specs, so a filter `test` gains reaches macOS too.
+    expect(scripts["test:macos1"]).toBe(
+      scripts.test!.replace(" --concurrency=1 ", " --filter=!@novadeck/specs --concurrency=1 "),
+    )
+    for (const name of ["test", "test:macos1", "test:shard1", "test:shard2"])
+      expect(scripts[name], name).not.toContain("--maxWorkers")
+    expect(job("macos")).toContain("fail-fast: false")
   })
 
   // A job cancelled mid-tests uploads no failure or retried record, and its gate reads
@@ -827,8 +878,17 @@ describe("Quality's workflow", () => {
       nightly.slice(nightly.indexOf("include:"), nightly.indexOf("\n    steps:")),
     )
     expect(rows.map(({ name }) => name)).toEqual(
-      expect.arrayContaining(["Test (macOS)", "Test (Windows, 1/3)"]),
+      expect.arrayContaining([
+        "Test (macOS, 1/3)",
+        "Test (macOS, 2/3)",
+        "Test (macOS, 3/3)",
+        "Test (Windows, 1/3)",
+      ]),
     )
+    // The whole suite's two macOS parts, as Quality's rows run them.
+    expect(
+      rows.filter(({ os }) => os === "macos-latest").map(({ name, command }) => [name, command]),
+    ).toEqual(wholeMacos.map(({ name, command }) => [name, command]))
     for (const row of rows) {
       const os = String(row.os ?? "ubuntu-latest")
       const runner = {

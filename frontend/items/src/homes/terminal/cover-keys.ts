@@ -5,9 +5,11 @@
 
 // Where the pane's own content takes text: an editor, a field, a page. Its keys are its own.
 // So are a viewer's that marks itself `data-pane-keys` while it takes keys of its own (a
-// change's file, which steps on J and K and goes back on Escape).
+// change's file, which steps on J and K and goes back on Escape, or a folder's quick look). A
+// region that takes only Space marks itself `data-pane-keys="space"` (a folder's entries): every
+// other character there is still a reply, which uncovers the pane and goes to the terminal.
 const editable =
-  '[data-pane-keys], input:not([type="radio"], [type="checkbox"], [type="button"], [type="submit"], [type="reset"], [type="range"]), textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"], webview, iframe'
+  '[data-pane-keys]:not([data-pane-keys="space"]), input:not([type="radio"], [type="checkbox"], [type="button"], [type="submit"], [type="reset"], [type="range"]), textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"], webview, iframe'
 
 // What a key does by itself on the pane's surface, so a character typed there is not a reply.
 const operable = 'button, a[href], summary, [role="button"], [role="tab"], [role="menuitem"]'
@@ -38,7 +40,7 @@ export type CoverKey = {
 
 // Holds a swallowed Escape or Enter back until it is released: held down, its repeats must
 // not reach the terminal once the pane is gone, which may be before they start.
-const swallowRepeats = (key: string): void => {
+export const swallowRepeats = (key: string): void => {
   const repeat = (event: KeyboardEvent): void => {
     if (event.key !== key || !event.repeat) return
     event.preventDefault()
@@ -73,6 +75,7 @@ export const coverKey = (event: KeyboardEvent, context: CoverKey): void => {
     if (target.closest(editable)) return
     if (event.key === "Escape") return context.uncover()
     if (!character(event)) return
+    if (event.key === " " && target.closest('[data-pane-keys="space"]')) return
     if (target.closest(operable)) {
       // A control keeps Space, and the app takes the character on to the terminal.
       if (event.key !== " ") context.uncover()

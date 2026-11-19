@@ -82,6 +82,39 @@ describe("sidebar settings", () => {
     })
   })
 
+  context("when another panel is shown", () => {
+    it("stops laying out the one behind it, and draws it again when it's back", async () => {
+      // The agents demo has the storefront's files and agent worktrees on.
+      await openWorkspace("/?demo=agents")
+      // Whether the browser renders the panel's content, whatever its fade: its header is
+      // checked, as the panel's own box is drawn either way.
+      const laidOut = (id: string) =>
+        document.querySelector(`#${id} .sidebar-panel-header`)!.checkVisibility({
+          visibilityProperty: false,
+          opacityProperty: false,
+        })
+      await pressShortcut("files")
+      const rows = () => sidebar().getByRole("treeitem")
+      await expect.element(rows().first()).toBeVisible()
+      expect(laidOut("files-panel")).toBe(true)
+      for (const id of ["terminals-panel", "sessions-panel", "inbox-panel", "worktrees-panel"])
+        expect(laidOut(id), id).toBe(false)
+
+      await pressShortcut("worktrees")
+
+      await expect.element(sidebar()).toHaveAccessibleName("Worktrees")
+      await expect.poll(() => laidOut("files-panel")).toBe(false)
+      expect(laidOut("worktrees-panel")).toBe(true)
+
+      await pressShortcut("files")
+
+      await expect.element(sidebar()).toHaveAccessibleName("Files")
+      await expect.poll(() => laidOut("files-panel")).toBe(true)
+      await expect.element(rows().first()).toBeVisible()
+      await expect.poll(() => laidOut("worktrees-panel")).toBe(false)
+    })
+  })
+
   context("when the project has more than one session", () => {
     it("names the open session after the Terminals heading's count", async () => {
       await openWorkspace()

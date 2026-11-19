@@ -436,6 +436,13 @@ Agents:
   entries to the selected agent's chat, one dated three hours before and one just after, both
   naming that `@handle`: the old one draws it as plain text, the new one in the handle's hue.
   "Handle back to its first terminal" undoes it (`frontend/demo-debug/src/mentions.ts`).
+- **Chat: long replies:** "Long replies" adds three finished turns to the selected agent's chat,
+  each a prompt and a reply of about 60 lines. With Experimental on (App > Updates, then
+  Preferences reopened) and Fold long replies switched on in Preferences > Experimental, the
+  earlier replies fold to their opening lines with a key for the rest once they're out of sight,
+  and the latest shows in full; while the demo agent still works, its running turn's words are no
+  reply yet, so only the first folds. "Long replies gone" takes them out
+  (`frontend/demo-debug/src/long-replies.ts`).
 - **Plan:** only in the `showcase` variant, on the selected terminal's agent (Build Studio or
   the auth agent), for what happens to a plan the person has edited. "Plan in the agent's
   messages" makes it read-only; "Plan file deleted" shows that its file is gone, with the
@@ -511,9 +518,13 @@ Agents:
   stays in view under a Loading chip, then the new one is drawn from where you were looking.
 - **Folder:** only in the `showcase` variant, on the selected terminal's bar. The dev server's
   terminal (`@fox`) already holds `render`, a folder an agent wrote into (`frontend/demo/src/showcase/folders.ts`:
-  SVG stills, a clip, a PDF, a log, a folder inside it, a secret file and folder and a link out),
-  listed as thumbnails, newest first; double-clicking a file opens it in its kind's group,
-  and opening a folder from the Files panel (`agents` demo) lists a stand-in. A file opened from
+  SVG stills, a clip, a PDF, a log, a Markdown note (`notes.md`) and a JSON file (`results.json`), a
+  folder inside it, a secret file and folder and a link out), listed as thumbnails, newest first;
+  double-clicking a file opens it in its kind's group, Alt+double-click (or "Open as text" in the
+  entry's right-click menu) opens `notes.md` or `results.json` on its source with "Show source"
+  pressed, Space is a quick look (a still larger, the clip's first frame and length, an icon card
+  for the PDF, the log and the secret; ← → step, Enter opens, Space or Escape closes), "Copy path"
+  copies an entry's absolute path, and opening a folder from the Files panel (`agents` demo) lists a stand-in. A file opened from
   it, while the folder is on the bar, has ‹ and › through the folder's files of its kind (a
   still: ← and → too; ‹ is off on the first still and › on the last, and the log, the only
   text file, has both off) and Show in render, which goes back to the folder with the file selected
@@ -1506,7 +1517,10 @@ every pull request, in three parts. Windows and macOS run only when the change a
 package that declares `"novadeck": { "platform": "system" }`, or a file outside every package
 (`scripts/quality/plan`): Windows runs every test, and macOS, once every Linux job has passed,
 the system packages' tests, one package at a time (`npm run test:system`). The nightly
-Quality run runs every test on all three. The UI tests run in Chromium alongside backend API,
+Quality run runs every test on all three, and so does a whole-suite run of Quality (a change
+to CI or a root file): on macOS in three jobs, every test but the UI specs' (`test:macos1`) and the specs in two
+halves (`test:macos2`, `test:macos3`), each on one worker, as two workers starved each other on
+its 3-vCPU runners. The UI tests run in Chromium alongside backend API,
 real PTY, and built-CLI tests. The required `Test` check passes only when every job the plan
 chose has. A draft PR runs no macOS job, in Quality or E2E, and its `Test` and `E2E` checks
 fail ("draft: macOS not run") while its change needs macOS: open a PR as a draft while you

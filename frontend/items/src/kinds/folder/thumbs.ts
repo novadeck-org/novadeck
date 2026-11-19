@@ -1,6 +1,6 @@
 import type { FilePart } from "@novadeck/core/items"
 
-import { entryThumbRenderer, type FolderEntryKind } from "./entry-thumbs"
+import { entryThumbRenderer, type EntryThumbBox, type FolderEntryKind } from "./entry-thumbs"
 import "./thumb-renderers"
 
 // The pictures of a folder's grid: each is read through the runner's `companions.part`, as the
@@ -127,8 +127,8 @@ const keep = (key: string, thumb: Thumb | null): void => {
 // that never settles takes no place in the queue for good.
 export const thumbDeadlineMs = 15_000
 
-// The box a picture is drawn in, which a renderer fits its picture to.
-const box = { width: 320, height: 200 }
+// The box a grid's picture is drawn in, which a renderer fits its picture to.
+const gridBox = { width: 320, height: 200 }
 
 // Reads a file of the folder and makes its picture with what its kind registered (see
 // ./entry-thumbs): kept by `key`, with its length where it has one. Undefined where it can't be
@@ -144,6 +144,7 @@ export const loadThumb = async ({
   size,
   read,
   signal,
+  box = gridBox,
   deadline = thumbDeadlineMs,
 }: {
   readonly key: string
@@ -152,6 +153,8 @@ export const loadThumb = async ({
   readonly size: number
   readonly read: (offset: number, signal: AbortSignal) => Promise<FilePart>
   readonly signal: AbortSignal
+  // The box the picture is drawn in: the grid's unless a larger one is asked for.
+  readonly box?: EntryThumbBox
   readonly deadline?: number
 }): Promise<Thumb | undefined> => {
   const render = entryThumbRenderer(kind)

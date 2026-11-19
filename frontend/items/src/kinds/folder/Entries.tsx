@@ -70,7 +70,7 @@ export const heldText = (entry: FolderEntry): string | undefined =>
 
 // Whether an entry has a picture to draw: what its kind registered draws it (see ./entry-thumbs),
 // unless it is held back, or has no stamp to be read by.
-const hasPicture = (entry: FolderEntry): boolean =>
+export const hasPicture = (entry: FolderEntry): boolean =>
   !entry.secret && !entry.link && entry.stamp !== "" && entryThumbRenderer(entry.kind) !== undefined
 
 // How far an element is from the middle of the grid it is in, as the queue measures nearness.
@@ -143,7 +143,10 @@ export type EntryProps = {
   readonly fresh: boolean
   readonly now: number
   readonly onSelect: () => void
-  readonly onOpen: () => void
+  // Opens it; as text (its source, where its kind has one) when asked, as Alt+double-click does.
+  readonly onOpen: (asText: boolean) => void
+  // The person asked for its menu (right-click, the menu key or Shift+F10).
+  readonly onMenu: () => void
 }
 
 // What a name is followed by: the cursor of a file being written, and the mark of one that came
@@ -162,10 +165,11 @@ const Marks = ({
 )
 
 // The keys a tile or a row answers beyond a click: Enter opens it.
-const openOnEnter = (open: () => void) => (event: React.KeyboardEvent) => {
+const openOnEnter = (open: (asText: boolean) => void) => (event: React.KeyboardEvent) => {
   if (event.key !== "Enter") return
   event.preventDefault()
-  open()
+  // Held down, it opens once.
+  if (!event.repeat) open(false)
 }
 
 // The Files panel's two names for one pulse, so a write that lands while the last still plays
@@ -173,10 +177,12 @@ const openOnEnter = (open: () => void) => (event: React.KeyboardEvent) => {
 const pulseOf = (writing: number | undefined): "a" | "b" | undefined =>
   writing === undefined ? undefined : writing % 2 === 1 ? "a" : "b"
 
-const marks = (entry: FolderEntry): Record<string, true | undefined> => ({
+const marks = (entry: FolderEntry): Record<string, string | true | undefined> => ({
   "data-secret": entry.secret || undefined,
   "data-link": entry.link || undefined,
   "data-folder": entry.kind === "folder" || undefined,
+  // What the view finds its entry by from a key pressed on it.
+  "data-name": entry.name,
 })
 
 // An entry in the grid: its picture (or its kind's icon), then its name and what it is.
@@ -190,6 +196,7 @@ export const Tile = ({
   fresh,
   onSelect,
   onOpen,
+  onMenu,
   now,
 }: EntryProps): React.JSX.Element => {
   const ref = useRef<HTMLButtonElement>(null)
@@ -217,7 +224,8 @@ export const Tile = ({
       {...marks(entry)}
       title={held}
       onClick={onSelect}
-      onDoubleClick={onOpen}
+      onDoubleClick={(event) => onOpen(event.altKey)}
+      onContextMenu={onMenu}
       onKeyDown={openOnEnter(onOpen)}
     >
       <span className="folder-thumb">
@@ -257,6 +265,7 @@ export const Row = ({
   now,
   onSelect,
   onOpen,
+  onMenu,
 }: EntryProps): React.JSX.Element => {
   const held = heldText(entry)
   return (
@@ -269,7 +278,8 @@ export const Row = ({
       {...marks(entry)}
       title={held}
       onClick={onSelect}
-      onDoubleClick={onOpen}
+      onDoubleClick={(event) => onOpen(event.altKey)}
+      onContextMenu={onMenu}
       onKeyDown={openOnEnter(onOpen)}
     >
       <td className="folder-col-name">

@@ -164,7 +164,7 @@ jobs:
       # failures' upload below still runs, rather than the whole job being cancelled.
       - name: Run ${{ matrix.name }}
         run: ${{ matrix.command }}
-        timeout-minutes: ${{ runner.os == 'macOS' && (matrix.command == 'npm run test' && 65 || 30) || runner.os == 'Windows' && matrix.shard == 0 && 22 || matrix.browser && matrix.shard && 22 || (matrix.browser || matrix.shard) && 17 || 7 }}
+        timeout-minutes: ${{ runner.os == 'macOS' && (matrix.command == 'npm run test:macos2' && 45 || matrix.command == 'npm run test:macos3' && 45 || matrix.command == 'npm run test:macos1' && 40 || 30) || runner.os == 'Windows' && matrix.shard == 0 && 22 || matrix.browser && matrix.shard && 22 || (matrix.browser || matrix.shard) && 17 || 7 }}
         env:
           NOVADECK_REQUIRE_FISH: ${{ steps.setup.outputs.fish == 'true' && '1' || '' }}
           # A re-run with debug logging records Playwright traces of failed UI specs.
@@ -239,9 +239,14 @@ jobs:
   # and that it affects (`test:system`), one at a time: the `neutral` ones, the UI and the
   # browser packages, run the same on every system but for the browser's rendering, so they
   # run on Linux, the specs' Mac chords too (frontend/specs' `eachPlatform`), and on macOS in
-  # the nightly run. Where the plan says `all`, failed, or left its rows out, every test (the
-  # root's `test`), as before: it took 45m58s on #847, 33 minutes of them the specs. Its
-  # packages ran 23 at once on a 3-core runner, where real-process tests failed (#784).
+  # the nightly run. Where the plan says `all`, failed, or left its rows out, every test, as
+  # before but in three jobs: every test but the specs' (`test:macos1`), and the specs in two
+  # halves (`test:macos2`, `test:macos3`), each with one worker. The whole suite took 45m58s
+  # on #847, 33 minutes of them the specs, with two spec workers; most macOS runners are
+  # 3-vCPU Macs, where two workers starved each other and specs timed out. One worker ended
+  # the stalls (no spec retried) but took 59m17 (3,550 s) for all the specs, about twice as
+  # long, so they run in two halves. Its packages ran 23 at once on a 3-core runner, where
+  # real-process tests failed (#784).
   macos:
     needs: [plan, quality]
     if: ${{ !cancelled() && needs.quality.result == 'success' && needs.plan.outputs.macos != 'false' }}
@@ -251,20 +256,24 @@ jobs:
     # requests and canaries after #862 (canary #865's 4m20s; canary #863's 9m32s; the proof
     # rows' widest list, 12 packages, 11m02s; #850's 12m53s); a loaded Mac takes 1.4 to 2 times
     # as long, and `testedFolders` can fall back to all 22 system packages: 30 for the tests.
-    # Every test (the whole suite, planned `all`) has 65: under load it measured 47m28 (11-11's
-    # hand-started night), 49 (#877's rerun) and 50m33 (#869's run) against the 57 it had, about
-    # 16 minutes on a quiet Mac, and a timeout there fails with no failing test (as #410 raised it
-    # for once). The job has ten minutes more than its
-    # tests, so setup with a toolchain retry (180 s) and a cold relay build still fits before
-    # them: a job cancelled mid-tests uploads no failure or retried record, and its gate reads
-    # "planned true, cancelled".
-    timeout-minutes: ${{ matrix.command == 'npm run test' && 75 || 40 }}
+    # Every test (the whole suite, planned `all`) is three jobs. Run together under load it
+    # measured 47m28 (11-11's hand-started night), 49 (#877's rerun) and 50m33 (#869's run),
+    # about 16 minutes on a quiet Mac. Without the specs (`test:macos1`) it is 13 to 22 minutes
+    # (16 to 18 on the pull request that split it): 40 for the tests. The specs on one worker
+    # took 59m17 (3,550 s), so each half (`test:macos2`, `test:macos3`) should take about 30:
+    # 45 for the tests. A timeout fails with no failing test (as #410 raised it for once). The
+    # job has ten minutes more than its tests, so setup with a toolchain retry (180 s) and a
+    # cold relay build still fits before them: a job cancelled mid-tests uploads no failure or
+    # retried record, and its gate reads "planned true, cancelled".
+    timeout-minutes: ${{ matrix.command == 'npm run test:macos2' && 55 || matrix.command == 'npm run test:macos3' && 55 || matrix.command == 'npm run test:macos1' && 50 || 40 }}
     env:
       # The packages the plan says to test, which `test:system` reads.
       NOVADECK_TEST_PACKAGES: ${{ needs.plan.outputs.packages }}
     strategy:
+      # The specs' job runs on though the other part failed, so one run shows every failure.
+      fail-fast: false
       matrix:
-        include: ${{ fromJSON(needs.plan.outputs.macos-rows || '[{"name":"Test (macOS)","os":"macos-latest","browser":true,"relay":true,"electron":true,"shard":0,"command":"npm run test"}]') }}
+        include: ${{ fromJSON(needs.plan.outputs.macos-rows || '[{"name":"Test (macOS, 1/3)","os":"macos-latest","browser":true,"relay":true,"electron":true,"shard":1,"command":"npm run test:macos1"},{"name":"Test (macOS, 2/3)","os":"macos-latest","browser":true,"shard":2,"command":"npm run test:macos2"},{"name":"Test (macOS, 3/3)","os":"macos-latest","browser":true,"shard":3,"command":"npm run test:macos3"}]') }}
     steps: *steps
 
   # Proof of the narrowed rows, for a pull request that changes how Windows's and macOS's tests

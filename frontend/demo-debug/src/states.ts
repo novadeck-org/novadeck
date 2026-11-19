@@ -16,6 +16,7 @@ import { createChatFailures, createChatPictures } from "./chat"
 import { createDemoUpdates, pageUpdateChannel } from "./desktop/updates"
 import { createEmptyChats } from "./emptiness"
 import { createDemoFolders } from "./folders"
+import { createLongReplies } from "./long-replies"
 import { createStaleMentions } from "./mentions"
 import { createDemoNotices } from "./notices"
 import {
@@ -594,6 +595,7 @@ export const createDemoStates = (
   const chat = createChatFailures()
   const pictures = createChatPictures()
   const mentions = createStaleMentions()
+  const longReplies = createLongReplies()
   const emptyChats = createEmptyChats()
   const panelAsks: PanelAsks = new Set()
   const waitingActions = createWaitingActions(verbs, inbox, panelAsks)
@@ -1046,6 +1048,11 @@ export const createDemoStates = (
     },
     {
       section: "Agents",
+      title: "Chat: long replies",
+      actions: longReplies.actions,
+    },
+    {
+      section: "Agents",
       title: "Agent connections",
       actions: [
         {
@@ -1079,7 +1086,7 @@ export const createDemoStates = (
     pickDirectory,
     moveTerminal,
     chat: (conversations) =>
-      emptyChats.wrap(mentions.wrap(pictures.wrap(chat.wrap(conversations)))),
+      longReplies.wrap(emptyChats.wrap(mentions.wrap(pictures.wrap(chat.wrap(conversations))))),
     screens,
     failPaste: (key) => pasteFails.delete(terminalKeyId(key)),
     holds: (key) => held.has(terminalKeyId(key)),

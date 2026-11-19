@@ -511,7 +511,25 @@ with every safety check again at that time:
   makes its taskbar icon new. Double-clicking a folder goes into it in the same tab, never above
   the one that was opened (the crumbs start there); double-clicking a file opens it as an item
   of its own kind on the terminal's bar (`companions.attach`), as if shown, so it goes to that
-  kind's group. A file open on a bar's pane or in an undocked window (an image, video, recording,
+  kind's group. An entry's menu (right-click, the menu key or Shift+F10) offers Open,
+  Open as text, Quick look and Copy path; a folder's has Open and Copy path, and a secret or a link
+  out only Copy path. Open as text, and Alt+double-click, open a file on its source (the file
+  preview's "Show source" switch, kept per file as that switch keeps it): only a file whose type
+  has a preview with a source, by its name (Markdown `.md` and `.markdown`, tables `.csv` and `.tsv`, and
+  data `.json`, `.jsonl` and YAML), has it, and any other opens as usual. Space
+  is a quick look, a floating peek over the pane that opens no tab: an image larger, a video's
+  first frame and length, a kind registered through `registerEntryThumb` by its renderer, and
+  for anything else (text, a PDF, a recording, a file too large, a secret) its icon, kind, size and
+  when it changed; it reads files only as the thumbnails do (never text or a PDF's content). ← and
+  → step through the files (folders skipped), Enter opens the file in a tab, Space or Escape or a
+  click outside closes it, and focus goes back to the folder. It is transient, not modal: a press or focus outside it, or its file going or the folder
+  changing, ends it (a click into the terminal keeps the focus it took), Tab stays in it, Backspace
+  and Alt+Up, which would go up behind it, do nothing, and a key held down (Escape too) acts once. When the pane covers its terminal, a folder's entries keep only Space (the look); any other letter
+  typed there still uncovers the pane and goes to the terminal, Backspace and the arrows were never
+  characters, and Escape hides the pane unless a look is up, which keeps all its keys (`data-pane-keys`
+  in `homes/terminal/cover-keys.ts`; the folder's is `"space"`). Nothing in it is harness-specific.
+  "Show in Files" isn't offered, because Novadeck has no reveal-in-system action for a path yet.
+  A file open on a bar's pane or in an undocked window (an image, video, recording,
   PDF or text file; not the project window's, which keeps its one file) that lies under the top of
   a folder item of the same session, on any bar or in a window (the one on the file's own holder if
   there is one, else the deepest top), has ‹ and › in the row's tools, which step it

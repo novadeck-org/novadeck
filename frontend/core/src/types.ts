@@ -58,6 +58,9 @@ export type PreferencesValue = {
   // Whether the footer offers the onboarding tour, in its Help menu. Off by default, and only
   // with Experimental on.
   onboardingTour: boolean
+  // Whether Agent Chat folds an agent's long replies, all but its latest, to their first lines.
+  // Off by default, and only with Experimental on.
+  foldLongReplies: boolean
 }
 export type Project = { id: string; name: string; directory: string }
 

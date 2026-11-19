@@ -76,7 +76,7 @@ import {
 } from "./selectors"
 import { useFoldTeam } from "./team-fold"
 import { useBarShells, useShellsHome, useTerminalBar } from "./terminal-bar"
-import { agentAvatarsOn, chatViewOn } from "./ui-store"
+import { agentAvatarsOn, chatViewOn, foldLongRepliesOn } from "./ui-store"
 import { useWorktreesShown } from "./use-worktrees-shown"
 import { useTerminalMarks } from "./useTerminalMarks"
 
@@ -307,6 +307,7 @@ export const WorkspaceTerminal = memo(
     // A terminal whose agent has a conversation to show, with the chat view on (an
     // experimental feature), on a backend that reads it.
     const chatView = useUiState(chatViewOn)
+    const foldReplies = useUiState(foldLongRepliesOn)
     // Listen before showing chat: an agent without reported activity can still have a
     // bound conversation. A program name or an empty, loaded transcript alone is no session.
     const available = chatView && chatAvailable(terminal)
@@ -446,6 +447,7 @@ export const WorkspaceTerminal = memo(
                     sending={sending}
                     shells={shells}
                     opened={opened}
+                    foldReplies={foldReplies}
                     shellTails={shellTails}
                     onOpenShell={onOpenShell}
                     attachments={attachments}

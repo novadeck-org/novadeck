@@ -104,8 +104,8 @@ const Row = ({
   } = useInboxContext()
   const { settled } = row
   // An update is read once its row has been in sight for a moment, on the Inbox's panel while
-  // it shows: seeing it is reading it. A panel that isn't shown is only invisible, which the
-  // observer can't tell.
+  // it shows: seeing it is reading it. A panel on its way out stays in sight to the observer
+  // until it has faded (sidebar.css), so the panel's own flag says when it shows.
   const [element, setElement] = useState<HTMLDivElement | null>(null)
   const ref = useCallback(
     (node: HTMLDivElement | null): void => {
