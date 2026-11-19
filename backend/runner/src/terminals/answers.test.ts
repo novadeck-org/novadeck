@@ -1,11 +1,16 @@
+import { join } from "node:path"
+
+import type { ScreenText } from "@novadeck/emulator/headless"
 import type { DialogAdapter, RequestFacts } from "@novadeck/harness-core/dialogs"
 import { fakeAdapter, FakeTui } from "@novadeck/harness-core/testing/dialogs"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { screen } from "@novadeck/harness-core/testing/screens"
 import { requestAnswer } from "@novadeck/protocol"
 import { InputQueue } from "@novadeck/tui-input"
 import { afterEach, vi } from "vitest"
 
 import { DomainError } from "../errors.js"
+import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it } from "../test.js"
 import { Answers, type AnswersHost } from "./answers.js"
 import { identified, identifiedRead } from "./dialogs.js"
@@ -99,6 +104,8 @@ const terminal = (
      * facts, with the keys "R" to bring it into view (which do, unless `stuck`).
      */
     held?: boolean | "stuck"
+    /** A real adapter reads the screen, and the screen is these rows: no fake TUI. */
+    real?: { adapter: DialogAdapter; rows: readonly string[] }
     /** Runs after each write, as the TUI redraws. */
     after?: (tui: FakeTui) => void
     /**
@@ -127,6 +134,7 @@ const terminal = (
   let settled = 0
   let asked = 0
   const adapter = (): DialogAdapter => {
+    if (options.real) return options.real.adapter
     const inner = shownAdapter()
     if (!options.held) return inner
     return {
@@ -299,7 +307,8 @@ const terminal = (
             }
           : undefined,
     ringing: () => undefined,
-    screen: () => Promise.resolve(tui.screen()),
+    screen: () =>
+      Promise.resolve(options.real ? screen({ rows: [...options.real.rows] }) : tui.screen()),
     press: (_terminal, data) => {
       tui.write(data)
       if (data === "R" && options.held === true) tui.state = "ask"
@@ -1447,5 +1456,40 @@ describe("answering a dialog held out of view", () => {
     )
     expect(result).toBe("dismissed")
     expect(made.tui.written).toEqual(["\x1b"])
+  })
+})
+
+describe("answering over Codex's /diff pager, which hides the dialog under it", () => {
+  // Escape there answers the hidden dialog (probed on 0.170.0): nothing must ever press it.
+  const { states } = loadProbe<{ states: Record<string, ScreenText> }>(
+    join(import.meta.dirname, "../../../../harnesses/codex/src"),
+    "hidden-dialog.probe.json",
+  )
+  const pager = () =>
+    terminal({
+      real: { adapter: harnesses.codex.dialogs!, rows: states.permissionHeld!.rows },
+      escape: "skips",
+      asking: () => [{ ref: "r1", kind: "question" }],
+      // The tracker shows it raw, as nothing reads there.
+      shown: false,
+    })
+
+  it("refuses an answer, pressing nothing and locking nothing: the dialog reads raw", async () => {
+    const { answers, tui, locks, read } = pager()
+    expect(read()).toBeUndefined()
+    expect(
+      await fails(answers.answer("t", "r1", { dialog: "none", type: "choice", option: "1" })),
+    ).toBe("CONFLICT")
+    expect(tui.written).toEqual([])
+    expect(locks).toEqual([])
+  })
+
+  it("refuses to set a question aside, as a Stop or a Send would, pressing no Escape", async () => {
+    const { answers, queue, tui, locks } = pager()
+    expect(await fails(queue.run("t", (entry) => answers.setAside(entry, "t", ["r1"], "hi")))).toBe(
+      "CONFLICT",
+    )
+    expect(tui.written).toEqual([])
+    expect(locks).toEqual([])
   })
 })

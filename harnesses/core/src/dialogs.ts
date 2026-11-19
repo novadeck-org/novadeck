@@ -126,11 +126,13 @@ export type DialogAdapter = {
   readonly screenRequest?: (rows: readonly string[]) => ScreenRequest | undefined
   /**
    * The keys that bring a dialog held out of view into view, answering nothing: what the
-   * person would press to see a dialog their TUI drew below its scrolled-up transcript
-   * (Claude Code's fullscreen view); undefined when the screen holds none out of view. The
-   * runner presses them only for a terminal no client has in sight, so a person reading it is
-   * never moved. Absent where a harness's dialogs stand on the live screen, as Codex's and
-   * Antigravity's do (their inline views have no scrolled-away state).
+   * person would press to see a dialog their TUI drew where the screen doesn't show it
+   * (Claude Code's fullscreen view scrolled up, which leaves only a pill; Codex's `/diff`
+   * pager, which says nothing, closed with `q`); undefined when the screen holds none out of
+   * view. A screen that may hold one is judged strictly, for the keys are typed into the
+   * person's composer anywhere else. The runner presses them only for a terminal no client
+   * has in sight, so a person reading it is never moved. Absent for Antigravity, which draws
+   * its dialogs over its own views (`/help`, `/skills`).
    */
   readonly reveal?: (rows: readonly string[]) => string | undefined
 }

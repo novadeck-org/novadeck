@@ -1169,9 +1169,8 @@ describe.skipIf(!supported || !codexSetup)("Codex's async question", () => {
 
 // Claude Code's fullscreen renderer (`"tui": "fullscreen"`) keeps a dialog that comes while
 // the person has its transcript scrolled up out of sight, under a "Waiting for your answer
-// (ctrl+End) ↓" pill (`probes/fullscreen-scrolled.e2e.ts`). Only Claude Code draws its own
-// scrolled transcript: Codex's and Antigravity's dialogs stand on the live screen, which the
-// terminal's own scrollback never hides. A question reads from what its hook asked, and the
+// (ctrl+End) ↓" pill (`probes/fullscreen-scrolled.e2e.ts`). Codex hides one under its `/diff`
+// pager instead (below); Antigravity draws its dialogs over its views. A question reads from what its hook asked, and the
 // answer scrolls it into view first, leaving the screen alone until then.
 const claudeSetup = setups.find(({ agent }) => agent === "claude")
 describe.skipIf(!supported || !claudeSetup)("Claude Code's fullscreen view scrolled up", () => {
@@ -1291,5 +1290,58 @@ describe.skipIf(!supported || !claudeSetup)("Claude Code's fullscreen view scrol
     await sleep(2_000)
     expect((await t1.detail()).requests[0]?.dialog?.type).toBe("raw")
     expect(await t1.screen()).toContain("Waiting for your answer")
+  })
+})
+
+// Codex's `/diff` pager takes the whole screen, and an approval asked while it is open is drawn
+// under it, with nothing on screen to say so; `q` closes the pager and shows the dialog, and
+// Escape would answer it (`probes/codex-hidden-dialog.e2e.ts`). With no window looking at the
+// terminal, Novadeck presses `q` itself. Claude Code's and Antigravity's dialogs need no such
+// key: Antigravity draws them over its own views.
+describe.skipIf(!supported || !codexSetup)("Codex's /diff pager over an approval", () => {
+  const it = e2e(codexSetup!)
+
+  it("closes the pager by itself for a terminal nobody looks at, and the approval answers", async ({
+    e2e: run,
+  }) => {
+    let waited = false
+    run.model.use(
+      // A wait after the first call, for the pager to be opened before the approval is asked.
+      answers("Run the thing", () => ({
+        calls: [
+          { name: "exec_command", input: { cmd: "sleep 8; echo slept", yield_time_ms: 30_000 } },
+        ],
+      })),
+      own((call) => {
+        if (result(call) === undefined || waited) return undefined
+        waited = true
+        return {
+          calls: [
+            {
+              name: "exec_command",
+              input: {
+                cmd: "echo approved > probe-out.txt",
+                sandbox_permissions: "require_escalated",
+                justification: "Echo outside the sandbox",
+              },
+            },
+          ],
+        }
+      }),
+      noted,
+    )
+    const t1 = await start(run, codexSetup!)
+    await t1.prompt("Run the thing")
+    await sleep(3_000)
+    await t1.submit("/diff")
+    await t1.until(/q close/, 20_000)
+
+    const request = await dialogOf(t1, "choices")
+    expect(choices(request).detail).toContain("echo approved > probe-out.txt")
+    const calls = run.model.calls.length
+    const yes = option(choices(request), /^Yes, proceed/, false)
+    await t1.answer(request.ref, { dialog: idOf(request), type: "choice", option: yes.id })
+    await run.model.waitFor((call) => result(call) !== undefined, { after: calls })
+    await unrequested(t1)
   })
 })

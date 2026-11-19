@@ -58,6 +58,34 @@ const parse = (rows: readonly string[], facts: RequestFacts): Parsed | undefined
   return permission(lines, facts)
 }
 
+// Codex's `/diff` pager takes the whole screen: a `/ D I F F / / /` header, filler, a rule
+// (with how far down it is), a scroll hint and ` q close`. A dialog asked while it is open
+// (an approval, `request_user_input`) is drawn under it, and nothing on the pager says so;
+// `q` closes it and shows the dialog, still pending, while Escape answers the hidden dialog
+// (it cancels the approval, which ends the turn, or skips the question). Probed 2026-11-19,
+// 0.170.0 (`fixtures/hidden-dialog.probe.json`, `e2e/probes/codex-hidden-dialog.e2e.ts`).
+const pagerHeader = /^\/ D I F F \/ \/ \//
+const pagerRule = /^─+(?: \d{1,3}% ─)?$/
+const pagerHint = /^ ↑\/↓ to scroll · pgup\/pgdn to page · home\/end to jump$/
+const pagerClose = /^ q close$/
+
+/**
+ * Whether the screen is the `/diff` pager, every part of it: the header on the first row, and
+ * the rule, the scroll hint and ` q close` as the last three. Strict, for `q` pressed anywhere
+ * else would be typed into the person's composer.
+ */
+export const pager = (rows: readonly string[]): boolean => {
+  const lines = rows.map((row) => row.trimEnd())
+  const last = lines.findLastIndex((row) => row !== "")
+  return (
+    last >= 3 &&
+    pagerHeader.test(lines[0]!) &&
+    pagerClose.test(lines[last]!) &&
+    pagerHint.test(lines[last - 1]!) &&
+    pagerRule.test(lines[last - 2]!)
+  )
+}
+
 export const dialogs: DialogAdapter = {
   read: (rows, request): DialogRead | undefined => {
     const parsed = parse(rows, request)
@@ -73,6 +101,8 @@ export const dialogs: DialogAdapter = {
           (parse(later, request) === undefined && composerShown(later))),
     }
   },
+  // `q` closes the pager that holds a dialog out of view, and answers nothing.
+  reveal: (rows) => (pager(rows) ? "q" : undefined),
   screenRequest: (rows): ScreenRequest | undefined =>
     plan(clean(rows)) === undefined
       ? undefined
