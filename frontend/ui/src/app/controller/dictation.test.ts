@@ -56,7 +56,6 @@ const ui = (): UiStore =>
         chatView: false,
         agentAvatars: false,
         onboardingTour: false,
-        foldLongReplies: false,
       },
     }),
   )

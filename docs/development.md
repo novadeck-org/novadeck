@@ -437,13 +437,6 @@ Agents:
   entries to the selected agent's chat, one dated three hours before and one just after, both
   naming that `@handle`: the old one draws it as plain text, the new one in the handle's hue.
   "Handle back to its first terminal" undoes it (`frontend/demo-debug/src/mentions.ts`).
-- **Chat: long replies:** "Long replies" adds three finished turns to the selected agent's chat,
-  each a prompt and a reply of about 60 lines. With Experimental on (App > Updates, then
-  Preferences reopened) and Fold long replies switched on in Preferences > Experimental, the
-  earlier replies fold to their opening lines with a key for the rest once they're out of sight,
-  and the latest shows in full; while the demo agent still works, its running turn's words are no
-  reply yet, so only the first folds. "Long replies gone" takes them out
-  (`frontend/demo-debug/src/long-replies.ts`).
 - **Plan:** only in the `showcase` variant, on the selected terminal's agent (Build Studio or
   the auth agent), for what happens to a plan the person has edited. "Plan in the agent's
   messages" makes it read-only; "Plan file deleted" shows that its file is gone, with the

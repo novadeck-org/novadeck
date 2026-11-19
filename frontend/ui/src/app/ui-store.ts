@@ -387,10 +387,6 @@ export const holdChatOffer = (ui: UiStore): void =>
 export const agentAvatarsOn = (state: Pick<UiState, "preferences" | "flags">): boolean =>
   state.flags.IS_EXPERIMENTAL && state.preferences.agentAvatars
 
-/** Whether Agent Chat folds long replies: its own switch, with Experimental on. */
-export const foldLongRepliesOn = (state: Pick<UiState, "preferences" | "flags">): boolean =>
-  state.flags.IS_EXPERIMENTAL && state.preferences.foldLongReplies
-
 /** Whether the footer offers the onboarding tour: its own switch, with Experimental on. */
 export const onboardingTourOn = (state: Pick<UiState, "preferences" | "flags">): boolean =>
   state.flags.IS_EXPERIMENTAL && state.preferences.onboardingTour
