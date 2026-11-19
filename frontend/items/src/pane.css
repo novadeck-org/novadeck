@@ -509,6 +509,10 @@
   padding: 4px 6px;
   border-bottom: var(--border-width) solid var(--pane-tabs-border-color, var(--color-line));
 }
+/* The body of a file's item, which hears the keys that step it through its folder: no box of its own. */
+.item-body {
+  display: contents;
+}
 .pane-tool {
   position: relative;
   width: 24px;

@@ -1,0 +1,193 @@
+import type { Item, ItemContent } from "@novadeck/core/items"
+import type { WorkspaceTarget } from "@novadeck/core/types"
+import { ChevronLeft, ChevronRight, FolderOpen } from "lucide-react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type KeyboardEvent,
+} from "react"
+
+import type { OnKeys } from "./item-body"
+import { useItemCommands } from "./item-commands"
+import { listedFolder, useFolderView } from "./kinds/folder/hooks"
+import { absoluteOf } from "./kinds/folder/model"
+import {
+  arrowKinds,
+  fileNameOf,
+  homeOf,
+  neighboursOf,
+  sessionOf,
+  stepsOf,
+  type Home,
+} from "./kinds/folder/stepping"
+import { PaneTools, type PaneTool } from "./pane-row"
+import { registrationOf } from "./registry"
+import type { ItemStore } from "./store/item-store"
+
+// What a file shown in a pane or a window offers when it is in a folder the session has open
+// (see ./kinds/folder/stepping.ts for which): ‹ and › to show the file before or after it in
+// the folder, which point the same item at it, so no tab comes or goes, and "Show in", which goes
+// back to the folder with the file selected. These are the tools of every kind of file, at the
+// end of the row; none of a viewer's own.
+
+// The folder a listing is of, as the folder item at a path under its top names it.
+const nameOf = ({ folder, within }: Home): string =>
+  within === "" ? folder.name : (within.split("/").at(-1) ?? folder.name)
+
+// The listing of the folder `home` says the file is in, followed while the file is shown: a
+// follow of its own, which leaves the folder item's own view where it is.
+const useListing = (
+  itemStore: ItemStore,
+  target: WorkspaceTarget,
+  { folder, within }: Home,
+): ItemContent | undefined => {
+  const [kept, setKept] = useState<{ readonly key: string; readonly content: ItemContent }>()
+  const { projectId, workspaceSessionId } = target
+  const key = `${folder.id}\n${within}`
+  useEffect(
+    () =>
+      itemStore.siblings({ projectId, workspaceSessionId }, folder.id, within, (content) =>
+        setKept({ key, content }),
+      ),
+    [itemStore, projectId, workspaceSessionId, folder.id, within, key],
+  )
+  return kept?.key === key ? kept.content : undefined
+}
+
+const isEditable = (target: EventTarget): boolean =>
+  target instanceof Element && target.closest("input, textarea, select, [contenteditable]") !== null
+
+const Steps = ({
+  item,
+  itemStore,
+  target,
+  home,
+  onKeys,
+}: {
+  item: Item
+  itemStore: ItemStore
+  target: WorkspaceTarget
+  home: Home
+  onKeys: OnKeys
+}): React.JSX.Element => {
+  const { folder, within } = home
+  const commands = useItemCommands()
+  const { sort } = useFolderView(itemStore, folder.id)
+  const listed = listedFolder(useListing(itemStore, target, home))
+  const kind = registrationOf(item).names.one
+  const name = nameOf(home)
+  const named = fileNameOf(item.path ?? "")
+  const near = useMemo(
+    () => listed && neighboursOf(stepsOf(listed.entries, item.kind, sort), named),
+    [listed, item.kind, sort, named],
+  )
+  // The file asked for and not shown yet, so a key held down doesn't ask for it again.
+  const asked = useRef<string>(undefined)
+  const { repoint } = itemStore
+  const itemId = item.id
+  const step = useCallback(
+    (to: string): void => {
+      if (!repoint || !listed || asked.current === to) return
+      asked.current = to
+      const path = absoluteOf(listed.path, to)
+      // A file that went meanwhile is let be: the listing follows it, and the tool goes with it.
+      repoint(target, itemId, path)
+        .catch(() => {})
+        .finally(() => {
+          asked.current = undefined
+        })
+    },
+    [repoint, listed, target, itemId],
+  )
+  const before = near?.before
+  const after = near?.after
+  // Only a kind whose viewer leaves the arrow keys alone steps by them (see `arrowKinds`).
+  const arrows = arrowKinds.has(item.kind)
+  useEffect(() => {
+    onKeys(() => (event: KeyboardEvent) => {
+      if (!arrows || event.defaultPrevented || event.nativeEvent.isComposing) return
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+      if (isEditable(event.target)) return
+      const to = event.key === "ArrowLeft" ? before : after
+      if (!to) return
+      event.preventDefault()
+      step(to.name)
+    })
+    return () => onKeys(undefined)
+  }, [onKeys, arrows, before, after, step])
+  // Where the place can't bring another item forward, as a window can't, there is no way back.
+  const showIn =
+    commands &&
+    ((): void => {
+      itemStore.folder(folder.id, { within, selected: named })
+      if ("terminalId" in folder.holder) commands.openBarTab(folder.holder.terminalId, folder.id)
+      // A window comes forward, where it is.
+      else commands.undock(folder.id)
+    })
+  // The ends of the folder's files take no click but keep their tooltip and focus, as the
+  // folder's own Up does at its top.
+  const tools: PaneTool[] = [
+    ...(repoint
+      ? ([
+          {
+            key: "previous",
+            icon: ChevronLeft,
+            label: `Previous ${kind} in ${name}`,
+            tip: before
+              ? `Previous ${kind} in ${name}: ${before.name}${arrows ? " · ←" : ""}`
+              : `This is the first ${kind} in ${name}`,
+            ...(arrows && { keys: "ArrowLeft" }),
+            pending: !before,
+            onClick: () => {
+              if (before) step(before.name)
+            },
+          },
+          {
+            key: "next",
+            icon: ChevronRight,
+            label: `Next ${kind} in ${name}`,
+            tip: after
+              ? `Next ${kind} in ${name}: ${after.name}${arrows ? " · →" : ""}`
+              : `This is the last ${kind} in ${name}`,
+            ...(arrows && { keys: "ArrowRight" }),
+            pending: !after,
+            onClick: () => {
+              if (after) step(after.name)
+            },
+          },
+        ] satisfies PaneTool[])
+      : []),
+    ...(showIn
+      ? [{ key: "show-in", icon: FolderOpen, label: `Show in ${name}`, onClick: showIn }]
+      : []),
+  ]
+  return <PaneTools tools={tools} />
+}
+
+// The steps of a file: its folder among the session's items, and then the tools. Nothing where
+// the file is in none.
+export const FileSteps = ({
+  item,
+  itemStore,
+  target,
+  onKeys,
+}: {
+  item: Item
+  itemStore: ItemStore
+  target: WorkspaceTarget
+  onKeys: OnKeys
+}): React.JSX.Element | null => {
+  const { workspace } = itemStore
+  const items = useSyncExternalStore(workspace.subscribe, () =>
+    sessionOf(workspace.getSnapshot(), item.id),
+  )
+  const home = useMemo(() => homeOf(item, items), [item, items])
+  return home ? (
+    <Steps item={item} itemStore={itemStore} target={target} home={home} onKeys={onKeys} />
+  ) : null
+}

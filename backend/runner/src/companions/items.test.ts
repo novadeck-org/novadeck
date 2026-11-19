@@ -580,6 +580,168 @@ describe("what the person attaches", () => {
   })
 })
 
+describe("a file pointed at another file", () => {
+  const files = (directory: string) => {
+    for (const [name, text] of [
+      ["a.md", "alpha\n"],
+      ["b.md", "bravo\n"],
+      ["shot.png", "pixels"],
+      ["clip.mp4", "frames"],
+      [".env", "TOKEN=x\n"],
+    ] as const)
+      writeFileSync(join(directory, name), text)
+    mkdirSync(join(directory, "inside"))
+  }
+
+  it("keeps its item, id and bar, and shows the new file as the person's own, asked open", async ({
+    fixture,
+  }) => {
+    files(fixture.directory)
+    const moth = fixture.terminal("moth")
+    const first = await fixture.items.attach({ terminalId: moth.terminalId, path: "a.md" })
+    const gone: string[] = []
+    fixture.items.listen({ troubled: () => {}, gone: (item) => gone.push(item.path ?? "") })
+    const controller = new AbortController()
+    const stream = fixture.items.content(first.id, undefined, controller.signal)
+    expect(lines(await next(stream))).toEqual(["alpha"])
+    const before = Date.now()
+    const second = await fixture.items.repoint({ itemId: first.id, path: "b.md" })
+    expect(second).toMatchObject({
+      id: first.id,
+      holder: { terminalId: moth.terminalId },
+      name: "b.md",
+      path: join(fixture.directory, "b.md"),
+      by: "person",
+      version: 2,
+      openAsked: true,
+    })
+    expect(second.shownAt).toBeGreaterThanOrEqual(before)
+    expect(fixture.items.bar(moth.terminalId)).toEqual([second])
+    expect(lines(await next(stream))).toEqual(["bravo"])
+    // What the pane told of the earlier file is no longer news.
+    expect(gone).toEqual([join(fixture.directory, "a.md")])
+    controller.abort()
+  })
+
+  it("takes an absolute path, and points a file an agent showed at one of the person's", async ({
+    fixture,
+  }) => {
+    files(fixture.directory)
+    const moth = fixture.terminal("moth")
+    await fixture.items.show(moth, { file: { path: "a.md" } })
+    const [shown] = fixture.items.bar(moth.terminalId)
+    expect(shown).toMatchObject({ by: "agent", openAsked: false })
+    await expect(
+      fixture.items.repoint({ itemId: shown!.id, path: join(fixture.directory, "b.md") }),
+    ).resolves.toMatchObject({ id: shown!.id, name: "b.md", by: "person", openAsked: true })
+  })
+
+  it("is refused, saying why, for a file of another kind, a folder, no file or an item that is none", async ({
+    fixture,
+  }) => {
+    files(fixture.directory)
+    const moth = fixture.terminal("moth")
+    const note = await fixture.items.attach({ terminalId: moth.terminalId, path: "a.md" })
+    const folder = await fixture.items.attach({ terminalId: moth.terminalId, path: "inside" })
+    await expect(
+      fixture.items.repoint({ itemId: note.id, path: "shot.png" }),
+    ).rejects.toMatchObject({
+      code: "INVALID_FILE",
+      message: 'That file\'s kind is "image", not "file".',
+    })
+    await expect(fixture.items.repoint({ itemId: note.id, path: "inside" })).rejects.toMatchObject({
+      code: "INVALID_FILE",
+      message: "A folder can't stand in for a file.",
+    })
+    await expect(fixture.items.repoint({ itemId: note.id, path: "gone.md" })).rejects.toMatchObject(
+      { code: "INVALID_FILE", message: "That file doesn't exist." },
+    )
+    await expect(fixture.items.repoint({ itemId: folder.id, path: "b.md" })).rejects.toMatchObject({
+      code: "INVALID_FILE",
+    })
+    expect(fixture.items.bar(moth.terminalId)).toEqual([
+      expect.objectContaining({ id: note.id, name: "a.md", version: 1 }),
+      expect.objectContaining({ id: folder.id, version: 1 }),
+    ])
+  })
+
+  it("opens a file that may hold secrets onto its gate, as attaching it does", async ({
+    fixture,
+  }) => {
+    files(fixture.directory)
+    const moth = fixture.terminal("moth")
+    const note = await fixture.items.attach({ terminalId: moth.terminalId, path: "a.md" })
+    const held = await fixture.items.repoint({ itemId: note.id, path: ".env" })
+    expect(held).toMatchObject({ name: ".env", secret: true, openAsked: true })
+    await expect(fixture.items.load(note.id, false)).resolves.toMatchObject({
+      state: "unavailable",
+      reason: "secret",
+    })
+    // Pointed back at an open file, the gate goes.
+    await expect(fixture.items.repoint({ itemId: note.id, path: "b.md" })).resolves.toMatchObject({
+      secret: false,
+    })
+    expect(lines(await fixture.items.load(note.id, false))).toEqual(["bravo"])
+  })
+
+  it("replaces what the bar already holds of the new file, and is the item the bar keeps", async ({
+    fixture,
+  }) => {
+    files(fixture.directory)
+    const moth = fixture.terminal("moth")
+    const first = await fixture.items.attach({ terminalId: moth.terminalId, path: "a.md" })
+    const second = await fixture.items.attach({ terminalId: moth.terminalId, path: "b.md" })
+    const watch = watching(fixture.items)
+    const stepped = await fixture.items.repoint({ itemId: first.id, path: "b.md" })
+    expect(fixture.items.bar(moth.terminalId)).toEqual([stepped])
+    expect(stepped.id).toBe(first.id)
+    expect(fixture.items.list(fixture.sessionId).items).toEqual([stepped])
+    await vi.waitFor(() =>
+      expect(watch.seen).toContainEqual({
+        type: "itemRemoved",
+        itemId: second.id,
+        sessionId: fixture.sessionId,
+      }),
+    )
+    await watch.stop()
+  })
+
+  it("points an undocked window's item, which keeps its window", async ({ fixture }) => {
+    files(fixture.directory)
+    const moth = fixture.terminal("moth")
+    const note = await fixture.items.attach({ terminalId: moth.terminalId, path: "a.md" })
+    const windowId = randomUUID()
+    fixture.items.undock(note.id, windowId)
+    await expect(fixture.items.repoint({ itemId: note.id, path: "b.md" })).resolves.toMatchObject({
+      id: note.id,
+      holder: { windowId },
+      name: "b.md",
+      version: 2,
+    })
+    expect(fixture.items.list(fixture.sessionId).windows).toMatchObject([
+      { id: windowId, itemId: note.id, title: "b.md" },
+    ])
+  })
+
+  it("leaves the project window's file to its window, and says an unknown item is none", async ({
+    fixture,
+  }) => {
+    files(fixture.directory)
+    const opened = await fixture.items.openInProject({
+      sessionId: fixture.sessionId,
+      path: "a.md",
+      windowId: randomUUID(),
+    })
+    await expect(
+      fixture.items.repoint({ itemId: opened.item.id, path: "b.md" }),
+    ).rejects.toMatchObject({ code: "CONFLICT" })
+    await expect(
+      fixture.items.repoint({ itemId: randomUUID(), path: "b.md" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    expect(fixture.items.list(fixture.sessionId).items).toEqual([opened.item])
+  })
+})
+
 describe("the project window", () => {
   it("is made by the first file opened in it, held by no terminal and shown by no agent", async ({
     fixture,

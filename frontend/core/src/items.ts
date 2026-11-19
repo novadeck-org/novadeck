@@ -511,6 +511,10 @@ export type Companions = {
   // an agent's show of it would: it opens there, in its kind's group. Resolves with the item;
   // rejects when the path can't be shown. Absent where the backend can't.
   readonly attach?: (target: WorkspaceTarget, terminalId: string, path: string) => Promise<Item>
+  // Points a file's item at another file of its own kind, by an absolute path, as stepping
+  // through a folder's files does: the same item, holder and id, shown again. Resolves with
+  // the item; rejects when the path is no file of that kind. Absent where the backend can't.
+  readonly repoint?: (target: WorkspaceTarget, itemId: ItemId, path: string) => Promise<Item>
   // Writes the person's edit to the plan, unless it changed since `basedOn`. Rejects with
   // a `PlanUnwritableError` when the plan can't be written at all.
   readonly save: (

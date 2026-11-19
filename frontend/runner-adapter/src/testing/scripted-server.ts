@@ -305,6 +305,7 @@ export const scriptedRunner = ({
       changeRead: api.companions.changeRead.handler(unplayed("companions.changeRead")),
       save: api.companions.save.handler(unplayed("companions.save")),
       attach: api.companions.attach.handler(unplayed("companions.attach")),
+      repoint: api.companions.repoint.handler(unplayed("companions.repoint")),
       openInProject: api.companions.openInProject.handler(unplayed("companions.openInProject")),
       pageTrouble: api.companions.pageTrouble.handler(unplayed("companions.pageTrouble")),
       part: api.companions.part.handler(unplayed("companions.part")),

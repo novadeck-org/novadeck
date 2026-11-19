@@ -84,6 +84,25 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
   const entries = useMemo(() => sorted(arrivals.visible, sort), [arrivals.visible, sort])
   const [selected, setSelected] = useState<string>()
   const [problem, setProblem] = useState<string>()
+  // A file asked to be selected from outside (a file's "Show in") is taken as the selection, and
+  // let go of in the store, so coming back to the folder later doesn't select it again; it is
+  // scrolled into view once it is drawn, which is as the folder's listing comes.
+  const asked = view.selected
+  if (asked !== undefined && asked !== selected) setSelected(asked)
+  const scrollTo = useRef(false)
+  useEffect(() => {
+    if (asked === undefined) return
+    scrollTo.current = true
+    itemStore.folder(item.id, { selected: undefined })
+  }, [asked, itemStore, item.id])
+  // After every render, until the selected file is drawn: its listing may come after the ask.
+  useEffect(() => {
+    if (!scrollTo.current) return
+    const element = root.current?.querySelector("[data-selected]")
+    if (!element) return
+    scrollTo.current = false
+    element.scrollIntoView?.({ block: "nearest" })
+  })
   // The list says how long ago; it moves on with the clock.
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {

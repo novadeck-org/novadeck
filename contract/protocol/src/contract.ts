@@ -745,6 +745,16 @@ export const contract = {
         }),
       )
       .output(companionItem),
+    // Points a file's item at another file of its own kind, by a path absolute or from the
+    // folder of the file it points at now: the same item, holder and id, with a later
+    // version, as the person stepping through a folder's files does. A file that may hold
+    // secrets opens onto its gate. What the item's bar held under the new pointer is
+    // replaced. An unknown item is NOT_FOUND, a project window's item a CONFLICT, and an
+    // item that is no file, a path that is no file, or a file of another kind INVALID_FILE,
+    // saying why.
+    repoint: procedure
+      .input(z.strictObject({ itemId: id, path: z.string().min(1).max(4096) }))
+      .output(companionItem),
     // Opens a file in the session's project window, by a path absolute or from the
     // session's project folder: the item the window holds is pointed at it, with a later
     // version, or, with no project window yet, one is made under `windowId` holding a new

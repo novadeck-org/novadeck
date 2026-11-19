@@ -867,3 +867,94 @@ describe("following items", () => {
     drop.mockRestore()
   })
 })
+
+describe("the item store, for the files of a folder", () => {
+  const render = itemFixture("render", "01", { kind: "folder", name: "render", path: "/p/render" })
+  const listed: ItemContent = {
+    state: "ready",
+    stamp: "1",
+    content: {
+      kind: "folder",
+      path: "/p/render/old",
+      within: "old",
+      entries: [],
+      total: 0,
+      truncated: false,
+    },
+  }
+
+  it("follows a listing of its own, which leaves the folder item's view and listing alone", () => {
+    const asked: { id: ItemId; within: string | undefined }[] = []
+    const heard: ItemContent[] = []
+    const stopped: string[] = []
+    const companions: Companions = {
+      follow: (_target, id, { within }, on) => {
+        asked.push({ id, within })
+        on(listed)
+        return () => stopped.push(`${id}:${within}`)
+      },
+      trouble: () => {},
+      save: () => new Promise(() => {}),
+    }
+    const itemStore = createItemStore({ companions, workspace: workspaceWith() })
+    const release = itemStore.siblings(target, render.id, "old", (content) => heard.push(content))
+    expect(asked).toEqual([{ id: render.id, within: "old" }])
+    expect(heard).toEqual([listed])
+    expect(itemStore.store.getSnapshot().folders).toEqual({})
+    expect(itemStore.store.getSnapshot().listings).toEqual({})
+    release()
+    expect(stopped).toEqual([`${render.id}:old`])
+  })
+
+  it("points a file item at another file where the backend can, and has no way to where it can't", async () => {
+    const repointed: { itemId: ItemId; path: string }[] = []
+    const base: Companions = {
+      follow: () => () => {},
+      trouble: () => {},
+      save: () => new Promise(() => {}),
+    }
+    const without = createItemStore({ companions: base, workspace: workspaceWith() })
+    expect(without.repoint).toBeUndefined()
+    const itemStore = createItemStore({
+      companions: {
+        ...base,
+        repoint: async (_target, itemId, path) => {
+          repointed.push({ itemId, path })
+          return hero
+        },
+      },
+      workspace: workspaceWith(),
+    })
+    await expect(itemStore.repoint?.(target, hero.id, "/p/other.png")).resolves.toBeUndefined()
+    expect(repointed).toEqual([{ itemId: hero.id, path: "/p/other.png" }])
+  })
+
+  it("keeps a file to select with the folder's view, changing nothing when it is asked again", () => {
+    const itemStore = createItemStore({
+      companions: { follow: () => () => {}, trouble: () => {}, save: () => new Promise(() => {}) },
+      workspace: workspaceWith(),
+    })
+    itemStore.folder(render.id, { within: "old", selected: "a.png" })
+    expect(itemStore.store.getSnapshot().folders[render.id]).toEqual({
+      within: "old",
+      layout: "grid",
+      sort: "newest",
+      selected: "a.png",
+    })
+    const before = itemStore.store.getSnapshot()
+    itemStore.folder(render.id, { selected: "a.png" })
+    expect(itemStore.store.getSnapshot()).toBe(before)
+    itemStore.folder(render.id, { selected: undefined })
+    expect(itemStore.store.getSnapshot().folders[render.id]?.selected).toBeUndefined()
+    expect(itemStore.store.getSnapshot().folders[render.id]?.within).toBe("old")
+  })
+
+  it("shows the workspace it is in, to read, for the folders of a file's session", () => {
+    const workspace = workspaceWith()
+    const itemStore = createItemStore({
+      companions: { follow: () => () => {}, trouble: () => {}, save: () => new Promise(() => {}) },
+      workspace,
+    })
+    expect(itemStore.workspace.getSnapshot()).toBe(workspace.getSnapshot())
+  })
+})

@@ -204,6 +204,15 @@ const inside = (folder: string, path: string): boolean => {
   return route !== "" && !isAbsolute(route) && route.split(sep)[0] !== ".."
 }
 
+// The kinds of an item that points at a file, which `repoint` can aim at another of its kind.
+const fileKinds: ReadonlySet<ItemRecord["kind"]> = new Set([
+  "image",
+  "video",
+  "audio",
+  "pdf",
+  "file",
+])
+
 // How many failed reads in a row a change keeps its last good content through.
 const changesFailures = 2
 
@@ -540,6 +549,63 @@ export class CompanionItems {
     })
     if (!kept) throw new DomainError("TERMINAL_NOT_FOUND")
     return wireItem(kept.item)
+  }
+
+  /**
+   * Points a file's item at another file of its own kind, as the person steps through a
+   * folder's files: the same item, holder and id, with a later version, theirs now, and
+   * asked open. The pointer is built as `attach` builds it, so a file that may hold secrets
+   * opens onto its gate. What the item's bar held under the new pointer is replaced. A path
+   * is absolute, or from the folder of the file the item points at now. NOT_FOUND for an
+   * unknown item, CONFLICT for a project window's item, INVALID_FILE, saying why, for an
+   * item that is no file, or a path that is no file or is one of another kind.
+   */
+  async repoint(input: { readonly itemId: string; readonly path: string }): Promise<CompanionItem> {
+    if (this.stopping) throw new DomainError("CLOSING")
+    const before = this.item(input.itemId)
+    this.keepInProject(before)
+    if (!fileKinds.has(before.kind) || before.path === null)
+      throw new DomainError("INVALID_FILE", "Only a file's item can be pointed at another file.")
+    const pointed = await pointAt(input.path, dirname(before.path), this.environment())
+    if (!pointed.ok) throw new DomainError("INVALID_FILE", pointed.reason)
+    if (pointed.kind !== before.kind)
+      throw new DomainError(
+        "INVALID_FILE",
+        pointed.kind === "folder"
+          ? "A folder can't stand in for a file."
+          : `That file's kind is ${JSON.stringify(pointed.kind)}, not ${JSON.stringify(before.kind)}.`,
+      )
+    // Read while the file was looked at: the item may have been closed or moved on meanwhile.
+    if (this.stopping) throw new DomainError("CLOSING")
+    const current = this.item(input.itemId)
+    this.keepInProject(current)
+    const pointer = this.filePointer(
+      pointed,
+      input.path,
+      dirname(before.path),
+      this.options.project(current.sessionId),
+    )
+    const same =
+      current.terminalId === null
+        ? undefined
+        : this.records
+            .barItems(current.terminalId)
+            .find((item) => item.pointerKey === pointer.pointerKey && item.id !== current.id)
+    // The bar holds one item to a pointer, so the one already there gives way to this.
+    const replaced = same && this.records.removeItem(same.id)
+    if (replaced) this.removed(replaced.item, replaced.window)
+    const item: ItemRecord = {
+      ...current,
+      ...pointer,
+      by: "person",
+      version: current.version + 1,
+      openAsked: true,
+      shownAt: Date.now(),
+      observedAt: null,
+    }
+    this.save(item)
+    this.sink?.gone(current)
+    return wireItem(item)
   }
 
   /**

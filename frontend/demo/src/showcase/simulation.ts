@@ -348,6 +348,28 @@ export const createShowcase = (
     ),
   ]
 
+  // Opens a file the person picked, as a new item or, when `itemId` names one, in it, and tells
+  // its followers. What it opens comes with the folders, loaded then, so a demo none is opened in
+  // never carries them.
+  const place = async (
+    target: WorkspaceTarget,
+    where: { readonly terminalId?: string; readonly itemId?: ItemId; readonly path: string },
+  ): Promise<Item> => {
+    const { placed } = await import("./folders")
+    const { id, sample, item, twin } = placed(
+      { samples: [...samples.values()], items: current(), ...where },
+      now(),
+      { clip, clipSize, report: quarterlyReport },
+    )
+    samples.set(id, sample)
+    report?.([
+      ...(twin ? [{ type: "item/remove" as const, target, itemId: twin }] : []),
+      { type: "item/upsert", target, item },
+    ])
+    for (const watcher of watching.get(id) ?? []) watcher.on(shownContent(id, watcher.reveal))
+    return item
+  }
+
   return {
     items,
     plans: agents.length > 0,
@@ -429,31 +451,10 @@ export const createShowcase = (
     },
     // As the runner's attach: a file of a folder, or one named by its path, opens on the terminal's
     // bar as the person's own show of it, in its kind's group.
-    // What it opens comes with the folders, loaded then, so a demo none is opened in never
-    // carries them.
-    attach: async (target, terminalId, path) => {
-      const { openedAt } = await import("./folders")
-      const opened = openedAt([...samples.values()], path, now(), {
-        clip,
-        clipSize,
-        report: quarterlyReport,
-      })
-      if (!opened) throw new Error("That file can't be shown")
-      samples.set(opened.item.id, opened)
-      const own = current().find((item) => item.id === itemIdOf(opened.item.id))
-      const item: Item = {
-        ...itemOf({ key: { ...target, terminalId }, handle: "" }, opened, {
-          openAsked: true,
-          shownAt: now(),
-        }),
-        by: "person",
-        version: own ? own.version + 1 : 1,
-      }
-      report?.([{ type: "item/upsert", target, item }])
-      for (const watcher of watching.get(opened.item.id) ?? [])
-        watcher.on(shownContent(opened.item.id, watcher.reveal))
-      return item
-    },
+    attach: (target, terminalId, path) => place(target, { terminalId, path }),
+    // As the runner's repoint: a file's item shows another file of its kind, keeping its id and
+    // its holder, and what the bar held of that file gives way to it.
+    repoint: (target, itemId, path) => place(target, { itemId, path }),
     // As the runner does: the session's project window is pointed at the file, with a later
     // version, or made when the session has none, or the person closed it. It reports the
     // item and the window as its watch would, and its followers hear the new file.

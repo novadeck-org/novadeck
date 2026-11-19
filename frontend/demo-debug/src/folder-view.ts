@@ -51,6 +51,15 @@ export const folderViewGroups = (companions: Backend["companions"]): readonly De
           run: show(render),
         },
         {
+          label: "Open a file of the folder",
+          hint: "The newest still of ~/render opens in the Images group as a person's double-click would: ‹ is off, it being the first picture, › and the rest of the row step to the next, and Show in render goes back to the folder with it selected. Open render.log (double-click it) for the only text file, whose ‹ › are both off",
+          run: ({ selected, note }) => {
+            const key = selected()
+            if (!key) return note("Select a terminal first.")
+            companions.attach?.(key, key.terminalId, "~/render/checkout-desktop.svg")
+          },
+        },
+        {
           label: "A file lands in the folder",
           hint: "A new picture takes the top of ~/render, with a dot, and its folder's taskbar mark is new while the pane shows something else; with the pointer in the grid it waits in a pill (N new files) instead",
           run: () => {
