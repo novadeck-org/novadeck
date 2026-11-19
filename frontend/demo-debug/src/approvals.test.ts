@@ -119,6 +119,60 @@ describe("demo approvals", () => {
     expect(controls.approvals.pending.getSnapshot()).toEqual([])
   })
 
+  it("asks to join the selected terminal's team, which makes it the asker's lead on a yes", () => {
+    const { controls, dispatched, run } = setup()
+    run("Ask to join selected's team")
+    expect(controls.approvals.pending.getSnapshot()).toMatchObject([
+      { from: "b", terminalId: "a", action: { type: "join", message: expect.any(String) } },
+    ])
+    controls.approvals.answer("approval-1", false)
+    expect(dispatched).toEqual([])
+    run("Ask to join selected's team")
+    controls.approvals.answer("approval-2", true)
+    expect(dispatched).toEqual([
+      {
+        type: "terminal/update",
+        target: { projectId: "p", workspaceSessionId: "s" },
+        terminalId: "b",
+        ledBy: "a",
+      },
+    ])
+  })
+
+  it("asks to leave the selected terminal's team, which ends the asker's lead on a yes", () => {
+    const { controls, dispatched, run } = setup()
+    run("Ask to leave selected's team")
+    expect(controls.approvals.pending.getSnapshot()).toMatchObject([
+      { from: "b", terminalId: "a", action: { type: "leave" } },
+    ])
+    controls.approvals.answer("approval-1", true)
+    expect(dispatched).toEqual([
+      {
+        type: "terminal/update",
+        target: { projectId: "p", workspaceSessionId: "s" },
+        terminalId: "b",
+        ledBy: null,
+      },
+    ])
+  })
+
+  it("asks to hand its team to the selected terminal, which leads the asker on a yes", () => {
+    const { controls, dispatched, run } = setup()
+    run("Ask to hand its team to selected")
+    expect(controls.approvals.pending.getSnapshot()).toMatchObject([
+      { from: "b", terminalId: "a", action: { type: "hand" } },
+    ])
+    controls.approvals.answer("approval-1", true)
+    expect(dispatched).toEqual([
+      {
+        type: "terminal/update",
+        target: { projectId: "p", workspaceSessionId: "s" },
+        terminalId: "b",
+        ledBy: "a",
+      },
+    ])
+  })
+
   it("ends a lead when the person releases the terminal", () => {
     const { controls, dispatched } = setup()
     controls.release(key("a"))

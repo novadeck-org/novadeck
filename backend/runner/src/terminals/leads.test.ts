@@ -1,4 +1,4 @@
-import type { AgentName } from "@novadeck/protocol"
+import type { AgentMode, AgentName } from "@novadeck/protocol"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { Messaging } from "../messaging/messaging.js"
@@ -9,6 +9,7 @@ import type { Bindings } from "./binding/facts.js"
 import { Leads, leadNotice, nobodyToLead, type LeadsHost } from "./leads.js"
 import type { Record } from "./record.js"
 import type { Sleepers } from "./sleepers.js"
+import { Teams, teamNotice } from "./teams.js"
 
 const token = "t".repeat(48)
 
@@ -53,6 +54,8 @@ const setup = (terminals: {
   const saved: string[] = []
   const dropped: string[] = []
   let stopping = false
+  let mode: AgentMode = "herd"
+  const introduced: string[] = []
   type Sending =
     | {
         ok: true
@@ -79,6 +82,7 @@ const setup = (terminals: {
     return lead && { terminalId: lead.summary.id, handle: lead.summary.handle }
   }
   const host = {
+    agentMode: () => mode,
     records: () => records,
     stopping: () => stopping,
     closingNow: () => false,
@@ -132,6 +136,8 @@ const setup = (terminals: {
         },
       }) as unknown as Messaging,
     peers: () => ({
+      introduce: (from: string, ...ids: string[]) =>
+        void introduced.push(...ids.map((id) => `${from}>${id}`)),
       target: async (_caller: unknown, to: string): Promise<PeerAnswer> => {
         const known = to in terminals
         return known
@@ -157,7 +163,12 @@ const setup = (terminals: {
       }) as unknown as Bindings,
   } as unknown as LeadsHost
   const leads = new Leads(host)
-  const call = (type: "lead" | "release", from: string, request: object) => ({
+  const teams = new Teams(host, leads)
+  const call = (
+    type: "lead" | "release" | "join" | "leave" | "handLead",
+    from: string,
+    request: object,
+  ) => ({
     type,
     terminalId: `id-${from}`,
     token,
@@ -175,6 +186,12 @@ const setup = (terminals: {
     lead: (from: string, to: string, message = "Review the diff.") =>
       leads.lead(call("lead", from, { to, message })),
     release: (from: string, to: string) => leads.release(call("release", from, { to })),
+    join: (from: string, to: string, request: object = {}) =>
+      teams.join(call("join", from, { to, ...request })),
+    leave: (from: string) => teams.leave(call("leave", from, {})),
+    hand: (from: string, to: string) => teams.hand(call("handLead", from, { to })),
+    mode: (next: AgentMode) => (mode = next),
+    introduced,
     sending: (next: Sending) => (sending = next),
     marking: (next: boolean) => (marked = next),
     stop: () => (stopping = true),
@@ -405,6 +422,79 @@ describe("an agent asking to lead another terminal's agent", () => {
         request: { to: "fox", message: "Hi" },
       }),
     ).resolves.toMatchObject({ ok: false })
+  })
+})
+
+describe("an agent leading another terminal's agent where agents decide for themselves", () => {
+  it("leads at once, sends the brief as the lead, and asks the person nothing", async () => {
+    const run = setup({ moth: { agent: "claude" }, fox: { agent: "codex" } })
+    run.mode("swarm")
+    const asked = person(run.approvals)
+    await expect(run.lead("moth", "fox")).resolves.toEqual({
+      ok: true,
+      led: true,
+      handle: "fox",
+      title: "Terminal",
+      ran: "Codex",
+      brief: "Your brief, message m1, is sent; its replies arrive by themselves.",
+    })
+    await settle()
+    expect(asked).toEqual([])
+    expect(run.records.get("id-fox")!.summary.ledBy).toBe("id-moth")
+    expect(run.sent).toEqual([{ from: "id-moth", to: "fox", text: "Review the diff." }])
+    expect(run.notices).toEqual([
+      { to: "id-fox", always: true, text: leadNotice.nowLed("moth", false) },
+    ])
+    expect(leadNotice.nowLed("moth", false)).not.toContain("The user")
+  })
+
+  it("leads with no client to ask, and says when the brief wasn't sent", async () => {
+    const run = setup({ moth: { agent: "claude" }, fox: { agent: "codex" } })
+    run.mode("swarm")
+    run.sending({ ok: false, reason: "the message is empty." })
+    await expect(run.lead("moth", "fox")).resolves.toMatchObject({
+      ok: true,
+      led: true,
+      brief: "Your brief wasn't sent: the message is empty. Send it again with send.",
+    })
+    expect(run.records.get("id-fox")!.summary.ledBy).toBe("id-moth")
+  })
+
+  it("keeps its refusals: a lead already, no agent, or the caller's own lead", async () => {
+    const run = setup({
+      moth: { agent: "claude" as const, ledBy: "owl" },
+      owl: { agent: "claude" as const },
+      fox: { agent: "codex" as const, ledBy: "owl" },
+      ant: { agent: null },
+    })
+    run.mode("swarm")
+    expect(await run.lead("moth", "fox")).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/already has a lead/),
+    })
+    expect(await run.lead("moth", "ant")).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/no agent running/),
+    })
+    expect(await run.lead("moth", "owl")).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/leads you/),
+    })
+    expect(run.saved).toEqual([])
+  })
+
+  it("reads the mode at each call: Herd asks again", async () => {
+    const run = setup({
+      moth: { agent: "claude" },
+      fox: { agent: "codex" },
+      owl: { agent: "agy" },
+    })
+    person(run.approvals)
+    run.mode("swarm")
+    expect(await run.lead("moth", "fox")).toMatchObject({ led: true })
+    run.mode("herd")
+    expect(await run.lead("moth", "owl")).toMatchObject({ asked: true })
+    expect(run.records.get("id-owl")!.summary.ledBy).toBeNull()
   })
 })
 
@@ -835,5 +925,407 @@ describe("a lead that lasts only for its brief, over the real messaging", () => 
     expect(messaging.briefOf("id-fox")).toBe(brief.id)
     messaging.unregister("id-fox", true)
     expect(messaging.briefOf("id-fox")).toBeUndefined()
+  })
+})
+
+describe("an agent joining another terminal's team", () => {
+  const pair = () => setup({ moth: { agent: "claude" }, fox: { agent: "codex" } })
+
+  it("asks the person with its introduction, and joins nothing yet", async () => {
+    const run = pair()
+    const asked = person(run.approvals)
+    await expect(run.join("moth", "fox", { message: "I work on the API." })).resolves.toEqual({
+      ok: true,
+      asked: true,
+      handle: "fox",
+      title: "Terminal",
+      ran: "Codex",
+    })
+    await settle()
+    expect(asked).toEqual([
+      {
+        type: "request",
+        requestId: expect.any(String),
+        from: "id-moth",
+        terminalId: "id-fox",
+        sessionId: "session",
+        action: { type: "join", message: "I work on the API." },
+      },
+    ])
+    expect(run.records.get("id-moth")!.summary.ledBy).toBeNull()
+    expect(run.sent).toEqual([])
+  })
+
+  it("makes the terminal its lead once the person approves, telling both and introducing itself", async () => {
+    const run = pair()
+    const asked = person(run.approvals)
+    await run.join("moth", "fox", { message: "I work on the API." })
+    await settle()
+    run.approvals.answer({ requestId: asked[0]!.requestId, approved: true }, "person")
+    await settle()
+    expect(run.records.get("id-moth")!.summary.ledBy).toBe("id-fox")
+    expect(run.saved).toEqual(["moth led by fox"])
+    expect(run.sent).toEqual([{ from: "id-moth", to: "fox", text: "I work on the API." }])
+    expect(run.notices).toEqual([
+      {
+        to: "id-fox",
+        always: true,
+        text: teamNotice.joined("moth", "Terminal", true),
+      },
+      {
+        to: "id-moth",
+        always: true,
+        text: teamNotice.nowJoined(
+          "fox",
+          "Terminal",
+          "Your introduction, message m1, is sent; its replies arrive by themselves.",
+        ),
+      },
+    ])
+    expect(run.introduced).toContain("id-fox>id-moth")
+  })
+
+  it("joins nothing and tells the caller when the person declines", async () => {
+    const run = pair()
+    const asked = person(run.approvals)
+    await run.join("moth", "fox")
+    await settle()
+    run.approvals.answer({ requestId: asked[0]!.requestId, approved: false }, "person")
+    await settle()
+    expect(run.records.get("id-moth")!.summary.ledBy).toBeNull()
+    expect(run.notices).toEqual([
+      {
+        to: "id-moth",
+        always: true,
+        text: teamNotice.joinDeclined("fox", "Terminal"),
+      },
+    ])
+  })
+
+  it("joins nothing when the caller got a lead before the person approved", async () => {
+    const run = setup({
+      moth: { agent: "claude" },
+      fox: { agent: "codex" },
+      owl: { agent: "claude" },
+    })
+    const asked = person(run.approvals)
+    await run.join("moth", "fox")
+    await settle()
+    run.records.get("id-moth")!.summary.ledBy = "id-owl"
+    run.approvals.answer({ requestId: asked[0]!.requestId, approved: true }, "person")
+    await settle()
+    expect(run.records.get("id-moth")!.summary.ledBy).toBe("id-owl")
+    expect(run.notices).toEqual([
+      {
+        to: "id-moth",
+        always: true,
+        text: leadNotice.unfit("You have a lead already: leave its team first."),
+      },
+    ])
+  })
+
+  it("joins at once where agents decide for themselves, telling the lead", async () => {
+    const run = pair()
+    run.mode("swarm")
+    const asked = person(run.approvals)
+    await expect(run.join("moth", "fox", { message: "I work on the API." })).resolves.toEqual({
+      ok: true,
+      joined: true,
+      handle: "fox",
+      title: "Terminal",
+      ran: "Codex",
+      introduction: "Your introduction, message m1, is sent; its replies arrive by themselves.",
+    })
+    await settle()
+    expect(asked).toEqual([])
+    expect(run.records.get("id-moth")!.summary.ledBy).toBe("id-fox")
+    expect(run.sent).toEqual([{ from: "id-moth", to: "fox", text: "I work on the API." }])
+    expect(run.notices).toEqual([
+      {
+        to: "id-fox",
+        always: true,
+        text: teamNotice.joined("moth", "Terminal", false),
+      },
+    ])
+    expect(teamNotice.joined("moth", "Terminal", false)).not.toContain("user approved")
+  })
+
+  it("joins at once with no introduction and no client to ask", async () => {
+    const run = pair()
+    run.mode("swarm")
+    const answer = await run.join("moth", "fox")
+    expect(answer).toMatchObject({ ok: true, joined: true })
+    expect(answer).not.toHaveProperty("introduction")
+    expect(run.sent).toEqual([])
+  })
+
+  it.each(["herd", "swarm"] as const)("refuses, in %s, what no join can be", async (mode) => {
+    const run = setup({
+      moth: { agent: "claude" },
+      fox: { agent: "codex" },
+      owl: { agent: "claude", ledBy: "moth" },
+      bee: { agent: "agy", ledBy: "owl" },
+      ant: { agent: null },
+      led: { agent: "claude", ledBy: "fox" },
+    })
+    run.mode(mode)
+    person(run.approvals)
+    const refusal = (reason: RegExp) => ({
+      ok: false,
+      reason: expect.stringMatching(reason),
+    })
+    expect(await run.join("moth", "moth")).toMatchObject(refusal(/your own team/))
+    expect(await run.join("moth", "ghost")).toMatchObject(refusal(/no terminal's handle/))
+    expect(await run.join("moth", "ant")).toMatchObject(refusal(/no agent running/))
+    // An agent it leads, and one it leads through others.
+    expect(await run.join("moth", "owl")).toMatchObject(refusal(/You lead @owl/))
+    expect(await run.join("moth", "bee")).toMatchObject(refusal(/You lead @bee/))
+    // Already led: leave first.
+    expect(await run.join("led", "moth")).toMatchObject(refusal(/leave its team first/))
+    expect(await run.join("moth", "fox", { surprise: 1 })).toMatchObject(refusal(/needs `to`/))
+    expect(run.saved).toEqual([])
+    expect(run.sent).toEqual([])
+  })
+
+  it("may join an agent that has a lead of its own", async () => {
+    const run = setup({
+      moth: { agent: "claude" },
+      fox: { agent: "codex", ledBy: "owl" },
+      owl: { agent: "claude" },
+    })
+    run.mode("swarm")
+    expect(await run.join("moth", "fox")).toMatchObject({
+      ok: true,
+      joined: true,
+    })
+  })
+
+  it("refuses a sleeper, a caller whose session never bound, and a call without the token", async () => {
+    const run = setup({
+      moth: { agent: "claude" },
+      fox: { agent: "codex", asleep: true },
+    })
+    run.mode("swarm")
+    expect(await run.join("moth", "fox")).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/asleep/),
+    })
+    run.agents.set("moth", { agent: "claude", sessionId: null })
+    expect(await run.join("moth", "fox")).toMatchObject({ ok: false })
+    expect(
+      await new Teams(
+        { ...({} as LeadsHost), records: () => new Map() } as LeadsHost,
+        {} as Leads,
+      ).join({
+        type: "join",
+        terminalId: "id-moth",
+        token: "x",
+        request: { to: "fox" },
+      }),
+    ).toEqual({
+      ok: false,
+      reason: "Novadeck couldn't join the terminal's team.",
+    })
+  })
+})
+
+describe("an agent leaving its lead's team", () => {
+  const led = () => setup({ moth: { agent: "claude", ledBy: "fox" }, fox: { agent: "codex" } })
+
+  it("is refused with no lead", async () => {
+    const run = setup({ moth: { agent: "claude" }, fox: { agent: "codex" } })
+    for (const mode of ["herd", "swarm"] as const) {
+      run.mode(mode)
+      // eslint-disable-next-line no-await-in-loop -- In turn.
+      expect(await run.leave("moth")).toMatchObject({
+        ok: false,
+        reason: expect.stringMatching(/no lead/),
+      })
+    }
+  })
+
+  it("asks the person, and leaves once they approve, telling the lead and the caller", async () => {
+    const run = led()
+    const asked = person(run.approvals)
+    await expect(run.leave("moth")).resolves.toEqual({
+      ok: true,
+      asked: true,
+      handle: "fox",
+      title: "Terminal",
+      ran: "Codex",
+    })
+    await settle()
+    expect(asked).toMatchObject([
+      { from: "id-moth", terminalId: "id-fox", action: { type: "leave" } },
+    ])
+    expect(run.records.get("id-moth")!.summary.ledBy).toBe("id-fox")
+    run.approvals.answer({ requestId: asked[0]!.requestId, approved: true }, "person")
+    await settle()
+    expect(run.records.get("id-moth")!.summary.ledBy).toBeNull()
+    expect(run.notices).toEqual([
+      {
+        to: "id-fox",
+        always: true,
+        text: teamNotice.left("moth", "Terminal", true),
+      },
+      { to: "id-moth", always: true, text: teamNotice.nowLeft("fox") },
+    ])
+  })
+
+  it("stays when the person declines", async () => {
+    const run = led()
+    const asked = person(run.approvals)
+    await run.leave("moth")
+    await settle()
+    run.approvals.answer({ requestId: asked[0]!.requestId, approved: false }, "person")
+    await settle()
+    expect(run.records.get("id-moth")!.summary.ledBy).toBe("id-fox")
+    expect(run.notices).toEqual([
+      { to: "id-moth", always: true, text: teamNotice.leaveDeclined("fox") },
+    ])
+  })
+
+  it("leaves at once where agents decide for themselves, telling the lead", async () => {
+    const run = led()
+    run.mode("swarm")
+    const asked = person(run.approvals)
+    await expect(run.leave("moth")).resolves.toEqual({
+      ok: true,
+      left: true,
+      handle: "fox",
+      title: "Terminal",
+      ran: "Codex",
+    })
+    await settle()
+    expect(asked).toEqual([])
+    expect(run.records.get("id-moth")!.summary.ledBy).toBeNull()
+    expect(run.notices).toEqual([
+      {
+        to: "id-fox",
+        always: true,
+        text: teamNotice.left("moth", "Terminal", false),
+      },
+    ])
+  })
+})
+
+describe("a lead handing its team to one of its members", () => {
+  // moth leads fox and owl, and is led by ant.
+  const team = (above = true) =>
+    setup({
+      ant: { agent: "claude" },
+      moth: { agent: "claude", ...(above && { ledBy: "ant" }) },
+      fox: { agent: "codex", ledBy: "moth" },
+      owl: { agent: "agy", ledBy: "moth" },
+      bee: { agent: "claude" },
+    })
+
+  it("is refused for a terminal it doesn't lead, or itself", async () => {
+    const run = team()
+    for (const mode of ["herd", "swarm"] as const) {
+      run.mode(mode)
+      /* eslint-disable no-await-in-loop -- In turn. */
+      expect(await run.hand("moth", "bee")).toMatchObject({
+        ok: false,
+        reason: expect.stringMatching(/You don't lead @bee/),
+      })
+      expect(await run.hand("moth", "ant")).toMatchObject({
+        ok: false,
+        reason: expect.stringMatching(/@ant is led by|You don't lead @ant/),
+      })
+      expect(await run.hand("fox", "owl")).toMatchObject({
+        ok: false,
+        reason: expect.stringMatching(/@owl is led by @moth, not you/),
+      })
+      expect(await run.hand("moth", "moth")).toMatchObject({ ok: false })
+      /* eslint-enable no-await-in-loop */
+    }
+    expect(run.saved).toEqual([])
+  })
+
+  it("hands the team over at once where agents decide, and tells everyone it touches", async () => {
+    const run = team()
+    run.mode("swarm")
+    const asked = person(run.approvals)
+    await expect(run.hand("moth", "fox")).resolves.toEqual({
+      ok: true,
+      handed: true,
+      handle: "fox",
+      title: "Terminal",
+      ran: "Codex",
+      members: ["owl"],
+      under: "ant",
+    })
+    await settle()
+    expect(asked).toEqual([])
+    const ledBy = (handle: string) => run.records.get(`id-${handle}`)!.summary.ledBy
+    expect(ledBy("fox")).toBe("id-ant")
+    expect(ledBy("owl")).toBe("id-fox")
+    expect(ledBy("moth")).toBe("id-fox")
+    expect(ledBy("ant")).toBeNull()
+    expect(run.notices).toEqual([
+      {
+        to: "id-fox",
+        always: true,
+        text: teamNotice.handedTo("moth", ["owl"], "ant", false),
+      },
+      {
+        to: "id-owl",
+        always: true,
+        text: teamNotice.newLead("moth", "fox", false),
+      },
+      { to: "id-ant", always: true, text: teamNotice.placed("moth", "fox") },
+    ])
+  })
+
+  it("leaves the new lead unled when the caller had no lead", async () => {
+    const run = team(false)
+    run.mode("swarm")
+    await expect(run.hand("moth", "owl")).resolves.toMatchObject({
+      ok: true,
+      members: ["fox"],
+    })
+    const ledBy = (handle: string) => run.records.get(`id-${handle}`)!.summary.ledBy
+    expect(ledBy("owl")).toBeNull()
+    expect(ledBy("fox")).toBe("id-owl")
+    expect(ledBy("moth")).toBe("id-owl")
+    expect(run.notices.map(({ to }) => to)).toEqual(["id-owl", "id-fox"])
+  })
+
+  it("asks the person, and hands the team over once they approve", async () => {
+    const run = team()
+    const asked = person(run.approvals)
+    await expect(run.hand("moth", "fox")).resolves.toMatchObject({
+      ok: true,
+      asked: true,
+      handle: "fox",
+    })
+    await settle()
+    expect(asked).toMatchObject([
+      { from: "id-moth", terminalId: "id-fox", action: { type: "hand" } },
+    ])
+    expect(run.records.get("id-owl")!.summary.ledBy).toBe("id-moth")
+    run.approvals.answer({ requestId: asked[0]!.requestId, approved: true }, "person")
+    await settle()
+    expect(run.records.get("id-owl")!.summary.ledBy).toBe("id-fox")
+    expect(run.records.get("id-moth")!.summary.ledBy).toBe("id-fox")
+    expect(run.notices.at(-1)).toEqual({
+      to: "id-moth",
+      always: true,
+      text: teamNotice.nowHanded("fox", ["owl"]),
+    })
+  })
+
+  it("changes nothing when the person declines", async () => {
+    const run = team()
+    const asked = person(run.approvals)
+    await run.hand("moth", "fox")
+    await settle()
+    run.approvals.answer({ requestId: asked[0]!.requestId, approved: false }, "person")
+    await settle()
+    expect(run.saved).toEqual([])
+    expect(run.notices).toEqual([
+      { to: "id-moth", always: true, text: teamNotice.handDeclined("fox") },
+    ])
   })
 })

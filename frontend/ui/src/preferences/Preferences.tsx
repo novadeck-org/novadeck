@@ -172,6 +172,12 @@ const agentModes: readonly { mode: AgentMode; label: string; description: string
     description:
       "Agents work things out with each other when their work meets, such as the same files, ports or servers. You set up the teams and make the calls.",
   },
+  {
+    mode: "swarm",
+    label: "Swarm",
+    description:
+      "Give it a goal: agents open and close agents, form teams and pass the lead among themselves, without asking you first. Exciting, and less predictable.",
+  },
 ]
 
 // The list's value for a wait; none for one the list lacks.

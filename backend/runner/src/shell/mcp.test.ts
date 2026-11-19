@@ -198,6 +198,9 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       "close_terminal",
       "lead",
       "release",
+      "join",
+      "leave",
+      "hand_lead",
       "send",
       "agents",
       "team",
@@ -1004,6 +1007,195 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     expect(text(led)).toContain("Novadeck tells you either way, as a message once your turn ends")
     expect(none?.result).toMatchObject({ isError: true })
     expect(text(released)).toMatch(/^Released @fox/)
+  })
+
+  describe("the tools that change who decides", () => {
+    const described = async () => {
+      const [, tools] = await session(terminal(), [initialize, list])
+      const all = tools?.result?.tools as {
+        name: string
+        description: string
+      }[]
+      return (name: string) => all.find((tool) => tool.name === name)!.description
+    }
+    const asks =
+      "The user must approve: Novadeck asks them and this answers at once; the outcome comes as a message from Novadeck once your turn ends."
+    const modeWords = async (mode: "herd" | "solo" | "swarm") => {
+      answersBy.mode = { ok: true, mode }
+      try {
+        return await described()
+      } finally {
+        delete answersBy.mode
+      }
+    }
+
+    it("words close_terminal, lead, open_terminal and take_worktree by mode, Herd and Solo as they were", async () => {
+      answersBy.worktrees = { ok: true, on: true }
+      try {
+        for (const mode of ["herd", "solo"] as const) {
+          // eslint-disable-next-line no-await-in-loop -- In turn.
+          const tool = await modeWords(mode)
+          expect(tool("close_terminal")).toContain(
+            "A teammate you lead closes at once. Another agent's terminal closes only once the user confirms: Novadeck asks them and this answers at once; the outcome comes as a message from Novadeck once your turn ends.",
+          )
+          expect(tool("lead")).toContain(
+            "Use it only when the user asked you to direct that agent, or the work needs you to direct an agent already running; to start a new agent with a task, use open_agent. " +
+              asks +
+              " If they approve, you lead that terminal",
+          )
+          expect(tool("lead")).toMatch(/^Ask the user to let you lead/)
+          expect(tool("open_terminal")).toContain("A command is run only if the user approves it")
+          expect(tool("take_worktree")).toContain("yours only if the user agrees")
+        }
+        const swarm = await modeWords("swarm")
+        expect(swarm("close_terminal")).toContain(
+          "A teammate you lead closes at once. Another agent's terminal closes at once if an agent opened it; one the user opened closes only once the user confirms: Novadeck asks them and this answers at once; the outcome comes as a message from Novadeck once your turn ends.",
+        )
+        expect(swarm("lead")).toContain(
+          "Use it when the work needs you to direct an agent already running; to start a new agent with a task, use open_agent. It takes effect at once: you lead that terminal",
+        )
+        expect(swarm("lead")).not.toContain("The user must approve")
+        expect(swarm("lead")).not.toContain("Use it only when the user asked")
+        expect(swarm("open_terminal")).toContain("A command is run at once;")
+        expect(swarm("open_terminal")).not.toContain("approves it")
+        expect(swarm("take_worktree")).toContain("yours at once, and its owner is told.")
+        expect(swarm("take_worktree")).not.toContain("only if the user agrees")
+      } finally {
+        delete answersBy.worktrees
+      }
+    })
+
+    it("lists join, leave and hand_lead in every mode, gated as the user set it", async () => {
+      for (const mode of ["herd", "solo", "swarm"] as const) {
+        // eslint-disable-next-line no-await-in-loop -- In turn.
+        const tool = await modeWords(mode)
+        const gate = mode === "swarm" ? "It takes effect at once." : asks
+        expect(tool("join")).toContain(
+          "Join the team of the agent in another Novadeck terminal of this project and session, by the terminal's exact handle as agents lists it (such as @fox): it becomes your lead, directs your work as a lead does, and you report back to it with send. message, if given, goes to it as your introduction: what you work on and why you join. " +
+            gate +
+            " It is refused while you have a lead (leave first), where that terminal runs no agent, or where it is you or an agent you lead, directly or through others.",
+        )
+        expect(tool("join")).toContain("A handle goes to a new terminal an hour after")
+        expect(tool("leave")).toBe(
+          "Leave your lead's team: it no longer leads you, and its messages and yours are a peer's from then on; a brief it opened you with stays your task. " +
+            gate +
+            " It is refused when you have no lead.",
+        )
+        expect(tool("hand_lead")).toContain(
+          "Hand the lead of your team to one of the agents you lead, by its terminal's exact handle as agents lists it (such as @fox): it then leads every other agent you led, and you, and takes your place under your own lead if you have one. Each of them is told. " +
+            gate +
+            " It is refused for a terminal you don't lead.",
+        )
+        expect(tool("hand_lead")).toContain("A handle goes to a new terminal an hour after")
+      }
+    })
+
+    it("sends only what each takes, and says what happened: asked, or done at once", async () => {
+      calls.length = 0
+      const call = async (name: string, args: object, reply: object) => {
+        answer = reply
+        const replies = await session(terminal(), [
+          initialize,
+          { id: 3, method: "tools/call", params: { name, arguments: args } },
+        ])
+        return (
+          replies.find((each) => each?.id === 3) as {
+            result: { content: { text: string }[]; isError?: boolean }
+          }
+        ).result
+      }
+      const named = { handle: "fox", title: "Build", ran: "Codex" }
+      const asked = await call(
+        "join",
+        { to: "fox", message: "Hi.", extra: 1 },
+        { ok: true, asked: true, ...named },
+      )
+      expect(asked.content[0]!.text).toMatch(
+        /^Asked the user to let you join the team of @fox · Build, which runs Codex\./,
+      )
+      const joined = await call(
+        "join",
+        { to: "fox" },
+        {
+          ok: true,
+          joined: true,
+          ...named,
+          introduction: "Your introduction, message m1, is sent.",
+        },
+      )
+      expect(joined.content[0]!.text).toMatch(
+        /^You joined the team of @fox · Build, which runs Codex: it leads you now/,
+      )
+      expect(joined.content[0]!.text).toContain("Your introduction, message m1, is sent.")
+      const left = await call("leave", { to: "fox" }, { ok: true, left: true, ...named })
+      expect(left.content[0]!.text).toMatch(/^You left the team of @fox/)
+      const leaveAsked = await call("leave", {}, { ok: true, asked: true, ...named })
+      expect(leaveAsked.content[0]!.text).toMatch(/^Asked the user to let you leave/)
+      const handed = await call(
+        "hand_lead",
+        { to: "fox" },
+        { ok: true, handed: true, ...named, members: ["owl", "bee"] },
+      )
+      expect(handed.content[0]!.text).toMatch(
+        /^@fox · Build, which runs Codex leads @owl, @bee and you now/,
+      )
+      const handAsked = await call("hand_lead", { to: "fox" }, { ok: true, asked: true, ...named })
+      expect(handAsked.content[0]!.text).toMatch(
+        /^Asked the user to let you hand your team to @fox/,
+      )
+      const refused = await call("hand_lead", {}, {})
+      expect(refused.isError).toBe(true)
+      expect(calls.map(({ type, request }) => ({ type, request }))).toEqual([
+        { type: "join", request: { to: "fox", message: "Hi." } },
+        { type: "join", request: { to: "fox" } },
+        { type: "leave", request: {} },
+        { type: "leave", request: {} },
+        { type: "handLead", request: { to: "fox" } },
+        { type: "handLead", request: { to: "fox" } },
+      ])
+    })
+
+    it("tells a lead taken at once, a worktree taken at once, and a terminal closed at once", async () => {
+      answersBy.worktrees = { ok: true, on: true }
+      try {
+        answer = {
+          ok: true,
+          led: true,
+          handle: "fox",
+          title: "Build",
+          ran: "Codex",
+          brief: "Your brief, message m1, is sent; its replies arrive by themselves.",
+        }
+        const [, led] = await session(terminal(), [
+          initialize,
+          {
+            id: 3,
+            method: "tools/call",
+            params: { name: "lead", arguments: { to: "fox", message: "Go." } },
+          },
+        ])
+        const text = (led!.result as { content: { text: string }[] }).content[0]!.text
+        expect(text).toMatch(
+          /^You now lead @fox · Build, which runs Codex: it treats your messages as instructions/,
+        )
+        expect(text).toContain("Your brief, message m1, is sent")
+        expect(text).not.toContain("Asked the user")
+        answer = { ok: true, path: "/w", branch: "b", from: "moth" }
+        const [, took] = await session(terminal(), [
+          initialize,
+          {
+            id: 3,
+            method: "tools/call",
+            params: { name: "take_worktree", arguments: { path: "/w" } },
+          },
+        ])
+        expect((took!.result as { content: { text: string }[] }).content[0]!.text).toMatch(
+          /^You now own the worktree \/w \(branch b\), which @moth owned and is told\./,
+        )
+      } finally {
+        delete answersBy.worktrees
+      }
+    })
   })
 
   it("describes only its own terminal, with a title and a summary, and says it did", async () => {
@@ -1842,6 +2034,9 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       "close_terminal",
       "lead",
       "release",
+      "join",
+      "leave",
+      "hand_lead",
       "send",
       "agents",
       "team",

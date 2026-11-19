@@ -2,7 +2,7 @@ import { resolve as resolvePath } from "node:path"
 
 import type { Effort, Install, Model } from "@novadeck/harness-core/harness"
 import { doorbellLine } from "@novadeck/harness-core/prompts"
-import type { AgentMode, AgentName } from "@novadeck/protocol"
+import type { AgentName } from "@novadeck/protocol"
 import type { Trees } from "@novadeck/terminal/pty"
 import { freshNonce } from "@novadeck/tui-input"
 
@@ -57,6 +57,7 @@ import { folderFor, launchFor, resumeRefusal, type Claims } from "./resumes.js"
 import { nobodyToRun, runNotice, waitingToRun } from "./runs.js"
 import { shellBusy } from "./sampling.js"
 import type { Sleeper, Sleepers } from "./sleepers.js"
+import { Teams } from "./teams.js"
 import { cleanSummary, described, summaryRefusal, titleRefusal } from "./titles.js"
 
 /**
@@ -127,8 +128,6 @@ export type CallsHost = LeadsHost &
     readonly send: (call: Call) => Promise<SendAnswer | TeamAnswer>
     readonly agents: (call: Call) => Promise<AgentsAnswer>
     readonly team: (call: Call) => Promise<AgentsAnswer>
-    /** How agents work with each other, as the person set it: the tool texts follow it. */
-    readonly agentMode: () => AgentMode
   }
 
 /**
@@ -162,6 +161,8 @@ export class Calls {
 
   /** Leads formed and ended after the fact. */
   readonly leads: Leads
+  /** Joining, leaving and handing on a team, by its members and leads. */
+  private readonly teams: Teams
   /** The git worktrees agents open, take, give and close. */
   private readonly worktrees: WorktreeCalls
 
@@ -171,6 +172,7 @@ export class Calls {
     readonly host: CallsHost,
   ) {
     this.leads = new Leads(host)
+    this.teams = new Teams(host, this.leads)
     this.worktrees = new WorktreeCalls(host)
   }
 
@@ -282,9 +284,11 @@ export class Calls {
       (await at(resolvePath(record.summary.cwd, folder)))
     if (cwd === undefined)
       return refused(`${request.cwd ?? record.summary.cwd} isn't a folder a terminal can open in.`)
-    // A command is the person's to approve: with no one to ask, or one question already
-    // waiting from this terminal, nothing is charged or asked.
-    if (request.command !== undefined) {
+    // A command is the person's to approve, unless agents decide for themselves (Swarm): with
+    // no one to ask, or one question already waiting from this terminal, nothing is charged or
+    // asked. The mode is read now, so a change applies to the agents already running.
+    const asks = request.command !== undefined && this.host.agentMode() !== "swarm"
+    if (asks) {
       const waiting = this.host.approvals().refusal(call.terminalId)
       if (waiting) return refused(waiting === "nobody" ? nobodyToRun : waitingToRun)
     }
@@ -305,7 +309,7 @@ export class Calls {
     if (this.host.stopping() || this.host.records().get(call.terminalId) !== record)
       return unansweredCalls.open
     // Another question may have been asked meanwhile, from here or about this terminal.
-    if (request.command !== undefined) {
+    if (asks) {
       const waiting = this.host.approvals().refusal(call.terminalId)
       if (waiting) return refused(waiting === "nobody" ? nobodyToRun : waitingToRun)
     }
@@ -320,7 +324,7 @@ export class Calls {
       )
     this.opened.set(charged, times)
     this.allOpened = all
-    if (request.command !== undefined)
+    if (asks && request.command !== undefined)
       return this.askToRun(record, charged, { cwd, command: request.command, request })
     const asked = await this.host.opens().request(
       {
@@ -571,7 +575,14 @@ export class Calls {
       return refused(`${mention(target.handle)} is already closing.`)
     const leadsIt =
       this.host.messaging().leadOf(target.terminalId)?.terminalId === record.summary.id
-    const way = closeWay({ leads: leadsIt, agent: target.agent, busy })
+    // `openedBy` is null for a terminal the person opened; any other was opened by an agent.
+    const way = closeWay({
+      leads: leadsIt,
+      agent: target.agent,
+      busy,
+      byPerson: closing.openedBy === null,
+      swarm: this.host.agentMode() === "swarm",
+    })
     if (way === "request") {
       const waiting = this.host.approvals().refusal(target.terminalId)
       if (waiting)
@@ -728,6 +739,12 @@ export class Calls {
         return this.leads.lead(call)
       case "release":
         return this.leads.release(call)
+      case "join":
+        return this.teams.join(call)
+      case "leave":
+        return this.teams.leave(call)
+      case "handLead":
+        return this.teams.hand(call)
       case "worktrees":
         return Promise.resolve(this.worktrees.listed(call))
       case "mode":

@@ -33,8 +33,8 @@ export type Ack = { readonly terminalId: string; readonly token: string; readonl
  * there, `look` pictures a page there and `closeShown` closes what it showed (see `companions/items.ts`), `open` opens a new terminal beside it (see
  * `terminals/opens.ts`), `close` closes another terminal of its project and session (see
  * `terminals/closes.ts`), `lead` asks the person to let it lead another terminal's agent and
- * `release` ends such a lead (see `terminals/leads.ts`), `worktrees` (whether the person turned them on, which the tools' listing asks), `mode` (how
- * agents work with each other, Herd or Solo, which the handshake and the listing ask), `openWorktree`, `takeWorktree`,
+ * `release` ends such a lead (see `terminals/leads.ts`), `join`, `leave` and `handLead` change a team from inside, as a member or a lead (see `terminals/teams.ts`), `worktrees` (whether the person turned them on, which the tools' listing asks), `mode` (how
+ * agents work with each other, Herd, Solo or Swarm, which the handshake and the listing ask), `openWorktree`, `takeWorktree`,
  * `closeWorktree` and `giveWorktree` make, claim, remove and hand on the git worktrees agents
  * work in (see `worktrees/calls.ts`), and `send`, `agents` and `team` message other terminals' agents and
  * describe them (see `messaging/sending.ts`), and `describe` names and says what the caller's own
@@ -57,6 +57,9 @@ const callTypes = [
   "close",
   "lead",
   "release",
+  "join",
+  "leave",
+  "handLead",
   "worktrees",
   "mode",
   "openWorktree",
@@ -88,6 +91,9 @@ export const unansweredCalls = {
   close: { ok: false, reason: "Novadeck couldn't close the terminal." },
   lead: { ok: false, reason: "Novadeck couldn't ask the user to let you lead the terminal." },
   release: { ok: false, reason: "Novadeck couldn't release the terminal." },
+  join: { ok: false, reason: "Novadeck couldn't join the terminal's team." },
+  leave: { ok: false, reason: "Novadeck couldn't leave the team." },
+  handLead: { ok: false, reason: "Novadeck couldn't hand your team over." },
   worktrees: { ok: false, reason: "Novadeck couldn't tell whether worktrees are on." },
   mode: { ok: false, reason: "Novadeck couldn't tell how agents work together." },
   openWorktree: { ok: false, reason: "Novadeck couldn't open the worktree." },

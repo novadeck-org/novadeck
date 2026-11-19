@@ -1957,7 +1957,7 @@ one from an earlier runner.
   `null` for never; see "Idle agents rest" in agent-messaging.md), and whether agents may
   open git worktrees through Novadeck's tools (off until the person turns it on, in
   Preferences' Experimental tab), and how agents work with each other, `"herd"` until the
-  person picks `"solo"` (see "Herd and Solo" in agent-messaging.md). `get` also
+  person picks `"solo"` or `"swarm"` (see "Herd, Solo and Swarm" in agent-messaging.md). `get` also
   reports `transcriptsAvailable`: false once it is known there is no key to seal
   transcripts with, true when there is one and while it is still awaited (it waits about a
   second for it).

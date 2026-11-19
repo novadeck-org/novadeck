@@ -1,4 +1,4 @@
-import type { AgentName } from "@novadeck/protocol"
+import type { AgentMode, AgentName } from "@novadeck/protocol"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import type { Messaging } from "../messaging/messaging.js"
@@ -12,8 +12,14 @@ import type { Record } from "./record.js"
 const token = "t".repeat(48)
 
 // A terminal as far as a close reads it.
-const terminal = (id: string, handle: string, title = "Terminal"): Record =>
+const terminal = (
+  id: string,
+  handle: string,
+  title = "Terminal",
+  openedBy: string | null = null,
+): Record =>
   ({
+    openedBy,
     summary: { id, handle, title, sessionId: "session" },
     terminal: { exiting: false, pty: { pid: undefined } },
     prompts: [],
@@ -35,6 +41,7 @@ const setup = (
       .map((handle) => [`id-${handle}`, terminal(`id-${handle}`, handle)]),
   )
   const approvals = new Approvals()
+  let mode: AgentMode = "herd"
   const steps: string[] = []
   const notices: { to: string; text: string; always?: true }[] = []
   // Messages on their way, by sender and recipient terminal: "id-fox>id-moth".
@@ -45,6 +52,7 @@ const setup = (
   const sleeping = new Set(asleep.map((handle) => `id-${handle}`))
   const rows = new Map(asleep.map((handle) => [`id-${handle}`, terminal(`id-${handle}`, handle)]))
   const host = {
+    agentMode: () => mode,
     records: () => records,
     stopping: () => stopping,
     messaging: () =>
@@ -73,7 +81,10 @@ const setup = (
     }),
     approvals: () => approvals,
     sleepers: () => ({
-      peer: (id: string) => (sleeping.has(id) ? { summary: rows.get(id)!.summary } : undefined),
+      peer: (id: string) =>
+        sleeping.has(id)
+          ? { summary: rows.get(id)!.summary, openedBy: rows.get(id)!.openedBy }
+          : undefined,
       resting: (id: string) => (sleeping.has(id) ? { agent: "claude" } : undefined),
     }),
     close: async (id: string) => {
@@ -108,8 +119,10 @@ const setup = (
     steps,
     notices,
     records,
+    rows,
     coming,
     stop: () => (stopping = true),
+    mode: (next: AgentMode) => (mode = next),
   }
 }
 
@@ -473,5 +486,89 @@ describe("an agent closing another agent's terminal", () => {
       // eslint-disable-next-line no-await-in-loop -- Asked in turn.
       await expect(run.close("moth", each)).resolves.toMatchObject({ ok: true, asked: true })
     await expect(run.close("moth", "a5")).resolves.toMatchObject({ ok: false })
+  })
+})
+
+describe("an agent closing a terminal where agents decide for themselves", () => {
+  // Another terminal's opener: the terminal `moth` opened has it recorded, the person's has none.
+  const opened = (run: ReturnType<typeof setup>, handle: string, by: string | null) =>
+    Object.assign(run.records.get(`id-${handle}`)!, { openedBy: by })
+
+  it("closes at once an agent's terminal that another agent opened, with no ask", async () => {
+    const run = setup({ moth: "claude", fox: "codex" })
+    run.mode("swarm")
+    opened(run, "fox", "id-ant")
+    const requested = person(run.approvals)
+    await expect(run.close("moth", "fox")).resolves.toMatchObject({
+      ok: true,
+      handle: "fox",
+      ran: "Codex",
+    })
+    await settle()
+    expect(requested).toEqual([])
+    expect(run.steps).toEqual(["closing fox", "ended fox", "removed fox", "forgot id-fox"])
+  })
+
+  it("closes at once a busy terminal an agent opened, though no client could be asked", async () => {
+    const run = setup({ moth: "claude", fox: null })
+    run.mode("swarm")
+    opened(run, "fox", "id-moth")
+    const fox = run.records.get("id-fox")!
+    Object.assign(fox, { shellName: "bash" })
+    Object.assign(fox.summary, { process: { name: "ssh", argv: null } })
+    await expect(run.close("moth", "fox")).resolves.toMatchObject({
+      ok: true,
+      handle: "fox",
+    })
+    expect(run.steps).toContain("closing fox")
+  })
+
+  it("still asks the person to close a terminal they opened, exactly as in Herd", async () => {
+    const run = setup({ moth: "claude", fox: "codex" })
+    run.mode("swarm")
+    opened(run, "fox", null)
+    const requested = person(run.approvals)
+    await expect(run.close("moth", "fox")).resolves.toEqual({
+      ok: true,
+      asked: true,
+      handle: "fox",
+      title: "Terminal",
+      ran: "Codex",
+    })
+    await settle()
+    expect(requested).toMatchObject([
+      { type: "request", terminalId: "id-fox", action: { type: "close" } },
+    ])
+    expect(run.steps).toEqual([])
+  })
+
+  it("reads the mode at each call: Herd asks again for the terminal an agent opened", async () => {
+    const run = setup({ moth: "claude", fox: "codex", bee: "claude" })
+    person(run.approvals)
+    opened(run, "fox", "id-ant")
+    opened(run, "bee", "id-ant")
+    run.mode("swarm")
+    await expect(run.close("moth", "fox")).resolves.toMatchObject({
+      ok: true,
+      handle: "fox",
+    })
+    run.mode("herd")
+    await expect(run.close("moth", "bee")).resolves.toMatchObject({
+      asked: true,
+      handle: "bee",
+    })
+    run.mode("solo")
+    expect(run.steps).not.toContain("closing bee")
+  })
+
+  it("closes at once a sleeper an agent opened", async () => {
+    const run = setup({ moth: "claude", fox: "codex" }, {}, ["fox"])
+    run.mode("swarm")
+    Object.assign(run.rows.get("id-fox")!, { openedBy: "id-ant" })
+    await expect(run.close("moth", "fox")).resolves.toMatchObject({
+      ok: true,
+      handle: "fox",
+    })
+    expect(run.steps).toEqual(["closed the row of id-fox"])
   })
 })

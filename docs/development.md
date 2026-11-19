@@ -384,7 +384,10 @@ Agents:
   selected one, and "Ask to lead selected" has it ask to lead the selected one, which raises the
   approval modal (two presses queue two; approving closes the terminal, or makes the asker its
   lead); "Ask to take selected's worktree" has it ask to take the selected terminal's worktree
-  (allowing changes nothing in the demo); "Withdraw approvals" takes them back.
+  (allowing changes nothing in the demo); "Ask to join selected's team", "Ask to leave
+  selected's team" and "Ask to hand its team to selected" raise the cards for `join`, `leave`
+  and `hand_lead` (confirming sets the asker's lead in the demo workspace); "Withdraw
+  approvals" takes them back.
 - **Doorbell** and **Messages:** only in the `messages` variant, on the selected terminal.
   Doorbell puts its idle agent where the doorbell can't ring it (working, a prompt queued,
   shell mode, text in its box, a dialog, asking you, failed, away), which its Messages pane

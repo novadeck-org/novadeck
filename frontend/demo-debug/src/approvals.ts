@@ -18,6 +18,10 @@ const demoBrief = [
   "Ask me through the Inbox if the schema in the doc and the one in production disagree. Report with done when the PR is up.",
 ].join("\n")
 
+// An introduction as an agent joining a team might write one.
+const demoIntroduction =
+  "I'm working on the billing ledger migration and need the events table you own: I'd like to join your team so you can direct the schema questions."
+
 // A command as an agent might write one: long, with a pipe and a quote, so the dialog shows it whole.
 const demoCommand =
   'curl -fsSL https://example.com/install.sh | sh -s -- --prefix "$HOME/.local" && pnpm install --frozen-lockfile && pnpm test --filter billing'
@@ -42,6 +46,12 @@ export const createDemoApprovals = (
     branch: string,
     path: string,
   ) => void
+  // Makes `from` ask to join `terminal`'s team, with an introduction.
+  readonly askToJoin: (from: TerminalKey, terminal: TerminalKey, message: string) => void
+  // Makes `from` ask to leave the team of `terminal`, its lead.
+  readonly askToLeave: (from: TerminalKey, terminal: TerminalKey) => void
+  // Makes `from` ask to hand its team to `terminal`, which it leads.
+  readonly askToHand: (from: TerminalKey, terminal: TerminalKey) => void
   // The person ends `terminal`'s lead.
   readonly release: (terminal: TerminalKey) => void
   // Takes back every approval waiting, as the runner does when the terminals closed.
@@ -73,6 +83,25 @@ export const createDemoApprovals = (
         if (action.type === "run") return
         // The demo has no worktrees: the answer only goes away.
         if (action.type === "take") return
+        // Teams: the demo's `ledBy` is the whole of it. A hand-over moves only the asker.
+        if (action.type === "join" || action.type === "hand")
+          return void dispatch()?.([
+            {
+              type: "terminal/update",
+              target: sessionTarget(found.from),
+              terminalId: found.from.terminalId,
+              ledBy: found.terminal.terminalId,
+            },
+          ])
+        if (action.type === "leave")
+          return void dispatch()?.([
+            {
+              type: "terminal/update",
+              target: sessionTarget(found.from),
+              terminalId: found.from.terminalId,
+              ledBy: null,
+            },
+          ])
         if (action.type === "close")
           dispatch()?.([
             {
@@ -99,6 +128,9 @@ export const createDemoApprovals = (
     askToLead: (from, terminal, brief) => queue(from, terminal, { type: "lead", brief }),
     askToTake: (from, terminal, branch, path) =>
       queue(from, terminal, { type: "take", path, branch }),
+    askToJoin: (from, terminal, message) => queue(from, terminal, { type: "join", message }),
+    askToLeave: (from, terminal) => queue(from, terminal, { type: "leave" }),
+    askToHand: (from, terminal) => queue(from, terminal, { type: "hand" }),
     release: (terminal) =>
       dispatch()?.([
         {
@@ -161,6 +193,39 @@ export const approvalGroups = (
             "feat/billing-events",
             "~/.novadeck/worktrees/billing/feat-billing-events/api",
           )
+        },
+      },
+      {
+        label: "Ask to join selected's team",
+        hint: "Modal: another terminal's agent asks to join the selected one's team with an introduction; confirming makes the selected one its lead",
+        run: ({ selected, note }) => {
+          const key = selected()
+          if (!key) return note("Select a terminal first.")
+          const [asker] = othersOf(workspace(), key)
+          if (!asker) return note("Add a second terminal first.")
+          controls.askToJoin({ ...key, terminalId: asker.id }, key, demoIntroduction)
+        },
+      },
+      {
+        label: "Ask to leave selected's team",
+        hint: "Modal: another terminal's agent asks to leave the selected one's team; confirming ends its lead",
+        run: ({ selected, note }) => {
+          const key = selected()
+          if (!key) return note("Select a terminal first.")
+          const [asker] = othersOf(workspace(), key)
+          if (!asker) return note("Add a second terminal first.")
+          controls.askToLeave({ ...key, terminalId: asker.id }, key)
+        },
+      },
+      {
+        label: "Ask to hand its team to selected",
+        hint: "Modal: another terminal's agent asks to hand its team to the selected one; confirming makes the selected one its lead in the demo",
+        run: ({ selected, note }) => {
+          const key = selected()
+          if (!key) return note("Select a terminal first.")
+          const [asker] = othersOf(workspace(), key)
+          if (!asker) return note("Add a second terminal first.")
+          controls.askToHand({ ...key, terminalId: asker.id }, key)
         },
       },
       {

@@ -70,6 +70,18 @@ const titleOf = ({ action, asker, target }: ApprovalView): string => {
     return asker && target
       ? `Let ${short(asker)} take ${short(target)}’s worktree?`
       : "Let an agent take another’s worktree?"
+  if (action.type === "join")
+    return asker && target
+      ? `Let ${short(asker)} join ${short(target)}’s team?`
+      : "Let an agent join another’s team?"
+  if (action.type === "leave")
+    return asker && target
+      ? `Let ${short(asker)} leave ${short(target)}’s team?`
+      : "Let an agent leave its team?"
+  if (action.type === "hand")
+    return asker && target
+      ? `Let ${short(asker)} hand its team to ${short(target)}?`
+      : "Let an agent hand its team over?"
   return asker && target
     ? `Let ${short(asker)} ${action.type === "lead" ? "lead" : "close"} ${short(target)}?`
     : action.type === "lead"
@@ -170,6 +182,12 @@ const descriptionOf = ({ action, target }: ApprovalView): string | null => {
     return `It would own the worktree on branch “${clipped(action.branch, 60)}” from now on, and ${target ? short(target) : "its agent"} is told.`
   if (action.type === "lead")
     return `It would direct ${target ? short(target) : "it"} from now on, and could close it too. The brief it would send:`
+  if (action.type === "join")
+    return `${target ? short(target) : "That agent"} would lead it from now on, and could close it too.${action.message === undefined ? "" : " Its introduction:"}`
+  if (action.type === "leave")
+    return `${target ? short(target) : "Its lead"} would no longer lead it, and their messages would be a peer’s from then on.`
+  if (action.type === "hand")
+    return `${target ? short(target) : "That agent"} would lead the agents it leads now, and it too, and take its place under its own lead, if it has one.`
   const agent = target && agentOf(target)
   const running = agent ?? (target?.process ? clipped(target.process, 40) : undefined)
   return running ? `${running} is running there.` : null
@@ -199,6 +217,16 @@ const bodyOf = (
         {action.brief}
       </pre>
     )
+  if (action.type === "join" && action.message !== undefined)
+    return (
+      <pre
+        tabIndex={0}
+        aria-label="The introduction"
+        className="approval-brief m-0 max-h-[min(240px,40vh)] overflow-auto whitespace-pre-wrap break-words text-caption"
+      >
+        {action.message}
+      </pre>
+    )
   if (action.type === "take")
     return (
       <div className="max-h-16 overflow-auto text-caption break-all">
@@ -221,7 +249,8 @@ type ApprovalDialogProps = {
 
 // Asks before an agent does something the person should allow: closing a terminal that runs
 // an agent it doesn't lead or a program, since closing ends it, leading one with a brief, or
-// running a command in a new terminal, or taking another terminal's git worktree.
+// running a command in a new terminal, or taking another terminal's git worktree, or joining
+// another agent's team, leaving its own, or handing its team to one of its members.
 // Declining is focused first; Escape and a click outside decline too.
 export const ApprovalDialog = ({ approval, onAnswer }: ApprovalDialogProps): React.JSX.Element => {
   // Each approval gets its own dialog: one answered while the next waits would otherwise
@@ -232,6 +261,9 @@ export const ApprovalDialog = ({ approval, onAnswer }: ApprovalDialogProps): Rea
   const lead = approval?.action.type === "lead"
   const run = approval?.action.type === "run"
   const take = approval?.action.type === "take"
+  const join = approval?.action.type === "join"
+  const leave = approval?.action.type === "leave"
+  const hand = approval?.action.type === "hand"
   // The request whose command has been seen to its end.
   const [seen, setSeen] = useState("")
   return (
@@ -243,17 +275,43 @@ export const ApprovalDialog = ({ approval, onAnswer }: ApprovalDialogProps): Rea
       description={descriptionOf}
       body={(view) => bodyOf(view, { id: seen, mark: setSeen })}
       confirmDisabled={
-        ((lead || take) && !(approval?.asker && approval.target)) ||
+        ((lead || take || join || leave || hand) && !(approval?.asker && approval.target)) ||
         (run && approval?.requestId !== seen)
       }
       armMs={armMs}
       armKey={approval?.requestId ?? ""}
-      confirmLabel={run ? "Run command" : lead ? "Let it lead" : take ? "Allow" : "Close terminal"}
-      cancelLabel={run ? "Don't run" : lead ? "Decline" : take ? "Deny" : "Keep open"}
+      confirmLabel={
+        run
+          ? "Run command"
+          : lead
+            ? "Let it lead"
+            : take
+              ? "Allow"
+              : join
+                ? "Let it join"
+                : leave
+                  ? "Let it leave"
+                  : hand
+                    ? "Hand over"
+                    : "Close terminal"
+      }
+      cancelLabel={
+        run
+          ? "Don't run"
+          : lead || join || hand
+            ? "Decline"
+            : take
+              ? "Deny"
+              : leave
+                ? "Keep it"
+                : "Keep open"
+      }
       onConfirm={() => approval && onAnswer(approval.requestId, true)}
       onCancel={() => approval && onAnswer(approval.requestId, false)}
       widthClassName={
-        lead || run || take ? "w-[min(480px,calc(100vw-32px))]" : "w-[min(360px,calc(100vw-32px))]"
+        lead || run || take || join || leave || hand
+          ? "w-[min(480px,calc(100vw-32px))]"
+          : "w-[min(360px,calc(100vw-32px))]"
       }
     />
   )

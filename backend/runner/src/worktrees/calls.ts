@@ -15,7 +15,7 @@ import type { Worktrees } from "./worktrees.js"
 /** What the worktree calls need of the runner. */
 export type WorktreeCallsHost = Pick<
   LeadsHost,
-  "records" | "stopping" | "messaging" | "peers" | "approvals"
+  "records" | "stopping" | "messaging" | "peers" | "approvals" | "agentMode"
 > & {
   /** The service; none where the runner keeps no ownership (some tests). */
   readonly worktrees: () => Worktrees | undefined
@@ -108,6 +108,11 @@ export const worktreeNotice = {
   moved: (path: string): string =>
     notice +
     `The user approved, but nothing changed: the worktree ${path} changed owner meanwhile.`,
+  // Where agents decide for themselves (Swarm), nobody approved it: its owner hears of it so.
+  lostNow: (taker: string, path: string, branch: string): string =>
+    notice +
+    `${mention(taker)} took your worktree ${path} (branch ${branch}). It is no longer yours: ` +
+    "don't change files there, and don't close it.",
   given: (giver: string, path: string, branch: string): string =>
     notice +
     `${mention(giver)} gave you the worktree ${path} on branch ${branch}: you own it now. Work ` +
@@ -128,6 +133,8 @@ export type WorktreeAnswer =
       readonly already?: true
       /** take_worktree: the person was asked; the worktree isn't yours yet. */
       readonly asked?: true
+      /** take_worktree: another terminal owned it; it is yours now, and the handle of its former owner. */
+      readonly from?: string
       /** The handle of the terminal asked about, or given to. */
       readonly owner?: string
       /** close_worktree: where the uncommitted work was kept. */
@@ -214,12 +221,48 @@ export class WorktreeCalls {
       path: read1.request.path,
     })
     if (!taken.ok) return taken
-    if ("approval" in taken) return this.ask(call, record, service, taken.approval)
+    if ("approval" in taken)
+      return this.host.agentMode() === "swarm"
+        ? this.takeNow(call, record, service, taken.approval)
+        : this.ask(call, record, service, taken.approval)
     return {
       ok: true,
       path: taken.path,
       branch: taken.branch,
       ...(taken.already && { already: true as const }),
+    }
+  }
+
+  /**
+   * Where agents decide for themselves (Swarm), the caller takes a worktree another terminal
+   * owns at once; the owner, if it still runs, is told.
+   */
+  private async takeNow(
+    call: Call,
+    caller: Record,
+    service: Worktrees,
+    row: WorktreeRecord,
+  ): Promise<WorktreeAnswer> {
+    const ownerId = row.terminalId!
+    const { path, branch } = row
+    if (!(await service.transfer(path, ownerId, call.terminalId)))
+      return refused(`The worktree ${path} changed owner meanwhile, so nothing changed.`)
+    const owner = this.host.records().get(ownerId)
+    if (owner) {
+      this.host
+        .messaging()
+        .notice(ownerId, worktreeNotice.lostNow(caller.summary.handle, path, branch), {
+          always: true,
+        })
+      // The notice names the taker, and the answer the owner: each handle is the other's to use.
+      this.host.peers().introduce(ownerId, call.terminalId)
+      this.host.peers().introduce(call.terminalId, ownerId)
+    }
+    return {
+      ok: true,
+      path,
+      branch,
+      ...(owner && { from: owner.summary.handle }),
     }
   }
 

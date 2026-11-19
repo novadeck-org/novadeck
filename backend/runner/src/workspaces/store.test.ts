@@ -3470,15 +3470,17 @@ describe("saved terminals", () => {
     expect(workspace.settings.runner().hibernateAfterMinutes).toBe(60)
   })
 
-  it("keep how agents work together, Herd until Solo is picked", ({ kept }) => {
+  it("keep how agents work together, Herd until another is picked", ({ kept }) => {
     const workspace = kept()
     expect(workspace.settings.runner().agentMode).toBe("herd")
     workspace.settings.saveRunner({ agentMode: "solo" })
     expect(workspace.settings.runner().agentMode).toBe("solo")
+    workspace.settings.saveRunner({ agentMode: "swarm" })
+    expect(workspace.settings.runner().agentMode).toBe("swarm")
     workspace.settings.saveRunner({ agentMode: "herd" })
     expect(workspace.settings.runner().agentMode).toBe("herd")
     // A mode a newer build saved, which this one doesn't know, reads as Herd.
-    workspace.settings.saveRunner({ agentMode: "swarm" as "herd" })
+    workspace.settings.saveRunner({ agentMode: "hive" as "herd" })
     expect(workspace.settings.runner().agentMode).toBe("herd")
   })
 

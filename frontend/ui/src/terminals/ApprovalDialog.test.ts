@@ -363,6 +363,79 @@ describe("approval dialog", () => {
     })
   })
 
+  context("when an agent asks to join, leave or hand on a team", () => {
+    it("asks to join another's team, showing its introduction as plain text", async () => {
+      const { button, onAnswer } = show(
+        view({ action: { type: "join", message: "<b>I</b> work on the API." } }),
+      )
+      await settle()
+      expect(dialog()?.textContent).toContain("Let @moth join @fox’s team?")
+      expect(dialog()?.textContent).toContain(
+        "@fox would lead it from now on, and could close it too. Its introduction:",
+      )
+      const introduction = dialog()?.querySelector("pre")
+      expect(introduction?.textContent).toBe("<b>I</b> work on the API.")
+      expect(introduction?.querySelector("b")).toBeNull()
+      expect(button("Decline")).toBeDefined()
+      await armed()
+      act(() => button("Let it join").click())
+      expect(onAnswer).toHaveBeenCalledWith("approval-1", true)
+    })
+
+    it("shows no introduction when the join has none", async () => {
+      show(view({ action: { type: "join" } }))
+      await settle()
+      expect(dialog()?.textContent).not.toContain("introduction")
+      expect(dialog()?.querySelector("pre")).toBeNull()
+    })
+
+    it("asks to leave its lead's team, keeping it on Keep it", async () => {
+      const { button, onAnswer } = show(view({ action: { type: "leave" } }))
+      await settle()
+      expect(dialog()?.textContent).toContain("Let @moth leave @fox’s team?")
+      expect(dialog()?.textContent).toContain("@fox would no longer lead it")
+      act(() => button("Keep it").click())
+      expect(onAnswer).toHaveBeenCalledWith("approval-1", false)
+    })
+
+    it("asks to hand its team to a member, and hands it over on Hand over", async () => {
+      const { button, onAnswer } = show(view({ action: { type: "hand" } }))
+      await settle()
+      expect(dialog()?.textContent).toContain("Let @moth hand its team to @fox?")
+      expect(dialog()?.textContent).toContain("@fox would lead the agents it leads now")
+      expect(button("Hand over").disabled).toBe(true)
+      await armed()
+      act(() => button("Hand over").click())
+      expect(onAnswer).toHaveBeenCalledWith("approval-1", true)
+    })
+
+    it("can't be let through before the app knows both terminals, and reads sensibly without them", async () => {
+      for (const [action, question, decline] of [
+        [{ type: "join" }, "Let an agent join another’s team?", "Decline"],
+        [{ type: "leave" }, "Let an agent leave its team?", "Keep it"],
+        [{ type: "hand" }, "Let an agent hand its team over?", "Decline"],
+      ] as const) {
+        const { button, onAnswer } = show({
+          ...view({ action, requestId: `approval-${action.type}` }),
+          asker: undefined,
+          target: undefined,
+        })
+        // eslint-disable-next-line no-await-in-loop -- Each is shown in turn.
+        await settle()
+        expect(dialog()?.textContent).toContain(question)
+        // eslint-disable-next-line no-await-in-loop -- Each is shown in turn.
+        await armed()
+        const yes = [...(dialog()?.querySelectorAll("button") ?? [])].find((item) =>
+          /^(Let it|Hand over)/.test(item.textContent ?? ""),
+        )
+        expect(yes?.disabled).toBe(true)
+        act(() => button(decline).click())
+        expect(onAnswer).toHaveBeenCalledWith(`approval-${action.type}`, false)
+        mounted.splice(0).forEach((page) => page.unmount())
+      }
+    })
+  })
+
   context("when the person answers", () => {
     it("closes the terminal on Close terminal", async () => {
       const { button, onAnswer } = show(view())

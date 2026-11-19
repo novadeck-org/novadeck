@@ -145,12 +145,12 @@ describe("the Agents tab", () => {
 describe("the Agents work as choice", () => {
   const panel = (): Element | null =>
     document.querySelector('[role="tabpanel"][aria-labelledby$="agents"]')
-  const radio = (label: "Solo" | "Herd"): HTMLInputElement | null =>
+  const radio = (label: "Solo" | "Herd" | "Swarm"): HTMLInputElement | null =>
     [...document.querySelectorAll<HTMLLabelElement>("label")]
       .find((item) => item.querySelector("span")?.textContent === label)
       ?.querySelector("input") ?? null
 
-  it("offers Solo then Herd on the Agents tab, with Herd chosen", async () => {
+  it("offers Solo, Herd and Swarm on the Agents tab, with Herd chosen", async () => {
     await show({ tab: "agents", agentMode: { mode: "herd", onChange: () => {} } })
 
     expect(selected()).toBe("Agents")
@@ -158,10 +158,12 @@ describe("the Agents work as choice", () => {
     const labels = [...document.querySelectorAll('input[name="agent-mode"]')].map(
       (input) => input.closest("label")?.querySelector("span")?.textContent,
     )
-    expect(labels).toEqual(["Solo", "Herd"])
+    expect(labels).toEqual(["Solo", "Herd", "Swarm"])
     expect(radio("Herd")?.checked).toBe(true)
     expect(radio("Solo")?.checked).toBe(false)
+    expect(radio("Swarm")?.checked).toBe(false)
     expect(panel()?.textContent).toContain("act with other agents only when you ask")
+    expect(panel()?.textContent).toContain("without asking you first")
   })
 
   it("saves the mode picked", async () => {
@@ -172,8 +174,9 @@ describe("the Agents work as choice", () => {
     })
 
     radio("Solo")!.click()
+    radio("Swarm")!.click()
 
-    expect(changes).toEqual(["solo"])
+    expect(changes).toEqual(["solo", "swarm"])
   })
 })
 

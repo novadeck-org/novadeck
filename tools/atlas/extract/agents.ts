@@ -15,6 +15,7 @@ const managerFile = "backend/runner/src/terminals/manager.ts"
 const companionFile = "backend/runner/src/terminals/companion.ts"
 const callsFile = "backend/runner/src/terminals/calls.ts"
 const leadsFile = "backend/runner/src/terminals/leads.ts"
+const teamsFile = "backend/runner/src/terminals/teams.ts"
 const worktreeCallsFile = "backend/runner/src/worktrees/calls.ts"
 const feedbackFile = "backend/runner/src/messaging/feedback.ts"
 const peersFile = "backend/runner/src/terminals/peers-host.ts"
@@ -43,6 +44,9 @@ const handlers: Record<string, { readonly file: string; readonly method: string 
   give_worktree: { file: worktreeCallsFile, method: "give" },
   lead: { file: leadsFile, method: "lead" },
   release: { file: leadsFile, method: "release" },
+  join: { file: teamsFile, method: "join" },
+  leave: { file: teamsFile, method: "leave" },
+  hand_lead: { file: teamsFile, method: "hand" },
   send: { file: managerFile, method: "send" },
   agents: { file: managerFile, method: "agents" },
   team: { file: peersFile, method: "team" },
@@ -108,7 +112,7 @@ const extractTools = (anchors: Anchors, packages: HarnessPackage[]): McpTool[] =
   // The constants the literals spread or name, each ending at a blank line or a comment.
   const preamble = [
     ...source.matchAll(
-      /^const (reused|sharing|together|peers|approvals|leadRules|peerRules|rules|agentChoices|entryFields|cwdProperty|focusProperty|effortProperty|noModel)\b[^=]*=\s*([\s\S]*?)\n(?=\n|\/\/)/gm,
+      /^const (reused|userApproves|gate|teamTo|sharing|together|decides|peers|approvals|leadRules|peerRules|rules|agentChoices|entryFields|cwdProperty|focusProperty|effortProperty|noModel)\b[^=]*=\s*([\s\S]*?)\n(?=\n|\/\/)/gm,
     ),
   ]
     .map(([, name, value]) => `const ${name} = ${value}`)

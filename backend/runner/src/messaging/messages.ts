@@ -498,7 +498,7 @@ const digestsOf = (mode: AgentMode): { readonly [kind in NoteKind]: string } => 
  */
 export const noteDigests: {
   readonly [mode in AgentMode]: { readonly [kind in NoteKind]: string }
-} = { herd: digestsOf("herd"), solo: digestsOf("solo") }
+} = { herd: digestsOf("herd"), solo: digestsOf("solo"), swarm: digestsOf("swarm") }
 
 /** The notes a delivery of `messages` carries: the person's first, where it has any. */
 export const noteKinds = (

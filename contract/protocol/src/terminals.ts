@@ -251,7 +251,11 @@ export type TerminalMoved = z.infer<typeof terminalMoved>
 // sends it; or `run`, to open a terminal that starts `command` in `cwd`, the one-line command
 // exactly as the shell would be given it. For `run`, the request's `terminalId` is the asking
 // terminal's own, as no terminal exists yet. `take`, to take the git worktree at `path`, on
-// `branch`, from the terminal that owns it, which is the request's `terminalId`.
+// `branch`, from the terminal that owns it, which is the request's `terminalId`. `join`, to join
+// the team of the terminal that is the request's `terminalId`, with `message` as its
+// introduction if it has one; `leave`, to leave the team of the lead that is the request's
+// `terminalId`; `hand`, to hand its team to the terminal that is the request's `terminalId`, one
+// it leads.
 const approvalAction = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("close") }),
   z.strictObject({ type: z.literal("run"), command: startupCommand, cwd: directory }),
@@ -261,6 +265,12 @@ const approvalAction = z.discriminatedUnion("type", [
     path: z.string().min(1).max(4096),
     branch: z.string().min(1).max(512),
   }),
+  z.strictObject({
+    type: z.literal("join"),
+    message: z.string().min(1).max(4096).optional(),
+  }),
+  z.strictObject({ type: z.literal("leave") }),
+  z.strictObject({ type: z.literal("hand") }),
 ])
 
 // `terminals.approvals` items: an agent in terminal `from` asked, through Novadeck's MCP

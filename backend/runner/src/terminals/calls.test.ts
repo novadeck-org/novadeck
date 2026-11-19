@@ -1,5 +1,6 @@
 import { resolve as resolvePath } from "node:path"
 
+import type { AgentMode } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
 import { Approvals } from "./approvals.js"
@@ -77,7 +78,9 @@ describe("the open call", () => {
       summary: { id: string; ledBy: string | null }
     }
     const approvals = new Approvals()
+    let mode: AgentMode = "herd"
     const host = {
+      agentMode: () => mode,
       records: () => records,
       rows: () => rows,
       closedRows: () => [],
@@ -166,6 +169,7 @@ describe("the open call", () => {
       claims,
       opened,
       bar: (reason: string) => (barred = reason),
+      mode: (next: AgentMode) => (mode = next),
       open: (request: object) =>
         run.open({
           type: "open",
@@ -440,6 +444,36 @@ describe("the open call", () => {
       expect(run.asked.map(({ command }) => command)).toEqual(["npm run dev"])
       expect(run.asked[0]!.opener).toMatchObject({ by: "t1", handle: "moth", leads: false })
       expect(run.notices).toEqual([{ to: "t1", text: runNotice.opened("fox", "npm run dev") }])
+    })
+
+    it("opens at once, with no ask, where agents decide for themselves", async () => {
+      const run = setup()
+      run.mode("swarm")
+      expect(await run.open({ command: "npm run dev" })).toMatchObject({
+        ok: true,
+        handle: "fox",
+        command: "npm run dev",
+        cwd: work,
+      })
+      expect(run.asked.map(({ command }) => command)).toEqual(["npm run dev"])
+      expect(run.asked[0]!.opener).toMatchObject({
+        by: "t1",
+        handle: "moth",
+        leads: false,
+      })
+      expect(run.questions).toEqual([])
+      expect(run.notices).toEqual([])
+    })
+
+    it("opens at once in Swarm with no client to ask, and asks again once the mode is Solo", async () => {
+      const run = setup()
+      run.mode("swarm")
+      expect(await run.open({ command: "make" })).toMatchObject({ ok: true })
+      run.mode("solo")
+      expect(await run.open({ command: "make" })).toEqual({
+        ok: false,
+        reason: nobodyToRun,
+      })
     })
 
     it("opens nothing and says so when the person declines", async () => {

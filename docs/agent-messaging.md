@@ -172,11 +172,11 @@ An agent weighs what reaches it at three levels:
    started but escalated: the agent asks its lead, or the person in that terminal if it
    has none, and doesn't drop it silently. A message never overrides the person.
 
-### Herd and Solo
+### Herd, Solo and Swarm
 
-How far agents act on each other outside a team is the person's choice, Preferences → Agents →
-"Agents work as" (`agentMode` in `settings.get`, `"herd"` until they pick `"solo"`). It words
-Novadeck's texts, not a rule the runner enforces:
+How far agents act on each other is the person's choice, Preferences → Agents → "Agents work
+as" (`agentMode` in `settings.get`, `"herd"` until they pick `"solo"` or `"swarm"`). In Solo and
+Herd it words Novadeck's texts only; Swarm also changes what Novadeck asks the person:
 
 - **Herd** (the default): when an agent's work meets another's, or another has done or knows
   what it needs, it works things out with that agent directly, and what they settle needs no
@@ -185,18 +185,48 @@ Novadeck's texts, not a rule the runner enforces:
   It answers what other agents ask, but tells the person what it noticed and what it would
   suggest, and messages, opens or leads an agent for it only when asked; a peer's request goes
   to the person, or its lead, before it acts on it.
+- **Swarm**: agents organise the work themselves. Besides settling overlaps directly, they open
+  agents for parts of a task that can run side by side and lead them, form, join and leave
+  teams, hand on the lead, and close agents whose work is done. They decide what the person
+  left open, ask only what is the person's alone to decide or can't be undone, and keep working
+  on what doesn't depend on the answer. Novadeck asks the person to confirm none of the actions
+  it otherwise asks about (a terminal with a command, leading a running agent, taking another
+  terminal's worktree, joining, leaving or handing on a team), nor a close of a terminal an
+  agent opened; closing a terminal the person opened still asks them. The runner reads the
+  mode at each call, so these follow a switch at once.
 
-Teams work the same in both: a lead directs, and its teammates act on its messages and report
-back. Approvals of actions stay the person's in both.
+Teams work the same in Solo and Herd: a lead directs, and its teammates act on its messages and
+report back. Approvals of actions stay the person's in every mode, and a harness's own
+permission prompts are never Novadeck's to skip.
 
-The mode words the server's instructions and the `send` and `agents` descriptions (`together`,
-`rules` in `shell/mcp.ts`), which the MCP server asks the runner for (call `mode`) with each
-handshake and listing, and the notes on peers' messages (`peerClause`, `peersShort` in
-`messaging/messages.ts`), as each delivery is wrapped. Harnesses read the handshake and the
-listing as a session starts and keep them, and Novadeck sends no `tools/list_changed`, so a
-change reaches a running agent's tools only once its harness reads them again, as a new session
-does; its notes follow at once. Each note's digest is kept per mode (`noteDigests`), so a session
-that held a note in the other mode's wording is given it in full again.
+The mode words the server's instructions and the `send`, `agents` and `ask` descriptions
+(`together`, `decides`, `rules` in `shell/mcp.ts`, and the tools whose confirmation Swarm
+drops), which the MCP server asks the runner for (call `mode`) with each handshake and listing,
+and the notes on peers' messages (`peerClause`, `peersShort` in `messaging/messages.ts`), as each
+delivery is wrapped. Harnesses read the handshake and the listing as a session starts and keep
+them, so a change reaches a running agent's texts only once its harness reads them again, as a
+new session does; its notes follow at once. Novadeck sends no `tools/list_changed`: Codex
+ignores it, and Claude Code lists the tools again on it but its model keeps the texts it began
+with (checked 2026-11-20, Claude Code 2.1.329, Codex 0.169.0). Each note's digest is kept per
+mode (`noteDigests`), so a session that held a note in another mode's wording is given it in
+full again.
+
+Agents shape teams themselves with three tools, in every mode; in Solo and Herd the person
+approves each in Novadeck's approval dialog, as with `lead`, and in Swarm each takes effect at
+once (`terminals/teams.ts`):
+
+- **`join(to, message?)`**: the caller joins `to`'s team, so `to` becomes its lead exactly as if
+  it had led it with `lead` (lead mark, reports back, release and close rights), and is told by a
+  Novadeck notice; `message` goes to it from the joiner as an introduction. Refused while the
+  joiner has a running lead (it leaves first), where `to` runs no agent or is asleep or closing,
+  and where `to` is the caller or is led by it, directly or through others.
+- **`leave()`**: the member-side mirror of `release`: the lead no longer leads the caller, their
+  messages are a peer's from then on, and a brief it was opened with stays its task. The lead is
+  told. Refused with no running lead.
+- **`hand_lead(to)`**: a lead hands its team to one of the agents it leads directly: `to` then
+  leads every other running agent the caller led, and the caller too, and takes the caller's
+  place under the caller's own lead, if any. A sleeping member keeps the caller as its lead, now
+  under `to`. The new lead, the other members and the caller's old lead are told.
 
 The rules that keep this safe:
 

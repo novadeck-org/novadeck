@@ -174,12 +174,17 @@ export type TerminalRequest = {
 // agent, with a brief, so it then directs that agent and may close it; or running a command
 // in a new terminal, `command` exactly as the shell would be given it, in `cwd`. A run's
 // `terminalId` is the asking terminal's own; or taking the git worktree at `path`, on
-// `branch`, from the terminal that owns it (`terminalId`).
+// `branch`, from the terminal that owns it (`terminalId`); or joining the team of the terminal
+// `terminalId`, with an introduction if it has one; leaving the team of the lead `terminalId`;
+// or handing its own team to the terminal `terminalId`, which it leads.
 export type ApprovalAction =
   | { readonly type: "close" }
   | { readonly type: "run"; readonly command: string; readonly cwd: string }
   | { readonly type: "lead"; readonly brief: string }
   | { readonly type: "take"; readonly path: string; readonly branch: string }
+  | { readonly type: "join"; readonly message?: string | undefined }
+  | { readonly type: "leave" }
+  | { readonly type: "hand" }
 
 // An agent in terminal `from` asked for `action` on `terminalId`, so the app asks the person
 // first. It waits, with no time limit, until the person answers or the backend takes it
@@ -637,7 +642,7 @@ export type Notice = {
 }
 
 // How agents work with each other (the runner's `agentMode` setting, kept in step with it).
-export type AgentMode = "herd" | "solo"
+export type AgentMode = "herd" | "solo" | "swarm"
 
 // An agent the backend can connect, as the Preferences switches show it.
 export type AgentConnection = {

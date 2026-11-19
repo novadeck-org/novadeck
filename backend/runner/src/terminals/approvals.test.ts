@@ -21,27 +21,53 @@ const collect = (stream: AsyncGenerator<Approval>) => {
 
 const tick = () => new Promise((resolve) => setImmediate(resolve))
 
+// Where agents ask the person (Herd and Solo), for a terminal the person opened.
+const asking = { byPerson: true, swarm: false }
+
 describe("how a close of another terminal goes", () => {
   it("closes a teammate the caller leads at once, whatever runs there", () => {
-    expect(closeWay({ leads: true, agent: "claude", busy: false })).toBe("now")
+    expect(closeWay({ leads: true, agent: "claude", busy: false, ...asking })).toBe("now")
   })
 
   it("closes a shell at its prompt at once", () => {
-    expect(closeWay({ leads: false, agent: null, busy: false })).toBe("now")
+    expect(closeWay({ leads: false, agent: null, busy: false, ...asking })).toBe("now")
   })
 
   it("asks the person first for a program other than the shell, such as ssh or a server", () => {
-    expect(closeWay({ leads: false, agent: null, busy: true })).toBe("request")
+    expect(closeWay({ leads: false, agent: null, busy: true, ...asking })).toBe("request")
   })
 
   it("closes a busy teammate the caller leads at once", () => {
-    expect(closeWay({ leads: true, agent: null, busy: true })).toBe("now")
+    expect(closeWay({ leads: true, agent: null, busy: true, ...asking })).toBe("now")
   })
 
   it("asks the person first for any other terminal that runs an agent", () => {
-    expect(closeWay({ leads: false, agent: "codex", busy: false })).toBe("request")
-    expect(closeWay({ leads: false, agent: "agy", busy: false })).toBe("request")
-    expect(closeWay({ leads: false, agent: "claude", busy: false })).toBe("request")
+    expect(closeWay({ leads: false, agent: "codex", busy: false, ...asking })).toBe("request")
+    expect(closeWay({ leads: false, agent: "agy", busy: false, ...asking })).toBe("request")
+    expect(closeWay({ leads: false, agent: "claude", busy: false, ...asking })).toBe("request")
+  })
+})
+
+describe("how a close goes where agents decide for themselves", () => {
+  const swarm = { swarm: true }
+
+  it("closes at once any terminal an agent opened, whatever runs there", () => {
+    const opened = { ...swarm, byPerson: false }
+    expect(closeWay({ leads: false, agent: "claude", busy: false, ...opened })).toBe("now")
+    expect(closeWay({ leads: false, agent: "codex", busy: false, ...opened })).toBe("now")
+    expect(closeWay({ leads: false, agent: null, busy: true, ...opened })).toBe("now")
+  })
+
+  it("still asks the person first for an agent or a program in a terminal the person opened", () => {
+    const theirs = { ...swarm, byPerson: true }
+    expect(closeWay({ leads: false, agent: "agy", busy: false, ...theirs })).toBe("request")
+    expect(closeWay({ leads: false, agent: null, busy: true, ...theirs })).toBe("request")
+  })
+
+  it("closes a teammate it leads, or a plain shell, at once, whoever opened it", () => {
+    const theirs = { ...swarm, byPerson: true }
+    expect(closeWay({ leads: true, agent: "claude", busy: false, ...theirs })).toBe("now")
+    expect(closeWay({ leads: false, agent: null, busy: false, ...theirs })).toBe("now")
   })
 })
 
