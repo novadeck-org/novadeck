@@ -47,7 +47,7 @@ export const folderViewGroups = (companions: Backend["companions"]): readonly De
       actions: [
         {
           label: "Show a folder",
-          hint: "The pane lists ~/render as a grid of thumbnails (a still per picture, the clip's first frame with its length, icons for the PDF and the log), newest first, with a folder of its own, a secret and a link out named and never opened",
+          hint: "The pane lists ~/render as a grid of thumbnails (a still per picture, the clip's first frame with its length, icons for the PDF, the log, notes.md and results.json), newest first, with a folder of its own, a secret and a link out named and never opened; right-click, Alt+double-click on notes.md or results.json (opens on its source) and Space (a quick look) work on its entries",
           run: show(render),
         },
         {

@@ -491,9 +491,13 @@ Agents:
   in on the page you were on.
 - **Folder:** only in the `showcase` variant, on the selected terminal's bar. The dev server's
   terminal (`@fox`) already holds `render`, a folder an agent wrote into (`frontend/demo/src/showcase/folders.ts`:
-  SVG stills, a clip, a PDF, a log, a folder inside it, a secret file and folder and a link out),
-  listed as thumbnails, newest first; double-clicking a file opens it in its kind's group,
-  and opening a folder from the Files panel (`agents` demo) lists a stand-in. The Folder group:
+  SVG stills, a clip, a PDF, a log, a Markdown note (`notes.md`) and a JSON file (`results.json`), a
+  folder inside it, a secret file and folder and a link out), listed as thumbnails, newest first;
+  double-clicking a file opens it in its kind's group, Alt+double-click (or "Open as text" in the
+  entry's right-click menu) opens `notes.md` or `results.json` on its source with "Show source"
+  pressed, Space is a quick look (a still larger, the clip's first frame and length, an icon card
+  for the PDF, the log and the secret; ← → step, Enter opens, Space or Escape closes), "Copy path"
+  copies an entry's absolute path, and opening a folder from the Files panel (`agents` demo) lists a stand-in. The Folder group:
   "Show a folder" shows it again; "A file lands in the folder" puts a new picture on top (held
   in a pill while the pointer is in the grid); "A file is being written" grows one for about 3 s
   (write cursor and pulse); "Show a folder with nothing in it", "...too large to list whole" and

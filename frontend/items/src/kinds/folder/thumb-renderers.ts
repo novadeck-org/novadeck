@@ -53,12 +53,11 @@ const wholeFile = async (
   return loaded.state === "ready" ? loaded.blob : null
 }
 
-// The widest a video's frame is drawn.
-const frameWidth = 320
-
-// A video's first moment, drawn small, and its length; undefined where the page can't play it.
+// A video's first moment, drawn no wider than `width`, and its length; undefined where the page
+// can't play it.
 const frameOf = (
   video: Blob,
+  width: number,
   signal: AbortSignal,
 ): Promise<{ readonly picture: Blob; readonly duration: number } | undefined> =>
   new Promise((resolve) => {
@@ -87,11 +86,11 @@ const frameOf = (
       element.currentTime = Math.min(1, (element.duration || 0) / 10)
     })
     element.addEventListener("seeked", () => {
-      const { videoWidth: width, videoHeight: height } = element
-      if (!width || !height) return done(undefined)
+      const { videoWidth, videoHeight } = element
+      if (!videoWidth || !videoHeight) return done(undefined)
       const canvas = document.createElement("canvas")
-      canvas.width = Math.min(frameWidth, width)
-      canvas.height = Math.round((canvas.width * height) / width)
+      canvas.width = Math.min(width, videoWidth)
+      canvas.height = Math.round((canvas.width * videoHeight) / videoWidth)
       canvas.getContext("2d")?.drawImage(element, 0, 0, canvas.width, canvas.height)
       canvas.toBlob(
         (picture) =>
@@ -135,10 +134,10 @@ registerEntryThumb("image", async (file, _box, signal) => {
 
 // A video is read whole to learn its first frame and length (its index may be at the end), so a
 // larger one shows its icon.
-registerEntryThumb("video", async (file, _box, signal) => {
+registerEntryThumb("video", async (file, box, signal) => {
   if (file.size > videoFrameBytes) return null
   const blob = await wholeFile(file, videoMimes[extensionOf(file.name)] ?? "video/mp4", signal)
   if (!blob) return null
-  const frame = await frameOf(blob, signal)
+  const frame = await frameOf(blob, box.width, signal)
   return frame ? { blob: frame.picture, duration: frame.duration } : null
 })

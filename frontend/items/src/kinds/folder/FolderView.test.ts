@@ -9,6 +9,8 @@ import { afterEach, beforeAll, vi } from "vitest"
 import { ItemCommandsContext } from "../../item-commands"
 import { createItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
+import { useFileView } from "../file/view-choice"
+import { registerEntryThumb, unregisterEntryThumb } from "./entry-thumbs"
 import { folder as registration } from "./index"
 
 const unmounts: (() => void)[] = []
@@ -70,6 +72,7 @@ const shown = async ({
   const quiet = new Set<string>()
   const attached: { terminalId: string; path: string }[] = []
   const closed: string[] = []
+  const heard: string[] = []
   const companions: Companions = {
     follow: (_target, _id, { within }, on) => {
       const folder = within ?? ""
@@ -96,7 +99,12 @@ const shown = async ({
     createElement(
       ItemCommandsContext,
       { value: { closeItem: (id) => closed.push(id) } },
-      createElement(registration.View, { item, itemStore, target }),
+      // What an ancestor of the view, as the pane is, hears of the keys.
+      createElement(
+        "div",
+        { onKeyDown: (event: React.KeyboardEvent) => void heard.push(event.key) },
+        createElement(registration.View, { item, itemStore, target }),
+      ),
     ),
   )
   unmounts.push(rendered.unmount)
@@ -105,6 +113,8 @@ const shown = async ({
   return {
     root,
     itemStore,
+    unmount: rendered.unmount,
+    heard,
     attached,
     closed,
     followed,
@@ -240,7 +250,7 @@ describe("a folder in the pane", () => {
     it("keep the folder a pane was in when it comes back", async () => {
       const app = await shown({ listings: inFolder })
       await app.open("old-runs")
-      app.root.ownerDocument.body.innerHTML = ""
+      app.unmount()
       const again = render(
         createElement(registration.View, {
           item: itemFixture("render", "01", {
@@ -457,6 +467,387 @@ describe("a folder in the pane", () => {
       expect(app.root.querySelector(".artifact-cut")?.textContent).toBe(
         "render holds 5,000 items, which is more than Novadeck lists whole: the first 5 are shown.",
       )
+    })
+  })
+})
+
+// A file's menu and its quick look.
+describe("a file's menu and quick look", () => {
+  const files = [
+    entry("shot.png", { modifiedAt: 5_000 }),
+    entry("mid", { kind: "folder", size: 0, children: 2, modifiedAt: 4_000 }),
+    entry("song.mp3", { kind: "audio", modifiedAt: 3_000 }),
+    entry("notes.md", { kind: "text", modifiedAt: 2_500 }),
+    entry("main.ts", { kind: "text", modifiedAt: 2_000 }),
+    entry(".env", { kind: "other", secret: true, stamp: "", modifiedAt: 1_500 }),
+    entry("latest", { kind: "other", link: true, stamp: "", modifiedAt: 1_000 }),
+    entry("clip.mp4", { kind: "video", modifiedAt: 500 }),
+  ]
+
+  const doc = () => document
+  // What the menu's items say: their label and, after it, the key they name.
+  const itemTexts = (): string[] =>
+    [...doc().querySelectorAll<HTMLElement>('[data-scope="menu"][data-part="item"]')].map(
+      (each) => each.textContent ?? "",
+    )
+  // A menu runs what was chosen once it has closed and focus has settled: a few frames.
+  const frames = () =>
+    act(async () => {
+      for (let frame = 0; frame < 6; frame += 1)
+        // eslint-disable-next-line no-await-in-loop -- Each frame comes after the one before.
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    })
+  const choose = async (label: string) => {
+    const item = [
+      ...doc().querySelectorAll<HTMLElement>('[data-scope="menu"][data-part="item"]'),
+    ].find((each) => each.textContent?.startsWith(label))!
+    act(() => item.click())
+    await frames()
+    await settle()
+  }
+  const menuOn = async (on: Element) => {
+    act(() => {
+      on.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: 10,
+          clientY: 10,
+        }),
+      )
+    })
+    await settle()
+  }
+  const key = async (on: Element, name: string, extra: KeyboardEventInit = {}) => {
+    act(() => {
+      on.dispatchEvent(
+        new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true, ...extra }),
+      )
+    })
+    await settle()
+  }
+  const dialog = (root: Element) => root.querySelector<HTMLElement>('[role="dialog"]')
+  // The view a file would open on, as an item's own viewer reads it.
+  const itemId = itemFixture("render", "01").id
+  const probe = (name: string) => {
+    let view = "?"
+    const Probe = () => {
+      view = useFileView(itemId, `/tmp/render/${name}`)[0]
+      return null
+    }
+    const mounted = render(createElement(Probe))
+    unmounts.push(mounted.unmount)
+    return () => view
+  }
+
+  context("its menu", () => {
+    it("offers a picture Open, Quick look and Copy path, with the keys it answers to", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      await menuOn(app.tile("shot.png"))
+      expect(itemTexts()).toEqual(["OpenDouble-click", "Quick lookSpace", "Copy path"])
+    })
+
+    it("adds Open as text for a file whose type has a preview with a source", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      await menuOn(app.tile("notes.md"))
+      expect(itemTexts()).toEqual([
+        "OpenDouble-click",
+        "Open as textAlt+double-click",
+        "Quick lookSpace",
+        "Copy path",
+      ])
+      // A source file has only its source, so there is nothing to switch to.
+      await menuOn(app.tile("main.ts"))
+      expect(itemTexts()).not.toContain("Open as textAlt+double-click")
+    })
+
+    it("offers a folder Open and Copy path, and a secret or a link out only Copy path", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      await menuOn(app.tile("mid"))
+      expect(itemTexts()).toEqual(["OpenDouble-click", "Copy path"])
+      await menuOn(app.tile(".env"))
+      expect(itemTexts()).toEqual(["Copy path"])
+      await menuOn(app.tile("latest"))
+      expect(itemTexts()).toEqual(["Copy path"])
+    })
+
+    it("selects the entry it was asked on, in the list too", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      await app.click(app.root.querySelector('button[aria-label="Show as a list"]')!)
+      await menuOn(app.tile("song.mp3"))
+      expect(app.tile("song.mp3").getAttribute("aria-selected")).toBe("true")
+      expect(itemTexts()).toContain("Quick lookSpace")
+    })
+
+    it("keeps its own keys: Escape closes the menu and goes no further, so the pane stays", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      await menuOn(app.tile("shot.png"))
+      const open = () =>
+        document.querySelector('[data-scope="menu"][data-part="content"][data-state="open"]')
+      expect(open()).not.toBeNull()
+      await key(open()!.querySelector('[data-part="item"]')!, "Escape")
+      await frames()
+      expect(open()).toBeNull()
+      expect(app.heard).toEqual([])
+    })
+
+    it("opens the file as Open does", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      await menuOn(app.tile("shot.png"))
+      await choose("Open")
+      expect(app.attached).toEqual([{ terminalId: "01", path: "/tmp/render/shot.png" }])
+    })
+
+    it("opens a file on its source with Open as text, though its viewer is already showing", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      const view = probe("notes.md")
+      expect(view()).toBe("preview")
+      await menuOn(app.tile("notes.md"))
+      await choose("Open as text")
+      expect(app.attached).toEqual([{ terminalId: "01", path: "/tmp/render/notes.md" }])
+      expect(view()).toBe("source")
+    })
+
+    it("opens on the source a viewer that mounts after, and keeps it as the person's choice", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      await menuOn(app.tile("notes.md"))
+      await choose("Open as text")
+      const later = probe("notes.md")
+      expect(later()).toBe("source")
+      // The same item, shown again, still opens on it.
+      expect(probe("notes.md")()).toBe("source")
+    })
+
+    it("opens on the preview with a plain Open", async () => {
+      const app = await shown({
+        listings: { "": listing([...files, entry("readme.md", { kind: "text" })]) },
+      })
+      const view = probe("readme.md")
+      await app.open("readme.md")
+      expect(view()).toBe("preview")
+    })
+
+    it("copies a file's absolute path, and the folder's own from off an entry", async () => {
+      const copied: string[] = []
+      vi.stubGlobal("navigator", {
+        ...navigator,
+        clipboard: { writeText: async (text: string) => void copied.push(text) },
+      })
+      try {
+        const app = await shown({ listings: { "": listing(files) } })
+        await menuOn(app.tile("shot.png"))
+        await choose("Copy path")
+        await menuOn(app.tile("latest"))
+        await choose("Copy path")
+        await menuOn(app.root.querySelector(".folder-scroll")!)
+        expect(itemTexts()).toEqual(["Copy path"])
+        await choose("Copy path")
+        expect(copied).toEqual(["/tmp/render/shot.png", "/tmp/render/latest", "/tmp/render"])
+      } finally {
+        vi.unstubAllGlobals()
+      }
+    })
+  })
+
+  context("Alt+double-click", () => {
+    const altOpen = async (app: Awaited<ReturnType<typeof shown>>, name: string) => {
+      act(() =>
+        app.tile(name).dispatchEvent(new MouseEvent("dblclick", { bubbles: true, altKey: true })),
+      )
+      await settle()
+    }
+
+    it("opens a file with a source on it", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      const view = probe("plan.md")
+      await app.list(listing([...files, entry("plan.md", { kind: "text" })]))
+      await altOpen(app, "plan.md")
+      expect(app.attached).toEqual([{ terminalId: "01", path: "/tmp/render/plan.md" }])
+      expect(view()).toBe("source")
+    })
+
+    it("opens any other file as it opens, and a folder in place", async () => {
+      const app = await shown({ listings: { ...inFolder, "": listing(files) } })
+      const view = probe("main.ts")
+      await altOpen(app, "main.ts")
+      expect(app.attached).toEqual([{ terminalId: "01", path: "/tmp/render/main.ts" }])
+      expect(view()).toBe("preview")
+      await altOpen(app, ".env")
+      expect(app.attached).toHaveLength(1)
+    })
+  })
+
+  context("the quick look", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      unregisterEntryThumb("audio")
+      unregisterEntryThumb("video")
+    })
+
+    const looking = async (...[options]: Parameters<typeof shown>) => {
+      const app = await shown({ listings: { "": listing(files) }, ...options })
+      await app.click(app.tile("shot.png"))
+      await key(app.tile("shot.png"), " ")
+      return app
+    }
+
+    it("opens on Space over the selected file, floating on the peek's surface, and opens no tab", async () => {
+      const app = await looking()
+      const look = dialog(app.root)!
+      expect(look.getAttribute("aria-label")).toBe("Quick look at shot.png")
+      expect(look.classList.contains("floating") && look.classList.contains("peek")).toBe(true)
+      expect(look.textContent).toContain("shot.png")
+      expect(look.querySelector(".folder-look-keys")?.textContent).toBe(
+        "←→ step · Enter open in a tab · Space close",
+      )
+      expect(app.attached).toEqual([])
+    })
+
+    it("opens from the menu, and takes no Space with nothing selected", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      await key(app.root.querySelector(".folder-viewer")!, " ")
+      expect(dialog(app.root)).toBeNull()
+      await menuOn(app.tile("song.mp3"))
+      await choose("Quick look")
+      expect(dialog(app.root)?.getAttribute("aria-label")).toBe("Quick look at song.mp3")
+    })
+
+    it("steps the selection with the arrows through the files in view order, skipping folders", async () => {
+      const app = await looking()
+      const name = () => dialog(app.root)?.querySelector(".folder-look-name")?.textContent
+      const selected = () =>
+        app.root.querySelector("[data-selected] .folder-name-text")?.textContent
+      expect(name()).toBe("shot.png")
+      await key(dialog(app.root)!, "ArrowRight")
+      // `mid` is a folder.
+      expect(name()).toBe("song.mp3")
+      expect(selected()).toBe("song.mp3")
+      await key(dialog(app.root)!, "ArrowRight")
+      expect(name()).toBe("notes.md")
+      await key(dialog(app.root)!, "ArrowLeft")
+      await key(dialog(app.root)!, "ArrowLeft")
+      expect(name()).toBe("shot.png")
+      // The first has nothing before it.
+      await key(dialog(app.root)!, "ArrowLeft")
+      expect(name()).toBe("shot.png")
+      expect(app.attached).toEqual([])
+    })
+
+    it("opens the file in a tab with Enter, as Open does, and closes", async () => {
+      const app = await looking()
+      await key(dialog(app.root)!, "ArrowRight")
+      await key(dialog(app.root)!, "Enter")
+      expect(app.attached).toEqual([{ terminalId: "01", path: "/tmp/render/song.mp3" }])
+      expect(dialog(app.root)).toBeNull()
+    })
+
+    it("closes on Space, on Escape and on a click outside, focus back on the folder's body", async () => {
+      const app = await looking()
+      const viewer = app.root.querySelector<HTMLElement>(".folder-viewer")!
+      expect(document.activeElement).toBe(dialog(app.root))
+      await key(dialog(app.root)!, " ")
+      expect(dialog(app.root)).toBeNull()
+      expect(document.activeElement).toBe(viewer)
+      await key(app.tile("shot.png"), " ")
+      await key(dialog(app.root)!, "Escape")
+      expect(dialog(app.root)).toBeNull()
+      expect(document.activeElement).toBe(viewer)
+      await key(app.tile("shot.png"), " ")
+      await app.click(app.root.querySelector(".folder-look-backdrop")!)
+      expect(dialog(app.root)).toBeNull()
+      expect(document.activeElement).toBe(viewer)
+      expect(app.attached).toEqual([])
+    })
+
+    it("shows a video's frame, drawn larger than its tile's, with its length, read through the same reader", async () => {
+      vi.stubGlobal("URL", { createObjectURL: () => "blob:frame", revokeObjectURL: () => {} })
+      const boxes: unknown[] = []
+      registerEntryThumb("video", async (file, box, signal) => {
+        boxes.push(box)
+        await file.read(0, signal)
+        return { blob: new Blob(["drawn"]), duration: 12 }
+      })
+      const part = vi.fn<NonNullable<Companions["part"]>>(
+        async () => ({ state: "part", bytes: new Uint8Array(2048) }) as const,
+      )
+      const app = await shown({ listings: { "": listing(files) }, part })
+      await app.click(app.tile("clip.mp4"))
+      await key(app.tile("clip.mp4"), " ")
+      await settle()
+      const look = dialog(app.root)!
+      expect(look.querySelector("img")?.getAttribute("src")).toBe("blob:frame")
+      expect(look.querySelector(".folder-look-meta")?.textContent).toBe("0:12 · 2 KB")
+      expect(part).toHaveBeenCalledWith(target, "render", {
+        stamp: "clip.mp4-stamp",
+        offset: 0,
+        reveal: undefined,
+        path: "clip.mp4",
+      })
+      expect(boxes).toEqual([
+        { width: 320, height: 200 },
+        { width: 960, height: 540 },
+      ])
+    })
+
+    it("shows what another kind registered through its renderer, as its tile's picture", async () => {
+      vi.stubGlobal("URL", { createObjectURL: () => "blob:song", revokeObjectURL: () => {} })
+      registerEntryThumb("audio", async (file, _box, signal) => {
+        await file.read(0, signal)
+        return { blob: new Blob(["drawn"]) }
+      })
+      const part = vi.fn<NonNullable<Companions["part"]>>(
+        async () => ({ state: "part", bytes: new Uint8Array(2048) }) as const,
+      )
+      const app = await shown({ listings: { "": listing(files) }, part })
+      await app.click(app.tile("song.mp3"))
+      await key(app.tile("song.mp3"), " ")
+      await settle()
+      expect(dialog(app.root)!.querySelector("img")?.getAttribute("src")).toBe("blob:song")
+    })
+
+    it("shows an image's icon and kind where its picture can't be drawn", async () => {
+      // The page can't decode these bytes, as one being written or misnamed.
+      const part = vi.fn<NonNullable<Companions["part"]>>(
+        async () => ({ state: "part", bytes: new Uint8Array(2048) }) as const,
+      )
+      const app = await looking({ part })
+      await settle()
+      const look = dialog(app.root)!
+      expect(look.querySelector("img")).toBeNull()
+      expect(look.querySelector(".folder-look-icon")?.textContent).toContain("Image")
+      expect(look.querySelector(".folder-look-meta")?.textContent).toBe("2 KB")
+    })
+
+    it("shows the kind's icon, its kind and when it changed, for a file with no picture", async () => {
+      const app = await looking()
+      await key(dialog(app.root)!, "ArrowRight")
+      await key(dialog(app.root)!, "ArrowRight")
+      const look = dialog(app.root)!
+      expect(look.querySelector("img")).toBeNull()
+      expect(look.querySelector(".folder-look-icon svg")).not.toBeNull()
+      expect(look.querySelector(".folder-look-icon")?.textContent).toContain("Text")
+      expect(look.querySelector(".folder-look-name")?.textContent).toBe("notes.md")
+      expect(look.querySelector(".folder-look-meta")?.textContent).toBe("2 KB")
+    })
+
+    it("shows a secret as it is listed, reading nothing", async () => {
+      const part = vi.fn<NonNullable<Companions["part"]>>()
+      const app = await looking({ part })
+      await key(dialog(app.root)!, "ArrowRight")
+      await key(dialog(app.root)!, "ArrowRight")
+      await key(dialog(app.root)!, "ArrowRight")
+      await key(dialog(app.root)!, "ArrowRight")
+      expect(dialog(app.root)!.querySelector(".folder-look-name")?.textContent).toBe(".env")
+      expect(dialog(app.root)!.querySelector(".folder-look-icon")?.textContent).toContain(
+        "May hold secrets",
+      )
+      expect(part).not.toHaveBeenCalled()
+    })
+
+    it("closes if its file goes away", async () => {
+      const app = await looking()
+      await app.list(listing(files.filter((each) => each.name !== "shot.png")))
+      expect(dialog(app.root)).toBeNull()
     })
   })
 })

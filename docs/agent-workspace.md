@@ -502,7 +502,19 @@ with every safety check again at that time:
   makes its taskbar icon new. Double-clicking a folder goes into it in the same tab, never above
   the one that was opened (the crumbs start there); double-clicking a file opens it as an item
   of its own kind on the terminal's bar (`companions.attach`), as if shown, so it goes to that
-  kind's group. Thumbnails of images up to 2 MiB, and of videos up to 24 MiB (their first frame
+  kind's group. An entry's menu (right-click, the menu key or Shift+F10) offers Open,
+  Open as text, Quick look and Copy path; a folder's has Open and Copy path, and a secret or a link
+  out only Copy path. Open as text, and Alt+double-click, open a file on its source (the file
+  preview's "Show source" switch, kept per file as that switch keeps it): only a file whose type
+  has a preview with a source (Markdown and data files) has it, and any other opens as usual. Space
+  is a quick look, a floating peek over the pane that opens no tab: an image larger, a video's
+  first frame and length, a kind registered through `registerEntryThumb` by its renderer, and
+  for anything else (text, a PDF, a recording, a file too large, a secret) its icon, kind, size and
+  when it changed; it reads files only as the thumbnails do (never text or a PDF's content). ← and
+  → step through the files (folders skipped), Enter opens the file in a tab, Space or Escape or a
+  click outside closes it, and focus goes back to the folder. Nothing in it is harness-specific.
+  "Show in Files" (reveal in the system's file manager) isn't offered: the desktop shell has no
+  action that reveals a path. Thumbnails of images up to 2 MiB, and of videos up to 24 MiB (their first frame
   and length, drawn by the page), are read through `companions.part` with the file's own stamp,
   lazily and nearest first; a PDF, a recording and a text file show their kind's icon. It is
   the same for Claude Code, Codex and Antigravity, as the runner reads the folder. Secrets

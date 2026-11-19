@@ -3,6 +3,7 @@ import {
   planVersionOf,
   PlanUnwritableError,
   type Companions,
+  type Item,
   type ItemContent,
   type ItemId,
   type PageTrouble,
@@ -93,8 +94,8 @@ export type ItemStore = {
   // item's own, which is its top's; returns the release.
   readonly listing: (target: WorkspaceTarget, itemId: ItemId, within: string) => () => void
   // Opens a file or folder on a terminal's bar, by an absolute path, as the person's own show
-  // of it; rejects where the backend can't.
-  readonly attach: (target: WorkspaceTarget, terminalId: string, path: string) => Promise<void>
+  // of it, and answers with the item it became; rejects where the backend can't.
+  readonly attach: (target: WorkspaceTarget, terminalId: string, path: string) => Promise<Item>
   // Tells what went wrong on a live page that shows `shown` of the item loaded.
   readonly trouble: (
     target: WorkspaceTarget,
@@ -661,7 +662,7 @@ export const createItemStore = ({
     )
   const attach: ItemStore["attach"] = (target, terminalId, path) =>
     session.companions.attach
-      ? session.companions.attach(target, terminalId, path).then(() => {})
+      ? session.companions.attach(target, terminalId, path)
       : Promise.reject(new Error("This backend can't open files in a pane"))
   const plan = (target: WorkspaceTarget, id: ItemId): PlanActions => ({
     edit: (text, marks) => {
