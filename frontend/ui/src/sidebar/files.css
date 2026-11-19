@@ -1,5 +1,7 @@
 /* The Files panel (FilesPanel.tsx): the project's files as a tree, each file an item (the
-   item recipe) with who changed it and how. A `.files-tree` holds `.files-row`s; a row has a
+   item recipe) with who changed it and how. A `.files-tree` scrolls a `.files-rows` box as tall
+   as the whole tree, and draws only the rows in view (and a few past each edge): each sits in a
+   `.files-slot`, placed by its line, one fixed 26px (a `.files-row` or `.files-note-row`). A row has a
    `.files-row-select` button (the `.files-twisty`, `.files-icon`, `.files-name` and the
    file's marks) beside its `.files-chips`, and a `.files-guide` for each open folder it
    sits inside. A file's marks are a `.files-cursor` for each agent writing it now, or else a
@@ -30,6 +32,16 @@
    Compact mono text, muted, a soft background on hover; the kept tint is the strong colour at
    16%, with the strong colour as text. The track is --files-squad-bg (the text colour at 7% on
    a dark sidebar, 13% on a light one). */
+.files-rows {
+  position: relative;
+  flex: none;
+}
+.files-slot {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 26px;
+}
 .files-row {
   display: flex;
   position: relative;
