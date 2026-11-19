@@ -10,6 +10,7 @@ import {
 import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
 import { Dialogs, identified, rawText, type Waiting } from "./dialogs.js"
+import { SeenTerminals } from "./seen.js"
 
 const request = (ref: string, command: string): Waiting => ({
   ref,
@@ -26,6 +27,9 @@ const terminal = (
     adapter?: DialogAdapter | false
     requests?: Waiting[]
     raw?: { still: number; age: number; latest?: number }
+    seen?: SeenTerminals
+    /** What pressing keys does to the screen, as the TUI's own would. */
+    press?: (data: string, tui: FakeTui) => void
   } = {},
 ) => {
   const tui = new FakeTui()
@@ -33,6 +37,7 @@ const terminal = (
   const told: string[] = []
   const asked: ScreenRequest[] = []
   const cleared: string[] = []
+  const pressed: string[] = []
   let adapter = options.adapter === false ? undefined : (options.adapter ?? fakeAdapter())
   const dialogs = new Dialogs(
     {
@@ -59,6 +64,12 @@ const terminal = (
         state.requests = state.requests.filter((each) => each.ref !== ref)
       },
       changed: () => told.push(JSON.stringify([...dialogs.view("t")])),
+      press: (_terminal, data) => {
+        pressed.push(data)
+        options.press?.(data, tui)
+        dialogs.changed("t")
+        return true
+      },
     },
     {
       throttleMs: 5,
@@ -66,6 +77,7 @@ const terminal = (
       rawStillMs: options.raw?.still ?? 40,
       rawAgeMs: options.raw?.age ?? 40,
       rawLatestMs: options.raw?.latest ?? Number.POSITIVE_INFINITY,
+      ...(options.seen && { seen: options.seen }),
     },
   )
   return {
@@ -75,6 +87,7 @@ const terminal = (
     told,
     asked,
     cleared,
+    pressed,
     use: (next: DialogAdapter) => (adapter = next),
   }
 }
@@ -578,5 +591,180 @@ describe("the dialog as the protocol shows it", () => {
     expect(choices.title).toHaveLength(dialogTextLimits.title)
     expect(choices.detail).toHaveLength(dialogTextLimits.detail)
     expect(choices.options[0]!.label).toHaveLength(dialogTextLimits.label)
+  })
+})
+
+describe("a dialog held out of view", () => {
+  const REVEAL = "<reveal>"
+  // The fake TUI's elsewhere screen stands for a dialog drawn below the view; the keys bring it up.
+  const holding = (): DialogAdapter => ({
+    ...fakeAdapter(),
+    reveal: (rows) => (rows.includes("FAKE ELSEWHERE") ? REVEAL : undefined),
+  })
+  const scrolls = (data: string, tui: FakeTui) => {
+    if (data === REVEAL) tui.state = "ask"
+  }
+  const held = (options: Parameters<typeof terminal>[0] = {}) => {
+    const made = terminal({ adapter: holding(), press: scrolls, ...options })
+    made.tui.state = "other"
+    return made
+  }
+  const settle = (ms = 150) => new Promise((resolve) => setTimeout(resolve, ms))
+
+  it("is scrolled into view for an unseen terminal, and then reads", async () => {
+    const { tui, dialogs, pressed } = held({ seen: new SeenTerminals() })
+    dialogs.changed("t")
+    await until(() => dialogs.shown("t", "r1")?.type === "choices")
+    expect(pressed).toEqual([REVEAL])
+    expect(tui.state).toBe("ask")
+  })
+
+  it("is scrolled into view where no client says anything of the terminal", async () => {
+    const { dialogs, pressed } = held()
+    dialogs.changed("t")
+    await until(() => pressed.length > 0)
+    expect(pressed).toEqual([REVEAL])
+  })
+
+  it("waits for the screen to be still before pressing", async () => {
+    const { tui, dialogs, pressed } = held()
+    const ticking = setInterval(() => {
+      tui.noise += 1
+      dialogs.changed("t")
+    }, 10)
+    try {
+      dialogs.changed("t")
+      await settle(120)
+      expect(pressed).toEqual([])
+    } finally {
+      clearInterval(ticking)
+    }
+    await until(() => pressed.length > 0)
+  })
+
+  it("is never scrolled for a terminal a client has in sight", async () => {
+    const seen = new SeenTerminals()
+    seen.report("window", ["t"])
+    const { dialogs, pressed } = held({ seen })
+    dialogs.changed("t")
+    await until(() => dialogs.shown("t", "r1") !== null)
+    await settle()
+    expect(pressed).toEqual([])
+    expect(dialogs.shown("t", "r1")).toMatchObject({ type: "raw", reason: "unrecognized" })
+  })
+
+  it("is scrolled once the terminal turns unseen, as the window closes", async () => {
+    const seen = new SeenTerminals()
+    seen.report("window", ["t"])
+    const { dialogs, pressed } = held({ seen })
+    dialogs.changed("t")
+    await until(() => dialogs.shown("t", "r1") !== null)
+    seen.release("window")
+    await until(() => pressed.length > 0)
+    await until(() => dialogs.shown("t", "r1")?.type === "choices")
+  })
+
+  it("is pressed for once for a screen that stays held", async () => {
+    // Keys that scroll nothing, so the same screen stays.
+    const { dialogs, pressed } = held({ press: () => {} })
+    dialogs.changed("t")
+    await until(() => pressed.length > 0)
+    for (let round = 0; round < 3; round += 1) {
+      dialogs.changed("t")
+      // eslint-disable-next-line no-await-in-loop -- Each round is let to look.
+      await settle()
+    }
+    expect(pressed).toEqual([REVEAL])
+  })
+
+  it("is pressed for again once the terminal was seen and unseen again", async () => {
+    const seen = new SeenTerminals()
+    const { dialogs, pressed } = held({ seen, press: () => {} })
+    dialogs.changed("t")
+    await until(() => pressed.length === 1)
+    seen.report("window", ["t"])
+    await settle()
+    seen.report("window", [])
+    await until(() => pressed.length === 2)
+  })
+
+  it("is pressed for again after the screen changed", async () => {
+    const { tui, dialogs, pressed } = held({ press: () => {} })
+    dialogs.changed("t")
+    await until(() => pressed.length === 1)
+    tui.noise += 1
+    dialogs.changed("t")
+    await until(() => pressed.length === 2)
+  })
+
+  it("is not pressed for by a harness that holds none out of view", async () => {
+    const { tui, dialogs, pressed } = terminal({ press: scrolls })
+    tui.state = "other"
+    dialogs.changed("t")
+    await until(() => dialogs.shown("t", "r1") !== null)
+    await settle()
+    expect(pressed).toEqual([])
+  })
+
+  it("is left alone while an answer goes on", async () => {
+    const { dialogs, pressed } = held()
+    dialogs.begin("t")
+    dialogs.changed("t")
+    await settle()
+    expect(pressed).toEqual([])
+    dialogs.end("t")
+    await until(() => pressed.length > 0)
+  })
+})
+
+describe("a dialog read from the facts while held out of view", () => {
+  // The fake TUI's elsewhere screen stands for the pill: the read comes from the facts alone.
+  const pill = (): DialogAdapter => {
+    const plain = fakeAdapter()
+    return {
+      read: (rows, facts) => {
+        if (!rows.includes("FAKE ELSEWHERE")) return plain.read(rows, facts)
+        const read = plain.read(new FakeTui().rows(), facts)
+        return read && { ...read, reveal: "R", keys: () => undefined }
+      },
+      reveal: (rows) => (rows.includes("FAKE ELSEWHERE") ? "R" : undefined),
+    }
+  }
+
+  it("shows for the terminal's only request, with an id of its own", async () => {
+    const seen = new SeenTerminals()
+    seen.report("window", ["t"])
+    const only = terminal({ adapter: pill(), seen })
+    only.tui.state = "other"
+    only.dialogs.changed("t")
+    await until(() => only.dialogs.shown("t", "r1") !== null)
+    expect(only.pressed).toEqual([])
+    const held = only.dialogs.shown("t", "r1")
+    expect(held).toMatchObject({ type: "choices", title: "ls" })
+    // The same dialog once in view is another card.
+    const plain = terminal({ adapter: pill(), seen })
+    plain.dialogs.changed("t")
+    await until(() => plain.dialogs.shown("t", "r1") !== null)
+    expect(plain.dialogs.shown("t", "r1")).toMatchObject({ type: "choices" })
+    expect(plain.dialogs.shown("t", "r1")).not.toEqual(held)
+    expect((plain.dialogs.shown("t", "r1") as { id: string }).id).not.toBe(
+      (held as { id: string }).id,
+    )
+  })
+
+  it("counts for none where another request waits too, which is revealed for an unseen terminal", async () => {
+    const other = { ...request("r2", "ls"), facts: { ...request("r2", "ls").facts, cwd: "/else" } }
+    const two = terminal({
+      adapter: pill(),
+      requests: [request("r1", "ls"), other],
+      press: (data, tui) => {
+        if (data === "R") tui.state = "ask"
+      },
+    })
+    two.tui.state = "other"
+    two.dialogs.changed("t")
+    await until(() => two.pressed.length > 0)
+    expect(two.pressed).toEqual(["R"])
+    expect(two.dialogs.shown("t", "r1")).not.toMatchObject({ type: "choices" })
   })
 })

@@ -314,6 +314,11 @@ export type Runner = {
      */
     /** The terminal this client's person uses now, or none; see the contract's `terminals.active`. */
     active(terminalId: string | null): Promise<void>
+    /**
+     * Tells the runner which terminals this client has in sight, replacing its last list
+     * (`terminals.seen`); the runner takes any other as unseen.
+     */
+    seen(terminalIds: readonly string[]): Promise<void>
     busy(options?: {
       readonly fresh?: true
     }): Promise<{ readonly busy: string[]; readonly unknown: string[] }>
@@ -886,6 +891,8 @@ export const connectRunner = async (
         call((client) => client.terminals.rename({ terminalId, title })),
       resetTitle: (terminalId) => call((client) => client.terminals.resetTitle({ terminalId })),
       active: (terminalId) => call((client) => client.terminals.active({ terminalId })),
+      seen: (terminalIds) =>
+        call((client) => client.terminals.seen({ terminalIds: [...terminalIds] })),
       busy: (only) => call((client) => client.terminals.busy(only)),
       async upload(terminalId, { name, data }) {
         if (data.length > maxUploadBytes) throw new WireError<RunnerErrorCode>("UPLOAD_TOO_LARGE")

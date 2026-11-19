@@ -1,3 +1,5 @@
+import type { ScreenText } from "@novadeck/emulator/headless"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { describe, expect, it } from "vitest"
 
 import { dialogs } from "./dialogs.js"
@@ -56,4 +58,44 @@ describe("Claude Code 2.1.291", () => {
       }
     }
   })
+})
+
+describe("Claude Code's dialog held out of view", () => {
+  const { states, facts } = loadProbe<{
+    states: Record<string, ScreenText>
+    facts: { question: { name: string; input: unknown } }
+  }>(import.meta.dirname, "fullscreen-scrolled.probe.json")
+
+  it.each([
+    "questionHidden",
+    "questionHiddenNarrow",
+    "questionHiddenAgain",
+    "permissionHidden",
+    "permissionHiddenNarrow",
+  ])("is revealed with Ctrl+End at %s, which answers nothing", (state) => {
+    expect(dialogs.reveal?.(states[state]!.rows)).toBe("\x1b[1;5F")
+  })
+
+  it.each(["questionRevealed", "questionAnswered", "permissionRevealed"])(
+    "is not revealed at %s",
+    (state) => {
+      expect(dialogs.reveal?.(states[state]!.rows)).toBeUndefined()
+    },
+  )
+
+  it.each(["questionEscapeWhileHidden", "permissionEscapeWhileHidden"])(
+    "is no longer held once Escape declined it where it stood, at %s",
+    (state) => {
+      const rows = states[state]!.rows
+      expect(dialogs.reveal?.(rows)).toBeUndefined()
+      expect(
+        dialogs.read(rows, {
+          kind: "question",
+          tool: facts.question.name,
+          input: facts.question.input,
+          cwd: null,
+        }),
+      ).toBeUndefined()
+    },
+  )
 })

@@ -920,31 +920,46 @@ describe("Claude Code's AskUserQuestion held below a scrolled fullscreen view", 
     },
   )
 
-  it("scrolls the dialog into view before the keys that answer it", () => {
+  it("says how to bring it into view, and leaves the keys to the read once it shows", () => {
     const hidden = need(dialogs.read(rows("questionHidden"), asking))
-    const keys = hidden.keys(answer(["2"]))
-    expect(pressed(keys)).toEqual([CtrlEnd, "2"])
-    const [shown] = waits(keys)
-    expect(eventually(shown!, rows("questionRevealed"))).toBe(true)
-    expect(shown!.until(rows("questionHidden"))).toBe(false)
-    expect(pressed(hidden.keys(chat()))).toEqual([CtrlEnd, "4"])
+    expect(hidden.reveal).toBe(CtrlEnd)
+    expect(hidden.keys(answer(["2"]))).toBeUndefined()
+    expect(hidden.answered(rows("questionAnswered"))).toBe(false)
+    // Scrolled in, as the driver's Ctrl+End does, it reads as ever, with its own keys.
+    const shown = need(dialogs.read(rows("questionRevealed"), asking))
+    expect(shown.reveal).toBeUndefined()
+    expect(pressed(shown.keys(answer(["2"])))).toEqual(["2"])
+    // Enter on the hidden dialog scrolls it in too, answering nothing.
+    expect(need(dialogs.read(rows("questionEnterWhileHidden"), asking)).reveal).toBeUndefined()
   })
 
-  it("waits for the dialog untouched: a highlight the person moved fails the answer", () => {
-    const hidden = need(dialogs.read(rows("questionHidden"), asking))
-    const [shown] = waits(hidden.keys(answer(["2"])))
-    const moved = replace(
-      "  2. Leave it for me",
-      "❯ 2. Leave it for me",
-    )(replace("❯ 1. Merge when green", "  1. Merge when green")(rows("questionRevealed")))
-    expect(eventually(shown!, moved)).toBe(false)
+  it("offers no card the shown dialog would refuse: a list longer than one digit reaches", () => {
+    const input = asking.input as { questions: { options: unknown[] }[] }
+    const long = {
+      ...asking,
+      input: {
+        questions: [
+          {
+            ...input.questions[0],
+            options: Array.from({ length: 8 }, (_, n) => ({
+              label: `Option ${n + 1}`,
+              description: "",
+            })),
+          },
+        ],
+      },
+    }
+    expect(dialogs.read(rows("questionHidden"), long)).toBeUndefined()
   })
 
-  it("sees it answered once the box is back, though the view stays scrolled up", () => {
-    const hidden = need(dialogs.read(rows("questionHidden"), asking))
-    expect(hidden.answered(rows("questionHidden"))).toBe(false)
-    expect(hidden.answered(rows("questionRevealed"))).toBe(false)
-    expect(hidden.answered(rows("questionAnswered"))).toBe(true)
+  // The pill doesn't say whose dialog it holds: a question's facts read on a permission's
+  // pill too. Which of several pending requests may read from it is the tracker's to settle.
+  it("reads the question from any pill, its own or not", () => {
+    expect(dialogs.read(rows("permissionHidden"), asking)).toBeDefined()
+  })
+
+  it("reads nothing once Escape set the hidden question aside, the view still up", () => {
+    expect(dialogs.read(rows("questionEscapeWhileHidden"), asking)).toBeUndefined()
   })
 
   it("reads no other request's dialog from the pill", () => {

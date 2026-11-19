@@ -16,7 +16,7 @@ import {
 } from "@novadeck/tui-input"
 
 import { DomainError } from "../errors.js"
-import { identified, twin } from "./dialogs.js"
+import { identified, identifiedRead, twin } from "./dialogs.js"
 
 /** Another request waiting: its ref, who asks and what it asks. */
 type Other = {
@@ -392,19 +392,34 @@ export class Answers {
       // A dialog set aside that doesn't read is left as it is, for the person to answer.
       const found = await this.readDialog(terminalId, ref, adapter, self, answer.type !== "aside")
       rows = found.rows
-      const { read } = found
-      // The answer given: one set aside with words through its chat, or none for Escape.
-      let given: RequestAnswer | undefined
+      let { read } = found
       if (answer.type === "aside") {
         if (read.dialog.type !== "questions")
           throw waitsOnPerson("The request's dialog is no question to set aside.")
+      } else if (identifiedRead(read)?.id !== answer.dialog)
+        throw new DomainError("DIALOG_CHANGED", "The dialog on screen is not the one answered.")
+      // A dialog held out of view is brought into view first, and what follows is the
+      // keys of the read that shows it, as the screen draws it now. Escape is not a scroll
+      // key there: it acts on the dialog as it would in view, so it goes at once, and the
+      // person's view stays where it is.
+      const escapes =
+        answer.type === "aside" && !(answer.escape === "skips" && answer.text !== undefined)
+      const held = read.reveal !== undefined && !escapes
+      if (held) {
+        if (answer.type === "aside") answer.guard()
+        const shown = await this.reveal(terminalId, ref, adapter, self, found)
+        rows = shown.rows
+        read = shown.read
+      }
+      const fresh = identifiedRead(read)!.id
+      // The answer given: one set aside with words through its chat, or none for Escape.
+      let given: RequestAnswer | undefined
+      if (answer.type === "aside")
         given =
           answer.escape === "skips" && answer.text !== undefined
-            ? { type: "chat", dialog: identified(read.dialog)!.id, text: answer.text }
+            ? { type: "chat", dialog: fresh, text: answer.text }
             : undefined
-      } else if (identified(read.dialog)?.id !== answer.dialog)
-        throw new DomainError("DIALOG_CHANGED", "The dialog on screen is not the one answered.")
-      else given = answer
+      else given = { ...answer, dialog: fresh }
       if (given === undefined) {
         // Escape where it ends the turn; each where it skips a question, a Write-in opened
         // aside (its Escape goes back) one more.
@@ -450,7 +465,7 @@ export class Answers {
         // The hold must outlast every wait of the answer.
         const needs = steps.reduce(
           (total, step) => total + ("until" in step ? step.timeoutMs : this.typedMs),
-          this.readMs + this.answeredMs + this.settleMs + 5_000,
+          this.readMs * (held ? 2 : 1) + this.answeredMs + this.settleMs + 5_000,
         )
         if (needs > this.holdMs)
           throw new DomainError("CONFLICT", "The answer takes longer than the keys can be held.")
@@ -488,8 +503,7 @@ export class Answers {
         // harness folds twin calls into one request), it waits still, for the dialog that
         // shows next, which is as much its to answer.
         const next = adapter.read(taken.rows, facts)
-        const again =
-          next !== undefined && identified(next.dialog)?.id === identified(read.dialog)?.id
+        const again = next !== undefined && identifiedRead(next)?.id === identifiedRead(read)?.id
         if (!taken.viaTwin && !again) this.host.done(terminalId, ref)
       }
     } catch (error) {
@@ -649,6 +663,8 @@ export class Answers {
     adapter: DialogAdapter,
     self: Pick<Other, "facts" | "actor">,
     locks: boolean,
+    /** Only a dialog on screen counts, not one held out of view and read from the facts. */
+    onScreen = false,
   ): Promise<{ rows: readonly string[]; read: DialogRead }> {
     const until = Date.now() + this.readMs
     let rows: readonly string[] = []
@@ -663,19 +679,26 @@ export class Answers {
         if (!current) throw new DomainError("NOT_FOUND", "The agent has no such request.")
         const { facts, others: peers } = current
         const read = adapter.read(rows, facts)
-        if (read && identified(read.dialog)) {
+        // A read held out of view names no dialog on screen, so it is no read where another
+        // request waits too, whose it could be as well.
+        const named =
+          read !== undefined &&
+          (read.reveal === undefined ||
+            (!onScreen && !peers.some(({ ref: each }) => !this.host.answered(terminalId, each))))
+        if (read && named && identifiedRead(read)) {
           // Twins, asking the very same of the agent and reading the same dialog, make
           // the dialog the same to answer whichever request it is.
-          const id = identified(read.dialog)?.id
+          const id = identifiedRead(read)?.id
           const shared = peers.some((other) => {
             // An answered one is gone from the screen; one raw for good may not be.
             if (this.host.answered(terminalId, other.ref)) return false
             const theirs = adapter.read(rows, other.facts)
             return (
               theirs !== undefined &&
+              theirs.reveal === undefined &&
               // Dialogs answered as prompts never clash: each prompt names its own.
               !(read.prompt && theirs.prompt) &&
-              !(twin({ ...self, facts }, other) && identified(theirs.dialog)?.id === id)
+              !(twin({ ...self, facts }, other) && identifiedRead(theirs)?.id === id)
             )
           })
           if (shared)
@@ -700,6 +723,29 @@ export class Answers {
         "The request's dialog isn't on the agent's screen.",
       )
     throw new DomainError("CONFLICT", "The request's dialog isn't on the agent's screen.")
+  }
+
+  /**
+   * Brings a dialog held out of view into view: presses the held read's keys, which answer
+   * nothing, and waits for the screen to read the request again as a dialog on screen, which
+   * must be the very dialog the held read gave (its structure was checked by that read, not
+   * by the facts alone). Nothing is locked where it never does: the person can scroll to it
+   * themselves, and may be answered again.
+   */
+  private async reveal(
+    terminalId: string,
+    ref: string,
+    adapter: DialogAdapter,
+    self: Pick<Other, "facts" | "actor">,
+    held: { readonly rows: readonly string[]; readonly read: DialogRead },
+  ): Promise<{ rows: readonly string[]; read: DialogRead }> {
+    if (!this.host.request(terminalId, ref))
+      throw new DomainError("NOT_FOUND", "The agent has no such request.")
+    if (!this.host.press(terminalId, held.read.reveal!)) throw new DomainError("TERMINAL_NOT_FOUND")
+    const shown = await this.readDialog(terminalId, ref, adapter, self, false, true)
+    if (identified(shown.read.dialog)?.id !== identified(held.read.dialog)?.id)
+      throw new DomainError("DIALOG_CHANGED", "The dialog in view is not the one that was held.")
+    return shown
   }
 
   /**
@@ -742,7 +788,7 @@ export class Answers {
       // request's facts as they are now: its turn may have ended since the dialog was read.
       if (!pressed) {
         const now = check.adapter.read(screen.rows, current.facts)
-        if ((now && identified(now.dialog)?.id) !== check.id)
+        if ((now && identifiedRead(now)?.id) !== check.id)
           throw new DomainError(
             "DIALOG_CHANGED",
             "The dialog changed before the keys were pressed.",
@@ -879,13 +925,17 @@ export class Answers {
         const current = this.host.request(terminalId, ref)
         if (!current) return { rows: screen.rows, viaTwin: false }
         const started = new Set(others.map(({ ref: each }) => each))
+        const shows = (facts: Other["facts"]) => {
+          const found = adapter.read(screen.rows, facts)
+          return found !== undefined && found.reveal === undefined
+        }
         const next = () =>
-          !adapter.read(screen.rows, self.facts) &&
+          !shows(self.facts) &&
           current.others.some(
             (other) =>
               (started.has(other.ref) || other.askedAt >= pressedAt) &&
               !this.host.closed(terminalId, other.ref) &&
-              adapter.read(screen.rows, other.facts),
+              shows(other.facts),
           )
         if (next()) return { rows: screen.rows, viaTwin: false }
         // A twin's hook said it was answered: the dialog was approved all the same, and what

@@ -269,6 +269,7 @@ export const scripted = ({
       create: note("create", create),
       close: note("close", async () => {}),
       rename: note("rename", async () => {}),
+      seen: note("seen", async () => {}),
       move: note("move", move),
       restart: note("restart", restart),
       attach: () => new Promise(() => {}),

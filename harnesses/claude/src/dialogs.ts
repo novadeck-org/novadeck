@@ -1,5 +1,6 @@
 import type { DialogAdapter, DialogRead } from "@novadeck/harness-core/dialogs"
 
+import { belowView, CtrlEnd } from "./dialog-screen.js"
 import { forms } from "./form-dialog.js"
 import { permission } from "./permission-dialog.js"
 import { plan } from "./plan-dialog.js"
@@ -23,6 +24,7 @@ const trimmed = (rows: readonly string[]): string[] => rows.map((each) => each.t
 const tidy = (read: DialogRead | undefined): DialogRead | undefined =>
   read && {
     dialog: read.dialog,
+    ...(read.reveal !== undefined && { reveal: read.reveal }),
     keys: (answer) =>
       read
         .keys(answer)
@@ -46,4 +48,6 @@ export const dialogs: DialogAdapter = {
         return tidy(permission(clean, facts))
     }
   },
+  // The fullscreen renderer's pill: Ctrl+End scrolls the held dialog into view, answering nothing.
+  reveal: (rows) => (belowView(trimmed(rows)) ? CtrlEnd : undefined),
 }

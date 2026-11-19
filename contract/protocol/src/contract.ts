@@ -333,6 +333,12 @@ export const contract = {
     // most to the system, however fast they are told. A terminal not there is not an error: the
     // call stands for whenever it starts.
     active: procedure.input(z.strictObject({ terminalId: id.nullable() })).output(z.void()),
+    // The terminals this client's person has in sight now, as a whole list that replaces its
+    // last: really on screen and legible, which is what lets a sleeper wake. Each client has
+    // its own, which lapses with its connection. A terminal no client lists is unseen, and
+    // the runner may then do what would move the person's view of it, as scrolling a dialog
+    // the agent's TUI holds out of view into view. Terminals not there are not an error.
+    seen: procedure.input(z.strictObject({ terminalIds: z.array(id).max(256) })).output(z.void()),
     close: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
     // Renames a terminal: the runner keeps the title with the terminal, running or saved
     // to restore, and announces it on `watch`. One it keeps nothing of is

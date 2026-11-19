@@ -25,6 +25,7 @@ import type { Feedback } from "./messaging/feedback.js"
 import type { Murmur } from "./murmur/service.js"
 import type { ActiveTerminals } from "./terminals/active.js"
 import type { Terminals } from "./terminals/index.js"
+import type { SeenTerminals } from "./terminals/seen.js"
 import type { Uploads } from "./terminals/uploads.js"
 import type { Tour } from "./tour/tour.js"
 import type { Voice } from "./voice/service.js"
@@ -141,6 +142,8 @@ export const createRouter = (options: {
   closing: () => boolean
   /** Which terminals the people at the clients use; without it, reports of them are ignored. */
   activity?: Pick<ActiveTerminals, "report">
+  /** Which terminals the clients have in sight; without it, reports of them are ignored. */
+  seen?: Pick<SeenTerminals, "report">
   /** The runner settings were saved. */
   settingsSaved?: () => void
   /** Novadeck's tour; without it, starting one is a CONFLICT. */
@@ -246,6 +249,9 @@ export const createRouter = (options: {
       ),
       active: api.terminals.active.handler(({ input, context }) =>
         options.activity?.report(context.session.id, input.terminalId),
+      ),
+      seen: api.terminals.seen.handler(({ input, context }) =>
+        options.seen?.report(context.session.id, input.terminalIds),
       ),
       write: api.terminals.write.handler(({ input, context }) =>
         terminals.write(input, context.session.id),

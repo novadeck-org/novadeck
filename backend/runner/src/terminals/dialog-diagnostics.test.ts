@@ -62,6 +62,7 @@ const terminal = (
       ask: () => {},
       clear: () => {},
       changed: () => {},
+      press: () => true,
     },
     {
       throttleMs: 5,

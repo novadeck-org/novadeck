@@ -8,7 +8,7 @@ import { harnesses } from "../harnesses/registry.js"
 import type { Question } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
-import { describe, e2e, expect, gated, supported } from "./fixture.js"
+import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
 import { asked, text, type Rule } from "./model/script.js"
 import type { FakeModel } from "./model/server.js"
 import { picture } from "./pictures.js"
@@ -1225,5 +1225,71 @@ describe.skipIf(!supported || !claudeSetup)("Claude Code's fullscreen view scrol
     })
     await resulting(run.model, "Green", calls)
     await unrequested(t1)
+  })
+
+  // A permission's options exist only on screen, so it can't be read from the pill. With no
+  // window looking at the terminal, Novadeck scrolls it into view itself (Ctrl+End).
+  const permissionBelowView = async (run: E2E) => {
+    const settings = join(run.sandbox.home, ".claude", "settings.json")
+    writeFileSync(
+      settings,
+      JSON.stringify({ ...JSON.parse(readFileSync(settings, "utf8")), tui: "fullscreen" }),
+    )
+    const tall = Array.from({ length: 120 }, (_, n) => `Line ${n + 1}: as it stands.`).join("\n\n")
+    let waited = false
+    run.model.use(
+      answers("Show the plan", () => ({
+        text: tall,
+        calls: [{ name: "Bash", input: { command: "sleep 8", description: "Wait" } }],
+      })),
+      own((call) => {
+        if (result(call) === undefined || waited) return undefined
+        waited = true
+        return {
+          calls: [
+            {
+              name: "Bash",
+              input: { command: "touch made-by-probe.txt", description: "Make a file" },
+            },
+          ],
+        }
+      }),
+      noted,
+    )
+    const t1 = await start(run, claudeSetup!)
+    t1.resize(120, 33)
+    await sleep(800)
+    await t1.submit("Show the plan")
+    await t1.until(/Line 120:/, 30_000)
+    await sleep(800)
+    t1.press("\x1b[5~")
+    await sleep(300)
+    t1.press("\x1b[5~")
+    return t1
+  }
+
+  it("scrolls a permission held below the view into view by itself, for a terminal nobody looks at", async ({
+    e2e: run,
+  }) => {
+    const t1 = await permissionBelowView(run)
+    const request = await dialogOf(t1, "choices")
+    expect(choices(request).detail).toContain("touch made-by-probe.txt")
+    const calls = run.model.calls.length
+    const yes = option(choices(request), /^Yes/, false)
+    await t1.answer(request.ref, { dialog: idOf(request), type: "choice", option: yes.id })
+    await run.model.waitFor((call) => result(call) !== undefined, { after: calls })
+    await unrequested(t1)
+  })
+
+  it("leaves a permission held below the view alone while a window has the terminal in sight", async ({
+    e2e: run,
+  }) => {
+    const t1 = await permissionBelowView(run)
+    run.deck.seen.report("e2e", [t1.id])
+    // Raw, once the screen has been still: the pill stays, and nothing scrolled the dialog in.
+    await dialogOf(t1, "raw")
+    await sleep(2_000)
+    expect((await t1.detail()).requests[0]?.dialog?.type).toBe("raw")
+    expect(await t1.screen()).toContain("Waiting for your answer")
   })
 })

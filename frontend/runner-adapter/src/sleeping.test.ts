@@ -257,3 +257,29 @@ describe("a sleeping agent", () => {
     app.stop()
   })
 })
+
+describe("the terminals in sight", () => {
+  it("are told to the runner as the first surface wants one and as the last lets go", async () => {
+    const app = scripted({
+      shown: [
+        { id: id(1), lastProcess: "bash" },
+        { id: id(2), lastProcess: "bash" },
+      ],
+    })
+    await wait(50)
+    const first = app.seen(app.key(id(1)))
+    const second = app.seen(app.key(id(1)))
+    const other = app.seen(app.key(id(2)))
+    await wait(20)
+    expect(app.of("seen")).toEqual([[id(1), id(2)].toSorted()])
+    // One of two surfaces on a terminal goes: it is still in sight.
+    first()
+    other()
+    await wait(20)
+    expect(app.of("seen").at(-1)).toEqual([id(1)])
+    second()
+    await wait(20)
+    expect(app.of("seen").at(-1)).toEqual([])
+    app.stop()
+  })
+})

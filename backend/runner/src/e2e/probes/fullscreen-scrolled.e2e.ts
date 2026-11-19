@@ -4,7 +4,7 @@
 // (ctrl+End) ↓"); ctrl+End scrolls it into view, and so does a digit, which answers nothing.
 // For an AskUserQuestion and a Bash permission alike: each is held off-screen at 120×33, then
 // at 49×32, scrolled into view with ctrl+End twice, scrolled away again with PageUp, and
-// brought back with a digit. The question is then answered with its own digit. Runs only with
+// brought back with a digit, and hidden again for Escape; then asked again, hidden, and given Enter, scrolled in and answered with its own digit. Runs only with
 // NOVADECK_E2E_PROBES=1, by path, once per version (NOVADECK_E2E_HARNESS); writes
 // $PROBE_OUT/claude-fullscreen-scrolled-<version>.json, for
 // harnesses/claude/src/fixtures/fullscreen-scrolled.probe.json.
@@ -75,12 +75,23 @@ describe.skipIf(!supported || !probing || !setup)(
       const t = await start(run, setup)
       const version = /Claude Code v(\d+\.\d+\.\d+)/.exec(await t.screen())?.[1] ?? "unknown"
       const states: Record<string, unknown> = {}
+      const write = () => {
+        mkdirSync(outDir, { recursive: true })
+        writeFileSync(
+          join(outDir, `claude-fullscreen-scrolled-${version}.json`),
+          JSON.stringify({ version, facts: calls, states }, null, 2),
+        )
+      }
       const take = async (name: string, wait = 1_200) => {
         await sleep(wait)
         states[name] = screenRecord((await t.screenText())!)
+        write()
       }
 
-      for (kind of ["question", "permission"] as const) {
+      // Each dialog twice: once moved about and set aside with Escape, once with Enter pressed
+      // while hidden, then scrolled in and answered with its own digit.
+      const hide = async () => {
+        waited = false
         t.resize(120, 33)
         await sleep(800)
         await t.submit("Show the plan")
@@ -90,6 +101,9 @@ describe.skipIf(!supported || !probing || !setup)(
         await sleep(300)
         t.press(PageUp)
         await t.until(/Waiting for your answer/, 30_000)
+      }
+      for (kind of ["question", "permission"] as const) {
+        await hide()
         await take(`${kind}Hidden`)
         t.resize(49, 32)
         await take(`${kind}HiddenNarrow`)
@@ -103,15 +117,26 @@ describe.skipIf(!supported || !probing || !setup)(
         await take(`${kind}HiddenAgain`)
         t.press("1")
         await take(`${kind}DigitWhileHidden`)
-        t.press(kind === "question" ? "2" : "3")
-        await take(`${kind}Answered`, 3_000)
+        t.press(PageUp)
+        await take(`${kind}HiddenForEscape`)
+        await t.escape()
+        await take(`${kind}EscapeWhileHidden`, 3_000)
+
+        await hide()
+        await take(`${kind}HiddenForEnter`)
+        // Raw, as `press` refuses Enter where no dialog shows.
+        run.deck.terminals.write({ terminalId: t.id, data: "\r" }, "e2e")
+        await take(`${kind}EnterWhileHidden`, 2_000)
+        t.press(CtrlEnd)
+        await take(`${kind}AfterEnter`)
+        if (/Enter to select|Esc to cancel/.test(await t.screen())) {
+          t.press(kind === "question" ? "2" : "3")
+          await take(`${kind}Answered`, 3_000)
+        }
+        await sleep(2_000)
       }
 
-      mkdirSync(outDir, { recursive: true })
-      writeFileSync(
-        join(outDir, `claude-fullscreen-scrolled-${version}.json`),
-        JSON.stringify({ version, facts: calls, states }, null, 2),
-      )
+      write()
     })
   },
 )

@@ -308,6 +308,8 @@ where that is an agent. Windows doesn't tell a terminal's foreground program, so
 is the agent whose session last bound the terminal, until the shell has shown its prompt
 for a second (`processPollMs`), as a sample would tell elsewhere.
 
+`terminals.seen({ terminalIds })` tells the runner which terminals this client has in sight, as a whole list that replaces the client's last: terminals really on screen and legible, as the app counts them when it wakes a sleeper. Each client has its own list, which lapses with its connection (a closed window leaves nothing seen), and a client tells it again after it reconnects. A terminal no client lists is unseen, and only then may the runner do what would move the person's view of it: a harness's dialog held out of view (Claude Code's fullscreen renderer, scrolled up, draws a dialog below the view and says only `Waiting for your answer (ctrl+End) ↓`) that no adapter reads from the request's facts is scrolled into view by the keys of the adapter's `reveal` (Ctrl+End), once for each screen it is held on, so its card reads as the real one. Terminals the runner doesn't have are not an error.
+
 `reported` is the agent's `done` report that still stands, `{ subject, at }`, or null: the
 latest `done` of the session bound in the terminal, read or not (from the report log, so
 not ended by the Inbox's day), unless the person's

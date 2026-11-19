@@ -108,6 +108,22 @@ export class DialogDiagnostics {
     )
   }
 
+  /** Keys were pressed to bring a request's held dialog into view: told each time. */
+  revealed(subject: Subject): void {
+    this.log.info(
+      "dialogs.revealed",
+      "An agent's dialog held out of view was scrolled into view.",
+      {
+        data: {
+          ...this.identity(subject),
+          cols: subject.columns,
+          rows: subject.rows.length,
+          waitedMs: Math.max(0, this.now() - subject.askedAt),
+        },
+      },
+    )
+  }
+
   /** A request that was raw has read: told once. */
   readLate(subject: Omit<Subject, "adapter" | "rows" | "columns">): void {
     const seen = this.seen.get(this.key(subject))

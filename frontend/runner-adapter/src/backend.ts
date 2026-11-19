@@ -84,6 +84,7 @@ import {
 } from "./terminals/activity"
 import { createBootProgress } from "./terminals/boot-progress"
 import { failedToCreate, launchFailure, lostStatus } from "./terminals/failures"
+import { terminalsInSight } from "./terminals/in-sight"
 import { terminalInUse } from "./terminals/in-use"
 import { crashLoop, restartingTooOften, restartWindowMs } from "./terminals/restarts"
 import { resumableProgram } from "./terminals/resumable"
@@ -389,6 +390,16 @@ export const runnerBackend = (
     return work
   }
   const inUse = terminalInUse((terminalId) => runner.terminals.active(terminalId))
+  const inSight = terminalsInSight((terminalIds) => runner.terminals.seen(terminalIds))
+  // Every terminal a surface wants seen, told to the runner as it changes (see `terminals.seen`).
+  const tellSight = (): void =>
+    inSight.report(
+      new Set(
+        [...entries.values()]
+          .filter((each) => each.seen > 0 && !each.closed)
+          .map((each) => each.key.terminalId),
+      ),
+    )
   const created = Promise.resolve(true)
   // Whether each project and session exists on the runner yet; seeded ones already do.
   const projects = new Map(seed.projects.map((project) => [project.id, created]))
@@ -1691,6 +1702,7 @@ export const runnerBackend = (
       const entry = registry.get(key)?.entry
       if (!entry) return () => {}
       entry.seen += 1
+      if (entry.seen === 1) tellSight()
       wake(entry)
       let released = false
       return () => {
@@ -1698,6 +1710,7 @@ export const runnerBackend = (
         released = true
         entry.seen -= 1
         if (entry.seen > 0) return
+        tellSight()
         clearTimeout(entry.dwell)
         entry.dwell = undefined
       }
@@ -1810,6 +1823,7 @@ export const runnerBackend = (
       if (status.state === "connected") {
         saves.schedule()
         inUse.connected()
+        inSight.connected()
       }
     }
     const changes = runner.terminals.watch()

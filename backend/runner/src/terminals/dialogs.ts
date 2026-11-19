@@ -21,6 +21,7 @@ import { logs } from "../log.js"
 import { cut } from "../text.js"
 import { DialogDiagnostics, type RawWhy, type Subject } from "./dialog-diagnostics.js"
 import { DialogSaves } from "./dialog-saves.js"
+import type { SeenTerminals } from "./seen.js"
 
 const log = logs.for("dialogs")
 
@@ -61,6 +62,11 @@ export type DialogsHost = {
   readonly clear: (terminalId: string, ref: string) => void
   /** Some request's dialog changed. */
   readonly changed: (terminalId: string) => void
+  /**
+   * Presses keys in the terminal's agent as the person's, through the bookkeeping their own
+   * keys get; false once the terminal is gone.
+   */
+  readonly press: (terminalId: string, data: string) => boolean
 }
 
 export type DialogsOptions = {
@@ -86,6 +92,11 @@ export type DialogsOptions = {
   readonly rawLatestMs?: number
   /** Where a person's "Save for debugging" puts a raw dialog; see `DialogSaves`. */
   readonly saves?: string
+  /**
+   * Which terminals a client has in sight. A dialog held out of view is scrolled into view
+   * (`DialogAdapter.reveal`) only for a terminal none has; without it, every terminal is unseen.
+   */
+  readonly seen?: SeenTerminals
 }
 
 /**
@@ -94,15 +105,26 @@ export type DialogsOptions = {
  */
 export const identified = (
   dialog: AnswerableDialog,
+  held = false,
 ): Exclude<RequestDialog, { type: "raw" }> | undefined => {
   const shown = clamped(dialog)
   if (!shown) return undefined
-  const id = createHash("sha256").update(JSON.stringify(shown)).digest("hex").slice(0, 16)
+  // The same dialog held out of view is another read, answered after it is brought into view.
+  const id = createHash("sha256")
+    .update(JSON.stringify(held ? [shown, "held"] : shown))
+    .digest("hex")
+    .slice(0, 16)
   const identity = { ...shown, id }
   // Whatever an adapter read, only what the protocol takes is shown.
   const parsed = requestDialog.safeParse(identity)
   return parsed.success && parsed.data.type !== "raw" ? parsed.data : undefined
 }
+
+/** A read's dialog as the protocol shows it, its fingerprint telling whether it is held out of view. */
+export const identifiedRead = (
+  read: DialogRead,
+): Exclude<RequestDialog, { type: "raw" }> | undefined =>
+  identified(read.dialog, read.reveal !== undefined)
 
 // What the protocol allows of each string an adapter reads for display, by field name.
 const displayLimits: { readonly [key: string]: number } = dialogTextLimits
@@ -205,6 +227,8 @@ type State = {
   failed: boolean
   /** Since when a request waits and none reads; undefined where one does, or none waits. */
   unread: number | undefined
+  /** The screen that keys were last pressed on to bring a held dialog into view, until it ends. */
+  revealed: string | undefined
 }
 
 /**
@@ -214,7 +238,9 @@ type State = {
  * (or the harness has no adapter); null until then. It also raises the requests only the
  * screen tells, as Codex's plan prompt, and lets them go once their screen is. Looks
  * again as the screen or the requests change, throttled, and announces only real
- * changes. It presses nothing. Knows nothing of how any harness draws its screen.
+ * changes. It presses only what an adapter's `reveal` says, to bring a dialog held out of
+ * view into view on a terminal no client has in sight. Knows nothing of how any harness draws
+ * its screen.
  */
 /**
  * What `read` gives, or undefined where it throws: logged once while the terminal waits, as
@@ -244,6 +270,7 @@ export class Dialogs {
   private readonly rawLatestMs: number
   private readonly diagnostics: DialogDiagnostics
   private readonly saves: DialogSaves
+  private readonly seen: SeenTerminals | undefined
 
   constructor(
     private readonly host: DialogsHost,
@@ -257,6 +284,14 @@ export class Dialogs {
     this.rawStillMs = options.rawStillMs ?? 1_500
     this.rawAgeMs = options.rawAgeMs ?? 2_000
     this.rawLatestMs = options.rawLatestMs ?? 6_000
+    this.seen = options.seen
+    // A terminal turning seen ends its held dialog's spell; turning unseen is a look at it.
+    this.seen?.subscribe((terminalId, seen) => {
+      const state = this.states.get(terminalId)
+      if (!state) return
+      if (seen) state.revealed = undefined
+      else this.changed(terminalId)
+    })
   }
 
   /** The terminal's screen or requests changed: its dialogs are looked at again soon. */
@@ -427,6 +462,7 @@ export class Dialogs {
         answering: 0,
         failed: false,
         unread: undefined,
+        revealed: undefined,
       }
       this.states.set(terminalId, state)
     }
@@ -530,7 +566,9 @@ export class Dialogs {
       const entry = state.entries.get(request.ref)
       if (entry?.locked || entry?.done) continue
       const read: DialogRead | undefined = adapter?.read(rows, request.facts)
-      if (read && identified(read.dialog)) reads.push({ request, read })
+      // A read from the facts alone names no dialog on screen: it counts for the only request.
+      const sole = read?.reveal === undefined || requests.length === 1
+      if (read && sole && identifiedRead(read)) reads.push({ request, read })
       else unread.push(request)
     }
     // A request whose dialog is raw for good still shows on screen as the dialog it was: it
@@ -539,7 +577,9 @@ export class Dialogs {
     for (const request of requests) {
       if (state.entries.get(request.ref)?.locked && !state.entries.get(request.ref)?.done) {
         const read = adapter?.read(rows, request.facts)
-        if (read && identified(read.dialog)) ghosts.push({ request, read })
+        // One held out of view is not on screen to be mistaken for.
+        if (read && read.reveal === undefined && identified(read.dialog))
+          ghosts.push({ request, read })
       }
     }
     const recognised = reads.length > 0
@@ -552,13 +592,13 @@ export class Dialogs {
     const alike = keyed.every(
       ({ request, read }) =>
         twin(request, keyed[0]!.request) &&
-        identified(read.dialog)?.id === identified(keyed[0]!.read.dialog)?.id,
+        identifiedRead(read)?.id === identifiedRead(keyed[0]!.read)?.id,
     )
     for (const { request, read } of reads) {
       const clear = read.prompt ? keyed.length === 0 : alike
       state.entries.set(request.ref, {
         dialog: clear
-          ? identified(read.dialog)!
+          ? identifiedRead(read)!
           : { type: "raw", text: rawText(rows), reason: "unrecognized" },
       })
       if (!clear) this.unread(terminalId, state, request.ref, "clash")
@@ -607,8 +647,37 @@ export class Dialogs {
       this.unread(terminalId, state, request.ref, adapter ? "unrecognized" : "unsupported")
     }
     this.announce(terminalId, state)
+    if (unread.length === 0 || recognised) state.revealed = undefined
+    else if (this.reveal(terminalId, state, found, unread[0]!))
+      wake = Math.max(wake, state.since + this.settleMs)
     if (waiting) wake = Math.max(wake, state.since + this.settleMs)
     if (wake > 0) this.later(terminalId, state, wake - this.now() + 10)
+  }
+
+  /**
+   * Brings a dialog its harness holds out of view into view, for an unseen terminal, once
+   * for each screen it is held on: the keys of the adapter's `reveal`, which answer nothing,
+   * pressed as the person's would be once the screen is still. True while it waits for that.
+   */
+  private reveal(
+    terminalId: string,
+    state: State,
+    adapter: DialogAdapter | undefined,
+    request: Waiting,
+  ): boolean {
+    const keys = adapter?.reveal ? attempt(state, () => adapter.reveal!(state.rows)) : undefined
+    if (keys === undefined) {
+      // No longer held out of view: the next spell may press again.
+      state.revealed = undefined
+      return false
+    }
+    if (this.seen?.has(terminalId) || state.revealed === state.text) return false
+    if (this.now() - state.since < this.settleMs) return true
+    state.revealed = state.text
+    if (!this.host.press(terminalId, keys)) return false
+    const subject = this.subject(terminalId, state, request.ref)
+    if (subject) this.diagnostics.revealed(subject)
+    return false
   }
 
   /** Tells the manager when any request's dialog differs from what it last told. */

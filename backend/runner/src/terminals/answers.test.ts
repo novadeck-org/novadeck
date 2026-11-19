@@ -8,7 +8,7 @@ import { afterEach, vi } from "vitest"
 import { DomainError } from "../errors.js"
 import { describe, expect, it } from "../test.js"
 import { Answers, type AnswersHost } from "./answers.js"
-import { identified } from "./dialogs.js"
+import { identified, identifiedRead } from "./dialogs.js"
 
 // The answer driver's sleeps go through the global setTimeout, so a case that times them runs
 // them on a fake clock (see `timed`); every other case gets the real timer, as before.
@@ -94,6 +94,11 @@ const terminal = (
     turnStartedAt?: () => number | undefined
     /** How long a turn is left to run before the first key, in milliseconds; 10 by default. */
     settleMs?: number
+    /**
+     * Its dialog is held out of view while the screen shows "FAKE ELSEWHERE": it reads from the
+     * facts, with the keys "R" to bring it into view (which do, unless `stuck`).
+     */
+    held?: boolean | "stuck"
     /** Runs after each write, as the TUI redraws. */
     after?: (tui: FakeTui) => void
     /**
@@ -122,6 +127,17 @@ const terminal = (
   let settled = 0
   let asked = 0
   const adapter = (): DialogAdapter => {
+    const inner = shownAdapter()
+    if (!options.held) return inner
+    return {
+      read: (rows, each) => {
+        if (!rows.includes("FAKE ELSEWHERE")) return inner.read(rows, each)
+        const read = inner.read(new FakeTui().rows(), each)
+        return read && { ...read, reveal: "R", keys: () => undefined }
+      },
+    }
+  }
+  const shownAdapter = (): DialogAdapter => {
     const plain = fakeAdapter()
     if (options.turnEndsAfter !== undefined)
       return { read: (rows, each) => (each.turnEnded ? undefined : plain.read(rows, each)) }
@@ -286,6 +302,7 @@ const terminal = (
     screen: () => Promise.resolve(tui.screen()),
     press: (_terminal, data) => {
       tui.write(data)
+      if (data === "R" && options.held === true) tui.state = "ask"
       options.after?.(tui)
       return true
     },
@@ -1355,5 +1372,78 @@ describe("setting a question aside, as the chat's Send or Stop does over it", ()
     expect(await made.setAside()).toBe("dismissed")
     expect(made.tui.written).toEqual(["\x1b"])
     expect(made.locks).toEqual(["failed"])
+  })
+})
+
+describe("answering a dialog held out of view", () => {
+  const held = (options: Parameters<typeof terminal>[0] = {}) => {
+    const made = terminal({ held: true, ...options })
+    made.tui.state = "other"
+    return made
+  }
+
+  it("brings it into view first, then answers by the read of the dialog in view", async () => {
+    const { tui, answers, read, calls } = held()
+    const id = identifiedRead(read()!)!.id
+    // Not the id of the same dialog in view: a card answered once it shows has another.
+    expect(id).not.toBe(shown(new FakeTui()))
+    await answers.answer("t", "r1", { dialog: id, type: "choice", option: "1" })
+    expect(tui.written).toEqual(["R", "1"])
+    expect(calls).toContain("done")
+  })
+
+  it("is DIALOG_CHANGED, pressing nothing, for the id of the dialog in view", async () => {
+    const { tui, answers } = held()
+    expect(
+      await fails(
+        answers.answer("t", "r1", { dialog: shown(new FakeTui()), type: "choice", option: "1" }),
+      ),
+    ).toBe("DIALOG_CHANGED")
+    expect(tui.written).toEqual([])
+  })
+
+  it("fails with only the scroll pressed, locking nothing, where the dialog never comes into view", async () => {
+    const { tui, answers, read, locks } = held({ held: "stuck" })
+    const id = identifiedRead(read()!)!.id
+    expect(
+      await fails(answers.answer("t", "r1", { dialog: id, type: "choice", option: "1" })),
+    ).toBe("CONFLICT")
+    expect(tui.written).toEqual(["R"])
+    expect(locks).toEqual([])
+  })
+
+  it("is no read where another request waits too, pressing nothing", async () => {
+    const { tui, answers, read } = held({ others: [{ ref: "r2", facts }] })
+    expect(read()).toBeDefined()
+    expect(
+      await fails(
+        answers.answer("t", "r1", {
+          dialog: identifiedRead(read()!)!.id,
+          type: "choice",
+          option: "1",
+        }),
+      ),
+    ).toBe("CONFLICT")
+    expect(tui.written).toEqual([])
+  })
+
+  it("sets a question aside with Escape alone, which is no scroll key: the view stays where it is", async () => {
+    let waiting = true
+    const made = held({
+      chat: "prompt",
+      escape: "interrupts",
+      waiting: () => waiting,
+      asking: () => (waiting ? [{ ref: "r1", kind: "question" }] : []),
+      after: (tui) => {
+        if (tui.written.at(-1) !== "\x1b") return
+        tui.state = "gone"
+        waiting = false
+      },
+    })
+    const result = await made.queue.run("t", (entry) =>
+      made.answers.setAside(entry, "t", ["r1"], "talk"),
+    )
+    expect(result).toBe("dismissed")
+    expect(made.tui.written).toEqual(["\x1b"])
   })
 })
