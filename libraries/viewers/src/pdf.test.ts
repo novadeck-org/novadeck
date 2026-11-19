@@ -95,10 +95,11 @@ const textOf = async (name: string): Promise<string> => {
     Uint8Array.from(atob(url.slice(url.indexOf(",") + 1)), (char) => char.charCodeAt(0)),
   )
 }
-const code = async () => ({
-  library: await textOf("pdf.min.mjs"),
-  worker: await textOf("pdf.worker.min.mjs"),
-})
+// Read once, before any test, as the app has its chunk before a viewer starts: decoding these
+// 3 MB inside the first test took it past its 5 s on a loaded macOS runner.
+const library = await textOf("pdf.min.mjs")
+const worker = await textOf("pdf.worker.min.mjs")
+const code = async () => ({ library, worker })
 // The frame's page, as the app serves it.
 const frameUrl = URL.createObjectURL(new Blob([frameHtml], { type: "text/html" }))
 const sha256 = async (text: string): Promise<string> =>
@@ -408,6 +409,8 @@ describe("a PDF's place", () => {
     const page = pagesOf(pane)[3]!
     viewerOf(pane).scrollTop = page.offsetTop + page.offsetHeight / 2
     await expect.poll(() => chipOf(pane).textContent).toBe("4 / 5 · 55%")
+    // The place comes over the port a moment after the chip shows it.
+    await expect.poll(() => first.state()).toMatchObject({ pdf: { page: 3 } })
     const state = first.state()
     first.destroy()
 
@@ -460,6 +463,7 @@ describe("a PDF's place", () => {
     await opened(pane, 5)
     viewerOf(pane).scrollTop = pagesOf(pane)[3]!.offsetTop
     await expect.poll(() => chipOf(pane).textContent).toMatch(/^4 \/ 5/)
+    await expect.poll(() => first.state()).toMatchObject({ pdf: { page: 3 } })
     const state = first.state()
 
     const hidden = paneIn()
@@ -477,6 +481,8 @@ describe("a PDF's place", () => {
     await opened(pane, 5)
     viewerOf(pane).scrollTop = pagesOf(pane)[4]!.offsetTop
     await expect.poll(() => chipOf(pane).textContent).toMatch(/^5 \/ 5/)
+    // The place comes over the port a moment after the chip shows it.
+    await expect.poll(() => first.state()).toMatchObject({ pdf: { page: 4 } })
     const state = first.state()
 
     const next = paneIn()
