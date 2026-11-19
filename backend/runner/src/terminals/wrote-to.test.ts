@@ -6,6 +6,7 @@ import { rolloutEvents } from "@novadeck/harness-codex/rollout"
 import type { HarnessEvent } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
 import { companionLimits, type AgentName } from "@novadeck/protocol"
+import { vi } from "vitest"
 
 import { wroteFolders } from "../companions/path-field.js"
 import { folderSecrets } from "../companions/secrets.js"
@@ -337,43 +338,49 @@ describe("the folders each harness keeps for itself", () => {
       expect(await listed(agent, "s", writing(agent, join(outside, "x.md")), at)).toHaveLength(1)
     })
 
-  it("leaves out a session's own moved home, which its transcript tells", async ({ directory }) => {
-    const project = join(directory, "project")
-    mkdirSync(project)
-    // A second account's home, which no variable of the runner names.
-    const moved = join(directory, "second-account")
-    const plans = join(moved, "plans")
-    mkdirSync(plans, { recursive: true })
-    const transcript = join(moved, "projects", "p", "s.jsonl")
-    const events = writing("claude", join(plans, "plan.md"))
-    const global = harnesses.claude.bookkeeping!(installFor(directory))
-    const without = await listed("claude", "s", events, {
-      project,
-      cwd: project,
-      at: 5,
-      bookkeeping: global,
+  // Each harness's transcript as it lies in a home no variable of the runner names.
+  const transcriptIn = (agent: AgentName, home: string): string =>
+    agent === "claude"
+      ? join(home, "projects", "p", "s.jsonl")
+      : agent === "codex"
+        ? join(home, "sessions", "2026", "11", "19", "rollout-s.jsonl")
+        : join(home, "brain", "s", "log.txt")
+
+  for (const [agent, bookkept] of kept)
+    it(`leaves out a ${agent} session's own moved home's folders, which its transcript tells`, async ({
+      directory,
+    }) => {
+      const project = join(directory, "project")
+      mkdirSync(project)
+      const moved = join(directory, "second-account")
+      const global = harnesses[agent].bookkeeping!(installFor(directory))
+      const at = { project, cwd: project, at: 5, bookkeeping: global }
+      const transcript = transcriptIn(agent, moved)
+      for (const folder of bookkept) {
+        const where = join(moved, folder)
+        mkdirSync(where, { recursive: true })
+        const events = writing(agent, join(where, "file.md"))
+        // eslint-disable-next-line no-await-in-loop -- One folder after another.
+        expect(await listed(agent, "s", events, at), folder).toHaveLength(1)
+        // eslint-disable-next-line no-await-in-loop -- One folder after another.
+        expect(await listed(agent, "s", events, { ...at, transcript }), folder).toEqual([])
+      }
+      // The variable that moves the runner's own home names the same folders.
+      const variable = agent === "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"
+      if (agent !== "agy")
+        expect(
+          harnesses[agent].bookkeeping!(installFor(directory, { [variable]: moved })).every(
+            (folder) => folder.startsWith(moved),
+          ),
+        ).toBe(true)
     })
-    expect(without).toHaveLength(1)
-    const withHome = await listed("claude", "s", events, {
-      project,
-      cwd: project,
-      at: 5,
-      bookkeeping: global,
-      transcript,
-    })
-    expect(withHome).toEqual([])
-    // The same through the variable that moves the runner's own.
-    expect(
-      harnesses.claude.bookkeeping!(installFor(directory, { CLAUDE_CONFIG_DIR: moved })),
-    ).toContain(plans)
-  })
 
   it("names its folders from where each harness's transcript sits", () => {
     expect(harnesses.claude.bookkeepingOf!("/a/.claude-2/projects/p/s.jsonl")).toContain(
       join("/a/.claude-2", "plans"),
     )
     expect(
-      harnesses.codex.bookkeepingOf!("/a/.codex-2/sessions/2026/11/rollout-1.jsonl"),
+      harnesses.codex.bookkeepingOf!("/a/.codex-2/sessions/2026/11/19/rollout-1.jsonl"),
     ).toContain(join("/a/.codex-2", "memories"))
     expect(harnesses.agy.bookkeepingOf!("/a/.gemini/antigravity-cli/brain/c1/log.txt")).toEqual([
       join("/a/.gemini/antigravity-cli", "brain"),
@@ -414,6 +421,45 @@ describe("the folders each harness keeps for itself", () => {
         bookkeeping: [join(home, "plans")],
       }),
     ).toEqual([])
+  })
+})
+
+describe("what is stored of a write in a moved home", () => {
+  it("never holds a moved home's plans, though the runner's own home is another", ({
+    directory,
+  }) => {
+    const project = join(directory, "project")
+    const moved = join(directory, "second-account")
+    const cwd = join(directory, "cwd")
+    const plans = join(moved, "plans")
+    const skills = join(moved, "skills")
+    for (const folder of [project, plans, skills, cwd]) mkdirSync(folder, { recursive: true })
+    const record = {
+      summary: { sessionId: "workspace", handle: "moth", cwd },
+      root: rootOf("claude", "s"),
+      transcript: join(moved, "projects", "p", "s.jsonl"),
+    } as Record
+    const companion = new Companion(undefined, {
+      records: () => new Map(),
+      saved: () => undefined,
+      projectFolder: () => project,
+      peers: () => undefined as never,
+      stopping: () => false,
+    })
+    const write = (file: string) =>
+      hook("claude", "PostToolUse", {
+        session_id: "s",
+        tool_name: "Write",
+        tool_input: { file_path: file },
+      })
+    const reports = new Reports({ companion: () => companion, records: () => new Map() } as never)
+    reports.tallyWork(
+      record,
+      [...write(join(plans, "plan.md")), ...write(join(skills, "a.md"))],
+      [],
+    )
+    expect(record.work?.wrote?.map(({ folder }) => folder)).toEqual([skills])
+    expect(JSON.stringify(record.work?.wrote)).not.toContain(plans)
   })
 })
 
@@ -478,6 +524,37 @@ describe("the folders a terminal and its project work in", () => {
     expect(companion.ownFolders(record)).toEqual([link, project])
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(companion.ownFolders(record)).toEqual([link, real, project])
+  })
+
+  it("ask again for a folder that could not be resolved, after a moment, and keep one that could", async ({
+    directory,
+  }) => {
+    const later = join(directory, "later")
+    const real = join(directory, "real")
+    mkdirSync(real)
+    const record = { summary: { sessionId: "workspace", handle: "moth", cwd: later } } as Record
+    const companion = companionFor(join(directory, "project"))
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 30))
+    vi.useFakeTimers({ toFake: ["Date"] })
+    try {
+      companion.ownFolders(record)
+      await settle()
+      expect(companion.ownFolders(record)).toEqual([later, join(directory, "project")])
+      symlinkSync(real, later, "dir")
+      // Not asked again at once.
+      await settle()
+      expect(companion.ownFolders(record)).not.toContain(real)
+      // After a few seconds it is, once.
+      vi.setSystemTime(Date.now() + 4_000)
+      companion.ownFolders(record)
+      await settle()
+      expect(companion.ownFolders(record)).toContain(real)
+      // Kept for a while without asking again.
+      vi.setSystemTime(Date.now() + 30_000)
+      expect(companion.ownFolders(record)).toContain(real)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("drop a write in the project when recorded, through the report's own call", async ({

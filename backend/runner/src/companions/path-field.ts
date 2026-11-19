@@ -129,16 +129,27 @@ export const matchFolders = async (
 }
 
 // What a path resolves to through links, asked once for a while, so a slow mount is asked about
-// once and not for every list; a path that can't be resolved stands as written.
+// once and not for every list. A path that can't be resolved stands as written, and is asked
+// again after a few seconds.
 const resolvedFor = 60_000
+const failedFor = 3_000
 const resolvedCap = 200
-const resolved = new Map<string, { readonly at: number; readonly real: Promise<string> }>()
+const resolved = new Map<string, { readonly until: number; readonly real: Promise<string> }>()
 const resolvedOnce = (path: string, now = Date.now()): Promise<string> => {
   const known = resolved.get(path)
-  if (known && now - known.at < resolvedFor) return known.real
+  if (known && now < known.until) return known.real
   if (resolved.size >= resolvedCap) resolved.clear()
-  const real = realpath(path).catch(() => path)
-  resolved.set(path, { at: now, real })
+  const real = realpath(path).then(
+    (found) => {
+      resolved.set(path, { until: now + resolvedFor, real: Promise.resolve(found) })
+      return found
+    },
+    () => {
+      resolved.set(path, { until: now + failedFor, real: Promise.resolve(path) })
+      return path
+    },
+  )
+  resolved.set(path, { until: now + resolvedFor, real })
   return real
 }
 

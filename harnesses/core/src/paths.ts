@@ -19,6 +19,28 @@ const comparable = (path: string): string => {
 export const samePath = (a: string, b: string): boolean => comparable(a) === comparable(b)
 
 /**
+ * The folder holding the folder `marker` that sits above `path` at the depth a harness lays its
+ * files out in: between `min` and `max` folders lie between the marker and the file, as
+ * `<home>/projects/<project>/<session>.jsonl` has one. Undefined for a path laid out otherwise,
+ * so one that only has a folder of that name somewhere above it (`~/projects/acme/x/s.jsonl`)
+ * names no home.
+ */
+export const homeAbove = (
+  path: string,
+  marker: string,
+  min: number,
+  max: number,
+): string | undefined => {
+  const rules = flavourOf(path)
+  let dir = rules.dirname(path)
+  for (let between = 0; between <= max && rules.dirname(dir) !== dir; between += 1) {
+    if (between >= min && rules.basename(dir) === marker) return rules.dirname(dir)
+    dir = rules.dirname(dir)
+  }
+  return undefined
+}
+
+/**
  * `folder` beside the nearest folder above `path` named `marker`, in the rules `path` is
  * written in: `/home/a/.claude-work/projects/x/s.jsonl` with `projects` and `plans` gives
  * `/home/a/.claude-work/plans`. Empty when no folder above it has that name.

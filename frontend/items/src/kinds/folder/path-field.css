@@ -55,6 +55,14 @@
     padding: 4px;
     overflow-y: auto;
   }
+  /* What Tab does, under the list while there are folders to complete. */
+  .folder-field-hint {
+    margin: 0;
+    padding: 2px 8px;
+    color: var(--color-muted);
+    font-family: var(--font-sans);
+    font-size: var(--text-caption);
+  }
   .folder-field-group + .folder-field-group {
     margin-top: 4px;
     padding-top: 4px;

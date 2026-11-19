@@ -65,6 +65,10 @@ const wroteOf = (work: Work | null): Pick<TerminalPlace, "wrote" | "agent"> => {
   return wrote.length > 0 && isAgentName(agent) ? { wrote, agent } : {}
 }
 
+// How long a folder's resolved path is kept, and how long a failure to resolve one is.
+const resolvedFor = 60_000
+const failedFor = 3_000
+
 export type CompanionHost = {
   /** Every terminal the runner holds, by id. */
   readonly records: () => ReadonlyMap<string, Record>
@@ -211,34 +215,43 @@ export class Companion {
 
   /**
    * The folders a terminal and its project work in, as written and, once known, as they resolve
-   * through links: what its agents' writes are not listed apart from (see `wroteIn`). A folder
-   * is resolved off this call, once, so a slow mount never holds a report up; until it is
+   * through links, with those its agent's harness keeps for itself under the home its session
+   * runs in (by its transcript, which is known as a write is told): what its agents' writes
+   * are not kept apart from (see `wroteIn`), so a moved home's plans are never stored. A
+   * folder is resolved off this call, so a slow mount never holds a report up; until it is
    * known the folder stands as written (the list's read applies the links too).
    */
   ownFolders(record: Record): readonly string[] {
-    const found = [record.summary.cwd, this.host.projectFolder(record.summary.sessionId)]
+    const { root, transcript } = record
+    const kept = root && transcript ? (harnesses[root.agent].bookkeepingOf?.(transcript) ?? []) : []
+    const found = [record.summary.cwd, this.host.projectFolder(record.summary.sessionId), ...kept]
+    const now = Date.now()
     return [
       ...new Set(
         found.flatMap((folder) => {
           if (folder === undefined) return []
-          const real = this.resolved.get(folder)
-          if (real === undefined && !this.resolved.has(folder)) {
+          const known = this.resolved.get(folder)
+          if (known === undefined || now - known.at >= resolvedFor) {
             if (this.resolved.size >= 200) this.resolved.clear()
-            // Asked for once; a failure leaves the folder as it was written.
-            this.resolved.set(folder, undefined)
+            // Asked once for a while; a failure is asked again after a moment, and until then
+            // the folder stands as written.
+            this.resolved.set(folder, { at: now, real: known?.real })
             void realpath(folder).then(
-              (path) => this.resolved.set(folder, path),
-              () => {},
+              (path) => this.resolved.set(folder, { at: Date.now(), real: path }),
+              () => this.resolved.set(folder, { at: Date.now() - resolvedFor + failedFor }),
             )
           }
-          return real === undefined ? [folder] : [folder, real]
+          return known?.real === undefined ? [folder] : [folder, known.real]
         }),
       ),
     ]
   }
 
-  /** What each folder resolved to, by the folder as written; undefined while it is being asked. */
-  private readonly resolved = new Map<string, string | undefined>()
+  /** What each folder resolved to, by the folder as written, and when it was asked. */
+  private readonly resolved = new Map<
+    string,
+    { readonly at: number; readonly real?: string | undefined }
+  >()
 
   /**
    * Where a terminal kept by the runner is, running or saved, as items shown in it or

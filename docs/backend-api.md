@@ -1852,7 +1852,7 @@ one from an earlier runner.
     Codex's `sessions`, `memories` and `log`; Antigravity's `brain`), under the home the runner's
     environment names and under the home the writing session's own transcript names, as a second
     account's, each compared as written and through links. The rest of a home (a skill, a
-    `CLAUDE.md`, a setting) is work the person asked for and is named, one that may hold secrets, one that is gone. `path` leads with `~` for a folder in
+    `CLAUDE.md`, a setting) is work the person asked for and is named. The session's own home is told by its transcript's place (`<home>/projects/<project>/<id>.jsonl` for Claude Code, `<home>/sessions/<y>/<m>/<d>/rollout-*.jsonl` for Codex, `<home>/brain/<conversation>/…` for Antigravity; a path laid out otherwise names none), and its bookkeeping folders are left out as a write is recorded, so a moved home's plans are never stored, one that may hold secrets, one that is gone. `path` leads with `~` for a folder in
     the person's home. `TERMINAL_NOT_FOUND` for a terminal not kept.
   - `companions.openInProject({ sessionId, path, windowId })` opens a file the person
     picked in the session's project window, by a path absolute or from the project's

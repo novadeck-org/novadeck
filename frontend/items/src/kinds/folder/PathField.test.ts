@@ -421,6 +421,19 @@ describe("a folder's path field", () => {
       expect(quick.field()!.value).toBe("/tmp/zz")
     })
 
+    it("lets Tab go on over the folder's own path as it opened, and says what Tab does once folders are named", async () => {
+      const app = await shown({ matches, others })
+      await app.open()
+      const tab = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })
+      act(() => void app.field()!.dispatchEvent(tab))
+      expect(tab.defaultPrevented).toBe(false)
+      expect(app.root.querySelector(".folder-field-hint")).toBeNull()
+      await app.type("/tmp/re")
+      const hint = app.root.querySelector(".folder-field-hint")!
+      expect(hint.textContent).toBe("Tab completes")
+      expect(app.field()!.getAttribute("aria-describedby")).toBe(hint.id)
+    })
+
     it("lets Shift+Tab, and Tab in an empty field, go on as they do", async () => {
       const app = await shown({ matches, others })
       await app.open()

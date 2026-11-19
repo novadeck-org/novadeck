@@ -8,7 +8,7 @@ import {
   resumeFlags,
   type KeptFlags,
 } from "@novadeck/harness-core/kept-flags"
-import { beside } from "@novadeck/harness-core/paths"
+import { flavourOf, homeAbove } from "@novadeck/harness-core/paths"
 
 import { bannerMarker, bannerVersion } from "./banner.js"
 import { box, slice } from "./box.js"
@@ -197,8 +197,13 @@ export const codex = {
   home: codexHome,
   // Its sessions' rollouts, its memories and its logs.
   bookkeeping: (install) => bookkeepingNames.map((name) => join(codexHome(install), name)),
-  bookkeepingOf: (transcript) =>
-    bookkeepingNames.flatMap((name) => beside(transcript, "sessions", name)),
+  // Its rollouts are `<home>/sessions/<year>/<month>/<day>/rollout-<…>.jsonl`.
+  bookkeepingOf: (transcript) => {
+    const home = homeAbove(transcript, "sessions", 3, 3)
+    return home === undefined
+      ? []
+      : bookkeepingNames.map((name) => flavourOf(home).join(home, name))
+  },
   connected,
   connect,
   disconnect,

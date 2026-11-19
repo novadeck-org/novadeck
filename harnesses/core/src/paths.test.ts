@@ -2,7 +2,7 @@ import { posix, win32 } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { beside, flavourOf, samePath } from "./paths.js"
+import { beside, flavourOf, homeAbove, samePath } from "./paths.js"
 
 describe("the path rules", () => {
   it("are Windows' for a drive, a UNC share or a backslash anywhere, POSIX's otherwise", () => {
@@ -50,5 +50,21 @@ describe("beside", () => {
       "/h/.gemini/antigravity-cli/brain",
     ])
     expect(beside("/h/other/s.jsonl", "projects", "plans")).toEqual([])
+  })
+})
+
+describe("the home above a file laid out at a depth", () => {
+  it("is the folder holding the marker the right number of folders above the file", () => {
+    expect(homeAbove("/h/.claude/projects/p/s.jsonl", "projects", 1, 1)).toBe("/h/.claude")
+    expect(homeAbove("/h/.codex/sessions/2026/11/19/r.jsonl", "sessions", 3, 3)).toBe("/h/.codex")
+    expect(homeAbove("C:\\Users\\a\\.claude\\projects\\p\\s.jsonl", "projects", 1, 1)).toBe(
+      "C:\\Users\\a\\.claude",
+    )
+  })
+
+  it("is none where the marker is only somewhere above, as a folder of the person's projects", () => {
+    expect(homeAbove("/home/u/projects/acme/claude-home/s.jsonl", "projects", 1, 1)).toBeUndefined()
+    expect(homeAbove("/home/u/projects/s.jsonl", "projects", 1, 1)).toBeUndefined()
+    expect(homeAbove("/s.jsonl", "projects", 1, 1)).toBeUndefined()
   })
 })

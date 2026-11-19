@@ -164,7 +164,9 @@ export const PathField = ({
         aria-controls={`${id}-list`}
         aria-activedescendant={active === -1 ? undefined : optionId(active)}
         aria-invalid={problem !== undefined || undefined}
-        aria-describedby={problem === undefined ? undefined : `${id}-problem`}
+        aria-describedby={
+          problem !== undefined ? `${id}-problem` : matches.length > 0 ? `${id}-hint` : undefined
+        }
         spellCheck={false}
         autoComplete="off"
         autoCapitalize="off"
@@ -191,16 +193,18 @@ export const PathField = ({
             if (flat.length > 0) move(event.key === "ArrowDown" ? 1 : -1)
           } else if (
             event.key === "Tab" &&
+            edited &&
+            text.trim() !== "" &&
             !event.shiftKey &&
             !event.ctrlKey &&
             !event.metaKey &&
             !event.altKey
           ) {
-            // With text in the field, Tab never leaves it, which would end the field and lose the
-            // text: the highlighted suggestion, else the first folder the text may be, completes
-            // into it, and with none yet (the runner has not answered) nothing happens. Shift+Tab
-            // goes back as it does, ending the field; an empty field ends on either.
-            if (text.trim() === "") return
+            // With text the person typed in the field, Tab never leaves it, which would end the
+            // field and lose the text: the highlighted suggestion, else the first folder the
+            // text may be, completes into it, and with none yet (the runner has not answered)
+            // nothing happens. Over the folder's own path, as it opened, over nothing, and with
+            // Shift, Tab goes on as it does, ending the field.
             event.preventDefault()
             const chosen = active === -1 ? matches[0] && flat[0] : flat[active]
             if (chosen) complete(chosen)
@@ -266,6 +270,11 @@ export const PathField = ({
               </div>
             ))}
           </div>
+        )}
+        {matches.length > 0 && (
+          <p id={`${id}-hint`} className="folder-field-hint floating">
+            <kbd>Tab</kbd> completes
+          </p>
         )}
       </div>
     </div>
