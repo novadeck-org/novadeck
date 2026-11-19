@@ -1,40 +1,32 @@
 import { describe, expect, it } from "../../test"
-import { atspiReaders, followAgainMs, statusSaysReader } from "./screen-reader-linux"
+import { atspiPollMs, atspiReaders, statusSaysReader } from "./screen-reader-linux"
 
 // What `gdbus call` prints for the bus's status.
 const status = (isEnabled: boolean, screenReader: boolean): string =>
   `({'IsEnabled': <${isEnabled}>, 'ScreenReaderEnabled': <${screenReader}>},)\n`
 
 // Lets the reads' promises settle.
-const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
+const settled = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
-// A bus whose status a test sets, a gdbus monitor it can print to or end, and a clock it runs.
-const desktop = ({ answer = status(false, false) }: { answer?: string | Error } = {}) => {
+// A bus whose status a test sets, and a clock it ticks.
+const desktop = (answer: string | Error = status(false, false)) => {
   let now: string | Error = answer
-  let print: ((line: string) => void) | undefined
-  let end: (() => void) | undefined
-  let follows = 0
-  let killed = 0
-  let waiting: { again: () => void; ms: number } | undefined
+  let tick: (() => void) | undefined
+  let tickMs = 0
+  let stopped = 0
+  let reads = 0
   const readers = atspiReaders({
     run: (file, args) => {
       expect(file).toBe("gdbus")
       expect(args).toContain("org.a11y.Status")
+      reads += 1
       return now instanceof Error ? Promise.reject(now) : Promise.resolve(now)
     },
-    follow: (file, args, on) => {
-      expect([file, args[0]]).toEqual(["gdbus", "monitor"])
-      follows += 1
-      print = on.line
-      end = on.exit
+    repeat: (check, ms) => {
+      tick = check
+      tickMs = ms
       return () => {
-        killed += 1
-      }
-    },
-    later: (again, ms) => {
-      waiting = { again, ms }
-      return () => {
-        waiting = undefined
+        stopped += 1
       }
     },
   })
@@ -43,11 +35,10 @@ const desktop = ({ answer = status(false, false) }: { answer?: string | Error } 
     set: (next: string | Error) => {
       now = next
     },
-    print: (line: string) => print?.(line),
-    end: () => end?.(),
-    follows: () => follows,
-    killed: () => killed,
-    waiting: () => waiting,
+    tick: () => tick?.(),
+    tickMs: () => tickMs,
+    stopped: () => stopped,
+    reads: () => reads,
   }
 }
 
@@ -70,71 +61,82 @@ describe("the accessibility bus's word on Linux", () => {
     expect(bus.readers.running()).toBe(true)
 
     bus.readers.watch(() => changes.push(bus.readers.running()))
-    await flush()
+    await settled()
 
     expect(changes).toEqual([false])
   })
 
-  it("reads the bus again on each change it announces, and tells only a change", async () => {
+  it("reads the bus every few seconds, and tells only a change", async () => {
     const bus = desktop()
     const changes: boolean[] = []
     bus.readers.watch(() => changes.push(bus.readers.running()))
-    await flush()
+    await settled()
+    expect(bus.tickMs()).toBe(atspiPollMs)
 
     bus.set(status(true, false))
-    bus.print(
-      "/org/a11y/bus: org.freedesktop.DBus.Properties.PropertiesChanged ('org.a11y.Status', {'IsEnabled': <true>}, @as [])",
-    )
-    await flush()
-    bus.print("The name org.a11y.Bus is owned by :1.0")
-    await flush()
+    bus.tick()
+    await settled()
+    bus.tick()
+    await settled()
     bus.set(status(false, false))
-    bus.print(
-      "/org/a11y/bus: org.freedesktop.DBus.Properties.PropertiesChanged ('org.a11y.Status', {'IsEnabled': <false>}, @as [])",
-    )
-    await flush()
+    bus.tick()
+    await settled()
 
     expect(changes).toEqual([false, true, false])
+    expect(bus.reads()).toBe(4)
   })
 
-  it("says a reader may run where gdbus or the bus can't answer", async () => {
-    const bus = desktop({ answer: new Error("gdbus: command not found") })
+  it("says a reader may run whenever gdbus or the bus can't answer", async () => {
+    const bus = desktop(new Error("gdbus: command not found"))
     const changes: boolean[] = []
     bus.readers.watch(() => changes.push(bus.readers.running()))
-    await flush()
-
+    await settled()
     expect(bus.readers.running()).toBe(true)
-    expect(changes).toEqual([])
+
+    bus.set(status(false, false))
+    bus.tick()
+    await settled()
+    bus.set(new Error("The name org.a11y.Bus was not provided by any .service files"))
+    bus.tick()
+    await settled()
+
+    expect(changes).toEqual([false, true])
   })
 
-  it("follows the bus again a while after its watcher ends", async () => {
-    const bus = desktop()
-    bus.readers.watch(() => {})
-    await flush()
+  it("lets the latest read win, however the answers come back", async () => {
+    const answers: ((out: string) => void)[] = []
+    const changes: boolean[] = []
+    let tick: (() => void) | undefined
+    const readers = atspiReaders({
+      run: () => new Promise((resolve) => answers.push(resolve)),
+      repeat: (check) => {
+        tick = check
+        return () => {}
+      },
+    })
+    readers.watch(() => changes.push(readers.running()))
+    tick?.()
 
-    bus.end()
+    answers[1]?.(status(false, false))
+    await settled()
+    answers[0]?.(status(true, false))
+    await settled()
 
-    expect(bus.waiting()?.ms).toBe(followAgainMs)
-    bus.waiting()?.again()
-    expect(bus.follows()).toBe(2)
+    expect(changes).toEqual([false])
   })
 
-  it("ends its watcher at the stop, and follows nothing more", async () => {
+  it("reads nothing more after the stop", async () => {
     const bus = desktop()
     const changes: boolean[] = []
     const stop = bus.readers.watch(() => changes.push(bus.readers.running()))
-    await flush()
+    await settled()
 
     stop()
     bus.set(status(true, true))
-    bus.print(
-      "/org/a11y/bus: org.freedesktop.DBus.Properties.PropertiesChanged ('org.a11y.Status', {'IsEnabled': <true>}, @as [])",
-    )
-    bus.end()
-    await flush()
+    bus.tick()
+    await settled()
 
-    expect(bus.killed()).toBe(1)
-    expect(bus.waiting()).toBeUndefined()
+    expect(bus.stopped()).toBe(1)
     expect(changes).toEqual([false])
   })
 })

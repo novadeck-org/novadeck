@@ -109,7 +109,7 @@ import { registerWindowFocusIpc } from "./window/focus.js"
 import { linuxMenu, macMenu } from "./window/menu.js"
 import { registerPanePictureIpc } from "./window/pane-pictures.js"
 import { limitPermissions } from "./window/permissions.js"
-import { atspiReaders, followIn, runIn } from "./window/screen-reader-linux.js"
+import { atspiReaders, runIn } from "./window/screen-reader-linux.js"
 import { electronReaders, registerScreenReaderIpc } from "./window/screen-reader.js"
 import { keepSpellcheckOffline } from "./window/spellcheck.js"
 
@@ -536,13 +536,11 @@ const launch = async (): Promise<void> => {
   // The page asks whether a screen reader runs when it starts listening, and hears of each
   // change: its terminals keep a reader's text only while one may (terminal-views). Electron
   // tells on macOS and Windows; on Linux the desktop's accessibility bus does, read with the
-  // system's own gdbus, outside an AppImage's mount, and its watcher ends with the app.
+  // system's own gdbus, outside an AppImage's mount.
   if (tellsScreenReader(process.platform)) {
     const systemEnv = installedEnvironment(process.env, appImageMounts())
     const readers =
-      process.platform === "linux"
-        ? atspiReaders({ run: runIn(systemEnv), follow: followIn(systemEnv) })
-        : electronReaders(app)
+      process.platform === "linux" ? atspiReaders({ run: runIn(systemEnv) }) : electronReaders(app)
     const stopReaders = registerScreenReaderIpc(ipcMain, readers, {
       page: (event) => appWindow(event)?.webContents,
       pages: () => appPages(appWindows()),

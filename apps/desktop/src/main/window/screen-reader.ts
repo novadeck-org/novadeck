@@ -27,7 +27,7 @@ type Accessibility = {
 // Calls `check` every `ms` until the stop it returns, without keeping the app alive.
 export type Every = (check: () => void, ms: number) => () => void
 
-const every: Every = (check, ms) => {
+export const every: Every = (check, ms) => {
   const timer = setInterval(check, ms)
   timer.unref?.()
   return () => clearInterval(timer)
