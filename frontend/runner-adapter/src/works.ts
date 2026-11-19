@@ -24,6 +24,10 @@ export type RunnerWorks = {
   readonly stop: () => void
 }
 
+// How long the works' changes are gathered before the store hears them: the items of one poll
+// come within a few milliseconds of each other, and a poll comes every few seconds.
+export const worksBatchMs = 50
+
 export const createRunnerWorks = (
   calls: Runner["works"],
   // Keeps a call the backend waits for before it stops, as its other calls are.
@@ -51,8 +55,20 @@ export const createRunnerWorks = (
   let watchers = 0
   let closed = false
 
+  // Set while changes wait to be published.
+  let pending: ReturnType<typeof setTimeout> | undefined
+
   const publish = (): void => {
+    if (pending !== undefined) clearTimeout(pending)
+    pending = undefined
     state.update(() => ({ works: [...held.values()], synced, reported }))
+  }
+
+  // A runner poll tells each work it changed as its own item, one after the other. They're
+  // published together, `worksBatchMs` after the first, so a poll that changed ten worktrees
+  // redraws the panels that read the works once, not ten times.
+  const publishSoon = (): void => {
+    pending ??= setTimeout(publish, worksBatchMs)
   }
 
   const follow = (): void => {
@@ -70,13 +86,13 @@ export const createRunnerWorks = (
           if (incoming) incoming.set(change.work.root, change.work)
           else {
             held.set(change.work.root, change.work)
-            publish()
+            publishSoon()
           }
           break
         }
         case "removed": {
           incoming?.delete(change.root)
-          if (held.delete(change.root)) publish()
+          if (held.delete(change.root)) publishSoon()
           break
         }
         case "synced": {
@@ -104,7 +120,8 @@ export const createRunnerWorks = (
     stream = undefined
     incoming = undefined
     void done?.return?.()?.catch?.(() => {})
-    if (synced) {
+    // Changes still waiting are published now, with the following's end.
+    if (synced || pending !== undefined) {
       synced = false
       publish()
     }
