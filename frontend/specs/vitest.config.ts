@@ -115,6 +115,12 @@ const behaviour = (name: string, include: string[], platform: Platform | undefin
             })
             if (action === "press") await page.mouse.down()
           },
+          // Fails the page's requests for what `glob` matches, as a part that couldn't be
+          // fetched, till it's let through again.
+          failFetches: async ({ page }, glob: string, failing: boolean) => {
+            if (failing) await page.route(glob, (route) => route.abort("failed"))
+            else await page.unroute(glob)
+          },
         },
         headless: true,
         screenshotFailures: ci,

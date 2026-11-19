@@ -43,6 +43,9 @@ export type DemoActionContext = {
   readonly note: (text: string) => void
   // Makes the panel's next render throw, as a broken view would: the app's crash screen.
   readonly crash: () => void
+  // Fails every pane view whose code loads lazily, as a chunk that couldn't be fetched: each
+  // says so in its pane, with a Retry.
+  readonly failViewLoads: () => void
 }
 
 export type DemoAction = {

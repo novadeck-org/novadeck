@@ -59,6 +59,11 @@ export const shellGroups = ({
           hint: "A view throws: the crash screen, with Reload",
           run: (context) => context.crash(),
         },
+        {
+          label: "Views fail to load",
+          hint: "Each Markdown, plan, data, folder, 3D model and PDF pane, open or opened next, says Couldn't load this view, with Retry, which loads it",
+          run: (context) => context.failViewLoads(),
+        },
       ],
     },
     {

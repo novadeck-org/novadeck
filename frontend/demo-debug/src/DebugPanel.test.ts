@@ -88,6 +88,7 @@ const mount = () => {
     createElement(Panel, {
       addTerminal: () => ({ projectId: "p", workspaceSessionId: "s", terminalId: "01" }),
       startFresh: () => {},
+      failViewLoads: () => {},
       selected: () => undefined,
       select: () => {},
     }),

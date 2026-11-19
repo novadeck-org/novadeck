@@ -724,7 +724,10 @@ App:
 - **Startup:** "Hold the splash" keeps it until you press Escape; "Slow attach" counts
   terminals attaching over about 3 s; "Welcome dialog" opens the first-run dialog for
   connecting agents again (no reboot); "App error" makes a view throw as it draws, for the
-  crash screen that stands in for the app, whose Reload boots the demo again.
+  crash screen that stands in for the app, whose Reload boots the demo again; "Views fail to
+  load" fails every pane view whose code loads lazily (Markdown, plan, data, folder, 3D model,
+  PDF), as a chunk that couldn't be fetched: each one open, or opened next, says "Couldn't load
+  this view" in its pane, with a Retry that loads it, and the rest of the app carries on.
 - **Agent Chat offer:** where the backend reads conversations (the showcase and agents demos). "Offer Agent Chat" turns Agent Chat off in the saved preferences, clears
   `novadeck.agent-chat-offer-answered` and boots the demo again, as for someone who updated past
   the welcome dialog: a card, Agent Chat, with Turn on and No thanks, rises over the footer's right

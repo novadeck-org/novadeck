@@ -2,10 +2,11 @@ import { notePattern, notesIn, type Item, type PlanUnwritableReason } from "@nov
 import type { WorkspaceTarget } from "@novadeck/core/types"
 import { outline } from "@novadeck/viewers/text"
 import { Diff } from "lucide-react"
-import { lazy, Suspense, useRef } from "react"
+import { useRef } from "react"
 
 import { CopyText, Unavailable } from "../../ArtifactViewer"
 import type { MarkdownEditorHandle } from "../../document/editor/MarkdownEditor"
+import { lazyView } from "../../lazy-view"
 import { PaneTools, usePaneNote } from "../../pane-row"
 import type { PlanActions, ItemStore } from "../../store/item-store"
 import { useContent, usePlan } from "../../store/use-item-store"
@@ -13,8 +14,9 @@ import { blockOf, currentMarks, unreadableNow, type PlanDoc } from "./plan-doc"
 
 // The editor loads when a plan first opens, so the workspace never pays for it: a
 // Markdown document's, with the plan's notes, which load with it.
-const PlanEditor = lazy(() =>
-  import("./plan-editor/PlanEditor").then((module) => ({ default: module.PlanEditor })),
+const PlanEditor = lazyView(
+  () => import("./plan-editor/PlanEditor").then((module) => module.PlanEditor),
+  null,
 )
 
 const plural = (count: number, word: string): string => `${count} ${word}${count === 1 ? "" : "s"}`
@@ -201,19 +203,17 @@ const PlanBody = ({
       <div className="pane-reader-body" data-outline={outline(plan.text).length > 0}>
         <PlanOutline plan={plan} jump={(at) => editor.current?.jumpTo(at)} />
         <div className="pane-document-scroll" data-changes={plan.showChanges}>
-          <Suspense fallback={null}>
-            <PlanEditor
-              id={item.id}
-              readOnly={readOnly}
-              text={plan.text}
-              marks={marks}
-              onChange={pane.edit}
-              onReady={(handle) => {
-                editor.current = handle
-              }}
-              onClose={pane.closeEditor}
-            />
-          </Suspense>
+          <PlanEditor
+            id={item.id}
+            readOnly={readOnly}
+            text={plan.text}
+            marks={marks}
+            onChange={pane.edit}
+            onReady={(handle) => {
+              editor.current = handle
+            }}
+            onClose={pane.closeEditor}
+          />
         </div>
       </div>
     </>

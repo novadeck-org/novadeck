@@ -214,6 +214,7 @@ const panel = (
     workspace: () => workspace.getSnapshot(),
     note: (text) => void notes.push(text),
     crash: () => {},
+    failViewLoads: () => {},
   }
   const read = vi.fn<NonNullable<Inbox["readFinishes"]>>()
   const states = createDemoStates(
@@ -720,6 +721,7 @@ describe("demo states", () => {
         workspace: () => only,
         note: (text) => void notes.push(text),
         crash: () => {},
+        failViewLoads: () => {},
         target: "project",
         harness: "claude",
       })
@@ -895,6 +897,7 @@ const openOver = (variant: "plain" | "agents" | "inbox", harness: AgentName = "c
     workspace: () => workspace.getSnapshot(),
     note: () => {},
     crash: () => {},
+    failViewLoads: () => {},
   }
   const states = createDemoStates(turns, () => inbox)
   const run = (label: string): void =>

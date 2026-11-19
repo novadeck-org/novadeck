@@ -3,6 +3,7 @@ import type { Backend, BackendSelection, CreateBackend, TerminalKey } from "@nov
 import { activeProject } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
 import type { WorksMade } from "@novadeck/core/works"
+import { failViewLoads } from "@novadeck/items/lazy-view"
 import {
   useCallback,
   useEffect,
@@ -64,6 +65,9 @@ export type WorkspacePanel = ComponentType<{
   readonly selected: () => TerminalKey | undefined
   // Brings a terminal of the session on screen into view selected, as its sidebar row does.
   readonly select: (key: TerminalKey) => void
+  // Fails every pane view whose code loads lazily, as if it couldn't be fetched: each says so
+  // in its pane, with a Retry.
+  readonly failViewLoads: () => void
 }>
 
 export type AppProps = (
@@ -142,6 +146,7 @@ const PanelSection = ({ panel }: Pick<AppProps, "panel">): React.JSX.Element | n
         return terminalId ? { ...currentTarget(snapshot), terminalId } : undefined
       }}
       select={({ terminalId }) => commands.select(terminalId)}
+      failViewLoads={failViewLoads}
     />
   )
 }

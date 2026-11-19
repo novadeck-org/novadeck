@@ -88,6 +88,11 @@
   max-width: 46ch;
   margin: 0;
 }
+/* A view whose code couldn't load fills its place, as in a document's scroll, which isn't a
+   flex box, so it centres there as it does in a viewer. */
+.artifact-unavailable[data-reason="load"] {
+  min-height: 100%;
+}
 .artifact-unavailable-actions {
   display: flex;
   flex-wrap: wrap;

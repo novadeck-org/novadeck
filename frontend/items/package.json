@@ -15,6 +15,7 @@
     "./critters": "./src/homes/terminal/messages/avatars/critters.ts",
     "./entry-thumbs": "./src/kinds/folder/entry-thumbs.ts",
     "./FilePreview": "./src/kinds/changes/preview/FilePreview.tsx",
+    "./lazy-view": "./src/lazy-view.tsx",
     "./drag-session": "./src/bar/drag-session.ts",
     "./messages": "./src/homes/terminal/messages/messages.ts",
     "./messages.css": "./src/messages.css",

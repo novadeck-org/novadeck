@@ -108,6 +108,7 @@ type DebugPanelProps = {
   readonly startFresh: () => void
   readonly selected: () => TerminalKey | undefined
   readonly select: (key: TerminalKey) => void
+  readonly failViewLoads: () => void
 }
 
 export type DebugPanel = ComponentType<DebugPanelProps>
@@ -133,6 +134,7 @@ export const createDebugPanel = ({
     startFresh,
     selected,
     select,
+    failViewLoads,
   }: DebugPanelProps): React.JSX.Element => {
     const [open, setOpen] = useState(false)
     const [terminals, setTerminals] = useState(shell.terminals)
@@ -183,6 +185,7 @@ export const createDebugPanel = ({
       workspace,
       note: setNote,
       crash: () => setCrashed(true),
+      failViewLoads,
     })
     const groups = [
       ...shellGroups({ launch, shell, states }),

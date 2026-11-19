@@ -33,6 +33,7 @@ const run = (inbox: ReturnType<typeof createDemoInbox>, label: string, notes: st
     workspace: () => undefined,
     note: (text) => notes.push(text),
     crash: () => {},
+    failViewLoads: () => {},
   }
   void group!.actions.find((action) => action.label === label)!.run(context)
 }
