@@ -2,6 +2,21 @@
 // `executeJavaScript`: reading where it's scrolled, scrolling it back, and bringing a show's
 // element into view.
 
+// Run in the page: what its `<meta name="viewport">` says, or null where it has none.
+export const viewportRead = `document.querySelector('meta[name="viewport" i]')?.getAttribute("content") ?? null`
+
+/**
+ * Whether what a page's viewport tag says (see `viewportRead`) lays it out a screen wide, as
+ * a phone does: `width=device-width`, among the tag's other settings. None, or a fixed width,
+ * lays it out wider (980 without one) and shrinks it to fit.
+ */
+export const isMobileViewport = (content: unknown): boolean =>
+  typeof content === "string" &&
+  content.split(/[,;]/).some((part) => {
+    const [name, value] = part.split("=").map((each) => each.trim().toLowerCase())
+    return name === "width" && value === "device-width"
+  })
+
 /** A page's scroll, as `[scrollX, scrollY]`. */
 export type Scrolled = readonly [number, number]
 

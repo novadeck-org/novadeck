@@ -172,6 +172,39 @@ describe("a page beside a terminal", () => {
       expect(size()).toBe("desktop")
     })
 
+    it("says in a notice that a page at a phone's size has no mobile viewport tag, until it has one", async () => {
+      const rendered = show({ kind: "page", url, shown: 1, live: true })
+      const page = pageOf(rendered.container)
+      let tag: string | null = null
+      Object.assign(page, {
+        executeJavaScript: async () => tag,
+        insertCSS: async () => "key",
+      })
+      const notice = () => rendered.container.querySelector(".pane-notice")?.textContent ?? ""
+      act(() => button(rendered.container, "Show at phone size")!.click())
+      const ready = async () => {
+        await act(async () => {
+          page.dispatchEvent(new Event("dom-ready"))
+          await Promise.resolve()
+        })
+      }
+      await ready()
+      await vi.waitFor(() =>
+        expect(notice()).toBe(
+          "This page has no mobile viewport tag: a phone would lay it out 980 wide and shrink it.",
+        ),
+      )
+      tag = "width=device-width, initial-scale=1"
+      await ready()
+      await vi.waitFor(() => expect(notice()).toBe(""))
+      // At a desktop's size, a page without the tag is as any other.
+      tag = null
+      await ready()
+      await vi.waitFor(() => expect(notice()).not.toBe(""))
+      act(() => button(rendered.container, "Back to desktop size")!.click())
+      expect(notice()).toBe("")
+    })
+
     it("goes quiet while it's kept out of sight", () => {
       const { container } = show({ kind: "page", url, shown: 1, live: true }, false)
       const page = pageOf(container)

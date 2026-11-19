@@ -1,12 +1,14 @@
 import { addressOf, webAddress } from "./browser/address.js"
 import { framingOf, onPhone, type Framing, type PageSize } from "./browser/framing.js"
 import {
+  isMobileViewport,
   isScrolled,
   restoreWaitMs,
   revealing,
   scrolling,
   scrollRead,
   scrollReadMs,
+  viewportRead,
   type Scrolled,
 } from "./browser/in-page.js"
 import { chromeMajorOf, phoneStyle, phoneUserAgent } from "./browser/phone.js"
@@ -116,6 +118,12 @@ export type BrowserOptions = {
   readonly size?: PageSize
   readonly on?: {
     readonly navigate?: (place: Place) => void
+    /**
+     * Whether a page shown at a phone's size has no mobile viewport tag (`<meta name=viewport
+     * content="width=device-width">`), as each of its documents is ready: it lays out a screen
+     * wide here, where a phone would lay it out wider and shrink it. False at a desktop's size.
+     */
+    readonly unmobile?: (unmobile: boolean) => void
     readonly load?: (load: Load) => void
     readonly title?: (title: string) => void
     /**
@@ -718,6 +726,29 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     if (dressed?.view !== view) dressed = { view, keys: [] }
     dressed.keys.push(key.catch(() => undefined))
   }
+  // Whether the page's document asks for a phone's viewport, read as it's ready at a phone's
+  // size; one read answering after a later one was asked for, or after the size changed, is
+  // of what's gone.
+  let unmobile = false
+  let viewportReads = 0
+  const sayUnmobile = (now: boolean): void => {
+    if (now === unmobile) return
+    unmobile = now
+    on?.unmobile?.(now)
+  }
+  const mobile = (): void => {
+    const view = page
+    const asked = ++viewportReads
+    if (!view || size !== "phone") return sayUnmobile(false)
+    const read = attached(() => view.executeJavaScript(viewportRead))
+    if (!read) return
+    void read
+      .then((tag) => {
+        if (asked === viewportReads && page === view && size === "phone")
+          sayUnmobile(!isMobileViewport(tag))
+      })
+      .catch(nothing)
+  }
   const undress = (): void => {
     const was = dressed
     dressed = undefined
@@ -964,6 +995,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     ["dom-ready", moved],
     ["dom-ready", painting],
     ["dom-ready", dress],
+    ["dom-ready", mobile],
     ["dom-ready", becomeSize],
     ["did-attach", zoom],
     ["did-navigate", zoom],
@@ -1270,6 +1302,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       frame()
       if (size === "phone") dress()
       else undress()
+      mobile()
       becomeSize()
       // Its picture, and one under way, are of the other size, as is where it was scrolled:
       // it rests as one of this once one is taken. Over a page that's there, or on its way

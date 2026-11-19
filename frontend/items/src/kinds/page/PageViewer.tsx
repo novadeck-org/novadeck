@@ -116,6 +116,8 @@ const ShownPage = ({
   const collect = useTroubles(trouble)
   const [place, setPlace] = useState<Place>({ url: page.url, back: false, forward: false })
   const [load, setLoad] = useState<Load>("loading")
+  // A phone-size page with no mobile viewport tag, which a phone would lay out wider.
+  const [unmobile, setUnmobile] = useState(false)
   // The menu the person asked for on the page, until it closes. It goes as the person goes
   // back to the page, which the app's page hears only as its window losing focus to the
   // page's view, as it does to another app, where a menu goes too.
@@ -155,6 +157,7 @@ const ShownPage = ({
     size,
     on: {
       navigate: setPlace,
+      unmobile: setUnmobile,
       load: setLoad,
       menu: setMenu,
       ...(page.live ? { trouble: collect } : {}),
@@ -253,6 +256,13 @@ const ShownPage = ({
           openTool(place.url),
         ]}
       />
+      {unmobile && (
+        <div className="pane-notice" data-tone="warning" role="status">
+          <p>
+            This page has no mobile viewport tag: a phone would lay it out 980 wide and shrink it.
+          </p>
+        </div>
+      )}
       <div className="artifact-page-frame">
         <div ref={ref} className="artifact-page-view" />
         {/* The menu's keys are its own: its Escape closes it, not the pane around it. */}

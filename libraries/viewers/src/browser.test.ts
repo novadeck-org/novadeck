@@ -835,6 +835,83 @@ describe("the browser viewer", () => {
       expect(getComputedStyle(page).transform).not.toBe("none")
     })
 
+    context("a phone's page with no mobile viewport tag", () => {
+      const mounted = (size: "desktop" | "phone", content: () => string | null) => {
+        const pane = paneIn()
+        const told: boolean[] = []
+        const viewer = mountBrowser(pane, {
+          content: { url: "http://localhost:5173/" },
+          label: "page",
+          live: true,
+          partition: "pages",
+          size,
+          on: { unmobile: (unmobile) => told.push(unmobile) },
+        })
+        const page = pageOf(pane)
+        Object.assign(page, {
+          executeJavaScript: async () => content(),
+          insertCSS: async () => "key",
+        })
+        return { page, viewer, told }
+      }
+
+      it("is told of at a phone's size, as each document is ready, and not of one that has it", async () => {
+        let tag: string | null = null
+        const { page, told } = mounted("phone", () => tag)
+        page.dispatchEvent(event("dom-ready"))
+        await expect.poll(() => told).toEqual([true])
+        // Another document, which has the tag: the notice goes.
+        tag = "width=device-width, initial-scale=1"
+        page.dispatchEvent(event("dom-ready"))
+        await expect.poll(() => told).toEqual([true, false])
+        // A fixed width isn't a phone's.
+        tag = "width=500"
+        page.dispatchEvent(event("dom-ready"))
+        await expect.poll(() => told).toEqual([true, false, true])
+      })
+
+      it("goes at a desktop's size, and isn't told of there", async () => {
+        const { page, viewer, told } = mounted("desktop", () => null)
+        page.dispatchEvent(event("dom-ready"))
+        viewer.size("phone")
+        await expect.poll(() => told).toEqual([true])
+        viewer.size("desktop")
+        expect(told).toEqual([true, false])
+        page.dispatchEvent(event("dom-ready"))
+        await new Promise((done) => setTimeout(done, 30))
+        expect(told).toEqual([true, false])
+      })
+
+      it("ignores a read that answers after a newer one", async () => {
+        const answers: ((content: string | null) => void)[] = []
+        const pane = paneIn()
+        const told: boolean[] = []
+        mountBrowser(pane, {
+          content: { url: "http://localhost:5173/" },
+          label: "page",
+          live: true,
+          partition: "pages",
+          size: "phone",
+          on: { unmobile: (unmobile) => told.push(unmobile) },
+        })
+        const page = pageOf(pane)
+        Object.assign(page, {
+          executeJavaScript: (code: string) =>
+            code.includes("viewport")
+              ? new Promise((done) => answers.push(done as (content: string | null) => void))
+              : Promise.resolve(undefined),
+          insertCSS: async () => "key",
+        })
+        page.dispatchEvent(event("dom-ready"))
+        page.dispatchEvent(event("dom-ready"))
+        expect(answers).toHaveLength(2)
+        answers[1]!("width=device-width")
+        answers[0]!(null)
+        await new Promise((done) => setTimeout(done, 30))
+        expect(told).toEqual([])
+      })
+    })
+
     it("hides a phone's page's own scrollbar in each document it loads, and only a phone's", async () => {
       const pane = paneIn()
       const viewer = live(pane)
