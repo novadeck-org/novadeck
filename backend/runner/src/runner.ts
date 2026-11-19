@@ -263,7 +263,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   const items = new CompanionItems({
     records: store,
     terminal: (terminalId) => terminals.place(terminalId),
-    harnessHomes: () => agents.homes(),
+    harnessBookkeeping: () => agents.bookkeeping(),
     terminals: (sessionId) =>
       terminals
         .list()

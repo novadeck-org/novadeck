@@ -404,14 +404,17 @@ export const createHarnesses = (
       return harnesses[agent].planFolders?.(where) ?? []
     },
     /**
-     * Every harness's own home (Claude Code's config folder, Codex's, Antigravity's), where it
-     * keeps its plans, memory and conversation files: places it writes for itself, not for
-     * the person.
+     * The folders every harness keeps for itself under its own home (its plans, memory,
+     * conversations, logs: see `Harness.bookkeeping`), as the runner's own environment moves
+     * them. What an agent writes there is no work the person asked for; the rest of a home
+     * (a skill, a settings file) is.
      */
-    homes: async (): Promise<readonly string[]> => {
+    bookkeeping: async (): Promise<readonly string[]> => {
       const installed = (await installs()) ?? (() => undefined)
       const fallback: Install = { env: latest ?? base, home, platform, plugin: "" }
-      return Object.values(harnesses).map((each) => each.home(installed(each.id) ?? fallback))
+      return Object.values(harnesses).flatMap(
+        (each) => each.bookkeeping?.(installed(each.id) ?? fallback) ?? [],
+      )
     },
     /** Whether Novadeck's plugin is installed into the agent. */
     connected: async (agent: AgentName): Promise<boolean> => {

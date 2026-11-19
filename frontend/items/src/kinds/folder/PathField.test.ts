@@ -349,7 +349,7 @@ describe("a folder's path field", () => {
       expect(app.options().map((each) => each.path)).not.toContain("/tmp/release-notes")
       const tab = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })
       act(() => void app.field()!.dispatchEvent(tab))
-      expect(tab.defaultPrevented).toBe(false)
+      expect(tab.defaultPrevented).toBe(true)
       await app.keydown({ key: "Enter" })
       expect(app.attached).toEqual(["/tmp/x"])
     })
@@ -403,14 +403,40 @@ describe("a folder's path field", () => {
       expect(app.attached).toEqual(["/tmp/release-notes", "~/.cache/probe"])
     })
 
-    it("leave Tab alone when there is no folder to complete", async () => {
+    it("keep Tab in the field when there is no folder to complete, so the text isn't lost", async () => {
       const app = await shown({ others })
       await app.open()
       await app.type("/tmp/re")
       const tab = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })
       act(() => void app.field()!.dispatchEvent(tab))
-      expect(tab.defaultPrevented).toBe(false)
+      expect(tab.defaultPrevented).toBe(true)
       expect(app.field()!.value).toBe("/tmp/re")
+      // Pressed before the runner could have answered the text just typed: the same.
+      const quick = await shown({ matches, others })
+      await quick.open()
+      await quick.typeNow("/tmp/zz")
+      const early = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })
+      act(() => void quick.field()!.dispatchEvent(early))
+      expect(early.defaultPrevented).toBe(true)
+      expect(quick.field()!.value).toBe("/tmp/zz")
+    })
+
+    it("lets Shift+Tab, and Tab in an empty field, go on as they do", async () => {
+      const app = await shown({ matches, others })
+      await app.open()
+      await app.type("/tmp/re")
+      const back = new KeyboardEvent("keydown", {
+        key: "Tab",
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      })
+      act(() => void app.field()!.dispatchEvent(back))
+      expect(back.defaultPrevented).toBe(false)
+      await app.type("")
+      const empty = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })
+      act(() => void app.field()!.dispatchEvent(empty))
+      expect(empty.defaultPrevented).toBe(false)
     })
 
     it("show no list at all, and say so, while nothing is near", async () => {

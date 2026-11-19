@@ -189,13 +189,21 @@ export const PathField = ({
           } else if ((event.key === "ArrowDown" || event.key === "ArrowUp") && plain) {
             event.preventDefault()
             if (flat.length > 0) move(event.key === "ArrowDown" ? 1 : -1)
-          } else if (event.key === "Tab" && plain) {
-            // The highlighted suggestion, else the first folder the text may be, completes into it;
-            // with none, Tab goes on as it does, which ends the field.
-            const chosen = active === -1 ? matches[0] && flat[0] : flat[active]
-            if (!chosen) return
+          } else if (
+            event.key === "Tab" &&
+            !event.shiftKey &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.altKey
+          ) {
+            // With text in the field, Tab never leaves it, which would end the field and lose the
+            // text: the highlighted suggestion, else the first folder the text may be, completes
+            // into it, and with none yet (the runner has not answered) nothing happens. Shift+Tab
+            // goes back as it does, ending the field; an empty field ends on either.
+            if (text.trim() === "") return
             event.preventDefault()
-            complete(chosen)
+            const chosen = active === -1 ? matches[0] && flat[0] : flat[active]
+            if (chosen) complete(chosen)
           } else if (event.key.toLowerCase() === "l" && (event.ctrlKey || event.metaKey)) {
             // The shortcut that opened the field, used again, selects the path.
             event.preventDefault()

@@ -12,6 +12,7 @@ import { folderSecrets } from "../companions/secrets.js"
 import { harnesses } from "../harnesses/registry.js"
 import type { Root } from "../harnesses/roots.js"
 import { it as base, describe, expect } from "../test.js"
+import { Reports } from "./binding/reports.js"
 import { Companion } from "./companion.js"
 import type { Record } from "./record.js"
 import { workAfter, type Work } from "./work.js"
@@ -56,8 +57,15 @@ const listed = async (
     project,
     cwd,
     at,
-    homes = [],
-  }: { project: string; cwd: string; at: number; homes?: readonly string[] },
+    bookkeeping = [],
+    transcript,
+  }: {
+    project: string
+    cwd: string
+    at: number
+    bookkeeping?: readonly string[]
+    transcript?: string
+  },
 ) => {
   // The facts as timed `at`, as a hook that started then would tell them.
   const timed = events.map((event) => ({ ...event, startedAt: at }))
@@ -77,10 +85,12 @@ const listed = async (
       handle: place.handle,
       agent: place.agent!,
       cwd: place.cwd,
+      // As the companions tell it: what the session's own home keeps, by its transcript.
+      own: transcript ? (harnesses[agent].bookkeepingOf?.(transcript) ?? []) : [],
     })),
     place.project,
     folderSecrets({}),
-    homes,
+    bookkeeping,
   )
 }
 
@@ -262,12 +272,11 @@ describe("a work kept before it listed the folders written in", () => {
 })
 
 describe("the folders each harness keeps for itself", () => {
-  // Where each harness puts what it writes for itself, under the home it keeps: Claude Code's
-  // plans and auto memory, Codex's session and memory files, Antigravity's conversation artifacts.
-  const insideHome: [AgentName, readonly string[]][] = [
-    ["claude", ["plans", join("projects", "p", "memory")]],
-    ["codex", ["memories", join("sessions", "2026")]],
-    ["agy", [join("brain", "c1")]],
+  // What each writes for itself under its home, and a file there it writes for the person.
+  const kept: [AgentName, readonly string[], string][] = [
+    ["claude", ["plans", join("projects", "p", "memory"), join("projects", "p")], "skills"],
+    ["codex", ["memories", join("sessions", "2026"), "log"], "prompts"],
+    ["agy", [join("brain", "c1")], "skills"],
   ]
 
   const writing = (agent: AgentName, file: string): readonly HarnessEvent[] =>
@@ -289,60 +298,174 @@ describe("the folders each harness keeps for itself", () => {
             toolCall: { name: "write_to_file", args: { TargetFile: file } },
           })
 
-  for (const [agent, folders] of insideHome)
-    it(`leaves out what ${agent} writes in its own home, and lists a folder outside it`, async ({
+  const installFor = (directory: string, env: NodeJS.ProcessEnv = {}) => ({
+    env,
+    home: join(directory, "person"),
+    platform: process.platform,
+    plugin: "",
+  })
+
+  for (const [agent, bookkept, other] of kept)
+    it(`leaves out what ${agent} writes for itself, and lists the rest of its home`, async ({
       directory,
     }) => {
       const project = join(directory, "project")
-      const outside = join(directory, "outside")
       mkdirSync(project)
-      mkdirSync(outside)
-      // The home as the harness itself says where it is: moved by its variable, or under the person's.
-      const home = harnesses[agent].home({
-        env: {},
-        home: join(directory, "person"),
-        platform: process.platform,
-        plugin: "",
-      })
-      for (const folder of folders) {
+      const install = installFor(directory)
+      const home = harnesses[agent].home(install)
+      const bookkeeping = harnesses[agent].bookkeeping!(install)
+      const at = { project, cwd: project, at: 5, bookkeeping }
+      for (const folder of bookkept) {
         const where = join(home, folder)
         mkdirSync(where, { recursive: true })
         const events = writing(agent, join(where, "file.md"))
-        // Without the homes it is listed, which is what the exclusion is for.
+        // Without the exclusion it is listed, which is what it is for.
         expect(
           // eslint-disable-next-line no-await-in-loop -- One folder after another.
-          await listed(agent, "s", events, { project, cwd: project, at: 5 }),
+          await listed(agent, "s", events, { ...at, bookkeeping: [] }),
           folder,
         ).toHaveLength(1)
-        expect(
-          // eslint-disable-next-line no-await-in-loop -- One folder after another.
-          await listed(agent, "s", events, { project, cwd: project, at: 5, homes: [home] }),
-          folder,
-        ).toEqual([])
+        // eslint-disable-next-line no-await-in-loop -- One folder after another.
+        expect(await listed(agent, "s", events, at), folder).toEqual([])
       }
-      const events = writing(agent, join(outside, "x.md"))
-      expect(
-        await listed(agent, "s", events, { project, cwd: project, at: 5, homes: [home] }),
-      ).toHaveLength(1)
+      // A skill, a prompt or a setting is work the person asked for.
+      const elsewhere = join(home, other)
+      mkdirSync(elsewhere, { recursive: true })
+      expect(await listed(agent, "s", writing(agent, join(elsewhere, "a.md")), at)).toHaveLength(1)
+      const outside = join(directory, "outside")
+      mkdirSync(outside)
+      expect(await listed(agent, "s", writing(agent, join(outside, "x.md")), at)).toHaveLength(1)
     })
 
-  it("takes every harness's home from the runner's own knowledge of them", () => {
-    const homes = Object.values(harnesses).map((each) =>
-      each.home({
-        env: { CLAUDE_CONFIG_DIR: "/moved/claude", CODEX_HOME: "/moved/codex" },
-        home: "/h",
-        platform: "linux",
-        plugin: "",
-      }),
+  it("leaves out a session's own moved home, which its transcript tells", async ({ directory }) => {
+    const project = join(directory, "project")
+    mkdirSync(project)
+    // A second account's home, which no variable of the runner names.
+    const moved = join(directory, "second-account")
+    const plans = join(moved, "plans")
+    mkdirSync(plans, { recursive: true })
+    const transcript = join(moved, "projects", "p", "s.jsonl")
+    const events = writing("claude", join(plans, "plan.md"))
+    const global = harnesses.claude.bookkeeping!(installFor(directory))
+    const without = await listed("claude", "s", events, {
+      project,
+      cwd: project,
+      at: 5,
+      bookkeeping: global,
+    })
+    expect(without).toHaveLength(1)
+    const withHome = await listed("claude", "s", events, {
+      project,
+      cwd: project,
+      at: 5,
+      bookkeeping: global,
+      transcript,
+    })
+    expect(withHome).toEqual([])
+    // The same through the variable that moves the runner's own.
+    expect(
+      harnesses.claude.bookkeeping!(installFor(directory, { CLAUDE_CONFIG_DIR: moved })),
+    ).toContain(plans)
+  })
+
+  it("names its folders from where each harness's transcript sits", () => {
+    expect(harnesses.claude.bookkeepingOf!("/a/.claude-2/projects/p/s.jsonl")).toContain(
+      join("/a/.claude-2", "plans"),
     )
-    expect(homes).toContain("/moved/claude")
-    expect(homes).toContain("/moved/codex")
-    expect(homes.some((home) => home.startsWith(join("/h", ".gemini")))).toBe(true)
+    expect(
+      harnesses.codex.bookkeepingOf!("/a/.codex-2/sessions/2026/11/rollout-1.jsonl"),
+    ).toContain(join("/a/.codex-2", "memories"))
+    expect(harnesses.agy.bookkeepingOf!("/a/.gemini/antigravity-cli/brain/c1/log.txt")).toEqual([
+      join("/a/.gemini/antigravity-cli", "brain"),
+    ])
+    expect(harnesses.claude.bookkeepingOf!("/elsewhere/s.jsonl")).toEqual([])
+  })
+
+  it("takes a harness's folders from the home its variable moves", () => {
+    const moved = { CLAUDE_CONFIG_DIR: "/moved/claude", CODEX_HOME: "/moved/codex" }
+    const install = { env: moved, home: "/h", platform: "linux" as const, plugin: "" }
+    expect(harnesses.claude.bookkeeping!(install)).toContain(join("/moved/claude", "plans"))
+    expect(harnesses.codex.bookkeeping!(install)).toContain(join("/moved/codex", "sessions"))
+    expect(harnesses.agy.bookkeeping!(install)).toEqual([
+      join("/h", ".gemini", "antigravity-cli", "brain"),
+    ])
+  })
+
+  it("compares a folder through a linked home, as a stow-linked config folder is", async ({
+    directory,
+  }) => {
+    const project = join(directory, "project")
+    mkdirSync(project)
+    const real = join(directory, "dotfiles", "claude")
+    mkdirSync(join(real, "plans"), { recursive: true })
+    const home = join(directory, "linked")
+    try {
+      symlinkSync(real, home, "dir")
+    } catch {
+      return
+    }
+    // The agent wrote through the real path; the runner's home names the link.
+    const events = writing("claude", join(real, "plans", "p.md"))
+    expect(
+      await listed("claude", "s", events, {
+        project,
+        cwd: project,
+        at: 5,
+        bookkeeping: [join(home, "plans")],
+      }),
+    ).toEqual([])
+  })
+})
+
+describe("when a write was told", () => {
+  it("is the rollout line's own time for Codex, and the hook's start for Antigravity", async ({
+    directory,
+  }) => {
+    const project = join(directory, "project")
+    const outside = join(directory, "outside")
+    mkdirSync(project)
+    mkdirSync(outside)
+    const line = rolloutEvents(
+      JSON.stringify({
+        timestamp: new Date(12_345).toISOString(),
+        type: "event_msg",
+        payload: {
+          type: "item_completed",
+          turn_id: "t1",
+          item: {
+            type: "FileChange",
+            status: "completed",
+            changes: { [join(outside, "b.ts")]: { type: "add" } },
+          },
+        },
+      }),
+      { sessionId: "s", instance: "7" },
+    )
+    // Told long after, as a backlog is after a restart: the stamp is the line's.
+    const codex = workAfter(null, rootOf("codex", "s"), line, 9_999_999, [], [project])
+    expect(codex?.wrote).toEqual([{ folder: outside, at: 12_345 }])
+    const events = hook("agy", "PostToolUse", {
+      conversationId: "c",
+      toolCall: { name: "write_to_file", args: { TargetFile: join(outside, "c.md") } },
+    }).map((event) => ({ ...event, startedAt: 777 }))
+    const agy = workAfter(null, rootOf("agy", "c"), events, 9_999_999, [], [project])
+    expect(agy?.wrote).toEqual([{ folder: outside, at: 777 }])
   })
 })
 
 describe("the folders a terminal and its project work in", () => {
-  it("are told as written and as they resolve through a link", ({ directory }) => {
+  const companionFor = (project: string) =>
+    new Companion(undefined, {
+      records: () => new Map(),
+      saved: () => undefined,
+      projectFolder: () => project,
+      peers: () => undefined as never,
+      stopping: () => false,
+    })
+
+  it("are told as written, and as they resolve through a link once that is known", async ({
+    directory,
+  }) => {
     const real = join(directory, "real")
     const project = join(directory, "project")
     mkdirSync(real)
@@ -350,13 +473,41 @@ describe("the folders a terminal and its project work in", () => {
     const link = join(directory, "link")
     symlinkSync(real, link, "dir")
     const record = { summary: { sessionId: "workspace", handle: "moth", cwd: link } } as Record
-    const companion = new Companion(undefined, {
-      records: () => new Map(),
-      saved: () => undefined,
-      projectFolder: () => project,
-      peers: () => undefined as never,
-      stopping: () => false,
-    })
+    const companion = companionFor(project)
+    // The first ask never waits on the file system: the folders as written.
+    expect(companion.ownFolders(record)).toEqual([link, project])
+    await new Promise((resolve) => setTimeout(resolve, 50))
     expect(companion.ownFolders(record)).toEqual([link, real, project])
+  })
+
+  it("drop a write in the project when recorded, through the report's own call", async ({
+    directory,
+  }) => {
+    const project = join(directory, "project")
+    const outside = join(directory, "outside")
+    const cwd = join(directory, "cwd")
+    mkdirSync(join(project, "src"), { recursive: true })
+    mkdirSync(outside)
+    mkdirSync(cwd)
+    const record = { summary: { sessionId: "workspace", handle: "moth", cwd } } as Record
+    const companion = companionFor(project)
+    const events = [
+      ...hook("claude", "PostToolUse", {
+        session_id: "s",
+        tool_name: "Write",
+        tool_input: { file_path: join(project, "src", "a.ts") },
+      }),
+      ...hook("claude", "PostToolUse", {
+        session_id: "s",
+        tool_name: "Write",
+        tool_input: { file_path: join(outside, "b.ts") },
+      }),
+    ]
+    // As `Reports.tallyWork` asks, with the terminal's cwd outside the project.
+    const reports = new Reports({ companion: () => companion, records: () => new Map() } as never)
+    const root = rootOf("claude", "s")
+    record.root = root
+    expect(reports.tallyWork(record, events, [])).toBe(true)
+    expect(record.work?.wrote).toEqual([{ folder: outside, at: events[1]!.startedAt }])
   })
 })

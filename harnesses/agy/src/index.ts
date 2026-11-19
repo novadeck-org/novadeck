@@ -152,6 +152,9 @@ export const agy = {
   // The folders of its conversations, where it writes the plans it asks to be reviewed.
   planFolders: (install) => [join(antigravityHome(install), "brain")],
   planFoldersOf: (transcript) => beside(transcript, "brain", "brain"),
+  // The folders of its conversations, where it keeps their artifacts.
+  bookkeeping: (install) => [join(antigravityHome(install), "brain")],
+  bookkeepingOf: (transcript) => beside(transcript, "brain", "brain"),
   connected,
   installed,
   connect,

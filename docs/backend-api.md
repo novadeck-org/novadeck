@@ -1847,9 +1847,12 @@ one from an earlier runner.
     is not named. Each time is the fact's own (the hook's start, or the rollout line's stamp), so a
     backlog told again after a restart is no newer. Never named: a folder in the session's
     project or in the folder its terminal works in (as written and as they resolve through
-    links, also left out when kept), one in a harness's own home (Claude Code's config folder,
-    Codex's, Antigravity's, as each says where it is: their plans, memory and conversation
-    files), one that may hold secrets, one that is gone. `path` leads with `~` for a folder in
+    links, also left out when kept), one a harness keeps for itself (each harness's `bookkeeping`: Claude Code's `plans`,
+    `projects` with its transcripts and memory, `todos` and the like under its config folder;
+    Codex's `sessions`, `memories` and `log`; Antigravity's `brain`), under the home the runner's
+    environment names and under the home the writing session's own transcript names, as a second
+    account's, each compared as written and through links. The rest of a home (a skill, a
+    `CLAUDE.md`, a setting) is work the person asked for and is named, one that may hold secrets, one that is gone. `path` leads with `~` for a folder in
     the person's home. `TERMINAL_NOT_FOUND` for a terminal not kept.
   - `companions.openInProject({ sessionId, path, windowId })` opens a file the person
     picked in the session's project window, by a path absolute or from the project's

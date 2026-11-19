@@ -1,3 +1,5 @@
+import { join } from "node:path"
+
 import { hookTranscript, withLaunch } from "@novadeck/harness-core/decode"
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
 import {
@@ -6,6 +8,7 @@ import {
   resumeFlags,
   type KeptFlags,
 } from "@novadeck/harness-core/kept-flags"
+import { beside } from "@novadeck/harness-core/paths"
 
 import { bannerMarker, bannerVersion } from "./banner.js"
 import { box, slice } from "./box.js"
@@ -181,6 +184,9 @@ const launch: LaunchProfile = {
   ],
 }
 
+// The folders of its home it writes for itself.
+const bookkeepingNames = ["sessions", "archived_sessions", "memories", "log"]
+
 export const codex = {
   id: "codex",
   plugin: "codex",
@@ -189,6 +195,10 @@ export const codex = {
   conversation,
   conversations,
   home: codexHome,
+  // Its sessions' rollouts, its memories and its logs.
+  bookkeeping: (install) => bookkeepingNames.map((name) => join(codexHome(install), name)),
+  bookkeepingOf: (transcript) =>
+    bookkeepingNames.flatMap((name) => beside(transcript, "sessions", name)),
   connected,
   connect,
   disconnect,

@@ -763,8 +763,8 @@ export const contract = {
     // The folders outside the project that the agents of a terminal's session wrote a file in,
     // as their harnesses' tool calls told (a command's output is told by none): the latest
     // first, once each, at most `maxWroteFolders`. Never a folder inside the session's project
-    // or under the terminal that wrote it, one in a harness's own home, one that may hold secrets,
-    // or one that is gone.
+    // or under the terminal that wrote it, one a harness keeps for itself (its plans, memory, conversations
+    // and logs, not the rest of its home), one that may hold secrets, or one that is gone.
     // Kept with the terminals, so it outlives a restart. A terminal the runner keeps nothing of
     // is TERMINAL_NOT_FOUND.
     wroteTo: procedure

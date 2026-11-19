@@ -60,14 +60,15 @@ type Fixture = {
     place: TerminalPlace,
     agent: AgentName,
     folders: readonly { folder: string; at: number }[],
+    transcript?: string,
   ) => TerminalPlace
   /** Closes a terminal as the terminals do: its items first, then its record. */
   close: (terminalId: string) => void
   items: CompanionItems
   /** What a text plan's live terminal has, as `livePlan` reads it. */
   live: Map<string, PlanText>
-  /** The harnesses' homes, as `harnessHomes` tells them. */
-  homes: string[]
+  /** The folders the harnesses keep for themselves, as `harnessBookkeeping` tells them. */
+  bookkeeping: string[]
   /** The person's environment, as `environment` reads it: none of the machine's own. */
   environment: NodeJS.ProcessEnv
   /** How long a folder waits for a change its watch may not tell, which a test may shorten. */
@@ -95,7 +96,7 @@ const it = base.extend<{ fixture: Fixture }>({
     // that wants a poll to deliver shortens the one it means.
     const polls = { safety: 600_000, unwatched: 600_000 }
     const asked = { environment: 0 }
-    const homes: string[] = []
+    const bookkeeping: string[] = []
     const steps: Fixture["steps"] = {}
     const marks = new Map<string, Map<string, string>>()
     const items = new CompanionItems({
@@ -108,7 +109,7 @@ const it = base.extend<{ fixture: Fixture }>({
       },
       records: store,
       terminal: (terminalId) => places.get(terminalId),
-      harnessHomes: async () => homes,
+      harnessBookkeeping: async () => bookkeeping,
       terminals: (sessionId) => [...places.values()].filter((each) => each.sessionId === sessionId),
       project: (sessionId) => (sessionId === session.id ? directory : undefined),
       livePlan: (item) => live.get(item.id),
@@ -156,8 +157,8 @@ const it = base.extend<{ fixture: Fixture }>({
       places.set(place.terminalId, moved)
       return moved
     }
-    const wrote: Fixture["wrote"] = (place, agent, folders) => {
-      const moved = { ...place, agent, wrote: folders }
+    const wrote: Fixture["wrote"] = (place, agent, folders, transcript) => {
+      const moved = { ...place, agent, wrote: folders, ...(transcript && { transcript }) }
       places.set(place.terminalId, moved)
       return moved
     }
@@ -172,7 +173,7 @@ const it = base.extend<{ fixture: Fixture }>({
       items,
       live,
       environment,
-      homes,
+      bookkeeping,
       polls,
       asked,
       steps,
@@ -684,12 +685,34 @@ describe("what the person types in a folder's path field", () => {
       { path: a, handle: "moth", agent: "claude", at: 10 },
     ])
     // What a harness keeps in its own home is not the agent's work for the person.
-    fixture.homes.push(b!)
+    fixture.bookkeeping.push(b!)
     const without = await fixture.items.wroteTo({ terminalId: moth.terminalId })
     expect(without.map(({ path }) => path)).toEqual([c, a])
     await expect(fixture.items.wroteTo({ terminalId: randomUUID() })).rejects.toMatchObject({
       code: "TERMINAL_NOT_FOUND",
     })
+  })
+
+  it("leaves out what a session's own home keeps, by its transcript, though no global folder names it", async ({
+    fixture,
+    resources,
+  }) => {
+    const moved = away(resources, "second-account")
+    const plans = join(moved, "plans")
+    const skills = join(moved, "skills")
+    mkdirSync(plans, { recursive: true })
+    mkdirSync(skills)
+    const moth = fixture.wrote(
+      fixture.terminal("moth"),
+      "claude",
+      [
+        { folder: plans, at: 9 },
+        { folder: skills, at: 8 },
+      ],
+      join(moved, "projects", "p", "s.jsonl"),
+    )
+    const found = await fixture.items.wroteTo({ terminalId: moth.terminalId })
+    expect(found.map(({ path }) => path)).toEqual([skills])
   })
 })
 

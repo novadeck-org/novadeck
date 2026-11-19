@@ -128,6 +128,30 @@ export const matchFolders = async (
   return found.map((match, at) => ({ ...match, count: counts[at]! }))
 }
 
+// What a path resolves to through links, asked once for a while, so a slow mount is asked about
+// once and not for every list; a path that can't be resolved stands as written.
+const resolvedFor = 60_000
+const resolvedCap = 200
+const resolved = new Map<string, { readonly at: number; readonly real: Promise<string> }>()
+const resolvedOnce = (path: string, now = Date.now()): Promise<string> => {
+  const known = resolved.get(path)
+  if (known && now - known.at < resolvedFor) return known.real
+  if (resolved.size >= resolvedCap) resolved.clear()
+  const real = realpath(path).catch(() => path)
+  resolved.set(path, { at: now, real })
+  return real
+}
+
+// Each of the folders as written and as it resolves, once each.
+const tops = async (folders: readonly (string | undefined)[]): Promise<string[]> =>
+  (
+    await Promise.all(
+      folders.flatMap((folder) =>
+        folder === undefined ? [] : [Promise.resolve(folder), resolvedOnce(folder)],
+      ),
+    )
+  ).filter((folder, at, all) => all.indexOf(folder) === at)
+
 /** A session's write in a folder, as a terminal's place tells it. */
 export type Wrote = {
   readonly folder: string
@@ -136,22 +160,25 @@ export type Wrote = {
   readonly agent: AgentName
   /** The folder the terminal that wrote it works in. */
   readonly cwd: string
+  /** The folders its agent's harness keeps for itself under the home its session runs in. */
+  readonly own?: readonly string[]
 }
 
 /**
  * The folders outside the project the session's agents wrote in (see `companions.wroteTo`):
  * the latest first, once each, at most `maxWroteFolders`. A folder in the project or in the
- * folder its terminal works in, one in a harness's own home (`homes`: where it keeps its plans,
- * memory and conversation files), one that may hold secrets and one that is gone are left out.
+ * folder its terminal works in, one a harness keeps for itself (`bookkeeping`, and the writer's
+ * own `own`: its plans, memory and conversations), one that may hold secrets and one that is
+ * gone are left out. Each of those folders is compared as written and as it resolves through links.
  */
 export const wroteFolders = async (
   wrote: readonly Wrote[],
   project: string | undefined,
   secret: (path: string) => boolean,
-  homes: readonly string[] = [],
+  bookkeeping: readonly string[] = [],
 ): Promise<WroteFolder[]> => {
-  const realProject =
-    project === undefined ? undefined : await realpath(project).catch(() => project)
+  const inProject = await tops([project])
+  const kept = await tops(bookkeeping)
   const seen = new Set<string>()
   const found: WroteFolder[] = []
   for (const each of wrote.toSorted((a, b) => b.at - a.at)) {
@@ -161,13 +188,11 @@ export const wroteFolders = async (
     const real = await realFolder(each.folder)
     if (real === undefined || seen.has(real) || secret(real) || secret(each.folder)) continue
     seen.add(real)
-    const inside = (folder: string) =>
-      [project, realProject].some((top) => top !== undefined && lies(folder, top))
-    if (inside(each.folder) || inside(real)) continue
-    if (homes.some((home) => lies(each.folder, home) || lies(real, home))) continue
+    const under = (folders: readonly string[]) =>
+      folders.some((top) => lies(each.folder, top) || lies(real, top))
+    if (under(inProject) || under(kept)) continue
     // eslint-disable-next-line no-await-in-loop -- As the folder above.
-    const own = await realpath(each.cwd).catch(() => each.cwd)
-    if (lies(each.folder, each.cwd) || lies(real, own)) continue
+    if (under(await tops([each.cwd, ...(each.own ?? [])]))) continue
     found.push({
       path: abbreviateHome(each.folder),
       handle: each.handle,

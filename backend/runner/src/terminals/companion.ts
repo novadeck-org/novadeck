@@ -1,4 +1,4 @@
-import { realpathSync } from "node:fs"
+import { realpath } from "node:fs/promises"
 
 import type { ActivityEvent } from "@novadeck/harness-core/events"
 import {
@@ -210,8 +210,10 @@ export class Companion {
   }
 
   /**
-   * The folders a terminal and its project work in, as written and as they resolve through
-   * links: what its agents' writes are not listed apart from (see `wroteIn`).
+   * The folders a terminal and its project work in, as written and, once known, as they resolve
+   * through links: what its agents' writes are not listed apart from (see `wroteIn`). A folder
+   * is resolved off this call, once, so a slow mount never holds a report up; until it is
+   * known the folder stands as written (the list's read applies the links too).
    */
   ownFolders(record: Record): readonly string[] {
     const found = [record.summary.cwd, this.host.projectFolder(record.summary.sessionId)]
@@ -219,15 +221,24 @@ export class Companion {
       ...new Set(
         found.flatMap((folder) => {
           if (folder === undefined) return []
-          try {
-            return [folder, realpathSync(folder)]
-          } catch {
-            return [folder]
+          const real = this.resolved.get(folder)
+          if (real === undefined && !this.resolved.has(folder)) {
+            if (this.resolved.size >= 200) this.resolved.clear()
+            // Asked for once; a failure leaves the folder as it was written.
+            this.resolved.set(folder, undefined)
+            void realpath(folder).then(
+              (path) => this.resolved.set(folder, path),
+              () => {},
+            )
           }
+          return real === undefined ? [folder] : [folder, real]
         }),
       ),
     ]
   }
+
+  /** What each folder resolved to, by the folder as written; undefined while it is being asked. */
+  private readonly resolved = new Map<string, string | undefined>()
 
   /**
    * Where a terminal kept by the runner is, running or saved, as items shown in it or

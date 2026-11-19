@@ -32,6 +32,7 @@ import { waitAfter } from "../checkouts/git.js"
 import { mainBranch } from "../checkouts/repository.js"
 import { Snapshots } from "../checkouts/snapshots.js"
 import { DomainError } from "../errors.js"
+import { harnesses } from "../harnesses/registry.js"
 import { logs } from "../log.js"
 import { agentLabel } from "../messaging/messages.js"
 import { mention } from "../terminals/handles.js"
@@ -111,8 +112,8 @@ type CompanionOptions = {
   readonly records: ItemRecords
   /** A terminal the runner keeps, running or saved; undefined once it is closed. */
   readonly terminal: (terminalId: string) => TerminalPlace | undefined
-  /** Every harness's own home, which its agents' writes there are not listed from. */
-  readonly harnessHomes?: () => Promise<readonly string[]>
+  /** The folders every harness keeps for itself, which its agents' writes there are not listed from. */
+  readonly harnessBookkeeping?: () => Promise<readonly string[]>
   /** The terminals the runner keeps in a session, as `terminal` tells them. */
   readonly terminals?: (sessionId: string) => readonly TerminalPlace[]
   /** The folder of a session's project, which the person's project window opens files from; undefined for an unknown session. */
@@ -580,14 +581,18 @@ export class CompanionItems {
   async wroteTo(input: { readonly terminalId: string }): Promise<WroteFolder[]> {
     const place = this.place(input.terminalId)
     const wrote = (this.options.terminals?.(place.sessionId) ?? []).flatMap(
-      ({ wrote: folders = [], agent, handle, cwd }) =>
-        agent === undefined ? [] : folders.map((each) => ({ ...each, handle, agent, cwd })),
+      ({ wrote: folders = [], agent, handle, cwd, transcript }) => {
+        if (agent === undefined) return []
+        // The folders its session's own home keeps, which a home moved for it alone names.
+        const own = transcript ? (harnesses[agent].bookkeepingOf?.(transcript) ?? []) : []
+        return folders.map((each) => ({ ...each, handle, agent, cwd, own }))
+      },
     )
     return wroteFolders(
       wrote,
       place.project,
       folderSecrets(this.environment()),
-      (await this.options.harnessHomes?.()) ?? [],
+      (await this.options.harnessBookkeeping?.()) ?? [],
     )
   }
 
