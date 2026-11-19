@@ -12,15 +12,27 @@ export type FileView = "preview" | "source"
 
 const chosen = createKept<{ readonly path: string; readonly view: FileView }>(64)
 
-// The items asked to open on their source (`openOnSource`) that no viewer has taken up yet, and the
-// viewers showing now, which are told when one is asked for.
+// The items asked to open on their source (`openOnSource`) that no viewer has taken up yet, and
+// the viewers showing now, which are told when one is asked for. An ask lapses after a while: an
+// item that opens as unavailable (too large, binary) or on a file with no preview never takes it
+// up, and must not be switched to source by it later, unasked.
 const asked = createKept<boolean>(64)
+const lapses = new Map<ItemId, ReturnType<typeof setTimeout>>()
 const listeners = new Set<() => void>()
+const askedFor = 15_000
 
 // Has item `id` show its file's source, as if the person had switched to it: for the file it shows
 // now or, if it isn't shown yet, the one it opens on. It is the person's choice from then on.
 export const openOnSource = (id: ItemId): void => {
   asked.keep(id, true)
+  clearTimeout(lapses.get(id))
+  lapses.set(
+    id,
+    setTimeout(() => {
+      lapses.delete(id)
+      asked.keep(id, false)
+    }, askedFor),
+  )
   for (const listener of listeners) listener()
 }
 

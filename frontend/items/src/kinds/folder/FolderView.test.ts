@@ -6,6 +6,7 @@ import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, beforeAll, vi } from "vitest"
 
+import { coverKey } from "../../homes/terminal/cover-keys"
 import { ItemCommandsContext } from "../../item-commands"
 import { createItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
@@ -848,6 +849,162 @@ describe("a file's menu and quick look", () => {
       const app = await looking()
       await app.list(listing(files.filter((each) => each.name !== "shot.png")))
       expect(dialog(app.root)).toBeNull()
+    })
+  })
+
+  context("on a pane that covers its terminal", () => {
+    // What the pane's capture listener (cover-keys.ts) does with a key, as TerminalCompanion mounts it.
+    const covered = (app: Awaited<ReturnType<typeof shown>>) => {
+      const uncovered: string[] = []
+      const typed: string[] = []
+      const listener = (event: KeyboardEvent) =>
+        coverKey(event, {
+          covering: () => true,
+          terminal: document.createElement("div"),
+          pane: app.root,
+          uncover: () => void uncovered.push(event.key),
+          type: (typing) => void typed.push(typing.key),
+        })
+      document.addEventListener("keydown", listener, true)
+      unmounts.push(() => document.removeEventListener("keydown", listener, true))
+      return { uncovered, typed }
+    }
+
+    it("keeps Space, the arrows and Backspace for the folder, from its body, a row and the look", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      const cover = covered(app)
+      await app.click(app.root.querySelector('button[aria-label="Show as a list"]')!)
+      await app.click(app.tile("shot.png"))
+      await key(app.tile("shot.png"), " ")
+      expect(dialog(app.root)).not.toBeNull()
+      await key(dialog(app.root)!, "ArrowRight")
+      await key(dialog(app.root)!, " ")
+      await key(app.root.querySelector(".folder-viewer")!, " ")
+      expect(dialog(app.root)).not.toBeNull()
+      await key(app.root.querySelector(".folder-viewer")!, "Backspace")
+      expect(cover).toEqual({ uncovered: [], typed: [] })
+    })
+
+    it("lets Escape through to the pane when nothing is being looked at, and keeps it for the look", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      const cover = covered(app)
+      await app.click(app.tile("shot.png"))
+      await key(app.tile("shot.png"), " ")
+      await key(dialog(app.root)!, "Escape")
+      expect(dialog(app.root)).toBeNull()
+      expect(app.heard).toEqual([" "])
+      // With no look, it goes up to the pane (whose own handler hides it).
+      await key(app.tile("shot.png"), "Escape")
+      expect(app.heard).toEqual([" ", "Escape"])
+      expect(cover.typed).toEqual([])
+    })
+  })
+
+  context("keys on the focused entry and the body", () => {
+    it("looks at the focused entry on one Space, not the selected one", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      await app.click(app.tile("shot.png"))
+      await key(app.tile("song.mp3"), " ")
+      expect(dialog(app.root)?.getAttribute("aria-label")).toBe("Quick look at song.mp3")
+      expect(app.tile("song.mp3").hasAttribute("data-selected")).toBe(true)
+    })
+
+    it("looks at the selected one from the body, and at none when none is selected", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      const viewer = app.root.querySelector(".folder-viewer")!
+      await key(viewer, " ")
+      expect(dialog(app.root)).toBeNull()
+      await app.click(app.tile("notes.md"))
+      await key(viewer, " ")
+      expect(dialog(app.root)?.getAttribute("aria-label")).toBe("Quick look at notes.md")
+    })
+
+    it("opens its menu from the body on the selected entry, and from an entry on that one", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      const viewer = app.root.querySelector(".folder-viewer")!
+      await app.click(app.tile("notes.md"))
+      await menuOn(viewer)
+      expect(itemTexts()).toContain("Open as textAlt+double-click")
+      await key(document.activeElement!, "Escape")
+      await frames()
+      await menuOn(app.tile("shot.png"))
+      expect(itemTexts()).toEqual(["OpenDouble-click", "Quick lookSpace", "Copy path"])
+    })
+
+    it("opens the folder's own menu from the body with nothing selected", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      await menuOn(app.root.querySelector(".folder-viewer")!)
+      expect(itemTexts()).toEqual(["Copy path"])
+    })
+
+    it("acts once on a Space or Enter held down", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      await key(app.tile("shot.png"), " ")
+      await key(dialog(app.root)!, " ", { repeat: true })
+      expect(dialog(app.root)).not.toBeNull()
+      await key(dialog(app.root)!, "Enter", { repeat: true })
+      expect(app.attached).toEqual([])
+      await key(dialog(app.root)!, "ArrowRight", { repeat: true })
+      expect(dialog(app.root)?.getAttribute("aria-label")).toBe("Quick look at song.mp3")
+      await key(app.tile("shot.png"), "Enter", { repeat: true })
+      expect(app.attached).toEqual([])
+    })
+  })
+
+  context("the look ending", () => {
+    it("holds Tab in the dialog, which is modal", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      await key(app.tile("shot.png"), " ")
+      expect(dialog(app.root)?.getAttribute("aria-modal")).toBe("true")
+      const tab = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })
+      act(() => void dialog(app.root)!.dispatchEvent(tab))
+      expect(tab.defaultPrevented).toBe(true)
+      expect(dialog(app.root)).not.toBeNull()
+    })
+
+    it("holds Backspace and Alt+Up, which would go up behind it", async () => {
+      const app = await shown({ listings: inFolder })
+      await app.open("old-runs")
+      await key(app.tile("run-1.png"), " ")
+      await key(dialog(app.root)!, "Backspace")
+      await key(dialog(app.root)!, "ArrowUp", { altKey: true })
+      expect(dialog(app.root)).not.toBeNull()
+      expect(app.names()).toEqual(["notes", "run-1.png"])
+    })
+
+    it("closes when the folder changes from outside, and never comes back by itself", async () => {
+      const app = await shown({ listings: inFolder })
+      await app.open("old-runs")
+      await key(app.tile("run-1.png"), " ")
+      act(() => app.itemStore.folder(itemFixture("render", "01").id, { within: "" }))
+      await settle()
+      expect(dialog(app.root)).toBeNull()
+      act(() => app.itemStore.folder(itemFixture("render", "01").id, { within: "old-runs" }))
+      await settle()
+      expect(app.names()).toEqual(["notes", "run-1.png"])
+      expect(dialog(app.root)).toBeNull()
+    })
+
+    it("closes with focus on the body when its file goes", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      await key(app.tile("shot.png"), " ")
+      await app.list(listing(files.filter((each) => each.name !== "shot.png")))
+      expect(dialog(app.root)).toBeNull()
+      expect(document.activeElement).toBe(app.root.querySelector(".folder-viewer"))
+    })
+  })
+
+  context("a menu that is open", () => {
+    it("keeps the entry it was asked for when the file goes, and says so if it is then used", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      vi.spyOn(app.itemStore, "attach").mockRejectedValue(new Error("gone"))
+      await menuOn(app.tile("shot.png"))
+      await app.list(listing(files.filter((each) => each.name !== "shot.png")))
+      expect(itemTexts()).toEqual(["OpenDouble-click", "Quick lookSpace", "Copy path"])
+      await choose("Open")
+      expect(app.root.querySelector(".pane-notice")?.textContent).toBe(
+        "shot.png couldn't be opened.",
+      )
     })
   })
 })

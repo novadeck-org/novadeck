@@ -20,7 +20,9 @@ const useLook = (
 ): Thumb | undefined => {
   const kind = reader && hasPicture(entry) ? entry.kind : undefined
   const base = `${itemId}:${path}:${entry.stamp}`
-  const key = entry.kind === "video" ? `${base}:look` : base
+  // An image is itself whatever the box, so the tile's picture serves; another kind's renderer
+  // fits its picture to the box it is given, so the look has its own.
+  const key = entry.kind === "image" ? base : `${base}:look`
   const [made, setMade] = useState<{ readonly key: string; readonly thumb: Thumb }>()
   useEffect(() => {
     if (!kind || !reader || keptThumb(key) || hasNoThumb(key)) return
@@ -55,6 +57,7 @@ export const QuickLook = ({
   itemId,
   reader,
   now,
+  returnTo,
   onStep,
   onOpen,
   onClose,
@@ -65,12 +68,17 @@ export const QuickLook = ({
   readonly itemId: Item["id"]
   readonly reader: Reader | undefined
   readonly now: number
+  // Where focus goes when the look ends, however it ends: the folder's body.
+  readonly returnTo: HTMLElement | null
   readonly onStep: (by: -1 | 1) => void
   readonly onOpen: () => void
   readonly onClose: () => void
 }): React.JSX.Element => {
   const holder = useRef<HTMLDivElement>(null)
-  useEffect(() => holder.current?.focus({ preventScroll: true }), [])
+  useEffect(() => {
+    holder.current?.focus({ preventScroll: true })
+    return () => returnTo?.focus({ preventScroll: true })
+  }, [returnTo])
   const thumb = useLook(entry, path, itemId, reader)
   // The picture the page failed to draw, by its URL, and what it measured of the one it drew.
   const [broken, setBroken] = useState<string>()
@@ -89,22 +97,28 @@ export const QuickLook = ({
       className="floating peek folder-look"
       data-state="open"
       role="dialog"
+      aria-modal="true"
       aria-label={`Quick look at ${entry.name}`}
       tabIndex={-1}
       onKeyDown={(event) => {
+        // Nothing else takes focus while it is up: Tab stays where it is.
         const handled =
-          event.key === "ArrowLeft"
-            ? () => onStep(-1)
-            : event.key === "ArrowRight"
-              ? () => onStep(1)
-              : event.key === "Enter"
-                ? onOpen
-                : event.key === " " || event.key === "Escape"
-                  ? onClose
-                  : undefined
+          event.key === "Tab"
+            ? () => {}
+            : event.key === "ArrowLeft"
+              ? () => onStep(-1)
+              : event.key === "ArrowRight"
+                ? () => onStep(1)
+                : event.key === "Enter"
+                  ? onOpen
+                  : event.key === " " || event.key === "Escape"
+                    ? onClose
+                    : undefined
         if (!handled) return
         event.preventDefault()
         event.stopPropagation()
+        // A key held down acts once: Space or Enter would otherwise flicker the look.
+        if (event.repeat && (event.key === " " || event.key === "Enter")) return
         handled()
       }}
     >

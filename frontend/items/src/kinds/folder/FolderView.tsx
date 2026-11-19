@@ -89,9 +89,10 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
   const entries = useMemo(() => sorted(arrivals.visible, sort), [arrivals.visible, sort])
   const [selected, setSelected] = useState<string>()
   const [problem, setProblem] = useState<string>()
-  // The entry whose menu was asked for, and the one being looked at (by name).
-  const [menuFor, setMenuFor] = useState<string>()
-  const [looking, setLooking] = useState<string>()
+  // The entry the open menu was asked for, as it was then (so the menu doesn't change under the
+  // pointer if the file goes), and the one being looked at, by name and the folder it is in.
+  const [menuFor, setMenuFor] = useState<FolderEntry>()
+  const [looking, setLooking] = useState<{ readonly name: string; readonly within: string }>()
   // The list says how long ago; it moves on with the clock.
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -137,7 +138,11 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
       })
   }
   const drawn = shown ? (listed ? entries : sorted(shown.entries, sort)) : []
-  const looked = looking === undefined ? undefined : drawn.find((each) => each.name === looking)
+  const looked =
+    looking?.within === within ? drawn.find((each) => each.name === looking.name) : undefined
+  // The look is of a file in the folder drawn, and ends with it: when the person goes to another
+  // folder, or the file goes, it closes (focus is given back as it unmounts) and is not reopened.
+  if (looking && !looked) setLooking(undefined)
   const closeLook = (): void => {
     setLooking(undefined)
     // The look held focus: it goes back to the body, so its keys keep working.
@@ -146,16 +151,16 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
   const lookAt = (entry: FolderEntry): void => {
     if (!canLook(entry)) return
     setSelected(entry.name)
-    setLooking(entry.name)
+    setLooking({ name: entry.name, within })
   }
   // Moves the look, and the selection with it, to the file before or after it in the order the
   // folder is drawn in, skipping folders.
   const stepLook = (by: -1 | 1): void => {
     const files = drawn.filter(canLook)
-    const next = files[files.findIndex((each) => each.name === looking) + by]
+    const next = files[files.findIndex((each) => each.name === looking?.name) + by]
     if (!next) return
     setSelected(next.name)
-    setLooking(next.name)
+    setLooking({ name: next.name, within })
   }
   const copyPath = (file: string | undefined): void => {
     if (!shown) return
@@ -163,7 +168,7 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
     // A page that may not write the clipboard simply doesn't copy.
     navigator.clipboard?.writeText(text).catch(() => {})
   }
-  const menuEntry = drawn.find((each) => each.name === menuFor)
+  const menuEntry = menuFor
   // What the menu offers: the entry it was asked on's, or, off every entry, the folder's own path.
   const menuItems = (on: FolderEntry): ContextMenuItem[] =>
     entryMenu(on, {
@@ -212,7 +217,7 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
     onOpen: (asText: boolean) => open(entry, asText),
     onMenu: () => {
       setSelected(entry.name)
-      setMenuFor(entry.name)
+      setMenuFor(entry)
     },
   })
 
@@ -233,6 +238,9 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
       className="artifact-viewer folder-viewer"
       tabIndex={-1}
       data-layout={layout}
+      // A pane over its terminal leaves the folder its keys (Space, Backspace, the arrows): Escape
+      // still goes up to the pane, which hides, unless a look takes it.
+      data-pane-keys=""
       onKeyDown={(event) => {
         // A key in the menu, which bubbles here through the portal, is the menu's own: it must not
         // go up, or Escape would hide the pane as it closes the menu.
@@ -243,21 +251,40 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
           if (event.key === "Escape") event.stopPropagation()
           return
         }
+        // Going up is not done under a look, which holds the keys while it is up.
         if (event.key === "Backspace" || (event.altKey && event.key === "ArrowUp")) {
           event.preventDefault()
-          up()
+          if (!looked) up()
           return
         }
-        // Space is the quick look at the selected file, from the body or an entry (a button of
-        // the crumbs or the row keeps its own Space); its keys are the look's own while it is up.
-        const entry = drawn.find((each) => each.name === selected)
-        const onEntry =
-          event.target === event.currentTarget ||
-          (event.target instanceof Element && event.target.closest(".folder-tile, .folder-row"))
-        if (event.key === " " && entry && canLook(entry) && onEntry) {
-          event.preventDefault()
-          lookAt(entry)
-        }
+        // Space is the quick look: at the entry that has focus, else at the selected one. A key
+        // held down looks once; a button of the crumbs keeps its own Space.
+        if (event.key !== " ") return
+        const onEntry = event.target instanceof Element ? event.target.closest("[data-name]") : null
+        if (!onEntry && event.target !== event.currentTarget) return
+        event.preventDefault()
+        if (event.repeat) return
+        const named = onEntry?.getAttribute("data-name") ?? selected
+        const entry = drawn.find((each) => each.name === named)
+        if (entry && canLook(entry)) lookAt(entry)
+      }}
+      // The menu key and Shift+F10 on the body itself are asked of the selected entry (or, with
+      // none, the folder), as they are of a focused one, which the menu's trigger hears itself.
+      onContextMenu={(event) => {
+        if (event.target !== event.currentTarget) return
+        event.preventDefault()
+        const at =
+          event.currentTarget.querySelector<HTMLElement>("[data-selected]") ??
+          event.currentTarget.querySelector<HTMLElement>(".folder-scroll")
+        const box = at?.getBoundingClientRect()
+        at?.dispatchEvent(
+          new MouseEvent("contextmenu", {
+            bubbles: true,
+            cancelable: true,
+            clientX: box ? box.left + Math.min(box.width / 2, 24) : 0,
+            clientY: box ? box.top + Math.min(box.height / 2, 24) : 0,
+          }),
+        )
       }}
     >
       <PaneTools tools={tools} />
@@ -402,6 +429,7 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
           <div className="folder-look-backdrop" onClick={closeLook} />
           <QuickLook
             entry={looked}
+            returnTo={body}
             path={intoFolder(within, looked.name)}
             itemId={item.id}
             reader={reader}

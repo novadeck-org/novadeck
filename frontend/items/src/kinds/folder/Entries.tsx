@@ -166,7 +166,8 @@ const Marks = ({
 const openOnEnter = (open: (asText: boolean) => void) => (event: React.KeyboardEvent) => {
   if (event.key !== "Enter") return
   event.preventDefault()
-  open(false)
+  // Held down, it opens once.
+  if (!event.repeat) open(false)
 }
 
 // The Files panel's two names for one pulse, so a write that lands while the last still plays
@@ -174,10 +175,12 @@ const openOnEnter = (open: (asText: boolean) => void) => (event: React.KeyboardE
 const pulseOf = (writing: number | undefined): "a" | "b" | undefined =>
   writing === undefined ? undefined : writing % 2 === 1 ? "a" : "b"
 
-const marks = (entry: FolderEntry): Record<string, true | undefined> => ({
+const marks = (entry: FolderEntry): Record<string, string | true | undefined> => ({
   "data-secret": entry.secret || undefined,
   "data-link": entry.link || undefined,
   "data-folder": entry.kind === "folder" || undefined,
+  // What the view finds its entry by from a key pressed on it.
+  "data-name": entry.name,
 })
 
 // An entry in the grid: its picture (or its kind's icon), then its name and what it is.
