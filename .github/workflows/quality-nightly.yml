@@ -83,7 +83,7 @@ jobs:
             os: ubuntu-latest
             shard: 3
             command: npm run test:shard3
-          - name: Test (macOS, 1/2)
+          - name: Test (macOS, 1/3)
             os: macos-latest
             browser: true
             shard: 1
@@ -92,22 +92,31 @@ jobs:
             # packages since #849: this is what still runs the specs and every neutral package
             # on a real Mac, and any test a pull request stops running somewhere must still run
             # here. Don't narrow it to save Mac time; it is one job a night, nobody waiting.
-            # In two parts, as Quality's whole-suite rows (see its comments for why): every test
+            # In three parts, as Quality's whole-suite rows (see its comments for why): every test
             # but the specs' here, which took 13 to 22 minutes of the 47 to 50 the whole suite
-            # took under load on 11-11, and the specs alone, on one worker, in 2/2. A night that
+            # took under load on 11-11, and the specs, on one worker, in halves, in 2/3 and 3/3. A night that
             # runs out of time reports nothing about the code. Nothing waits on these rows.
             timeout: 50
             step: 40
             command: npm run test:macos1
-          - name: Test (macOS, 2/2)
+          - name: Test (macOS, 2/3)
             os: macos-latest
             browser: true
             shard: 2
-            # The specs on one worker: two starved each other on the 3-vCPU Macs, and the one
-            # worker takes about 38% longer, 38 to 46 minutes under load.
-            timeout: 70
-            step: 60
+            # Half of the specs, on one worker: two starved each other on the 3-vCPU Macs, and
+            # one worker took 59m17 (3,550 s) for all of them, so each half takes about 30.
+            timeout: 55
+            step: 45
             command: npm run test:macos2
+          - name: Test (macOS, 3/3)
+            os: macos-latest
+            browser: true
+            shard: 3
+            # The other half of the specs, as 2/3. Shard 3 here is the specs, not the runner's
+            # tests as on Linux and Windows, so it builds no relay and starts no Electron.
+            timeout: 55
+            step: 45
+            command: npm run test:macos3
           - name: Test (Windows, 1/3)
             os: windows-latest
             browser: true

@@ -78,18 +78,20 @@ export const systemWindows: readonly Row[] = [
 ]
 
 /**
- * macOS's rows for every test, in two parts: the root's `test:macos1`, every test but the UI
- * specs', and `test:macos2`, the specs alone, one worker at a time. macOS's runners are three
- * vCPU Macs (Apple M1 virtual, 7 GB) on 23 of 29 jobs measured, where two spec workers starved
- * each other of CPU and the specs timed out (the chat screen, Canvas sessions, dictation,
- * process windows, shells and Inbox ones); the fast five-core ones had no spec retries. A run with
- * one worker had no spec over 15 s, for about 38% more time on the specs (10.5 minutes), so they
- * have a job of their own to fit the time limit. The specs are `neutral`: they run here only in
- * a whole-suite run, as Quality's `all` and the nightly's. quality.yml falls back to these.
+ * macOS's rows for every test, in three parts: the root's `test:macos1`, every test but the UI
+ * specs', and `test:macos2` and `test:macos3`, the specs in two halves (Vitest's `--shard=1/2`
+ * and `2/2`), each with one worker at a time. macOS's runners are three vCPU Macs (Apple M1
+ * virtual, 7 GB) on 23 of 29 jobs measured, where two spec workers starved each other of CPU
+ * and the specs timed out (the chat screen, Canvas sessions, dictation, process windows,
+ * shells and Inbox ones); the fast five-core ones had no spec retries. With one worker the
+ * specs ran with no retry, but took 59m17 (3,550 s, 88 files and 1,547 tests), about twice
+ * what two workers took, so they are split over two jobs to fit the time limit. The specs are
+ * `neutral`: they run here only in a whole-suite run, as Quality's `all` and the nightly's.
+ * quality.yml falls back to these.
  */
 export const wholeMacos: readonly Row[] = [
   {
-    name: "Test (macOS, 1/2)",
+    name: "Test (macOS, 1/3)",
     os: "macos-latest",
     browser: true,
     relay: true,
@@ -98,11 +100,18 @@ export const wholeMacos: readonly Row[] = [
     command: "npm run test:macos1",
   },
   {
-    name: "Test (macOS, 2/2)",
+    name: "Test (macOS, 2/3)",
     os: "macos-latest",
     browser: true,
     shard: 2,
     command: "npm run test:macos2",
+  },
+  {
+    name: "Test (macOS, 3/3)",
+    os: "macos-latest",
+    browser: true,
+    shard: 3,
+    command: "npm run test:macos3",
   },
 ]
 

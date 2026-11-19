@@ -235,8 +235,9 @@ describe("Quality's systems", () => {
     expect(systemWindows).toMatchObject([{ shard: 0, command: "npm run test:system" }])
     for (const row of [...wholeMacos, ...systemMacos]) expect(row.os).toBe("macos-latest")
     expect(wholeMacos.map(({ name, shard }) => [name, shard])).toEqual([
-      ["Test (macOS, 1/2)", 1],
-      ["Test (macOS, 2/2)", 2],
+      ["Test (macOS, 1/3)", 1],
+      ["Test (macOS, 2/3)", 2],
+      ["Test (macOS, 3/3)", 3],
     ])
     expect(systemMacos).toMatchObject([{ name: "Test (macOS)", shard: 0 }])
   })
@@ -759,7 +760,12 @@ describe("Quality's workflow", () => {
       ),
     ).toBe(true)
     // Both of the whole suite's parts, and the system packages' row, are its jobs.
-    for (const name of ["Test (macOS)", "Test (macOS, 1/2)", "Test (macOS, 2/2)"]) {
+    for (const name of [
+      "Test (macOS)",
+      "Test (macOS, 1/3)",
+      "Test (macOS, 2/3)",
+      "Test (macOS, 3/3)",
+    ]) {
       expect(
         entry.jobs.some((pattern) => new RegExp(pattern).test(name)),
         name,
@@ -773,30 +779,38 @@ describe("Quality's workflow", () => {
     }
   })
 
-  it("gives each row's tests their time: macOS's whole suite 40 and 60, its system packages 30", () => {
+  it("gives each row's tests their time: macOS's whole suite 40 and 45, its system packages 30", () => {
     expect(job("quality")).toContain(
-      "runner.os == 'macOS' && (matrix.command == 'npm run test:macos2' && 60 || matrix.command == 'npm run test:macos1' && 40 || 30) || runner.os == 'Windows' && matrix.shard == 0 && 22 ||",
+      "runner.os == 'macOS' && (matrix.command == 'npm run test:macos2' && 45 || matrix.command == 'npm run test:macos3' && 45 || matrix.command == 'npm run test:macos1' && 40 || 30) || runner.os == 'Windows' && matrix.shard == 0 && 22 ||",
     )
     expect(job("macos")).toContain(
-      "timeout-minutes: ${{ matrix.command == 'npm run test:macos2' && 70 || matrix.command == 'npm run test:macos1' && 50 || 40 }}",
+      "timeout-minutes: ${{ matrix.command == 'npm run test:macos2' && 55 || matrix.command == 'npm run test:macos3' && 55 || matrix.command == 'npm run test:macos1' && 50 || 40 }}",
     )
     expect(job("proof-macos")).toContain("timeout-minutes: 40")
     expect(wholeMacos).toMatchObject([
-      { name: "Test (macOS, 1/2)", command: "npm run test:macos1" },
-      { name: "Test (macOS, 2/2)", command: "npm run test:macos2" },
+      { name: "Test (macOS, 1/3)", command: "npm run test:macos1" },
+      { name: "Test (macOS, 2/3)", command: "npm run test:macos2" },
+      { name: "Test (macOS, 3/3)", command: "npm run test:macos3" },
     ])
   })
 
   // The specs' job runs them with one worker, which no other row or system does: Linux's
   // shards keep their parallelism. A failed first part must not cancel the specs' job.
-  it("runs the specs in a job of their own, on one worker, and every other test in the first", () => {
+  it("runs the specs in halves on one worker, and every other test in the first", () => {
     const scripts = (
       JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
         scripts: Record<string, string>
       }
     ).scripts
-    expect(scripts["test:macos2"]).toContain("--filter=@novadeck/specs")
-    expect(scripts["test:macos2"]).toContain("--maxWorkers=1")
+    // The specs in two halves of Vitest's shards, each on one worker.
+    for (const [name, shard] of [
+      ["test:macos2", "1/2"],
+      ["test:macos3", "2/2"],
+    ] as const) {
+      expect(scripts[name], name).toContain("--filter=@novadeck/specs")
+      expect(scripts[name], name).toContain("--maxWorkers=1")
+      expect(scripts[name], name).toContain(`--shard=${shard}`)
+    }
     // The first part is `test` but for the specs, so a filter `test` gains reaches macOS too.
     expect(scripts["test:macos1"]).toBe(
       scripts.test!.replace(" --concurrency=1 ", " --filter=!@novadeck/specs --concurrency=1 "),
@@ -864,7 +878,12 @@ describe("Quality's workflow", () => {
       nightly.slice(nightly.indexOf("include:"), nightly.indexOf("\n    steps:")),
     )
     expect(rows.map(({ name }) => name)).toEqual(
-      expect.arrayContaining(["Test (macOS, 1/2)", "Test (macOS, 2/2)", "Test (Windows, 1/3)"]),
+      expect.arrayContaining([
+        "Test (macOS, 1/3)",
+        "Test (macOS, 2/3)",
+        "Test (macOS, 3/3)",
+        "Test (Windows, 1/3)",
+      ]),
     )
     // The whole suite's two macOS parts, as Quality's rows run them.
     expect(

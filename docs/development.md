@@ -1482,9 +1482,9 @@ package that declares `"novadeck": { "platform": "system" }`, or a file outside 
 (`scripts/quality/plan`): Windows runs every test, and macOS, once every Linux job has passed,
 the system packages' tests, one package at a time (`npm run test:system`). The nightly
 Quality run runs every test on all three, and so does a whole-suite run of Quality (a change
-to CI or a root file): on macOS in two jobs, every test but the UI specs' (`test:macos1`) and
-the specs alone on one worker (`test:macos2`), as two workers starved each other on its
-3-vCPU runners. The UI tests run in Chromium alongside backend API,
+to CI or a root file): on macOS in three jobs, every test but the UI specs' (`test:macos1`) and the specs in two
+halves (`test:macos2`, `test:macos3`), each on one worker, as two workers starved each other on
+its 3-vCPU runners. The UI tests run in Chromium alongside backend API,
 real PTY, and built-CLI tests. The required `Test` check passes only when every job the plan
 chose has. A draft PR runs no macOS job, in Quality or E2E, and its `Test` and `E2E` checks
 fail ("draft: macOS not run") while its change needs macOS: open a PR as a draft while you
