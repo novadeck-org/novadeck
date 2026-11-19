@@ -3,6 +3,7 @@ import {
   planVersionOf,
   PlanUnwritableError,
   type Companions,
+  type Item,
   type ItemContent,
   type ItemId,
   type PageTrouble,
@@ -112,6 +113,13 @@ export type ItemStore = {
   readonly connect: () => () => void
   // An item's file in parts, for a kind read so: the backend's, where it has one.
   readonly part?: Companions["part"]
+  // The folders a path being typed may be, and the folders outside the project agents wrote in,
+  // for a folder's path field: the backend's, where it has them.
+  readonly folders?: Companions["folders"]
+  readonly wroteTo?: Companions["wroteTo"]
+  // The items of the workspace session `target` names, as the workspace holds them now: read
+  // when asked, as a path field's suggestions are made.
+  readonly sessionItems: (target: WorkspaceTarget) => readonly Item[]
   // Takes a picture of a live page for it to rest as: the backend's, where it has one.
   readonly picture?: Companions["picture"]
   // Makes a live page's view a phone's, or not: the backend's, where it has one.
@@ -726,7 +734,12 @@ export const createItemStore = ({
       for (const id of session.followed.keys()) unfollow(session, id)
     }
   }
-  const { picture, phone, part } = companions
+  const { picture, phone, part, folders, wroteTo } = companions
+  const sessionItems: ItemStore["sessionItems"] = (target) =>
+    workspace
+      .getSnapshot()
+      .projects.find(({ id }) => id === target.projectId)
+      ?.history.find(({ id }) => id === target.workspaceSessionId)?.state.items ?? []
   const trouble: ItemStore["trouble"] = (target, itemId, shown, troubles) =>
     session.companions.trouble(target, itemId, shown, troubles)
   const changeFile: ItemStore["changeFile"] = (target, itemId, path, layers) =>
@@ -752,5 +765,8 @@ export const createItemStore = ({
     ...(picture && { picture }),
     ...(phone && { phone }),
     ...(part && { part }),
+    ...(folders && { folders }),
+    ...(wroteTo && { wroteTo }),
+    sessionItems,
   }
 }

@@ -1819,9 +1819,34 @@ one from an earlier runner.
     `NOT_FOUND`.
     Saves of one plan are handled one at a time.
   - `companions.attach({ terminalId, path, lines?, title? })` puts a file or a folder the
-    person picked on a terminal's bar, by a path absolute or from the terminal's directory:
+    person picked on a terminal's bar, by a path absolute, from the terminal's directory, or led
+    by `~` for the person's home folder (the folder view's path field types one):
     `TERMINAL_NOT_FOUND`, or `INVALID_FILE` saying why for a missing path, a folder that may
     hold secrets, a pipe or a device. Binary files are accepted. A folder is a `folder` item.
+  - `companions.folders({ terminalId, path })` names the folders a path being typed in a folder
+    view's path field may be, as `{ path, count, open }[]`: those in the path's parent (all of
+    them for a path that ends in a separator) whose names start as its last part does, in any
+    case, by name, at most 20. `path` is written as the person typed the parent (a leading `~`, or
+    relative to the terminal's directory) and ends in the folder's name, so it completes the
+    text; `count` is how many entries the folder holds, up to 1000 (a folder holding more says
+    1000, which the client writes `1000+`); `open` says a folder item of the session already shows
+    it. Only folders are named (a link to one counts), never a dot folder unless the last part
+    starts with a dot, never one that may hold secrets (`folderSecrets`, as `show` refuses
+    one) nor anything in one, and a parent that is no folder, can't be read, or may hold secrets
+    names none. The parent is read as far as its first 5000 entries. `TERMINAL_NOT_FOUND` for a
+    terminal not kept.
+  - `companions.wroteTo({ terminalId })` names the folders outside the project that the agents
+    of the terminal's session wrote a file in, as `{ path, handle, agent, at }[]`: the latest first,
+    once each, at most 8, the terminal's `handle` and its agent's harness id. They are told by each
+    harness's file-tool writes (Claude Code's file-writing tool hooks, as Write and Edit; Codex's
+    `apply_patch` hook and its rollout's `FileChange`; Antigravity's file-writing tool hook),
+    which name absolute paths, as the `file-touched` events the terminal's `work.wrote` keeps (the
+    latest 20 folders written in outside the folder the terminal works in, each with when; kept
+    with the terminal, so it outlives a restart, and shaped as the rest of `work`, so no schema
+    change). A command's output is told by no harness, so a folder only a shell command wrote in
+    is not named. Never named: a folder in the session's project or in the folder its terminal
+    works in, one that may hold secrets, one that is gone. `path` leads with `~` for a folder in
+    the person's home. `TERMINAL_NOT_FOUND` for a terminal not kept.
   - `companions.openInProject({ sessionId, path, windowId })` opens a file the person
     picked in the session's project window, by a path absolute or from the project's
     folder, and answers the `item` and `window`. A session has one such window (`home` is

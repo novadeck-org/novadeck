@@ -101,6 +101,9 @@ type Running = Holder & {
 // How many bytes a part of a video holds, as the runner's does.
 const partBytes = 2 * 1024 * 1024
 
+// The folders' code, loaded when first used, so a demo that shows none never carries it.
+const folderCode = () => import("./folders")
+
 const noItems = (): readonly Item[] => []
 
 const sameSession = (a: WorkspaceTarget, b: WorkspaceTarget): boolean =>
@@ -394,7 +397,7 @@ export const createShowcase = (
       if (path !== undefined) {
         if (!sample?.folder) throw new Error(`No folder ${id}`)
         // Loaded with the first folder read, so a demo that shows none never carries it.
-        const { readFolderPart } = await import("./folders")
+        const { readFolderPart } = await folderCode()
         return readFolderPart(sample.folder, path, stamp, offset)
       }
       if (!sample?.file) throw new Error(`No file to read in ${id}`)
@@ -432,7 +435,7 @@ export const createShowcase = (
     // What it opens comes with the folders, loaded then, so a demo none is opened in never
     // carries them.
     attach: async (target, terminalId, path) => {
-      const { openedAt } = await import("./folders")
+      const { openedAt } = await folderCode()
       const opened = openedAt([...samples.values()], path, now(), {
         clip,
         clipSize,
@@ -454,6 +457,9 @@ export const createShowcase = (
         watcher.on(shownContent(opened.item.id, watcher.reveal))
       return item
     },
+    // As the runner's folders and wroteTo, from what the demo's machine holds.
+    folders: async (_target, _terminalId, path) => (await folderCode()).near(path, current()),
+    wroteTo: async () => (await folderCode()).wrote(),
     // As the runner does: the session's project window is pointed at the file, with a later
     // version, or made when the session has none, or the person closed it. It reports the
     // item and the window as its watch would, and its followers hear the new file.

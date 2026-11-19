@@ -1,5 +1,10 @@
 import type { ActivityEvent } from "@novadeck/harness-core/events"
-import type { PageTrouble, TerminalSummary } from "@novadeck/protocol"
+import {
+  companionLimits,
+  isAgentName,
+  type PageTrouble,
+  type TerminalSummary,
+} from "@novadeck/protocol"
 
 import type { PlanText } from "../companions/content.js"
 import type { CompanionItems, TerminalPlace } from "../companions/items.js"
@@ -21,6 +26,7 @@ import { peerOf, type TerminalPeers } from "./peers-host.js"
 import type { Record } from "./record.js"
 import type { SavedTerminal } from "./saved-terminals.js"
 import { itemGone, lookedAt, troubled } from "./troubles.js"
+import type { Work } from "./work.js"
 
 /** What `look` answers: words and the picture, or why there is none. */
 export type LookAnswer =
@@ -38,6 +44,23 @@ export type Checkout = {
   readonly root: string
   /** Its agent is mid-turn, or a command runs in its shell: the same as a listing's "working". */
   readonly working: boolean
+}
+
+// What a terminal's agent session wrote outside the folder the terminal works in, and which
+// harness it is, as a place tells it; nothing for a session that wrote none.
+// A work kept before it held any, or by a build that knew another shape, has none that is
+// shaped so; only those that are are told.
+const wroteOf = (work: Work | null): Pick<TerminalPlace, "wrote" | "agent"> => {
+  const agent = work?.session?.split(":")[0]
+  const wrote = Array.isArray(work?.wrote)
+    ? work.wrote.filter(
+        (each) =>
+          typeof each?.folder === "string" &&
+          each.folder.length <= companionLimits.path &&
+          Number.isFinite(each.at),
+      )
+    : []
+  return wrote.length > 0 && isAgentName(agent) ? { wrote, agent } : {}
 }
 
 export type CompanionHost = {
@@ -198,6 +221,7 @@ export class Companion {
       handle: terminal.handle,
       cwd: terminal.cwd,
       project: this.host.projectFolder(terminal.sessionId),
+      ...wroteOf(live ? live.work : (this.host.saved(terminalId)?.work ?? null)),
       transcript: live?.transcript ?? null,
       ...(live?.bound && {
         shells: { agent: live.bound.binding.agent, shells: live.bound.activity.shells },

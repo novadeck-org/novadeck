@@ -382,6 +382,8 @@ export const createRouter = (options: {
         }
       }),
       attach: api.companions.attach.handler(({ input }) => items.attach(input)),
+      folders: api.companions.folders.handler(({ input }) => items.folders(input)),
+      wroteTo: api.companions.wroteTo.handler(({ input }) => items.wroteTo(input)),
       openInProject: api.companions.openInProject.handler(({ input }) =>
         items.openInProject(input),
       ),

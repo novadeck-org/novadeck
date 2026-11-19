@@ -380,3 +380,6 @@ export const openedAt = (
     folderItem(`folder-${path}`, base, createFolder(path, renderFiles(now, media)))
   )
 }
+
+// What the path field suggests, which loads with the folders.
+export { near, wrote } from "./path-field"

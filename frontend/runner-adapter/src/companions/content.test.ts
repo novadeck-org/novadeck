@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -10,6 +10,7 @@ import {
 } from "@novadeck/core/items"
 import {
   companionLimits,
+  folderMatchLimits,
   maxPageTroubles,
   pageTrouble,
   type ChangeFileDiff,
@@ -78,6 +79,7 @@ const following = ({ livePages = false } = {}) => {
     reveal?: string
     path?: string
   }[] = []
+  const foldersAsked: { terminalId: string; path: string }[] = []
   let videoReturns: FilePart = { state: "changed" }
   let failure: unknown
   const companions = createRunnerCompanions(
@@ -113,6 +115,18 @@ const following = ({ livePages = false } = {}) => {
         attached.push(input)
         return { ...projectOpened.item, id: "attached", holder: { terminalId: input.terminalId } }
       },
+      folders: async (input) => {
+        foldersAsked.push(input)
+        return [
+          { path: "~/render", count: 7, open: true },
+          { path: "~/rest", count: folderMatchLimits.counted, open: false },
+        ]
+      },
+      wroteTo: async () => [
+        { path: "/tmp/notes", handle: "raven", agent: "codex", at: 5 },
+        { path: "~/.cache/probe", handle: "kite", agent: "agy", at: 4 },
+        { path: "/tmp/copy", handle: "moth", agent: "claude", at: 3 },
+      ],
     },
     { livePages },
   )
@@ -123,6 +137,7 @@ const following = ({ livePages = false } = {}) => {
     companions,
     asked,
     attached,
+    foldersAsked,
     changeAsked,
     readAsked,
     videoAsked,
@@ -196,6 +211,28 @@ describe("a file or folder attached to a terminal", () => {
     const item = await app.companions.attach?.(target, "t1", "/tmp/render")
     expect(app.attached).toEqual([{ terminalId: "t1", path: "/tmp/render" }])
     expect(item).toMatchObject({ id: "attached", holder: { terminalId: "t1" } })
+  })
+})
+
+describe("a folder's path field", () => {
+  it("asks the runner which folders a typed path may be, and says when a folder holds more than was counted", async () => {
+    const app = following()
+    const found = await app.companions.folders?.(target, "t1", "~/re")
+    expect(app.foldersAsked).toEqual([{ terminalId: "t1", path: "~/re" }])
+    expect(found).toEqual([
+      { path: "~/render", count: 7, more: false, open: true },
+      { path: "~/rest", count: folderMatchLimits.counted, more: true, open: false },
+    ])
+  })
+
+  it("names the harness of each agent that wrote outside the project by the name people know it by", async () => {
+    const app = following()
+    const found = await app.companions.wroteTo?.(target, "t1")
+    expect(found?.map(({ handle, harness }) => [handle, harness])).toEqual([
+      ["raven", "Codex"],
+      ["kite", "Antigravity"],
+      ["moth", "Claude Code"],
+    ])
   })
 })
 
@@ -634,6 +671,35 @@ describe("the runner's companion content", () => {
     })
   })
 
+  context("a path field on a real runner", () => {
+    it("names the folders a typed path may be, and none any agent wrote in yet", async () => {
+      const runner = await startTestRunner()
+      const directory = await mkdtemp(join(tmpdir(), "novadeck-field-"))
+      try {
+        const terminal = await runner.client.terminals.create({
+          id: crypto.randomUUID(),
+          sessionId: runner.listing[0]!.sessions[0]!.session.id,
+          cols: 80,
+          rows: 24,
+        })
+        await mkdir(join(directory, "render", "frames"), { recursive: true })
+        const companions = createRunnerCompanions(runner.client.companions)
+        await expect(
+          companions.folders?.(target, terminal.id, join(directory, "re")),
+        ).resolves.toEqual([
+          { path: join(directory, "render"), count: 1, more: false, open: false },
+        ])
+        await expect(companions.wroteTo?.(target, terminal.id)).resolves.toEqual([])
+        await expect(
+          companions.folders?.(target, crypto.randomUUID(), join(directory, "re")),
+        ).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
+      } finally {
+        await runner.close()
+        await rm(directory, { recursive: true, force: true })
+      }
+    })
+  })
+
   it("reports nothing once stopped", async () => {
     const app = following()
     const stop = app.follow()
@@ -726,6 +792,8 @@ describe("what a page shows wrong", () => {
       openInProject: () => Promise.reject(new Error("unused")),
       part: () => Promise.reject(new Error("unused")),
       attach: () => Promise.reject(new Error("unused")),
+      folders: () => Promise.reject(new Error("unused")),
+      wroteTo: () => Promise.reject(new Error("unused")),
       pageTrouble: async (input) => {
         calls.push(input)
         if (failure) throw failure

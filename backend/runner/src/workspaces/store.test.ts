@@ -2627,6 +2627,34 @@ describe("saved terminals", () => {
     expect(reopened.terminal(terminal.id)).toBeUndefined()
   })
 
+  it("reads back a work kept without the folders written in, as one that lists them", ({
+    directory,
+    kept,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const first = kept(path)
+    const old = keptTerminal(first, "session", "owl")
+    const newer = keptTerminal(first, "session", "fox")
+    const asStored = { session: "claude:abc", first: null, latest: null, folders: {}, activeAt: 1 }
+    const wrote = [{ folder: "/tmp/out", at: 5 }]
+    for (const [id, work] of [
+      [old, asStored],
+      [newer, { ...asStored, wrote }],
+    ] as const) {
+      const {
+        savedAt: _saved,
+        handleGivenAt: _given,
+        interruptions: _kept,
+        ...terminal
+      } = first.terminal(id)!
+      first.saveTerminal({ ...terminal, work })
+    }
+    first.close()
+    const reopened = kept(path)
+    expect(reopened.terminal(old)?.work).toEqual(asStored)
+    expect(reopened.terminal(newer)?.work).toEqual({ ...asStored, wrote })
+  })
+
   it("forgets every transcript that is not sealed, scrubbing the file and its log", ({
     directory,
     kept,

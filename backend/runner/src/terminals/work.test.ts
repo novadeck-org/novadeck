@@ -10,6 +10,7 @@ import {
   judgedFirst,
   keptFiles,
   keptFolders,
+  keptWrote,
   lastFiles,
   keptPlaces,
   personPrompted,
@@ -222,6 +223,7 @@ describe("what a root session worked on", () => {
       folders: { "/w": 1 },
       files: ["/w/a.ts"],
       places: ["/w"],
+      wrote: [{ folder: "/w", at: 4 }],
       activeAt: 4,
     })
     // Without the correction, another session starts afresh.
@@ -238,6 +240,35 @@ describe("what a root session worked on", () => {
     const fresh = tallied(folders, "/new")
     expect(fresh["/new"]).toBe(1)
     expect(Object.keys(fresh)).toHaveLength(keptFolders)
+  })
+
+  it("keeps the folders written in outside its terminal's own, the latest first, once each", () => {
+    const work = workAfter(
+      null,
+      root,
+      [touched("/t/own/a.ts"), touched("/x/a.ts"), touched("/y/b.ts"), touched("/t/own/sub/c.ts")],
+      7,
+      [],
+      "/t/own",
+    )
+    expect(work?.wrote).toEqual([
+      { folder: "/y", at: 7 },
+      { folder: "/x", at: 7 },
+    ])
+    const again = workAfter(work, root, [touched("/x/z.ts")], 9, [], "/t/own")
+    expect(again?.wrote).toEqual([
+      { folder: "/x", at: 9 },
+      { folder: "/y", at: 7 },
+    ])
+  })
+
+  it("keeps the twenty latest folders written in, and none for a session that wrote only at home", () => {
+    let work: Work | null = null
+    for (let index = 0; index < 25; index += 1)
+      work = workAfter(work, root, [touched(`/o${index}/f.ts`)], index, [], "/t")
+    expect(work?.wrote).toHaveLength(keptWrote)
+    expect(work?.wrote?.[0]).toEqual({ folder: "/o24", at: 24 })
+    expect(workAfter(null, root, [touched("/t/a.ts")], 1, [], "/t")).not.toHaveProperty("wrote")
   })
 
   it("names the three folders written in most, ties by name", () => {

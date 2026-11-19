@@ -397,6 +397,20 @@ describe("the project window", () => {
     expect(part.state === "part" && part.bytes.length).toBe(quarterlyReport.length)
   })
 
+  it("suggests the folders a typed path may be, one a folder item shows marked open", async () => {
+    const { showcase } = opening()
+    const before = await showcase.folders!(session, "01", "~/Down")
+    expect(before).toEqual([{ path: "~/Downloads", count: 34, more: false, open: false }])
+    await showcase.attach!(session, "01", "~/Downloads")
+    const after = await showcase.folders!(session, "01", "~/Down")
+    expect(after[0]).toMatchObject({ path: "~/Downloads", open: true })
+    await expect(showcase.attach!(session, "01", "~/missing.txt")).rejects.toThrow(
+      "That file can't be shown",
+    )
+    const wrote = await showcase.wroteTo!(session, "01")
+    expect(wrote.map(({ harness }) => harness)).toEqual(["Codex", "Claude Code", "Antigravity"])
+  })
+
   it("shows a held file only to a reveal asked for that file", async () => {
     const { showcase } = opening()
     const env = await showcase.openInProject!(session, ".env.local", "pw")

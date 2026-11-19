@@ -21,6 +21,7 @@ import { join } from "node:path"
 
 import {
   itemContent,
+  type AgentName,
   type CompanionChange,
   type ItemContent,
   type PageTrouble,
@@ -32,6 +33,7 @@ import { vi } from "vitest"
 import { timing } from "../checkouts/git.js"
 import type { Shell } from "../harnesses/shells.js"
 import { describe, expect, it as base } from "../test.js"
+import type { Resources } from "../testing/resources.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import type { PlanText } from "./content.js"
 import { CompanionItems, type TerminalPlace } from "./items.js"
@@ -53,6 +55,12 @@ type Fixture = {
   terminal: (handle: string, sessionId?: string) => TerminalPlace
   /** The terminal as its agent's activity now lists these shells (none: no agent is bound). */
   shell: (place: TerminalPlace, shells: readonly Shell[] | undefined) => TerminalPlace
+  /** The terminal as it tells what its agent session wrote outside the folder it works in. */
+  wrote: (
+    place: TerminalPlace,
+    agent: AgentName,
+    folders: readonly { folder: string; at: number }[],
+  ) => TerminalPlace
   /** Closes a terminal as the terminals do: its items first, then its record. */
   close: (terminalId: string) => void
   items: CompanionItems
@@ -97,6 +105,7 @@ const it = base.extend<{ fixture: Fixture }>({
       },
       records: store,
       terminal: (terminalId) => places.get(terminalId),
+      terminals: (sessionId) => [...places.values()].filter((each) => each.sessionId === sessionId),
       project: (sessionId) => (sessionId === session.id ? directory : undefined),
       livePlan: (item) => live.get(item.id),
       pollMs: 10,
@@ -143,12 +152,18 @@ const it = base.extend<{ fixture: Fixture }>({
       places.set(place.terminalId, moved)
       return moved
     }
+    const wrote: Fixture["wrote"] = (place, agent, folders) => {
+      const moved = { ...place, agent, wrote: folders }
+      places.set(place.terminalId, moved)
+      return moved
+    }
     await use({
       directory,
       store,
       sessionId: session.id,
       terminal,
       shell,
+      wrote,
       close,
       items,
       live,
@@ -577,6 +592,95 @@ describe("what the person attaches", () => {
     await expect(
       fixture.items.attach({ terminalId: randomUUID(), path: "notes.md" }),
     ).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
+  })
+})
+
+describe("what the person types in a folder's path field", () => {
+  // A folder of its own outside the project's, removed when the test ends.
+  const away = (resources: Resources, name: string) => {
+    const outside = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-outside-")))
+    resources.defer(() => rmSync(outside, { recursive: true, force: true }))
+    return join(outside, name)
+  }
+
+  it("opens a path with a tilde from the home folder, a folder as a folder item", async ({
+    fixture,
+  }) => {
+    const moth = fixture.terminal("moth")
+    mkdirSync(join(fixture.directory, "Downloads"))
+    writeFileSync(join(fixture.directory, "notes.md"), "# Notes\n")
+    vi.stubEnv("HOME", fixture.directory)
+    vi.stubEnv("USERPROFILE", fixture.directory)
+    try {
+      await expect(
+        fixture.items.attach({ terminalId: moth.terminalId, path: "~/Downloads" }),
+      ).resolves.toMatchObject({ kind: "folder", path: join(fixture.directory, "Downloads") })
+      await expect(
+        fixture.items.attach({ terminalId: moth.terminalId, path: "~/notes.md" }),
+      ).resolves.toMatchObject({ kind: "file", path: join(fixture.directory, "notes.md") })
+      await expect(
+        fixture.items.attach({ terminalId: moth.terminalId, path: "~/missing" }),
+      ).rejects.toMatchObject({ code: "INVALID_FILE" })
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it("names the folders it may be, marking one a folder item already shows", async ({
+    fixture,
+  }) => {
+    const moth = fixture.terminal("moth")
+    mkdirSync(join(fixture.directory, "render"))
+    mkdirSync(join(fixture.directory, "release"))
+    await fixture.items.attach({ terminalId: moth.terminalId, path: "render" })
+    await expect(
+      fixture.items.folders({ terminalId: moth.terminalId, path: "re" }),
+    ).resolves.toEqual([
+      { path: "release", count: 0, open: false },
+      { path: "render", count: 0, open: true },
+    ])
+    await expect(
+      fixture.items.folders({ terminalId: randomUUID(), path: "re" }),
+    ).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
+  })
+
+  it("names no folder the person's environment moves a tool's logins to", async ({ fixture }) => {
+    const moth = fixture.terminal("moth")
+    mkdirSync(join(fixture.directory, "keys"))
+    mkdirSync(join(fixture.directory, "keep"))
+    fixture.environment.DOCKER_CONFIG = join(fixture.directory, "keys")
+    await expect(
+      fixture.items.folders({ terminalId: moth.terminalId, path: "k" }),
+    ).resolves.toEqual([{ path: "keep", count: 0, open: false }])
+  })
+
+  it("lists the folders outside the project its session's agents wrote in, whichever the harness", async ({
+    fixture,
+    resources,
+  }) => {
+    const [a, b, c, d] = ["a", "b", "c", "d"].map((name) => away(resources, name))
+    for (const folder of [a!, b!, c!, d!]) mkdirSync(folder)
+    mkdirSync(join(fixture.directory, "inside"))
+    const moth = fixture.wrote(fixture.terminal("moth"), "claude", [
+      { folder: a!, at: 10 },
+      { folder: join(fixture.directory, "inside"), at: 99 },
+    ])
+    fixture.wrote(fixture.terminal("raven"), "codex", [{ folder: b!, at: 30 }])
+    fixture.wrote(fixture.terminal("kite"), "agy", [{ folder: c!, at: 20 }])
+    const other = fixture.store.createSession({
+      id: randomUUID(),
+      projectId: fixture.store.session(fixture.sessionId).projectId,
+      name: "Other",
+    })
+    fixture.wrote(fixture.terminal("owl", other.id), "claude", [{ folder: d!, at: 40 }])
+    await expect(fixture.items.wroteTo({ terminalId: moth.terminalId })).resolves.toEqual([
+      { path: b, handle: "raven", agent: "codex", at: 30 },
+      { path: c, handle: "kite", agent: "agy", at: 20 },
+      { path: a, handle: "moth", agent: "claude", at: 10 },
+    ])
+    await expect(fixture.items.wroteTo({ terminalId: randomUUID() })).rejects.toMatchObject({
+      code: "TERMINAL_NOT_FOUND",
+    })
   })
 })
 
