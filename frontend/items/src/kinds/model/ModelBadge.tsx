@@ -18,7 +18,7 @@ export const totalOf = (content: ModelContent): number =>
   content.files.reduce((all, file) => all + file.size, content.size)
 
 // A model's badge in its peek: its format and size, till a still of it is drawn, or in place of
-// one past what a peek reads; and while the peek's own code loads.
+// one past what a peek reads.
 export const ModelBadge = ({ content }: { readonly content: ModelContent }): React.JSX.Element => (
   <span className="peek-model">
     <Box size={18} strokeWidth={1.5} aria-hidden />
