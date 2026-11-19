@@ -258,13 +258,14 @@ the terminal (inside its window; in a window 864px wide or less, as every Canvas
 Nothing opens on its own unless the user asked for it; everything else waits in the
 taskbar, marked new.
 
-What belongs there is a deliverable: a file or page the task itself calls for, made to
-be looked at (an image or screenshot, a rendered page or dev server, a mockup or diagram, a
+What belongs there is a deliverable: a file or page the task itself calls for that the
+agent's reply can't carry, made to be looked at (an image or screenshot, a rendered page or dev server, a mockup or diagram, a
 rendered document such as a PDF, the one file the user asked for, or whatever they ask to see), shown
 once it is done, with `open` so it opens at once; without `open` for anything supporting, which
-waits marked new. It is defined by what the task calls for, not by kinds of document: when the list named
-"a report" or "a generated document", agents wrote answers that belonged in their reply
-to a file just to show them. A page is one the agent serves or just deployed, such as a dev server
+waits marked new. It is defined by what the task calls for and the reply can't carry, not by kinds of
+document: when the list named "a report" or "a generated document", agents wrote answers
+that belonged in their reply to a file just to show them, and with "the task calls for"
+alone, a task asking for a write-up still read as asking for a file. A page is one the agent serves or just deployed, such as a dev server
 or a preview: a link to someone else's site often wants a sign-in in the pane and helps
 little there, so it goes in the agent's reply unless the user asks to see it in the pane. A source file counts while it is the one
 the user and the agent work on together; the files a change touches on the way do not,

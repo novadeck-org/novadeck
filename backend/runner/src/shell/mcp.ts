@@ -173,7 +173,8 @@ const show: Tool<Shown> = {
   description:
     "Show the user an image, a video, an audio recording, a PDF, a 3D model or a text file, a folder, a web page, or the working tree's changes, in Novadeck, " +
     "beside the terminal they're talking to you in. Give one of file, page or changes. Show a " +
-    "deliverable, a file or page the task itself calls for, when it is done, not each file " +
+    "deliverable, a file or page the task itself calls for that your reply can't carry, when " +
+    "it is done, not each file " +
     "you touch: an image or screenshot, a rendered video, recording or screen capture, the " +
     "folder you wrote several of them to, a rendered page or a dev server's address, a " +
     "mockup or diagram, a rendered document such as a PDF, the lines you mean, the one file the user asked " +

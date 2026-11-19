@@ -272,7 +272,7 @@ describe("a nudge", () => {
       expect(companionNotice).toContain(kind)
     for (const word of [
       "show tool",
-      "deliverable, a file or page the task itself calls for",
+      "deliverable, a file or page the task itself calls for that your reply can't carry",
       "not each file you touch",
       "a page you serve or just deployed",
       "a link to someone else's site",

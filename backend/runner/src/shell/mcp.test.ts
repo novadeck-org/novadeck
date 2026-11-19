@@ -855,7 +855,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     const described = tools?.result?.tools as { name: string; description: string }[]
     const show = described.find((tool) => tool.name === "show")!
     expect(show.description).toContain(
-      "Show a deliverable, a file or page the task itself calls for, when it is done, not each file you touch",
+      "Show a deliverable, a file or page the task itself calls for that your reply can't carry, when it is done, not each file you touch",
     )
     // A deliverable is what the task calls for, not a kind of document: listing "a report"
     // drew agents to write their answer to a file only to show it.
