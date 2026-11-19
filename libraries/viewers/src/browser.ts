@@ -905,15 +905,16 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     }
   }
   // The person asked for a menu on the live page. Electron gives where in the app page's
-  // window, as though the view were drawn as it lays out: a phone's, scaled about its corner,
-  // is drawn smaller, so the point is brought in to where the person pressed.
+  // window, as though the view were drawn as it lays out: one scaled about its corner, not
+  // zoomed, as a phone's, is drawn smaller, so the point is brought in to where the person
+  // pressed.
   const menu = (event: Event): void => {
     const params = (event as Event & { params?: Partial<MenuParams> }).params
     if (!on?.menu || !params) return
     const { x = 0, y = 0 } = params
     const flags = params.editFlags ?? {}
     const link = params.linkURL ?? ""
-    const scale = size === "phone" && framed ? framed.scale : 1
+    const scale = framed && zoomed === 1 ? framed.scale : 1
     const box = root.getBoundingClientRect()
     const left = box.left + (framed?.left ?? 0)
     const top = box.top + (framed?.top ?? 0)
