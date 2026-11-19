@@ -517,7 +517,11 @@ for (const setup of setups) {
           expect((await run.deck.terminals.takeBox(t1.id)).returned).toBeNull()
           // The queue is back in the box: as its text, or, from Claude Code 2.1.328, which
           // takes a queued message back as a paste, as its placeholder.
-          expect(await t1.screen()).toMatch(/queued line 30|\[Pasted text #\d+ \+29 lines\]/)
+          expect(await t1.screen()).toMatch(
+            setup.agent === "claude"
+              ? /queued line 30|\[Pasted text #\d+ \+29 lines\]/
+              : /queued line 30/,
+          )
 
           const next = run.model.mark()
           await t1.prompt(message)
