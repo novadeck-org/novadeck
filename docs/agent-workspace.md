@@ -260,14 +260,15 @@ taskbar, marked new.
 
 What belongs there is a deliverable: a file or page the task itself calls for that the
 agent's reply can't carry, made to be looked at (an image or screenshot, a rendered page or dev server, a mockup or diagram, a
-rendered document such as a PDF, the one file the user asked for, or a file, page or diff they ask to see), shown
+rendered document such as a PDF, the one file the user asked for, or an existing file or page, or the working tree's changes, that they ask to see), shown
 once it is done, with `open` so it opens at once; without `open` for anything supporting, which
 waits marked new. It is defined by what the task calls for and the reply can't carry, not by kinds of
 document: when the list named "a report" or "a generated document", agents wrote answers
 that belonged in their reply to a file just to show them, and with "the task calls for"
 alone, a task asking for a write-up still read as asking for a file. Asking to see is
 bounded the same way: "or whatever they ask to see" turned "show me the plan" into edits made
-only to have a diff to show, so it is a file, page or diff they ask to see, and what the reply
+only to have a diff to show, so it is an existing file or page, or the working tree's changes,
+that they ask to see, and what the reply
 can carry stays there. A page is one the agent serves or just deployed, such as a dev server
 or a preview: a link to someone else's site often wants a sign-in in the pane and helps
 little there, so it goes in the agent's reply unless the user asks to see it in the pane. A source file counts while it is the one

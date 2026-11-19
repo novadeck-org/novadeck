@@ -900,7 +900,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     expect(showing.description).toContain("Check it before showing after a while")
   })
 
-  it("says when answers arrive as a fact, and shows what is asked to see only as a file, page or diff", async () => {
+  it("says when answers arrive as a fact, and shows what is asked to see only as what already exists", async () => {
     const [, tools] = await session(terminal(), [initialize, list])
     const described = tools?.result?.tools as { name: string; description: string }[]
     const named = (name: string) => described.find((tool) => tool.name === name)!.description
@@ -920,7 +920,9 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     )
     // "Whatever they ask to see" turned "show me the plan" into edits made only to have a diff
     // to show; a diff after every piece of work was a rule rather than a change to show.
-    expect(named("show")).toContain("or a file, page or diff they ask to see")
+    expect(named("show")).toContain(
+      "or an existing file or page, or the working tree's changes, that they ask to see",
+    )
     expect(named("show")).toContain("to show a change, show the changes themselves with changes")
     for (const words of ["whatever they ask to see", "once a piece of work is done"])
       expect(named("show")).not.toContain(words)

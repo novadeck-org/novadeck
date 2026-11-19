@@ -268,7 +268,9 @@ describe("a nudge", () => {
     expect(companionNotice).toMatch(/^Novadeck: automatic notice, not from the user: /)
     expect(companionNotice).not.toContain("\n")
     expect(companionNotice).not.toContain("report")
-    expect(companionNotice).toContain("or a file, page or diff they ask to see")
+    expect(companionNotice).toContain(
+      "or an existing file or page, or the working tree's changes, that they ask to see",
+    )
     expect(companionNotice).toContain("to show a change, show the working tree's changes")
     for (const words of ["whatever they ask to see", "once a piece of work is done"])
       expect(companionNotice).not.toContain(words)

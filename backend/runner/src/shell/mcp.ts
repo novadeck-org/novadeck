@@ -178,7 +178,7 @@ const show: Tool<Shown> = {
     "you touch: an image or screenshot, a rendered video, recording or screen capture, the " +
     "folder you wrote several of them to, a rendered page or a dev server's address, a " +
     "mockup or diagram, a rendered document such as a PDF, the lines you mean, the one file the user asked " +
-    "you for, or a file, page or diff they ask to see. Show a page you serve or just deployed, such as a dev server or a preview; a " +
+    "you for, or an existing file or page, or the working tree's changes, that they ask to see. Show a page you serve or just deployed, such as a dev server or a preview; a " +
     "link to someone else's site, which often wants a sign-in there, goes in your reply " +
     "unless they ask to see it in the pane. A source file is " +
     "one too while it is the file you are working on together, so show it and keep it " +
