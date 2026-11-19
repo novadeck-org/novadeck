@@ -396,6 +396,20 @@ describe("a CSV file with a long cell", () => {
     const { container } = await show("notes-3", notes)
     expect(note(container).hasAttribute("data-held")).toBe(false)
     expect(more(container)?.textContent).toBe("Show less")
+    more(container)!.focus()
+    act(() => more(container)!.click())
+    expect(note(container).hasAttribute("data-held")).toBe(true)
+    expect(more(container)?.textContent).toBe("Show all")
+    expect(document.activeElement).toBe(more(container))
+  })
+
+  it("names its button by the column's letter where the header names none", async () => {
+    overflowing()
+    const { container } = await show(
+      "notes-4",
+      fileContent("data/notes.csv", [",id", `${"word ".repeat(400)},1`]),
+    )
+    expect(more(container)?.getAttribute("aria-label")).toBe("Show all of column A, line 2")
   })
 })
 

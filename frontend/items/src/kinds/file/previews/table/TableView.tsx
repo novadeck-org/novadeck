@@ -6,7 +6,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react"
 import type { PreviewProps } from ".."
 import { usePaneNote } from "../../../../pane-row"
 import { columnWidths, rowOffsets, rowsWindow } from "./rows-window"
-import { cutAlone, nextSort, partText, sortRows, tableOf, type Sort } from "./table"
+import { columnLetters, cutAlone, nextSort, partText, sortRows, tableOf, type Sort } from "./table"
 
 // Where each table was left, by the item showing it, and in which file and lines pointed at:
 // scrolled, sorted, its rows' heights as measured, and the long cells shown whole (`cellKey`),
@@ -92,8 +92,12 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
   const reveal = useRef<number | undefined>(undefined)
   const toggle = (key: string, line: number): void => {
     const next = new Set(opened)
-    if (next.delete(key)) reveal.current = line
-    else next.add(key)
+    if (next.delete(key)) {
+      reveal.current = line
+      // It ran long, or it had no button to show it whole by: its button stays, kept open from
+      // before as it may have been, unmeasured.
+      if (!long.has(key)) setLong(new Set([...long, key]))
+    } else next.add(key)
     setOpened(next)
     keep({ opened: [...next] })
   }
@@ -162,7 +166,7 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
     if (row && top < element.scrollTop) element.scrollTop = top
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- It reads the view's refs only.
     look()
-    // oxlint-disable-next-line react/exhaustive-effect-dependencies, react-hooks/exhaustive-deps -- Only as a cell is shown short.
+    // Only as a cell is shown short.
   }, [opened, scroller])
 
   // Each held cell drawn, measured: one that runs past its first lines gets its button.
@@ -319,7 +323,7 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
                           type="button"
                           className="artifact-table-more"
                           aria-expanded={open}
-                          aria-label={`${open ? "Show less" : "Show all"} of ${table.header[column]}, line ${row.line}`}
+                          aria-label={`${open ? "Show less" : "Show all"} of ${table.header[column]?.trim() || `column ${columnLetters(column)}`}, line ${row.line}`}
                           onClick={() => toggle(key, row.line)}
                         >
                           {open ? "Show less" : "Show all"}
