@@ -500,6 +500,10 @@ export type BackendFields = {
   // own document, it stays focused while focus is inside a frame of the page, as a page
   // in the companion pane. Absent where nothing surrounds the page, as in a browser.
   readonly windowFocus?: (listener: (focused: boolean) => void) => () => void
+  // Optional. `listener` hears whether a screen reader or other assistive technology runs,
+  // as the system tells the app: at once with the current state, and again on each change;
+  // returns the stop. Absent where nothing can tell, as in a browser.
+  readonly screenReader?: (listener: (running: boolean) => void) => () => void
   // Optional. A picture of a part of the page as it's drawn now, `rect` in CSS pixels of
   // its viewport, as a JPEG `data:` address one pixel to each CSS pixel, or undefined where
   // the window draws nothing: a companion pane, whose picture stands in where it builds

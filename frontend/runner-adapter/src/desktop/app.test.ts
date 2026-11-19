@@ -25,6 +25,7 @@ import {
   desktopUpdates,
   desktopVersion,
   desktopWhatsNew,
+  desktopScreenReader,
   desktopWindowFocus,
   desktopNoticeOf,
   sandboxStateOf,
@@ -227,6 +228,33 @@ describe("the desktop window's focus", () => {
   it("is absent in a browser, or an app that came before it", () => {
     expect(desktopWindowFocus(undefined)).toBeUndefined()
     expect(desktopWindowFocus({} as DesktopApp)).toBeUndefined()
+  })
+})
+
+describe("whether a screen reader runs", () => {
+  it("passes the app's booleans to the page until it stops", () => {
+    let report: ((running: unknown) => void) | undefined
+    const bridge = {
+      onScreenReader: (listener: (running: unknown) => void) => {
+        report = listener
+        return () => {
+          report = undefined
+        }
+      },
+    } as unknown as DesktopApp
+    const states: boolean[] = []
+    const stop = desktopScreenReader(bridge)!((running) => states.push(running))
+    report?.(true)
+    report?.("yes")
+    report?.(false)
+    stop()
+    expect(states).toEqual([true, false])
+    expect(report).toBeUndefined()
+  })
+
+  it("is absent in a browser, or an app that came before it", () => {
+    expect(desktopScreenReader(undefined)).toBeUndefined()
+    expect(desktopScreenReader({} as DesktopApp)).toBeUndefined()
   })
 })
 

@@ -31,6 +31,7 @@ import { chatOfferGroups } from "./chat-offer"
 import { createDebugPanel, type DebugPanel } from "./DebugPanel"
 import { createDemoPortable, type DemoPortable } from "./desktop/portable"
 import { createDemoSandbox } from "./desktop/sandbox"
+import { createDemoScreenReader } from "./desktop/screen-reader"
 import { createDemoUninstall, type DemoUninstall } from "./desktop/uninstall"
 import { updatesGroup, type DemoUpdates } from "./desktop/updates"
 import { doorbellGroups } from "./doorbell"
@@ -72,6 +73,11 @@ export type DemoLaunch = {
   readonly sandbox: SandboxState | undefined
   // Boots again with the desktop app saying this of its sandbox (or nothing).
   readonly setSandbox: (sandbox: SandboxState | undefined) => void
+  // Whether the desktop app says a screen reader runs; undefined where nothing can tell, as in
+  // a browser, which offers no Automatic in Preferences.
+  readonly screenReader: boolean | undefined
+  // Boots again with the desktop app saying this of a screen reader (or nothing).
+  readonly setScreenReader: (running: boolean | undefined) => void
   // The portable copy the desktop app plays; undefined for an installed one.
   readonly portable: DemoPortable | undefined
   // Boots again as this portable copy (or an installed one).
@@ -273,6 +279,9 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
       ),
     whatsNew: states.whatsNew,
     ...(launch.sandbox ? { sandbox: createDemoSandbox(launch.sandbox) } : {}),
+    ...(launch.screenReader === undefined
+      ? {}
+      : { screenReader: createDemoScreenReader(launch.screenReader) }),
     ...(launch.portable ? { portable: createDemoPortable(launch.portable).portable } : {}),
     ...(launch.uninstall ? { uninstall: createDemoUninstall(launch.uninstall).uninstall } : {}),
     pickDirectory: states.pickDirectory,

@@ -78,6 +78,12 @@ export type DesktopBridge = {
    */
   onWindowFocus?(listener: (focused: boolean) => void): () => void
   /**
+   * Calls `listener` with whether a screen reader or other assistive technology is running,
+   * as the system tells Chromium: at once with the current state, and again on each change.
+   * Returns a function that stops listening. Absent from apps that came before it.
+   */
+  onScreenReader?(listener: (running: boolean) => void): () => void
+  /**
    * Calls `listener` with the terminal id of each notice the person clicks, once the app
    * has brought its window to the front. Returns a function that stops listening. Absent
    * from apps that came before it.

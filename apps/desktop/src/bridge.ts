@@ -81,6 +81,16 @@ export const windowFocusChannel = "novadeck:window-focus"
 /** Renderer-to-main request to be told, on `windowFocusChannel`, of the window's focus. */
 export const windowFocusRequestChannel = "novadeck:window-focus-request"
 
+/**
+ * Main-to-renderer report of whether a screen reader or other assistive technology is
+ * running, a boolean, sent on each change; see main/window/screen-reader.ts. A page that
+ * starts listening asks for the current one on `screenReaderRequestChannel`.
+ */
+export const screenReaderChannel = "novadeck:screen-reader"
+
+/** Renderer-to-main request to be told, on `screenReaderChannel`, whether one is running. */
+export const screenReaderRequestChannel = "novadeck:screen-reader-request"
+
 /** Main-to-renderer report of the terminal id of a notification the person clicked. */
 export const noticeClickChannel = "novadeck:notice-click"
 

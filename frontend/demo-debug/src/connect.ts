@@ -28,6 +28,7 @@ export const connectDemo = (rehearsals: BootRehearsals, theme: ThemeSource): Con
   restoreIconGuides()
   let slowAttach = false
   let sandbox: SandboxState | undefined
+  let screenReader: boolean | undefined
   let portable: DemoPortable | undefined
   let uninstall: DemoUninstall | undefined
   let worktrees = true
@@ -62,6 +63,11 @@ export const connectDemo = (rehearsals: BootRehearsals, theme: ThemeSource): Con
       sandbox,
       setSandbox: (next) => {
         sandbox = next
+        rehearsals.rehearse({ reboot: true })
+      },
+      screenReader,
+      setScreenReader: (next) => {
+        screenReader = next
         rehearsals.rehearse({ reboot: true })
       },
       portable,

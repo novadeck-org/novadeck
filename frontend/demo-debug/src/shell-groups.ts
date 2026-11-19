@@ -121,6 +121,30 @@ export const shellGroups = ({
     },
     {
       section: "App",
+      title: "Screen reader",
+      actions: [
+        {
+          label: "Desktop, reader running",
+          hint: "Preferences > Appearance offers Automatic; on it, the terminal in focus keeps a reader's text",
+          reboots: true,
+          run: () => launch.setScreenReader(true),
+        },
+        {
+          label: "Desktop, no reader",
+          hint: "Preferences > Appearance offers Automatic; on it, terminals keep no reader's text",
+          reboots: true,
+          run: () => launch.setScreenReader(false),
+        },
+        {
+          label: "As in a browser",
+          hint: "Nothing tells: Preferences offers On and Off alone, and shows On for Automatic",
+          reboots: true,
+          run: () => launch.setScreenReader(undefined),
+        },
+      ],
+    },
+    {
+      section: "App",
       title: "Agent worktrees",
       actions: [
         {

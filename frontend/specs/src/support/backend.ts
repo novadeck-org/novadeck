@@ -18,6 +18,7 @@ import {
   type UpdateScenario,
   type UpdateScenarioKey,
 } from "@novadeck/demo-debug/desktop/scenarios"
+import { createDemoScreenReader } from "@novadeck/demo-debug/desktop/screen-reader"
 import { createDemoUninstall, uninstallScenarios } from "@novadeck/demo-debug/desktop/uninstall"
 import { createDemoUpdates } from "@novadeck/demo-debug/desktop/updates"
 import { addressParams } from "@novadeck/demo/address"
@@ -108,6 +109,15 @@ const requestedSandbox = (): SandboxState | undefined => {
   const sandbox = addressParams().get("sandbox")
   if (sandbox === "off") return { sandboxed: false, fix: sampleFix }
   if (sandbox === "off-unfixed") return { sandboxed: false, fix: "" }
+  return undefined
+}
+
+// Specs open the demo as a desktop app that says whether a screen reader runs with
+// `?screenReader=running` or `?screenReader=none`; without it, nothing tells, as in a browser.
+const requestedScreenReader = (): boolean | undefined => {
+  const reader = addressParams().get("screenReader")
+  if (reader === "running") return true
+  if (reader === "none") return false
   return undefined
 }
 
@@ -521,7 +531,12 @@ const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   )
   const uninstall = requestedUninstall()
   const withSandbox = sandbox ? { ...demo, sandbox: createDemoSandbox(sandbox) } : demo
-  const withUninstall = uninstall ? { ...withSandbox, uninstall } : withSandbox
+  const reader = requestedScreenReader()
+  const withReader =
+    reader === undefined
+      ? withSandbox
+      : { ...withSandbox, screenReader: createDemoScreenReader(reader) }
+  const withUninstall = uninstall ? { ...withReader, uninstall } : withReader
   return portable
     ? {
         ...withUninstall,

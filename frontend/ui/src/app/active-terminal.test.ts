@@ -32,6 +32,7 @@ const setup = () => {
         notifyNeeds: true,
         notifyFinished: true,
         ligatures: false,
+        screenReader: "auto",
         chatView: false,
         agentAvatars: false,
         onboardingTour: false,

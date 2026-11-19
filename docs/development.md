@@ -791,6 +791,10 @@ App:
 - **Sandbox:** boot as a desktop app running without Electron's sandbox, for the footer's No
   sandbox chip and its fix command; "No sandbox, no fix" as one with no command to offer;
   and "Sandboxed" back to normal.
+- **Screen reader:** boot as a desktop app that says a screen reader runs, or that none does, for
+  Preferences > Appearance's Screen reader support on Automatic: the terminal in focus keeps a
+  reader's text only while one runs. "As in a browser" boots back to a page nothing tells, which
+  offers On and Off alone.
 - **Agent worktrees:** the page's update channel starts stable, which turns the
   setting off, so the rail has no Worktrees toggle, as in a stable build. "On, with Worktrees" boots on
   the experimental channel with the setting on, for the Worktrees panel and the Worktrees group's

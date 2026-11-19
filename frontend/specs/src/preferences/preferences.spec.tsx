@@ -9,7 +9,9 @@ import {
   openPreferencesOn,
   preferencesDialog,
 } from "../support/keyboard"
+import { expectStaysTrue } from "../support/layouts"
 import {
+  clickInto,
   expectStaysAbsent,
   openWorkspace,
   outputTextElement,
@@ -197,6 +199,65 @@ describe("Preferences", () => {
       await expect.poll(() => outputStyle("fontVariantLigatures")).toBe("normal")
       await reloadWorkspace()
       await expect.poll(() => outputStyle("fontVariantLigatures")).toBe("normal")
+    })
+  })
+
+  context("when choosing screen reader support", () => {
+    const support = () =>
+      preferencesDialog().getByRole("combobox", { name: "Screen reader support" })
+    // The text xterm keeps for a screen reader: its tree of rows and its live region.
+    const liveRegion = () =>
+      terminal("Checkout implementation").element().querySelector(".xterm-accessibility")
+
+    it("keeps a reader's text in the terminal in focus until turned off, and keeps that after reopening", async () => {
+      await openWorkspace()
+      await outputDrawn()
+      await openAppearance()
+      // A browser can't tell whether a reader runs, so it offers no Automatic, and keeps the text.
+      await expect.element(support()).toHaveTextContent("On")
+      await support().click()
+      await expect
+        .element(preferencesDialog().getByRole("option", { name: /^Automatic/ }))
+        .not.toBeInTheDocument()
+      await preferencesDialog().getByRole("option", { name: /^Off/ }).click()
+      await expect.element(support()).toHaveTextContent("Off")
+      await closePreferences()
+
+      await clickInto("Checkout implementation")
+      await expectStaysTrue(() => liveRegion() === null, "the terminal keeps no reader's text")
+
+      await reloadWorkspace()
+      await openAppearance()
+      await expect.element(support()).toHaveTextContent("Off")
+      await support().click()
+      await preferencesDialog().getByRole("option", { name: /^On/ }).click()
+      await closePreferences()
+      await clickInto("Checkout implementation")
+      await expect.poll(liveRegion).not.toBeNull()
+    })
+  })
+
+  context("when the app can tell whether a screen reader runs", () => {
+    const liveRegion = () =>
+      terminal("Checkout implementation").element().querySelector(".xterm-accessibility")
+
+    it("keeps no reader's text on Automatic, the default, while none runs", async () => {
+      await openWorkspace("/?screenReader=none")
+      await outputDrawn()
+      await openAppearance()
+      await expect
+        .element(preferencesDialog().getByRole("combobox", { name: "Screen reader support" }))
+        .toHaveTextContent("Automatic")
+      await closePreferences()
+      await clickInto("Checkout implementation")
+      await expectStaysTrue(() => liveRegion() === null, "the terminal keeps no reader's text")
+    })
+
+    it("keeps a reader's text on Automatic while one runs", async () => {
+      await openWorkspace("/?screenReader=running")
+      await outputDrawn()
+      await clickInto("Checkout implementation")
+      await expect.poll(liveRegion).not.toBeNull()
     })
   })
 
