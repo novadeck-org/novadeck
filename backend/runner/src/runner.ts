@@ -411,6 +411,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     transcripts: store.settings.runner().transcripts,
     // Read each time idle agents are looked at, so a change in Preferences counts at once.
     hibernateAfterMinutes: () => store.settings.runner().hibernateAfterMinutes,
+    agentMode: () => store.settings.runner().agentMode,
     projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
     // Agents message each other within a project, and their messages are kept with it.
     messages: store,

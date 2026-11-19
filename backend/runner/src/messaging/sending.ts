@@ -1,4 +1,4 @@
-import type { AgentName, TerminalMessages } from "@novadeck/protocol"
+import { agentMode, type AgentName, type TerminalMessages } from "@novadeck/protocol"
 import { z } from "zod"
 
 import { agents as allAgents, harnesses } from "../harnesses/registry.js"
@@ -152,18 +152,24 @@ export const refusalOfText = (text: string): string | undefined => {
 export const deliveredBytes = (message: Message): number => {
   // Agent messages use the longer lead note. Person replies use their own note and nonce.
   // Its sender may close before it arrives, which marks it so.
-  const text = wrap([message], () => message.response === undefined, "x".repeat(markLength), {
-    fromClosed: () => message.response === undefined,
-  })
-  return Math.max(
-    ...allAgents.flatMap((agent) => {
-      const { messaging } = harnesses[agent]
-      // A tool-call hook carries a lead's message, under each name its events have.
-      const tools = Object.entries(messaging.asks)
-        .filter(([, kind]) => kind === "tool")
-        .map(([event]) => byteLength(messaging.call?.(text, event) ?? ""))
-      return [byteLength(messaging.stop(text)), byteLength(messaging.prompt(text)), ...tools]
+  // The notes on peers' messages are worded for how agents work together: the longer counts.
+  const texts = agentMode.options.map((mode) =>
+    wrap([message], () => message.response === undefined, "x".repeat(markLength), {
+      fromClosed: () => message.response === undefined,
+      mode,
     }),
+  )
+  return Math.max(
+    ...texts.flatMap((text) =>
+      allAgents.flatMap((agent) => {
+        const { messaging } = harnesses[agent]
+        // A tool-call hook carries a lead's message, under each name its events have.
+        const tools = Object.entries(messaging.asks)
+          .filter(([, kind]) => kind === "tool")
+          .map(([event]) => byteLength(messaging.call?.(text, event) ?? ""))
+        return [byteLength(messaging.stop(text)), byteLength(messaging.prompt(text)), ...tools]
+      }),
+    ),
   )
 }
 

@@ -3440,6 +3440,7 @@ describe("saved terminals", () => {
       inboxHistory: [],
       hibernateAfterMinutes: 60,
       worktrees: false,
+      agentMode: "herd",
     })
     workspace.settings.saveRunner({ transcripts: false })
     workspace.settings.saveRunner({ welcomed: true })
@@ -3451,6 +3452,7 @@ describe("saved terminals", () => {
       inboxHistory: [],
       hibernateAfterMinutes: 60,
       worktrees: false,
+      agentMode: "herd",
     })
   })
 
@@ -3466,6 +3468,18 @@ describe("saved terminals", () => {
     // A value that can't be read is the default, not off.
     workspace.settings.saveRunner({ hibernateAfterMinutes: 0 })
     expect(workspace.settings.runner().hibernateAfterMinutes).toBe(60)
+  })
+
+  it("keep how agents work together, Herd until Solo is picked", ({ kept }) => {
+    const workspace = kept()
+    expect(workspace.settings.runner().agentMode).toBe("herd")
+    workspace.settings.saveRunner({ agentMode: "solo" })
+    expect(workspace.settings.runner().agentMode).toBe("solo")
+    workspace.settings.saveRunner({ agentMode: "herd" })
+    expect(workspace.settings.runner().agentMode).toBe("herd")
+    // A mode a newer build saved, which this one doesn't know, reads as Herd.
+    workspace.settings.saveRunner({ agentMode: "swarm" as "herd" })
+    expect(workspace.settings.runner().agentMode).toBe("herd")
   })
 
   it("keep whether agents get worktrees, off until turned on", ({ kept }) => {
@@ -3606,6 +3620,7 @@ describe("the messages", () => {
       inboxHistory: [],
       hibernateAfterMinutes: 60,
       worktrees: false,
+      agentMode: "herd",
     })
     expect(reopened.terminalIdentity("a")).toMatchObject({ handle: "moth" })
     expect(reopened.terminalIdentity("b")).toBeUndefined()

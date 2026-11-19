@@ -17,6 +17,13 @@ export const maxHibernateMinutes = 7 * 24 * 60
 // How long an idle agent waits before it is stopped, in minutes, until the person chooses.
 export const defaultHibernateMinutes = 60
 
+// How agents work with the other agents on this machine, which Novadeck's tool texts say:
+// in Herd they work things out with each other when their work meets; in Solo they keep to
+// their own work, tell the person what they notice, and act with other agents only when asked.
+// Teams (a lead and the agents it leads) work the same in both.
+export const agentMode = z.enum(["herd", "solo"])
+export const defaultAgentMode = "herd"
+
 // Runner-wide settings a client can change.
 export const runnerSettings = z.strictObject({
   // Whether each terminal's screen is kept on disk, to show again when it restores.
@@ -40,6 +47,8 @@ export const runnerSettings = z.strictObject({
   // Whether agents may open git worktrees through Novadeck's tools, which tracks and cleans
   // them up; an Experimental feature, off until the person turns it on.
   worktrees: z.boolean(),
+  // How agents work with each other (see `agentMode`); Herd until the person picks Solo.
+  agentMode,
 })
 
 // The settings as the runner reports them, with what it can do whatever they say.
@@ -49,5 +58,6 @@ export const runnerSettingsState = runnerSettings.extend({
   transcriptsAvailable: z.boolean(),
 })
 
+export type AgentMode = z.infer<typeof agentMode>
 export type RunnerSettings = z.infer<typeof runnerSettings>
 export type RunnerSettingsState = z.infer<typeof runnerSettingsState>

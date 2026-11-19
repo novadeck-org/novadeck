@@ -6122,7 +6122,7 @@ describe("the rules note of a delivery", () => {
     messaging.acknowledge("A", first.leaseId!)
     // Kept with the session, for the terminal manager to save with its report.
     expect(told).toEqual([
-      { terminalId: "A", sessionId: "s-claude", held: { peer: noteDigests.peer } },
+      { terminalId: "A", sessionId: "s-claude", held: { peer: noteDigests.herd.peer } },
     ])
 
     stop("A", claude)
@@ -6204,7 +6204,7 @@ describe("the rules note of a delivery", () => {
 
   it("points to what a session held before a restart, as the terminal manager kept it", () => {
     const { messaging, send, prompt, stop, claude } = create()
-    messaging.rooted("A", [], { peer: noteDigests.peer })
+    messaging.rooted("A", [], { peer: noteDigests.herd.peer })
     sent(send("B", "moth", "After a restart."))
     expect(fullNote(context(prompt("A", claude).stdout))).toBe(false)
     stop("A", claude)

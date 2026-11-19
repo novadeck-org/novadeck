@@ -1,6 +1,7 @@
 import { MURMUR_NAME } from "@novadeck/core/addons/murmur"
 import type { ForgeName } from "@novadeck/core/forges"
 import type { AgentName } from "@novadeck/core/harnesses"
+import type { AgentMode } from "@novadeck/core/port"
 import type { NoticeSound } from "@novadeck/core/sounds"
 import { viewModes } from "@novadeck/core/state"
 import { appScales, screenReaderPreferences, type PreferencesValue } from "@novadeck/core/types"
@@ -157,6 +158,22 @@ const TabInView = ({
   return null
 }
 
+// How agents may work with each other, in the order Preferences offers them.
+const agentModes: readonly { mode: AgentMode; label: string; description: string }[] = [
+  {
+    mode: "solo",
+    label: "Solo",
+    description:
+      "Agents see what the others are doing but keep to their own work: they tell you what they notice and act with other agents only when you ask.",
+  },
+  {
+    mode: "herd",
+    label: "Herd",
+    description:
+      "Agents work things out with each other when their work meets, such as the same files, ports or servers. You set up the teams and make the calls.",
+  },
+]
+
 // The list's value for a wait; none for one the list lacks.
 const idleChoice = (minutes: number | null): string => {
   const value = minutes === null ? "off" : String(minutes)
@@ -175,6 +192,7 @@ export const Preferences = ({
   onFocusedAgent,
   transcripts,
   hibernation,
+  agentMode,
   tour = false,
   worktrees,
   forges,
@@ -217,6 +235,11 @@ export const Preferences = ({
   hibernation?: {
     readonly minutes: number | null
     readonly onChange: (minutes: number | null) => void
+  }
+  // How agents work with each other; absent where the backend has no such setting.
+  agentMode?: {
+    readonly mode: AgentMode
+    readonly onChange: (mode: AgentMode) => void
   }
   // Whether the backend has a tour, which the Onboarding tour switch offers from the footer.
   tour?: boolean
@@ -334,7 +357,7 @@ export const Preferences = ({
   const hasExperimental = experimental?.on === true
   // Agents holds the agents and when to stop the idle ones; a backend with neither, as the
   // website's demo, has no tab for them.
-  const hasAgentsTab = hasAgents || hibernation !== undefined
+  const hasAgentsTab = hasAgents || hibernation !== undefined || agentMode !== undefined
   const hidden = (id: PreferencesTab): boolean =>
     (id === "agents" && !hasAgentsTab) ||
     (id === "addons" && !hasAddons) ||
@@ -453,7 +476,7 @@ export const Preferences = ({
         </div>
         <div ref={panels} className="preferences-panels grid min-h-0 flex-1 overflow-y-auto">
           <TabPanel value="agents" className={panelClasses}>
-            {(agents || hibernation) && (
+            {(agents || hibernation || agentMode) && (
               <Section title="Agents" {...(agents ? { description: agentsExplanation } : {})}>
                 {agents && (
                   <AgentSwitches
@@ -480,6 +503,46 @@ export const Preferences = ({
                       portalContainer={dialog}
                     />
                   </div>
+                )}
+                {agentMode && (
+                  <fieldset
+                    className="agent-mode-preferences settings-fieldset m-0 mt-2.5 min-w-0 p-0"
+                    aria-describedby="agent-mode-description"
+                  >
+                    <legend className="float-left mb-1.5 w-full p-0 px-0.5">
+                      <span className={`block ${groupTitleClasses}`}>Agents work as</span>
+                    </legend>
+                    <div id="agent-mode-description" className="mt-2.5 grid grid-cols-1 gap-2">
+                      {agentModes.map(({ mode, label, description }) => {
+                        const checked = agentMode.mode === mode
+                        return (
+                          <label
+                            key={mode}
+                            className="choice-card solid relative flex min-w-0 cursor-pointer flex-col gap-1 p-3 pr-9 text-body"
+                            data-state={checked ? "checked" : "unchecked"}
+                          >
+                            <span>{label}</span>
+                            <span className="settings-description text-control leading-5">
+                              {description}
+                            </span>
+                            <span className="checkbox absolute top-3 right-3 flex size-4 shrink-0 items-center justify-center">
+                              <input
+                                type="radio"
+                                name="agent-mode"
+                                className="checkbox-input absolute inset-0 m-0 size-full cursor-pointer"
+                                checked={checked}
+                                onChange={() => agentMode.onChange(mode)}
+                              />
+                              <span
+                                aria-hidden="true"
+                                className="checkbox-dot pointer-events-none relative"
+                              />
+                            </span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </fieldset>
                 )}
               </Section>
             )}

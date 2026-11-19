@@ -6,6 +6,7 @@ import type {
   BackendConnectionState,
   BackendSink,
   Approval,
+  AgentMode,
   TerminalKey,
   ThemeSource,
 } from "@novadeck/core/port"
@@ -182,6 +183,8 @@ export type RunnerBackendOptions = {
   // After how many idle minutes the runner stops an agent, null for never, as it said at
   // startup; not offered when absent.
   readonly hibernateAfterMinutes?: number | null
+  // How agents work with each other, as the runner said at startup; not offered when absent.
+  readonly agentMode?: AgentMode
   // Whether the runner lets agents open worktrees, as it said at startup; not offered when
   // absent.
   readonly worktrees?: boolean

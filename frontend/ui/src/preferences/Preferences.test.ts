@@ -142,6 +142,41 @@ describe("the Agents tab", () => {
   })
 })
 
+describe("the Agents work as choice", () => {
+  const panel = (): Element | null =>
+    document.querySelector('[role="tabpanel"][aria-labelledby$="agents"]')
+  const radio = (label: "Solo" | "Herd"): HTMLInputElement | null =>
+    [...document.querySelectorAll<HTMLLabelElement>("label")]
+      .find((item) => item.querySelector("span")?.textContent === label)
+      ?.querySelector("input") ?? null
+
+  it("offers Solo then Herd on the Agents tab, with Herd chosen", async () => {
+    await show({ tab: "agents", agentMode: { mode: "herd", onChange: () => {} } })
+
+    expect(selected()).toBe("Agents")
+    expect(panel()?.textContent).toContain("Agents work as")
+    const labels = [...document.querySelectorAll('input[name="agent-mode"]')].map(
+      (input) => input.closest("label")?.querySelector("span")?.textContent,
+    )
+    expect(labels).toEqual(["Solo", "Herd"])
+    expect(radio("Herd")?.checked).toBe(true)
+    expect(radio("Solo")?.checked).toBe(false)
+    expect(panel()?.textContent).toContain("act with other agents only when you ask")
+  })
+
+  it("saves the mode picked", async () => {
+    const changes: string[] = []
+    await show({
+      tab: "agents",
+      agentMode: { mode: "herd", onChange: (mode) => changes.push(mode) },
+    })
+
+    radio("Solo")!.click()
+
+    expect(changes).toEqual(["solo"])
+  })
+})
+
 describe("the tab Preferences opens on when none is named", () => {
   const agent = { agent: "claude" as const, available: true, connected: false, busy: false }
 

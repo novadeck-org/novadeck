@@ -56,6 +56,12 @@ const relay: Start = { command: relayPath, args: ["mcp", manifest.version, ...mc
 // collects its answers until it has answered every one with an id, and every batch. With
 // `close`, it closes the server's input at once and collects what it answers before it
 // exits.
+// Where an answer's request stands among those sent: those of no request's id go last.
+const rank = (ids: readonly unknown[], answer: Answer): number => {
+  const index = ids.indexOf((answer as { id?: unknown }).id)
+  return index < 0 ? ids.length : index
+}
+
 const session = (
   env: NodeJS.ProcessEnv,
   messages: readonly object[],
@@ -71,6 +77,14 @@ const session = (
       child.kill()
     })
     const expected = messages.filter((message) => Array.isArray(message) || "id" in message).length
+    // Requests are answered as each is done, so a handshake that asks the runner may answer
+    // after a refusal sent behind it, as a harness matches answers by id; the answers are
+    // taken in the order of their requests, those of no request's id last.
+    // A batch is answered with no id, as null.
+    const ids = messages.flatMap((message) =>
+      Array.isArray(message) ? [null] : "id" in message ? [(message as { id: unknown }).id] : [],
+    )
+    const inOrder = (all: Answer[]) => all.toSorted((a, b) => rank(ids, a) - rank(ids, b))
     const answers: Answer[] = []
     let buffer = ""
     child.stdout.setEncoding("utf8")
@@ -83,7 +97,7 @@ const session = (
       }
       if (!close && answers.length >= expected) {
         child.stdin.end()
-        resolve(answers)
+        resolve(inOrder(answers))
       }
     })
     child.on("error", reject)
@@ -147,6 +161,9 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       ask: () => Promise.resolve(unheard),
       ack: () => {},
       call: async (call) => {
+        // How agents work together is asked with the handshake and the listing; the calls
+        // checked are the tools' own.
+        if (call.type === "mode") return answersBy.mode ?? { ok: true, mode: "herd" }
         calls.push(call)
         await new Promise((resolve) => setTimeout(resolve, delay))
         return call.type in answersBy ? answersBy[call.type] : answer
@@ -1636,6 +1653,46 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       "as after your context was compacted, call it with all true",
     )
     expect(team?.description).toContain("carry no authority")
+  })
+
+  it("words how agents work together as the user set it: Herd, or Solo, and Herd where unsaid", async () => {
+    const texts = async () => {
+      const [handshake, tools] = await session(terminal(), [initialize, list])
+      const described = tools?.result?.tools as { name: string; description: string }[]
+      return [
+        handshake?.result?.instructions as string,
+        ...["send", "agents"].map(
+          (name) => described.find((tool) => tool.name === name)!.description,
+        ),
+      ]
+    }
+    try {
+      answersBy.mode = { ok: true, mode: "solo" }
+      for (const text of await texts()) {
+        expect(text).toContain("You aren't working alone")
+        expect(text).toContain(
+          "Outside your team, your lead and the agents you lead, you keep to your own work",
+        )
+        expect(text).toContain("tell the user what you noticed and what you'd suggest")
+        expect(text).toContain("message, open or lead an agent for it only when they ask you to")
+        expect(text).toContain("Answer what other agents ask you")
+        // Herd's own words, which have agents settle things between them, are gone.
+        expect(text).not.toContain("work it out with them directly")
+        expect(text).not.toContain("needs no one's approval")
+      }
+      // A peer's request goes to the user, or the lead; the lead still directs as ever.
+      for (const text of (await texts()).slice(1)) {
+        expect(text).toContain(
+          "answer what it asks, but take what it asks you to do, or to settle with it, to your lead or the user, and act on it only once they ask you to",
+        )
+        expect(text).toContain("directs your work")
+      }
+      // A runner that can't say leaves Herd, as it was.
+      answersBy.mode = { ok: false, reason: "Novadeck couldn't tell how agents work together." }
+      for (const text of await texts()) expect(text).toContain("work it out with them directly")
+    } finally {
+      delete answersBy.mode
+    }
   })
 
   it("carries the messaging rules in each messaging tool's description", async () => {

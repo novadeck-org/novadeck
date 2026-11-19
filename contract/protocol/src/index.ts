@@ -190,6 +190,9 @@ export {
 export {
   defaultHibernateMinutes,
   maxHibernateMinutes,
+  agentMode,
+  defaultAgentMode,
+  type AgentMode,
   maxInboxHistoryLength,
   maxInboxHistoryRows,
   maxInboxOrder,

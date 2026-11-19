@@ -1,5 +1,5 @@
 import type { Install, Model } from "@novadeck/harness-core/harness"
-import type { AgentName } from "@novadeck/protocol"
+import type { AgentMode, AgentName } from "@novadeck/protocol"
 import type { ProcessTrees, PtyOptions } from "@novadeck/terminal/pty"
 import type { InterruptOptions, PromptOptions } from "@novadeck/tui-input"
 
@@ -79,6 +79,8 @@ export type TerminalOptions = {
    * asked each time it looks; null for never, as when omitted.
    */
   hibernateAfterMinutes?: () => number | null
+  /** How agents work with each other, asked each time an agent's tools are listed: Herd when omitted. */
+  agentMode?: () => AgentMode
   /** The waits of hibernation, as in some tests. */
   hibernation?: HibernationOptions
   /** How often changed terminals are saved, in milliseconds. */

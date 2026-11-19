@@ -108,7 +108,7 @@ const extractTools = (anchors: Anchors, packages: HarnessPackage[]): McpTool[] =
   // The constants the literals spread or name, each ending at a blank line or a comment.
   const preamble = [
     ...source.matchAll(
-      /^const (reused|together|approvals|rules|agentChoices|entryFields|cwdProperty|focusProperty|effortProperty|noModel)\b[^=]*=\s*([\s\S]*?)\n(?=\n|\/\/)/gm,
+      /^const (reused|sharing|together|peers|approvals|leadRules|peerRules|rules|agentChoices|entryFields|cwdProperty|focusProperty|effortProperty|noModel)\b[^=]*=\s*([\s\S]*?)\n(?=\n|\/\/)/gm,
     ),
   ]
     .map(([, name, value]) => `const ${name} = ${value}`)
@@ -136,7 +136,8 @@ const extractTools = (anchors: Anchors, packages: HarnessPackage[]): McpTool[] =
         ...limits: unknown[]
       ) => {
         name: string
-        description: string
+        // A function where it follows how the user has agents work together (Herd or Solo).
+        description: string | ((mode: string) => string)
         inputSchema: JsonSchema
       }
       const tool = evaluate(
@@ -166,7 +167,9 @@ const extractTools = (anchors: Anchors, packages: HarnessPackage[]): McpTool[] =
       return [
         {
           name: tool.name,
-          description: tool.description,
+          // As Herd, the default, words it.
+          description:
+            typeof tool.description === "function" ? tool.description("herd") : tool.description,
           input: tool.inputSchema,
           anchor: { file: mcpFile, line: anchors.find(mcpFile, `const ${variable}: Tool<`) },
           handler,

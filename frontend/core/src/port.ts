@@ -343,6 +343,13 @@ export type BackendFields = {
     readonly after: Store<number | null>
     readonly set: (minutes: number | null) => void
   }
+  // Optional. How agents work with each other, which decides the version of Novadeck's tool
+  // texts they get: Herd settles things between agents whose work meets, Solo keeps each to its
+  // own work. Absent where the backend has no such setting.
+  readonly agentMode?: {
+    readonly mode: Store<AgentMode>
+    readonly set: (mode: AgentMode) => void
+  }
   // Optional. Whether agents may open git worktrees through Novadeck's tools, an Experimental
   // feature kept by the runner. Absent where the backend has none.
   readonly worktrees?: {
@@ -628,6 +635,9 @@ export type Notice = {
   // Absent plays the default.
   readonly sound?: NoticeSound
 }
+
+// How agents work with each other (the runner's `agentMode` setting, kept in step with it).
+export type AgentMode = "herd" | "solo"
 
 // An agent the backend can connect, as the Preferences switches show it.
 export type AgentConnection = {

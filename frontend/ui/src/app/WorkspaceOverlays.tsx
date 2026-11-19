@@ -1,7 +1,7 @@
 import type { OfferedUninstall } from "@novadeck/core/desktop/uninstall"
 import type { ForgeConnection, ForgeName } from "@novadeck/core/forges"
 import type { AgentName } from "@novadeck/core/harnesses"
-import type { Backend } from "@novadeck/core/port"
+import type { AgentMode, Backend } from "@novadeck/core/port"
 import { orderedTiles, tileOf } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import type { SchemePreference, Tile } from "@novadeck/core/types"
@@ -110,6 +110,17 @@ const useHibernation = (
     () => hibernation?.after.getSnapshot() ?? null,
   )
   return hibernation && { minutes, onChange: hibernation.set }
+}
+
+// How agents work with each other, for Preferences; undefined where the backend has no such setting.
+const useAgentMode = (
+  agentMode: Backend["agentMode"],
+): { readonly mode: AgentMode; readonly onChange: (mode: AgentMode) => void } | undefined => {
+  const mode = useSyncExternalStore(
+    agentMode?.mode.subscribe ?? always,
+    () => agentMode?.mode.getSnapshot() ?? "herd",
+  )
+  return agentMode && { mode, onChange: agentMode.set }
 }
 
 // Whether agents get worktrees, for Preferences; undefined where the backend has none.
@@ -334,6 +345,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const { backend, commands, navigation, ui, workspace: workspaceStore } = useWorkspaceServices()
   const transcripts = useTranscripts(backend.transcripts)
   const hibernation = useHibernation(backend.hibernation)
+  const agentMode = useAgentMode(backend.agentMode)
   const worktrees = useWorktrees(backend.worktrees)
   const agents = useAgents(backend.agents)
   const installs = useInstalls(backend.agents)
@@ -593,6 +605,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           onClose={closeDialog}
           {...(transcripts ? { transcripts } : {})}
           {...(hibernation ? { hibernation } : {})}
+          {...(agentMode ? { agentMode } : {})}
           {...(worktrees ? { worktrees } : {})}
           tour={tour !== undefined}
           notices={backend.notices !== undefined}

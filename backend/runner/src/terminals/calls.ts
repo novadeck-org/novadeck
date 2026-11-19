@@ -2,7 +2,7 @@ import { resolve as resolvePath } from "node:path"
 
 import type { Effort, Install, Model } from "@novadeck/harness-core/harness"
 import { doorbellLine } from "@novadeck/harness-core/prompts"
-import type { AgentName } from "@novadeck/protocol"
+import type { AgentMode, AgentName } from "@novadeck/protocol"
 import type { Trees } from "@novadeck/terminal/pty"
 import { freshNonce } from "@novadeck/tui-input"
 
@@ -127,6 +127,8 @@ export type CallsHost = LeadsHost &
     readonly send: (call: Call) => Promise<SendAnswer | TeamAnswer>
     readonly agents: (call: Call) => Promise<AgentsAnswer>
     readonly team: (call: Call) => Promise<AgentsAnswer>
+    /** How agents work with each other, as the person set it: the tool texts follow it. */
+    readonly agentMode: () => AgentMode
   }
 
 /**
@@ -728,6 +730,12 @@ export class Calls {
         return this.leads.release(call)
       case "worktrees":
         return Promise.resolve(this.worktrees.listed(call))
+      case "mode":
+        return Promise.resolve(
+          callerOf(this.host.records(), call)
+            ? { ok: true, mode: this.host.agentMode() }
+            : unansweredCalls.mode,
+        )
       case "openWorktree":
         return this.worktrees.open(call)
       case "takeWorktree":

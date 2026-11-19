@@ -172,6 +172,32 @@ An agent weighs what reaches it at three levels:
    started but escalated: the agent asks its lead, or the person in that terminal if it
    has none, and doesn't drop it silently. A message never overrides the person.
 
+### Herd and Solo
+
+How far agents act on each other outside a team is the person's choice, Preferences → Agents →
+"Agents work as" (`agentMode` in `settings.get`, `"herd"` until they pick `"solo"`). It words
+Novadeck's texts, not a rule the runner enforces:
+
+- **Herd** (the default): when an agent's work meets another's, or another has done or knows
+  what it needs, it works things out with that agent directly, and what they settle needs no
+  one's approval.
+- **Solo**: an agent keeps to its own work outside its team (its lead and the agents it leads).
+  It answers what other agents ask, but tells the person what it noticed and what it would
+  suggest, and messages, opens or leads an agent for it only when asked; a peer's request goes
+  to the person, or its lead, before it acts on it.
+
+Teams work the same in both: a lead directs, and its teammates act on its messages and report
+back. Approvals of actions stay the person's in both.
+
+The mode words the server's instructions and the `send` and `agents` descriptions (`together`,
+`rules` in `shell/mcp.ts`), which the MCP server asks the runner for (call `mode`) with each
+handshake and listing, and the notes on peers' messages (`peerClause`, `peersShort` in
+`messaging/messages.ts`), as each delivery is wrapped. Harnesses read the handshake and the
+listing as a session starts and keep them, and Novadeck sends no `tools/list_changed`, so a
+change reaches a running agent's tools only once its harness reads them again, as a new session
+does; its notes follow at once. Each note's digest is kept per mode (`noteDigests`), so a session
+that held a note in the other mode's wording is given it in full again.
+
 The rules that keep this safe:
 
 - **Only Novadeck's markings give authority.** A delivery marks a lead's message with

@@ -10,6 +10,7 @@ import { withSnoozes, type InboxRow } from "@novadeck/core/inbox"
 import { emptyCompanions, itemIdOf, type Item } from "@novadeck/core/items"
 import type {
   AgentConnection,
+  AgentMode,
   Backend,
   BackendAction,
   BackendSink,
@@ -104,6 +105,8 @@ export const demoBackend = (
   const transcripts = createStore(true)
   // Idle agents are stopped after an hour unless the person chooses otherwise, as in the app.
   const hibernateAfter = createStore<number | null>(60)
+  // Agents work as a herd unless the person chooses Solo, as in the app.
+  const agentMode = createStore<AgentMode>("herd")
   // Agent worktrees start on, so the demo shows the Worktrees panel they bring; a stable update
   // channel (the debug demo's page starts on one) turns them off as the app does.
   const worktrees = createStore(true)
@@ -173,6 +176,7 @@ export const demoBackend = (
       set: (enabled) => transcripts.update(() => enabled),
     },
     hibernation: { after: hibernateAfter, set: (minutes) => hibernateAfter.update(() => minutes) },
+    agentMode: { mode: agentMode, set: (mode) => agentMode.update(() => mode) },
     worktrees: { enabled: worktrees, set: (enabled) => worktrees.update(() => enabled) },
     agents: {
       state: agents,

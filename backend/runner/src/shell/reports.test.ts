@@ -134,9 +134,11 @@ describe("relay sessions", () => {
     expect(answers).toContainEqual(
       expect.objectContaining({ id: 2, result: expect.objectContaining({ isError: false }) }),
     )
-    // Listing the tools asks whether worktrees are on, and for the models open_agent offers.
+    // Listing the tools asks whether worktrees are on, how agents work together (which the
+    // messaging tools' texts follow), and for the models open_agent offers.
     expect(calls).toEqual([
       expect.objectContaining({ type: "worktrees" }),
+      expect.objectContaining({ type: "mode" }),
       expect.objectContaining({ type: "models" }),
       call,
     ])

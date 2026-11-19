@@ -1,7 +1,7 @@
 import { transcript as transcriptOf } from "@novadeck/emulator/headless"
 import type { Install, Model } from "@novadeck/harness-core/harness"
 import { hookShellSlackMs } from "@novadeck/harness-core/hook-command"
-import type { AskAnswer, InboxEntry } from "@novadeck/protocol"
+import { defaultAgentMode, type AskAnswer, type InboxEntry } from "@novadeck/protocol"
 import type {
   AgentDetail,
   SliceChange,
@@ -235,6 +235,7 @@ export class Terminals {
       | "murmurTimes"
       | "pty"
       | "hibernateAfterMinutes"
+      | "agentMode"
       | "hibernation"
     >
   > & {
@@ -510,6 +511,7 @@ export class Terminals {
         if (record) this.typing.watchQueue(record)
       },
       held: (id, root, held) => this.reporting.held(id, root, held),
+      ...(options.agentMode && { mode: options.agentMode }),
       onWake: (id) => this.sleepers.ask(id),
     })
     this.inbox = new Inbox(
@@ -731,6 +733,7 @@ export class Terminals {
       send: (call) => this.send(call),
       agents: (call) => this.agents(call),
       team: (call) => this.peers.team(call),
+      agentMode: () => options.agentMode?.() ?? defaultAgentMode,
       ...worktreeHost(this.options.worktrees, (sessionId) => this.projectOf(sessionId)),
     })
     this.moves = new Moves({

@@ -69,6 +69,8 @@ export type MessagingOptions = {
   readonly loops?: Loops
   /** The notes a root session holds grew, for the terminals to keep (`LeasingHost.held`). */
   readonly held?: LeasingHost["held"]
+  /** How the user has agents work together, which delivery notes follow (`LeasingHost.mode`). */
+  readonly mode?: LeasingHost["mode"]
   /**
    * A terminal resting with no process gained a message that will be delivered, so its agent
    * is to be woken (`wakeWanted`). Called once for each time it rests, while it is asked.
@@ -136,7 +138,7 @@ export class Messaging {
       letBriefGo: (terminalId) => this.leading.letBriefGo(terminalId),
     })
     this.sessions = sessions
-    const leasing = { sessions, store, loops, now, step, held: options.held }
+    const leasing = { sessions, store, loops, now, step, held: options.held, mode: options.mode }
     this.leasing = new Leasing(options.leaseMs ?? 5_000, leasing)
     this.deliveries = new Deliveries({
       sessions,

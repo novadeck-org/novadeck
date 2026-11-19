@@ -1,12 +1,12 @@
 import type { ForgeConnection, ForgeName } from "@novadeck/core/forges"
-import type { AgentConnection, Backend } from "@novadeck/core/port"
+import type { AgentConnection, AgentMode, Backend } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
 import type { Runner } from "@novadeck/runner-client"
 
 import type { RunnerBackendOptions } from "./backend"
 
 // The switches in Preferences the runner keeps: whether it keeps transcripts, how long it lets
-// idle agents run, whether agents get worktrees, which agents it connects, and whether the person has seen the first-run choice. Each shows a change at once;
+// idle agents run, how agents work with each other, whether agents get worktrees, which agents it connects, and whether the person has seen the first-run choice. Each shows a change at once;
 // one the runner doesn't take goes back to what it still does.
 
 type RunnerSwitchCalls = {
@@ -26,6 +26,7 @@ export const runnerSwitches = (
     forges: forgeStates,
     welcomed,
     hibernateAfterMinutes,
+    agentMode: howAgentsWork,
     worktrees: allowed,
   }: Pick<
     RunnerBackendOptions,
@@ -35,12 +36,17 @@ export const runnerSwitches = (
     | "forges"
     | "welcomed"
     | "hibernateAfterMinutes"
+    | "agentMode"
     | "worktrees"
   >,
   track: <T>(work: Promise<T>) => Promise<T>,
-): Pick<Backend, "transcripts" | "hibernation" | "worktrees" | "agents" | "forges"> => {
+): Pick<
+  Backend,
+  "transcripts" | "hibernation" | "agentMode" | "worktrees" | "agents" | "forges"
+> => {
   const transcripts = createStore(kept ?? true)
   const hibernateAfter = createStore(hibernateAfterMinutes ?? null)
+  const agentMode = createStore<AgentMode>(howAgentsWork ?? "herd")
   const worktrees = createStore(allowed ?? false)
   const agents = createStore<readonly AgentConnection[]>(
     (integrations ?? []).map((agent) => ({ ...agent, busy: false })),
@@ -154,6 +160,21 @@ export const runnerSwitches = (
               // Unsaved, the choice shows what the runner still does.
               void track(runner.settings.set({ hibernateAfterMinutes: minutes })).catch(() =>
                 hibernateAfter.update(() => before),
+              )
+            },
+          },
+        }
+      : {}),
+    ...(howAgentsWork !== undefined
+      ? {
+          agentMode: {
+            mode: agentMode,
+            set: (mode) => {
+              const before = agentMode.getSnapshot()
+              agentMode.update(() => mode)
+              // Unsaved, the choice shows what the runner still does.
+              void track(runner.settings.set({ agentMode: mode })).catch(() =>
+                agentMode.update(() => before),
               )
             },
           },
