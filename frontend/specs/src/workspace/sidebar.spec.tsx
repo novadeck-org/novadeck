@@ -86,8 +86,13 @@ describe("sidebar settings", () => {
     it("stops laying out the one behind it, and draws it again when it's back", async () => {
       // The agents demo has the storefront's files and agent worktrees on.
       await openWorkspace("/?demo=agents")
-      const panel = (id: string) => document.getElementById(id)!
-      const laidOut = (id: string) => getComputedStyle(panel(id)).contentVisibility !== "hidden"
+      // Whether the browser renders the panel's content, whatever its fade: its header is
+      // checked, as the panel's own box is drawn either way.
+      const laidOut = (id: string) =>
+        document.querySelector(`#${id} .sidebar-panel-header`)!.checkVisibility({
+          visibilityProperty: false,
+          opacityProperty: false,
+        })
       await pressShortcut("files")
       const rows = () => sidebar().getByRole("treeitem")
       await expect.element(rows().first()).toBeVisible()
