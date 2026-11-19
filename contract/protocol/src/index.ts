@@ -94,6 +94,9 @@ export {
   modelLimits,
   modelFormats,
   modelRefusal,
+  folderLimits,
+  folderEntry,
+  type FolderEntry,
 } from "./companions.js"
 export {
   type ClosedTerminal,

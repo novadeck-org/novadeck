@@ -260,3 +260,14 @@
 .peek-table-row > span[data-numeric] {
   text-align: right;
 }
+/* A folder's miniature: its icon and what it holds. */
+.peek-folder {
+  display: grid;
+  height: 100%;
+  place-content: center;
+  justify-items: center;
+  gap: 2px;
+  color: var(--color-muted);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}

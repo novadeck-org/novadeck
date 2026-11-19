@@ -509,6 +509,16 @@ Agents:
   viewer" sends the open model's frame to another page, and the pane says "The 3D viewer
   stopped."; "Rewrite the bracket" writes it again 10 mm longer, read in small parts: the old one
   stays in view under a Loading chip, then the new one is drawn from where you were looking.
+- **Folder:** only in the `showcase` variant, on the selected terminal's bar. The dev server's
+  terminal (`@fox`) already holds `render`, a folder an agent wrote into (`frontend/demo/src/showcase/folders.ts`:
+  SVG stills, a clip, a PDF, a log, a folder inside it, a secret file and folder and a link out),
+  listed as thumbnails, newest first; double-clicking a file opens it in its kind's group,
+  and opening a folder from the Files panel (`agents` demo) lists a stand-in. The Folder group:
+  "Show a folder" shows it again; "A file lands in the folder" puts a new picture on top (held
+  in a pill while the pointer is in the grid); "A file is being written" grows one for about 3 s
+  (write cursor and pulse); "Show a folder with nothing in it", "...too large to list whole" and
+  "...that may hold secrets" are the pane's other states; "The folder goes away" strikes its tab
+  through and says it is gone, with a Close action; "Bring the folder back" undoes it.
 - **Changes:** only in the `showcase` variant, no action needed: the dev server's terminal
   (`@fox`, the third) holds its items on the bar beside those that can't show, thirteen of them
   changes, one in each shape the changes pane draws: an ordinary change in layers (a refactor of

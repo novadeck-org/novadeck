@@ -27,6 +27,7 @@ import { useDrag, type BarDrag } from "../../bar/drag-session"
 import { Taskbar } from "../../bar/Taskbar"
 import type { SlotActions } from "../../bar/TaskbarSlot"
 import type { Dragged } from "../../bar/use-bar-drag"
+import { ItemCommandsContext } from "../../item-commands"
 import { stuckEdits } from "../../kinds/plan/plan-doc"
 import { registrationOf } from "../../registry"
 import type { ItemStore } from "../../store/item-store"
@@ -411,15 +412,17 @@ export const TerminalCompanion = ({
     <TellContext.Provider value={tell}>
       <div ref={within} className="terminal-companion" data-view={view}>
         {shown.mounted ? (
-          <SplitPane
-            view={paneView}
-            owner={terminal}
-            terminalView={view}
-            presence={shown}
-            onScreen={onScreen}
-          >
-            {children}
-          </SplitPane>
+          <ItemCommandsContext value={commands}>
+            <SplitPane
+              view={paneView}
+              owner={terminal}
+              terminalView={view}
+              presence={shown}
+              onScreen={onScreen}
+            >
+              {children}
+            </SplitPane>
+          </ItemCommandsContext>
         ) : (
           children
         )}

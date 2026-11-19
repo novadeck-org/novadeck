@@ -924,7 +924,7 @@ describe("runner client companion items", () => {
       version: 1,
     })
     await expect(
-      client.companions.attach({ terminalId: first.id, path: "." }),
+      client.companions.attach({ terminalId: first.id, path: "missing.md" }),
     ).rejects.toMatchObject({ code: "INVALID_FILE" })
     await expect(
       client.companions.attach({ terminalId: crypto.randomUUID(), path: "notes.md" }),

@@ -1,0 +1,396 @@
+/* The folder recipe: a folder in a pane, listed read-only. It loads with the view
+   (kinds/folder/index.ts), so the workspace never carries it. Its first line is the crumbs
+   (`.folder-crumbs`: Up, the path from the folder that was opened, and what it holds); under it
+   the files as a grid of tiles (`.folder-grid`) or a table (`.folder-list`), in `.folder-scroll`,
+   which a pill (`.folder-arrivals`) floats over while new files wait. A file being written shows
+   the Files panel's cursor (`.files-cursor`, files.css) after its name and its pulse on its tile
+   or row; one that came since the folder opened has a 4px dot (`.folder-new`), as the taskbar's
+   mark of something new.
+
+   Hooks: data-layout on `.folder-viewer`; data-selected, data-secret, data-link, data-folder,
+   data-pulse and data-kind on a tile or a row; data-faded on `.folder-scroll` while the last
+   listing stands for a folder that is gone or can't be read; aria-sort on a heading.
+
+   Tokens, each optional (its fallback in brackets):
+   --folder-tile-min (150px): the narrowest a tile gets.
+   --folder-thumb-bg (shell), --folder-thumb-border-color (line): a tile's picture.
+   --folder-hover-bg (soft), --folder-selected-bg (soft), --folder-selected-ring (line-strong).
+   --folder-arrivals-bg (strong), --folder-arrivals-fg (on-strong): the pill.
+   --folder-new-bg (taskbar-mark-active-bg, ink): the new dot. */
+@layer components {
+  .folder-viewer {
+    container: folder-viewer / inline-size;
+    position: relative;
+    outline: none;
+    color: var(--color-ink);
+    font-size: var(--text-body);
+  }
+  .folder-viewer svg {
+    flex: none;
+  }
+  .folder-crumbs {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 2px;
+    height: 32px;
+    padding: 0 10px 0 6px;
+    border-bottom: var(--border-width) solid var(--pane-tabs-border-color, var(--color-line));
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    white-space: nowrap;
+  }
+  .folder-up {
+    width: 24px;
+    height: 24px;
+    margin-right: 4px;
+  }
+  .folder-up[aria-disabled="true"] {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .folder-path {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    min-width: 0;
+    overflow: hidden;
+  }
+  /* What is above the folder that was opened: text, never a way up. */
+  .folder-above {
+    flex: 0 1 auto;
+    min-width: 0;
+    padding-left: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.7;
+  }
+  .folder-crumb-part {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+  }
+  .folder-crumb {
+    padding: 2px 4px;
+    border-radius: var(--radius-control);
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .folder-crumb:hover {
+    background-color: var(--folder-hover-bg, var(--color-soft));
+  }
+  .folder-crumb[aria-current] {
+    color: var(--color-ink);
+  }
+  .folder-sep {
+    opacity: 0.6;
+  }
+  .folder-count {
+    flex: none;
+    margin-left: auto;
+    padding-left: 8px;
+    font-family: var(--font-sans);
+  }
+  .folder-scroll {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+  .folder-scroll[data-faded] {
+    opacity: 0.45;
+    pointer-events: none;
+  }
+
+  /* Grid. */
+  .folder-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--folder-tile-min, 150px), 1fr));
+    gap: 16px 14px;
+    padding: 14px;
+    align-content: start;
+  }
+  .folder-tile {
+    display: flex;
+    position: relative;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    margin: -6px;
+    padding: 6px;
+    border-radius: var(--radius-panel);
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: default;
+  }
+  .folder-tile:hover {
+    background-color: var(--folder-hover-bg, var(--color-soft));
+  }
+  .folder-tile[data-selected] {
+    background-color: var(--folder-selected-bg, var(--color-soft));
+    box-shadow: inset 0 0 0 var(--border-width)
+      var(--folder-selected-ring, var(--color-line-strong));
+  }
+  .folder-thumb {
+    display: grid;
+    position: relative;
+    place-items: center;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    border: var(--border-width) solid var(--folder-thumb-border-color, var(--color-line));
+    border-radius: var(--radius-control);
+    background-color: var(--folder-thumb-bg, var(--color-shell));
+    color: var(--color-muted);
+  }
+  .folder-thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .folder-thumb > svg {
+    width: 26px;
+    height: 26px;
+  }
+  .folder-ext {
+    position: absolute;
+    right: 0;
+    bottom: 5px;
+    left: 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+    letter-spacing: 0.04em;
+    text-align: center;
+  }
+  .folder-badge {
+    display: inline-flex;
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    align-items: center;
+    gap: 3px;
+    padding: 0 5px;
+    border-radius: var(--radius-control);
+    background-color: color-mix(in srgb, var(--color-shell) 85%, transparent);
+    color: var(--color-ink);
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+    line-height: 16px;
+  }
+  .folder-badge svg {
+    width: 8px;
+    height: 8px;
+    fill: currentColor;
+    stroke: none;
+  }
+  .folder-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: var(--text-control);
+    line-height: 16px;
+  }
+  .folder-name-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .folder-meta {
+    margin-top: -4px;
+    overflow: hidden;
+    color: var(--color-muted);
+    font-size: var(--text-caption);
+    line-height: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .folder-new {
+    flex: none;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background-color: var(--folder-new-bg, var(--taskbar-mark-active-bg, var(--color-ink)));
+  }
+  .folder-viewer .files-cursor {
+    width: 5px;
+    height: 11px;
+  }
+  /* A write lands on its tile or row as the Files panel's rows take one: the two names are the same
+     animation (files.css), which a file written again switches between to play it again. */
+  .folder-viewer [data-pulse="a"] {
+    animation: files-pulse-a 1.4s ease-out;
+  }
+  .folder-viewer [data-pulse="b"] {
+    animation: files-pulse-b 1.4s ease-out;
+  }
+  /* A secret, or a link out: named, never shown. */
+  .folder-viewer [data-secret] .folder-thumb,
+  .folder-viewer [data-link] .folder-thumb {
+    background:
+      repeating-linear-gradient(
+        135deg,
+        transparent 0 6px,
+        color-mix(in srgb, var(--color-line) 70%, transparent) 6px 7px
+      ),
+      var(--folder-thumb-bg, var(--color-shell));
+  }
+  .folder-viewer [data-secret] .folder-name,
+  .folder-viewer [data-secret] .folder-meta,
+  .folder-viewer tr[data-secret] td,
+  .folder-viewer tr[data-link] td {
+    color: var(--color-muted);
+  }
+
+  /* List. */
+  .folder-list {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-control);
+    table-layout: fixed;
+  }
+  .folder-list th,
+  .folder-list td {
+    height: 28px;
+    padding: 0 10px;
+    overflow: hidden;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .folder-list th {
+    position: sticky;
+    top: 0;
+    border-bottom: var(--border-width) solid var(--pane-tabs-border-color, var(--color-line));
+    background-color: var(--pane-bg, var(--color-paper));
+    color: var(--color-muted);
+    font-size: var(--text-caption);
+    font-weight: normal;
+  }
+  .folder-list th[aria-sort] {
+    color: var(--color-ink);
+  }
+  .folder-list th button {
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .folder-list td:not(.folder-col-name) {
+    color: var(--color-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .folder-col-modified {
+    width: 88px;
+  }
+  .folder-col-size {
+    width: 72px;
+    text-align: right;
+  }
+  .folder-col-kind {
+    width: 104px;
+  }
+  .folder-list th.folder-col-size {
+    text-align: right;
+  }
+  .folder-col-name > svg {
+    display: inline-block;
+    margin-right: 8px;
+    vertical-align: -2px;
+    color: var(--color-muted);
+  }
+  .folder-col-name > .folder-name-text {
+    display: inline-block;
+    max-width: calc(100% - 40px);
+    vertical-align: top;
+  }
+  .folder-row {
+    outline-offset: -2px;
+  }
+  .folder-row:hover,
+  .folder-row[data-selected] {
+    background-color: var(--folder-hover-bg, var(--color-soft));
+  }
+  .folder-row[data-folder] .folder-col-name > svg {
+    color: var(--color-ink);
+  }
+  @container folder-viewer (max-width: 420px) {
+    .folder-col-kind {
+      display: none;
+    }
+    .folder-col-modified {
+      width: 72px;
+    }
+    .folder-col-size {
+      width: 64px;
+    }
+  }
+
+  /* New files wait in a pill over the grid while the pointer is in it. */
+  .folder-arrivals {
+    display: flex;
+    position: sticky;
+    z-index: 2;
+    top: 10px;
+    align-items: center;
+    width: max-content;
+    height: 26px;
+    margin: 10px auto -36px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background-color: var(--folder-arrivals-bg, var(--color-strong));
+    box-shadow: var(--shadow-control);
+    color: var(--folder-arrivals-fg, var(--color-on-strong));
+    font-size: var(--text-caption);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  /* A folder that may hold secrets, refused whole: a lock, what is not shown and why, and no tools. */
+  .folder-refused {
+    display: grid;
+    flex: 1;
+    place-content: center;
+    justify-items: center;
+    gap: 6px;
+    padding: 24px;
+    color: var(--color-muted);
+    text-align: center;
+  }
+  .folder-refused b {
+    color: var(--color-ink);
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+
+  /* Nothing in it yet. */
+  .folder-empty {
+    display: grid;
+    height: 100%;
+    min-height: 140px;
+    place-content: center;
+    justify-items: center;
+    gap: 6px;
+    padding: 24px;
+    color: var(--color-muted);
+    text-align: center;
+  }
+  .folder-empty b {
+    color: var(--color-ink);
+    font-weight: 500;
+  }
+
+  /* A peek: no file is read, only what the folder holds. */
+
+  @media (prefers-reduced-motion: reduce) {
+    .folder-viewer [data-pulse] {
+      animation: none;
+    }
+    .folder-viewer .files-cursor {
+      animation: none;
+    }
+  }
+}

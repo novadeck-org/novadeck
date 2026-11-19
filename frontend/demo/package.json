@@ -26,6 +26,8 @@
     "./showcase/agents": "./src/showcase/agents.ts",
     "./showcase/artifacts": "./src/showcase/artifacts.ts",
     "./showcase/demo": "./src/showcase/demo.ts",
+    "./showcase/folder-samples": "./src/showcase/folder-samples.ts",
+    "./showcase/folders": "./src/showcase/folders.ts",
     "./showcase/model-samples": "./src/showcase/model-samples.ts",
     "./showcase/simulation": "./src/showcase/simulation.ts",
     "./terminals/runtime": "./src/terminals/runtime.ts",

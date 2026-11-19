@@ -17,6 +17,7 @@ import {
 } from "@novadeck/core/store"
 import type { Workspace, WorkspaceTarget } from "@novadeck/core/types"
 
+import { defaultFolderView, type FolderView } from "../kinds/folder/view-state"
 import { currentMarks, docOf, lf, type Mark, type PlanDoc } from "../kinds/plan/plan-doc"
 import { blobs } from "../parts/blobs"
 import { rewritten } from "./plan-rewrite"
@@ -39,9 +40,24 @@ export type ItemStoreState = {
   // The shell each shells item has unfolded to its whole tail, by the shell's id: what the
   // person unfolded, or the chat's shell line they opened it from.
   readonly unfolded: Readonly<Record<ItemId, string>>
+  // How each folder item is looked at: the folder it is in, its layout and its sort. Kept
+  // here, not in its body, so a pane that comes back finds the folder as it left it.
+  readonly folders: Readonly<Record<ItemId, FolderView>>
+  // What the folder a folder item's view is in inside its top holds, as followed for it: cleared
+  // each time the view moves to another folder.
+  readonly listings: Readonly<
+    Record<ItemId, { readonly within: string; readonly content: ItemContent }>
+  >
 }
 
-const emptyState: ItemStoreState = { plans: {}, content: {}, revealed: {}, unfolded: {} }
+const emptyState: ItemStoreState = {
+  plans: {},
+  content: {},
+  revealed: {},
+  unfolded: {},
+  folders: {},
+  listings: {},
+}
 
 // What can be done with a plan, apart from showing it.
 export type PlanActions = {
@@ -71,6 +87,14 @@ export type ItemStore = {
   // folds it all with null. The pane shows it that way, whoever opens it.
   readonly unfold: (itemId: ItemId, shellId: string | null) => void
   readonly plan: (target: WorkspaceTarget, itemId: ItemId) => PlanActions
+  // Changes how a folder item is looked at: the folder it is in, its layout, its sort.
+  readonly folder: (itemId: ItemId, change: Partial<FolderView>) => void
+  // Follows the listing of the folder `within` names (from a folder item's top), beside the
+  // item's own, which is its top's; returns the release.
+  readonly listing: (target: WorkspaceTarget, itemId: ItemId, within: string) => () => void
+  // Opens a file or folder on a terminal's bar, by an absolute path, as the person's own show
+  // of it; rejects where the backend can't.
+  readonly attach: (target: WorkspaceTarget, terminalId: string, path: string) => Promise<void>
   // Tells what went wrong on a live page that shows `shown` of the item loaded.
   readonly trouble: (
     target: WorkspaceTarget,
@@ -536,11 +560,15 @@ const reconcile = (session: Session, workspace: Workspace): void => {
       content: keep(present, state.content),
       revealed: keep(present, state.revealed),
       unfolded: keep(present, state.unfolded),
+      folders: keep(present, state.folders),
+      listings: keep(present, state.listings),
     }
     return next.plans === state.plans &&
       next.content === state.content &&
       next.revealed === state.revealed &&
-      next.unfolded === state.unfolded
+      next.unfolded === state.unfolded &&
+      next.folders === state.folders &&
+      next.listings === state.listings
       ? state
       : next
   })
@@ -608,6 +636,33 @@ export const createItemStore = ({
       return { ...state, unfolded: shellId === null ? rest : { ...rest, [id]: shellId } }
     })
   }
+  const folder: ItemStore["folder"] = (id, change) => {
+    session.store.update((state) => {
+      const was = state.folders[id] ?? defaultFolderView
+      const next = { ...was, ...change }
+      if (next.within === was.within && next.layout === was.layout && next.sort === was.sort)
+        return state
+      // Moving to another folder: what was followed for the one before is not this one's.
+      const { [id]: _left, ...listings } = state.listings
+      return {
+        ...state,
+        folders: { ...state.folders, [id]: next },
+        listings: next.within === was.within ? state.listings : listings,
+      }
+    })
+  }
+  const listing: ItemStore["listing"] = (target, id, within) =>
+    session.companions.follow(target, id, { reveal: undefined, within }, (content) =>
+      session.store.update((state) =>
+        state.folders[id]?.within === within
+          ? { ...state, listings: { ...state.listings, [id]: { within, content } } }
+          : state,
+      ),
+    )
+  const attach: ItemStore["attach"] = (target, terminalId, path) =>
+    session.companions.attach
+      ? session.companions.attach(target, terminalId, path).then(() => {})
+      : Promise.reject(new Error("This backend can't open files in a pane"))
   const plan = (target: WorkspaceTarget, id: ItemId): PlanActions => ({
     edit: (text, marks) => {
       const edited = withPlan(session, id, (current) =>
@@ -687,6 +742,9 @@ export const createItemStore = ({
     reveal,
     unfold,
     plan,
+    folder,
+    listing,
+    attach,
     trouble,
     changeFile,
     changeRead,

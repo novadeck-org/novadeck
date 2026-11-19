@@ -1,5 +1,7 @@
 import type { FileChange } from "@novadeck/core/files"
+import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import {
   ChevronRight,
   File,
@@ -11,6 +13,7 @@ import {
   FileText,
   Folder,
   FolderOpen,
+  PanelRight,
   type LucideIcon,
 } from "lucide-react"
 import { useCallback } from "react"
@@ -184,6 +187,7 @@ export const TreeRow = ({
   shownTimes,
   onActivate,
   onOpenFile,
+  onOpenFolder,
   onFocus,
   onLight,
 }: {
@@ -198,6 +202,8 @@ export const TreeRow = ({
   shownTimes: number
   onActivate: (row: FilesRow) => void
   onOpenFile: (row: FilesRow) => void
+  // Opens a folder row in the pane; absent where the backend can't.
+  onOpenFolder: ((row: FilesRow) => void) | undefined
   onFocus: (path: string) => void
   onLight: (pointed: Pointed | undefined) => void
 }): React.JSX.Element => {
@@ -206,7 +212,8 @@ export const TreeRow = ({
   const Icon = node.folder ? (open ? FolderOpen : Folder) : fileIcon
   const everyone = chips?.everyone ?? []
   const branch = expandable(node)
-  return (
+  const openable = node.folder && onOpenFolder !== undefined
+  const line = (
     <div
       role="none"
       className="item files-row"
@@ -259,6 +266,36 @@ export const TreeRow = ({
           }
         />
       )}
+      {openable && (
+        <Tooltip content="Open in the pane">
+          {/* A pointer's shortcut to the menu's entry, which keyboards reach by the row's own menu. */}
+          <button
+            type="button"
+            className="icon-button files-row-action"
+            tabIndex={-1}
+            aria-hidden="true"
+            onClick={() => onOpenFolder(row)}
+          >
+            <PanelRight size={14} strokeWidth={1.75} />
+          </button>
+        </Tooltip>
+      )}
     </div>
+  )
+  return openable ? (
+    <ContextMenu
+      label={`${node.name} actions`}
+      trigger={line}
+      items={[
+        {
+          value: "open-in-pane",
+          label: "Open in the pane",
+          icon: <PanelRight size={14} strokeWidth={1.75} aria-hidden />,
+          onSelect: () => onOpenFolder(row),
+        },
+      ]}
+    />
+  ) : (
+    line
   )
 }

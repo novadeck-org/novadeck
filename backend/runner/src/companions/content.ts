@@ -26,7 +26,7 @@ import { harnesses } from "../harnesses/registry.js"
 import { cut, tail } from "../text.js"
 import type { ItemRecord } from "./records.js"
 import { failure, type RequestFailure } from "./request.js"
-import { secret } from "./secrets.js"
+import { folderSecrets, secret } from "./secrets.js"
 
 // What is shown as an image, by extension: what Chromium decodes itself, as the desktop app
 // and a browser both are, JPEG XL among them (probed in Electron 45.2.2, Chromium 156). HEIC,
@@ -92,16 +92,17 @@ const unavailable = (reason: Unavailable["reason"], size: number | null = null):
 })
 
 /** Whether a file is shown as an image, by its extension. */
-const isImage = (path: string): boolean => images[extname(path).toLowerCase()] !== undefined
+export const isImage = (path: string): boolean => images[extname(path).toLowerCase()] !== undefined
 
 /** Whether a file is played as a video, by its extension. */
-const isVideo = (path: string): boolean => videos[extname(path).toLowerCase()] !== undefined
+export const isVideo = (path: string): boolean => videos[extname(path).toLowerCase()] !== undefined
 
 /** Whether a file is played as a recording, by its extension. */
-const isAudio = (path: string): boolean => recordings[extname(path).toLowerCase()] !== undefined
+export const isAudio = (path: string): boolean =>
+  recordings[extname(path).toLowerCase()] !== undefined
 
 /** Whether a file is previewed as a PDF, by its extension. */
-const isPdf = (path: string): boolean => extname(path).toLowerCase() === ".pdf"
+export const isPdf = (path: string): boolean => extname(path).toLowerCase() === ".pdf"
 
 // The formats a person names otherwise than by their extension: JPEG's other extensions are
 // JPEG, JPEG XL is spelt out, and a glTF model is glTF in its text form or its binary one, as
@@ -188,14 +189,15 @@ export type Pointed = {
   readonly ok: true
   /** Its path, symlinks resolved. */
   readonly path: string
-  readonly kind: "image" | "video" | "audio" | "pdf" | "model" | "file"
+  readonly kind: "image" | "video" | "audio" | "pdf" | "model" | "file" | "folder"
   readonly size: number
   readonly secret: boolean
 }
 
 /**
- * A file a request points at, from the terminal's directory: anything but a missing
- * path, a folder, or a pipe or device. What it holds is read only as it loads. `env` is
+ * A file or a folder a request points at, from the terminal's directory: anything but a
+ * missing path, or a pipe or device. A folder that may hold secrets is refused: it is never
+ * listed. What it holds is read only as it loads. `env` is
  * the person's environment, which says where tools keep their logins (see `secret`).
  */
 export const pointAt = async (
@@ -207,8 +209,13 @@ export const pointAt = async (
   if (!path) return failure("That file doesn't exist.")
   const stats = await stat(path).catch(() => undefined)
   if (!stats) return failure("That file doesn't exist.")
-  if (stats.isDirectory()) return failure("That's a folder; only files can be shown.")
-  if (!stats.isFile()) return failure("Only files can be shown, not a pipe or a device.")
+  if (stats.isDirectory()) {
+    if (folderSecrets(env)(path))
+      return failure("That folder may hold secrets, so Novadeck won't list what is in it.")
+    return { ok: true, path, kind: "folder", size: 0, secret: false }
+  }
+  if (!stats.isFile())
+    return failure("Only files and folders can be shown, not a pipe or a device.")
   const kind = kindOf(path)
   return {
     ok: true,
@@ -255,7 +262,7 @@ const reasonOf = (error: unknown): Unavailable["reason"] => {
 }
 
 /** What says a file changed: its size, when it last changed, and which file it is. */
-const stampOf = (stats: Stats): string => `${stats.size}:${stats.mtimeMs}:${stats.ino}`
+export const stampOf = (stats: Stats): string => `${stats.size}:${stats.mtimeMs}:${stats.ino}`
 
 /** A short digest of a text, as a stamp. */
 export const hashOf = (text: string): string =>
@@ -1036,6 +1043,8 @@ export const readPart = async (
   reveal: boolean,
   largest: number,
   env?: NodeJS.ProcessEnv,
+  // Whether the file opened is still the one asked for, where the caller must know.
+  same?: (opened: Stats) => Promise<boolean>,
 ): Promise<FilePart> => {
   if (item.path === null) return { state: "unavailable", reason: "missing" }
   let path: string
@@ -1052,6 +1061,7 @@ export const readPart = async (
   try {
     if ((item.secret || secret(path, env)) && !reveal)
       return { state: "unavailable", reason: "secret" }
+    if (same && !(await same(stats))) return { state: "unavailable", reason: "missing" }
     if (stats.size > largest) return { state: "unavailable", reason: "too-large" }
     if (stampOf(stats) !== part.stamp) return { state: "changed" }
     const length = Math.max(0, Math.min(partBytes, stats.size - part.offset))

@@ -31,7 +31,12 @@ const hero = itemIdOf("hero")
 // Items over a runner whose content streams the test feeds.
 const following = ({ livePages = false } = {}) => {
   const streams = new Map<string, ReturnType<typeof channel<RunnerContent>>>()
-  const asked: { readonly itemId: string; readonly reveal: string | undefined }[] = []
+  const asked: {
+    readonly itemId: string
+    readonly reveal: string | undefined
+    readonly within?: string | undefined
+  }[] = []
+  const attached: { terminalId: string; path: string }[] = []
   const opened: unknown[] = []
   const projectOpened = {
     item: {
@@ -66,13 +71,19 @@ const following = ({ livePages = false } = {}) => {
   const changeAsked: { itemId: string; path: string; layers: readonly string[] }[] = []
   let changed: ChangeFileDiff = { run: null }
   let saving: PlanSaveResult = { saved: true, stamp: "b2" }
-  const videoAsked: { itemId: string; stamp: string; offset: number; reveal?: string }[] = []
+  const videoAsked: {
+    itemId: string
+    stamp: string
+    offset: number
+    reveal?: string
+    path?: string
+  }[] = []
   let videoReturns: FilePart = { state: "changed" }
   let failure: unknown
   const companions = createRunnerCompanions(
     {
       content: (itemId, options) => {
-        asked.push({ itemId, reveal: options?.reveal })
+        asked.push({ itemId, reveal: options?.reveal, within: options?.within })
         const stream = channel<RunnerContent>()
         streams.set(itemId, stream)
         return stream.iterator
@@ -98,15 +109,20 @@ const following = ({ livePages = false } = {}) => {
         videoAsked.push(input)
         return videoReturns
       },
+      attach: async (input) => {
+        attached.push(input)
+        return { ...projectOpened.item, id: "attached", holder: { terminalId: input.terminalId } }
+      },
     },
     { livePages },
   )
   const seen: ItemContent[] = []
-  const follow = (reveal?: string) =>
-    companions.follow(target, hero, { reveal }, (content) => seen.push(content))
+  const follow = (reveal?: string, within?: string) =>
+    companions.follow(target, hero, { reveal, within }, (content) => seen.push(content))
   return {
     companions,
     asked,
+    attached,
     changeAsked,
     readAsked,
     videoAsked,
@@ -132,6 +148,56 @@ const following = ({ livePages = false } = {}) => {
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+describe("a folder's listing", () => {
+  it("is followed for the folder inside it that is asked for, and the top when none is", async () => {
+    const app = following()
+    app.follow(undefined, "old-runs/notes")
+    app.follow()
+    app.follow(undefined, "")
+    expect(app.asked).toEqual([
+      { itemId: "hero", reveal: undefined, within: "old-runs/notes" },
+      { itemId: "hero", reveal: undefined, within: undefined },
+      { itemId: "hero", reveal: undefined, within: undefined },
+    ])
+  })
+
+  it("is held as the runner lists it", async () => {
+    const app = following()
+    app.follow()
+    const content = {
+      kind: "folder" as const,
+      path: "/tmp/render",
+      within: "",
+      entries: [
+        {
+          name: "a.png",
+          kind: "image" as const,
+          size: 3,
+          modifiedAt: 1,
+          children: null,
+          secret: false,
+          link: false,
+          stamp: "3:1:2",
+        },
+      ],
+      total: 1,
+      truncated: false,
+    }
+    app.push({ state: "ready", stamp: "s", content })
+    await settle()
+    expect(app.seen).toEqual([{ state: "ready", stamp: "s", content }])
+  })
+})
+
+describe("a file or folder attached to a terminal", () => {
+  it("is asked of the runner by the terminal and its absolute path, and comes back as an item", async () => {
+    const app = following()
+    const item = await app.companions.attach?.(target, "t1", "/tmp/render")
+    expect(app.attached).toEqual([{ terminalId: "t1", path: "/tmp/render" }])
+    expect(item).toMatchObject({ id: "attached", holder: { terminalId: "t1" } })
+  })
+})
 
 describe("a picture of a live page", () => {
   // Never asked here: only the picture is.
@@ -480,6 +546,20 @@ describe("the runner's companion content", () => {
       ).toEqual({ state: "unavailable", reason: "secret" })
     })
 
+    it("name a file of a folder item by its path from the folder's top", async () => {
+      const app = following()
+      app.videoReturns({ state: "part", data: "AAEC" })
+      await app.companions.part?.(target, hero, {
+        stamp: "s",
+        offset: 0,
+        reveal: undefined,
+        path: "old-runs/a.svg",
+      })
+      expect(app.videoAsked).toEqual([
+        { itemId: "hero", stamp: "s", offset: 0, path: "old-runs/a.svg" },
+      ])
+    })
+
     it("hold a video's content as the runner has it", async () => {
       const app = following()
       app.follow()
@@ -645,6 +725,7 @@ describe("what a page shows wrong", () => {
       save: () => Promise.reject(new Error("unused")),
       openInProject: () => Promise.reject(new Error("unused")),
       part: () => Promise.reject(new Error("unused")),
+      attach: () => Promise.reject(new Error("unused")),
       pageTrouble: async (input) => {
         calls.push(input)
         if (failure) throw failure

@@ -128,7 +128,14 @@ export const troubleOf = (trouble: PageTrouble): RunnerTrouble => {
 export const createRunnerCompanions = (
   runner: Pick<
     Runner["companions"],
-    "content" | "changeFile" | "changeRead" | "openInProject" | "save" | "pageTrouble" | "part"
+    | "content"
+    | "changeFile"
+    | "changeRead"
+    | "openInProject"
+    | "save"
+    | "pageTrouble"
+    | "part"
+    | "attach"
   >,
   {
     livePages = false,
@@ -146,11 +153,14 @@ export const createRunnerCompanions = (
 ): Companions => ({
   ...(livePages && picture ? { picture } : {}),
   ...(livePages && phone ? { phone } : {}),
-  follow: (_target, itemId, { reveal }, on) => {
+  follow: (_target, itemId, { reveal, within }, on) => {
     let stream: ReturnType<typeof runner.content> | undefined
     let stopped = false
     try {
-      stream = runner.content(itemId, reveal === undefined ? {} : { reveal })
+      stream = runner.content(itemId, {
+        ...(reveal !== undefined && { reveal }),
+        ...(within !== undefined && within !== "" && { within }),
+      })
     } catch {
       return () => {}
     }
@@ -172,13 +182,14 @@ export const createRunnerCompanions = (
   },
   changeFile: (_target, itemId, path, layers) => runner.changeFile({ itemId, path, layers }),
   changeRead: (_target, itemId, path) => runner.changeRead({ itemId, path }),
-  part: async (_target, itemId, { stamp, offset, reveal, file }) => {
+  part: async (_target, itemId, { stamp, offset, reveal, file, path }) => {
     const part = await runner.part({
       itemId,
       stamp,
       offset,
       ...(reveal && { reveal }),
       ...(file !== undefined && { file }),
+      ...(path !== undefined && { path }),
     })
     return part.state === "part" ? { state: "part", bytes: decode(part.data) } : part
   },
@@ -212,6 +223,7 @@ export const createRunnerCompanions = (
       )
       .catch(() => {})
   },
+  attach: async (_target, terminalId, path) => itemOf(await runner.attach({ terminalId, path })),
   openInProject: async (target, path, windowId) => {
     const { item, window } = await inOrder(target, () =>
       runner.openInProject({ sessionId: target.workspaceSessionId, path, windowId }),

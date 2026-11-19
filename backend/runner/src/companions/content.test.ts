@@ -143,20 +143,30 @@ describe("what a show points at", () => {
     await expect(loadFile(file(login), false, {})).resolves.toMatchObject({ reason: "secret" })
   })
 
-  it("is never a missing path, a folder, or a pipe", async ({ directory }) => {
+  it("is never a missing path or a pipe, and a folder is one that may be listed", async ({
+    directory,
+  }) => {
     await expect(pointAt("gone.txt", directory)).resolves.toEqual({
       ok: false,
       reason: "That file doesn't exist.",
     })
     await expect(pointAt(".", directory)).resolves.toEqual({
+      ok: true,
+      path: directory,
+      kind: "folder",
+      size: 0,
+      secret: false,
+    })
+    mkdirSync(join(directory, ".ssh"))
+    await expect(pointAt(".ssh/", directory)).resolves.toEqual({
       ok: false,
-      reason: "That's a folder; only files can be shown.",
+      reason: "That folder may hold secrets, so Novadeck won't list what is in it.",
     })
     if (process.platform === "win32") return
     expect(spawnSync("mkfifo", [join(directory, "pipe")]).status).toBe(0)
     await expect(pointAt("pipe", directory)).resolves.toEqual({
       ok: false,
-      reason: "Only files can be shown, not a pipe or a device.",
+      reason: "Only files and folders can be shown, not a pipe or a device.",
     })
   })
 
@@ -687,6 +697,31 @@ describe("a part of a video", () => {
     ).resolves.toEqual({
       state: "changed",
     })
+  })
+
+  it("is read only from the file its caller says is still the one asked for", async ({
+    directory,
+  }) => {
+    const path = join(directory, "clip.mp4")
+    writeFileSync(path, "frames")
+    const stamp = videoStamp(await loadPlayed(video(path), false, { shown: 1, at: undefined }))
+    const asked: { dev: number; ino: number }[] = []
+    const same = (answer: boolean) => async (opened: { dev: number; ino: number }) => {
+      asked.push({ dev: opened.dev, ino: opened.ino })
+      return answer
+    }
+    await expect(
+      readPart(video(path), { stamp, offset: 0 }, false, videoLimits.bytes, undefined, same(false)),
+    ).resolves.toEqual({ state: "unavailable", reason: "missing" })
+    await expect(
+      readPart(video(path), { stamp, offset: 0 }, false, videoLimits.bytes, undefined, same(true)),
+    ).resolves.toEqual({ state: "part", data: Buffer.from("frames").toString("base64") })
+    // It is asked about the file opened.
+    const own = statSync(path)
+    expect(asked).toEqual([
+      { dev: own.dev, ino: own.ino },
+      { dev: own.dev, ino: own.ino },
+    ])
   })
 
   it("is never read from a file that may hold secrets, unless revealed, or that is gone", async ({

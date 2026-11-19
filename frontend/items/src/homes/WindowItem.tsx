@@ -32,7 +32,7 @@ export const WindowItem = ({
     <PaneChrome
       renderRow={(note) => (
         <PaneTitle
-          icon={icon}
+          icon={note.icon ?? icon}
           name={name}
           look={{
             tip: tabTip(item, note.facts, { where: note.where }),

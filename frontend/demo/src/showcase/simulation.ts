@@ -20,6 +20,8 @@ import {
 import type { SampleAgent } from "./agents"
 import type { SampleArtifact } from "./artifacts"
 import { attachedArtifact, type AttachedArtifact } from "./attached"
+import { clip, clipSize } from "./clip"
+import { quarterlyReport, quarterlyReportSize } from "./pdf"
 import { applyEdits, removeNotes } from "./revise"
 
 // The showcase's agents at work: they answer what their terminals are told, revise their
@@ -175,7 +177,9 @@ export const createShowcase = (
   }: {
     readonly agents: readonly (Holder & { readonly sample: SampleAgent })[]
     // Terminals without an agent, and what they hold.
-    readonly shown?: readonly (Holder & { readonly artifacts: readonly SampleArtifact[] })[]
+    readonly shown?: readonly (Holder & {
+      readonly artifacts: readonly SampleArtifact[]
+    })[]
     // The folder of the project a terminal is in, which a file the person opens is named from.
     readonly directory?: (key: WorkspaceTarget) => string | undefined
   },
@@ -331,7 +335,10 @@ export const createShowcase = (
     ...[...running.values()].flatMap((agent, index) => [
       planItemOf(agent, ago(index)),
       ...agent.sample.artifacts.shown.map((artifact, shownAt) =>
-        itemOf(agent, artifact, { openAsked: false, shownAt: ago(index + shownAt + 1) }),
+        itemOf(agent, artifact, {
+          openAsked: false,
+          shownAt: ago(index + shownAt + 1),
+        }),
       ),
     ]),
     ...shown.flatMap((holder) =>
@@ -381,8 +388,15 @@ export const createShowcase = (
     // As the runner reads a video's, PDF's or model's file: in parts of `file.part` bytes while it is as
     // its content's stamp says, `changed` once the sample shown anew has another stamp, and a
     // secret one only revealed.
-    part: async (_target, id, { stamp, offset, reveal, file }) => {
+    part: async (_target, id, { stamp, offset, reveal, file, path }) => {
       const sample = samples.get(id)
+      // A file of a folder: by its path from the folder's top, as the runner reads one.
+      if (path !== undefined) {
+        if (!sample?.folder) throw new Error(`No folder ${id}`)
+        // Loaded with the first folder read, so a demo that shows none never carries it.
+        const { readFolderPart } = await import("./folders")
+        return readFolderPart(sample.folder, path, stamp, offset)
+      }
       if (!sample?.file) throw new Error(`No file to read in ${id}`)
       // A file beside a model, which its sample reads.
       if (file !== undefined) {
@@ -400,7 +414,9 @@ export const createShowcase = (
       if (sample.file.delay) await new Promise((resolve) => setTimeout(resolve, sample.file?.delay))
       return { state: "part", bytes: bytes.slice(offset, offset + size) }
     },
-    follow: (target, id, { reveal }, on) => {
+    follow: (target, id, { reveal, within }, on) => {
+      const folder = samples.get(id)?.folder
+      if (folder) return folder.subscribe(within ?? "", on)
       const agent = planOf(target, id)
       if (agent) {
         const listeners = following.get(id) ?? new Set()
@@ -415,6 +431,34 @@ export const createShowcase = (
       watchers.add(watcher)
       on(shownContent(id, reveal))
       return () => watchers.delete(watcher)
+    },
+    // As the runner's attach: a file of a folder, or one named by its path, opens on the terminal's
+    // bar as the person's own show of it, in its kind's group.
+    // What it opens comes with the folders, loaded then, so a demo none is opened in never
+    // carries them.
+    attach: async (target, terminalId, path) => {
+      const { openedAt } = await import("./folders")
+      const opened = openedAt([...samples.values()], path, now(), {
+        clip,
+        clipSize,
+        report: quarterlyReport,
+        reportSize: quarterlyReportSize,
+      })
+      if (!opened) throw new Error("That file can't be shown")
+      samples.set(opened.item.id, opened)
+      const own = current().find((item) => item.id === itemIdOf(opened.item.id))
+      const item: Item = {
+        ...itemOf({ key: { ...target, terminalId }, handle: "" }, opened, {
+          openAsked: true,
+          shownAt: now(),
+        }),
+        by: "person",
+        version: own ? own.version + 1 : 1,
+      }
+      report?.([{ type: "item/upsert", target, item }])
+      for (const watcher of watching.get(opened.item.id) ?? [])
+        watcher.on(shownContent(opened.item.id, watcher.reveal))
+      return item
     },
     // As the runner does: the session's project window is pointed at the file, with a later
     // version, or made when the session has none, or the person closed it. It reports the
@@ -522,7 +566,10 @@ export const createShowcase = (
       const own = current().find((item) => item.id === itemIdOf(artifact.item.id))
       const item: Item = own
         ? { ...own, version: own.version + 1, openAsked: true, shownAt: now() }
-        : itemOf({ key, handle }, artifact, { openAsked: true, shownAt: now() })
+        : itemOf({ key, handle }, artifact, {
+            openAsked: true,
+            shownAt: now(),
+          })
       report?.([{ type: "item/upsert", target: key, item }])
       for (const watcher of watching.get(artifact.item.id) ?? [])
         watcher.on(shownContent(artifact.item.id, watcher.reveal))

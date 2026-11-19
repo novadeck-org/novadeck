@@ -76,6 +76,13 @@ export const modelRefusal = z.enum([
   "unreadable",
 ])
 
+/**
+ * A folder the pane lists: at most `entries` of what it holds are listed (`truncated` says
+ * when it holds more), each named in at most `name` UTF-16 code units; an image listed with a
+ * thumbnail is read through `companions.part`, so it is at most `thumbnail` bytes.
+ */
+export const folderLimits = { entries: 2000, name: 1024, thumbnail: partBytes } as const
+
 // What agents show and the person attaches beside a terminal: a pointer to a file, a
 // page or a plan, never a copy of it, which `companions.content` reads when it loads.
 // Each item has one holder, a terminal's bar or a window; `from` is the terminal it was
@@ -87,7 +94,7 @@ export const modelRefusal = z.enum([
 // the background shells the agent in its terminal left running, one per terminal, which the
 // runner makes as the first one starts; it points at nothing (`path` and `url` are null).
 // A video or an audio recording is a file too, played rather than read, which the runner
-// tells by its extension.
+// tells by its extension. A folder points at a folder, whose listing it holds, read-only.
 const itemHolder = z.union([z.strictObject({ terminalId: id }), z.strictObject({ windowId: id })])
 export const companionItem = z.strictObject({
   id,
@@ -100,6 +107,7 @@ export const companionItem = z.strictObject({
     "pdf",
     "model",
     "file",
+    "folder",
     "page",
     "plan",
     "changes",
@@ -321,6 +329,23 @@ export const changeFileDiff = z.strictObject({
     .nullable(),
 })
 
+// One entry of a folder's listing. `kind` is told by the extension; `children` counts what a
+// folder holds (null where it is not counted or can't be read); `size` is a file's, in bytes,
+// and `modifiedAt` epoch milliseconds. A `secret` entry may hold secrets: it is named, never
+// opened, read or counted. A `link` is a symbolic link that leaves the opened folder (or points
+// at nothing): it is listed as itself, never entered or read. `stamp` names a file as
+// `companions.part` must read it ("" for an entry that is read through no part).
+export const folderEntry = z.strictObject({
+  name: z.string().min(1).max(folderLimits.name),
+  kind: z.enum(["folder", "image", "video", "audio", "pdf", "text", "other"]),
+  size: z.number().nonnegative(),
+  modifiedAt: z.number(),
+  children: z.int().nonnegative().nullable(),
+  secret: z.boolean(),
+  link: z.boolean(),
+  stamp: z.string().max(128),
+})
+
 // `companions.content`: what an item points at, read as it is now. `stamp` changes with
 // it. A file is the lines around the ones pointed at, numbered from `firstLine`, with
 // its line count where it was read to its end (`truncated` otherwise), and `clamped`
@@ -351,6 +376,10 @@ export const changeFileDiff = z.strictObject({
 // A 3D model is its format and size, read in parts as a PDF is, and the files beside it it
 // names, by name as the model writes it: each it reads with its size and stamp, which
 // `companions.part` reads by that name, and each it doesn't with why.
+// A folder is its listing, read again whenever it changes: `within` is the path of the folder
+// listed from the one the item points at (its top; "" for the top itself, "/" between names),
+// `path` its own, `entries` at most `folderLimits.entries` of what it holds, of `total` (the
+// rest is `truncated`).
 // Or why it can't be shown, with the file's size where known.
 export const itemContent = z.discriminatedUnion("state", [
   z.strictObject({
@@ -390,6 +419,14 @@ export const itemContent = z.discriminatedUnion("state", [
         url: z.string().max(companionLimits.url),
         shown: z.int().min(1),
         scroll: z.string().max(companionLimits.scroll).optional(),
+      }),
+      z.strictObject({
+        kind: z.literal("folder"),
+        path: z.string().max(companionLimits.path),
+        within: z.string().max(companionLimits.path),
+        entries: z.array(folderEntry).max(folderLimits.entries),
+        total: z.int().nonnegative(),
+        truncated: z.boolean(),
       }),
       z.strictObject({
         kind: z.literal("changes"),
@@ -540,6 +577,7 @@ export type CompanionItem = z.infer<typeof companionItem>
 export type CompanionWindow = z.infer<typeof companionWindow>
 export type CompanionChange = z.infer<typeof companionChange>
 export type ItemContent = z.infer<typeof itemContent>
+export type FolderEntry = z.infer<typeof folderEntry>
 export type PageTrouble = z.infer<typeof pageTrouble>
 export type PageLook = z.infer<typeof pageLook>
 export type PageLookAnswer = z.infer<typeof pageLookAnswer>
