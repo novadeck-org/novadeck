@@ -12,7 +12,7 @@ export const AudioViewer = (props: ArtifactBodyProps<"audio">): React.JSX.Elemen
   <Playback {...props} element="audio">
     {(url, stamp, onBroken) => (
       <AudioPlayer
-        id={props.item.id}
+        id={`${props.item.id}\n${props.item.path}`}
         src={url}
         stamp={stamp}
         name={props.item.name}

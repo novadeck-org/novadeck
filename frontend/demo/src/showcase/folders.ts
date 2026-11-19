@@ -414,9 +414,12 @@ export const placed = (
     terminalId,
     itemId,
     path,
+    projects = [],
   }: {
     readonly samples: readonly SampleArtifact[]
     readonly items: readonly Item[]
+    // The items the project windows hold, which stay on their file.
+    readonly projects?: readonly string[]
     readonly terminalId?: string | undefined
     readonly itemId?: ItemId | undefined
     readonly path: string
@@ -428,13 +431,15 @@ export const placed = (
   if (!opened) throw new Error("That file can't be shown")
   const { kind, name, detail, path: shown, url, lines, secret } = opened.item
   const before = items.find((each) => each.id === itemId)
+  if (before && projects.includes(before.id))
+    throw new Error("The project window's file stays in its window")
   if (itemId !== undefined && (!before || before.kind !== kind || kind === "folder"))
     throw new Error("That item can't show this file")
-  const own =
-    before ??
-    items.find((each) => isOnBar(each, terminalId ?? "") && each.path === shown) ??
-    items.find((each) => each.id === itemIdOf(opened.item.id))
-  const id = own?.id ?? opened.item.id
+  // As the runner keeps a file on a bar: by what that bar holds under its pointer.
+  const own = before ?? items.find((each) => isOnBar(each, terminalId ?? "") && each.path === shown)
+  // A sample's id is the file's: one another bar already holds is not this bar's item.
+  const taken = items.some((each) => each.id === itemIdOf(opened.item.id))
+  const id = own?.id ?? (taken ? `${opened.item.id}@${terminalId}` : opened.item.id)
   const item: Item = {
     ...(own ?? {
       id: itemIdOf(id),

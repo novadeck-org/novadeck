@@ -340,6 +340,11 @@ export class CompanionItems {
   private readonly shellIds = new Map<string, ReadonlySet<string>>()
   /** The names a folder item's top held when it was last read, so what came since is told. */
   private readonly folderNames = new Map<string, ReadonlySet<string>>()
+  /**
+   * The latest read of each folder item's top that began, by a number: followers of one folder
+   * read it alike and may finish out of order, and only the newest read tells what came.
+   */
+  private readonly folderReads = new Map<string, number>()
   /** The ends of shells' output files, read for their items. */
   private readonly tails = new ShellTails()
   /**
@@ -1056,6 +1061,8 @@ export class CompanionItems {
         if (signal.aborted) return
         watcher.follow(place?.dir, place?.ino)
         this.options.folderSteps?.afterPlacing?.()
+        const read = (this.folderReads.get(itemId) ?? 0) + 1
+        this.folderReads.set(itemId, read)
         // eslint-disable-next-line no-await-in-loop -- As above.
         const { content, ino } = await loadFolder(item, within, this.environment())
         if (signal.aborted) return
@@ -1064,7 +1071,8 @@ export class CompanionItems {
         // A folder that couldn't be read (no permission) says no folder, which isn't another one.
         const replaced = ino !== undefined && ino !== place?.ino
         if (replaced) watcher.follow(undefined)
-        if (within === "") this.folderArrivals(item, content)
+        if (within === "" && this.folderReads.get(itemId) === read)
+          this.folderArrivals(item, content)
         const key = `${item.version}|${item.path}|${keyOf(content)}`
         if (key !== sent) {
           sent = key
@@ -1821,6 +1829,7 @@ export class CompanionItems {
   private removed(item: ItemRecord, window: WindowRecord | undefined): void {
     this.cues.delete(item.id)
     this.folderNames.delete(item.id)
+    this.folderReads.delete(item.id)
     this.sink?.gone(item)
     for (const reader of this.readers.get(item.id) ?? []) reader.abort()
     this.emit(

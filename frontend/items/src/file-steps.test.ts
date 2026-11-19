@@ -3,13 +3,23 @@ import { workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
-import { act, createElement } from "react"
-import { afterEach, beforeAll } from "vitest"
+import { act, createElement, useSyncExternalStore } from "react"
+import { afterEach, beforeAll, vi } from "vitest"
 
 import { ItemBody } from "./item-body"
 import { ItemCommandsContext } from "./item-commands"
 import { createItemStore } from "./store/item-store"
+import { itemIn } from "./store/pointing"
 import { context, describe, expect, it } from "./test"
+
+// jsdom has no layout and no resizes; the image viewer asks for them.
+vi.hoisted(() => {
+  globalThis.ResizeObserver ??= class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  }
+})
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
@@ -65,12 +75,17 @@ const shown = async ({
   listings = { "": listing(held) },
   repoint = true,
   commands = true,
+  steps = true,
+  failing,
 }: {
   file?: Partial<Item>
   items?: readonly Item[]
   listings?: Record<string, ItemContent>
   repoint?: boolean
   commands?: boolean
+  steps?: boolean
+  // A repoint the runner refuses, with its words.
+  failing?: string
 } = {}) => {
   const item = itemFixture("file", "01", {
     by: "person",
@@ -91,7 +106,14 @@ const shown = async ({
       if (id === folderItem().id) {
         const content = listings[within ?? ""]
         if (content) on(content)
-      } else on({ state: "unavailable", reason: "missing", size: null })
+      } else if (item.kind === "image")
+        // A picture the viewer really draws, so it is drawn again as the item is shown another.
+        on({
+          state: "ready",
+          stamp: String(item.version),
+          content: { kind: "image", src: "data:image/gif;base64,R0lGODlhAQABAAAAACw=" },
+        })
+      else on({ state: "unavailable", reason: "missing", size: null })
       return () => released.push(`${id}:${within ?? ""}`)
     },
     save: () => new Promise(() => {}),
@@ -100,7 +122,17 @@ const shown = async ({
       ? {
           repoint: async (_target, itemId, path) => {
             repointed.push({ itemId, path })
-            return item
+            if (failing !== undefined) throw new Error(failing)
+            // As the runner does: the same item, shown the other file, a version later.
+            const now = itemIn(workspace.getSnapshot(), item.id)!
+            const next = {
+              ...now,
+              path,
+              name: path.split("/").at(-1)!,
+              version: now.version + 1,
+            }
+            act(() => workspace.dispatch({ type: "item/upsert", target, item: next }))
+            return next
           },
         }
       : {}),
@@ -113,7 +145,19 @@ const shown = async ({
   )
   const itemStore = createItemStore({ companions, workspace })
   unmounts.push(itemStore.connect())
-  const body = createElement(ItemBody, { item, itemStore, target })
+  // The item as the workspace holds it, which a step changes, in a pane that stays through it.
+  const Shown = () => {
+    const now = useSyncExternalStore(
+      workspace.subscribe,
+      () => itemIn(workspace.getSnapshot(), item.id) ?? item,
+    )
+    return createElement(
+      "section",
+      { "data-workspace-companion": "", tabIndex: -1, className: "pane-reader" },
+      createElement(ItemBody, { item: now, itemStore, target, steps }),
+    )
+  }
+  const body = createElement(Shown)
   const rendered = render(
     commands
       ? createElement(
@@ -156,10 +200,19 @@ const shown = async ({
       key: string,
       {
         taken = false,
+        from = "body",
         ...modifiers
-      }: { taken?: boolean; shiftKey?: boolean; ctrlKey?: boolean } = {},
+      }: {
+        taken?: boolean
+        from?: "body" | "pane"
+        shiftKey?: boolean
+        ctrlKey?: boolean
+      } = {},
     ) => {
-      const element = root.querySelector(".artifact-viewer") ?? root
+      const element =
+        (from === "pane" ? root.querySelector("section") : null) ??
+        root.querySelector(".artifact-viewer") ??
+        root
       const event = new KeyboardEvent("keydown", {
         key,
         bubbles: true,
@@ -182,15 +235,20 @@ describe("a file in a folder the session has open", () => {
       expect(app.previous()).not.toBeNull()
       expect(app.next()).not.toBeNull()
       expect(app.tool("Show in render")).not.toBeNull()
-      expect(app.root.querySelector(".item-body")).not.toBeNull()
+      // After the viewer's own tools, whichever is drawn first.
+      expect(app.root.querySelector(".pane-tools-inline")?.hasAttribute("data-after")).toBe(true)
     })
 
     it("name a PDF, a recording and a file as the kind's own word does", async () => {
-      const pdf = await shown({ file: { kind: "pdf", name: "r.pdf", path: "/tmp/render/r.pdf" } })
+      const pdf = await shown({
+        file: { kind: "pdf", name: "r.pdf", path: "/tmp/render/r.pdf" },
+        listings: { "": listing([entry("r.pdf", { kind: "pdf" })]) },
+      })
       expect(pdf.tool("Previous PDF in render")).not.toBeNull()
       pdf.unmount()
       const audio = await shown({
         file: { kind: "audio", name: "r.mp3", path: "/tmp/render/r.mp3" },
+        listings: { "": listing([entry("r.mp3", { kind: "audio" })]) },
       })
       expect(audio.tool("Next recording in render")).not.toBeNull()
     })
@@ -217,7 +275,6 @@ describe("a file in a folder the session has open", () => {
         file: { kind: "page", name: "page", path: null, url: "http://localhost:5173/" },
       })
       expect(app.root.querySelector(".pane-tool")).toBeNull()
-      expect(app.root.querySelector(".item-body")).toBeNull()
     })
 
     it("are only Show in where the backend can't point a file at another", async () => {
@@ -301,21 +358,34 @@ describe("a file in a folder the session has open", () => {
       expect(app.tool("Next file in render")?.getAttribute("aria-disabled")).toBe("true")
     })
 
-    it("is off until the folder is listed, and when it can't be", async () => {
+    it("shows no ‹ › until the file's place among its neighbours is known: not listed yet, the folder gone, the file not in the list", async () => {
       const waiting = await shown({ listings: {} })
-      expect(waiting.previous()?.getAttribute("aria-disabled")).toBe("true")
-      expect(waiting.next()?.getAttribute("aria-disabled")).toBe("true")
+      expect(waiting.previous()).toBeNull()
+      expect(waiting.next()).toBeNull()
+      expect(waiting.tool("Show in render")).not.toBeNull()
       waiting.unmount()
       const gone = await shown({
         listings: { "": { state: "unavailable", reason: "gone", size: null } },
       })
-      expect(gone.next()?.getAttribute("aria-disabled")).toBe("true")
+      expect(gone.next()).toBeNull()
       expect(gone.tool("Show in render")).not.toBeNull()
+      gone.unmount()
+      const unlisted = await shown({ file: { path: "/tmp/render/new.png", name: "new.png" } })
+      expect(unlisted.next()).toBeNull()
+      expect(unlisted.tool("Show in render")).not.toBeNull()
     })
 
-    it("is off for a file the listing doesn't hold", async () => {
-      const app = await shown({ file: { path: "/tmp/render/new.png", name: "new.png" } })
-      expect(app.next()?.getAttribute("aria-disabled")).toBe("true")
+    it("shows none for a file in the project window, which keeps its one file", async () => {
+      const app = await shown({ steps: false })
+      expect(app.root.querySelector(".pane-tool")).toBeNull()
+    })
+
+    it("says why a step failed, under the viewer, until the file is another", async () => {
+      const app = await shown({ failing: "That file doesn't exist." })
+      await app.click(app.next())
+      expect(app.root.querySelector("[role='alert']")?.textContent).toBe(
+        "Couldn't open b.png: That file doesn't exist.",
+      )
     })
 
     it("leaves the folder item's own view where it was", async () => {
@@ -336,13 +406,65 @@ describe("a file in a folder the session has open", () => {
   })
 
   context("the arrow keys", () => {
-    it("step an image: → to the next file, ← to the one before", async () => {
+    it("step an image: → to the next file, ← to the one before, the item moving as it goes", async () => {
       const app = await shown()
       const event = await app.press("ArrowRight")
       expect(event.defaultPrevented).toBe(true)
       expect(app.repointed).toEqual([{ itemId: "file", path: "/tmp/render/b.png" }])
       await app.press("ArrowLeft")
-      expect(app.repointed.at(-1)).toEqual({ itemId: "file", path: "/tmp/render/a.png" })
+      expect(app.repointed.at(-1)).toEqual({ itemId: "file", path: "/tmp/render/c.png" })
+    })
+
+    it("step twice running, though the viewer is drawn again for each file, as its name and path change", async () => {
+      // Newest first: a, c, b. From a, two presses reach b.
+      const app = await shown({ file: { path: "/tmp/render/a.png", name: "a.png" } })
+      // What the viewer library mounts into the pane's element, which it takes down and makes
+      // anew as the file's name changes, with the focus it held.
+      const viewer = () => app.root.querySelector<HTMLElement>(".artifact-image > *")
+      const first = viewer()
+      expect(first).not.toBeNull()
+      first!.focus()
+      expect(document.activeElement).toBe(first)
+      await app.press("ArrowRight")
+      await app.press("ArrowRight")
+      expect(app.repointed).toEqual([
+        { itemId: "file", path: "/tmp/render/c.png" },
+        { itemId: "file", path: "/tmp/render/b.png" },
+      ])
+      expect(viewer()).not.toBe(first)
+      // Focus came back to the pane when the viewer that held it went.
+      expect(document.activeElement?.tagName).not.toBe("BODY")
+    })
+
+    it("step with focus on the pane itself, as a tab opened from the taskbar leaves it", async () => {
+      const app = await shown()
+      app.root.querySelector("section")?.focus()
+      await app.press("ArrowRight", { from: "pane" })
+      expect(app.repointed).toEqual([{ itemId: "file", path: "/tmp/render/b.png" }])
+    })
+
+    it("step with focus on a tool of the row, and leave the pane's own tab list its arrows", async () => {
+      const app = await shown()
+      const tool = app.next()!
+      act(
+        () =>
+          void tool.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }),
+          ),
+      )
+      await settle()
+      expect(app.repointed).toHaveLength(1)
+      const tabs = document.createElement("div")
+      tabs.setAttribute("role", "tablist")
+      app.root.querySelector("section")?.appendChild(tabs)
+      act(
+        () =>
+          void tabs.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }),
+          ),
+      )
+      await settle()
+      expect(app.repointed).toHaveLength(1)
     })
 
     it("say so in the tooltips and the shortcuts of an image's tools, and in no other kind's", async () => {

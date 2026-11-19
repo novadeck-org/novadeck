@@ -11,7 +11,7 @@ export const VideoViewer = (props: ArtifactBodyProps<"video">): React.JSX.Elemen
   <Playback {...props} element="video">
     {(url, stamp, onBroken) => (
       <VideoPlayer
-        id={props.item.id}
+        id={`${props.item.id}\n${props.item.path}`}
         src={url}
         name={props.item.name}
         shown={props.content.shown}

@@ -13,15 +13,22 @@ import { pdf as registration } from "./index"
 
 // jsdom runs no pdf.js: the viewer is a stand-in that notes the bytes it's given.
 const drawn = vi.hoisted(() => [] as Blob[])
+// What each viewer was given to start from: the place its item was left at, if any. Each viewer
+// is left at the page it was turned to, which the stand-in takes to be the count of its mounts.
+const restored = vi.hoisted(() => [] as unknown[])
 vi.mock("@novadeck/viewers/pdf", () => ({
-  mountPdf: (element: HTMLElement, { content }: { content: PdfContent }) => {
+  mountPdf: (
+    element: HTMLElement,
+    { content, saved }: { content: PdfContent; saved?: unknown },
+  ) => {
     drawn.push(content.bytes)
+    restored.push(saved)
     const marker = element.ownerDocument.createElement("div")
     marker.className = "pdf-stand-in"
     element.append(marker)
     return {
       update: (next: PdfContent) => drawn.push(next.bytes),
-      state: () => ({}),
+      state: () => ({ pdf: { page: 7 } }),
       restore: () => {},
       jumpTo: () => {},
       focus: () => {},
@@ -35,6 +42,7 @@ const unmounts: (() => void)[] = []
 afterEach(() => {
   unmounts.splice(0).forEach((unmount) => unmount())
   drawn.splice(0)
+  restored.splice(0)
 })
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
@@ -104,6 +112,20 @@ const shown = async ({
       await settle()
       return next.container
     },
+    // The item pointed at another file, as stepping through a folder does: the same id, a new
+    // path, and that file's content.
+    point: async (path: string, next: string, at: string) => {
+      bytes = new TextEncoder().encode(next)
+      rendered.rerender(
+        createElement(registration.View, {
+          item: { ...item, path, name: path.split("/").at(-1)! },
+          itemStore,
+          target,
+        }),
+      )
+      act(() => emit(ready(at)))
+      await settle()
+    },
     // The file written again under a new stamp.
     rewrite: async (next: string, at = "2") => {
       bytes = new TextEncoder().encode(next)
@@ -132,6 +154,18 @@ describe("a PDF in the pane", () => {
     await expect.poll(() => drawn.length).toBe(2)
     expect(first.asked.length).toBe(read)
     expect(container.querySelector(".pdf-stand-in")).not.toBeNull()
+    // The same file of the item opens where it was left.
+    expect(restored.at(-1)).toEqual({ pdf: { page: 7 } })
+  })
+
+  it("opens another file the item is pointed at on a fresh place, not at the first's page", async () => {
+    const { point } = await shown({ id: "stepped" })
+    await expect.poll(() => drawn.length).toBe(1)
+    expect(restored).toEqual([undefined])
+    await point("/p/other.pdf", "%PDF-1.4 other", "2")
+    // Drawn again for the other file, as the viewer is for any new name, from its first page.
+    await expect.poll(() => restored.length).toBe(2)
+    expect(restored).toEqual([undefined, undefined])
   })
 
   it("keeps the old PDF in view while a rewritten one is read, then draws the new", async () => {

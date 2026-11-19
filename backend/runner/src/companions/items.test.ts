@@ -2640,6 +2640,58 @@ describe("a folder beside its terminal", () => {
     }
   })
 
+  it("tells a file that came once, however many follow the folder's top and finish reading out of order", async ({
+    fixture,
+  }) => {
+    const place = render(fixture.directory)
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "render" } })
+    const id = shown.ok ? shown.id : ""
+    const controllers = [new AbortController(), new AbortController(), new AbortController()]
+    const streams = controllers.map(({ signal }) => fixture.items.content(id, undefined, signal))
+    try {
+      const lists = async () =>
+        (await Promise.all(streams.map((stream) => next(stream)))).map(listed)
+      for (const each of await lists()) expect(each.total).toBe(4)
+      const before = fixture.items.bar(moth.terminalId)[0]!.version
+      writeFileSync(join(place, "new.png"), "a")
+      for (const each of await lists())
+        expect(each.entries.map(({ name }) => name)).toContain("new.png")
+      // Each follower read the top again, and the file is news once: the item is one version newer.
+      expect(fixture.items.bar(moth.terminalId)[0]!.version).toBe(before + 1)
+      writeFileSync(join(place, "newer.png"), "b")
+      for (const each of await lists())
+        expect(each.entries.map(({ name }) => name)).toContain("newer.png")
+      expect(fixture.items.bar(moth.terminalId)[0]!.version).toBe(before + 2)
+    } finally {
+      for (const controller of controllers) controller.abort()
+      await Promise.all(streams.map((stream) => stream.return(undefined)))
+    }
+  })
+
+  it("lists a link inside the folder as its target's, flagged, and a pipe as no regular file", async ({
+    fixture,
+  }) => {
+    const place = render(fixture.directory)
+    writeFileSync(join(place, "run-5.png"), "5")
+    symlinkSync("run-5.png", join(place, "latest.png"))
+    const fifo = process.platform !== "win32"
+    if (fifo) execFileSync("mkfifo", [join(place, "pipe.log")])
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "render" } })
+    const content = await fixture.items.load(shown.ok ? shown.id : "", false)
+    const entries = listed(content).entries
+    expect(entries.find(({ name }) => name === "latest.png")).toMatchObject({
+      kind: "image",
+      link: false,
+      linked: true,
+    })
+    expect(entries.find(({ name }) => name === "run-5.png")).not.toHaveProperty("linked")
+    expect(entries.find(({ name }) => name === "shot.png")).not.toHaveProperty("linked")
+    if (fifo)
+      expect(entries.find(({ name }) => name === "pipe.log")).toMatchObject({ plain: false })
+  })
+
   it("says a folder is gone once it is moved or deleted, and lists it again when it is back", async ({
     fixture,
   }) => {

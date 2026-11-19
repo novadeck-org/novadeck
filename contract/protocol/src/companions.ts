@@ -307,7 +307,10 @@ export const changeFileDiff = z.strictObject({
 // and `modifiedAt` epoch milliseconds. A `secret` entry may hold secrets: it is named, never
 // opened, read or counted. A `link` is a symbolic link that leaves the opened folder (or points
 // at nothing): it is listed as itself, never entered or read. `stamp` names a file as
-// `companions.part` must read it ("" for an entry that is read through no part).
+// `companions.part` must read it ("" for an entry that is read through no part). `plain: false`
+// marks what is no regular file (a pipe, a socket, a device), and `linked: true` a symbolic link
+// that stays inside the opened folder, listed as the file or folder it leads to: neither is a
+// file of its own to step to. Both are absent otherwise.
 export const folderEntry = z.strictObject({
   name: z.string().min(1).max(folderLimits.name),
   kind: z.enum(["folder", "image", "video", "audio", "pdf", "text", "other"]),
@@ -316,6 +319,8 @@ export const folderEntry = z.strictObject({
   children: z.int().nonnegative().nullable(),
   secret: z.boolean(),
   link: z.boolean(),
+  linked: z.literal(true).optional(),
+  plain: z.literal(false).optional(),
   stamp: z.string().max(128),
 })
 

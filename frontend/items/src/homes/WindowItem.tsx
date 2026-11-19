@@ -15,10 +15,13 @@ export const WindowItem = ({
   item,
   itemStore,
   target,
+  steps = true,
 }: {
   item: Item
   itemStore: ItemStore
   target: WorkspaceTarget
+  // Whether a file can be pointed at another of its folder, which the project window's can't.
+  steps?: boolean
 }): React.JSX.Element => {
   const plans = usePlans(itemStore, item.kind === "plan" ? [item.id] : [])
   // A shells item with a shell that failed tints its title, as a pane's tab.
@@ -43,7 +46,7 @@ export const WindowItem = ({
         />
       )}
     >
-      <ItemBody item={item} itemStore={itemStore} target={target} />
+      <ItemBody item={item} itemStore={itemStore} target={target} steps={steps} />
     </PaneChrome>
   )
 }

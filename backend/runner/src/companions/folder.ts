@@ -256,6 +256,8 @@ const entryOf = async (
     modifiedAt: stats.mtimeMs,
     secret: held,
     link: false,
+    // A link that stays in the top is its target's by another name, never a file of its own.
+    ...(own.isSymbolicLink() && { linked: true as const }),
   }
   if (stats.isDirectory())
     return {
@@ -267,7 +269,13 @@ const entryOf = async (
     }
   // A link inside the top is its target's, by its name, as `readFolderPart` reads it.
   const kind = stats.isFile() ? entryKindOf(basename(real)) : "other"
-  return { ...base, kind, children: null, stamp: held || !stats.isFile() ? "" : stampOf(stats) }
+  return {
+    ...base,
+    kind,
+    children: null,
+    ...(!stats.isFile() && { plain: false as const }),
+    stamp: held || !stats.isFile() ? "" : stampOf(stats),
+  }
 }
 
 /**

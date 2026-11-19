@@ -357,7 +357,12 @@ export const createShowcase = (
   ): Promise<Item> => {
     const { placed } = await import("./folders")
     const { id, sample, item, twin } = placed(
-      { samples: [...samples.values()], items: current(), ...where },
+      {
+        samples: [...samples.values()],
+        items: current(),
+        projects: [...projectWindows.values()].map(({ itemId }) => itemId),
+        ...where,
+      },
       now(),
       { clip, clipSize, report: quarterlyReport },
     )

@@ -43,6 +43,16 @@ export const useMedia = <Element extends HTMLMediaElement>({
   current: boolean
 }) => {
   const ref = useRef<Element>(null)
+  // The file it plays is told by `id`, the item and its path: another file is not the old one
+  // rewritten, so it starts afresh, paused at its start, where a rewrite resumes. `swapped`
+  // below reads which file the last source was set for.
+  const latestId = useRef(id)
+  const sourceFor = useRef(id)
+  useEffect(() => {
+    if (latestId.current === id) return
+    latestId.current = id
+    ref.current?.pause()
+  }, [id])
   const [place] = useState(() => places.get(id))
   const [paused, setPaused] = useState(true)
   const [time, setTime] = useState(0)
@@ -73,10 +83,12 @@ export const useMedia = <Element extends HTMLMediaElement>({
   // before the new one empties the element: it resumes there once it knows its length.
   useEffect(() => {
     const element = ref.current!
-    const swapped = element.getAttribute("src") !== null
+    const another = sourceFor.current !== latestId.current
+    sourceFor.current = latestId.current
+    const swapped = element.getAttribute("src") !== null && !another
     const resume = swapped
       ? { time: element.currentTime, playing: !element.paused }
-      : { time: place?.time ?? 0, playing: false }
+      : { time: another ? 0 : (place?.time ?? 0), playing: false }
     // A show that names a second of this file starts there, else it resumes.
     const loaded = (): void => {
       element.currentTime = within(begin(show.current, started) ?? resume.time, element.duration)

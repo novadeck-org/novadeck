@@ -183,6 +183,10 @@ export type FolderEntry = {
   readonly children: number | null
   readonly secret: boolean
   readonly link: boolean
+  // A link that stays inside the top (listed as its target), or what is no regular file: neither
+  // is a file of its own to step to.
+  readonly linked?: true | undefined
+  readonly plain?: false | undefined
   readonly stamp: string
 }
 

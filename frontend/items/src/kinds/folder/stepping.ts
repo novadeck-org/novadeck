@@ -70,14 +70,22 @@ export const itemKindOf = (entry: FolderEntry): ItemKind | undefined =>
 
 // The files stepping goes through: those of the folder's listing that are of the file's own kind,
 // in the folder's sort. A folder is never stepped into, a file that may hold secrets is never
-// opened by stepping, and a link leaving the folder is never followed.
+// opened by stepping, a link leaving the folder is never followed, and a link that stays in it, or
+// an entry that is no regular file, is no file of its own: each file once, as it is.
 export const stepsOf = (
   entries: readonly FolderEntry[],
   kind: ItemKind,
   sort: FolderSort,
 ): readonly FolderEntry[] =>
   sorted(
-    entries.filter((entry) => !entry.secret && !entry.link && itemKindOf(entry) === kind),
+    entries.filter(
+      (entry) =>
+        !entry.secret &&
+        !entry.link &&
+        entry.linked !== true &&
+        entry.plain !== false &&
+        itemKindOf(entry) === kind,
+    ),
     sort,
   )
 

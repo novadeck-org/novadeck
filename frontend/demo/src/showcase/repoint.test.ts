@@ -113,4 +113,21 @@ describe("a file of the render folder, opened from it", () => {
     expect(again?.id).toBe(first!.id)
     expect(items().filter((item) => item.path === "~/render/checkout-mobile.svg")).toHaveLength(1)
   })
+
+  it("opens on the bar it was asked on, whatever another bar holds of the file", async () => {
+    const { showcase, items } = opened()
+    const there = await showcase.attach?.(session, "03", "~/render/checkout-desktop.svg")
+    const here = await showcase.attach?.(session, "02", "~/render/checkout-desktop.svg")
+    expect(here?.id).not.toBe(there?.id)
+    expect(items().find((item) => item.id === there?.id)?.holder).toEqual({ terminalId: "03" })
+    expect(items().find((item) => item.id === here?.id)?.holder).toEqual({ terminalId: "02" })
+  })
+
+  it("leaves the project window's file to its window", async () => {
+    const { showcase } = opened()
+    const { item } = await showcase.openInProject!(session, "README.md", "pw")
+    await expect(
+      showcase.repoint?.(session, item.id, "~/render/checkout-mobile.svg"),
+    ).rejects.toThrow("stays in its window")
+  })
 })
