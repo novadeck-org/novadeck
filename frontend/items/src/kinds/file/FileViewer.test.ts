@@ -347,6 +347,58 @@ describe("a CSV file the agent pointed into", () => {
   })
 })
 
+describe("a CSV file with a long cell", () => {
+  const notes = fileContent("data/notes.csv", ["id,note", `1,${"word ".repeat(400)}`, "2,short"])
+  // A held cell runs past its first lines, as the stylesheet clamps it; the unit tests lay
+  // nothing out.
+  const overflowing = (): void => {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function scroll(
+      this: HTMLElement,
+    ) {
+      return this.dataset.held === undefined ? 0 : 400
+    })
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(120)
+  }
+  const note = (container: HTMLElement) =>
+    container.querySelector('tr[data-line="2"] td:nth-of-type(2) > span')!
+  const more = (container: HTMLElement) =>
+    container.querySelector<HTMLButtonElement>(".artifact-table-more")
+
+  it("holds it to its first lines, with a button that shows it whole and back", async () => {
+    overflowing()
+    const { container } = await show("notes-1", notes)
+    expect(note(container).hasAttribute("data-held")).toBe(true)
+    const short = container.querySelector('tr[data-line="3"] td:nth-of-type(2) > span')!
+    expect(short.hasAttribute("data-held")).toBe(false)
+    expect(container.querySelectorAll(".artifact-table-more")).toHaveLength(1)
+    expect(more(container)?.textContent).toBe("Show all")
+    expect(more(container)?.getAttribute("aria-label")).toBe("Show all of note, line 2")
+    expect(more(container)?.getAttribute("aria-expanded")).toBe("false")
+    act(() => more(container)!.click())
+    expect(note(container).hasAttribute("data-held")).toBe(false)
+    expect(more(container)?.textContent).toBe("Show less")
+    expect(more(container)?.getAttribute("aria-expanded")).toBe("true")
+    act(() => more(container)!.click())
+    expect(note(container).hasAttribute("data-held")).toBe(true)
+  })
+
+  it("offers no button where a long cell fits its lines", async () => {
+    const { container } = await show("notes-2", notes)
+    expect(note(container).hasAttribute("data-held")).toBe(true)
+    expect(more(container)).toBeNull()
+  })
+
+  it("keeps a cell shown whole when its pane is built again", async () => {
+    overflowing()
+    const first = await show("notes-3", notes)
+    act(() => more(first.container)!.click())
+    act(() => first.unmount())
+    const { container } = await show("notes-3", notes)
+    expect(note(container).hasAttribute("data-held")).toBe(false)
+    expect(more(container)?.textContent).toBe("Show less")
+  })
+})
+
 describe("a long CSV file", () => {
   const long = fileContent("data/long.csv", [
     "id,score",

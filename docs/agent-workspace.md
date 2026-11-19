@@ -317,6 +317,9 @@ from its header (up, down, the file's order; numbers by value, empty cells last)
 the right, each row led by the line it starts on, and where it was scrolled and sorted kept as
 the code viewer's place is. Past 200 rows it draws only the rows in view (`rows-window.ts`),
 its columns held to widths from all its rows' text, so a data file read whole stays quick.
+A long cell shows its first six lines, and, where it runs past them, a Show all button under
+it shows it whole and back (kept with the place); shown short again, its row's top comes back
+into view.
 What the runner read of a long file is only part of it (its start, or the lines around those
 pointed at, whose rows it marks and opens at, up to its budget), and the table says so under
 it: which lines, that a first line too long to read whole came cut, that it shows only the

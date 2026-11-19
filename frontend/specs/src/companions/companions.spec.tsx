@@ -855,6 +855,31 @@ describe("A delimited file", () => {
       "1013",
     )
   })
+  it("holds a long cell to its first lines, and shows it whole from its button", async () => {
+    await openShowcase()
+    await chooseFromIconSubmenu("Dev server", "18 files", "Open", "visits.csv")
+    const pane = companionPane("Dev server")
+    await expect.element(pane.getByRole("columnheader", { name: "visits" })).toBeVisible()
+    const scroller = pane.getByRole("region", { name: "visits.csv" }).element() as HTMLElement
+    // The pasted note on line 202, wherever a sort kept from before puts it: scrolled to.
+    const row = () => scroller.querySelector<HTMLElement>('tbody tr[data-line="202"]')
+    for (let top = 0; !row() && top < scroller.scrollHeight; top += 300) {
+      scroller.scrollTop = top
+      // oxlint-disable-next-line no-await-in-loop -- Each step drawn before the next.
+      await nextFrames(2)
+    }
+    expect(row()!.offsetHeight).toBeLessThan(200)
+    const more = pane.getByRole("button", { name: "Show all of note, line 202" })
+    await more.click()
+    await nextFrames(2)
+    expect(row()!.offsetHeight).toBeGreaterThan(400)
+    await expect
+      .element(pane.getByRole("button", { name: "Show less of note, line 202" }))
+      .toHaveAttribute("aria-expanded", "true")
+    await pane.getByRole("button", { name: "Show less of note, line 202" }).click()
+    await nextFrames(2)
+    expect(row()!.offsetHeight).toBeLessThan(200)
+  })
 })
 
 describe("Placing an item on another terminal's taskbar", () => {

@@ -9,7 +9,8 @@ import { columnWidths, rowOffsets, rowsWindow } from "./rows-window"
 import { cutAlone, nextSort, partText, sortRows, tableOf, type Sort } from "./table"
 
 // Where each table was left, by the item showing it, and in which file and lines pointed at:
-// scrolled, sorted, and its rows' heights as measured, so it opens again as it was when its
+// scrolled, sorted, its rows' heights as measured, and the long cells shown whole (`cellKey`),
+// so it opens again as it was when its
 // pane is built again (a view switch, a tab brought back). A place in one file means nothing
 // in another, and the agent pointing at other lines of it opens it at them.
 type Left = {
@@ -19,8 +20,18 @@ type Left = {
   readonly left: number
   readonly sort: Sort | null
   readonly heights: ReadonlyMap<number, number>
+  readonly opened: readonly string[]
 }
 const left = createKept<Left>(24)
+
+// A long cell shows its first lines (as many as the stylesheet's line clamp), with a button
+// that shows it whole, so one pasted note doesn't make its row a page tall. Only a cell this
+// long may run past them, so only those are held and measured.
+const mayRunLong = (cell: string): boolean => cell.length > 120 || cell.split("\n", 7).length > 6
+// A cell, by its row's line and its column, and its length, as a file brought back may hold
+// other text there.
+const cellKey = (line: number, column: number, cell: string): string =>
+  `${line}:${column}:${cell.length}`
 
 // Past this many rows a table draws only those in view (./rows-window.ts), its columns held to
 // widths from all its rows' text so they don't move as rows come and go.
@@ -60,6 +71,7 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
       left: element?.scrollLeft ?? 0,
       sort,
       heights: before?.path === content.path ? before.heights : new Map(),
+      opened: before?.path === content.path ? before.opened : [],
       ...next,
     })
   }
@@ -71,6 +83,20 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
       : undefined
   const isPointed = (row: { readonly line: number; readonly last: number }): boolean =>
     pointed !== undefined && row.line <= pointed.to && row.last >= pointed.from
+
+  // The long cells shown whole, and those that run past their first lines, as measured.
+  const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set(kept?.opened))
+  const [long, setLong] = useState<ReadonlySet<string>>(() => new Set())
+  // The row of a cell shown short again: the view stays where its end was, so its top may be
+  // far above it now, and is brought back.
+  const reveal = useRef<number | undefined>(undefined)
+  const toggle = (key: string, line: number): void => {
+    const next = new Set(opened)
+    if (next.delete(key)) reveal.current = line
+    else next.add(key)
+    setOpened(next)
+    keep({ opened: [...next] })
+  }
 
   // A long table's rows, drawn as they come into view: the heights measured, by line, so a
   // sort keeps them, and where the view is.
@@ -103,6 +129,8 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
       height: Math.max(element.clientHeight - below, 0) || 800,
     })
   }
+  // The rows drawn, and their cells shown whole or held with a button, as one value.
+  const drawnCells = `${shown.start}-${shown.end}-${opened.size}-${long.size}`
   // Each row drawn, measured; a change draws the window again from the new heights.
   useLayoutEffect(() => {
     if (!windowed) return
@@ -118,9 +146,36 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
     setHeights(next)
     const place = left.get(id)
     if (place?.path === content.path) left.keep(id, { ...place, heights: next })
-    // The rows drawn, and how wide: what changes their heights.
+    // The rows drawn, how wide, and which cells show whole or have a button: what changes
+    // their heights.
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- See above.
-  }, [windowed, heights, shown.start, shown.end, rows, widths, scroller, id, content.path])
+  }, [windowed, heights, drawnCells, rows, widths, scroller, id, content.path])
+
+  // A cell shown short again: its row's top, where it went above the view, brought back to it.
+  useLayoutEffect(() => {
+    const line = reveal.current
+    reveal.current = undefined
+    const element = scroller.current
+    if (line === undefined || !element) return
+    const row = element.querySelector<HTMLElement>(`tbody tr[data-line="${line}"]`)
+    const top = (row?.offsetTop ?? 0) - (head.current?.offsetHeight ?? 0)
+    if (row && top < element.scrollTop) element.scrollTop = top
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- It reads the view's refs only.
+    look()
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies, react-hooks/exhaustive-deps -- Only as a cell is shown short.
+  }, [opened, scroller])
+
+  // Each held cell drawn, measured: one that runs past its first lines gets its button.
+  useLayoutEffect(() => {
+    const held = scroller.current?.querySelectorAll<HTMLElement>("td > span[data-held]") ?? []
+    const found = [...held]
+      .filter((span) => span.scrollHeight > span.clientHeight + 1)
+      .map((span) => span.dataset.held!)
+      .filter((key) => !long.has(key))
+    if (found.length > 0) setLong(new Set([...long, ...found]))
+    // The cells drawn, and how wide: what changes whether they run long.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- See above.
+  }, [long, shown.start, shown.end, rows, widths, scroller])
 
   // Opens where it was left in this file; a new file, or the agent pointing at other lines of
   // it, at the rows pointed at, if it pointed at some, else at its start.
@@ -149,6 +204,8 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
     setShownPath(content.path)
     setSort(kept?.sort ?? null)
     setHeights(new Map())
+    setOpened(new Set())
+    setLong(new Set())
   }
   usePaneNote([
     `${table.rows.length.toLocaleString("en-US")} ${table.rows.length === 1 ? "row" : "rows"} · ${table.header.length} ${table.header.length === 1 ? "column" : "columns"}`,
@@ -248,12 +305,29 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
                 <th scope="row" className="artifact-table-line">
                   {row.line}
                 </th>
-                {row.cells.map((cell, column) => (
-                  // oxlint-disable-next-line react/no-array-index-key -- A column is its place.
-                  <td key={column} data-numeric={table.numeric[column] || undefined}>
-                    <span>{cell}</span>
-                  </td>
-                ))}
+                {row.cells.map((cell, column) => {
+                  const key = cellKey(row.line, column, cell)
+                  const open = opened.has(key)
+                  return (
+                    // oxlint-disable-next-line react/no-array-index-key -- A column is its place.
+                    <td key={column} data-numeric={table.numeric[column] || undefined}>
+                      <span data-held={(!open && mayRunLong(cell) && key) || undefined}>
+                        {cell}
+                      </span>
+                      {(open || long.has(key)) && (
+                        <button
+                          type="button"
+                          className="artifact-table-more"
+                          aria-expanded={open}
+                          aria-label={`${open ? "Show less" : "Show all"} of ${table.header[column]}, line ${row.line}`}
+                          onClick={() => toggle(key, row.line)}
+                        >
+                          {open ? "Show less" : "Show all"}
+                        </button>
+                      )}
+                    </td>
+                  )
+                })}
               </tr>
             ))}
             {shown.after > 0 && (

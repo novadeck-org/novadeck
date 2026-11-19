@@ -258,8 +258,9 @@
    `.artifact-table-scroll` under its header, held on top; each column's name is a button that
    sorts by it (its arrow, `data-shown` while sorted); numbers (`data-numeric`) sit right; each
    row's line in the file leads it, muted (`.artifact-table-line`), held at the left; the rows
-   the agent pointed at are marked (`data-pointed`). What it shows of a long file, and lines
-   cut short, are said under it, in `.artifact-cut`.
+   the agent pointed at are marked (`data-pointed`); a long cell shows its first six lines
+   (`data-held`), and a button under it (`.artifact-table-more`) shows it whole and back. What
+   it shows of a long file is said under it, in `.artifact-cut`.
    Tokens, each optional: --artifact-table-head-bg (soft), --artifact-table-rule (line), and
    --artifact-table-hover-bg (soft): its header, its rules, and the row under the pointer. */
 .artifact-table {
@@ -304,6 +305,32 @@
 .artifact-table td > span {
   display: block;
   max-width: 32em;
+}
+.artifact-table td > span[data-held] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
+  overflow: hidden;
+}
+.artifact-table-more {
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: var(--text-caption);
+  cursor: pointer;
+}
+.artifact-table-more:hover {
+  color: var(--color-ink);
+  text-decoration: underline;
+}
+.artifact-table-more:focus-visible {
+  outline: 2px solid var(--color-strong);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 .artifact-table thead th button > span {
   max-width: 24em;
