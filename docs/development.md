@@ -121,8 +121,9 @@ the last thing opened, by you or by the agent when you asked for it, and for a s
 rest of that icon's things as tabs under its header, each with its ×, Delete closing the
 tab with focus. The arrow keys, Home and End move along the tabs, and Ctrl+PageDown and
 Ctrl+PageUp step through them from anywhere in the pane; neither opens something that may
-hold secrets until you pick it. Every other icon with something open waits behind it as a
-thin card edge above the pane, as in a file drawer: the edges stay compact on hover,
+hold secrets until you pick it. Every other icon with something open waits behind it, the
+nearest five as thin card edges above the pane, as in a file drawer (the rest only on the
+taskbar): the edges stay compact on hover,
 and a click brings its icon forward. The mark under
 an icon says whether it's new, showing, open behind, or seen: something new gets a dot,
 quietly, and nothing opens on its own unless you asked for it. Something the agent opens
