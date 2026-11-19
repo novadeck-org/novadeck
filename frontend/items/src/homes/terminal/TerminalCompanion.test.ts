@@ -1085,6 +1085,42 @@ describe("a terminal's taskbar", () => {
       ])
     })
 
+    it("shows only the nearest five icons behind it, the taskbar keeping the rest", () => {
+      const behind = (["file", "changes", "folder", "video", "audio", "pdf"] as const).map((kind) =>
+        itemFixture(kind, "01", { kind, name: kind, path: `/p/${kind}` }),
+      )
+      const { container } = renderTerminal(
+        [...behind, hero].reduce(
+          (workspace, item) =>
+            workspaceReducer(workspace, {
+              type: "bar/open",
+              target,
+              terminalId: "01",
+              key: item.id,
+            }),
+          [...behind, hero].reduce(
+            (workspace, item) => workspaceReducer(workspace, shown(item)),
+            opening(),
+          ),
+        ),
+      )
+      const stack = container.querySelector<HTMLElement>(".pane-stack")
+      expect(stack?.style.getPropertyValue("--_count")).toBe("5")
+      expect(
+        [...container.querySelectorAll<HTMLElement>(".pane-stack-sheet")].map((each) => [
+          each.getAttribute("aria-label"),
+          each.style.getPropertyValue("--_depth"),
+        ]),
+      ).toEqual([
+        ["Bring forward changes", "4"],
+        ["Bring forward folder", "3"],
+        ["Bring forward video", "2"],
+        ["Bring forward audio", "1"],
+        ["Bring forward pdf", "0"],
+      ])
+      expect(icon(container, "file")?.getAttribute("data-state")).toBe("behind")
+    })
+
     it("minimizes everything open of the stack from its icon, uncovering what's behind it", async () => {
       const { container } = renderTerminal(opening(notes, about, hero))
       await act(async () =>
