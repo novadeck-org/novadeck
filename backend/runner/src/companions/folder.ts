@@ -4,6 +4,7 @@ import { basename, extname, isAbsolute, join, relative, sep } from "node:path"
 
 import {
   folderLimits,
+  modelLimits,
   pdfLimits,
   videoLimits,
   type FilePart,
@@ -13,7 +14,7 @@ import {
 
 import { DomainError } from "../errors.js"
 import { tail } from "../text.js"
-import { hashOf, isAudio, isImage, isPdf, isVideo, readPart, stampOf } from "./content.js"
+import { hashOf, isAudio, isImage, isModel, isPdf, isVideo, readPart, stampOf } from "./content.js"
 import type { ItemRecord } from "./records.js"
 import { folderSecrets, secrets } from "./secrets.js"
 
@@ -98,9 +99,11 @@ export const entryKindOf = (name: string): Exclude<FolderEntry["kind"], "folder"
         ? "audio"
         : isPdf(name)
           ? "pdf"
-          : texts.has(extname(name).toLowerCase())
-            ? "text"
-            : "other"
+          : isModel(name)
+            ? "model"
+            : texts.has(extname(name).toLowerCase())
+              ? "text"
+              : "other"
 
 /** Whether `path` is `top` or under it, both real paths. */
 const within = (top: string, path: string): boolean => {
@@ -362,6 +365,8 @@ const partLimits: { readonly [kind in FolderEntry["kind"]]?: number } = {
   video: videoLimits.bytes,
   audio: videoLimits.bytes,
   pdf: pdfLimits.bytes,
+  // A model is read whole for its still, which the grid draws of it alone, as a peek would.
+  model: modelLimits.bytes,
 }
 
 /**

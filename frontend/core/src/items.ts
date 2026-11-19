@@ -217,7 +217,7 @@ export type ModelContent = {
 // leaves the folder and is never entered, and `stamp` names a file as `Companions.part` reads it.
 export type FolderEntry = {
   readonly name: string
-  readonly kind: "folder" | "image" | "video" | "audio" | "pdf" | "text" | "other"
+  readonly kind: "folder" | "image" | "video" | "audio" | "pdf" | "model" | "text" | "other"
   readonly size: number
   readonly modifiedAt: number
   readonly children: number | null

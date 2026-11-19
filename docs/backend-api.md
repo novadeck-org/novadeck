@@ -1760,7 +1760,7 @@ one from an earlier runner.
     path from the item's top, "" for the top; one that leaves the top, through a link too, is
     `unavailable` as `missing`, and one that may hold secrets as `secret`; a top that is gone is
     `gone`): `path`, `within`, `entries`, `total` and `truncated`, the first 2000 entries by name,
-    each with its `name`, `kind` (`folder`, `image`, `video`, `audio`, `pdf`, `text`, `other`),
+    each with its `name`, `kind` (`folder`, `image`, `video`, `audio`, `pdf`, `model`, `text`, `other`),
     `size`, `modifiedAt`, `children` (what a folder holds), `secret`, `link` (a link out of the
     top: never entered or read) and `stamp`. It is read again, a few changes together, as the
     folder changes. `companions.part` takes a `path` for such an item, a file of the folder from its

@@ -21,6 +21,7 @@ import type { SampleAgent } from "./agents"
 import type { SampleArtifact } from "./artifacts"
 import { attachedArtifact, type AttachedArtifact } from "./attached"
 import { clip, clipSize } from "./clip"
+import { bracketBytes, bracketSize } from "./model-bracket"
 import { quarterlyReport, quarterlyReportSize } from "./pdf"
 import { applyEdits, removeNotes } from "./revise"
 
@@ -385,9 +386,9 @@ export const createShowcase = (
       for (const watcher of watching.get(id) ?? []) watcher.on(shownContent(id, watcher.reveal))
       return Promise.resolve()
     },
-    // As the runner reads a video's, PDF's or model's file: in parts of `file.part` bytes while it is as
-    // its content's stamp says, `changed` once the sample shown anew has another stamp, and a
-    // secret one only revealed.
+    // As the runner reads a video's, PDF's or model's file: in parts of `file.part` bytes while
+    // it is as its content's stamp says, `changed` once the sample shown anew has another stamp,
+    // and a secret one only revealed.
     part: async (_target, id, { stamp, offset, reveal, file, path }) => {
       const sample = samples.get(id)
       // A file of a folder: by its path from the folder's top, as the runner reads one.
@@ -443,6 +444,8 @@ export const createShowcase = (
         clipSize,
         report: quarterlyReport,
         reportSize: quarterlyReportSize,
+        model: bracketBytes,
+        modelSize: bracketSize,
       })
       if (!opened) throw new Error("That file can't be shown")
       samples.set(opened.item.id, opened)

@@ -337,7 +337,7 @@ export const changeFileDiff = z.strictObject({
 // `companions.part` must read it ("" for an entry that is read through no part).
 export const folderEntry = z.strictObject({
   name: z.string().min(1).max(folderLimits.name),
-  kind: z.enum(["folder", "image", "video", "audio", "pdf", "text", "other"]),
+  kind: z.enum(["folder", "image", "video", "audio", "pdf", "model", "text", "other"]),
   size: z.number().nonnegative(),
   modifiedAt: z.number(),
   children: z.int().nonnegative().nullable(),

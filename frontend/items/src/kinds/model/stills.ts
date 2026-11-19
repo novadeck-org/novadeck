@@ -16,20 +16,38 @@ export const peekBytes = 32 * 1024 * 1024
 export const madeStill = (key: string, size: number): Promise<string | null> | undefined =>
   made.get(`${key}@${size}`)
 
-/**
- * A still of a model, `size` pixels square, as an image's address; null where none is drawn,
- * which isn't kept, so the next peek asks again. A frame let go of is made afresh.
- */
-export const stillOf = (key: string, model: ModelContent, size: number): Promise<string | null> => {
-  const at = `${key}@${size}`
-  const known = made.get(at)
-  if (known) return known
+// The frame that draws them; one let go of is made afresh.
+const frame = (): ModelStills => {
   if (stills?.stopped()) {
     stills.destroy()
     stills = undefined
   }
   stills ??= modelStills(document, modelFrame())
-  const still = stills
+  return stills
+}
+
+/**
+ * A still of a model, `size` pixels square, as a PNG, or null where none is drawn; for a folder's
+ * grid, which keeps it by the file's stamp. It stops once `signal` aborts.
+ */
+export const stillBlob = (
+  model: ModelContent,
+  size: number,
+  signal: AbortSignal,
+): Promise<Blob | null> =>
+  frame()
+    .still(model, size, signal)
+    .catch(() => null)
+
+/**
+ * A still of a model, `size` pixels square, as an image's address; null where none is drawn,
+ * which isn't kept, so the next peek asks again.
+ */
+export const stillOf = (key: string, model: ModelContent, size: number): Promise<string | null> => {
+  const at = `${key}@${size}`
+  const known = made.get(at)
+  if (known) return known
+  const still = frame()
     .still(model, size)
     .then((blob) => (blob ? URL.createObjectURL(blob) : null))
     .catch(() => null)

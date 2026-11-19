@@ -15,6 +15,7 @@ import {
 } from "./artifacts"
 import { changesArtifacts } from "./changes"
 import { clip, clipSize } from "./clip"
+import { renderMedia } from "./folder-samples"
 import {
   lockedPdf,
   lockedPdfSize,
@@ -604,6 +605,11 @@ describe("the showcase's PDFs", () => {
     expect((await quarterlyReport()).length).toBe(quarterlyReportSize)
     expect((await notAPdf()).length).toBe(notAPdfSize)
     expect((await lockedPdf()).length).toBe(lockedPdfSize)
+  })
+
+  it("has a render folder whose report and bracket are as large as its listing says", async () => {
+    expect((await renderMedia.report()).length).toBe(renderMedia.reportSize)
+    expect((await renderMedia.model()).length).toBe(renderMedia.modelSize)
   })
 
   it("is among what the dev server's terminal shows, as large as its item says", async () => {

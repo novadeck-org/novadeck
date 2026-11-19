@@ -1,6 +1,7 @@
 import type { FilePart, FolderEntry, Item } from "@novadeck/core/items"
 import {
   AudioLines,
+  Box,
   File,
   FileText,
   FileType,
@@ -46,6 +47,7 @@ export const iconOf = (entry: FolderEntry): LucideIcon =>
             video: Film,
             audio: AudioLines,
             pdf: FileType,
+            model: Box,
             text: FileText,
             other: File,
           } as const

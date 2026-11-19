@@ -130,6 +130,9 @@ const modelFormatOf = (path: string): (typeof modelFormats)[number] | undefined 
   return modelFormats.find((format) => format === extension)
 }
 
+/** Whether a file is a 3D model the pane draws, by its extension. */
+export const isModel = (path: string): boolean => modelFormatOf(path) !== undefined
+
 /**
  * How a file is shown, by its extension: as an image, played as a video or a recording,
  * drawn as a PDF or as a 3D model, or read.

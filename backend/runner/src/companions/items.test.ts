@@ -2550,6 +2550,25 @@ describe("a folder beside its terminal", () => {
     ).resolves.toEqual({ state: "part", data: Buffer.from("pixels").toString("base64") })
   })
 
+  it("lists a 3D model in a folder as one, and reads it whole for its still", async ({
+    fixture,
+  }) => {
+    writeFileSync(join(render(fixture.directory), "bracket.stl"), "solid bracket\nendsolid\n")
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "render" } })
+    const itemId = shown.ok ? shown.id : ""
+    const model = listed(await fixture.items.load(itemId, false)).entries.find(
+      ({ name }) => name === "bracket.stl",
+    )!
+    expect(model.kind).toBe("model")
+    await expect(
+      fixture.items.part({ itemId, stamp: model.stamp, offset: 0, path: "bracket.stl" }),
+    ).resolves.toEqual({
+      state: "part",
+      data: Buffer.from("solid bracket\nendsolid\n").toString("base64"),
+    })
+  })
+
   it("reads a file of the folder by its path and stamp, as its kind is read anywhere", async ({
     fixture,
   }) => {
