@@ -31,7 +31,16 @@ import { OBJLoader } from "three/addons/loaders/OBJLoader.js"
 import { PLYLoader } from "three/addons/loaders/PLYLoader.js"
 import { STLLoader } from "three/addons/loaders/STLLoader.js"
 
-import { glbJson, gltfTrouble, millimetresPer, zipTrouble, type ClaimTrouble } from "./checks.js"
+import {
+  glbBin,
+  glbJson,
+  gltfImages,
+  gltfTrouble,
+  imagesTrouble,
+  millimetresPer,
+  zipTrouble,
+  type ClaimTrouble,
+} from "./checks.js"
 import type { ModelFormat, ModelTrouble, ModelView } from "./messages.js"
 
 // The 3D model viewer as it runs in its frame (frame/frame.html), never in the app's page: it
@@ -88,7 +97,7 @@ canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%
 }
 .bar button { cursor: pointer; }
 .bar button:hover { background: var(--model-chip-hover-bg, var(--model-chip-bg, rgb(0 0 0 / 0.7))); }
-.bar button[aria-pressed="true"] { background: var(--model-chip-on-bg, var(--model-chip-hover-bg, rgb(0 0 0 / 0.8))); }
+.bar button[aria-pressed="true"] { background: var(--model-chip-on-bg, var(--model-chip-hover-bg, rgb(0 0 0 / 0.8))); box-shadow: inset 0 -2px 0 currentColor; }
 .bar button:focus-visible { outline: 2px solid var(--model-chip-fg, white); outline-offset: 1px; }
 .bar[hidden], .size[hidden], .notice[hidden], .refused[hidden], button[hidden] { display: none; }
 .notice { position: absolute; inset: 0; margin: auto; height: fit-content; padding: 24px; text-align: center; }
@@ -608,11 +617,26 @@ export const modelFrameViewer = ({ port }: { readonly port: MessagePort }): void
 
   const load = async ({ format, bytes, files }: Open): Promise<Loaded | ClaimTrouble> => {
     const text = (): string => new TextDecoder().decode(bytes)
+    // The images it was handed, as their headers claim, before any is decoded.
+    const images = imagesTrouble(
+      files.map(
+        ({ bytes: file }) => new Uint8Array(file, 0, Math.min(file.byteLength, 256 * 1024)),
+      ),
+    )
+    if (images) return images
     switch (format) {
       case "glb":
       case "gltf": {
         const json = format === "glb" ? glbJson(bytes) : parseJson(text())
-        const claims = gltfTrouble(json)
+        const claims =
+          gltfTrouble(json) ??
+          imagesTrouble(
+            gltfImages(
+              json!,
+              format === "glb" ? glbBin(bytes) : undefined,
+              new Map(files.map(({ name, bytes: file }) => [name, new Uint8Array(file)])),
+            ),
+          )
         if (claims) return claims
         const gltf = await new GLTFLoader(managerFor(files)).parseAsync(
           format === "glb" ? bytes : text(),
@@ -666,6 +690,20 @@ export const modelFrameViewer = ({ port }: { readonly port: MessagePort }): void
         const claims = zipTrouble(bytes)
         if (claims) return claims
         const object = new ThreeMFLoader(managerFor(files)).parse(bytes)
+        // A mesh it gave no colour of its own (the loader's plain white) takes the model's grey.
+        object.traverse((each) => {
+          const mesh = each as Mesh
+          const material = mesh.material as MeshStandardMaterial | undefined
+          if (
+            mesh.isMesh &&
+            material &&
+            !Array.isArray(material) &&
+            !material.map &&
+            !material.vertexColors &&
+            material.color?.getHex() === 0xffffff
+          )
+            mesh.material = plainMaterial(false)
+        })
         return { object, clips: [], millimetres: threeMfUnit(bytes), zUp: true }
       }
     }

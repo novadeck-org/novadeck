@@ -98,7 +98,8 @@ export const readModel = async ({
       signal,
       progress: (bytes) => progress(before + bytes),
     })
-    if (result.state === "stopped") return result
+    // Written again since it was listed: the content that follows lists it anew.
+    if (result.state === "stopped" || result.state === "changed") return result
     if (result.state === "ready") files.push({ name: file.name, bytes: result.blob })
     else refused.push({ name: file.name, reason: partReason(result) })
     before += file.size
@@ -120,6 +121,10 @@ type Held = {
   readonly problem: Source["problem"]
 }
 
+/** What a model is read as: its item, its stamp and those of the files beside it. */
+export const modelKey = (id: string, stamp: string, content: ModelContent): string =>
+  `${id}:${stamp}:${content.files.map((file) => file.stamp).join(",")}`
+
 /** All a model's bytes, its own and those of the files beside it. */
 export const totalOf = (content: ModelContent): number =>
   content.files.reduce((all, file) => all + file.size, content.size)
@@ -135,7 +140,7 @@ const useSource = ({
   // The person's yes to a file that may hold secrets, which its parts are read with.
   const reveal = useRevealed(itemStore, item)
   const id = item.id
-  const key = `${id}:${stamp}`
+  const key = modelKey(id, stamp, content)
   // A pane that comes back starts from the bytes read before, which it holds however long
   // they stay kept, and keeps in view while a rewritten file is read.
   const [held, setHeld] = useState<Held | undefined>(() => {

@@ -16,16 +16,27 @@ export const peekBytes = 32 * 1024 * 1024
 export const madeStill = (key: string, size: number): Promise<string | null> | undefined =>
   made.get(`${key}@${size}`)
 
-/** A still of a model, `size` pixels square, as an image's address; null where none is drawn. */
+/**
+ * A still of a model, `size` pixels square, as an image's address; null where none is drawn,
+ * which isn't kept, so the next peek asks again. A frame let go of is made afresh.
+ */
 export const stillOf = (key: string, model: ModelContent, size: number): Promise<string | null> => {
   const at = `${key}@${size}`
   const known = made.get(at)
   if (known) return known
+  if (stills?.stopped()) {
+    stills.destroy()
+    stills = undefined
+  }
   stills ??= modelStills(document, modelFrame())
   const still = stills
     .still(model, size)
     .then((blob) => (blob ? URL.createObjectURL(blob) : null))
     .catch(() => null)
+    .then((url) => {
+      if (url === null) made.delete(at)
+      return url
+    })
   made.set(at, still)
   // The oldest let go of, its address with it.
   for (const [old, url] of made) {

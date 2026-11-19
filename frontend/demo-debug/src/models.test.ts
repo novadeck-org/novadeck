@@ -60,11 +60,17 @@ describe("the debug panel's 3D model group", () => {
       "Show an animated glTF",
       "Show an OBJ with materials",
       "Show a PLY scan of points",
+      "Show a 3MF spacer",
       "Show a model that loads slowly",
       "Show a model too large to preview",
       "Show a model that may hold secrets",
       "Show a model whose read fails",
       "Show a glTF naming a texture elsewhere",
+      "Show a glTF whose files were refused",
+      "Show a glTF whose buffer can't be read",
+      "Show a glTF claiming 4 GB",
+      "Show an STL with nothing in it",
+      "Show a model past what a peek draws",
       "Show a Draco-compressed glTF",
       "Show a file that isn't a model",
       "Stop the 3D viewer",
@@ -106,6 +112,15 @@ describe("the debug panel's 3D model group", () => {
     expect(bytes.length).toBe(
       84 + new DataView(bytes.buffer, bytes.byteOffset).getUint32(80, true) * 50,
     )
+  })
+
+  it("serves a 3MF as a zip, and fails reading a buffer that can't be read", async () => {
+    const { run, read } = panel()
+    run("Show a 3MF spacer")
+    run("Show a glTF whose buffer can't be read")
+    const zipped = await read("studio-spacer")
+    expect(zipped.state === "part" && [...zipped.bytes.subarray(0, 4)]).toEqual([0x50, 0x4b, 3, 4])
+    await expect(read("studio-arm-unread", { file: "arm.bin" })).rejects.toThrow("link")
   })
 
   it("names a texture elsewhere among what wasn't read", () => {

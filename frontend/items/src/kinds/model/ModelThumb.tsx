@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 
 import type { ItemStore } from "../../store/item-store"
 import { bytesText } from "../video/format"
-import { formatNames, kept, readModel, totalOf } from "./ModelViewer"
+import { formatNames, kept, modelKey, readModel, totalOf } from "./ModelViewer"
 import { madeStill, peekBytes, stillOf } from "./stills"
 
 // How large a peek's still is drawn, square, in pixels: twice a peek's size, for sharp screens.
@@ -26,7 +26,7 @@ export const ModelThumb = ({
   readonly target: WorkspaceTarget
   readonly stamp: string
 }): React.JSX.Element => {
-  const key = `${item.id}:${stamp}`
+  const key = modelKey(item.id, stamp, content)
   const total = totalOf(content)
   const [still, setStill] = useState<{ key: string; url: string | null }>()
   const { part } = itemStore

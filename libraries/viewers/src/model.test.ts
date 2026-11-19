@@ -335,6 +335,25 @@ describe("the 3D model viewer", () => {
     await expect.poll(() => troubles).toContain(trouble)
   })
 
+  it("says why it doesn't draw a glTF whose images claim more than it decodes", async () => {
+    // Tiny files, each claiming 16384 × 16384 pixels, which decoding would allocate.
+    const huge = new Uint8Array(33)
+    const view = new DataView(huge.buffer)
+    view.setUint32(0, 0x89504e47)
+    view.setUint32(4, 0x0d0a1a0a)
+    view.setUint32(16, 16_384)
+    view.setUint32(20, 16_384)
+    const troubles: (ModelTrouble | null)[] = []
+    mount(
+      content("gltf", json(gltfJson("tri.bin", "skin.png")), [
+        { name: "tri.bin", bytes: new Blob([triangle]) },
+        { name: "skin.png", bytes: new Blob([huge]) },
+      ]),
+      { onTrouble: (each) => troubles.push(each) },
+    )
+    await expect.poll(() => troubles).toContain("too-large")
+  })
+
   it("says why it doesn't draw a glTF whose buffer is an address of its own", async () => {
     const troubles: (ModelTrouble | null)[] = []
     mount(

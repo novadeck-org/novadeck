@@ -499,7 +499,12 @@ Agents:
   "Show a model that may hold secrets" joins the stack unopened until you pick its tab; "Show a
   model whose read fails" is the pane's "couldn't be loaded"; "Show a glTF naming a texture
   elsewhere" is drawn without it, under "Not read: https://cdn.example.com/arm-skin.png (an address
-  of its own)"; "Show a Draco-compressed glTF" says Novadeck can't read that compression yet;
+  of its own)"; "Show a 3MF spacer" is a tube read from its zip in the millimetres it names; "Show a glTF whose files
+  were refused" lists one refused file for each reason; "Show a glTF whose buffer can't be read" is a
+  buffer whose read fails; "Show a glTF claiming 4 GB" is refused before three.js allocates it; "Show an
+  STL with nothing in it" says there's nothing to draw; "Show a model past what a peek draws" keeps
+  its peek a badge; "Show a Draco-compressed glTF" says Novadeck can't read that compression yet
+  (the one state the panel can't reach is no WebGL at all);
   "Show a file that isn't a model" says "This isn't a model Novadeck can read."; "Stop the 3D
   viewer" sends the open model's frame to another page, and the pane says "The 3D viewer
   stopped."; "Rewrite the bracket" writes it again 10 mm longer, read in small parts: the old one

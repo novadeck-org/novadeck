@@ -261,6 +261,10 @@ export const mountFrame = <Message extends { readonly type: string }>(
     post(pointer(event, "end"))
     if (given) glass.hidden = true
   }
+  // A right-button drag moves a model: the app's menu stays shut over it.
+  glass.addEventListener("contextmenu", (event) => {
+    if (options.drag) event.preventDefault()
+  })
   glass.addEventListener("pointerup", dropped)
   glass.addEventListener("pointercancel", dropped)
   glass.addEventListener("focus", give)

@@ -158,8 +158,17 @@ export const mountModel: Mount<
 export const largestStill = 512
 
 export type ModelStills = {
-  /** A still of `content`, fitted, as a PNG `size` pixels square; null where none is drawn. */
-  readonly still: (content: ModelContent, size: number) => Promise<Blob | null>
+  /**
+   * A still of `content`, fitted, as a PNG `size` pixels square; null where none is drawn, or
+   * once `signal` gives up on it.
+   */
+  readonly still: (
+    content: ModelContent,
+    size: number,
+    signal?: AbortSignal,
+  ) => Promise<Blob | null>
+  /** Its frame was let go of (it went elsewhere, or never started): it draws no more stills. */
+  readonly stopped: () => boolean
   readonly destroy: () => void
 }
 
@@ -169,15 +178,19 @@ const stillMs = 20_000
 /**
  * Stills of models, for a peek or a folder's grid, from one frame out of sight that draws them
  * one after another, so many stills hold one WebGL context at a time. The frame is the
- * viewer's own, walled in as it is.
+ * viewer's own, walled in as it is, and inert: nothing in it can be pressed, focused or reached
+ * by Tab.
  */
 export const modelStills = (document: Document, frame: ModelFrame): ModelStills => {
   const box = document.createElement("div")
+  box.className = "model-stills"
+  box.inert = true
   box.setAttribute("aria-hidden", "true")
   box.style.cssText =
     "position: fixed; left: -10000px; top: 0; width: 64px; height: 64px; pointer-events: none"
   document.body.append(box)
   let id = 0
+  let stopped = false
   const waiting = new Map<number, (bytes: ArrayBuffer | null) => void>()
   let troubled: (() => void) | undefined
   const mounted = mountFrame<Exclude<ModelFrameMessage, { type: "ready" | "busy" | "action" }>>(
@@ -193,6 +206,7 @@ export const modelStills = (document: Document, frame: ModelFrame): ModelStills 
       check: modelMessage,
       many: ["open", "thumb", "visible"],
       onStopped: () => {
+        stopped = true
         for (const done of waiting.values()) done(null)
         waiting.clear()
       },
@@ -207,21 +221,30 @@ export const modelStills = (document: Document, frame: ModelFrame): ModelStills 
   )
   // Never drawn but as a still: the frame holds no context of its own.
   mounted.post({ type: "visible", visible: false })
-  // One after another: a still waits for the one before it.
+  // One after another: a still waits for the one before it, but one given up on doesn't.
   let line: Promise<unknown> = Promise.resolve()
-  const still = (content: ModelContent, size: number): Promise<Blob | null> => {
+  const still = (
+    content: ModelContent,
+    size: number,
+    signal?: AbortSignal,
+  ): Promise<Blob | null> => {
     const made = line.then(async () => {
+      if (stopped || signal?.aborted) return null
       const at = (id += 1)
       const { message, transfer } = await opening(content)
+      if (stopped || signal?.aborted) return null
       return new Promise<Blob | null>((done) => {
         const finish = (bytes: ArrayBuffer | null): void => {
           clearTimeout(late)
+          signal?.removeEventListener("abort", given)
           troubled = undefined
           waiting.delete(at)
           done(bytes ? new Blob([bytes], { type: "image/png" }) : null)
         }
-        const late = setTimeout(() => finish(null), stillMs)
-        troubled = () => finish(null)
+        const given = () => finish(null)
+        const late = setTimeout(given, stillMs)
+        signal?.addEventListener("abort", given, { once: true })
+        troubled = given
         waiting.set(at, finish)
         mounted.post(message, transfer)
         mounted.post({
@@ -236,6 +259,7 @@ export const modelStills = (document: Document, frame: ModelFrame): ModelStills 
   }
   return {
     still,
+    stopped: () => stopped,
     destroy: () => {
       mounted.destroy()
       box.remove()
