@@ -13,7 +13,16 @@
   transition:
     opacity var(--motion-feedback) ease-out,
     transform var(--motion-view) var(--ease-interface),
-    visibility var(--motion-view);
+    visibility var(--motion-view),
+    content-visibility var(--motion-view) allow-discrete;
+}
+/* Every panel stays mounted, so a switch keeps each one's scroll and state, but only the
+   active one is laid out and painted. A panel behind it (thousands of Files rows, a busy
+   Terminals list) would otherwise be laid out again on each of its changes and on every
+   layout something else forces, which pegged the main thread while any panel showed. Its
+   content stops once it has faded out, and is back as it starts to show. */
+.sidebar-panel[data-active="false"] {
+  content-visibility: hidden;
 }
 
 /* It stays on one line beside the title, however many actions share the header. */
