@@ -1230,7 +1230,7 @@ describe("an item's content", () => {
     expect(shown).not.toHaveProperty("tooLarge")
     const itemId = shown.ok ? shown.id : ""
     expect(fixture.items.list(fixture.sessionId).items).toEqual([
-      expect.objectContaining({ id: itemId, kind: "model", detail: "48 B GLTF" }),
+      expect.objectContaining({ id: itemId, kind: "model", detail: "48 B glTF" }),
     ])
     const loaded = await fixture.items.load(itemId, false)
     expect(itemContent.parse(loaded)).toEqual(loaded)

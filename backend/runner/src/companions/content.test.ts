@@ -540,6 +540,10 @@ describe("an image as it loads", () => {
       "a.svg": "SVG",
       "demo.webm": "WEBM",
       "take.mp3": "MP3",
+      "ship.gltf": "glTF",
+      "ship.GLB": "glTF",
+      "bracket.stl": "STL",
+      "spacer.3mf": "3MF",
     }
     expect(Object.fromEntries(Object.keys(named).map((name) => [name, formatOf(name)]))).toEqual(
       named,

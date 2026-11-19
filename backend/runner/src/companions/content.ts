@@ -104,7 +104,8 @@ const isAudio = (path: string): boolean => recordings[extname(path).toLowerCase(
 const isPdf = (path: string): boolean => extname(path).toLowerCase() === ".pdf"
 
 // The formats a person names otherwise than by their extension: JPEG's other extensions are
-// JPEG, and JPEG XL is spelt out.
+// JPEG, JPEG XL is spelt out, and a glTF model is glTF in its text form or its binary one, as
+// its pane names it.
 const formatNames: { readonly [extension: string]: string } = {
   ".jpg": "JPEG",
   ".jpe": "JPEG",
@@ -112,6 +113,8 @@ const formatNames: { readonly [extension: string]: string } = {
   ".pjpeg": "JPEG",
   ".pjp": "JPEG",
   ".jxl": "JPEG XL",
+  ".gltf": "glTF",
+  ".glb": "glTF",
 }
 
 /** A file's format as a person names it, by its extension: "JPEG" for a.jfif, "PNG" for a.png. */

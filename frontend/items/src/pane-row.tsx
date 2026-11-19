@@ -297,7 +297,8 @@ export const tabTip = (
     ...((item.kind === "image" ||
       item.kind === "video" ||
       item.kind === "audio" ||
-      item.kind === "pdf") &&
+      item.kind === "pdf" ||
+      item.kind === "model") &&
     item.detail
       ? [item.detail]
       : []),
