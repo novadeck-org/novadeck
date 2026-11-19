@@ -15,6 +15,7 @@ const ERASE = "<erase>"
 const LEAVE = "<leave>"
 const ONE = "<one>"
 const PENDING = "Esc again to clear"
+const QUEUED = "⎿ Queued"
 
 /**
  * A terminal as interrupts see it: a one-box screen led by `> `, whose text the test sets
@@ -77,6 +78,12 @@ const terminal = (
     settleMs?: number
     /** Whether what Up takes puts the box in its shell mode. */
     shellOnceTaken?: boolean
+    /** The lines of the one queued message the screen shows in full before Up, where it does. */
+    shows?: readonly string[] | undefined
+    /** The host's own prompt that waits with those lines, as `queuedWords` tells it. */
+    knows?: ((lines: readonly string[]) => string | undefined) | undefined
+    /** Whether the queued message's row stays on the screen after Up. */
+    lingers?: boolean
   } = {},
 ) => {
   const began = Date.now()
@@ -101,7 +108,7 @@ const terminal = (
       const text = lines.join("\n").trimEnd()
       return { text, mode, first, last, ...(options.clipped && text !== "" && { clipped: true }) }
     },
-    stands: (text: string) => text.includes("[Image"),
+    stands: (text: string) => /\[(?:Image|Pasted text)/.test(text),
     textWidth: (columns) => columns - 3,
     collapsed: ({ text }) => /^\[Pasted text #\d+ \+\d+ lines\]$/.test(text),
     ...(options.cut ? { cut: ({ text }: InputBox) => text.startsWith("↑") } : {}),
@@ -123,6 +130,16 @@ const terminal = (
             recalled: (screen: ScreenText) => screen.rows.includes(RECALLED),
             leave: DOWN,
             blocked: () => options.blocked === true,
+            // Read off the screen it is given: only while the queued row stands there.
+            ...(options.shows && {
+              shown: (screen: ScreenText) =>
+                screen.rows.includes(QUEUED) ? options.shows : undefined,
+              waiting: (screen: ScreenText) => screen.rows.includes(QUEUED),
+            }),
+            stands: (text: string) => {
+              const count = /^\[Pasted text #\d+ \+(\d+) lines\]$/.exec(text)?.[1]
+              return count === undefined ? undefined : Number(count)
+            },
           },
         }),
     ...(options.holds === undefined
@@ -170,6 +187,7 @@ const terminal = (
             options.ticking ? `agent ${Math.floor((Date.now() - began) / 50)}s` : "header",
             ...box.split("\n").map((line, index) => `${index === 0 ? ">" : " "} ${line}`),
             recalled ? RECALLED : pending ? PENDING : "footer",
+            ...(options.shows && (ups === 0 || options.lingers) ? [QUEUED] : []),
           ],
         }),
       )
@@ -182,6 +200,7 @@ const terminal = (
       return true
     },
     ...(options.own !== undefined && { ownImages: () => options.own! }),
+    ...(options.knows && { queuedWords: (_id, lines) => options.knows!(lines) }),
     write: (_id, data) => {
       written.push(data)
       heldAtWrites.push(holds.some((hold) => hold.held))
@@ -500,6 +519,91 @@ describe("interrupts", () => {
       expect(await t.interruptIn()).toEqual({ returned: "Queued beta\nQueued gamma" })
       expect(t.written).toEqual([UP, ERASE])
       expect(t.typed).toEqual([ESC])
+    })
+
+    describe("where the program takes a queued message back as a placeholder", () => {
+      const lines = ["Queued beta", "second", "third", "fourth", "fifth"]
+      const words = lines.join("\n")
+      const placeholder = "[Pasted text #1 +4 lines]"
+      const pasted = (extra: Parameters<typeof terminal>[0] = {}) => {
+        let took = false
+        return terminal({
+          queued: () => !took,
+          prompt: "Hold on",
+          takes: () => {
+            took = true
+            return placeholder
+          },
+          shows: lines,
+          knows: (seen) => (seen.join("\n") === words ? words : undefined),
+          ...extra,
+        })
+      }
+
+      it("gives back the words the screen and the host agree it stands for, and clears it", async () => {
+        const t = pasted()
+        expect(await t.interruptIn()).toEqual({ returned: words })
+        expect(t.written).toEqual([UP, ERASE])
+      })
+
+      it("leaves it where the queued row stays up after Up, the queue not whole in the box", async () => {
+        const t = pasted({ lingers: true })
+        await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
+        expect(t.written).toEqual([UP])
+      })
+
+      it("leaves it where the words carry an image mark, which taking them back would drop", async () => {
+        const marked = ["Queued [Image #1] beta", ...lines.slice(1)]
+        const t = pasted({ shows: marked, knows: (seen) => seen.join("\n") })
+        await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
+        expect(t.written).toEqual([UP])
+      })
+
+      it("leaves it in the box where no message was shown queued in full", async () => {
+        const t = pasted({ shows: undefined })
+        await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
+        expect(t.written).toEqual([UP])
+      })
+
+      it("leaves it where the placeholder's count is not the shown message's lines", async () => {
+        const t = pasted({ shows: lines.slice(0, 4) })
+        await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
+        expect(t.written).toEqual([UP])
+      })
+
+      it("leaves it where the host knows no one prompt of its own with those lines", async () => {
+        const t = pasted({ knows: () => undefined })
+        await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
+        expect(t.written).toEqual([UP])
+      })
+
+      it("leaves it where the host has no way to tell", async () => {
+        const t = pasted({ knows: undefined })
+        await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
+        expect(t.written).toEqual([UP])
+      })
+
+      it("leaves a placeholder with no count, which names no lines to compare", async () => {
+        let took = false
+        const t = terminal({
+          queued: () => !took,
+          prompt: "Hold on",
+          takes: () => {
+            took = true
+            return "[Pasted text #1]"
+          },
+          shows: lines,
+          knows: () => words,
+        })
+        await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
+        expect(t.written).toEqual([UP])
+      })
+
+      it("leaves a placeholder in a box that was in its shell mode", async () => {
+        const t = pasted({ shellOnceTaken: true })
+        await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
+        expect(t.written).toEqual([UP])
+      })
     })
 
     it("clears with keys that open nothing, whenever they land, and only one Escape", async () => {
