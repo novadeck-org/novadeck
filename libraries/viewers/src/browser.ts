@@ -23,6 +23,7 @@ import {
   type Trouble,
 } from "./browser/trouble.js"
 import { wait } from "./browser/wait.js"
+import { createPhoneZoom, isKeptZoom, type KeptZoom } from "./browser/zoom.js"
 import type { Mount, Viewer, ViewerState } from "./index.js"
 
 // A web page. Live, it loads in Electron's <webview>, which the desktop app's lockdown
@@ -40,7 +41,8 @@ import type { Mount, Viewer, ViewerState } from "./index.js"
 // date's picker or autofill, by its view's own box, scaled or not, and the page's zoom; the
 // desktop app keeps each view's zoom its own (`ownZoom` in ./browser/host.ts), not its
 // site's. A phone's view isn't emulated at a screen of its own size, which would draw at
-// that size whatever the zoom (see `phoneEmulation`). Where live pages aren't available (a plain browser, a demo),
+// that size whatever the zoom (see `phoneEmulation`). A phone zooms from fit to one level on a
+// double-click around it, and back (./browser/zoom.ts). Where live pages aren't available (a plain browser, a demo),
 // it shows a snapshot of the page, or nothing, for the app to say why. Its looks are
 // browser.css's.
 
@@ -112,6 +114,11 @@ export type BrowserOptions = {
    * `factor` alone.
    */
   readonly zoom?: (page: number, factor: number) => Promise<boolean>
+  /**
+   * The one-time line that says a phone can be zoomed, kept across launches by its app:
+   * whether the person has seen it, and that they now have. Without it, there's no line.
+   */
+  readonly zoomHint?: { readonly seen: () => boolean; readonly see: () => void }
   /** Whether a live page starts awake, as it does unless told; it rests only as a picture. */
   readonly awake?: boolean
   /** What a live page lays out as, a desktop's window unless told. */
@@ -159,6 +166,11 @@ export type BrowserViewer = Viewer<BrowserContent> & {
   readonly awake: (awake: boolean) => void
   /** Whether it has a picture to rest as. */
   readonly pictured: () => boolean
+  /**
+   * Esc, for the pane's own keys to ask first: brings a phone drawn zoomed back to fit, and
+   * says so, or does nothing and says not, for the key to go on to what it does otherwise.
+   */
+  readonly unzoom: () => boolean
   /** Lays the live page out as `size`: its picture, of the other, stands in for nothing. */
   readonly size: (size: PageSize) => void
   /**
@@ -216,6 +228,7 @@ type BrowserState = {
     readonly shown: number
     readonly picture?: Picture
     readonly scrolled?: Scrolled
+    readonly zoom?: KeptZoom
   }
 }
 
@@ -230,7 +243,8 @@ const isBrowserState = (state: unknown): state is BrowserState => {
     typeof browser.at === "string" &&
     typeof browser.shown === "number" &&
     (browser.picture === undefined || isPicture(browser.picture)) &&
-    (browser.scrolled === undefined || isScrolled(browser.scrolled))
+    (browser.scrolled === undefined || isScrolled(browser.scrolled)) &&
+    (browser.zoom === undefined || isKeptZoom(browser.zoom))
   )
 }
 
@@ -351,6 +365,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     picture: take,
     phone: becomePhone,
     zoom: zoomView,
+    zoomHint,
     awake: startAwake,
     size: startSize,
     on,
@@ -389,18 +404,23 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   let used = false
   // The element a show is bringing into view, the page waiting for it to appear.
   let bringing: string | undefined
+  // Where a zoomed phone was left, as its controller (below) has it.
+  let keptZoom: () => KeptZoom | undefined = () => kept?.zoom
   // Kept with the show it carried out: one whose move or scroll is still to come isn't yet,
   // so a viewer mounted for it before then still carries it out.
-  const state = (at: string): ViewerState =>
-    ({
+  const state = (at: string): ViewerState => {
+    const zoom = keptZoom()
+    return {
       browser: {
         url: shown.url,
         at,
         shown: scrollTo === undefined && then === undefined && !stale ? showing : showing - 1,
         ...(picture !== undefined && !used && { picture }),
         ...(picture !== undefined && !used && scrolled !== undefined && { scrolled }),
+        ...(zoom !== undefined && { zoom }),
       },
-    }) satisfies BrowserState as unknown as ViewerState
+    } satisfies BrowserState as unknown as ViewerState
+  }
 
   const report = (next: Load): void => {
     if (next === load) return
@@ -453,6 +473,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       awake: nothing,
       pictured: () => true,
       size: nothing,
+      unzoom: () => false,
       seen: () => undefined,
       destroy: () => root.remove(),
     }
@@ -514,19 +535,41 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       ? measured
       : { width, height }
   }
-  // How wide the page is drawn now, in CSS pixels, as its picture is.
-  const drawnWidth = (): number => {
-    const { width, height } = sizeNow()
-    const framing = framingOf(size, width, height)
-    return framing ? framing.width * framing.scale : width
-  }
+  // Whether it's drawn: not inside an element kept out of sight, as with display: none.
+  const shownNow = (): boolean =>
+    document.visibilityState !== "hidden" && root.checkVisibility?.() !== false
   // Where its phone is, for a press on the stage around it, not on it.
   let framed: Framing | undefined
+  // A phone's zoom (./browser/zoom.ts): it eases from fit to one level and back, which frames
+  // the page again at each step.
+  const phoneZoom = createPhoneZoom(root, {
+    size: () => size,
+    stage: sizeNow,
+    phone: () => framed,
+    changed: () => frame(true),
+    shown: shownNow,
+    ...(kept?.zoom && { kept: kept.zoom }),
+    ...(zoomHint && { hint: zoomHint }),
+    calm: () => win?.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true,
+  })
+  keptZoom = phoneZoom.kept
+  // Where the page is drawn now: its phone zoomed or easing, else as `framingOf` fits it.
+  const framingNow = (): Framing | undefined => {
+    const { width, height } = sizeNow()
+    return (size === "phone" ? phoneZoom.framing() : undefined) ?? framingOf(size, width, height)
+  }
+  // How wide the page is drawn now, in CSS pixels, as its picture is.
+  const drawnWidth = (): number => {
+    const framing = framingNow()
+    return framing ? framing.width * framing.scale : sizeNow().width
+  }
   // How far the page is zoomed in its view, of the app's own zoom: zoomed out as its framing
   // says, unless further than a page zooms (`minZoom`), which browser.css then scales
-  // instead. The view is as wide as it's drawn, to the device
-  // pixel down, so the page lays out at least as wide as its framing, never a pixel short of
-  // a breakpoint at its width; a hair under it, for the zoom's own rounding.
+  // instead. The view is as wide as it's drawn, to the device pixel down, so the page lays
+  // out at least as wide as its framing, never a pixel short of a breakpoint at its width; a
+  // hair under it, for the zoom's own rounding. A phone's zoom eases by scaling its view,
+  // drawn at the larger scale of the two it eases between, so its page is zoomed once, not at
+  // each step (see `PhoneZoom.viewScale`).
   let zoomed = 1
   // A length in whole device pixels, a hair down.
   const wholeOf = (length: number): number => {
@@ -540,25 +583,35 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   // Its view zoomed so, once attached, by the app where it can, else by itself; again as each
   // document commits and is ready, as Chromium can let a reload's go, and for a view
   // attached late.
+  let sentZoom: number | undefined
+  // The latest zoom asked of the app: an answer to an earlier one, arriving after, is stale.
+  let zoomAsked = 0
   const zoom = (): void => {
     const view = page
     if (!view) return
     const factor = zoomed
+    sentZoom = factor
+    const asked = ++zoomAsked
     const id = zoomView ? attached(() => view.getWebContentsId()) : undefined
     if (zoomView && id !== undefined)
       void zoomView(id, factor)
         .catch(() => false)
         .then((done) => {
-          if (!done && page === view) attached(() => view.setZoomFactor(factor))
+          if (!done && page === view && asked === zoomAsked)
+            attached(() => view.setZoomFactor(factor))
         })
     else attached(() => view.setZoomFactor(factor))
   }
-  const frame = (): void => {
+  // `steady`: framed again as a zoom eases, which changes how the view is scaled, not zoomed,
+  // until it settles: its page isn't told its zoom again for each step.
+  const frame = (steady = false): void => {
     root.dataset.size = size
-    const { width, height } = sizeNow()
-    const framing = framingOf(size, width, height)
+    const framing = framingNow()
     framed = framing
-    zoomed = zoomFor(framing)
+    // The scale its view is drawn at, where it isn't the one it's shown at.
+    const viewScale = size === "phone" ? phoneZoom.viewScale() : undefined
+    const view = framing && viewScale !== undefined ? { ...framing, scale: viewScale } : framing
+    zoomed = zoomFor(view)
     if (zoomed === 1) delete root.dataset.zoomed
     else root.dataset.zoomed = ""
     const values: Record<string, string | undefined> = {
@@ -570,22 +623,25 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     }
     // A phone's view is its screen's size to the device pixel, not a pixel over, as the box it's
     // drawn in is (a screen is a screen wide, to the pixel: a desktop's window only at least).
-    if (framing && size === "phone" && zoomed !== 1) {
-      const wide = wholeOf(framing.width * framing.scale)
+    if (view && size === "phone" && zoomed !== 1) {
+      const wide = wholeOf(view.width * view.scale)
       values["--browser-view-width"] = `${wide}px`
       // As tall as the zoom, which a screen's width sets, lays it out a screen tall, to the pixel.
       const ratio = win?.devicePixelRatio || 1
-      const tall = Math.round(((framing.height * wide) / framing.width) * ratio) / ratio
+      const tall = Math.round(((view.height * wide) / view.width) * ratio) / ratio
       values["--browser-view-height"] = `${tall}px`
+      values["--browser-view-scale"] = `${view.scale}`
     } else {
       values["--browser-view-width"] = undefined
       values["--browser-view-height"] = undefined
+      values["--browser-view-scale"] = undefined
     }
     for (const [name, value] of Object.entries(values)) {
       if (value === undefined) root.style.removeProperty(name)
       else root.style.setProperty(name, value)
     }
-    zoom()
+    if (!steady || zoomed !== sentZoom) zoom()
+    phoneZoom.sync()
   }
   // Where there's nothing to report a resize, as outside a browser, it's framed as it mounts.
   const resizing = win?.ResizeObserver
@@ -605,9 +661,6 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     (press) => size === "phone" && !(framed && onPhone(framed, press.offsetX, press.offsetY)),
   )
 
-  // Whether it's drawn: not inside an element kept out of sight, as with display: none.
-  const shownNow = (): boolean =>
-    document.visibilityState !== "hidden" && root.checkVisibility?.() !== false
   // Whether a wake opened the live page.
   let woken = false
   // A picture of the live page under way, after its load, to rest as.
@@ -1029,6 +1082,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     }
     made.setAttribute("src", at)
     page = made
+    // A new view has been told nothing of its zoom.
+    sentZoom = undefined
     first = true
     moving = false
     // A new view has none open: an earlier view's went with it.
@@ -1278,6 +1333,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       else rest()
     },
     pictured: () => picture !== undefined && !used,
+    unzoom: () => phoneZoom.out(),
     seen: () => {
       // Its own picture over it, or no page at all, is a rest; a page still loading or one
       // that failed isn't how the person would want it seen.
@@ -1321,6 +1377,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     destroy: () => {
       resizing?.disconnect()
       tilt.stop()
+      phoneZoom.destroy()
       win?.removeEventListener("message", requested)
       win?.removeEventListener("message", signIns)
       clearTimeout(fading)
