@@ -55,10 +55,13 @@ const shown = async ({
   listings = { "": listing(top) },
   part = null,
   fromTerminal = "01",
+  into,
 }: {
   listings?: Record<string, ItemContent>
   part?: Companions["part"] | null
   fromTerminal?: string
+  // The pane the folder is drawn in, as the terminal's pane reader is.
+  into?: HTMLElement
 } = {}) => {
   const item = itemFixture("render", fromTerminal, {
     kind: "folder",
@@ -107,10 +110,12 @@ const shown = async ({
     ),
   )
   unmounts.push(rendered.unmount)
+  into?.append(rendered.container)
   await settle()
   const root = rendered.container
   return {
     root,
+    unmount: rendered.unmount,
     itemStore,
     attached,
     closed,
@@ -382,15 +387,35 @@ describe("a folder in the pane", () => {
       expect(app.attached).toEqual([{ terminalId: "01", path: "/tmp/render/shot.png" }])
     })
 
-    it("hands focus to the pane once the file opens in place of the folder, so its keys work", async () => {
-      const app = await shown()
-      // The pane the folder is drawn in, as the terminal's pane reader is.
-      app.root.setAttribute("data-workspace-companion", "")
-      app.root.tabIndex = -1
+    it("hands the focus it held to the pane as it goes, so the file opened in its place has its keys", async () => {
+      const pane = document.createElement("section")
+      pane.setAttribute("data-workspace-companion", "")
+      pane.tabIndex = -1
+      document.body.append(pane)
+      const app = await shown({ into: pane })
       await app.open("shot.png")
-      // The file's tab took the folder's place, and the tile that had focus went with it.
-      ;(app.root.ownerDocument.activeElement as HTMLElement | null)?.blur()
-      await vi.waitFor(() => expect(app.root.ownerDocument.activeElement).toBe(app.root))
+      // The tile double-clicked holds focus.
+      app.tile("shot.png").focus()
+      // The file's tab takes the folder's place in the pane, whenever the pane gets to it.
+      app.unmount()
+      await settle()
+      expect(document.activeElement).toBe(pane)
+      pane.remove()
+    })
+
+    it("leaves focus alone as it goes where the folder didn't hold it", async () => {
+      const pane = document.createElement("section")
+      pane.setAttribute("data-workspace-companion", "")
+      pane.tabIndex = -1
+      const elsewhere = document.createElement("button")
+      document.body.append(pane, elsewhere)
+      const app = await shown({ into: pane })
+      elsewhere.focus()
+      app.unmount()
+      await settle()
+      expect(document.activeElement).toBe(elsewhere)
+      pane.remove()
+      elsewhere.remove()
     })
 
     it("opens a file of a folder inside it by the folder's own path", async () => {

@@ -2,7 +2,7 @@ import "../../folder.css"
 import type { FolderContent, FolderEntry, Item, UnavailableReason } from "@novadeck/core/items"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { ArrowUp, ArrowUpDown, FolderOpen, LayoutGrid, LayoutList, Lock } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { useItemCommands } from "../../item-commands"
 import { PaneTools, usePaneNote, type PaneTool } from "../../pane-row"
@@ -78,6 +78,25 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
   usePaneNote(listed ? [countText(listed.total)] : [], gone, undefined, refused ? Lock : undefined)
 
   const root = useRef<HTMLDivElement>(null)
+  // A file opened from the folder takes the folder's place in the pane, whenever the pane gets
+  // to it: as the folder goes, focus it held goes to the pane (or the window), so the file's
+  // keys, as an image's ← →, work at once rather than falling to the page.
+  useLayoutEffect(() => {
+    const own = root.current
+    // Read as it goes, while it is still in the page: the pane it is in then, which a folder
+    // moved into a window of its own has changed.
+    return () => {
+      const pane = own?.parentElement?.closest<HTMLElement>(
+        "[data-workspace-companion], .artifact-window",
+      )
+      if (!own || !pane || !own.contains(document.activeElement)) return
+      queueMicrotask(() => {
+        const focused = document.activeElement
+        if (pane.isConnected && (!focused || focused === document.body || !focused.isConnected))
+          pane.focus({ preventScroll: true })
+      })
+    }
+  }, [])
   const [inside, setInside] = useState(false)
   const arrivals = useArrivals(listed?.entries, inside, within)
   const writing = useWriting(listed?.entries, within)
@@ -136,21 +155,9 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
     if (entry.kind === "folder") return goTo(intoFolder(within, entry.name))
     if (!terminal || !listed) return setProblem(`${entry.name} can't be opened from here.`)
     setProblem(undefined)
-    // The file opens in its own kind's tab, which takes the folder's place: focus goes with it
-    // to the pane (or the window), so the file's keys, as an image's ← →, work at once.
-    const pane = root.current?.closest<HTMLElement>("[data-workspace-companion], .artifact-window")
-    itemStore
-      .attach(target, terminal, absoluteOf(listed.path, entry.name))
-      .then(() =>
-        requestAnimationFrame(() => {
-          const focused = document.activeElement
-          if (pane?.isConnected && (!focused || focused === document.body || !focused.isConnected))
-            pane.focus({ preventScroll: true })
-        }),
-      )
-      .catch(() => {
-        setProblem(`${entry.name} couldn't be opened.`)
-      })
+    itemStore.attach(target, terminal, absoluteOf(listed.path, entry.name)).catch(() => {
+      setProblem(`${entry.name} couldn't be opened.`)
+    })
   }
 
   const tools: PaneTool[] = [
