@@ -273,9 +273,6 @@ const ShownPage = ({
                     place,
                     actions: {
                       edit: (edit) => viewer?.edit(edit),
-                      back: () => viewer?.back(),
-                      forward: () => viewer?.forward(),
-                      reload: () => viewer?.reload(),
                       copy: copyText,
                       open: openOut,
                     },

@@ -403,13 +403,11 @@ describe("a page beside a terminal", () => {
       })
       const { container } = show({ kind: "page", url, shown: 1, live: true })
       const page = pageOf(container)
-      const reloads: string[] = []
       Object.assign(page, {
         getURL: () => url,
         canGoBack: () => false,
         canGoForward: () => false,
         setAudioMuted: () => undefined,
-        reload: () => reloads.push("reload"),
       })
       fire(page, "did-stop-loading")
       const params = {
@@ -423,16 +421,16 @@ describe("a page beside a terminal", () => {
       fire(page, "context-menu", { params })
       await settle()
       expect(menuItem("Copy link address")).toBeDefined()
-      expect(menuItem("Back")?.getAttribute("data-disabled")).not.toBeNull()
+      expect(menuItem("Back")).toBeUndefined()
+      expect(menuItem("Reload")).toBeUndefined()
+      expect(menuItem("Copy page address")).toBeUndefined()
       act(() => menuItem("Copy link address")!.click())
       await settle()
       expect(copied).toEqual(["https://example.com/docs"])
-      expect(menuItem("Reload")).toBeUndefined()
+      expect(menuItem("Open page in your browser")).toBeUndefined()
       fire(page, "context-menu", { params: { ...params, linkURL: "" } })
       await settle()
-      act(() => menuItem("Reload")!.click())
-      await settle()
-      expect(reloads).toEqual(["reload"])
+      expect(menuItem("Open page in your browser")).toBeDefined()
     })
 
     it("closes as the person goes back to the page, its window losing focus to it", async () => {
@@ -441,12 +439,12 @@ describe("a page beside a terminal", () => {
         params: { x: 10, y: 10, selectionText: "", linkURL: "", isEditable: false, editFlags: {} },
       })
       await settle()
-      expect(menuItem("Reload")).toBeDefined()
+      expect(menuItem("Open page in your browser")).toBeDefined()
       act(() => {
         window.dispatchEvent(new Event("blur"))
       })
       await settle()
-      expect(menuItem("Reload")).toBeUndefined()
+      expect(menuItem("Open page in your browser")).toBeUndefined()
     })
 
     it("closes on Escape, keeping the key from the pane around it", async () => {
@@ -466,7 +464,7 @@ describe("a page beside a terminal", () => {
         content.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
       })
       await settle()
-      expect(menuItem("Reload")).toBeUndefined()
+      expect(menuItem("Open page in your browser")).toBeUndefined()
       expect(heard).toEqual([])
     })
   })
