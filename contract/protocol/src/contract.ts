@@ -40,6 +40,10 @@ import {
   planSaveResult,
   planUnwritable,
   filePart,
+  folderMatch,
+  folderMatchLimits,
+  maxWroteFolders,
+  wroteFolder,
 } from "./companions.js"
 import { requestAnswer } from "./dialogs.js"
 import { feedbackDraft, maxFeedbackText } from "./feedback.js"
@@ -733,8 +737,8 @@ export const contract = {
       )
       .output(planSaveResult),
     // Attaches a file the person picked to a terminal's bar, by a path absolute or from
-    // the terminal's directory. A terminal the runner keeps nothing of is
-    // TERMINAL_NOT_FOUND; a path that is no file is INVALID_FILE, saying why.
+    // the terminal's directory, or led by `~` for the person's home. A terminal the runner keeps
+    // nothing of is TERMINAL_NOT_FOUND; a path that is no file or folder is INVALID_FILE, saying why.
     attach: procedure
       .input(
         z.strictObject({
@@ -748,6 +752,27 @@ export const contract = {
         }),
       )
       .output(companionItem),
+    // The folders a path being typed may be, for a terminal's folder tab: those under the
+    // path's parent whose names start as its last part does (all of them for a path ending in
+    // `/`), by name, at most `folderMatchLimits.matches`, each with how many entries it holds and
+    // whether a folder item shows it. The path is led by `~` for the person's home, or is read
+    // from the terminal's directory. Only folders are named, never a hidden one unless the last
+    // part starts with a dot, and never one that may hold secrets, nor anything under one; a
+    // parent that isn't a folder, or can't be read, names none. A terminal the runner keeps
+    // nothing of is TERMINAL_NOT_FOUND.
+    folders: procedure
+      .input(z.strictObject({ terminalId: id, path: z.string().max(companionLimits.path) }))
+      .output(z.array(folderMatch).max(folderMatchLimits.matches)),
+    // The folders outside the project that the agents of a terminal's session wrote a file in,
+    // as their harnesses' tool calls told (a command's output is told by none): the latest
+    // first, once each, at most `maxWroteFolders`. Never a folder inside the session's project
+    // or under the terminal that wrote it, one a harness keeps for itself (its plans, memory, conversations
+    // and logs, not the rest of its home), one that may hold secrets, or one that is gone.
+    // Kept with the terminals, so it outlives a restart. A terminal the runner keeps nothing of
+    // is TERMINAL_NOT_FOUND.
+    wroteTo: procedure
+      .input(z.strictObject({ terminalId: id }))
+      .output(z.array(wroteFolder).max(maxWroteFolders)),
     // Points a file's item at another file of its own kind, by a path absolute or from the
     // folder of the file it points at now: the same item, holder and id, with a later
     // version, as the person stepping through a folder's files does. A file that may hold

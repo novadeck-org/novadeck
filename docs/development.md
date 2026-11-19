@@ -534,7 +534,14 @@ Agents:
   in a pill while the pointer is in the grid); "A file is being written" grows one for about 3 s
   (write cursor and pulse); "Show a folder with nothing in it", "...too large to list whole" and
   "...that may hold secrets" are the pane's other states; "The folder goes away" strikes its tab
-  through and says it is gone, with a Close action; "Bring the folder back" undoes it.
+  through and says it is gone, with a Close action; "Bring the folder back" undoes it. Every state
+  of the path field needs no action: with the `render` pane in focus, Ctrl+L (Cmd+L) turns the
+  crumbs into the field with the groups "Shown by agents" (`render` itself), "Agents wrote to,
+  outside the project" (three folders, one by an agent of each harness) and, once something has
+  been opened, "You opened"; typing `~/re` adds the matches with `render` marked open
+  (`frontend/demo/src/showcase/path-field.ts` holds the folders it knows); Enter on `~/Downloads`
+  opens a stand-in, and on a name with an extension nothing is there for (`missing.txt`) the
+  field shows the reason under itself.
 - **Changes:** only in the `showcase` variant, no action needed: the dev server's terminal
   (`@fox`, the third) holds its items on the bar beside those that can't show, thirteen of them
   changes, one in each shape the changes pane draws: an ordinary change in layers (a refactor of

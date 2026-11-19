@@ -43,11 +43,12 @@ export default defineConfig({
       // Agent Chat's folding of long replies (1,300,298 bytes then). The demo's was
       // raised to 195 kB for History's rows, which the demo keeps (190,171 bytes then), and
       // to 205 kB for the changes pane's layers and the small git its samples come from
-      // (198,875 bytes then), and to 210 kB for the Inbox's history of resolved rows, which the
-      // demo's Inbox keeps (206,351 bytes then).
+      // (198,875 bytes then), to 210 kB for the Inbox's history of resolved rows, which the
+      // demo's Inbox keeps (206,351 bytes then), and to 250 kB, by the owner's choice, when main
+      // reached it (about 210,000 bytes on CI, and the folder path field's 4 bytes over it).
       budgets: {
         first: 1_310_000,
-        demo: 210_000,
+        demo: 250_000,
         demoModule: "/frontend/demo/src/visitor/connect.ts",
       },
     }),

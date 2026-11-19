@@ -8,7 +8,7 @@ import {
   resumeFlags,
   type KeptFlags,
 } from "@novadeck/harness-core/kept-flags"
-import { beside } from "@novadeck/harness-core/paths"
+import { beside, flavourOf, homeAbove } from "@novadeck/harness-core/paths"
 import type { Report } from "@novadeck/harness-core/report"
 
 import { box, slice } from "./box.js"
@@ -129,6 +129,18 @@ const launch: LaunchProfile = {
 // Its commands that start work for an agent though they open no session here.
 const sessionCommands = new Set(["attach", "ultrareview"])
 
+// The folders of its home it writes for itself.
+const bookkeepingNames = [
+  "plans",
+  "projects",
+  "todos",
+  "shell-snapshots",
+  "file-history",
+  "session-env",
+  // Subagents' memory of the user scope, which they write with Write and Edit.
+  "agent-memory",
+]
+
 export const claude = {
   id: "claude",
   plugin: "claude",
@@ -138,6 +150,14 @@ export const claude = {
   conversations,
   home: claudeHome,
   planFolders: (install) => [join(claudeHome(install), "plans")],
+  // What it keeps for itself: plans, and the transcripts and auto memory under `projects`.
+  bookkeeping: (install) => bookkeepingNames.map((name) => join(claudeHome(install), name)),
+  bookkeepingOf: (transcript) => {
+    const home = homeAbove(transcript, "projects", 1, 1)
+    return home === undefined
+      ? []
+      : bookkeepingNames.map((name) => flavourOf(home).join(home, name))
+  },
   // Its transcripts are `<home>/projects/<project>/<session>.jsonl`.
   planFoldersOf: (transcript) => beside(transcript, "projects", "plans"),
   connected,

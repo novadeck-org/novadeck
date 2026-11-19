@@ -10,6 +10,7 @@ import {
 import type { CompanionWindowMeta, WorkspaceTarget } from "@novadeck/core/types"
 import {
   companionLimits,
+  folderMatchLimits,
   harnesses,
   lookLimits,
   planUnwritable,
@@ -136,6 +137,8 @@ export const createRunnerCompanions = (
     | "pageTrouble"
     | "part"
     | "attach"
+    | "folders"
+    | "wroteTo"
     | "repoint"
   >,
   {
@@ -228,6 +231,16 @@ export const createRunnerCompanions = (
       .catch(() => {})
   },
   attach: async (_target, terminalId, path) => itemOf(await runner.attach({ terminalId, path })),
+  folders: async (_target, terminalId, path) =>
+    (await runner.folders({ terminalId, path })).map((match) => ({
+      ...match,
+      more: match.count >= folderMatchLimits.counted,
+    })),
+  wroteTo: async (_target, terminalId) =>
+    (await runner.wroteTo({ terminalId })).map(({ agent, ...folder }) => ({
+      ...folder,
+      harness: displayNames[agent],
+    })),
   repoint: async (target, itemId, path) =>
     itemOf(await inOrder(target, () => runner.repoint({ itemId, path }))),
   openInProject: async (target, path, windowId) => {

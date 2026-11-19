@@ -1,7 +1,9 @@
 import { dirname } from "node:path"
 
 import type { HarnessEvent } from "@novadeck/harness-core/events"
+import { companionLimits } from "@novadeck/protocol"
 
+import { lies } from "../companions/path-field.js"
 import { rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
 import { shorten } from "../text.js"
 
@@ -43,6 +45,12 @@ export type Work = {
    * What tells where it works now (see `currentCheckout`); absent until one.
    */
   readonly places?: readonly string[]
+  /**
+   * The folders it wrote a file in outside the folder its terminal works in, each with when it
+   * last did, the latest first (see `wroteFolders`); absent until one. A command's output is
+   * told by no harness, so only the files its tools wrote count.
+   */
+  readonly wrote?: readonly { readonly folder: string; readonly at: number }[]
   readonly activeAt: number | null
 }
 
@@ -77,6 +85,8 @@ export const keptFolders = 20
 export const keptFiles = 8
 /** How many tool calls' folders are kept. */
 export const keptPlaces = 8
+/** How many folders written in outside the terminal's own are kept. */
+export const keptWrote = 20
 
 /**
  * Whose the root session's first prompt is: the `user`'s; the `opener`'s, in the first
@@ -137,6 +147,30 @@ export const placed = (places: Work["places"], folder: string): readonly string[
     : next
 }
 
+/**
+ * The folders written in outside the terminal's own with `folder` written in at `at`, once each
+ * (the later time kept), the latest first, kept to the `keptWrote` latest. A folder at or under
+ * one of `own`, the folders the terminal and its project work in, is a place the person finds
+ * anyway: the list is the same one then. Times come from the facts, so a backlog told again
+ * after a restart keeps its old ones.
+ */
+export const wroteIn = (
+  wrote: Work["wrote"],
+  folder: string,
+  at: number,
+  own: readonly string[] = [],
+): Work["wrote"] => {
+  // A path longer than the protocol carries is never kept, nor one inside the terminal's own.
+  if (folder.length > companionLimits.path || own.some((each) => lies(folder, each))) return wrote
+  const before = wrote?.find((each) => each.folder === folder)
+  return [
+    { folder, at: Math.max(at, before?.at ?? at) },
+    ...(wrote ?? []).filter((each) => each.folder !== folder),
+  ]
+    .toSorted((a, b) => b.at - a.at)
+    .slice(0, keptWrote)
+}
+
 /** The folders a session wrote in most, by edits, at most `count` of them. */
 export const busiestFolders = (
   folders: Work["folders"],
@@ -175,7 +209,8 @@ export const currentCheckout = (
  * The work of the root's session after its root `changes` and a report's facts: the same
  * session keeps what it worked on, and so does a guess at it corrected to another
  * session, as Antigravity's root once its status line names it; another session starts
- * afresh, and none has none.
+ * afresh, and none has none. `own` is the folders its terminal and its project work in, which
+ * the writes under them are not kept apart from (see `wroteIn`).
  */
 export const workAfter = (
   work: Work | null,
@@ -183,6 +218,7 @@ export const workAfter = (
   events: readonly HarnessEvent[],
   now: number,
   changes: readonly RootChange[] = [],
+  own?: readonly string[],
 ): Work | null => {
   if (!root) return work
   let carried = work
@@ -205,14 +241,22 @@ export const workAfter = (
         activeAt: now,
       }
     } else if (event.type === "turn-ended") next = { ...next, activeAt: now }
-    else if (event.type === "file-touched")
+    else if (event.type === "file-touched") {
+      const wrote = wroteIn(
+        next.wrote,
+        dirname(event.path),
+        Number.isFinite(event.startedAt) ? event.startedAt : now,
+        own,
+      )
       next = {
         ...next,
         folders: tallied(next.folders, dirname(event.path)),
         files: lastFiles(next.files, event.path),
         places: placed(next.places, dirname(event.path)),
+        ...(wrote && { wrote }),
         activeAt: now,
       }
+    }
     // A subagent's commands look around (a search, a log) more than they say where the
     // work is; the files any actor writes do.
     else if (event.type === "tool-called" || event.type === "command-ran") {

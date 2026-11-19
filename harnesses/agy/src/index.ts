@@ -8,7 +8,7 @@ import {
   resumeFlags,
   type KeptFlags,
 } from "@novadeck/harness-core/kept-flags"
-import { beside } from "@novadeck/harness-core/paths"
+import { beside, flavourOf, homeAbove } from "@novadeck/harness-core/paths"
 
 import { box, slice } from "./box.js"
 import { conversation, conversations } from "./conversation.js"
@@ -152,6 +152,13 @@ export const agy = {
   // The folders of its conversations, where it writes the plans it asks to be reviewed.
   planFolders: (install) => [join(antigravityHome(install), "brain")],
   planFoldersOf: (transcript) => beside(transcript, "brain", "brain"),
+  // The folders of its conversations, where it keeps their artifacts.
+  bookkeeping: (install) => [join(antigravityHome(install), "brain")],
+  // A conversation's files are `<home>/brain/<conversation>/…`, a few folders deep.
+  bookkeepingOf: (transcript) => {
+    const home = homeAbove(transcript, "brain", 1, 4)
+    return home === undefined ? [] : [flavourOf(home).join(home, "brain")]
+  },
   connected,
   installed,
   connect,

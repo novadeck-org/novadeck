@@ -10,6 +10,7 @@ import {
   judgedFirst,
   keptFiles,
   keptFolders,
+  keptWrote,
   lastFiles,
   keptPlaces,
   personPrompted,
@@ -30,9 +31,11 @@ const prompted = (prompt: string, cause: "prompt" | "harness" = "prompt"): Harne
   prompt,
 })
 
-const touched = (path: string): HarnessEvent => ({
+// A write told at `at`, as the hook that told it started then, or the rollout line was stamped.
+const touched = (path: string, at: number = fact.startedAt): HarnessEvent => ({
   type: "file-touched",
   ...fact,
+  startedAt: at,
   actor: null,
   path,
 })
@@ -222,6 +225,7 @@ describe("what a root session worked on", () => {
       folders: { "/w": 1 },
       files: ["/w/a.ts"],
       places: ["/w"],
+      wrote: [{ folder: "/w", at: 1 }],
       activeAt: 4,
     })
     // Without the correction, another session starts afresh.
@@ -238,6 +242,71 @@ describe("what a root session worked on", () => {
     const fresh = tallied(folders, "/new")
     expect(fresh["/new"]).toBe(1)
     expect(Object.keys(fresh)).toHaveLength(keptFolders)
+  })
+
+  it("keeps the folders written in outside its terminal's own, the latest first, once each", () => {
+    const work = workAfter(
+      null,
+      root,
+      [
+        touched("/t/own/a.ts", 3),
+        touched("/x/a.ts", 4),
+        touched("/y/b.ts", 7),
+        touched("/t/own/sub/c.ts", 8),
+      ],
+      99,
+      [],
+      ["/t/own"],
+    )
+    // As the facts are timed, not as they came.
+    expect(work?.wrote).toEqual([
+      { folder: "/y", at: 7 },
+      { folder: "/x", at: 4 },
+    ])
+    const again = workAfter(work, root, [touched("/x/z.ts", 9)], 99, [], ["/t/own"])
+    expect(again?.wrote).toEqual([
+      { folder: "/x", at: 9 },
+      { folder: "/y", at: 7 },
+    ])
+  })
+
+  it("keeps a write's own time, so a backlog told again after a restart is no newer", () => {
+    const work = workAfter(null, root, [touched("/x/a.ts", 100)], 5_000, [], [])
+    expect(work?.wrote).toEqual([{ folder: "/x", at: 100 }])
+    // Told again later with an older stamp: the later time stays, and an older fact sorts below.
+    const again = workAfter(
+      work,
+      root,
+      [touched("/x/b.ts", 50), touched("/y/c.ts", 60)],
+      9_000,
+      [],
+      [],
+    )
+    expect(again?.wrote).toEqual([
+      { folder: "/x", at: 100 },
+      { folder: "/y", at: 60 },
+    ])
+  })
+
+  it("leaves out writes under any of its own folders, as the terminal's and its project's", () => {
+    const work = workAfter(
+      null,
+      root,
+      [touched("/t/a/x.ts", 1), touched("/p/src/y.ts", 2), touched("/z/w.ts", 3)],
+      9,
+      [],
+      ["/t/a", "/p"],
+    )
+    expect(work?.wrote).toEqual([{ folder: "/z", at: 3 }])
+  })
+
+  it("keeps the twenty latest folders written in, and none for a session that wrote only at home", () => {
+    let work: Work | null = null
+    for (let index = 0; index < 25; index += 1)
+      work = workAfter(work, root, [touched(`/o${index}/f.ts`, index)], 99, [], ["/t"])
+    expect(work?.wrote).toHaveLength(keptWrote)
+    expect(work?.wrote?.[0]).toEqual({ folder: "/o24", at: 24 })
+    expect(workAfter(null, root, [touched("/t/a.ts")], 1, [], ["/t"])).not.toHaveProperty("wrote")
   })
 
   it("names the three folders written in most, ties by name", () => {

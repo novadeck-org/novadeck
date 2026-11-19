@@ -512,6 +512,29 @@ export const pageTroublesPerCall = 20
 
 // Where the items' content comes from. The items themselves reach the workspace store
 // as the backend's seed and actions, like terminals.
+// A folder a typed path may be: written as the person typed its parent, so it completes the text;
+// its absolute path through links (`real`), as a folder item showing it holds it; how many entries
+// it holds (`count`, and `more` when it holds more than were counted); whether a folder item shows
+// it.
+export type FolderMatch = {
+  readonly path: string
+  readonly real: string
+  readonly count: number
+  readonly more: boolean
+  readonly open: boolean
+}
+
+// A folder outside the project that an agent wrote a file in, as it is told in a path field's
+// suggestions: absolute, or led by `~`, with its absolute path through links (`real`, as
+// `FolderMatch`'s), the terminal's handle, the harness's name and when.
+export type WroteFolder = {
+  readonly path: string
+  readonly real: string
+  readonly handle: string
+  readonly harness: string
+  readonly at: number
+}
+
 export type Companions = {
   // Reports what the item holds now, then again whenever that changes, until stopped.
   // One that may hold secrets reports `secret` unless `reveal` is the path the item points at:
@@ -559,6 +582,19 @@ export type Companions = {
   // an agent's show of it would: it opens there, in its kind's group. Resolves with the item;
   // rejects when the path can't be shown. Absent where the backend can't.
   readonly attach?: (target: WorkspaceTarget, terminalId: string, path: string) => Promise<Item>
+  // The folders a path being typed may be, by name, for a terminal (`path` is led by `~`, absolute,
+  // or from the terminal's directory): see `FolderMatch`. Absent where the backend can't.
+  readonly folders?: (
+    target: WorkspaceTarget,
+    terminalId: string,
+    path: string,
+  ) => Promise<readonly FolderMatch[]>
+  // The folders outside the project that a terminal's session's agents wrote a file in, the latest
+  // first: see `WroteFolder`. Absent where the backend can't.
+  readonly wroteTo?: (
+    target: WorkspaceTarget,
+    terminalId: string,
+  ) => Promise<readonly WroteFolder[]>
   // Points a file's item at another file of its own kind, by an absolute path, as stepping
   // through a folder's files does: the same item, holder and id, shown again. Resolves with
   // the item; rejects when the path is no file of that kind. Absent where the backend can't.

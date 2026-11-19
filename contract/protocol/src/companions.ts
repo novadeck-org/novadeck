@@ -562,6 +562,38 @@ export const filePart = z.discriminatedUnion("state", [
   }),
 ])
 
+// `companions.folders`: how many folders it names at most, how many of a folder's entries it
+// reads to find them, and how many it counts in each before it says "that many or more".
+export const folderMatchLimits = { matches: 20, scanned: 5000, counted: 1000 } as const
+
+// `companions.folders`: the folders under the typed path's parent whose names start as its last
+// part does. `path` is written as the person typed the parent (a leading `~`, or relative to the
+// terminal's directory) and ends in the folder's own name, so it completes the typed text;
+// `real` is its absolute path through links, as a folder item showing it holds it, so lists that
+// write a folder differently tell it is the same one; `count` is how many entries the folder
+// holds, up to `folderMatchLimits.counted`; `open` says a folder item already shows it.
+export const folderMatch = z.strictObject({
+  path: z.string().min(1).max(companionLimits.path),
+  real: z.string().min(1).max(companionLimits.path),
+  count: z.int().min(0).max(folderMatchLimits.counted),
+  open: z.boolean(),
+})
+
+// How many folders `companions.wroteTo` names at most.
+export const maxWroteFolders = 8
+
+// `companions.wroteTo`: a folder outside the project that a session's agent wrote a file in, and
+// when (milliseconds since the epoch), with the terminal's handle and the agent's harness.
+// `path` is absolute, or led by `~` for one in the person's home; `real` is its absolute path
+// through links, as `folderMatch`'s is.
+export const wroteFolder = z.strictObject({
+  path: z.string().min(1).max(companionLimits.path),
+  real: z.string().min(1).max(companionLimits.path),
+  handle,
+  agent: agentName,
+  at: z.number(),
+})
+
 /**
  * Why `companions.save` can't write a plan, in `PLAN_UNWRITABLE`'s data, which retrying
  * won't change until the plan or its folder does:
@@ -592,3 +624,5 @@ export type DiffHunk = z.infer<typeof diffHunk>
 export type ChangeFileDiff = z.infer<typeof changeFileDiff>
 export type PlanSaveResult = z.infer<typeof planSaveResult>
 export type FilePart = z.infer<typeof filePart>
+export type FolderMatch = z.infer<typeof folderMatch>
+export type WroteFolder = z.infer<typeof wroteFolder>
