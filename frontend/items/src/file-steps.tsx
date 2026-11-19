@@ -88,6 +88,8 @@ const Steps = ({
     (to: string): void => {
       if (!repoint || !listed || asked.current === to) return
       asked.current = to
+      // What the last step said is no longer news, wherever it was said.
+      setProblem(undefined)
       const path = absoluteOf(listed.path, to)
       const was = itemPath
       repoint(target, itemId, path)

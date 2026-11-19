@@ -143,8 +143,8 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
       .attach(target, terminal, absoluteOf(listed.path, entry.name))
       .then(() =>
         requestAnimationFrame(() => {
-          const now = document.activeElement
-          if (pane?.isConnected && (!now || now === document.body || !now.isConnected))
+          const focused = document.activeElement
+          if (pane?.isConnected && (!focused || focused === document.body || !focused.isConnected))
             pane.focus({ preventScroll: true })
         }),
       )

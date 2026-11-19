@@ -1061,8 +1061,11 @@ export class CompanionItems {
         if (signal.aborted) return
         watcher.follow(place?.dir, place?.ino)
         this.options.folderSteps?.afterPlacing?.()
-        const read = (this.folderReads.get(itemId) ?? 0) + 1
-        this.folderReads.set(itemId, read)
+        // Only a read of the top counts what came (a subfolder's read is another folder's), and
+        // of those only the newest, so two followers of the top can't count one file twice.
+        const top = within === ""
+        const read = top ? (this.folderReads.get(itemId) ?? 0) + 1 : 0
+        if (top) this.folderReads.set(itemId, read)
         // eslint-disable-next-line no-await-in-loop -- As above.
         const { content, ino } = await loadFolder(item, within, this.environment())
         if (signal.aborted) return
@@ -1071,8 +1074,7 @@ export class CompanionItems {
         // A folder that couldn't be read (no permission) says no folder, which isn't another one.
         const replaced = ino !== undefined && ino !== place?.ino
         if (replaced) watcher.follow(undefined)
-        if (within === "" && this.folderReads.get(itemId) === read)
-          this.folderArrivals(item, content)
+        if (top && this.folderReads.get(itemId) === read) this.folderArrivals(item, content)
         const key = `${item.version}|${item.path}|${keyOf(content)}`
         if (key !== sent) {
           sent = key
