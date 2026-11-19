@@ -12,7 +12,7 @@ import {
   type Scrolled,
 } from "./browser/in-page.js"
 import { attachLoupe } from "./browser/loupe-view.js"
-import { loupeWheelScript, spaceOf, type Rect } from "./browser/loupe.js"
+import { spaceOf, type Rect } from "./browser/loupe.js"
 import { chromeMajorOf, phoneStyle, phoneUserAgent } from "./browser/phone.js"
 import { pageSignInMessage, parsePageSignIn } from "./browser/sign-in.js"
 import { createTilt } from "./browser/tilt.js"
@@ -122,15 +122,16 @@ export type BrowserOptions = {
    * whether the person has seen it, and that they now have. Without it, there's no line.
    */
   readonly zoomHint?: { readonly seen: () => boolean; readonly see: () => void }
+  /**
    * What the loupe over a live page needs of the app, by its view's web contents id: a
    * picture of a part of its view, in the view's pixels, as the page is drawn there, as a
    * data address; and turning the tool's loupe on or off in the app's watch of the view,
-   * which sees the pointer, the wheel and the keys the page takes. Without it, a live page
-   * has no loupe.
+   * which sees the pointer and the keys the page takes, or telling it the viewer is out of
+   * sight. Without it, a live page has no loupe.
    */
   readonly loupe?: {
     readonly look: (page: number, rect: Rect) => Promise<string | undefined>
-    readonly hold: (page: number, on: boolean) => Promise<boolean>
+    readonly hold: (page: number, on: boolean, away?: boolean) => Promise<boolean>
   }
   /** Whether a live page starts awake, as it does unless told; it rests only as a picture. */
   readonly awake?: boolean
@@ -352,6 +353,9 @@ export const minZoom = 0.3
 // it lays out at its framing's width, not a hair under.
 const zoomRounding = 1e-4
 
+// How long the loupe goes by one reading of the view's zoom, a frame or so.
+const loupeZoomMs = 50
+
 /** How long a show's scroll waits for its element to appear once the page has loaded. */
 export const scrollWaitMs = 5_000
 
@@ -494,7 +498,9 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       reload: nothing,
       edit: nothing,
       visit: () => false,
-      muted: nothing,
+      muted: (next) => {
+        if (next) magnifier?.hide()
+      },
       // A snapshot is its picture already.
       awake: nothing,
       pictured: () => true,
@@ -1053,19 +1059,21 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   }
   // The loupe over the live page, where the app can picture it and watch its pointer. Where
   // things are in the page's view as it's laid now, in `spaceOf`'s one place; the view's own
-  // pixels are its zoom of the app's own (a desktop's, zoomed to fit) to a page pixel.
+  // pixels are its zoom of the app's own, a page's at either size, to a page pixel. Asking the
+  // view for its zoom is a call across processes, so the loupe's frames share one answer.
+  let loupeZoom: { readonly at: number; readonly per: number } | undefined
+  const perPage = (): number => {
+    const now = Date.now()
+    if (!loupeZoom || now - loupeZoom.at > loupeZoomMs)
+      loupeZoom = { at: now, per: zoomed * appZoom() }
+    return loupeZoom.per
+  }
   const magnifier = loupeOf
     ? attachLoupe(root, {
         live: {
-          space: () => spaceOf(size, framed, sizeNow(), zoomed * appZoom()),
+          space: () => spaceOf(framed, sizeNow(), perPage()),
           contents: () => attached(() => page?.getWebContentsId()),
           ...loupeOf,
-          // The wheel over the page goes to the loupe while it shows: a view gives the app
-          // no word of it, so a script in the page takes it, and tells how far it turned.
-          wheel: async (taking) => {
-            const turned = await attached(() => page?.executeJavaScript(loupeWheelScript(taking)))
-            return typeof turned === "number" && Number.isFinite(turned) ? turned : 0
-          },
         },
         ...(on?.loupe && { on: on.loupe }),
       })
@@ -1102,6 +1110,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     ["did-attach", zoom],
     ["did-navigate", zoom],
     ["dom-ready", zoom],
+    ["dom-ready", () => magnifier?.ready()],
     ["did-navigate", moved],
     ["did-navigate-in-page", movedInPage],
     ["did-start-loading", started],
@@ -1376,6 +1385,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     muted: (next) => {
       muted = next
       attached(() => page!.setAudioMuted(muted))
+      // Out of sight, no pointer is over it, though no leave said so.
+      if (next) magnifier?.hide()
     },
     awake: (next) => {
       wanted = next

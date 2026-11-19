@@ -1,72 +1,43 @@
 import { describe, expect, it } from "vitest"
 
-const context = describe
-
 import { framingOf } from "./framing.js"
 import {
   createLoupeWatch,
-  levelAfterWheel,
+  heldAfter,
   levelLabel,
   loupeIdle,
+  loupeLevel,
   loupeMargin,
-  loupeRange,
   loupeShown,
   loupeSize,
-  loupeWheelScript,
   loupeStep,
   parsePageLoupe,
   regionAround,
-  shownLevel,
   spaceOf,
   type LoupeInput,
   type PageLoupeNotice,
 } from "./loupe.js"
 
+const context = describe
 const run = (...inputs: LoupeInput[]) => inputs.reduce(loupeStep, loupeIdle)
+const alt = { kind: "keys", alt: true, other: false } as const
+const none = { kind: "keys", alt: false, other: false } as const
+const free = { alt: false, other: false }
+const held = { alt: true, other: false }
 
-describe("the levels a loupe shows", () => {
-  it("run from what the page is drawn at to twice that, in the page's real size", () => {
-    expect(loupeRange(0.713)).toEqual({ min: 0.713, max: 1.426 })
-    expect(loupeRange(1)).toEqual({ min: 1, max: 2 })
+describe("the level a loupe shows", () => {
+  it("is twice what the page is drawn at, in the page's real size", () => {
+    expect(loupeLevel(0.713)).toBeCloseTo(1.426)
+    expect(loupeLevel(1)).toBe(2)
   })
 
-  it("start at the most, where nothing was kept", () => {
-    expect(shownLevel(Infinity, 0.713)).toBeCloseTo(1.426)
-    expect(shownLevel(Number.NaN, 0.5)).toBe(1)
+  it("never stretches the picture past twice its pixels", () => {
+    for (const drawn of [0.3, 0.713, 1, 1.4]) expect(loupeLevel(drawn) / drawn).toBe(2)
   })
 
-  it("never stretch the picture past twice its pixels, nor shrink it below the drawn size", () => {
-    for (const drawn of [0.3, 0.713, 1]) {
-      for (const level of [0.1, 0.5, 1, 1.4, 3, 4]) {
-        const shown = shownLevel(level, drawn)
-        // Levels over drawn are the picture's stretch: 1 is a crop, 2 its most.
-        expect(shown / drawn).toBeGreaterThanOrEqual(1 - 1e-9)
-        expect(shown / drawn).toBeLessThanOrEqual(2 + 1e-9)
-      }
-    }
-  })
-
-  it("snap to 100% where it's near and in range, and not where it isn't", () => {
-    expect(shownLevel(1.02, 0.713)).toBe(1)
-    expect(shownLevel(0.98, 0.713)).toBe(1)
-    expect(shownLevel(1.1, 0.713)).toBeCloseTo(1.1)
-    // A page drawn at half its size tops out at 100%, which is its own limit.
-    expect(shownLevel(5, 0.5)).toBe(1)
-    // 100% is under what's drawn here: never shown.
-    expect(shownLevel(1, 1.2)).toBeCloseTo(1.2)
-  })
-
-  it("change with the wheel, up magnifying, held within the range", () => {
-    const up = levelAfterWheel(1, -100, 0.713)
-    expect(up).toBeGreaterThan(1)
-    expect(levelAfterWheel(1, 100, 0.713)).toBeLessThan(1)
-    expect(levelAfterWheel(1, -100000, 0.713)).toBeCloseTo(1.426)
-    expect(levelAfterWheel(1, 100000, 0.713)).toBeCloseTo(0.713)
-  })
-
-  it("are labelled in the page's real size", () => {
+  it("is labelled in the page's real size", () => {
     expect(levelLabel(1)).toBe("100%")
-    expect(levelLabel(1.426)).toBe("143%")
+    expect(levelLabel(loupeLevel(0.713))).toBe("143%")
   })
 })
 
@@ -102,50 +73,66 @@ describe("the part of the page a loupe pictures", () => {
 describe("where a point is in a live page", () => {
   const viewer = { width: 730, height: 641 }
 
-  context("a desktop's, zoomed out to fit its viewer", () => {
-    const framing = framingOf("desktop", viewer.width, viewer.height)
-    const zoom = 0.7128
-    const space = spaceOf("desktop", framing, viewer, zoom * 0.9)
+  context("at either size, the view is as big as it's drawn and the page zoomed in it", () => {
+    for (const size of ["desktop", "phone"] as const) {
+      const framing = framingOf(size, viewer.width, viewer.height)
+      // The view's zoom, as the app's own (90%) times the page's to fit its framing.
+      const per = (framing?.scale ?? 1) * 0.9
+      const space = spaceOf(framing, viewer, per)
 
-    it("is drawn at its framing's scale, over a page 1024 wide", () => {
-      expect(space.drawn).toBeCloseTo(0.713, 2)
-      expect(space.bounds.width).toBe(1024)
-    })
+      it(`takes a point of a ${size}'s view to the page and the viewer`, () => {
+        const page = space.page({ x: 100 * per, y: 50 * per })
+        expect(page.x).toBeCloseTo(100)
+        expect(page.y).toBeCloseTo(50)
+        const at = space.host(page)
+        expect(at.x).toBeCloseTo((framing?.left ?? 0) + 100 * space.drawn)
+        expect(at.y).toBeCloseTo((framing?.top ?? 0) + 50 * space.drawn)
+        expect(space.drawn).toBe(framing?.scale ?? 1)
+      })
 
-    it("takes a point of the view, in the app's zoom, to the page and the viewer", () => {
-      const page = space.page({ x: 100 * zoom * 0.9, y: 50 * zoom * 0.9 })
-      expect(page.x).toBeCloseTo(100)
-      expect(page.y).toBeCloseTo(50)
-      expect(space.host(page)).toEqual({ x: 100 * space.drawn, y: 50 * space.drawn })
-    })
-
-    it("covers a part of the page in whole pixels of the view, and reads it back", () => {
-      const rect = space.view({ x: 10.3, y: 20.6, width: 50, height: 50 })
-      for (const value of Object.values(rect)) expect(Number.isInteger(value)).toBe(true)
-      const back = space.unview(rect)
-      expect(back.x).toBeLessThanOrEqual(10.3)
-      expect(back.x + back.width).toBeGreaterThanOrEqual(60.3)
-      expect(back.y).toBeLessThanOrEqual(20.6)
-      expect(back.y + back.height).toBeGreaterThanOrEqual(70.6)
-    })
+      it(`covers a part of a ${size}'s page in whole pixels of its view, and reads it back`, () => {
+        const rect = space.view({ x: 10.3, y: 20.6, width: 50, height: 50 })
+        for (const value of Object.values(rect)) expect(Number.isInteger(value)).toBe(true)
+        const back = space.unview(rect)
+        expect(back.x).toBeLessThanOrEqual(10.3)
+        expect(back.x + back.width).toBeGreaterThanOrEqual(60.3)
+        expect(back.y).toBeLessThanOrEqual(20.6)
+        expect(back.y + back.height).toBeGreaterThanOrEqual(70.6)
+      })
+    }
   })
 
-  context("a phone's, in its own pixels, scaled whole into its viewer", () => {
-    const framing = framingOf("phone", viewer.width, viewer.height)!
-    // Whatever zoom the app has, a phone's view is its own pixels.
-    const space = spaceOf("phone", framing, viewer, 0.37)
-
-    it("keeps view pixels and page pixels one for one, and finds the page where the phone sits", () => {
-      expect(space.page({ x: 120, y: 300 })).toEqual({ x: 120, y: 300 })
-      expect(space.host({ x: 0, y: 0 })).toEqual({ x: framing.left, y: framing.top })
-      expect(space.host({ x: 390, y: 0 }).x).toBeCloseTo(framing.left + 390 * framing.scale)
-      expect(space.drawn).toBe(framing.scale)
-      expect(space.bounds).toEqual({ width: 390, height: 844 })
-    })
+  it("centres a loupe on the pointer for a phone at app zoom 80% and 125%, at fit, zoomed and mid-ease", () => {
+    // A phone's view as `frame` makes it: its drawn size times the app's zoom in device pixels,
+    // its page zoomed by the drawn scale times the app's; mid-ease it's drawn at the larger
+    // scale and shown at `shownScale`.
+    const phone = (scale: number, shownScale: number, app: number) => {
+      const framing = { width: 390, height: 844, scale: shownScale, left: 40, top: 20 }
+      const space = spaceOf(framing, viewer, scale * app)
+      // The pointer at a place the viewer shows: where the phone's pixel (200, 300) is drawn.
+      const pointerHost = { x: 40 + 200 * shownScale, y: 20 + 300 * shownScale }
+      // The view's own pixels there, which the app's pointer events speak: the view is `scale`
+      // drawn, then shown at `shownScale` by a transform, so a view point is the page's times
+      // `scale` times the app's zoom.
+      const pointerView = { x: 200 * scale * app, y: 300 * scale * app }
+      const lens = space.host(space.page(pointerView))
+      return { lens, pointerHost }
+    }
+    for (const app of [0.8, 1.25]) {
+      for (const [scale, shown] of [
+        [0.47, 0.47],
+        [1.3, 1.3],
+        [1.3, 0.9],
+      ] as const) {
+        const { lens, pointerHost } = phone(scale, shown, app)
+        expect(lens.x).toBeCloseTo(pointerHost.x)
+        expect(lens.y).toBeCloseTo(pointerHost.y)
+      }
+    }
   })
 
   context("a page that fills its viewer", () => {
-    const space = spaceOf("desktop", undefined, viewer, 1)
+    const space = spaceOf(undefined, viewer, 1)
 
     it("is drawn at its own size from the viewer's corner", () => {
       expect(space.drawn).toBe(1)
@@ -156,12 +143,14 @@ describe("where a point is in a live page", () => {
 })
 
 describe("when a loupe shows", () => {
-  it("is while Alt is held with the pointer on the page", () => {
-    expect(loupeShown(run({ kind: "alt", down: true }))).toBe(false)
-    expect(loupeShown(run({ kind: "alt", down: true }, { kind: "enter" }))).toBe(true)
-    expect(
-      loupeShown(run({ kind: "alt", down: true }, { kind: "enter" }, { kind: "alt", down: false })),
-    ).toBe(false)
+  it("is while Alt is held alone with the pointer on the page", () => {
+    expect(loupeShown(run(alt))).toBe(false)
+    expect(loupeShown(run(alt, { kind: "enter" }))).toBe(true)
+    expect(loupeShown(run(alt, { kind: "enter" }, none))).toBe(false)
+  })
+
+  it("isn't for Alt with Ctrl, Meta or Shift, as AltGr types letters", () => {
+    expect(loupeShown(run({ kind: "keys", alt: true, other: true }, { kind: "enter" }))).toBe(false)
   })
 
   it("is while its tool is on with the pointer on the page", () => {
@@ -169,67 +158,117 @@ describe("when a loupe shows", () => {
     expect(loupeShown(run({ kind: "toggle", on: true }, { kind: "enter" }))).toBe(true)
   })
 
-  it("is turned off by Esc, by the tool again, and by the pointer leaving", () => {
+  it("is turned off by Esc, by the tool again, by the pointer leaving, and by the viewer going away", () => {
     const on = run({ kind: "toggle", on: true }, { kind: "enter" })
     expect(loupeShown(loupeStep(on, { kind: "escape" }))).toBe(false)
     expect(loupeShown(loupeStep(on, { kind: "toggle", on: false }))).toBe(false)
-    const left = loupeStep(on, { kind: "leave" })
-    expect(left.toggled).toBe(false)
-    expect(loupeShown(loupeStep(left, { kind: "enter" }))).toBe(false)
+    for (const gone of [{ kind: "leave" }, { kind: "away" }] as const) {
+      const left = loupeStep(on, gone)
+      expect(left.toggled).toBe(false)
+      expect(left.over).toBe(false)
+      expect(loupeShown(loupeStep(left, { kind: "enter" }))).toBe(false)
+    }
+  })
+})
+
+describe("what the keys and the pointer say of Alt", () => {
+  it("is Alt held when its key went down, and let go when it went up", () => {
+    expect(heldAfter({ type: "keyDown", key: "Alt", alt: true })).toEqual(held)
+    expect(heldAfter({ type: "keyUp", key: "Alt", alt: false })).toEqual(free)
   })
 
-  it("leaves Alt's loupe to Alt, not to Esc", () => {
-    const held = run({ kind: "alt", down: true }, { kind: "enter" })
-    expect(loupeShown(loupeStep(held, { kind: "escape" }))).toBe(true)
+  it("is Alt with another modifier where Ctrl, Meta or Shift comes with it", () => {
+    expect(heldAfter({ type: "keyDown", key: "Alt", alt: true, control: true })).toEqual({
+      alt: true,
+      other: true,
+    })
+    expect(heldAfter({ type: "keyDown", key: "a", alt: true, shift: true })).toEqual({
+      alt: true,
+      other: true,
+    })
+  })
+
+  it("is nothing held once AltGr goes up, whatever Windows reported it as", () => {
+    expect(heldAfter({ type: "keyUp", key: "AltGraph", alt: true, control: true })).toEqual(free)
+  })
+
+  it("is what another key carries, so a lost Alt key up is let go by the next key", () => {
+    expect(heldAfter({ type: "keyDown", key: "a", alt: false })).toEqual(free)
   })
 })
 
 describe("the watch over a live page's view", () => {
   const watched = () => {
     const told: Omit<PageLoupeNotice, "contentsId">[] = []
-    const watch = createLoupeWatch((notice) => told.push(notice))
-    return { watch, told }
+    const guards: boolean[] = []
+    const watch = createLoupeWatch(
+      (notice) => told.push(notice),
+      (on) => guards.push(on),
+    )
+    return { watch, told, guards }
   }
 
   it("tells when Alt shows it over the page, where it moves, and when it hides", () => {
     const { watch, told } = watched()
-    watch.pointer(10, 20, false)
+    watch.pointer(10, 20)
     expect(told).toEqual([])
-    watch.pointer(11, 21, true)
-    // A move that doesn't say Alt is held isn't saying it was let go.
-    watch.pointer(15, 25, false)
-    watch.alt(false)
+    watch.keys(held)
+    watch.pointer(15, 25)
+    watch.pointer(16, 26)
     expect(told.map(({ shown, x, y }) => [shown, x, y])).toEqual([
-      [true, 11, 21],
+      [true, 10, 20],
       [true, 15, 25],
-      [false, 15, 25],
+      [true, 16, 26],
     ])
   })
 
   it("shows it for Alt pressed while the pointer rests", () => {
     const { watch, told } = watched()
-    watch.pointer(30, 40, false)
-    watch.alt(true)
-    watch.alt(false)
+    watch.pointer(30, 40)
+    watch.keys(held)
+    watch.keys(free)
     expect(told.map(({ shown }) => shown)).toEqual([true, false])
   })
 
-  it("takes Esc while it shows, and only then", () => {
+  it("takes Esc only while its tool is on, not for Alt's loupe nor with nothing showing", () => {
     const { watch, told } = watched()
-    watch.pointer(1, 2, false)
+    watch.keys(held)
+    watch.pointer(1, 2)
     expect(watch.escape()).toBe(false)
+    expect(told.at(-1)).toMatchObject({ shown: true })
+    watch.keys(free)
     watch.toggle(true)
     expect(told.at(-1)).toMatchObject({ shown: true, toggled: true })
     expect(watch.escape()).toBe(true)
     expect(told.at(-1)).toMatchObject({ shown: false, toggled: false })
+    expect(watch.escape()).toBe(false)
   })
 
-  it("is turned off by the pointer leaving, and told so", () => {
+  it("is turned off by the pointer leaving, and told so, and by the viewer going away", () => {
     const { watch, told } = watched()
     watch.toggle(true)
-    watch.pointer(1, 2, false)
+    watch.pointer(1, 2)
     watch.leave()
     expect(told.at(-1)).toMatchObject({ shown: false, toggled: false })
+    watch.toggle(true)
+    watch.pointer(1, 2)
+    expect(watch.state().over).toBe(true)
+    watch.away()
+    expect(watch.state()).toMatchObject({ over: false, toggled: false })
+    expect(told.at(-1)).toMatchObject({ shown: false, toggled: false })
+  })
+
+  it("keeps the window's menu bar while the pointer is over the page or Alt is down", () => {
+    const { watch, guards } = watched()
+    watch.pointer(1, 2)
+    watch.pointer(2, 3)
+    expect(guards).toEqual([true])
+    watch.keys(held)
+    watch.leave()
+    // Alt still down: the menu bar's toggle comes on its key up.
+    expect(guards).toEqual([true])
+    watch.keys(free)
+    expect(guards).toEqual([true, false])
   })
 })
 
@@ -250,53 +289,5 @@ describe("a notice of the loupe", () => {
       { ...notice, y: Infinity },
     ])
       expect(parsePageLoupe(bad)).toBeNull()
-  })
-})
-
-describe("the wheel's script in the page", () => {
-  // Run as the page does, in a document of its own, as an agent's would be.
-  const frame = (): { page: Window; stop: () => void } => {
-    const holder = document.createElement("iframe")
-    document.body.append(holder)
-    return { page: holder.contentWindow!, stop: () => holder.remove() }
-  }
-  const spin = (page: Window, deltaY: number, deltaMode = 0): WheelEvent => {
-    const event = new (page as unknown as { WheelEvent: typeof WheelEvent }).WheelEvent("wheel", {
-      deltaY,
-      deltaMode,
-      cancelable: true,
-      bubbles: true,
-    })
-    page.document.body.dispatchEvent(event)
-    return event
-  }
-
-  it("takes the wheel while it shows, saying how far it turned since last asked", () => {
-    const { page, stop } = frame()
-    expect(
-      (page as unknown as { eval: (code: string) => unknown }).eval(loupeWheelScript(true)),
-    ).toBe(0)
-    const taken = spin(page, 120)
-    expect(taken.defaultPrevented).toBe(true)
-    spin(page, -20)
-    expect(
-      (page as unknown as { eval: (code: string) => unknown }).eval(loupeWheelScript(true)),
-    ).toBe(100)
-    expect(
-      (page as unknown as { eval: (code: string) => unknown }).eval(loupeWheelScript(true)),
-    ).toBe(0)
-    stop()
-  })
-
-  it("gives the wheel back to the page when it's off, and counts lines as pixels", () => {
-    const { page, stop } = frame()
-    const take = (on: boolean) =>
-      (page as unknown as { eval: (code: string) => unknown }).eval(loupeWheelScript(on))
-    take(true)
-    expect(spin(page, 3, 1).defaultPrevented).toBe(true)
-    expect(take(false)).toBe(48)
-    expect(spin(page, 100).defaultPrevented).toBe(false)
-    expect(take(true)).toBe(0)
-    stop()
   })
 })

@@ -383,7 +383,7 @@ export const desktopOptions = (
       ? {
           pageLoupe: {
             look: (page, rect) => pageLoupe(page, rect),
-            hold: (page, on) => pageLoupeHold(page, on),
+            hold: (page, on, away) => pageLoupeHold(page, on, away),
           },
         }
       : {}),

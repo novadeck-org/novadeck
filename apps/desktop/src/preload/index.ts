@@ -464,7 +464,7 @@ const bridge = {
     (await ipcRenderer.invoke(pagePhoneChannel, page, phone)) === true,
   pageZoom: async (page, factor) =>
     (await ipcRenderer.invoke(pageZoomChannel, page, factor)) === true,
-  // Only a PNG picture comes back; the main process checks the page is one of this page's.
+  // Only a JPEG picture comes back; the main process checks the page is one of this page's.
   pageLoupe: async (page, rect) => {
     const picture: unknown = await ipcRenderer.invoke(pageLoupeLookChannel, page, {
       x: rect.x,
@@ -472,12 +472,12 @@ const bridge = {
       width: rect.width,
       height: rect.height,
     })
-    return typeof picture === "string" && picture.startsWith("data:image/png;base64,")
+    return typeof picture === "string" && picture.startsWith("data:image/jpeg;base64,")
       ? picture
       : undefined
   },
-  pageLoupeHold: async (page, on) =>
-    (await ipcRenderer.invoke(pageLoupeHoldChannel, page, on)) === true,
+  pageLoupeHold: async (page, on, away) =>
+    (await ipcRenderer.invoke(pageLoupeHoldChannel, page, on, away === true)) === true,
   pathForFile: (file) => {
     try {
       return webUtils.getPathForFile(file)

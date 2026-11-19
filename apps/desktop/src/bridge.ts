@@ -223,13 +223,13 @@ export const pageZoomChannel = "novadeck:page-zoom"
 
 /**
  * Renderer-to-main request for a picture of part of a live page's view, `{ x, y, width, height }`
- * in its pixels, for the loupe to magnify; answers a PNG `data:` address, or nothing. See the
+ * in its pixels, for the loupe to magnify; answers a JPEG `data:` address, or nothing. See the
  * viewers' `loupePage`.
  */
 export const pageLoupeLookChannel = "novadeck:page-loupe-look"
 
 /**
- * Renderer-to-main request to turn the tool's loupe on or off over a live page's view, by its
+ * Renderer-to-main request to turn the tool's loupe on or off over a live page's view, or tell it the viewer is out of sight, by its
  * web contents id; answers whether it did. See the viewers' `holdLoupe`.
  */
 export const pageLoupeHoldChannel = "novadeck:page-loupe-hold"

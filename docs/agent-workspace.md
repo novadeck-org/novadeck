@@ -1115,22 +1115,30 @@ with every safety check again at that time:
   warnings sent to `console.error` count too. Each wake loads the page afresh and tells again, which the runner keeps once per
   show. For a page on this machine the runner tells the agent at its next prompt.
   A **loupe** magnifies the page under the pointer, on a live page at either size and on a
-  snapshot (so the demo has it): hold Alt over the page, or turn on the loupe tool beside the
-  phone toggle (tooltip "Loupe · hold Alt"); Esc, the tool again, or the pointer leaving the
-  page turns the tool's off. A round lens (190 px) follows the pointer, clicks reach the page
-  through it, and its level, in the page's real size (100% is a CSS pixel of the page for a
-  pixel of the pane), shows at its foot; the wheel changes it while it shows, and the level is
-  kept for next time. It is a picture of what the page draws now, so it runs from what the page
-  is drawn at (a 1:1 crop of it) to twice that, never stretching the picture past twice its
-  pixels: a desktop page drawn at 0.713 of its size on a 1x screen goes from 71% to 143%, and it
-  starts at the most. Snapping at 100% applies where that is in range. The pictures come from
-  `webContents.capturePage` of a region a little bigger than the loupe's view, one asked for as
-  the last lands (at most 30 a second), with the lens moving on the latest under the pointer
-  meanwhile (`libraries/viewers/src/browser/loupe.ts`, `loupe-view.ts`). A capture of a clip at a
-  higher scale would show the page's own pixels sharper but moves the page while it is taken, so
-  it isn't used. The page's view takes the pointer, wheel and keys, so the main process follows
-  them (`watchLoupe` in `browser/host.ts`) and tells the app's page (`pageLoupeChannel`); where
-  the app can't (the web version), a live page has no loupe tool.
+  snapshot (so the demo has it): hold Alt (Option on a Mac) alone over the page, or turn on
+  the loupe tool beside the phone toggle (tooltip "Loupe · hold Alt"); Esc while the tool is
+  on, the tool again, or the pointer leaving the page turns the tool's off, and Esc is the
+  page's or the terminal's otherwise. A round lens (190 px) follows the pointer, clipped to
+  the page's area, never over the pane's tools, and clicks and the wheel reach the page
+  through it. It is fixed at twice what the page is drawn at (a desktop page drawn at 0.713 of
+  its size shows 143%, the label being in the page's real size, where 100% is a CSS pixel of
+  the page for a pixel of the pane), so a picture is never stretched past twice its pixels.
+  The pictures are JPEGs from `webContents.capturePage` of a region a little bigger than the
+  loupe's view, one asked for as the last lands, at most 30 a second while the pointer moves
+  and 5 while it rests, with the lens moving on the latest under the pointer meanwhile
+  (`libraries/viewers/src/browser/loupe.ts`, `loupe-view.ts`). A capture of a clip at a higher
+  scale would be sharper but moves the page while it is taken, so it isn't used. The page's
+  view takes the pointer and the keys, so the main process follows them (`watchLoupe` in
+  `browser/host.ts`, whose keys the window's page views hear together, so Alt pressed while
+  another page has focus still shows it) and tells the app's page (`pageLoupeChannel`);
+  Alt held alone, not with Ctrl, Meta or Shift (Windows reports AltGr as Ctrl and Alt); Electron's
+  mouse events carry no modifiers, so Alt is the keys' to say, and a window losing focus lets go
+  of it. While the pointer is over a page the
+  window keeps its auto-hidden menu bar from toggling on Alt (`createMenuGuard` in
+  `main/pages.ts`), which would show it and move the page; the page still gets its Alt. A
+  viewer kept out of sight tells the main process (`pageLoupeHold`'s `away`) as no mouse-leave
+  comes. Where the app can't follow the pointer (the web version), a live page has no loupe
+  tool; pressed on a page at rest, it wakes the page and goes on once it is there.
 - **Saving** would be a new authorized plan-write operation with the stamp check above,
   scoped like `show`: the caller may write only the plan the terminal's agent keeps.
   The runner doesn't offer it yet.

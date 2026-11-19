@@ -206,6 +206,8 @@ describe("a page beside a terminal", () => {
       await vi.waitFor(() => expect(notice()).not.toBe(""))
       act(() => button(rendered.container, "Back to desktop size")!.click())
       expect(notice()).toBe("")
+    })
+
     it("has a loupe tool beside the phone's where the app can follow the page's pointer", () => {
       const without = show({ kind: "page", url, shown: 1, live: true })
       expect(button(without.container, "Loupe · hold Alt")).toBeUndefined()

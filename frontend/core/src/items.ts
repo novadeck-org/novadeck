@@ -650,7 +650,7 @@ export type Companions = {
       page: number,
       rect: { x: number; y: number; width: number; height: number },
     ) => Promise<string | undefined>
-    readonly hold: (page: number, on: boolean) => Promise<boolean>
+    readonly hold: (page: number, on: boolean, away?: boolean) => Promise<boolean>
   }
 }
 

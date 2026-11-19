@@ -218,16 +218,16 @@ describe("the loupe over a page view", () => {
     expect(told(7, undefined)).not.toHaveBeenCalled()
   })
 
-  it("is asked for a picture by view id and part, and only a PNG comes back", async () => {
-    electron.answer = "data:image/png;base64,AAAA"
+  it("is asked for a picture by view id and part, and only a JPEG comes back", async () => {
+    electron.answer = "data:image/jpeg;base64,AAAA"
     const rect = { x: 1, y: 2, width: 30, height: 40, extra: "dropped" }
-    expect(await electron.exposed.pageLoupe?.(7, rect)).toBe("data:image/png;base64,AAAA")
+    expect(await electron.exposed.pageLoupe?.(7, rect)).toBe("data:image/jpeg;base64,AAAA")
     expect(electron.messages.at(-1)).toEqual([
       pageLoupeLookChannel,
       7,
       { x: 1, y: 2, width: 30, height: 40 },
     ])
-    const answers = ["data:text/html,x", "data:image/jpeg;base64,AA", 5, undefined]
+    const answers = ["data:text/html,x", "data:image/png;base64,AA", 5, undefined]
     const pictures = answers.map((answer) => {
       electron.answer = answer
       return electron.exposed.pageLoupe?.(7, rect)
@@ -238,7 +238,9 @@ describe("the loupe over a page view", () => {
   it("is held by view id, and did only when the main process says so", async () => {
     electron.answer = true
     expect(await electron.exposed.pageLoupeHold?.(7, true)).toBe(true)
-    expect(electron.messages.at(-1)).toEqual([pageLoupeHoldChannel, 7, true])
+    expect(electron.messages.at(-1)).toEqual([pageLoupeHoldChannel, 7, true, false])
+    await electron.exposed.pageLoupeHold?.(7, false, true)
+    expect(electron.messages.at(-1)).toEqual([pageLoupeHoldChannel, 7, false, true])
     electron.answer = "true"
     expect(await electron.exposed.pageLoupeHold?.(7, true)).toBe(false)
   })

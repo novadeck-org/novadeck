@@ -20,6 +20,9 @@ import { useViewerSlot } from "../../ViewerSlot"
 import { AddressField } from "./AddressField"
 import { pageMenuItems } from "./page-menu"
 
+// Whether the platform's shortcuts use Command, as a Mac's do, whose Alt key is Option.
+const mac = /Mac|iPhone|iPad/.test(navigator.platform)
+
 /** Whether two addresses share an origin: scheme, host and port. */
 const sameOrigin = (a: string, b: string): boolean => {
   try {
@@ -198,9 +201,14 @@ const ShownPage = ({
   const loupeTool: PaneTool = {
     key: "loupe",
     icon: ZoomIn,
-    label: "Loupe · hold Alt",
+    label: `Loupe · hold ${mac ? "⌥ Option" : "Alt"}`,
     pressed: loupeOn,
-    onClick: () => viewer?.loupe(!loupeOn),
+    // A page at rest is its picture, with no view to follow the pointer over: woken as the
+    // tool is pressed, it goes on once the page is there.
+    onClick: () => {
+      if (!loupeOn) wake()
+      viewer?.loupe(!loupeOn)
+    },
   }
   const switchSize = (): void => {
     const next = size === "phone" ? "desktop" : "phone"

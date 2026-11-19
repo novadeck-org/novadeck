@@ -1,4 +1,4 @@
-import type { Framing, PageSize } from "./framing.js"
+import type { Framing } from "./framing.js"
 
 // A loupe over a page: a round magnifier that follows the pointer while the person holds
 // Alt over the page, or has the loupe tool on. This is its arithmetic and its rules, with
@@ -20,10 +20,6 @@ export const loupeReach = 2
 /** How much of the page beyond the loupe's own view is pictured with it, so small moves wait for nothing. */
 export const loupeMargin = 1.5
 
-// How near 100% a level snaps to it, and how far a wheel's pixel of travel changes it.
-const snapWithin = 0.03
-const perWheelPixel = 1 / 800
-
 export type Point = { readonly x: number; readonly y: number }
 export type Rect = {
   readonly x: number
@@ -33,31 +29,11 @@ export type Rect = {
 }
 
 /**
- * The levels the loupe shows, in the page's real size (1 is a CSS pixel of the page for a
- * CSS pixel of the viewer), for a page drawn at `drawn` of its real size: no lower than
- * what's drawn, a 1:1 crop of it, and no higher than `loupeReach` times that.
+ * The level the loupe shows for a page drawn at `drawn` of its real size, in the page's
+ * real size (1 is a CSS pixel of the page for a CSS pixel of the viewer): `loupeReach` times
+ * what's drawn, fixed.
  */
-export const loupeRange = (drawn: number): { readonly min: number; readonly max: number } => ({
-  min: drawn,
-  max: drawn * loupeReach,
-})
-
-/** `level` held within the loupe's range for a page drawn at `drawn`, not yet snapped. */
-export const withinRange = (level: number, drawn: number): number => {
-  const { min, max } = loupeRange(drawn)
-  return Math.min(max, Math.max(min, Number.isFinite(level) ? level : max))
-}
-
-/** The level the loupe shows for a held `level`: within range, and on 100% where that's near and in range. */
-export const shownLevel = (level: number, drawn: number): number => {
-  const within = withinRange(level, drawn)
-  const { min, max } = loupeRange(drawn)
-  return min <= 1 && 1 <= max && Math.abs(within - 1) <= snapWithin ? 1 : within
-}
-
-/** The level held after the wheel turns by `deltaY` pixels (up, negative, magnifies more). */
-export const levelAfterWheel = (level: number, deltaY: number, drawn: number): number =>
-  withinRange(withinRange(level, drawn) * Math.exp(-deltaY * perWheelPixel), drawn)
+export const loupeLevel = (drawn: number): number => drawn * loupeReach
 
 /** A level as the loupe's label says it, in the page's real size. */
 export const levelLabel = (level: number): string => `${Math.round(level * 100)}%`
@@ -94,7 +70,7 @@ export const regionAround = (
  * Where things are in a live page, the three spaces a loupe moves between: the page's own
  * CSS pixels, its view's device-independent pixels (what the desktop app's pointer events and
  * captures speak), and the viewer's CSS pixels. Made by `spaceOf`, the one place that knows
- * how a size lays its page in the viewer, so a change to a phone's framing lands here.
+ * how the page is laid in the viewer, so a change to a phone's framing lands here.
  */
 export type LoupeSpace = {
   /** How far the page is drawn, in viewer pixels for a page pixel. */
@@ -112,18 +88,19 @@ export type LoupeSpace = {
 }
 
 /**
- * The space of a live page of `size` in a viewer `viewer` big, laid by `framing`
- * (undefined where the page fills it), whose view's pixels are `perPage` to a page pixel
- * where the page is zoomed (a desktop's; the viewer's own zoom included). A phone's page is
- * drawn at its own pixels in a view scaled whole by the framing, so one for one.
+ * The space of a live page in a viewer `viewer` big, laid by `framing` (undefined where the
+ * page fills it), whose view's pixels are `perPage` to a page pixel: the page's zoom in its
+ * view, the app's own included. A desktop's page is zoomed out to the size it's drawn at, a
+ * phone's likewise, while it's zoomed or easing as at fit (see `framingOf`, `PhoneZoom`),
+ * and the view is as big as it's drawn: a view drawn larger than it's shown, mid-ease,
+ * is scaled by its framing, which is what `host` goes by.
  */
 export const spaceOf = (
-  size: PageSize,
   framing: Framing | undefined,
   viewer: { readonly width: number; readonly height: number },
   perPage: number,
 ): LoupeSpace => {
-  const per = size === "phone" ? 1 : perPage > 0 ? perPage : 1
+  const per = perPage > 0 ? perPage : 1
   const scale = framing?.scale ?? 1
   const left = framing?.left ?? 0
   const top = framing?.top ?? 0
@@ -151,42 +128,51 @@ export const spaceOf = (
   }
 }
 
-/** When the loupe shows: it's on by its tool, or Alt is held, and the pointer is on the page. */
+/**
+ * When the loupe shows: it's on by its tool, or Alt is held alone (`other` is whether Ctrl,
+ * Meta or Shift is too, as Windows reports AltGr, which types letters), and the pointer is on
+ * the page.
+ */
 export type LoupeState = {
   readonly toggled: boolean
   readonly alt: boolean
+  readonly other: boolean
   readonly over: boolean
 }
 
 export type LoupeInput =
   | { readonly kind: "toggle"; readonly on: boolean }
-  | { readonly kind: "alt"; readonly down: boolean }
+  | { readonly kind: "keys"; readonly alt: boolean; readonly other: boolean }
   | { readonly kind: "escape" }
   | { readonly kind: "enter" }
   | { readonly kind: "leave" }
+  | { readonly kind: "away" }
 
-export const loupeIdle: LoupeState = { toggled: false, alt: false, over: false }
+export const loupeIdle: LoupeState = { toggled: false, alt: false, other: false, over: false }
 
 /**
- * The state after `input`: Esc, or the pointer leaving the page, turns the tool's loupe off;
- * Alt held shows it only while the pointer is over.
+ * The state after `input`: Esc, the pointer leaving the page, and the viewer going out of
+ * sight (`away`, which no leave comes with), turn the tool's loupe off; `keys` is what the
+ * keys and the pointer's own events say of Alt and the others now.
  */
 export const loupeStep = (state: LoupeState, input: LoupeInput): LoupeState => {
   switch (input.kind) {
     case "toggle":
       return { ...state, toggled: input.on }
-    case "alt":
-      return { ...state, alt: input.down }
+    case "keys":
+      return { ...state, alt: input.alt, other: input.other }
     case "escape":
       return { ...state, toggled: false }
     case "enter":
       return { ...state, over: true }
     case "leave":
+    case "away":
       return { ...state, over: false, toggled: false }
   }
 }
 
-export const loupeShown = (state: LoupeState): boolean => state.over && (state.toggled || state.alt)
+export const loupeShown = (state: LoupeState): boolean =>
+  state.over && (state.toggled || (state.alt && !state.other))
 
 /**
  * What the app's page is told of the loupe over a live page, from the main process, which
@@ -226,46 +212,63 @@ export const parsePageLoupe = (value: unknown): PageLoupeNotice | null => {
   return { contentsId, shown, toggled, x, y }
 }
 
+/** What a key or a pointer event says of the modifiers, as Electron gives them. */
+export type Held = { readonly alt: boolean; readonly other: boolean }
+
 /**
  * Follows what a page's view sees of the pointer and the keys, for the loupe over it, in
  * the main process: `tell` hears when it shows or hides, when its tool goes on or off, and
- * where the pointer moves while it shows. Esc says whether the loupe took it, so the page
- * doesn't also.
+ * where the pointer moves while it shows. `guard` hears whether the window is to leave its
+ * menu bar alone, which a bare Alt would show: while the pointer is over the page or Alt is
+ * down. `escape` says whether the loupe took Esc, as it does while its tool is on, so the
+ * page doesn't also.
  */
-export const createLoupeWatch = (tell: (notice: Omit<PageLoupeNotice, "contentsId">) => void) => {
+export const createLoupeWatch = (
+  tell: (notice: Omit<PageLoupeNotice, "contentsId">) => void,
+  guard: (on: boolean) => void = () => undefined,
+) => {
   let state = loupeIdle
   let at: Point = { x: 0, y: 0 }
+  let guarding = false
   const told = (): void =>
     tell({ shown: loupeShown(state), toggled: state.toggled, x: at.x, y: at.y })
   // Applies an input, and tells where it changed what's shown or whether the tool is on.
-  const apply = (input: LoupeInput): boolean => {
+  const apply = (input: LoupeInput): LoupeState => {
     const before = state
     state = loupeStep(state, input)
     if (loupeShown(before) !== loupeShown(state) || before.toggled !== state.toggled) told()
-    return loupeShown(before)
+    const guards = state.over || state.alt
+    if (guards !== guarding) {
+      guarding = guards
+      guard(guards)
+    }
+    return before
   }
   return {
     state: (): LoupeState => state,
     /**
-     * The pointer is at `x`, `y` of the page's view. `alt` is whether the event itself says Alt
-     * is held, which can only show it: an event that doesn't say so isn't saying it was let go
-     * (some systems leave it out), which the key up says.
+     * The pointer is at `x`, `y` of the page's view. Electron's mouse events carry no
+     * modifiers, so Alt is the keys' to say.
      */
-    pointer: (x: number, y: number, alt: boolean): void => {
+    pointer: (x: number, y: number): void => {
       at = { x, y }
       const was = loupeShown(state)
-      state = loupeStep(state, { kind: "enter" })
-      if (alt) state = loupeStep(state, { kind: "alt", down: true })
-      if (was || loupeShown(state)) told()
+      apply({ kind: "enter" })
+      if (was) told()
     },
     leave: (): void => {
       apply({ kind: "leave" })
     },
-    alt: (down: boolean): void => {
-      apply({ kind: "alt", down })
+    /** The viewer is out of sight, or gone: no pointer is over it. */
+    away: (): void => {
+      apply({ kind: "away" })
     },
-    /** Whether Esc was the loupe's. */
-    escape: (): boolean => apply({ kind: "escape" }),
+    /** A key says what's held now. */
+    keys: (held: Held): void => {
+      apply({ kind: "keys", ...held })
+    },
+    /** Whether Esc was the loupe's: it is while its tool is on. */
+    escape: (): boolean => apply({ kind: "escape" }).toggled,
     toggle: (on: boolean): void => {
       apply({ kind: "toggle", on })
     },
@@ -273,30 +276,21 @@ export const createLoupeWatch = (tell: (notice: Omit<PageLoupeNotice, "contentsI
 }
 
 /**
- * A script for the live page: while the loupe shows (`on`), the wheel over the page is the
- * loupe's, not the page's, which a page's view gives the main process no word of to take. It
- * puts a listener in the page's document once, and answers how far the wheel turned, in pixels,
- * since the last call. Called again as long as the loupe shows, which also puts it in a
- * document that loaded meanwhile; called off, the page has its wheel back.
+ * What a key event, from Electron's `before-input-event`, says is held after it: Alt, and
+ * Ctrl, Meta or Shift. The Alt key itself says by whether it went down; AltGr, which types
+ * letters, is no Alt (Windows reports it as Ctrl and Alt: `other` catches that), and its
+ * going up lets go of it; any other key says what it carries.
  */
-export const loupeWheelScript = (on: boolean): string => `(() => {
-  let state = window.__novadeckLoupe
-  if (!state) {
-    state = { on: false, turned: 0 }
-    Object.defineProperty(window, "__novadeckLoupe", { value: state })
-    addEventListener(
-      "wheel",
-      (event) => {
-        if (!state.on) return
-        event.preventDefault()
-        event.stopImmediatePropagation()
-        state.turned += event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1)
-      },
-      { capture: true, passive: false },
-    )
-  }
-  state.on = ${on}
-  const turned = state.turned
-  state.turned = 0
-  return turned
-})()`
+export const heldAfter = (input: {
+  readonly type: string
+  readonly key: string
+  readonly alt?: boolean
+  readonly control?: boolean
+  readonly meta?: boolean
+  readonly shift?: boolean
+}): Held => {
+  const other = input.control === true || input.meta === true || input.shift === true
+  if (input.key === "Alt") return { alt: input.type === "keyDown", other }
+  if (input.key === "AltGraph") return { alt: false, other: false }
+  return { alt: input.alt === true, other }
+}

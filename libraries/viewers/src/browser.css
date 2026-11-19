@@ -284,14 +284,20 @@
   opacity: 1;
 }
 /* The loupe: a round lens as wide as `loupeSize` (190px), moved by the viewer to sit on the
-   pointer (a translate), over everything in the viewer and letting the pointer through. Its
-   glass shows a picture of the page under it, which the viewer sizes and places; its level
-   is a chip at its foot. */
+   pointer (a translate), over everything in the viewer's box, which clips it, never over the
+   pane's chrome around it, and letting the pointer through. Its glass shows a picture of the
+   page under it, which the viewer sizes and places; its level is a chip at its foot. */
+.browser-loupe-clip {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  overflow: hidden;
+  pointer-events: none;
+}
 .browser-loupe {
   position: absolute;
   top: 0;
   left: 0;
-  z-index: 4;
   width: 190px;
   height: 190px;
   pointer-events: none;

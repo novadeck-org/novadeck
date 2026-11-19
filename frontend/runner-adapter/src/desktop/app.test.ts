@@ -927,7 +927,7 @@ describe("what the desktop app gives the backend", () => {
     options.pagePhone!("page" as never, true as never)
     options.pageZoom!("page" as never, 0.5)
     options.pageLoupe!.look("page" as never, { x: 1, y: 2, width: 3, height: 4 })
-    options.pageLoupe!.hold("page" as never, true)
+    options.pageLoupe!.hold("page" as never, true, false)
     void options.panePicture!({ x: 1, y: 2, width: 300, height: 200 })
     expect(calls).toEqual([
       ["pick"],
@@ -939,7 +939,7 @@ describe("what the desktop app gives the backend", () => {
       ["phone", "page", true],
       ["zoom", "page", 0.5],
       ["loupe", "page", { x: 1, y: 2, width: 3, height: 4 }],
-      ["loupe hold", "page", true],
+      ["loupe hold", "page", true, false],
       ["pane picture", { x: 1, y: 2, width: 300, height: 200 }],
     ])
     // The parts the app lacks are left off, not set to undefined.

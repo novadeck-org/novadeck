@@ -1,5 +1,5 @@
 import "../browser.css"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { mountBrowser, type BrowserOptions } from "../browser.js"
 import { loupeFrameMs } from "./loupe-view.js"
@@ -7,7 +7,6 @@ import { pageLoupeMessage, type PageLoupeNotice } from "./loupe.js"
 
 const panes: HTMLElement[] = []
 const viewers: { destroy: () => void }[] = []
-beforeEach(() => localStorage.removeItem("novadeck.page-loupe-level"))
 afterEach(() => {
   vi.useRealTimers()
   // Each listens to its window's keys and messages, past its pane.
@@ -33,6 +32,8 @@ const pointer = (target: Element, type: string, x: number, y: number, altKey = f
     new PointerEvent(type, { clientX: x, clientY: y, altKey, bubbles: true, pointerType: "mouse" }),
   )
 }
+// What the loupe is: twice the page's drawn size, 400 wide of 1024, in its real size.
+const twice = `${Math.round((400 / 1024) * 2 * 100)}%`
 
 describe("the loupe over a snapshot", () => {
   const mounted = (on: BrowserOptions["on"] = {}) => {
@@ -51,36 +52,38 @@ describe("the loupe over a snapshot", () => {
     return { pane, viewer, scroll, at: { x: box.left + 100, y: box.top + 80 } }
   }
 
-  it("shows under the pointer while Alt is held, as big as the page's real size allows", () => {
+  it("shows under the pointer while Alt is held, at twice what the picture is drawn at", async () => {
     const { pane, scroll, at } = mounted()
+    const image = pane.querySelector("img")!
+    await image.decode()
     expect(lens(pane).hidden).toBe(true)
     pointer(scroll, "pointermove", at.x, at.y)
     expect(lens(pane).hidden).toBe(true)
     pointer(scroll, "pointermove", at.x, at.y, true)
     expect(lens(pane).hidden).toBe(false)
-    // The snapshot is a page 1024 wide drawn 400 wide: its most is twice that, 78%.
-    expect(level(pane)).toBe(`${Math.round((400 / 1024) * 2 * 100)}%`)
-    const image = lens(pane).querySelector("img")!
-    expect(image.getAttribute("src")).toBe(picture)
+    expect(level(pane)).toBe(twice)
+    expect(lens(pane).querySelector("img")!.getAttribute("src")).toBe(picture)
     pointer(scroll, "pointermove", at.x, at.y, false)
     expect(lens(pane).hidden).toBe(true)
   })
 
-  it("follows Alt pressed and let go with the pointer at rest, and the pointer leaving", () => {
+  it("follows Alt pressed and let go with the pointer at rest, and the pointer leaving", async () => {
     const { pane, scroll, at } = mounted()
+    await pane.querySelector("img")!.decode()
     pointer(scroll, "pointermove", at.x, at.y)
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Alt" }))
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Alt", altKey: true }))
     expect(lens(pane).hidden).toBe(false)
     window.dispatchEvent(new KeyboardEvent("keyup", { key: "Alt" }))
     expect(lens(pane).hidden).toBe(true)
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Alt" }))
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Alt", altKey: true }))
     pointer(scroll, "pointerleave", at.x, at.y)
     expect(lens(pane).hidden).toBe(true)
   })
 
-  it("is turned on by the tool, tells so, and goes off on Esc or the pointer leaving", () => {
+  it("is turned on by the tool, tells so, and goes off on Esc or the pointer leaving", async () => {
     const toggles: boolean[] = []
     const { pane, viewer, scroll, at } = mounted({ loupe: (on) => toggles.push(on) })
+    await pane.querySelector("img")!.decode()
     viewer.loupe(true)
     expect(toggles).toEqual([true])
     pointer(scroll, "pointermove", at.x, at.y)
@@ -100,56 +103,95 @@ describe("the loupe over a snapshot", () => {
     expect(idle.defaultPrevented).toBe(false)
   })
 
-  it("changes level with the wheel within its range, snapping at 100%, and keeps it for next time", () => {
+  it("takes Esc only while the tool is on, not from Alt's loupe", async () => {
     const { pane, scroll, at } = mounted()
+    await pane.querySelector("img")!.decode()
     pointer(scroll, "pointermove", at.x, at.y, true)
-    const wheel = (deltaY: number): WheelEvent => {
-      const event = new WheelEvent("wheel", { deltaY, cancelable: true, bubbles: true })
-      scroll.dispatchEvent(event)
-      return event
-    }
-    const most = level(pane)
-    expect(wheel(-300).defaultPrevented).toBe(true)
-    expect(level(pane)).toBe(most)
-    wheel(100)
-    expect(Number.parseInt(level(pane))).toBeLessThan(Number.parseInt(most))
-    wheel(100000)
-    expect(level(pane)).toBe(`${Math.round((400 / 1024) * 100)}%`)
-    // Kept: a loupe mounted later starts there.
-    const next = mounted()
-    pointer(next.scroll, "pointermove", next.at.x, next.at.y, true)
-    expect(level(next.pane)).toBe(`${Math.round((400 / 1024) * 100)}%`)
+    expect(lens(pane).hidden).toBe(false)
+    const escape = new KeyboardEvent("keydown", { key: "Escape", cancelable: true, bubbles: true })
+    window.dispatchEvent(escape)
+    expect(escape.defaultPrevented).toBe(false)
+    expect(lens(pane).hidden).toBe(false)
   })
 
-  it("lets the wheel scroll the snapshot while it isn't showing", () => {
-    const { scroll, at } = mounted()
-    pointer(scroll, "pointermove", at.x, at.y)
-    const event = new WheelEvent("wheel", { deltaY: 100, cancelable: true, bubbles: true })
-    scroll.dispatchEvent(event)
-    expect(event.defaultPrevented).toBe(false)
-  })
-
-  it("is placed with its centre on the pointer", () => {
+  it("isn't for Alt with Ctrl, Meta or Shift, as AltGr types letters", async () => {
     const { pane, scroll, at } = mounted()
+    await pane.querySelector("img")!.decode()
+    scroll.dispatchEvent(
+      new PointerEvent("pointermove", {
+        clientX: at.x,
+        clientY: at.y,
+        altKey: true,
+        ctrlKey: true,
+        bubbles: true,
+      }),
+    )
+    expect(lens(pane).hidden).toBe(true)
+  })
+
+  it("keeps the window's menu bar from an Alt over it, and lets go of a lost Alt on blur", async () => {
+    const { pane, scroll, at } = mounted()
+    await pane.querySelector("img")!.decode()
+    const away = new KeyboardEvent("keydown", { key: "Alt", altKey: true, cancelable: true })
+    window.dispatchEvent(away)
+    expect(away.defaultPrevented).toBe(false)
+    window.dispatchEvent(new KeyboardEvent("keyup", { key: "Alt" }))
+    pointer(scroll, "pointermove", at.x, at.y)
+    const press = new KeyboardEvent("keydown", { key: "Alt", altKey: true, cancelable: true })
+    window.dispatchEvent(press)
+    expect(press.defaultPrevented).toBe(true)
+    expect(lens(pane).hidden).toBe(false)
+    const release = new KeyboardEvent("keyup", { key: "Alt", cancelable: true })
+    window.dispatchEvent(release)
+    expect(release.defaultPrevented).toBe(true)
+    expect(lens(pane).hidden).toBe(true)
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Alt", altKey: true }))
+    expect(lens(pane).hidden).toBe(false)
+    window.dispatchEvent(new Event("blur"))
+    expect(lens(pane).hidden).toBe(true)
+  })
+
+  it("stays inside the viewer's box, not over the pane around it", () => {
+    const { pane } = mounted()
+    const clip = pane.querySelector<HTMLElement>(".browser-loupe-clip")!
+    expect(getComputedStyle(clip).overflow).toBe("hidden")
+    expect(clip.parentElement).toBe(pane.querySelector(".browser-viewer"))
+  })
+
+  it("goes when the viewer is kept out of sight, with no pointer leaving", async () => {
+    const { pane, viewer, scroll, at } = mounted()
+    await pane.querySelector("img")!.decode()
+    pointer(scroll, "pointermove", at.x, at.y, true)
+    expect(lens(pane).hidden).toBe(false)
+    viewer.muted(true)
+    expect(lens(pane).hidden).toBe(true)
+  })
+
+  it("is placed with its centre on the pointer", async () => {
+    const { pane, scroll, at } = mounted()
+    await pane.querySelector("img")!.decode()
     pointer(scroll, "pointermove", at.x, at.y, true)
     const rim = lens(pane).getBoundingClientRect()
     expect(rim.left + rim.width / 2).toBeCloseTo(at.x, 0)
     expect(rim.top + rim.height / 2).toBeCloseTo(at.y, 0)
   })
+
+  it("lets the wheel scroll the snapshot: the level is fixed", async () => {
+    const { pane, scroll, at } = mounted()
+    await pane.querySelector("img")!.decode()
+    pointer(scroll, "pointermove", at.x, at.y, true)
+    const event = new WheelEvent("wheel", { deltaY: 100, cancelable: true, bubbles: true })
+    scroll.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(level(pane)).toBe(twice)
+  })
 })
 
 describe("the loupe over a live page", () => {
-  // What the wheel turned in the page, as its script says when asked, and every script run.
-  const spun: number[] = []
-  const scripts: string[] = []
-  beforeEach(() => {
-    spun.length = 0
-    scripts.length = 0
-  })
   const pictures = (src = "data:image/png;base64,AAAA") => {
     const asked: { page: number; rect: { x: number; y: number; width: number; height: number } }[] =
       []
-    const held: [number, boolean][] = []
+    const held: [number, boolean, boolean][] = []
     return {
       asked,
       held,
@@ -160,10 +202,12 @@ describe("the loupe over a live page", () => {
             return src
           },
         ),
-        hold: vi.fn<(page: number, on: boolean) => Promise<boolean>>(async (page, on) => {
-          held.push([page, on])
-          return true
-        }),
+        hold: vi.fn<(page: number, on: boolean, away?: boolean) => Promise<boolean>>(
+          async (page, on, away) => {
+            held.push([page, on, away === true])
+            return true
+          },
+        ),
       },
     }
   }
@@ -192,10 +236,6 @@ describe("the loupe over a live page", () => {
       setAudioMuted: () => undefined,
       getZoomFactor: () => 0.9,
       setZoomFactor: () => undefined,
-      executeJavaScript: async (code: string) => {
-        scripts.push(code)
-        return spun.splice(0).reduce((sum, turned) => sum + turned, 0)
-      },
     })
     return { pane, viewer, page }
   }
@@ -211,7 +251,6 @@ describe("the loupe over a live page", () => {
   it("shows where the main process says the pointer is, over a picture of the page there", async () => {
     const { loupe, asked } = pictures()
     const { pane } = mounted(loupe)
-    // The page is 1024 wide in a 400 viewer: its view is zoomed to 0.39 (device pixels the same).
     tell({ shown: true, toggled: false, x: 100, y: 120 })
     expect(lens(pane).hidden).toBe(false)
     await vi.waitFor(() => expect(asked.length).toBeGreaterThan(0))
@@ -244,28 +283,48 @@ describe("the loupe over a live page", () => {
     expect(asked.length).toBe(stopped)
   })
 
-  it("changes level on the wheel the main process took, and tells the tool going off", async () => {
+  it("asks less often while the pointer rests, and picks the pace up again on a move", async () => {
+    vi.useFakeTimers()
+    const { loupe, asked } = pictures()
+    mounted(loupe)
+    tell({ shown: true, toggled: false, x: 100, y: 120 })
+    await vi.advanceTimersByTimeAsync(2000)
+    // Still for most of it: about 5 a second, not 30.
+    expect(asked.length).toBeLessThan(20)
+    const resting = asked.length
+    tell({ shown: true, toggled: false, x: 130, y: 120 })
+    await vi.advanceTimersByTimeAsync(loupeFrameMs * 3)
+    expect(asked.length).toBeGreaterThan(resting)
+  })
+
+  it("is twice what the page is drawn at, and tells the tool going off", () => {
     const { loupe } = pictures()
     const toggles: boolean[] = []
     const { pane } = mounted(loupe, { loupe: (on) => toggles.push(on) })
     tell({ shown: true, toggled: true, x: 100, y: 120 })
     expect(toggles).toEqual([true])
-    const most = Number.parseInt(level(pane))
-    spun.push(100)
-    await vi.waitFor(() => expect(Number.parseInt(level(pane))).toBeLessThan(most))
+    expect(level(pane)).toBe(twice)
     tell({ shown: false, toggled: false, x: 100, y: 120 })
     expect(toggles).toEqual([true, false])
   })
 
-  it("takes the wheel over the page while it shows, and gives it back when it hides", async () => {
+  it("leaves the page its wheel: nothing is run in the page", async () => {
     const { loupe } = pictures()
-    mounted(loupe)
+    const { page } = mounted(loupe)
+    const scripts: string[] = []
+    Object.assign(page, { executeJavaScript: async (code: string) => scripts.push(code) })
     tell({ shown: true, toggled: false, x: 100, y: 120 })
-    await vi.waitFor(() =>
-      expect(scripts.some((code) => code.includes("state.on = true"))).toBe(true),
-    )
-    tell({ shown: false, toggled: false, x: 100, y: 120 })
-    await vi.waitFor(() => expect(scripts.at(-1)).toContain("state.on = false"))
+    await vi.waitFor(() => expect(loupe.look).toHaveBeenCalled())
+    expect(scripts).toEqual([])
+  })
+
+  it("goes, and tells the app the viewer is away, when it is kept out of sight", async () => {
+    const { loupe, held } = pictures()
+    const { pane, viewer } = mounted(loupe)
+    tell({ shown: true, toggled: false, x: 100, y: 120 })
+    viewer.muted(true)
+    expect(lens(pane).hidden).toBe(true)
+    await vi.waitFor(() => expect(held.at(-1)).toEqual([7, false, true]))
   })
 
   it("hears only its own view's notices", () => {
@@ -289,10 +348,27 @@ describe("the loupe over a live page", () => {
     viewer.loupe(false)
     await vi.waitFor(() =>
       expect(held).toEqual([
-        [7, true],
-        [7, false],
+        [7, true, false],
+        [7, false, false],
       ]),
     )
+  })
+
+  it("goes through once the page's view is there, for a tool pressed while the page rested", async () => {
+    const { loupe, held } = pictures()
+    const toggles: boolean[] = []
+    const { viewer, page } = mounted(loupe, { loupe: (on) => toggles.push(on) })
+    Object.assign(page, {
+      getWebContentsId: () => {
+        throw new Error("not attached")
+      },
+    })
+    viewer.loupe(true)
+    expect(toggles).toEqual([true])
+    expect(held).toEqual([])
+    Object.assign(page, { getWebContentsId: () => 7 })
+    page.dispatchEvent(new Event("dom-ready"))
+    await vi.waitFor(() => expect(held).toEqual([[7, true, false]]))
   })
 
   it("has no tool to turn on where the app can't follow the pointer", () => {
@@ -303,13 +379,12 @@ describe("the loupe over a live page", () => {
     expect(pane.querySelector(".browser-loupe")).toBeNull()
   })
 
-  it("reads a phone's view in its own pixels, whatever zoom the app has", async () => {
+  it("reads a phone's view in its drawn pixels, centred on the pointer", async () => {
     const { loupe, asked } = pictures()
     const { pane } = mounted(loupe, {}, "phone")
     tell({ shown: true, toggled: false, x: 195, y: 400 })
     await vi.waitFor(() => expect(asked.length).toBeGreaterThan(0))
     const { rect } = asked[0]!
-    // Centred on the pointer, a phone's page pixel one for one with its view's.
     expect(rect.x + rect.width / 2).toBeCloseTo(195, -1)
     expect(rect.y + rect.height / 2).toBeCloseTo(400, -1)
     expect(lens(pane).hidden).toBe(false)
