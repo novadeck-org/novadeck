@@ -35,6 +35,7 @@ import { adapterFolder } from "../testing/adapters.js"
 import {
   captureWindow,
   formatOf,
+  isCompiledObject,
   loadFile,
   loadModel,
   loadPlan,
@@ -893,6 +894,24 @@ describe("a 3D model as it loads", () => {
       Buffer.concat([Buffer.alloc(9000, 0x76), Buffer.alloc(1)]),
     )
     await expect(pointAt("late.obj", directory)).resolves.toMatchObject({ kind: "model" })
+  })
+
+  it("tells a compiled object file named .obj by its start, as MSVC's are, x64 and /bigobj", async ({
+    directory,
+  }) => {
+    // IMAGE_FILE_MACHINE_AMD64, then 3 sections; an anonymous (/bigobj) header's start.
+    writeFileSync(join(directory, "main.obj"), Buffer.from([0x64, 0x86, 0x03, 0x00, 0x5f]))
+    writeFileSync(join(directory, "BIG.OBJ"), Buffer.from([0x00, 0x00, 0xff, 0xff, 0x02, 0x00]))
+    writeFileSync(join(directory, "cube.obj"), "# Blender\nv 0 0 0\nf 1 1 1\n")
+    writeFileSync(join(directory, "empty.obj"), "")
+    writeFileSync(join(directory, "part.stl"), Buffer.from([0x00, 0x01, 0x02]))
+    await expect(isCompiledObject(join(directory, "main.obj"))).resolves.toBe(true)
+    await expect(isCompiledObject(join(directory, "BIG.OBJ"))).resolves.toBe(true)
+    await expect(isCompiledObject(join(directory, "cube.obj"))).resolves.toBe(false)
+    await expect(isCompiledObject(join(directory, "empty.obj"))).resolves.toBe(false)
+    // Another format's binary is its own, and a file gone is no object.
+    await expect(isCompiledObject(join(directory, "part.stl"))).resolves.toBe(false)
+    await expect(isCompiledObject(join(directory, "gone.obj"))).resolves.toBe(false)
   })
 
   it("is its format, size and the model file's stamp, listing nothing for a format that names none", async ({

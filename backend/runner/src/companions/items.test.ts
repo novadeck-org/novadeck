@@ -2878,6 +2878,31 @@ describe("a folder beside its terminal", () => {
     })
   })
 
+  it("lists a compiled object file named .obj as a plain file, and reads none of it for a still", async ({
+    fixture,
+  }) => {
+    const place = render(fixture.directory)
+    // An x64 COFF object, as MSVC writes, and a Wavefront model beside it.
+    writeFileSync(join(place, "main.obj"), Buffer.from([0x64, 0x86, 0x03, 0x00, 0x5f, 0x00]))
+    writeFileSync(join(place, "cube.obj"), "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "render" } })
+    const itemId = shown.ok ? shown.id : ""
+    const entry = async (name: string) =>
+      listed(await fixture.items.load(itemId, false)).entries.find((found) => found.name === name)!
+    const object = await entry("main.obj")
+    expect(object.kind).toBe("other")
+    expect((await entry("cube.obj")).kind).toBe("model")
+    await expect(
+      fixture.items.part({ itemId, stamp: object.stamp, offset: 0, path: "main.obj" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    // Rewritten as the other, each is listed as what it holds now.
+    writeFileSync(join(place, "main.obj"), "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n# model\n")
+    writeFileSync(join(place, "cube.obj"), Buffer.from([0x4c, 0x01, 0x01, 0x00]))
+    expect((await entry("main.obj")).kind).toBe("model")
+    expect((await entry("cube.obj")).kind).toBe("other")
+  })
+
   it("reads a file of the folder by its path and stamp, as its kind is read anywhere", async ({
     fixture,
   }) => {
