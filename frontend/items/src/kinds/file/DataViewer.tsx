@@ -15,41 +15,32 @@ import type { PreviewProps } from "./previews"
 // doesn't read goes to its source at the line it stops, once per load: switched back, it
 // says where it stops. A file read only in part says so.
 
-// How long the runner cuts a line at (the protocol's `companionLimits.lineLength`, a unit
-// less when that would split an emoji): a line that long was likely cut short there.
-const longestLine = 4095
-
 // The loads already sent to their source: switched back to the preview, they stay.
 const sent = new WeakSet<FileContent>()
 // The loads already brought to the lines their agent pointed at: shown again, they open
 // where they were left.
 const pointed = new WeakSet<FileContent>()
 
-// Whether only part of the file came: read up to a budget, a window of its lines, or a line
-// cut short, as minified JSON's one line.
+// Whether only part of the file came: its start, up to the runner's budget for data files
+// (2 MiB of whole lines), or, from a runner before that, a window of its lines.
 const isPartial = (file: FileContent): boolean =>
   file.truncated ||
-  file.lines.some((line) => line.length >= longestLine) ||
   file.firstLine > 1 ||
   (file.total !== null && file.firstLine + file.lines.length - 1 < file.total)
 
-// What came of the file, as a person reads it: a window of its lines, its start, or its
-// lines whole but some cut short.
+// What came of the file, as a person reads it: its start, or a window of its lines.
 const partText = (file: FileContent): string => {
   const last = file.firstLine + file.lines.length - 1
   const of = file.total === null ? "" : ` of ${file.total}`
+  if (file.truncated) return "Only its start came, as it's longer than Novadeck reads at once"
   if (file.firstLine > 1) return `Only lines ${file.firstLine}–${last}${of} were read`
-  if (file.truncated || (file.total !== null && last < file.total))
-    return `Only the first ${last} lines${of} were read`
-  return "Some of its lines are too long and were cut short"
+  return `Only the first ${last} lines${of} were read`
 }
 
-// Whether a file read in part stops reading before its end, on a whole line: broken, not cut.
-const brokenWithin = (file: FileContent, error: DataError): boolean => {
-  const last = file.firstLine + file.lines.length - 1
-  const line = file.lines[error.line - file.firstLine] ?? ""
-  return file.firstLine === 1 && error.line < last && line.length < longestLine
-}
+// Whether a file read from its start stops reading before the last line that came, which
+// may be the only one cut short: broken, not cut.
+const brokenWithin = (file: FileContent, error: DataError): boolean =>
+  file.firstLine === 1 && error.line < file.firstLine + file.lines.length - 1
 
 const errorText = (format: string, error: DataError): string =>
   `${format} doesn't read at line ${error.line}, column ${error.column}: ${error.message}.`
@@ -60,16 +51,12 @@ export const DataViewer = ({ id, content: file, toSource }: PreviewProps): React
   const format = dataFormatOf(file.path) ?? "json"
   const partial = isPartial(file)
   const parsed = useMemo(
-    () =>
-      parseData(file.lines.join("\n"), format, {
-        firstLine: file.firstLine,
-        longest: longestLine,
-      }),
+    () => parseData(file.lines.join("\n"), format, { firstLine: file.firstLine }),
     [file, format],
   )
   // A file that doesn't read shows as source, where it stops: a whole one, or one read from
-  // its start that stops before the lines that came end, on a line not cut short. Else it
-  // may only be cut short, so it says so and offers the source.
+  // its start that stops before the lines that came end. Else it may only be cut short, so
+  // it says so and offers the source.
   const failed =
     !parsed.ok && (!partial || brokenWithin(file, parsed.error)) ? parsed.error : undefined
   const note = failed && errorText(formatNames[format], failed)
@@ -130,7 +117,7 @@ export const DataViewer = ({ id, content: file, toSource }: PreviewProps): React
       {partial && (
         <p className="artifact-cut artifact-tree-cut">
           {format === "jsonl"
-            ? `${partText(file)}, so some records may be missing or cut short.`
+            ? `${partText(file)}, so some records may be missing.`
             : `${partText(file)}, so the tree may be missing some.`}
           {source}
         </p>

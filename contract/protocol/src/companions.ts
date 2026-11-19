@@ -20,6 +20,10 @@ export const companionLimits = {
   // `lineLength`, and how much of all its shells' outputs it holds at most, in UTF-16 code units.
   shellLines: 400,
   shellsText: 1024 * 1024,
+  // How much of a data file (`isDataPath`) is read, from its start, in UTF-8 bytes: whole
+  // lines only, none cut to `lineLength`, and as many as fit, as its preview reads the
+  // file as a whole. Its text in UTF-16 code units runs no longer.
+  data: 2 * 1024 * 1024,
 } as const
 
 /**
@@ -38,6 +42,13 @@ export const videoLimits = { bytes: 512 * 1024 * 1024 } as const
  * pdf.js keeps a whole document in memory however it is read.
  */
 export const pdfLimits = { bytes: 128 * 1024 * 1024 } as const
+
+// The files whose preview reads them as a whole, as a tree or a table, by extension.
+const dataExtensions = new Set(["json", "jsonl", "ndjson", "yaml", "yml", "csv", "tsv"])
+
+/** Whether a file is read as data: whole, up to `companionLimits.data`, not by its lines. */
+export const isDataPath = (path: string): boolean =>
+  dataExtensions.has(/\.([^./\\]+)$/.exec(path)?.[1]?.toLowerCase() ?? "")
 
 // What agents show and the person attaches beside a terminal: a pointer to a file, a
 // page or a plan, never a copy of it, which `companions.content` reads when it loads.
@@ -307,17 +318,33 @@ export const itemContent = z.discriminatedUnion("state", [
     stamp: z.string().max(128),
     content: z.discriminatedUnion("kind", [
       z.strictObject({ kind: z.literal("image"), src: z.string().max(12 * 1024 * 1024) }),
-      z.strictObject({
-        kind: z.literal("file"),
-        path: z.string().max(companionLimits.path),
-        firstLine: z.int().min(1),
-        lines: z.array(z.string().max(companionLimits.lineLength)).max(companionLimits.lines),
-        from: z.int().min(1),
-        to: z.int().min(1),
-        total: z.int().nonnegative().nullable(),
-        truncated: z.boolean(),
-        clamped: z.boolean(),
-      }),
+      z
+        .strictObject({
+          kind: z.literal("file"),
+          path: z.string().max(companionLimits.path),
+          firstLine: z.int().min(1),
+          // A data file's lines run as long as its text; others' are held to the limits below.
+          lines: z.array(z.string().max(companionLimits.data)).max(companionLimits.data + 1),
+          from: z.int().min(1),
+          to: z.int().min(1),
+          total: z.int().nonnegative().nullable(),
+          truncated: z.boolean(),
+          clamped: z.boolean(),
+        })
+        .check((context) => {
+          const { path, lines } = context.value
+          const issue = (message: string): void => {
+            context.issues.push({ code: "custom", input: context.value, path: ["lines"], message })
+          }
+          if (isDataPath(path)) {
+            const size = lines.reduce((sum, line) => sum + line.length, 0)
+            if (size > companionLimits.data) issue("A data file's text runs past its limit")
+            return
+          }
+          if (lines.length > companionLimits.lines) issue("Too many lines")
+          if (lines.some((line) => line.length > companionLimits.lineLength))
+            issue("A line runs past its limit")
+        }),
       z.strictObject({
         kind: z.literal("page"),
         url: z.string().max(companionLimits.url),

@@ -4,6 +4,8 @@ import type { z } from "zod"
 import {
   changeFileDiff,
   companionItem,
+  companionLimits,
+  isDataPath,
   itemContent,
   maxChangeSideBytes,
   pageLook,
@@ -142,5 +144,48 @@ describe("a change as layers", () => {
     expect(changeFileDiff.safeParse({ run: { ...run, after: `${run.after}x` } }).success).toBe(
       false,
     )
+  })
+})
+
+describe("a text file's content", () => {
+  const fileOf = (path: string, lines: readonly string[]) => ({
+    state: "ready" as const,
+    stamp: "s",
+    content: {
+      kind: "file" as const,
+      path,
+      firstLine: 1,
+      lines,
+      from: 1,
+      to: lines.length,
+      total: lines.length,
+      truncated: false,
+      clamped: false,
+    },
+  })
+  const fits = (path: string, lines: readonly string[]): boolean =>
+    itemContent.safeParse(fileOf(path, lines)).success
+
+  it("holds a source file to its lines, each cut short", () => {
+    expect(fits("a.ts", ["x".repeat(companionLimits.lineLength)])).toBe(true)
+    expect(fits("a.ts", ["x".repeat(companionLimits.lineLength + 1)])).toBe(false)
+    expect(fits("a.ts", Array(companionLimits.lines + 1).fill("x"))).toBe(false)
+  })
+
+  it("carries a data file's lines whole, as many as its text's limit holds", () => {
+    const long = "x".repeat(100_000)
+    expect(fits("rollout.jsonl", [long, long])).toBe(true)
+    expect(fits("big.csv", Array(companionLimits.lines * 10).fill("a,b"))).toBe(true)
+    expect(fits("big.json", ["x".repeat(companionLimits.data + 1)])).toBe(false)
+    expect(fits("big.json", [long, "x".repeat(companionLimits.data - long.length + 1)])).toBe(false)
+  })
+})
+
+describe("isDataPath", () => {
+  it("knows the files a preview reads whole, by extension, in any case", () => {
+    for (const path of ["a.json", "b.JSONL", "c.ndjson", "d.yaml", "e.yml", "f.csv", "g.tsv"])
+      expect(isDataPath(path)).toBe(true)
+    for (const path of ["a.ts", "notes.md", "json", "data.json/README"])
+      expect(isDataPath(path)).toBe(false)
   })
 })

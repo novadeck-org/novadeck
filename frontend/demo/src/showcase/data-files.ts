@@ -3,11 +3,11 @@ import type { FileContent } from "@novadeck/core/items"
 import { fileLines, ready, type SampleArtifact } from "./artifacts"
 
 // Data files the dev server's terminal shows, one of each way the tree reads them: YAML
-// with anchors and two documents; a JSONL transcript read only in part, one record half
-// written and one cut short; a YAML file that doesn't read, which goes to its source; a
-// long YAML file's start, which reads as far as it goes; an empty JSON object; a YAML file
-// just made, with nothing in it yet; and a long JSON file shown from its middle, which
-// can't read as a whole. Studio's projects.json is a plain JSON tree.
+// with anchors and two documents; a JSONL transcript past what's read, one record half
+// written; a YAML file that doesn't read, which goes to its source; a long YAML file's
+// start, which reads as far as it goes; an empty JSON object; a YAML file just made, with
+// nothing in it yet; and a long JSON file shown around lines pointed at past what's read
+// whole, which can't read as a whole. Studio's projects.json is a plain JSON tree.
 
 const studio = "~/projects/studio"
 
@@ -117,15 +117,9 @@ const transcript = [
     },
   },
 ].map((record) => JSON.stringify(record))
-// The runner cuts a line at 4096 characters: a record past that arrives cut short.
-const cutRecord = JSON.stringify({
-  type: "user",
-  uuid: "5d88",
-  message: { role: "user", content: [{ type: "tool_result", content: "x".repeat(5000) }] },
-}).slice(0, 4096)
 // A record an agent stopped writing halfway, with others after it.
 const halfRecord = '{"type":"user","uuid":"4b90","message":{"role":'
-const transcriptLines = [...transcript.slice(0, 3), halfRecord, ...transcript.slice(3), cutRecord]
+const transcriptLines = [...transcript.slice(0, 3), halfRecord, ...transcript.slice(3)]
 
 const brokenLines = [
   "name: deploy",
@@ -194,7 +188,11 @@ export const dataArtifacts: readonly SampleArtifact[] = [
   file(
     "data-api",
     "api/openapi.yaml",
-    { ...fileLines("api/openapi.yaml", apiLines, { from: 1, to: apiLines.length }), total: 2310 },
+    {
+      ...fileLines("api/openapi.yaml", apiLines, { from: 1, to: apiLines.length }),
+      total: null,
+      truncated: true,
+    },
     "api/openapi.yaml · its start",
   ),
   file("data-empty", "data/seed.json", fileLines("data/seed.json", ["{}"], { from: 1, to: 1 })),

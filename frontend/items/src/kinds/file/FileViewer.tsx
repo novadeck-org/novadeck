@@ -13,6 +13,31 @@ import { useFileView } from "./view-choice"
 // A text file, as plain text at once, then highlighted when its language is one Novadeck
 // knows, in the code viewer. Where its viewer was, by item, is kept, so a file shown again
 // opens where it was.
+
+// How many lines the code viewer draws at most, as it draws every one: a data file comes
+// whole, up to 2 MiB, so its source shows this many around the line it points at.
+const drawnLines = 2000
+// Lines shown before the one pointed at.
+const drawnBefore = 40
+
+// The lines of `file` to draw, around `line`: all of them, unless there are too many.
+const drawnOf = (
+  file: FileContent,
+  line: number,
+): { readonly firstLine: number; readonly lines: readonly string[]; readonly cut: boolean } => {
+  if (file.lines.length <= drawnLines)
+    return { firstLine: file.firstLine, lines: file.lines, cut: false }
+  const start = Math.min(
+    Math.max(0, line - file.firstLine - drawnBefore),
+    file.lines.length - drawnLines,
+  )
+  return {
+    firstLine: file.firstLine + start,
+    lines: file.lines.slice(start, start + drawnLines),
+    cut: true,
+  }
+}
+
 const CodeViewer = ({
   id,
   content: artifact,
@@ -22,15 +47,16 @@ const CodeViewer = ({
   // A line to point at instead of the agent's, as where a preview's file stops reading.
   at?: number
 }): React.JSX.Element => {
+  const drawn = useMemo(() => drawnOf(artifact, at ?? artifact.from), [artifact, at])
   const content = useMemo(
     (): CodeContent => ({
-      lines: artifact.lines,
-      firstLine: artifact.firstLine,
+      lines: drawn.lines,
+      firstLine: drawn.firstLine,
       path: artifact.path,
       // The lines the agent pointed at.
       emphasis: at === undefined ? { from: artifact.from, to: artifact.to } : { from: at, to: at },
     }),
-    [artifact, at],
+    [artifact, at, drawn],
   )
   const { ref: code } = useViewerSlot(mountCode, {
     id,
@@ -40,11 +66,13 @@ const CodeViewer = ({
   return (
     <>
       <div ref={code} className="artifact-code" />
-      {(artifact.clamped || artifact.truncated) && (
+      {(artifact.clamped || artifact.truncated || drawn.cut) && (
         <p className="artifact-cut">
           {[
             artifact.clamped && `The file ends at line ${artifact.to}.`,
             artifact.truncated && "It's long, so only its start is shown.",
+            drawn.cut &&
+              `Lines ${drawn.firstLine}–${drawn.firstLine + drawn.lines.length - 1} of the ${artifact.lines.length} read are shown here.`,
           ]
             .filter(Boolean)
             .join(" ")}
@@ -176,8 +204,16 @@ export const FileViewer = ({ item, content }: ArtifactBodyProps<"file">): React.
 }
 
 // The lines the agent pointed at, from the first one on.
+// No more than a miniature shows, as a data file comes whole: its lines up to 2 MiB.
+const thumbLines = 40
+const thumbLength = 200
 const pointedLines = (file: FileContent): readonly string[] =>
-  file.lines.slice(file.from - file.firstLine, file.to - file.firstLine + 1)
+  file.lines
+    .slice(
+      file.from - file.firstLine,
+      Math.min(file.to - file.firstLine + 1, file.from - file.firstLine + thumbLines),
+    )
+    .map((line) => line.slice(0, thumbLength))
 
 // A file in miniature: its preview's, where it has one, as a Markdown file's title over its
 // sections; else the lines the agent pointed at.

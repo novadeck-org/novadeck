@@ -64,6 +64,7 @@ export {
   type CompanionChange,
   type CompanionItem,
   companionLimits,
+  isDataPath,
   type CompanionWindow,
   itemContent,
   type ItemContent,

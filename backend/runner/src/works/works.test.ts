@@ -1242,6 +1242,8 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
     expect((await current(second.works)).get(main.root)).toMatchObject({ unreadAdded: 1 })
   })
 
+  // Each read is some 21 git runs, and on a Windows runner the 12 reads this made took 15 to
+  // 18 s when it passed. Six edits, nine reads, still see two rebuilds at `repackAfter: 3`.
   it("rebuilds its object folder now and then, keeping the tree last read", async ({
     fixture,
     resources,
@@ -1261,7 +1263,7 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
         0,
       )
     const sizes: number[] = []
-    for (let at = 1; at <= 9; at += 1) {
+    for (let at = 1; at <= 6; at += 1) {
       main.write("b.txt", `one\nedit ${at}\n`)
       // eslint-disable-next-line no-await-in-loop -- Each read follows its edit.
       await current(works)

@@ -36,6 +36,7 @@ import { mention } from "../terminals/handles.js"
 import { tail } from "../text.js"
 import { displayed, repositoryOf, samePlace, worktreeBranch } from "./changes.js"
 import {
+  formatOf,
   hashOf,
   loadFile,
   loadPdf,
@@ -1363,8 +1364,7 @@ export class CompanionItems {
       pointed.kind === "audio" ||
       pointed.kind === "pdf"
     ) {
-      const format = pointed.path.split(".").at(-1)!.toUpperCase().replace("JPG", "JPEG")
-      return `${size(pointed.size)} ${format}`
+      return `${size(pointed.size)} ${formatOf(pointed.path)}`
     }
     const shown = project && inside(project, pointed.path) ? relative(project, pointed.path) : given
     const range = lines ? ` · lines ${lines.from}–${lines.to}` : ""

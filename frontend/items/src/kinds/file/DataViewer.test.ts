@@ -72,7 +72,7 @@ describe("a data file's tree", () => {
         fileOf("session.jsonl", ['{"a":1}', '{"b":'], { truncated: true, total: null }),
       )
       expect(container.querySelector(".artifact-cut")?.textContent).toContain(
-        "Only the first 2 lines were read, so some records may be missing or cut short.",
+        "Only its start came, as it's longer than Novadeck reads at once, so some records may be missing.",
       )
     })
 
@@ -91,13 +91,23 @@ describe("a data file's tree", () => {
       expect(toSource).toHaveBeenCalledWith()
     })
 
-    it("takes minified JSON past the runner's line limit as cut short, not broken", () => {
+    it("reads minified JSON whole, however long its one line", () => {
+      const line = `[${'"x",'.repeat(20_000)}"x"]`
+      const { container } = shown(fileOf("min.json", [line]))
+      expect(container.querySelector(".tree-viewer")).not.toBeNull()
+      expect(container.querySelector(".artifact-cut")).toBeNull()
+    })
+
+    it("says minified JSON past the runner's budget came only in part, not that it's broken", () => {
       const toSource = vi.fn<ToSource>()
-      const line = `[${'"x",'.repeat(2000)}`.slice(0, 4096)
-      const { container } = shown(fileOf("min.json", [line]), toSource)
+      const line = `[${'"x",'.repeat(2000)}`
+      const { container } = shown(
+        fileOf("min.json", [line], { truncated: true, total: null }),
+        toSource,
+      )
       expect(toSource).not.toHaveBeenCalled()
       expect(container.textContent).toContain(
-        "Some of its lines are too long and were cut short, so the JSON can't be read as a whole.",
+        "Only its start came, as it's longer than Novadeck reads at once, so the JSON can't be read as a whole.",
       )
     })
 
