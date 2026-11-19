@@ -3,6 +3,7 @@ import type { BackendAction } from "@novadeck/core/port"
 import type { TerminalKey } from "@novadeck/core/types"
 import { folderSamples } from "@novadeck/demo/showcase/folder-samples"
 import { createShowcase } from "@novadeck/demo/showcase/simulation"
+import { vi } from "vitest"
 
 import { folderViewGroups } from "./folder-view"
 import { describe, expect, it } from "./test"
@@ -52,6 +53,7 @@ describe("the debug panel's folder group", () => {
     expect(group!.section).toBe("Agents")
     expect(group!.actions.map((action) => action.label)).toEqual([
       "Show a folder",
+      "Open a file of the folder",
       "A file lands in the folder",
       "A file is being written",
       "Show a folder with nothing in it",
@@ -96,6 +98,21 @@ describe("the debug panel's folder group", () => {
       state: "unavailable",
       reason: "missing",
     })
+  })
+
+  it("opens the newest still of the folder as a double-click would, in a kind of its own", async () => {
+    const { run, reported } = panel()
+    run("Show a folder")
+    run("Open a file of the folder")
+    // The showcase answers once the folders' samples have loaded.
+    await vi.waitFor(() =>
+      expect(reported.at(-1)).toMatchObject({
+        kind: "image",
+        name: "checkout-desktop.svg",
+        path: "~/render/checkout-desktop.svg",
+        by: "person",
+      }),
+    )
   })
 
   it("lands a file on top", () => {

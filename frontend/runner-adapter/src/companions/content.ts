@@ -136,6 +136,7 @@ export const createRunnerCompanions = (
     | "pageTrouble"
     | "part"
     | "attach"
+    | "repoint"
   >,
   {
     livePages = false,
@@ -182,12 +183,13 @@ export const createRunnerCompanions = (
   },
   changeFile: (_target, itemId, path, layers) => runner.changeFile({ itemId, path, layers }),
   changeRead: (_target, itemId, path) => runner.changeRead({ itemId, path }),
-  part: async (_target, itemId, { stamp, offset, reveal, path }) => {
+  part: async (_target, itemId, { stamp, offset, reveal, file, path }) => {
     const part = await runner.part({
       itemId,
       stamp,
       offset,
       ...(reveal && { reveal }),
+      ...(file !== undefined && { file }),
       ...(path !== undefined && { path }),
     })
     return part.state === "part" ? { state: "part", bytes: decode(part.data) } : part
@@ -223,6 +225,8 @@ export const createRunnerCompanions = (
       .catch(() => {})
   },
   attach: async (_target, terminalId, path) => itemOf(await runner.attach({ terminalId, path })),
+  repoint: async (target, itemId, path) =>
+    itemOf(await inOrder(target, () => runner.repoint({ itemId, path }))),
   openInProject: async (target, path, windowId) => {
     const { item, window } = await inOrder(target, () =>
       runner.openInProject({ sessionId: target.workspaceSessionId, path, windowId }),

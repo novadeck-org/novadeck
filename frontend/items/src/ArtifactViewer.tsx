@@ -57,9 +57,11 @@ const shortReasons: Record<UnavailableReason, string> = {
   gone: "Gone",
 }
 
-// The largest file a kind previews, where the pane says it: the runner's `pdfLimits`.
+// The largest file a kind previews, where the pane says it: the runner's `pdfLimits` and
+// `modelLimits`.
 const largest: Partial<Record<Item["kind"], string>> = {
   pdf: "Novadeck previews PDFs up to 128 MB.",
+  model: "Novadeck previews 3D models up to 256 MB, with the files beside them they name.",
 }
 
 // Why it can't show, as the pane says it.
@@ -184,9 +186,14 @@ export const artifactView = <K extends ShownKind>(
   return View
 }
 
+// A peek's body: what the item is, and, for one that reads its bytes for a still, where from
+// and as which stamp.
 type ThumbBody<K extends ShownKind> = ComponentType<{
   readonly content: Extract<ShownContent, { readonly kind: K }>
   readonly item: Item
+  readonly itemStore: ItemStore
+  readonly target: WorkspaceTarget
+  readonly stamp: string
 }>
 
 const LoadedThumb = <K extends ShownKind>({
@@ -202,7 +209,13 @@ const LoadedThumb = <K extends ShownKind>({
     return <span className="peek-held">{shortReasons[load.reason]}</span>
   const { content } = load
   return content.kind === kind ? (
-    <Body content={content as Extract<ShownContent, { readonly kind: K }>} item={item} />
+    <Body
+      content={content as Extract<ShownContent, { readonly kind: K }>}
+      item={item}
+      itemStore={itemStore}
+      target={target}
+      stamp={load.stamp}
+    />
   ) : null
 }
 

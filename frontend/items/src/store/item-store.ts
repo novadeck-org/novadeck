@@ -41,7 +41,8 @@ export type ItemStoreState = {
   // The shell each shells item has unfolded to its whole tail, by the shell's id: what the
   // person unfolded, or the chat's shell line they opened it from.
   readonly unfolded: Readonly<Record<ItemId, string>>
-  // How each folder item is looked at: the folder it is in, its layout and its sort. Kept
+  // How each folder item is looked at: the folder it is in, its layout, its sort and a file to
+  // select, which its view takes and clears. Kept
   // here, not in its body, so a pane that comes back finds the folder as it left it.
   readonly folders: Readonly<Record<ItemId, FolderView>>
   // What the folder a folder item's view is in inside its top holds, as followed for it: cleared
@@ -93,9 +94,24 @@ export type ItemStore = {
   // Follows the listing of the folder `within` names (from a folder item's top), beside the
   // item's own, which is its top's; returns the release.
   readonly listing: (target: WorkspaceTarget, itemId: ItemId, within: string) => () => void
+  // Follows the listing of the folder `within` names for a file of that folder that steps
+  // through its neighbours: a follow of its own, which never moves the folder item's view or
+  // changes what its listing holds. Returns the release.
+  readonly siblings: (
+    target: WorkspaceTarget,
+    folderId: ItemId,
+    within: string,
+    on: (content: ItemContent) => void,
+  ) => () => void
+  // The workspace the items are in, to read: a file finds the folders of its session in it.
+  readonly workspace: Store<Workspace>
   // Opens a file or folder on a terminal's bar, by an absolute path, as the person's own show
   // of it, and answers with the item it became; rejects where the backend can't.
   readonly attach: (target: WorkspaceTarget, terminalId: string, path: string) => Promise<Item>
+  // Points a file item at another file of its kind, by an absolute path: the same item, in
+  // the same place, shown again; rejects when the file can't be shown. The backend's, where it
+  // has one: a file then has no steps through its folder.
+  readonly repoint?: (target: WorkspaceTarget, itemId: ItemId, path: string) => Promise<void>
   // Tells what went wrong on a live page that shows `shown` of the item loaded.
   readonly trouble: (
     target: WorkspaceTarget,
@@ -641,7 +657,12 @@ export const createItemStore = ({
     session.store.update((state) => {
       const was = state.folders[id] ?? defaultFolderView
       const next = { ...was, ...change }
-      if (next.within === was.within && next.layout === was.layout && next.sort === was.sort)
+      if (
+        next.within === was.within &&
+        next.layout === was.layout &&
+        next.sort === was.sort &&
+        next.selected === was.selected
+      )
         return state
       // Moving to another folder: what was followed for the one before is not this one's.
       const { [id]: _left, ...listings } = state.listings
@@ -660,6 +681,8 @@ export const createItemStore = ({
           : state,
       ),
     )
+  const siblings: ItemStore["siblings"] = (target, id, within, on) =>
+    session.companions.follow(target, id, { reveal: undefined, within }, on)
   const attach: ItemStore["attach"] = (target, terminalId, path) =>
     session.companions.attach
       ? session.companions.attach(target, terminalId, path)
@@ -727,7 +750,9 @@ export const createItemStore = ({
       for (const id of session.followed.keys()) unfollow(session, id)
     }
   }
-  const { picture, phone, part } = companions
+  const { picture, phone, part, repoint: pointed } = companions
+  const repoint: ItemStore["repoint"] =
+    pointed && ((target, itemId, path) => pointed(target, itemId, path).then(() => {}))
   const trouble: ItemStore["trouble"] = (target, itemId, shown, troubles) =>
     session.companions.trouble(target, itemId, shown, troubles)
   const changeFile: ItemStore["changeFile"] = (target, itemId, path, layers) =>
@@ -745,6 +770,8 @@ export const createItemStore = ({
     plan,
     folder,
     listing,
+    siblings,
+    workspace,
     attach,
     trouble,
     changeFile,
@@ -753,5 +780,6 @@ export const createItemStore = ({
     ...(picture && { picture }),
     ...(phone && { phone }),
     ...(part && { part }),
+    ...(repoint && { repoint }),
   }
 }

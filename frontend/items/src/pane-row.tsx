@@ -222,19 +222,29 @@ const ToolButton = ({ tool }: { tool: PaneTool }): React.JSX.Element => {
 
 // The viewer's tools, at the end of the row before the place's buttons, or where it's drawn
 // without a row, at its top. `chip` is a link that isn't a tool, as a change's pull request.
+//
+// `after` is for the tools the place adds to a viewer's own, as a file's steps through its folder:
+// they come after the viewer's whichever is drawn first, and stay whole (a menu of them beside the
+// viewer's own "More tools" would be two of a name).
 export const PaneTools = ({
   tools,
   chip,
+  after = false,
 }: {
   tools: readonly PaneTool[]
   chip?: ReactNode
+  after?: boolean
 }): React.JSX.Element | null => {
   const slot = useContext(ToolsSlot)
-  const folds = tools.length > mostBeforeFolding
+  const folds = !after && tools.length > mostBeforeFolding
   const body = (
     <>
       {chip}
-      <span className="pane-tools-inline" data-fold={folds || undefined}>
+      <span
+        className="pane-tools-inline"
+        data-fold={folds || undefined}
+        data-after={after || undefined}
+      >
         {tools.map((tool) => (
           <ToolButton key={tool.key} tool={tool} />
         ))}
@@ -304,7 +314,8 @@ export const tabTip = (
     ...((item.kind === "image" ||
       item.kind === "video" ||
       item.kind === "audio" ||
-      item.kind === "pdf") &&
+      item.kind === "pdf" ||
+      item.kind === "model") &&
     item.detail
       ? [item.detail]
       : []),

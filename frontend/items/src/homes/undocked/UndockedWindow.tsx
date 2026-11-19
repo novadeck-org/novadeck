@@ -23,7 +23,7 @@ export const UndockedWindow = ({
   const registration = item && registrationOf(item)
   const body = item && <WindowItem item={item} itemStore={itemStore} target={target} />
   return (
-    <div className="artifact-window">
+    <div className="artifact-window" tabIndex={-1}>
       {!registration ? null : registration.windowLabel ? (
         <section
           className="pane-reader"

@@ -2,7 +2,7 @@
   "name": "@novadeck/build-kit",
   "version": "0.0.0",
   "private": true,
-  "description": "The apps' Vite helpers: the Content Security Policy's sources, hosting headers, noindex, the font rule, the bundle checks and the unit test project.",
+  "description": "The apps' Vite helpers: the Content Security Policy's sources, hosting headers, noindex, the font rule, viewers' frame bundles, the bundle checks and the unit test project.",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {
@@ -10,6 +10,7 @@
     "./connect-sources": "./src/connect-sources.ts",
     "./content-security-policy": "./src/content-security-policy.ts",
     "./fonts": "./src/fonts.ts",
+    "./frame-bundles": "./src/frame-bundles.ts",
     "./hosting-headers": "./src/hosting-headers.ts",
     "./search-visibility": "./src/search-visibility.ts",
     "./vitest": "./src/vitest.ts"
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "esbuild": "0.28.2",
     "typescript": "^7.0.2",
     "vite": "^7.3.8",
     "vitest": "^5.1.0"

@@ -3,7 +3,7 @@ import { registerEntryThumb, type EntryThumbRenderer } from "./entry-thumbs"
 import { videoFrameBytes } from "./model"
 
 // The kinds the folder draws itself, registered as any other kind would: an image is itself, up
-// to what one part holds; a video is its first moment and its length.
+// to what one part holds; a video is its first moment and its length; a 3D model a still of it.
 
 // What the runner shows as an image (`images` in its companions/content.ts), by extension.
 const imageMimes: Record<string, string | undefined> = {
@@ -141,3 +141,9 @@ registerEntryThumb("video", async (file, box, signal) => {
   const frame = await frameOf(blob, box.width, signal)
   return frame ? { blob: frame.picture, duration: frame.duration } : null
 })
+
+// A 3D model is a still of it alone, drawn by the frame its peeks share; that code, three.js's
+// frame with it, loads with the first model a grid draws.
+registerEntryThumb("model", (file, box, signal) =>
+  import("../model/folder-still").then(({ folderStill }) => folderStill(file, box, signal)),
+)

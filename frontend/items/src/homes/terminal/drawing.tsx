@@ -4,6 +4,7 @@ import { MessagesSquare, Pause, type LucideIcon } from "lucide-react"
 
 import type { BarMember, BarSlot } from "../../bar/bar"
 import type { BarDrawing } from "../../bar/TaskbarSlot"
+import { ItemBody } from "../../item-body"
 import type { LookContext } from "../../registration"
 import { itemLook, registrationOf, stackIcon, type Look } from "../../registry"
 import type { ItemStore } from "../../store/item-store"
@@ -95,6 +96,5 @@ export const MemberView = ({
 }: Sources & { member: BarMember }): React.JSX.Element => {
   if (member.kind === "messages")
     return <MessagesView messagesHandle={messagesHandle} links={links} />
-  const { View } = registrationOf(member.item)
-  return <View item={member.item} itemStore={itemStore} target={target} />
+  return <ItemBody item={member.item} itemStore={itemStore} target={target} />
 }

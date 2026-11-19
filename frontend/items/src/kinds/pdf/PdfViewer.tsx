@@ -1,8 +1,7 @@
-import type { PdfContent, UnavailableReason } from "@novadeck/core/items"
+import type { UnavailableReason } from "@novadeck/core/items"
 import { Progress } from "@novadeck/toolkit/Progress"
 import { createKept } from "@novadeck/viewers"
 import { mountPdf, type PdfTrouble } from "@novadeck/viewers/pdf"
-import { FileType } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { Unavailable, type ArtifactBodyProps } from "../../ArtifactViewer"
@@ -91,7 +90,8 @@ const useSource = ({
   return { bytes: read?.bytes, loaded: progress?.key === key ? progress.loaded : 0, problem: null }
 }
 
-// The PDF itself, in the PDF viewer, which keeps its page and zoom by item.
+// The PDF itself, in the PDF viewer, which keeps its page and zoom by item and file: the item
+// pointed at another file opens it at its first page, not at the last one's.
 // Its frame's keys for the pane (Escape, Ctrl+PageDown and Ctrl+PageUp) come out as the pane's
 // actions, raised from here for the pane to carry out.
 const Pages = ({ id, name, bytes }: { id: string; name: string; bytes: Blob }) => {
@@ -144,7 +144,9 @@ export const PdfViewer = (props: ArtifactBodyProps<"pdf">): React.JSX.Element =>
     )
   return (
     <div className="pdf-pane" aria-busy={bytes === undefined}>
-      {bytes !== undefined && <Pages id={item.id} name={item.name} bytes={bytes} />}
+      {bytes !== undefined && (
+        <Pages id={`${item.id}\n${item.path}`} name={item.name} bytes={bytes} />
+      )}
       {loaded !== null && (
         <div className="pdf-loading" data-over={bytes !== undefined || undefined} role="status">
           <p>{loadingText(loaded, content.size)}</p>
@@ -154,12 +156,3 @@ export const PdfViewer = (props: ArtifactBodyProps<"pdf">): React.JSX.Element =>
     </div>
   )
 }
-
-// A PDF's badge and size, for its peek: its bytes are never read for it.
-export const PdfThumb = ({ content }: { content: PdfContent }): React.JSX.Element => (
-  <span className="peek-pdf">
-    <FileType size={18} strokeWidth={1.5} aria-hidden />
-    <span>PDF</span>
-    <span>{bytesText(content.size)}</span>
-  </span>
-)

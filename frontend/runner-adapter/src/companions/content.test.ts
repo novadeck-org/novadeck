@@ -37,6 +37,7 @@ const following = ({ livePages = false } = {}) => {
     readonly within?: string | undefined
   }[] = []
   const attached: { terminalId: string; path: string }[] = []
+  const repointed: { itemId: string; path: string }[] = []
   const opened: unknown[] = []
   const projectOpened = {
     item: {
@@ -113,6 +114,10 @@ const following = ({ livePages = false } = {}) => {
         attached.push(input)
         return { ...projectOpened.item, id: "attached", holder: { terminalId: input.terminalId } }
       },
+      repoint: async (input) => {
+        repointed.push(input)
+        return { ...projectOpened.item, id: input.itemId, path: input.path, version: 2 }
+      },
     },
     { livePages },
   )
@@ -123,6 +128,7 @@ const following = ({ livePages = false } = {}) => {
     companions,
     asked,
     attached,
+    repointed,
     changeAsked,
     readAsked,
     videoAsked,
@@ -187,6 +193,15 @@ describe("a folder's listing", () => {
     app.push({ state: "ready", stamp: "s", content })
     await settle()
     expect(app.seen).toEqual([{ state: "ready", stamp: "s", content }])
+  })
+})
+
+describe("a file pointed at another file", () => {
+  it("is asked of the runner by its item and the absolute path, and comes back as the same item", async () => {
+    const app = following()
+    const item = await app.companions.repoint?.(target, hero, "/tmp/render/b.svg")
+    expect(app.repointed).toEqual([{ itemId: hero, path: "/tmp/render/b.svg" }])
+    expect(item).toMatchObject({ id: hero, path: "/tmp/render/b.svg", version: 2 })
   })
 })
 
@@ -724,6 +739,7 @@ describe("what a page shows wrong", () => {
       changeRead: () => Promise.reject(new Error("unused")),
       save: () => Promise.reject(new Error("unused")),
       openInProject: () => Promise.reject(new Error("unused")),
+      repoint: () => Promise.reject(new Error("unused")),
       part: () => Promise.reject(new Error("unused")),
       attach: () => Promise.reject(new Error("unused")),
       pageTrouble: async (input) => {

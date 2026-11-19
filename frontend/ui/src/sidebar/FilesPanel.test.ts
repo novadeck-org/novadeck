@@ -11,8 +11,11 @@ import { readTimeoutMs } from "./useFolderReader"
 import { pulseMs } from "./usePulses"
 
 // jsdom has no layout and no ResizeObserver, which the header's tooltip and the tree's chip
-// folding both watch with. The stub lets a test set the tree's width and resize it.
+// folding both watch with. The stub lets a test set the tree's width and height and resize it.
+// The tree draws only the rows in view, so it is tall enough for every row unless a test says so.
 let treeWidth = 0
+const tallEnough = 100_000
+let treeHeight = tallEnough
 const observers = new Set<() => void>()
 Object.assign(globalThis, {
   ResizeObserver: class {
@@ -32,18 +35,26 @@ Object.defineProperty(HTMLElement.prototype, "clientWidth", {
     return this.getAttribute("role") === "tree" ? treeWidth : 0
   },
 })
+Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+  configurable: true,
+  get(this: HTMLElement) {
+    return this.getAttribute("role") === "tree" ? treeHeight : 0
+  },
+})
 // The panel measures names on a canvas where there is one; jsdom has none and says so loudly.
 // A test that wants one sets `measured` to the context it measures with.
 let measured: { font: string; measureText: (text: string) => { width: number } } | null = null
 HTMLCanvasElement.prototype.getContext = (() => measured) as never
-const resizeTree = (width: number): void => {
+const resizeTree = (width: number, height: number = treeHeight): void => {
   treeWidth = width
+  treeHeight = height
   act(() => observers.forEach((callback) => callback()))
 }
 
 afterEach(() => {
   vi.useRealTimers()
   treeWidth = 0
+  treeHeight = tallEnough
   measured = null
   observers.clear()
 })
@@ -1661,6 +1672,158 @@ describe("The Files panel", () => {
       expect(panel.view.container.querySelector(".files-behind")?.textContent).not.toContain(
         "Nope.",
       )
+      panel.view.unmount()
+    })
+  })
+
+  context("when the tree is long", () => {
+    // 300 files at the root: 26px each, so a 260px view holds ten of them.
+    const many = Array.from({ length: 300 }, (_, at) => `f${String(at).padStart(3, "0")}.ts`)
+    const long = async (height: number) => {
+      treeHeight = height
+      const panel = await mount(undefined, undefined, undefined, backend(undefined, many))
+      const tree = panel.view.container.querySelector<HTMLElement>("[role=tree]")!
+      const scrollTo = (top: number): void => {
+        act(() => {
+          tree.scrollTop = top
+          tree.dispatchEvent(new Event("scroll"))
+        })
+      }
+      const press = (path: string, key: string): void => {
+        const button = panel.view.container.querySelector<HTMLElement>(`[data-path="${path}"]`)!
+        act(() => {
+          button.focus()
+          button.dispatchEvent(
+            new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+          )
+        })
+      }
+      return { panel, tree, scrollTo, press }
+    }
+
+    it("draws only the rows in view and a few past each edge, in a box as tall as the tree", async () => {
+      const { panel, tree } = await long(260)
+
+      expect(panel.rows()).toHaveLength(20)
+      expect(panel.rows()[0]).toBe("f000.ts")
+      expect(tree.querySelector<HTMLElement>(".files-rows")!.style.height).toBe(`${300 * 26}px`)
+      panel.view.unmount()
+    })
+
+    it("draws other rows as the tree scrolls", async () => {
+      const { panel, scrollTo } = await long(260)
+
+      scrollTo(26 * 150)
+
+      // Thirty in and around the view, and the first row, which holds the Tab stop.
+      expect(panel.rows()).toHaveLength(31)
+      expect(panel.rows()).toContain("f150.ts")
+      expect(panel.rows()).not.toContain("f139.ts")
+      expect(panel.row("f150.ts").parentElement!.style.top).toBe(`${150 * 26}px`)
+      panel.view.unmount()
+    })
+
+    it("tells a screen reader the tree's shape despite the rows it does not draw", async () => {
+      const { panel, scrollTo } = await long(260)
+      scrollTo(26 * 150)
+
+      const item = panel.row("f150.ts").querySelector("[role=treeitem]")!
+      expect(item.getAttribute("aria-posinset")).toBe("151")
+      expect(item.getAttribute("aria-setsize")).toBe("300")
+      expect(item.getAttribute("aria-level")).toBe("1")
+      panel.view.unmount()
+    })
+
+    it("moves focus to a row that is not drawn, scrolling it into view first", async () => {
+      const { panel, tree, press } = await long(260)
+
+      press("f000.ts", "End")
+
+      expect(document.activeElement?.getAttribute("data-path")).toBe("f299.ts")
+      expect(tree.scrollTop).toBeGreaterThan(26 * 280)
+      expect(panel.rows()).toContain("f299.ts")
+      press("f299.ts", "Home")
+      expect(document.activeElement?.getAttribute("data-path")).toBe("f000.ts")
+      expect(tree.scrollTop).toBe(0)
+      panel.view.unmount()
+    })
+
+    it("keeps the focused row drawn when it scrolls out of the view", async () => {
+      const { panel, scrollTo } = await long(260)
+      const first = panel.view.container.querySelector<HTMLElement>("[data-path='f000.ts']")!
+      act(() => first.focus())
+
+      scrollTo(26 * 150)
+
+      expect(panel.rows()).toContain("f000.ts")
+      expect(panel.view.container.querySelector("[data-path='f000.ts']")).toBe(first)
+      expect(first.tabIndex).toBe(0)
+      panel.view.unmount()
+    })
+
+    it("draws the last rows when the tree shrinks under a scroll, and keeps focus", async () => {
+      const { panel, scrollTo } = await long(260)
+      const last = panel.view.container.querySelector<HTMLElement>("[data-path='f000.ts']")!
+      act(() => last.focus())
+      scrollTo(26 * 250)
+      // The browser clamps the scroll as the tree shrinks, but not before the next render.
+      const reads = backend(undefined, many.slice(0, 40))
+      panel.view.rerender(
+        createElement(FilesPanel, {
+          project: undefined,
+          list: reads.list,
+          turn: 1,
+          onOpenFile: () => Promise.resolve(),
+          selectedHandle: undefined,
+          roster: [],
+          squads: [],
+          active: true,
+          visible: true,
+          onHide: () => {},
+        }),
+      )
+      await panel.settle()
+
+      expect(panel.rows().length).toBeGreaterThan(10)
+      expect(panel.rows()).toContain("f039.ts")
+      expect(panel.rows()).toContain("f000.ts")
+      expect(document.activeElement).toBe(last)
+      panel.view.unmount()
+    })
+
+    it("keeps the Tab stop below the view drawn, so Tab enters the tree there", async () => {
+      const { panel, scrollTo, press } = await long(260)
+      press("f000.ts", "End")
+      scrollTo(0)
+
+      const stop = panel.view.container.querySelector<HTMLElement>("[data-path='f299.ts']")!
+      expect(stop.tabIndex).toBe(0)
+      expect(panel.view.container.querySelectorAll("[role=treeitem][tabindex='0']")).toHaveLength(1)
+      panel.view.unmount()
+    })
+
+    it("counts a note among its siblings", async () => {
+      const panel = await mount(
+        undefined,
+        undefined,
+        undefined,
+        backend((folder, listing) => (folder === "" ? { ...listing, truncated: true } : listing)),
+      )
+
+      const note = panel.view.container.querySelector("[data-note=truncated]")!
+      expect(note.getAttribute("aria-posinset")).toBe("4")
+      expect(note.getAttribute("aria-setsize")).toBe("4")
+      panel.view.unmount()
+    })
+
+    it("draws no rows while the panel has no height or is not measured", async () => {
+      const { panel } = await long(0)
+
+      expect(panel.rows()).toEqual([])
+      resizeTree(0, 260)
+      expect(panel.rows()).toHaveLength(20)
+      resizeTree(0, 0)
+      expect(panel.rows()).toEqual([])
       panel.view.unmount()
     })
   })

@@ -3,7 +3,7 @@ import type { FolderContent, FolderEntry, Item, UnavailableReason } from "@novad
 import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { ArrowUp, ArrowUpDown, Copy, FolderOpen, LayoutGrid, LayoutList, Lock } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { useItemCommands } from "../../item-commands"
 import { PaneTools, usePaneNote, type PaneTool } from "../../pane-row"
@@ -91,6 +91,25 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
 
   // The body, as state: what the menu and the quick look do with it is not read while drawing.
   const [body, setBody] = useState<HTMLDivElement | null>(null)
+  // A file opened from the folder takes the folder's place in the pane, whenever the pane gets
+  // to it: as the folder goes, focus it held goes to the pane (or the window), so the file's
+  // keys, as an image's ← →, work at once rather than falling to the page.
+  useLayoutEffect(() => {
+    const own = body
+    // Read as it goes, while it is still in the page: the pane it is in then, which a folder
+    // moved into a window of its own has changed.
+    return () => {
+      const pane = own?.parentElement?.closest<HTMLElement>(
+        "[data-workspace-companion], .artifact-window",
+      )
+      if (!own || !pane || !own.contains(document.activeElement)) return
+      queueMicrotask(() => {
+        const focused = document.activeElement
+        if (pane.isConnected && (!focused || focused === document.body || !focused.isConnected))
+          pane.focus({ preventScroll: true })
+      })
+    }
+  }, [body])
   const [inside, setInside] = useState(false)
   const arrivals = useArrivals(listed?.entries, inside, within)
   const writing = useWriting(listed?.entries, within)
@@ -105,6 +124,25 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
     readonly path: string
   }>()
   const [looking, setLooking] = useState<{ readonly name: string; readonly within: string }>()
+  // A file asked to be selected from outside (a file's "Show in") is taken as the selection, and
+  // let go of in the store, so coming back to the folder later doesn't select it again; it is
+  // scrolled into view once it is drawn, which is as the folder's listing comes.
+  const wanted = view.selected
+  if (wanted !== undefined && wanted !== selected) setSelected(wanted)
+  const scrollTo = useRef(false)
+  useEffect(() => {
+    if (wanted === undefined) return
+    scrollTo.current = true
+    itemStore.folder(item.id, { selected: undefined })
+  }, [wanted, itemStore, item.id])
+  // After every render, until the selected file is drawn: its listing may come after the ask.
+  useEffect(() => {
+    if (!scrollTo.current) return
+    const element = body?.querySelector("[data-selected]")
+    if (!element) return
+    scrollTo.current = false
+    element.scrollIntoView?.({ block: "nearest" })
+  })
   // The list says how long ago; it moves on with the clock.
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {

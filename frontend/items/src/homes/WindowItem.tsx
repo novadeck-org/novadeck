@@ -2,8 +2,9 @@ import { shellCounts } from "@novadeck/core/agents/shells"
 import type { Item } from "@novadeck/core/items"
 import type { WorkspaceTarget } from "@novadeck/core/types"
 
+import { ItemBody } from "../item-body"
 import { PaneChrome, PaneTitle, tabTip } from "../pane-row"
-import { itemLook, registrationOf } from "../registry"
+import { itemLook } from "../registry"
 import type { ItemStore } from "../store/item-store"
 import { useContent, usePlans } from "../store/use-item-store"
 
@@ -14,13 +15,15 @@ export const WindowItem = ({
   item,
   itemStore,
   target,
+  steps = true,
 }: {
   item: Item
   itemStore: ItemStore
   target: WorkspaceTarget
+  // Whether a file can be pointed at another of its folder, which the project window's can't.
+  steps?: boolean
 }): React.JSX.Element => {
   const plans = usePlans(itemStore, item.kind === "plan" ? [item.id] : [])
-  const { View } = registrationOf(item)
   // A shells item with a shell that failed tints its title, as a pane's tab.
   const load = useContent(itemStore, target, item)
   const failed =
@@ -43,7 +46,7 @@ export const WindowItem = ({
         />
       )}
     >
-      <View item={item} itemStore={itemStore} target={target} />
+      <ItemBody item={item} itemStore={itemStore} target={target} steps={steps} />
     </PaneChrome>
   )
 }

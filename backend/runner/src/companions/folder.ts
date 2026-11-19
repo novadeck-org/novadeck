@@ -4,6 +4,7 @@ import { basename, extname, isAbsolute, join, relative, sep } from "node:path"
 
 import {
   folderLimits,
+  modelLimits,
   pdfLimits,
   videoLimits,
   type FilePart,
@@ -13,7 +14,7 @@ import {
 
 import { DomainError } from "../errors.js"
 import { tail } from "../text.js"
-import { hashOf, isAudio, isImage, isPdf, isVideo, readPart, stampOf } from "./content.js"
+import { hashOf, isAudio, isImage, isModel, isPdf, isVideo, readPart, stampOf } from "./content.js"
 import type { ItemRecord } from "./records.js"
 import { folderSecrets, secrets } from "./secrets.js"
 
@@ -98,9 +99,11 @@ export const entryKindOf = (name: string): Exclude<FolderEntry["kind"], "folder"
         ? "audio"
         : isPdf(name)
           ? "pdf"
-          : texts.has(extname(name).toLowerCase())
-            ? "text"
-            : "other"
+          : isModel(name)
+            ? "model"
+            : texts.has(extname(name).toLowerCase())
+              ? "text"
+              : "other"
 
 /** Whether `path` is `top` or under it, both real paths. */
 const within = (top: string, path: string): boolean => {
@@ -256,6 +259,8 @@ const entryOf = async (
     modifiedAt: stats.mtimeMs,
     secret: held,
     link: false,
+    // A link that stays in the top is its target's by another name, never a file of its own.
+    ...(own.isSymbolicLink() && { linked: true as const }),
   }
   if (stats.isDirectory())
     return {
@@ -267,7 +272,13 @@ const entryOf = async (
     }
   // A link inside the top is its target's, by its name, as `readFolderPart` reads it.
   const kind = stats.isFile() ? entryKindOf(basename(real)) : "other"
-  return { ...base, kind, children: null, stamp: held || !stats.isFile() ? "" : stampOf(stats) }
+  return {
+    ...base,
+    kind,
+    children: null,
+    ...(!stats.isFile() && { plain: false as const }),
+    stamp: held || !stats.isFile() ? "" : stampOf(stats),
+  }
 }
 
 /**
@@ -362,6 +373,8 @@ const partLimits: { readonly [kind in FolderEntry["kind"]]?: number } = {
   video: videoLimits.bytes,
   audio: videoLimits.bytes,
   pdf: pdfLimits.bytes,
+  // A model is read whole for its still, which the grid draws of it alone, as a peek would.
+  model: modelLimits.bytes,
 }
 
 /**

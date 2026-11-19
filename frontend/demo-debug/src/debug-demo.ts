@@ -43,6 +43,7 @@ import { inboxGroups } from "./inbox"
 import { installGroups } from "./installs"
 import { launchGroups } from "./launch"
 import { messageGroups } from "./messages"
+import { modelGroups } from "./models"
 import { murmurGroups } from "./murmur"
 import { pdfGroups } from "./pdfs"
 import { planGroups } from "./plans"
@@ -297,6 +298,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           ...planGroups(inner.companions),
           ...videoGroups(inner.companions),
           ...pdfGroups(inner.companions),
+          ...modelGroups(inner.companions),
           ...folderViewGroups(inner.companions),
           ...babciaGroups(babciaCuesOf(inner)),
           ...launchGroups(launchCuesOf(inner)),

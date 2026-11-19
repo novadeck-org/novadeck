@@ -1,6 +1,7 @@
 import type { ShownKind, ItemKind } from "@novadeck/core/items"
 import {
   AudioLines,
+  Box,
   BookText,
   FileCode2,
   FileType,
@@ -23,6 +24,7 @@ const oldKindIcons: Record<ShownKind, LucideIcon> = {
   video: Film,
   audio: AudioLines,
   pdf: FileType,
+  model: Box,
   file: FileCode2,
   folder: Folder,
   page: Globe,
@@ -37,6 +39,7 @@ const oldStackNames: Record<StackKind, { one: string; many: string }> = {
   video: { one: "video", many: "Videos" },
   audio: { one: "recording", many: "Recordings" },
   pdf: { one: "PDF", many: "PDFs" },
+  model: { one: "3D model", many: "3D models" },
   file: { one: "file", many: "Files" },
   folder: { one: "folder", many: "Folders" },
   page: { one: "page", many: "Pages" },
@@ -52,6 +55,7 @@ describe("the registry", () => {
         video: true,
         audio: true,
         pdf: true,
+        model: true,
         file: true,
         folder: true,
         page: true,
