@@ -339,11 +339,11 @@
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
 }
-/* Tabs, not a lone title: room past the last one for the tools' fade, so it scrolls clear of
-   it, and the shown tab is kept that far from the end as it's scrolled into view. */
-.pane-tabs:not([data-lone]) {
+/* Tabs running past the row (`data-overflowing`, which the pane sets): room past the last one
+   for the tools' fade, so it scrolls clear of it, as the shown tab is kept clear of it as it's
+   scrolled into view. While they fit there's no fade, and no room that would scroll. */
+.pane-tabs[data-overflowing] {
   padding-inline-end: var(--_pane-fade);
-  scroll-padding-inline-end: var(--_pane-fade);
 }
 .pane-tab {
   --_fg: var(--pane-tab-fg, var(--color-muted));
@@ -513,8 +513,8 @@
   padding: 0 6px 0 4px;
   background-color: var(--pane-bg, var(--color-paper));
 }
-/* The tabs that run under the tools fade into their ground, rather than being cut off. */
-.pane-row:has(> .pane-tabs:not([data-lone])) > .pane-end::before {
+/* Tabs that run under the tools fade into their ground, rather than being cut off. */
+.pane-row:has(> .pane-tabs[data-overflowing]) > .pane-end::before {
   position: absolute;
   top: 0;
   right: 100%;

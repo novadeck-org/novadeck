@@ -307,29 +307,56 @@ const PaneTabs = ({
     const element = row.current
     const tab = element?.querySelector<HTMLElement>(".pane-tab[data-state='open']")
     if (!element || !tab) return
-    const place = (): void => {
-      // Where the tab starts along the row, however far the row is scrolled now.
+    // Where the tab starts and ends along the row, however far it's scrolled now, in the row's
+    // own pixels: a Canvas zoom scales what the rects measure, not scrolls and widths.
+    const along = (): { start: number; end: number } => {
+      const scale = element.getBoundingClientRect().width / element.offsetWidth || 1
       const start =
-        tab.getBoundingClientRect().left - element.getBoundingClientRect().left + element.scrollLeft
-      // Past its end, the room the tools' fade takes over the row (scroll-padding in pane.css).
-      const end =
-        start +
-        tab.offsetWidth +
-        (parseFloat(getComputedStyle(element).scrollPaddingInlineEnd) || 0)
+        (tab.getBoundingClientRect().left - element.getBoundingClientRect().left) / scale +
+        element.scrollLeft
+      return { start, end: start + tab.offsetWidth }
+    }
+    // Where placing it last left the row's scroll: a scroll to there is the pane's own.
+    let placed = -1
+    const place = (): void => {
+      markOverflow(element)
+      const { start, end } = along()
       element.scrollLeft = Math.min(
-        Math.max(memory.scroll(), end - element.clientWidth),
+        Math.max(memory.scroll(), end + fadeRoom(element) - element.clientWidth),
         Math.max(0, start),
       )
+      placed = element.scrollLeft
     }
     place()
-    // Again as the tab takes its width, as its font loads or what its viewer says of it
-    // changes it, so it isn't left part under the fade.
-    const sized = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(place)
+    // Whether the tab is in view, clear of the fade, as the person last left the row: a resize
+    // (its font loading, what its viewer says of it, the row narrowing) brings it back into
+    // view only if it was, never from where the person scrolled away to.
+    let clear = true
+    const scrolled = (): void => {
+      if (Math.abs(element.scrollLeft - placed) < 1) return
+      const { start, end } = along()
+      clear =
+        start >= element.scrollLeft - 1 &&
+        end + fadeRoom(element) <= element.scrollLeft + element.clientWidth + 1
+    }
+    element.addEventListener("scroll", scrolled, { passive: true })
+    const sized =
+      typeof ResizeObserver === "undefined"
+        ? undefined
+        : new ResizeObserver(() => (clear ? place() : markOverflow(element)))
     sized?.observe(tab)
+    sized?.observe(element)
     if (memory.focuses(shown))
       tab.querySelector<HTMLElement>('[role="tab"]')?.focus({ preventScroll: true })
-    return () => sized?.disconnect()
+    return () => {
+      sized?.disconnect()
+      element.removeEventListener("scroll", scrolled)
+    }
   }, [memory, shown])
+  // Tabs come and go without the row changing size.
+  useLayoutEffect(() => {
+    if (row.current) markOverflow(row.current)
+  })
   // Drawn for another tab than last time: the marks of both ease to their new sizes. Read once
   // as the row comes, so drawing it again before the browser styles it keeps them; let go once
   // eased, so a terminal parked out of sight and shown again doesn't play them again. A lone
@@ -435,6 +462,20 @@ const PaneTabs = ({
       })}
     </div>
   )
+}
+
+// The room the tools' fade takes past the last tab, while the tabs run past the row (pane.css
+// `--_pane-fade`); none while they fit.
+const fadeRoom = (row: HTMLElement): number =>
+  row.hasAttribute("data-overflowing")
+    ? parseFloat(getComputedStyle(row).getPropertyValue("--_pane-fade")) || 0
+    : 0
+
+// Marks the row while its tabs run past it, the fade's own room aside, for it to fade into the
+// tools and keep that room past the last tab; while they fit, it needs neither, and no room
+// that would scroll.
+const markOverflow = (row: HTMLElement): void => {
+  row.toggleAttribute("data-overflowing", row.scrollWidth - fadeRoom(row) > row.clientWidth + 1)
 }
 
 // The tab `by` along from the one shown, round the row's ends, as Ctrl+PageDown (1) and
