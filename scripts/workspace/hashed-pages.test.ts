@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { allowsByHash, eolOf, hashedPages, isHashed, policiesOf } from "./hashed-pages.ts"
 
@@ -30,10 +30,8 @@ const hashed =
   "default-src 'none'; script-src 'sha256-ZiyWc6zVlivXUz6YUNddnUHgwt2sBZKTzoz0bpGCTx8='"
 
 describe("the repository's hashed pages", () => {
-  const pages = hashedPages(root)
-
   it("are found by their policies, the viewer frame's among them", () => {
-    expect(pages).toEqual(
+    expect(hashedPages(root)).toEqual(
       expect.arrayContaining([
         "frontend/ui/public/viewer-frame.html",
         "libraries/viewers/src/frame/frame.html",
@@ -45,7 +43,7 @@ describe("the repository's hashed pages", () => {
   // no PDF drew after #1037 and #1051).
   it("each keep LF line endings on every system", () => {
     expect(
-      eolOf(root, pages).filter(({ eol }) => eol !== "lf"),
+      eolOf(root, hashedPages(root)).filter(({ eol }) => eol !== "lf"),
       "Add each to .gitattributes as `<path> text eol=lf`",
     ).toEqual([])
   })
@@ -62,9 +60,10 @@ describe("a page's policies", () => {
         [
           `<META CONTENT='script-src &apos;self&apos;' HTTP-EQUIV='content-security-policy'>`,
           `<meta content="a > b" http-equiv=Content-Security-Policy>`,
+          `<meta http-equiv="Content-Security-Policy" content="script-src &#039;self&#x0027;">`,
         ].join("\n"),
       ),
-    ).toEqual(["script-src 'self'", "a > b"])
+    ).toEqual(["script-src 'self'", "a > b", "script-src 'self'"])
   })
 
   it("leave out other meta tags and a tag in a comment", () => {
@@ -139,6 +138,7 @@ describe("the check of a repository's hashed pages", () => {
   })
 
   afterEach(() => {
+    vi.unstubAllEnvs()
     rmSync(join(repo, ".."), { recursive: true, force: true })
   })
 
@@ -165,6 +165,15 @@ describe("the check of a repository's hashed pages", () => {
     expect(eolOf(repo, hashedPages(repo))).toEqual([
       { path: "src/frame/frame.html", eol: "unspecified" },
     ])
+  })
+
+  // CI has no attributes of a person's own, so a page they keep LF would break there.
+  it("fails a page only a person's own attributes file keeps LF", () => {
+    const config = join(repo, "..", "config")
+    mkdirSync(join(config, "git"), { recursive: true })
+    writeFileSync(join(config, "git", "attributes"), "*.html text eol=lf\n")
+    vi.stubEnv("XDG_CONFIG_HOME", config)
+    expect(eolOf(repo, hashedPages(repo))).toEqual([{ path: "src/frame.html", eol: "unspecified" }])
   })
 
   it("fails a page git checks out with CRLF", () => {

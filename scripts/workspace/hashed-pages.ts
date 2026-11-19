@@ -22,8 +22,8 @@ const attributesOf = (tag: string): ReadonlyMap<string, string> =>
       ([, name = "", double, single, bare]) => [
         name.toLowerCase(),
         (double ?? single ?? bare ?? "")
-          .replaceAll(/&(?:#39|#x27|apos);/gi, "'")
-          .replaceAll(/&(?:#34|#x22|quot);/gi, '"')
+          .replaceAll(/&(?:#0*39|#x0*27|apos);/gi, "'")
+          .replaceAll(/&(?:#0*34|#x0*22|quot);/gi, '"')
           .replaceAll(/&amp;/gi, "&"),
       ],
     ),
@@ -57,15 +57,11 @@ export const isHashed = (html: string): boolean => policiesOf(html).some(allowsB
  * git tracks or would (untracked but not ignored), so a new one counts before it's committed.
  */
 export const hashedPages = (root: string): readonly string[] =>
-  execFileSync(
-    "git",
-    ["-c", "core.quotePath=false", "ls-files", "-z", "-co", "--exclude-standard"],
-    {
-      cwd: root,
-      encoding: "utf8",
-      maxBuffer: 64 * 1024 * 1024,
-    },
-  )
+  execFileSync("git", ["ls-files", "-z", "-co", "--exclude-standard"], {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  })
     .split("\0")
     .filter((path) => pageFile.test(path))
     // A tracked page deleted from the tree is still listed; it has nothing to check out.
@@ -83,11 +79,17 @@ export const eolOf = (
   paths: readonly string[],
 ): readonly { readonly path: string; readonly eol: string }[] => {
   if (paths.length === 0) return []
-  // `<path> NUL eol NUL <value> NUL`, once for each path.
-  const fields = execFileSync("git", ["check-attr", "-z", "eol", "--", ...paths], {
-    cwd: root,
-    encoding: "utf8",
-  }).split("\0")
+  // `<path> NUL eol NUL <value> NUL`, once for each path. By the repository's own attributes
+  // alone, as CI and every checkout read them: a person's own (`core.attributesFile`, or git's
+  // default `~/.config/git/attributes`) would keep LF on their computer only.
+  const fields = execFileSync(
+    "git",
+    ["-c", "core.attributesFile=", "check-attr", "-z", "eol", "--", ...paths],
+    {
+      cwd: root,
+      encoding: "utf8",
+    },
+  ).split("\0")
   const values = new Map<string, string>()
   for (let at = 0; at + 2 < fields.length; at += 3) {
     values.set(fields[at] ?? "", fields[at + 2] ?? "")
