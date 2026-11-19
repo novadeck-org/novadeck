@@ -143,3 +143,72 @@ describe("a context menu", () => {
     expect(ran).toBe(0)
   })
 })
+
+describe("a menu at a point", () => {
+  // A menu asked for where no element of the page can hear, as a live page's view: open at
+  // `at` while it's set, telling its caller when the person closes it.
+  const mountAt = (items: readonly ContextMenuItem[]) => {
+    const opener = document.createElement("input")
+    document.body.append(opener)
+    const told: boolean[] = []
+    let at: { x: number; y: number } | undefined
+    const tree = () =>
+      createElement(ContextMenu, {
+        label: "Page",
+        items,
+        at,
+        onOpenChange: (open: boolean) => {
+          told.push(open)
+          if (!open) at = undefined
+        },
+      })
+    const view = render(tree())
+    mounted.push(() => {
+      view.unmount()
+      opener.remove()
+    })
+    const openAt = async (point: { x: number; y: number }) => {
+      opener.focus()
+      at = point
+      view.rerender(tree())
+      await settle()
+    }
+    return { opener, told, openAt, rerender: () => view.rerender(tree()) }
+  }
+
+  it("opens there, runs the chosen item once closed, with focus back where it was", async () => {
+    const seen: (Element | null)[] = []
+    const { opener, told, openAt, rerender } = mountAt([
+      { value: "copy", label: "Copy", onSelect: () => void seen.push(document.activeElement) },
+    ])
+    expect(menuOpen()).toBe(false)
+    await openAt({ x: 40, y: 60 })
+    expect(menuOpen()).toBe(true)
+    const item = [
+      ...document.querySelectorAll<HTMLElement>('[data-scope="menu"][data-part="item"]'),
+    ].find((each) => each.textContent === "Copy")!
+    act(() => item.click())
+    await settle()
+    rerender()
+    await settle()
+    expect(menuOpen()).toBe(false)
+    expect(told).toContain(false)
+    expect(seen).toEqual([opener])
+  })
+
+  it("closes on Escape, saying so", async () => {
+    const { told, openAt, rerender } = mountAt([{ value: "a", label: "A", onSelect: () => {} }])
+    await openAt({ x: 40, y: 60 })
+    const content = document.querySelector<HTMLElement>(
+      '[data-scope="menu"][data-part="content"][data-state="open"]',
+    )!
+    act(() => {
+      content.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+    })
+    await settle()
+    rerender()
+    await settle()
+    expect(told.at(-1)).toBe(false)
+    expect(menuOpen()).toBe(false)
+  })
+})

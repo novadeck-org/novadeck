@@ -7,7 +7,7 @@ import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
 import { Shown } from "@novadeck/toolkit/shown"
 import { freshenMs, keepMs } from "@novadeck/viewers/browser"
-import { act, createElement } from "react"
+import { act, createElement, type KeyboardEvent } from "react"
 import { afterEach, beforeEach, onTestFinished, vi } from "vitest"
 
 import { AwakeContext, type Awake } from "../../awake"
@@ -28,7 +28,15 @@ const item = itemFixture("preview", "01", { kind: "page", name: "localhost:5173"
 const show = (
   content: PageContent,
   shown = true,
-  { awake, pictures }: { awake?: Awake; pictures?: string[] } = {},
+  {
+    awake,
+    pictures,
+    onKeyDown,
+  }: {
+    awake?: Awake
+    pictures?: string[]
+    onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void
+  } = {},
 ) => {
   let stamp = 0
   const told: { shown: number; troubles: readonly PageTrouble[] }[] = []
@@ -64,7 +72,12 @@ const show = (
     createElement(
       Shown.Provider,
       { value: visible },
-      pane ? createElement(AwakeContext, { value: pane }, view) : view,
+      createElement(
+        "div",
+        // The pane around it hears its keys, as the companion pane does to hide on Escape.
+        { onKeyDown },
+        pane ? createElement(AwakeContext, { value: pane }, view) : view,
+      ),
     )
   const rendered = render(tree())
   unmounts.push(rendered.unmount)
@@ -200,6 +213,86 @@ describe("a page beside a terminal", () => {
       rendered.show({ kind: "page", url: at, shown: 2, scroll: "#faq", live: true })
       fire(page, "did-stop-loading")
       expect(calls).toEqual(["reload", "scroll #faq"])
+    })
+  })
+
+  context("when the person asks for the page's menu", () => {
+    // An item of the menu while it's open.
+    const menuItem = (label: string) =>
+      [
+        ...document.querySelectorAll<HTMLElement>(
+          '[data-scope="menu"][data-part="content"][data-state="open"] [data-part="item"]',
+        ),
+      ].find((each) => each.textContent === label)
+    const settle = async () => {
+      for (let frame = 0; frame < 6; frame += 1)
+        // eslint-disable-next-line no-await-in-loop -- Each frame comes after the one before.
+        await act(() => new Promise((resolve) => requestAnimationFrame(resolve)))
+    }
+
+    it("opens Novadeck's menu where it was asked for, whose items act on the page", async () => {
+      const copied: string[] = []
+      // jsdom has no clipboard: the app's page has one.
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText: async (text: string) => void copied.push(text) },
+      })
+      onTestFinished(() => {
+        Reflect.deleteProperty(navigator, "clipboard")
+      })
+      const { container } = show({ kind: "page", url, shown: 1, live: true })
+      const page = pageOf(container)
+      const reloads: string[] = []
+      Object.assign(page, {
+        getURL: () => url,
+        canGoBack: () => false,
+        canGoForward: () => false,
+        setAudioMuted: () => undefined,
+        reload: () => reloads.push("reload"),
+      })
+      fire(page, "did-stop-loading")
+      const params = {
+        x: 120,
+        y: 80,
+        selectionText: "",
+        linkURL: "https://example.com/docs",
+        isEditable: false,
+        editFlags: {},
+      }
+      fire(page, "context-menu", { params })
+      await settle()
+      expect(menuItem("Copy link address")).toBeDefined()
+      expect(menuItem("Back")?.getAttribute("data-disabled")).not.toBeNull()
+      act(() => menuItem("Copy link address")!.click())
+      await settle()
+      expect(copied).toEqual(["https://example.com/docs"])
+      expect(menuItem("Reload")).toBeUndefined()
+      fire(page, "context-menu", { params: { ...params, linkURL: "" } })
+      await settle()
+      act(() => menuItem("Reload")!.click())
+      await settle()
+      expect(reloads).toEqual(["reload"])
+    })
+
+    it("closes on Escape, keeping the key from the pane around it", async () => {
+      const heard: string[] = []
+      const { container } = show({ kind: "page", url, shown: 1, live: true }, true, {
+        onKeyDown: (event) => void heard.push(event.key),
+      })
+      const page = pageOf(container)
+      fire(page, "context-menu", {
+        params: { x: 10, y: 10, selectionText: "", linkURL: "", isEditable: false, editFlags: {} },
+      })
+      await settle()
+      const content = document.querySelector<HTMLElement>(
+        '[data-scope="menu"][data-part="content"][data-state="open"]',
+      )!
+      act(() => {
+        content.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+      })
+      await settle()
+      expect(menuItem("Reload")).toBeUndefined()
+      expect(heard).toEqual([])
     })
   })
 

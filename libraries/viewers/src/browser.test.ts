@@ -12,6 +12,7 @@ import {
   type BrowserContent,
   type BrowserOptions,
   type Load,
+  type PageMenu,
   type Place,
   type Trouble,
 } from "./browser.js"
@@ -2230,6 +2231,121 @@ describe("the browser viewer", () => {
       expect(pane.querySelector(".browser-viewer")!.children).toHaveLength(0)
     })
   })
+  context("as the person asks for its menu", () => {
+    const params = (fields: Record<string, unknown> = {}) => ({
+      x: 0,
+      y: 0,
+      selectionText: "",
+      linkURL: "",
+      isEditable: false,
+      editFlags: { canCut: false, canCopy: false, canPaste: false, canSelectAll: true },
+      ...fields,
+    })
+
+    it("tells where, in the app's window, and what's there, a link an http(s) one only", () => {
+      const pane = paneIn()
+      const menus: PageMenu[] = []
+      live(pane, { menu: (menu) => menus.push(menu) })
+      const page = pageOf(pane)
+      const box = pane.getBoundingClientRect()
+      page.dispatchEvent(
+        event("context-menu", {
+          params: params({
+            x: box.left + 30,
+            y: box.top + 40,
+            selectionText: "hello",
+            linkURL: "https://example.com/docs",
+            editFlags: { canCopy: true },
+          }),
+        }),
+      )
+      page.dispatchEvent(
+        event("context-menu", {
+          params: params({ linkURL: "javascript:alert(1)", isEditable: true }),
+        }),
+      )
+      expect(menus[0]).toEqual({
+        x: box.left + 30,
+        y: box.top + 40,
+        selection: "hello",
+        link: "https://example.com/docs",
+        editable: false,
+        can: { cut: false, copy: true, paste: false, selectAll: false },
+      })
+      expect(menus[1]).toMatchObject({ link: undefined, editable: true })
+    })
+
+    it("tells where on a phone's screen, scaled down, the person pressed", () => {
+      const pane = paneIn()
+      const room = phoneBezel + phoneMargin
+      pane.style.width = `${phoneScreen.width / 2 + 2 * room}px`
+      pane.style.height = "1000px"
+      const menus: PageMenu[] = []
+      mountBrowser(pane, {
+        content: { url: "http://localhost:5173/" },
+        label: "page",
+        live: true,
+        partition: "pages",
+        size: "phone",
+        on: { menu: (menu) => menus.push(menu) },
+      })
+      const screen = pageOf(pane).getBoundingClientRect()
+      // Electron tells the point as though the screen were drawn unscaled from its corner.
+      pageOf(pane).dispatchEvent(
+        event("context-menu", { params: params({ x: screen.left + 100, y: screen.top + 200 }) }),
+      )
+      expect(menus[0]!.x).toBeCloseTo(screen.left + 50, 0)
+      expect(menus[0]!.y).toBeCloseTo(screen.top + 100, 0)
+    })
+
+    it("does a menu's edits on the live page", () => {
+      const pane = paneIn()
+      const viewer = live(pane)
+      const done: string[] = []
+      Object.assign(pageOf(pane), {
+        cut: () => done.push("cut"),
+        copy: () => done.push("copy"),
+        paste: () => done.push("paste"),
+        selectAll: () => done.push("selectAll"),
+      })
+      for (const edit of ["cut", "copy", "paste", "selectAll"] as const) viewer.edit(edit)
+      expect(done).toEqual(["cut", "copy", "paste", "selectAll"])
+    })
+
+    it("tells a menu asked for on a snapshot in place of the browser's own", () => {
+      const pane = paneIn()
+      const menus: PageMenu[] = []
+      const viewer = mountBrowser(pane, {
+        content: { url: "http://localhost:5173/" },
+        label: "page",
+        live: false,
+        snapshot: { src: "data:,", alt: "page" },
+        partition: "pages",
+        on: { menu: (menu) => menus.push(menu) },
+      })
+      const right = new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 12,
+        clientY: 34,
+      })
+      pane.querySelector(".browser-snapshot img")!.dispatchEvent(right)
+      expect(right.defaultPrevented).toBe(true)
+      expect(menus).toEqual([
+        {
+          x: 12,
+          y: 34,
+          selection: "",
+          link: undefined,
+          editable: false,
+          can: { cut: false, copy: false, paste: false, selectAll: false },
+        },
+      ])
+      // Nothing live to edit.
+      viewer.edit("copy")
+    })
+  })
+
   context("as an agent looks at it", () => {
     const attached = (pane: HTMLElement) => {
       const page = pageOf(pane)

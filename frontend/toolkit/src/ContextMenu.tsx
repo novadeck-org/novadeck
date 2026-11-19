@@ -135,10 +135,31 @@ const restore = (
   })
 }
 
-export type ContextMenuProps = {
+// A point in the window, in CSS pixels from its top left, as a pointer event's client point.
+export type MenuPoint = { readonly x: number; readonly y: number }
+
+type MenuCommon = {
   readonly label: string
-  readonly trigger: ReactElement
   readonly items: readonly ContextMenuItem[]
+  // Told when the menu opens and when it has closed.
+  readonly onOpenChange?: (open: boolean) => void
+}
+
+/**
+ * A menu of actions: on its trigger, opened by a right-click or a click; or, with `at` and no
+ * trigger, open at that point while it's set, for what asks for a menu where no element of
+ * the app's page can hear it, as a right-click in a live page's own view. Closed by the
+ * person, it says so through `onOpenChange`, for its caller to unset `at`; a new `at` opens
+ * it afresh there.
+ */
+export type ContextMenuProps = MenuCommon &
+  (
+    | (TriggeredProps & { readonly at?: undefined })
+    | { readonly at: MenuPoint | undefined; readonly trigger?: undefined }
+  )
+
+type TriggeredProps = {
+  readonly trigger: ReactElement
   // What asks for the menu: a right-click on the trigger (`context`, the default), or a plain
   // click on the trigger (`click`), which opens it above, ending where the trigger does, and
   // gives focus back to the trigger.
@@ -149,11 +170,91 @@ export type ContextMenuProps = {
   // What the trigger's tooltip says while the menu is closed, for a `click` trigger. The trigger's
   // Ark data attributes are then the tooltip's: style its open state by aria-expanded.
   readonly tooltip?: string
-  // Told when the menu opens and when it has closed.
-  readonly onOpenChange?: (open: boolean) => void
 }
 
-export const ContextMenu = ({
+export const ContextMenu = (props: ContextMenuProps): React.JSX.Element =>
+  props.trigger === undefined ? (
+    // Its own for each point, so a new one opens it afresh there.
+    <MenuAt key={props.at && `${props.at.x},${props.at.y}`} {...props} />
+  ) : (
+    <TriggeredMenu {...props} />
+  )
+
+// The menu at a point while one is set, focus going back where it was once it closes.
+const MenuAt = ({
+  label,
+  items,
+  at,
+  onOpenChange,
+}: MenuCommon & { readonly at: MenuPoint | undefined }): React.JSX.Element => {
+  const labelId = useId()
+  // Mounted afresh for each point (see `ContextMenu`): open from the first, where focus was
+  // as it was asked for.
+  const opener = useRef<HTMLElement | null>(
+    at && document.activeElement instanceof HTMLElement ? document.activeElement : null,
+  )
+  const chosen = useRef<(() => void) | undefined>(undefined)
+  const [open, setOpen] = useState(at !== undefined)
+  const closed = (): void => restore(opener, chosen, 3)
+  return (
+    <ArkMenu.Root
+      open={open && at !== undefined}
+      anchorPoint={at ?? null}
+      positioning={{ strategy: "fixed", overflowPadding: 12 }}
+      onOpenChange={({ open: next }) => {
+        setOpen(next)
+        onOpenChange?.(next)
+        if (!next) closed()
+      }}
+    >
+      <MenuBody
+        labelId={labelId}
+        label={label}
+        items={items}
+        open={open}
+        choose={(run) => {
+          chosen.current = run
+        }}
+        chooseNested={(run) => {
+          chosen.current = run
+          setOpen(false)
+          onOpenChange?.(false)
+          closed()
+        }}
+      />
+    </ArkMenu.Root>
+  )
+}
+
+// The open menu's body: its label for a screen reader, and its entries.
+const MenuBody = ({
+  labelId,
+  label,
+  items,
+  open,
+  choose,
+  chooseNested,
+}: {
+  readonly labelId: string
+  readonly label: string
+  readonly items: readonly ContextMenuItem[]
+  readonly open: boolean
+  readonly choose: (run: () => void) => void
+  readonly chooseNested: (run: () => void) => void
+}): React.JSX.Element => (
+  <Portal>
+    <ArkMenu.Positioner className="z-50!">
+      <ArkMenu.Content aria-labelledby={labelId} className={contentClasses}>
+        <span id={labelId} className="sr-only">
+          {label}
+        </span>
+        <MenuEntries items={items} open={open} choose={choose} chooseNested={chooseNested} />
+      </ArkMenu.Content>
+    </ArkMenu.Positioner>
+  </Portal>
+)
+
+const TriggeredMenu = ({
   label,
   trigger,
   items,
@@ -161,7 +262,7 @@ export const ContextMenu = ({
   placement = "top-end",
   tooltip,
   onOpenChange,
-}: ContextMenuProps): React.JSX.Element => {
+}: MenuCommon & TriggeredProps): React.JSX.Element => {
   const labelId = useId()
   // One id for the trigger, which a tooltip around it shares.
   const triggerId = useId()
@@ -218,27 +319,20 @@ export const ContextMenu = ({
           {trigger}
         </ArkMenu.ContextTrigger>
       )}
-      <Portal>
-        <ArkMenu.Positioner className="z-50!">
-          <ArkMenu.Content aria-labelledby={labelId} className={contentClasses}>
-            <span id={labelId} className="sr-only">
-              {label}
-            </span>
-            <MenuEntries
-              items={items}
-              open={open}
-              choose={(run) => {
-                chosen.current = run
-              }}
-              chooseNested={(run) => {
-                chosen.current = run
-                setOpen(false)
-                closed()
-              }}
-            />
-          </ArkMenu.Content>
-        </ArkMenu.Positioner>
-      </Portal>
+      <MenuBody
+        labelId={labelId}
+        label={label}
+        items={items}
+        open={open}
+        choose={(run) => {
+          chosen.current = run
+        }}
+        chooseNested={(run) => {
+          chosen.current = run
+          setOpen(false)
+          closed()
+        }}
+      />
     </ArkMenu.Root>
   )
 }
