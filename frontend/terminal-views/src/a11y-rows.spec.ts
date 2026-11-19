@@ -1,5 +1,5 @@
 import "@novadeck/emulator/browser.css"
-import { createView } from "@novadeck/emulator/browser"
+import { createView, type Terminal } from "@novadeck/emulator/browser"
 import { afterEach } from "vitest"
 
 import { describe, expect, it } from "./test"
@@ -14,12 +14,25 @@ const rows = 24
 const closers: (() => void)[] = []
 afterEach(() => closers.splice(0).forEach((close) => close()))
 
+// What xterm's render service fires on a change of dimensions or pixel ratio.
+/* eslint-disable no-underscore-dangle -- Its only way out is its internals. */
+const refreshDimensions = (xterm: Terminal) =>
+  (
+    xterm as unknown as {
+      _core: { _accessibilityManager: { value: { _refreshRowsDimensions(): void } } }
+    }
+  )._core._accessibilityManager.value._refreshRowsDimensions()
+/* eslint-enable no-underscore-dangle */
+
 const frame = () => new Promise<void>((done) => requestAnimationFrame(() => done()))
 
 const open = async () => {
+  const wrap = document.createElement("div")
+  wrap.style.cssText = "position: absolute; left: 0; top: 0; transform-origin: 0 0"
   const element = document.createElement("div")
-  element.style.cssText = "position: absolute; left: 0; top: 0; width: 900px; height: 500px"
-  document.body.append(element)
+  element.style.cssText = "width: 900px; height: 500px"
+  wrap.append(element)
+  document.body.append(wrap)
   const view = createView(element, {
     fontSize: 14,
     fontFamily: "monospace",
@@ -31,7 +44,7 @@ const open = async () => {
   xterm.resize(cols, rows)
   closers.push(() => {
     view.dispose()
-    element.remove()
+    wrap.remove()
   })
   const tree = element.querySelector<HTMLElement>(".xterm-accessibility-tree")!
   const screen = element.querySelector<HTMLElement>(".xterm-screen")!
@@ -47,7 +60,7 @@ const open = async () => {
   const items = () => [...tree.children] as HTMLElement[]
   await expect.poll(() => items().at(-1)?.textContent, { timeout: 5000 }).toBe(lines.at(-1))
   await settled()
-  return { xterm, tree, screen, written, settled, items }
+  return { xterm, tree, wrap, screen, written, settled, items }
 }
 
 describe("a screen-reader terminal's rows", () => {
@@ -102,6 +115,45 @@ describe("a screen-reader terminal's rows", () => {
     await settled()
     const cell = screen.getBoundingClientRect().width / cols
     expect(cell).toBeGreaterThan(11)
+    for (const item of items()) {
+      expect(item.getBoundingClientRect().width).toBeCloseTo(item.textContent!.length * cell, 0)
+    }
+  })
+
+  // The Canvas view scales a terminal with a CSS transform, which getBoundingClientRect includes:
+  // a row aligned under one must not keep that alignment once the scale is gone.
+  it("aligns a row right whatever scale its ancestors had when it was last aligned", async () => {
+    const { xterm, wrap, screen, settled, items } = await open()
+    // Aligns every row under half scale, as a dimensions change would while zoomed out.
+    wrap.style.transform = "scale(0.5)"
+    refreshDimensions(xterm)
+    wrap.style.transform = ""
+    // Same text, position and cell width: a full refresh must still leave the rows right.
+    xterm.refresh(0, rows - 1)
+    await settled()
+    const cell = screen.getBoundingClientRect().width / cols
+    for (const item of items()) {
+      expect(item.getBoundingClientRect().width).toBeCloseTo(item.textContent!.length * cell, 0)
+    }
+  })
+
+  it("aligns rows right at a scale, in a pass of their own", async () => {
+    const { xterm, wrap, screen, items } = await open()
+    wrap.style.transform = "scale(0.5)"
+    refreshDimensions(xterm)
+    const cell = screen.getBoundingClientRect().width / cols
+    for (const item of items()) {
+      expect(item.getBoundingClientRect().width).toBeCloseTo(item.textContent!.length * cell, 0)
+    }
+  })
+
+  // A change of dimensions or pixel ratio runs the manager's _refreshRowsDimensions with the same
+  // CSS cell and rows that rendering would skip, so only it can realign them.
+  it("aligns every row on a dimensions refresh, rows unchanged", async () => {
+    const { xterm, screen, items } = await open()
+    for (const item of items()) item.style.transform = "scaleX(3)"
+    refreshDimensions(xterm)
+    const cell = screen.getBoundingClientRect().width / cols
     for (const item of items()) {
       expect(item.getBoundingClientRect().width).toBeCloseTo(item.textContent!.length * cell, 0)
     }

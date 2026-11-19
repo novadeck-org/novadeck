@@ -156,7 +156,9 @@ release fixes what it fixes.
   between writes. Now a row whose text, column map, position, set size and the cell width it was
   aligned under are all as last time is skipped (`_rowAligned`, a `WeakMap` from row element to
   those values). The rows left are written first, then their widths are read in one pass (one
-  layout, `_alignRows`) and their transforms set. A change of dimensions or pixel ratio
+  layout, `_alignRows`) and their transforms set. A width is the row's rect width over the
+  accessibility container's rect-to-`offsetWidth` ratio, read in the same pass, so an ancestor's
+  CSS transform (the Canvas view's zoom) doesn't change what a row is aligned to. A change of dimensions or pixel ratio
   (`_refreshRowsDimensions`) aligns every row again the same way. In a profile of the UI with an agent's TUI redrawing the focused terminal,
   that `getBoundingClientRect` was about 30% of the main thread's busy time. Redrawing two rows of
   a 24-row screen ten times a second, a render of the tree took 0.4 ms against 1.4 to 3.4 ms on a
@@ -165,8 +167,8 @@ release fixes what it fixes.
   code and no issue is open for it that we found; check 6.1, and make the patch again in
   `_renderRows`, `_refreshRowsDimensions` and `_alignRowWidth` unless it has the same. `src/a11y-rows.test.ts` pins it in each bundle, and
   terminal-views' `src/a11y-rows.spec.ts` checks in a real browser that a redraw of one row touches
-  only that row's element, which still gets its `scaleX`, and that a change of cell size aligns
-  all rows.
+  only that row's element, which still gets its `scaleX`, that a change of cell size and a
+  dimensions refresh of unchanged rows align all rows, and that alignment holds under a scaled ancestor.
 - `@xterm/addon-webgl` 0.19.0: `WebglRenderer` registers its cursor-blink manager with the renderer
   (`this._register(new be)` in `lib/addon-webgl.mjs`, `this._register(new m.MutableDisposable)` in
   `lib/addon-webgl.js`) in place of leaving it undisposed. The manager exists once a program turns
