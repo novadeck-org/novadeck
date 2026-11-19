@@ -569,6 +569,54 @@
       "status": "known",
       "cause": "Unknown. The specs' closeToasts (support/toasts.tsx), on its way to clicking the strip's voice offer past the demo's toasts, still found 5 toasts standing after its 30 tries, about 15 s: none had closed, so its focus on the front toast's close button may never have held. Seen in the behaviour-mac pass, which runs on every system, but only on a macOS job. Passed on its retry. Not reproduced.",
       "seen": ["#1008 run 44078385420 job 134031626368 (macOS), behaviour-mac, retried and passed"]
+    },
+    {
+      "id": "runner-changes-merge-branch-windows-timeout",
+      "jobs": ["^Test \\((?:macOS|Linux|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/companions/changes.test.ts > the merges of a change > shows a branch of its own that a merge brought in as the merge's work, and main's as none",
+      "signature": "Test timed out in \\d+ms",
+      "status": "fixed",
+      "cause": "Slow on Windows, not a race: every file of every range the test read was a git process of its own, and on a Windows runner the block ran some 17 times slower than on Linux, so the test (1.4 s on Linux) ran out its 20 s there. Fixed by #914 (2026-11-13), which split it into three tests, read the whole range once, and gave the block 60 s. Retried only on Windows, 6 times in 5 runs, the last 2026-11-13 06:45 UTC, before #914 merged; none in the 320-odd Quality runs since, where it takes 4 to 5.3 s on Windows.",
+      "seen": [
+        "#906 run 43346221936 job 131626407533 (Windows, 3/3), retried and passed",
+        "#904 run 43380974548 job 131745359765 (Windows), retried and passed"
+      ]
+    },
+    {
+      "id": "runner-works-later-changes-slow-read-wait",
+      "jobs": ["^Test \\((?:macOS|Linux|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/works/works.test.ts > the works of tracked worktrees > tells later changes, and the removal of a work whose worktree is no longer tracked",
+      "signature": "AssertionError: expected \\[[^\\]]*\\] to include '(?:changed \\d+|synced|removed)'|Test timed out in \\d+ms",
+      "status": "fixed",
+      "cause": "The test's own: it gave each change 5 s to be told, counting on reads well under a second. On a loaded Windows runner a read of its two-file repository is about 20 git runs, over a second, and a read slower than timing.slowMs puts the next one off four times as long (waitAfter), so the read after the first edit came past the 5 s: seen stayed ['changed 0', 'synced']. Fixed by #960 (2026-11-15), which sets timing.slowMs out of reach for the file's tests and waits 10 s for each change; #963 also stopped the poll from reading a checkout a whole step after it came due. Retried only on Windows, 6 times in 4 runs, the last 2026-11-15 12:57 UTC, before #960 merged; none in the 240 Quality runs since, where it takes 2.7 to 3.2 s on Windows.",
+      "seen": [
+        "#911 run 43379590317 job 131750911661 (Windows), retried and passed",
+        "#955 run 43716430551 job 132826966074 (Windows), attempts 1 and 2, retried and passed"
+      ]
+    },
+    {
+      "id": "runner-checkouts-landing-tries-windows-timeout",
+      "jobs": ["^Test \\((?:macOS|Linux|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/checkouts/repository.test.ts > where a branch's work landed in main > gives up past its tries",
+      "signature": "Test timed out in \\d+ms",
+      "status": "fixed",
+      "cause": "Slow on Windows, not a race: the test made landingTries + 2 commits on main and let landedIn merge into all 32 candidates, about 147 git runs at over a tenth of a second each on a Windows runner, so it needed 18 to 20 s of its 20. Nothing in it waits on a delay or a lock. Fixed by #993 (2026-11-16), which gives landedIn a tries argument and the test 3 of them, about 43 git runs; #1043 then gave the runner's tests 60 s on Windows. Retried only on Windows, 9 times in 8 runs, the last 2026-11-16 21:24 UTC, before #993 merged; none in the 170-odd Quality runs since, where it takes 2 to 2.7 s on Windows.",
+      "seen": [
+        "#945 run 43662322787 job 132661325968 (Windows), retried and passed",
+        "#991 run 43955324335 job 133608595605 (Windows), retried and passed"
+      ]
+    },
+    {
+      "id": "runner-works-object-rebuild-windows-timeout",
+      "jobs": ["^Test \\((?:macOS|Linux|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/works/works.test.ts > the works of tracked worktrees > rebuilds its object folder now and then, keeping the tree last read",
+      "signature": "Test timed out in \\d+ms",
+      "status": "fixed",
+      "cause": "Slow on Windows, not a race: each read is some 21 git runs, and the test's 12 reads and 4 repacks took 15 to 18 s of its 20 on a Windows runner when it passed. Fixed by #1043 (2026-11-19), which reads 9 times instead of 12 (still two rebuilds at repackAfter: 3) and gives the runner's tests 60 s on Windows. Retried only on Windows, 4 times in 3 runs, the last 2026-11-18 17:16 UTC, before #1043 merged; none in the 75 Quality runs since, where it takes 8 to 10.4 s on Windows.",
+      "seen": [
+        "#984 run 43917530454 job 133483751858 (Windows), retried and passed",
+        "#1031 run 44356893742 job 134987644349 (Windows), failed twice, passed on its third attempt"
+      ]
     }
   ]
 }
