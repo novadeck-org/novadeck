@@ -564,7 +564,8 @@ export const CompanionPane = ({
           : "arrive",
       tucked: !swapped
         ? entry.tucked
-        : behind.some((each) => each.front.key === entry.key)
+        : // Only onto a card drawn, whose tuck plays and clears it.
+          behind.slice(0, stackCap).some((each) => each.front.key === entry.key)
           ? entry.key
           : undefined,
     })
