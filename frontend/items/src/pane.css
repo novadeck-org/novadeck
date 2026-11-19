@@ -6,8 +6,9 @@
    body: the outline (`.spine`) beside the document, with the notice for what keeps an
    item from saving or reading whole under the row (`.pane-notice`: a line of words in a
    tone, its one action or two in `.pane-notice-actions`). The row holds the stack's tabs
-   (`.pane-tabs`, each a `.pane-tab` holding its button `.pane-tab-open`, its name in
-   `.pane-tab-name`, and its close `.pane-tab-close`, an `.icon-button`), or, for one item
+   (`.pane-tabs`, each a `.pane-tab` holding its button `.pane-tab-open`, its words in
+   `.pane-tab-label` (its name in `.pane-tab-name`), and its close `.pane-tab-close`, an
+   `.icon-button`), or, for one item
    alone (`data-lone` on the tabs), its title in the same place: no box, close, hover or mark.
    An item moved here from another terminal names that terminal after its name
    (`.pane-tab-origin`). The details of an item (its path, lines, size, version, who showed it
@@ -432,7 +433,8 @@
    shown one. Each sits 5px (the dot 4px) above the row's line, and a tab that failed has its
    mark red. The row is drawn anew for each tab shown, so a pick marks the tab it left
    (`data-mark="left"`) and the one it shows (`data-mark="picked"`), and each mark eases from
-   its old size to its new one over 180ms, as the taskbar's does. */
+   its old size to its new one over 180ms, as the taskbar's does; the marks go once eased, so
+   a terminal shown again after it was parked doesn't play them again. */
 .pane-tabs:not([data-lone]) .pane-tab {
   --_mark-bg: var(--taskbar-mark-active-bg, var(--color-ink));
 }
