@@ -274,6 +274,20 @@ describe("a page beside a terminal", () => {
       expect(reloads).toEqual(["reload"])
     })
 
+    it("closes as the person goes back to the page, its window losing focus to it", async () => {
+      const { container } = show({ kind: "page", url, shown: 1, live: true })
+      fire(pageOf(container), "context-menu", {
+        params: { x: 10, y: 10, selectionText: "", linkURL: "", isEditable: false, editFlags: {} },
+      })
+      await settle()
+      expect(menuItem("Reload")).toBeDefined()
+      act(() => {
+        window.dispatchEvent(new Event("blur"))
+      })
+      await settle()
+      expect(menuItem("Reload")).toBeUndefined()
+    })
+
     it("closes on Escape, keeping the key from the pane around it", async () => {
       const heard: string[] = []
       const { container } = show({ kind: "page", url, shown: 1, live: true }, true, {

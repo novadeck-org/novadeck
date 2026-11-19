@@ -115,8 +115,17 @@ const ShownPage = ({
   const collect = useTroubles(trouble)
   const [place, setPlace] = useState<Place>({ url: page.url, back: false, forward: false })
   const [load, setLoad] = useState<Load>("loading")
-  // The menu the person asked for on the page, until it closes.
+  // The menu the person asked for on the page, until it closes. It goes as the person goes
+  // back to the page, which the app's page hears only as its window losing focus to the
+  // page's view, as it does to another app, where a menu goes too.
   const [menu, setMenu] = useState<PageMenu | undefined>(undefined)
+  const menuOpen = menu !== undefined
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = (): void => setMenu(undefined)
+    window.addEventListener("blur", close)
+    return () => window.removeEventListener("blur", close)
+  }, [menuOpen])
   // The tab says where the page is now, which isn't always where it was shown.
   usePaneNote([], false, place.url)
   const [size, setSize] = useState(() => pageSights.layout(id))

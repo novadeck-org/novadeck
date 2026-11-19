@@ -3,6 +3,7 @@ import { Portal } from "@ark-ui/react/portal"
 import { ChevronRight } from "lucide-react"
 import {
   Fragment,
+  useEffect,
   useId,
   useRef,
   useState,
@@ -188,13 +189,19 @@ const MenuAt = ({
   onOpenChange,
 }: MenuCommon & { readonly at: MenuPoint | undefined }): React.JSX.Element => {
   const labelId = useId()
-  // Mounted afresh for each point (see `ContextMenu`): open from the first, where focus was
-  // as it was asked for.
+  // Mounted afresh for each point (see `ContextMenu`), focus as it was when asked for. It
+  // opens a frame after it mounts: Ark places a menu at its point only as it opens.
   const opener = useRef<HTMLElement | null>(
     at && document.activeElement instanceof HTMLElement ? document.activeElement : null,
   )
   const chosen = useRef<(() => void) | undefined>(undefined)
-  const [open, setOpen] = useState(at !== undefined)
+  const [open, setOpen] = useState(false)
+  const asked = at !== undefined
+  useEffect(() => {
+    if (!asked) return
+    const frame = requestAnimationFrame(() => setOpen(true))
+    return () => cancelAnimationFrame(frame)
+  }, [asked])
   const closed = (): void => restore(opener, chosen, 3)
   return (
     <ArkMenu.Root
@@ -207,6 +214,18 @@ const MenuAt = ({
         if (!next) closed()
       }}
     >
+      {/* What Ark places a menu by, as it has none to open from: nothing to see or reach,
+          at the point, in the page's body, where nothing around it moves what's fixed. */}
+      {at && (
+        <Portal>
+          <ArkMenu.Trigger asChild>
+            <span
+              aria-hidden="true"
+              style={{ position: "fixed", left: at.x, top: at.y, width: 0, height: 0 }}
+            />
+          </ArkMenu.Trigger>
+        </Portal>
+      )}
       <MenuBody
         labelId={labelId}
         label={label}
