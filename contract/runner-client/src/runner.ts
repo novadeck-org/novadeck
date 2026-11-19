@@ -595,6 +595,13 @@ export type Runner = {
       readonly title?: string
     }): Promise<CompanionItem>
     /**
+     * Points a file's item at another file of its own kind, by a path absolute or from the
+     * folder of the file it points at now: the same item and holder, with a later version.
+     * Rejects with `NOT_FOUND`, `CONFLICT` for a project window's item, or `INVALID_FILE`
+     * saying why (no file, an item that is no file, another kind).
+     */
+    repoint(input: { readonly itemId: string; readonly path: string }): Promise<CompanionItem>
+    /**
      * Opens a file in the session's project window, by a path absolute or from the
      * session's project folder: the window's item is pointed at it, or, with none yet, the
      * window is made under `windowId`. Rejects with `NOT_FOUND` for an unknown session,
@@ -974,6 +981,7 @@ export const connectRunner = async (
       changeRead: (input) => call((client) => client.companions.changeRead(input)),
       save: (input) => call((client) => client.companions.save(input)),
       attach: (input) => call((client) => client.companions.attach(input)),
+      repoint: (input) => call((client) => client.companions.repoint(input)),
       openInProject: (input) => call((client) => client.companions.openInProject(input)),
       move: (itemId, terminalId) =>
         call((client) => client.companions.move({ itemId, terminalId })),

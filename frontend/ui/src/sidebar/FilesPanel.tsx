@@ -29,6 +29,7 @@ import {
   type Listings,
   type FilesRow,
 } from "./files-tree"
+import { placesOf, rowHeight, scrollToLine, windowOf } from "./files-window"
 import { CheckoutLine, useCheckout, type Checkout } from "./FilesCheckout"
 import { FilesStrip } from "./FilesStrip"
 import { NoteRow, TreeRow, type Pointed } from "./FilesTreeRows"
@@ -37,6 +38,7 @@ import { SidebarPanel } from "./SidebarPanel"
 import { useFolderReader } from "./useFolderReader"
 import { usePulses } from "./usePulses"
 import { useTreeMeasure } from "./useTreeMeasure"
+import { useTreeScroll } from "./useTreeScroll"
 
 const noFolders: ReadonlySet<string> = new Set()
 const noListings: Listings = new Map()
@@ -44,7 +46,11 @@ const noListings: Listings = new Map()
 const parentOf = (path: string): string => path.slice(0, Math.max(0, path.lastIndexOf("/")))
 
 // The project's files, a folder read when the person opens it, and read again when the panel is
-// shown again or an agent's turn ends. Where the backend tells what its agents changed (the
+// shown again or an agent's turn ends. Every line is one fixed height, so the tree draws only the
+// rows in view (and a few past each edge) in a box as tall as the whole tree: a long tree open
+// costs what a screen of it does. The row holding the Tab stop stays drawn wherever it is, so
+// focus is never lost to a scroll; a panel with no height (the sidebar collapsed) or not yet
+// measured draws no rows. Where the backend tells what its agents changed (the
 // demo), every live agent's work is in them: who owns each file, what they did and which one they
 // are writing now. Keeping agents' chips in the strip leaves only their work in the tree: the files
 // they touched or are writing and the folders those are in; with nothing kept every file shows.
@@ -164,18 +170,35 @@ const FilesPanelView = ({
   // The strip's chip under the pointer: its agent, or a lead's whole squad.
   const [stripHover, setStripHover] = useState<string | undefined>()
   const [treeNode, setTreeNode] = useState<HTMLDivElement | null>(null)
-  const { width: treeWidth, fonts } = useTreeMeasure(treeNode)
+  const [drawnKey, setDrawnKey] = useState(0)
+  const { width: treeWidth, height: treeHeight, fonts } = useTreeMeasure(treeNode, drawnKey)
+  const scroll = useTreeScroll(treeNode)
+  const view = useMemo(
+    () => windowOf(lines.length, scroll.top, treeHeight),
+    [lines.length, scroll.top, treeHeight],
+  )
+  const inView = useMemo(() => lines.slice(view.start, view.end), [lines, view])
+  const viewRows = useMemo(() => inView.filter((line): line is FilesRow => !isNote(line)), [inView])
+  // What the fonts are read from: rows drawn, and chips drawn on them.
+  const nowDrawn = viewRows.some(
+    (row) => Object.keys(row.node.touched).length > 0 || row.node.writing.length > 0,
+  )
+    ? 2
+    : viewRows.length > 0
+      ? 1
+      : 0
+  if (drawnKey !== nowDrawn) setDrawnKey(nowDrawn)
   // Rows rank their chips by what is kept or selected only, so pointing never reorders them.
   const ranked = useMemo(
     () => litSet(project, kept, selectedHandle),
     [project, kept, selectedHandle],
   )
-  // The chips each row shows, folded by its room; an open folder names nobody: its files do.
+  // The chips each row in view shows, folded by its room; an open folder names nobody: its files do.
   const chipsByPath = useMemo(() => {
     const chipWidth = (text: string): number =>
       textWidth(text, text.startsWith("+") ? fonts.more : fonts.chip, estimateChipWidth(text))
     const byPath = new Map<string, ChipSet>()
-    for (const row of rows) {
+    for (const row of viewRows) {
       const { node } = row
       if (node.folder && row.open) continue
       const chips = chipsOf(node.touched, node.writing, ranked)
@@ -196,7 +219,9 @@ const FilesPanelView = ({
       )
     }
     return byPath
-  }, [rows, ranked, treeWidth, fonts])
+  }, [viewRows, ranked, treeWidth, fonts])
+  // A chip whose row scrolled out of the drawn rows gets no pointerleave to say so.
+  if (hovered && !viewRows.some((row) => row.node.path === hovered.path)) setHovered(undefined)
   const pointed =
     showing && hovered && chipsByPath.get(hovered.path)?.shown.includes(hovered.handle)
       ? hovered.handle
@@ -223,8 +248,21 @@ const FilesPanelView = ({
   // The row that holds the tree's one Tab stop: the last one focused, or the first.
   const [stop, setStop] = useState<string | null>(null)
   const tabStop = rows.some((row) => row.node.path === stop) ? stop : (rows[0]?.node.path ?? null)
+  const lineOf = useMemo(
+    () => new Map(lines.flatMap((line, index) => (isNote(line) ? [] : [[line.node.path, index]]))),
+    [lines],
+  )
+  const places = useMemo(() => placesOf(lines.map((line) => line.depth)), [lines])
+  // The lines drawn: those in view, and the Tab stop's row where it is not, so it holds focus and
+  // the tree stays one Tab stop (a view with no height draws nothing, the stop included).
+  const stopLine = treeHeight !== undefined && tabStop !== null ? lineOf.get(tabStop) : undefined
+  const drawn = useMemo(() => {
+    const indices = Array.from({ length: view.end - view.start }, (_, at) => view.start + at)
+    if (stopLine === undefined || (stopLine >= view.start && stopLine < view.end)) return indices
+    return stopLine < view.start ? [stopLine, ...indices] : [...indices, stopLine]
+  }, [view, stopLine])
 
-  const { pulses, end: endPulses } = usePulses(project?.changes, rows, open, showing)
+  const { pulses, end: endPulses } = usePulses(project?.changes, viewRows, open, showing)
   // Hiding the panel ends the pulses, and showing it again starts the trails over so each reads
   // its true age: a hidden panel's animations restart at full brightness when it shows.
   const [wasShowing, setWasShowing] = useState(showing)
@@ -264,11 +302,30 @@ const FilesPanelView = ({
   const openFolder = (row: FilesRow): void => {
     onOpenFolder?.(row.node.path).catch(() => read(parentOf(row.node.path)))
   }
-  const focusRow = (row: FilesRow | undefined): void => {
-    if (!row) return
-    setStop(row.node.path)
-    treeNode?.querySelector<HTMLElement>(`[data-path="${CSS.escape(row.node.path)}"]`)?.focus()
+  // A row that is not drawn yet is scrolled into view and made the Tab stop, which keeps it drawn,
+  // and gets focus once it is.
+  const focusWanted = useRef<string | null>(null)
+  const focusDrawn = (path: string): boolean => {
+    const element = treeNode?.querySelector<HTMLElement>(`[data-path="${CSS.escape(path)}"]`)
+    element?.focus()
+    return element !== undefined && element !== null
   }
+  const focusRow = (row: FilesRow | undefined): void => {
+    if (!row || !treeNode) return
+    const { path } = row.node
+    const index = lineOf.get(path)
+    if (index !== undefined && treeHeight !== undefined) {
+      const to = scrollToLine(index, treeNode.scrollTop, treeHeight)
+      // oxlint-disable-next-line react/immutability -- Scrolling the DOM element, from an event.
+      if (to !== treeNode.scrollTop) treeNode.scrollTop = to
+      scroll.set(Math.floor(to / rowHeight) * rowHeight)
+    }
+    setStop(path)
+    focusWanted.current = focusDrawn(path) ? null : path
+  }
+  useLayoutEffect(() => {
+    if (focusWanted.current !== null && focusDrawn(focusWanted.current)) focusWanted.current = null
+  })
   // Escape in the strip or the tree lets go of every kept agent, back to following the selected
   // terminal. With nothing kept it is left for whatever else listens.
   const onEscape = (event: React.KeyboardEvent): void => {
@@ -384,27 +441,40 @@ const FilesPanelView = ({
           onKeyDown={onKeyDown}
           onPointerLeave={() => setHovered(undefined)}
         >
-          {lines.map((line) =>
-            isNote(line) ? (
-              <NoteRow key={`${line.path}\0${line.note}`} line={line} />
-            ) : (
-              <TreeRow
-                key={line.node.path}
-                row={line}
-                chips={chipsByPath.get(line.node.path)}
-                lit={lit}
-                selected={selected === line.node.path}
-                tabStop={tabStop === line.node.path}
-                pulse={pulses[line.node.path]}
-                shownTimes={shownTimes}
-                onActivate={activate}
-                onOpenFile={openFile}
-                onOpenFolder={onOpenFolder && openFolder}
-                onFocus={setStop}
-                onLight={setHovered}
-              />
-            ),
-          )}
+          <div role="none" className="files-rows" style={{ height: lines.length * rowHeight }}>
+            {drawn.map((index) => {
+              const line = lines[index]!
+              const place = places[index]!
+              return (
+                <div
+                  role="none"
+                  key={isNote(line) ? `${line.path}\0${line.note}` : line.node.path}
+                  className="files-slot"
+                  style={{ top: index * rowHeight }}
+                >
+                  {isNote(line) ? (
+                    <NoteRow line={line} place={place} />
+                  ) : (
+                    <TreeRow
+                      row={line}
+                      place={place}
+                      chips={chipsByPath.get(line.node.path)}
+                      lit={lit}
+                      selected={selected === line.node.path}
+                      tabStop={tabStop === line.node.path}
+                      pulse={pulses[line.node.path]}
+                      shownTimes={shownTimes}
+                      onActivate={activate}
+                      onOpenFile={openFile}
+                      onOpenFolder={onOpenFolder && openFolder}
+                      onFocus={setStop}
+                      onLight={setHovered}
+                    />
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
     </SidebarPanel>

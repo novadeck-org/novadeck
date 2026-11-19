@@ -227,7 +227,11 @@ export const ModelViewer = (props: ArtifactBodyProps<"model">): React.JSX.Elemen
     )
   return (
     <div className="model-pane" aria-busy={model === undefined}>
-      {model !== undefined && <Drawn id={item.id} name={item.name} model={model} />}
+      {model !== undefined && (
+        // Its camera is kept by the file as well as the item, so a model stepped onto in its
+        // folder opens at its own start, not where the last one was turned to.
+        <Drawn id={`${item.id}\n${item.path}`} name={item.name} model={model} />
+      )}
       {loaded !== null && (
         <div className="model-loading" data-over={model !== undefined || undefined} role="status">
           <p>{loadingText(loaded, total)}</p>

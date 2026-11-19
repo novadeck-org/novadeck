@@ -1,4 +1,4 @@
-import type { Companions, FolderEntry, ItemContent } from "@novadeck/core/items"
+import type { Companions, FolderEntry, ItemContent, ItemId } from "@novadeck/core/items"
 import { workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
@@ -10,6 +10,7 @@ import { ItemCommandsContext } from "../../item-commands"
 import { createItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
 import { folder as registration } from "./index"
+import type { FolderView } from "./model"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
@@ -54,10 +55,13 @@ const shown = async ({
   listings = { "": listing(top) },
   part = null,
   fromTerminal = "01",
+  into,
 }: {
   listings?: Record<string, ItemContent>
   part?: Companions["part"] | null
   fromTerminal?: string
+  // The pane the folder is drawn in, as the terminal's pane reader is.
+  into?: HTMLElement
 } = {}) => {
   const item = itemFixture("render", fromTerminal, {
     kind: "folder",
@@ -95,15 +99,23 @@ const shown = async ({
   const rendered = render(
     createElement(
       ItemCommandsContext,
-      { value: { closeItem: (id) => closed.push(id) } },
+      {
+        value: {
+          closeItem: (id) => closed.push(id),
+          openBarTab: () => {},
+          undock: () => {},
+        },
+      },
       createElement(registration.View, { item, itemStore, target }),
     ),
   )
   unmounts.push(rendered.unmount)
+  into?.append(rendered.container)
   await settle()
   const root = rendered.container
   return {
     root,
+    unmount: rendered.unmount,
     itemStore,
     attached,
     closed,
@@ -258,6 +270,55 @@ describe("a folder in the pane", () => {
     })
   })
 
+  context("a file asked to be selected from outside", () => {
+    // What a file's "Show in" leaves in the store: the folder it is in, and its name.
+    const asked = (app: Awaited<ReturnType<typeof shown>>, change: Partial<FolderView>) =>
+      act(() => app.itemStore.folder("render" as ItemId, change))
+
+    it("is selected in the folder it is in, scrolled into view, and let go of in the store", async () => {
+      const scrolled = vi.fn<() => void>()
+      Element.prototype.scrollIntoView = scrolled
+      const app = await shown({ listings: inFolder })
+      asked(app, { within: "old-runs", selected: "run-1.png" })
+      await settle()
+      expect(app.names()).toEqual(["notes", "run-1.png"])
+      expect(app.tile("run-1.png").getAttribute("data-selected")).toBe("true")
+      expect(app.tile("notes").hasAttribute("data-selected")).toBe(false)
+      expect(scrolled).toHaveBeenCalledWith({ block: "nearest" })
+      // Coming back to the folder later finds it as it left it, not selecting the file again.
+      expect(app.itemStore.store.getSnapshot().folders["render" as ItemId]).toMatchObject({
+        within: "old-runs",
+        selected: undefined,
+      })
+    })
+
+    it("is selected once the folder it is in has been listed, if that takes a while", async () => {
+      Element.prototype.scrollIntoView = vi.fn<() => void>()
+      const app = await shown({ listings: inFolder })
+      app.quiet.add("old-runs")
+      asked(app, { within: "old-runs", selected: "run-1.png" })
+      await settle()
+      expect(app.names()).toEqual([])
+      await app.list(inFolder["old-runs"]!, "old-runs")
+      expect(app.tile("run-1.png").getAttribute("data-selected")).toBe("true")
+      expect(Element.prototype.scrollIntoView).toHaveBeenCalled()
+    })
+
+    it("is selected in the list too", async () => {
+      Element.prototype.scrollIntoView = vi.fn<() => void>()
+      const app = await shown({ listings: inFolder })
+      asked(app, { layout: "list", selected: "shot.png" })
+      await settle()
+      expect(app.tile("shot.png").getAttribute("aria-selected")).toBe("true")
+    })
+
+    it("leaves a folder looked at as it was when nothing is asked", async () => {
+      const app = await shown({ listings: inFolder })
+      expect(app.root.querySelector("[data-selected]")).toBeNull()
+      expect(app.itemStore.store.getSnapshot().folders["render" as ItemId]).toBeUndefined()
+    })
+  })
+
   context("moving between folders", () => {
     // `a` holds a file of the name the top's has, of another size.
     const sized = (name: string, size: number) => entry(name, { size })
@@ -324,6 +385,37 @@ describe("a folder in the pane", () => {
       const app = await shown()
       await app.open("shot.png")
       expect(app.attached).toEqual([{ terminalId: "01", path: "/tmp/render/shot.png" }])
+    })
+
+    it("hands the focus it held to the pane as it goes, so the file opened in its place has its keys", async () => {
+      const pane = document.createElement("section")
+      pane.setAttribute("data-workspace-companion", "")
+      pane.tabIndex = -1
+      document.body.append(pane)
+      const app = await shown({ into: pane })
+      await app.open("shot.png")
+      // The tile double-clicked holds focus.
+      app.tile("shot.png").focus()
+      // The file's tab takes the folder's place in the pane, whenever the pane gets to it.
+      app.unmount()
+      await settle()
+      expect(document.activeElement).toBe(pane)
+      pane.remove()
+    })
+
+    it("leaves focus alone as it goes where the folder didn't hold it", async () => {
+      const pane = document.createElement("section")
+      pane.setAttribute("data-workspace-companion", "")
+      pane.tabIndex = -1
+      const elsewhere = document.createElement("button")
+      document.body.append(pane, elsewhere)
+      const app = await shown({ into: pane })
+      elsewhere.focus()
+      app.unmount()
+      await settle()
+      expect(document.activeElement).toBe(elsewhere)
+      pane.remove()
+      elsewhere.remove()
     })
 
     it("opens a file of a folder inside it by the folder's own path", async () => {

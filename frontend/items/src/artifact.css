@@ -253,6 +253,10 @@
   /* Its row folds the tools as a pane's does, for what a pane-reader doesn't hold. */
   container: pane-reader / inline-size;
 }
+/* Focus lands on the window as it stays through a file's steps; it is not a control. */
+.artifact-window:focus {
+  outline: none;
+}
 
 /* A delimited file (CSV, TSV) as a table (`.artifact-table`): it scrolls both ways in
    `.artifact-table-scroll` under its header, held on top; each column's name is a button that

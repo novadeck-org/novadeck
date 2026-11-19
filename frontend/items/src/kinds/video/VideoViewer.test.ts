@@ -18,6 +18,7 @@ import { video as registration } from "./index"
 import { stateOf, stubMedia } from "./media-stub"
 import { playable } from "./playable"
 import { timing } from "./source"
+import { VideoPlayer } from "./VideoPlayer"
 
 // jsdom decodes nothing: every video plays, unless a test says its bytes don't.
 vi.mock("./playable", () => ({
@@ -611,5 +612,66 @@ describe("a video beside a terminal", () => {
       expect(container.textContent).toContain("12.3 MB")
       expect(part).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe("a video player given another file", () => {
+  // The player on its own, over files named by their item and path, as the viewer gives it.
+  const player = (id: string, src: string) =>
+    createElement(VideoPlayer, {
+      id,
+      src,
+      name: "demo.mp4",
+      shown: 1,
+      at: undefined,
+      current: true,
+      onBroken: () => {},
+    })
+  const playing = () => {
+    const rendered = render(player("clip\n/p/a.mp4", "blob:a"))
+    unmounts.push(rendered.unmount)
+    const element = () => rendered.container.querySelector("video")!
+    // It plays the first file, four seconds in.
+    act(() => element().dispatchEvent(new Event("loadedmetadata")))
+    stateOf(element()).duration = 10
+    act(() => {
+      element().currentTime = 4
+    })
+    click(rendered.container, "Play")
+    expect(element().paused).toBe(false)
+    return { ...rendered, element }
+  }
+  const knowsLength = (element: HTMLVideoElement, duration: number) => {
+    stateOf(element).duration = duration
+    act(() => {
+      element.dispatchEvent(new Event("loadedmetadata"))
+    })
+  }
+
+  it("starts afresh at its start, paused, when the item's path is another", () => {
+    const { rerender, element } = playing()
+    rerender(player("clip\n/p/b.mp4", "blob:b"))
+    expect(element().paused).toBe(true)
+    knowsLength(element(), 6)
+    expect(element().currentTime).toBe(0)
+    expect(element().paused).toBe(true)
+  })
+
+  it("starts afresh when the path changes before the new file's source comes", () => {
+    const { rerender, element } = playing()
+    rerender(player("clip\n/p/b.mp4", "blob:a"))
+    expect(element().paused).toBe(true)
+    rerender(player("clip\n/p/b.mp4", "blob:b"))
+    knowsLength(element(), 6)
+    expect(element().currentTime).toBe(0)
+    expect(element().paused).toBe(true)
+  })
+
+  it("still resumes where it was when the same file is rewritten", () => {
+    const { rerender, element } = playing()
+    rerender(player("clip\n/p/a.mp4", "blob:a2"))
+    knowsLength(element(), 10)
+    expect(element().currentTime).toBe(4)
+    expect(element().paused).toBe(false)
   })
 })

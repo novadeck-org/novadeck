@@ -1061,6 +1061,48 @@ describe("runner client project window", () => {
   })
 })
 
+describe("runner client repoint", () => {
+  it("points a bar's file at another of its kind through the wire, and refuses the rest with their codes", async ({
+    resources,
+  }) => {
+    const app = await deployed(resources)
+    const client = await app.connect()
+    const { id: sessionId } = await session(client, app.directory)
+    const terminal = await client.terminals.create(shell(sessionId))
+    const directory = await realpath(app.directory)
+    await writeFile(join(directory, "one.md"), "# One\n")
+    await writeFile(join(directory, "two.md"), "# Two\n")
+    await writeFile(join(directory, "pic.png"), "pixels")
+    const item = await client.companions.attach({
+      terminalId: terminal.id,
+      path: join(directory, "one.md"),
+    })
+
+    await expect(
+      client.companions.repoint({ itemId: item.id, path: join(directory, "two.md") }),
+    ).resolves.toMatchObject({
+      id: item.id,
+      holder: { terminalId: terminal.id },
+      name: "two.md",
+      version: 2,
+    })
+    await expect(
+      client.companions.repoint({ itemId: item.id, path: join(directory, "pic.png") }),
+    ).rejects.toMatchObject({ code: "INVALID_FILE" })
+    await expect(
+      client.companions.repoint({ itemId: crypto.randomUUID(), path: join(directory, "one.md") }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    const opened = await client.companions.openInProject({
+      sessionId,
+      path: "one.md",
+      windowId: crypto.randomUUID(),
+    })
+    await expect(
+      client.companions.repoint({ itemId: opened.item.id, path: join(directory, "two.md") }),
+    ).rejects.toMatchObject({ code: "CONFLICT" })
+  })
+})
+
 describe("runner client messages", () => {
   it("lists and watches Inbox entries, rejects a stale answer, and reads tells through the authenticated API", async ({
     resources,

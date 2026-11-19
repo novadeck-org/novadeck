@@ -4,8 +4,10 @@ import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
+import { createChat, openedMemory } from "./state"
 import { context, describe, expect, it } from "./test"
 import { ToolCalls } from "./ToolCalls"
+import { Opened } from "./use-open"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
@@ -486,5 +488,86 @@ describe("a tool line's fact", () => {
 
   it("has no fact where the harness gave no time", () => {
     expect(fact(show([call("1", "Ran")]))).toBeNull()
+  })
+})
+
+describe("what the person opened of a run, as it draws again", () => {
+  const run = (count: number) =>
+    Array.from({ length: count }, (_, at) => call(`${at}`, "Ran", `step ${at}`))
+  // Draws the run under a chat's memory, as the app gives one.
+  const draw = (
+    memory: ReturnType<typeof openedMemory>,
+    entries: readonly ToolEntry[],
+    live = false,
+  ) => {
+    const { container, unmount } = render(
+      createElement(Opened, { value: memory }, createElement(ToolCalls, { entries, live })),
+    )
+    unmounts.push(unmount)
+    return { container, unmount }
+  }
+  const memory = () => openedMemory(createChat(), "project/initial", "01")
+  const fold = (container: Element) => container.querySelector<HTMLElement>(".chat-tools-fold")!
+  const rows = (container: Element) => [
+    ...container.querySelectorAll<HTMLElement>(".chat-tool-summary"),
+  ]
+  afterEach(() => vi.restoreAllMocks())
+
+  it("keeps the run, a line and its long output open", async () => {
+    // jsdom lays nothing out: the output takes nine lines of 20px.
+    vi.spyOn(window, "getComputedStyle").mockReturnValue({ lineHeight: "20px" } as never)
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(9 * 20)
+    const kept = memory()
+    const first = draw(kept, run(4))
+    await act(async () => fold(first.container).click())
+    await act(async () => rows(first.container)[1]!.click())
+    await act(async () => first.container.querySelector<HTMLElement>(".chat-more")!.click())
+    first.unmount()
+
+    const again = draw(kept, run(4)).container
+    expect(fold(again).getAttribute("aria-expanded")).toBe("true")
+    expect(rows(again).map((row) => row.getAttribute("aria-expanded"))).toEqual([
+      "false",
+      "true",
+      "false",
+      "false",
+    ])
+    expect(again.querySelector(".chat-more")?.getAttribute("aria-expanded")).toBe("true")
+  })
+
+  it("keeps a run shut that the person shut while it ran, else stands it open only while it runs", async () => {
+    const kept = memory()
+    const first = draw(kept, run(4), true)
+    expect(fold(first.container).getAttribute("aria-expanded")).toBe("true")
+    first.unmount()
+    // Never touched: drawn again once the turn is over, it's shut, as it always was.
+    expect(fold(draw(kept, run(4)).container).getAttribute("aria-expanded")).toBe("false")
+    const live = draw(kept, run(4), true)
+    await act(async () => fold(live.container).click())
+    live.unmount()
+    expect(fold(draw(kept, run(4), true).container).getAttribute("aria-expanded")).toBe("false")
+  })
+
+  it("keeps a long run whole, and comes back to the line opened in its box", async () => {
+    const kept = memory()
+    kept.setOpened("run:0", true)
+    const first = draw(kept, run(6))
+    await act(async () => first.container.querySelector<HTMLElement>(".chat-tools-whole")!.click())
+    first.unmount()
+    expect(
+      draw(kept, run(6)).container.querySelector(".chat-tools-box")?.hasAttribute("data-capped"),
+    ).toBe(false)
+
+    kept.setOpened("whole:0", false)
+    kept.setOpened("tool:4", true)
+    // jsdom lays nothing out: each line is 18px high, at its place.
+    vi.spyOn(HTMLElement.prototype, "offsetTop", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const row = this.closest("li")
+      return row ? [...row.parentElement!.children].indexOf(row) * 18 : 0
+    })
+    const box = draw(kept, run(8)).container.querySelector<HTMLElement>(".chat-tools-box")!
+    expect(box.scrollTop).toBe(4 * 18)
   })
 })

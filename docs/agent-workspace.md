@@ -300,6 +300,7 @@ port's optional `companions` capability (`frontend/core/src/items.ts`):
 | `follow(target, itemId, { reveal }, on)`    | What an item holds now, then again as it changes: ready with a stamp, or why not                             |
 | `save(target, itemId, text, basedOn)`       | The user's edit written to the plan file, unless it changed since stamp `basedOn`                            |
 | `openInProject?(target, path, windowId)`    | A file the person opened from Files, in the project window; absent where it can't be                         |
+| `repoint?(target, itemId, path)`            | A file's item shown another file of its kind, as stepping through a folder does; absent where it can't be    |
 | `changeFile?(target, itemId, path, layers)` | One file of a change for the layers selected: its diff and both sides' text; absent where it can't be        |
 | `changeRead?(target, itemId, path)`         | The person read a file of a change: the content's `read` names it until it changes; absent where it can't be |
 
@@ -510,7 +511,25 @@ with every safety check again at that time:
   makes its taskbar icon new. Double-clicking a folder goes into it in the same tab, never above
   the one that was opened (the crumbs start there); double-clicking a file opens it as an item
   of its own kind on the terminal's bar (`companions.attach`), as if shown, so it goes to that
-  kind's group. Thumbnails of images up to 2 MiB, and of videos up to 24 MiB (their first frame
+  kind's group. A file open on a bar's pane or in an undocked window (an image, video, recording,
+  PDF or text file; not the project window's, which keeps its one file) that lies under the top of
+  a folder item of the same session, on any bar or in a window (the one on the file's own holder if
+  there is one, else the deepest top), has ‹ and › in the row's tools, which step it
+  to the folder's previous or next file of the same kind: in the folder's own sort (newest first
+  unless the person changed it), never a folder, a file that may hold secrets, a link out or a link
+  that stays inside (each file once), or what is no regular file; they show only once the file's
+  place among them is known, and not round the ends, where they show off. A step that fails says
+  so in a line under the viewer ("Couldn't open b.png: …"). Stepping points the same item at that file
+  (`companions.repoint`), so no tab comes or goes and the pane stays in its group; what the bar
+  held under the new file's pointer goes. The listing it steps through is one the file follows
+  for itself, beside the folder tab's, which stays where it was. ← and → step an image,
+  unless it is zoomed in and pans; a video and a recording seek by them, a PDF turns pages, and
+  a text file's caret, scroll and data tree move by them, so those step by the tools only.
+  "Show in <folder>" brings the folder item forward, in the folder the file sits in, with the file
+  selected and scrolled into view (a file in a window has no such tool, as a window can't bring
+  another item forward). ← and → work with focus anywhere in the pane or window, the tool row
+  included, and the pane takes focus back when the viewer that held it is drawn again for the
+  next file. None of it is specific to a harness. Thumbnails of images up to 2 MiB, and of videos up to 24 MiB (their first frame
   and length, drawn by the page), are read through `companions.part` with the file's own stamp,
   lazily and nearest first; a PDF, a recording and a text file show their kind's icon. It is
   the same for Claude Code, Codex and Antigravity, as the runner reads the folder. Secrets

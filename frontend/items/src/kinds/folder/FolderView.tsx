@@ -2,7 +2,7 @@ import "../../folder.css"
 import type { FolderContent, FolderEntry, Item, UnavailableReason } from "@novadeck/core/items"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { ArrowUp, ArrowUpDown, FolderOpen, LayoutGrid, LayoutList, Lock } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { useItemCommands } from "../../item-commands"
 import { PaneTools, usePaneNote, type PaneTool } from "../../pane-row"
@@ -78,12 +78,50 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
   usePaneNote(listed ? [countText(listed.total)] : [], gone, undefined, refused ? Lock : undefined)
 
   const root = useRef<HTMLDivElement>(null)
+  // A file opened from the folder takes the folder's place in the pane, whenever the pane gets
+  // to it: as the folder goes, focus it held goes to the pane (or the window), so the file's
+  // keys, as an image's ← →, work at once rather than falling to the page.
+  useLayoutEffect(() => {
+    const own = root.current
+    // Read as it goes, while it is still in the page: the pane it is in then, which a folder
+    // moved into a window of its own has changed.
+    return () => {
+      const pane = own?.parentElement?.closest<HTMLElement>(
+        "[data-workspace-companion], .artifact-window",
+      )
+      if (!own || !pane || !own.contains(document.activeElement)) return
+      queueMicrotask(() => {
+        const focused = document.activeElement
+        if (pane.isConnected && (!focused || focused === document.body || !focused.isConnected))
+          pane.focus({ preventScroll: true })
+      })
+    }
+  }, [])
   const [inside, setInside] = useState(false)
   const arrivals = useArrivals(listed?.entries, inside, within)
   const writing = useWriting(listed?.entries, within)
   const entries = useMemo(() => sorted(arrivals.visible, sort), [arrivals.visible, sort])
   const [selected, setSelected] = useState<string>()
   const [problem, setProblem] = useState<string>()
+  // A file asked to be selected from outside (a file's "Show in") is taken as the selection, and
+  // let go of in the store, so coming back to the folder later doesn't select it again; it is
+  // scrolled into view once it is drawn, which is as the folder's listing comes.
+  const asked = view.selected
+  if (asked !== undefined && asked !== selected) setSelected(asked)
+  const scrollTo = useRef(false)
+  useEffect(() => {
+    if (asked === undefined) return
+    scrollTo.current = true
+    itemStore.folder(item.id, { selected: undefined })
+  }, [asked, itemStore, item.id])
+  // After every render, until the selected file is drawn: its listing may come after the ask.
+  useEffect(() => {
+    if (!scrollTo.current) return
+    const element = root.current?.querySelector("[data-selected]")
+    if (!element) return
+    scrollTo.current = false
+    element.scrollIntoView?.({ block: "nearest" })
+  })
   // The list says how long ago; it moves on with the clock.
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
