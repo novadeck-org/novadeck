@@ -23,7 +23,7 @@ const waitingPill = /Waiting for your answer \(ctrl\+End\) ↓$/
  * nothing; so does any key, a digit too, which is taken for the scroll alone (2.1.328, a
  * question and a Bash permission alike, `e2e/probes/fullscreen-scrolled.e2e.ts`).
  */
-export const scrolledAway = (rows: readonly string[]): boolean => {
+export const belowView = (rows: readonly string[]): boolean => {
   const last = rows.findLastIndex((each) => each !== "")
   return last >= 0 && waitingPill.test(rows[last]!)
 }

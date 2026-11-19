@@ -21,7 +21,7 @@ import {
   nonBlank,
   Right,
   rule,
-  scrolledAway,
+  belowView,
   settled,
   timeoutMs,
   typeable,
@@ -307,7 +307,7 @@ export const questions = (rows: readonly string[], facts: RequestFacts): DialogR
   }
 
   const place = { asked: asked.length, final: asked.length === 1 }
-  if (scrolledAway(rows)) return hidden(asked, place)
+  if (belowView(rows)) return hidden(asked, place)
   const shown = questionScreen(rows)
   if (!shown) return refuse("question.questions.4")
   // A lone multi-select question has a tab bar too, for its Submit; a lone single-select
@@ -363,7 +363,7 @@ const answeredOf =
     idle(later) && !reviewing(later) && !(footerAt(later) >= 0 && showing(later, ask, place))
 
 /**
- * The questions held below a fullscreen view the person scrolled up (see `scrolledAway`):
+ * The questions held below a fullscreen view the person scrolled up (see `belowView`):
  * the hook's own words are the whole dialog, as a read of the screen gives it, so the card
  * shows what the dialog will. The answer scrolls it into view first, then waits for the
  * first question to show untouched, its highlight on its first row, before the keys a
