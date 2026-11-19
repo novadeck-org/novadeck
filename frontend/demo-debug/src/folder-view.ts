@@ -47,8 +47,17 @@ export const folderViewGroups = (companions: Backend["companions"]): readonly De
       actions: [
         {
           label: "Show a folder",
-          hint: "The pane lists ~/render as a grid of thumbnails (a still per picture, the clip's first frame with its length, icons for the PDF and the log), newest first, with a folder of its own, a secret and a link out named and never opened",
+          hint: "The pane lists ~/render as a grid of thumbnails (a still per picture, the clip's first frame with its length, icons for the PDF, the log, notes.md and results.json), newest first, with a folder of its own, a secret and a link out named and never opened; right-click, Alt+double-click on notes.md or results.json (opens on its source) and Space (a quick look) work on its entries",
           run: show(render),
+        },
+        {
+          label: "Open a file of the folder",
+          hint: "The newest still of ~/render opens in the Images group as a person's double-click would: ‹ is off, it being the first picture, › and the rest of the row step to the next, and Show in render goes back to the folder with it selected. Open render.log (double-click it) for the only text file, whose ‹ › are both off",
+          run: ({ selected, note }) => {
+            const key = selected()
+            if (!key) return note("Select a terminal first.")
+            companions.attach?.(key, key.terminalId, "~/render/checkout-desktop.svg")
+          },
         },
         {
           label: "A file lands in the folder",

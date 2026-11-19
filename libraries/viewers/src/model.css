@@ -1,0 +1,56 @@
+/* The 3D model viewer: its frame (`.model-frame`, an iframe of its own origin that draws the
+   model, see model.ts) filling `.model-host`, the glass in front of it while it hasn't the focus
+   (`.model-glass`), and `.model-host-notice` when the frame stopped.
+
+   Hooks: aria-busy on the host while it opens a model.
+
+   Tokens, each optional (its fallback in brackets), read where the viewer mounts and handed to
+   the frame, which draws with them:
+   --model-ground (the system's canvas): behind the model.
+   --model-surface (a grey): a model with no colours of its own; --model-grid (a lighter grey):
+   the grid under it.
+   --model-notice-fg (the system's text): what says why a model isn't drawn.
+   --model-chip-bg (a dark glass), --model-chip-fg (white), --model-chip-border (none),
+   --model-chip-radius (6px), --model-chip-shadow (none), --model-chip-font (the frame's own),
+   --model-chip-hover-bg (--model-chip-bg, else a darker glass), --model-chip-on-bg (the hover's):
+   the bar's buttons, a pressed one, and the chip giving the model's size. A font the app loads
+   isn't the frame's: the chips fall back to the system's.
+   --model-glass-ring (Highlight): the glass's focus ring, reached by Tab. */
+.model-host {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.model-frame {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: var(--model-ground, none);
+}
+/* In front of the frame while it hasn't the focus: a press or Tab here gives it the focus, and a
+   drag begun here turns the model. */
+.model-glass {
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+  touch-action: none;
+}
+.model-glass[hidden] {
+  display: none;
+}
+.model-glass:focus-visible {
+  outline: 2px solid var(--model-glass-ring, Highlight);
+  outline-offset: -2px;
+}
+.model-host-notice {
+  margin: auto;
+  padding: 24px;
+  color: var(--model-notice-fg, inherit);
+  text-align: center;
+}
+.model-host-notice[hidden] {
+  display: none;
+}

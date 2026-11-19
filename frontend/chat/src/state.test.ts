@@ -1,12 +1,14 @@
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { workspaceFixture } from "@novadeck/core/testing"
 import type { AgentStatus } from "@novadeck/core/types"
+import { vi } from "vitest"
 
 import { setChatReply } from "./replies"
 import {
   answerInTerminal,
   createChat,
   dictateIntoDraft,
+  openedMemory,
   resetAnswering,
   watchChat,
   chatDraftOf,
@@ -143,6 +145,30 @@ describe("watching the workspace", () => {
     workspace.dispatch({ type: "terminal/close", target, terminalId: "01" })
     expect(chat.store.getSnapshot().drafts).toEqual({})
     expect(chat.store.getSnapshot().replies).toEqual({})
+    stop()
+  })
+
+  it("keeps what was opened in a chat until the terminal closes", () => {
+    const { workspace, chat, stop } = open()
+    workspace.dispatch(running({ working: false }))
+    const memory = openedMemory(chat, context, "01")
+    memory.setOpened("peer:a", true)
+    workspace.dispatch(running(undefined))
+    expect(openedMemory(chat, context, "01").opened("peer:a")).toBe(true)
+    workspace.dispatch({ type: "terminal/close", target, terminalId: "01" })
+    expect(chat.store.getSnapshot().opened).toEqual({})
+    stop()
+  })
+
+  it("tells a chat's rows of what was opened in that chat only", () => {
+    const chat = createChat()
+    const listener = vi.fn<() => void>()
+    const stop = openedMemory(chat, context, "01").subscribe(listener)
+    dictateIntoDraft(chat, context, "01", "typing")
+    openedMemory(chat, context, "02").setOpened("peer:a", true)
+    expect(listener).not.toHaveBeenCalled()
+    openedMemory(chat, context, "01").setOpened("peer:a", true)
+    expect(listener).toHaveBeenCalledOnce()
     stop()
   })
 

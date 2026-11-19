@@ -253,6 +253,8 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       attach: (input) => note(`attach ${input.path}`, () => runner.companions.attach(input)),
       folders: (input) => note(`folders ${input.path}`, () => runner.companions.folders(input)),
       wroteTo: (input) => note("wrote to", () => runner.companions.wroteTo(input)),
+      repoint: (input) =>
+        note(`repoint ${input.itemId} ${input.path}`, () => runner.companions.repoint(input)),
       openInProject: (input) =>
         note(`open ${input.path} in project`, () => runner.companions.openInProject(input)),
       move: (itemId, terminalId) =>

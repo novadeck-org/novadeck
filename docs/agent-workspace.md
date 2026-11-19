@@ -300,6 +300,7 @@ port's optional `companions` capability (`frontend/core/src/items.ts`):
 | `follow(target, itemId, { reveal }, on)`    | What an item holds now, then again as it changes: ready with a stamp, or why not                             |
 | `save(target, itemId, text, basedOn)`       | The user's edit written to the plan file, unless it changed since stamp `basedOn`                            |
 | `openInProject?(target, path, windowId)`    | A file the person opened from Files, in the project window; absent where it can't be                         |
+| `repoint?(target, itemId, path)`            | A file's item shown another file of its kind, as stepping through a folder does; absent where it can't be    |
 | `changeFile?(target, itemId, path, layers)` | One file of a change for the layers selected: its diff and both sides' text; absent where it can't be        |
 | `changeRead?(target, itemId, path)`         | The person read a file of a change: the content's `read` names it until it changes; absent where it can't be |
 | `folders?(target, terminalId, path)`        | The folders a typed path may be, for a folder view's path field; absent where it can't be                    |
@@ -491,6 +492,14 @@ with every safety check again at that time:
   script it carries runs, and nothing it names is fetched. It opens fitted to the pane's width, and keeps its page and zoom across views,
   windows and a rewrite of the file; one over 128 MB loads as too large to preview, and one
   locked with a password, or that isn't a PDF pdf.js can read, says so in the pane.
+  A 3D model (`.glb`, `.gltf`, `.stl`, `.obj`, `.ply`, `.3mf`, kind `model`) is read the same
+  way, with the files beside it that it names (a glTF's buffers and textures, an OBJ's material
+  libraries and theirs, in its folder, none that may hold secrets, none at an address of its
+  own), and drawn with three.js in the same kind of frame: it opens fitted on a grid, turns,
+  moves and zooms, toggles wireframe and flat shading, plays a glTF's animation, and gives its
+  size in millimetres where its format has units. Rewritten, as a CAD loop writes it again, it's
+  drawn from where the person was looking; one over 256 MB with its files loads as too large to
+  preview. Its peek is a still of it.
   A folder (`show {"file": {"path": "<dir>/"}}`, or the person's "Open in the pane" on a
   Files panel row, kind `folder`) is listed, read-only, as a grid of thumbnails or a list
   (newest first, or by name or size): the runner reads its entries (name, kind by extension,
@@ -504,7 +513,43 @@ with every safety check again at that time:
   makes its taskbar icon new. Double-clicking a folder goes into it in the same tab, never above
   the one that was opened (the crumbs start there); double-clicking a file opens it as an item
   of its own kind on the terminal's bar (`companions.attach`), as if shown, so it goes to that
-  kind's group. Thumbnails of images up to 2 MiB, and of videos up to 24 MiB (their first frame
+  kind's group. An entry's menu (right-click, the menu key or Shift+F10) offers Open,
+  Open as text, Quick look and Copy path; a folder's has Open and Copy path, and a secret or a link
+  out only Copy path. Open as text, and Alt+double-click, open a file on its source (the file
+  preview's "Show source" switch, kept per file as that switch keeps it): only a file whose type
+  has a preview with a source, by its name (Markdown `.md` and `.markdown`, tables `.csv` and `.tsv`, and
+  data `.json`, `.jsonl` and YAML), has it, and any other opens as usual. Space
+  is a quick look, a floating peek over the pane that opens no tab: an image larger, a video's
+  first frame and length, a kind registered through `registerEntryThumb` by its renderer, and
+  for anything else (text, a PDF, a recording, a file too large, a secret) its icon, kind, size and
+  when it changed; it reads files only as the thumbnails do (never text or a PDF's content). ← and
+  → step through the files (folders skipped), Enter opens the file in a tab, Space or Escape or a
+  click outside closes it, and focus goes back to the folder. It is transient, not modal: a press or focus outside it, or its file going or the folder
+  changing, ends it (a click into the terminal keeps the focus it took), Tab stays in it, Backspace
+  and Alt+Up, which would go up behind it, do nothing, and a key held down (Escape too) acts once. When the pane covers its terminal, a folder's entries keep only Space (the look); any other letter
+  typed there still uncovers the pane and goes to the terminal, Backspace and the arrows were never
+  characters, and Escape hides the pane unless a look is up, which keeps all its keys (`data-pane-keys`
+  in `homes/terminal/cover-keys.ts`; the folder's is `"space"`). Nothing in it is harness-specific.
+  "Show in Files" isn't offered, because Novadeck has no reveal-in-system action for a path yet.
+  A file open on a bar's pane or in an undocked window (an image, video, recording,
+  PDF or text file; not the project window's, which keeps its one file) that lies under the top of
+  a folder item of the same session, on any bar or in a window (the one on the file's own holder if
+  there is one, else the deepest top), has ‹ and › in the row's tools, which step it
+  to the folder's previous or next file of the same kind: in the folder's own sort (newest first
+  unless the person changed it), never a folder, a file that may hold secrets, a link out or a link
+  that stays inside (each file once), or what is no regular file; they show only once the file's
+  place among them is known, and not round the ends, where they show off. A step that fails says
+  so in a line under the viewer ("Couldn't open b.png: …"). Stepping points the same item at that file
+  (`companions.repoint`), so no tab comes or goes and the pane stays in its group; what the bar
+  held under the new file's pointer goes. The listing it steps through is one the file follows
+  for itself, beside the folder tab's, which stays where it was. ← and → step an image,
+  unless it is zoomed in and pans; a video and a recording seek by them, a PDF turns pages, and
+  a text file's caret, scroll and data tree move by them, so those step by the tools only.
+  "Show in <folder>" brings the folder item forward, in the folder the file sits in, with the file
+  selected and scrolled into view (a file in a window has no such tool, as a window can't bring
+  another item forward). ← and → work with focus anywhere in the pane or window, the tool row
+  included, and the pane takes focus back when the viewer that held it is drawn again for the
+  next file. None of it is specific to a harness. Thumbnails of images up to 2 MiB, and of videos up to 24 MiB (their first frame
   and length, drawn by the page), are read through `companions.part` with the file's own stamp,
   lazily and nearest first; a PDF, a recording and a text file show their kind's icon. It is
   the same for Claude Code, Codex and Antigravity, as the runner reads the folder. Secrets
@@ -1014,10 +1059,14 @@ with every safety check again at that time:
   gives each one no preload or Node, a sandbox, and the `persist:novadeck-pages`
   session, kept on disk apart from the app's so a sign-in lasts in every page and
   after a restart, where every permission and download is refused and no file loads.
-  Its own links and redirects go only to http(s) addresses. A window it opens goes
-  through only right after the person clicked or typed in it, one each, so a page can't
-  open tabs on its own: a popup the page sized, as a sign-in's, opens in a window of the
-  app on the same session, guarded the same way, so the sign-in lands there; anything
+  Its own links and redirects go only to http(s) addresses, and so does an address the
+  person types in the pane's address field, at the start of its tools: one with no scheme
+  goes over https, or over http to this machine or its network (`localhost:5173`), and
+  one naming a user or password, or with any other scheme, goes nowhere; where pages don't
+  load live, what they type opens in their browser. A window it opens goes through only
+  right after the person clicked or typed in it, one each, so a page can't open tabs on
+  its own: a popup the page sized, as a sign-in's, opens in a window of the app on the
+  same session, guarded the same way, so the sign-in lands there; anything
   else opens in the person's browser. A frame from another site in the page can take
   that one window, as Electron doesn't say which frame opened it. A passkey sign-in
   that names no passkey asks the person which, when more than one fits

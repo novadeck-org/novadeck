@@ -9,9 +9,18 @@ import type { CompanionWindowMeta, WorkspaceTarget } from "./types"
 
 // The kinds an agent shows (with `show`) or the person attaches: each points at a file, a
 // page or a change. A video or a recording (`audio`) is a file played rather than read, and a
-// PDF one drawn page by page. A folder is listed, read-only, as a grid or a list. A plan is the one
-// kind an agent writes rather than shows.
-export type ShownKind = "image" | "video" | "audio" | "pdf" | "file" | "folder" | "page" | "changes"
+// PDF one drawn page by page, and a 3D model (`model`) one drawn in the round. A folder is
+// listed, read-only, as a grid or a list. A plan is the one kind an agent writes rather than shows.
+export type ShownKind =
+  | "image"
+  | "video"
+  | "audio"
+  | "pdf"
+  | "model"
+  | "file"
+  | "folder"
+  | "page"
+  | "changes"
 
 // What an agent showed or the person attached, as the backend keeps it: a pointer to a
 // file or page, never a copy, held by exactly one terminal's bar or one undocked window.
@@ -93,6 +102,7 @@ export const kindRules: Record<ItemKind, KindRule> = {
   video: { pointer: "file", follow: "shown", close: "remove" },
   audio: { pointer: "file", follow: "shown", close: "remove" },
   pdf: { pointer: "file", follow: "shown", close: "remove" },
+  model: { pointer: "file", follow: "shown", close: "remove" },
   file: { pointer: "file", follow: "shown", close: "remove" },
   // Followed whether shown or not: files landing in a folder behind another tab make it new.
   folder: { pointer: "file", follow: "always", close: "remove" },
@@ -172,17 +182,51 @@ export type AudioContent = Omit<VideoContent, "kind"> & { readonly kind: "audio"
 // `stamp` (its content's) names it, as a video's: its size in bytes.
 export type PdfContent = { readonly kind: "pdf"; readonly size: number }
 
+// The formats of 3D model the pane draws, by the file's extension.
+export type ModelFormat = "glb" | "gltf" | "stl" | "obj" | "ply" | "3mf"
+
+// Why a file a model names isn't read with it: an address of its own (`external`), a path out
+// of the model's folder (`outside`), or as a part's.
+export type ModelRefusal =
+  | "external"
+  | "outside"
+  | "missing"
+  | "not-a-file"
+  | "secret"
+  | "too-large"
+  | "unreadable"
+
+// A 3D model, drawn from its bytes, read in parts as a PDF's are, with the files beside it it
+// names (a glTF's buffers and textures, an OBJ's materials): each it reads, by its name as the
+// model writes it, which `Companions.part` reads as its own stamp names it, and each it doesn't
+// with why.
+export type ModelContent = {
+  readonly kind: "model"
+  readonly format: ModelFormat
+  readonly size: number
+  readonly files: readonly {
+    readonly name: string
+    readonly size: number
+    readonly stamp: string
+  }[]
+  readonly refused: readonly { readonly name: string; readonly reason: ModelRefusal }[]
+}
+
 // One entry of a folder's listing, as the runner lists it (see the protocol's `folderEntry`):
 // `children` counts what a folder holds, `secret` entries are named and never opened, a `link`
 // leaves the folder and is never entered, and `stamp` names a file as `Companions.part` reads it.
 export type FolderEntry = {
   readonly name: string
-  readonly kind: "folder" | "image" | "video" | "audio" | "pdf" | "text" | "other"
+  readonly kind: "folder" | "image" | "video" | "audio" | "pdf" | "model" | "text" | "other"
   readonly size: number
   readonly modifiedAt: number
   readonly children: number | null
   readonly secret: boolean
   readonly link: boolean
+  // A link that stays inside the top (listed as its target), or what is no regular file: neither
+  // is a file of its own to step to.
+  readonly linked?: true | undefined
+  readonly plain?: false | undefined
   readonly stamp: string
 }
 
@@ -332,6 +376,7 @@ export type ShownContent =
   | VideoContent
   | AudioContent
   | PdfContent
+  | ModelContent
   | FolderContent
   | FileContent
   | PageContent
@@ -513,8 +558,10 @@ export type Companions = {
   // An item's file from `offset`, for a kind read in parts (a video, a recording), while it
   // is as `stamp` names it (see `FilePart`). One
   // that may hold secrets is `secret` unless `reveal` is the path the item points at, as in
-  // `follow`. Rejects where the item is gone or of a kind not read in parts. Absent where the
-  // backend can't: a video, a recording or a PDF then says it can't be shown here.
+  // `follow`. With `file`, a model's, it is that file beside it, one its content lists, as its
+  // own stamp names it, never shown when it may hold secrets. Rejects where the item is gone or
+  // of a kind not read in parts. Absent where the backend can't: a video, a recording, a PDF or
+  // a model then says it can't be shown here.
   readonly part?: (
     target: WorkspaceTarget,
     itemId: ItemId,
@@ -522,6 +569,7 @@ export type Companions = {
       readonly stamp: string
       readonly offset: number
       readonly reveal: string | undefined
+      readonly file?: string | undefined
       // A folder item's file, by its path from the folder's top, with the stamp its listing gave.
       readonly path?: string | undefined
     },
@@ -543,6 +591,10 @@ export type Companions = {
     target: WorkspaceTarget,
     terminalId: string,
   ) => Promise<readonly WroteFolder[]>
+  // Points a file's item at another file of its own kind, by an absolute path, as stepping
+  // through a folder's files does: the same item, holder and id, shown again. Resolves with
+  // the item; rejects when the path is no file of that kind. Absent where the backend can't.
+  readonly repoint?: (target: WorkspaceTarget, itemId: ItemId, path: string) => Promise<Item>
   // Writes the person's edit to the plan, unless it changed since `basedOn`. Rejects with
   // a `PlanUnwritableError` when the plan can't be written at all.
   readonly save: (

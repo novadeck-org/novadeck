@@ -1,4 +1,12 @@
-import type { FilePart, FolderEntry, ItemContent } from "@novadeck/core/items"
+import {
+  isOnBar,
+  itemIdOf,
+  type FilePart,
+  type FolderEntry,
+  type Item,
+  type ItemContent,
+  type ItemId,
+} from "@novadeck/core/items"
 
 import type { SampleArtifact } from "./artifacts"
 
@@ -141,6 +149,9 @@ export const readFolderPart = async (
 
 const hour = 3_600_000
 
+// Where the render folder's files are, as their items name them.
+const renderTop = "~/render"
+
 // A picture drawn on a 16:10 canvas, as a still of the page an agent rendered.
 const still = (name: string, tint: string, label: string): string =>
   `data:image/svg+xml,${encodeURIComponent(
@@ -148,8 +159,17 @@ const still = (name: string, tint: string, label: string): string =>
       `<rect width="800" height="450" fill="${tint}"/><rect x="40" y="40" width="720" height="60" rx="6" fill="#ffffff" opacity=".7"/><rect x="40" y="130" width="330" height="240" rx="6" fill="#ffffff" opacity=".5"/><rect x="400" y="130" width="360" height="110" rx="6" fill="#ffffff" opacity=".5"/><text x="60" y="78" font-family="Arial, sans-serif" font-size="26" fill="#2d2a24">${label}</text><text x="60" y="420" font-family="Arial, sans-serif" font-size="18" fill="#2d2a24">${name}</text></svg>`,
   )}`
 
-const picture = (name: string, tint: string, label: string, age: number, now: number): DemoFile => {
+// `within` is the folder of the render folder the picture is in, which its item's path names.
+const picture = (
+  name: string,
+  tint: string,
+  label: string,
+  age: number,
+  now: number,
+  within = "",
+): DemoFile => {
   const source = still(name, tint, label)
+  const path = within === "" ? `${renderTop}/${name}` : `${renderTop}/${within}/${name}`
   return {
     name,
     kind: "image",
@@ -162,7 +182,7 @@ const picture = (name: string, tint: string, label: string, age: number, now: nu
         kind: "image",
         name,
         detail: "38 KB SVG",
-        path: `~/render/${name}`,
+        path,
         url: null,
         lines: null,
         secret: false,
@@ -215,11 +235,14 @@ const textFile = (name: string, lines: readonly string[], age: number, now: numb
 export type RenderMedia = {
   readonly clip: () => Promise<Uint8Array<ArrayBuffer>>
   readonly clipSize: number
-  readonly report: Uint8Array<ArrayBuffer>
+  readonly report: () => Promise<Uint8Array<ArrayBuffer>>
+  readonly reportSize: number
+  readonly model: () => Promise<Uint8Array<ArrayBuffer>>
+  readonly modelSize: number
 }
 
-// What an agent rendered: stills, a clip, a report, a log, a folder of its own, a secret and a
-// link out of the folder. `now` is when the demo started.
+// What an agent rendered: stills, a clip, a report, a 3D bracket, a log, a folder of its own, a
+// secret and a link out of the folder. `now` is when the demo started.
 export const renderFiles = (now: number, media: RenderMedia): DemoFile[] => [
   picture("checkout-desktop.svg", "#f6f1e7", "Checkout", 4 * 60_000, now),
   picture("checkout-mobile.svg", "#e4e9d6", "Checkout · mobile", 9 * 60_000, now),
@@ -258,9 +281,9 @@ export const renderFiles = (now: number, media: RenderMedia): DemoFile[] => [
   {
     name: "quarterly-report.pdf",
     kind: "pdf",
-    size: media.report.length,
+    size: media.reportSize,
     modifiedAt: now - 5 * hour,
-    read: async () => media.report,
+    read: media.report,
     opens: () => ({
       item: {
         id: "folder-open-report",
@@ -275,9 +298,34 @@ export const renderFiles = (now: number, media: RenderMedia): DemoFile[] => [
       content: {
         state: "ready",
         stamp: "1",
-        content: { kind: "pdf", size: media.report.length },
+        content: { kind: "pdf", size: media.reportSize },
       },
-      file: { read: async () => media.report },
+      file: { read: media.report },
+    }),
+  },
+  {
+    name: "bracket.stl",
+    kind: "model",
+    size: media.modelSize,
+    modifiedAt: now - 3 * 60_000,
+    read: media.model,
+    opens: () => ({
+      item: {
+        id: "folder-open-bracket",
+        kind: "model",
+        name: "bracket.stl",
+        detail: "STL, CAD output",
+        path: "~/render/bracket.stl",
+        url: null,
+        lines: null,
+        secret: false,
+      },
+      content: {
+        state: "ready",
+        stamp: "1",
+        content: { kind: "model", format: "stl", size: media.modelSize, files: [], refused: [] },
+      },
+      file: { read: media.model },
     }),
   },
   textFile(
@@ -286,14 +334,42 @@ export const renderFiles = (now: number, media: RenderMedia): DemoFile[] => [
     7 * 60_000,
     now,
   ),
+  textFile(
+    "notes.md",
+    [
+      "# Render notes",
+      "",
+      "The checkout renders in four states:",
+      "",
+      "- **Desktop** and **mobile**, at their usual widths",
+      "- The order summary, once a coupon is applied",
+      "- The empty cart",
+      "",
+      "See `render.log` for what each pass wrote.",
+    ],
+    12 * 60_000,
+    now,
+  ),
+  textFile(
+    "results.json",
+    [
+      "{",
+      '  "passes": 4,',
+      '  "failed": 0,',
+      '  "files": ["checkout-desktop.svg", "checkout-mobile.svg", "order-summary.svg", "empty-cart.svg"]',
+      "}",
+    ],
+    8 * 60_000,
+    now,
+  ),
   {
     name: "old-runs",
     kind: "folder",
     size: 0,
     modifiedAt: now - 26 * hour,
     children: [
-      picture("run-1-home.svg", "#e3edf1", "Run 1 · home", 26 * hour, now),
-      picture("run-1-cart.svg", "#f3ece0", "Run 1 · cart", 26 * hour, now),
+      picture("run-1-home.svg", "#e3edf1", "Run 1 · home", 26 * hour, now, "old-runs"),
+      picture("run-1-cart.svg", "#f3ece0", "Run 1 · cart", 26 * hour, now, "old-runs"),
       {
         name: "notes",
         kind: "folder",
@@ -379,6 +455,73 @@ export const openedAt = (
     samples.find((each) => each.folder?.top === path) ??
     folderItem(`folder-${path}`, base, createFolder(path, renderFiles(now, media)))
   )
+}
+
+// What a file the person picked opens as, and where: `terminalId` puts it on that bar as a new
+// item, or the one the bar already holds of it (the one under that file's own id, or under any
+// other), shown again; `itemId` points that file item at it, which keeps its id and its holder.
+// What the bar held of the file an item is pointed at is `twin`, which gives way to it. The item
+// is the person's own and asks to open, with a later version. Throws for a file that can't be
+// shown, or, for `itemId`, an item that is none or of another kind.
+export const placed = (
+  {
+    samples,
+    items,
+    terminalId,
+    itemId,
+    path,
+    projects = [],
+  }: {
+    readonly samples: readonly SampleArtifact[]
+    readonly items: readonly Item[]
+    // The items the project windows hold, which stay on their file.
+    readonly projects?: readonly string[]
+    readonly terminalId?: string | undefined
+    readonly itemId?: ItemId | undefined
+    readonly path: string
+  },
+  now: number,
+  media: RenderMedia,
+): { id: string; sample: SampleArtifact; item: Item; twin: ItemId | undefined } => {
+  const opened = openedAt(samples, path, now, media)
+  if (!opened) throw new Error("That file can't be shown")
+  const { kind, name, detail, path: shown, url, lines, secret } = opened.item
+  const before = items.find((each) => each.id === itemId)
+  if (before && projects.includes(before.id))
+    throw new Error("The project window's file stays in its window")
+  if (itemId !== undefined && (!before || before.kind !== kind || kind === "folder"))
+    throw new Error("That item can't show this file")
+  // As the runner keeps a file on a bar: by what that bar holds under its pointer.
+  const own = before ?? items.find((each) => isOnBar(each, terminalId ?? "") && each.path === shown)
+  // A sample's id is the file's: one another bar already holds is not this bar's item.
+  const taken = items.some((each) => each.id === itemIdOf(opened.item.id))
+  const id = own?.id ?? (taken ? `${opened.item.id}@${terminalId}` : opened.item.id)
+  const item: Item = {
+    ...(own ?? {
+      id: itemIdOf(id),
+      holder: { terminalId: terminalId ?? "" },
+      from: { terminalId: terminalId ?? "", handle: "" },
+      plan: null,
+    }),
+    kind,
+    name,
+    detail,
+    path: shown,
+    url,
+    lines,
+    secret,
+    by: "person",
+    version: own ? own.version + 1 : 1,
+    openAsked: true,
+    shownAt: now,
+  }
+  const home = before && "terminalId" in before.holder ? before.holder.terminalId : undefined
+  const twin =
+    home === undefined
+      ? undefined
+      : items.find((each) => each.id !== before?.id && each.path === shown && isOnBar(each, home))
+          ?.id
+  return { id, sample: { ...opened, item: { ...opened.item, id } }, item, twin }
 }
 
 // What the path field suggests, which loads with the folders.

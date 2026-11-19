@@ -489,12 +489,41 @@ Agents:
   shows the report under a new stamp, as if its file was rewritten, read in 512-byte parts 0.3 s
   apart: the old one stays on screen under a Loading chip for about 2 s, then the new one swaps
   in on the page you were on.
+- **3D model:** only in the `showcase` variant, on the selected terminal's bar. The models are
+  bytes made in code (`frontend/demo/src/showcase/model.ts`), drawn by the pane's 3D viewer:
+  "Show an STL bracket" is an L-bracket as a CAD loop writes it, 60 × 40 × 40 mm; "Show an
+  animated glTF" is an arm read with its `arm.bin` beside it, whose Play swings its boom; "Show an
+  OBJ with materials" is a crate coloured by its `crate.mtl`; "Show a PLY scan of points" is a
+  dome of coloured points; "Show a model that loads slowly" reads one in 1 KB parts 0.3 s apart;
+  "Show a model too large to preview" is the pane's "Novadeck previews 3D models up to 256 MB";
+  "Show a model that may hold secrets" joins the stack unopened until you pick its tab; "Show a
+  model whose read fails" is the pane's "couldn't be loaded"; "Show a glTF naming a texture
+  elsewhere" is drawn without it, under "Not read: https://cdn.example.com/arm-skin.png (an address
+  of its own)"; "Show a 3MF spacer" is a tube read from its zip in the millimetres it names; "Show a glTF whose files
+  were refused" lists one refused file for each reason; "Show a glTF whose buffer can't be read" is a
+  buffer whose read fails; "Show a glTF claiming 4 GB" is refused before three.js allocates it; "Show an
+  STL with nothing in it" says there's nothing to draw; "Show a model past what a peek draws" keeps
+  its peek a badge; "Show a Draco-compressed glTF" says Novadeck can't read that compression yet
+  (the one state the panel can't reach is no WebGL at all);
+  "Show a file that isn't a model" says "This isn't a model Novadeck can read."; "Stop the 3D
+  viewer" sends the open model's frame to another page, and the pane says "The 3D viewer
+  stopped."; "Rewrite the bracket" writes it again 10 mm longer, read in small parts: the old one
+  stays in view under a Loading chip, then the new one is drawn from where you were looking.
 - **Folder:** only in the `showcase` variant, on the selected terminal's bar. The dev server's
   terminal (`@fox`) already holds `render`, a folder an agent wrote into (`frontend/demo/src/showcase/folders.ts`:
-  SVG stills, a clip, a PDF, a log, a folder inside it, a secret file and folder and a link out),
-  listed as thumbnails, newest first; double-clicking a file opens it in its kind's group,
-  and opening a folder from the Files panel (`agents` demo) lists a stand-in. The Folder group:
-  "Show a folder" shows it again; "A file lands in the folder" puts a new picture on top (held
+  SVG stills, a clip, a PDF, a log, a Markdown note (`notes.md`) and a JSON file (`results.json`), a
+  folder inside it, a secret file and folder and a link out), listed as thumbnails, newest first;
+  double-clicking a file opens it in its kind's group, Alt+double-click (or "Open as text" in the
+  entry's right-click menu) opens `notes.md` or `results.json` on its source with "Show source"
+  pressed, Space is a quick look (a still larger, the clip's first frame and length, an icon card
+  for the PDF, the log and the secret; ← → step, Enter opens, Space or Escape closes), "Copy path"
+  copies an entry's absolute path, and opening a folder from the Files panel (`agents` demo) lists a stand-in. A file opened from
+  it, while the folder is on the bar, has ‹ and › through the folder's files of its kind (a
+  still: ← and → too; ‹ is off on the first still and › on the last, and the log, the only
+  text file, has both off) and Show in render, which goes back to the folder with the file selected
+  (a still of `old-runs` has "Show in old-runs", which opens that folder inside render). The Folder group:
+  "Show a folder" shows it again; "Open a file of the folder" opens the newest still of it as a
+  double-click would; "A file lands in the folder" puts a new picture on top (held
   in a pill while the pointer is in the grid); "A file is being written" grows one for about 3 s
   (write cursor and pulse); "Show a folder with nothing in it", "...too large to list whole" and
   "...that may hold secrets" are the pane's other states; "The folder goes away" strikes its tab

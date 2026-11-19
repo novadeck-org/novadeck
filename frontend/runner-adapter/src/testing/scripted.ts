@@ -305,6 +305,7 @@ export const scripted = ({
       attach: note("attach", (input) => respond("attach", input)),
       folders: note("folders", (input) => respond("folders", input)),
       wroteTo: note("wrote to", (input) => respond("wrote to", input)),
+      repoint: note("repoint", (input) => respond("repoint", input)),
       openInProject: note("open in project", (input) => respond("open in project", input)),
       move: note("move", (input) => respond("move", input)),
       undock: note("undock", (input) => respond("undock", input)),

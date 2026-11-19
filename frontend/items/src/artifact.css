@@ -5,8 +5,10 @@
    chip over it); a file's lines (`.artifact-code`, holding the code viewer,
    @novadeck/viewers/code.css); a page in a browser frame
    (`.artifact-browser`, with the page in `.artifact-page-frame`, holding the browser viewer,
-   with `.artifact-page-failed` over it when it didn't load, and `.artifact-open`, a small
-   link or button in a notice or on a page that didn't load); and a markdown document, which
+   with `.artifact-page-failed` over it when it didn't load, where the page is in
+   `.page-address`, a chip at the start of the row's tools that turns into a field to type an
+   address in, data-editing while it's one, and `.artifact-open`, a small link or button in a
+   notice or on a page that didn't load); and a markdown document, which
    the prose recipe formats.
    `.artifact-status` says when there's nothing to show yet; `.artifact-unavailable`
    says why something can't show, over `.artifact-unavailable-actions`, what can be done
@@ -196,6 +198,62 @@
   --_bg: var(--artifact-open-hover-bg, var(--color-soft));
   --_fg: var(--artifact-open-hover-fg, var(--color-ink));
 }
+/* Where the page is, a chip in the row's tools: the address, muted, cut short to fit; under
+   the pointer, a soft ground. Focused, a field to type another in, wider, on the field's
+   ground with its rim; rimmed in danger while what was typed is no address. */
+.page-address {
+  --_bg: transparent;
+  --_fg: var(--artifact-open-fg, var(--color-muted));
+  --_border-color: transparent;
+  flex: 0 1 auto;
+  box-sizing: border-box;
+  min-width: 8ch;
+  max-width: min(260px, 32cqi);
+  height: 24px;
+  padding: 0 8px;
+  border: var(--border-width) solid var(--_border-color);
+  border-radius: var(--radius-control);
+  background-color: var(--_bg);
+  color: var(--_fg);
+  font: inherit;
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
+  text-overflow: ellipsis;
+  field-sizing: content;
+  transition: background-color var(--motion-feedback) var(--ease-interface);
+}
+.page-address:hover {
+  --_bg: var(--artifact-open-hover-bg, var(--color-soft));
+  --_fg: var(--artifact-open-hover-fg, var(--color-ink));
+}
+.page-address[data-editing] {
+  --_bg: var(--field-bg, var(--color-paper));
+  --_fg: var(--field-fg, var(--color-ink));
+  --_border-color: var(--field-open-border-color, var(--color-line-strong));
+  width: min(440px, 64cqi);
+  max-width: min(440px, 64cqi);
+  field-sizing: fixed;
+  text-overflow: clip;
+}
+.page-address:focus-visible {
+  outline: none;
+}
+.page-address[aria-invalid="true"] {
+  --_border-color: var(--color-danger-fg);
+}
+/* While it's a field, the row makes room for it out of the tabs, clipped rather than
+   scrolling, so no scrollbar comes under them and the row keeps its height; and in a pane too
+   narrow for it and the tools, it gives way to them. */
+.pane-row:has(.page-address[data-editing]) .pane-tabs {
+  overflow: hidden;
+}
+.pane-row:has(.page-address[data-editing]) :is(.pane-end, .pane-tools) {
+  flex-shrink: 1;
+  min-width: 0;
+}
+.page-address::placeholder {
+  color: var(--color-muted);
+}
 /* The page, in the browser viewer (@novadeck/viewers/browser.css): live, it fills the
    viewer and scrolls itself; a snapshot scrolls under the bar. */
 .artifact-page-frame {
@@ -252,6 +310,10 @@
   background-color: var(--pane-bg, var(--color-paper));
   /* Its row folds the tools as a pane's does, for what a pane-reader doesn't hold. */
   container: pane-reader / inline-size;
+}
+/* Focus lands on the window as it stays through a file's steps; it is not a control. */
+.artifact-window:focus {
+  outline: none;
 }
 
 /* A delimited file (CSV, TSV) as a table (`.artifact-table`): it scrolls both ways in

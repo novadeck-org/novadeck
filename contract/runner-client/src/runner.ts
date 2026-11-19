@@ -607,6 +607,13 @@ export type Runner = {
      */
     wroteTo(input: { readonly terminalId: string }): Promise<WroteFolder[]>
     /**
+     * Points a file's item at another file of its own kind, by a path absolute or from the
+     * folder of the file it points at now: the same item and holder, with a later version.
+     * Rejects with `NOT_FOUND`, `CONFLICT` for a project window's item, or `INVALID_FILE`
+     * saying why (no file, an item that is no file, another kind).
+     */
+    repoint(input: { readonly itemId: string; readonly path: string }): Promise<CompanionItem>
+    /**
      * Opens a file in the session's project window, by a path absolute or from the
      * session's project folder: the window's item is pointed at it, or, with none yet, the
      * window is made under `windowId`. Rejects with `NOT_FOUND` for an unknown session,
@@ -641,7 +648,8 @@ export type Runner = {
      * An item's file from `offset`, up to `partBytes` bytes, for a kind read in parts (a
      * video, a recording), while it is as
      * `stamp` names it; `changed` when it is not. Rejects with `NOT_FOUND` for an unknown
-     * item or one of a kind not read in parts. A folder item's `path` names one of its files,
+     * item or one of a kind not read in parts. With `file`, a model's file beside it, one its
+     * content lists, as its own stamp names it. A folder item's `path` names one of its files,
      * from its top.
      */
     part(input: {
@@ -649,6 +657,7 @@ export type Runner = {
       readonly stamp: string
       readonly offset: number
       readonly reveal?: string
+      readonly file?: string
       readonly path?: string
     }): Promise<FilePart>
     /** What went wrong on a page item during its show `shown`, as the pane saw it. */
@@ -986,6 +995,7 @@ export const connectRunner = async (
       attach: (input) => call((client) => client.companions.attach(input)),
       folders: (input) => call((client) => client.companions.folders(input)),
       wroteTo: (input) => call((client) => client.companions.wroteTo(input)),
+      repoint: (input) => call((client) => client.companions.repoint(input)),
       openInProject: (input) => call((client) => client.companions.openInProject(input)),
       move: (itemId, terminalId) =>
         call((client) => client.companions.move({ itemId, terminalId })),

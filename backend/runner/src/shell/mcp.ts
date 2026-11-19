@@ -171,7 +171,7 @@ const picked = (args: Arguments, names: readonly string[]): Arguments =>
 const show: Tool<Shown> = {
   name: "show",
   description:
-    "Show the user an image, a video, an audio recording, a PDF or a text file, a folder, a web page, or the working tree's changes, in Novadeck, " +
+    "Show the user an image, a video, an audio recording, a PDF, a 3D model or a text file, a folder, a web page, or the working tree's changes, in Novadeck, " +
     "beside the terminal they're talking to you in. Give one of file, page or changes. Show a " +
     "deliverable when it is done, not each file you touch: an image or screenshot, a " +
     "rendered video, recording or screen capture, the folder you wrote several of them to, a rendered page or a dev server's address, a report, mockup, diagram or generated " +
@@ -195,11 +195,12 @@ const show: Tool<Shown> = {
         description:
           "A file: an image (PNG, APNG, JPEG, JPEG XL, GIF, WebP, AVIF, BMP, ICO, SVG), a video (MP4, " +
           "M4V, WebM, MOV) or an audio recording (MP3, M4A, AAC, WAV, OGG, Opus, FLAC), which " +
-          "Novadeck plays, a PDF, which it shows page by page, or a text file, and for a text " +
-          "file the lines to point at, or for a video or recording the second to start at. Or a " +
-          "folder, which Novadeck lists as a grid of thumbnails or a list, live while files land " +
-          "in it; the user opens each file from there. It's read-only, and a folder that may hold " +
-          "secrets, such as ~/.ssh, isn't listed.",
+          "Novadeck plays, a PDF, which it shows page by page, a 3D model (GLB or glTF, STL, OBJ with " +
+          "its MTL, PLY, 3MF), which it draws to turn and look at along with the files beside " +
+          "it that it names, or a text file, and for a text file the lines to point at, or for a " +
+          "video or recording the second to start at. Or a folder, which Novadeck lists as a grid " +
+          "of thumbnails or a list, live while files land in it; the user opens each file from " +
+          "there. It's read-only, and a folder that may hold secrets, such as ~/.ssh, isn't listed.",
         properties: {
           path: {
             type: "string",
@@ -327,7 +328,9 @@ const show: Tool<Shown> = {
         ? " It's too large to play (over 512 MB), so Novadeck lists it by its name only."
         : answer.kind === "pdf"
           ? " It's too large to preview (over 128 MB), so Novadeck lists it by its name only."
-          : " It's too large to preview, so Novadeck lists it by its name only."
+          : answer.kind === "model"
+            ? " It's too large to preview (over 256 MB), so Novadeck lists it by its name only."
+            : " It's too large to preview, so Novadeck lists it by its name only."
       : ""),
   failed: "Novadeck couldn't show it.",
 }
@@ -335,7 +338,7 @@ const show: Tool<Shown> = {
 const showing: Tool<Listing> = {
   name: "showing",
   description:
-    "List what is showing beside your terminal in Novadeck now: each image, video, recording, PDF, file, folder, page, " +
+    "List what is showing beside your terminal in Novadeck now: each image, video, recording, PDF, 3D model, file, folder, page, " +
     "changes and plan, with where it points and whether you showed it, the user attached it, or " +
     "it was placed there from another terminal, and what you showed that the user moved " +
     "into a window or beside another terminal. Check it before showing after a while, " +

@@ -205,6 +205,22 @@ describe("a folder's path field", () => {
       expect(app.field()).not.toBeNull()
     })
 
+    it("ends a quick look under way, and keeps Space and Backspace to the text", async () => {
+      const app = await shown()
+      const tile = app.root.querySelector<HTMLElement>(".folder-tile")!
+      act(() => tile.dispatchEvent(new MouseEvent("click", { bubbles: true })))
+      await app.keydown({ key: " " }, tile)
+      expect(app.root.querySelector('[role="dialog"]')).not.toBeNull()
+      await app.open()
+      expect(app.root.querySelector('[role="dialog"]')).toBeNull()
+      expect(app.field()).not.toBeNull()
+      // Typed in the field, Space opens no look and Backspace goes no way up.
+      await app.keydown({ key: " " })
+      await app.keydown({ key: "Backspace" })
+      expect(app.root.querySelector('[role="dialog"]')).toBeNull()
+      expect(app.field()).not.toBeNull()
+    })
+
     it("leaves Backspace to the text, not to the way up", async () => {
       const app = await shown()
       await app.open()

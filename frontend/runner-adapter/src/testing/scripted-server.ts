@@ -307,6 +307,7 @@ export const scriptedRunner = ({
       attach: api.companions.attach.handler(unplayed("companions.attach")),
       folders: api.companions.folders.handler(unplayed("companions.folders")),
       wroteTo: api.companions.wroteTo.handler(unplayed("companions.wroteTo")),
+      repoint: api.companions.repoint.handler(unplayed("companions.repoint")),
       openInProject: api.companions.openInProject.handler(unplayed("companions.openInProject")),
       pageTrouble: api.companions.pageTrouble.handler(unplayed("companions.pageTrouble")),
       part: api.companions.part.handler(unplayed("companions.part")),

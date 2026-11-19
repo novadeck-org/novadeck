@@ -7,6 +7,7 @@ import {
   chatSendsOf,
   chatShellsOf,
   chatShown,
+  openedMemory,
 } from "@novadeck/chat/state"
 import { useBoxHandover } from "@novadeck/chat/use-box-handover"
 import { useChat } from "@novadeck/chat/use-chat"
@@ -338,6 +339,11 @@ export const WorkspaceTerminal = memo(
       chatImageNoteOf(state.imageNotes, chatContext, terminalId),
     )
     const shells = useChat(chat, (state) => chatShellsOf(state.shells, chatContext, terminalId))
+    // What the person opened and shut in the chat, kept as its rows go and come back.
+    const opened = useMemo(
+      () => openedMemory(chat, chatContext, terminalId),
+      [chat, chatContext, terminalId],
+    )
     const conversation = showChat ? candidate : undefined
     // The terminal's shells item, wherever it sits, whose pane the chat's shell lines open, and
     // whose output gives each its last line, which the lines follow themselves.
@@ -439,6 +445,7 @@ export const WorkspaceTerminal = memo(
                     onReplyTo={(to) => commands.setChatReply(chatContext, terminalId, to)}
                     sending={sending}
                     shells={shells}
+                    opened={opened}
                     shellTails={shellTails}
                     onOpenShell={onOpenShell}
                     attachments={attachments}

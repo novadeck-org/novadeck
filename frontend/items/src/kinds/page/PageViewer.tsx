@@ -10,6 +10,7 @@ import type { ArtifactBodyProps } from "../../ArtifactViewer"
 import { useAwake } from "../../awake"
 import { PaneTools, usePaneNote, type PaneTool } from "../../pane-row"
 import { useViewerSlot } from "../../ViewerSlot"
+import { AddressField } from "./AddressField"
 
 /** Whether two addresses share an origin: scheme, host and port. */
 const sameOrigin = (a: string, b: string): boolean => {
@@ -64,6 +65,11 @@ const useTroubles = (tell: Tell): ((trouble: Trouble, shown: number) => void) =>
   const batch = useMemo(() => batcher(() => latest), [])
   useEffect(() => batch.flush, [batch])
   return batch.collect
+}
+
+// Opens an address in the person's browser, never in the pane.
+const openOut = (url: string): void => {
+  window.open(url, "_blank", "noreferrer")
 }
 
 // Opens the page in the person's browser, never in the pane.
@@ -172,6 +178,19 @@ const ShownPage = ({
       aria-busy={load === "loading"}
     >
       <PaneTools
+        chip={
+          <AddressField
+            where={place.url}
+            live={page.live}
+            onGo={(url) => {
+              if (!page.live) return openOut(url)
+              viewer?.visit(url)
+              // Resting, it goes there as it wakes.
+              wake()
+            }}
+            onReturn={() => viewer?.focus()}
+          />
+        }
         tools={[
           ...(page.live
             ? [
@@ -238,7 +257,10 @@ export const PageViewer = ({
     />
   ) : (
     <div className="artifact-browser">
-      <PaneTools tools={[openTool(page.url)]} />
+      <PaneTools
+        chip={<AddressField where={page.url} live={false} onGo={openOut} onReturn={() => {}} />}
+        tools={[openTool(page.url)]}
+      />
       <div className="artifact-status">This page opens in your browser.</div>
     </div>
   )

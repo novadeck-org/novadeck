@@ -22,6 +22,8 @@ export const ProjectWindow = ({
   item: Item | undefined
   Preview?: ComponentType<{ readonly fallback: ReactNode }> | undefined
 }): React.JSX.Element => {
-  const file = item ? <WindowItem item={item} itemStore={itemStore} target={target} /> : null
+  const file = item ? (
+    <WindowItem item={item} itemStore={itemStore} target={target} steps={false} />
+  ) : null
   return <div className="artifact-window">{Preview ? <Preview fallback={file} /> : file}</div>
 }
