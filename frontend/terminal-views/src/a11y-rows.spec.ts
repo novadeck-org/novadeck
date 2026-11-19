@@ -111,10 +111,12 @@ describe("a screen-reader terminal's rows", () => {
 
   it("aligns every row again when the cell changes size", async () => {
     const { xterm, screen, settled, items } = await open()
+    const before = screen.getBoundingClientRect().width / cols
     xterm.options.fontSize = 20
     await settled()
+    // The cell grew, by however much the system's monospace font makes it.
     const cell = screen.getBoundingClientRect().width / cols
-    expect(cell).toBeGreaterThan(11)
+    expect(cell).toBeGreaterThan(before)
     for (const item of items()) {
       expect(item.getBoundingClientRect().width).toBeCloseTo(item.textContent!.length * cell, 0)
     }
