@@ -995,6 +995,7 @@ describe("workspace commands", () => {
         chatView: false,
         agentAvatars: false,
         onboardingTour: false,
+        foldLongReplies: false,
       })
       expect(app.state().view).not.toBe("grid")
       expect(app.shell().revealCanvas).toBe(false)

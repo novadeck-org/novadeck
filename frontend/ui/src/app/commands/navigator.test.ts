@@ -20,6 +20,7 @@ const preferences: PreferencesValue = {
   chatView: false,
   agentAvatars: false,
   onboardingTour: false,
+  foldLongReplies: false,
 }
 const panels = availablePanels(true)
 const base = "/projects/project/sessions/initial/grid"

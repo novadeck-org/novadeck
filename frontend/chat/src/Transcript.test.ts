@@ -672,3 +672,59 @@ describe("what the person opened", () => {
     expect(expanded(draw(memory, "two").container)).toEqual(["false", "false", "false"])
   })
 })
+
+describe("long replies, folding", () => {
+  const long = "A paragraph of the reply.\n\n".repeat(60)
+  const turns = (first: string, second: string): readonly ChatBlock[] => [
+    words("p1", "user", "Why?"),
+    words("r1", "assistant", first),
+    words("p2", "user", "And then?"),
+    words("r2", "assistant", second),
+  ]
+  const draw = (blocks: readonly ChatBlock[], foldReplies: boolean) => {
+    const { container, unmount } = render(
+      createElement(Transcript, { blocks, agent: "Claude", working: false, foldReplies }),
+    )
+    unmounts.push(unmount)
+    return container
+  }
+  const reply = (container: Element, at: number) =>
+    container.querySelectorAll('[data-role="assistant"]')[at]!
+  // jsdom lays nothing out: every reply takes fifty lines of 20px.
+  const lay = () => {
+    vi.spyOn(window, "getComputedStyle").mockReturnValue({ lineHeight: "20px" } as never)
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(50 * 20)
+  }
+  afterEach(() => vi.restoreAllMocks())
+
+  it("folds an earlier long reply to its first lines, with a key for the rest", async () => {
+    lay()
+    const container = draw(turns(long, long), true)
+    const earlier = reply(container, 0)
+    expect(earlier.querySelector(".chat-words")?.hasAttribute("data-folded")).toBe(true)
+    const key = earlier.querySelector<HTMLElement>(".chat-more")!
+    expect(key.textContent).toBe("… 47 more lines")
+    await act(async () => key.click())
+    expect(earlier.querySelector(".chat-words")?.hasAttribute("data-folded")).toBe(false)
+    expect(key.textContent).toBe("show less")
+  })
+
+  it("never folds the latest reply", () => {
+    lay()
+    expect(reply(draw(turns(long, long), true), 1).querySelector(".chat-more")).toBeNull()
+  })
+
+  it("leaves a reply too short to run long as it is", () => {
+    lay()
+    const earlier = reply(draw(turns("Done.", long), true), 0)
+    expect(earlier.querySelector(".chat-words")).toBeNull()
+    expect(earlier.querySelector(".chat-more")).toBeNull()
+  })
+
+  it("folds nothing while it's off", () => {
+    lay()
+    const earlier = reply(draw(turns(long, long), false), 0)
+    expect(earlier.querySelector(".chat-words")).toBeNull()
+    expect(earlier.querySelector(".chat-more")).toBeNull()
+  })
+})
