@@ -193,7 +193,7 @@ const show: Tool<Shown> = {
       file: {
         type: "object",
         description:
-          "A file: an image (PNG, APNG, JPEG, GIF, WebP, AVIF, BMP, ICO, SVG), a video (MP4, " +
+          "A file: an image (PNG, APNG, JPEG, JPEG XL, GIF, WebP, AVIF, BMP, ICO, SVG), a video (MP4, " +
           "M4V, WebM, MOV) or an audio recording (MP3, M4A, AAC, WAV, OGG, Opus, FLAC), which " +
           "Novadeck plays, a PDF, which it shows page by page, a 3D model (GLB or glTF, STL, OBJ with " +
           "its MTL, PLY, 3MF), which it draws to turn and look at along with the files beside " +

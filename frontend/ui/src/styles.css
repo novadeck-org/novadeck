@@ -107,6 +107,7 @@
 @import "@novadeck/viewers/model.css" layer(components);
 @import "@novadeck/viewers/browser.css" layer(components);
 @import "@novadeck/viewers/markdown.css" layer(components);
+@import "@novadeck/viewers/tree.css" layer(components);
 @import "@novadeck/items/prose.css" layer(components);
 @import "@novadeck/items/syntax.css" layer(components);
 @import "./preferences/settings.css" layer(components);

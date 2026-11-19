@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { realpath } from "node:fs/promises"
-import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path"
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { PlanSource } from "@novadeck/harness-core/events"
@@ -37,6 +37,7 @@ import { mention } from "../terminals/handles.js"
 import { tail } from "../text.js"
 import { displayed, repositoryOf, samePlace, worktreeBranch } from "./changes.js"
 import {
+  formatOf,
   hashOf,
   loadFile,
   discoverModel,
@@ -1381,13 +1382,11 @@ export class CompanionItems {
       pointed.kind === "image" ||
       pointed.kind === "video" ||
       pointed.kind === "audio" ||
-      pointed.kind === "pdf"
+      pointed.kind === "pdf" ||
+      pointed.kind === "model"
     ) {
-      const format = pointed.path.split(".").at(-1)!.toUpperCase().replace("JPG", "JPEG")
-      return `${size(pointed.size)} ${format}`
+      return `${size(pointed.size)} ${formatOf(pointed.path)}`
     }
-    if (pointed.kind === "model")
-      return `${extname(pointed.path).slice(1).toUpperCase()}, ${size(pointed.size)}`
     const shown = project && inside(project, pointed.path) ? relative(project, pointed.path) : given
     const range = lines ? ` · lines ${lines.from}–${lines.to}` : ""
     return `${tail(shown, companionLimits.detail - range.length)}${range}`

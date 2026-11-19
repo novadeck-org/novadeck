@@ -322,6 +322,7 @@ describe("the packages a system's test job runs", () => {
     const workspace = workspacePackages(root)
     // Without pnpm's check of the install, which prints to stdout ahead of turbo's JSON when it
     // finds the workspace's state stale, as after a rebase.
+    // Real pnpm and turbo: 1.7 s here, 7.7 s on a loaded macOS runner, past Vitest's default 5 s.
     const out = execFileSync(
       "pnpm",
       [
@@ -347,7 +348,7 @@ describe("the packages a system's test job runs", () => {
       "@novadeck/relay",
     ])
       expect(system.has(name)).toBe(true)
-  })
+  }, 30_000)
 })
 
 describe("test:system's turbo arguments", () => {

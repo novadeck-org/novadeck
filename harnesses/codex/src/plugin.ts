@@ -46,7 +46,7 @@ export const hookDialect = (platform: NodeJS.Platform): Dialect =>
  * `hooks.test.ts` pins it.
  */
 export const hook = (platform: NodeJS.Platform, event: string): string =>
-  hookCommand(hookDialect(platform), { agent: "codex", event })
+  hookCommand(hookDialect(platform), { agent: "codex", event, reviewed: true })
 
 // A TOML key's parts, as `a."b.c"` or `a . 'b'` writes them: split at the dots outside
 // quotes, each part's quotes and the spaces around it dropped.

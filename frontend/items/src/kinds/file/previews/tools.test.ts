@@ -1,5 +1,5 @@
 import { render } from "@novadeck/test-kit/render"
-import { Rows3 } from "lucide-react"
+import { Columns3, Rows3 } from "lucide-react"
 import { act, createElement, useState } from "react"
 import { afterEach } from "vitest"
 
@@ -32,7 +32,31 @@ const host = () => {
   return { ...rendered, latest: () => seen.at(-1)!, seen }
 }
 
+// A preview whose one tool shows rows or columns by its icon alone.
+const Flipping = (): null => {
+  const [rows, setRows] = useState(true)
+  usePreviewTools([
+    { key: "by", icon: rows ? Rows3 : Columns3, label: "By", onClick: () => setRows(!rows) },
+  ])
+  return null
+}
+
 describe("a preview's own tools", () => {
+  it("reach the row again when only a tool's icon changes", () => {
+    const seen: (readonly PaneTool[])[] = []
+    const rendered = render(
+      createElement(
+        PreviewToolsSetter,
+        { value: (tools: readonly PaneTool[]) => seen.push(tools) },
+        createElement(Flipping),
+      ),
+    )
+    unmounts.push(rendered.unmount)
+    expect(seen.at(-1)![0]!.icon).toBe(Rows3)
+    act(() => seen.at(-1)![0]!.onClick!())
+    expect(seen.at(-1)![0]!.icon).toBe(Columns3)
+  })
+
   it("reach the row, and call the preview's latest handler", () => {
     const { latest } = host()
     expect(latest().map((tool) => tool.label)).toEqual(["Count 0"])

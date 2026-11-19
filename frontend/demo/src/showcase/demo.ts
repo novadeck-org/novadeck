@@ -26,6 +26,7 @@ import { directoryOf, sessionOf, terminalOf, terminalsOf } from "../workspace"
 import { authAgent, studioAgent, type SampleAgent } from "./agents"
 import { devServerArtifacts } from "./artifacts"
 import { changesArtifacts, workChanges } from "./changes"
+import { dataArtifacts } from "./data-files"
 import { createShowcase, planFaults, type PlanFault } from "./simulation"
 
 // Both sample agents wrote a plan, and wait on the person to approve it.
@@ -127,7 +128,7 @@ export const showcaseDemo = (
       {
         key: { ...session, terminalId: demoTerminalId(session, 2) },
         handle: "fox",
-        artifacts: [...devServerArtifacts, ...changesArtifacts],
+        artifacts: [...devServerArtifacts, ...dataArtifacts, ...changesArtifacts],
       },
     ],
   })

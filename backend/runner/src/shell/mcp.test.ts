@@ -888,6 +888,16 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     expect(showing.description).toContain("Check it before showing after a while")
   })
 
+  it("names every kind of image show takes, JPEG XL among them", async () => {
+    const [, tools] = await session(terminal(), [initialize, list])
+    const show = (tools?.result?.tools ?? []).find((tool) => tool.name === "show") as unknown as {
+      inputSchema: { properties: { file: { description: string } } }
+    }
+    const { description } = show.inputSchema.properties.file
+    for (const format of ["PNG", "APNG", "JPEG", "JPEG XL", "GIF", "WebP", "AVIF", "BMP", "ICO"])
+      expect(description).toContain(format)
+  })
+
   it("tells agents to close only what they are done with or were asked to", async () => {
     const [, tools] = await session(terminal(), [initialize, list])
     const described = tools?.result?.tools as {

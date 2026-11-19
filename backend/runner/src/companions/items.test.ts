@@ -1095,6 +1095,16 @@ describe("an item's content", () => {
     })
   })
 
+  it("names an image by its format, a JFIF file as JPEG", async ({ fixture }) => {
+    writeFileSync(join(fixture.directory, "photo.jfif"), "pixels")
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "photo.jfif" } })
+    expect(shown).toMatchObject({ ok: true, kind: "image", name: "photo.jfif" })
+    expect(fixture.items.list(fixture.sessionId).items).toEqual([
+      expect.objectContaining({ kind: "image", detail: "6 B JPEG" }),
+    ])
+  })
+
   it("plays a recording as a video is played, from its parts", async ({ fixture }) => {
     writeFileSync(join(fixture.directory, "take.mp3"), "sound")
     const moth = fixture.terminal("moth")
@@ -1220,7 +1230,7 @@ describe("an item's content", () => {
     expect(shown).not.toHaveProperty("tooLarge")
     const itemId = shown.ok ? shown.id : ""
     expect(fixture.items.list(fixture.sessionId).items).toEqual([
-      expect.objectContaining({ id: itemId, kind: "model", detail: "GLTF, 48 B" }),
+      expect.objectContaining({ id: itemId, kind: "model", detail: "48 B GLTF" }),
     ])
     const loaded = await fixture.items.load(itemId, false)
     expect(itemContent.parse(loaded)).toEqual(loaded)

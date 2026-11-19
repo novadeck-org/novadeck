@@ -14,7 +14,8 @@
    as `.icon-button`s; `.artifact-window` fills a window of its own.
 
    A file with a preview (a Markdown file's document) is in `.artifact-file`, a column that
-   takes focus from a click anywhere in it, so the switch's key works from there.
+   takes focus from a click anywhere in it, so the switch's key works from there, ringed
+   inside its edge when the keyboard put focus there.
 
    Hooks: data-live on a page that loads live, data-file-preview (its type, as "markdown") and
    data-view ("preview" or "source") on a file with a preview, and data-reason on what can't
@@ -46,7 +47,13 @@
   flex: 1;
   flex-direction: column;
   min-height: 0;
+}
+.artifact-file:focus {
   outline: none;
+}
+.artifact-file:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
+  outline-offset: calc(var(--focus-ring-width) * -1);
 }
 
 /* While an artifact loads, or when it couldn't. */
@@ -141,6 +148,28 @@
   --code-emphasis-bg: var(--artifact-code-pointed-bg, var(--color-soft));
 }
 
+/* A data file as a tree, in the tree viewer (@novadeck/viewers/tree.css), in the code's
+   type; its copy buttons sit on the pane's paper. */
+.artifact-tree {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  --tree-font: var(--font-mono);
+  --tree-font-size: var(--text-code);
+  --tree-muted-fg: var(--artifact-code-number-fg, var(--color-muted));
+  --tree-hover-bg: color-mix(in oklab, var(--color-soft) 60%, transparent);
+  --tree-active-bg: var(--artifact-code-pointed-bg, var(--color-soft));
+  --tree-focus-ring: var(--color-strong);
+  --tree-actions-bg: var(--pane-bg, var(--color-paper));
+}
+.artifact-tree-cut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .artifact-browser {
   display: flex;
   flex: 1;
@@ -229,8 +258,9 @@
    `.artifact-table-scroll` under its header, held on top; each column's name is a button that
    sorts by it (its arrow, `data-shown` while sorted); numbers (`data-numeric`) sit right; each
    row's line in the file leads it, muted (`.artifact-table-line`), held at the left; the rows
-   the agent pointed at are marked (`data-pointed`). What it shows of a long file, and lines
-   cut short, are said under it, in `.artifact-cut`.
+   the agent pointed at are marked (`data-pointed`); a long cell shows its first six lines
+   (`data-held`), and a button under it (`.artifact-table-more`) shows it whole and back. What
+   it shows of a long file is said under it, in `.artifact-cut`.
    Tokens, each optional: --artifact-table-head-bg (soft), --artifact-table-rule (line), and
    --artifact-table-hover-bg (soft): its header, its rules, and the row under the pointer. */
 .artifact-table {
@@ -275,6 +305,32 @@
 .artifact-table td > span {
   display: block;
   max-width: 32em;
+}
+.artifact-table td > span[data-held] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
+  overflow: hidden;
+}
+.artifact-table-more {
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: var(--text-caption);
+  cursor: pointer;
+}
+.artifact-table-more:hover {
+  color: var(--color-ink);
+  text-decoration: underline;
+}
+.artifact-table-more:focus-visible {
+  outline: 2px solid var(--color-strong);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 .artifact-table thead th button > span {
   max-width: 24em;

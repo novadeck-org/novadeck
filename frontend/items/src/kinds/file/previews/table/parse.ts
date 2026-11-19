@@ -2,9 +2,8 @@
 // delimiter, a field in double quotes may hold the delimiter, line breaks and quotes doubled
 // (""), and a byte-order mark opening the text is not part of the first field. It reads the
 // lines as the runner sends them, and is lenient where files stray: spaces before an opening
-// quote go, text after a closing quote joins the field, a quoted field open at the end of a
-// line the runner cut short ends there, with its record, and one left open at the end closes
-// there.
+// quote go, text after a closing quote joins the field, and a quoted field left open at the end
+// closes there.
 
 export type Parsed = {
   readonly records: readonly (readonly string[])[]
@@ -20,11 +19,8 @@ export const parseDelimited = (
   lines: readonly string[],
   delimiter: string,
   {
-    cut = () => false,
     quotes = true,
   }: {
-    // Whether line `index` was cut short.
-    readonly cut?: (index: number) => boolean
     // Whether quotes quote; without, they're text.
     readonly quotes?: boolean
   } = {},
@@ -67,7 +63,6 @@ export const parseDelimited = (
         field = ""
       } else field += char
     }
-    if (quoted && cut(index)) quoted = false
     if (quoted) field += "\n"
     else endRecord(start)
   })

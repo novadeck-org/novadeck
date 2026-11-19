@@ -1,6 +1,6 @@
 # @novadeck/viewers
 
-Content viewers behind one contract: code, image, markdown and web pages, each mounted into
+Content viewers behind one contract: code, image, markdown, data trees and web pages, each mounted into
 an element, keeping its scroll and place across remounts through state its app stores.
 
 A viewer doesn't know what it's shown for. Its app chooses which viewer shows what, gives
@@ -49,6 +49,18 @@ hand back as `saved` to the next viewer of the same thing.
   language a fence's info string asks for, to give `highlightLines`. It imports nothing
   and doesn't edit: `./markdown` is the editor.
 - `./text`: `outline`, the headings of a Markdown text, with no editor behind it.
+- `./tree`: `mountTree`, data as a tree: a JSON value, a JSONL file's records or a YAML
+  file's documents, each object and array opening and closing (by click or the arrow keys),
+  a closed one showing its first entries and how many it holds, values coloured by type,
+  and a row's value or its path (as jq writes it) copied from its buttons or Ctrl/⌘+C
+  (Shift for the path). Only the rows in sight are drawn, so thousands of nodes stay quick;
+  what's open, the active row and the scroll are kept in its state. `parseData` reads a
+  text as JSON, JSONL (a record that doesn't read is a row of its own, never the file's
+  failure) or YAML (anchors, merge keys, several documents, aliases bounded), or says the
+  line and column it stops at; `dataFormatOf` tells the format by a file's name.
+- `./data-format`: `dataFormatOf` alone, without the parsers, so an app tells a data file by
+  its name without loading `yaml`.
+- `./tree.css`: the tree viewer's looks, themed through `--tree-*` and the code's `--syntax-*`.
 - `./sync`: `distance` and `merge`, how far apart Markdown texts are and how they merge.
   Built on CodeMirror's state, so kept apart from `./text`.
 - `./browser`: `mountBrowser`, a web page: live in Electron's `<webview>`, reporting where it

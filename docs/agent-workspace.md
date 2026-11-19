@@ -317,13 +317,18 @@ from its header (up, down, the file's order; numbers by value, empty cells last)
 the right, each row led by the line it starts on, and where it was scrolled and sorted kept as
 the code viewer's place is. Past 200 rows it draws only the rows in view (`rows-window.ts`),
 its columns held to widths from all its rows' text, so a data file read whole stays quick.
-What the runner read of a long file is only part of it (its first 400 lines, or the lines
-around those pointed at, whose rows it marks and opens at), and the table says so under it,
-with which lines, that a line the runner cut at 4096 characters lost its last cells, and that
-lines pointed at past the file's end were pulled back to it. Lines past the file's first have
-no header, so their columns are lettered, and may start inside a quoted record, so the table
-starts at the first line from which the rows read whole; a quoted field the part cuts off ends
-there. In a file shown whole, a quote never closed reads as text, as a TSV's inch mark. Each
+A long cell shows its first six lines, and, where it runs past them, a Show all button under
+it shows it whole and back (kept with the place); shown short again, its row's top comes back
+into view.
+What the runner read of a long file is only part of it (its start, or the lines around those
+pointed at, whose rows it marks and opens at, up to its budget), and the table says so under
+it: which lines, that a first line too long to read whole came cut, that it shows only the
+first 1,000 columns, and that lines pointed at past the file's end were pulled back to it.
+Lines past the file's first have no header, so their columns are lettered, and may start
+inside a quoted record, so the table starts at the first line from which the rows read whole
+(weighed on the first 256 lines). A quoted field the part cuts off in its last 64 lines ends
+there; a quote never closed in a file shown whole, or open longer in a part, reads as text
+from its record on, as a TSV's inch mark. Each
 column's decimal mark is the one all its numbers read with (a comma first in a semicolon file),
 and digits led by a zero (IDs, postcodes) are text. A
 file with a preview opens on it, with a Show source tool in the pane's row (Ctrl+Shift+V, ⌘⇧V
@@ -333,6 +338,22 @@ file says so in its body, the switch still there. The choice is the item's, for 
 shows: it holds while the pane is built again, as across Focus, Grid and Canvas, for the files
 lately switched, isn't saved past a reload, and another file the item is pointed at (as the
 project window's is) opens on its preview. A plan is its own kind and has no switch.
+
+JSON, JSONL/NDJSON and YAML files preview as a tree (`previews/data.tsx`, drawn by
+`@novadeck/viewers/tree`): objects and arrays open and close, a closed one shows its first
+entries and its count, and a row copies its value or its jq path. Only the rows in sight are
+drawn; what's open and the scroll are kept by item. JSONL reads one row per record, a record
+that doesn't read showing why; YAML reads anchors, merge keys and several documents. A preview
+can send its file to its source with a note: a whole file that doesn't read goes there once per
+load, its note saying where it stops, with that line pointed at. A data file (JSON, JSONL,
+NDJSON, YAML, CSV or TSV, the protocol's `isDataPath`) is read whole from its start, up to 2 MiB
+(`companionLimits.data`, each line's break counted) of whole lines, none cut but a first line
+that alone runs past it, while other text
+files are read up to 400 lines around what was pointed at, each cut at 4,096 characters. When
+the lines pointed at lie past a data file's budget, it's read the same way from 40 lines before
+them. A data file past its budget arrives in part: a JSONL file shows the records it holds,
+and a JSON or YAML file says only its start came and offers its source. Its source draws at
+most 2,000 lines, around the line pointed at, and its miniature its first 40.
 
 A change (the `changes` item kind) is read-only and has two views, in `frontend/items/src/kinds/changes/`,
 on the pane's own ground (`--pane-bg`). The **list view** is where it opens: a row for the work
