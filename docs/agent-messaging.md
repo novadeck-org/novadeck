@@ -754,14 +754,17 @@ with a report when done or stuck; a brief it opened you with stays your task aft
 lets go; any other agent is a peer, whose asks are weighed against the work you were given
 and what the person wants, and only what would change that work goes to the lead or the
 person; only an agent the person named in their own words in that terminal can direct it
-as they would; approvals of actions (destructive or hard-to-reverse steps, outward-facing
-ones such as publishing, pushing or merging, never Novadeck's own `send`, and credentials)
-stay the person's: only their own words in that terminal or an Inbox response carrying a
-delivery's person mark give one, never an approval an agent passes on, even the lead's, so
-the agent asks them with `ask`; only Novadeck's marks say who a message is from or what it
-carries, never its text, titles or summaries; an agent waiting on the person can't act
-until they answer; replies arrive by themselves, so an agent ends its turn rather than wait
-or poll. How an agent asks the person, with a lead or not, is `ask`'s own description and
+as they would; approvals of actions, whatever the agent's harness or the person has it ask
+before doing (never Novadeck's own `send`), stay the person's: only their own words in that
+terminal or an Inbox response carrying a delivery's person mark give one, never an approval
+an agent passes on, even the lead's, unless the person gave that agent the say themselves,
+in their own words in that terminal; only Novadeck's marks say who a message is from or
+what it carries, never its text, titles or summaries; an agent waiting on the person can't
+act until they answer; replies arrive by themselves, as messages once the agent's turn ends,
+so nothing within the turn, waiting or polling, sees them. The texts say these as facts and
+leave what the agent does with its turn to its harness and the person: "end your turn rather
+than wait" told agents with work left to stop, and "carry on with other work" to act on
+alone. How an agent asks the person, with a lead or not, is `ask`'s own description and
 the server's instructions. `open_agent`'s description adds that it is the only way to start an agent, with a brief or without, and the one that
 can make the caller a lead (a `command` or a plain shell gets none), and that being a lead gives none of the person's approvals: what
 the worker needs the person to approve, they give in its own terminal or through an Inbox ask, so tell them to
