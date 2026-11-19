@@ -42,9 +42,14 @@ export const runLimit = (devicePixels: number): number => {
   return cells < longestSequence ? 0 : cells
 }
 
-/** Whether the table is the family's: JetBrains Mono's, when it is the first the CSS names. */
+/**
+ * Whether the table is the family's: JetBrains Mono's, when it is the first the CSS names. Its
+ * variants are other fonts: "JetBrains Mono NL" has no ligatures at all.
+ */
 export const hasLigatureTable = (fontFamily: string): boolean =>
-  /^\s*["']?jetbrains mono\b/i.test(fontFamily)
+  /^\s*(?:"jetbrains mono(?: variable)?"|'jetbrains mono(?: variable)?'|jetbrains mono(?: variable)?)\s*(?:,|$)/i.test(
+    fontFamily,
+  )
 
 /**
  * How far into a stretch of one repeated glyph a cut must be, from either end, for the font to

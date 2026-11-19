@@ -35,6 +35,30 @@ describe("sortFonts", () => {
     expect(sorted).toEqual({ monospace: ["fira Code", "Zed"], other: ["Arial", "Baskerville"] })
   })
 
+  it("gives the page a turn each 8 ms of measuring, not each batch of families", async () => {
+    // A clock that a measure advances by 3 ms: 8 ms comes after three families.
+    let clock = 0
+    const turns: number[] = []
+    const families = Array.from({ length: 10 }, (_, index) => `F${index}`)
+    const measureOf = (): ((text: string) => number) => {
+      clock += 3
+      return mono
+    }
+    const timer = globalThis.setTimeout
+    globalThis.setTimeout = ((resume: () => void) => {
+      turns.push(clock)
+      return timer(resume, 0)
+    }) as typeof setTimeout
+
+    try {
+      await sortFonts(families, measureOf, () => clock)
+    } finally {
+      globalThis.setTimeout = timer
+    }
+
+    expect(turns).toEqual([9, 18, 27])
+  })
+
   it("finds none monospaced where nothing can measure", async () => {
     expect(await sortFonts(["A", "B"], () => undefined)).toEqual({
       monospace: [],
@@ -44,6 +68,33 @@ describe("sortFonts", () => {
 })
 
 describe("installedFonts", () => {
+  const allowed = (state: string) => ({
+    navigator: { permissions: { query: () => Promise.resolve({ state }) } },
+  })
+
+  it("never asks a page the permission has not been granted to, so no prompt shows", async () => {
+    for (const state of ["prompt", "denied"]) {
+      let asked = false
+      const page = {
+        ...allowed(state),
+        queryLocalFonts: () => {
+          asked = true
+          return Promise.resolve([{ family: "Menlo" }])
+        },
+      }
+
+      // oxlint-disable-next-line no-await-in-loop -- One state at a time.
+      expect(await installedFonts(page)).toEqual(noFonts)
+      expect(asked).toBe(false)
+    }
+  })
+
+  it("lists nothing where the permission can't be queried", async () => {
+    const page = { queryLocalFonts: () => Promise.resolve([{ family: "Menlo" }]) }
+
+    expect(await installedFonts(page)).toEqual(noFonts)
+  })
+
   it("lists nothing, without an error, where the page has no font list", async () => {
     expect(await installedFonts({})).toEqual(noFonts)
   })
@@ -58,6 +109,7 @@ describe("installedFonts", () => {
 
   it("lists each family once, however many styles it has", async () => {
     const page = {
+      ...allowed("granted"),
       queryLocalFonts: () =>
         Promise.resolve([{ family: "Menlo" }, { family: "Menlo" }, { family: "Menlo" }]),
     }

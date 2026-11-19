@@ -21,7 +21,7 @@ import { themes, type ThemeEntry, type ThemeId } from "../theme/themes"
 import { AddonRow } from "./addon-parts"
 import { agentsExplanation, type AgentSwitch } from "./agent-switches"
 import { AgentSwitches } from "./AgentSwitches"
-import { builtInFont, fontChoices } from "./font-choices"
+import { builtInFont, fontChoices, isBundled } from "./font-choices"
 import { forgesExplanation, type ForgeSwitch } from "./forge-switches"
 import { ForgeSwitches } from "./ForgeSwitches"
 import { murmurDescription } from "./murmur-addon"
@@ -34,6 +34,7 @@ import {
   versionText,
   type PreferencesTab,
 } from "./settings"
+import { useThemeMonoFamily } from "./theme-font"
 import { UninstallApp, type UninstallValue } from "./UninstallApp"
 import { useInstalledFonts } from "./useInstalledFonts"
 import { VoiceInput, type VoiceAddon } from "./VoiceInput"
@@ -337,7 +338,13 @@ export const Preferences = ({
   // Where no tab is named, Agents opens where there is one, else General.
   const shown = tab === null ? (hasAgentsTab ? "agents" : "general") : hidden(tab) ? "general" : tab
   const { fonts: installed } = useInstalledFonts(open && shown === "appearance")
-  const terminalFonts = fontChoices(installed, value.fontFamily ?? "")
+  const themeFamily = useThemeMonoFamily()
+  const terminalFonts = fontChoices(installed, value.fontFamily ?? "", themeFamily)
+  // Terminals join ligatures only in the bundled font, which they draw where it is the default
+  // (the standard themes) or the choice.
+  const terminalLigatures = isBundled(
+    terminalFonts.value === builtInFont ? themeFamily || "JetBrains Mono" : terminalFonts.value,
+  )
   // The Experimental tab's switches, one row each.
   const experimentalToggles = [
     {
@@ -675,7 +682,11 @@ export const Preferences = ({
                   <SettingText
                     id="ligatures-label"
                     label="Ligatures"
-                    description="Join pairs such as => and != into one symbol in terminals and code."
+                    description={
+                      terminalLigatures
+                        ? "Join pairs such as => and != into one symbol in terminals and code."
+                        : "Join pairs such as => and != into one symbol in code. Terminals draw them only in the built-in JetBrains Mono."
+                    }
                     descriptionId="ligatures-description"
                   />
                   <Switch

@@ -13,6 +13,30 @@ describe("fontChoices", () => {
     expect(items[3]).toMatchObject({ description: "Not monospace" })
   })
 
+  it("names the default after the font the theme draws: the built-in one, or the theme's own", () => {
+    expect(fontChoices(installed, "").items[0]).toMatchObject({
+      label: "JetBrains Mono",
+      description: "Built in",
+    })
+    expect(fontChoices(installed, "", "Share Tech Mono").items[0]).toEqual({
+      label: "Share Tech Mono",
+      value: builtInFont,
+      description: "Theme",
+    })
+  })
+
+  it("leaves an installed JetBrains Mono out under the built-in entry, but not under a theme's own font", () => {
+    const withJetBrains = { monospace: ["JetBrains Mono", "JetBrains Mono NL"], other: [] }
+
+    expect(fontChoices(withJetBrains, "").items.map((item) => item.value)).toEqual([
+      builtInFont,
+      "JetBrains Mono NL",
+    ])
+    expect(
+      fontChoices(withJetBrains, "", "Share Tech Mono").items.map((item) => item.value),
+    ).toEqual([builtInFont, "JetBrains Mono", "JetBrains Mono NL"])
+  })
+
   it("chooses the built-in font when none is saved", () => {
     expect(fontChoices(installed, "").value).toBe(builtInFont)
   })
