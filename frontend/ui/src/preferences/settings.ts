@@ -15,6 +15,9 @@ export const settingsCardClasses = "card settings-card overflow-hidden"
 export const settingRowClasses =
   "settings-row flex min-h-13 items-center justify-between gap-6 px-4 py-3 text-body"
 
+// The terminal text sizes Preferences offers, in CSS pixels, one step apart.
+export const fontSizeRange = { min: 10, max: 32, fallback: 13 } as const
+
 // What Preferences shows of the app's version: local and pull request builds carry 0.0.0,
 // which names no release.
 export const versionText = (version: string): string =>

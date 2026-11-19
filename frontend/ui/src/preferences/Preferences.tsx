@@ -26,6 +26,7 @@ import { ForgeSwitches } from "./ForgeSwitches"
 import { murmurDescription } from "./murmur-addon"
 import { MurmurAddon, type MurmurAddonValue } from "./MurmurAddon"
 import {
+  fontSizeRange,
   preferencesTabs,
   settingRowClasses,
   settingsCardClasses,
@@ -55,8 +56,6 @@ const agentPresentations = [
   { chatView: true, label: "Chat", icon: MessagesSquare },
   { chatView: false, label: "Terminal", icon: SquareTerminal },
 ] as const
-
-const fontSizes = [12, 13, 15].map((size) => ({ label: `${size}px`, value: String(size) }))
 
 // Screen reader support's choices: Automatic only where the app can tell when one runs. Plain
 // words, as the menu is as wide as its button; the row's description says what they do.
@@ -635,16 +634,27 @@ export const Preferences = ({
             </Section>
             <Section title="Text">
               <div className={settingsCardClasses}>
-                <Select
-                  className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
-                  label="Text size"
-                  items={fontSizes}
-                  value={String(value.fontSize)}
-                  onValueChange={(size) => onChange({ ...value, fontSize: Number(size) })}
-                  open={open && shown === "appearance" && openSelect === "font-size"}
-                  onOpenChange={(expanded) => setOpenSelect(expanded ? "font-size" : null)}
-                  portalContainer={dialog}
-                />
+                <div className={`preference-row ${settingRowClasses}`}>
+                  <span id="font-size-label">Text size</span>
+                  <span className="flex shrink-0 items-center gap-3">
+                    <input
+                      type="range"
+                      min={fontSizeRange.min}
+                      max={fontSizeRange.max}
+                      step={1}
+                      value={value.fontSize}
+                      onChange={(event) =>
+                        onChange({ ...value, fontSize: Number(event.target.value) })
+                      }
+                      aria-labelledby="font-size-label"
+                      aria-valuetext={`${value.fontSize}px`}
+                      className="settings-range w-40 cursor-pointer"
+                    />
+                    <span aria-hidden="true" className="w-10 text-right tabular-nums">
+                      {value.fontSize}px
+                    </span>
+                  </span>
+                </div>
                 <div className={`preference-row ${settingRowClasses}`}>
                   <SettingText
                     id="ligatures-label"

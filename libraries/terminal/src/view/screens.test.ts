@@ -379,6 +379,28 @@ describe("a mount's hold on a screen", () => {
       vi.useRealTimers()
     }
   })
+
+  it("fits once more after a run of sizes, not at each one, as a slider sends them", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "requestAnimationFrame"] })
+    try {
+      const { screens, show, resized } = capped(2)
+      layOut({ cols: 100, rows: 30 })
+      const opened = openedTerminals()
+      show("a")
+      await vi.advanceTimersByTimeAsync(0)
+      resized.mockClear()
+      for (const size of [14, 15, 16, 17, 18]) screens.setFont({ size })
+      // Every step draws at its size, and only the first fits at once.
+      expect(opened[0]?.options.fontSize).toBe(18)
+      expect(resized).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(500)
+      // Not one per step (five more): the screen's own settle after its box changes may add one.
+      expect(resized.mock.calls.length).toBeLessThanOrEqual(3)
+    } finally {
+      closeScreens()
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe("the measure", () => {

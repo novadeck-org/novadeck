@@ -48,6 +48,28 @@ describe("readPreferences", () => {
     }
   })
 
+  it("keeps a saved text size in range, brings one out of range to the nearest, and defaults a non-number", () => {
+    expect(readPreferences().fontSize).toBe(13)
+    for (const [saved, size] of [
+      [12, 12],
+      [13, 13],
+      [15, 15],
+      [10, 10],
+      [32, 32],
+      [9, 10],
+      [-4, 10],
+      [33, 32],
+      [500, 32],
+      [14.4, 14],
+      ["20", 13],
+      [null, 13],
+    ] as const) {
+      localStorage.setItem(preferencesStorageKey, JSON.stringify({ fontSize: saved }))
+
+      expect(readPreferences().fontSize).toBe(size)
+    }
+  })
+
   it("follows the theme's sound unless a sound the app has is saved", () => {
     expect(readPreferences().soundChoice).toBe("theme")
     for (const [saved, choice] of [

@@ -4,12 +4,21 @@ import { screenReaderPreferences, type PreferencesValue } from "@novadeck/core/t
 import { soundChoiceOf } from "../sounds"
 import { appearancePreferenceOf, defaultPreference } from "../theme/apply"
 import { themes } from "../theme/themes"
+import { fontSizeRange } from "./settings"
 
 export const preferencesStorageKey = "novadeck.preferences"
 
+// A saved size is a whole number in range, as the slider makes; a number out of range or
+// between steps (an older or hand-edited file) is brought to the nearest, anything else is
+// the default.
+export const fontSizeOf = (saved: unknown): number =>
+  typeof saved === "number" && Number.isFinite(saved)
+    ? Math.min(fontSizeRange.max, Math.max(fontSizeRange.min, Math.round(saved)))
+    : fontSizeRange.fallback
+
 export const readPreferences = (): PreferencesValue => {
   const defaults: PreferencesValue = {
-    fontSize: 13,
+    fontSize: fontSizeRange.fallback,
     enabledViews: [...viewModes],
     appearance: defaultPreference(themes),
     notifyNeeds: true,
@@ -33,7 +42,7 @@ export const readPreferences = (): PreferencesValue => {
       : defaults.enabledViews
     return {
       enabledViews: enabledViews.length ? enabledViews : defaults.enabledViews,
-      fontSize: [12, 13, 15].includes(saved?.fontSize ?? 0) ? saved!.fontSize! : defaults.fontSize,
+      fontSize: fontSizeOf(saved?.fontSize),
       appearance: appearancePreferenceOf(saved?.appearance, themes),
       notifyNeeds:
         typeof saved?.notifyNeeds === "boolean" ? saved.notifyNeeds : defaults.notifyNeeds,
