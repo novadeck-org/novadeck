@@ -9,12 +9,12 @@ import type { FilePart, FolderEntry } from "@novadeck/core/items"
 
 export type FolderEntryKind = FolderEntry["kind"]
 
-// What a renderer is given of the file: its name and size; `read`, which reads it in parts
+// What a renderer is given of the file: its name and size, and `read`, which reads it in parts
 // from `offset` as the folder reads any file of it (`companions.part`, with the file's path in
 // the folder and the stamp its listing gave): `changed` where it was rewritten meanwhile, or why
-// it can't be read; and `queued`, which a renderer calls as it starts waiting on something
-// outside the file, as a 3D model's still waits its turn in the frame every still shares, and
-// the function it gives back once its turn comes: the deadline doesn't run in between.
+// it can't be read. A renderer that waits on something outside the file, as a 3D model's still
+// waits its turn in the frame every still shares, calls `queued` as it starts waiting, and the
+// function that gives back once its turn comes: the deadline doesn't run in between.
 export type EntryThumbFile = {
   readonly name: string
   readonly size: number

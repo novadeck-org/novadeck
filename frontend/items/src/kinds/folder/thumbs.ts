@@ -174,14 +174,14 @@ export const loadThumb = async ({
   })
   // The deadline, which doesn't run while the renderer waits its turn outside the file (`queued`).
   let left = deadline
-  let since = Date.now()
+  let since = performance.now()
   let timer = setTimeout(() => own.abort(), left)
   let queues = 0
   const queued = (): (() => void) => {
     queues += 1
     if (queues === 1) {
       clearTimeout(timer)
-      left -= Date.now() - since
+      left -= performance.now() - since
     }
     let waiting = true
     return () => {
@@ -189,7 +189,7 @@ export const loadThumb = async ({
       waiting = false
       queues -= 1
       if (queues > 0 || own.signal.aborted) return
-      since = Date.now()
+      since = performance.now()
       timer = setTimeout(() => own.abort(), left)
     }
   }

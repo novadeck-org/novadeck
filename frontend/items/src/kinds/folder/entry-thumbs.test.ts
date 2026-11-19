@@ -209,6 +209,35 @@ describe("what a kind registers to draw its files in a folder's grid", () => {
           expect(hasNoThumb("queued:2")).toBe(true)
         })
 
+        it("counts no time while any of its waits runs, and each wait ends once", async () => {
+          urls()
+          vi.useFakeTimers()
+          const signals: AbortSignal[] = []
+          const waits: (() => void)[] = []
+          registerEntryThumb("audio", (file, _box, signal) => {
+            signals.push(signal)
+            waits.push(file.queued(), file.queued())
+            return new Promise(() => {})
+          })
+          let result: unknown = "pending"
+          void loadQueued("queued:4").then((thumb) => (result = thumb))
+          await vi.advanceTimersByTimeAsync(30_000)
+          // One wait ended, twice: the other still runs, so the deadline is still paused.
+          waits[0]!()
+          waits[0]!()
+          await vi.advanceTimersByTimeAsync(30_000)
+          expect(signals[0]?.aborted).toBe(false)
+          waits[1]!()
+          await vi.advanceTimersByTimeAsync(14_999)
+          expect(result).toBe("pending")
+          await vi.advanceTimersByTimeAsync(1)
+          expect(signals[0]?.aborted).toBe(true)
+          expect(result).toBeUndefined()
+          // A wait that ends after the load did starts no deadline again.
+          waits[1]!()
+          expect(vi.getTimerCount()).toBe(0)
+        })
+
         it("is stopped at once where it is no longer wanted while it waits", async () => {
           urls()
           const line = queuedRenderer()

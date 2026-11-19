@@ -28,8 +28,8 @@ const frame = (): ModelStills => {
 
 /**
  * A still of a model, `size` pixels square, as a PNG, or null where none is drawn; for a folder's
- * grid, which keeps it by the file's stamp. It stops once `signal` aborts, and says through
- * `queued` how long it waits its turn behind other stills.
+ * grid, which keeps it by the file's stamp. It stops once `signal` aborts, and calls `queued` as
+ * it starts waiting its turn behind other stills, and what that gives back once its turn comes.
  */
 export const stillBlob = (
   model: ModelContent,
