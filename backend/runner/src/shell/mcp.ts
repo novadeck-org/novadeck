@@ -1159,15 +1159,15 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
   name: "ask",
   description:
     "Put a copy of a question you ask the user in Novadeck's Inbox, where they see it when " +
-    "they're away from this terminal. Always make one for every question your turn ends waiting " +
-    "on, such as which option to take, unless it is already an open ask: it is how the " +
+    "they're away from this terminal. Always make one, whether or not they're here, for every " +
+    "question your turn ends waiting on, such as which option to take, unless it is already an open ask: it is how the " +
     "question reaches them there. A closing offer such as 'anything else?' isn't one, nor " +
     "is an action your harness is already prompting them for, nor a question you ask with " +
     "your harness's own question tool, as you normally would: the Inbox shows that one as " +
     "it is. The ask is an extra copy, never the question itself: your reply asks it as " +
     "fully as it would without Novadeck, and never mentions the Inbox or the ask. " +
     "Give a subject and Markdown body, optionally details, hard_to_undo and shape: an " +
-    "options shape for a choice between options (recommend your pick, and give " +
+    "options shape for a choice between options (recommend your pick where you have one, and give " +
     "hard_to_undo when it is), or an action shape for what only the user can do, such as a " +
     "sign-in, access to a service or repo, or a key put in place, which shows them a " +
     "command to run; Novadeck never runs it. The user can always write their own answer. " +
@@ -1620,7 +1620,7 @@ export const mcpAnswer = async (
 }
 
 // What the server says of itself in a Novadeck terminal, which Claude Code reads up front,
-// before it loads a tool's description: when `ask` and `tell` serve better than the reply.
+// before it loads a tool's description: what `ask`, `tell` and `done` add beside the reply.
 // What the Inbox is beside an agent's reply: a copy for when the user is elsewhere, so the reply
 // never leans on it or points to it.
 const inboxExtra =
@@ -1631,8 +1631,8 @@ const inboxExtra =
 const instructions =
   together +
   " Novadeck's ask puts a copy of a question you ask the user in their Inbox, where they " +
-  "see it when they're away from this terminal. Always make one for every question your turn " +
-  "ends waiting on, such as which option to take, unless it is already an open ask; a " +
+  "see it when they're away from this terminal. Always make one, whether or not they're here, " +
+  "for every question your turn ends waiting on, such as which option to take, unless it is already an open ask; a " +
   "closing offer such as 'anything else?' isn't one, nor is an action your harness is " +
   "already prompting them for, nor a question you ask with your harness's own question " +
   "tool, as you normally would: the Inbox shows that one as it is. When they write to you " +

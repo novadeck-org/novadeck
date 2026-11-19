@@ -332,8 +332,8 @@ export const companionNotice =
  */
 export const inboxNotice =
   "Novadeck: automatic notice, not from the user: Novadeck's Inbox shows the user a copy " +
-  "of your questions and reports when they're away from this terminal. Always put every question " +
-  "your turn ends waiting on, such as which option to take, in their Inbox with " +
+  "of your questions and reports when they're away from this terminal. Always put every " +
+  "question your turn ends waiting on, whether or not they're here, such as which option to take, in their Inbox with " +
   "Novadeck's ask tool, unless it is already an open ask; a closing offer such as " +
   "'anything else?' isn't one, nor is an action your harness is already prompting them " +
   "for, nor a question you ask with your harness's own question tool, as you normally " +

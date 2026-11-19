@@ -282,7 +282,7 @@ describe("a nudge", () => {
     expect(inboxNotice).not.toContain("\n")
     for (const words of [
       "Novadeck's Inbox shows the user a copy of your questions and reports when they're away from this terminal",
-      "Always put every question your turn ends waiting on, such as which option to take",
+      "Always put every question your turn ends waiting on, whether or not they're here, such as which option to take",
       "in their Inbox with Novadeck's ask tool, unless it is already an open ask",
       "a closing offer such as 'anything else?' isn't one",
       "nor is an action your harness is already prompting them for",
@@ -302,7 +302,16 @@ describe("a nudge", () => {
     ])
       expect(inboxNotice).toContain(words)
     // What the Inbox is for, never when to stop, what to decide alone or what to ship.
-    for (const words of ["rarely watch", "aren't blocking", "keep going", "pull request"])
+    for (const words of [
+      "rarely watch",
+      "aren't blocking",
+      "keep going",
+      "keep working",
+      "Stop only",
+      "without stopping your work",
+      "go ahead with it",
+      "pull request",
+    ])
       expect(inboxNotice).not.toContain(words)
     for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])
       expect(inboxNotice).not.toContain(native)

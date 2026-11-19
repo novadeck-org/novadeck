@@ -2019,6 +2019,12 @@ describe("asks the person's own prompt withdraws", () => {
     expect(notice).toContain("and 3 more")
     expect(notice).not.toContain("\n")
     expect(Buffer.byteLength(notice)).toBeLessThan(1_000)
+    // What they left open is asked again in the reply, with an ask as its copy, and the
+    // Inbox goes unmentioned; their message isn't taken for an answer it may not be.
+    expect(notice).toContain(
+      "ask again as before: in your reply, with an ask as its copy, never mentioning the Inbox",
+    )
+    expect(notice).not.toContain("Read their message as their reply")
   })
 })
 
@@ -2131,15 +2137,18 @@ describe("asks the person dismisses", () => {
     const options = dismissedNotice([{ subject: "S", action: "options" }])
     expect(options).toBe(
       'Novadeck: automatic notice, not from the user: the user dismissed your ask "S" from their Inbox without answering it. ' +
-        "Don't read that as an answer: they chose none of its options. Take it that they don't need it now, and don't ask it again unless it matters again. This notice needs no reply.",
+        "That is no answer: they chose none of its options. This notice needs no reply.",
     )
     expect(dismissedNotice([{ subject: "S", action: "text" }])).toContain(
-      "Don't read that as an answer. Take it",
+      "without answering it. That is no answer. This notice",
     )
     expect(dismissedNotice([{ subject: "S", action: "action" }])).toBe(
-      'Novadeck: automatic notice, not from the user: the user dismissed your ask "S" from their Inbox. ' +
-        "They won't do it for now: go on without it, or stop at that step and say so. This notice needs no reply.",
+      'Novadeck: automatic notice, not from the user: the user dismissed your ask "S" from their Inbox without doing it. This notice needs no reply.',
     )
+    // A dismissal is a fact, never a guess at what they want or a say on going on.
+    for (const action of ["options", "text", "action"])
+      for (const words of ["don't need", "go on", "stop", "again unless"])
+        expect(dismissedNotice([{ subject: "S", action }])).not.toContain(words)
   })
 
   it("lets the agent withdraw an ask already dismissed quietly, and refuses other closed asks", () => {
