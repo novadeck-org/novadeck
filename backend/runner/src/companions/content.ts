@@ -483,6 +483,10 @@ export type ModelLoad = {
   readonly files: ReadonlyMap<string, ModelFile>
 }
 
+/** The stamps of the files a model's read listed, as they are now, in order: none for one gone. */
+export const filesStamps = (files: ModelLoad["files"]): Promise<string[]> =>
+  Promise.all([...files.values()].map((file) => stat(file.path).then(stampOf, () => "")))
+
 /** The stamp a model's file is as now, or undefined when it can't be read. */
 export const modelStamp = async (item: Pick<ItemRecord, "path">): Promise<string | undefined> => {
   if (item.path === null) return undefined
@@ -537,6 +541,11 @@ export const discoverModel = async (
     const key = from === "" || isExternal(name) ? name : `${from}/${name}`
     if (/^data:/i.test(name) || seen.has(key) || seen.size >= modelLimits.files) return undefined
     seen.add(key)
+    // A name past any path is none: told, cut short, as what the protocol takes.
+    if (key.length > companionLimits.path) {
+      refused.set(`${key.slice(0, companionLimits.path - 1)}…`, "unreadable")
+      return undefined
+    }
     const found = await beside(folder, from, name, format === "gltf" || format === "glb", env)
     if ("refusal" in found) {
       refused.set(key, found.refusal)
@@ -640,6 +649,23 @@ const beside = async (
 }
 
 /** The addresses a glTF's buffers and images name, in the order the file gives them. */
+// The `"uri"` strings of a glTF's text, found without parsing it: each value, but one that
+// holds its data itself (`data:`), which is passed over, or one past any path.
+const scanUris = (text: Buffer): string[] => {
+  const uris: string[] = []
+  let at = text.indexOf('"uri"')
+  while (at >= 0) {
+    const start = text.indexOf('"', text.indexOf(":", at + 5) + 1)
+    if (start < 0) break
+    const close = text.indexOf('"', start + 1)
+    if (close < 0) break
+    if (!text.subarray(start + 1, start + 6).equals(Buffer.from("data:")) && close - start <= 4096)
+      uris.push(JSON.parse(text.toString("utf8", start, close + 1)) as string)
+    at = text.indexOf('"uri"', close + 1)
+  }
+  return uris
+}
+
 const gltfUris = async (path: string, format: "gltf" | "glb"): Promise<string[]> => {
   const opened = await openPlain(path)
   if ("state" in opened) return []
@@ -649,6 +675,9 @@ const gltfUris = async (path: string, format: "gltf" | "glb"): Promise<string[]>
     if (format === "gltf") {
       json = Buffer.alloc(stats.size)
       await readFully(handle, json, 0)
+      // One too large to parse at once, as a glTF holding its data in itself: its addresses
+      // found in its bytes, the data it holds skipped over.
+      if (stats.size > maxNamingBytes) return scanUris(json)
     } else {
       // A GLB's header, then its first chunk, which is the JSON. The length it gives is taken
       // only as far as the file goes and a limit.

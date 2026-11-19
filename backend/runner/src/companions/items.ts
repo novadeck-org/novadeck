@@ -40,6 +40,7 @@ import {
   hashOf,
   loadFile,
   discoverModel,
+  filesStamps,
   type ModelLoad,
   loadPdf,
   loadPlan,
@@ -283,8 +284,14 @@ const wireWindow = (window: WindowRecord): CompanionWindow => ({
 })
 
 /** What a content reader compares to tell whether to yield again. */
+// A model's files beside it are its content too: one of them written again is a change.
+// A model's read, kept by item and by whether the person's yes went with it.
+const modelKey = (id: string, reveal: boolean): string => `${id}|${reveal ? "revealed" : "held"}`
+
 const keyOf = (content: ItemContent): string =>
-  content.state === "ready" ? `ready:${content.stamp}` : `${content.reason}:${content.size}`
+  content.state === "ready"
+    ? `ready:${content.stamp}${content.content.kind === "model" ? `|${content.content.files.map((file) => file.stamp).join(",")}` : ""}`
+    : `${content.reason}:${content.size}`
 
 /** How recent a plan's own timestamp must be for it to count as written live. */
 const LIVE_PLAN_MS = 60_000
@@ -904,7 +911,10 @@ export class CompanionItems {
         // are read afresh each time.
         const probing = item.kind !== "changes" && item.kind !== "shells"
         // eslint-disable-next-line no-await-in-loop -- Each look follows the one before.
-        const stamp = probing ? await probe(item, live) : String(Date.now())
+        const stamp = probing
+          ? // eslint-disable-next-line no-await-in-loop -- As above.
+            `${await probe(item, live)}${item.kind === "model" ? await this.besideStamps(item, reveal) : ""}`
+          : String(Date.now())
         const now = probing ? `${item.version}|${item.path}|${lines}|${stamp}` : stamp
         if (now !== probed) {
           const began = Date.now()
@@ -1629,20 +1639,30 @@ export class CompanionItems {
 
   /**
    * A file a model's content lists, by its name there: kept while the model is as it was when
-   * it was read, and read again once it isn't, or when a name isn't there.
+   * it was read, and read again once it isn't. A model read with the person's yes is kept
+   * apart from one read without, so a held model's files are never reached by the other.
    */
   private async modelFile(
     item: ItemRecord,
     name: string,
     reveal: boolean,
   ): Promise<{ readonly path: string } | undefined> {
-    const kept = this.modelFiles.get(item.id)
+    const kept = this.modelFiles.get(modelKey(item.id, reveal))
     if (kept?.content.state === "ready" && kept.content.stamp === (await modelStamp(item)))
       return kept.files.get(name)
     const model = await discoverModel(item, reveal, this.environment())
     if (model.content.state !== "ready") return undefined
-    if (!reveal) this.modelFiles.set(item.id, model)
+    this.modelFiles.set(modelKey(item.id, reveal), model)
     return model.files.get(name)
+  }
+
+  /** The stamps of the files beside a model as its last read listed them, as they are now. */
+  private async besideStamps(item: ItemRecord, reveal: string | undefined): Promise<string> {
+    const kept = this.modelFiles.get(
+      modelKey(item.id, reveal !== undefined && reveal === item.path),
+    )
+    if (!kept) return ""
+    return `|${(await filesStamps(kept.files)).join(",")}`
   }
 
   /**
@@ -1688,7 +1708,7 @@ export class CompanionItems {
     if (item.kind === "pdf") return loadPdf(item, reveal, this.environment())
     if (item.kind === "model")
       return discoverModel(item, reveal, this.environment()).then((model) => {
-        if (model.content.state === "ready" && !reveal) this.modelFiles.set(item.id, model)
+        if (model.content.state === "ready") this.modelFiles.set(modelKey(item.id, reveal), model)
         return model.content
       })
     return loadFile(item, reveal, this.environment())
@@ -1700,7 +1720,8 @@ export class CompanionItems {
 
   private removed(item: ItemRecord, window: WindowRecord | undefined): void {
     this.cues.delete(item.id)
-    this.modelFiles.delete(item.id)
+    this.modelFiles.delete(modelKey(item.id, false))
+    this.modelFiles.delete(modelKey(item.id, true))
     this.sink?.gone(item)
     for (const reader of this.readers.get(item.id) ?? []) reader.abort()
     this.emit(

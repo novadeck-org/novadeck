@@ -1284,6 +1284,47 @@ describe("an item's content", () => {
     ).resolves.toEqual({ state: "part", data: Buffer.from("b").toString("base64") })
   })
 
+  it("reads a model again when only a file beside it is written again", async ({ fixture }) => {
+    const folder = fixture.directory
+    writeFileSync(join(folder, "scene.bin"), "first")
+    writeFileSync(join(folder, "scene.gltf"), JSON.stringify({ buffers: [{ uri: "scene.bin" }] }))
+    const shown = await fixture.items.show(fixture.terminal("moth"), {
+      file: { path: "scene.gltf" },
+    })
+    const itemId = shown.ok ? shown.id : ""
+    const stream = fixture.items.content(itemId, undefined)
+    const stampOfBin = (content: ItemContent | undefined) =>
+      content?.state === "ready" && content.content.kind === "model"
+        ? content.content.files[0]?.stamp
+        : undefined
+    const first = stampOfBin(await next(stream))
+    // An exporter's buffer, written again with its glTF left as it was.
+    writeFileSync(join(folder, "scene.bin"), "second, longer")
+    const second = await next(stream)
+    expect(stampOfBin(second)).not.toBe(first)
+    await expect(
+      fixture.items.part({ itemId, stamp: stampOfBin(second)!, offset: 0, file: "scene.bin" }),
+    ).resolves.toEqual({ state: "part", data: Buffer.from("second, longer").toString("base64") })
+    const ending = stream.next()
+    fixture.items.close(itemId)
+    await expect(ending).resolves.toEqual({ done: true, value: undefined })
+  })
+
+  it("keeps a model's content within what the protocol takes, however long a name in it", async ({
+    fixture,
+  }) => {
+    writeFileSync(
+      join(fixture.directory, "scene.gltf"),
+      JSON.stringify({ buffers: [{ uri: "a".repeat(5000) }] }),
+    )
+    const shown = await fixture.items.show(fixture.terminal("moth"), {
+      file: { path: "scene.gltf" },
+    })
+    const loaded = await fixture.items.load(shown.ok ? shown.id : "", false)
+    expect(itemContent.parse(loaded)).toEqual(loaded)
+    expect(loaded).toMatchObject({ content: { refused: [{ reason: "unreadable" }] } })
+  })
+
   it("refuses a part by file of an item that is no model", async ({ fixture }) => {
     writeFileSync(join(fixture.directory, "report.pdf"), "%PDF-1.4")
     writeFileSync(join(fixture.directory, "note.txt"), "hi")

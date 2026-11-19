@@ -678,6 +678,23 @@ const glb = (json: string, length = Buffer.byteLength(json)) => {
 }
 
 describe("a 3D model as it loads", () => {
+  it("lists what a glTF too large to parse at once names, past the data it holds", async ({
+    directory,
+  }) => {
+    writeFileSync(join(directory, "scene.bin"), "bin!")
+    const held = `data:application/octet-stream;base64,${"A".repeat(17 * 1024 * 1024)}`
+    writeFileSync(
+      join(directory, "big.gltf"),
+      JSON.stringify({
+        buffers: [{ uri: held }, { uri: "scene.bin" }, { uri: "https://x.example/t.png" }],
+      }),
+    )
+    await expect(named(join(directory, "big.gltf"))).resolves.toEqual({
+      files: ["scene.bin"],
+      refused: { "https://x.example/t.png": "external" },
+    })
+  })
+
   it("is shown as a model by its extension, whatever its case", async ({ directory }) => {
     for (const name of ["a.glb", "b.GLTF", "c.stl", "d.obj", "e.Ply", "f.3mf"]) {
       writeFileSync(join(directory, name), "model")
