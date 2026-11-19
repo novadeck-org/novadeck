@@ -540,13 +540,15 @@
       "id": "ui-agents-chat-screen-grid-tile-timeout",
       "jobs": ["^Test \\(macOS(?:, [1-3]/3)?\\)$"],
       "test": "src/agents/chat-screen.spec.tsx > The terminal behind a chat > keeps ",
-      "signature": "Test timed out in \\d+ms",
-      "status": "known",
-      "cause": "Unknown. The four Grid tile cases (Claude Code at 12 and 15px, Codex, Antigravity) share one body, so the entry names them all. Each retry ran out its 30 s test timeout on macOS. Two runs were far slower than the usual 17 to 27 min: about 40 min on #1002, and a test step of about 63 min on #1010, when other macOS runs that hour took 59 to 65 min. On #1002 the Antigravity retry passed in about 19.2 s, against 3.4 s locally (Linux). But on 44063445169 the test step took a usual 18 min, so slowness alone doesn't explain it: an attempt may stall. Not reproduced. The flake tally of 2026-11-16 counts one earlier retry (Claude Code at 12px), on 2026-11-13.",
+      "signature": "Test timed out in \\d+ms|TimeoutError: locator\\.click: Timeout \\d+ms exceeded",
+      "status": "fixed",
+      "cause": "The case's own time budget. Each case opens the whole app and switches it five times (Grid, Focus, Grid, then the chat turned off from Preferences): 2.5 s locally, but 16 to 26 s on the slow macOS runners (Apple M1 (Virtual), 3 cores, see #1019), against the 30 s default. Every retry ran on one of them, in a macOS job of 40 to 65 min against a usual 17 to 27, its other cases at 16 to 26 s: an attempt a little slower than its neighbours ran out the 30 s, the last one in a locator.click that got what was left (9.4 s). This entry first read 44063445169 as a usual 18 min job, so as a stall; that was its second attempt, while the retry was in its first, which timed out at 65 min. Profiled locally at 6x CPU throttling (about a slow runner's pace, 16 to 23 s for the open and the first switch), the time is the app's React rendering throughout, no one hot spot, and the page at rest takes about 4.5% of a core at 1x. Reproduced: at 6x the 30 s cases failed 3 of 4. The cases now have 60 s: 8 of 8 passed at 6x in 22 to 28 s, 4 of 4 at 8x in 37 to 53 s.",
       "seen": [
         "#1002 run 44053570165 job 133946302766 (macOS), Antigravity at 13px, retried and passed, behaviour",
-        "feat/install-script-look run 44063445169 job 134014233533 (macOS), Claude Code at 15px, retried and passed",
-        "#1010 run 44076738880 job 134024642143 (macOS), Claude Code at 15px retried once and Antigravity at 13px twice, both passed"
+        "#1005 run 44063445169 attempt 1 job 133978514488 (macOS), Claude Code at 15px, retried and passed; the job timed out at 65 min",
+        "#1010 run 44076738880 job 134024642143 (macOS), Claude Code at 15px retried once and Antigravity at 13px twice, both passed",
+        "fix/macos-spec-stalls (#1019) Nightly Quality run 44207200939 job 134476092692 (macOS), Claude Code at 15px, timed out waiting for a click, retried and passed",
+        "#1037 run 44413564950 job 135195523004 (macOS), Codex at 13px retried twice, locator.click timed out at 9397 ms, passed"
       ]
     },
     {
