@@ -220,10 +220,7 @@
   line-height: var(--text-control--line-height);
   text-overflow: ellipsis;
   field-sizing: content;
-  transition:
-    width var(--motion-feedback) var(--ease-interface),
-    max-width var(--motion-feedback) var(--ease-interface),
-    background-color var(--motion-feedback) var(--ease-interface);
+  transition: background-color var(--motion-feedback) var(--ease-interface);
 }
 .page-address:hover {
   --_bg: var(--artifact-open-hover-bg, var(--color-soft));

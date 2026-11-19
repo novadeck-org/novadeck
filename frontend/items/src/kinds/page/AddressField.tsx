@@ -5,7 +5,8 @@ import { useLayoutEffect, useRef, useState } from "react"
 // Where a page is, as a chip at the start of its pane's tools, which the person edits to go
 // elsewhere: focused, it holds the whole address, selected, to type over; Enter goes where it
 // says, an http(s) address only (`addressOf`: none typed is tried over https, or http for this
-// machine), and Escape puts it back as it was. Leaving it does too. A field, so its keys are
+// machine), and Escape puts it back as it was. Leaving it does too, though going to another
+// window, and back, keeps what was typed. A field, so its keys are
 // its own while it has focus: the terminal under a covering pane and the app's own keys let
 // them be (cover-keys.ts). Enter hands focus on to the page it loads; Escape, and an address
 // opened in the browser, back to where it came from, or else to the page.
@@ -37,15 +38,26 @@ export const AddressField = ({
   const from = useRef<HTMLElement | null>(null)
   // A press that focused the field: its release would drop the selection to a caret.
   const pressed = useRef(false)
+  // Focus came to the field: what it holds is selected once it holds the whole address.
+  const [arrived, setArrived] = useState(0)
   const editing = draft !== undefined
   useLayoutEffect(() => {
-    if (editing) field.current?.select()
-  }, [editing])
+    if (arrived > 0) field.current?.select()
+  }, [arrived])
+  // Focus goes on, never staying in a field that isn't being edited: to `to`, else the page,
+  // else nowhere.
+  const leave = (to: () => void): void => {
+    to()
+    const input = field.current
+    if (input && input.ownerDocument.activeElement === input) input.blur()
+  }
   const giveBack = (): void => {
     const back = from.current
     from.current = null
-    if (back?.isConnected && back !== field.current) back.focus({ preventScroll: true })
-    else onReturn()
+    leave(() => {
+      if (back?.isConnected && back !== field.current) back.focus({ preventScroll: true })
+      else onReturn()
+    })
   }
   const go = (): void => {
     const url = addressOf(draft ?? "")
@@ -59,7 +71,7 @@ export const AddressField = ({
     // Gone there, the person is at the page; opened in the browser, back where they were.
     if (live) {
       from.current = null
-      onReturn()
+      leave(onReturn)
     } else giveBack()
   }
   return (
@@ -89,12 +101,17 @@ export const AddressField = ({
           event.preventDefault()
         }}
         onFocus={(event) => {
+          // Back from another window, what they were typing is as they left it.
+          if (editing) return
           from.current = event.relatedTarget instanceof HTMLElement ? event.relatedTarget : null
           setDraft(where)
           setInvalid(false)
+          setArrived((count) => count + 1)
         }}
-        onBlur={() => {
+        onBlur={(event) => {
           pressed.current = false
+          // The window lost focus, as the person went to another app to copy the rest.
+          if (!event.currentTarget.ownerDocument.hasFocus()) return
           setDraft(undefined)
           setInvalid(false)
         }}
@@ -103,11 +120,15 @@ export const AddressField = ({
           setInvalid(false)
         }}
         onKeyDown={(event) => {
-          if (event.nativeEvent.isComposing) return
-          if (event.key === "Enter") {
+          if (event.nativeEvent.isComposing || event.keyCode === 229) {
+            // Escape ends the composition, and goes no further: not to the pane, to hide it.
+            if (event.key === "Escape") event.stopPropagation()
+            return
+          }
+          if (event.key === "Enter" && editing) {
             event.preventDefault()
             go()
-          } else if (event.key === "Escape") {
+          } else if (event.key === "Escape" && editing) {
             // The field's own: not the pane's, which would hide.
             event.preventDefault()
             event.stopPropagation()

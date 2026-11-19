@@ -301,6 +301,46 @@ describe("a page beside a terminal", () => {
       expect(field.value).toBe("localhost:5173")
     })
 
+    it("lets Escape hide the pane once it's no longer being edited", () => {
+      const { field } = typing()
+      act(() => field.focus())
+      press(field, "Escape")
+      // Focus went back where it was; were it still here, Escape is the pane's again.
+      act(() => field.focus())
+      act(() => field.blur())
+      expect(press(field, "Escape")).toBe(true)
+    })
+
+    it("keeps Escape from the pane while it ends a composition, keeping what was typed", () => {
+      const { field } = typing()
+      const heard: string[] = []
+      const listener = (event: KeyboardEvent) => heard.push(event.key)
+      document.addEventListener("keydown", listener)
+      onTestFinished(() => document.removeEventListener("keydown", listener))
+      act(() => field.focus())
+      type(field, "exa")
+      act(() => {
+        field.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", isComposing: true, bubbles: true }),
+        )
+      })
+      expect(heard).toEqual([])
+      expect(field.value).toBe("exa")
+    })
+
+    it("keeps what was typed while the person is in another window", () => {
+      const { field } = typing()
+      act(() => field.focus())
+      type(field, "exa")
+      const hasFocus = vi.spyOn(document, "hasFocus").mockReturnValue(false)
+      act(() => field.blur())
+      expect(field.value).toBe("exa")
+      hasFocus.mockReturnValue(true)
+      act(() => field.focus())
+      expect(field.value).toBe("exa")
+      hasFocus.mockRestore()
+    })
+
     it("puts it back when the person leaves it", () => {
       const { field, before } = typing()
       act(() => field.focus())

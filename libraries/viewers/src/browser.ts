@@ -1047,14 +1047,18 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       moving = false
       stale = false
       place = { url, back: place.back, forward: place.forward }
+      // Where it was scrolled was of where it was, as is its picture: at rest it goes there
+      // once woken; woken, and still loading under its picture, it goes there now, and the
+      // picture with it.
+      scrolled = undefined
       if (page) {
         if (!go(url)) page.setAttribute("src", url)
         used = true
-      } else {
-        // At rest: it goes there once woken, its picture of where it was gone.
-        scrolled = undefined
-        if (!cover()) still.remove()
-      }
+        clearTimeout(fading)
+        fading = undefined
+        still.remove()
+        delete still.dataset.fading
+      } else if (!cover()) still.remove()
       on?.navigate?.(place)
       return true
     },

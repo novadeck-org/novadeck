@@ -23,6 +23,21 @@ describe("an address the person typed", () => {
     expect(addressOf("0.0.0.0:8000")).toBe("http://0.0.0.0:8000/")
   })
 
+  it("goes over http without a scheme where it's this machine's network", () => {
+    expect(addressOf("192.168.1.5:3000")).toBe("http://192.168.1.5:3000/")
+    expect(addressOf("10.0.0.2")).toBe("http://10.0.0.2/")
+    expect(addressOf("172.20.1.1:8080/a")).toBe("http://172.20.1.1:8080/a")
+    expect(addressOf("printer.local")).toBe("http://printer.local/")
+    expect(addressOf("172.32.0.1")).toBe("https://172.32.0.1/")
+    expect(addressOf("8.8.8.8")).toBe("https://8.8.8.8/")
+  })
+
+  it("is no address when it names a user or a password", () => {
+    expect(addressOf("https://user:secret@example.com/")).toBeUndefined()
+    expect(addressOf("http://user@localhost:5173/")).toBeUndefined()
+    expect(addressOf("user@example.com")).toBeUndefined()
+  })
+
   it("is no address with any other scheme", () => {
     for (const typed of [
       "javascript:alert(1)",

@@ -1277,6 +1277,28 @@ describe("the browser viewer", () => {
       )
     })
 
+    it("goes where the person asks as it wakes, without its picture or where it was scrolled", async () => {
+      vi.useFakeTimers()
+      try {
+        const { pane, viewer, calls, fire, ready } = resting()
+        fire("did-stop-loading")
+        viewer.awake(false)
+        await vi.runAllTimersAsync()
+        viewer.awake(true)
+        ready()
+        // Woken, still loading under its picture, which is of where it was.
+        expect(pictureOf(pane)).not.toBeNull()
+        calls.splice(0)
+        expect(viewer.visit("https://example.com/")).toBe(true)
+        expect(pictureOf(pane)).toBeNull()
+        expect(calls).toContain("load https://example.com/")
+        fire("did-stop-loading")
+        expect(calls.some((call) => call.includes("scrollTo"))).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it("goes to a new address it's given while it rests once woken", async () => {
       const { pane, viewer, fire } = resting()
       fire("did-stop-loading")
