@@ -150,11 +150,14 @@ const kindOf = (path: string): Pointed["kind"] =>
             ? "model"
             : "file"
 
-/** Whether the start of a file holds a NUL byte, as a binary file does. */
-const startsBinary = async (path: string): Promise<boolean> => {
+/**
+ * Whether the start of a file holds a NUL byte, as a binary file does; undefined where it can't
+ * be read (gone, locked, no plain file).
+ */
+const startsBinary = async (path: string): Promise<boolean | undefined> => {
   try {
     const opened = await openPlain(path)
-    if ("state" in opened) return false
+    if ("state" in opened) return undefined
     try {
       const head = Buffer.alloc(sniffBytes)
       const { bytesRead } = await opened.handle.read(head, 0, sniffBytes, 0)
@@ -163,17 +166,17 @@ const startsBinary = async (path: string): Promise<boolean> => {
       await opened.handle.close().catch(() => {})
     }
   } catch {
-    return false
+    return undefined
   }
 }
 
 /**
  * Whether a file named as a Wavefront model (.obj) is a compiled object file instead, as MSVC's
  * compiler writes: one starts with its machine's type, in binary, where a model is text. Only its
- * start is read.
+ * start is read; undefined where it can't be, which tells nothing yet.
  */
-export const isCompiledObject = async (path: string): Promise<boolean> =>
-  extname(path).toLowerCase() === ".obj" && (await startsBinary(path))
+export const isCompiledObject = async (path: string): Promise<boolean | undefined> =>
+  extname(path).toLowerCase() === ".obj" ? await startsBinary(path) : false
 
 /**
  * The lines of a file of `total` lines shown, from `first` to `last`, and the ones
@@ -232,7 +235,7 @@ export const pointAt = async (
     ok: true,
     path,
     // A compiled object file is an .obj too, which no model is.
-    kind: kind === "model" && (await isCompiledObject(path)) ? "file" : kind,
+    kind: kind === "model" && (await isCompiledObject(path)) === true ? "file" : kind,
     size: stats.size,
     secret: secret(path, env),
   }

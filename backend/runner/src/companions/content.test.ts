@@ -909,9 +909,9 @@ describe("a 3D model as it loads", () => {
     await expect(isCompiledObject(join(directory, "BIG.OBJ"))).resolves.toBe(true)
     await expect(isCompiledObject(join(directory, "cube.obj"))).resolves.toBe(false)
     await expect(isCompiledObject(join(directory, "empty.obj"))).resolves.toBe(false)
-    // Another format's binary is its own, and a file gone is no object.
+    // Another format's binary is its own; a file gone tells nothing.
     await expect(isCompiledObject(join(directory, "part.stl"))).resolves.toBe(false)
-    await expect(isCompiledObject(join(directory, "gone.obj"))).resolves.toBe(false)
+    await expect(isCompiledObject(join(directory, "gone.obj"))).resolves.toBeUndefined()
   })
 
   it("is its format, size and the model file's stamp, listing nothing for a format that names none", async ({

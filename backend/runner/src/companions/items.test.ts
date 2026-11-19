@@ -2903,6 +2903,30 @@ describe("a folder beside its terminal", () => {
     expect((await entry("cube.obj")).kind).toBe("other")
   })
 
+  it("tells a compiled .obj it couldn't read once it can, though its stamp is the same", async ({
+    fixture,
+  }) => {
+    // No file is locked to the superuser, and Windows has no such modes.
+    if (process.platform === "win32" || process.getuid?.() === 0) return
+    const path = join(render(fixture.directory), "locked.obj")
+    writeFileSync(path, Buffer.from([0x64, 0x86, 0x03, 0x00, 0x5f, 0x00]))
+    chmodSync(path, 0o000)
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "render" } })
+    const itemId = shown.ok ? shown.id : ""
+    const kind = async () =>
+      listed(await fixture.items.load(itemId, false)).entries.find(
+        ({ name }) => name === "locked.obj",
+      )!.kind
+    try {
+      // Unread, it is what its name tells.
+      expect(await kind()).toBe("model")
+    } finally {
+      chmodSync(path, 0o644)
+    }
+    expect(await kind()).toBe("other")
+  })
+
   it("reads a file of the folder by its path and stamp, as its kind is read anywhere", async ({
     fixture,
   }) => {

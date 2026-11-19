@@ -116,7 +116,8 @@ export const entryKindOf = (name: string): Exclude<FolderEntry["kind"], "folder"
               : "other"
 
 // What each .obj listed was found to be, by its stamp and real path, so a folder listed again as
-// it changes doesn't read each one again: a file rewritten has another stamp. Emptied once full.
+// it changes doesn't read each one again: a file rewritten has another stamp. One that couldn't be
+// read is tried again, as being locked changes no stamp. Emptied once full.
 const objects = new Map<string, boolean>()
 const maxObjects = 4096
 
@@ -131,13 +132,12 @@ const fileKindOf = async (
   const kind = entryKindOf(basename(path))
   if (kind !== "model" || extname(path).toLowerCase() !== ".obj") return kind
   const key = `${stamp}\0${path}`
-  const known = objects.get(key)
-  const compiled = known ?? (await isCompiledObject(path))
-  if (known === undefined) {
+  const compiled = objects.get(key) ?? (await isCompiledObject(path))
+  if (compiled !== undefined && !objects.has(key)) {
     if (objects.size >= maxObjects) objects.clear()
     objects.set(key, compiled)
   }
-  return compiled ? "other" : kind
+  return compiled === true ? "other" : kind
 }
 
 /** Whether `path` is `top` or under it, both real paths. */
@@ -436,7 +436,9 @@ export const readFolderPart = async (
   // for an .obj, its start.
   const listed = entryKindOf(basename(walked.path))
   const largest =
-    partLimits[listed === "model" && (await isCompiledObject(walked.path)) ? "other" : listed]
+    partLimits[
+      listed === "model" && (await isCompiledObject(walked.path)) === true ? "other" : listed
+    ]
   if (largest === undefined) throw new DomainError("NOT_FOUND", "That file isn't read in parts")
   // The file opened is the one found inside the top: a folder on the way swapped for a link
   // between finding it and opening it would open another.
