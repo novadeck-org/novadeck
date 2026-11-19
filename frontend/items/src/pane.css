@@ -194,8 +194,8 @@
   }
 }
 
-/* The icons open behind what the pane shows peek out above it (`.pane-stack`, `--_count` of
-   them) as the cards of a file drawer do: a thin edge for each (`.pane-stack-sheet`,
+/* The icons open behind what the pane shows, the nearest five, peek out above it (`.pane-stack`,
+   `--_count` of them) as the cards of a file drawer do: a thin edge for each (`.pane-stack-sheet`,
    `--_depth` 0 the nearest, the nearest last), each further back narrower and fainter.
    Hover and keyboard focus emphasize an edge without growing it or revealing a header.
    What's shown sits under them, clear of the window's header while nothing's behind. */
@@ -218,8 +218,8 @@
   padding-top: 4px;
 }
 .pane-stack-sheet {
-  /* Narrower to the fourth back, so a long row keeps each card wide enough to read. */
-  --_inset: calc(6px + min(var(--_depth, 0), 4) * 8px);
+  /* Narrower each further back, five at most (`stackCap`), so each stays wide enough to read. */
+  --_inset: calc(6px + var(--_depth, 0) * 8px);
   --_fade: max(0.4, 0.9 - var(--_depth, 0) * 0.25);
   position: relative;
   display: flex;

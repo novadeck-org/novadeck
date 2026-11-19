@@ -175,8 +175,12 @@ const whenCut =
 // take focus: the change follows at once, so anything later wasn't theirs.
 const handOffMs = 1000
 
-// The icons with something open behind the pane's, every one, peeking out above it as the
-// cards of a file drawer do: each further back narrower and fainter, the nearest last. Each
+// How many of the icons open behind the pane peek out above it: past that, the cards further
+// back only thicken the stack's edge, and the taskbar still has them.
+export const stackCap = 5
+
+// The icons with something open behind the pane's, the nearest `stackCap`, peeking out above
+// it as the cards of a file drawer do: each further back narrower and fainter, the nearest last. Each
 // stays compact under the pointer and comes forward when clicked. One just shown tucks
 // in behind what took its place, so the two read as swapped. Escape hides the pane from here
 // too, as from what it shows, and Ctrl+PageDown and Ctrl+PageUp step through its tabs.
@@ -199,58 +203,61 @@ const BehindStack = ({
   onHide: () => void
   // Steps through the tabs of what the pane shows, as from anywhere in it.
   onStepKey: (event: React.KeyboardEvent) => void
-}): React.JSX.Element => (
-  <div
-    className="pane-stack nodrag nopan"
-    style={{ "--_count": behind.length } as React.CSSProperties}
-    data-workspace-companion
-    onKeyDown={(event) => {
-      if (event.key === "Escape") {
-        event.stopPropagation()
-        onHide()
-      }
-      onStepKey(event)
-    }}
-  >
-    {behind
-      .map(({ slot, front }, depth) => {
-        const { name } = memberLook(front, { plans })
-        const Icon = slotIcon(slot)
-        const names = slot.stack && stackNames(slot.stack)
-        const count = slot.members.length
-        return (
-          <button
-            key={slot.key}
-            type="button"
-            className="pane-stack-sheet"
-            style={{ "--_depth": depth } as React.CSSProperties}
-            data-entry={front.key === tucked ? "tuck" : undefined}
-            data-state={slot.members.some(isNew) ? "new" : undefined}
-            aria-label={
-              names
-                ? `Bring forward ${count} ${names.one}s, ${name} in front`
-                : `Bring forward ${name}`
-            }
-            onClick={() => onRaise(front)}
-            onAnimationEnd={onTucked}
-            ref={whenCut(onTucked)}
-          >
-            <Icon size={12} strokeWidth={1.5} aria-hidden="true" />
-            {names ? (
-              <>
-                <b>{names.many}</b>
-                <span className="pane-stack-count">{count}</span>
-                <span className="pane-stack-name">· {name}</span>
-              </>
-            ) : (
-              <b className="pane-stack-name">{name}</b>
-            )}
-          </button>
-        )
-      })
-      .toReversed()}
-  </div>
-)
+}): React.JSX.Element => {
+  const sheets = behind.slice(0, stackCap)
+  return (
+    <div
+      className="pane-stack nodrag nopan"
+      style={{ "--_count": sheets.length } as React.CSSProperties}
+      data-workspace-companion
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.stopPropagation()
+          onHide()
+        }
+        onStepKey(event)
+      }}
+    >
+      {sheets
+        .map(({ slot, front }, depth) => {
+          const { name } = memberLook(front, { plans })
+          const Icon = slotIcon(slot)
+          const names = slot.stack && stackNames(slot.stack)
+          const count = slot.members.length
+          return (
+            <button
+              key={slot.key}
+              type="button"
+              className="pane-stack-sheet"
+              style={{ "--_depth": depth } as React.CSSProperties}
+              data-entry={front.key === tucked ? "tuck" : undefined}
+              data-state={slot.members.some(isNew) ? "new" : undefined}
+              aria-label={
+                names
+                  ? `Bring forward ${count} ${names.one}s, ${name} in front`
+                  : `Bring forward ${name}`
+              }
+              onClick={() => onRaise(front)}
+              onAnimationEnd={onTucked}
+              ref={whenCut(onTucked)}
+            >
+              <Icon size={12} strokeWidth={1.5} aria-hidden="true" />
+              {names ? (
+                <>
+                  <b>{names.many}</b>
+                  <span className="pane-stack-count">{count}</span>
+                  <span className="pane-stack-name">· {name}</span>
+                </>
+              ) : (
+                <b className="pane-stack-name">{name}</b>
+              )}
+            </button>
+          )
+        })
+        .toReversed()}
+    </div>
+  )
+}
 
 // Where the pane's tab row was scrolled to, and which tab is to take focus: the row is
 // drawn anew for each thing, and again as it loads, so the pane keeps them.
