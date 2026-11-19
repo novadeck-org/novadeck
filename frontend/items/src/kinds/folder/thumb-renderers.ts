@@ -5,17 +5,20 @@ import { videoFrameBytes } from "./model"
 // The kinds the folder draws itself, registered as any other kind would: an image is itself, up
 // to what one part holds; a video is its first moment and its length.
 
+// What the runner shows as an image (`images` in its companions/content.ts), by extension.
 const imageMimes: Record<string, string | undefined> = {
   png: "image/png",
   apng: "image/apng",
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
+  jpe: "image/jpeg",
   jfif: "image/jpeg",
   pjpeg: "image/jpeg",
   pjp: "image/jpeg",
   gif: "image/gif",
   webp: "image/webp",
   avif: "image/avif",
+  jxl: "image/jxl",
   bmp: "image/bmp",
   ico: "image/x-icon",
   cur: "image/x-icon",
