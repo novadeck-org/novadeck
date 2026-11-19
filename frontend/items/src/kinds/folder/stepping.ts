@@ -8,7 +8,14 @@ import { separatorOf, sorted, type FolderSort } from "./model"
 // the files it steps through. All of it is pure; ../../file-steps.tsx draws it.
 
 // The kinds of item that point at a file, which a folder's files open as.
-export const fileKinds: ReadonlySet<ItemKind> = new Set(["image", "video", "audio", "pdf", "file"])
+export const fileKinds: ReadonlySet<ItemKind> = new Set([
+  "image",
+  "video",
+  "audio",
+  "pdf",
+  "model",
+  "file",
+])
 
 // The kinds whose viewer leaves ← and → alone, so they step through the folder too. An image's
 // pans only while it is zoomed, and says so by taking the key (the steps never hear a key a

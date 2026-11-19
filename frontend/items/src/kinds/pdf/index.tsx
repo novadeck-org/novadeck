@@ -2,7 +2,14 @@ import { FileType } from "lucide-react"
 
 import { artifactLook, artifactThumb, artifactView } from "../../ArtifactViewer"
 import type { ItemRegistration } from "../../registration"
-import { PdfThumb, PdfViewer } from "./PdfViewer"
+import { lazyBody } from "../lazy"
+import { PdfThumb } from "./PdfThumb"
+
+// The viewer, with pdf.js's frame and its own code, loads when a PDF first shows.
+const PdfViewer = lazyBody(
+  () => import("./PdfViewer").then((module) => module.PdfViewer),
+  <div className="pdf-pane" aria-busy />,
+)
 
 // A PDF an agent showed, drawn page by page with the PDF viewer.
 export const pdf = {

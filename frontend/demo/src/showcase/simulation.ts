@@ -21,7 +21,8 @@ import type { SampleAgent } from "./agents"
 import type { SampleArtifact } from "./artifacts"
 import { attachedArtifact, type AttachedArtifact } from "./attached"
 import { clip, clipSize } from "./clip"
-import { quarterlyReport } from "./pdf"
+import { bracketBytes, bracketSize } from "./model-bracket"
+import { quarterlyReport, quarterlyReportSize } from "./pdf"
 import { applyEdits, removeNotes } from "./revise"
 
 // The showcase's agents at work: they answer what their terminals are told, revise their
@@ -364,7 +365,14 @@ export const createShowcase = (
         ...where,
       },
       now(),
-      { clip, clipSize, report: quarterlyReport },
+      {
+        clip,
+        clipSize,
+        report: quarterlyReport,
+        reportSize: quarterlyReportSize,
+        model: bracketBytes,
+        modelSize: bracketSize,
+      },
     )
     samples.set(id, sample)
     report?.([
@@ -412,10 +420,10 @@ export const createShowcase = (
       for (const watcher of watching.get(id) ?? []) watcher.on(shownContent(id, watcher.reveal))
       return Promise.resolve()
     },
-    // As the runner reads a video's or PDF's file: in parts of `file.part` bytes while it is as
-    // its content's stamp says, `changed` once the sample shown anew has another stamp, and a
-    // secret one only revealed.
-    part: async (_target, id, { stamp, offset, reveal, path }) => {
+    // As the runner reads a video's, PDF's or model's file: in parts of `file.part` bytes while
+    // it is as its content's stamp says, `changed` once the sample shown anew has another stamp,
+    // and a secret one only revealed.
+    part: async (_target, id, { stamp, offset, reveal, file, path }) => {
       const sample = samples.get(id)
       // A file of a folder: by its path from the folder's top, as the runner reads one.
       if (path !== undefined) {
@@ -425,6 +433,11 @@ export const createShowcase = (
         return readFolderPart(sample.folder, path, stamp, offset)
       }
       if (!sample?.file) throw new Error(`No file to read in ${id}`)
+      // A file beside a model, which its sample reads.
+      if (file !== undefined) {
+        if (!sample.file.beside) throw new Error("That file isn't one the model names")
+        return sample.file.beside(file, offset)
+      }
       if (sample.item.secret && (reveal === undefined || reveal !== sample.item.path))
         return { state: "unavailable", reason: "secret" }
       if (sample.content.state === "ready" && sample.content.stamp !== stamp)

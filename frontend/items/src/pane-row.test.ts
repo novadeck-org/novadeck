@@ -84,6 +84,18 @@ describe("what a tab's tooltip says of its item", () => {
       shownAt: now,
     })
     expect(tabTip(own, [], { now })).toEqual(["/p/hero.png", "120 KB PNG · You added it just now"])
+    const model = itemFixture("m", "01", {
+      kind: "model",
+      name: "ship.glb",
+      path: "/p/ship.glb",
+      detail: "1.2 MB glTF",
+      by: "person",
+      shownAt: now,
+    })
+    expect(tabTip(model, [], { now })).toEqual([
+      "/p/ship.glb",
+      "1.2 MB glTF · You added it just now",
+    ])
     const change = itemFixture("c", "01", {
       kind: "changes",
       name: "feat/x",

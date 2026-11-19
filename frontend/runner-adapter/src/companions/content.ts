@@ -183,12 +183,13 @@ export const createRunnerCompanions = (
   },
   changeFile: (_target, itemId, path, layers) => runner.changeFile({ itemId, path, layers }),
   changeRead: (_target, itemId, path) => runner.changeRead({ itemId, path }),
-  part: async (_target, itemId, { stamp, offset, reveal, path }) => {
+  part: async (_target, itemId, { stamp, offset, reveal, file, path }) => {
     const part = await runner.part({
       itemId,
       stamp,
       offset,
       ...(reveal && { reveal }),
+      ...(file !== undefined && { file }),
       ...(path !== undefined && { path }),
     })
     return part.state === "part" ? { state: "part", bytes: decode(part.data) } : part

@@ -2,11 +2,18 @@ import "./pdf.css"
 import { afterEach, describe, expect, it } from "vitest"
 import { userEvent } from "vitest/browser"
 
+import frameHtml from "./frame/frame.html?raw"
+import { openFrame } from "./frame/host.js"
 import type { ViewerState } from "./index.js"
-import { mountPdf, type PdfAssets, type PdfTrouble, type PdfViewer } from "./pdf.js"
-import { openPdfFrame } from "./pdf/frame-host.js"
+import {
+  mountPdf,
+  pdfFrameCode,
+  pdfViewerSource,
+  type PdfAssets,
+  type PdfTrouble,
+  type PdfViewer,
+} from "./pdf.js"
 import { pdfFrameViewer } from "./pdf/frame-viewer.js"
-import frameHtml from "./pdf/frame.html?raw"
 import { frameMessage } from "./pdf/messages.js"
 
 // A PDF of its objects, numbered from 1, the first its catalog: the objects, then the table
@@ -156,11 +163,11 @@ const mount = (
     if (ready) frame.post(message, transfer)
     else queue.push([message, transfer])
   }
-  const frame = openPdfFrame({
+  const frame = openFrame({
     iframe,
     url: drawingUrl,
-    code,
-    viewer: options.viewer ?? pdfFrameViewer.toString(),
+    code: pdfFrameCode(code),
+    viewer: pdfViewerSource(options.viewer),
     hear: (data) => {
       const message = frameMessage(data)
       if (!message) return
@@ -695,11 +702,11 @@ describe("the frame's walls", () => {
     let report:
       | { results: Record<string, string>; violations: string[]; rtc: Record<string, string> }
       | undefined
-    const frame = openPdfFrame({
+    const frame = openFrame({
       iframe,
       url: frameUrl,
-      code,
-      viewer: attack,
+      code: pdfFrameCode(code),
+      viewer: pdfViewerSource(attack),
       hear: (data) => {
         const message = data as { type?: string }
         if (message?.type === "ready")
@@ -927,11 +934,11 @@ describe("the frame's page", () => {
     const iframe = document.createElement("iframe")
     pane.append(iframe)
     const heard: unknown[] = []
-    const frame = openPdfFrame({
+    const frame = openFrame({
       iframe,
       url: frameUrl,
-      code,
-      viewer: "function ran({ port }) { port.postMessage({ type: 'ready' }) }",
+      code: pdfFrameCode(code),
+      viewer: pdfViewerSource("function ran({ port }) { port.postMessage({ type: 'ready' }) }"),
       hear: (data) => heard.push(data),
       stopped: () => {},
     })
@@ -947,8 +954,10 @@ describe("the frame's page", () => {
     const policy = /Content-Security-Policy"\s+content="([^"]*)"/.exec(frameHtml)![1]!
     expect(policy).toContain(`script-src 'sha256-${hash}' blob: 'wasm-unsafe-eval';`)
     expect(policy.startsWith("default-src 'none';")).toBe(true)
+    // It fetches only its own blobs and data addresses, as a glTF's loader does.
+    expect(/connect-src[^;]*/.exec(policy)![0]).toBe("connect-src blob: data:")
     // No network, no eval but WebAssembly's, and no inline script but its own.
-    expect(policy).not.toMatch(/connect-src|[^-]unsafe-eval|https?:/)
+    expect(policy).not.toMatch(/[^-]unsafe-eval|https?:|\*|'self'|filesystem:/)
     expect(/script-src[^;]*/.exec(policy)![0]).not.toContain("unsafe-inline")
   })
 })

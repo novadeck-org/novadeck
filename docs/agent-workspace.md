@@ -490,6 +490,14 @@ with every safety check again at that time:
   script it carries runs, and nothing it names is fetched. It opens fitted to the pane's width, and keeps its page and zoom across views,
   windows and a rewrite of the file; one over 128 MB loads as too large to preview, and one
   locked with a password, or that isn't a PDF pdf.js can read, says so in the pane.
+  A 3D model (`.glb`, `.gltf`, `.stl`, `.obj`, `.ply`, `.3mf`, kind `model`) is read the same
+  way, with the files beside it that it names (a glTF's buffers and textures, an OBJ's material
+  libraries and theirs, in its folder, none that may hold secrets, none at an address of its
+  own), and drawn with three.js in the same kind of frame: it opens fitted on a grid, turns,
+  moves and zooms, toggles wireframe and flat shading, plays a glTF's animation, and gives its
+  size in millimetres where its format has units. Rewritten, as a CAD loop writes it again, it's
+  drawn from where the person was looking; one over 256 MB with its files loads as too large to
+  preview. Its peek is a still of it.
   A folder (`show {"file": {"path": "<dir>/"}}`, or the person's "Open in the pane" on a
   Files panel row, kind `folder`) is listed, read-only, as a grid of thumbnails or a list
   (newest first, or by name or size): the runner reads its entries (name, kind by extension,

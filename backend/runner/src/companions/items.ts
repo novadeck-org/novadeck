@@ -8,6 +8,7 @@ import {
   companionLimits,
   onThisMachine,
   pageKey,
+  modelLimits,
   pdfLimits,
   titleFrom,
   videoLimits,
@@ -39,11 +40,15 @@ import {
   formatOf,
   hashOf,
   loadFile,
+  discoverModel,
+  filesStamps,
+  type ModelLoad,
   loadPdf,
   loadPlan,
   loadPlayed,
   maxImageBytes,
   pageAt,
+  modelStamp,
   partsOf,
   planTitle,
   pointAt,
@@ -210,6 +215,7 @@ const fileKinds: ReadonlySet<ItemRecord["kind"]> = new Set([
   "video",
   "audio",
   "pdf",
+  "model",
   "file",
 ])
 
@@ -294,8 +300,14 @@ const wireWindow = (window: WindowRecord): CompanionWindow => ({
 })
 
 /** What a content reader compares to tell whether to yield again. */
+// A model's files beside it are its content too: one of them written again is a change.
+// A model's read, kept by item and by whether the person's yes went with it.
+const modelKey = (id: string, reveal: boolean): string => `${id}|${reveal ? "revealed" : "held"}`
+
 const keyOf = (content: ItemContent): string =>
-  content.state === "ready" ? `ready:${content.stamp}` : `${content.reason}:${content.size}`
+  content.state === "ready"
+    ? `ready:${content.stamp}${content.content.kind === "model" ? `|${content.content.files.map((file) => file.stamp).join(",")}` : ""}`
+    : `${content.reason}:${content.size}`
 
 /** How recent a plan's own timestamp must be for it to count as written live. */
 const LIVE_PLAN_MS = 60_000
@@ -356,6 +368,11 @@ export class CompanionItems {
     string,
     { readonly version: number; readonly scroll?: string; readonly at?: number }
   >()
+  /**
+   * The files each model item's content lists, with the model's stamp then, so a part by name
+   * is read from what was listed; only for a model that isn't held, as a revealed one isn't kept.
+   */
+  private readonly modelFiles = new Map<string, ModelLoad>()
   /** Agents' looks at pages, on their way to the client. */
   private readonly looks = new PageLooks()
   private readonly lookMs: number
@@ -994,7 +1011,10 @@ export class CompanionItems {
         // are read afresh each time.
         const probing = item.kind !== "changes" && item.kind !== "shells"
         // eslint-disable-next-line no-await-in-loop -- Each look follows the one before.
-        const stamp = probing ? await probe(item, live) : String(Date.now())
+        const stamp = probing
+          ? // eslint-disable-next-line no-await-in-loop -- As above.
+            `${await probe(item, live)}${item.kind === "model" ? await this.besideStamps(item, reveal) : ""}`
+          : String(Date.now())
         const now = probing ? `${item.version}|${item.path}|${lines}|${stamp}` : stamp
         if (now !== probed) {
           const began = Date.now()
@@ -1436,7 +1456,8 @@ export class CompanionItems {
         (pointed.kind === "image" && pointed.size > maxImageBytes) ||
         ((pointed.kind === "video" || pointed.kind === "audio") &&
           pointed.size > videoLimits.bytes) ||
-        (pointed.kind === "pdf" && pointed.size > pdfLimits.bytes),
+        (pointed.kind === "pdf" && pointed.size > pdfLimits.bytes) ||
+        (pointed.kind === "model" && pointed.size > modelLimits.bytes),
       pointer: this.filePointer(pointed, path, place.cwd, place.project, {
         ...(request.title !== undefined && { title: request.title }),
         ...(lines && { lines }),
@@ -1521,7 +1542,7 @@ export class CompanionItems {
 
   /**
    * How a file is described: an image, a video, a recording or a PDF by its size and format,
-   * a text file by its path and lines.
+   * a 3D model by its format and size, a text file by its path and lines.
    */
   private detail(
     pointed: Pointed,
@@ -1533,7 +1554,8 @@ export class CompanionItems {
       pointed.kind === "image" ||
       pointed.kind === "video" ||
       pointed.kind === "audio" ||
-      pointed.kind === "pdf"
+      pointed.kind === "pdf" ||
+      pointed.kind === "model"
     ) {
       return `${size(pointed.size)} ${formatOf(pointed.path)}`
     }
@@ -1764,6 +1786,7 @@ export class CompanionItems {
     readonly stamp: string
     readonly offset: number
     readonly reveal?: string | undefined
+    readonly file?: string | undefined
     readonly path?: string | undefined
   }): Promise<FilePart> {
     if (this.stopping) throw new DomainError("CLOSING")
@@ -1775,7 +1798,48 @@ export class CompanionItems {
     const largest = partsOf[item.kind]
     if (largest === undefined) throw new DomainError("NOT_FOUND", "That item isn't read in parts")
     const reveal = input.reveal !== undefined && input.reveal === item.path
+    if (input.file !== undefined) {
+      const beside =
+        item.kind === "model" ? await this.modelFile(item, input.file, reveal) : undefined
+      if (!beside) throw new DomainError("NOT_FOUND", "That file isn't one the model names")
+      // Never shown when it may hold secrets, as the model's own reveal doesn't reach it.
+      return readPart(
+        { path: beside.path, secret: false },
+        input,
+        false,
+        largest,
+        this.environment(),
+      )
+    }
     return readPart(item, input, reveal, largest, this.environment())
+  }
+
+  /**
+   * A file a model's content lists, by its name there: kept while the model is as it was when
+   * it was read, and read again once it isn't. A model read with the person's yes is kept
+   * apart from one read without, so a held model's files are never reached by the other.
+   */
+  private async modelFile(
+    item: ItemRecord,
+    name: string,
+    reveal: boolean,
+  ): Promise<{ readonly path: string } | undefined> {
+    const kept = this.modelFiles.get(modelKey(item.id, reveal))
+    if (kept?.content.state === "ready" && kept.content.stamp === (await modelStamp(item)))
+      return kept.files.get(name)
+    const model = await discoverModel(item, reveal, this.environment())
+    if (model.content.state !== "ready") return undefined
+    this.modelFiles.set(modelKey(item.id, reveal), model)
+    return model.files.get(name)
+  }
+
+  /** The stamps of the files beside a model as its last read listed them, as they are now. */
+  private async besideStamps(item: ItemRecord, reveal: string | undefined): Promise<string> {
+    const kept = this.modelFiles.get(
+      modelKey(item.id, reveal !== undefined && reveal === item.path),
+    )
+    if (!kept) return ""
+    return `|${(await filesStamps(kept.files)).join(",")}`
   }
 
   /**
@@ -1819,6 +1883,11 @@ export class CompanionItems {
     if (item.kind === "video" || item.kind === "audio")
       return loadPlayed(item, reveal, { shown: item.version, at: cued?.at }, this.environment())
     if (item.kind === "pdf") return loadPdf(item, reveal, this.environment())
+    if (item.kind === "model")
+      return discoverModel(item, reveal, this.environment()).then((model) => {
+        if (model.content.state === "ready") this.modelFiles.set(modelKey(item.id, reveal), model)
+        return model.content
+      })
     if (item.kind === "folder")
       return loadFolder(item, "", this.environment()).then(({ content }) => content)
     return loadFile(item, reveal, this.environment())
@@ -1830,6 +1899,8 @@ export class CompanionItems {
 
   private removed(item: ItemRecord, window: WindowRecord | undefined): void {
     this.cues.delete(item.id)
+    this.modelFiles.delete(modelKey(item.id, false))
+    this.modelFiles.delete(modelKey(item.id, true))
     this.folderNames.delete(item.id)
     this.folderReads.delete(item.id)
     this.sink?.gone(item)

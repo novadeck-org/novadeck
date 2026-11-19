@@ -273,4 +273,11 @@ describe("The tour's story signals", () => {
     Object.assign(state, { items: [itemFixture("card", "01", { kind: "page" })] })
     expect(tourSignals(workspace, "01").shown).toBe(true)
   })
+
+  it("see the lead's own shown 3D model", () => {
+    const workspace = teamWorkspace()
+    const state = workspace.projects[0]!.history[0]!.state
+    Object.assign(state, { items: [itemFixture("card", "01", { kind: "model" })] })
+    expect(tourSignals(workspace, "01").shown).toBe(true)
+  })
 })

@@ -4,6 +4,7 @@ import { bundleChecks, frontendUtilities } from "@novadeck/build-kit/bundle-chec
 import { configuredSources } from "@novadeck/build-kit/connect-sources"
 import { contentSecurityPolicy } from "@novadeck/build-kit/content-security-policy"
 import { fontsAsFiles } from "@novadeck/build-kit/fonts"
+import { frameBundles } from "@novadeck/build-kit/frame-bundles"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
@@ -27,6 +28,8 @@ export default defineConfig({
   plugins: [
     tailwindcss(),
     react(),
+    // A viewer's code as its sandboxed frame runs it, bundled into one script.
+    frameBundles(),
     // It reaches what it is configured for.
     contentSecurityPolicy({ connect: configuredSources }),
     bundleChecks({

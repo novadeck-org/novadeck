@@ -127,6 +127,20 @@ describe("the folder a file is in", () => {
       ])
     })
 
+    it("step a 3D model through the folder's models, and a model's item is in a folder as any file's", () => {
+      const models = [
+        entry("bracket.glb", { kind: "model", modifiedAt: 4 }),
+        entry("gear.stl", { kind: "model", modifiedAt: 6 }),
+        entry("a.png", { modifiedAt: 9 }),
+      ]
+      expect(stepsOf(models, "model", "newest").map(({ name }) => name)).toEqual([
+        "gear.stl",
+        "bracket.glb",
+      ])
+      const model = file("/tmp/render/gear.stl", "1", { kind: "model" })
+      expect(homeOf(model, [folder("render", "/tmp/render")])).toMatchObject({ within: "" })
+    })
+
     it("stand either side of a file, none past the first or last, and none where it isn't listed", () => {
       const steps = stepsOf(entries, "image", "newest")
       expect(neighboursOf(steps, "c.png")).toEqual({ before: steps[0], after: steps[2] })

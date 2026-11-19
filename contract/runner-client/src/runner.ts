@@ -636,7 +636,8 @@ export type Runner = {
      * An item's file from `offset`, up to `partBytes` bytes, for a kind read in parts (a
      * video, a recording), while it is as
      * `stamp` names it; `changed` when it is not. Rejects with `NOT_FOUND` for an unknown
-     * item or one of a kind not read in parts. A folder item's `path` names one of its files,
+     * item or one of a kind not read in parts. With `file`, a model's file beside it, one its
+     * content lists, as its own stamp names it. A folder item's `path` names one of its files,
      * from its top.
      */
     part(input: {
@@ -644,6 +645,7 @@ export type Runner = {
       readonly stamp: string
       readonly offset: number
       readonly reveal?: string
+      readonly file?: string
       readonly path?: string
     }): Promise<FilePart>
     /** What went wrong on a page item during its show `shown`, as the pane saw it. */
