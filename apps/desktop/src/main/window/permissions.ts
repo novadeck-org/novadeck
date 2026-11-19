@@ -17,8 +17,9 @@ export const ownPage = (url: string, own: string): boolean => {
 }
 
 // What Novadeck's own page may use: the clipboard, so an image pasted into a terminal
-// reaches it and the page's copy buttons work.
-const clipboard = new Set(["clipboard-read", "clipboard-sanitized-write"])
+// reaches it and the page's copy buttons work, and the list of installed fonts, which
+// Preferences offers for the terminal. Without that permission the list comes back empty.
+const clipboard = new Set(["clipboard-read", "clipboard-sanitized-write", "local-fonts"])
 
 // Whether a frame may use anything at all: only the main frame of a window showing the
 // app's own page.
@@ -34,7 +35,7 @@ const audioOnly = (types: readonly string[] | undefined): boolean =>
   types !== undefined && types.length > 0 && types.every((type) => type === "audio")
 
 /**
- * Refuses the app's session every permission but the clipboard and the microphone for
+ * Refuses the app's session every permission but the clipboard, the font list and the microphone for
  * the app's own page, which `own` recognises by its address. Live pages have a session of
  * their own, which refuses them everything (see @novadeck/viewers/browser/host).
  *

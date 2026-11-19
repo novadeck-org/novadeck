@@ -70,6 +70,23 @@ describe("readPreferences", () => {
     }
   })
 
+  it("keeps a saved terminal font family, and reads anything else as the bundled font", () => {
+    expect(readPreferences().fontFamily).toBe("")
+    for (const [saved, family] of [
+      ["Fira Code", "Fira Code"],
+      ["  Menlo  ", "Menlo"],
+      ["", ""],
+      ["Bad\nName", ""],
+      ["x".repeat(201), ""],
+      [3, ""],
+      [null, ""],
+    ] as const) {
+      localStorage.setItem(preferencesStorageKey, JSON.stringify({ fontFamily: saved }))
+
+      expect(readPreferences().fontFamily).toBe(family)
+    }
+  })
+
   it("follows the theme's sound unless a sound the app has is saved", () => {
     expect(readPreferences().soundChoice).toBe("theme")
     for (const [saved, choice] of [

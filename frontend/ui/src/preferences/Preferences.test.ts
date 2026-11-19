@@ -377,6 +377,7 @@ describe("the Appearance tab", () => {
     expect(panel()?.textContent).toContain("Theme")
     expect(panel()?.textContent).toContain("View modes")
     expect(panel()?.textContent).toContain("Text size")
+    expect(panel()?.textContent).toContain("Terminal font")
     expect(panel()?.textContent).toContain("Ligatures")
     expect(panel()?.textContent).not.toContain("Bell")
     expect(panel()?.textContent).not.toContain("Hear it")

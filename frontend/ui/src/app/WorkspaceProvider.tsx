@@ -78,7 +78,10 @@ const createServices = (
   // The store only reports later commits; give the backend the starting terminals now.
   backend.commit(initial, [])
   // Terminals mount in layout effects, before any effect of the app's could tell the font.
-  backend.setFont({ size: preferences.fontSize })
+  backend.setFont({
+    size: preferences.fontSize,
+    ...(preferences.fontFamily && { family: preferences.fontFamily }),
+  })
   const ui = createUiStore(
     initialUi({
       location: { route, dialogDepth: dialogDepthOf(location.state), navigationType },

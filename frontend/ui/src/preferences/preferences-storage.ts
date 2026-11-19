@@ -16,9 +16,20 @@ export const fontSizeOf = (saved: unknown): number =>
     ? Math.min(fontSizeRange.max, Math.max(fontSizeRange.min, Math.round(saved)))
     : fontSizeRange.fallback
 
+// A saved font family is a name as the computer lists it: text of a sensible length with no
+// control characters. Anything else is the bundled font, "". A family that is no longer
+// installed stays saved, so it returns when the font does.
+export const fontFamilyOf = (saved: unknown): string => {
+  if (typeof saved !== "string") return ""
+  const name = saved.trim()
+  // oxlint-disable-next-line no-control-regex -- Control characters are what this refuses.
+  return name.length <= 200 && !/[\u0000-\u001f\u007f-\u009f]/.test(name) ? name : ""
+}
+
 export const readPreferences = (): PreferencesValue => {
   const defaults: PreferencesValue = {
     fontSize: fontSizeRange.fallback,
+    fontFamily: "",
     enabledViews: [...viewModes],
     appearance: defaultPreference(themes),
     notifyNeeds: true,
@@ -43,6 +54,7 @@ export const readPreferences = (): PreferencesValue => {
     return {
       enabledViews: enabledViews.length ? enabledViews : defaults.enabledViews,
       fontSize: fontSizeOf(saved?.fontSize),
+      fontFamily: fontFamilyOf(saved?.fontFamily),
       appearance: appearancePreferenceOf(saved?.appearance, themes),
       notifyNeeds:
         typeof saved?.notifyNeeds === "boolean" ? saved.notifyNeeds : defaults.notifyNeeds,

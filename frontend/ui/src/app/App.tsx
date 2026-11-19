@@ -268,10 +268,11 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
       sidebarPanel: state.location.route.panel,
       sidebarBack: state.shell.sidebarBack,
       fontSize: state.preferences.fontSize,
+      fontFamily: state.preferences.fontFamily ?? "",
       enabledViews: state.preferences.enabledViews,
     }
   }, shallowEqual)
-  const { zen, sidebar, sidebarCollapsed, sidebarPanel, fontSize, enabledViews } = shell
+  const { zen, sidebar, sidebarCollapsed, sidebarPanel, fontSize, fontFamily, enabledViews } = shell
   const view = useWorkspaceState((workspace) => currentState(workspace).view)
   // The Terminals list on screen, which the team wire draws beside.
   const [tabList] = useState(createTabListStore)
@@ -282,8 +283,8 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
   useLeaveHiddenWorktrees(worktreesShown)
   // The terminals' font follows Preferences.
   useEffect(() => {
-    backend.setFont({ size: fontSize })
-  }, [backend, fontSize])
+    backend.setFont({ size: fontSize, ...(fontFamily && { family: fontFamily }) })
+  }, [backend, fontSize, fontFamily])
   // The order the person left the rail's toggles in, kept for their next visit; one order
   // for both rails, the drawer's on a phone and the window's.
   const [railOrder, setRailOrder] = useState(readSidebarOrder)

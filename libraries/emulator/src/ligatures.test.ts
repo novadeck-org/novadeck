@@ -140,6 +140,9 @@ describe("ligatureRuns", () => {
     expect(hasLigatureTable("JetBrains Mono")).toBe(true)
     expect(hasLigatureTable("'Share Tech Mono', 'JetBrains Mono Variable', monospace")).toBe(false)
     expect(hasLigatureTable("monospace")).toBe(false)
+    // A variant is another font: NL has no ligatures, and the table is not its own.
+    expect(hasLigatureTable('"JetBrains Mono NL", "JetBrains Mono Variable"')).toBe(false)
+    expect(hasLigatureTable("JetBrains Mono ExtraBold, monospace")).toBe(false)
   })
 })
 
