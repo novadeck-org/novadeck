@@ -2,6 +2,8 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } f
 
 import { useOpen } from "./use-open"
 
+import { useOpen } from "./use-open"
+
 // A long text in the log shows its first lines when it runs past this many, and a key opens the
 // rest: another agent's message, and a tool call's command and what it printed.
 const foldedAt = 5

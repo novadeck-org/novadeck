@@ -151,6 +151,10 @@
     height: 100%;
     object-fit: cover;
   }
+  /* A 3D model's still is square and fitted to the model: whole in the tile, never cut. */
+  .folder-tile[data-kind="model"] .folder-thumb img {
+    object-fit: contain;
+  }
   .folder-thumb > svg {
     width: 26px;
     height: 26px;

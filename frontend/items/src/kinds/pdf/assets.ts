@@ -41,9 +41,9 @@ export const pdfAssets: PdfAssets = async (kind, name) => {
   return bytesOf(await load())
 }
 
-/** The frame: its page beside the app's (frontend/ui/public/pdf-frame.html), and pdf.js. */
+/** The frame: its page beside the app's (frontend/ui/public/viewer-frame.html), and pdf.js. */
 export const pdfFrame = (): PdfFrame => ({
-  url: new URL("pdf-frame.html", document.baseURI).href,
+  url: new URL("viewer-frame.html", document.baseURI).href,
   code: pdfCode,
 })
 const pdfCode = async () => {

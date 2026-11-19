@@ -1,5 +1,5 @@
 import { fileLines, pdfContent, ready, svg, type SampleArtifact } from "./artifacts"
-import { quarterlyReport } from "./pdf"
+import { quarterlyReport, quarterlyReportSize } from "./pdf"
 
 // What the demo shows of a file the person opened from the Files panel that no agent showed:
 // a short stand-in made from its path, so the pane has something plausible to read.
@@ -75,8 +75,8 @@ export const attachedArtifact = (path: string, directory?: string): AttachedArti
   if (/\.pdf$/i.test(name))
     return {
       item: { kind: "pdf", name, detail: relative, path, url: null, lines: null, secret: held },
-      content: pdfContent(quarterlyReport.length),
-      file: { read: async () => quarterlyReport },
+      content: pdfContent(quarterlyReportSize),
+      file: { read: quarterlyReport },
     }
   const lines = stand(relative)
   return {

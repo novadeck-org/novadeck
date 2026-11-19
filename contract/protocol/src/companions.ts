@@ -51,6 +51,32 @@ export const isDataPath = (path: string): boolean =>
   dataExtensions.has(/\.([^./\\]+)$/.exec(path)?.[1]?.toLowerCase() ?? "")
 
 /**
+ * A 3D model the pane previews: the most it takes, its file and the files beside it it names
+ * (a glTF's buffers and textures, an OBJ's materials and theirs) all told, in bytes, which it
+ * holds whole as it draws them; and how many such files it reads.
+ */
+export const modelLimits = { bytes: 256 * 1024 * 1024, files: 64 } as const
+
+/** The formats of model the pane draws, by the file's extension. */
+export const modelFormats = ["glb", "gltf", "stl", "obj", "ply", "3mf"] as const
+
+/**
+ * Why a file a model names isn't read with it: `external`, an address of its own (`https:`,
+ * `file:`, an absolute path), never read; `outside`, a path out of the model's folder; and as
+ * a part's, `missing`, `not-a-file`, `secret` (never shown beside a model), `too-large` (past
+ * what's left of `modelLimits.bytes`) or `unreadable`.
+ */
+export const modelRefusal = z.enum([
+  "external",
+  "outside",
+  "missing",
+  "not-a-file",
+  "secret",
+  "too-large",
+  "unreadable",
+])
+
+/**
  * A folder the pane lists: at most `entries` of what it holds are listed (`truncated` says
  * when it holds more), each named in at most `name` UTF-16 code units; an image listed with a
  * thumbnail is read through `companions.part`, so it is at most `thumbnail` bytes.
@@ -79,6 +105,7 @@ export const companionItem = z.strictObject({
     "video",
     "audio",
     "pdf",
+    "model",
     "file",
     "folder",
     "page",
@@ -310,7 +337,7 @@ export const changeFileDiff = z.strictObject({
 // `companions.part` must read it ("" for an entry that is read through no part).
 export const folderEntry = z.strictObject({
   name: z.string().min(1).max(folderLimits.name),
-  kind: z.enum(["folder", "image", "video", "audio", "pdf", "text", "other"]),
+  kind: z.enum(["folder", "image", "video", "audio", "pdf", "model", "text", "other"]),
   size: z.number().nonnegative(),
   modifiedAt: z.number(),
   children: z.int().nonnegative().nullable(),
@@ -346,6 +373,9 @@ export const folderEntry = z.strictObject({
 // parts for the client to play, and its stamp names the file as those parts must be read from; `shown` counts
 // the agent's shows, as a page's does, and `at` is the second the latest show starts it at.
 // A PDF is its size, its bytes read in parts as a video's are, and drawn by the client.
+// A 3D model is its format and size, read in parts as a PDF is, and the files beside it it
+// names, by name as the model writes it: each it reads with its size and stamp, which
+// `companions.part` reads by that name, and each it doesn't with why.
 // A folder is its listing, read again whenever it changes: `within` is the path of the folder
 // listed from the one the item points at (its top; "" for the top itself, "/" between names),
 // `path` its own, `entries` at most `folderLimits.entries` of what it holds, of `total` (the
@@ -477,6 +507,25 @@ export const itemContent = z.discriminatedUnion("state", [
       z.strictObject({
         kind: z.literal("pdf"),
         size: z.int().nonnegative().max(pdfLimits.bytes),
+      }),
+      z.strictObject({
+        kind: z.literal("model"),
+        format: z.enum(modelFormats),
+        size: z.int().nonnegative().max(modelLimits.bytes),
+        files: z
+          .array(
+            z.strictObject({
+              name: z.string().max(companionLimits.path),
+              size: z.int().nonnegative().max(modelLimits.bytes),
+              stamp: z.string().max(128),
+            }),
+          )
+          .max(modelLimits.files),
+        refused: z
+          .array(
+            z.strictObject({ name: z.string().max(companionLimits.path), reason: modelRefusal }),
+          )
+          .max(modelLimits.files),
       }),
     ]),
   }),

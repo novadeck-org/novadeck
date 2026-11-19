@@ -33,6 +33,7 @@ import {
   type FilesNote,
   type FilesRow,
 } from "./files-tree"
+import type { Place } from "./files-window"
 
 const plainIcons: Readonly<Record<FileIcon, LucideIcon>> = {
   code: FileCode,
@@ -57,7 +58,7 @@ const noteTexts: Readonly<Record<FilesNote["note"], string>> = {
 }
 
 // A quiet line at the end of an open folder that couldn't be read in full.
-export const NoteRow = ({ line }: { line: FilesNote }): React.JSX.Element => (
+export const NoteRow = ({ line, place }: { line: FilesNote; place: Place }): React.JSX.Element => (
   <div role="none" className="files-note-row">
     {Array.from({ length: line.depth }, (_, level) => (
       <span
@@ -70,6 +71,8 @@ export const NoteRow = ({ line }: { line: FilesNote }): React.JSX.Element => (
     <div
       role="treeitem"
       aria-level={line.depth + 1}
+      aria-setsize={place.size}
+      aria-posinset={place.position}
       aria-disabled="true"
       className="files-note text-caption"
       data-note={line.note}
@@ -179,6 +182,7 @@ const rowLabel = (row: FilesRow, everyone: readonly string[]): string =>
 // and the chips of who worked it.
 export const TreeRow = ({
   row,
+  place,
   chips,
   lit,
   selected,
@@ -192,6 +196,9 @@ export const TreeRow = ({
   onLight,
 }: {
   row: FilesRow
+  // Where the row stands among its siblings: the tree draws only some of its rows, and a screen
+  // reader learns the rest from this.
+  place: Place
   // The chips the row shows, or undefined for none (an open folder names nobody: its files do).
   chips: ChipSet | undefined
   lit: ReadonlySet<string>
@@ -223,6 +230,8 @@ export const TreeRow = ({
       data-dim={dimmedBy(node, lit)}
       data-pulse={pulse === undefined ? undefined : pulse % 2 === 1 ? "a" : "b"}
       data-selected={selected}
+      // Focus anywhere in the row, the pane button too, keeps the row drawn.
+      onFocus={() => onFocus(node.path)}
     >
       {Array.from({ length: depth }, (_, level) => (
         <span
@@ -238,6 +247,8 @@ export const TreeRow = ({
         className="files-row-select"
         style={{ paddingLeft: 6 + indent * depth }}
         aria-level={depth + 1}
+        aria-setsize={place.size}
+        aria-posinset={place.position}
         data-path={node.path}
         tabIndex={tabStop ? 0 : -1}
         aria-expanded={branch ? open : undefined}
@@ -245,7 +256,6 @@ export const TreeRow = ({
         aria-label={rowLabel(row, everyone)}
         onClick={() => onActivate(row)}
         onDoubleClick={() => onOpenFile(row)}
-        onFocus={() => onFocus(node.path)}
       >
         <span className="files-twisty" aria-hidden="true">
           {branch && <ChevronRight size={12} strokeWidth={1.5} data-open={open} />}

@@ -2,19 +2,27 @@ import { useLayoutEffect, useState } from "react"
 
 import { forgetWidths, fontsOf, noFonts, sameFonts, type Fonts } from "./files-fonts"
 
-// The tree's width and the fonts, which decide how many chips a row has room for; the sidebar is
-// resizable, so a ResizeObserver follows the width. Unknown (nothing folds) until measured, and
-// while the panel is hidden (a width of zero).
+// The tree's width and the fonts, which decide how many chips a row has room for, and its height,
+// which decides how many rows are drawn; the sidebar is resizable, so a ResizeObserver follows
+// the size. Unknown (nothing folds, no rows drawn) until measured, and while the panel is hidden
+// (a size of zero). The fonts are read from the rows drawn, so they are read again once there are some, and the chips' once they are.
 export const useTreeMeasure = (
   tree: HTMLElement | null,
-): { readonly width: number | undefined; readonly fonts: Fonts } => {
+  drawn: number,
+): {
+  readonly width: number | undefined
+  readonly height: number | undefined
+  readonly fonts: Fonts
+} => {
   const [width, setWidth] = useState<number | undefined>()
+  const [height, setHeight] = useState<number | undefined>()
   const [fonts, setFonts] = useState<Fonts>(noFonts)
   useLayoutEffect(() => {
     const element = tree
     if (!element) return undefined
     const measure = (): void => {
       setWidth(element.clientWidth > 0 ? element.clientWidth : undefined)
+      setHeight(element.clientHeight > 0 ? element.clientHeight : undefined)
       const next = fontsOf(element)
       setFonts((known) => (sameFonts(known, next) ? known : next))
     }
@@ -58,6 +66,7 @@ export const useTreeMeasure = (
       faces?.removeEventListener?.("loadingdone", fontsChanged)
       observer?.disconnect()
     }
-  }, [tree])
-  return { width, fonts }
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Rows drawn have the fonts read again.
+  }, [tree, drawn])
+  return { width, height, fonts }
 }

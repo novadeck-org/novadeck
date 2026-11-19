@@ -1,0 +1,58 @@
+<!doctype html>
+<!-- A viewer's frame (frame/mount.ts), as the PDF and 3D model viewers run in: loaded
+     sandboxed, with an opaque origin, it runs only this script, which takes the viewer's
+     scripts as text from the page that framed it, a worker's if it has one, and a port to talk
+     to it on. Its policy allows no network (what it fetches is only its own blobs and data
+     addresses), no other script than these, and nothing from the app. The policy's hash is this
+     script's text exactly: change the script and the hash with it (pdf.test.ts checks). It runs
+     nothing unless its origin is opaque, as only a sandbox makes it. -->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; connect-src blob: data:; script-src 'sha256-ZiyWc6zVlivXUz6YUNddnUHgwt2sBZKTzoz0bpGCTx8=' blob: 'wasm-unsafe-eval'; worker-src blob:; style-src 'unsafe-inline'; img-src blob: data:; font-src blob: data:; base-uri 'none'; form-action 'none'"
+    />
+    <title>Viewer</title>
+  </head>
+  <body>
+    <script>
+      // Only sandboxed, as the app frames it: a page that frames this one plainly would run its
+      // script with this page's origin, the app's own.
+      if (self.origin === "null") {
+        // No page policy covers WebRTC: what no viewer uses is taken away first.
+        Object.getOwnPropertyNames(self).forEach(function (name) {
+          if (/^(webkit)?RTC/.test(name)) delete self[name]
+        })
+        addEventListener("message", function start(event) {
+          var data = event.data
+          var port = event.ports[0]
+          if (event.source !== parent || !data || data.type !== "start" || !port) return
+          if (!Array.isArray(data.scripts)) return
+          removeEventListener("message", start)
+          var url = function (text) {
+            return URL.createObjectURL(new Blob([text], { type: "text/javascript" }))
+          }
+          var load = function (text) {
+            return new Promise(function (done, fail) {
+              var script = document.createElement("script")
+              script.src = url(text)
+              script.onload = done
+              script.onerror = fail
+              document.head.append(script)
+            })
+          }
+          data.scripts
+            .reduce(function (loaded, text) {
+              return loaded.then(function () {
+                return load(text)
+              })
+            }, Promise.resolve())
+            .then(function () {
+              self.frameViewer({ port: port, worker: data.worker ? url(data.worker) : undefined })
+            })
+        })
+      }
+    </script>
+  </body>
+</html>

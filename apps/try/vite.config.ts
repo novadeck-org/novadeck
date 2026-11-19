@@ -3,6 +3,7 @@ import { resolve } from "node:path"
 import { bundleChecks, frontendUtilities } from "@novadeck/build-kit/bundle-checks"
 import { contentSecurityPolicy } from "@novadeck/build-kit/content-security-policy"
 import { fontsAsFiles } from "@novadeck/build-kit/fonts"
+import { frameBundles } from "@novadeck/build-kit/frame-bundles"
 import { hostingHeaders } from "@novadeck/build-kit/hosting-headers"
 import { searchVisibility } from "@novadeck/build-kit/search-visibility"
 import tailwindcss from "@tailwindcss/vite"
@@ -28,6 +29,8 @@ export default defineConfig({
   plugins: [
     tailwindcss(),
     react(),
+    // A viewer's code as its sandboxed frame runs it, bundled into one script.
+    frameBundles(),
     contentSecurityPolicy({ connect }),
     searchVisibility({ hidden }),
     bundleChecks({
