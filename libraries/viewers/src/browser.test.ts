@@ -461,6 +461,18 @@ describe("the browser viewer", () => {
       })
     })
 
+    it("goes nowhere a person asks as a snapshot", () => {
+      const pane = paneIn()
+      const viewer = mountBrowser(pane, {
+        content: { url: "http://localhost:5173/" },
+        label: "page",
+        live: false,
+        partition: "pages",
+      })
+      expect(viewer.visit("https://example.com/")).toBe(false)
+      expect(viewer.state()).toMatchObject({ browser: { at: "http://localhost:5173/" } })
+    })
+
     it("keeps a snapshot at the latest show, whatever arrives late", () => {
       const pane = paneIn()
       const viewer = mountBrowser(pane, {
@@ -1230,6 +1242,39 @@ describe("the browser viewer", () => {
       expect(calls.at(-1)).toContain(JSON.stringify("#plans"))
       expect(viewer.state()).toMatchObject({ browser: { shown: 1 } })
       expect(pageOf(pane)).not.toBeNull()
+    })
+
+    it("goes where the person asks, an http(s) address only, and keeps it as where it is", () => {
+      const { viewer, calls, places, fire } = resting()
+      fire("did-stop-loading")
+      calls.splice(0)
+      expect(viewer.visit("javascript:alert(1)")).toBe(false)
+      expect(viewer.visit("https://example.com/docs")).toBe(true)
+      expect(calls.filter((call) => call.startsWith("load "))).toEqual([
+        "load https://example.com/docs",
+      ])
+      expect(places.at(-1)?.url).toBe("https://example.com/docs")
+      expect(viewer.state()).toMatchObject({ browser: { at: "https://example.com/docs" } })
+    })
+
+    it("goes where the person asked while it rests once woken, not back where it was shown", async () => {
+      const { pane, viewer, calls, fire, ready } = resting()
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await settled()
+      // A show came while it rested: the person's own address after it is where it goes.
+      viewer.update({ url, shown: 2 })
+      expect(viewer.visit("https://example.com/")).toBe(true)
+      // Its picture is of where it was.
+      expect(pane.querySelector(".browser-picture")).toBeNull()
+      viewer.awake(true)
+      expect(pageOf(pane)!.getAttribute("src")).toBe("https://example.com/")
+      ready()
+      calls.splice(0)
+      fire("did-stop-loading")
+      expect(calls.filter((call) => call.startsWith("load ") || call.startsWith("reload"))).toEqual(
+        [],
+      )
     })
 
     it("goes to a new address it's given while it rests once woken", async () => {

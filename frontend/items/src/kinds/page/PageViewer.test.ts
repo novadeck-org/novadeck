@@ -88,6 +88,23 @@ const fire = (page: HTMLElement, type: string, fields: Record<string, unknown> =
   act(() => {
     page.dispatchEvent(Object.assign(new Event(type), fields))
   })
+const addressOf = (container: HTMLElement): HTMLInputElement =>
+  container.querySelector<HTMLInputElement>("input[aria-label='Address']")!
+// Types `text` over what the address holds, as the person would once it has focus.
+const type = (field: HTMLInputElement, text: string): void =>
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, text)
+    field.dispatchEvent(new Event("input", { bubbles: true }))
+  })
+const press = (field: HTMLElement, key: string): boolean => {
+  let passed = true
+  act(() => {
+    passed = field.dispatchEvent(
+      new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+    )
+  })
+  return passed
+}
 const button = (container: HTMLElement, name: string) =>
   [...container.querySelectorAll("button")].find(
     (each) => each.getAttribute("aria-label") === name || each.textContent === name,
@@ -200,6 +217,96 @@ describe("a page beside a terminal", () => {
       rendered.show({ kind: "page", url: at, shown: 2, scroll: "#faq", live: true })
       fire(page, "did-stop-loading")
       expect(calls).toEqual(["reload", "scroll #faq"])
+    })
+  })
+
+  context("when the person types an address", () => {
+    // A live page, attached, recording where it's sent; and something that had focus before.
+    const typing = () => {
+      const rendered = show({ kind: "page", url, shown: 1, live: true })
+      const page = pageOf(rendered.container)
+      const loads: string[] = []
+      const focused: HTMLElement[] = []
+      Object.assign(page, {
+        // A <webview> takes focus in Electron; here it says it was given it.
+        focus: () => focused.push(page),
+        getURL: () => url,
+        canGoBack: () => false,
+        canGoForward: () => false,
+        setAudioMuted: () => undefined,
+        loadURL: (address: string) => {
+          loads.push(address)
+          return Promise.resolve()
+        },
+      })
+      fire(page, "did-stop-loading")
+      const before = document.createElement("button")
+      document.body.append(before)
+      onTestFinished(() => before.remove())
+      before.focus()
+      return { ...rendered, page, loads, focused, before, field: addressOf(rendered.container) }
+    }
+
+    it("shows where the page is, short, and all of it, selected, once it has focus", () => {
+      const { field } = typing()
+      expect(field.value).toBe("localhost:5173")
+      act(() => field.focus())
+      expect(field.value).toBe(url)
+      expect([field.selectionStart, field.selectionEnd]).toEqual([0, url.length])
+    })
+
+    it("goes where it says on Enter, over https without a scheme, and hands focus to the page", () => {
+      const { field, loads, page, focused } = typing()
+      act(() => field.focus())
+      type(field, "example.com/docs")
+      expect(press(field, "Enter")).toBe(false)
+      expect(loads).toEqual(["https://example.com/docs"])
+      expect(focused).toEqual([page])
+      expect(field.value).toBe("example.com/docs")
+      expect(field.hasAttribute("data-editing")).toBe(false)
+    })
+
+    it("goes over http to this machine", () => {
+      const { field, loads } = typing()
+      act(() => field.focus())
+      type(field, "localhost:3000")
+      press(field, "Enter")
+      expect(loads).toEqual(["http://localhost:3000/"])
+    })
+
+    it("goes nowhere that isn't a web address, and says so until it changes", () => {
+      const { field, loads } = typing()
+      act(() => field.focus())
+      type(field, "javascript:alert(1)")
+      press(field, "Enter")
+      expect(loads).toEqual([])
+      expect(field.getAttribute("aria-invalid")).toBe("true")
+      expect(document.activeElement).toBe(field)
+      type(field, "javascript:alert(1")
+      expect(field.getAttribute("aria-invalid")).toBeNull()
+    })
+
+    it("puts it back on Escape, keeping the key from the pane, with focus where it was", () => {
+      const { field, loads, before } = typing()
+      const heard: string[] = []
+      const listener = (event: KeyboardEvent) => heard.push(event.key)
+      document.addEventListener("keydown", listener)
+      onTestFinished(() => document.removeEventListener("keydown", listener))
+      act(() => field.focus())
+      type(field, "elsewhere.example")
+      expect(press(field, "Escape")).toBe(false)
+      expect(heard).toEqual([])
+      expect(loads).toEqual([])
+      expect(document.activeElement).toBe(before)
+      expect(field.value).toBe("localhost:5173")
+    })
+
+    it("puts it back when the person leaves it", () => {
+      const { field, before } = typing()
+      act(() => field.focus())
+      type(field, "elsewhere.example")
+      act(() => before.focus())
+      expect(field.value).toBe("localhost:5173")
     })
   })
 
@@ -522,6 +629,21 @@ describe("a page beside a terminal", () => {
       expect(button(container, "Back")).toBeUndefined()
       expect(button(container, "Show at phone size")).toBeUndefined()
       expect(container.querySelector(".artifact-browser")?.getAttribute("aria-busy")).toBe("false")
+    })
+
+    it("opens an address the person types in the browser", () => {
+      const opened: unknown[][] = []
+      vi.spyOn(window, "open").mockImplementation((...args) => {
+        opened.push(args)
+        return null
+      })
+      const { container } = show({ kind: "page", url, shown: 1, live: false, snapshot: "data:," })
+      const field = addressOf(container)
+      expect(field.getAttribute("aria-description")).toBe("Opens in your browser")
+      act(() => field.focus())
+      type(field, "example.com")
+      press(field, "Enter")
+      expect(opened).toEqual([["https://example.com/", "_blank", "noreferrer"]])
     })
 
     it("says it opens in the browser, without a snapshot", () => {

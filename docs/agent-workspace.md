@@ -994,9 +994,13 @@ with every safety check again at that time:
   gives each one no preload or Node, a sandbox, and the `persist:novadeck-pages`
   session, kept on disk apart from the app's so a sign-in lasts in every page and
   after a restart, where every permission and download is refused and no file loads.
-  Its own links and redirects go only to http(s) addresses. A window it opens goes
-  through only right after the person clicked or typed in it, one each, so a page can't
-  open tabs on its own: a popup the page sized, as a sign-in's, opens in a window of the
+  Its own links and redirects go only to http(s) addresses, and so does an address the
+  person types in the pane's address, at the start of its tools: one with no scheme goes
+  over https, or over http to this machine (`localhost:5173`), and any other scheme
+  goes nowhere; where pages don't load live, what they type opens in their browser. A
+  window it opens goes through only right after the person clicked or typed in it, one
+  each, so a page can't open tabs on its own: a popup the page sized, as a sign-in's,
+  opens in a window of the
   app on the same session, guarded the same way, so the sign-in lands there; anything
   else opens in the person's browser. A frame from another site in the page can take
   that one window, as Electron doesn't say which frame opened it. A passkey sign-in
