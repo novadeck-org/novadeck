@@ -1,5 +1,5 @@
 {
-  "version": "2.1.316",
+  "version": "2.1.328",
   "scenarios": {
     "tall": {
       "commands": [
@@ -51,6 +51,7 @@
             "35": " Do you want to proceed?",
             "36": " ❯ 1. Yes",
             "37": "   2. No",
+            "38": " ↑ 145 more lines ",
             "39": " Esc to cancel · Tab to amend"
           },
           "bright": {
@@ -85,7 +86,8 @@
             "28": "       (\"row 168\", 'of a tall command', \"… and more\")      end",
             "29": "   (\"row 169\", 'of a tall command', \"… and more\")",
             "30": "   E",
-            "31": "   touch tall-done.txt"
+            "31": "   touch tall-done.txt",
+            "38": " ↑ 145 more lines"
           }
         },
         "60x20": {
@@ -113,6 +115,7 @@
             "15": " Do you want to proceed?",
             "16": " ❯ 1. Yes",
             "17": "   2. No",
+            "18": " ↑ 175 more lines ",
             "19": " Esc to cancel · Tab to amend"
           },
           "bright": {
@@ -126,7 +129,8 @@
             "7": "   end",
             "8": "   (\"row 169\", 'of a tall command', \"… and more\")",
             "9": "   E",
-            "10": "   touch tall-done.txt"
+            "10": "   touch tall-done.txt",
+            "18": " ↑ 175 more lines"
           }
         }
       }
@@ -233,10 +237,11 @@
             "11": "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
             "12": " Do you want to proceed?",
             "13": " ❯ 1. Yes",
-            "14": "   2. Yes, and don't ask again for touch row-0, touch row-1,",
-            "15": "      touch row-2, touch row-3, and touch row-4 commands in",
-            "16": "      /sandbox/project",
+            "14": "   2. Yes, and don't ask again for touch row-0, touch ",
+            "15": "      row-1, touch row-2, touch row-3, and touch row-4",
+            "16": "      commands in /sandbox/project",
             "17": "   3. No",
+            "18": " ↑ 45 more lines ",
             "19": " Esc to cancel · Tab to amend"
           },
           "bright": {
@@ -250,7 +255,9 @@
             "7": "   row-158 && touch row-159 && touch row-160 && touch",
             "8": "   row-161 && touch row-162 && touch row-163 && touch",
             "9": "   row-164 && touch row-165 && touch row-166 && touch",
-            "10": "   row-167 && touch row-168 && touch row-169 && touch end"
+            "10": "   row-167 && touch row-168 && touch row-169 && touch end",
+            "14": "   2. Yes, and don't ask again for touch row-0, touch",
+            "18": " ↑ 45 more lines"
           }
         }
       }
@@ -306,6 +313,7 @@
             "35": " Do you want to proceed?",
             "36": " ❯ 1. Yes",
             "37": "   2. No",
+            "38": " ↑ 145 more lines ",
             "39": " Esc to cancel · Tab to amend"
           },
           "bright": {
@@ -340,7 +348,8 @@
             "28": "       (\"row 168\", 'of a tall command', \"… and more\")      end",
             "29": "   (\"row 169\", 'of a tall command', \"… and more\")",
             "30": "   E",
-            "31": "   touch twin-done.txt"
+            "31": "   touch twin-done.txt",
+            "38": " ↑ 145 more lines"
           }
         },
         "60x20": {
@@ -368,6 +377,7 @@
             "15": " Do you want to proceed?",
             "16": " ❯ 1. Yes",
             "17": "   2. No",
+            "18": " ↑ 175 more lines ",
             "19": " Esc to cancel · Tab to amend"
           },
           "bright": {
@@ -381,7 +391,8 @@
             "7": "   end",
             "8": "   (\"row 169\", 'of a tall command', \"… and more\")",
             "9": "   E",
-            "10": "   touch twin-done.txt"
+            "10": "   touch twin-done.txt",
+            "18": " ↑ 175 more lines"
           }
         }
       }

@@ -441,10 +441,13 @@ export const ownZoom = (contents: WebContents, pages: Session): void => {
 
 /**
  * Zooms the page view `id` of `app`, the app's page that asks, by `factor` of the app's
- * own zoom, as its viewer has it zoomed out to fit (see `framingOf`): a view's zoom is its
- * own (`ownZoom`), so the app's, as the person zooms it, reaches it only so. False for
- * anything but a page view of `app`, or a factor no zoom is.
+ * own zoom, as its viewer has it zoomed out to fit, or in on a phone (see `framingOf`): a
+ * view's zoom is its own (`ownZoom`), so the app's, as the person zooms it, reaches it only
+ * so. False for anything but a page view of `app`, or a factor no zoom is: Chromium zooms a
+ * page no further than `maxPageZoom` times.
  */
+export const maxPageZoom = 5
+
 export const zoomPage = (
   app: WebContents,
   id: unknown,
@@ -452,7 +455,7 @@ export const zoomPage = (
   fromId: (id: number) => WebContents | undefined,
 ): boolean => {
   const page = pageViewOf(app, id, fromId)
-  if (!page || typeof factor !== "number" || !(factor > 0 && factor <= 1)) return false
+  if (!page || typeof factor !== "number" || !(factor > 0 && factor <= maxPageZoom)) return false
   page.setZoomFactor(factor * app.getZoomFactor())
   zoomed.set(page, factor)
   return true

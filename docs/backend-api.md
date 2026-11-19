@@ -1818,6 +1818,11 @@ one from an earlier runner.
     main's work merged in (in memory), so what main brought in is no part of either. A snapshot's objects
     are written to a folder of the runner's own, never to the person's object store, and a file
     that may hold secrets is never hashed.
+  - `companions.changeRange({ itemId, layers })` lists the files the layers selected changed as
+    one range, over the same span as `changeFile` (a file added and dropped inside it is not
+    there, a renamed one is one row, counts are the range's own, at most 300): `{ files,
+    truncated }`. The changes pane asks it for a range of two or more layers. An unknown item, or
+    one that is no change, is `NOT_FOUND`.
   - `companions.changeRead({ itemId, path })` marks a file of a changes item read, by the path
     its content lists it under: the item's content names it in `read` until the file changes
     again, across restarts (the runner keeps it beside the Worktrees panel's memory). A file the

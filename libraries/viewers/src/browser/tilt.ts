@@ -12,6 +12,8 @@
  */
 export const tiltPerPx = 0.1
 export const tiltMaxDeg = 14
+/** How far a press moves, in pixels, before it's a drag: a click, or a double-click, isn't a tilt. */
+export const tiltStartPx = 4
 
 /** Where a drag of `by` pixels pushes a phone toward, in degrees: it stiffens as it goes. */
 export const tiltToward = (by: number): number =>
@@ -102,12 +104,19 @@ export const createTilt = (
     } catch {
       // A pointer the browser doesn't know, as one a test makes: it tilts all the same.
     }
-    delete root.dataset.settling
-    root.dataset.tilting = ""
+    // Not a tilt until it has moved a little: a click, or either of a double-click's, leaves
+    // the phone as it is.
+    let started = false
     const turn = (move: PointerEvent): void => {
       if (move.pointerId !== pointerId) return
       // Its release never came, as when another window took the pointer mid-drag: let go.
       if (move.buttons === 0) return letGo(move)
+      if (!started) {
+        if (Math.hypot(move.clientX - fromX, move.clientY - fromY) < tiltStartPx) return
+        started = true
+        delete root.dataset.settling
+        root.dataset.tilting = ""
+      }
       push(tiltToward(fromY - move.clientY), tiltToward(move.clientX - fromX))
     }
     const letGo = (end: PointerEvent): void => {
@@ -116,6 +125,7 @@ export const createTilt = (
       root.removeEventListener("pointerup", letGo)
       root.removeEventListener("pointercancel", letGo)
       root.removeEventListener("lostpointercapture", letGo)
+      if (!started) return
       delete root.dataset.tilting
       root.dataset.settling = ""
       push(0, 0)
