@@ -2,6 +2,7 @@ import { afterEach, onTestFinished, vi } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
 import { pageScheme, saveFromAnotherWindow, systemScheme } from "../support/appearance"
+import { setScreenReaderRunning } from "../support/backend"
 import {
   closePreferences,
   escapeFrom,
@@ -253,11 +254,17 @@ describe("Preferences", () => {
       await expectStaysTrue(() => liveRegion() === null, "the terminal keeps no reader's text")
     })
 
-    it("keeps a reader's text on Automatic while one runs", async () => {
-      await openWorkspace("/?screenReader=running")
+    it("keeps a reader's text on Automatic once one starts, and drops it once it stops", async () => {
+      await openWorkspace("/?screenReader=none")
       await outputDrawn()
       await clickInto("Checkout implementation")
+      await expectStaysTrue(() => liveRegion() === null, "the terminal keeps no reader's text")
+
+      setScreenReaderRunning(true)
       await expect.poll(liveRegion).not.toBeNull()
+
+      setScreenReaderRunning(false)
+      await expect.poll(liveRegion).toBeNull()
     })
   })
 

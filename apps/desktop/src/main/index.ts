@@ -38,6 +38,7 @@ import {
   portableStateChannel,
   runnerPortChannel,
   versionChannel,
+  tellsScreenReader,
 } from "../bridge.js"
 import { openProcessLog, saltFileIn, type LogSetup } from "../logging.js"
 import { dataFolderName, logsFolder } from "./data-folder.js"
@@ -532,11 +533,13 @@ const launch = async (): Promise<void> => {
   // The page asks for its window's focus when it starts listening, as when it loads again.
   registerWindowFocusIpc(ipcMain, { window: appWindow, request: tellWindowFocus })
   // The page asks whether a screen reader runs when it starts listening, and hears of each
-  // change: its terminals keep a reader's text only while one does (terminal-views).
-  registerScreenReaderIpc(ipcMain, app, {
-    page: (event) => appWindow(event)?.webContents,
-    pages: () => appPages(appWindows()),
-  })
+  // change: its terminals keep a reader's text only while one does (terminal-views). Only
+  // where Electron can tell; elsewhere the page keeps the text.
+  if (tellsScreenReader(process.platform))
+    registerScreenReaderIpc(ipcMain, app, {
+      page: (event) => appWindow(event)?.webContents,
+      pages: () => appPages(appWindows()),
+    })
   // The page learns of an update, can open the page of one it must install itself, and
   // chooses the releases the build follows.
   registerUpdateIpc(ipcMain, {

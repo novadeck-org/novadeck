@@ -281,7 +281,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     ...(launch.sandbox ? { sandbox: createDemoSandbox(launch.sandbox) } : {}),
     ...(launch.screenReader === undefined
       ? {}
-      : { screenReader: createDemoScreenReader(launch.screenReader) }),
+      : { screenReader: createDemoScreenReader(launch.screenReader).screenReader }),
     ...(launch.portable ? { portable: createDemoPortable(launch.portable).portable } : {}),
     ...(launch.uninstall ? { uninstall: createDemoUninstall(launch.uninstall).uninstall } : {}),
     pickDirectory: states.pickDirectory,

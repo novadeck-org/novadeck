@@ -76,6 +76,7 @@ import {
   windowFocusRequestChannel,
   screenReaderChannel,
   screenReaderRequestChannel,
+  tellsScreenReader,
 } from "../bridge.js"
 
 const argument = process.argv.find((value) => value.startsWith(apiUrlArgumentPrefix))
@@ -281,18 +282,24 @@ const bridge = {
       ipcRenderer.removeListener(windowFocusChannel, relay)
     }
   },
-  // Only a boolean comes back; the request makes the main process answer with the current one,
-  // as a screen reader may have started before the page listened, or the page loaded again.
-  onScreenReader: (listener) => {
-    const relay = (_event: unknown, running: unknown): void => {
-      if (typeof running === "boolean") listener(running)
-    }
-    ipcRenderer.on(screenReaderChannel, relay)
-    ipcRenderer.send(screenReaderRequestChannel)
-    return () => {
-      ipcRenderer.removeListener(screenReaderChannel, relay)
-    }
-  },
+  // Only where the app can tell whether a screen reader runs (macOS and Windows); elsewhere the
+  // page hears nothing and keeps a reader's text. Only a boolean comes back; the request makes
+  // the main process answer with the current one, as a reader may have started before the page
+  // listened, or the page loaded again.
+  ...(tellsScreenReader(process.platform)
+    ? {
+        onScreenReader: (listener: (running: boolean) => void) => {
+          const relay = (_event: unknown, running: unknown): void => {
+            if (typeof running === "boolean") listener(running)
+          }
+          ipcRenderer.on(screenReaderChannel, relay)
+          ipcRenderer.send(screenReaderRequestChannel)
+          return () => {
+            ipcRenderer.removeListener(screenReaderChannel, relay)
+          }
+        },
+      }
+    : {}),
   // Only a terminal id comes back.
   onNoticeClick: (listener) => {
     const relay = (_event: unknown, id: unknown): void => {

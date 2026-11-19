@@ -91,6 +91,13 @@ export const screenReaderChannel = "novadeck:screen-reader"
 /** Renderer-to-main request to be told, on `screenReaderChannel`, whether one is running. */
 export const screenReaderRequestChannel = "novadeck:screen-reader-request"
 
+/**
+ * Whether the app can tell when a screen reader runs: Electron reports assistive technology
+ * on macOS and Windows alone. Elsewhere the page hears nothing and keeps a reader's text.
+ */
+export const tellsScreenReader = (platform: string): boolean =>
+  platform === "darwin" || platform === "win32"
+
 /** Main-to-renderer report of the terminal id of a notification the person clicked. */
 export const noticeClickChannel = "novadeck:notice-click"
 

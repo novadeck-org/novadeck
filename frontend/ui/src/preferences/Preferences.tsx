@@ -61,7 +61,13 @@ const fontSizes = [12, 13, 15].map((size) => ({ label: `${size}px`, value: Strin
 // Screen reader support's choices: Automatic only where the app can tell when one runs.
 const screenReaderChoices = (known: boolean) => [
   ...(known
-    ? [{ label: "Automatic", value: "auto", description: "On while a screen reader runs" }]
+    ? [
+        {
+          label: "Automatic",
+          value: "auto",
+          description: "On while the system reports a screen reader",
+        },
+      ]
     : []),
   { label: "On", value: "on", description: "Terminals always keep text a reader can read" },
   { label: "Off", value: "off", description: "Terminals keep no text for a reader" },
