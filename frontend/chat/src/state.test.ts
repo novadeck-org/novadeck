@@ -162,7 +162,7 @@ describe("watching the workspace", () => {
 
   it("tells a chat's rows of what was opened in that chat only", () => {
     const chat = createChat()
-    const listener = vi.fn()
+    const listener = vi.fn<() => void>()
     const stop = openedMemory(chat, context, "01").subscribe(listener)
     dictateIntoDraft(chat, context, "01", "typing")
     openedMemory(chat, context, "02").setOpened("peer:a", true)
