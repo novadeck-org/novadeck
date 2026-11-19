@@ -1,6 +1,7 @@
 import {
   lazy,
   Suspense,
+  useEffect,
   useSyncExternalStore,
   type ComponentType,
   type LazyExoticComponent,
@@ -9,7 +10,7 @@ import {
 
 // What a view whose code didn't load shows instead: "retry" says so in its pane, with a Retry
 // that loads it again; "quiet" keeps the fallback, for a part that isn't a view of its own,
-// as a peek's still or a file's steps beside its body.
+// as a peek's still or a file's steps beside its body, and tries again where it next shows.
 type Failed = "retry" | "quiet"
 
 // One go at loading a view's code, which React keeps once settled, failed or not: loading it
@@ -20,12 +21,10 @@ type Attempt<P> = LazyExoticComponent<ComponentType<P>>
 // them all at once.
 const views = new Set<() => void>()
 
-// A failed load goes on to the page's `error` event, as an uncaught error would, where the
-// desktop app sends it to its log; the view says it couldn't load in its own place.
-const report = (error: unknown): void => {
-  const message = error instanceof Error ? error.message : String(error)
-  window.dispatchEvent(new ErrorEvent("error", { error, message }))
-}
+// A failed load is reported as an uncaught error would be: to the console, and on the page's
+// `error` event, where the desktop app sends it to its log. The view says it couldn't load in
+// its own place.
+const report = (error: unknown): void => window.reportError(error)
 
 const ViewFailed = ({ retry }: { readonly retry: () => void }): React.JSX.Element => (
   <div className="artifact-unavailable" data-reason="load" role="alert">
@@ -53,13 +52,17 @@ export const lazyView = <P extends object>(
 ): ComponentType<P> => {
   const listeners = new Set<() => void>()
   const Quiet = (): ReactNode => fallback
+  // The quiet attempt that failed, which the next place it shows in tries again.
+  let stale: Attempt<P> | undefined
   const attempt = (from: () => Promise<ComponentType<P>>): Attempt<P> => {
     const next: Attempt<P> = lazy(() =>
       from().then(
         (view) => ({ default: view }),
         (error: unknown) => {
           report(error)
-          return { default: failed === "quiet" ? Quiet : Retry }
+          if (failed === "retry") return { default: Retry }
+          stale = next
+          return { default: Quiet }
         },
       ),
     )
@@ -85,6 +88,9 @@ export const lazyView = <P extends object>(
   const snapshot = (): Attempt<P> => current
   return (props: P) => {
     const View = useSyncExternalStore(subscribe, snapshot)
+    useEffect(() => {
+      if (stale && current === stale) swap(attempt(load))
+    }, [])
     return (
       <Suspense fallback={fallback}>
         <View {...props} />

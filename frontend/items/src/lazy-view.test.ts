@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from "node:fs"
+import { join } from "node:path"
+
 import { render } from "@novadeck/test-kit/render"
 import { act, Component, createElement, type ComponentType, type ReactNode } from "react"
 import { afterEach, beforeEach } from "vitest"
@@ -166,6 +169,18 @@ describe("a lazy view", () => {
       expect(container.querySelector("[role=alert]")).toBeNull()
       expect(container.querySelector(".crashed")).toBeNull()
     })
+
+    it("loads it again where it next shows, where it's quiet", async () => {
+      const source = flaky(Shown, 1)
+      const View = lazyView(source.load, createElement("span", { className: "badge" }), "quiet")
+      const first = inApp(createElement(View, { text: "tree" }))
+      await settle()
+      first.unmount()
+      const { container } = inApp(createElement(View, { text: "tree" }))
+      await settle()
+      expect(source.calls()).toBe(2)
+      expect(container.querySelector(".shown")?.textContent).toBe("tree")
+    })
   })
 
   context("that the demo fails", () => {
@@ -183,5 +198,16 @@ describe("a lazy view", () => {
       await settle()
       expect(container.querySelector(".shown")?.textContent).toBe("tree")
     })
+  })
+})
+
+describe("the package's lazy views", () => {
+  it("all go through lazyView, so none takes the app down when its code fails to load", () => {
+    const src = import.meta.dirname
+    const plain = readdirSync(src, { recursive: true, encoding: "utf8" })
+      .filter((file) => /\.tsx?$/.test(file) && !/\.(test|spec)\.tsx?$/.test(file))
+      .filter((file) => file !== "lazy-view.tsx")
+      .filter((file) => /\blazy\(/.test(readFileSync(join(src, file), "utf8")))
+    expect(plain).toEqual([])
   })
 })

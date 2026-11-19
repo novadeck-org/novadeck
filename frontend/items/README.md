@@ -45,8 +45,11 @@ which puts messages on a terminal's bar), how it draws its bar (`drawing.tsx`) a
 - **What a kind means as data is core's** (`kindRules` in `core/src/items.ts`: what it
   points at, whether it is followed always or while shown, and whether closing hides or
   removes it). The package reads the table where it needs one of those rules.
+- **A pane view whose code loads lazily goes through `lazyView`** (`lazy-view.tsx`), never a plain
+  `lazy()`: code that fails to load then says so in its pane, with a Retry, instead of taking the
+  app to its crash screen. A test holds every `lazy()` of the package to that file.
 - **CodeMirror stays out of the first chunk.** A Markdown document's editor
-  (`document/editor/MarkdownEditor.tsx`) loads through `lazy()`: as itself in
+  (`document/editor/MarkdownEditor.tsx`) loads through `lazyView`: as itself in
   `document/MarkdownDocument.tsx`, which a Markdown file's document view uses, and inside the
   plan's editor (`kinds/plan/plan-editor/PlanEditor.tsx`, from `kinds/plan/PlanTab.tsx`), which
   adds the plan's notes to it as extensions. `store/item-store.ts` loads `@novadeck/viewers/sync` and
