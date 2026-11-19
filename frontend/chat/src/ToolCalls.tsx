@@ -20,6 +20,7 @@ import {
   type ToolLine,
   type ToolNote,
 } from "./tool-lines"
+import { useOpen } from "./use-open"
 
 // A run of this many lines or more folds into one until opened.
 const foldAt = 4
@@ -46,15 +47,18 @@ const Failed = ({ count }: { readonly count: number }): React.JSX.Element | null
 // A call's input or what it printed: a long one shows its first lines, as another agent's message
 // does, and the key under it the rest.
 const Detail = ({
+  id,
   label,
   text,
   truncated,
 }: {
+  // What keeps whether the person opened it (see ./use-open).
+  readonly id: string
   readonly label: string
   readonly text: string
   readonly truncated: boolean
 }): React.JSX.Element => {
-  const [ref, fold] = useFold<HTMLPreElement>(text)
+  const [ref, fold] = useFold<HTMLPreElement>(text, id)
   return (
     <section className="chat-tool-part" aria-label={label}>
       <pre ref={ref} id={fold.id} className="nodrag nopan" {...fold.cut}>
@@ -95,7 +99,7 @@ const ToolRow = ({
   // The latest block of a conversation whose agent works: its unanswered calls run.
   readonly live: boolean
 }): React.JSX.Element => {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useOpen(`tool:${entry.id}`, false)
   const body = useId()
   // The agent works and this call has no result yet.
   const running = live && entry.result === null && entry.tool !== null
@@ -111,6 +115,7 @@ const ToolRow = ({
   const input = entry.tool === null ? null : inputBeyondLine(entry.input, summary)
   const call = input !== null && (
     <Detail
+      id={`call:${entry.id}`}
       label={entry.tool === summary.title ? "Call" : `Call: ${entry.tool}`}
       text={input}
       truncated={entry.truncated}
@@ -162,6 +167,7 @@ const ToolRow = ({
               {call}
               {entry.result ? (
                 <Detail
+                  id={`result:${entry.id}`}
                   label="Result"
                   text={entry.result.text}
                   truncated={entry.result.truncated}
@@ -266,7 +272,7 @@ const RunBox = ({
   const lines = toolLines(entries)
   const calls = lines.map(({ scripted }) => 1 + scripted.length)
   const boxed = lines.length > boxedAt
-  const [whole, setWhole] = useState(false)
+  const [whole, setWhole] = useOpen(`whole:${entries[0]?.id ?? ""}`, false)
   const [out, setOut] = useState(noneOut)
   // How much taller than a line each its opened lines are, which the box grows by.
   const [opened, setOpened] = useState(0)
@@ -341,7 +347,7 @@ export const ToolCalls = ({
   readonly live: boolean
 }): React.JSX.Element => {
   const folds = toolLines(entries).length >= foldAt
-  const [open, setOpen] = useState(live)
+  const [open, setOpen] = useOpen(`run:${entries[0]?.id ?? ""}`, live)
   const list = useId()
   const summary = foldSummary(entries)
   if (!folds)

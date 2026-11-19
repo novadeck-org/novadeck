@@ -7,6 +7,7 @@ import {
   answerInTerminal,
   createChat,
   dictateIntoDraft,
+  openedMemory,
   resetAnswering,
   watchChat,
   chatDraftOf,
@@ -143,6 +144,18 @@ describe("watching the workspace", () => {
     workspace.dispatch({ type: "terminal/close", target, terminalId: "01" })
     expect(chat.store.getSnapshot().drafts).toEqual({})
     expect(chat.store.getSnapshot().replies).toEqual({})
+    stop()
+  })
+
+  it("keeps what was opened in a chat until the terminal closes", () => {
+    const { workspace, chat, stop } = open()
+    workspace.dispatch(running({ working: false }))
+    const memory = openedMemory(chat, context, "01")
+    memory.setOpened("peer:a", true)
+    workspace.dispatch(running(undefined))
+    expect(openedMemory(chat, context, "01").opened("peer:a")).toBe(true)
+    workspace.dispatch({ type: "terminal/close", target, terminalId: "01" })
+    expect(chat.store.getSnapshot().opened).toEqual({})
     stop()
   })
 
