@@ -1,4 +1,4 @@
 {
   "reaches": "repository",
-  "why": "The local benchmarks (pnpm bench:profile, bench:timing and bench:files): no workflow or package runs them, and only their own tests read them."
+  "why": "The local benchmarks (pnpm bench:profile, bench:timing and bench:files): no package runs them, and the one workflow that does (timing.yml, bench:timing nightly and on bench-labelled pull requests) runs on Linux and only reports; only their own tests read them."
 }

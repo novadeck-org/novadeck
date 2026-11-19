@@ -15,6 +15,8 @@ export type Config = {
   readonly changed: number
   /** Files each worktree changes. */
   readonly filesPerWorktree: number
+  /** Of a changed worktree's files, how many the poll writes again (their stamp moves on). */
+  readonly written: number
   /** Polls measured, after the warm-up ones. */
   readonly polls: number
   /** Polls fed before the measured ones, not reported. */
@@ -32,6 +34,7 @@ export const defaults: Config = {
   worktrees: 20,
   changed: 3,
   filesPerWorktree: 10,
+  written: 1,
   polls: 15,
   warmup: 3,
   turns: 0,
@@ -47,6 +50,7 @@ export const configProblem = (config: Config): string | undefined => {
     "worktrees",
     "changed",
     "filesPerWorktree",
+    "written",
     "polls",
     "warmup",
     "turns",
@@ -60,6 +64,7 @@ export const configProblem = (config: Config): string | undefined => {
     return "folders, worktrees and polls take 1 or more"
   if (config.files <= config.folders) return "files must exceed folders, so every folder holds one"
   if (config.changed > config.worktrees) return "changed can't exceed worktrees"
+  if (config.written > config.filesPerWorktree) return "written can't exceed filesPerWorktree"
   if (config.filesPerWorktree < 1 && config.changed > 0) return "filesPerWorktree takes 1 or more"
   return undefined
 }
@@ -127,15 +132,39 @@ export const terminalOf = (index: number): string => `t${index + 1}`
 
 export const rootOf = (index: number): string => `/work/wt${index + 1}`
 
-/** The paths each worktree changes: a seeded draw from the project's files, overlap allowed. */
+/**
+ * The paths each worktree changes: a seeded draw from the project's files, each once in its
+ * worktree, overlap between worktrees allowed.
+ */
 export const changedPaths = (project: Project, config: Config): readonly (readonly string[])[] => {
   const next = random(config.seed)
-  return Array.from({ length: config.worktrees }, () =>
+  return Array.from({ length: config.worktrees }, () => [
+    ...new Set(
+      Array.from(
+        { length: config.filesPerWorktree },
+        () => project.files[Math.floor(next() * project.files.length)]!,
+      ),
+    ),
+  ])
+}
+
+/**
+ * A worktree's file stamps after a poll: `written` of its files, rotating through them, take
+ * `now`, and the rest keep theirs, as the runner keeps the stamp of a file that did not change.
+ */
+export const restamp = (
+  stamps: readonly number[],
+  poll: number,
+  written: number,
+  now: number,
+): readonly number[] => {
+  const moved = new Set(
     Array.from(
-      { length: config.filesPerWorktree },
-      () => project.files[Math.floor(next() * project.files.length)]!,
+      { length: Math.min(written, stamps.length) },
+      (_, place) => (poll * written + place) % stamps.length,
     ),
   )
+  return stamps.map((stamp, place) => (moved.has(place) ? now : stamp))
 }
 
 const fileOf = (path: string, index: number, at: number): WorkFile => ({
@@ -149,14 +178,15 @@ const fileOf = (path: string, index: number, at: number): WorkFile => ({
   conflict: false,
 })
 
-/** A worktree's work, its files stamped `at`. `index` -1 makes none: the seed work. */
+/** A worktree's work: its files (each once) with their stamps. `index` -1 is the seed work. */
 export const workOf = (
   index: number,
   paths: readonly string[],
-  at: number,
+  stamps: readonly number[],
   projectId: string,
 ): Work => {
-  const files = [...new Set(paths)].map((path, place) => fileOf(path, place, at))
+  const at = Math.min(...stamps)
+  const files = paths.map((path, place) => fileOf(path, place, stamps[place]!))
   return {
     root: index < 0 ? "/work/seed" : rootOf(index),
     terminalId: index < 0 ? "seed" : terminalOf(index),

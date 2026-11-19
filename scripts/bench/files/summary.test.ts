@@ -12,6 +12,7 @@ const sample = (wallMs: number, extra: Partial<Sample> = {}): Sample => ({
   longTasks: [],
   commits: 3,
   reactMs: 10,
+  after: { busyMs: 5, commits: 1, reactMs: 2 },
   reads: 0,
   rows: 3300,
   ...extra,

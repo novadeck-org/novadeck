@@ -9,7 +9,7 @@ those keep: the runner adapter's works feed, and the panel's props.
 ```sh
 pnpm bench:files [--label <name>] [--folders 300] [--files 3000] [--worktrees 20] \
   [--changed 3] [--files-per-worktree 10] [--polls 15] [--warmup 3] [--turns 0] \
-  [--synced] [--seed 1]
+  [--written 1] [--synced] [--seed 1]
 ```
 
 Playwright's Chromium is needed (`pnpm exec playwright install chromium` once). Nothing is
@@ -28,8 +28,11 @@ works' overlay of the project from `filesOfWorks`, the feed's `watch`, a `list` 
   same tree;
 - the works as the runner adapter's real `createRunnerWorks` takes them, from a fake
   `calls.watch` stream: `reset`, a `changed` for every worktree, `synced`; then, in each poll, a
-  `changed` for each of `--changed` worktrees (rotating through the `--worktrees`), each with
-  its `--files-per-worktree` files stamped now (`--synced` ends each poll with a `synced` too).
+  `changed` for each of `--changed` worktrees (rotating through the `--worktrees`), each
+  holding its `--files-per-worktree` files, of which `--written` (default 1, rotating) get a new
+  stamp and the rest keep theirs, as the runner keeps the stamp of a file that did not change
+  (`--synced` ends each poll with a `synced` too). The items are handed over one to a task, as
+  the app's WebSocket delivers its messages;
   Each worktree is owned by an agent with a handle, so chips show. Everything the adapter does
   with the events, batching included, shows in the numbers;
 - every folder open: a seed work with a change in every folder is fed before the panel mounts,
@@ -44,13 +47,17 @@ read again; those are reported as a separate row.
 
 Per poll, the figures below, as median and p95 over the `--polls`:
 
-- **wall**: from the first event pushed to the frame painted after the last thing it caused
-  (the feed is drained, no folder read is out, and two frames passed with no React commit). It
-  includes two idle frames, about 33 ms.
-- **busy / script / layout / style**: the main thread's time over the same stretch, from
-  Chromium's `Performance.getMetrics` (`TaskDuration`, `ScriptDuration`, `LayoutDuration`,
-  `RecalcStyleDuration`). Busy can exceed wall by the page's background work (the trails'
-  animations), which the summary gives as the idle page's busy ms a second.
+- **wall**: from the first event to the first frame after the last commit the poll caused. A
+  poll is over once the panel has been quiet for 200 ms (every event taken, no folder read
+  out, no commit or long task), longer than any delay the adapter may hold a batch for, so a
+  build that publishes on a timer is measured through its commit like one that doesn't.
+- **busy / script / style / layout**: the main thread's time from the first event to that
+  quiet (so it includes the 200 ms wait's own background work), from Chromium's
+  `Performance.getMetrics` (`TaskDuration`, `ScriptDuration`, `RecalcStyleDuration`,
+  `LayoutDuration`). The summary gives the idle page's busy ms a second.
+- **after busy / after commits**: the gap that follows each poll, waiting out the trails'
+  timers (1.4 s) that clear the highlights, each a commit of the tree. Polls wait for it, so it
+  never lands in the next one; it is reported on its own, not left out.
 - **commits / react ms**: React commits (and the time React rendered them) of the whole page,
   counted by a `Profiler` in React's profiling build.
 - **long tasks**: the page's tasks of 50 ms or more (count and total).
@@ -60,6 +67,10 @@ Per poll, the figures below, as median and p95 over the `--polls`:
 
 It writes `.cache/bench/files/<label>/report.json` (every sample), `summary.md` (the table),
 and `panel.png`. Compare runs by label: `--label main`, `--label batching`.
+
+To compare a branch that lacks `scripts/bench/files`, check it out detached in another
+worktree and cherry-pick the bench's commit onto it (`git cherry-pick <sha>`), then run it
+there with the label of the branch.
 
 ## Reading it
 

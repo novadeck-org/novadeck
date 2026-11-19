@@ -7,13 +7,21 @@ import { extname, join, normalize, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { parseArgs } from "node:util"
 
-import { chromium, type CDPSession, type Page } from "playwright"
+import { chromium, type CDPSession } from "playwright"
 
 import { configProblem, defaults, type Config } from "./scenario.ts"
-import { markdown, summarize, type Bench, type Report, type Sample, type Timed } from "./summary.ts"
+import {
+  markdown,
+  summarize,
+  type Bench,
+  type Report,
+  type Sample,
+  type Tail,
+  type Timed,
+} from "./summary.ts"
 
 // `pnpm bench:files [--label <name>] [--folders n] [--files n] [--worktrees n] [--changed n]
-// [--files-per-worktree n] [--polls n] [--warmup n] [--turns n] [--synced] [--seed n]`: times
+// [--files-per-worktree n] [--polls n] [--warmup n] [--turns n] [--written n] [--synced] [--seed n]`: times
 // the Files sidebar panel as works change. See README.md.
 
 const root = join(import.meta.dirname, "..", "..", "..")
@@ -32,6 +40,7 @@ const { values } = parseArgs({
     polls: { type: "string" },
     warmup: { type: "string" },
     turns: { type: "string" },
+    written: { type: "string" },
     seed: { type: "string" },
     synced: { type: "boolean", default: false },
   },
@@ -49,6 +58,7 @@ const config: Config = {
   polls: number(values.polls, defaults.polls),
   warmup: number(values.warmup, defaults.warmup),
   turns: number(values.turns, defaults.turns),
+  written: number(values.written, defaults.written),
   synced: values.synced,
   seed: number(values.seed, defaults.seed),
 }
@@ -139,20 +149,24 @@ const counters = async (session: CDPSession): Promise<Counters> => {
   }
 }
 
+// A poll (or turn end), then the gap after it, each with the main thread's time over it.
 const timed = async (
-  page: Page,
   session: CDPSession,
   run: () => Promise<Timed>,
+  gap: () => Promise<Tail>,
 ): Promise<Sample> => {
   const before = await counters(session)
   const result = await run()
   const after = await counters(session)
+  const tail = await gap()
+  const end = await counters(session)
   return {
     ...result,
     busyMs: after.task - before.task,
     scriptMs: after.script - before.script,
     layoutMs: after.layout - before.layout,
     styleMs: after.style - before.style,
+    after: { busyMs: end.task - after.task, ...tail },
   }
 }
 
@@ -191,16 +205,20 @@ try {
   const polls: Sample[] = []
   for (let poll = 0; poll < config.warmup + config.polls; poll++) {
     // oxlint-disable-next-line no-await-in-loop -- Polls are fed one at a time, as the runner's are.
-    const sample = await timed(page, session, () =>
-      page.evaluate((each) => (window as unknown as { bench: Bench }).bench.poll(each), poll),
+    const sample = await timed(
+      session,
+      () => page.evaluate((each) => (window as unknown as { bench: Bench }).bench.poll(each), poll),
+      () => page.evaluate(() => (window as unknown as { bench: Bench }).bench.after()),
     )
     if (poll >= config.warmup) polls.push(sample)
   }
   const turns: Sample[] = []
   for (let turn = 0; turn < config.turns; turn++) {
     // oxlint-disable-next-line no-await-in-loop -- As above.
-    const sample = await timed(page, session, () =>
-      page.evaluate(() => (window as unknown as { bench: Bench }).bench.turn()),
+    const sample = await timed(
+      session,
+      () => page.evaluate(() => (window as unknown as { bench: Bench }).bench.turn()),
+      () => page.evaluate(() => (window as unknown as { bench: Bench }).bench.after()),
     )
     turns.push(sample)
   }

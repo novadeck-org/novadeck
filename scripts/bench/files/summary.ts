@@ -17,6 +17,11 @@ export type Sample = {
   /** React commits, and the time React says they took to render. */
   readonly commits: number
   readonly reactMs: number
+  /**
+   * The same measures over the gap that follows, past the trails' timers (what the poll left
+   * for later: highlights clearing, each a commit); not part of the poll's figures above.
+   */
+  readonly after: { readonly busyMs: number; readonly commits: number; readonly reactMs: number }
   /** Folder reads the panel asked its reader for. */
   readonly reads: number
   /** The tree's rows in the document once settled: a fact, not the work done. */
@@ -24,7 +29,10 @@ export type Sample = {
 }
 
 /** What the page itself measures of a poll; the bench adds Chromium's main-thread time. */
-export type Timed = Omit<Sample, "busyMs" | "scriptMs" | "layoutMs" | "styleMs">
+export type Timed = Omit<Sample, "busyMs" | "scriptMs" | "layoutMs" | "styleMs" | "after">
+
+/** What the page measured over the gap after a poll. */
+export type Tail = { readonly commits: number; readonly reactMs: number }
 
 /** The page's handle, as `window.bench`. */
 export type Bench = {
@@ -33,6 +41,8 @@ export type Bench = {
   readonly poll: (poll: number) => Promise<Timed>
   /** Ends an agent turn, so the open folders are read again; resolves once settled. */
   readonly turn: () => Promise<Timed>
+  /** Waits out the trails' timers and what they commit, and tells what that took. */
+  readonly after: () => Promise<Tail>
 }
 
 /** The nearest-rank percentile of `values` (`fraction` 0 to 1), null with none. */
@@ -60,6 +70,9 @@ export type Summary = {
   readonly commits: Spread
   readonly reactMs: Spread
   readonly reads: Spread
+  /** The gap after each poll: busy time and commits. */
+  readonly afterBusyMs: Spread
+  readonly afterCommits: Spread
   /** Long tasks over all the samples, and the longest. */
   readonly longTasks: { readonly count: number; readonly totalMs: number; readonly maxMs: number }
   readonly rows: number | null
@@ -78,6 +91,8 @@ export const summarize = (samples: readonly Sample[]): Summary => {
     commits: each((sample) => sample.commits),
     reactMs: each((sample) => sample.reactMs),
     reads: each((sample) => sample.reads),
+    afterBusyMs: each((sample) => sample.after.busyMs),
+    afterCommits: each((sample) => sample.after.commits),
     longTasks: {
       count: tasks.length,
       totalMs: tasks.reduce((sum, task) => sum + task, 0),
@@ -103,19 +118,23 @@ const number = (value: number | null, digits = 1): string =>
   value === null ? "-" : value.toFixed(digits)
 
 const row = (name: string, summary: Summary): string => {
-  const cells = [
-    summary.wallMs,
-    summary.busyMs,
-    summary.scriptMs,
-    summary.layoutMs,
-    summary.commits,
-    summary.reactMs,
-  ].map(
-    (each, place) =>
-      `${number(each.median, place === 4 ? 0 : 1)} / ${number(each.p95, place === 4 ? 0 : 1)}`,
-  )
+  const cell = (each: Spread, digits = 1): string =>
+    `${number(each.median, digits)} / ${number(each.p95, digits)}`
   const { longTasks } = summary
-  return `| ${name} | ${cells.join(" | ")} | ${longTasks.count} (${number(longTasks.totalMs, 0)} ms) | ${number(summary.reads.median, 0)} | ${summary.rows ?? "-"} |`
+  return `| ${name} | ${[
+    cell(summary.wallMs),
+    cell(summary.busyMs),
+    cell(summary.scriptMs),
+    cell(summary.styleMs),
+    cell(summary.layoutMs),
+    cell(summary.commits, 0),
+    cell(summary.reactMs),
+    `${longTasks.count} (${number(longTasks.totalMs, 0)} ms)`,
+    cell(summary.afterBusyMs),
+    cell(summary.afterCommits, 0),
+    number(summary.reads.median, 0),
+    summary.rows ?? "-",
+  ].join(" | ")} |`
 }
 
 /** A short markdown summary of a run: median / p95 per poll, as a table. */
@@ -127,10 +146,10 @@ export const markdown = (report: Report): string => {
     `Commit ${report.commit?.slice(0, 9) ?? "unknown"}, ${report.environment["cpu"] ?? "?"} (${report.environment["cpus"] ?? "?"} cpus), Chromium ${report.environment["chromium"] ?? "?"}, headless. Load average ${report.environment["loadBefore"] ?? "?"} before, ${report.environment["loadAfter"] ?? "?"} after; the idle page is busy ${report.environment["idleBusyMs"] ?? "?"} ms a second.`,
     `${config.folders} folders, ${config.files} files, ${config.worktrees} worktrees, ${config.changed} changed per poll x ${config.filesPerWorktree} files, ${report.polls.length} polls (${config.warmup} warm-up not counted).`,
     "",
-    "Each cell is median / p95 per poll. Wall is the first event to the settled frame; busy, script and layout are Chromium's main-thread time over it.",
+    "Each cell is median / p95 per poll. Wall is the first event to the settled frame; busy, script, style and layout are Chromium's main-thread time over it; after is the gap that follows, past the trails' timers.",
     "",
-    "| | wall ms | busy ms | script ms | layout ms | commits | react ms | long tasks | reads | rows |",
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| | wall ms | busy ms | script ms | style ms | layout ms | commits | react ms | long tasks | after busy ms | after commits | reads | rows |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     row("poll", report.summary.polls),
   ]
   if (report.summary.turns) lines.push(row("turn end", report.summary.turns))
