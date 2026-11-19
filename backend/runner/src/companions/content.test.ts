@@ -687,6 +687,31 @@ describe("a part of a video", () => {
     })
   })
 
+  it("is read only from the file its caller says is still the one asked for", async ({
+    directory,
+  }) => {
+    const path = join(directory, "clip.mp4")
+    writeFileSync(path, "frames")
+    const stamp = videoStamp(await loadPlayed(video(path), false, { shown: 1, at: undefined }))
+    const asked: { dev: number; ino: number }[] = []
+    const same = (answer: boolean) => async (opened: { dev: number; ino: number }) => {
+      asked.push({ dev: opened.dev, ino: opened.ino })
+      return answer
+    }
+    await expect(
+      readPart(video(path), { stamp, offset: 0 }, false, videoLimits.bytes, undefined, same(false)),
+    ).resolves.toEqual({ state: "unavailable", reason: "missing" })
+    await expect(
+      readPart(video(path), { stamp, offset: 0 }, false, videoLimits.bytes, undefined, same(true)),
+    ).resolves.toEqual({ state: "part", data: Buffer.from("frames").toString("base64") })
+    // It is asked about the file opened.
+    const own = statSync(path)
+    expect(asked).toEqual([
+      { dev: own.dev, ino: own.ino },
+      { dev: own.dev, ino: own.ino },
+    ])
+  })
+
   it("is never read from a file that may hold secrets, unless revealed, or that is gone", async ({
     directory,
   }) => {

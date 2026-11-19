@@ -2516,6 +2516,13 @@ describe("a folder beside its terminal", () => {
       truncated: true,
     })
     expect(listed(content).entries).toHaveLength(folderLimits.entries)
+    // A file past those listed changes what it holds, so the listing's stamp too.
+    writeFileSync(join(place, "zz-last"), "")
+    const again = await fixture.items.load(shown.ok ? shown.id : "", false)
+    expect(listed(again).total).toBe(folderLimits.entries + 6)
+    expect(again?.state === "ready" && again.stamp).not.toBe(
+      content?.state === "ready" && content.stamp,
+    )
   })
 
   it("follows a folder deleted and made again, by the watch and not the poll", async ({

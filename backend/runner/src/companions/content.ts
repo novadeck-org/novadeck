@@ -643,6 +643,8 @@ export const readPart = async (
   reveal: boolean,
   largest: number,
   env?: NodeJS.ProcessEnv,
+  // Whether the file opened is still the one asked for, where the caller must know.
+  same?: (opened: Stats) => Promise<boolean>,
 ): Promise<FilePart> => {
   if (item.path === null) return { state: "unavailable", reason: "missing" }
   let path: string
@@ -659,6 +661,7 @@ export const readPart = async (
   try {
     if ((item.secret || secret(path, env)) && !reveal)
       return { state: "unavailable", reason: "secret" }
+    if (same && !(await same(stats))) return { state: "unavailable", reason: "missing" }
     if (stats.size > largest) return { state: "unavailable", reason: "too-large" }
     if (stampOf(stats) !== part.stamp) return { state: "changed" }
     const length = Math.max(0, Math.min(partBytes, stats.size - part.offset))

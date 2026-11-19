@@ -1,4 +1,4 @@
-import { watch, type FSWatcher } from "node:fs"
+import { watch, type FSWatcher, type Stats } from "node:fs"
 import { lstat, readdir, realpath, stat } from "node:fs/promises"
 import { basename, extname, isAbsolute, join, relative, sep } from "node:path"
 
@@ -37,6 +37,8 @@ const texts = new Set([
   ".mdx",
   ".json",
   ".jsonc",
+  ".jsonl",
+  ".ndjson",
   ".yaml",
   ".yml",
   ".toml",
@@ -340,7 +342,8 @@ export const loadFolder = async (
     ino,
     content: {
       state: "ready",
-      stamp: hashOf(JSON.stringify([inside, truncated, entries])),
+      // What it holds past those listed changes its count, so its stamp too.
+      stamp: hashOf(JSON.stringify([path, inside, truncated, names.length, entries])),
       content: {
         kind: "folder",
         path,
@@ -379,7 +382,15 @@ export const readFolderPart = async (
   // By what the file is, as `entryOf` lists it: the kind its real name tells, not a link's.
   const largest = partLimits[entryKindOf(basename(walked.path))]
   if (largest === undefined) throw new DomainError("NOT_FOUND", "That file isn't read in parts")
-  return readPart({ path: walked.path, secret: false }, part, false, largest, env)
+  // The file opened is the one found inside the top: a folder on the way swapped for a link
+  // between finding it and opening it would open another.
+  const same = async (opened: Stats): Promise<boolean> => {
+    const again = await walk(item.path!, part.path, checksOf(env))
+    if (!again.ok) return false
+    const now = await stat(again.path).catch(() => undefined)
+    return now !== undefined && now.dev === opened.dev && now.ino === opened.ino
+  }
+  return readPart({ path: walked.path, secret: false }, part, false, largest, env, same)
 }
 
 /** How soon after a change the folder is read again, so a burst of writes is read once. */
