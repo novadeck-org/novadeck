@@ -366,8 +366,8 @@ A change (the `changes` item kind) is read-only and has two views, in `frontend/
 on the pane's own ground (`--pane-bg`). The **list view** is where it opens: a row for the work
 not committed yet ("Uncommitted") and one for each commit since the merge base with main, newest
 first (short hash, subject, time, `+N −N`), then a "Files" tree, as the Files panel draws its
-own, of what the selected rows changed together (their counts added up, names coloured by how the
-file changed, folders with guides), and a hint line saying what a click does. All rows are
+own, of what the selected rows changed together (for one row its own counts, for a range or all of
+them the range's own as git lists it, names coloured by how the file changed, folders with guides), and a hint line saying what a click does. All rows are
 selected to start; the selection is a 2px `--color-strong` rail on a row's left edge, joined across
 selected neighbours, growing and shrinking by scale and opacity and sliding its ends over
 `--motion-state` (none under reduced motion). A click on a row keeps only that row, a click on

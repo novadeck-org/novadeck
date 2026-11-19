@@ -122,8 +122,9 @@ const show = (
   withDiffs = true,
   pulls?: PullRequests,
   shown = true,
-  // The files of a range: the layers' own added up unless given; null: the backend has no range.
-  range?: readonly ChangedFile[] | null,
+  // The files of a range: the layers' own added up unless given; null: the backend has no range;
+  // "fails": its read of one fails.
+  range?: readonly ChangedFile[] | null | "fails",
 ) => {
   const asked: { path: string; layers: readonly string[] }[] = []
   const ranges: (readonly string[])[] = []
@@ -146,6 +147,7 @@ const show = (
     ...(range !== null && {
       changeRange: async (_target, _id, picked) => {
         ranges.push(picked)
+        if (range === "fails") throw new Error("The link to the runner dropped")
         return {
           files: range ?? filesOf(content.layers, new Set(picked)),
           truncated: false,
@@ -946,6 +948,30 @@ describe("a change beside a terminal", () => {
       await settle()
       await click(layers()[1])
       await shiftClick(layers()[2])
+      expect(files()).toEqual([
+        "src/auth/session.test.ts",
+        "src/auth/session.ts",
+        "src/components/Header.tsx",
+      ])
+    })
+  })
+
+  context("when the backend fails to list a range", () => {
+    it("adds the layers' files up instead", async () => {
+      const { files, click, shiftClick, layers, settle, ranges } = show(
+        change(),
+        undefined,
+        true,
+        undefined,
+        true,
+        "fails",
+      )
+      await settle()
+      await click(layers()[1])
+      await shiftClick(layers()[2])
+      await settle()
+
+      expect(ranges).toEqual([["c2c2c2c2c2", "c1c1c1c1c1"]])
       expect(files()).toEqual([
         "src/auth/session.test.ts",
         "src/auth/session.ts",
