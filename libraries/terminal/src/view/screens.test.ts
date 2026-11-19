@@ -415,6 +415,7 @@ describe("a mount's hold on a screen", () => {
       let afterTwo = 0
       for (let size = 14; size <= 33; size++) {
         screens.setFont({ size })
+        // oxlint-disable-next-line no-await-in-loop -- Each step waits its 50 ms.
         await vi.advanceTimersByTimeAsync(50)
         // The first step fits at once, and the renderer's own change after it fits once more.
         if (size === 15) afterTwo = resized.mock.calls.length

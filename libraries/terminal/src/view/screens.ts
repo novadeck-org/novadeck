@@ -667,7 +667,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
       // A slider sends a size per step. The first fits at once; while the steps keep coming, the
       // screens wait, and fit once more when they have paused, so the shells hear the first and
       // the last size, not each.
-      const settle = (): void => {
+      const fitAfterPause = (): void => {
         fontSettling = undefined
         if (!fontPending) return
         fontPending = false
@@ -677,7 +677,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
         fontPending = true
         clearTimeout(fontSettling)
       } else for (const screen of changed) screen.followed.refit()
-      fontSettling = setTimeout(settle, resizeSettleMs)
+      fontSettling = setTimeout(fitAfterPause, resizeSettleMs)
     },
     restart: (key) => {
       const screen = entries.get(id(key))?.screen
