@@ -1,5 +1,7 @@
 import type { IDisposable, Terminal } from "@novadeck/emulator/browser"
 
+import { currentPlatform, type Platform } from "./paste.js"
+
 // A selection made with the mouse goes on the clipboard as the person lets go, in every
 // terminal and on every platform, as copy-on-select terminals do: a drag, a double-click's
 // word or a triple-click's line, with no key after it. Only a selection this press made
@@ -89,6 +91,13 @@ export type ClipboardWrites = {
   readonly copied: () => void
 }
 
+// Text without what a program's own copy may change in its OSC 52 one: line endings and a
+// final line break.
+const plain = (text: string): string => text.replace(/\r\n?/g, "\n").replace(/\n$/, "")
+
+// Whether two copies hold the same text.
+const sameText = (a: string, b: string): boolean => plain(a) === plain(b)
+
 // Lets a program in the terminal put text on the clipboard with OSC 52, as Claude Code's
 // own selection, tmux, vim, or a program over ssh does. Only while the person is in this
 // terminal (`focused`), so a program out of sight never replaces what they copied, and a
@@ -98,33 +107,50 @@ export type ClipboardWrites = {
 // does on Linux with wl-copy. On GNOME's Wayland the page's second write of the same text
 // comes after the tool's, under an older input of the person's, so the compositor drops
 // it, while Chromium takes the clipboard for its own from then on: every paste in the app
-// gives that text back, whatever is copied elsewhere, until the app copies again. So the
-// write waits `programCopyMs` for such a copy, and leaves the clipboard be when it already
-// holds the text. Of several writes in that time the last one counts.
+// gives that text back, whatever is copied elsewhere, until the app copies again. So on
+// Linux (`platform` "other") the write waits `programCopyMs` for such a copy, and leaves
+// the clipboard be when it already holds the text. Of several writes in that time the
+// last one counts, and one the person left the terminal during is dropped, so a copy of
+// their own there isn't replaced; the page can't write the clipboard without focus anyway.
+// macOS and Windows write at once, without reading the clipboard.
 export const takeClipboardWrites = (
   xterm: Pick<Terminal, "parser">,
   clipboard: ClipboardWrites,
+  { platform = currentPlatform() }: { platform?: Platform } = {},
 ): IDisposable => {
   let latest = 0
+  // The text the waiting write puts on the clipboard, which a later write replaces.
+  let waiting: string | undefined
   let pending: ReturnType<typeof setTimeout> | undefined
   const write = async (text: string, turn: number): Promise<void> => {
     const held = await clipboard.read().catch(() => undefined)
-    if (turn !== latest) return
-    if (held === text) clipboard.copied()
+    if (turn !== latest || !clipboard.focused()) return
+    if (held !== undefined && sameText(held, text)) clipboard.copied()
     else clipboard.copy(text)
   }
   const handler = xterm.parser.registerOscHandler(52, (data) => {
     const text = clipboardWrite(data)
     if (text === undefined || !clipboard.focused()) return true
+    if (platform !== "other") {
+      clipboard.copy(text)
+      return true
+    }
     latest += 1
-    const turn = latest
-    clearTimeout(pending)
-    pending = setTimeout(() => void write(text, turn), programCopyMs)
+    waiting = text
+    // A write already waiting takes the new text, so a program that copies often still
+    // gets its latest copy written in time.
+    pending ??= setTimeout(() => {
+      pending = undefined
+      const next = waiting ?? ""
+      waiting = undefined
+      void write(next, latest)
+    }, programCopyMs)
     return true
   })
   return {
     dispose: () => {
       clearTimeout(pending)
+      pending = undefined
       latest += 1
       handler.dispose()
     },

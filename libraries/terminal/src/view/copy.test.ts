@@ -1,6 +1,13 @@
 import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
 
-import { clipboardWrite, copyOnSelect, programCopyMs, takeClipboardWrites } from "./copy.js"
+import {
+  clipboardWrite,
+  copyOnSelect,
+  programCopyMs,
+  readClipboard,
+  takeClipboardWrites,
+} from "./copy.js"
+import type { Platform } from "./paste.js"
 
 const base64 = (text: string): string =>
   btoa(String.fromCharCode(...new TextEncoder().encode(text)))
@@ -192,14 +199,22 @@ describe("a program copying with OSC 52", () => {
   })
 
   // A terminal whose OSC 52 handler the test calls as the parser would, over a clipboard
-  // that holds `held` as the page reads it (undefined where it may not read it).
-  const terminal = ({ focused = true, held }: { focused?: boolean; held?: string } = {}) => {
+  // that holds `held` as the page reads it (undefined where it may not read it), on
+  // `platform` (Linux unless said).
+  const terminal = ({
+    focused = true,
+    held,
+    platform = "other",
+  }: { focused?: boolean; held?: string; platform?: Platform } = {}) => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
     let handler: ((data: string) => boolean | Promise<boolean>) | undefined
     const disposed = vi.fn<() => void>()
     const copied: string[] = []
     const said = vi.fn<() => void>()
-    const clipboard = { held }
+    const state = { held, focused, reads: 0 }
+    // A read the test answers itself, when it sets `answer`.
+    let answer: ((text: string | undefined) => void) | undefined
+    const deferred = { on: false }
     const parser = {
       registerOscHandler: (ident: number, callback: (data: string) => boolean) => {
         expect(ident).toBe(52)
@@ -210,18 +225,25 @@ describe("a program copying with OSC 52", () => {
     const taken = takeClipboardWrites(
       { parser } as unknown as Parameters<typeof takeClipboardWrites>[0],
       {
-        focused: () => focused,
-        read: async () => clipboard.held,
+        focused: () => state.focused,
+        read: async () => {
+          state.reads += 1
+          if (!deferred.on) return state.held
+          return new Promise((settle) => (answer = settle))
+        },
         copy: (text) => void copied.push(text),
         copied: said,
       },
+      { platform },
     )
     return {
       copied,
       said,
-      clipboard,
+      state,
       taken,
       disposed,
+      deferred,
+      answer: (text: string | undefined) => answer?.(text),
       send: (data: string) => handler?.(data),
       // Lets the wait for the program's own copy pass, and the read after it.
       settle: async () => {
@@ -248,10 +270,18 @@ describe("a program copying with OSC 52", () => {
     it("leaves the clipboard be and still says it's copied", async () => {
       const page = terminal({ held: "copied before" })
       page.send(`c;${base64("selected in Claude Code")}`)
-      page.clipboard.held = "selected in Claude Code"
+      page.state.held = "selected in Claude Code"
       await page.settle()
       expect(page.copied).toEqual([])
       expect(page.said).toHaveBeenCalledOnce()
+    })
+
+    it("counts it the same across line endings and a final line break", async () => {
+      const page = terminal({ held: "copied before" })
+      page.send(`c;${base64("one\ntwo")}`)
+      page.state.held = "one\r\ntwo\n"
+      await page.settle()
+      expect(page.copied).toEqual([])
     })
   })
 
@@ -268,6 +298,35 @@ describe("a program copying with OSC 52", () => {
     page.send(`c;${base64("second")}`)
     await page.settle()
     expect(page.copied).toEqual(["second"])
+  })
+
+  it("still writes in time for a program that copies more often than it waits", async () => {
+    const page = terminal({ held: "copied before" })
+    page.send(`c;${base64("first")}`)
+    await vi.advanceTimersByTimeAsync(programCopyMs - 100)
+    page.send(`c;${base64("second")}`)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(page.copied).toEqual(["second"])
+  })
+
+  it("drops a write the person left the terminal during, so it can't replace their own copy", async () => {
+    const page = terminal({ held: "copied before" })
+    page.send(`c;${base64("copied in vim")}`)
+    page.state.focused = false
+    await page.settle()
+    expect(page.copied).toEqual([])
+  })
+
+  it("drops a write whose read a later one overtook", async () => {
+    const page = terminal({ held: "copied before" })
+    page.deferred.on = true
+    page.send(`c;${base64("first")}`)
+    await page.settle()
+    expect(page.state.reads).toBe(1)
+    page.send(`c;${base64("second")}`)
+    page.answer("copied before")
+    await vi.advanceTimersByTimeAsync(0)
+    expect(page.copied).toEqual([])
   })
 
   it("is dropped while the person is elsewhere, and never reaches the screen", async () => {
@@ -291,5 +350,65 @@ describe("a program copying with OSC 52", () => {
     await page.settle()
     expect(page.disposed).toHaveBeenCalledOnce()
     expect(page.copied).toEqual([])
+  })
+
+  it("writes nothing when disposed while its read is under way", async () => {
+    const page = terminal({ held: "copied before" })
+    page.deferred.on = true
+    page.send(`c;${base64("copied in vim")}`)
+    await page.settle()
+    page.taken.dispose()
+    page.answer("copied before")
+    await vi.advanceTimersByTimeAsync(0)
+    expect(page.copied).toEqual([])
+  })
+
+  context.each(["mac", "windows"] as const)(
+    "on %s, where no compositor drops the write",
+    (platform) => {
+      it("writes at once, without reading the clipboard", () => {
+        const page = terminal({ held: "copied before", platform })
+        page.send(`c;${base64("copied in vim")}`)
+        expect(page.copied).toEqual(["copied in vim"])
+        expect(page.state.reads).toBe(0)
+      })
+    },
+  )
+})
+
+describe("reading the clipboard for a program's copy", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  // A page whose clipboard holds `text`, with `state` as the read permission's.
+  const page = (state: PermissionState | Error, text = "on the clipboard") => {
+    const readText = vi.fn<() => Promise<string>>(async () => text)
+    vi.stubGlobal("navigator", {
+      permissions: {
+        query: async () => {
+          if (state instanceof Error) throw state
+          return { state }
+        },
+      },
+      clipboard: { readText },
+    })
+    return readText
+  }
+
+  it("reads it where the page may without asking, as the desktop app's", async () => {
+    page("granted")
+    expect(await readClipboard()).toBe("on the clipboard")
+  })
+
+  it("never asks the person", async () => {
+    const readText = page("prompt")
+    expect(await readClipboard()).toBeUndefined()
+    expect(readText).not.toHaveBeenCalled()
+  })
+
+  it("reads nothing where the browser doesn't know the permission", async () => {
+    page(new TypeError("clipboard-read is not a valid PermissionName"))
+    expect(await readClipboard()).toBeUndefined()
   })
 })
