@@ -303,16 +303,28 @@ const PaneTabs = ({
     const element = row.current
     const tab = element?.querySelector<HTMLElement>(".pane-tab[data-state='open']")
     if (!element || !tab) return
-    // Where the tab starts along the row, however far the row is scrolled now.
-    const start =
-      tab.getBoundingClientRect().left - element.getBoundingClientRect().left + element.scrollLeft
-    const end = start + tab.offsetWidth
-    element.scrollLeft = Math.min(
-      Math.max(memory.scroll(), end - element.clientWidth),
-      Math.max(0, start),
-    )
+    const place = (): void => {
+      // Where the tab starts along the row, however far the row is scrolled now.
+      const start =
+        tab.getBoundingClientRect().left - element.getBoundingClientRect().left + element.scrollLeft
+      // Past its end, the room the tools' fade takes over the row (scroll-padding in pane.css).
+      const end =
+        start +
+        tab.offsetWidth +
+        (parseFloat(getComputedStyle(element).scrollPaddingInlineEnd) || 0)
+      element.scrollLeft = Math.min(
+        Math.max(memory.scroll(), end - element.clientWidth),
+        Math.max(0, start),
+      )
+    }
+    place()
+    // Again as the tab takes its width, as its font loads or what its viewer says of it
+    // changes it, so it isn't left part under the fade.
+    const sized = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(place)
+    sized?.observe(tab)
     if (memory.focuses(shown))
       tab.querySelector<HTMLElement>('[role="tab"]')?.focus({ preventScroll: true })
+    return () => sized?.disconnect()
   }, [memory, shown])
   const pick = (tab: BarMember): void => {
     memory.picked(tab.key, row.current?.contains(document.activeElement) ?? false)

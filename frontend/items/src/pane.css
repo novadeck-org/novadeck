@@ -321,6 +321,8 @@
 /* The row on top of what the pane shows: the tabs of a stack, or one item's title, and at its
    end the viewer's tools and the window's buttons. On the pane's ground, whatever it shows. */
 .pane-row {
+  /* How far the tabs fade before the tools (`.pane-end::before`). */
+  --_pane-fade: 28px;
   display: flex;
   flex: none;
   min-width: 0;
@@ -335,6 +337,12 @@
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
+}
+/* Tabs, not a lone title: room past the last one for the tools' fade, so it scrolls clear of
+   it, and the shown tab is kept that far from the end as it's scrolled into view. */
+.pane-tabs:not([data-lone]) {
+  padding-inline-end: var(--_pane-fade);
+  scroll-padding-inline-end: var(--_pane-fade);
 }
 .pane-tab {
   --_fg: var(--pane-tab-fg, var(--color-muted));
@@ -481,12 +489,24 @@
 /* The row's end: the viewer's tools over a hairline from the window's buttons, held there as
    the tabs scroll. */
 .pane-end {
+  position: relative;
   display: flex;
   flex: none;
   align-items: center;
   gap: 2px;
   padding: 0 6px 0 4px;
   background-color: var(--pane-bg, var(--color-paper));
+}
+/* The tabs that run under the tools fade into their ground, rather than being cut off. */
+.pane-row:has(> .pane-tabs:not([data-lone])) > .pane-end::before {
+  position: absolute;
+  top: 0;
+  right: 100%;
+  bottom: 0;
+  width: var(--_pane-fade);
+  background: linear-gradient(to left, var(--pane-bg, var(--color-paper)), transparent);
+  content: "";
+  pointer-events: none;
 }
 .pane-tools,
 .pane-tools-inline {
