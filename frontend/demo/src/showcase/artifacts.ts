@@ -551,15 +551,16 @@ const routeLines = [
   ")",
 ]
 
-// A long export the runner reads only the start of, up to its budget for data files: a
-// header, then visits, a few with quoted fields, and a byte-order mark, as spreadsheets write
-// one.
+// A long export the runner reads only the start of: a header, then visits, a few with quoted
+// fields, and a byte-order mark, as spreadsheets write one. A real one stops at the runner's
+// 2 MiB budget; this one stops sooner, as only the part the table shows matters here.
 const pages = ["/", "/work", "/work/harbour-press", "/about", "/journal, issue 4"]
 const visitLines = [
   "\uFEFFday,page,visits,bounce rate,note",
   ...Array.from({ length: 399 }, (_, index) => {
     const page = pages[index % pages.length]!
-    // One note pasted in whole, a line far longer than a source file's, which comes whole.
+    // One note pasted in whole, past the 4,096 characters a source file's line is cut at; a
+    // data file's line comes whole.
     const pasted =
       index === 200 ? `"${"Pasted from the newsletter: careful work. ".repeat(110)}"` : ""
     const note = pasted || (index % 9 === 0 ? '"Newsletter went out; ""Careful work"" issue"' : "")

@@ -1,5 +1,14 @@
 import { context, describe, expect, it } from "../../../../test"
-import { columnLetters, nextSort, numberOf, partText, sortRows, tableOf } from "./table"
+import {
+  columnLetters,
+  cutAlone,
+  maxColumns,
+  nextSort,
+  numberOf,
+  partText,
+  sortRows,
+  tableOf,
+} from "./table"
 
 const people = ["name,age,city", "Ann,34,Oslo", "bo,7,", "Cy,1200,Rome", "Di,,Bern"]
 
@@ -59,6 +68,53 @@ describe("a delimited file as a table", () => {
     expect(table.rows.at(-1)!.cells[1]).toMatch(/^a long note\nthat runs on, line 0/)
   })
 
+  it("reads a quote never closed as text from its record on, keeping the quoting before it", () => {
+    const lines = ["size\tname", '"a\tb"\tx', '"12 inch\tscreen', "1\tx", "2\ty"]
+    const table = tableOf("sizes.tsv", lines, 1, { whole: true })
+    expect(table.rows.map((row) => row.cells)).toEqual([
+      ["a\tb", "x"],
+      ['"12 inch', "screen"],
+      ["1", "x"],
+      ["2", "y"],
+    ])
+    expect(table.rows.map((row) => row.line)).toEqual([2, 3, 4, 5])
+  })
+
+  it("reads a quote open over many lines of only part of a file as a stray", () => {
+    const lines = [
+      "id,note,qty",
+      '0,"a, b",3',
+      '1,"forgot to close,3',
+      ...Array.from({ length: 2000 }, (_, at) => `${at + 2},n${at},${at}`),
+    ]
+    const table = tableOf("orders.csv", lines, 1)
+    expect(table.rows).toHaveLength(2002)
+    expect(table.rows[0]!.cells).toEqual(["0", "a, b", "3"])
+    expect(table.rows[1]!.cells).toEqual(["1", '"forgot to close', "3"])
+    expect(table.rows.at(-1)!.line).toBe(2003)
+  })
+
+  it("reads a long line whole, in a file read only in part", () => {
+    const long = "y".repeat(5000)
+    const table = tableOf("notes.csv", ["1,a", `2,"${long}, z"`, "3,c"], 960)
+    expect(table.rows.map((row) => row.cells)).toEqual([
+      ["1", "a"],
+      ["2", `${long}, z`],
+      ["3", "c"],
+    ])
+    expect(partText({ firstLine: 960, count: 3, total: 962, truncated: false, named: false })).toBe(
+      "Only part of the file is shown: lines 960–962 of 962, without its header row.",
+    )
+  })
+
+  it("shows at most its first columns, and counts them all", () => {
+    const wide = Array.from({ length: maxColumns + 500 }, (_, at) => `c${at}`).join(",")
+    const table = tableOf("wide.csv", [wide, "1,2"], 1, { whole: true })
+    expect(table.header).toHaveLength(maxColumns)
+    expect(table.rows[0]!.cells).toHaveLength(maxColumns)
+    expect(table.columns).toBe(maxColumns + 500)
+  })
+
   it("spans a row over the lines its fields break across", () => {
     const table = tableOf("notes.csv", ["id,text", '1,"one', "two", 'three"', "2,x"], 1)
     expect(table.rows.map((row) => [row.line, row.last])).toEqual([
@@ -99,6 +155,19 @@ describe("a delimited file as a table", () => {
         [43, "c", "q"],
         [44, "d", "4"],
       ])
+    })
+
+    it("finds the first whole record among tens of thousands of lines", () => {
+      const lines = [
+        'packed twice, see ticket",shipped',
+        ...Array.from({ length: 40_000 }, (_, at) =>
+          at % 50 === 0 ? `${at},Oslo,"two\nlines",shipped` : `${at},Rome,,shipped`,
+        ).flatMap((line) => line.split("\n")),
+      ]
+      const table = tableOf("orders.csv", lines, 5000)
+      expect(table.rows[0]!.line).toBe(5001)
+      expect(table.rows).toHaveLength(40_000)
+      expect(table.rows[0]!.cells).toEqual(["0", "Oslo", "two\nlines", "shipped"])
     })
 
     it("names the columns by letter, and every line is a row", () => {
@@ -201,6 +270,25 @@ describe("what a table shows of its file", () => {
         clamped: 5,
       }),
     ).toBe("The lines pointed at are past its end, line 5.")
+  })
+
+  it("says when its one line came cut, and when only some of its columns show", () => {
+    expect(
+      partText({ firstLine: 1, count: 1, total: null, truncated: true, named: true, cut: true }),
+    ).toBe(
+      "Only part of the file is shown: lines 1–1 of a longer file. Line 1 is too long to read whole, so only its start is shown.",
+    )
+    expect(
+      partText({ firstLine: 1, count: 2, total: 2, truncated: false, named: true, columns: 1500 }),
+    ).toBe("Only its first 1,000 of 1,500 columns are shown.")
+  })
+
+  it("knows the one line the runner cut, from its length", () => {
+    const budget = 2 * 1024 * 1024
+    expect(cutAlone(["a".repeat(budget)], true)).toBe(true)
+    expect(cutAlone(["a".repeat(budget - 1)], true)).toBe(false)
+    expect(cutAlone(["a".repeat(budget)], false)).toBe(false)
+    expect(cutAlone(["a", "b"], true)).toBe(false)
   })
 
   it("says plainly which lines of how many it shows", () => {

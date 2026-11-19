@@ -6,7 +6,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react"
 import type { PreviewProps } from ".."
 import { usePaneNote } from "../../../../pane-row"
 import { columnWidths, rowOffsets, rowsWindow } from "./rows-window"
-import { nextSort, partText, sortRows, tableOf, type Sort } from "./table"
+import { cutAlone, nextSort, partText, sortRows, tableOf, type Sort } from "./table"
 
 // Where each table was left, by the item showing it, and in which file and lines pointed at:
 // scrolled, sorted, and its rows' heights as measured, so it opens again as it was when its
@@ -159,6 +159,8 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
     total: content.total,
     truncated: content.truncated,
     named: table.named,
+    cut: cutAlone(content.lines, content.truncated),
+    columns: table.columns,
     clamped: content.clamped ? content.to : undefined,
   })
   return (
