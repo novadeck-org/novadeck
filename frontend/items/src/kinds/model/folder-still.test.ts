@@ -4,12 +4,11 @@ import { afterEach, vi } from "vitest"
 import { describe, expect, it } from "../../test"
 import { entryThumbRenderer } from "../folder/entry-thumbs"
 import "../folder/thumb-renderers"
-import { folderStill } from "./folder-still"
+import { folderStill, gridBytes } from "./folder-still"
 
 // jsdom has no WebGL: the frame every still shares is a stand-in that notes what it's asked.
 const asked = vi.hoisted(() => [] as { format: string; size: number; files: number }[])
 vi.mock("./stills", () => ({
-  peekBytes: 64,
   stillBlob: async (
     model: { format: string; bytes: Blob; files: readonly unknown[] },
     size: number,
@@ -57,15 +56,14 @@ describe("a 3D model in a folder's grid", () => {
     expect(asked).toMatchObject([{ format: "ply" }])
   })
 
-  it("shows its icon when it's empty, past what a peek reads, unread or not a model", async () => {
+  it("shows its icon when it's empty, past what a grid draws, unread or not a model", async () => {
     const signal = new AbortController().signal
     const none = async (): Promise<FilePart> => ({ state: "unavailable", reason: "missing" })
     await expect(folderStill(fileOf("begun.glb", new Uint8Array()), box, signal)).resolves.toBe(
       null,
     )
-    await expect(folderStill(fileOf("big.glb", new Uint8Array(65)), box, signal)).resolves.toBe(
-      null,
-    )
+    const big = { ...fileOf("big.glb", new Uint8Array(4)), size: gridBytes + 1 }
+    await expect(folderStill(big, box, signal)).resolves.toBe(null)
     await expect(
       folderStill(fileOf("gone.stl", new Uint8Array(4), none), box, signal),
     ).resolves.toBe(null)

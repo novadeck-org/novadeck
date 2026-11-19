@@ -1764,7 +1764,8 @@ one from an earlier runner.
     `size`, `modifiedAt`, `children` (what a folder holds), `secret`, `link` (a link out of the
     top: never entered or read) and `stamp`. It is read again, a few changes together, as the
     folder changes. `companions.part` takes a `path` for such an item, a file of the folder from its
-    top, read as its kind is (an image only to 2 MiB) against the stamp its entry gave. A
+    top, read as its kind is (an image only to 2 MiB; a 3D model whole, as its grid draws a still
+    of it alone) against the stamp its entry gave. A
     text
     file is the lines around those pointed at, read to the last of them and up to 4 MiB
     more to count the rest: `total` once it reached the file's end, else `truncated`;

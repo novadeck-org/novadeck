@@ -682,9 +682,9 @@ export const contract = {
     // lists, by its name there and as its own stamp names it; never shown when it may hold
     // secrets, whatever `reveal`; a `file` its model doesn't name is NOT_FOUND. A folder item's
     // `path` is a file of the folder, from its top, which is read as the file's own kind is (an
-    // image up to `folderLimits.thumbnail` bytes, for a thumbnail; a video, a recording or a PDF
-    // as an item of its kind is), with the stamp its listing gave: never one outside the folder,
-    // through a link too, nor a secret one (`secret`), nor one in a secret folder.
+    // image up to `folderLimits.thumbnail` bytes, for a thumbnail; a video, a recording, a PDF or
+    // a 3D model as an item of its kind is), with the stamp its listing gave: never one outside
+    // the folder, through a link too, nor a secret one (`secret`), nor one in a secret folder.
     part: procedure
       .input(
         z.strictObject({
