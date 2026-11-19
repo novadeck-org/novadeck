@@ -1,9 +1,9 @@
 import type { ContextMenuAction, ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
-import type { PageEdit, PageMenu, Place } from "@novadeck/viewers/browser"
+import { webAddress, type PageEdit, type PageMenu, type Place } from "@novadeck/viewers/browser"
 
 // The menu a page in a pane offers in place of the browser's own, from what's where the person
-// asked for it: in a field, its edits; on a selection, Copy; on a link, its address to copy or
-// open in their browser; then going back, forward or reloading; then the page's own address.
+// asked for it: in a field, its edits; on a selection, Copy; on a link, its address to copy,
+// and an http(s) one to open in their browser; then going back, forward or reloading; then the page's own address.
 // Each group sets itself apart from the one before. What a later feature offers on the same
 // spot, as Comment on this, goes first, as `leading`: its own group, above the rest.
 
@@ -53,11 +53,15 @@ export const pageMenuItems = ({
   const links: ContextMenuAction[] = link
     ? [
         { value: "copy-link", label: "Copy link address", onSelect: () => actions.copy(link) },
-        {
-          value: "open-link",
-          label: "Open link in your browser",
-          onSelect: () => actions.open(link),
-        },
+        ...(webAddress(link)
+          ? [
+              {
+                value: "open-link",
+                label: "Open link in your browser",
+                onSelect: () => actions.open(link),
+              },
+            ]
+          : []),
       ]
     : []
   const history: ContextMenuAction[] = live

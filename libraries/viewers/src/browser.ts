@@ -43,7 +43,7 @@ import type { Mount, Viewer, ViewerState } from "./index.js"
 // browser.css's.
 
 export type { PageSize, Trouble }
-export { addressOf }
+export { addressOf, webAddress }
 
 /**
  * A page by its address, as its app shows it. `shown` counts the app's shows of it: a
@@ -63,8 +63,9 @@ export type Place = { readonly url: string; readonly back: boolean; readonly for
 /**
  * What the person asked a menu of, by a right-click or the menu key on the page: where, in
  * the app page's window (CSS pixels from its top left, as a pointer event's client point),
- * and what's there: the text selected, the link, an http(s) one only, and whether it's a
- * field, with the edits it can take now. A snapshot has none of them.
+ * and what's there: the text selected, the link's address (any scheme: only an http(s) one
+ * is the browser's to open), and whether it's a field, with the edits it can take now. A
+ * snapshot has none of them.
  */
 export type PageMenu = {
   readonly x: number
@@ -189,6 +190,7 @@ type Webview = HTMLElement & {
   getWebContentsId(): number
   setAudioMuted(muted: boolean): void
   setZoomFactor(factor: number): void
+  getZoomFactor(): number
   insertCSS(css: string): Promise<string>
   removeInsertedCSS(key: string): Promise<void>
 }
@@ -911,25 +913,28 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       on?.title?.(title)
     }
   }
-  // The person asked for a menu on the live page. Electron gives where in the app page's
-  // window, as though the view were drawn as it lays out: one scaled about its corner, not
-  // zoomed, as a phone's, is drawn smaller, so the point is brought in to where the person
-  // pressed.
+  // The app's own zoom, as the person has it (Ctrl+-): its page view is zoomed by its factor
+  // of it, so the view's own zoom over the factor is the app's. One the app doesn't zoom
+  // zooms by its factor alone.
+  const appZoom = (): number => {
+    const view = page
+    const own = zoomView && view ? attached(() => view.getZoomFactor()) : undefined
+    return own !== undefined && own > 0 && zoomed > 0 ? own / zoomed : 1
+  }
+  // The person asked for a menu on the live page. Electron gives where in the app's window,
+  // as drawn, whatever scales the view, in its pixels, not the app page's: the app's zoom
+  // makes each of those more than one.
   const menu = (event: Event): void => {
     const params = (event as Event & { params?: Partial<MenuParams> }).params
     if (!on?.menu || !params) return
     const { x = 0, y = 0 } = params
     const flags = params.editFlags ?? {}
-    const link = params.linkURL ?? ""
-    const scale = framed && zoomed === 1 ? framed.scale : 1
-    const box = root.getBoundingClientRect()
-    const left = box.left + (framed?.left ?? 0)
-    const top = box.top + (framed?.top ?? 0)
+    const zoomedBy = appZoom()
     on.menu({
-      x: left + (x - left) * scale,
-      y: top + (y - top) * scale,
+      x: x / zoomedBy,
+      y: y / zoomedBy,
       selection: params.selectionText ?? "",
-      link: webAddress(link) ? link : undefined,
+      link: params.linkURL || undefined,
       editable: params.isEditable === true,
       can: {
         cut: flags.canCut === true,
@@ -1179,11 +1184,11 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     focus: () => (page ?? still).focus({ preventScroll: true }),
     back: () => attached(() => page!.goBack()),
     forward: () => attached(() => page!.goForward()),
-    // At rest, or before it's attached, its next load goes afresh.
     edit: (edit) => {
       const view = page
       if (view) attached(() => view[edit]())
     },
+    // At rest, or before it's attached, its next load goes afresh.
     reload: () => {
       const reloading = attached(() => {
         page!.reload()

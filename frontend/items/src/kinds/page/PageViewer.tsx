@@ -263,7 +263,7 @@ const ShownPage = ({
           }}
         >
           <ContextMenu
-            label="Page"
+            label="Page actions"
             at={menu && { x: menu.x, y: menu.y }}
             items={
               menu

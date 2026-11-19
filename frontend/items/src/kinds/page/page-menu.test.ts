@@ -85,6 +85,13 @@ describe("a page's menu", () => {
     expect(done).toEqual([`copy ${link}`, `open ${link}`])
   })
 
+  it("copies a link that's no web page's, which the browser isn't to open", () => {
+    expect(menuOf({ link: "mailto:me@example.com" }).rows.slice(0, 2)).toEqual([
+      "Copy link address",
+      "—",
+    ])
+  })
+
   it("offers only the page's address on a snapshot, which has no edits or history", () => {
     expect(menuOf({ selection: "text", editable: true }, { live: false }).rows).toEqual([
       "Copy page address",

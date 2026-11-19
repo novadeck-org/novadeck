@@ -2309,7 +2309,7 @@ describe("the browser viewer", () => {
       ...fields,
     })
 
-    it("tells where, in the app's window, and what's there, a link an http(s) one only", () => {
+    it("tells where, in the app's window, and what's there", () => {
       const pane = paneIn()
       const menus: PageMenu[] = []
       live(pane, { menu: (menu) => menus.push(menu) })
@@ -2328,7 +2328,7 @@ describe("the browser viewer", () => {
       )
       page.dispatchEvent(
         event("context-menu", {
-          params: params({ linkURL: "javascript:alert(1)", isEditable: true }),
+          params: params({ linkURL: "mailto:me@example.com", isEditable: true }),
         }),
       )
       expect(menus[0]).toEqual({
@@ -2339,30 +2339,30 @@ describe("the browser viewer", () => {
         editable: false,
         can: { cut: false, copy: true, paste: false, selectAll: false },
       })
-      expect(menus[1]).toMatchObject({ link: undefined, editable: true })
+      expect(menus[1]).toMatchObject({ link: "mailto:me@example.com", editable: true })
     })
 
-    it("tells where on a phone's screen, scaled down, the person pressed", () => {
+    it("tells where in the app page's own pixels, as the app is zoomed", () => {
       const pane = paneIn()
-      const room = phoneBezel + phoneMargin
-      pane.style.width = `${phoneScreen.width / 2 + 2 * room}px`
-      pane.style.height = "1000px"
       const menus: PageMenu[] = []
       mountBrowser(pane, {
         content: { url: "http://localhost:5173/" },
         label: "page",
         live: true,
         partition: "pages",
-        size: "phone",
+        // The app zooms its view by the factor times its own zoom, 1.25.
+        zoom: async () => true,
         on: { menu: (menu) => menus.push(menu) },
       })
-      const screen = pageOf(pane).getBoundingClientRect()
-      // Electron tells the point as though the screen were drawn unscaled from its corner.
-      pageOf(pane).dispatchEvent(
-        event("context-menu", { params: params({ x: screen.left + 100, y: screen.top + 200 }) }),
-      )
-      expect(menus[0]!.x).toBeCloseTo(screen.left + 50, 0)
-      expect(menus[0]!.y).toBeCloseTo(screen.top + 100, 0)
+      const page = pageOf(pane)
+      Object.assign(page, {
+        getWebContentsId: () => 7,
+        getZoomFactor: () => (400 / desktopWidth) * (1 - 1e-4) * 1.25,
+      })
+      // Electron's point is in the window's pixels, each 1.25 of the app page's.
+      page.dispatchEvent(event("context-menu", { params: params({ x: 500, y: 250 }) }))
+      expect(menus[0]!.x).toBeCloseTo(400, 3)
+      expect(menus[0]!.y).toBeCloseTo(200, 3)
     })
 
     it("does a menu's edits on the live page", () => {
