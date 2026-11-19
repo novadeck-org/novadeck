@@ -10,10 +10,24 @@
    Tokens, each optional (its fallback in brackets):
    --sidebar-create-border-color (line): the create button's edge, at rest and hovered. */
 .sidebar-panel {
+  container-type: inline-size;
   transition:
     opacity var(--motion-feedback) ease-out,
     transform var(--motion-view) var(--ease-interface),
     visibility var(--motion-view);
+}
+/* A panel's scrolling list (`.sidebar-scroll`) reaches into the sidebar's 12px right margin,
+   and its rows keep the panel's width (the panel is their container), so they end under the
+   header's right edge whether or not a scrollbar shows: a scrollbar sits in that margin
+   (thin ones are 10–11px; macOS's overlay ones take none) and nothing moves when a list
+   starts to scroll. A row in a `.contents` wrapper, as a terminal's tab, takes it too. */
+.sidebar-panel .sidebar-scroll {
+  margin-inline-end: calc(var(--spacing) * -3);
+  overflow-x: hidden;
+}
+.sidebar-panel .sidebar-scroll > *,
+.sidebar-panel .sidebar-scroll > .contents > * {
+  width: 100cqw;
 }
 
 /* It stays on one line beside the title, however many actions share the header. */

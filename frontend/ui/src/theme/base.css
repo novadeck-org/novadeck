@@ -51,14 +51,6 @@
   scrollbar-width: thin;
   scrollbar-color: var(--color-line) transparent;
 }
-*::-webkit-scrollbar {
-  width: var(--spacing);
-  height: var(--spacing);
-}
-*::-webkit-scrollbar-thumb {
-  border-radius: var(--radius-control);
-  background: var(--color-line);
-}
 /* Ligatures join pairs such as => into one glyph. In terminals and code they stay off
    unless the person turns them on in Preferences (data-ligatures on <html>), since a
    terminal shows what a program printed; the rest of the interface keeps its type's
