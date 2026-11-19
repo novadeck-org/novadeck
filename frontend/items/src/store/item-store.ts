@@ -140,6 +140,8 @@ export type ItemStore = {
   readonly picture?: Companions["picture"]
   // Makes a live page's view a phone's, or not: the backend's, where it has one.
   readonly phone?: Companions["phone"]
+  // Zooms a live page's view by a factor of the app's own zoom: the backend's, where it has one.
+  readonly zoom?: Companions["zoom"]
 }
 
 type Followed = {
@@ -757,7 +759,7 @@ export const createItemStore = ({
       for (const id of session.followed.keys()) unfollow(session, id)
     }
   }
-  const { picture, phone, part, folders, wroteTo, repoint: pointed } = companions
+  const { picture, phone, zoom, part, folders, wroteTo, repoint: pointed } = companions
   const sessionItems: ItemStore["sessionItems"] = (target) =>
     workspace
       .getSnapshot()
@@ -791,6 +793,7 @@ export const createItemStore = ({
     connect,
     ...(picture && { picture }),
     ...(phone && { phone }),
+    ...(zoom && { zoom }),
     ...(part && { part }),
     ...(folders && { folders }),
     ...(wroteTo && { wroteTo }),

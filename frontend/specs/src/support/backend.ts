@@ -18,6 +18,7 @@ import {
   type UpdateScenario,
   type UpdateScenarioKey,
 } from "@novadeck/demo-debug/desktop/scenarios"
+import { createDemoScreenReader } from "@novadeck/demo-debug/desktop/screen-reader"
 import { createDemoUninstall, uninstallScenarios } from "@novadeck/demo-debug/desktop/uninstall"
 import { createDemoUpdates } from "@novadeck/demo-debug/desktop/updates"
 import { addressParams } from "@novadeck/demo/address"
@@ -108,6 +109,25 @@ const requestedSandbox = (): SandboxState | undefined => {
   const sandbox = addressParams().get("sandbox")
   if (sandbox === "off") return { sandboxed: false, fix: sampleFix }
   if (sandbox === "off-unfixed") return { sandboxed: false, fix: "" }
+  return undefined
+}
+
+// Specs open the demo as a desktop app that says whether a screen reader runs with
+// `?screenReader=running` or `?screenReader=none`; without it, nothing tells, as in a browser.
+// The stand-ins the page's backends were made with, which `setScreenReaderRunning` drives: a
+// page may make more than one backend.
+const screenReaderStandIns: ReturnType<typeof createDemoScreenReader>[] = []
+
+/** Says to the page that a screen reader started or stopped, as the desktop app does. */
+export const setScreenReaderRunning = (running: boolean): void => {
+  if (!screenReaderStandIns.length) throw new Error("Open the workspace with ?screenReader= first")
+  for (const standIn of screenReaderStandIns) standIn.set(running)
+}
+
+const requestedScreenReader = (): boolean | undefined => {
+  const reader = addressParams().get("screenReader")
+  if (reader === "running") return true
+  if (reader === "none") return false
   return undefined
 }
 
@@ -521,7 +541,11 @@ const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   )
   const uninstall = requestedUninstall()
   const withSandbox = sandbox ? { ...demo, sandbox: createDemoSandbox(sandbox) } : demo
-  const withUninstall = uninstall ? { ...withSandbox, uninstall } : withSandbox
+  const reader = requestedScreenReader()
+  const standIn = reader === undefined ? undefined : createDemoScreenReader(reader)
+  if (standIn) screenReaderStandIns.push(standIn)
+  const withReader = standIn ? { ...withSandbox, screenReader: standIn.screenReader } : withSandbox
+  const withUninstall = uninstall ? { ...withReader, uninstall } : withReader
   return portable
     ? {
         ...withUninstall,
@@ -536,6 +560,7 @@ const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
  * though an earlier spec or an earlier page of its own made more.
  */
 export const forgetEarlierPages = (): void => {
+  screenReaderStandIns.length = 0
   approvalBackends.length = 0
   made.length = 0
   desktops.length = 0

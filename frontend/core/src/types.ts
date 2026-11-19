@@ -28,6 +28,10 @@ export const panelNamed = (name: string): SidebarPanel | undefined =>
   sidebarPanels.find((panel) => panel === name) ??
   (Object.hasOwn(formerPanels, name) ? formerPanels[name] : undefined)
 export type WindowedView = Exclude<ViewMode, "focus">
+// When terminals keep their text for a screen reader; see `PreferencesValue.screenReader`.
+export const screenReaderPreferences = ["auto", "on", "off"] as const
+export type ScreenReaderPreference = (typeof screenReaderPreferences)[number]
+
 export type PreferencesValue = {
   fontSize: number
   enabledViews: ViewMode[]
@@ -49,6 +53,10 @@ export type PreferencesValue = {
   // Whether monospace text joins pairs such as => and != into one glyph. Off by default:
   // a terminal shows what a program printed.
   ligatures: boolean
+  // When a terminal in focus keeps its text for a screen reader: "auto" while the app says one
+  // runs (always where nothing can tell, as in a browser), "on" always, "off" never. Keeping
+  // it costs a layout of every row the terminal draws.
+  screenReader: ScreenReaderPreference
   // Whether a terminal an agent runs in shows its conversation rather than its screen, on
   // a backend that reads conversations.
   chatView: boolean
@@ -58,6 +66,9 @@ export type PreferencesValue = {
   // Whether the footer offers the onboarding tour, in its Help menu. Off by default, and only
   // with Experimental on.
   onboardingTour: boolean
+  // Whether Agent Chat folds an agent's long replies, all but its latest, to their first lines.
+  // Off by default, and only with Experimental on.
+  foldLongReplies: boolean
 }
 export type Project = { id: string; name: string; directory: string }
 

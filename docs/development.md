@@ -436,6 +436,13 @@ Agents:
   entries to the selected agent's chat, one dated three hours before and one just after, both
   naming that `@handle`: the old one draws it as plain text, the new one in the handle's hue.
   "Handle back to its first terminal" undoes it (`frontend/demo-debug/src/mentions.ts`).
+- **Chat: long replies:** "Long replies" adds three finished turns to the selected agent's chat,
+  each a prompt and a reply of about 60 lines. With Experimental on (App > Updates, then
+  Preferences reopened) and Fold long replies switched on in Preferences > Experimental, the
+  earlier replies fold to their opening lines with a key for the rest once they're out of sight,
+  and the latest shows in full; while the demo agent still works, its running turn's words are no
+  reply yet, so only the first folds. "Long replies gone" takes them out
+  (`frontend/demo-debug/src/long-replies.ts`).
 - **Plan:** only in the `showcase` variant, on the selected terminal's agent (Build Studio or
   the auth agent), for what happens to a plan the person has edited. "Plan in the agent's
   messages" makes it read-only; "Plan file deleted" shows that its file is gone, with the
@@ -791,6 +798,10 @@ App:
 - **Sandbox:** boot as a desktop app running without Electron's sandbox, for the footer's No
   sandbox chip and its fix command; "No sandbox, no fix" as one with no command to offer;
   and "Sandboxed" back to normal.
+- **Screen reader:** boot as a desktop app that says a screen reader runs, or that none does, for
+  Preferences > Appearance's Screen reader support on Automatic: the terminal in focus keeps a
+  reader's text only while one runs. "As in a browser" boots back to a page nothing tells, which
+  offers On and Off alone.
 - **Agent worktrees:** the page's update channel starts stable, which turns the
   setting off, so the rail has no Worktrees toggle, as in a stable build. "On, with Worktrees" boots on
   the experimental channel with the setting on, for the Worktrees panel and the Worktrees group's
@@ -1517,7 +1528,10 @@ every pull request, in three parts. Windows and macOS run only when the change a
 package that declares `"novadeck": { "platform": "system" }`, or a file outside every package
 (`scripts/quality/plan`): Windows runs every test, and macOS, once every Linux job has passed,
 the system packages' tests, one package at a time (`npm run test:system`). The nightly
-Quality run runs every test on all three. The UI tests run in Chromium alongside backend API,
+Quality run runs every test on all three, and so does a whole-suite run of Quality (a change
+to CI or a root file): on macOS in three jobs, every test but the UI specs' (`test:macos1`) and the specs in two
+halves (`test:macos2`, `test:macos3`), each on one worker, as two workers starved each other on
+its 3-vCPU runners. The UI tests run in Chromium alongside backend API,
 real PTY, and built-CLI tests. The required `Test` check passes only when every job the plan
 chose has. A draft PR runs no macOS job, in Quality or E2E, and its `Test` and `E2E` checks
 fail ("draft: macOS not run") while its change needs macOS: open a PR as a draft while you

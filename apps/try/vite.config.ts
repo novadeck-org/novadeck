@@ -39,13 +39,14 @@ export default defineConfig({
       // What the page loads first, and the demo, which loads with its connection; the
       // website's hero waits on both. The first load's was set at 1.1 MB from the first build
       // with the demo drawn as terminals (1,058 kB, 663 kB of it the eleven fonts declared),
-      // and raised to 1.3 MB in #439, when main sat about 100 bytes under it. The demo's was
+      // and raised to 1.3 MB in #439, when main sat about 100 bytes under it, and to 1.31 MB for
+      // Agent Chat's folding of long replies (1,300,298 bytes then). The demo's was
       // raised to 195 kB for History's rows, which the demo keeps (190,171 bytes then), and
       // to 205 kB for the changes pane's layers and the small git its samples come from
       // (198,875 bytes then), and to 210 kB for the Inbox's history of resolved rows, which the
       // demo's Inbox keeps (206,351 bytes then).
       budgets: {
-        first: 1_300_000,
+        first: 1_310_000,
         demo: 210_000,
         demoModule: "/frontend/demo/src/visitor/connect.ts",
       },

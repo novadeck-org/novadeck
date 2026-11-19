@@ -269,6 +269,8 @@ export const render = (board: Scoreboard): string => {
     "",
     "Quality's `Test (macOS)` series also breaks on 2026-11-11 (#849): from then it runs only the system packages, and starts once Linux has passed, where before it ran the whole suite at once. Its pass rate, hours and queue before and after that day measure different jobs. On #851's run that day it ran 13m07s after a 3-second queue, about 10 minutes behind Linux; Nightly Quality's `Test (macOS)`, which still runs the whole suite, ran 43m19s in the same run.",
     "",
+    "From 2026-11-19 the whole suite on macOS, Quality's where the plan says all and every night's, runs as three jobs, `Test (macOS, 1/3)` (every test but the specs') and `Test (macOS, 2/3)` and `Test (macOS, 3/3)` (the specs in two halves, on one worker each), in place of the one `Test (macOS)` that ran it whole: new series beside the old one, which still measures the system packages' job.",
+    "",
     "From 2026-11-11 (#862) a pull request whose plan narrows Windows runs one `Test (Windows)` job, the affected system packages, in place of the three `Test (Windows, n/3)` shards, which still run when the plan says all: a new series beside theirs, measuring a different job. The `Proof (…)` rows a change to the planning runs are outside the `Test` gate: they are in these tables and the Macs' hours, never in the merge queue's bar.",
     "",
     "### The Macs",

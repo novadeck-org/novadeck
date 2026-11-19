@@ -10,6 +10,7 @@ import {
   lockPagesSession,
   maxForwardedRequests,
   maxRequestOrigins,
+  ownZoom,
   pagesSession,
   countSignIns,
   emulatePhone,
@@ -27,6 +28,7 @@ import {
   signInWindow,
   watchPageRequests,
   webAddress,
+  zoomPage,
 } from "./host.js"
 import { chromeMajorOf, phoneUserAgent } from "./phone.js"
 
@@ -301,6 +303,69 @@ describe("a page view", () => {
         }),
       ).toEqual({ action: "deny" })
     })
+  })
+})
+
+describe("a page view's zoom", () => {
+  const pages = {} as Session
+  const zoomOf = (type: string, session: Session): string[] => {
+    const modes: string[] = []
+    ownZoom(
+      {
+        getType: () => type,
+        session,
+        setZoomMode: (mode: string) => modes.push(mode),
+      } as unknown as WebContents,
+      pages,
+    )
+    return modes
+  }
+
+  it("is its own, not its site's", () => {
+    expect(zoomOf("webview", pages)).toEqual(["isolated"])
+  })
+
+  it("leaves the app's own page and windows, and a page's sign-in windows, as they are", () => {
+    // The app's page and its windows, on its own session.
+    expect(zoomOf("window", {} as Session)).toEqual([])
+    // A page's sign-in window, on the pages' session but no page view.
+    expect(zoomOf("window", pages)).toEqual([])
+    // A <webview> on another session isn't a page view.
+    expect(zoomOf("webview", {} as Session)).toEqual([])
+  })
+})
+
+describe("a page view zoomed out to fit", () => {
+  const app = { getZoomFactor: () => 0.9 } as unknown as WebContents
+  const view = (owner: WebContents = app) => {
+    const zooms: number[] = []
+    const contents = {
+      getType: () => "webview",
+      isDestroyed: () => false,
+      hostWebContents: owner,
+      setZoomFactor: (factor: number) => zooms.push(factor),
+    } as unknown as WebContents
+    return { contents, zooms }
+  }
+  const byId =
+    (contents: WebContents) =>
+    (id: number): WebContents | undefined =>
+      id === 7 ? contents : undefined
+
+  it("is zoomed by its factor of the app's own zoom", () => {
+    const { contents, zooms } = view()
+    expect(zoomPage(app, 7, 0.5, byId(contents))).toBe(true)
+    expect(zooms).toEqual([0.45])
+  })
+
+  it("is nothing for another window's page, an id that's no view's, or a factor no zoom is", () => {
+    const other = view({ getZoomFactor: () => 1 } as unknown as WebContents)
+    expect(zoomPage(app, 7, 0.5, byId(other.contents))).toBe(false)
+    const { contents, zooms } = view()
+    for (const id of [8, "7", 7.5]) expect(zoomPage(app, id, 0.5, byId(contents))).toBe(false)
+    for (const factor of [0, -1, 1.5, Number.NaN, "0.5", undefined])
+      expect(zoomPage(app, 7, factor, byId(contents))).toBe(false)
+    expect(zooms).toEqual([])
   })
 })
 

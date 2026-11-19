@@ -134,6 +134,7 @@ const ChatBody = ({
   onPassing,
   onLeftMenu,
   opened = null,
+  foldReplies = false,
 }: {
   readonly conversation: Store<Conversation>
   readonly terminalName: string
@@ -220,6 +221,8 @@ const ChatBody = ({
   // Where the app keeps what the person opened and shut in this terminal's chat, so the rows that
   // draw again find it so (see ./use-open); without it, each row keeps its own.
   readonly opened?: OpenedMemory | null
+  // Whether the agent's long replies fold, all but its latest (Preferences > Experimental).
+  readonly foldReplies?: boolean
 }): React.JSX.Element => {
   const {
     agent: harness,
@@ -785,6 +788,7 @@ const ChatBody = ({
                     mention={mention}
                     personFace={personFace}
                     phase={phase}
+                    foldReplies={foldReplies}
                     {...(plain &&
                       draft.trim() === "" &&
                       attachments.length === 0 && { onResend: resend })}

@@ -7,12 +7,21 @@ import {
 
 import { ligaturesOn, watchLigatures } from "./ligatures"
 import { linkOptions } from "./links"
+import { screenReaderOn, watchScreenReader } from "./screen-reader"
 
 // Keeps a screen reader's tree and live region while focus is anywhere in `element`, its
-// input or the tree's rows a reader moves into, and only then, until the returned stop.
+// input or the tree's rows a reader moves into, and only then, until the returned stop; and
+// only while the page says a reader may read it (`screenReaderOn`): the tree costs a layout of
+// every row the terminal draws, which an agent's TUI redraws many times a second.
 const readWhileFocused = (element: HTMLElement, view: View): (() => void) => {
+  let focused = false
+  const apply = (): void => {
+    const on = focused && screenReaderOn()
+    if (view.terminal.options.screenReaderMode !== on) view.terminal.options.screenReaderMode = on
+  }
   const reading = (on: boolean): void => {
-    view.terminal.options.screenReaderMode = on
+    focused = on
+    apply()
   }
   const focus = (): void => reading(true)
   // Focus moving between the input and the tree's rows stays in the terminal, and so does
@@ -34,8 +43,10 @@ const readWhileFocused = (element: HTMLElement, view: View): (() => void) => {
   element.addEventListener("focusin", focus)
   element.addEventListener("focusout", blur)
   page?.addEventListener("focus", back)
+  const stopSetting = watchScreenReader(apply)
   if (element.contains(element.ownerDocument.activeElement)) focus()
   return () => {
+    stopSetting()
     element.removeEventListener("focusin", focus)
     element.removeEventListener("focusout", blur)
     page?.removeEventListener("focus", back)

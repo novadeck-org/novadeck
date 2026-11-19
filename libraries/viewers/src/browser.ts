@@ -32,13 +32,18 @@ import type { Mount, Viewer, ViewerState } from "./index.js"
 // nothing; woken, it loads again under the picture, where the person had scrolled, and the
 // picture fades once it's there. While the page has a sign-in window open, which closes
 // with its view, it stays live instead, and rests once the last one closes. A live page lays
-// out as a desktop's window or a phone's screen, scaled down to fit where the viewer is
-// narrower (see `framingOf`). Where live pages aren't available (a plain browser, a demo),
+// out as a desktop's window or a phone's screen, made to fit where the viewer is narrower
+// (see `framingOf`). A desktop's is zoomed out in a view the size it's drawn, not a bigger
+// view scaled down, as Chromium places what a page opens over itself, as a select's list, a
+// date's picker or autofill, by its view's own box, scaled or not, and the page's zoom; the
+// desktop app keeps each view's zoom its own (`ownZoom` in ./browser/host.ts), not its
+// site's. A phone's is scaled down whole, as its emulated screen draws at its own size
+// whatever the zoom. Where live pages aren't available (a plain browser, a demo),
 // it shows a snapshot of the page, or nothing, for the app to say why. Its looks are
 // browser.css's.
 
 export type { PageSize, Trouble }
-export { addressOf }
+export { addressOf, webAddress }
 
 /**
  * A page by its address, as its app shows it. `shown` counts the app's shows of it: a
@@ -54,6 +59,25 @@ export type BrowserContent = {
 
 /** Where the page is, and where it can go. */
 export type Place = { readonly url: string; readonly back: boolean; readonly forward: boolean }
+
+/**
+ * What the person asked a menu of, by a right-click or the menu key on the page: where, in
+ * the app page's window (CSS pixels from its top left, as a pointer event's client point),
+ * and what's there: the text selected, the link's address (any scheme: only an http(s) one
+ * is the browser's to open), and whether it's a field, with the edits it can take now. A
+ * snapshot has none of them.
+ */
+export type PageMenu = {
+  readonly x: number
+  readonly y: number
+  readonly selection: string
+  readonly link: string | undefined
+  readonly editable: boolean
+  readonly can: { readonly [edit in PageEdit]: boolean }
+}
+
+/** An edit a live page takes from its menu, as its own keys would do it. */
+export type PageEdit = "cut" | "copy" | "paste" | "selectAll"
 
 /** How the page's latest load went. */
 export type Load = "loading" | "ready" | "failed"
@@ -79,6 +103,13 @@ export type BrowserOptions = {
    * one is named a phone's, for the app to make it one before it loads.
    */
   readonly phone?: (page: number, phone: boolean) => Promise<boolean>
+  /**
+   * Zooms the live page's view, by its web contents id, by `factor` of the app's own zoom,
+   * as the app's page is zoomed by the person (Ctrl+-): its view's zoom is its own, so the
+   * app sets it as the two together; false when it can't. Without it, the view is zoomed by
+   * `factor` alone.
+   */
+  readonly zoom?: (page: number, factor: number) => Promise<boolean>
   /** Whether a live page starts awake, as it does unless told; it rests only as a picture. */
   readonly awake?: boolean
   /** What a live page lays out as, a desktop's window unless told. */
@@ -94,6 +125,8 @@ export type BrowserOptions = {
      * A document reports at most `maxTroubles`. Live pages only.
      */
     readonly trouble?: (trouble: Trouble, shown: number) => void
+    /** The person asked for a menu on the page, live or a snapshot, in place of the browser's own. */
+    readonly menu?: (menu: PageMenu) => void
   }
 }
 
@@ -101,6 +134,8 @@ export type BrowserViewer = Viewer<BrowserContent> & {
   readonly back: () => void
   readonly forward: () => void
   readonly reload: () => void
+  /** Does an edit on the live page, where its menu was asked for; nothing on a snapshot. */
+  readonly edit: (edit: PageEdit) => void
   /**
    * Goes to `url` as the person asked, as a link they followed would: an http(s) address
    * only. Resting, it goes there once woken. False where it can't, as a snapshot can't.
@@ -122,7 +157,9 @@ export type BrowserViewer = Viewer<BrowserContent> & {
    * The live page as the person sees it now, for a picture of it to be taken: its view's web
    * contents id, where it is, its title, and the size it lays out at in CSS pixels. Undefined
    * unless the page is live, loaded and drawn on screen: not resting as its picture, not
-   * loading or failed, not kept out of sight.
+   * loading or failed, not kept out of sight; nor while it's zoomed out so far that a
+   * picture of it would have fewer device pixels across than it lays out, too small to read,
+   * where a fresh load at its size is sharper.
    */
   readonly seen: () => PageSeen | undefined
 }
@@ -143,11 +180,17 @@ type Webview = HTMLElement & {
   goForward(): void
   reload(): void
   reloadIgnoringCache(): void
+  cut(): void
+  copy(): void
+  paste(): void
+  selectAll(): void
   loadURL(url: string): Promise<void>
   executeJavaScript(code: string): Promise<unknown>
   getURL(): string
   getWebContentsId(): number
   setAudioMuted(muted: boolean): void
+  setZoomFactor(factor: number): void
+  getZoomFactor(): number
   insertCSS(css: string): Promise<string>
   removeInsertedCSS(key: string): Promise<void>
 }
@@ -219,6 +262,30 @@ const keptOf = (state: unknown, content: BrowserContent): BrowserState["browser"
 
 const nothing = (): void => undefined
 
+// A menu on what's no field, link or selection, as a snapshot is all over.
+const noMenu: Omit<PageMenu, "x" | "y"> = {
+  selection: "",
+  link: undefined,
+  editable: false,
+  can: { cut: false, copy: false, paste: false, selectAll: false },
+}
+
+// What Electron's <webview> tells of a menu asked for on its page: where, in the app page's
+// window, and what's there.
+type MenuParams = {
+  readonly x: number
+  readonly y: number
+  readonly selectionText: string
+  readonly linkURL: string
+  readonly isEditable: boolean
+  readonly editFlags: {
+    readonly canCut?: boolean
+    readonly canCopy?: boolean
+    readonly canPaste?: boolean
+    readonly canSelectAll?: boolean
+  }
+}
+
 // Each call into a page, once it's attached; until then dom-ready catches up.
 const attached = <T>(call: () => T): T | undefined => {
   try {
@@ -233,6 +300,15 @@ const attached = <T>(call: () => T): T | undefined => {
 const painting = (event: Event): void => {
   ;(event.currentTarget as HTMLElement).dataset.painting = ""
 }
+
+/**
+ * The least a page is zoomed out in its view: Chromium zooms no further than a quarter, and
+ * the app's own zoom can take it further still. Past it, the view is scaled instead.
+ */
+export const minZoom = 0.3
+// How far under its drawn width a zoomed page is zoomed, for the zoom's own rounding, so
+// it lays out at its framing's width, not a hair under.
+const zoomRounding = 1e-4
 
 /** How long a show's scroll waits for its element to appear once the page has loaded. */
 export const scrollWaitMs = 5_000
@@ -266,6 +342,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     partition,
     picture: take,
     phone: becomePhone,
+    zoom: zoomView,
     awake: startAwake,
     size: startSize,
     on,
@@ -335,6 +412,12 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       image.alt = snapshot.alt
       scroll.append(image)
       root.append(scroll)
+      // Its menu, not the browser's, as a live page's is.
+      if (on?.menu)
+        scroll.addEventListener("contextmenu", (event) => {
+          event.preventDefault()
+          on.menu?.({ ...noMenu, x: event.clientX, y: event.clientY })
+        })
     }
     report("ready")
     on?.navigate?.(place)
@@ -355,6 +438,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       back: nothing,
       forward: nothing,
       reload: nothing,
+      edit: nothing,
       visit: () => false,
       muted: nothing,
       // A snapshot is its picture already.
@@ -403,9 +487,12 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     }, uncoverMs)
   }
 
+  // The live page while there is one: none while it rests.
+  let page: Webview | undefined
+
   // What the page lays out as, and where its view and picture go for that in the viewer,
-  // which browser.css reads; framed again as the viewer resizes. By its layout box, which a
-  // zoomed canvas around it doesn't change.
+  // which browser.css reads, and how far the page is zoomed out in its view; framed again as
+  // the viewer resizes. By its layout box, which a zoomed canvas around it doesn't change.
   let size = startSize ?? "desktop"
   // The viewer's size as its resizes report it, to the fraction of a pixel, so a scaled
   // page reaches its edges; its whole pixels where none has reported it yet, or the last
@@ -427,11 +514,42 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   }
   // Where its phone is, for a press on the stage around it, not on it.
   let framed: Framing | undefined
+  // How far the page is zoomed in its view, of the app's own zoom: a desktop's zoomed out as
+  // its framing says, unless further than a page zooms (`minZoom`), which browser.css then
+  // scales instead, as it does a phone's. The view is as wide as it's drawn, to the device
+  // pixel down, so the page lays out at least as wide as its framing, never a pixel short of
+  // a breakpoint at its width; a hair under it, for the zoom's own rounding.
+  let zoomed = 1
+  const zoomFor = (framing: Framing | undefined): number => {
+    if (size !== "desktop" || !framing || framing.scale < minZoom) return 1
+    const ratio = win?.devicePixelRatio || 1
+    const drawn = Math.floor(framing.width * framing.scale * ratio) / ratio
+    return (drawn / framing.width) * (1 - zoomRounding)
+  }
+  // Its view zoomed so, once attached, by the app where it can, else by itself; again as each
+  // document commits and is ready, as Chromium can let a reload's go, and for a view
+  // attached late.
+  const zoom = (): void => {
+    const view = page
+    if (!view) return
+    const factor = zoomed
+    const id = zoomView ? attached(() => view.getWebContentsId()) : undefined
+    if (zoomView && id !== undefined)
+      void zoomView(id, factor)
+        .catch(() => false)
+        .then((done) => {
+          if (!done && page === view) attached(() => view.setZoomFactor(factor))
+        })
+    else attached(() => view.setZoomFactor(factor))
+  }
   const frame = (): void => {
     root.dataset.size = size
     const { width, height } = sizeNow()
     const framing = framingOf(size, width, height)
     framed = framing
+    zoomed = zoomFor(framing)
+    if (zoomed === 1) delete root.dataset.zoomed
+    else root.dataset.zoomed = ""
     const values: Record<string, string | undefined> = {
       "--browser-width": framing && `${framing.width}px`,
       "--browser-height": framing && `${framing.height}px`,
@@ -443,6 +561,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       if (value === undefined) root.style.removeProperty(name)
       else root.style.setProperty(name, value)
     }
+    zoom()
   }
   // Where there's nothing to report a resize, as outside a browser, it's framed as it mounts.
   const resizing = win?.ResizeObserver
@@ -465,8 +584,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   // Whether it's drawn: not inside an element kept out of sight, as with display: none.
   const shownNow = (): boolean =>
     document.visibilityState !== "hidden" && root.checkVisibility?.() !== false
-  // The live page while there is one: none while it rests; and whether a wake opened it.
-  let page: Webview | undefined
+  // Whether a wake opened the live page.
   let woken = false
   // A picture of the live page under way, after its load, to rest as.
   let freshening: ReturnType<typeof setTimeout> | undefined
@@ -795,11 +913,45 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       on?.title?.(title)
     }
   }
+  // The app's own zoom, as the person has it (Ctrl+-): its page view is zoomed by its factor
+  // of it, so the view's own zoom over the factor is the app's. One the app doesn't zoom
+  // zooms by its factor alone.
+  const appZoom = (): number => {
+    const view = page
+    const own = zoomView && view ? attached(() => view.getZoomFactor()) : undefined
+    return own !== undefined && own > 0 && zoomed > 0 ? own / zoomed : 1
+  }
+  // The person asked for a menu on the live page. Electron gives where in the app's window,
+  // as drawn, whatever scales the view, in its pixels, not the app page's: the app's zoom
+  // makes each of those more than one.
+  const menu = (event: Event): void => {
+    const params = (event as Event & { params?: Partial<MenuParams> }).params
+    if (!on?.menu || !params) return
+    const { x = 0, y = 0 } = params
+    const flags = params.editFlags ?? {}
+    const zoomedBy = appZoom()
+    on.menu({
+      x: x / zoomedBy,
+      y: y / zoomedBy,
+      selection: params.selectionText ?? "",
+      link: params.linkURL || undefined,
+      editable: params.isEditable === true,
+      can: {
+        cut: flags.canCut === true,
+        copy: flags.canCopy === true,
+        paste: flags.canPaste === true,
+        selectAll: flags.canSelectAll === true,
+      },
+    })
+  }
   const listeners: readonly (readonly [string, (event: Event) => void])[] = [
     ["dom-ready", moved],
     ["dom-ready", painting],
     ["dom-ready", dress],
     ["dom-ready", becomeSize],
+    ["did-attach", zoom],
+    ["did-navigate", zoom],
+    ["dom-ready", zoom],
     ["did-navigate", moved],
     ["did-navigate-in-page", movedInPage],
     ["did-start-loading", started],
@@ -809,6 +961,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     ["console-message", logged],
     ["render-process-gone", gone],
     ["page-title-updated", titled],
+    ["context-menu", menu],
   ]
 
   // Made here, not by a framework that may leave `allowpopups` off: Electron reads the
@@ -918,8 +1071,9 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     const reading = attached(() =>
       Promise.race([view.executeJavaScript(scrollRead), wait(scrollReadMs)]),
     )?.catch(() => undefined)
-    // As wide as it's drawn: a page scaled down to fit lays out, and is pictured, wider.
-    // Drawn no width at all, it's pictured as it is.
+    // As wide as it's drawn: a phone's page scaled down to fit is pictured as it lays out,
+    // wider (a desktop's view is already as wide as it's drawn). Drawn no width at all, it's
+    // pictured as it is.
     const drawn = Math.round(drawnWidth() * (win?.devicePixelRatio ?? 1))
     const width = drawn >= 1 ? drawn : undefined
     const [src, where] = await Promise.all([take(id, width).catch(() => undefined), reading])
@@ -1030,6 +1184,10 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     focus: () => (page ?? still).focus({ preventScroll: true }),
     back: () => attached(() => page!.goBack()),
     forward: () => attached(() => page!.goForward()),
+    edit: (edit) => {
+      const view = page
+      if (view) attached(() => view[edit]())
+    },
     // At rest, or before it's attached, its next load goes afresh.
     reload: () => {
       const reloading = attached(() => {
@@ -1080,6 +1238,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       if (id === undefined) return undefined
       const { width, height } = sizeNow()
       const framing = framingOf(size, width, height)
+      if (framing && zoomed < 1 && drawnWidth() * (win?.devicePixelRatio || 1) < framing.width)
+        return undefined
       return {
         page: id,
         url: attached(() => page!.getURL()) || place.url,

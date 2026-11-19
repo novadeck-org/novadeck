@@ -78,6 +78,12 @@ export type DesktopBridge = {
    */
   onWindowFocus?(listener: (focused: boolean) => void): () => void
   /**
+   * Calls `listener` with whether a screen reader or other assistive technology is running,
+   * as the system tells Chromium: at once with the current state, and again on each change.
+   * Returns a function that stops listening. Absent from apps that came before it.
+   */
+  onScreenReader?(listener: (running: boolean) => void): () => void
+  /**
    * Calls `listener` with the terminal id of each notice the person clicks, once the app
    * has brought its window to the front. Returns a function that stops listening. Absent
    * from apps that came before it.
@@ -273,6 +279,12 @@ export type DesktopBridge = {
    * page view of the asking page, and when it can't. Absent from apps that came before it.
    */
   pagePhone?(page: number, phone: boolean): Promise<boolean>
+  /**
+   * Zooms a live page's view, by its view's `getWebContentsId()`, by `factor` (0 to 1) of the
+   * app's own zoom, as its viewer zooms it out to fit. False for anything but a page view of
+   * the asking page. Absent from apps that came before it.
+   */
+  pageZoom?(page: number, factor: number): Promise<boolean>
 }
 
 /** What `DesktopBridge.lookAtPage` answers: a look at a page, or why there is none. */

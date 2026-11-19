@@ -1,5 +1,5 @@
 import { viewModes } from "@novadeck/core/state"
-import type { PreferencesValue } from "@novadeck/core/types"
+import { screenReaderPreferences, type PreferencesValue } from "@novadeck/core/types"
 
 import { soundChoiceOf } from "../sounds"
 import { appearancePreferenceOf, defaultPreference } from "../theme/apply"
@@ -18,9 +18,11 @@ export const readPreferences = (): PreferencesValue => {
     soundVolume: 0.6,
     soundChoice: "theme",
     ligatures: false,
+    screenReader: "auto",
     chatView: false,
     agentAvatars: false,
     onboardingTour: false,
+    foldLongReplies: false,
   }
   try {
     const saved = JSON.parse(
@@ -44,11 +46,18 @@ export const readPreferences = (): PreferencesValue => {
           : defaults.soundVolume,
       soundChoice: soundChoiceOf(saved?.soundChoice),
       ligatures: typeof saved?.ligatures === "boolean" ? saved.ligatures : defaults.ligatures,
+      screenReader:
+        screenReaderPreferences.find((choice) => choice === saved?.screenReader) ??
+        defaults.screenReader,
       chatView: typeof saved?.chatView === "boolean" ? saved.chatView : defaults.chatView,
       agentAvatars:
         typeof saved?.agentAvatars === "boolean" ? saved.agentAvatars : defaults.agentAvatars,
       onboardingTour:
         typeof saved?.onboardingTour === "boolean" ? saved.onboardingTour : defaults.onboardingTour,
+      foldLongReplies:
+        typeof saved?.foldLongReplies === "boolean"
+          ? saved.foldLongReplies
+          : defaults.foldLongReplies,
     }
   } catch {
     return defaults

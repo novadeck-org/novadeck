@@ -53,6 +53,7 @@ describe("a screen's emulator", () => {
   afterEach(() => {
     vi.restoreAllMocks()
     document.body.replaceChildren()
+    document.documentElement.removeAttribute("data-screen-reader")
   })
 
   it("speaks for the terminal in focus alone, and stops once it leaves", () => {
@@ -76,6 +77,27 @@ describe("a screen's emulator", () => {
     expect(document.activeElement).toBe(row)
     expect(liveRegion(element)).not.toBeNull()
     outside.focus()
+    expect(liveRegion(element)).toBeNull()
+  })
+
+  it("keeps no tree while the page says no screen reader reads, and keeps one once it may", async () => {
+    document.documentElement.dataset.screenReader = "off"
+    const { element, input } = open(true)
+    input.focus()
+    expect(liveRegion(element)).toBeNull()
+
+    document.documentElement.dataset.screenReader = "on"
+    await vi.waitFor(() => expect(liveRegion(element)).not.toBeNull())
+
+    document.documentElement.dataset.screenReader = "off"
+    await vi.waitFor(() => expect(liveRegion(element)).toBeNull())
+  })
+
+  it("keeps no tree for a terminal out of focus when a screen reader starts", async () => {
+    document.documentElement.dataset.screenReader = "off"
+    const { element } = open(true)
+    document.documentElement.dataset.screenReader = "on"
+    await Promise.resolve()
     expect(liveRegion(element)).toBeNull()
   })
 

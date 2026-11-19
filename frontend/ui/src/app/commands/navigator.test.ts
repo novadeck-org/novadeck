@@ -17,9 +17,11 @@ const preferences: PreferencesValue = {
   soundVolume: 0.6,
   soundChoice: "theme",
   ligatures: false,
+  screenReader: "auto",
   chatView: false,
   agentAvatars: false,
   onboardingTour: false,
+  foldLongReplies: false,
 }
 const panels = availablePanels(true)
 const base = "/projects/project/sessions/initial/grid"

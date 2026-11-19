@@ -146,6 +146,7 @@ export type RunnerBackendOptions = {
   // Where the app shows the Inbox count on the app icon.
   readonly badge?: Backend["badge"]
   readonly windowFocus?: Backend["windowFocus"]
+  readonly screenReader?: Backend["screenReader"]
   readonly panePicture?: Backend["panePicture"]
   // Where the app offers the update it has downloaded.
   readonly updates?: Backend["updates"]
@@ -167,6 +168,7 @@ export type RunnerBackendOptions = {
   // Where the app loads a page afresh, out of sight, to picture it for an agent's look.
   readonly pageLook?: Looks["fresh"]
   readonly pagePhone?: NonNullable<Backend["companions"]>["phone"]
+  readonly pageZoom?: NonNullable<Backend["companions"]>["zoom"]
   readonly now?: () => number
   // Whether the runner keeps transcripts, as it said at startup; unknown when absent.
   readonly transcripts?: boolean
@@ -1981,6 +1983,7 @@ export const runnerBackend = (
       livePages: options.livePages === true,
       ...(options.pagePicture ? { picture: options.pagePicture } : {}),
       ...(options.pagePhone ? { phone: options.pagePhone } : {}),
+      ...(options.pageZoom ? { zoom: options.pageZoom } : {}),
       inOrder: items.inOrder,
     }),
     messages,
@@ -2086,6 +2089,7 @@ export const runnerBackend = (
     ...(options.notices ? { notices: options.notices } : {}),
     ...(options.badge ? { badge: options.badge } : {}),
     ...(options.windowFocus ? { windowFocus: options.windowFocus } : {}),
+    ...(options.screenReader ? { screenReader: options.screenReader } : {}),
     ...(options.panePicture ? { panePicture: options.panePicture } : {}),
     ...(options.updates ? { updates: options.updates } : {}),
     ...(options.version ? { version: options.version } : {}),

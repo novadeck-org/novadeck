@@ -57,6 +57,8 @@ const launch = (): DemoLaunch => ({
   armSlowAttach: () => {},
   sandbox: undefined,
   setSandbox: () => {},
+  screenReader: undefined,
+  setScreenReader: () => {},
   portable: undefined,
   setPortable: () => {},
   bootInstalled: () => {},

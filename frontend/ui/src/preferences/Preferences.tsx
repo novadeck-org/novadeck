@@ -3,7 +3,7 @@ import type { ForgeName } from "@novadeck/core/forges"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { NoticeSound } from "@novadeck/core/sounds"
 import { viewModes } from "@novadeck/core/state"
-import type { PreferencesValue } from "@novadeck/core/types"
+import { screenReaderPreferences, type PreferencesValue } from "@novadeck/core/types"
 import { Checkbox } from "@novadeck/toolkit/Checkbox"
 import { Dialog } from "@novadeck/toolkit/Dialog"
 import { SegmentGroup } from "@novadeck/toolkit/SegmentGroup"
@@ -57,6 +57,21 @@ const agentPresentations = [
 ] as const
 
 const fontSizes = [12, 13, 15].map((size) => ({ label: `${size}px`, value: String(size) }))
+
+// Screen reader support's choices: Automatic only where the app can tell when one runs.
+const screenReaderChoices = (known: boolean) => [
+  ...(known
+    ? [
+        {
+          label: "Automatic",
+          value: "auto",
+          description: "On while the system reports a screen reader",
+        },
+      ]
+    : []),
+  { label: "On", value: "on", description: "Terminals always keep text a reader can read" },
+  { label: "Off", value: "off", description: "Terminals keep no text for a reader" },
+]
 
 // Section titles match the sidebar's panel titles.
 const sectionTitleClasses = "section-label m-0 text-label font-medium"
@@ -170,6 +185,7 @@ export const Preferences = ({
   logs,
   uninstall,
   notices = false,
+  screenReaderKnown = false,
   systemSounds = false,
   hearSound,
   chat = false,
@@ -224,6 +240,9 @@ export const Preferences = ({
   }
   // Whether the page can show desktop notifications, as the desktop app can.
   notices?: boolean
+  // Whether the app can tell when a screen reader runs, as the desktop app can: it offers
+  // Automatic, which follows it, where a browser offers On and Off alone.
+  screenReaderKnown?: boolean
   // Whether the system's notifications play the sound themselves, at the system's alert
   // volume, as on macOS.
   systemSounds?: boolean
@@ -328,6 +347,15 @@ export const Preferences = ({
         "Show each terminal's critter from Messages in its tab and window header. On a zoomed-out Canvas, it grows so you can still tell windows apart.",
       checked: value.agentAvatars,
       onToggle: (agentAvatars: boolean) => onChange({ ...value, agentAvatars }),
+      disabled: false,
+    },
+    {
+      id: "fold-long-replies",
+      label: "Fold long replies",
+      description:
+        "In Agent Chat, an agent's older long replies show their opening lines and a key for the rest. Its latest reply always shows in full.",
+      checked: value.foldLongReplies,
+      onToggle: (foldLongReplies: boolean) => onChange({ ...value, foldLongReplies }),
       disabled: false,
     },
     {
@@ -634,6 +662,26 @@ export const Preferences = ({
                     describedBy="ligatures-description"
                   />
                 </div>
+                <Select
+                  className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
+                  label="Screen reader support"
+                  items={screenReaderChoices(screenReaderKnown)}
+                  // Where nothing can tell, Automatic keeps the text, as On does.
+                  value={
+                    value.screenReader === "auto" && !screenReaderKnown ? "on" : value.screenReader
+                  }
+                  onValueChange={(choice) =>
+                    onChange({
+                      ...value,
+                      screenReader:
+                        screenReaderPreferences.find((each) => each === choice) ??
+                        value.screenReader,
+                    })
+                  }
+                  open={open && shown === "appearance" && openSelect === "screen-reader"}
+                  onOpenChange={(expanded) => setOpenSelect(expanded ? "screen-reader" : null)}
+                  portalContainer={dialog}
+                />
               </div>
             </Section>
           </TabPanel>

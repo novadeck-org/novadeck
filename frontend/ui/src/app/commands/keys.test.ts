@@ -319,9 +319,11 @@ describe("key commands", () => {
           soundVolume: 0.6,
           soundChoice: "theme",
           ligatures: false,
+          screenReader: "auto",
           chatView: false,
           agentAvatars: false,
           onboardingTour: false,
+          foldLongReplies: false,
         },
         workspace: workspaceFixture({ view: "canvas" }),
         url: "/projects/project/sessions/initial/canvas?terminal=01",
@@ -468,9 +470,11 @@ describe("key commands", () => {
           soundVolume: 0.6,
           soundChoice: "theme",
           ligatures: false,
+          screenReader: "auto",
           chatView: false,
           agentAvatars: false,
           onboardingTour: false,
+          foldLongReplies: false,
         },
       })
       expect(app.keydown({ key: "Enter", ctrlKey: true, shiftKey: true })).toBe("passed")
