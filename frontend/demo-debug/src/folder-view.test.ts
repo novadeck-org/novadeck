@@ -1,7 +1,7 @@
 import { itemIdOf, type Item, type ItemContent } from "@novadeck/core/items"
 import type { BackendAction } from "@novadeck/core/port"
 import type { TerminalKey } from "@novadeck/core/types"
-import { folderSamples } from "@novadeck/demo/showcase/folders"
+import { folderSamples } from "@novadeck/demo/showcase/folder-samples"
 import { createShowcase } from "@novadeck/demo/showcase/simulation"
 
 import { folderViewGroups } from "./folder-view"

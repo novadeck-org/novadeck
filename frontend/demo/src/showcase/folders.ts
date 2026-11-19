@@ -1,8 +1,6 @@
 import type { FilePart, FolderEntry, ItemContent } from "@novadeck/core/items"
 
 import type { SampleArtifact } from "./artifacts"
-import { clip, clipSize } from "./clip"
-import { quarterlyReport } from "./pdf"
 
 // A folder the demo lists, as the runner would: a small tree of files kept in memory, which
 // the debug panel adds to and writes into, so every state of the folder pane can be reached.
@@ -212,9 +210,17 @@ const textFile = (name: string, lines: readonly string[], age: number, now: numb
   }),
 })
 
+// The media a render folder holds, given by whoever makes one: this module imports none of the
+// demo's own, so loading it later makes the demo's chunk give it nothing.
+export type RenderMedia = {
+  readonly clip: () => Promise<Uint8Array<ArrayBuffer>>
+  readonly clipSize: number
+  readonly report: Uint8Array<ArrayBuffer>
+}
+
 // What an agent rendered: stills, a clip, a report, a log, a folder of its own, a secret and a
 // link out of the folder. `now` is when the demo started.
-export const renderFiles = (now: number): DemoFile[] => [
+export const renderFiles = (now: number, media: RenderMedia): DemoFile[] => [
   picture("checkout-desktop.svg", "#f6f1e7", "Checkout", 4 * 60_000, now),
   picture("checkout-mobile.svg", "#e4e9d6", "Checkout · mobile", 9 * 60_000, now),
   picture("order-summary.svg", "#f1e2d8", "Order summary", 2 * hour, now),
@@ -222,9 +228,9 @@ export const renderFiles = (now: number): DemoFile[] => [
   {
     name: "checkout-walkthrough.webm",
     kind: "video",
-    size: clipSize,
+    size: media.clipSize,
     modifiedAt: now - 6 * 60_000,
-    read: clip,
+    read: media.clip,
     opens: () => ({
       item: {
         id: "folder-open-walkthrough",
@@ -242,19 +248,19 @@ export const renderFiles = (now: number): DemoFile[] => [
         content: {
           kind: "video",
           mime: "video/webm",
-          size: clipSize,
+          size: media.clipSize,
           shown: 1,
         },
       },
-      file: { read: clip },
+      file: { read: media.clip },
     }),
   },
   {
     name: "quarterly-report.pdf",
     kind: "pdf",
-    size: quarterlyReport.length,
+    size: media.report.length,
     modifiedAt: now - 5 * hour,
-    read: async () => quarterlyReport,
+    read: async () => media.report,
     opens: () => ({
       item: {
         id: "folder-open-report",
@@ -269,9 +275,9 @@ export const renderFiles = (now: number): DemoFile[] => [
       content: {
         state: "ready",
         stamp: "1",
-        content: { kind: "pdf", size: quarterlyReport.length },
+        content: { kind: "pdf", size: media.report.length },
       },
-      file: { read: async () => quarterlyReport },
+      file: { read: async () => media.report },
     }),
   },
   textFile(
@@ -351,8 +357,26 @@ export const folderItem = (
   folder,
 })
 
-// The folder an agent rendered into, shown beside the dev server's terminal, and the ones the
-// debug panel shows to reach the pane's other states.
-export const folderSamples = {
-  render: folderItem("dev-render", "render", createFolder("~/render", renderFiles(Date.now()))),
+// What the person opens by its path, as the runner's attach finds it: a file of a folder among
+// `samples`, as it opens on a bar; or a folder, one already open or else a stand-in listing, as
+// the demo's other files are stand-ins. Undefined for a file that is neither.
+export const openedAt = (
+  samples: readonly SampleArtifact[],
+  path: string,
+  now: number,
+  media: RenderMedia,
+): SampleArtifact | undefined => {
+  for (const { folder } of samples) {
+    const opens =
+      folder && path.startsWith(`${folder.top}/`)
+        ? folder.find(path.slice(folder.top.length + 1))?.opens?.()
+        : undefined
+    if (opens) return opens
+  }
+  const base = path.split("/").findLast((part) => part !== "") ?? path
+  if (base.lastIndexOf(".") > 0) return undefined
+  return (
+    samples.find((each) => each.folder?.top === path) ??
+    folderItem(`folder-${path}`, base, createFolder(path, renderFiles(now, media)))
+  )
 }

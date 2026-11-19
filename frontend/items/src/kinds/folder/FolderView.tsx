@@ -1,3 +1,4 @@
+import "../../folder.css"
 import type { FolderContent, FolderEntry, Item, UnavailableReason } from "@novadeck/core/items"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { ArrowUp, ArrowUpDown, FolderOpen, LayoutGrid, LayoutList, Lock } from "lucide-react"

@@ -1,21 +1,18 @@
 import type { FolderEntry } from "@novadeck/core/items"
 
-// What a folder item shows is the runner's listing; how it is looked at, and the pure rules for
-// reading it as it changes, are here: sorting, the crumbs, what waits while the pointer is in
-// the grid, and which files are being written now.
+import type { FolderSort } from "./view-state"
 
-export type FolderLayout = "grid" | "list"
-export type FolderSort = "newest" | "name" | "size"
+// What a folder item shows is the runner's listing; how it is looked at (./view-state), and the
+// pure rules for reading it as it changes, are here: sorting, the crumbs, what waits while the
+// pointer is in the grid, and which files are being written now.
 
-// How a folder item is looked at: the folder it is in, as a path from its top ("" is the top,
-// "/" between names), its layout and its sort.
-export type FolderView = {
-  readonly within: string
-  readonly layout: FolderLayout
-  readonly sort: FolderSort
-}
-
-export const defaultFolderView: FolderView = { within: "", layout: "grid", sort: "newest" }
+export {
+  countText,
+  defaultFolderView,
+  type FolderLayout,
+  type FolderSort,
+  type FolderView,
+} from "./view-state"
 
 export const sortNames: Record<FolderSort, string> = {
   newest: "newest first",
@@ -86,9 +83,6 @@ export const crumbsOf = (
     ],
   }
 }
-
-// What a folder holds, in words.
-export const countText = (count: number): string => `${count} ${count === 1 ? "item" : "items"}`
 
 // Files that came since the person was last in the grid wait in a pill while the pointer is in
 // it, so nothing moves under it. `seen` is the names the grid has drawn (null before its first

@@ -17,7 +17,7 @@ import {
 } from "@novadeck/core/store"
 import type { Workspace, WorkspaceTarget } from "@novadeck/core/types"
 
-import { defaultFolderView, type FolderView } from "../kinds/folder/model"
+import { defaultFolderView, type FolderView } from "../kinds/folder/view-state"
 import { currentMarks, docOf, lf, type Mark, type PlanDoc } from "../kinds/plan/plan-doc"
 import { blobs } from "../parts/blobs"
 import { rewritten } from "./plan-rewrite"

@@ -1,7 +1,7 @@
 import type { FolderContent } from "@novadeck/core/items"
 import { Folder } from "lucide-react"
 
-import { countText } from "./model"
+import { countText } from "./view-state"
 
 // A folder's peek: its icon and how much it holds; its files are never read for it.
 export const FolderThumb = ({ content }: { content: FolderContent }): React.JSX.Element => (

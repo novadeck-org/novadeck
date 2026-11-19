@@ -8,7 +8,7 @@ import type {
 } from "@novadeck/core/items"
 
 import { clip, clipMime, clipSize } from "./clip"
-import { folderSamples, type DemoFolder } from "./folders"
+import type { DemoFolder } from "./folders"
 import { lockedPdf, lockedPdfSize, notAPdf, quarterlyReport } from "./pdf"
 import { recording, recordingMime, recordingSize } from "./recording"
 
@@ -770,5 +770,4 @@ export const devServerArtifacts: readonly SampleArtifact[] = [
   videoSamples.playable,
   recordingSamples.playable,
   pdfSamples.shown,
-  folderSamples.render,
 ]

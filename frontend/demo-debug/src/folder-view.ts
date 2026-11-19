@@ -1,8 +1,8 @@
 import type { Backend } from "@novadeck/core/port"
+import { folderSamples } from "@novadeck/demo/showcase/folder-samples"
 import {
   createFolder,
   folderItem,
-  folderSamples,
   numberedFiles,
   type DemoFile,
 } from "@novadeck/demo/showcase/folders"

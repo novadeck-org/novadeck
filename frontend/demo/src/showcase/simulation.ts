@@ -20,7 +20,8 @@ import {
 import type { SampleAgent } from "./agents"
 import type { SampleArtifact } from "./artifacts"
 import { attachedArtifact, type AttachedArtifact } from "./attached"
-import { createFolder, folderItem, readFolderPart, renderFiles } from "./folders"
+import { clip, clipSize } from "./clip"
+import { quarterlyReport } from "./pdf"
 import { applyEdits, removeNotes } from "./revise"
 
 // The showcase's agents at work: they answer what their terminals are told, revise their
@@ -392,6 +393,8 @@ export const createShowcase = (
       // A file of a folder: by its path from the folder's top, as the runner reads one.
       if (path !== undefined) {
         if (!sample?.folder) throw new Error(`No folder ${id}`)
+        // Loaded with the first folder read, so a demo that shows none never carries it.
+        const { readFolderPart } = await import("./folders")
         return readFolderPart(sample.folder, path, stamp, offset)
       }
       if (!sample?.file) throw new Error(`No file to read in ${id}`)
@@ -426,24 +429,16 @@ export const createShowcase = (
     },
     // As the runner's attach: a file of a folder, or one named by its path, opens on the terminal's
     // bar as the person's own show of it, in its kind's group.
-    attach: (target, terminalId, path) => {
-      const found = [...samples.values()]
-        .map(({ folder }) =>
-          folder && path.startsWith(`${folder.top}/`)
-            ? folder.find(path.slice(folder.top.length + 1))?.opens?.()
-            : undefined,
-        )
-        .find((made) => made !== undefined)
-      // A folder the person opened from the Files panel: a stand-in listing, as the demo's other
-      // files are stand-ins. One already open is shown again.
-      const base = path.split("/").findLast((part) => part !== "") ?? path
-      const stand =
-        !found && base.lastIndexOf(".") <= 0
-          ? ([...samples.values()].find((each) => each.folder?.top === path) ??
-            folderItem(`folder-${path}`, base, createFolder(path, renderFiles(now()))))
-          : undefined
-      const opened = found ?? stand
-      if (!opened) return Promise.reject(new Error("That file can't be shown"))
+    // What it opens comes with the folders, loaded then, so a demo none is opened in never
+    // carries them.
+    attach: async (target, terminalId, path) => {
+      const { openedAt } = await import("./folders")
+      const opened = openedAt([...samples.values()], path, now(), {
+        clip,
+        clipSize,
+        report: quarterlyReport,
+      })
+      if (!opened) throw new Error("That file can't be shown")
       samples.set(opened.item.id, opened)
       const own = current().find((item) => item.id === itemIdOf(opened.item.id))
       const item: Item = {
@@ -457,7 +452,7 @@ export const createShowcase = (
       report?.([{ type: "item/upsert", target, item }])
       for (const watcher of watching.get(opened.item.id) ?? [])
         watcher.on(shownContent(opened.item.id, watcher.reveal))
-      return Promise.resolve(item)
+      return item
     },
     // As the runner does: the session's project window is pointed at the file, with a later
     // version, or made when the session has none, or the person closed it. It reports the

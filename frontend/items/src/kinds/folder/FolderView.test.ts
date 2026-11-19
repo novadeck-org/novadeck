@@ -4,7 +4,7 @@ import { createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
-import { afterEach, vi } from "vitest"
+import { afterEach, beforeAll, vi } from "vitest"
 
 import { ItemCommandsContext } from "../../item-commands"
 import { createItemStore } from "../../store/item-store"
@@ -13,6 +13,9 @@ import { folder as registration } from "./index"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
+// The view loads when a folder first shows: it is loaded before, so each test's first render
+// suspends only until the next tick.
+beforeAll(() => import("./FolderView"))
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
 const settle = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)))

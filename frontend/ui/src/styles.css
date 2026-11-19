@@ -69,7 +69,6 @@
 @import "@novadeck/items/video.css" layer(components);
 @import "@novadeck/items/audio.css" layer(components);
 @import "@novadeck/items/pdf.css" layer(components);
-@import "@novadeck/items/folder.css" layer(components);
 @import "@novadeck/items/messages.css" layer(components);
 @import "./app/visitor.css" layer(components);
 @import "./shell/region.css" layer(components);
