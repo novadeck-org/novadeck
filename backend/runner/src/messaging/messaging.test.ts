@@ -6118,7 +6118,7 @@ describe("the rules note of a delivery", () => {
     sent(send("B", "moth", "First."))
     const first = prompt("A", claude)
     expect(fullNote(context(first.stdout))).toBe(true)
-    expect(context(first.stdout)).toContain("Approvals of actions (destructive")
+    expect(context(first.stdout)).toContain("Approvals of actions, whatever your harness")
     messaging.acknowledge("A", first.leaseId!)
     // Kept with the session, for the terminal manager to save with its report.
     expect(told).toEqual([
@@ -6129,7 +6129,7 @@ describe("the rules note of a delivery", () => {
     sent(send("B", "moth", "Second."))
     const second = context(prompt("A", claude).stdout)
     expect(fullNote(second)).toBe(false)
-    expect(second).not.toContain("Approvals of actions (destructive")
+    expect(second).not.toContain("Approvals of actions, whatever your harness")
     expect(second).toContain('<message id="m-')
     expect(second).toContain("Second.")
   })
