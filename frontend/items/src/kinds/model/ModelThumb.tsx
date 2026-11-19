@@ -1,11 +1,10 @@
 import type { Item, ModelContent } from "@novadeck/core/items"
 import type { WorkspaceTarget } from "@novadeck/core/types"
-import { Box } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import type { ItemStore } from "../../store/item-store"
-import { bytesText } from "../video/format"
-import { formatNames, kept, modelKey, readModel, totalOf } from "./ModelViewer"
+import { ModelBadge, totalOf } from "./ModelBadge"
+import { kept, modelKey, readModel } from "./ModelViewer"
 import { madeStill, peekBytes, stillOf } from "./stills"
 
 // How large a peek's still is drawn, square, in pixels: twice a peek's size, for sharp screens.
@@ -61,10 +60,6 @@ export const ModelThumb = ({
   return url ? (
     <img className="peek-model-still" src={url} alt="" />
   ) : (
-    <span className="peek-model">
-      <Box size={18} strokeWidth={1.5} aria-hidden />
-      <span>{formatNames[content.format]}</span>
-      <span>{bytesText(total)}</span>
-    </span>
+    <ModelBadge content={content} />
   )
 }

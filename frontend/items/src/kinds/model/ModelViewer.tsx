@@ -17,22 +17,13 @@ import { useRevealed } from "../../store/use-item-store"
 import { useViewerSlot } from "../../ViewerSlot"
 import { bytesText, loadingText } from "../video/format"
 import { modelFrame } from "./assets"
+import { formatNames, totalOf } from "./ModelBadge"
 
 // The models read for panes and peeks, by item and stamp, up to 256 MB in all: a pane that goes
 // and comes back, as a view switch, draws its model again without reading it.
 export const kept = createKept<ModelBytes>(256 * 1024 * 1024, (model) =>
   model.files.reduce((all, file) => all + file.bytes.size, model.bytes.size),
 )
-
-/** The names of formats, as the pane's note says them. */
-export const formatNames: Record<ModelContent["format"], string> = {
-  glb: "glTF",
-  gltf: "glTF",
-  stl: "STL",
-  obj: "OBJ",
-  ply: "PLY",
-  "3mf": "3MF",
-}
 
 // Why a file beside a model that the runner listed couldn't be read after all.
 const partReason = (
@@ -124,10 +115,6 @@ type Held = {
 /** What a model is read as: its item, its stamp and those of the files beside it. */
 export const modelKey = (id: string, stamp: string, content: ModelContent): string =>
   `${id}:${stamp}:${content.files.map((file) => file.stamp).join(",")}`
-
-/** All a model's bytes, its own and those of the files beside it. */
-export const totalOf = (content: ModelContent): number =>
-  content.files.reduce((all, file) => all + file.size, content.size)
 
 const useSource = ({
   item,
