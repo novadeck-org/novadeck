@@ -460,8 +460,9 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     const drawn = Math.floor(framing.width * framing.scale * ratio) / ratio
     return (drawn / framing.width) * (1 - zoomRounding)
   }
-  // Its view zoomed so, once attached, by the app where it can, else by itself; dom-ready
-  // catches up with a view attached late.
+  // Its view zoomed so, once attached, by the app where it can, else by itself; again as each
+  // document commits and is ready, as Chromium can let a reload's go, and for a view
+  // attached late.
   const zoom = (): void => {
     const view = page
     if (!view) return
@@ -852,6 +853,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     ["dom-ready", dress],
     ["dom-ready", becomeSize],
     ["did-attach", zoom],
+    ["did-navigate", zoom],
     ["dom-ready", zoom],
     ["did-navigate", moved],
     ["did-navigate-in-page", movedInPage],

@@ -687,12 +687,16 @@ describe("the browser viewer", () => {
       expect(page.zoom * desktopWidth).toBeLessThan(400)
     })
 
-    it("zooms a page each time it's ready, as one that attached late", () => {
+    it("zooms a page each time it commits and is ready, as one that attached late", () => {
       const pane = paneIn()
       live(pane)
       const page = zoomed(pane)
       page.zoom = 1
       page.dispatchEvent(event("dom-ready"))
+      expect(page.zoom).toBeCloseTo(400 / desktopWidth, 4)
+      // And as each document commits, should Chromium have let a reload's zoom go.
+      page.zoom = 1
+      page.dispatchEvent(event("did-navigate"))
       expect(page.zoom).toBeCloseTo(400 / desktopWidth, 4)
     })
 
