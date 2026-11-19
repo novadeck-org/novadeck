@@ -2,9 +2,11 @@ import { useLayoutEffect, useState } from "react"
 
 import { forgetWidths, fontsOf, noFonts, sameFonts, type Fonts } from "./files-fonts"
 
-// The tree's width and the fonts, which decide how many chips a row has room for; the sidebar is
+// The rows' width and the fonts, which decide how many chips a row has room for; the sidebar is
 // resizable, so a ResizeObserver follows the width. Unknown (nothing folds) until measured, and
-// while the panel is hidden (a width of zero).
+// while the panel is hidden (a width of zero). The tree reaches into the sidebar's right margin
+// for its scrollbar while its rows keep the panel's width (sidebar.css, `.sidebar-scroll`), so a
+// row has the narrower of the two.
 export const useTreeMeasure = (
   tree: HTMLElement | null,
 ): { readonly width: number | undefined; readonly fonts: Fonts } => {
@@ -13,8 +15,11 @@ export const useTreeMeasure = (
   useLayoutEffect(() => {
     const element = tree
     if (!element) return undefined
+    const panel = element.closest<HTMLElement>(".sidebar-panel")
     const measure = (): void => {
-      setWidth(element.clientWidth > 0 ? element.clientWidth : undefined)
+      // A panel not laid out (a width of zero) bounds nothing.
+      const rows = Math.min(element.clientWidth, panel?.clientWidth || Number.POSITIVE_INFINITY)
+      setWidth(rows > 0 ? rows : undefined)
       const next = fontsOf(element)
       setFonts((known) => (sameFonts(known, next) ? known : next))
     }
@@ -51,6 +56,7 @@ export const useTreeMeasure = (
     faces?.addEventListener?.("loadingdone", fontsChanged)
     const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(measure)
     observer?.observe(element)
+    if (panel) observer?.observe(panel)
     return () => {
       current = false
       if (frame !== undefined) cancelAnimationFrame(frame)
