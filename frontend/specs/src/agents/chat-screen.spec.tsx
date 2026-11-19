@@ -15,12 +15,7 @@ const rowsOf = (name: string): number =>
 const screenOf = (name: string): HTMLElement =>
   terminal(name).element().querySelector<HTMLElement>(".chat-terminal")!
 
-// Each case opens the whole app and switches it five times: Grid, Focus, Grid, then a chat
-// turned off from Preferences. That takes 2.5 s here, but 16 to 26 s on a slow macOS runner,
-// where an attempt a little slower than its neighbours ran out the 30 s default.
-const slowRunner = { timeout: 60_000 }
-
-describe("The terminal behind a chat", slowRunner, () => {
+describe("The terminal behind a chat", () => {
   for (const { name, fontSize, harness, project } of [
     { name: "Checkout implementation", fontSize: 12, harness: "Claude Code", project: "docs-site" },
     { name: "Checkout implementation", fontSize: 15, harness: "Claude Code", project: "docs-site" },
