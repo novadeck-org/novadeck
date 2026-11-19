@@ -1,6 +1,7 @@
 import type { FolderEntry, Item } from "@novadeck/core/items"
 import { useEffect, useRef, useState } from "react"
 
+import { swallowRepeats } from "../../homes/terminal/cover-keys"
 import { EntryIcon, hasPicture, heldText, type Reader } from "./Entries"
 import { durationText, kindText, modifiedText, sizeShort } from "./model"
 import { hasNoThumb, holdThumb, keptThumb, loadThumb, type Thumb } from "./thumbs"
@@ -61,6 +62,7 @@ export const QuickLook = ({
   onStep,
   onOpen,
   onClose,
+  onDismiss,
 }: {
   readonly entry: FolderEntry
   // The entry's path from the folder's top.
@@ -72,13 +74,34 @@ export const QuickLook = ({
   readonly returnTo: HTMLElement | null
   readonly onStep: (by: -1 | 1) => void
   readonly onOpen: () => void
+  // Closes it, and gives focus back to the folder.
   readonly onClose: () => void
+  // Ends it without touching focus: a click or focus gone elsewhere.
+  readonly onDismiss: () => void
 }): React.JSX.Element => {
   const holder = useRef<HTMLDivElement>(null)
   useEffect(() => {
     holder.current?.focus({ preventScroll: true })
-    return () => returnTo?.focus({ preventScroll: true })
+    return () => {
+      // Focus goes back to the folder only if the look still had it (it fell to the page as the
+      // look went): a person who has gone to the terminal keeps it there.
+      const active = document.activeElement
+      if (!active || active === document.body || active === document.documentElement)
+        returnTo?.focus({ preventScroll: true })
+    }
   }, [returnTo])
+  // A look is transient, like the taskbar's peek: a press anywhere outside it ends it.
+  const dismiss = useRef(onDismiss)
+  useEffect(() => {
+    dismiss.current = onDismiss
+  }, [onDismiss])
+  useEffect(() => {
+    const away = (event: PointerEvent): void => {
+      if (event.target instanceof Node && !holder.current?.contains(event.target)) dismiss.current()
+    }
+    document.addEventListener("pointerdown", away, true)
+    return () => document.removeEventListener("pointerdown", away, true)
+  }, [])
   const thumb = useLook(entry, path, itemId, reader)
   // The picture the page failed to draw, by its URL, and what it measured of the one it drew.
   const [broken, setBroken] = useState<string>()
@@ -97,11 +120,18 @@ export const QuickLook = ({
       className="floating peek folder-look"
       data-state="open"
       role="dialog"
-      aria-modal="true"
       aria-label={`Quick look at ${entry.name}`}
       tabIndex={-1}
+      // Focus gone out of the folder ends it; a window losing focus (no related target) doesn't.
+      onBlur={(event) => {
+        const to = event.relatedTarget
+        if (to instanceof Node && !holder.current?.contains(to) && !returnTo?.contains(to))
+          dismiss.current()
+      }}
+      // Its keys, Escape among them, are its own in a pane over its terminal (cover-keys.ts).
+      data-pane-keys=""
       onKeyDown={(event) => {
-        // Nothing else takes focus while it is up: Tab stays where it is.
+        // Tab stays where it is: it is the look's only stop.
         const handled =
           event.key === "Tab"
             ? () => {}
@@ -118,8 +148,11 @@ export const QuickLook = ({
         event.preventDefault()
         event.stopPropagation()
         // A key held down acts once: Space or Enter would otherwise flicker the look.
-        if (event.repeat && (event.key === " " || event.key === "Enter")) return
+        if (event.repeat && (event.key === " " || event.key === "Enter" || event.key === "Escape"))
+          return
         handled()
+        // Held down, Escape's repeats would reach the pane, which hides on it, once the look is gone.
+        if (event.key === "Escape") swallowRepeats("Escape")
       }}
     >
       <div className="folder-look-picture" data-kind={entry.kind}>

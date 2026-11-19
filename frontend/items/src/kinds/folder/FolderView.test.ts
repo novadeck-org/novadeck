@@ -952,10 +952,10 @@ describe("a file's menu and quick look", () => {
   })
 
   context("the look ending", () => {
-    it("holds Tab in the dialog, which is modal", async () => {
+    it("holds Tab in the dialog, its only stop", async () => {
       const app = await shown({ listings: { "": listing(files) } })
       await key(app.tile("shot.png"), " ")
-      expect(dialog(app.root)?.getAttribute("aria-modal")).toBe("true")
+      expect(dialog(app.root)?.hasAttribute("aria-modal")).toBe(false)
       const tab = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })
       act(() => void dialog(app.root)!.dispatchEvent(tab))
       expect(tab.defaultPrevented).toBe(true)
@@ -1005,6 +1005,121 @@ describe("a file's menu and quick look", () => {
       expect(app.root.querySelector(".pane-notice")?.textContent).toBe(
         "shot.png couldn't be opened.",
       )
+    })
+  })
+
+  context("a look that is transient", () => {
+    const outside = () => {
+      const button = document.createElement("button")
+      document.body.append(button)
+      unmounts.push(() => button.remove())
+      return button
+    }
+
+    it("ends on a press anywhere outside it, and not on one inside", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      await key(app.tile("shot.png"), " ")
+      act(
+        () =>
+          void dialog(app.root)!.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true })),
+      )
+      expect(dialog(app.root)).not.toBeNull()
+      const away = outside()
+      act(() => void away.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true })))
+      await settle()
+      expect(dialog(app.root)).toBeNull()
+    })
+
+    it("ends when focus goes out of the folder, and leaves it there", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      await key(app.tile("shot.png"), " ")
+      const away = outside()
+      act(() => away.focus())
+      await settle()
+      expect(dialog(app.root)).toBeNull()
+      expect(document.activeElement).toBe(away)
+    })
+
+    it("doesn't take focus back from where the person went when its file goes", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      await key(app.tile("shot.png"), " ")
+      const away = outside()
+      away.focus()
+      await app.list(listing(files.filter((each) => each.name !== "shot.png")))
+      expect(dialog(app.root)).toBeNull()
+      expect(document.activeElement).toBe(away)
+    })
+
+    it("swallows the repeats of a held Escape, which would hide the pane", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      await key(app.tile("shot.png"), " ")
+      await key(dialog(app.root)!, "Escape")
+      await key(app.tile("shot.png"), "Escape", { repeat: true })
+      expect(app.heard).toEqual([" "])
+      act(() => void document.dispatchEvent(new KeyboardEvent("keyup", { key: "Escape" })))
+      await key(app.tile("shot.png"), "Escape", { repeat: true })
+      expect(app.heard).toEqual([" ", "Escape"])
+    })
+  })
+
+  context("Space and the menu in other places", () => {
+    it("leaves Space to a folder's button, which a look has nothing to show of", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      const space = new KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true })
+      act(() => void app.tile("mid").dispatchEvent(space))
+      expect(space.defaultPrevented).toBe(false)
+      expect(dialog(app.root)).toBeNull()
+    })
+
+    it("acts in the folder a menu was asked in, and a look of a file that went does nothing", async () => {
+      const app = await shown({ listings: inFolder })
+      await app.open("old-runs")
+      await menuOn(app.tile("run-1.png"))
+      act(() => app.itemStore.folder(itemFixture("render", "01").id, { within: "" }))
+      await settle()
+      await choose("Open")
+      expect(app.attached).toEqual([{ terminalId: "01", path: "/tmp/render/old-runs/run-1.png" }])
+      await menuOn(app.tile("shot.png"))
+      await app.list(listing(files.filter((each) => each.name !== "shot.png")))
+      await choose("Quick look")
+      expect(dialog(app.root)).toBeNull()
+      expect(app.root.querySelector("[data-selected]")).toBeNull()
+    })
+
+    it("gives focus back to the body when the menu opened from it closes", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      const viewer = app.root.querySelector<HTMLElement>(".folder-viewer")!
+      viewer.focus()
+      await app.click(app.tile("notes.md"))
+      viewer.focus()
+      await menuOn(viewer)
+      await key(document.activeElement!, "Escape")
+      await frames()
+      expect(document.activeElement).toBe(viewer)
+    })
+  })
+
+  context("on a pane that covers its terminal, a letter", () => {
+    it("still uncovers it and types, from a row, while Space stays for the look", async () => {
+      const app = await shown({ listings: { "": listing(files) } })
+      const uncovered: string[] = []
+      const typed: string[] = []
+      const listener = (event: KeyboardEvent) =>
+        coverKey(event, {
+          covering: () => true,
+          terminal: document.createElement("div"),
+          pane: app.root,
+          uncover: () => void uncovered.push(event.key),
+          type: (typing) => void typed.push(typing.key),
+        })
+      document.addEventListener("keydown", listener, true)
+      unmounts.push(() => document.removeEventListener("keydown", listener, true))
+      await app.click(app.root.querySelector('button[aria-label="Show as a list"]')!)
+      await key(app.tile("shot.png"), "q")
+      expect({ uncovered, typed }).toEqual({ uncovered: ["q"], typed: ["q"] })
+      await key(app.tile("shot.png"), " ")
+      expect(dialog(app.root)).not.toBeNull()
+      expect({ uncovered, typed }).toEqual({ uncovered: ["q"], typed: ["q"] })
     })
   })
 })

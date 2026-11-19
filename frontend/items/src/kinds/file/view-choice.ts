@@ -19,7 +19,8 @@ const chosen = createKept<{ readonly path: string; readonly view: FileView }>(64
 const asked = createKept<boolean>(64)
 const lapses = new Map<ItemId, ReturnType<typeof setTimeout>>()
 const listeners = new Set<() => void>()
-const askedFor = 15_000
+// Long enough for a slow link: an attach, then the file read.
+const askedFor = 60_000
 
 // Has item `id` show its file's source, as if the person had switched to it: for the file it shows
 // now or, if it isn't shown yet, the one it opens on. It is the person's choice from then on.

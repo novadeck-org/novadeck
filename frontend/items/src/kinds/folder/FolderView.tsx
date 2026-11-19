@@ -47,6 +47,14 @@ const troubleText = (reason: UnavailableReason, name: string): string => {
   }
 }
 
+// Copies a path: the folder's own, or a file's of it. A page that may not write the clipboard
+// simply doesn't copy.
+const copyPath = (directory: string | undefined, file?: string): void => {
+  if (directory === undefined) return
+  const text = file === undefined ? directory : absoluteOf(directory, file)
+  navigator.clipboard?.writeText(text).catch(() => {})
+}
+
 const sortLabel = (sort: FolderSort): string => `Sorted by ${sortNames[sort]}`
 
 // The columns of the list that name a sort when clicked.
@@ -91,7 +99,11 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
   const [problem, setProblem] = useState<string>()
   // The entry the open menu was asked for, as it was then (so the menu doesn't change under the
   // pointer if the file goes), and the one being looked at, by name and the folder it is in.
-  const [menuFor, setMenuFor] = useState<FolderEntry>()
+  const [menuFor, setMenuFor] = useState<{
+    readonly entry: FolderEntry
+    readonly within: string
+    readonly path: string
+  }>()
   const [looking, setLooking] = useState<{ readonly name: string; readonly within: string }>()
   // The list says how long ago; it moves on with the clock.
   const [now, setNow] = useState(() => Date.now())
@@ -123,13 +135,23 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
   }
   // Opens an entry: a folder in place, a file as an item of its kind, on its source when asked to
   // and its type has one.
-  const open = (entry: FolderEntry, asText = false): void => {
+  // `from` is the folder it is in: the one drawn, or, for a menu asked a while ago, the one it
+  // was asked in.
+  const open = (
+    entry: FolderEntry,
+    asText = false,
+    from: { readonly within: string; readonly path: string | undefined } = {
+      within,
+      path: listed?.path,
+    },
+  ): void => {
     if (entry.secret || entry.link) return
-    if (entry.kind === "folder") return goTo(intoFolder(within, entry.name))
-    if (!terminal || !listed) return setProblem(`${entry.name} can't be opened from here.`)
+    if (entry.kind === "folder") return goTo(intoFolder(from.within, entry.name))
+    if (!terminal || from.path === undefined)
+      return setProblem(`${entry.name} can't be opened from here.`)
     setProblem(undefined)
     itemStore
-      .attach(target, terminal, absoluteOf(listed.path, entry.name))
+      .attach(target, terminal, absoluteOf(from.path, entry.name))
       .then((opened) => {
         if (asText && hasSource(entry)) openOnSource(opened.id)
       })
@@ -162,29 +184,28 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
     setSelected(next.name)
     setLooking({ name: next.name, within })
   }
-  const copyPath = (file: string | undefined): void => {
-    if (!shown) return
-    const text = file === undefined ? shown.path : absoluteOf(shown.path, file)
-    // A page that may not write the clipboard simply doesn't copy.
-    navigator.clipboard?.writeText(text).catch(() => {})
-  }
-  const menuEntry = menuFor
-  // What the menu offers: the entry it was asked on's, or, off every entry, the folder's own path.
-  const menuItems = (on: FolderEntry): ContextMenuItem[] =>
-    entryMenu(on, {
-      open: () => open(on),
-      openAsText: () => open(on, true),
-      look: () => lookAt(on),
-      copyPath: () => copyPath(on.name),
+  const menuEntry = menuFor?.entry
+  // What the menu offers: the entry it was asked on's, acting in the folder it was asked in (the
+  // entry may have gone since, which a look ignores and an open reports); or, off every entry,
+  // the folder's own path.
+  const menuItems = (asked: NonNullable<typeof menuFor>): ContextMenuItem[] =>
+    entryMenu(asked.entry, {
+      open: () => open(asked.entry, false, asked),
+      openAsText: () => open(asked.entry, true, asked),
+      look: () => {
+        if (asked.within === within && drawn.some((each) => each.name === asked.entry.name))
+          lookAt(asked.entry)
+      },
+      copyPath: () => copyPath(asked.path, asked.entry.name),
     })
-  const menu: ContextMenuItem[] = menuEntry
-    ? menuItems(menuEntry)
+  const menu: ContextMenuItem[] = menuFor
+    ? menuItems(menuFor)
     : [
         {
           value: "copy-path",
           label: "Copy path",
           icon: <Copy size={14} strokeWidth={1.75} aria-hidden />,
-          onSelect: () => copyPath(undefined),
+          onSelect: () => copyPath(shown?.path),
         },
       ]
 
@@ -217,7 +238,7 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
     onOpen: (asText: boolean) => open(entry, asText),
     onMenu: () => {
       setSelected(entry.name)
-      setMenuFor(entry)
+      setMenuFor({ entry, within, path: shown?.path ?? "" })
     },
   })
 
@@ -238,9 +259,9 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
       className="artifact-viewer folder-viewer"
       tabIndex={-1}
       data-layout={layout}
-      // A pane over its terminal leaves the folder its keys (Space, Backspace, the arrows): Escape
-      // still goes up to the pane, which hides, unless a look takes it.
-      data-pane-keys=""
+      // A pane over its terminal leaves the folder its Space, the quick look; any other character
+      // is still a reply to the terminal, and Escape still hides the pane (a look takes its own).
+      data-pane-keys="space"
       onKeyDown={(event) => {
         // A key in the menu, which bubbles here through the portal, is the menu's own: it must not
         // go up, or Escape would hide the pane as it closes the menu.
@@ -262,11 +283,12 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
         if (event.key !== " ") return
         const onEntry = event.target instanceof Element ? event.target.closest("[data-name]") : null
         if (!onEntry && event.target !== event.currentTarget) return
-        event.preventDefault()
-        if (event.repeat) return
         const named = onEntry?.getAttribute("data-name") ?? selected
         const entry = drawn.find((each) => each.name === named)
-        if (entry && canLook(entry)) lookAt(entry)
+        // With nothing to look at (a folder, nothing selected) Space is left to its button.
+        if (!entry || !canLook(entry)) return
+        event.preventDefault()
+        if (!event.repeat) lookAt(entry)
       }}
       // The menu key and Shift+F10 on the body itself are asked of the selected entry (or, with
       // none, the folder), as they are of a focused one, which the menu's trigger hears itself.
@@ -276,6 +298,8 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
         const at =
           event.currentTarget.querySelector<HTMLElement>("[data-selected]") ??
           event.currentTarget.querySelector<HTMLElement>(".folder-scroll")
+        // Where it is drawn, so the menu opens beside it and not off the pane.
+        at?.scrollIntoView?.({ block: "nearest" })
         const box = at?.getBoundingClientRect()
         at?.dispatchEvent(
           new MouseEvent("contextmenu", {
@@ -440,6 +464,7 @@ export const FolderView = ({ item, itemStore, target }: ViewProps): React.JSX.El
               open(looked)
             }}
             onClose={closeLook}
+            onDismiss={() => setLooking(undefined)}
           />
         </>
       )}

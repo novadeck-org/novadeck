@@ -513,11 +513,12 @@ with every safety check again at that time:
   for anything else (text, a PDF, a recording, a file too large, a secret) its icon, kind, size and
   when it changed; it reads files only as the thumbnails do (never text or a PDF's content). ← and
   → step through the files (folders skipped), Enter opens the file in a tab, Space or Escape or a
-  click outside closes it, and focus goes back to the folder. It is modal (Tab stays in it,
-  and Backspace and Alt+Up, which would go up behind it, do nothing), it ends when its file goes or
-  the folder changes, and a key held down acts once. A folder's body keeps Space, Backspace and the
-  arrows when the pane covers its terminal (`data-pane-keys`), though Escape still hides the pane
-  unless a look is up. Nothing in it is harness-specific.
+  click outside closes it, and focus goes back to the folder. It is transient, not modal: a press or focus outside it, or its file going or the folder
+  changing, ends it (a click into the terminal keeps the focus it took), Tab stays in it, Backspace
+  and Alt+Up, which would go up behind it, do nothing, and a key held down (Escape too) acts once. When the pane covers its terminal, a folder's entries keep only Space (the look); any other letter
+  typed there still uncovers the pane and goes to the terminal, Backspace and the arrows were never
+  characters, and Escape hides the pane unless a look is up, which keeps all its keys (`data-pane-keys`
+  in `homes/terminal/cover-keys.ts`; the folder's is `"space"`). Nothing in it is harness-specific.
   "Show in Files" isn't offered, because Novadeck has no reveal-in-system action for a path yet. Thumbnails of images up to 2 MiB, and of videos up to 24 MiB (their first frame
   and length, drawn by the page), are read through `companions.part` with the file's own stamp,
   lazily and nearest first; a PDF, a recording and a text file show their kind's icon. It is
