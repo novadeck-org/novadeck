@@ -57,12 +57,18 @@ export const useFilterMotion = ({
   // Where the tree was last scrolled: read as it scrolls, so a filter that shrinks the tree,
   // which the browser clamps the scroll for, knows where it was before.
   const scrolled = useRef(0)
-  // The motion running, if one is; it ends once all of it has finished, or another starts.
-  const running = useRef<readonly Animation[]>([])
+  // The motion running, if one is; it ends once all of it has finished, or another starts. While
+  // it runs the rows clip at the view's foot at least, not at the tree's end, so a row sliding up
+  // from below a tree that shrank shows all the way.
+  const running = useRef<{ animations: readonly Animation[]; box?: HTMLElement }>({
+    animations: [],
+  })
   const stop = useCallback((): void => {
-    const animations = running.current
-    running.current = []
+    const { animations, box } = running.current
+    running.current = { animations: [] }
     for (const animation of animations) animation.cancel()
+    box?.style.removeProperty("overflow")
+    box?.style.removeProperty("min-height")
     const layer = ghosts.current
     if (!layer) return
     layer.replaceChildren()
@@ -80,7 +86,11 @@ export const useFilterMotion = ({
   useLayoutEffect(() => stop, [stop])
   // After every draw, the slots drawn, to know the frame before a filter.
   useLayoutEffect(() => {
-    if (!rows) return
+    // A tree gone forgets its frame, so it never fades over the next one.
+    if (!rows) {
+      last.current = null
+      return
+    }
     const before = last.current
     const slots = slotsIn(rows)
     last.current = { filter, lineOf, slots }
@@ -96,6 +106,13 @@ export const useFilterMotion = ({
       drawn: [...before.slots.keys()],
     }
     const now: Frame = { scrollTop, lineOf, drawn: [...slots.keys()] }
+    // Down to the view's foot, less the tree's bottom padding, which leaves the scroll as it is.
+    const box = tree.querySelector<HTMLElement>(":scope > .files-rows")
+    if (box) {
+      const padding = Number.parseFloat(getComputedStyle(tree).paddingBottom) || 0
+      box.style.minHeight = `${scrollTop + viewport - padding}px`
+      box.style.overflow = "clip"
+    }
     scrolled.current = scrollTop
     const plan = planMotion(was, now, viewport)
     const animations: Animation[] = []
@@ -136,9 +153,10 @@ export const useFilterMotion = ({
             }),
       )
     }
-    running.current = animations
+    const motion = box ? { animations, box } : { animations }
+    running.current = motion
     void Promise.allSettled(animations.map((animation) => animation.finished)).then(() => {
-      if (running.current === animations) stop()
+      if (running.current === motion) stop()
     })
   })
   return ghosts

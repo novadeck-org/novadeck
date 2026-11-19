@@ -416,15 +416,26 @@ describe("The Files tree's filter", () => {
     const untouched = page.getByRole("treeitem", { name: /^index\.html/ })
     await expect.element(untouched).toBeVisible()
     const ghosts = tree.element().querySelector(".files-ghosts")!
+    const rows = tree.element().querySelector<HTMLElement>(".files-rows")!
+    // How many rows that went were drawn at once, and how far down the rows showed while they
+    // moved: to the view's foot, so a row sliding up from below a tree that shrank shows whole.
     let ghosted = 0
+    let reached = 0
     const watch = new MutationObserver(() => {
       ghosted = Math.max(ghosted, ghosts.childElementCount)
+      if (rows.style.overflow === "clip") reached = Math.max(reached, rows.offsetHeight)
     })
     watch.observe(ghosts, { childList: true })
+    watch.observe(rows, { attributes: true, attributeFilter: ["style"] })
+    const foot = (): number =>
+      tree.element().scrollTop +
+      tree.element().clientHeight -
+      Number.parseFloat(getComputedStyle(tree.element()).paddingBottom)
     onTestFinished(() => watch.disconnect())
     // The rows' own motion, not a file's trail or a cursor's blink.
     const settled = (): boolean =>
       ghosts.childElementCount === 0 &&
+      rows.style.overflow === "" &&
       [...tree.element().querySelectorAll(".files-rows > .files-slot")].every(
         (slot) => slot.getAnimations().length === 0,
       )
@@ -435,6 +446,9 @@ describe("The Files tree's filter", () => {
     await moth.click()
     await expect.element(untouched).not.toBeInTheDocument()
     await expect.poll(() => ghosted).toBeGreaterThan(0)
+    // The tree is shorter than its view now, and its rows showed down to the view's foot.
+    expect(Number.parseFloat(rows.style.height)).toBeLessThan(foot())
+    expect(reached).toBeGreaterThanOrEqual(foot() - 1)
     await expect.poll(settled).toBe(true)
 
     await moth.click()
