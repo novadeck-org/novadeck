@@ -5,7 +5,7 @@ import { shownControls } from "@novadeck/requests/shown-controls"
 import { Markdown } from "@novadeck/toolkit/Markdown"
 import { MentionedText } from "@novadeck/toolkit/Mentioned"
 import { mentionAt, type Mention } from "@novadeck/toolkit/mentions"
-import { memo, useId, useMemo } from "react"
+import { memo, useId, useMemo, useState } from "react"
 
 import { withBubbles, type SentBubble } from "./bubbles"
 import type { Echo } from "./echoes"
@@ -18,7 +18,6 @@ import { PersonWords, Shortened } from "./PersonWords"
 import { Slice } from "./Slice"
 import { ToolCalls } from "./ToolCalls"
 import { currentPrompt } from "./turn-holds"
-import { useOpen } from "./use-open"
 
 // What a turn the doorbell started brought: other agents' messages, and the person's own answers
 // through the Inbox, which are theirs and read as such.
@@ -87,7 +86,6 @@ const keyFocus = (target: EventTarget): boolean => {
 // Another agent's message: its face in the gutter, its handle and where it runs, its words. A
 // long one is cut to its first lines, with a key that says how many more.
 const PeerMessage = ({
-  id,
   from,
   text,
   truncated,
@@ -96,8 +94,6 @@ const PeerMessage = ({
   at,
   written = at,
 }: {
-  // What keeps whether the person opened it (see ./use-open).
-  readonly id: string
   // As the harness names it: "@handle" for a Novadeck agent.
   readonly from: string
   // When it was said, where the record says.
@@ -110,7 +106,7 @@ const PeerMessage = ({
   readonly mention: Mention | undefined
 }): React.JSX.Element => {
   const look = from.startsWith("@") ? (looks?.(from.slice(1), written) ?? null) : null
-  const [ref, fold] = useFold<HTMLDivElement>(text, `peer:${id}`)
+  const [ref, fold] = useFold<HTMLDivElement>(text)
   const { folds, open, setOpen } = fold
   return (
     <article
@@ -158,7 +154,7 @@ const SubagentLine = ({
   // The agent's session has ended: what still ran stopped with it, saying nothing more.
   readonly gone: boolean
 }): React.JSX.Element => {
-  const [open, setOpen] = useOpen(`subagent:${block.id}`, false)
+  const [open, setOpen] = useState(false)
   const body = useId()
   const running = block.running && !gone
   const stopped = block.running && gone
@@ -234,7 +230,6 @@ const SubagentLine = ({
 // A line of the record that is no one's words: a compaction, a part the chat can't read. It reads
 // as a tool line does, dim, and opens to what it holds, where it holds anything.
 const RecordLine = ({
-  id: key,
   kind,
   words,
   what,
@@ -243,8 +238,6 @@ const RecordLine = ({
   truncated,
   at = null,
 }: {
-  // What keeps whether the person opened it (see ./use-open).
-  readonly id: string
   readonly kind: "compaction" | "gap"
   readonly at?: number | null
   readonly words: string
@@ -253,7 +246,7 @@ const RecordLine = ({
   readonly body: string
   readonly truncated: boolean
 }): React.JSX.Element => {
-  const [open, setOpen] = useOpen(`record:${key}`, false)
+  const [open, setOpen] = useState(false)
   const id = useId()
   const opens = body !== ""
   const line = (
@@ -389,7 +382,6 @@ const BlockView = memo(
       case "agent":
         return (
           <PeerMessage
-            id={block.id}
             from={block.author}
             text={block.text}
             truncated={block.truncated}
@@ -424,7 +416,6 @@ const BlockView = memo(
             {fromAgents(block).map((message, index) => (
               <PeerMessage
                 key={message.id}
-                id={message.id}
                 from={handleOf(message.from)}
                 text={message.text}
                 truncated={false}
@@ -464,7 +455,6 @@ const BlockView = memo(
       case "compaction":
         return (
           <RecordLine
-            id={block.id}
             kind="compaction"
             words="compacted"
             what="the conversation"
@@ -478,7 +468,6 @@ const BlockView = memo(
       case "gap":
         return (
           <RecordLine
-            id={block.id}
             kind="gap"
             words="part of the record the chat can't read"
             said={null}

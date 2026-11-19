@@ -1,7 +1,5 @@
 import { useId, useLayoutEffect, useRef, useState, type RefObject } from "react"
 
-import { useOpen } from "./use-open"
-
 // A long text in the log shows its first lines when it runs past this many, and a key opens the
 // rest: another agent's message, and a tool call's command and what it printed.
 const foldedAt = 5
@@ -25,14 +23,13 @@ export type Fold = {
 
 // Folds the element given the ref to its first lines once it takes more than `foldedAt`,
 // measured at its width, and again as that or `text` changes. The element is clamped while folded,
-// so what it holds is watched too. Whether the person opened it is kept by `key` (see ./use-open).
+// so what it holds is watched too.
 export const useFold = <T extends HTMLElement>(
   text: string,
-  key: string,
 ): readonly [RefObject<T | null>, Fold] => {
   const ref = useRef<T>(null)
   const [lines, setLines] = useState(0)
-  const [open, setOpen] = useOpen(key, false)
+  const [open, setOpen] = useState(false)
   const id = useId()
   useLayoutEffect(() => {
     const element = ref.current

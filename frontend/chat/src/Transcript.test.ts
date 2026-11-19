@@ -4,10 +4,8 @@ import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
 import type { SentBubble } from "./bubbles"
-import { createChat, openedMemory } from "./state"
 import { context, describe, expect, it } from "./test"
 import { Transcript, type PeerLooks } from "./Transcript"
-import { Opened, sessionMemory } from "./use-open"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
@@ -616,59 +614,5 @@ describe("an @handle in the words", () => {
   it("takes the hue of a handle in any case, keeping the text as written", () => {
     const container = show([words("a", "assistant", "Ask @Fox")], undefined, looks)
     expect(hues(container)).toEqual([["@Fox", "5"]])
-  })
-})
-
-describe("what the person opened", () => {
-  const blocks: readonly ChatBlock[] = [
-    { kind: "agent", id: "m", author: "@moth", text: "a long one", truncated: false, at: null },
-    {
-      kind: "subagent",
-      id: "s",
-      name: "explorer 1",
-      text: "Found it.",
-      truncated: false,
-      running: false,
-      failed: false,
-      at: null,
-      doneAt: null,
-      call: null,
-    },
-    { kind: "compaction", id: "c", at: null, summary: "What we did.", truncated: false },
-  ]
-  // The rows drawn under a chat's memory, as the app gives one, for `session`.
-  const draw = (memory: ReturnType<typeof openedMemory>, session = "one") => {
-    const { container, unmount } = render(
-      createElement(
-        Opened,
-        { value: sessionMemory(memory, session) },
-        createElement(Transcript, { blocks, agent: "Claude", working: false }),
-      ),
-    )
-    unmounts.push(unmount)
-    return { container, unmount }
-  }
-  const keys = (container: Element) => ({
-    message: container.querySelector<HTMLElement>(".chat-more")!,
-    subagent: container.querySelector<HTMLElement>(".chat-subagent-summary")!,
-    record: container.querySelector<HTMLElement>(".chat-record .chat-tool-summary")!,
-  })
-  const expanded = (container: Element) =>
-    Object.values(keys(container)).map((key) => key.getAttribute("aria-expanded"))
-  afterEach(() => vi.restoreAllMocks())
-
-  it("stays open as the rows draw again, and only in that session", async () => {
-    // jsdom lays nothing out: the message takes nine lines of 20px.
-    vi.spyOn(window, "getComputedStyle").mockReturnValue({ lineHeight: "20px" } as never)
-    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(9 * 20)
-    const memory = openedMemory(createChat(), "project/initial", "01")
-    const first = draw(memory)
-    expect(expanded(first.container)).toEqual(["false", "false", "false"])
-    await act(async () => Object.values(keys(first.container)).forEach((key) => key.click()))
-    expect(expanded(first.container)).toEqual(["true", "true", "true"])
-    first.unmount()
-
-    expect(expanded(draw(memory).container)).toEqual(["true", "true", "true"])
-    expect(expanded(draw(memory, "two").container)).toEqual(["false", "false", "false"])
   })
 })
