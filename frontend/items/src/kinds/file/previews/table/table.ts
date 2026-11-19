@@ -22,8 +22,6 @@ export type Table = {
   readonly numeric: readonly boolean[]
   // By column, the mark its numbers' fractions take, as its cells read.
   readonly decimals: readonly Decimal[]
-  // How many of its lines the runner cut short, losing their ends.
-  readonly cut: number
 }
 
 // A spreadsheet's column letters: A … Z, AA, AB …
@@ -33,11 +31,6 @@ export const columnLetters = (index: number): string => {
     name = String.fromCharCode(65 + ((left - 1) % 26)) + name
   return name
 }
-
-// The longest line the runner sends (protocol's `companionLimits.lineLength`): one that long,
-// or a unit short of it where a surrogate pair would have split, was cut.
-const lineLength = 4096
-export const wasCut = (line: string): boolean => line.length >= lineLength - 1
 
 // A number as a table holds one: a sign, digits (grouped or not), a fraction, an exponent, a
 // percent sign. Where commas are the decimal mark (in a file split by semicolons), dots or
@@ -66,7 +59,6 @@ export const numberOf = (cell: string, decimal: Decimal = "dot"): number | undef
 const recordsFrom = (
   lines: readonly string[],
   delimiter: string,
-  cut: (index: number) => boolean,
 ): { readonly skipped: number; readonly parsed: ReturnType<typeof parseDelimited> } => {
   const tally = new Map<number, number>()
   for (const line of lines) {
@@ -78,15 +70,13 @@ const recordsFrom = (
     | { skipped: number; parsed: ReturnType<typeof parseDelimited>; score: number }
     | undefined
   for (let skipped = 0; skipped < Math.min(8, lines.length); skipped += 1) {
-    const parsed = parseDelimited(lines.slice(skipped), delimiter, {
-      cut: (at) => cut(at + skipped),
-    })
+    const parsed = parseDelimited(lines.slice(skipped), delimiter)
     const fitting = parsed.records.filter((record) => record.length === usual).length
     const fits = parsed.records[0]?.length === usual ? 0.5 : 0
     const score = parsed.open === undefined ? fitting + fits : -1
     if (!best || score > best.score) best = { skipped, parsed, score }
   }
-  return best ?? { skipped: 0, parsed: parseDelimited(lines, delimiter, { cut }) }
+  return best ?? { skipped: 0, parsed: parseDelimited(lines, delimiter) }
 }
 
 // How many lines a record spans past its first: one for each line break its fields hold.
@@ -104,18 +94,14 @@ export const tableOf = (
   { whole = false }: { readonly whole?: boolean } = {},
 ): Table => {
   const delimiter = delimiterOf(path, lines)
-  const cut = (index: number) => wasCut(lines[index] ?? "")
   const first =
     firstLine === 1
-      ? { skipped: 0, parsed: parseDelimited(lines, delimiter, { cut }) }
-      : recordsFrom(lines, delimiter, cut)
+      ? { skipped: 0, parsed: parseDelimited(lines, delimiter) }
+      : recordsFrom(lines, delimiter)
   const { skipped } = first
   const runsOn = whole && first.parsed.open !== undefined
   const { records, lines: starts } = runsOn
-    ? parseDelimited(lines.slice(skipped), delimiter, {
-        cut: (at) => cut(at + skipped),
-        quotes: false,
-      })
+    ? parseDelimited(lines.slice(skipped), delimiter, { quotes: false })
     : first.parsed
   const named = firstLine === 1 && records.length > 0
   const width = Math.max(0, ...records.map((record) => record.length))
@@ -144,7 +130,6 @@ export const tableOf = (
     rows,
     numeric: columns.map((column) => column.numeric),
     decimals: columns.map((column) => column.decimal),
-    cut: lines.filter((line) => wasCut(line)).length,
   }
 }
 
@@ -185,15 +170,13 @@ export const sortRows = (table: Table, sort: Sort | null): readonly Row[] => {
 }
 
 // What a table shows of its file, as a person reads it, or nothing when it shows it whole:
-// lines `firstLine` on, of `total` lines (unknown when the file was read only in part), and
-// how many of them were cut short.
+// lines `firstLine` on, of `total` lines (unknown when the file was read only in part).
 export const partText = ({
   firstLine,
   count,
   total,
   truncated,
   named,
-  cut,
   clamped = undefined,
 }: {
   readonly firstLine: number
@@ -201,26 +184,18 @@ export const partText = ({
   readonly total: number | null
   readonly truncated: boolean
   readonly named: boolean
-  readonly cut: number
   // Where lines pointed at past the file's end were pulled back to: its last line.
   readonly clamped?: number | undefined
 }): string | undefined => {
   const last = firstLine + count - 1
   const whole = firstLine === 1 && !truncated && total !== null && last >= total
-  const long =
-    cut === 0
-      ? ""
-      : `${cut === 1 ? "One line is" : `${cut.toLocaleString("en-US")} lines are`} too long to show whole, so ${cut === 1 ? "its" : "their"} last cells are missing.`
   const ends =
     clamped === undefined
-      ? ""
+      ? undefined
       : `The lines pointed at are past its end, line ${clamped.toLocaleString("en-US")}.`
-  const notes = [ends, long].filter(Boolean).join(" ")
-  if (whole) return notes || undefined
+  if (whole) return ends
   const span = `lines ${firstLine.toLocaleString("en-US")}–${last.toLocaleString("en-US")}`
   const of = total === null ? "of a longer file" : `of ${total.toLocaleString("en-US")}`
   const header = named ? "" : ", without its header row"
-  return [`Only part of the file is shown: ${span} ${of}${header}.`, notes]
-    .filter(Boolean)
-    .join(" ")
+  return [`Only part of the file is shown: ${span} ${of}${header}.`, ends].filter(Boolean).join(" ")
 }

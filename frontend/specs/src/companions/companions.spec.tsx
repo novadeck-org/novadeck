@@ -833,11 +833,7 @@ describe("A delimited file", () => {
     const pane = companionPane("Dev server")
     await expect.element(pane.getByRole("columnheader", { name: "visits" })).toBeVisible()
     await expect
-      .element(
-        pane.getByText(
-          "Only part of the file is shown: lines 1–400 of 12,034. One line is too long to show whole, so its last cells are missing.",
-        ),
-      )
+      .element(pane.getByText("Only part of the file is shown: lines 1–400 of a longer file."))
       .toBeVisible()
     const scroller = pane.getByRole("region", { name: "visits.csv" }).element() as HTMLElement
     expect(scroller.querySelectorAll("tbody tr[data-line]").length).toBeLessThan(120)

@@ -23,13 +23,16 @@ describe("a delimited file as a table", () => {
     expect(tableOf("people.csv", people, 1).numeric).toEqual([false, true, false])
   })
 
-  it("counts the lines cut short", () => {
-    expect(tableOf("wide.csv", ["a,b", `1,${"x".repeat(4094)}`, "2,y"], 1).cut).toBe(1)
-  })
-
-  it("ends a quoted field cut short with its line, not swallowing the rows after", () => {
-    const table = tableOf("notes.csv", ["h1,h2", `a,"${"x".repeat(4094)}`, "b,2", "c,3"], 1)
-    expect(table.rows.map((row) => row.cells[0])).toEqual(["a", "b", "c"])
+  it("reads a long line whole, its quoted field running on to the lines after", () => {
+    const long = "x".repeat(10_000)
+    const table = tableOf("notes.csv", ["h1,h2", `a,"${long}`, `${long}"`, "b,2"], 1, {
+      whole: true,
+    })
+    expect(table.rows.map((row) => [row.line, row.cells[0]])).toEqual([
+      [2, "a"],
+      [4, "b"],
+    ])
+    expect(table.rows[0]!.cells[1]).toBe(`${long}\n${long}`)
   })
 
   it("reads a quote never closed as text, rather than run every row into one", () => {
@@ -183,7 +186,7 @@ describe("sorting a table", () => {
 describe("what a table shows of its file", () => {
   it("says nothing of a file shown whole", () => {
     expect(
-      partText({ firstLine: 1, count: 5, total: 5, truncated: false, named: true, cut: 0 }),
+      partText({ firstLine: 1, count: 5, total: 5, truncated: false, named: true }),
     ).toBeUndefined()
   })
 
@@ -195,32 +198,20 @@ describe("what a table shows of its file", () => {
         total: 5,
         truncated: false,
         named: true,
-        cut: 0,
         clamped: 5,
       }),
     ).toBe("The lines pointed at are past its end, line 5.")
   })
 
-  it("says when lines were cut short", () => {
-    expect(
-      partText({ firstLine: 1, count: 5, total: 5, truncated: false, named: true, cut: 2 }),
-    ).toBe("2 lines are too long to show whole, so their last cells are missing.")
-    expect(
-      partText({ firstLine: 1, count: 400, total: 900, truncated: false, named: true, cut: 1 }),
-    ).toBe(
-      "Only part of the file is shown: lines 1–400 of 900. One line is too long to show whole, so its last cells are missing.",
-    )
-  })
-
   it("says plainly which lines of how many it shows", () => {
     expect(
-      partText({ firstLine: 1, count: 400, total: 12034, truncated: false, named: true, cut: 0 }),
+      partText({ firstLine: 1, count: 400, total: 12034, truncated: false, named: true }),
     ).toBe("Only part of the file is shown: lines 1–400 of 12,034.")
+    expect(partText({ firstLine: 1, count: 400, total: null, truncated: true, named: true })).toBe(
+      "Only part of the file is shown: lines 1–400 of a longer file.",
+    )
     expect(
-      partText({ firstLine: 1, count: 400, total: null, truncated: true, named: true, cut: 0 }),
-    ).toBe("Only part of the file is shown: lines 1–400 of a longer file.")
-    expect(
-      partText({ firstLine: 960, count: 81, total: 5000, truncated: false, named: false, cut: 0 }),
+      partText({ firstLine: 960, count: 81, total: 5000, truncated: false, named: false }),
     ).toBe("Only part of the file is shown: lines 960–1,040 of 5,000, without its header row.")
   })
 })

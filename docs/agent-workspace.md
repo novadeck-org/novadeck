@@ -317,10 +317,9 @@ from its header (up, down, the file's order; numbers by value, empty cells last)
 the right, each row led by the line it starts on, and where it was scrolled and sorted kept as
 the code viewer's place is. Past 200 rows it draws only the rows in view (`rows-window.ts`),
 its columns held to widths from all its rows' text, so a data file read whole stays quick.
-What the runner read of a long file is only part of it (its first 400 lines, or the lines
-around those pointed at, whose rows it marks and opens at), and the table says so under it,
-with which lines, that a line the runner cut at 4096 characters lost its last cells, and that
-lines pointed at past the file's end were pulled back to it. Lines past the file's first have
+What the runner read of a long file is only part of it (its start, whole lines up to its
+2 MiB budget for data files, or the lines around those pointed at, whose rows it marks and
+opens at), and the table says so under it, with which lines, and that lines pointed at past the file's end were pulled back to it. Lines past the file's first have
 no header, so their columns are lettered, and may start inside a quoted record, so the table
 starts at the first line from which the rows read whole; a quoted field the part cuts off ends
 there. In a file shown whole, a quote never closed reads as text, as a TSV's inch mark. Each

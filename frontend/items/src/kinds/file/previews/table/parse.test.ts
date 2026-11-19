@@ -46,19 +46,6 @@ describe("reading delimited text", () => {
       expect(parseDelimited(['a, "b, c",d'], ",").records).toEqual([["a", "b, c", "d"]])
     })
 
-    it("ends a quoted field, and its record, at the end of a line cut short", () => {
-      const parsed = parseDelimited(["h1,h2", 'a,"long text cut sh', "b,2", "c,3"], ",", {
-        cut: (index) => index === 1,
-      })
-      expect(parsed.records).toEqual([
-        ["h1", "h2"],
-        ["a", "long text cut sh"],
-        ["b", "2"],
-        ["c", "3"],
-      ])
-      expect(parsed.open).toBeUndefined()
-    })
-
     it("closes a quote left open at the end, and says where it opened", () => {
       const parsed = parseDelimited(["id,text", '1,"cut sho'], ",")
       expect(parsed.records).toEqual([

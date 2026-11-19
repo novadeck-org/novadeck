@@ -32,8 +32,7 @@ const spare = 12
 // A delimited file (CSV, TSV) as a table: its header held on top as it scrolls, each column
 // sortable from its header, numbers to the right, each row's line in the file at its start,
 // and the rows the agent pointed at marked. A long one draws the rows in view. What the runner
-// read of a long file is only part of it, and lines it cut short lose their ends: it says so
-// under the table.
+// read of a long file is only part of it: it says so under the table.
 export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Element => {
   const lastLine = content.firstLine + content.lines.length - 1
   const whole =
@@ -160,7 +159,6 @@ export const TableView = ({ id, name, content }: PreviewProps): React.JSX.Elemen
     total: content.total,
     truncated: content.truncated,
     named: table.named,
-    cut: table.cut,
     clamped: content.clamped ? content.to : undefined,
   })
   return (
