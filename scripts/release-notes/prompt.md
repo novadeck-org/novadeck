@@ -49,9 +49,10 @@ button's label; leave out the names that live only in code, such as verdict, eng
 harness, manager, tick, selector, schema or channel. If a line can't be written without
 one of them, write what the reader sees instead, or leave the change out.
 
-The glossary at the end names the parts of the app the reader knows. Call each part by its
-name there, even when a commit calls it something else, and never by another's: a Companion
-Pane is not a view, and a session is not a terminal.
+The glossary below names the parts of the app the reader knows. Call each part by its name
+there, even when a commit calls it something else, and never by another's: a Companion Pane
+is not a view, and a session is not a terminal. Write the names as plain words, without the
+glossary's bold or code marks.
 
 When the "Why" says what the reader gains and the change alone doesn't make it plain, end the
 line with it: "so you can tell which windows belong together". Take the reason only from the
@@ -134,7 +135,8 @@ cost them work.
 
 Several changes can be one difference for a person, such as speedups that each remove part of
 the same lag, or steps of one rework: weigh them together, as one, and when they make a
-highlight, tell them in it as one and cite them all. A rework that moves or changes something
+highlight, tell them in it as one and cite them all. Changes weighed together this way get
+their line in `changes` too, even when each alone is too small for one. A rework that moves or changes something
 people use every day is worth a highlight even when it adds nothing, so they find their way
 when it looks different.
 

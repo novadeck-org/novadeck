@@ -6,7 +6,8 @@ the app shows it; keep the list short.
 
 - **Project**: a folder you work in, usually a repository. Pin one to reach it by shortcut.
 - **Session**: a group of a project's terminals, listed in the Sessions panel. An agent's own
-  conversation, which it resumes after a restart, is the agent's, not a Novadeck session.
+  session, the conversation it resumes after a restart, is another thing: call it the
+  agent's session.
 - **Terminal**: one shell, where you run an agent or anything else. Its row in the sidebar is
   its tab, and Grid and Canvas show it as a window.
 - **View**: how the terminals are laid out: **Focus** (one terminal), **Grid** (side by
