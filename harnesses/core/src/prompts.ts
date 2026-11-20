@@ -210,12 +210,22 @@ export const quotedLine = (line: string): string => {
   return `"${line}"`
 }
 
+// A delivery of agents' messages, as Novadeck frames one (`<novadeck-messages note=…>`), at the
+// start of what it is handed in.
+const delivery = /^\s*<novadeck-messages[\s>]/
+
 /**
  * Whether a prompt is a delivery of agents' messages rather than the person's, in any
- * harness. A harness's own continuations it tells itself (see `promptStart`), and a doorbell
- * prompt is told apart by `doorbellNonce`.
+ * harness: one that is the delivery, as Claude Code wrote a Stop's at 2.1.294. Only its start
+ * counts: the person's words may quote one, and no harness puts a delivery after other text
+ * in a prompt. A continued Stop submits no prompt in Claude Code (2.1.328) or Codex (0.170.0,
+ * whose `<hook_prompt>` holds it escaped), Antigravity's deliveries are system steps, never
+ * typed input, and a ring's prompt is the doorbell's line alone (probed 2026-11-20,
+ * `e2e/probes/delivery-prompts.e2e.ts`, each harness's `delivery-prompts.probe.json`). A
+ * harness's own continuations it tells itself (see `promptStart`), and a doorbell prompt is
+ * told apart by `doorbellNonce`.
  */
-export const continuationPrompt = (prompt: string): boolean => prompt.includes("<novadeck-messages")
+export const continuationPrompt = (prompt: string): boolean => delivery.test(prompt)
 
 /**
  * The turn a root prompt starts, from its text: Novadeck's doorbell, a delivery (or

@@ -117,8 +117,13 @@ describe("each harness's messaging profile", () => {
 
 describe("a continuation's prompt", () => {
   it("is a delivery's, in any harness, never the person's", () => {
-    expect(continuationPrompt(`text\n${delivery}`)).toBe(true)
+    expect(continuationPrompt(delivery)).toBe(true)
+    expect(continuationPrompt(`\n${delivery}`)).toBe(true)
     expect(continuationPrompt("Review the Novadeck notice")).toBe(false)
+  })
+
+  it("is not the person's words that quote a delivery", () => {
+    expect(continuationPrompt(`What does this mean?\n${delivery}`)).toBe(false)
   })
 })
 
@@ -147,7 +152,8 @@ describe("a doorbell prompt", () => {
       prompt: "fix the build",
     })
     expect(withoutDoorbell(`half ${bell} typed`)).toBe("half typed")
-    expect(promptStart(base, `go on\n${delivery}`)).toMatchObject({ cause: "harness" })
+    expect(promptStart(base, delivery)).toMatchObject({ cause: "harness" })
+    expect(promptStart(base, `go on\n${delivery}`)).toMatchObject({ cause: "prompt" })
     expect(promptStart(base, "anything", true)).toMatchObject({ cause: "harness" })
   })
 
