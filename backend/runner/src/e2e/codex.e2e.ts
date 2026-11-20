@@ -3,7 +3,11 @@ import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { isEmpty } from "@novadeck/tui-input/box"
+
+import { harnesses } from "../harnesses/registry.js"
 import { codex } from "./agents/codex.js"
+import { poll, type DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, gate, latest, type Call } from "./model/script.js"
 import {
@@ -26,6 +30,7 @@ import {
 // What only Codex needs beyond the shared scenarios (messaging.e2e.ts).
 
 const it = e2e(codex)
+const box = harnesses.codex.box!
 
 /**
  * Whether macOS asks for less motion (Reduce motion), which Codex follows; never
@@ -54,8 +59,18 @@ const logo = /(?:^.*[⠀-⣿].*\n){10}/m
 const side =
   /Side from main thread · (?:ctrl\+|\^|⌃)\/ to switch · (?:ctrl\+|\^|⌃)c to (?:close|archive)|│ Side chat\s+×/
 
-// What the root's footer says while a side conversation is open beside it.
-const sideKept = /(?:ctrl\+|\^|⌃)\/ for side/
+/**
+ * Whether the root's box has the focus, empty, as Codex's box profile reads it: the cursor in the
+ * root's pane, never the sidebar's, and no side conversation over the whole screen. Its footer's
+ * "^/ for side" may not show: a long folder (a Windows runner's temp path) pushes it out of a
+ * 79-column pane (#1123, CI 2026-11-20).
+ */
+const rootInFocus = async (terminal: DeckTerminal): Promise<true | undefined> => {
+  const screen = await terminal.screenText()
+  if (!screen || box.overlay(screen)) return undefined
+  const read = box.read(screen)
+  return read && isEmpty(read) ? true : undefined
+}
 
 // How long a terminal is watched for a binding that mustn't change once a turn is done.
 const quiet = 3000
@@ -201,7 +216,7 @@ describe.skipIf(!supported)("Codex", () => {
 
     // Back at the root, the side conversation kept, the person's next prompt carries the message.
     t1.press("\x1f")
-    await t1.until(sideKept)
+    await poll(() => rootInFocus(t1), "the root's empty box in focus")
     await t1.submit("Back at the root")
     const back = await run.model.waitFor((call) => delivered(call, "fox"), { after: calls })
     expect(asked(back, "Back at the root")).toBe(true)
