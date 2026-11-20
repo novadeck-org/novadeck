@@ -417,16 +417,21 @@ const resolved = (
 
 /**
  * The requests a root turn's start or end leaves waiting: a running subagent's, as a
- * background one's outlives the turn, and a detached one, which asked without waiting on
- * any turn. The root's own, and those of a subagent no longer running, are settled.
+ * background one's outlives the turn; a detached one, which asked without waiting on any
+ * turn; and one only the screen tells, which lasts as long as its screen shows it, whatever
+ * the turns (its dialogs' reading clears it once the screen is still without it), as Codex
+ * draws a spawned agent's MCP form in its root's screen, under the root's turns. The root's
+ * own, and those of a subagent no longer running, are settled.
  */
 const outliving = (
   pending: readonly Request[],
   subagents: readonly Subagent[],
 ): readonly Request[] =>
   pending.filter(
-    ({ actor, detached }) =>
-      detached === true || (actor !== null && subagents.some(({ id }) => id === actor)),
+    ({ actor, detached, screen }) =>
+      detached === true ||
+      screen === true ||
+      (actor !== null && subagents.some(({ id }) => id === actor)),
   )
 
 /**

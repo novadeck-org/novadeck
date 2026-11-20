@@ -282,6 +282,23 @@ describe("applying activity", () => {
     expect(apply(asked, binding, result("a:Bash:1", null))?.pending).toEqual([])
   })
 
+  it("keeps a request only the screen tells through the root's turns, as its screen still shows it", () => {
+    // As Codex draws a spawned agent's MCP form in its root's screen while the root works on
+    // (probed 2026-11-20, 0.170.0): the root's turn ends, and the next starts, under it.
+    const shown = { ...request("form", null, 6), screen: true } as ActivityEvent
+    const asked = apply(apply(started(0), binding, request("own", null))!, binding, shown)!
+    expect(ids(asked)).toEqual(["own", "form"])
+    const ended = apply(
+      asked,
+      binding,
+      fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }),
+    )!
+    // The root's own request, which its hooks told, is settled with its turn; not the form.
+    expect(ids(ended)).toEqual(["form"])
+    const next = apply(ended, binding, fact({ type: "turn-started", startedAt: 11 }))!
+    expect(ids(next)).toEqual(["form"])
+  })
+
   it("keeps one actor's request waiting while another actor's calls finish", () => {
     const waiting = apply(started(0), binding, request("a:Bash:1", "a"))!
     // Another subagent's own call of the same tool, which needed no permission.
