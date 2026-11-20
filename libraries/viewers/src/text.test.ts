@@ -25,4 +25,26 @@ describe("the outline", () => {
     // A backtick run with more after it on its line is inline code, not a fence.
     expect(outline("```a``` b\n## Real\n").map((heading) => heading.text)).toEqual(["Real"])
   })
+
+  it("opens a tilde fence whose info string holds a backtick, which only a backtick fence forbids", () => {
+    // Read otherwise, the body is text, the closing ~~~ opens a fence, and what follows is hidden.
+    expect(outline("~~~ `x`\n## Inside\n~~~\n## After\n").map((heading) => heading.text)).toEqual([
+      "After",
+    ])
+  })
+
+  it("reads a line indented four spaces or more as indented code, not a fence, outside a list", () => {
+    expect(outline("    ```\n## One\n").map((heading) => heading.text)).toEqual(["One"])
+    // A closing fence that deep closes nothing.
+    expect(outline("```\n    ```\n## Not\n```\n## After\n").map((heading) => heading.text)).toEqual(
+      ["After"],
+    )
+  })
+
+  it("keeps a fence inside a list item, as deep as the item holds it", () => {
+    const text = "- item\n\n      ```\n      ## Not\n      ```\n\n## After\n"
+    expect(outline(text).map((heading) => heading.text)).toEqual(["After"])
+    // A margin line ends the list, so a deeply indented line after it is code again.
+    expect(outline("- item\n\nplain\n\n      ```\n## One\n").map((h) => h.text)).toEqual(["One"])
+  })
 })

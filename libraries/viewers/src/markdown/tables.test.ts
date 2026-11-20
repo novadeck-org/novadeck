@@ -66,6 +66,9 @@ describe("tables", () => {
       expect(findTables(`~~~\n${table}~~~\n`)).toEqual([])
       expect(findTables(`\`\`\`\`md\n\`\`\`\n\`\`\`\n${table}\`\`\`\`\n`)).toEqual([])
       expect(findTables(`~~~\n~~~\n${table}`)).toHaveLength(1)
+      // A tilde fence may hold a backtick in its info string; four spaces of indent fence nothing.
+      expect(findTables(`~~~ \`x\`\n${table}~~~\n${table}`)).toHaveLength(1)
+      expect(findTables(`    \`\`\`\n${table}`)).toHaveLength(1)
     })
   })
 })
