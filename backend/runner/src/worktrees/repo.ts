@@ -211,6 +211,24 @@ export const hasSubmodules = async (path: string): Promise<boolean | undefined> 
 }
 
 /**
+ * The untracked folders of the worktree that are git repositories of their own, at any depth (an
+ * agent's clone of a library, say), which git lists as folders and never looks into: a commit
+ * keeps one only as a gitlink, a hash with none of its files or commits. Ignored ones are not
+ * looked for, as ignored files are never kept. Undefined where git couldn't list them.
+ */
+export const nestedRepositories = async (path: string): Promise<readonly string[] | undefined> => {
+  const run = await git(path, ["ls-files", "--others", "--exclude-standard", "-z"], {
+    ...listing,
+    ms: statusMs,
+  })
+  if (!run.ok) return undefined
+  return run.out
+    .split("\0")
+    .filter((name) => name.endsWith("/"))
+    .map((name) => name.slice(0, -1))
+}
+
+/**
  * Whether the main branch holds all of `ref`: every commit is in its history, or merging it
  * changes nothing (squash- and rebase-merged work, which git's own check calls unmerged).
  */

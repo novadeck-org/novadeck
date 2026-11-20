@@ -746,7 +746,7 @@ with every safety check again at that time:
   that no terminal's current checkout is the worktree with its agent working or a command running),
   so it can't race an agent's take, give or close; a command run elsewhere with `git -C` into it is
   not seen. The trash button waits while `working`. A refusal (`CONFLICT`, with the service's reason: git
-  status unreadable, submodules) shows above the list, as does a work that can't be shown; a
+  status unreadable, submodules, a git repository of its own inside) shows above the list, as does a work that can't be shown; a
   worktree an agent closed meanwhile counts as closed. A work whose owner is closed (in History)
   shows on the selected terminal's bar. With no works the list says what appears there. The panel
   and its rail toggle show only while Preferences → Experimental → Agent worktrees is
@@ -980,7 +980,10 @@ with every safety check again at that time:
     not kept) as a commit at `refs/novadeck/kept/<branch>-work-<sha>`, and commits only a
     detached HEAD or a stopped rebase reaches at `…-head-<sha>`, then removes the folder. The
     branch goes only if Novadeck created it and the main branch holds all of it. A worktree
-    whose status git couldn't read, or that has submodules, is never removed, forced or not.
+    whose status git couldn't read, that has submodules, or that holds an untracked folder which is
+    a git repository of its own (at any depth, as `git ls-files --others --exclude-standard` lists
+    it: a commit could keep it only as a gitlink, none of its files or commits), is never removed,
+    forced or not.
     The row goes last. A `git worktree remove` that stops partway (on Windows, a file in the
     folder still held for a moment) deletes git's record of the worktree even where the folder
     wouldn't go, so where git's own listing no longer has it, Novadeck deletes what is left
@@ -992,7 +995,7 @@ with every safety check again at that time:
   - **At the runner's start** every row is checked: a folder that is gone is pruned from its
     repository and its row deleted, an owner that exists neither live nor in History leaves
     the worktree orphaned. Removing a project removes its worktrees first, the same way as
-    `force`, before the rows cascade away. Nothing here watches git for worktrees made
+    `force`, before the rows cascade away; one `force` can't remove stays on disk, and is logged. Nothing here watches git for worktrees made
     another way.
   - **Cleanup** (`worktrees/cleanup.ts`) removes worktrees nobody needs, in the service's queue
     and whatever the switch says. _Merged_ is the Worktrees panel's test (HEAD in main, or merging it
@@ -1008,8 +1011,8 @@ with every safety check again at that time:
     When the owner's History row is pruned (`ClosedTerminals.prune`, the only place that tells
     cleanup; a restore also deletes a row but does not), its worktrees are removed with `force`
     semantics: uncommitted work and a detached HEAD are kept on `refs/novadeck/kept/` refs and an
-    unmerged branch is kept. If git couldn't read the worktree, it has submodules or an agent
-    works in it, the row is orphaned instead, the folder stays, and a warning is logged. Each
+    unmerged branch is kept. If git couldn't read the worktree, it has submodules or a git
+    repository of its own inside, or an agent works in it, the row is orphaned instead, the folder stays, and a warning is logged. Each
     automatic removal is logged at info level (`worktrees.cleaned`); no agent is told. Cleanup
     runs when a terminal is closed for good (`Terminals.forget`), at the runner's start after the
     reconcile above (which orphans rows whose owner is gone, so a merged one among them goes at

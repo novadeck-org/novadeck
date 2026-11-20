@@ -300,6 +300,22 @@ describe("cleaning up when History lets a terminal go", () => {
     expect(f.store.worktree(path)?.terminalId).toBeNull()
   })
 
+  it("orphans a worktree holding an untracked repository of its own, and leaves its folder", async ({
+    fx: f,
+  }) => {
+    const path = await f.work("cloned")
+    const lib = join(path, "lib")
+    mkdirSync(lib)
+    git(lib, "init", "--quiet", "-b", "main")
+    writeFileSync(join(lib, "fix.c"), "the fix\n")
+    git(lib, "add", "-A")
+    git(lib, "commit", "--quiet", "-m", "fix")
+    f.owners.clear()
+    await f.worktrees.ownersPruned(["t1"])
+    expect(existsSync(join(lib, "fix.c"))).toBe(true)
+    expect(f.store.worktree(path)?.terminalId).toBeNull()
+  })
+
   it("leaves one an agent works in, orphaned", async ({ fx: f }) => {
     const path = await f.work("busy")
     f.busy.add(path)

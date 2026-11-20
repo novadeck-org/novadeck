@@ -833,6 +833,37 @@ describe("closing a worktree", () => {
     ).toMatchObject({ ok: false, reason: expect.stringContaining("submodules") })
     expect(existsSync(a.path)).toBe(true)
   })
+
+  it("never removes a worktree holding an untracked repository of its own, forced or not, or on a project's removal", async ({
+    fx: f,
+  }) => {
+    const a = await open(f, "cloned")
+    if (!a.ok) throw new Error("open")
+    // An agent's clone of a library, in a folder nothing tracks, with a fix committed there and
+    // more not yet: a commit could keep it only as a gitlink.
+    const lib = join(a.path, "vendor", "deep", "lib")
+    mkdirSync(lib, { recursive: true })
+    git(lib, "init", "--quiet", "-b", "main")
+    writeFileSync(join(lib, "fix.c"), "the fix\n")
+    git(lib, "add", "-A")
+    git(lib, "commit", "--quiet", "-m", "fix")
+    writeFileSync(join(lib, "more.c"), "more\n")
+    // eslint-disable-next-line no-await-in-loop -- Two closes, one after the other.
+    for (const force of [false, true])
+      expect(
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        await f.worktrees.closeOwned({ terminalId: "t1", cwd: f.repo, path: a.path, force }),
+      ).toMatchObject({
+        ok: false,
+        reason: expect.stringContaining(
+          "a git repository of its own, not tracked (vendor/deep/lib)",
+        ),
+      })
+    await f.worktrees.removeProject(f.project)
+    expect(readFileSync(join(lib, "more.c"), "utf8")).toBe("more\n")
+    expect(git(lib, "log", "-1", "--format=%s")).toBe("fix")
+    expect(git(f.repo, "for-each-ref", "refs/novadeck")).toBe("")
+  })
 })
 
 describe("what take may adopt", () => {

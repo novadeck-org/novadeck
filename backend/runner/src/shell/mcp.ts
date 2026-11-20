@@ -1499,8 +1499,8 @@ const closeWorktree: Tool<Worktree> = {
     "uncommitted and untracked files are kept as a commit on a ref the answer names, but " +
     "ignored files (such as .env or generated data) are not kept and go with the folder, " +
     "and a branch with commits stays. A branch is deleted only if Novadeck made it and the " +
-    "main branch holds all of it. A worktree Novadeck can't read, or with submodules, is " +
-    "never closed. Only the owner may close a worktree. Refused while the user has agent " +
+    "main branch holds all of it. A worktree Novadeck can't read, with submodules, or with " +
+    "an untracked git repository of its own inside, is never closed. Only the owner may close a worktree. Refused while the user has agent " +
     "worktrees off.",
   inputSchema: {
     type: "object",

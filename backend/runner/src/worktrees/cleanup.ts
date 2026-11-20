@@ -238,7 +238,8 @@ export class Cleanup {
   /**
    * Terminals left History for good (pruned): their worktrees go whatever they hold, with
    * uncommitted work and a detached HEAD kept on refs and an unmerged branch kept. One git
-   * couldn't read, or with submodules, stays on disk with no owner, and is logged.
+   * couldn't read, or with submodules or an untracked git repository of its own, stays on disk
+   * with no owner, and is logged.
    */
   async pruned(terminalIds: readonly string[]): Promise<void> {
     if (this.stopped) return
