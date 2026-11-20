@@ -3,7 +3,7 @@ import { homedir, tmpdir } from "node:os"
 import { delimiter, dirname, join, parse, sep } from "node:path"
 
 import { it as base, describe, expect } from "../test.js"
-import { secret, secrets, secretVariables } from "./secrets.js"
+import { linkHops, secret, secrets, secretVariables } from "./secrets.js"
 
 const at = (...parts: string[]) => join(sep, "home", "u", ...parts)
 
@@ -219,5 +219,40 @@ describe("a file that may hold secrets", () => {
       "PGPASSFILE",
       "RCLONE_CONFIG",
     ])
+  })
+})
+
+describe("the names a path's links lead through", () => {
+  it("are each path on the way, a link in a folder above included, and end at a loop", async ({
+    directory,
+  }) => {
+    mkdirSync(join(directory, "keys"))
+    writeFileSync(join(directory, "keys", "id_work"), "KEY\n")
+    symlinkSync(join(directory, "keys"), join(directory, ".ssh"))
+    symlinkSync(".ssh", join(directory, "stuff"))
+    await expect(linkHops(join(directory, "stuff", "id_work"))).resolves.toEqual([
+      join(directory, "stuff", "id_work"),
+      join(directory, ".ssh", "id_work"),
+      join(directory, "keys", "id_work"),
+    ])
+    await expect(linkHops(join(directory, "keys", "id_work"))).resolves.toEqual([
+      join(directory, "keys", "id_work"),
+    ])
+    symlinkSync(join(directory, "b"), join(directory, "a"))
+    symlinkSync(join(directory, "a"), join(directory, "b"))
+    await expect(linkHops(join(directory, "a"))).resolves.toEqual([
+      join(directory, "a"),
+      join(directory, "b"),
+    ])
+  })
+
+  it("stops after as many links as realpath follows", async ({ directory }) => {
+    writeFileSync(join(directory, "end"), "")
+    let previous = "end"
+    for (let at = 0; at < 50; at += 1) {
+      symlinkSync(previous, join(directory, `l${at}`))
+      previous = `l${at}`
+    }
+    await expect(linkHops(join(directory, previous))).resolves.toHaveLength(41)
   })
 })

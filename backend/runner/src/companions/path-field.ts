@@ -11,6 +11,8 @@ import {
   type WroteFolder,
 } from "@novadeck/protocol"
 
+import { linkHops } from "./secrets.js"
+
 // What a terminal's folder tab's path field asks the runner: which folders a typed path may be,
 // and which folders outside the project the session's agents wrote in.
 
@@ -101,10 +103,12 @@ export const matchFolders = async (
   const last = Math.max(text.lastIndexOf("/"), text.lastIndexOf("\\"))
   const before = text.slice(0, last + 1)
   const prefix = text.slice(last + 1).toLowerCase()
-  // The folder as typed, and where it leads: either may name one that holds secrets.
+  // The folder as typed, each name its links lead through, and where it leads: any may name
+  // one that holds secrets.
   const typedParent = resolve(cwd, expandHome(before === "" ? "." : before))
   const parent = await realFolder(typedParent)
-  if (parent === undefined || secret(parent) || secret(typedParent)) return []
+  if (parent === undefined || secret(parent) || (await linkHops(typedParent)).some(secret))
+    return []
   // A dot folder is named only by a path that starts one, as a shell completes.
   const hidden = prefix.startsWith(".")
   const names: { name: string; link: boolean }[] = []
@@ -131,12 +135,16 @@ export const matchFolders = async (
   }
   names.sort((a, b) => a.name.localeCompare(b.name))
   const found: FolderMatch[] = []
-  for (const { name } of names) {
+  for (const { name, link } of names) {
     if (found.length >= folderMatchLimits.matches) break
-    // A link is named only for a folder it leads to; any folder only if it may hold no secrets.
+    // A link is named only for a folder it leads to; any folder only if it may hold no secrets,
+    // by its name, each name its links lead through, or where it leads.
     // eslint-disable-next-line no-await-in-loop -- Only as many as are named are asked about.
     const real = await realFolder(join(parent, name))
-    if (real === undefined || secret(real) || secret(join(parent, name))) continue
+    if (real === undefined || secret(real)) continue
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    const hops = link ? await linkHops(join(parent, name)) : [join(parent, name)]
+    if (hops.some(secret)) continue
     // A name that would make a path the protocol can't carry is no match.
     if (before.length + name.length > companionLimits.path || real.length > companionLimits.path)
       continue
@@ -225,6 +233,8 @@ export const wroteFolders = async (
       secret(each.folder)
     )
       continue
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    if ((await linkHops(each.folder)).some(secret)) continue
     seen.add(real)
     const under = (folders: readonly string[]) =>
       folders.some((top) => lies(each.folder, top) || lies(real, top))

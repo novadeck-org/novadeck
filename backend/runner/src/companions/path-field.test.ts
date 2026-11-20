@@ -74,6 +74,10 @@ describe("the folders a typed path may be", () => {
     folder(directory, "keys", "work")
     symlinkSync(join(directory, "keys"), join(directory, ".ssh"))
     expect(await matchFolders(".ssh/", directory, secret, none)).toEqual([])
+    // Nor through a link to that link, nor names a link to it.
+    symlinkSync(join(directory, ".ssh"), join(directory, "stuff"))
+    expect(await matchFolders("stuff/", directory, secret, none)).toEqual([])
+    expect((await matchFolders("st", directory, secret, none)).map(({ real }) => real)).toEqual([])
     expect((await matchFolders("keys/", directory, secret, none)).map(({ real }) => real)).toEqual([
       join(directory, "keys", "work"),
     ])

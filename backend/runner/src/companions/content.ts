@@ -26,7 +26,7 @@ import { harnesses } from "../harnesses/registry.js"
 import { cut, tail } from "../text.js"
 import type { ItemRecord } from "./records.js"
 import { failure, type RequestFailure } from "./request.js"
-import { folderSecrets, secret } from "./secrets.js"
+import { folderSecrets, linkHops, secret, secrets } from "./secrets.js"
 
 // What is shown as an image, by extension: what Chromium decodes itself, as the desktop app
 // and a browser both are, JPEG XL among them (probed in Electron 45.2.2, Chromium 156). HEIC,
@@ -219,16 +219,18 @@ export const pointAt = async (
   cwd: string,
   env?: NodeJS.ProcessEnv,
 ): Promise<Pointed | RequestFailure> => {
-  // Judged by the name it was asked by as well as where it leads: a `.env` that links to
-  // `config/dev.vars` is still a secret, as the folder listing holds it.
+  // Judged by the name it was asked by, each name its links lead through, and where it leads: a
+  // `.env` that links to `config/dev.vars` is still a secret, as the folder listing holds it,
+  // and so is a `notes.txt` that links to that `.env`.
   const asked = resolve(cwd, given)
   const path = await realpath(asked).catch(() => undefined)
   if (!path) return failure("That file doesn't exist.")
   const stats = await stat(path).catch(() => undefined)
   if (!stats) return failure("That file doesn't exist.")
+  const hops = await linkHops(asked)
   if (stats.isDirectory()) {
     const held = folderSecrets(env)
-    if (held(path) || held(asked))
+    if (held(path) || hops.some(held))
       return failure("That folder may hold secrets, so Novadeck won't list what is in it.")
     return { ok: true, path, kind: "folder", size: 0, secret: false }
   }
@@ -241,7 +243,7 @@ export const pointAt = async (
     // A compiled object file is an .obj too, which no model is.
     kind: kind === "model" && (await isCompiledObject(path)) === true ? "file" : kind,
     size: stats.size,
-    secret: secret(path, env) || secret(asked, env),
+    secret: [path, ...hops].some(secrets(env)),
   }
 }
 

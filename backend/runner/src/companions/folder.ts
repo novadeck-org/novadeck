@@ -26,7 +26,7 @@ import {
   stampOf,
 } from "./content.js"
 import type { ItemRecord } from "./records.js"
-import { folderSecrets, secrets } from "./secrets.js"
+import { folderSecrets, linkHops, secrets } from "./secrets.js"
 
 // A folder item lists a folder read-only: what is in it, never what it holds, except through
 // `readFolderPart`, which reads a file by the rules its kind has anywhere else. Nothing here
@@ -180,14 +180,17 @@ const walk = async (folder: string, way: string, checks: Checks): Promise<Walked
   } catch (error) {
     return { ok: false, reason: errnoOf(error) === "EACCES" ? "unreadable" : "missing" }
   }
-  if (checks.folder(top) || checks.folder(folder)) return { ok: false, reason: "secret" }
+  if (checks.folder(top) || (await linkHops(folder)).some(checks.folder))
+    return { ok: false, reason: "secret" }
   const segments = segmentsOf(way)
   if (!segments) return { ok: false, reason: "missing" }
   let path = top
   for (const segment of segments) {
-    // A step is judged by its name as well as where it leads, as a folder's entries are.
+    // A step is judged by its name, each name its links lead through, and where it leads, as a
+    // folder's entries are.
     const named = join(path, segment)
-    if (checks.folder(named)) return { ok: false, reason: "secret" }
+    // eslint-disable-next-line no-await-in-loop -- As below.
+    if ((await linkHops(named)).some(checks.folder)) return { ok: false, reason: "secret" }
     try {
       // eslint-disable-next-line no-await-in-loop -- Each step begins where the last ended.
       path = await realpath(named)
@@ -269,6 +272,8 @@ const entryOf = async (
   if (!own) return undefined
   let real = full
   let stats = own
+  // A link's name, and each its links lead through: any may say a secret.
+  const hops = own.isSymbolicLink() ? await linkHops(full) : [full]
   if (own.isSymbolicLink()) {
     // A link that leaves the top, or leads nowhere, is listed as itself.
     const target = await realpath(full).catch(() => undefined)
@@ -281,7 +286,7 @@ const entryOf = async (
         size: own.size,
         modifiedAt: own.mtimeMs,
         children: null,
-        secret: checks.file(full),
+        secret: hops.some(checks.file),
         link: true,
         stamp: "",
       }
@@ -289,8 +294,8 @@ const entryOf = async (
     stats = targeted
   }
   const held = stats.isDirectory()
-    ? checks.folder(full) || checks.folder(real)
-    : checks.file(full) || checks.file(real)
+    ? [...hops, real].some(checks.folder)
+    : [...hops, real].some(checks.file)
   const base = {
     name,
     size: stats.size,
