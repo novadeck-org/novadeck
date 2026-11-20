@@ -239,7 +239,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
           actions: [
             {
               label: "Third agent clashes with the others",
-              hint: "Open Files and double-click src/checkout/Checkout.tsx (storefront, agents demo): the preview's Clash head at submit() shows owl's version, the last writer, with moth and crow hidden, and a picker of each agent and main; owl joins the merge toggles",
+              hint: "Open Files and click src/checkout/Checkout.tsx (storefront, agents demo): the preview's Clash head at submit() shows owl's version, the last writer, with moth and crow hidden, and a picker of each agent and main; owl joins the merge toggles",
               run: () => works.previewOwl("clash"),
             },
             {
@@ -249,7 +249,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Crow adds OrderSummary.tsx too",
-              hint: "Open Files and double-click src/checkout/OrderSummary.tsx (storefront, agents demo; main lacks it): the preview draws the whole file as added lines under moth's head, then, as crow joins, a whole-file Clash head with crow's version shown (the last writer) and a picker",
+              hint: "Open Files and click src/checkout/OrderSummary.tsx (storefront, agents demo; main lacks it): the preview draws the whole file as added lines under moth's head, then, as crow joins, a whole-file Clash head with crow's version shown (the last writer) and a picker",
               run: () => works.previewScenario("added", true),
             },
             {
