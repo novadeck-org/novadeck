@@ -119,6 +119,7 @@ const createServices = (
     companions: backend.companions,
     history: backend.history,
     windows: backend.projectWindows,
+    syncProject: backend.syncProject,
     itemStore,
     canvas,
     effects: domEffects,
@@ -212,7 +213,7 @@ export const WorkspaceProvider = ({
   useEffect(() => watchChat(services.chat, services.workspace), [services])
   useEffect(() => watchPageFocus(services.ui, window, services.backend.windowFocus), [services])
   useEffect(
-    () => watchProjectWindows(services.backend.projectWindows, services.workspace, services.ui),
+    () => watchProjectWindows(services.backend, services.workspace, services.ui),
     [services],
   )
   useEffect(

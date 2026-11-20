@@ -49,6 +49,8 @@ export type CommandsOptions = {
   readonly moveTerminal?: CommandContext["moveTerminal"]
   // The desktop app's project windows, when it opens them.
   readonly windows?: CommandContext["windows"]
+  // Reads a project from the runner again, when the backend can.
+  readonly syncProject?: CommandContext["syncProject"]
 }
 
 // Real stores, navigator, commands and store subscriptions over a fixture workspace, with effects that
@@ -86,6 +88,7 @@ export const openCommands = ({
   history,
   moveTerminal,
   windows,
+  syncProject,
 }: CommandsOptions = {}) => {
   const [pathname = "", query = ""] = url.split("?")
   const resolved = resolveRoute(
@@ -193,6 +196,7 @@ export const openCommands = ({
     history,
     moveTerminal,
     windows,
+    syncProject,
   }
   const commands = createWorkspaceCommands(context)
   // The subscriptions the provider attaches; nothing persists to storage here.

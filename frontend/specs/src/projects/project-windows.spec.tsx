@@ -14,7 +14,7 @@ const open = async (kind: "on" | "extra" = "on"): Promise<void> => {
 }
 
 const marks = (): HTMLElement[] =>
-  page.getByRole("img", { name: "Open in another window" }).elements() as HTMLElement[]
+  page.getByRole("img", { name: "Shown in another window" }).elements() as HTMLElement[]
 
 describe("project windows in the header", () => {
   context("when another window shows a project", () => {
@@ -31,7 +31,7 @@ describe("project windows in the header", () => {
         .element(
           page
             .getByRole("group", { name: "Pinned projects" })
-            .getByRole("img", { name: "Open in another window" }),
+            .getByRole("img", { name: "Shown in another window" }),
         )
         .toBeVisible()
       await workspaceSwitcher().click()
@@ -39,7 +39,7 @@ describe("project windows in the header", () => {
         .element(
           page
             .getByRole("dialog", { name: "Switch workspace" })
-            .getByRole("img", { name: "Open in another window" }),
+            .getByRole("img", { name: "Shown in another window" }),
         )
         .toBeVisible()
     })
@@ -49,7 +49,7 @@ describe("project windows in the header", () => {
       projectWindows.pretend(["docs-site"])
       await workspaceSwitcher().click()
       await expect.element(page.getByRole("dialog", { name: "Switch workspace" })).toBeVisible()
-      await expectStaysAbsent(page.getByRole("img", { name: "Open in another window" }))
+      await expectStaysAbsent(page.getByRole("img", { name: "Shown in another window" }))
     })
 
     it("swaps when the person picks it: this window shows it", async () => {
@@ -69,7 +69,7 @@ describe("project windows in the header", () => {
           page
             .getByRole("dialog", { name: "Switch workspace" })
             .getByRole("button", { name: /^storefront/ })
-            .getByRole("img", { name: "Open in another window" }),
+            .getByRole("img", { name: "Shown in another window" }),
         )
         .toBeVisible()
       expect(marks()).toHaveLength(1)
@@ -92,7 +92,7 @@ describe("project windows in the header", () => {
           page
             .getByRole("dialog", { name: "Switch workspace" })
             .getByRole("button", { name: /^docs-site/ })
-            .getByRole("img", { name: "Open in another window" }),
+            .getByRole("img", { name: "Shown in another window" }),
         )
         .toBeVisible()
     })

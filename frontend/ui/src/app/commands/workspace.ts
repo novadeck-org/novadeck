@@ -49,6 +49,7 @@ import { createMoveCommands, type MoveCommands } from "./moves"
 import {
   createProjectWindowCommands,
   arrivalWaitMs,
+  swapSettleMs,
   type ProjectWindowCommands,
 } from "./project-windows"
 import { createRecentCommands, type RecentCommands } from "./recent"
@@ -84,7 +85,7 @@ export type WorkspaceCommands = ShellCommands &
     readonly switchProject: (next: Project) => void
     // Goes where another window sent this one: the project, and its terminal when it names one,
     // as they are now, with no swap and no hand-off, which only the person's own action makes.
-    readonly showProjectHere: (target: ProjectWindowTarget) => void
+    readonly showProjectHere: (target: ProjectWindowTarget) => Promise<void>
     // Asks the backend for a folder and opens it as a new project; no-op without one.
     readonly openFolder: () => Promise<void>
     // Removes a project and closes its terminals; the last project stays.
@@ -288,8 +289,15 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
   // app is told first, while it still knows what this window shows.
   const switchProject = (next: Project): void => {
     if (next.id === workspace.getSnapshot().activeProjectId) return
+    const swapping = windows.shownElsewhere(next.id)
     windows.swapWith(next.id)
-    switchHere(next)
+    // With project windows on, a project is read from the runner as it is shown: another
+    // window may have changed it since this one loaded it. A project the other window was
+    // showing is read once it has sent what it changed there.
+    if (!ctx.syncProject || !windows.windowsOn()) return switchHere(next)
+    const read = (): void => void windows.readProject(next.id).then(() => switchHere(next))
+    if (swapping) effects.after(swapSettleMs, read)
+    else read()
   }
 
   // Rows being restored, by the terminal made for each, from the click until the runner says
@@ -363,8 +371,10 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     revealHere(terminalId, panel)
   }
 
-  // Where another window sent this one.
-  const showProjectHere = ({ projectId, terminalId }: ProjectWindowTarget): void => {
+  // Where another window sent this one. The project is read from the runner first, as it may
+  // have changed there, or be one this window never heard of.
+  const showProjectHere = async ({ projectId, terminalId }: ProjectWindowTarget): Promise<void> => {
+    if (ctx.syncProject) await windows.readProject(projectId)
     const snapshot = workspace.getSnapshot()
     const project = snapshot.projects.find((each) => each.id === projectId)
     if (!project) return
@@ -698,7 +708,8 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       if (here || (request.focus && !away))
         markCreated({ context: `${project.id}/${session.id}`, id: terminal.id })
       request.answer({ terminalId: terminal.id })
-      if (away) windows.handOffTerminal(terminal.id)
+      // An agent's doing: the window goes there, and none comes forward.
+      if (away) windows.handOffTerminal(terminal.id, undefined, true)
     },
     restoreClosed: (row) => {
       if (restoring.has(row.id)) return

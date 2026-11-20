@@ -32,7 +32,7 @@ describe("the demo's project windows", () => {
 
   it("swaps the project the page leaves with the pretend window's", () => {
     const { demo, states } = watched()
-    demo.windows.show("a")
+    demo.windows.show("a", ["a", "b"])
     demo.pretend(["b"])
     demo.windows.swap("b")
     expect(states.at(-1)?.elsewhere).toEqual(["a"])

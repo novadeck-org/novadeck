@@ -18,7 +18,7 @@ export const ProjectWindowsContext = createContext<ProjectWindowsView | null>(nu
 
 export const useProjectWindows = (): ProjectWindowsView | null => useContext(ProjectWindowsContext)
 
-export const otherWindowText = "Open in another window"
+export const otherWindowText = "Shown in another window"
 
 // The mark of a project another window shows: a small window glyph, quiet like the pin's, that
 // a tooltip and a screen reader name.

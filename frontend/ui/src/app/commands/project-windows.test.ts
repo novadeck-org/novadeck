@@ -1,5 +1,6 @@
 import type { ProjectWindows, ProjectWindowTarget } from "@novadeck/core/desktop/project-windows"
 import type { TerminalRequest } from "@novadeck/core/port"
+import type { ProjectSeed } from "@novadeck/core/seed"
 import { createTerminalState } from "@novadeck/core/state"
 import { terminalFixture, workspaceFixture } from "@novadeck/core/testing"
 import type { Workspace } from "@novadeck/core/types"
@@ -7,6 +8,8 @@ import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
 import { openCommands } from "../../test/commands"
+import type { CommandContext } from "./context"
+import { swapSettleMs } from "./project-windows"
 
 afterEach(() => void vi.useRealTimers())
 
@@ -54,9 +57,13 @@ const recorded = () => {
 }
 
 // An app with project windows on, whose other windows show `elsewhere`.
-const opened = (elsewhere: string[], on = true) => {
+const opened = (elsewhere: string[], on = true, syncProject?: CommandContext["syncProject"]) => {
   const { windows, asked } = recorded()
-  const app = openCommands({ workspace: twoProjects(), windows })
+  const app = openCommands({
+    workspace: twoProjects(),
+    windows,
+    ...(syncProject && { syncProject }),
+  })
   app.ui.update((state) => ({
     ...state,
     flags: { IS_EXPERIMENTAL: on },
@@ -135,7 +142,7 @@ describe("project windows", () => {
     it("hands the new terminal to the window that shows its project", () => {
       const { app, asked } = opened(["other"])
       app.commands.openRequested(request("07"))
-      expect(asked).toEqual([["handOff", { projectId: "other", terminalId: "new-2" }]])
+      expect(asked).toEqual([["handOff", { projectId: "other", terminalId: "new-2", quiet: true }]])
       expect(app.workspace.getSnapshot().activeProjectId).toBe("project")
       expect(project(app, "other").history[0]!.state.roster.terminals).toHaveLength(2)
     })
@@ -149,25 +156,25 @@ describe("project windows", () => {
   })
 
   context("when another window sends this one somewhere", () => {
-    it("shows the project", () => {
+    it("shows the project", async () => {
       const { app } = opened([])
-      app.commands.showProjectHere({ projectId: "other" })
+      await app.commands.showProjectHere({ projectId: "other" })
       expect(app.workspace.getSnapshot().activeProjectId).toBe("other")
     })
 
-    it("reveals the terminal, without handing it on again", () => {
+    it("reveals the terminal, without handing it on again", async () => {
       const { app, asked } = opened(["other"])
-      app.commands.showProjectHere({ projectId: "other", terminalId: "07" })
+      await app.commands.showProjectHere({ projectId: "other", terminalId: "07" })
       expect(asked).toEqual([])
       expect(app.workspace.getSnapshot().activeProjectId).toBe("other")
       expect(app.state().selected).toBe("07")
     })
 
-    it("waits a moment for a terminal this window hasn't heard of, then reveals it", () => {
+    it("waits a moment for a terminal this window hasn't heard of, then reveals it", async () => {
       vi.useFakeTimers()
       const { app } = opened([])
       const target: ProjectWindowTarget = { projectId: "other", terminalId: "08" }
-      app.commands.showProjectHere(target)
+      await app.commands.showProjectHere(target)
       expect(app.workspace.getSnapshot().activeProjectId).toBe("other")
       app.workspace.dispatch({
         type: "terminal/add",
@@ -178,9 +185,9 @@ describe("project windows", () => {
       expect(app.state().selected).toBe("08")
     })
 
-    it("does nothing for a project this window has never heard of", () => {
+    it("does nothing for a project this window has never heard of", async () => {
       const { app } = opened([])
-      app.commands.showProjectHere({ projectId: "unknown" })
+      await app.commands.showProjectHere({ projectId: "unknown" })
       expect(app.workspace.getSnapshot().activeProjectId).toBe("project")
     })
   })
@@ -196,6 +203,86 @@ describe("project windows", () => {
       const { app, asked } = opened([], false)
       app.commands.openInNewWindow("other")
       expect(asked).toEqual([])
+    })
+  })
+
+  context("when this window takes on a project from another window", () => {
+    // The runner's copy of Other: one terminal, 09, which this window never heard of.
+    const reread = (): ProjectSeed => ({
+      id: "other",
+      name: "Other",
+      directory: "~/other",
+      sessions: [
+        {
+          id: "other-session",
+          name: "initial",
+          terminals: [terminalFixture(9, "~/other")],
+          windows: [],
+          items: [],
+        },
+      ],
+    })
+
+    it("reads it from the runner before it shows it, which a swap does after the other window sent its changes", async () => {
+      vi.useFakeTimers()
+      const read: string[] = []
+      const { app, asked } = opened(["other"], true, async (id) => {
+        read.push(id)
+        return reread()
+      })
+      app.commands.switchProject(project(app, "other"))
+      // The app is told at once; the project waits for what the other window changes.
+      expect(asked).toEqual([["swap", "other"]])
+      expect(read).toEqual([])
+      expect(app.workspace.getSnapshot().activeProjectId).toBe("project")
+      await vi.advanceTimersByTimeAsync(swapSettleMs)
+      expect(read).toEqual(["other"])
+      expect(app.workspace.getSnapshot().activeProjectId).toBe("other")
+      expect(
+        project(app, "other").history[0]!.state.roster.terminals.map((each) => each.id),
+      ).toEqual(["09"])
+    })
+
+    it("reads a project nobody shows at once", async () => {
+      const read: string[] = []
+      const { app } = opened([], true, async (id) => {
+        read.push(id)
+        return reread()
+      })
+      app.commands.switchProject(project(app, "other"))
+      expect(read).toEqual(["other"])
+      await vi.waitFor(() => expect(app.workspace.getSnapshot().activeProjectId).toBe("other"))
+    })
+
+    it("learns a project made in another window, and shows it, when sent there, without a reload", async () => {
+      const { app } = opened([], true, async () => ({ ...reread(), id: "brand-new", name: "New" }))
+      await app.commands.showProjectHere({ projectId: "brand-new" })
+      expect(app.workspace.getSnapshot().activeProjectId).toBe("brand-new")
+    })
+
+    it("reveals a terminal the runner now holds, read just before, without waiting for it", async () => {
+      const { app } = opened([], true, async () => reread())
+      await app.commands.showProjectHere({ projectId: "other", terminalId: "09" })
+      expect(app.state().selected).toBe("09")
+    })
+
+    it("carries on with what it has when the runner can't be read", async () => {
+      const { app } = opened([], true, () => Promise.reject(new Error("link down")))
+      const log = vi.spyOn(console, "error").mockImplementation(() => {})
+      await app.commands.showProjectHere({ projectId: "other" })
+      expect(app.workspace.getSnapshot().activeProjectId).toBe("other")
+      log.mockRestore()
+    })
+
+    it("does not read it with project windows off", () => {
+      const read: string[] = []
+      const { app } = opened([], false, async (id) => {
+        read.push(id)
+        return reread()
+      })
+      app.commands.switchProject(project(app, "other"))
+      expect(read).toEqual([])
+      expect(app.workspace.getSnapshot().activeProjectId).toBe("other")
     })
   })
 })

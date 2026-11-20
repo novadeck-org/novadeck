@@ -46,7 +46,7 @@ export const projectWindowGroups = (
       },
       {
         label: "Another window shows the next project",
-        hint: "The first project that isn't on screen shows Open in another window in the switcher and the pins bar (turn Project windows on first); picking it swaps",
+        hint: "The first project that isn't on screen shows Shown in another window in the switcher and the pins bar (turn Project windows on first); picking it swaps",
         run: (context) => {
           const [next] = others(workspace())
           if (next === undefined) return context.note("There is no other project.")
@@ -55,7 +55,7 @@ export const projectWindowGroups = (
       },
       {
         label: "Other windows show every other project",
-        hint: "Every project but the one on screen is marked Open in another window",
+        hint: "Every project but the one on screen is marked Shown in another window",
         run: () => windows.pretend(others(workspace())),
       },
       {

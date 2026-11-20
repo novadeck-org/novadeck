@@ -1,4 +1,5 @@
-import type { ProjectWindows, ProjectWindowTarget } from "@novadeck/core/desktop/project-windows"
+import type { ProjectWindows } from "@novadeck/core/desktop/project-windows"
+import type { Backend } from "@novadeck/core/port"
 import { activeProject } from "@novadeck/core/state"
 import type { Store } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
@@ -21,6 +22,9 @@ export const hasVoice = (state: Pick<UiState, "windows">): boolean => state.wind
 export const windowTitle = (projectName: string | undefined, on: boolean): string =>
   on && projectName ? `${projectName} — Novadeck` : "Novadeck"
 
+// The most projects a window tells the app it knows.
+const knownProjectsLimit = 256
+
 // How long a window with the feature on waits for the Experimental switch before it tells the
 // app the feature is off.
 export const flagGraceMs = 3_000
@@ -29,10 +33,11 @@ export const flagGraceMs = 3_000
 // shows, and whether the person has project windows on, are told to the app as they change.
 // Returns the stop.
 export const watchProjectWindows = (
-  windows: ProjectWindows | undefined,
+  backend: Pick<Backend, "projectWindows" | "showingProject" | "limitSaves">,
   workspace: Store<Workspace>,
   ui: UiStore,
 ): (() => void) => {
+  const { projectWindows: windows } = backend
   if (!windows) return () => {}
   const stopState = windows.onState((state) =>
     ui.update((current) =>
@@ -44,11 +49,25 @@ export const watchProjectWindows = (
     ),
   )
   let shown: string | undefined
+  let known = ""
+  // With project windows on, the runner is told which project this window shows, so what an
+  // agent asks of the person reaches the window that shows its project, and this window saves
+  // only that project's sessions, the others' copies here being stale until it shows them.
+  let scoped: string | null = null
   const showProject = (): void => {
-    const id = activeProject(workspace.getSnapshot())?.id
-    if (id === shown) return
-    shown = id
-    windows.show(id ?? null)
+    const snapshot = workspace.getSnapshot()
+    const id = activeProject(snapshot)?.id
+    const ids = snapshot.projects.slice(0, knownProjectsLimit).map((project) => project.id)
+    if (id !== shown || ids.join("\n") !== known) {
+      shown = id
+      known = ids.join("\n")
+      windows.show(id ?? null, ids)
+    }
+    const scope = id !== undefined && projectWindowsOn(ui.getSnapshot(), windows) ? id : null
+    if (scope === scoped) return
+    scoped = scope
+    backend.showingProject?.(scope)
+    backend.limitSaves?.(scope)
   }
   // Whether the Experimental switch has had time to be read: it comes from the app a moment
   // after the page starts, and a window that opens with the feature on must not tell the app it
@@ -68,7 +87,10 @@ export const watchProjectWindows = (
   showProject()
   useFeature()
   const stopWorkspace = workspace.subscribe(showProject)
-  const stopUi = ui.subscribe(useFeature)
+  const stopUi = ui.subscribe(() => {
+    showProject()
+    useFeature()
+  })
   return () => {
     clearTimeout(settling)
     stopState()
@@ -100,16 +122,4 @@ export const watchWindowTitle = (
     stopUi()
     view.document.title = "Novadeck"
   }
-}
-
-// Loads the page again on a project, and its terminal when the target names one, as the runner
-// knows them now: for a place in a project made in another window after this one loaded, which
-// this page has never heard of.
-export const reloadOn = (
-  view: { readonly location: Pick<Location, "hash" | "reload"> },
-  { projectId, terminalId }: ProjectWindowTarget,
-): void => {
-  const search = terminalId === undefined ? "" : `?terminal=${encodeURIComponent(terminalId)}`
-  view.location.hash = `/projects/${encodeURIComponent(projectId)}/sessions/_/_${search}`
-  view.location.reload()
 }

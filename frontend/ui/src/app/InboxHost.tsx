@@ -14,7 +14,6 @@ import { dingOf } from "./ding"
 import { clickNotice, noticeBoard, rowOfNotice } from "./inbox-pings"
 import { watchInboxToasts } from "./inbox-toasts"
 import { watchMoveToasts } from "./move-toasts"
-import { reloadOn } from "./project-windows"
 import { currentState, modalOpen } from "./selectors"
 import { focusWhenReady, watchShowToasts } from "./show-toasts"
 
@@ -53,28 +52,26 @@ const NoticeClicks = (): null => {
 
 // Hears where another window sends this one: to a project, a terminal of it, or an Inbox
 // row's sheet. A project this window hasn't heard of, one made in another window after this
-// one loaded, loads the page again on it, which reads every project from the runner.
+// one loaded, is read from the runner first (`readProject`).
 const HandedPlaces = (): null => {
-  const { backend, commands, workspace } = useWorkspaceServices()
+  const { backend, commands } = useWorkspaceServices()
   const opener = useInboxOpener()
   const { peekInbox, showProjectHere } = commands
   useEffect(
     () =>
       backend.projectWindows?.onNavigate((target) => {
-        if (!workspace.getSnapshot().projects.some((project) => project.id === target.projectId))
-          return reloadOn(window, target)
         const row =
           target.rowId === undefined
             ? undefined
             : backend.inbox?.state.getSnapshot().items.find((each) => each.id === target.rowId)
-        if (!row || !opener) return showProjectHere(target)
+        if (!row || !opener) return void showProjectHere(target)
         opener(
           (rows) => rows.find((each) => each.id === row.id),
           { after: peekInbox() },
           { here: true },
         )
       }),
-    [backend, workspace, opener, peekInbox, showProjectHere],
+    [backend, opener, peekInbox, showProjectHere],
   )
   return null
 }

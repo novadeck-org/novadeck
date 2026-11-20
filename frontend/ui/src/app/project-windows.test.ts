@@ -1,8 +1,4 @@
-import type {
-  ProjectWindows,
-  ProjectWindowsState,
-  ProjectWindowTarget,
-} from "@novadeck/core/desktop/project-windows"
+import type { ProjectWindows, ProjectWindowsState } from "@novadeck/core/desktop/project-windows"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
@@ -11,7 +7,6 @@ import {
   flagGraceMs,
   hasVoice,
   projectWindowsOn,
-  reloadOn,
   shownElsewhere,
   watchProjectWindows,
   watchWindowTitle,
@@ -30,7 +25,7 @@ const appWindows = () => {
       states.add(listener)
       return () => void states.delete(listener)
     },
-    show: (id) => void told.push(`show ${id}`),
+    show: (id, known) => void told.push(`show ${id} of ${known.join(",")}`),
     use: (on) => void told.push(`use ${on}`),
     open: () => {},
     swap: () => {},
@@ -38,7 +33,18 @@ const appWindows = () => {
     onNavigate: () => () => {},
     extra: false,
   }
-  return { windows, told, say: (state: ProjectWindowsState) => states.forEach((fn) => fn(state)) }
+  // What the backend is told besides: the project this window shows, for the runner and for saves.
+  const backend = {
+    projectWindows: windows,
+    showingProject: (id: string | null) => void told.push(`showing ${id}`),
+    limitSaves: (id: string | null) => void told.push(`limit ${id}`),
+  }
+  return {
+    windows,
+    backend,
+    told,
+    say: (state: ProjectWindowsState) => states.forEach((fn) => fn(state)),
+  }
 }
 
 const featureOn = (app: ReturnType<typeof openCommands>, on: boolean): void =>
@@ -75,57 +81,62 @@ describe("whether project windows are on", () => {
 
 describe("following the app's windows", () => {
   it("keeps what the other windows show, and says what this one shows", () => {
-    const { windows, told, say } = appWindows()
+    const { backend, told, say } = appWindows()
     const app = openCommands()
-    const stop = watchProjectWindows(windows, app.workspace, app.ui)
-    expect(told).toEqual(["show project", "use false"])
+    const stop = watchProjectWindows(backend, app.workspace, app.ui)
+    expect(told).toEqual(["show project of project", "use false"])
     say({ elsewhere: ["other"], voice: false })
     expect(app.ui.getSnapshot().windows).toEqual({ elsewhere: ["other"], voice: false })
     stop()
   })
 
   it("tells the app when the project on screen changes, and when the switch does", () => {
-    const { windows, told } = appWindows()
+    const { backend, told } = appWindows()
     const app = openCommands()
-    const stop = watchProjectWindows(windows, app.workspace, app.ui)
+    const stop = watchProjectWindows(backend, app.workspace, app.ui)
     told.length = 0
     featureOn(app, true)
-    expect(told).toEqual(["use true"])
+    expect(told).toEqual(["showing project", "limit project", "use true"])
     stop()
   })
 
   it("waits for Experimental before it says the switch is off, so a launch keeps its windows", () => {
     vi.useFakeTimers()
-    const { windows, told } = appWindows()
+    const { backend, told } = appWindows()
     const app = openCommands()
     app.ui.update((state) => ({
       ...state,
       preferences: { ...state.preferences, projectWindows: true },
     }))
-    const stop = watchProjectWindows(windows, app.workspace, app.ui)
-    expect(told).toEqual(["show project"])
+    const stop = watchProjectWindows(backend, app.workspace, app.ui)
+    expect(told).toEqual(["show project of project"])
     app.ui.update((state) => ({ ...state, flags: { IS_EXPERIMENTAL: true } }))
-    expect(told).toEqual(["show project", "use true"])
+    expect(told).toEqual([
+      "show project of project",
+      "showing project",
+      "limit project",
+      "use true",
+    ])
     stop()
   })
 
   it("says it is off once Experimental has had its time and is not on", () => {
     vi.useFakeTimers()
-    const { windows, told } = appWindows()
+    const { backend, told } = appWindows()
     const app = openCommands()
     app.ui.update((state) => ({
       ...state,
       preferences: { ...state.preferences, projectWindows: true },
     }))
-    const stop = watchProjectWindows(windows, app.workspace, app.ui)
+    const stop = watchProjectWindows(backend, app.workspace, app.ui)
     vi.advanceTimersByTime(flagGraceMs)
-    expect(told).toEqual(["show project", "use false"])
+    expect(told).toEqual(["show project of project", "use false"])
     stop()
   })
 
   it("does nothing without a desktop app that opens windows", () => {
     const app = openCommands()
-    expect(() => watchProjectWindows(undefined, app.workspace, app.ui)()).not.toThrow()
+    expect(() => watchProjectWindows({}, app.workspace, app.ui)()).not.toThrow()
   })
 })
 
@@ -146,16 +157,6 @@ describe("the window's title", () => {
     expect(view.document.title).toBe("Project — Novadeck")
     stop()
     expect(view.document.title).toBe("Novadeck")
-  })
-})
-
-describe("loading the page again on a place", () => {
-  it("names the project and the terminal in the route, which the runner's projects fill", () => {
-    const location = { hash: "", reload: vi.fn<() => void>() }
-    const target: ProjectWindowTarget = { projectId: "a b", terminalId: "t/1" }
-    reloadOn({ location }, target)
-    expect(location.hash).toBe("/projects/a%20b/sessions/_/_?terminal=t%2F1")
-    expect(location.reload).toHaveBeenCalledOnce()
   })
 })
 

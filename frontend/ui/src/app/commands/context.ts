@@ -71,6 +71,9 @@ export type CommandContext = {
   readonly companions?: Backend["companions"] | undefined
   // The item store, where the backend has companions.
   readonly itemStore?: ItemStore | undefined
+  // Reads a project from the runner again, where the backend can, for a window that takes a
+  // project on from another window.
+  readonly syncProject?: Backend["syncProject"] | undefined
   // The desktop app's other windows, where it opens them (see `project-windows.ts`).
   readonly windows?: ProjectWindows | undefined
   readonly canvas: { readonly current: CanvasHandle | null }
