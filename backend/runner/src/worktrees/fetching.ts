@@ -300,14 +300,44 @@ export class MainFetcher {
     return run
   }
 
+  /** What a git run that reaches the repository's origin runs with: see `fetchEnv`. */
+  private async remoteEnv(home: string): Promise<NodeJS.ProcessEnv> {
+    // The person's own ssh command in their git config is theirs to keep.
+    const config = await this.run(home, ["config", "--get", "core.sshCommand"], { cap: 4096 })
+    return fetchEnv(this.environment, config.ok && config.out.trim() !== "")
+  }
+
+  /**
+   * Whether origin has the branch now, asked of origin itself (`git ls-remote`), as no fetch here
+   * prunes a branch deleted there: true or false, undefined where origin couldn't be asked within
+   * `ms` (offline, no access, no origin). Never throws.
+   */
+  async remoteHas(commonDir: string, branch: string, ms: number): Promise<boolean | undefined> {
+    if (this.ending.signal.aborted) return undefined
+    try {
+      const home = homeOf(commonDir)
+      const env = await this.remoteEnv(home)
+      const run = await gitScope.run(this.ending.signal, () =>
+        this.run(home, ["ls-remote", "--exit-code", "origin", `refs/heads/${branch}`], {
+          cap: 64 * 1024,
+          ms,
+          env,
+        }),
+      )
+      if (run.ok) return true
+      // Exit 2 is ls-remote's own answer that origin has no such ref.
+      return run.kind === "exit" && run.status === 2 ? false : undefined
+    } catch {
+      return undefined
+    }
+  }
+
   private async fetch(
     commonDir: string,
     follow: boolean,
   ): Promise<{ readonly ok: true } | Extract<Run, { ok: false }>> {
     const home = homeOf(commonDir)
-    // The person's own ssh command in their git config is theirs to keep.
-    const config = await this.run(home, ["config", "--get", "core.sshCommand"], { cap: 4096 })
-    const ownSsh = config.ok && config.out.trim() !== ""
+    const env = await this.remoteEnv(home)
     // Nothing in the person's repository changes but `refs/remotes/origin/*`: no FETCH_HEAD,
     // no pruning of refs, no background maintenance or commit-graph.
     const run = await this.run(
@@ -330,7 +360,7 @@ export class MainFetcher {
         truncate: true,
         ms: fetchTimeoutMs,
         graceMs: fetchGraceMs,
-        env: fetchEnv(this.environment, ownSsh),
+        env,
       },
     )
     if (!run.ok) return run

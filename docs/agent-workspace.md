@@ -940,14 +940,22 @@ with every safety check again at that time:
   common dir, branch, the commit it `base`d on, project, owner terminal (plain text: a live
   terminal or one in History, null once orphaned), whether it was `adopted` and whether Novadeck made
   its branch (`branch_made`). A terminal may own several, and ownership moves only through agents.
-  - **`open_worktree({ branch, repo?, from?, group? })`** runs `git worktree add -b` from
-    `from` (left out: the checkout's `HEAD`, or the remote's main when the checkout is on the local
-    branch that main is, as `main` for `origin/main`, and `HEAD` is a strict ancestor of it, so a stale
-    checkout doesn't make a stale branch; a feature branch, a `HEAD` ahead or diverged, or no main
-    keeps `HEAD`; main is fetched first, before the service's queue and not if it was fetched in the last
-    minute, and the call waits at most five seconds for it: the fetch keeps its usual time limit and
-    carries on in the background, and a remote that is slow or fails leaves the cached main, so creating
-    never waits on the network), or checks out the branch if it exists, with 60 seconds,
+  - **`open_worktree({ branch, repo?, from?, group? })`** checks out the branch if it exists
+    locally, or runs `git worktree add -b` from `from`. Left out, `from` is origin's branch of that
+    name where `refs/remotes/origin/<branch>` exists, which the new branch then tracks
+    (`git branch --set-upstream-to`), as a teammate's pull request branch, fetched but never checked
+    out, is; else the remote's main when the checkout is on the local branch that main is, as `main`
+    for `origin/main`, and `HEAD` is a strict ancestor of it, so a stale checkout doesn't make a stale
+    branch; else the checkout's `HEAD` (a feature branch, a `HEAD` ahead or diverged, or no main).
+    Only `origin` is looked at, the one remote Novadeck fetches. With no local branch and no `from`,
+    origin is fetched first, before the service's queue and not if it was fetched in the last minute,
+    and the call waits at most five seconds for it: the fetch keeps its usual time limit and carries
+    on in the background, and a remote that is slow or fails leaves the cached refs, so creating
+    never waits long on the network. As that fetch prunes nothing, origin is then asked whether it
+    still has the branch (`git ls-remote --exit-code`, as briefly): a branch it no longer has (one
+    deleted after its merge) is passed over, and the new branch starts as above; where origin can't
+    be asked, the cached `origin/<branch>` is used. The answer says which (`origin`: `current`,
+    `unchecked` or `gone`, and `tracking`). It runs with 60 seconds,
     and `core.longpaths` on Windows, after `git check-ref-format --branch`. It answers the path,
     the branch and the paths of AGENTS.md, CLAUDE.md and GEMINI.md at the worktree's top, and
     tells the agent to read them, as no harness loads them from an added folder.

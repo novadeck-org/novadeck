@@ -88,6 +88,11 @@ export class Cleanup {
     return this.fetcher.fetchBriefly(commonDir, ms, follow)
   }
 
+  /** Whether origin has the branch now: see `MainFetcher.remoteHas`. */
+  remoteHas(commonDir: string, branch: string, ms: number): Promise<boolean | undefined> {
+    return this.fetcher.remoteHas(commonDir, branch, ms)
+  }
+
   /** How many times the repository's checkout was moved to its main: see `MainFetcher.moved`. */
   moved(commonDir: string): number {
     return this.fetcher.moved(commonDir)

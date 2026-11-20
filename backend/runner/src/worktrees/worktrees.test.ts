@@ -210,6 +210,104 @@ describe("opening a worktree", () => {
     expect(existsSync(join(origin.repo, "b.txt"))).toBe(false)
   })
 
+  it("checks out origin's branch of that name, tracking it, where only origin has it", async ({
+    resources,
+    fx: f,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
+    // A teammate's pull request branch, pushed since the checkout last fetched.
+    const pushed = origin.branch("feat")
+    const { worktrees } = recording(resources, f)
+    const opened = await worktrees.open({
+      projectId: "p2",
+      terminalId: "t1",
+      cwd: origin.repo,
+      branch: "feat",
+    })
+    if (!opened.ok) throw new Error(opened.reason)
+    expect(opened).toMatchObject({
+      existing: false,
+      base: pushed,
+      origin: "current",
+      tracking: true,
+    })
+    expect(git(opened.path, "rev-parse", "HEAD")).toBe(pushed)
+    expect(git(opened.path, "rev-parse", "--abbrev-ref", "feat@{upstream}")).toBe("origin/feat")
+    // Novadeck made the local branch, so it may go once main holds it.
+    expect(f.store.worktree(opened.path)?.branchMade).toBe(true)
+  })
+
+  it("passes over a branch origin no longer has, which an earlier fetch left behind", async ({
+    resources,
+    fx: f,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
+    const pushed = origin.branch("merged")
+    origin.fetch()
+    // Deleted on origin after its merge; the checkout's fetches never prune it, so its ref stays.
+    git(origin.repo, "push", "--quiet", "origin", "--delete", "merged")
+    git(origin.repo, "update-ref", "refs/remotes/origin/merged", pushed)
+    const head = git(origin.repo, "rev-parse", "HEAD")
+    const { worktrees } = recording(resources, f)
+    const opened = await worktrees.open({
+      projectId: "p2",
+      terminalId: "t1",
+      cwd: origin.repo,
+      branch: "merged",
+    })
+    if (!opened.ok) throw new Error(opened.reason)
+    expect(opened).toMatchObject({ existing: false, base: head, origin: "gone" })
+    expect(opened).not.toHaveProperty("tracking")
+    expect(git(opened.path, "rev-parse", "HEAD")).toBe(head)
+  })
+
+  it("uses origin's branch as last fetched where origin can't be asked, and says so", async ({
+    resources,
+    fx: f,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
+    const pushed = origin.branch("cached")
+    origin.fetch()
+    // Offline: origin is a folder that no longer exists.
+    git(origin.repo, "remote", "set-url", "origin", join(f.other, "gone.git"))
+    const { worktrees } = recording(resources, f)
+    const opened = await worktrees.open({
+      projectId: "p2",
+      terminalId: "t1",
+      cwd: origin.repo,
+      branch: "cached",
+    })
+    if (!opened.ok) throw new Error(opened.reason)
+    expect(opened).toMatchObject({ base: pushed, origin: "unchecked", tracking: true })
+    expect(git(opened.path, "rev-parse", "HEAD")).toBe(pushed)
+  })
+
+  it("leaves origin's branch alone when from is given, or the branch exists here", async ({
+    resources,
+    fx: f,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
+    origin.branch("theirs")
+    origin.fetch()
+    const head = git(origin.repo, "rev-parse", "HEAD")
+    const { worktrees } = recording(resources, f)
+    const given = await worktrees.open({
+      projectId: "p2",
+      terminalId: "t1",
+      cwd: origin.repo,
+      branch: "theirs",
+      from: "main",
+    })
+    if (!given.ok) throw new Error(given.reason)
+    expect(given).toMatchObject({ base: head })
+    expect(given).not.toHaveProperty("origin")
+    expect(given).not.toHaveProperty("tracking")
+  })
+
   it.skipIf(process.platform === "win32")(
     "doesn't wait past its bound for a remote that hangs, and doesn't cut the fetch short",
     async ({ resources, fx: f }) => {

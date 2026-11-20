@@ -148,6 +148,19 @@ describe("worktree calls", () => {
     expect(fx.store.worktrees()).toHaveLength(1)
   })
 
+  it("open tells where a branch only origin had came from", async ({ fx }) => {
+    // Origin's branch as a fetch left it, with no origin left to ask.
+    git(fx.repo, "update-ref", "refs/remotes/origin/theirs", "HEAD")
+    const opened = await fx.calls.open(fx.call("t1", { branch: "theirs" }))
+    expect(opened).toMatchObject({
+      ok: true,
+      branch: "theirs",
+      existing: false,
+      origin: "unchecked",
+      tracking: expect.any(Boolean),
+    })
+  })
+
   it("give moves ownership, tells the receiver, and is the owner's alone", async ({ fx }) => {
     const opened = await fx.calls.open(fx.call("t1", { branch: "g" }))
     if (!opened.ok) throw new Error(opened.reason)

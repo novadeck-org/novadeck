@@ -622,6 +622,40 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       expect(text(close)).toContain("Its branch b stays")
       expect(text(give)).toContain("@fox")
     })
+
+    it("tells where a branch only origin had came from, and whether origin could say", async () => {
+      const said = async (origin: "current" | "unchecked" | "gone", tracking?: boolean) => {
+        answersBy.openWorktree = {
+          ok: true,
+          path: "/w",
+          branch: "feat",
+          existing: false,
+          origin,
+          ...(tracking !== undefined && { tracking }),
+          instructions: [],
+        }
+        const [, open] = await session(terminal(), [
+          initialize,
+          {
+            id: 3,
+            method: "tools/call",
+            params: { name: "open_worktree", arguments: { branch: "feat" } },
+          },
+        ])
+        const content = (open?.result as { content?: { text: string }[] } | undefined)?.content
+        return content?.[0]?.text ?? ""
+      }
+      expect(await said("current", true)).toContain(
+        "on the new branch feat from origin/feat, tracking it. You own it.",
+      )
+      expect(await said("unchecked", true)).toContain(
+        "on the new branch feat from origin/feat as last fetched, tracking it (origin couldn't be asked whether it still has it).",
+      )
+      expect(await said("current", false)).toContain("on the new branch feat from origin/feat. ")
+      expect(await said("gone")).toContain(
+        "on the new branch feat (origin no longer has a branch of that name; origin/feat was left by an earlier fetch, so it wasn't used).",
+      )
+    })
   })
 
   it("says an ask is an extra copy, which the reply never mentions", async () => {

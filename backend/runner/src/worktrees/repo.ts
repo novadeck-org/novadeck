@@ -402,6 +402,14 @@ export const finishRemoval = async (home: string, path: string): Promise<boolean
   return !existsSync(path)
 }
 
+/** Makes `branch` track `upstream` (a remote-tracking ref); false where git refused. */
+export const setUpstream = async (
+  home: string,
+  branch: string,
+  upstream: string,
+): Promise<boolean> =>
+  (await git(home, ["branch", `--set-upstream-to=${upstream}`, branch], patient)).ok
+
 /** Deletes a branch whose commits the main branch holds; false where it wasn't deleted. */
 export const deleteBranch = async (home: string, branch: string): Promise<boolean> =>
   (await git(home, ["branch", "-D", "--", branch], small)).ok
