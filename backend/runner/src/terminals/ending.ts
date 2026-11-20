@@ -1,3 +1,4 @@
+import { harnesses } from "../harnesses/registry.js"
 import type { Record } from "./record.js"
 
 // How long a closed terminal's agent and what it started, and on Windows all its programs, have
@@ -27,3 +28,24 @@ export const agentProcess = (record: Pick<Record, "bound"> | undefined): number 
   const pid = Number(record?.bound?.binding.instance ?? Number.NaN)
   return Number.isSafeInteger(pid) && pid > 1 ? pid : undefined
 }
+
+/**
+ * What the terminal host follows as terminal `id` closes, by its record in `records`: its
+ * agent (`agentProcess`), and what that agent's harness runs apart from the terminal, which
+ * the close leaves (`Harness.apart`), found by the session's own transcript. Taken as the
+ * close begins, so the binding it goes by is the one the closed terminal had.
+ */
+export const closing = (records: {
+  get(id: string): Pick<Record, "bound" | "agents"> | undefined
+}) => ({
+  follows: (id: string) => agentProcess(records.get(id)),
+  apart: async (id: string) => {
+    const record = records.get(id)
+    const binding = record?.bound?.binding
+    const apart = binding && harnesses[binding.agent].apart
+    if (!binding || !apart) return []
+    const report = record.agents[binding.agent]
+    const transcript = report?.sessionId === binding.sessionId ? report.transcript : undefined
+    return apart({ transcript })
+  },
+})

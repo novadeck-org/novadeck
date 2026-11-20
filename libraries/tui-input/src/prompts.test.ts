@@ -514,6 +514,14 @@ describe("prompts", () => {
       expect(tooTall(profile, "w".repeat(600), fifteen)).toBe(false)
     })
 
+    it("counts the rows a line wraps to in the box's own pane, narrower than the screen", () => {
+      const fifteen = screenOf({ rows: Array.from({ length: 15 }, () => ""), columns: 120 })
+      // 6 lines of 77 characters: one row each on 120 columns, 3 each on a pane of 40.
+      const text = Array.from({ length: 6 }, () => "w".repeat(77)).join("\n")
+      expect(tooTall(profileOf(false), text, fifteen)).toBe(false)
+      expect(tooTall({ ...profileOf(false), columns: () => 40 }, text, fifteen)).toBe(true)
+    })
+
     it("is sent where it fits", async () => {
       const { host, written } = terminal()
       await new Prompts(host, host.queue, fast).prompt("t", lines(11))

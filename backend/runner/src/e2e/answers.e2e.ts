@@ -1345,3 +1345,58 @@ describe.skipIf(!supported || !codexSetup)("Codex's /diff pager over an approval
     await unrequested(t1)
   })
 })
+
+// A `/side` conversation in focus holds the root's approval out of view: from 0.171.0, on a
+// screen of 100 columns or more, the root's pane beside it goes on showing the turn at work and
+// nothing says an approval waits; on a narrower screen, and in 0.170.0, the side takes the whole
+// screen, its footer saying "main needs approval". Ctrl-/ moves the focus to the root, which
+// shows the approval, and does nothing while it shows (`probes/codex-side-dialog.e2e.ts`). With
+// no window looking at the terminal, Novadeck presses it itself, and reads the approval in the
+// root's pane alone. Claude Code's and Antigravity's `/btw` asides hold no dialog out of view.
+describe.skipIf(!supported || !codexSetup)("Codex's /side conversation over an approval", () => {
+  const it = e2e(codexSetup!)
+
+  it("brings the root's approval into view for a terminal nobody looks at, and it answers", async ({
+    e2e: run,
+  }) => {
+    let waited = false
+    run.model.use(
+      // A wait after the first call, for the side conversation to be opened before the approval.
+      answers("Run the thing", () => ({
+        calls: [
+          { name: "exec_command", input: { cmd: "sleep 8; echo slept", yield_time_ms: 30_000 } },
+        ],
+      })),
+      own((call) => {
+        if (result(call) === undefined || waited) return undefined
+        waited = true
+        return {
+          calls: [
+            {
+              name: "exec_command",
+              input: {
+                cmd: "echo approved > probe-out.txt",
+                sandbox_permissions: "require_escalated",
+                justification: "Echo outside the sandbox",
+              },
+            },
+          ],
+        }
+      }),
+      noted,
+    )
+    const t1 = await start(run, codexSetup!)
+    await t1.prompt("Run the thing")
+    await sleep(3_000)
+    await t1.submit("/side")
+    await t1.until(/Side from main thread|│ Side chat\s+×/, 20_000)
+
+    const request = await dialogOf(t1, "choices")
+    expect(choices(request).detail).toContain("echo approved > probe-out.txt")
+    const calls = run.model.calls.length
+    const yes = option(choices(request), /^Yes, proceed/, false)
+    await t1.answer(request.ref, { dialog: idOf(request), type: "choice", option: yes.id })
+    await run.model.waitFor((call) => result(call) !== undefined, { after: calls })
+    await unrequested(t1)
+  })
+})

@@ -166,3 +166,23 @@ export const rolloutAway = async (
   ])
   return live.found ?? archived.found
 }
+
+/**
+ * The plain rollout of the session under the install's home, live, where Codex has written it
+ * yet: it writes a thread's file only once the thread has records to keep.
+ */
+export const liveRollout = async (
+  install: Parameters<Harness["conversations"]>[0],
+  session: string,
+): Promise<string | undefined> => {
+  if (!sessionName.test(session)) return undefined
+  const rules = rulesOf(install)
+  const looked = await look(
+    rules,
+    lister(),
+    rules.join(codexHome(install), "sessions"),
+    session,
+    true,
+  )
+  return looked.found
+}

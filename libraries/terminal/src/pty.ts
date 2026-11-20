@@ -17,10 +17,13 @@ export {
   terminalForeground,
   type Foreground,
 } from "./pty/foreground.js"
+export { sameProcess, type ApartProcess } from "./pty/apart.js"
 export {
+  endFollowed,
   placement,
   processKey,
   processListing,
+  withBelow,
   type Followed,
   type Listed,
   type Listing,

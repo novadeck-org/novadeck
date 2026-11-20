@@ -840,6 +840,28 @@ describe("a dialog held out of view", () => {
     expect(pressed).toEqual([REVEAL])
   })
 
+  it("tells the adapter where the cursor is, which says a split screen's pane in focus", async () => {
+    const cursors: unknown[] = []
+    const { tui, dialogs, pressed } = held({
+      adapter: {
+        ...holding(),
+        reveal: (rows, cursor) => {
+          if (!rows.includes("FAKE ELSEWHERE")) return undefined
+          cursors.push(cursor)
+          return REVEAL
+        },
+      },
+    })
+    // The screen holding the dialog out of view, as the keys were pressed on it.
+    const holdingIt = tui.screen().cursor
+    dialogs.changed("t")
+    await until(() => pressed.length > 0)
+    // Asked on each look at that screen, it presses once.
+    expect(pressed).toEqual([REVEAL])
+    expect(cursors.length).toBeGreaterThan(0)
+    for (const cursor of cursors) expect(cursor).toEqual(holdingIt)
+  })
+
   it("waits for the screen to be still before pressing", async () => {
     const { tui, dialogs, pressed } = held()
     const ticking = setInterval(() => {
@@ -854,6 +876,60 @@ describe("a dialog held out of view", () => {
       clearInterval(ticking)
     }
     await until(() => pressed.length > 0)
+  })
+
+  it("is brought into view on a screen that keeps moving, once it has waited unread long enough", async () => {
+    // A turn's timer ticking beside it, as Codex's root pane beside its /side sidebar.
+    const { tui, dialogs, pressed } = held({ raw: { still: 10_000, age: 40, latest: 200 } })
+    const ticking = setInterval(() => {
+      tui.noise += 1
+      dialogs.changed("t")
+    }, 10)
+    try {
+      dialogs.changed("t")
+      await settle(100)
+      expect(pressed).toEqual([])
+      await until(() => pressed.length > 0)
+      expect(pressed).toEqual([REVEAL])
+    } finally {
+      clearInterval(ticking)
+    }
+  })
+
+  it("presses only once for a request on a screen that keeps moving", async () => {
+    const { tui, dialogs, pressed } = held({
+      raw: { still: 10_000, age: 40, latest: 60 },
+      // The keys bring nothing into view.
+      press: () => undefined,
+    })
+    const ticking = setInterval(() => {
+      tui.noise += 1
+      dialogs.changed("t")
+    }, 10)
+    try {
+      dialogs.changed("t")
+      await until(() => pressed.length > 0)
+      await settle(400)
+      expect(pressed).toEqual([REVEAL])
+    } finally {
+      clearInterval(ticking)
+    }
+  })
+
+  it("presses keys that toggle only once for a request, on still screens too", async () => {
+    // Each press changes the screen, which then holds still, the dialog still out of view.
+    const shifts = (_data: string, tui: FakeTui) => {
+      tui.noise += 1
+    }
+    const once = held({ adapter: { ...holding(), revealToggles: [REVEAL] }, press: shifts })
+    once.dialogs.changed("t")
+    await until(() => once.pressed.length > 0)
+    await settle(400)
+    expect(once.pressed).toEqual([REVEAL])
+    // Keys that don't toggle are pressed again on each still screen that holds it, as before.
+    const again = held({ press: shifts })
+    again.dialogs.changed("t")
+    await until(() => again.pressed.length > 1)
   })
 
   it("is never scrolled for a terminal a client has in sight", async () => {

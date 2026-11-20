@@ -32,6 +32,14 @@ export type Listing = () => Promise<readonly Listed[] | undefined>
  */
 export const listMs = 300
 
+/**
+ * How long a listing may take as one terminal closes, outside a quit, in milliseconds: no
+ * five seconds bound it, and one cut off follows nothing, so what the agent left runs on. On
+ * a macOS CI runner a close's listing failed as Claude Code started two warm sessions of its
+ * background service at once (2.1.329, 2026-11-20); the hangup waits for it, a little longer.
+ */
+export const closeListMs = 1_500
+
 /** After `(comm)` in /proc/<pid>/stat, where the state is field 0: the start's field. */
 const startField = 19
 
@@ -185,19 +193,40 @@ const live = (rows: readonly Listed[]) => rows.filter((row) => !row.zombie && ro
  * as a daemon that forked twice: its parent is no longer the one that started it. What shares
  * the foreground group goes with it, however it got there, as nothing tells them apart; and
  * with an agent that took the shell's place by `exec`, all the shell started is under it.
+ * What its harness runs apart from the terminal (`apart`, by pid and start), as a service the
+ * person's other sessions share, is left with all under it, though the agent started it.
  */
 export const agentProcesses = (
   rows: readonly Listed[],
   shell: number,
   agent: number,
+  apart: readonly Followed[] = [],
 ): readonly Followed[] | undefined => {
   const foreground = rows.find((row) => row.pid === shell)?.foreground
   const lead = rows.find((row) => row.pid === agent)
   // The shell itself holds it at its prompt, unless it became the agent (`exec codex`).
   if (!foreground || foreground <= 1 || (foreground === shell && agent !== shell)) return undefined
   if (lead?.group !== foreground || lead.zombie) return undefined
-  const members = live(rows).filter((row) => row.group === foreground)
-  return live(withBelow(rows, members)).map(({ pid, started }) => ({ pid, started }))
+  const kept = new Set(
+    withBelow(
+      rows,
+      rows.filter((row) =>
+        apart.some(({ pid, started }) => pid === row.pid && started === row.started),
+      ),
+    ).map((row) => row.pid),
+  )
+  const members = live(rows).filter((row) => row.group === foreground && !kept.has(row.pid))
+  const found = new Map(members.map((row) => [row.pid, row]))
+  // Below the members by parent, never through what is kept.
+  for (let grown = true; grown;) {
+    grown = false
+    for (const row of rows)
+      if (!found.has(row.pid) && !kept.has(row.pid) && found.has(row.parent)) {
+        found.set(row.pid, row)
+        grown = true
+      }
+  }
+  return live([...found.values()]).map(({ pid, started }) => ({ pid, started }))
 }
 
 /**

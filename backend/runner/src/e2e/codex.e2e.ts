@@ -3,7 +3,12 @@ import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { sideToggle } from "@novadeck/harness-codex/box"
+import { isEmpty } from "@novadeck/tui-input/box"
+
+import { harnesses } from "../harnesses/registry.js"
 import { codex } from "./agents/codex.js"
+import { poll, type DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, gate, latest, type Call } from "./model/script.js"
 import {
@@ -26,6 +31,7 @@ import {
 // What only Codex needs beyond the shared scenarios (messaging.e2e.ts).
 
 const it = e2e(codex)
+const box = harnesses.codex.box!
 
 /**
  * Whether macOS asks for less motion (Reduce motion), which Codex follows; never
@@ -48,9 +54,24 @@ const reducedMotion = (): boolean => {
 /** Ten rows in a row holding braille, as Codex draws its logo. */
 const logo = /(?:^.*[⠀-⣿].*\n){10}/m
 
-// What its footer says while it shows a `/side` conversation: its keys are spelled out in
-// 0.159.3 (ctrl+/) and abbreviated in 0.161.0 (^/).
-const side = /Side from main thread · (?:ctrl\+|\^|⌃)\/ to switch · (?:ctrl\+|\^|⌃)c to close/
+// What it shows of a `/side` conversation: over the whole screen, its footer, its keys spelled
+// out in 0.159.3 (ctrl+/) and abbreviated in 0.161.0 (^/), Ctrl-C archiving it from 0.171.0;
+// from 0.171.0 on a screen of 100 columns or more, its tab, in a sidebar beside the root's pane.
+const side =
+  /Side from main thread · (?:ctrl\+|\^|⌃)\/ to switch · (?:ctrl\+|\^|⌃)c to (?:close|archive)|│ Side chat\s+×/
+
+/**
+ * Whether the root's box has the focus, empty, as Codex's box profile reads it: the cursor in the
+ * root's pane, never the sidebar's, and no side conversation over the whole screen. Its footer's
+ * "^/ for side" may not show: a long folder (a Windows runner's temp path) pushes it out of a
+ * 79-column pane (#1123, CI 2026-11-20).
+ */
+const rootInFocus = async (terminal: DeckTerminal): Promise<true | undefined> => {
+  const screen = await terminal.screenText()
+  if (!screen || box.overlay(screen)) return undefined
+  const read = box.read(screen)
+  return read && isEmpty(read) ? true : undefined
+}
 
 // How long a terminal is watched for a binding that mustn't change once a turn is done.
 const quiet = 3000
@@ -134,10 +155,12 @@ describe.skipIf(!supported)("Codex", () => {
     expect(messages(t2).map((one) => one.state)).toEqual(["delivered"])
   })
 
-  // `/side` forks an ephemeral thread, which Codex shows in place of the root's, its title
-  // naming it, though it takes no writer lock; the person asks it something on the side,
-  // then goes back to the root. Its hooks name no transcript (docs/agent-messaging.md,
-  // "Per harness"). The person's keys opening it leave the terminal Drafting, so nothing
+  // `/side` forks a thread, which Codex shows in place of the root's (from 0.171.0 on a screen of
+  // 100 columns or more beside it), its title naming it. Up to 0.170.0 the thread is ephemeral
+  // by default: it takes no writer lock, and its hooks name no transcript. From 0.171.0 Codex
+  // keeps it, with a lock and a rollout whose first record says it is a side conversation, which
+  // its `SessionStart` names (docs/agent-messaging.md, "Per harness"). The person asks it
+  // something on the side, then goes back to the root with Ctrl-/. The person's keys opening it leave the terminal Drafting, so nothing
   // rings the side conversation's box, and their next prompt in the root delivers.
   it("keeps its session bound through a /side conversation, and delivers at the root's next prompt", async ({
     e2e: run,
@@ -159,8 +182,9 @@ describe.skipIf(!supported)("Codex", () => {
     const calls = run.model.mark()
     const mark = t1.mark()
 
-    // The person opens a side conversation: its title names the fork, which no new lock
-    // confirms, so the root stays bound past the title's check.
+    // The person opens a side conversation: its title names the fork, which no new root's lock
+    // confirms (from 0.171.0 its lock comes with a side conversation's rollout), so the root
+    // stays bound past the title's check.
     await t1.submit("/side")
     await t1.until(side)
     await t2.submit("Tell moth the news")
@@ -191,12 +215,9 @@ describe.skipIf(!supported)("Codex", () => {
     expect(t1.summary().agent).toBe("codex")
     expect(messages(t1).map((one) => one.state)).toEqual(["queued"])
 
-    // Back at the root, the person's next prompt carries the message.
-    t1.press("\x03")
-    await t1.poll(
-      async () => (side.test(await t1.screen()) ? undefined : true),
-      "the side conversation to close",
-    )
+    // Back at the root, the side conversation kept, the person's next prompt carries the message.
+    t1.press(sideToggle())
+    await poll(() => rootInFocus(t1), "the root's empty box in focus")
     await t1.submit("Back at the root")
     const back = await run.model.waitFor((call) => delivered(call, "fox"), { after: calls })
     expect(asked(back, "Back at the root")).toBe(true)

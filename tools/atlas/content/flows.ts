@@ -320,7 +320,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "The terminals' reports let the agent's harness decode the payload into events.",
         anchor: {
           file: `${runnerSrc}/terminals/binding/reports.ts`,
-          text: "const decoded = firedFacts(harnesses[report.agent].decode(report), report)",
+          text: "firedFacts(harnesses[report.agent].decode(report), report),",
         },
       },
       {

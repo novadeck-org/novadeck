@@ -49,6 +49,18 @@ import type { Shown } from "./shown.js"
 // a git branch and a plan's file, each with its own short timeout.
 const driftReadMs = 1_500
 
+/** The facts, without the sessions its harness keeps beside its root (`Harness.aside`). */
+export const withoutAside = async (
+  events: readonly HarnessEvent[],
+  aside: ((event: SessionObserved) => Promise<boolean>) | undefined,
+): Promise<readonly HarnessEvent[]> => {
+  if (!aside || !events.some((event) => event.type === "session-observed")) return events
+  const kept = await Promise.all(
+    events.map(async (event) => event.type !== "session-observed" || !(await aside(event))),
+  )
+  return events.filter((_, at) => kept[at])
+}
+
 export type ReportsHost = {
   /** Every terminal the runner holds, by id. */
   readonly records: () => ReadonlyMap<string, Record>
@@ -145,7 +157,10 @@ export class Reports {
       this.host.bindings().learnTranscript(record, named.sessionId, named.transcript)
     const scheduling = scheduleChange(report)
     if (scheduling) trackSchedules(record, scheduling)
-    const decoded = firedFacts(harnesses[report.agent].decode(report), report)
+    const decoded = await withoutAside(
+      firedFacts(harnesses[report.agent].decode(report), report),
+      harnesses[report.agent].aside,
+    )
     // A turn's end its hook named no reply for reads the reply from the agent's
     // transcript; any other report goes on at once.
     const events =

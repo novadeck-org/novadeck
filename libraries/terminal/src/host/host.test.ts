@@ -3,6 +3,7 @@ import { spawn } from "node:child_process"
 import { describe, expect, it, onTestFinished, vi } from "vitest"
 
 import type { TerminalEvent } from "../contract.js"
+import type { ApartProcess } from "../pty/apart.js"
 import type { Listing } from "../pty/descendants.js"
 import type { NativeSpawn, ProcessTrees } from "../pty/pty.js"
 import { nativeStandIn } from "../testing.js"
@@ -22,7 +23,7 @@ const shellPid = 2 ** 30
 const hostOf = (
   limits: Partial<TerminalHostOptions["limits"]> = {},
   failed?: TerminalHostOptions["failed"],
-  more: Partial<Pick<TerminalHostOptions, "follows" | "listing" | "kill">> = {},
+  more: Partial<Pick<TerminalHostOptions, "follows" | "listing" | "kill" | "apart">> = {},
 ) => {
   const programs: Program[] = []
   const native: NativeSpawn = (...args) => {
@@ -152,6 +153,73 @@ describe.skipIf(process.platform === "win32")("a terminal's end that follows its
     const began = Date.now()
     await Promise.all([host.shutdown(), gone])
     expect(Date.now() - began).toBeLessThan(10_000)
+  })
+})
+
+// What a harness runs apart from the terminal, as Claude Code's background service: the agent
+// started it, and it is still its child at the close, yet the close leaves it running.
+describe.skipIf(process.platform === "win32")("a terminal's end with what runs apart", () => {
+  // An agent that ignores the hangup and answers SIGTERM, and a service in a group of its own.
+  const running = () => {
+    const child = spawn(
+      process.execPath,
+      ["-e", 'process.on("SIGHUP", () => {}); setInterval(() => {}, 1000)'],
+      { detached: true, stdio: "ignore" },
+    )
+    onTestFinished(() => void child.kill("SIGKILL"))
+    const gone = new Promise((end) => child.once("exit", end))
+    return {
+      pid: child.pid!,
+      gone,
+      alive: () => child.exitCode === null && child.signalCode === null,
+    }
+  }
+  const close = async (keep: boolean) => {
+    const agent = running()
+    const service = running()
+    const asked: string[] = []
+    const apart = async (id: string): Promise<ApartProcess[]> => {
+      asked.push(id)
+      return keep ? [{ pid: service.pid, start: "same" }] : []
+    }
+    const row = { started: "same", zombie: false, foreground: 0 }
+    let listed = () => {}
+    const walked = new Promise<void>((resolve) => {
+      listed = () => setTimeout(resolve, 20)
+    })
+    const listing: Listing = async () => {
+      listed()
+      return [
+        { ...row, pid: shellPid, parent: 1, group: shellPid, foreground: agent.pid },
+        { ...row, pid: agent.pid, parent: shellPid, group: agent.pid },
+        { ...row, pid: service.pid, parent: agent.pid, group: service.pid },
+      ]
+    }
+    const { host, open, programs } = hostOf({}, undefined, {
+      follows: () => agent.pid,
+      listing,
+      apart,
+      kill: { graceMs: 1000, treeGraceMs: 50, shutdownTreesMs: 300, shutdownTreeGraceMs: 50 },
+    })
+    open("a")
+    const closing = host.terminate("a")
+    await walked
+    programs[0]!.exit(0)
+    await closing
+    await agent.gone
+    return { service, asked }
+  }
+
+  it("leaves what the harness keeps apart running, though the agent started it", async () => {
+    const { service, asked } = await close(true)
+    expect(asked).toEqual(["a"])
+    expect(service.alive()).toBe(true)
+  })
+
+  it("ends it with the agent where the harness keeps nothing, as before", async () => {
+    const { service } = await close(false)
+    await service.gone
+    expect(service.alive()).toBe(false)
   })
 })
 

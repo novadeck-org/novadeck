@@ -1,5 +1,6 @@
 import { TerminalError, type TerminalEvent } from "../contract.js"
-import { processListing, type Listing } from "../pty/descendants.js"
+import type { ApartProcess } from "../pty/apart.js"
+import { closeListMs, processListing, type Listing } from "../pty/descendants.js"
 import type { Disposable, EndBudget, ProcessTrees, PtyOptions } from "../pty/pty.js"
 import {
   createTerminal,
@@ -33,6 +34,11 @@ export type TerminalHostOptions = {
   readonly trees: ProcessTrees
   /** The pid of the agent terminal `id` runs, whose processes its end follows; if any. */
   readonly follows?: ((id: string) => number | undefined) | undefined
+  /**
+   * What the harness of terminal `id`'s agent runs apart from the terminal, shared with the
+   * person's other sessions, read as it closes: `follows` leaves it, with all under it.
+   */
+  readonly apart?: ((id: string) => Promise<readonly ApartProcess[]>) | undefined
   /** The processes, for `follows`: this system's unless a test plays them. */
   readonly listing?: Listing | undefined
   /** How its ptys start: as a test plays them, and where their programs are kept. */
@@ -144,6 +150,8 @@ type Entry = {
 
 export const createTerminalHost = (options: TerminalHostOptions): TerminalHost => {
   const listing = options.listing ?? processListing(options.pty?.platform)
+  // A close outside a quit lists with a longer bound (`closeListMs`).
+  const patient = options.listing ?? processListing(options.pty?.platform, undefined, closeListMs)
   const { limits, kill } = options
   const open = new Map<string, Entry>()
   const drained = new Map<string, Entry>()
@@ -151,6 +159,8 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
   const evicted = new Set<Listeners["evicted"]>()
   let exits = 0
   let shutdownBy: number | undefined
+  // A close's listing, asked at each listing, as a quit may begin while the close is under way.
+  const list: Listing = () => (shutdownBy === undefined ? patient : listing)()
   let stopping = false
 
   // How long a relay or taskkill run may take now: `usual`, or as the host shuts down, what is
@@ -205,13 +215,15 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
               shutdownBy - kill.shutdownTreesMs + kill.shutdownTreeGraceMs,
             ),
     }
+    const kept =
+      agent === undefined ? [] : await (options.apart?.(id) ?? Promise.resolve([])).catch(() => [])
     await Promise.all([
       terminal.pty.end({
         graceMs: kill.graceMs,
         treeGraceMs: kill.treeGraceMs,
         trees: options.trees,
         budget,
-        follow: agent === undefined ? undefined : { agent, listing },
+        follow: agent === undefined ? undefined : { agent, listing: list, apart: kept },
       }),
       terminal.exited,
     ])

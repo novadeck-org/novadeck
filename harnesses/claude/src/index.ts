@@ -13,6 +13,7 @@ import type { Report } from "@novadeck/harness-core/report"
 
 import { box, slice } from "./box.js"
 import { conversation, conversations } from "./conversation.js"
+import { claudeApart } from "./daemon.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { claudeHome } from "./home.js"
@@ -217,4 +218,6 @@ export const claude = {
   // A subagent's request its person denied, or whose prompt timed out, fires no hook: its own
   // transcript records the call's result.
   watchActor: followSubagent,
+  // Its background service, shared by the person's sessions, which a close leaves (daemon.ts).
+  apart: claudeApart,
 } satisfies Harness

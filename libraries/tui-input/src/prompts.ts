@@ -230,7 +230,8 @@ export const tooTall = (profile: BoxProfile, text: string, screen: ScreenText): 
   const typed = normalised(text).trim()
   return (
     !profile.collapses(typed) &&
-    wrappedRows(typed, screen.columns) + wrapMargin > profile.room(screen.rows.length)
+    wrappedRows(typed, profile.columns?.(screen) ?? screen.columns) + wrapMargin >
+      profile.room(screen.rows.length)
   )
 }
 
@@ -501,7 +502,8 @@ export class Prompts {
       if (
         !profile.collapses(typed) &&
         !(left && (profile.viewport !== undefined || profile.cut?.(left) === true)) &&
-        held + wrappedRows(typed, before.columns) + wrapMargin > profile.room(before.rows.length)
+        held + wrappedRows(typed, profile.columns?.(before) ?? before.columns) + wrapMargin >
+          profile.room(before.rows.length)
       ) {
         if (mode !== "alone") this.host.note?.(terminalId, "too-tall")
         throw new PromptRefusal(
@@ -875,7 +877,10 @@ export class Prompts {
       holding,
       (after) => leftoverOf(profile, after).kind === "empty",
     )
-    const words = unwrapped(box.text, profile.textWidth(screen.columns)).trim()
+    const words = unwrapped(
+      box.text,
+      profile.textWidth(profile.columns?.(screen) ?? screen.columns),
+    ).trim()
     if (!emptied) {
       this.host.note?.(terminalId, "shell-unconfirmed")
       // What the keys took of a command goes back all the same, or it would be nowhere.

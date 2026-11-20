@@ -13,6 +13,10 @@ import {
   type Markers,
 } from "@novadeck/tui-input/box"
 
+import { paneOf } from "./panes.js"
+
+export { sideToggle } from "./panes.js"
+
 /** The markers leading its box's first row: `›` as a prompt, `!` in its shell mode. */
 const markers: Markers = { prompt: "›", shell: "!" }
 
@@ -57,13 +61,25 @@ const lastDrawn = ({ rows }: ScreenText): string => rows.findLast((row) => row.t
  * in it, ends above that, and may say these words. Its history search draws its own row under
  * the footer, with the cursor there, so the box reads down to it; it is still in those last rows
  * (0.167.0, 2026-11-07, fixtures/ring-reading.probe.json).
+ * From 0.171.0 a side conversation on a screen of 100 columns or more is a pane in its sidebar,
+ * beside the root's (`paneOf`), whose footer says none of this while it idles: the cursor there
+ * is in no root's box, whatever that pane shows, its archive prompt (Ctrl-C) among them. With the
+ * root's pane in focus, only that pane is read. Its footer may say what the root waits on
+ * ("Side from main thread · main needs input · ⌃/ to switch", from its source), and from 0.171.0
+ * Ctrl-C archives it ("^c to archive") rather than closing it (fixtures/side.probe.json).
  */
-const overlay = (screen: ScreenText): boolean =>
-  footer(screen).some((row) =>
-    /(^|\s)reverse-i-search:|\? \/ esc close|Side from main thread · (?:ctrl\+|\^|⌃)\/ to switch|· esc (?:back|clear search\/close)\s*$/.test(
-      row,
-    ),
-  ) || /\besc (to )?(back|close|cancel|clear search\/close)\s*$/.test(lastDrawn(screen))
+const overlay = (shown: ScreenText): boolean => {
+  const { screen, sidebar } = paneOf(shown)
+  return (
+    sidebar ||
+    footer(screen).some((row) =>
+      /(^|\s)reverse-i-search:|\? \/ esc close|Side from main thread · (?:[^·]+ · )*(?:ctrl\+|\^|⌃)\/ to switch|· esc (?:back|clear search\/close)\s*$/.test(
+        row,
+      ),
+    ) ||
+    /\besc (to )?(back|close|cancel|clear search\/close)\s*$/.test(lastDrawn(screen))
+  )
+}
 
 /**
  * Whether it shows a prompt given mid-turn as waiting. It draws one of two lists by when the
@@ -73,7 +89,7 @@ const overlay = (screen: ScreenText): boolean =>
  * turn (the second only seen in CI, 0.159.3 on macOS, 2026-10-18; the first probed 2026-10-07).
  */
 const queued = (screen: ScreenText): boolean =>
-  screen.rows.some(
+  paneOf(screen).screen.rows.some(
     (row) =>
       row.includes("Messages to be submitted after next tool call") ||
       // Its heading's row alone: the shorter phrase could be in output the agent shows.
@@ -86,14 +102,15 @@ const queued = (screen: ScreenText): boolean =>
  * box. That row is still the box's, as its viewport counts it, so it stays the box's last. Every
  * 37th length of a line at 40 columns did so (0.167.0, 2026-11-07,
  * e2e/probes/reply-overflow.e2e.ts). Text under the cursor is the cursor elsewhere in a draft,
- * which reads as no box as it did. Marked as showing only a part where it draws its dim `↑` at
+ * which reads as no box as it did. Only the pane holding the cursor is read (`paneOf`). Marked as showing only a part where it draws its dim `↑` at
  * the end of the first row (the `tall` states of fixtures/leftover.probe.json), which says so
  * whatever the box's height, or its dim `↓` at the end of the last, as it does over the rest of a
  * draft with the cursor moved up: blank rows the box shows then read as holding nothing, the
  * words under them out of sight (0.167.0, 2026-11-07, the `blanks` screens of
  * fixtures/ring-reading.probe.json). A bright `↓` is the text's own.
  */
-const read = (screen: ScreenText) => {
+const read = (shown: ScreenText) => {
+  const { screen } = paneOf(shown)
   const { row, column } = screen.cursor
   const above = screen.bright[row - 1]?.trimEnd() ?? ""
   const parked =
@@ -136,7 +153,8 @@ const idleRow = /^\s*(?:\d+ background terminal|⚠ .*\d+% left)/
  * is read. A prompt whose first row has scrolled away, a banner above the box, or no box, is
  * no hold.
  */
-const turnUnseen = (screen: ScreenText, prompt?: string): boolean => {
+const turnUnseen = (whole: ScreenText, prompt?: string): boolean => {
+  const { screen } = paneOf(whole)
   const above = screen.rows
     .slice(0, read(screen)?.first ?? 0)
     .filter((row) => row.trim() !== "" && !idleRow.test(row))
@@ -172,6 +190,8 @@ export const box: BoxProfile = {
   // On 80 and 120 columns a word reaches 77 and 117, and one too long for a row starts a new
   // row and breaks at the same column (fixtures/leftover.probe.json).
   textWidth: (columns) => columns - 3,
+  // Its root's pane, or its sidebar's, is narrower than the screen while both show.
+  columns: (screen) => paneOf(screen).screen.columns,
   stands: (text) => /\[(?:Pasted Content \d+|Image #\d+|image\b)/.test(text),
   // A pasted image file's path alone becomes `[Image #N]` in its box, ahead of the words (probed
   // 2026-11-08, 0.165.0, e2e/probes/image-box.e2e.ts); Ctrl-U empties the box.

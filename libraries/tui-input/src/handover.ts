@@ -337,7 +337,10 @@ export class Handovers {
   ): string {
     const known = this.host.known(terminalId, box.text)
     if (known !== undefined) return known
-    const words = unwrapped(box.text, profile.textWidth(screen.columns)).trim()
+    const words = unwrapped(
+      box.text,
+      profile.textWidth(profile.columns?.(screen) ?? screen.columns),
+    ).trim()
     return box.mode === "shell" ? `!${words}` : words
   }
 
@@ -376,7 +379,8 @@ export class Handovers {
       }
       if (
         !profile.collapses(body) &&
-        wrappedRows(body, screen.columns) + 1 > profile.room(screen.rows.length)
+        wrappedRows(body, profile.columns?.(screen) ?? screen.columns) + 1 >
+          profile.room(screen.rows.length)
       ) {
         this.host.note(terminalId, "too-tall")
         return false
