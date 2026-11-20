@@ -929,10 +929,11 @@ versions it names). That's where they pay:
   (`PROBE_OUT` and its siblings). The job keeps those as its `probes-<harness>-<slice>` artifact,
   with a `fixtures.diff` of the fixtures the probes rewrote in the tree, and its summary
   says which changed: against the latest release, that is the harness's drift, before a
-  pin moves. Two assert what the code relies on, so a release that changes it fails the night
+  pin moves. Three assert what the code relies on, so a release that changes it fails the night
   (and `nightly.yml` opens its issue): `launch-flags` (a bare resume forgets exactly the
-  flags `forgets` lists) and `cron-id` (CronCreate's `tool_response.id` is CronDelete's
-  `tool_input.id`). Another exception is `agy-stop-boundary`, which asserts that each prompt reached
+  flags `forgets` lists), `cron-id` (CronCreate's `tool_response.id` is CronDelete's
+  `tool_input.id`) and `agy-schedule` (an Antigravity schedule's PostToolUse comes at its kill,
+  with its PreToolUse's `stepIdx`, and none at a cron's firing). Another exception is `agy-stop-boundary`, which asserts that each prompt reached
   the model exactly once; it runs only with `AGY_CAPTURE`, and the Flaky capture workflow
   runs it when it, its config or that workflow changes.
 - Every case starts a real harness, and the ask probes run dozens of cases each (Antigravity's

@@ -10,6 +10,9 @@ import type { Record } from "./record.js"
  * `schedule` that repeats (a cron) or is set out longer than its wake-ups are tracked
  * (`pending` in its call-memory.ts). Codex has no such tool (its tool list holds no
  * scheduler, probed 2026-11). Its ScheduleWakeup and shorter timers are the activity's `wake`.
+ * Each ends as its agent says: Claude Code's by a `CronDelete` of its id, Antigravity's by the
+ * PostToolUse its call fires once it ends (a `manage_task` kill, or gone off), and a one-shot
+ * one when its time has passed (`until`).
  */
 export type Schedule = {
   readonly key: string
@@ -55,6 +58,17 @@ export const scheduleChange = (report: Report): ScheduleChange | undefined => {
       return key ? { remove: key, agent: "claude", sessionId } : undefined
     }
     return undefined
+  }
+  if (report.agent === "agy" && report.event === "PostToolUse") {
+    // Probed 2026-11-20 (1.5.13, e2e/probes/agy-schedule.e2e.ts): a schedule's PostToolUse
+    // fires once it ends, killed by manage_task or gone off, with its PreToolUse's stepIdx; a
+    // cron firing fires none. One with no step can't be matched, and stands.
+    const sessionId = string(payload.conversationId)
+    const call = payload.toolCall
+    const step = payload.stepIdx
+    if (!sessionId || !isFields(call) || call.name !== "schedule" || typeof step !== "number")
+      return undefined
+    return { remove: `${sessionId}:${step}`, agent: "agy", sessionId }
   }
   if (report.agent === "agy" && report.event === "PreToolUse") {
     const sessionId = string(payload.conversationId)
