@@ -402,6 +402,10 @@ export class Messaging {
     return this.deliveries.ringable(terminalId)
   }
 
+  senders(terminalId: string): readonly string[] {
+    return this.deliveries.senders(terminalId)
+  }
+
   replyLine(terminalId: string): ((nonce: string) => string) | undefined {
     return this.deliveries.replyLine(terminalId)
   }

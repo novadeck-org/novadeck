@@ -105,6 +105,8 @@ export type DoorbellHost = {
    * doorbell line, as a host without it always rings.
    */
   readonly replies?: (terminalId: string) => ((nonce: string) => string) | undefined
+  /** The handles of the senders of the messages waiting there, for the doorbell line (`novadeck` for notices). */
+  readonly senders?: (terminalId: string) => readonly string[]
   /**
    * Whether its next ring takes the plain line, after a ring that failed with its paste
    * counted: told as that changes, so a Stop doesn't count on a reply line that won't come.
@@ -679,7 +681,10 @@ export class Doorbell {
     const line = (nonce: string): string => {
       if (made?.nonce !== nonce) {
         const replies = plain ? undefined : this.host.replies?.(terminalId)
-        made = { nonce, text: replies?.(nonce) ?? doorbellLine(nonce) }
+        made = {
+          nonce,
+          text: replies?.(nonce) ?? doorbellLine(nonce, this.host.senders?.(terminalId) ?? []),
+        }
       }
       return made.text
     }

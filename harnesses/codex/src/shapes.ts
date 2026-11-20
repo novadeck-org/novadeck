@@ -110,6 +110,8 @@ export const lists: ShapeLists = {
     "tag:skill",
     "tag:subagent_notification",
     "tag:hook_prompt",
+    // The Inbox reply tag, typed by the doorbell as the person's own prompt.
+    "tag:novadeck-reply",
     // The note of an interrupted turn, which 0.166.0 writes as the person's; the turn's
     // abort event is what reads as the interruption.
     "tag:turn_aborted",

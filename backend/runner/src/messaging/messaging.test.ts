@@ -2440,6 +2440,21 @@ describe("ringing", () => {
     return setup
   }
 
+  it("names the senders of the messages waiting, once each in delivery order, Novadeck's notices as novadeck", () => {
+    const { messaging, prompt, stop, send, codex } = create()
+    prompt("B", codex)
+    stop("B", codex)
+    expect(messaging.senders("B")).toEqual([])
+    expect(messaging.notice("B", "Novadeck: automatic notice, not from the user: go on")).toBe(true)
+    expect(messaging.senders("B")).toEqual(["novadeck"])
+    sent(send("A", "fox", "first"))
+    sent(send("A", "fox", "second"))
+    expect(messaging.senders("B")).toEqual(["novadeck", "moth"])
+    // Nothing waits for A, and none for a terminal that isn't there.
+    expect(messaging.senders("A")).toEqual([])
+    expect(messaging.senders("nowhere")).toEqual([])
+  })
+
   it("is allowed once per Settled period, with messages waiting for the root session", () => {
     const { messaging, prompt, stop, send, codex, clock: time } = create()
     prompt("B", codex)
@@ -6307,7 +6322,7 @@ describe("the person's reply at a turn's end", () => {
       expect(messaging.delivery(terminal)?.state).toBe("settled")
       expect(messaging.ringable(terminal)).toBe(true)
       expect(messaging.replyLine(terminal)?.("n1")).toBe(
-        '[Novadeck Inbox reply, n1] Re your ask "Merge it?": I picked "Merge". [n1]',
+        '<novadeck-reply ring="n1">Re your ask "Merge it?": I picked "Merge".</novadeck-reply><novadeck-end ring="n1"/>',
       )
       const delivered = rung("n1")
       expect(delivered.leaseId).toEqual(expect.any(String))
@@ -6369,7 +6384,7 @@ describe("the person's reply at a turn's end", () => {
       time.now += 1_000
       reply("Also tag it")
       expect(messaging.replyLine(terminal)?.("n2")).toBe(
-        '[Novadeck Inbox reply, n2] Re your ask "Merge it?": Also tag it [n2]',
+        '<novadeck-reply ring="n2">Re your ask "Merge it?": Also tag it</novadeck-reply><novadeck-end ring="n2"/>',
       )
     },
   )

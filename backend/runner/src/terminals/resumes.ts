@@ -29,7 +29,7 @@ export const restartedTask = (
   const command = saved?.command
   if (!command || !ledBy || hasRun(saved.agents)) return undefined
   if (expectedAgent(command, undefined) === null) return undefined
-  return { command, nonce: new RegExp(doorbell.source).exec(command)?.[1] }
+  return { command, nonce: new RegExp(doorbell.source).exec(command)?.slice(1).find(Boolean) }
 }
 
 /**

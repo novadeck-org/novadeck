@@ -53,6 +53,8 @@ export const lists: ShapeLists = {
     "block:user/image",
     // A paste Claude Code wrapped, which the decoder unwraps.
     "tag:pasted_content",
+    // The Inbox reply tag, typed by the doorbell as the person's own prompt.
+    "tag:novadeck-reply",
     "wrap:pasted_content",
     // A background task's notice, as the person's message or queued into a running turn: a
     // subagent's is the result of the call that started it; any other task's stays out.

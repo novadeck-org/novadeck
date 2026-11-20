@@ -20,9 +20,7 @@ import { bash, type Fixture, create, toolCall } from "./integration.test-support
 
 // A command starting an agent with a doorbell line as its prompt.
 export const quoted = (start: string) =>
-  new RegExp(
-    `^${start} "\\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]{6}\\]"$`,
-  )
+  new RegExp(`^${start} "<novadeck-doorbell ring='[A-Za-z0-9]{6}' from=''/>"$`)
 
 // A stand-in agent with Novadeck's plugin connected: `agent <name> <session> <steps>` runs
 // the real hook for its SessionStart, says it is ready, then runs each step written to its

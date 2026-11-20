@@ -86,8 +86,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       })
       await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
       const [, rung] = tui.received()
+      // It names the sender of the message waiting: the person's own terminal, by its handle.
       expect(rung!.prompt).toMatch(
-        /^\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]$/,
+        /^<novadeck-doorbell ring="[A-Za-z0-9]+" from="[A-Za-z0-9_-]+"\/>$/,
       )
       expect(rung!.printed).toContain(">Review a.ts</message>")
       await expect
@@ -123,7 +124,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         const rung = tui.received().at(-1)!
         // The prompt is the person's reply, ＠ in place of the @ a harness takes as a path.
         expect(rung.prompt).toMatch(
-          /^\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] Re your ask "Which colour\?": blue, ask ＠flint \[\1\]$/,
+          /^<novadeck-reply ring="([A-Za-z0-9]+)">Re your ask "Which colour\?": blue, ask ＠flint<\/novadeck-reply><novadeck-end ring="\1"\/>$/,
         )
         // Its hook delivers the reply in full beside it, under the person's mark.
         expect(rung.printed).toContain("<reply>blue, ask @flint</reply>")
@@ -158,7 +159,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(tui.raw().slice(before)).toEqual([
         expect.stringMatching(
           // eslint-disable-next-line no-control-regex -- A bracketed paste's markers.
-          /^\x1b\[200~\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]\x1b\[201~$/,
+          /^\x1b\[200~<novadeck-doorbell ring="[A-Za-z0-9]+" from="[A-Za-z0-9_-]*"\/>\x1b\[201~$/,
         ),
         "\r",
       ])
@@ -178,7 +179,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await vi.waitFor(() => expect(tui.received()).toHaveLength(1), { timeout: 10_000 })
       const [rung] = tui.received()
       expect(rung!.prompt).toMatch(
-        /^\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]$/,
+        /^<novadeck-doorbell ring="[A-Za-z0-9]+" from="[A-Za-z0-9_-]*"\/>$/,
       )
       expect(rung!.printed).toContain(">Review a.ts</message>")
       await expect
@@ -361,7 +362,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await vi.waitFor(() => expect(tui.received()).toHaveLength(1), { timeout: 10_000 })
       const [rung] = tui.received()
       expect(rung!.prompt).toMatch(
-        /^\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]$/,
+        /^<novadeck-doorbell ring="[A-Za-z0-9]+" from="[A-Za-z0-9_-]*"\/>$/,
       )
       expect(rung!.printed).toContain(">Review a.ts</message>")
       await expect
@@ -755,7 +756,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(tui.delivery()).toBe("ready")
       expect(await tui.send("Review a.ts")).toMatchObject({ ok: true })
       await quiet()
-      expect(await screen(tui.manager, tui.idle.id)).not.toContain("automatic notice")
+      expect(await screen(tui.manager, tui.idle.id)).not.toContain("novadeck-doorbell")
       expect(tui.delivery()).toBe("ready")
     })
 
@@ -849,7 +850,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await leave()
       const id = messageId(await send("For the old session"))
       await quiet()
-      expect(await screen(manager, idle.id)).not.toContain("automatic notice")
+      expect(await screen(manager, idle.id)).not.toContain("novadeck-doorbell")
       expect(manager.messages(idle.id).threads[0]?.messages[0]).toMatchObject({ id, state: "gone" })
       expect(manager.messages(idle.id).delivery).toBe("unbound")
       expect(manager.get(idle.id).agent).toBeNull()
@@ -929,7 +930,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await tui.first()
       await tui.send("Review a.ts")
       await vi.waitFor(
-        async () => expect(await screen(tui.manager, tui.idle.id)).toContain("automatic notice"),
+        async () => expect(await screen(tui.manager, tui.idle.id)).toContain("novadeck-doorbell"),
         { timeout: 10_000, interval: 5 },
       )
       tui.type("xyz")
@@ -938,7 +939,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const raw = tui.raw().join("")
       // Their keys come after the doorbell's Enter, never into its line.
       expect(raw.indexOf("xyz")).toBeGreaterThan(raw.lastIndexOf("\r"))
-      expect(tui.received()[1]!.prompt).toMatch(/^\[Novadeck: automatic notice/)
+      expect(tui.received()[1]!.prompt).toMatch(/^<novadeck-doorbell ring=/)
       // What they typed waits in the box.
       await expect.poll(tui.delivery).toBe("drafting")
     })
@@ -948,13 +949,13 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await tui.first()
       await tui.send("Review a.ts")
       await vi.waitFor(
-        async () => expect(await screen(tui.manager, tui.idle.id)).toContain("automatic notice"),
+        async () => expect(await screen(tui.manager, tui.idle.id)).toContain("novadeck-doorbell"),
         { timeout: 10_000, interval: 5 },
       )
       // A pane changing size mid-ring would redraw the screen the line is checked on.
       tui.manager.resize({ terminalId: tui.idle.id, cols: 70, rows: 20 }, "owner")
       await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
-      expect(tui.received()[1]!.prompt).toMatch(/^\[Novadeck: automatic notice/)
+      expect(tui.received()[1]!.prompt).toMatch(/^<novadeck-doorbell ring=/)
       expect(pastes(tui.raw())).toHaveLength(1)
       await expect.poll(() => tui.manager.get(tui.idle.id)).toMatchObject({ cols: 70, rows: 20 })
     })
@@ -967,7 +968,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const { cols, rows } = tui.manager.get(tui.idle.id)
       await tui.send("Review a.ts")
       await vi.waitFor(
-        async () => expect(await screen(tui.manager, tui.idle.id)).toContain("automatic notice"),
+        async () => expect(await screen(tui.manager, tui.idle.id)).toContain("novadeck-doorbell"),
         { timeout: 10_000, interval: 5 },
       )
       tui.manager.resize({ terminalId: tui.idle.id, cols: 70, rows: 20 }, "owner")
@@ -997,7 +998,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         const before = tui.raw().length
         await tui.send("one")
         await vi.waitFor(
-          async () => expect(await screen(tui.manager, tui.idle.id)).toContain("automatic notice"),
+          async () => expect(await screen(tui.manager, tui.idle.id)).toContain("novadeck-doorbell"),
           { timeout: 10_000, interval: 5 },
         )
         tui.kick()
@@ -1049,7 +1050,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         await expect.poll(tui.delivery, { timeout: 5_000 }).toBe("drafting")
         await tui.send("Review a.ts")
         await quiet()
-        expect(pastes(tui.raw()).filter((data) => data.includes("automatic notice"))).toEqual([])
+        expect(pastes(tui.raw()).filter((data) => data.includes("novadeck-doorbell"))).toEqual([])
         expect(tui.received()).toHaveLength(2)
       })
 
@@ -1070,7 +1071,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await expect.poll(tui.delivery, { timeout: 5_000 }).toBe("drafting")
       await tui.send("Review a.ts")
       await quiet()
-      expect(pastes(tui.raw()).filter((data) => data.includes("automatic notice"))).toEqual([])
+      expect(pastes(tui.raw()).filter((data) => data.includes("novadeck-doorbell"))).toEqual([])
     })
 
     it("keeps a draft whose Enter made a newline while a request waits", async ({ shell }) => {
@@ -1087,7 +1088,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await expect.poll(tui.delivery, { timeout: 5_000 }).toBe("drafting")
       await tui.send("Review a.ts")
       await quiet()
-      expect(pastes(tui.raw()).filter((data) => data.includes("automatic notice"))).toEqual([])
+      expect(pastes(tui.raw()).filter((data) => data.includes("novadeck-doorbell"))).toEqual([])
     })
 
     it("applies a draft typed while asked before the prompt that clears the request", async ({
@@ -1312,7 +1313,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
       // The doorbell's line alone: no report reached the box ahead of it.
       expect(tui.received()[1]!.prompt).toMatch(
-        /^\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]$/,
+        /^<novadeck-doorbell ring="[A-Za-z0-9]+" from="[A-Za-z0-9_-]*"\/>$/,
       )
       expect(tui.received()[1]!.printed).toContain(">Review a.ts</message>")
     })
@@ -1337,7 +1338,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await tui.first()
       await tui.send("Review a.ts")
       await vi.waitFor(() => expect(tui.received()).toHaveLength(3), { timeout: 10_000 })
-      expect(tui.received()[2]!.prompt).toMatch(/^\[Novadeck: automatic notice/)
+      expect(tui.received()[2]!.prompt).toMatch(/^<novadeck-doorbell ring=/)
       expect(tui.received()[2]!.printed).toContain(">Review a.ts</message>")
     })
 

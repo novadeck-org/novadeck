@@ -28,6 +28,8 @@ export const lists: ShapeLists = {
     // A background subagent's going idle, its report, or its failing (probed 2026-11-09, 1.5.2).
     "message:subagent-end",
     "tag:USER_REQUEST",
+    // The Inbox reply tag, typed by the doorbell as the person's own prompt.
+    "tag:novadeck-reply",
     // An image the person gave, listed apart from the words and saved under the session
     // (probed 2026-10-31, 1.4.12).
     "media:USER_EXPLICIT/USER_INPUT",

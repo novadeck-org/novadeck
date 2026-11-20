@@ -292,7 +292,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       handle: "owl",
       title: "codex",
       cwd: "/work",
-      command: 'codex "[Novadeck: automatic notice, agent messages waiting, k3f9q2]"',
+      command: `codex "<novadeck-doorbell ring='k3f9q2' from=''/>"`,
       task: {
         ok: true,
         to: "owl",

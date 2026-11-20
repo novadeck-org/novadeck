@@ -1591,7 +1591,7 @@ session's start earns. The paste check lets the history above the box lose one l
 way Codex's Tip goes, only when at most one line of text is under it and the rows below
 moved up (a list that lost an item has more of its items below).
 
-**The line a ring left.** A doorbell line, or reply line (its nonce opening and closing it,
+**The line a ring left.** A doorbell line, or reply line (its nonce opening it and closing it in the tag after it,
 so text typed after it shows, and exactly as the ring typed it), that is all the agent's own box holds, as its
 harness's box reader reads it (the prompt, no overlay over it, no prompt queued, wrapped
 anywhere), whose nonce is one of the terminal's last rings that no doorbell prompt
@@ -1987,23 +1987,41 @@ next delivery gives every note in full again.
 
 In the Settled or Ready state, or when the screen proves an idle Fresh, Drafting or
 Unknown agent's own box empty (above), Novadeck wakes the agent by typing one line into
-its terminal:
+its terminal, a self-closing tag with no message text:
 
 ```text
-[Novadeck: automatic notice, agent messages waiting, n7Q2]
+<novadeck-doorbell ring="n7Q2" from="newtz hushz"/>
 ```
 
-Only the nonce varies. It names no sender and holds none of `@ / ! # $`, which
-harnesses treat specially (Claude Code attaches an `@path`, Codex opens a file picker on
-`@`).
+`from` holds the senders' handles of the messages waiting, bare, space-separated, in
+delivery order and each once (`Messaging.senders`); `novadeck` stands for Novadeck's own
+notices, and `from=""` is no sender known (the waiting messages are the person's). A handle is
+bare because `@` opens Claude Code's file picker and Codex's mention picker. The line is one
+ASCII row, far under the ~320 characters at which Claude Code folds a paste, and the
+`<novadeck-messages>` delivery the prompt's hook gives is what carries the words.
+
+Before the tag the line was `[Novadeck: automatic notice, agent messages waiting, n7Q2]`
+(and the reply line `[Novadeck Inbox reply, n7Q2] … [n7Q2]`). Transcripts of existing and
+resumed sessions hold those, so every reader (`ringOf`, the typed-prompt reader, the box
+reader, core's `agents/steps.ts`) knows both forms.
+
+**A task's start prompt** is the same tag with `'` for its attribute quotes
+(`<novadeck-doorbell ring='n7Q2' from=''/>`, `startLine`), because the command that starts
+the agent holds it in double quotes. Inside double quotes `<`, `>` and `'` are literal in
+sh, zsh, fish, PowerShell and cmd (cmd's redirections end at its quotes), while a `"` has no
+quoting every one of them takes. `quotedLine` allows those three characters and still
+refuses `$`, a backtick, `\`, `"`, `!`, `%`, `^`, `&` and `;`.
 
 **The reply line.** When the person's Inbox replies wait for the agent (not a request for
-feedback), the doorbell types them instead, in the person's voice, its nonce opening and
-closing the line:
+feedback), the doorbell types them instead, in the person's voice, as text inside one element
+whose nonce opens it and closes it again in a tag after it:
 
 ```text
-[Novadeck Inbox reply, n7Q2] Re your ask "Merge #461 (ligatures on WebGL)?": I picked "Merge it". [n7Q2]
+<novadeck-reply ring="n7Q2">Re your ask "Merge #461 (ligatures on WebGL)?": I picked "Merge it".</novadeck-reply><novadeck-end ring="n7Q2"/>
 ```
+
+The closing nonce is a tag of its own because an end tag takes no attributes. It lets a
+box whose head scrolled away or wrapped still match its ring, and tells text typed after it.
 
 A harness takes a delivery's hook context as something other than the person's words, and
 its own checks may count only their prompts: Claude Code's auto mode reads user messages and
@@ -2019,9 +2037,9 @@ person's mark.
   the action marked done, or the person's words, several joined with `|`. The subject and
   labels are the agent's, quoted as its ask's: no `"` (as `'`) or `|` (as `/`) of theirs,
   nor a curly or full-width one, can close the quote or start another reply, so no agent
-  text reads as a pick the person didn't make. In all of it brackets become parentheses (no
-  text shows a line's head or closing nonce), whitespace one space, and `@` and `$`
-  full-width (`＠`, `＄`). A reply holding what a terminal may draw otherwise or not at all
+  text reads as a pick the person didn't make. In all of it brackets and `<` `>` become parentheses (no
+  text opens or closes a tag or shows a line's head or closing nonce), whitespace one space,
+  and `@`, `$` and `&` full-width (`＠`, `＄`, `＆`). A reply holding what a terminal may draw otherwise or not at all
   (emoji and their modifiers, selectors and keycaps, format characters such as zero-width
   and direction marks or tags, other controls, unassigned characters) rings with the plain
   line: dropping it could change the words, and an emoji may be the answer.
@@ -2597,7 +2615,7 @@ agent opened without a brief, gets its messages so: rung once its agent is Ready
 
 1. Opens the terminal with the agent started through its adapter's
    `initialPrompt(argv)`, with the doorbell line as its command-line prompt:
-   `claude "<line>"`, `codex "<line>"`. Claude Code and Codex hold that prompt behind
+   `claude "<line>"`, `codex "<line>"` (the start prompt's tag, `startLine`). Claude Code and Codex hold that prompt behind
    their trust and startup screens and fire `UserPromptSubmit` with exactly the line, a
    doorbell prompt. Antigravity starts plain (step 2), and the doorbell's ring makes its
    first turn a doorbell prompt too. So a start whose task can't be delivered then

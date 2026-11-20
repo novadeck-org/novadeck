@@ -7,27 +7,48 @@ import type { EventBase, HarnessEvent } from "./events.js"
  * a hook's continuation; and the turn a root prompt starts, told apart by them.
  */
 
-// The doorbell line's words, and a pattern of the whole line that captures its nonce.
-const notice = "Novadeck: automatic notice, agent messages waiting"
-const pattern = String.raw`\[${notice}, ([A-Za-z0-9]+)\]`
+// The doorbell line is one self-closing tag: `from` holds the waiting messages' senders' bare
+// handles (`novadeck` for Novadeck's own notices). A task's start prompt (`startLine`) quotes its
+// attributes with `'`, so a shell's double quotes can hold it. Transcripts of sessions from
+// before the tag hold the old bracket line, which every reader still knows (`oldDoorbell`).
+const tagPattern = String.raw`<novadeck-doorbell ring=["']([A-Za-z0-9]+)["'] from=["'][A-Za-z0-9_ -]*["']/>`
+const oldPattern = String.raw`\[Novadeck: automatic notice, agent messages waiting, ([A-Za-z0-9]+)\]`
 
-/** The line Novadeck's doorbell types, with its nonce (see docs/agent-messaging.md). */
-export const doorbellLine = (nonce: string): string => `[${notice}, ${nonce}]`
+/** The senders' handles a line names: bare, in order, each once (anything else is dropped). */
+const handlesOf = (from: readonly string[]): string =>
+  [...new Set(from.filter((handle) => /^[A-Za-z0-9_-]+$/.test(handle)))].join(" ")
 
-/** Any doorbell line, wherever it is. */
-export const doorbell = new RegExp(pattern, "g")
+/**
+ * The line Novadeck's doorbell types, with its nonce and the bare handles of the senders of
+ * the messages waiting, in delivery order (see docs/agent-messaging.md).
+ */
+export const doorbellLine = (nonce: string, from: readonly string[] = []): string =>
+  `<novadeck-doorbell ring="${nonce}" from="${handlesOf(from)}"/>`
 
-const doorbellOnly = new RegExp(`^${pattern}$`)
+/**
+ * The doorbell line a task's start prompt is: the same tag with `'` for its quotes, so a
+ * command line can hold it in double quotes in every shell (`quotedLine`).
+ */
+export const startLine = (nonce: string): string => `<novadeck-doorbell ring='${nonce}' from=''/>`
 
-// The reply line's head, and a pattern of the whole line: its nonce opens and closes it, so
-// a line left in the box is told apart from text typed after it.
-const replyHead = "Novadeck Inbox reply"
-const replyPattern = String.raw`\[${replyHead}, ([A-Za-z0-9]+)\] [^\n]*? \[\1\]`
+// The reply line is the person's Inbox replies as typed prompt text in one element, its nonce
+// in the opening tag and again in a tag after the element, so a line left in the box is told
+// apart from text typed after it, and a box showing only its end still names its ring.
+const replyPattern = String.raw`<novadeck-reply ring="([A-Za-z0-9]+)">[^\n<]*</novadeck-reply><novadeck-end ring="\1"/>`
+const oldReplyPattern = String.raw`\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] [^\n]*? \[\1\]`
 
-/** Any reply line, wherever it is. */
-export const replyDoorbell = new RegExp(replyPattern, "g")
+// A whole prompt that is a line of a form, its nonce captured.
+const bellForms = [tagPattern, oldPattern].map((source) => new RegExp(`^${source}$`))
+const replyForms = [replyPattern, oldReplyPattern].map((source) => new RegExp(`^${source}$`))
 
-const replyOnly = new RegExp(`^${replyPattern}$`)
+/** Any doorbell line, of either form, wherever it is. */
+export const doorbell = new RegExp(`${tagPattern}|${oldPattern}`, "g")
+
+/** Any reply line, of either form, wherever it is (a backreference per form). */
+export const replyDoorbell = new RegExp(
+  `${replyPattern}|${oldReplyPattern.replaceAll("\\1", "\\2")}`,
+  "g",
+)
 
 /**
  * The person's reply to an agent's Inbox ask, as the reply line names it: the ask's
@@ -62,8 +83,8 @@ const unfit = new RegExp(
 /**
  * Text as one line that no harness treats specially and no one can read as the line's own
  * frame: whitespace runs one space, `@` and `$` (Claude Code attaches an `@path`, Codex
- * opens a picker on either) full-width, and brackets as parentheses, so no text shows a
- * line's head or closing nonce.
+ * opens a picker on either) and `&` full-width, and brackets and angle brackets as
+ * parentheses, so no text opens or closes a tag, or shows an old line's head or closing nonce.
  */
 const inline = (text: string): string =>
   text
@@ -72,6 +93,9 @@ const inline = (text: string): string =>
     .replaceAll("$", "＄")
     .replaceAll("[", "(")
     .replaceAll("]", ")")
+    .replaceAll("<", "(")
+    .replaceAll(">", ")")
+    .replaceAll("&", "＆")
     .trim()
 
 /**
@@ -119,7 +143,7 @@ const replyPhrase = ({ subject, option, action, text }: InboxReply): string => {
  * one of them, in their voice and their words whole, so the agent's harness takes them as
  * the person's own prompt (as Claude Code's auto mode does an approval); the delivery the
  * prompt's hook gives then carries them in full, with any agents' messages. Its nonce opens
- * and closes it. Only the agent's subject and labels are cut. Undefined for no replies,
+ * it and closes it (the tag after its element). Only the agent's subject and labels are cut. Undefined for no replies,
  * for replies that don't all fit `maxReplyLine` whole, and for any holding what no line
  * holds (`unfit`): those come with the plain line's delivery alone, never some or part of
  * them, as a later one may take back an earlier, or the words cut a condition off.
@@ -136,7 +160,8 @@ export const replyLine = (
   ])
   if (fields.some((field) => unfit.test(field))) return undefined
   const body = replies.map(replyPhrase).join(" | ")
-  const line = (nonce: string) => `[${replyHead}, ${nonce}] ${body} [${nonce}]`
+  const line = (nonce: string) =>
+    `<novadeck-reply ring="${nonce}">${body}</novadeck-reply><novadeck-end ring="${nonce}"/>`
   // Whether they fit is told by a nonce as long as the typist's (`freshNonce`).
   if ([...line("x".repeat(nonceLength))].length > maxReplyLine) return undefined
   return line
@@ -151,8 +176,10 @@ const nonceLength = 6
  */
 export const doorbellNonce = (prompt: string): string | undefined => {
   const trimmed = prompt.trim()
-  return doorbellOnly.exec(trimmed)?.[1] ?? replyOnly.exec(trimmed)?.[1]
+  return [...bellForms, ...replyForms].map((form) => form.exec(trimmed)?.[1]).find(Boolean)
 }
+
+const replyOnly = (prompt: string): boolean => replyForms.some((form) => form.test(prompt.trim()))
 
 /**
  * What a prompt that is exactly a doorbell line or a reply line says of its ring: its nonce, and
@@ -163,7 +190,7 @@ export const ringOf = (
   prompt: string,
 ): { readonly nonce: string; readonly replies: boolean } | null => {
   const nonce = doorbellNonce(prompt)
-  return nonce === undefined ? null : { nonce, replies: replyOnly.test(prompt.trim()) }
+  return nonce === undefined ? null : { nonce, replies: replyOnly(prompt) }
 }
 
 /**
@@ -177,6 +204,9 @@ export const withoutDoorbell = (prompt: string): string =>
     .replace(/[ \t]{2,}/g, " ")
     .trim()
 
+// The most rows a wrapped line is looked for over (a reply line at a narrow width).
+const rows = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+
 /**
  * Words given back from the box without the doorbell and reply lines among them: a line of
  * Novadeck's that was queued comes back with the person's, and isn't theirs to get.
@@ -185,9 +215,10 @@ export const withoutDoorbellLines = (words: string): string => {
   const kept: string[] = []
   const lines = words.split("\n")
   for (let at = 0; at < lines.length;) {
-    // A box wraps a long reply line over rows, which come back as lines.
-    const span = [1, 2, 3, 4, 5, 6].find(
-      (rows) => doorbellNonce(lines.slice(at, at + rows).join(" ")) !== undefined,
+    // A box wraps a long line over rows, which come back as lines: where it broke at a space
+    // or inside a word, so the rows are joined with a space and without.
+    const span = rows.find((count) =>
+      [" ", ""].some((glue) => doorbellNonce(lines.slice(at, at + count).join(glue)) !== undefined),
     )
     if (span === undefined) kept.push(lines[at]!)
     at += span ?? 1
@@ -198,9 +229,11 @@ export const withoutDoorbellLines = (words: string): string => {
 /**
  * The characters a quoted line may hold: none that sh, zsh, fish, PowerShell or cmd expand
  * or end a double-quoted word at (`$`, a backtick, `\\`, `"`, `!`, `%`, `^`, `&`, `;`, a
- * newline), so one quoting works in all of them.
+ * newline), so one quoting works in all of them. `<`, `>` and `'` are literal inside double
+ * quotes in every one of them (cmd's redirections end at its quotes), which is why a start
+ * prompt's tag quotes its attributes with `'` (`startLine`): a `"` has no such quoting.
  */
-const quotable = /^[A-Za-z0-9 ,.:/_[\]=@+-]*$/
+const quotable = /^[A-Za-z0-9 ,.:/_[\]=@+<>'-]*$/
 
 /**
  * Quotes a line for any shell Novadeck starts as one word. It refuses (throws) a line
@@ -240,10 +273,15 @@ export const promptStart = (
       ...base,
       cause: "doorbell",
       nonce,
-      ...(replyOnly.test(prompt.trim()) && { replies: true as const }),
+      ...(replyOnly(prompt) && { replies: true as const }),
     }
   if (harness || continuationPrompt(prompt))
     return { type: "turn-started", ...base, cause: "harness" }
   const own = withoutDoorbell(prompt)
-  return { type: "turn-started", ...base, cause: "prompt", ...(own && { prompt: own }) }
+  return {
+    type: "turn-started",
+    ...base,
+    cause: "prompt",
+    ...(own && { prompt: own }),
+  }
 }

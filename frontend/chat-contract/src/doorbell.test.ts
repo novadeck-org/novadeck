@@ -1,6 +1,6 @@
 import { agentContext } from "@novadeck/core/agents/steps"
 import type { ChatItem } from "@novadeck/core/conversation"
-import { doorbellLine, replyLine } from "@novadeck/harness-core/prompts"
+import { doorbellLine, replyLine, startLine } from "@novadeck/harness-core/prompts"
 
 import { describe, expect, it } from "./test"
 
@@ -32,6 +32,21 @@ const said = (line: string) =>
 describe("the doorbell lines core leaves out of the person's words", () => {
   it("are the lines harness-core types: the plain doorbell", () => {
     expect(said(doorbellLine("k3f9Xz"))).toEqual({ text: "fix the flaky inbox test", at: 1 })
+  })
+
+  it("and a task's start prompt, and the senders it names", () => {
+    expect(said(startLine("k3f9Xz"))).toEqual({ text: "fix the flaky inbox test", at: 1 })
+    expect(said(doorbellLine("k3f9Xz", ["newtz", "novadeck"]))).toEqual({
+      text: "fix the flaky inbox test",
+      at: 1,
+    })
+  })
+
+  it("and the lines of sessions from before the tag", () => {
+    const old = "[Novadeck: automatic notice, agent messages waiting, k3f9Xz]"
+    const reply = '[Novadeck Inbox reply, k3f9Xz] Re "Merge #461?": I picked "Merge it". [k3f9Xz]'
+    expect(said(old)).toEqual({ text: "fix the flaky inbox test", at: 1 })
+    expect(said(reply)).toEqual({ text: "fix the flaky inbox test", at: 1 })
   })
 
   it("and the one that says the person's Inbox replies", () => {

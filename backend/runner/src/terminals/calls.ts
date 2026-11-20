@@ -1,7 +1,7 @@
 import { resolve as resolvePath } from "node:path"
 
 import type { Effort, Install, Model } from "@novadeck/harness-core/harness"
-import { doorbellLine } from "@novadeck/harness-core/prompts"
+import { startLine } from "@novadeck/harness-core/prompts"
 import type { AgentName } from "@novadeck/protocol"
 import type { Trees } from "@novadeck/terminal/pty"
 import { freshNonce } from "@novadeck/tui-input"
@@ -509,7 +509,7 @@ export class Calls {
     const install = withTask ? await this.host.install(agent).catch(() => undefined) : undefined
     const nonce = freshNonce()
     const prompted = withTask
-      ? await launch.initialPrompt(doorbellLine(nonce), { install, cwd }).catch(() => undefined)
+      ? await launch.initialPrompt(startLine(nonce), { install, cwd }).catch(() => undefined)
       : undefined
     const [program = "", ...rest] = prompted ?? launch.start
     // Right after the program, so before any flag of a prompt's that takes the line.

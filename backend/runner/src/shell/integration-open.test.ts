@@ -249,7 +249,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           // Too large once escaped where delivered: refused before anything starts.
           openAgent({ agent: "codex", message: "&".repeat(4_000) }),
         ])) as { ok: boolean; text?: string }[]
-        const line = /^\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]{6}\]$/
+        const line = /^<novadeck-doorbell ring='[A-Za-z0-9]{6}' from=''\/>$/
         expect(requests.map(({ command }) => command)).toEqual([
           expect.stringMatching(quoted("claude")),
           expect.stringMatching(quoted("codex")),
@@ -280,7 +280,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           },
         ])
         // Each started with the line as one argument, which its harness submits.
-        const shown = await shell.until(manager, created[0]!, /claude args: \[Novadeck: [^\n]*\]/)
+        const shown = await shell.until(
+          manager,
+          created[0]!,
+          /claude args: <novadeck-doorbell [^\n]*\/>/,
+        )
         expect(shown.split("claude args: ")[1]?.split(" prompt=")[0]).toMatch(line)
         // The opener's peers say who opened it, with a task, before its agent starts.
         const [listed] = (await show(shell, manager, terminal.id, [
@@ -390,7 +394,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           openAgent({ agent: "claude", effort: "low", ...task }),
           openAgent({ agent: "agy", model: "sonnet", effort: "low", ...task }),
         ])) as { ok: boolean; reason?: string }[]
-        const line = '"\\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]{6}\\]"'
+        const line = `"<novadeck-doorbell ring='[A-Za-z0-9]{6}' from=''/>"`
         expect(requests.map(({ command }) => command)).toEqual([
           expect.stringMatching(new RegExp(`^claude --model opus --effort max ${line}$`)),
           expect.stringMatching(

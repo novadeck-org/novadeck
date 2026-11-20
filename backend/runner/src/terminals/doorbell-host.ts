@@ -240,6 +240,7 @@ export const doorbellHost = <R extends DoorbellRecord>(
       return tailOf(box, text, rows, line) === undefined ? undefined : nonce
     },
     replies: (terminalId) => messaging.replyLine(terminalId),
+    senders: (terminalId) => messaging.senders(terminalId),
     ringsPlain: (terminalId, plain) => messaging.ringsPlain(terminalId, plain),
     ringLeftover: (terminalId, nonce) => {
       const rung = messaging.ringLeftover(terminalId, nonce)

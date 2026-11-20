@@ -193,7 +193,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     }) => {
       fakeAgent(shell.home, "codex")
       writeFileSync(join(shell.home, ".bashrc"), 'export PATH="$HOME/bin:$PATH"\n')
-      const task = 'codex "[Novadeck: automatic notice, agent messages waiting, k3f9q2]"'
+      const task = `codex "<novadeck-doorbell ring='k3f9q2' from=''/>"`
       const [lead, worker, ran] = [randomUUID(), randomUUID(), randomUUID()]
       const keep = (id: string, handle: string, ledBy: string | null, agents = {}) =>
         shell.store.saveTerminal({
@@ -218,11 +218,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await create(manager, shell, { id: worker, restore: true })
       await create(manager, shell, { id: ran, restore: true })
       // Lost behind its trust screen, as a reboot leaves it: its task's line starts it again.
-      await shell.until(
-        manager,
-        worker,
-        "codex args: [Novadeck: automatic notice, agent messages waiting, k3f9q2]",
-      )
+      await shell.until(manager, worker, "codex args: <novadeck-doorbell ring='k3f9q2' from=''/>")
       expect(manager.get(worker).ledBy).toBe(lead)
       expect(shell.store.terminalIdentity(worker)?.ledBy).toBe(lead)
       // One whose agent ran resumes that session or comes back a shell, no longer led.

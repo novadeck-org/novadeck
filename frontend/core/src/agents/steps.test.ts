@@ -198,22 +198,32 @@ describe("an agent's context from recorded transcripts", () => {
 })
 
 describe("the words an agent was given", () => {
-  it("are the person's last, without Novadeck's doorbell line", () => {
-    const items = [
-      user("fix the flaky inbox test and push it", 1),
-      user("[Novadeck: automatic notice, agent messages waiting, k3f9Xz]", 2),
-    ]
+  const forms = [
+    ["doorbell tag", '<novadeck-doorbell ring="k3f9Xz" from="newtz hushz"/>'],
+    ["doorbell tag a task's start prompt typed", "<novadeck-doorbell ring='k3f9Xz' from=''/>"],
+    ["old doorbell line", "[Novadeck: automatic notice, agent messages waiting, k3f9Xz]"],
+  ] as const
+  const replies = [
+    [
+      "reply tag",
+      '<novadeck-reply ring="k3f9Xz">Re your ask "Merge #461?": I picked "Merge it".</novadeck-reply><novadeck-end ring="k3f9Xz"/>',
+    ],
+    [
+      "old reply line",
+      '[Novadeck Inbox reply, k3f9Xz] Re "Merge #461?": I picked "Merge it". [k3f9Xz]',
+    ],
+  ] as const
+
+  it.each(forms)("are the person's last, without Novadeck's %s", (_name, line) => {
+    const items = [user("fix the flaky inbox test and push it", 1), user(line, 2)]
     expect(agentContext("claude", items).said).toEqual({
       text: "fix the flaky inbox test and push it",
       at: 1,
     })
   })
 
-  it("leave out the doorbell line that says the person's Inbox replies", () => {
-    const items = [
-      user("fix the flaky inbox test and push it", 1),
-      user('[Novadeck Inbox reply, k3f9Xz] Re "Merge #461?": I picked "Merge it". [k3f9Xz]', 2),
-    ]
+  it.each(replies)("leave out the %s that says the person's Inbox replies", (_name, line) => {
+    const items = [user("fix the flaky inbox test and push it", 1), user(line, 2)]
     expect(agentContext("claude", items).said).toEqual({
       text: "fix the flaky inbox test and push it",
       at: 1,
@@ -302,7 +312,7 @@ describe("the words an agent was given", () => {
     const items = [
       user("set up the inbox sheet task", 1),
       ...ran("pnpm install", "Done", 2),
-      user("[Novadeck: automatic notice, agent messages waiting, ABC123]", 5),
+      user('<novadeck-doorbell ring="ABC123" from="moth"/>', 5),
       ...ran("pnpm test", "Tests 48 passed", 6),
     ]
     const found = agentContext("claude", items, [{ text: "use UTC, then report", at: 5 }])

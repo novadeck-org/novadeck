@@ -79,6 +79,15 @@ describe("a typed prompt where hooks name none", () => {
     await expect(told(entry(line, 12))).resolves.toMatchObject({
       events: [{ cause: "doorbell", nonce: "k3f9q2" }],
     })
+    // The same for the tag's senders, a task's start prompt, and the bracket line of before.
+    const forms = [
+      doorbellLine("k3f9q2", ["moth", "novadeck"]),
+      "<novadeck-doorbell ring='k3f9q2' from=''/>",
+      "[Novadeck: automatic notice, agent messages waiting, k3f9q2]",
+    ]
+    const results = await Promise.all(forms.map((text) => told(entry(text, 12))))
+    for (const result of results)
+      expect(result).toMatchObject({ events: [{ cause: "doorbell", nonce: "k3f9q2" }] })
     // A stale line left with the person's text: their prompt, the line removed.
     await expect(told(entry(`${line}fix the build`, 12))).resolves.toMatchObject({
       events: [{ cause: "prompt", prompt: "fix the build" }],

@@ -315,6 +315,17 @@ export class Deliveries {
         yield message
   }
 
+  /** The distinct senders' handles of the messages waiting for the terminal, in delivery order (`novadeck` for its notices). */
+  senders(terminalId: string): readonly string[] {
+    const live = this.host.sessions.get(terminalId)
+    if (!live) return []
+    const handles = new Set<string>()
+    for (const { from } of this.waitingFor(live))
+      if (from.kind === "agent") handles.add(from.handle)
+      else if (from.kind === "novadeck") handles.add("novadeck")
+    return [...handles].filter((handle) => /^[A-Za-z0-9_-]+$/.test(handle))
+  }
+
   /**
    * The doorbell's line, by its nonce, where the person's Inbox replies no line has said yet
    * wait for the terminal's root session (`replyLine`), oldest first; undefined for none. A

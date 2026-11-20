@@ -245,7 +245,7 @@ for (const setup of setups) {
         received.turns.some(
           (entry) =>
             entry.role === "user" &&
-            /\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] Re your ask "Which colour should the heading use\?": I picked "Green" and wrote: Use green, please: zażółć, ＠flint, ＄5\. \[\1\]/.test(
+            /<novadeck-reply ring="([A-Za-z0-9]+)">Re your ask "Which colour should the heading use\?": I picked "Green" and wrote: Use green, please: zażółć, ＠flint, ＄5\.<\/novadeck-reply><novadeck-end ring="\1"\/>/.test(
               entry.text,
             ),
         ),
@@ -313,7 +313,7 @@ for (const setup of setups) {
       call.turns.some(
         (entry) =>
           entry.role === "user" &&
-          /\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] Re your ask "Merge the branch\?": I picked "Merge"\. \[\1\]/.test(
+          /<novadeck-reply ring="([A-Za-z0-9]+)">Re your ask "Merge the branch\?": I picked "Merge"\.<\/novadeck-reply><novadeck-end ring="\1"\/>/.test(
             entry.text,
           ),
       )
@@ -372,7 +372,7 @@ for (const setup of setups) {
           (entry) => entry.role === "user" && entry.text.includes(words),
         )
         expect(typed?.text).toMatch(
-          /\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] Re your ask .* \[\1\]/,
+          /<novadeck-reply ring="([A-Za-z0-9]+)">Re your ask .*<\/novadeck-reply><novadeck-end ring="\1"\/>/,
         )
         const states = terminal
           .history()

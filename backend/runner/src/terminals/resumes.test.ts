@@ -17,7 +17,15 @@ import {
 } from "./resumes.js"
 
 describe("the task a restored worker starts again", () => {
-  const command = 'codex "[Novadeck: automatic notice, agent messages waiting, k3f9q2]"'
+  const command = `codex "<novadeck-doorbell ring='k3f9q2' from=''/>"`
+
+  it("reads the nonce of a command saved before the tag as well", () => {
+    const old = 'codex "[Novadeck: automatic notice, agent messages waiting, k3f9q2]"'
+    expect(restartedTask({ agents: {}, command: old }, "moth")).toEqual({
+      command: old,
+      nonce: "k3f9q2",
+    })
+  })
 
   it("is the command it was opened with while it is led and no agent session reported there", () => {
     expect(restartedTask({ agents: {}, command }, "moth")).toEqual({ command, nonce: "k3f9q2" })

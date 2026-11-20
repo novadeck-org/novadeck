@@ -206,10 +206,12 @@ export const written = (
   }))
 
 // The line Novadeck's doorbell types into an idle agent's box, as its record keeps it.
-const rang = (nonce: string, replies = false): DemoDraft => ({
+const rang = (nonce: string, replies = false, senders = ""): DemoDraft => ({
   role: "user",
   kind: "text",
-  text: `[Novadeck: automatic notice, agent messages waiting, ${nonce}]`,
+  text: replies
+    ? `<novadeck-reply ring="${nonce}">Re your ask "Which rounding?": Round half up, the way the invoices do.</novadeck-reply><novadeck-end ring="${nonce}"/>`
+    : `<novadeck-doorbell ring="${nonce}" from="${senders}"/>`,
   ring: { nonce, replies },
 })
 
@@ -529,7 +531,7 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
         "computeTotal is called from CartSummary, the order email and the export job. Only the export job still passes cents as a float.",
       ),
       from("/root/explorer_2", "No other caller depends on the old rounding."),
-      rang("k3f9"),
+      rang("k3f9", false, "moth"),
       rang("p8w2", true),
       use(
         "call_04c",
