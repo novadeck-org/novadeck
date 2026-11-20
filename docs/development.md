@@ -662,7 +662,9 @@ App:
   Review page sends them. "Plan with a change field" adds Claude Code 2.1.287's plan, whose only
   way back is "Tell Claude what to change": that row is a field that must say what. "Form from
   an MCP server" adds the form an MCP server asks Claude Code to fill in, answered in the card as
-  the chat's is (a text, a choice, a number and a yes/no; Submit or Decline). A request's sheet
+  the chat's is (a text, a choice, a number and a yes/no; Submit or Decline); "Form from an MCP
+  server, in Codex" adds the one Codex draws, which only its screen tells, shown as its text to
+  answer in the terminal. A request's sheet
   is the chat's own card, and its draft (the words in its options, its picks and page, a form's
   entries) stays with its row. Answering any
   row moves the sheet on to the next that needs you (updates skipped) with a one-line receipt,

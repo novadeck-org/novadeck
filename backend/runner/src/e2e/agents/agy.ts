@@ -210,7 +210,8 @@ export const agy: AgentSetup = {
   // uploaded 1 image(s)" (probed 2026-10-31, 1.4.12; 1.4.3 kept the path as text).
   image: { shows: "1 media attached", inline: false, alone: false },
   absent: {
-    forms: "it shows no MCP elicitation form to answer (probed 2026-10-06, 1.2.14)",
+    forms:
+      "it shows no MCP elicitation form to answer: it cancels each at once (probed 2026-11-20, 1.5.12)",
     "fork.picker":
       "no command line forks a conversation: its flags only resume one (`--conversation`, `--continue`), and its fork is the in-place /fork (probed 2026-10-03, 1.2.14)",
     popup:

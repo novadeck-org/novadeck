@@ -1,5 +1,8 @@
+import type { ScreenText } from "@novadeck/emulator/headless"
+import { dialogs as codexDialogs } from "@novadeck/harness-codex/dialogs"
 import type { DialogAdapter, ScreenRequest } from "@novadeck/harness-core/dialogs"
 import { fakeAdapter, FakeTui } from "@novadeck/harness-core/testing/dialogs"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import {
   dialogTextLimits,
   maxRawDialogText,
@@ -9,6 +12,7 @@ import {
 
 import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
+import { adapterFolder } from "../testing/adapters.js"
 import { Dialogs, identified, rawText, type Waiting } from "./dialogs.js"
 import { SeenTerminals } from "./seen.js"
 
@@ -491,6 +495,36 @@ describe("requests only the screen tells", () => {
     dialogs.changed("t")
     await until(() => cleared.length === 1)
     expect(state.requests).toEqual([])
+  })
+})
+
+describe("an MCP server's form in Codex, which only its screen tells", () => {
+  type Form = { readonly screens: Record<string, ScreenText>; readonly after: ScreenText }
+  const { forms } = loadProbe<{ forms: Record<string, Form> }>(
+    adapterFolder("codex"),
+    "elicitation.probe.json",
+  )
+
+  it("waits on the person while the form shows, raw to answer in the terminal, and goes with it", async () => {
+    const { tui, dialogs, asked, cleared, use, state } = terminal({ requests: [] })
+    use(codexDialogs)
+    const form = forms.enum!
+    tui.rows = () => [...form.screens["120x40"]!.rows]
+    dialogs.changed("t")
+    await until(() => asked.length === 1)
+    expect(asked[0]).toMatchObject({
+      kind: "question",
+      tool: "mcp__probe__elicitation",
+      subject: "Which colour do you want?",
+    })
+    await until(() => dialogs.shown("t", "screen") !== null)
+    expect(dialogs.shown("t", "screen")).toMatchObject({ type: "raw" })
+    // Answered in the terminal, the call's result takes its place: the request goes.
+    tui.rows = () => [...form.after.rows]
+    dialogs.changed("t")
+    await until(() => cleared.length === 1)
+    expect(state.requests).toEqual([])
+    expect(asked).toHaveLength(1)
   })
 })
 
