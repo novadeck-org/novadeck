@@ -5,16 +5,19 @@ import {
   replied,
   sessionId,
   sessionStart,
+  shortName,
   subjectOf,
   text,
 } from "@novadeck/harness-core/decode"
 import type { EventBase, HarnessEvent } from "@novadeck/harness-core/events"
+import { isFields } from "@novadeck/harness-core/fields"
 import { promptStart } from "@novadeck/harness-core/prompts"
 import type { Report } from "@novadeck/harness-core/report"
+import { agentLimits } from "@novadeck/protocol"
 
 import { asyncReplies, asyncRequestId, asyncSubject, asyncTool, quoted } from "./async-question.js"
 import { applied, patched } from "./patch.js"
-import { kindOf } from "./tools.js"
+import { kindOf, subagentTool } from "./tools.js"
 
 /**
  * Codex's hooks, as normalized facts.
@@ -66,8 +69,18 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
       ]
     }
     case "UserPromptSubmit": {
-      // A subagent's prompt is its own work, not the root's turn.
-      if (actor) return []
+      // A subagent's prompt is its own work, not the root's turn: a turn of it, which a later
+      // one (send_input to it once its turn is over, closed or aborted) starts with no
+      // SubagentStart of its own (probed 2026-11-20, 0.170.0, fixtures/subagent-ends.probe.json).
+      if (actor)
+        return [
+          {
+            type: "subagent-started",
+            ...base,
+            actor,
+            actorType: text(payload.agent_type) ?? null,
+          },
+        ]
       // A Stop hook's reason it submits to continue the turn (`hookPrompt`) is no prompt of
       // the person's. Its turn's id is what its rollout records the turn's end by.
       const turn = text(payload.turn_id)
@@ -119,8 +132,12 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
             },
           ]
     case "Interrupt":
-      // A subagent's own interrupt ends its work, not the turn.
-      return actor ? [] : [{ type: "turn-ended", ...base, outcome: "interrupted" }]
+      // A subagent's own interrupt ends its work, not the turn. The root's leaves the
+      // subagents it spawned running (probed 2026-11-20, 0.170.0,
+      // fixtures/subagent-ends.probe.json).
+      return actor
+        ? []
+        : [{ type: "turn-ended", ...base, outcome: "interrupted", keepsSubagents: true }]
     case "SubagentStart":
       return actor
         ? [
@@ -203,10 +220,21 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           toolName: tool,
           kind: kindOf(tool, input),
         },
+        ...closed(base, tool, input),
       ]
     default:
       return []
   }
+}
+
+/**
+ * The subagent a close_agent call closed, by the id its input names: its turn aborts, and
+ * no SubagentStop fires (probed 2026-11-20, 0.170.0, fixtures/subagent-ends.probe.json).
+ */
+const closed = (base: EventBase<"codex">, tool: string, input: unknown): HarnessEvent[] => {
+  if (subagentTool(tool) !== "close_agent" || !isFields(input)) return []
+  const target = shortName(input.target, agentLimits.name)
+  return target === undefined ? [] : [{ type: "subagent-stopped", ...base, actor: target }]
 }
 
 // An async question's request, by the call its hook names.

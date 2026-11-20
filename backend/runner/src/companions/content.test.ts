@@ -144,6 +144,42 @@ describe("what a show points at", () => {
     await expect(loadFile(file(login), false, {})).resolves.toMatchObject({ reason: "secret" })
   })
 
+  it("may hold secrets by the name of the link it is asked by", async ({ directory }) => {
+    mkdirSync(join(directory, "config"))
+    mkdirSync(join(directory, "creds"))
+    writeFileSync(join(directory, "config", "dev.vars"), "STRIPE_KEY=x\n")
+    symlinkSync(join(directory, "config", "dev.vars"), join(directory, ".env"))
+    symlinkSync(join(directory, "creds"), join(directory, ".aws"))
+    const pointed = await pointAt(".env", directory)
+    expect(pointed).toMatchObject({ ok: true, path: join(directory, "config", "dev.vars") })
+    expect(pointed).toMatchObject({ secret: true })
+    await expect(pointAt("config/dev.vars", directory)).resolves.toMatchObject({ secret: false })
+    await expect(pointAt(".aws", directory)).resolves.toEqual({
+      ok: false,
+      reason: "That folder may hold secrets, so Novadeck won't list what is in it.",
+    })
+    await expect(pointAt("creds", directory)).resolves.toMatchObject({ ok: true, kind: "folder" })
+  })
+
+  it("may hold secrets by a name its links lead through on the way", async ({ directory }) => {
+    mkdirSync(join(directory, "config"))
+    mkdirSync(join(directory, "keys"))
+    writeFileSync(join(directory, "config", "dev.vars"), "STRIPE_KEY=x\n")
+    symlinkSync(join(directory, "config", "dev.vars"), join(directory, ".env"))
+    symlinkSync(join(directory, ".env"), join(directory, "notes.txt"))
+    symlinkSync(join(directory, "keys"), join(directory, ".ssh"))
+    symlinkSync(join(directory, ".ssh"), join(directory, "stuff"))
+    await expect(pointAt("notes.txt", directory)).resolves.toMatchObject({
+      ok: true,
+      path: join(directory, "config", "dev.vars"),
+      secret: true,
+    })
+    await expect(pointAt("stuff", directory)).resolves.toEqual({
+      ok: false,
+      reason: "That folder may hold secrets, so Novadeck won't list what is in it.",
+    })
+  })
+
   it("is never a missing path or a pipe, and a folder is one that may be listed", async ({
     directory,
   }) => {

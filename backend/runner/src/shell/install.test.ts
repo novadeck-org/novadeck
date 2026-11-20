@@ -14,6 +14,7 @@ import { join } from "node:path"
 import { vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
+import { ownHome } from "../testing/host.js"
 import { cmdPrints, installRelay, installShellFiles } from "./install.js"
 import { shellFiles, shellPaths } from "./scripts.js"
 
@@ -140,15 +141,23 @@ describe("the allow rules Antigravity's launches took", () => {
   }) => {
     const directory = mkdtempSync(join(tmpdir(), "novadeck-allow-"))
     resources.defer(() => rmSync(directory, { recursive: true, force: true }))
-    const first = await installShellFiles(directory, { platform: "linux", fresh: true })
+    const first = await installShellFiles(directory, {
+      ...ownHome(directory),
+      platform: "linux",
+      fresh: true,
+    })
     mkdirSync(first.allow, { recursive: true })
     const taken = join(first.allow, "00000000-0000-4000-8000-000000000001.json")
     writeFileSync(taken, "{}")
     // Written again, as when Codex connects: a running session may read its file again.
-    await installShellFiles(directory, { platform: "linux" })
+    await installShellFiles(directory, { ...ownHome(directory), platform: "linux" })
     expect(existsSync(taken)).toBe(true)
     // A runner's next start, before any of its shells.
-    await installShellFiles(directory, { platform: "linux", fresh: true })
+    await installShellFiles(directory, {
+      ...ownHome(directory),
+      platform: "linux",
+      fresh: true,
+    })
     expect(existsSync(taken)).toBe(false)
   })
 })
@@ -228,7 +237,7 @@ describe.skipIf(process.platform === "win32")("the MCP server's launcher", () =>
     resources.defer(() => rmSync(folder, { recursive: true, force: true }))
     const relay = join(folder, "built")
     writeFileSync(relay, "relay")
-    const paths = await installShellFiles(join(folder, "shell"), { relay })
+    const paths = await installShellFiles(join(folder, "shell"), { ...ownHome(folder), relay })
     expect(paths.mcpLauncher).toBe(paths.mcp)
     expect(statSync(paths.relay).mode & 0o100).not.toBe(0)
   })
@@ -240,7 +249,10 @@ describe.skipIf(process.platform === "win32")("the MCP server's launcher", () =>
     resources.defer(() => rmSync(folder, { recursive: true, force: true }))
     const logged = vi.spyOn(console, "error").mockImplementation(() => {})
     resources.defer(() => logged.mockRestore())
-    const paths = await installShellFiles(join(folder, "shell"), { relay: join(folder, "gone") })
+    const paths = await installShellFiles(join(folder, "shell"), {
+      ...ownHome(folder),
+      relay: join(folder, "gone"),
+    })
     expect(paths.mcpLauncher).toBeUndefined()
     expect(logged).toHaveBeenCalledWith("Novadeck's relay is unavailable:", expect.anything())
   })
@@ -259,6 +271,7 @@ describe("the cmd.exe pass-through", () => {
       relay,
       cmdShim: shim,
       platform: "win32" as const,
+      ...ownHome(folder),
       worktrees: join(folder, "worktrees"),
       prints: () => Promise.resolve("prints" as const),
       short: (path: string) => Promise.resolve(path.replaceAll("/", "\\").replace(/^\\/, "C:\\")),
@@ -382,6 +395,7 @@ describe("the PowerShell pass-through", () => {
       pwshShim: shim,
       pwsh: true,
       platform: "win32" as const,
+      ...ownHome(folder),
       worktrees: join(folder, "worktrees"),
       prints: () => Promise.resolve(undefined),
       short: (path: string) => Promise.resolve(path.replaceAll("/", "\\").replace(/^\\/, "C:\\")),

@@ -13,6 +13,7 @@ import type { EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import { isFields, parseFields, type Fields } from "@novadeck/harness-core/fields"
 import { followLines } from "@novadeck/harness-core/follow"
 import type { Harness, Run, WrittenPlan } from "@novadeck/harness-core/harness"
+import { wordsIn } from "@novadeck/harness-core/items"
 import { agentLimits, telemetryLimits, type AgentTelemetry } from "@novadeck/protocol"
 
 import { callOf } from "./decode.js"
@@ -130,6 +131,8 @@ export const rolloutEvents = (
           ...base,
           outcome,
           recorded: true,
+          // Its spawned subagents run on through the root's abort.
+          ...(outcome === "interrupted" && { keepsSubagents: true as const }),
           ...(turn && { turn }),
           ...replied(fields.last_agent_message),
           ...(failed && errored(fields.error)),
@@ -246,11 +249,20 @@ const shellStarted = (
   ]
 }
 
+// The code a shell Codex ended itself can carry: off Windows its every end of one (/stop, a
+// shell pruned past its limit, a failed write, Codex quitting) is a SIGKILL to the shell's group,
+// and the item reads the status its reaper took of it, 128 + 9, where that came before the
+// item was written (codex-rs 0.170.0, unified_exec/async_watcher.rs, utils/pty). Read as no
+// code, as a stop is for every harness; a kill -9 from outside (the OOM killer, a person's)
+// reads as stopped too, as the item can't tell them apart and the rollout records no /stop.
+// On Windows Codex kills with TerminateJobObject(…, 1), which can't be told from an exit 1.
+const killedByCodex = process.platform === "win32" ? undefined : 137
+
 /**
  * The end of a background shell: its CommandExecution item, which names its session as its
- * `process_id` and carries its `exit_code`, -1 when the person stopped it with /stop (no
- * code of the command's own). An item of a command that never went to the background names
- * no shell the activity knows.
+ * `process_id` and carries its `exit_code`, -1 when Codex ended it before its status came,
+ * as /stop does (no code of the command's own), or the status of the kill (`killedByCodex`).
+ * An item of a command that never went to the background names no shell the activity knows.
  */
 const shellEnded = (base: EventBase<"codex">, item: Fields): HarnessEvent[] => {
   const id = shortName(item.process_id, agentLimits.name)
@@ -261,7 +273,10 @@ const shellEnded = (base: EventBase<"codex">, item: Fields): HarnessEvent[] => {
       type: "shell-ended",
       ...base,
       id,
-      code: typeof code === "number" && Number.isInteger(code) && code !== -1 ? code : null,
+      code:
+        typeof code === "number" && Number.isInteger(code) && code !== -1 && code !== killedByCodex
+          ? code
+          : null,
     },
   ]
 }
@@ -386,6 +401,21 @@ const backlogKind = (event: HarnessEvent): string =>
               : event.type
 
 /**
+ * The words the agent wrote, as one line of its rollout records them: a message of the
+ * assistant, dated by the record. Most lines are long outputs, parsed only where they may be one.
+ */
+export const rolloutWords = (
+  line: string,
+  { sessionId, instance }: Pick<Run, "sessionId" | "instance">,
+): HarnessEvent | undefined =>
+  wordsIn(
+    line,
+    transcripts.items,
+    (each) => /"role":\s*"assistant"/.test(each) && each.includes('"message"'),
+    { agent: "codex", sessionId, instance },
+  )
+
+/**
  * Follows a bound session's rollout. Codex writes a turn's mode before the hook that
  * binds the session starts, so what the rollout already holds counts too: its latest
  * mode, as of now, and its latest plan and token count, as of when they were written;
@@ -410,7 +440,9 @@ export const followRollout: NonNullable<Harness["watch"]> = async (run, signal, 
     path ?? run.transcript,
     signal,
     (line) => {
-      for (const event of rolloutEvents(line, run, commands)) {
+      // The words the agent wrote: its assistant messages, which no hook tells.
+      const words = rolloutWords(line, run)
+      for (const event of [...rolloutEvents(line, run, commands), ...(words ? [words] : [])]) {
         if (event.startedAt <= after) continue
         if (
           (event.type === "shell-started" || event.type === "shell-ended") &&
@@ -459,13 +491,15 @@ export const followRollout: NonNullable<Harness["watch"]> = async (run, signal, 
 
 /**
  * What one line of a subagent's own rollout says that no hook does: its turn aborted, as
- * Esc on its request does, firing neither `Interrupt` nor `SubagentStop` (probed
- * 2026-10-03, 0.159.3). Its turn over, it waits on the person no longer, though its
- * thread stays open, so it runs on; only an abort from `since` on, when its request was
- * asked, counts. An MCP tool call of its own completing settles its request too, as the
- * root's does in the root's rollout: one the person cancelled fires no hook, and its turn
- * runs on. That a subagent's item is filed in its own rollout is assumed, not probed: its
- * hooks name it by its own id, and the root's rollout holds its root's items alone.
+ * Esc on its request does (probed 2026-10-03, 0.159.3) and the root's close_agent does
+ * (probed 2026-11-20, 0.170.0), firing neither `Interrupt` nor `SubagentStop`. Its turn is
+ * over as a SubagentStop would say: it waits on the person no longer, and though its thread
+ * stays open, it runs no more until a later turn of it starts (its prompt's hook says so);
+ * only an abort from `since` on, when it started, counts. An MCP tool call of its own
+ * completing settles its request too, as the root's does in the root's rollout: one the
+ * person cancelled fires no hook, and its turn runs on. That a subagent's item is filed in
+ * its own rollout is assumed, not probed: its hooks name it by its own id, and the root's
+ * rollout holds its root's items alone.
  */
 export const subagentEvents = (
   line: string,
@@ -485,9 +519,7 @@ export const subagentEvents = (
   if (!Number.isFinite(startedAt) || startedAt < since) return []
   const { type: kind, item } = (payload ?? {}) as { type?: unknown; item?: unknown }
   if (kind === "turn_aborted")
-    return [
-      { type: "subagent-turn-aborted", agent: "codex", sessionId, instance, actor, startedAt },
-    ]
+    return [{ type: "subagent-stopped", agent: "codex", sessionId, instance, actor, startedAt }]
   if (kind === "item_completed" && isFields(item) && item.type === "McpToolCall")
     return mcpSettled({ agent: "codex", sessionId, instance, startedAt }, actor, item)
   if (kind === "item_completed" && isFields(item) && item.type === "CommandExecution")
@@ -499,10 +531,10 @@ export const subagentEvents = (
 const locateMs = 1000
 
 /**
- * Follows a subagent's own rollout, which Codex files beside its root's under its own
- * id (its hooks name only the root's), for its turn aborting, or its MCP calls
- * completing, from `since` on. Looked for
- * until found, as Codex may write it after the hook that asks.
+ * Follows a running subagent's own rollout, which Codex files beside its root's under its
+ * own id (its hooks name only the root's), for its turn aborting, or its MCP calls
+ * completing, from `since` on. Looked for until found, as Codex may write it after the
+ * hook that starts it.
  */
 export const followSubagent: NonNullable<Harness["watchActor"]> = async (
   run,

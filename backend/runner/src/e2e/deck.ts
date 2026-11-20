@@ -186,7 +186,16 @@ export type Deck = {
   /** Installs Novadeck's plugin into the harness through its own commands, as Connect does. */
   readonly connect: (agent: AgentName) => Promise<void>
   /** Opens a terminal in the project that runs `command` at its shell's first prompt. */
-  readonly open: (command?: string) => Promise<DeckTerminal>
+  readonly open: (
+    command?: string,
+    options?: {
+      /**
+       * Whether the deck's window uses it, as it does each terminal it opens unless told: false
+       * for one that keeps a terminal's lowered share however the test drives it (see `inUse`).
+       */
+      readonly inUse?: boolean
+    },
+  ) => Promise<DeckTerminal>
   /**
    * Starts a saved terminal again, as the app does for each terminal it shows once the
    * runner has restarted: `terminals.create` with its id and `restore`, and with `resume`
@@ -583,6 +592,16 @@ export const arrivals = <T>(what: string) => {
 /** An image file a chat pastes into a prompt: the runner saves it and pastes its path. */
 export type DeckImage = { readonly name: string; readonly data: Buffer }
 
+/**
+ * Tells the runner the deck's window uses `terminalId`, as the app's window tells it of the
+ * terminal the person opens or types in (`terminals.active`): the deck tells it as it opens a
+ * terminal itself and as it writes, prompts, answers or interrupts through one. The runner gives
+ * that terminal the app's share and lowers the others': on Windows normal priority and below, on
+ * Linux the active and the terminal CPU weight. On macOS its programs stay below normal either
+ * way, as only root may raise them again.
+ */
+const inUse = (on: Runner, terminalId: string): void => on.activity.report(owner, terminalId)
+
 /** One runner the deck wired, from `wire` until it closes. */
 type Runner = {
   readonly store: WorkspaceStore
@@ -592,6 +611,8 @@ type Runner = {
   readonly uploads: ReturnType<typeof wire>["uploads"]
   readonly tour: ReturnType<typeof wire>["tour"]
   readonly seen: ReturnType<typeof wire>["seen"]
+  /** The terminals a window uses, which run at the app's priority; see `inUse`. */
+  readonly activity: ReturnType<typeof wire>["activity"]
   /** Aborts as the runner closes, ending every watch of it. */
   readonly closing: AbortController
 }
@@ -660,7 +681,7 @@ const now = async <T>(stream: (signal: AbortSignal) => AsyncGenerator<T>): Promi
 export const createDeck = async (options: DeckOptions): Promise<Deck> => {
   const shellFolder = join(options.data, "shell")
   const start = async (): Promise<Runner> => {
-    const { store, shellFiles, agents, terminals, items, uploads, tour, seen } = wire({
+    const { store, shellFiles, agents, terminals, items, uploads, tour, seen, activity } = wire({
       database: join(options.data, "workspace.sqlite"),
       uploads: join(options.data, "uploads"),
       shell: shellFolder,
@@ -694,7 +715,17 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       store.close()
       throw new Error("Novadeck's shell files could not be written")
     }
-    return { store, agents, terminals, items, uploads, tour, seen, closing: new AbortController() }
+    return {
+      store,
+      agents,
+      terminals,
+      items,
+      uploads,
+      tour,
+      seen,
+      activity,
+      closing: new AbortController(),
+    }
   }
 
   let runner = await start()
@@ -736,9 +767,16 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
     }
   }
 
-  const terminal = async (on: Runner, summary: TerminalSummary): Promise<DeckTerminal> => {
+  const terminal = async (
+    on: Runner,
+    summary: TerminalSummary,
+    uses = true,
+  ): Promise<DeckTerminal> => {
     const { terminals } = on
     const id = summary.id
+    const use = (): void => {
+      if (uses) inUse(on, id)
+    }
     const history = createHistory(summary.handle)
     // Its screen, read one look at a time: a terminal takes one reader at once, and a
     // failed wait may look while another wait still polls.
@@ -780,7 +818,10 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       ).catch(async (error: unknown) => {
         throw await explain(error)
       })
-    const write = (data: string) => terminals.write({ terminalId: id, data }, owner)
+    const write = (data: string) => {
+      use()
+      terminals.write({ terminalId: id, data }, owner)
+    }
     // Where its history stood as its last prompt was submitted, while nothing else has
     // been sent to it since: what `enterEmpty` needs to know the box is empty.
     let prompted: number | undefined
@@ -848,6 +889,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         ).messaging.personPrompt(id),
       prompt: async (text, images = [], at, setAside) => {
         prompted = undefined
+        use()
         // Without images it joins the terminal's input queue in this same tick, as the router's
         // does: prompts given at once keep their order.
         if (images.length === 0)
@@ -871,10 +913,12 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       },
       interrupt: async (setAside) => {
         prompted = undefined
+        use()
         return await terminals.interrupt({ terminalId: id, setAside })
       },
       answer: async (request, answer) => {
         prompted = undefined
+        use()
         await terminals.answer({ terminalId: id, request, answer })
       },
       transcript: async () => {
@@ -896,6 +940,17 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
   // Every terminal the deck opens is 120 by 40.
   const created = (on: Runner, input: Omit<Parameters<Terminals["create"]>[0], "cols" | "rows">) =>
     on.terminals.create({ ...input, cols: 120, rows: 40 }, owner)
+  // A terminal the deck opens itself, in use as the app's window uses the one it opens, unless
+  // `uses` is false.
+  const openInUse = async (
+    on: Runner,
+    input: Omit<Parameters<Terminals["create"]>[0], "cols" | "rows">,
+    uses = true,
+  ): Promise<DeckTerminal> => {
+    const summary = await created(on, input)
+    if (uses) inUse(on, summary.id)
+    return terminal(on, summary, uses)
+  }
 
   // Opens a terminal for an agent's request, as the app does, and answers the request with
   // it once its shell has started, or with why it couldn't.
@@ -1020,53 +1075,45 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         projectId: made.id,
         name: "Tour",
       })
-      return terminal(
-        runner,
-        await created(runner, {
-          id: randomUUID(),
-          sessionId: own.id,
-          cwd,
-          ...(command !== undefined && { command }),
-        }),
-      )
+      return openInUse(runner, {
+        id: randomUUID(),
+        sessionId: own.id,
+        cwd,
+        ...(command !== undefined && { command }),
+      })
     },
     shell: shellPaths(shellFolder),
     connect: async (agent) => {
       const result = await runner.agents.set(agent, true)
       if (!result.connected) throw new Error(`${agent} did not connect`)
     },
-    open: async (command) =>
-      terminal(
+    open: async (command, { inUse: uses = true } = {}) =>
+      openInUse(
         runner,
-        await created(runner, {
+        {
           id: randomUUID(),
           sessionId: session.id,
           cwd: options.project,
           ...(command !== undefined && { command }),
-        }),
+        },
+        uses,
       ),
     restore: async ({ id }, { resume } = {}) =>
-      terminal(
-        runner,
-        await created(runner, {
-          id,
-          sessionId: session.id,
-          // As the router gives a create without a folder; a saved terminal starts in its own.
-          cwd: options.project,
-          restore: true,
-          ...(resume !== undefined && { resume }),
-        }),
-      ),
+      openInUse(runner, {
+        id,
+        sessionId: session.id,
+        // As the router gives a create without a folder; a saved terminal starts in its own.
+        cwd: options.project,
+        restore: true,
+        ...(resume !== undefined && { resume }),
+      }),
     restoreClosed: async (closed) =>
-      terminal(
-        runner,
-        await created(runner, {
-          id: randomUUID(),
-          sessionId: session.id,
-          cwd: options.project,
-          closed,
-        }),
-      ),
+      openInUse(runner, {
+        id: randomUUID(),
+        sessionId: session.id,
+        cwd: options.project,
+        closed,
+      }),
     answerRequests: () => {
       if (!requests) {
         requests = arrivals<DeckTerminal>("a terminal opened for an agent's request")

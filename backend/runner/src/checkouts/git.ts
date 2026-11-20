@@ -63,6 +63,12 @@ export const git = (
     readonly env?: NodeJS.ProcessEnv
     /** Text written to its standard input (a list of paths, say). */
     readonly input?: string
+    /**
+     * For output of NUL-ended entries (`-z`): only the entries this keeps are kept, each with its
+     * NUL, as they arrive, so `cap` counts those alone and a long listing of the rest is read
+     * through whatever its length.
+     */
+    readonly entries?: (entry: string) => boolean
     /** How long it may take, where that is more than `timing.gitMs`. */
     readonly ms?: number
     /**
@@ -116,6 +122,8 @@ export const git = (
     const chunks: Buffer[] = []
     let size = 0
     let capped = false
+    // The start of an entry a chunk ended inside of, where entries are filtered.
+    let partial = Buffer.alloc(0)
     let errors = Buffer.alloc(0)
     const timer = setTimeout(() => {
       if (limit.graceMs === undefined || process.platform === "win32" || child.pid === undefined) {
@@ -136,8 +144,23 @@ export const git = (
     }, limit.ms ?? timing.gitMs)
     if (scope?.aborted) ended()
     else scope?.addEventListener("abort", ended, { once: true })
-    child.stdout?.on("data", (chunk: Buffer) => {
+    child.stdout?.on("data", (data: Buffer) => {
       if (capped) return
+      let chunk = data
+      if (limit.entries) {
+        // A NUL is never part of another character in UTF-8, so a buffer splits at it whole.
+        const joined = partial.length > 0 ? Buffer.concat([partial, data]) : data
+        const end = joined.lastIndexOf(0)
+        partial = Buffer.from(joined.subarray(end + 1))
+        const kept: Buffer[] = []
+        for (let start = 0; start <= end;) {
+          const at = joined.indexOf(0, start)
+          const entry = joined.subarray(start, at + 1)
+          if (limit.entries(entry.subarray(0, -1).toString("utf8"))) kept.push(entry)
+          start = at + 1
+        }
+        chunk = Buffer.concat(kept)
+      }
       if (size + chunk.length > limit.cap) {
         capped = true
         chunks.push(chunk.subarray(0, limit.cap - size))
@@ -162,6 +185,9 @@ export const git = (
     })
     child.on("close", (code) => {
       if (timedOut) return finish({ ok: false, kind: "timeout", status: 0, said: "" })
+      // A last entry with no NUL after it is an entry all the same.
+      if (limit.entries && !capped && partial.length > 0 && limit.entries(partial.toString("utf8")))
+        chunks.push(partial)
       const out = Buffer.concat(chunks).toString("utf8")
       if (capped)
         return finish(

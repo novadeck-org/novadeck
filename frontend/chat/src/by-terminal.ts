@@ -33,3 +33,22 @@ export const keepTerminals = <T>(
       if (!keep(context, id)) next = withValue(next, context, id, undefined)
   return next
 }
+
+// The map with each terminal's value moved to the context `home` names, as for a terminal that
+// moved to another session; a terminal `home` gives no other context for keeps its own. A value
+// the new context holds already for the terminal stays, and the moved one is dropped. The same
+// map where nothing moves.
+export const rehomeTerminals = <T>(
+  map: ByTerminal<T>,
+  home: (context: string, id: string) => string | undefined,
+): ByTerminal<T> => {
+  let next = map
+  for (const [context, ids] of Object.entries(map))
+    for (const [id, value] of Object.entries(ids)) {
+      const to = home(context, id)
+      if (to === undefined || to === context) continue
+      next = withValue(next, context, id, undefined)
+      if (valueOf(next, to, id) === undefined) next = withValue(next, to, id, value)
+    }
+  return next
+}

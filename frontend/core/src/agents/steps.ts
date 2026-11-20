@@ -1,5 +1,6 @@
 import type { ChatItem } from "../conversation"
 import { groupItems, type ToolEntry } from "../conversation/turns"
+import { isDelivery } from "../harnesses"
 import type { TerminalThreads } from "../messages"
 
 // What gets the person back into an agent's task at a glance: the last words they gave it,
@@ -46,8 +47,7 @@ const maxResult = 80
 // `<hook_prompt>`, a delivery of agents' messages). Never the person's own prompt.
 const doorbell =
   /\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]|\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] [^\n]*? \[\1\]/g
-const continuation = (text: string): boolean =>
-  /^\s*<hook_prompt\b/.test(text) || text.includes("<novadeck-messages")
+const continuation = (text: string): boolean => /^\s*<hook_prompt\b/.test(text) || isDelivery(text)
 
 // What Novadeck sends the agent for the person when they ask it to fix a failed turn.
 export const askToFixNudge = "Your last turn ended in an error. Look at what went wrong and fix it."

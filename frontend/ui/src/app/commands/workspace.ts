@@ -3,6 +3,7 @@ import { descendantsOf } from "@novadeck/core/derivations"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { ClosedTerminal } from "@novadeck/core/history"
 import type { TerminalRequest, TourRun } from "@novadeck/core/port"
+import { hasTile } from "@novadeck/core/roster"
 import { activeProject, type WorkspaceAction } from "@novadeck/core/state"
 import { closeReasons } from "@novadeck/core/terminals/closing"
 import type {
@@ -548,6 +549,8 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       set("sidebar", false)
     },
     chooseRecent: (id) => {
+      // A terminal that's gone is chosen by no one: the switcher stays for another.
+      if (!hasTile(currentState(workspace.getSnapshot()).roster, id)) return
       const mode = recent.visibleSwitcher()?.mode
       recent.setSwitcher(null)
       if (mode === "click")

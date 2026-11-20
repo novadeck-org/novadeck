@@ -31,7 +31,7 @@ import {
 } from "./plugin.js"
 import { statusLineLimit, statusLineSettings } from "./settings.js"
 import { conversational, shapes } from "./shapes.js"
-import { followShells } from "./shells.js"
+import { followShells, followWords } from "./shells.js"
 import { commands, makeCmdShim, posixShim, valued } from "./shim.js"
 import { heldScreen, hooksTrusted } from "./startup.js"
 import { shown, startupScreen } from "./status-line.js"
@@ -205,9 +205,13 @@ export const agy = {
     context: "partial",
   },
   decode: (report) => withLaunch(decode(report), report, launch.kept),
-  // The holds that run out, and the background shells its transcript tells of.
+  // The holds that run out, and the background shells and the words its transcript tells of.
   watch: async (run, signal, emit) => {
-    await Promise.all([followHolds(run, signal, emit), followShells(run, signal, emit)])
+    await Promise.all([
+      followHolds(run, signal, emit),
+      followShells(run, signal, emit),
+      followWords(run, signal, emit),
+    ])
   },
   dialogs,
   commandFields: ["CommandLine"],

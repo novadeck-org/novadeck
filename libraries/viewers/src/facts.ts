@@ -275,10 +275,11 @@ const outlineOfMarkdown = (tree: Tree, text: string): Outline => {
     enter: (node) => {
       if (!/^(ATX|Setext)Heading\d$/.test(node.name)) return
       const raw = text.slice(node.from, node.to).split("\n")[0] ?? ""
-      const heading = raw
-        .replace(/^#{1,6}\s*/, "")
-        .replace(/\s*#*\s*$/, "")
-        .trim()
+      // An ATX heading's closing hashes count only after a space (`## Title ##`); one that
+      // ends a word (`## Why C#`) is the heading's own. A Setext heading has no closing hashes.
+      const heading = (
+        raw.startsWith("#") ? raw.replace(/^#{1,6}\s*/, "").replace(/(?:^|\s)#+\s*$/, "") : raw
+      ).trim()
       headings.push({
         text: heading,
         line: text.slice(0, node.from).split("\n").length,

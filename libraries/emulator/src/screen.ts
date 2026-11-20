@@ -17,6 +17,16 @@ export const serializerOf = (screen: Screen): SerializeAddon => {
   return serializer
 }
 
+// The serializer keeps a wrapped line's row break by filling the blank row before it and erasing
+// the fill again: `ESC[A`, a move right by the row's width less the fill's, the erase, and the
+// same move back. For a row that is all fill the move is `0`, which a terminal reads as 1, so
+// the erase starts a column late and the first fill character stays. A move of nothing is no move.
+// eslint-disable-next-line no-control-regex -- Escape sequences are what it reads.
+const fillMoves = /\x1b\[A\x1b\[0C(\x1b\[\d+X)\x1b\[0D\x1b\[B/g
+
+/** The serializer's text without its moves of nothing, which a terminal reads as one column. */
+const withoutNoMoves = (data: string): string => data.replaceAll(fillMoves, "\x1b[A$1\x1b[B")
+
 /**
  * The screen serialized with as much scrollback as `fits` accepts, halving it until then:
  * the visible screen always stays. Undefined when not even the visible screen fits.
@@ -29,7 +39,7 @@ export const serializeWithin = (
   const serializer = serializerOf(screen)
   let scrollback = screen.buffer.normal.baseY
   while (true) {
-    const data = serialize(serializer, scrollback)
+    const data = withoutNoMoves(serialize(serializer, scrollback))
     if (fits(data)) return data
     if (scrollback === 0) return undefined
     scrollback = Math.floor(scrollback / 2)

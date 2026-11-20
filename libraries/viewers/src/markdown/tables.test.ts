@@ -61,6 +61,14 @@ describe("tables", () => {
 
     it("ignores pipes in code blocks and lines without a delimiter row", () => {
       expect(findTables("```\n| a | b |\n| --- | --- |\n```\n\na | b\n")).toEqual([])
+      // Tildes, and a longer fence with a shorter one inside it, fence too.
+      const table = "| a | b |\n| --- | --- |\n| 1 | 2 |\n"
+      expect(findTables(`~~~\n${table}~~~\n`)).toEqual([])
+      expect(findTables(`\`\`\`\`md\n\`\`\`\n\`\`\`\n${table}\`\`\`\`\n`)).toEqual([])
+      expect(findTables(`~~~\n~~~\n${table}`)).toHaveLength(1)
+      // A tilde fence may hold a backtick in its info string; four spaces of indent fence nothing.
+      expect(findTables(`~~~ \`x\`\n${table}~~~\n${table}`)).toHaveLength(1)
+      expect(findTables(`    \`\`\`\n${table}`)).toHaveLength(1)
     })
   })
 })

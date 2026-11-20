@@ -6,6 +6,7 @@ import { launchOf, type Launch } from "@novadeck/terminal/shell"
 import { spawn } from "node-pty"
 
 import { describe, expect, it as base } from "../test.js"
+import { hostless, ownHome } from "../testing/host.js"
 import { installShellFiles } from "./install.js"
 
 const windows = process.platform === "win32"
@@ -38,7 +39,7 @@ const it = base.extend<{ shim: Fixture }>({
   shim: async ({ resources }, use) => {
     const root = mkdtempSync(join(tmpdir(), "novadeck-launch-mark-"))
     resources.defer(() => rmSync(root, { recursive: true, force: true }))
-    const paths = await installShellFiles(join(root, "shell"))
+    const paths = await installShellFiles(join(root, "shell"), ownHome(root))
     const real = join(root, "real")
     mkdirSync(real)
     for (const program of ["claude", "codex", "agy"])
@@ -61,13 +62,12 @@ const it = base.extend<{ shim: Fixture }>({
             cols: 120,
             rows: 30,
             cwd: root,
-            env: {
-              ...process.env,
+            env: hostless({
               PATH: [paths.bin, real, process.env.PATH].join(delimiter),
               NOVADECK_TERMINAL_ID: terminalId,
               NOVADECK_SHIMS: "claude codex agy",
               ...env,
-            },
+            }),
             useConptyDll: windows,
           })
           let output = ""

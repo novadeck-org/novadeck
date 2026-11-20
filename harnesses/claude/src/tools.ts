@@ -189,7 +189,8 @@ export const kindOf = (tool: string, input: unknown): ToolKind => {
   if (novadeck.test(tool)) return "novadeck"
   if (bookkeeping.has(tool)) return "bookkeeping"
   if (tool === "ScheduleWakeup") return "waiting"
-  if (tool === "Bash") {
+  // Its shell tools: Bash, and PowerShell on Windows.
+  if (tool === "Bash" || tool === "PowerShell") {
     const command = isFields(input) ? input.command : undefined
     return typeof command === "string" && sleepOnly(command) ? "waiting" : "work"
   }

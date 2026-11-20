@@ -8,7 +8,7 @@ import type { SandboxState } from "@novadeck/core/desktop/sandbox"
 import type { UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { Backend } from "@novadeck/core/port"
-import { orderedTiles } from "@novadeck/core/roster"
+import { hasTile, orderedTiles } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import { createStore, type MutableStore, type Store } from "@novadeck/core/store"
 import type { PreferencesValue, Workspace } from "@novadeck/core/types"
@@ -22,7 +22,7 @@ import {
 import { initialShell, resetPresentation, type ShellState } from "../shell/shell-state"
 import { writeSidebarCollapsed, writeWindowedView } from "../shell/shell-storage"
 import type { MoveAsk, MoveNotice, MovePick } from "../terminals/move-state"
-import { nextRecent, visibleSwitcher, type RecentSwitcher } from "../terminals/recent"
+import { nextRecent, visibleSwitcher, withoutGone, type RecentSwitcher } from "../terminals/recent"
 import type { RenameSession } from "../terminals/rename-state"
 import { noFoldedTeams, writeFoldedTeams, type FoldedTeams } from "../terminals/team-fold"
 import { noUnread, type Unread, type Viewing } from "../terminals/unread-state"
@@ -312,16 +312,22 @@ export const keepProjectArrangement = (
   })
 }
 
-// Closes the switcher once a dialog opens or the session changes under it.
+// Closes the switcher once a dialog opens or the session changes under it, and lets go of
+// the rows of terminals that close while it shows, so none it offers is gone.
 export const watchSwitcher = (workspace: Store<Workspace>, ui: UiStore): (() => void) => {
   const check = (): void => {
     const { recent, location } = ui.getSnapshot()
     if (!recent.switcher) return
-    const context = currentContext(workspace.getSnapshot())
-    if (visibleSwitcher(recent.switcher, context, location.route.dialog)) return
+    const snapshot = workspace.getSnapshot()
+    const context = currentContext(snapshot)
+    const { roster } = currentState(snapshot)
+    const switcher = visibleSwitcher(recent.switcher, context, location.route.dialog)
+      ? withoutGone(recent.switcher, (id) => hasTile(roster, id))
+      : null
+    if (switcher === recent.switcher) return
     ui.update((state) => ({
       ...state,
-      recent: { ...state.recent, switcher: null },
+      recent: { ...state.recent, switcher },
     }))
   }
   const stops = [workspace.subscribe(check), ui.subscribe(check)]

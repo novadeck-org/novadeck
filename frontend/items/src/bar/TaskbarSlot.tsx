@@ -223,7 +223,9 @@ export const TaskbarSlot = ({
                 }
                 aria-pressed={Boolean(shown)}
                 aria-description="Drag to reorder, or use Move left and Move right in its menu."
-                onClick={() => actions.activate((single ?? pick(slot, stacked)).key)}
+                // A click on the icon of what the pane shows puts it away, whatever else
+                // of a stack is new: that waits for the next click, or its tab.
+                onClick={() => actions.activate((single ?? shown ?? pick(slot, stacked)).key)}
               >
                 <Icon size={20} strokeWidth={1.5} />
                 {badge

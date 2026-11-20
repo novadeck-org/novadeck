@@ -9,6 +9,7 @@ import type {
 import { asyncQuestions } from "./async-question-dialog.js"
 import { asyncTool } from "./async-question.js"
 import { clean, composerShown, type Parsed } from "./dialog-screen.js"
+import { elicitation, elicitationRequest } from "./elicitation-dialog.js"
 import { permission } from "./permission-dialog.js"
 import { plan, planTitle } from "./plan-dialog.js"
 import { questions } from "./question-dialog.js"
@@ -38,7 +39,10 @@ import { questions } from "./question-dialog.js"
  *   drops the questions, and the answer is a prompt of the person's, `> {question}`, a
  *   blank line, the answer, for each. Read only while the screen is that panel, that
  *   picker or an idle composer with nothing else on it; any other screen reads as none.
- * An MCP server's own elicitation form is not read. Each dialog has its own file
+ * - An MCP server's own form (an elicitation) fires no hook: the screen alone raises its
+ *   request (`screenRequest`), as it does the plan prompt's, and the person answers it in
+ *   the terminal.
+ * Each dialog has its own file
  * (`*-dialog.ts`), and `dialog-screen.ts` holds what they share.
  */
 
@@ -103,8 +107,12 @@ export const dialogs: DialogAdapter = {
   },
   // `q` closes the pager that holds a dialog out of view, and answers nothing.
   reveal: (rows) => (pager(rows) ? "q" : undefined),
-  screenRequest: (rows): ScreenRequest | undefined =>
-    plan(clean(rows)) === undefined
-      ? undefined
-      : { kind: "plan", tool: "plan", input: null, subject: planTitle },
+  // The prompt after a plan, and an MCP server's form (`elicitation-dialog.ts`): neither fires
+  // a hook.
+  screenRequest: (rows): ScreenRequest | undefined => {
+    if (plan(clean(rows)) !== undefined)
+      return { kind: "plan", tool: "plan", input: null, subject: planTitle }
+    const asked = elicitation(rows)
+    return asked === undefined ? undefined : elicitationRequest(asked)
+  },
 }

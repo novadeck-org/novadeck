@@ -5,12 +5,23 @@ import {
   type InboxRow,
   type InboxState,
 } from "@novadeck/core/inbox"
+import { inboxMarks } from "@novadeck/core/inbox/marks"
 import { createStore, createWorkspaceStore } from "@novadeck/core/store"
 import { appearance, workspaceFixture } from "@novadeck/core/testing"
+import type { AgentStatus } from "@novadeck/core/types"
 import { afterEach, beforeEach, vi } from "vitest"
 
+import { needing } from "../inbox/inbox-state"
 import { context, describe, expect, it } from "../test"
-import { decideRow, landInbox, readDwellMs, type RowFacts } from "./inbox-landing"
+import {
+  decideHold,
+  decideRow,
+  holdMs,
+  landInbox,
+  readDwellMs,
+  type HoldFacts,
+  type RowFacts,
+} from "./inbox-landing"
 import { followNeeds } from "./inbox-pings"
 import { createUiStore, initialUi } from "./ui-store"
 
@@ -121,6 +132,14 @@ const setup = (initiallyWide = true) => {
       })),
     select: (terminalId: string) =>
       workspace.dispatch({ type: "terminal/select", target, terminalId }),
+    // What the agent of terminal `terminalId` reports now.
+    agent: (terminalId: string, agent: AgentStatus) =>
+      workspace.dispatch({
+        type: "terminal/status",
+        target,
+        terminalId,
+        status: { state: "running", agent },
+      }),
     focus: (pageFocused: boolean) => void ui.update((current) => ({ ...current, pageFocused })),
     ids: () => inbox.state.getSnapshot().items.map((row) => row.id),
   }
@@ -335,6 +354,213 @@ describe("the landing rule", () => {
     })
   })
 
+  context("a new ask of the terminal being viewed, whose agent works", () => {
+    beforeEach(() => void vi.useFakeTimers())
+    afterEach(() => void vi.useRealTimers())
+
+    // The ask lands while its agent works on, as it does mid-turn.
+    const asked = (id = "a", terminal = "01") => {
+      const made = setup()
+      made.agent(terminal, { working: true })
+      const row = { ...ask(id, terminal), at: Date.now() }
+      made.set([row])
+      return { ...made, row }
+    }
+    const counted = (made: ReturnType<typeof setup>): string[] =>
+      needing(made.inbox.state.getSnapshot().items).map((row) => row.id)
+
+    it("shows in the list but counts nowhere: not on the bell, not on the terminal's marks", () => {
+      const made = asked()
+      expect(made.ids()).toEqual(["a"])
+      expect(made.inbox.state.getSnapshot().items[0]?.heldBack).toBe(true)
+      expect(counted(made)).toEqual([])
+      expect(
+        inboxMarks(made.inbox.state.getSnapshot().items, { ...target, terminalId: "01" }, 0).need,
+      ).toBeUndefined()
+      made.stop()
+    })
+
+    it("counts, quietly, once the agent's words follow the ask", () => {
+      const made = asked()
+      made.agent("01", { working: true, wordsAt: Date.now() + 1 })
+      expect(counted(made)).toEqual(["a"])
+      expect(quietly(made.inbox, "a")).toBe(true)
+      made.stop()
+    })
+
+    it("is held on by words from before the ask: a text before its tool call is no answer", () => {
+      const made = asked()
+      made.agent("01", { working: true, wordsAt: made.row.at })
+      expect(counted(made)).toEqual([])
+      made.agent("01", { working: true, wordsAt: made.row.at - 5 })
+      expect(counted(made)).toEqual([])
+      made.stop()
+    })
+
+    it("counts, quietly, once the agent's turn ends", () => {
+      const made = asked()
+      made.agent("01", { working: false })
+      expect(counted(made)).toEqual(["a"])
+      expect(quietly(made.inbox, "a")).toBe(true)
+      made.stop()
+    })
+
+    it("counts, quietly, once the cap has passed, though nothing else changes", () => {
+      const made = asked()
+      vi.advanceTimersByTime(holdMs - 1)
+      expect(counted(made)).toEqual([])
+      vi.advanceTimersByTime(1)
+      expect(counted(made)).toEqual(["a"])
+      expect(quietly(made.inbox, "a")).toBe(true)
+      made.stop()
+    })
+
+    it("counts, quietly, once the turn ended though background subagents keep it working", () => {
+      const made = asked()
+      made.agent("01", { working: true, lastTurn: { outcome: "completed", at: made.row.at - 1 } })
+      expect(counted(made)).toEqual([])
+      made.agent("01", { working: true, lastTurn: { outcome: "completed", at: made.row.at + 1 } })
+      expect(counted(made)).toEqual(["a"])
+      expect(quietly(made.inbox, "a")).toBe(true)
+      made.stop()
+    })
+
+    it("arms the cap again when its timer fired before the clock reached it", () => {
+      const made = asked()
+      const real = Date.now()
+      const lagging = vi.spyOn(Date, "now").mockReturnValue(real)
+      vi.advanceTimersByTime(holdMs)
+      expect(counted(made)).toEqual([])
+      expect(vi.getTimerCount()).toBe(1)
+      lagging.mockRestore()
+      vi.advanceTimersByTime(holdMs)
+      expect(counted(made)).toEqual(["a"])
+      made.stop()
+    })
+
+    it("lands as a row that landed elsewhere when the person looks away", () => {
+      const made = asked()
+      made.select("02")
+      expect(counted(made)).toEqual(["a"])
+      expect(quietly(made.inbox, "a")).toBe(false)
+      made.stop()
+    })
+
+    it("lands unhushed when the page loses their focus", () => {
+      const made = asked()
+      made.focus(false)
+      expect(counted(made)).toEqual(["a"])
+      expect(quietly(made.inbox, "a")).toBe(false)
+      made.stop()
+    })
+
+    it("rings after the grace when they look away, and never when its words come first", () => {
+      const rings = (release: (made: ReturnType<typeof setup>) => void): string[] => {
+        const made = asked()
+        const rung: string[] = []
+        const unfollow = followNeeds(made.inbox, {
+          graceMs: 100,
+          ring: (row) => rung.push(row.id) > 0,
+          leave: () => {},
+        })
+        release(made)
+        vi.advanceTimersByTime(500)
+        unfollow()
+        made.stop()
+        return rung
+      }
+      expect(rings((made) => made.select("02"))).toEqual(["a"])
+      expect(rings((made) => made.agent("01", { working: true, wordsAt: Date.now() + 1 }))).toEqual(
+        [],
+      )
+      expect(rings(() => vi.advanceTimersByTime(holdMs))).toEqual([])
+    })
+
+    it("is held again from nothing when a newer ask comes under the same id", () => {
+      const made = asked()
+      made.agent("01", { working: false })
+      made.agent("01", { working: true })
+      made.set([{ ...ask("a", "01"), at: Date.now() + 1 }])
+      expect(counted(made)).toEqual([])
+      made.stop()
+    })
+
+    it("leaves no timer behind once it is answered or the landing stops", () => {
+      const made = asked()
+      made.set([])
+      expect(vi.getTimerCount()).toBe(0)
+      made.set([{ ...ask("b", "01"), at: Date.now() }])
+      expect(vi.getTimerCount()).toBe(1)
+      made.stop()
+      expect(vi.getTimerCount()).toBe(0)
+    })
+  })
+
+  context("what is not held", () => {
+    beforeEach(() => void vi.useFakeTimers())
+    afterEach(() => void vi.useRealTimers())
+
+    it("an ask of a terminal the person doesn't look at", () => {
+      const made = setup()
+      made.agent("02", { working: true })
+      made.set([{ ...ask("a", "02"), at: Date.now() }])
+      expect(needing(made.inbox.state.getSnapshot().items)).toHaveLength(1)
+      expect(quietly(made.inbox, "a")).toBe(false)
+      made.stop()
+    })
+
+    it("an ask whose agent doesn't work: there are no words to wait for", () => {
+      const made = setup()
+      made.agent("01", { working: false })
+      made.set([{ ...ask("a", "01"), at: Date.now() }])
+      expect(needing(made.inbox.state.getSnapshot().items)).toHaveLength(1)
+      made.stop()
+    })
+
+    it("an ask of a terminal whose agent says nothing of itself", () => {
+      const made = setup()
+      made.set([{ ...ask("a", "01"), at: Date.now() }])
+      expect(needing(made.inbox.state.getSnapshot().items)).toHaveLength(1)
+      made.stop()
+    })
+
+    it("an ask the Inbox held long before, as it fills in after a launch", () => {
+      const made = setup()
+      made.agent("01", { working: true })
+      made.set([{ ...ask("a", "01"), at: Date.now() - holdMs - 1 }])
+      expect(needing(made.inbox.state.getSnapshot().items)).toHaveLength(1)
+      made.stop()
+    })
+
+    it("a row that is no ask: an update lands as it does", () => {
+      const made = setup()
+      made.agent("01", { working: true })
+      made.set([{ ...done("d", "01"), at: Date.now() }])
+      expect(made.inbox.state.getSnapshot().items[0]?.heldBack).toBeUndefined()
+      expect(quietly(made.inbox, "d")).toBe(true)
+      made.stop()
+    })
+
+    it("a resolved ask", () => {
+      const made = setup()
+      made.agent("01", { working: true })
+      made.set([
+        { ...ask("a", "01"), at: Date.now(), settled: { how: "dismissed", at: Date.now() } },
+      ])
+      expect(made.inbox.state.getSnapshot().items[0]?.heldBack).toBeUndefined()
+      made.stop()
+    })
+
+    it("an ask on a phone, while the Inbox list covers the screen", () => {
+      const made = setup(false)
+      made.agent("01", { working: true })
+      made.showList()
+      made.set([{ ...ask("a", "01"), at: Date.now() }])
+      expect(needing(made.inbox.state.getSnapshot().items)).toHaveLength(1)
+      made.stop()
+    })
+  })
+
   context("on a phone, while the Inbox list covers the screen", () => {
     it("lands it as any row: no terminal counts as viewed", () => {
       const { set, showList, inbox, stop } = setup(false)
@@ -380,6 +606,38 @@ describe("the landing's start and stop", () => {
     set([ask("a", "02")])
     expect(ids()).toEqual(["a"])
     stopAgain()
+  })
+})
+
+describe("deciding the hold on an ask", () => {
+  const facts: HoldFacts = {
+    ask: true,
+    here: true,
+    landed: false,
+    holding: false,
+    fresh: true,
+    working: true,
+    said: false,
+    capped: false,
+  }
+
+  it("holds a new, fresh ask of a viewed terminal whose agent works and hasn't spoken", () => {
+    expect(decideHold(facts)).toBe(true)
+  })
+
+  it("keeps holding what it held, though it is no longer fresh", () => {
+    expect(decideHold({ ...facts, fresh: false })).toBe(false)
+    expect(decideHold({ ...facts, fresh: false, holding: true })).toBe(true)
+  })
+
+  it("ends at the agent's words, its turn's end, the cap and the person looking away", () => {
+    for (const end of [{ said: true }, { working: false }, { capped: true }, { here: false }])
+      expect(decideHold({ ...facts, holding: true, ...end })).toBe(false)
+  })
+
+  it("holds no row that isn't an ask, or that landed already", () => {
+    expect(decideHold({ ...facts, ask: false })).toBe(false)
+    expect(decideHold({ ...facts, landed: true })).toBe(false)
   })
 })
 

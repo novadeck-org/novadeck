@@ -34,8 +34,10 @@ character-width rule every emulator shares, and helpers that need only an emulat
     that rejects counts as the handler declining.
   - `readScreen(screen)`: the screen as `ScreenText`: its rows, wrapping, the rows drawn full to
     the last column, dim cells blanked, the cursor, bracketed paste and the alternate screen.
-  - `snapshot(screen, { fits, mouse })`: the screen serialized, with the mouse encoding the
-    serializer leaves out, and as much scrollback as `fits` accepts (halved until it does);
+  - `snapshot(screen, { fits, mouse })`: the screen serialized, with what the serializer leaves
+    out: the mouse encoding, the scroll region, a hidden cursor, the cursor's exact place and the
+    backgrounds of blank rows below the text (not a synchronized update, which is momentary); and
+    as much scrollback as `fits` accepts (halved until it does);
     undefined when not even the visible screen fits. `trackMouse(screen)` follows that encoding
     (`MouseEncoding`), and `mouseReporting(tracking, encoding)` says which reports a program reads.
   - `matchReport(data, reporting)`: the terminal's own reply at the start of data (a query's

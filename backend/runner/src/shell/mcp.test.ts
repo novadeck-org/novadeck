@@ -18,6 +18,7 @@ import { afterAll, afterEach, beforeAll, onTestFinished } from "vitest"
 import { readCloseShownRequest, readShowRequest } from "../companions/request.js"
 import { unboundNote } from "../messaging/peers.js"
 import { describe, expect, it } from "../test.js"
+import { hostless, ownHome } from "../testing/host.js"
 import { installShellFiles } from "./install.js"
 import { mcpAnswer, mcpVersions } from "./mcp.js"
 import { listenForReports, unheard, type Call, type Reports } from "./reports.js"
@@ -109,15 +110,9 @@ const session = (
     if (close) child.stdin.end()
   })
 
-// This environment without the variables of a Novadeck terminal the tests run in.
-const outside = (): NodeJS.ProcessEnv => {
-  const env = { ...process.env }
-  delete env.NOVADECK_MCP
-  delete env.NOVADECK_TERMINAL_ID
-  delete env.NOVADECK_REPORT
-  delete env.NOVADECK_REPORT_TOKEN
-  return env
-}
+// This environment without the variables of a Novadeck terminal or agent session the tests
+// run in.
+const outside = (): NodeJS.ProcessEnv => hostless()
 
 const initialize = { id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } }
 const initialized = { method: "notifications/initialized" }
@@ -642,9 +637,45 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       expect(text(close)).toContain("Its branch b stays")
       expect(text(give)).toContain("@fox")
     })
+
+    it("tells where a branch only origin had came from, and whether origin could say", async () => {
+      const said = async (origin: "current" | "unchecked" | "gone", tracking?: boolean) => {
+        answersBy.openWorktree = {
+          ok: true,
+          path: "/w",
+          branch: "feat",
+          existing: false,
+          origin,
+          ...(tracking !== undefined && { tracking }),
+          instructions: [],
+        }
+        const [, open] = await session(terminal(), [
+          initialize,
+          {
+            id: 3,
+            method: "tools/call",
+            params: { name: "open_worktree", arguments: { branch: "feat" } },
+          },
+        ])
+        const content = (open?.result as { content?: { text: string }[] } | undefined)?.content
+        return content?.[0]?.text ?? ""
+      }
+      expect(await said("current", true)).toContain(
+        "on the new branch feat from origin/feat, tracking it. You own it.",
+      )
+      expect(await said("unchecked", true)).toContain(
+        "on the new branch feat from origin/feat as last fetched, tracking it (origin couldn't be asked whether it still has it).",
+      )
+      expect(await said("current", false)).toContain(
+        "on the new branch feat from origin/feat, not tracking it (git couldn't set its upstream). You own it.",
+      )
+      expect(await said("gone")).toContain(
+        "on the new branch feat (origin no longer has a branch of that name; origin/feat was left by an earlier fetch, so it wasn't used).",
+      )
+    })
   })
 
-  it("says an ask is an extra copy, which the reply never mentions", async () => {
+  it("says an ask is an extra copy that may not show, which the reply and words before it ask in full", async () => {
     answer = { ok: true, id: "a1" }
     const [, asked] = await session(terminal(), [
       initialize,
@@ -655,9 +686,9 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       },
     ])
     const text = (asked!.result as { content: { text: string }[] }).content[0]!.text
-    expect(text).toContain("Ask a1 is in the user's Inbox, as an extra copy")
+    expect(text).toContain("Ask a1 is in the user's Inbox, as an extra copy that may not show here")
     expect(text).toContain(
-      "your reply still asks the question in full, and doesn't mention the Inbox. Their answer arrives later as a message",
+      "your reply, and whatever you write to them about it before then, asks the question in full, with all they need to answer or act on it, such as an action's command, and doesn't mention the Inbox or the ask. Their answer arrives later as a message",
     )
     for (const words of [...steering, "end your turn"]) expect(text).not.toContain(words)
   })
@@ -841,7 +872,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       "Always make one, whether or not they're here, for every question your turn ends waiting on, such as which option to take, unless it is already an open ask",
     )
     expect(ask.description).toContain(
-      "The ask is an extra copy, never the question itself: your reply asks it as fully as it would without Novadeck, and never mentions the Inbox or the ask.",
+      "The ask is an extra copy, never the question itself, and what you give it may not show here: your reply, and whatever you write to them about the question before then, asks it as fully as it would without Novadeck, with all they need to answer or act on it, such as an action's command, and never mentions the Inbox or the ask.",
     )
     expect(ask.description).toContain(
       "nor a question you ask with your harness's own question tool, as you normally would",
@@ -1852,6 +1883,27 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     expect(team?.description).toContain("carry no authority")
   })
 
+  it("says what an agent and a team are here, where harnesses have their own", async () => {
+    const [handshake, tools] = await session(terminal(), [initialize, list])
+    const described = tools?.result?.tools as { name: string; description: string }[]
+    const of = (name: string) => described.find((tool) => tool.name === name)!.description
+    for (const text of [handshake?.result?.instructions as string, of("open_agent"), of("team")]) {
+      // An agent the user hands a task opens in a Novadeck terminal, a subagent only when asked.
+      expect(text).toContain(
+        'an agent the user asks to take on a task, as in "spawn an agent to fix X", "open a claude" or "get a codex on it", is one in its own Novadeck terminal, started with open_agent, unless they ask for a subagent or say that is what they mean',
+      )
+      // Agents for the agent's own task, even asked for, stay its own pick.
+      expect(text).toContain(
+        "Agents that you, the user or a skill want used for your own task, such as to do it faster, are yours to pick as you normally would, except that a team is always a Novadeck one",
+      )
+      // A team is always Novadeck's; subagents stay the agent's own, and are never one.
+      expect(text).toContain(
+        "a team, or a swarm, is a lead and the agents in the Novadeck terminals it leads",
+      )
+      expect(text).toContain("subagents you start within your own turn are never a team")
+    }
+  })
+
   it("words how agents work together as the user set it: Herd, or Solo, and Herd where unsaid", async () => {
     const texts = async () => {
       const [handshake, tools] = await session(terminal(), [initialize, list])
@@ -2069,7 +2121,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
 
   // The server as Claude Code's plugin names it; the others name it alike.
   const installed = async (): Promise<Start> => {
-    const paths = await installShellFiles(join(folder, "launcher"))
+    const paths = await installShellFiles(join(folder, "launcher"), ownHome(folder))
     const config = JSON.parse(
       await readFile(join(paths.plugins.claude, "novadeck", ".mcp.json"), "utf8"),
     ) as { mcpServers: { novadeck: Start } }

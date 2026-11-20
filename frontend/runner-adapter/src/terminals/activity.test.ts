@@ -334,6 +334,29 @@ describe("terminal activity", () => {
       })
     })
 
+    it("carries when the running turn's agent last wrote words, and none once it ends", () => {
+      const turn = (change: object) =>
+        claude({
+          state: "working",
+          attention: { pending: 0, kind: null },
+          subagents: [],
+          planning: false,
+          background: null,
+          waiting: null,
+          lastTurn: null,
+          ...change,
+        })
+      expect(turn({}).status).toEqual({ state: "running", agent: { working: true } })
+      expect(turn({ wordsAt: 1234 }).status).toEqual({
+        state: "running",
+        agent: { working: true, wordsAt: 1234 },
+      })
+      expect(turn({ state: "idle" }).status).toEqual({
+        state: "running",
+        agent: { working: false },
+      })
+    })
+
     it("carries a failed turn's error, its usage limit and the files it wrote", () => {
       const ended = (change: object) =>
         claude({

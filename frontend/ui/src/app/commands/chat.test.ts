@@ -1,5 +1,6 @@
 import { chatDraftOf, chatReplyOf, chatSendsOf, chatShown, watchChat } from "@novadeck/chat/state"
 import { noConversation, type Conversations } from "@novadeck/core/conversation"
+import { createTerminalState } from "@novadeck/core/state"
 import type { AgentStatus } from "@novadeck/core/types"
 
 import { context, describe, expect, it } from "../../test"
@@ -339,6 +340,42 @@ describe("chat commands", () => {
       await expect(going).rejects.toThrow()
       expect(app.chat.store.getSnapshot().drafts).toEqual({})
       expect(inFlight()).toEqual([])
+    })
+
+    it("puts them back in the session the terminal moved to meanwhile, with what was typed", async () => {
+      const { app, settle } = sending()
+      const stop = watchChat(app.chat, app.workspace)
+      app.commands.setChatDraft("01", "go")
+      const going = app.commands.sendChat(key, "go", null)
+      app.commands.setChatDraft("01", "typed meanwhile")
+      app.workspace.dispatch({
+        type: "session/add",
+        projectId: "project",
+        session: {
+          id: "other",
+          name: "other",
+          visitedAt: null,
+          state: createTerminalState([], "grid", "grid"),
+        },
+        activate: false,
+      })
+      const terminal = app.workspace
+        .getSnapshot()
+        .projects[0]!.history.find((each) => each.id === "initial")!
+        .state.roster.terminals.find((each) => each.id === "01")!
+      app.workspace.dispatch({
+        type: "terminal/move",
+        projectId: "project",
+        from: "initial",
+        to: "other",
+        terminal,
+      })
+      settle[0]!.reject(new Error("no"))
+      await expect(going).rejects.toThrow()
+      const { drafts, sends } = app.chat.store.getSnapshot()
+      expect(drafts).toEqual({ "project/other": { "01": "go\ntyped meanwhile" } })
+      expect(sends).toEqual({})
+      stop()
     })
 
     it("queues a prompt behind the one on its way, and sends it once that one went", async () => {

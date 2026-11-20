@@ -1,7 +1,6 @@
+import { bytesText } from "@novadeck/core/command-text"
 import type { PdfContent } from "@novadeck/core/items"
 import { FileType } from "lucide-react"
-
-import { bytesText } from "../video/format"
 
 // A PDF's badge and size, for its peek: its bytes are never read for it.
 export const PdfThumb = ({ content }: { content: PdfContent }): React.JSX.Element => (

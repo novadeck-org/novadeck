@@ -1150,6 +1150,21 @@ describe("a terminal's taskbar", () => {
       expect(icon(container, "2 images")?.getAttribute("data-state")).toBe("seen")
       expect(container.querySelectorAll(".pane-stack-sheet")).toHaveLength(0)
     })
+
+    it("minimizes the stack from its icon while one of its tabs is still new, which stays new", async () => {
+      const { container } = renderTerminal(opening(notes, hero))
+      expect(tabs(container)).toEqual(["hero.png *", "about.png"])
+      await act(async () =>
+        icon(container, "2 images")?.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      )
+      expect(icon(container, "notes")?.getAttribute("data-state")).toBe("open")
+      expect(icon(container, "2 images")?.getAttribute("data-state")).toBe("new")
+      // The next click on it, no longer what the pane shows, opens what's new.
+      await act(async () =>
+        icon(container, "2 images")?.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      )
+      expect(tabs(container)).toEqual(["hero.png", "about.png *"])
+    })
   })
 
   context("the messages' icon", () => {

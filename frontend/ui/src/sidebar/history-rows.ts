@@ -193,8 +193,12 @@ const lead = 20
 export const summaryExcerpt = (text: string, typed: string): string => {
   const range = matchRange(text, typed)
   if (!range || range.end <= shown) return text
-  const from = text.lastIndexOf(" ", range.start - lead)
-  return `…${text.slice(from < 0 ? range.start - lead : from + 1)}`
+  // A match that starts within the lead of the summary's start, though it ends past what shows
+  // (a long phrase), leaves nothing before it to cut.
+  const begin = range.start - lead
+  if (begin <= 0) return text
+  const from = text.lastIndexOf(" ", begin)
+  return `…${text.slice(from < 0 ? begin : from + 1)}`
 }
 
 // A text cut around its first match of what is typed, for the match to be lit; one piece

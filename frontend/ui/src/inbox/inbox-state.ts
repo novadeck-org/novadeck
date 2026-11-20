@@ -246,8 +246,9 @@ export const stepFrom = (
 // asks: it keeps its place among the rest, and drags with them.
 export const asks = (row: InboxRow): boolean => !row.settled && inboxType(row) !== "update"
 
-// Whether a row asks something of the person now: one that asks and isn't snoozed.
-export const needs = (row: InboxRow): boolean => asks(row) && !row.snoozed
+// Whether a row asks something of the person now: one that asks and isn't snoozed, nor an ask
+// the landing rule still holds back (`heldBack`).
+export const needs = (row: InboxRow): boolean => asks(row) && !row.snoozed && !row.heldBack
 
 // What the rail's badge counts: everything that asks something of the person.
 export const needing = (rows: readonly InboxRow[]): InboxRow[] => rows.filter(needs)

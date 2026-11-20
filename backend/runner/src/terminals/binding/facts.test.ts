@@ -608,3 +608,64 @@ describe("learning the bound session's transcript", () => {
     expect(bound.transcript).toBeNull()
   })
 })
+
+describe("following a bound session's subagents in their own sources", () => {
+  const subagent = (actor: string, startedAt: number) =>
+    ({ type: "subagent-started", actor, actorType: null, startedAt }) as const
+  const following = (agent: AgentName, actors: readonly [string, number][]) => {
+    const binding = { agent, sessionId: "s1", instance: "41" }
+    const activity = actors.reduce(
+      (each, [actor, at]) =>
+        apply(each, binding, { agent, sessionId: "s1", instance: "41", ...subagent(actor, at) }) ??
+        each,
+      started(0),
+    )
+    const bound = record()
+    bound.bound = { binding, activity, telemetry: null } as Record["bound"]
+    bound.actorWatches = new Map()
+    return bound
+  }
+  const since = (bound: Record) =>
+    Object.fromEntries([...bound.actorWatches].map(([actor, { since: at }]) => [actor, at]))
+
+  it("follows each running Codex subagent from its start, letting go of one once it stops", ({
+    resources,
+  }) => {
+    const { bindings: watcher } = bindings()
+    const bound = following("codex", [
+      ["a", 5],
+      ["b", 7],
+    ])
+    resources.defer(() => {
+      for (const { controller } of bound.actorWatches.values()) controller.abort()
+    })
+    watcher.watchActors(bound)
+    expect(since(bound)).toEqual({ a: 5, b: 7 })
+    const a = bound.actorWatches.get("a")!.controller
+    const binding = bound.bound!.binding
+    bound.bound = {
+      ...bound.bound!,
+      activity: apply(bound.bound!.activity, binding, {
+        type: "subagent-stopped",
+        agent: "codex",
+        sessionId: "s1",
+        instance: "41",
+        actor: "a",
+        startedAt: 9,
+      })!,
+    }
+    watcher.watchActors(bound)
+    expect(a.signal.aborted).toBe(true)
+    expect(since(bound)).toEqual({ b: 7 })
+  })
+
+  it("follows a Claude Code subagent only while its request waits", ({ resources }) => {
+    const { bindings: watcher } = bindings()
+    const bound = following("claude", [["a", 5]])
+    resources.defer(() => {
+      for (const { controller } of bound.actorWatches.values()) controller.abort()
+    })
+    watcher.watchActors(bound)
+    expect(since(bound)).toEqual({})
+  })
+})

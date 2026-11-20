@@ -210,6 +210,15 @@
       ]
     },
     {
+      "id": "e2e-codex-windows-paste-as-text",
+      "jobs": ["^Codex \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/e2e/chat.e2e.ts > Codex > sends a long message along with a draft, and one over a pasted placeholder",
+      "signature": "Timed out after \\d+ ms waiting for \\S+: its box to show the paste as a placeholder",
+      "status": "known",
+      "cause": "Unknown. Codex 0.170.0 took the test's 1350-character paste into its box as text and never as a placeholder, so the wait for one timed out; the trace shows the paste written in one write. Codex on Windows reads a paste as keys, takes keys under 60 ms apart for one paste and makes a placeholder only past 1000 characters (its paste_burst.rs and chat_composer.rs); the same paste sent as keys split at a 300 ms stall into parts under 1000 fails the same way on Linux, but whether a stall split it here isn't known. A lead, not tied to it: the deck never told the runner which terminal it used, so on Windows Codex's terminal was never raised to normal priority, as the one a person types in is; at what priority it ran isn't known, as the trace holds none. The deck now tells the runner.",
+      "seen": ["#1086 run 44587534282 job 135784969881 (Windows), retried in the job and passed"]
+    },
+    {
       "id": "e2e-claude-macos-continuation-stop",
       "jobs": ["^Claude Code \\(macOS(?:, [12][/-]2)?\\)$", "^Core scenarios \\(macOS\\)$"],
       "test": "src/e2e/messaging.e2e.ts > Claude Code > ends a continuation whose own Stop hook's report never came",

@@ -326,6 +326,42 @@ export const inboxGroups = (
             })
           },
         },
+        {
+          label: "Form from an MCP server, in Codex",
+          hint: "Unblock row with the form an MCP server asks Codex to fill in, which only its screen tells: its text as Codex draws it, to answer in the terminal",
+          run: () => {
+            const row = fresh(demoInboxIds.rawDialog)
+            if (row?.kind !== "request") return
+            inbox.add({
+              ...row,
+              source: { ...row.source, agent: "codex" },
+              request: {
+                ...row.request,
+                id: "demo-codex-form",
+                kind: "question",
+                tool: "mcp__deploy__elicitation",
+                subject: "Which environment should the deploy target?",
+                dialog: {
+                  type: "raw",
+                  reason: "unrecognized",
+                  text: [
+                    "• Calling deploy.configure_target",
+                    "    + Show details",
+                    "",
+                    "  Field 1/2 (2 required unanswered)",
+                    "  Which environment should the deploy target?",
+                    "",
+                    "  Environment",
+                    "  › 1. staging",
+                    "    2. production",
+                    "",
+                    "  enter to submit answer | ^p / ^n change field | esc to cancel",
+                  ].join("\n"),
+                },
+              },
+            })
+          },
+        },
         ...(["loading", "missing"] as const).map((state) => ({
           label: state === "loading" ? "Plan still loading" : "Plan not found",
           hint:

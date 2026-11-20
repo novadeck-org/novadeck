@@ -1,0 +1,232 @@
+{
+  "harness": "agy",
+  "version": "1.5.13",
+  "source": "captured against the fake model (2026-11-20) by backend/runner/src/e2e/probes/agy-schedule.e2e.ts; every PreToolUse and PostToolUse of a probe's hooks.json registered for all tools, conversation ids, paths and times replaced, fields the decoder never reads left out",
+  "how": "kill: the agent sets a cron (CronExpression */5) and a 25-hour timer (DurationSeconds 90000) with `schedule`, lists them with manage_task, kills each by the task id its call's result named (`<conversation>/task-<step>`, the step its PreToolUse's stepIdx names), and lists again: none runs. Each schedule's PostToolUse fires only once it ends, here at its kill, with its PreToolUse's stepIdx. fires: a cron every minute fires once (a SYSTEM_MESSAGE in the transcript, no hook), and manage_task still lists it after: a firing ends nothing, and fires no PostToolUse.",
+  "scenarios": {
+    "kill": {
+      "events": [
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "conversationId": "70000000-0000-4000-8000-000000000001",
+            "stepIdx": 2,
+            "toolCall": {
+              "args": {
+                "CronExpression": "*/5 * * * *",
+                "Prompt": "probe cron"
+              },
+              "name": "schedule"
+            }
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "conversationId": "70000000-0000-4000-8000-000000000001",
+            "stepIdx": 4,
+            "toolCall": {
+              "args": {
+                "DurationSeconds": 90000,
+                "Prompt": "probe timer"
+              },
+              "name": "schedule"
+            }
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "conversationId": "70000000-0000-4000-8000-000000000001",
+            "stepIdx": 6,
+            "toolCall": {
+              "args": {
+                "Action": "list"
+              },
+              "name": "manage_task"
+            }
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "conversationId": "70000000-0000-4000-8000-000000000001",
+            "stepIdx": 6,
+            "toolCall": {
+              "args": {
+                "Action": "list"
+              },
+              "name": "manage_task"
+            }
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "conversationId": "70000000-0000-4000-8000-000000000001",
+            "stepIdx": 8,
+            "toolCall": {
+              "args": {
+                "Action": "kill",
+                "TaskId": "70000000-0000-4000-8000-000000000001/task-2"
+              },
+              "name": "manage_task"
+            }
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "conversationId": "70000000-0000-4000-8000-000000000001",
+            "stepIdx": 8,
+            "toolCall": {
+              "args": {
+                "Action": "kill",
+                "TaskId": "70000000-0000-4000-8000-000000000001/task-2"
+              },
+              "name": "manage_task"
+            }
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "conversationId": "70000000-0000-4000-8000-000000000001",
+            "stepIdx": 2,
+            "toolCall": {
+              "args": {
+                "CronExpression": "*/5 * * * *",
+                "Prompt": "probe cron"
+              },
+              "name": "schedule"
+            }
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "conversationId": "70000000-0000-4000-8000-000000000001",
+            "stepIdx": 10,
+            "toolCall": {
+              "args": {
+                "Action": "kill",
+                "TaskId": "70000000-0000-4000-8000-000000000001/task-4"
+              },
+              "name": "manage_task"
+            }
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "conversationId": "70000000-0000-4000-8000-000000000001",
+            "stepIdx": 10,
+            "toolCall": {
+              "args": {
+                "Action": "kill",
+                "TaskId": "70000000-0000-4000-8000-000000000001/task-4"
+              },
+              "name": "manage_task"
+            }
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "conversationId": "70000000-0000-4000-8000-000000000001",
+            "stepIdx": 4,
+            "toolCall": {
+              "args": {
+                "DurationSeconds": 90000,
+                "Prompt": "probe timer"
+              },
+              "name": "schedule"
+            }
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "conversationId": "70000000-0000-4000-8000-000000000001",
+            "stepIdx": 12,
+            "toolCall": {
+              "args": {
+                "Action": "list"
+              },
+              "name": "manage_task"
+            }
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "conversationId": "70000000-0000-4000-8000-000000000001",
+            "stepIdx": 12,
+            "toolCall": {
+              "args": {
+                "Action": "list"
+              },
+              "name": "manage_task"
+            }
+          }
+        }
+      ],
+      "results": [
+        "Tool is running as a background task with task id: 70000000-0000-4000-8000-000000000001/task-2\nTask logs are available at: file:///home/user/.gemini/antigravity-cli/brain/70000000-0000-4000-8000-000000000001/.system_generated/tasks/task-2.log",
+        "Tool is running as a background task with task id: 70000000-0000-4000-8000-000000000001/task-4\nTask logs are available at: file:///home/user/.gemini/antigravity-cli/brain/70000000-0000-4000-8000-000000000001/.system_generated/tasks/task-4.log",
+        "Created At: <time>\nCompleted At: <time>\nYou have 2 background task(s) currently running:\n[{\"taskId\":\"70000000-0000-4000-8000-000000000001/task-2\",\"toolName\":\"schedule\",\"toolSummary\":\"cron (every 5 minutes)\",\"description\":\"Cron: */5 * * * *, Prompt: probe cron\",\"startTime\":\"<time>\",\"logUri\":\"file:///home/user/.gemini/antigravity-cli/brain/70000000-0000-4000-8000-000000000001/.system_generated/tasks/task-2.log\"},{\"taskId\":\"70000000-0000-4000-8000-000000000001/task-4\",\"toolName\":\"schedule\",\"toolSummary\":\"1d 1h timer\",\"description\":\"Timer: 1d 1h, Prompt: probe timer\",\"startTime\":\"<time>\",\"logUri\":\"file:///home/user/.gemini/antigravity-cli/brain/70000000-0000-4000-8000-000000000001/.system_generated/tasks/task-4.log\"}]",
+        "Created At: <time>\nCompleted At: <time>\nTask \"70000000-0000-4000-8000-000000000001/task-2\" cancelled.",
+        "Created At: <time>\nCompleted At: <time>\nTask \"70000000-0000-4000-8000-000000000001/task-4\" cancelled.",
+        "Created At: <time>\nCompleted At: <time>\nNo background tasks are currently running."
+      ]
+    },
+    "fires": {
+      "events": [
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "conversationId": "70000000-0000-4000-8000-000000000002",
+            "stepIdx": 2,
+            "toolCall": {
+              "args": {
+                "CronExpression": "* * * * *",
+                "Prompt": "cron fired"
+              },
+              "name": "schedule"
+            }
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "conversationId": "70000000-0000-4000-8000-000000000002",
+            "stepIdx": 9,
+            "toolCall": {
+              "args": {
+                "Action": "list"
+              },
+              "name": "manage_task"
+            }
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "conversationId": "70000000-0000-4000-8000-000000000002",
+            "stepIdx": 9,
+            "toolCall": {
+              "args": {
+                "Action": "list"
+              },
+              "name": "manage_task"
+            }
+          }
+        }
+      ],
+      "results": [
+        "Tool is running as a background task with task id: 70000000-0000-4000-8000-000000000002/task-2\nTask logs are available at: file:///home/user/.gemini/antigravity-cli/brain/70000000-0000-4000-8000-000000000002/.system_generated/tasks/task-2.log",
+        "Created At: <time>\nCompleted At: <time>\nYou have 1 background task(s) currently running:\n[{\"taskId\":\"70000000-0000-4000-8000-000000000002/task-2\",\"toolName\":\"schedule\",\"toolSummary\":\"cron (every minute)\",\"description\":\"Cron: * * * * *, Prompt: cron fired\",\"startTime\":\"<time>\",\"logUri\":\"file:///home/user/.gemini/antigravity-cli/brain/70000000-0000-4000-8000-000000000002/.system_generated/tasks/task-2.log\"}]"
+      ]
+    }
+  }
+}

@@ -9,6 +9,7 @@ import {
   type ChatPrompt,
   type ChatRequest,
   conflictFailure,
+  InDoubt,
   notCleared,
   SettleInTerminal,
   withReturned,
@@ -100,6 +101,12 @@ export type ConversationStreams = {
 }
 
 export type RunnerConversations = Conversations & {
+  // The terminal moved to another session, still running, under `key` now: its conversation
+  // goes on, and its doorbell follows its messages there.
+  readonly moved: (key: TerminalKey) => void
+  // The runner has the terminal's shell again, as a sleeper woke: its conversation, where one
+  // is read and waits to open again, opens at once rather than on its next try.
+  readonly ready: (key: TerminalKey) => void
   // Stops reading every terminal at once.
   readonly stop: () => void
 }
@@ -357,6 +364,8 @@ const refusal = (error: unknown): Error => {
 type Reading = {
   // Ends both streams; the reading is over.
   readonly stop: () => void
+  // The terminal has a shell again: a detail waiting to be opened again opens now.
+  readonly ready: () => void
 }
 
 const read = (
@@ -649,39 +658,74 @@ const read = (
     else retryAt(session, root, at)
   }
 
-  try {
-    detail = streams.detail(terminalId)
-  } catch {
-    end(detail)
-    return { stop: () => {} }
+  // The detail's stream ends once the runner has no terminal by this id, as while its agent
+  // sleeps or after the runner restarted: the conversation empties, and the stream is opened
+  // again, backing off, for as long as anyone reads it, since the terminal may come back under
+  // the same id. As the Inbox's own reader of the detail does.
+  let reopening: ReturnType<typeof setTimeout> | undefined
+  let backoff = retryMs
+  let emptied = false
+  const reopen = (): void => {
+    reopening = setTimeout(() => {
+      reopening = undefined
+      if (alive) connect()
+    }, backoff)
+    backoff = Math.min(backoff * 2, retryMaxMs)
   }
-  const stream = detail
-  followSlices(true)
-  void (async () => {
+
+  const connect = (): void => {
+    let stream: Stream<AgentDetail>
     try {
-      for await (const snapshot of stream) {
-        if (!alive) return
-        apply(snapshot)
-      }
+      stream = streams.detail(terminalId)
     } catch {
-      // The terminal is gone, or the runner closed.
+      detail = undefined
+      reopen()
+      return
     }
-    // Its terminal went: so did its conversation, and what waited on it hears so.
-    if (!alive) return
-    following = null
-    end(slices)
-    slices = undefined
-    end(transcript)
-    transcript = undefined
-    clearTimeout(settling)
-    clearTimeout(turning)
-    stopRetrying()
-    store.update((now) => ({ ...noConversation, doorbell: now.doorbell }))
-  })()
+    detail = stream
+    followSlices(true)
+    void (async () => {
+      try {
+        for await (const snapshot of stream) {
+          if (!alive || detail !== stream) return
+          backoff = retryMs
+          emptied = false
+          apply(snapshot)
+        }
+      } catch {
+        // The terminal is gone, or the runner closed.
+      }
+      // Its terminal went: so did its conversation, and what waited on it hears so.
+      if (!alive || detail !== stream) return
+      detail = undefined
+      following = null
+      end(slices)
+      slices = undefined
+      end(transcript)
+      transcript = undefined
+      clearTimeout(settling)
+      clearTimeout(turning)
+      clearTimeout(unidling)
+      stopRetrying()
+      // Emptied once: a stream that keeps ending as the terminal stays away tells nobody again.
+      if (!emptied) store.update((now) => ({ ...noConversation, doorbell: now.doorbell }))
+      emptied = true
+      reopen()
+    })()
+  }
+  connect()
 
   return {
+    ready: () => {
+      if (!alive || reopening === undefined) return
+      clearTimeout(reopening)
+      reopening = undefined
+      backoff = retryMs
+      connect()
+    },
     stop: () => {
       alive = false
+      clearTimeout(reopening)
       end(detail)
       end(slices)
       end(transcript)
@@ -697,6 +741,9 @@ const read = (
 type Entry = {
   readonly store: MutableStore<Conversation>
   readonly conversation: Store<Conversation>
+  // The terminal is now under this key, as after it moved to another session: its doorbell
+  // follows the messages there.
+  readonly rekey: (key: TerminalKey) => void
 }
 
 export const createRunnerConversations = (
@@ -705,7 +752,17 @@ export const createRunnerConversations = (
   track: <T>(work: Promise<T>) => Promise<T> = (work) => work,
   // The terminals' messages, whose doorbell each conversation carries.
   messages?: Store<MessagesState>,
+  // Resolves once the runner is reachable again, or closed for good: a prompt or a Stop whose
+  // answer the link lost is said to be in doubt only then, so the conversation has caught up.
+  connected: () => Promise<void> = async () => {},
 ): RunnerConversations => {
+  // A call the link dropped under, the runner going on with it as it does: in doubt once the
+  // link is back (see `InDoubt`).
+  const lost = async (error: unknown): Promise<boolean> => {
+    if (!hasCode(error, "DISCONNECTED", "CLOSED")) return false
+    await connected()
+    return true
+  }
   const entries = new Map<string, Entry>()
   const readings = new Map<string, Reading>()
 
@@ -717,17 +774,19 @@ export const createRunnerConversations = (
     let subscribers = 0
     let timer: ReturnType<typeof setTimeout> | undefined
     let stopRinging: (() => void) | undefined
+    // Where the terminal's messages are kept: by its session too, which a move changes.
+    let path = terminalKeyPath(key)
+    let seen: TerminalThreads | undefined
+    const look = (): void => {
+      const terminal = messages?.getSnapshot().terminals[path]
+      if (terminal === seen) return
+      seen = terminal
+      store.update((now) => ({ ...now, doorbell: doorbellOf(terminal) }))
+    }
     // Follows the terminal's messages for its doorbell, for as long as anyone reads it.
     const followRinging = (): void => {
       if (!messages || stopRinging) return
-      const path = terminalKeyPath(key)
-      let seen: TerminalThreads | undefined
-      const look = (): void => {
-        const terminal = messages.getSnapshot().terminals[path]
-        if (terminal === seen) return
-        seen = terminal
-        store.update((now) => ({ ...now, doorbell: doorbellOf(terminal) }))
-      }
+      seen = undefined
       stopRinging = messages.subscribe(look)
       look()
     }
@@ -743,6 +802,12 @@ export const createRunnerConversations = (
     }
     const entry: Entry = {
       store,
+      rekey: (next) => {
+        const moved = terminalKeyPath(next)
+        if (moved === path) return
+        path = moved
+        if (stopRinging) look()
+      },
       conversation: {
         getSnapshot: store.getSnapshot,
         subscribe: (listener) => {
@@ -801,7 +866,9 @@ export const createRunnerConversations = (
     send: ({ terminalId }, text, options) =>
       track(streams.prompt(terminalId, text, options)).then(
         ({ tracked, returned }) => ({ tracked, returned: returned ?? null }),
-        (error: unknown) => {
+        async (error: unknown) => {
+          // Only a prompt named by its ref can be told by its receipt.
+          if (options?.ref !== undefined && (await lost(error))) throw new InDoubt()
           throw failure(error, "reach", "send", (options?.images?.length ?? 0) > 0)
         },
       ),
@@ -851,7 +918,8 @@ export const createRunnerConversations = (
           ...(images && { images }),
           ...(images && at && { at }),
         }),
-        (error: unknown) => {
+        async (error: unknown) => {
+          if (await lost(error)) throw new InDoubt()
           throw failure(error, "stop", "stop")
         },
       ),
@@ -873,6 +941,8 @@ export const createRunnerConversations = (
     // The protocol's rule, which the runner refuses by; blank text has nothing to warn of yet.
     refused: (text, options) =>
       normalisedText(text).trim() !== "" && protocolRefusal(text, options) !== undefined,
+    moved: (key) => entries.get(key.terminalId)?.rekey(key),
+    ready: ({ terminalId }) => readings.get(terminalId)?.ready(),
     stop: () => {
       for (const halt of stoppers.values()) halt()
     },

@@ -1,6 +1,6 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 
 import { previewLimits, type PreviewHunk } from "@novadeck/protocol"
 
@@ -25,18 +25,43 @@ export const textAt = async (
   return run.kind === "exit" ? null : undefined
 }
 
-const header = /^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@/
+const header = /^@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@/
 
-/** The hunks of `git diff -U0`, as main's line numbers: a hunk of the old file's lines and the new ones. */
+/**
+ * The hunks of `git diff`, as main's line numbers: a hunk of the old file's lines and the new
+ * ones. Asked with `-U0` they hold changed lines only, but a context line, as git prints
+ * between two nearby changes it joins into one hunk, is one main keeps, so it stays among the
+ * new lines. Each hunk is read by its header's counts, so a blank context line
+ * (`diff.suppressBlankEmpty`) counts too, and the empty string after the last newline doesn't.
+ */
 export const hunksOf = (diff: string): Omit<PreviewHunk, "applies">[] => {
   const hunks: { at: number; removed: number; lines: string[] }[] = []
+  // What is left to read of the last hunk: its old lines and its new ones.
+  let old = 0
+  let now = 0
   for (const line of diff.split("\n")) {
     const found = header.exec(line)
     if (found) {
       const start = Number(found[1])
       const count = found[2] === undefined ? 1 : Number(found[2])
       hunks.push({ at: count === 0 ? start + 1 : start, removed: count, lines: [] })
-    } else if (line.startsWith("+") && hunks.length > 0) hunks.at(-1)!.lines.push(line.slice(1))
+      old = count
+      now = found[3] === undefined ? 1 : Number(found[3])
+      continue
+    }
+    const hunk = hunks.at(-1)
+    // "\ No newline at end of file" is no line.
+    if (!hunk || (old === 0 && now === 0) || line.startsWith("\\")) continue
+    if (line.startsWith("+")) {
+      hunk.lines.push(line.slice(1))
+      now -= 1
+    } else if (line.startsWith("-")) {
+      old -= 1
+    } else {
+      hunk.lines.push(line.slice(1))
+      old -= 1
+      now -= 1
+    }
   }
   return hunks
 }
@@ -65,11 +90,14 @@ export const carry = async (
       main: join(folder, "main"),
       base: join(folder, "base"),
       theirs: join(folder, "theirs"),
+      // No attributes: the diff reads this, empty, for the person's own.
+      attributes: join(folder, "attributes"),
     }
     await Promise.all([
       writeFile(files.main, main),
       writeFile(files.base, base),
       writeFile(files.theirs, theirs),
+      writeFile(files.attributes, ""),
     ])
     const merged = async (side: "ours" | "theirs", name: string): Promise<string | undefined> => {
       const run = await git(
@@ -83,19 +111,39 @@ export const carry = async (
     }
     const [applied, wanted] = [await merged("ours", "applied"), await merged("theirs", "wanted")]
     if (applied === undefined || wanted === undefined) return undefined
+    // Nothing but the two texts decides their diff. File attributes (a repository's, the
+    // person's or the system's) could call them binary (`-diff`, `binary`: no hunk at all, so
+    // the work would drop out of the preview), rewrite both (a clean `filter`) or their line
+    // ends (`text`, `eol`), as `core.autocrlf` does too (Git for Windows' default), and a
+    // textconv would diff its own text. So it runs in the temp folder, no repository's
+    // (`GIT_CEILING_DIRECTORIES` keeps git from finding one above it), with the person's
+    // attributes file swapped for an empty one, the system's left out, line ends as written,
+    // and every file read as text: `works.ts` keeps a text holding `\0` from coming here.
+    const isolated = {
+      ...diffCap,
+      env: { GIT_ATTR_NOSYSTEM: "1", GIT_CEILING_DIRECTORIES: dirname(folder) },
+    }
     const diff = async (name: string) => {
       const run = await git(
-        root,
+        folder,
         [
+          "-c",
+          "core.autocrlf=false",
+          "-c",
+          `core.attributesFile=${files.attributes}`,
           "diff",
           "--no-index",
+          "--text",
           "--no-color",
           "--no-ext-diff",
+          "--no-textconv",
           "-U0",
+          // Never two changes joined over the lines between, whatever diff.interHunkContext says.
+          "--inter-hunk-context=0",
           files.main,
           join(folder, name),
         ],
-        diffCap,
+        isolated,
       )
       // Differing files exit 1.
       const out = run.ok ? run.out : run.kind === "exit" && run.status === 1 ? run.out : undefined

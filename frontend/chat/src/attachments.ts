@@ -77,16 +77,21 @@ export const releaseImages = (images: readonly Attachment[]): void => {
   for (const image of images) if (image.preview) URL.revokeObjectURL(image.preview)
 }
 
-// The images of terminals `after` no longer holds: those of a terminal that closed.
+// The images `after` no longer holds anywhere: those of a terminal that closed. One that moved
+// to another session, as its terminal did, is still held.
 export const droppedImages = (
   before: ChatAttachments,
   after: ChatAttachments,
-): readonly Attachment[] =>
-  Object.entries(before).flatMap(([context, ids]) =>
-    Object.entries(ids).flatMap(([id, list]) =>
-      chatAttachmentsOf(after, context, id).length === 0 ? list : [],
+): readonly Attachment[] => {
+  const held = new Set(
+    Object.values(after).flatMap((ids) =>
+      Object.values(ids).flatMap((list) => list.map(({ id }) => id)),
     ),
   )
+  return Object.values(before).flatMap((ids) =>
+    Object.values(ids).flatMap((list) => list.filter(({ id }) => !held.has(id))),
+  )
+}
 
 // The label for a new image among those held: its own name, numbered where another has it.
 export const labelFor = (name: string, held: readonly string[]): string => {

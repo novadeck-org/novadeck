@@ -151,7 +151,8 @@ const still = (rows: readonly string[]): readonly string[] =>
  * (fixtures/monochrome-prompt.probe.json).
  */
 const suggestion = (box: InputBox, screen: ScreenText): boolean =>
-  screen.rows.every((row, at) => row === screen.bright[at]) &&
+  // A row the next continues keeps its trailing blanks, which its bright twin never does.
+  screen.rows.every((row, at) => row.trimEnd() === screen.bright[at]) &&
   box.mode === "prompt" &&
   box.first === box.last &&
   screen.cursor.row === box.first &&

@@ -336,6 +336,32 @@ describe("terminal frame marks", () => {
       )
     })
 
+    it("says a reset a day or more off by its weekday, and a week off by its days, as the footer does", () => {
+      const weekday = new Date(resetsAt).toLocaleDateString(undefined, { weekday: "short" })
+      vi.setSystemTime(new Date(2026, 9, 23, 9).getTime())
+      const days = renderFrame(paused)
+      expect(days.querySelector(".terminal-paused")?.textContent).toBe(`∅ ${weekday} 15:40`)
+      expect(section(days).getAttribute("aria-description")).toBe(
+        `Paused at its usage limit · resets ${weekday} 15:40`,
+      )
+      vi.setSystemTime(new Date(2026, 9, 17, 9).getTime())
+      const week = renderFrame(paused)
+      expect(week.querySelector(".terminal-paused")?.textContent).toBe("∅ in 8d · 15:40")
+      expect(section(week).getAttribute("aria-description")).toBe(
+        "Paused at its usage limit · resets in 8d · 15:40",
+      )
+    })
+
+    it("reads again as the days to the reset count down, at each midnight", () => {
+      const weekday = new Date(resetsAt).toLocaleDateString(undefined, { weekday: "short" })
+      vi.setSystemTime(new Date(2026, 9, 19, 13, 40).getTime())
+      const frame = renderFrame(paused)
+      expect(frame.querySelector(".terminal-paused")?.textContent).toBe("∅ in 6d · 15:40")
+      // Past the next midnight it is five days off, which is the weekday.
+      act(() => void vi.advanceTimersByTime(11 * 3_600_000))
+      expect(frame.querySelector(".terminal-paused")?.textContent).toBe(`∅ ${weekday} 15:40`)
+    })
+
     it("joins the need and the pause as one sentence", () => {
       const frame = renderFrame(paused, { need: "unblock" })
       expect(section(frame).getAttribute("aria-description")).toBe(

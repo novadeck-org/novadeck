@@ -1450,6 +1450,7 @@ export const runnerBackend = (
     },
     track,
     messages.state,
+    () => connected(),
   )
   // The Inbox: built from the terminals' statuses, the messages and the requests of the
   // agents that ask, once the app binds it to its workspace. Every runner backend has it.
@@ -1514,6 +1515,7 @@ export const runnerBackend = (
     void ready.then((ok) => {
       if (!ok || !following || entry.closed || entry.ready !== ready) return
       messages.follow(entry.key)
+      conversations.ready(entry.key)
     })
   }
 
@@ -1567,6 +1569,7 @@ export const runnerBackend = (
         if (carried && !at(entry.key)?.[entry.key.terminalId]) noteUsage(entry, carried)
         noteUsage({ ...entry, key: from }, undefined)
         messages.unfollow(from)
+        conversations.moved(entry.key)
         followWhenReady(entry)
       })
       return entry

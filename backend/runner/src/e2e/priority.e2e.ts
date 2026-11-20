@@ -41,7 +41,8 @@ for (const setup of setups) {
         }
         if (getPriority(process.pid) !== 0)
           skip(`the suite runs at priority ${getPriority(process.pid)} and can't move to normal`)
-        const terminal = await start(run, setup)
+        // Not in use, as a terminal in a window looking at another: it opens lowered.
+        const terminal = await start(run, setup, { inUse: false })
         const shell = shellOf(run, terminal)
         expect(getPriority(shell)).toBe(terminalPriority)
         // Everything under the shell, the agent's launcher and the agent among them, and what

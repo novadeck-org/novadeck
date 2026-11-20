@@ -6,7 +6,7 @@ import {
   type NeedDialog,
 } from "@novadeck/core/terminals/ending"
 import { handleText, terminalLabel } from "@novadeck/core/terminals/handle"
-import { clockTime, nextWaitingChange } from "@novadeck/core/terminals/waiting"
+import { nextWaitingChange, nextWhenChange, whenText } from "@novadeck/core/terminals/waiting"
 import type { Tile } from "@novadeck/core/types"
 import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
@@ -171,8 +171,9 @@ export const WindowShell = ({
     [phase, need, failed],
   )
   const resets = shell && phase === "paused" ? pausedUntil(shell) : undefined
-  // Said again once the limit it waits on resets, or its wake-up passes.
-  useRenderAt(phase === "waiting" && shell ? nextWaitingChange(shell) : resets)
+  // Said again once the limit it waits on resets, or its wake-up passes, and as the days to a
+  // reset count down.
+  useRenderAt(phase === "waiting" && shell ? nextWaitingChange(shell) : nextWhenChange(resets))
   const headerDoubleAction = onFlyTo
   // The project window is named by its file, so its name is no rename's: a double-click on it
   // is the header's own.
@@ -326,7 +327,7 @@ export const WindowShell = ({
           {/* Paused at its usage limit, where the wait's line would be, with the reset. */}
           {!renaming && resets !== undefined && (
             <span aria-hidden className="terminal-paused nodrag nopan">
-              ∅ {clockTime(resets)}
+              ∅ {whenText(resets)}
             </span>
           )}
           {!renaming && !compact && phase === "waiting" && shell && (

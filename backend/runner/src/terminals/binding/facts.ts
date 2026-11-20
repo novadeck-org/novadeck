@@ -543,14 +543,20 @@ export class Bindings {
    * Follows each running subagent with a request waiting in its own sources, where its
    * harness reads them, for what ends its turn that no hook reports (Codex's rollout
    * recording Esc on its request): from its oldest request's ask, until it has none
-   * waiting or the binding ends. What they say applies like its hooks' reports.
+   * waiting or the binding ends. Where its harness `watchesRunning`, each running subagent
+   * is followed from its start until it stops (its rollout recording its turn aborted as
+   * the root closes it): no more than the subagents an activity holds. What they say
+   * applies like its hooks' reports.
    */
   watchActors(record: Record): void {
     const { bound, transcript, actorWatches } = record
     const binding = bound?.binding
-    const watchActor = binding && harnesses[binding.agent].watchActor
+    const harness = binding && harnesses[binding.agent]
+    const watchActor = harness?.watchActor
     const waiting = new Map<string, number>()
-    if (bound && transcript !== null && watchActor)
+    if (bound && transcript !== null && watchActor && harness.watchesRunning)
+      for (const { id, startedAt } of bound.activity.subagents) waiting.set(id, startedAt)
+    else if (bound && transcript !== null && watchActor)
       for (const { actor, askedAt } of bound.activity.pending)
         if (actor !== null && bound.activity.subagents.some(({ id }) => id === actor))
           waiting.set(actor, Math.min(askedAt, waiting.get(actor) ?? Number.POSITIVE_INFINITY))

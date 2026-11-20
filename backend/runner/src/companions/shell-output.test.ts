@@ -3,6 +3,7 @@ import {
   mkdirSync,
   mkdtempSync,
   rmSync,
+  symlinkSync,
   truncateSync,
   utimesSync,
   writeFileSync,
@@ -46,6 +47,28 @@ const outputs = (content: ItemContent) => {
 const read = (tails: ShellTails, ...shells: Shell[]) => tails.content({ agent: "codex", shells })
 
 describe("the end of background shells' output", () => {
+  it("is never read from a file that may hold secrets, by its name or where it leads", async ({
+    directory,
+    tails,
+  }) => {
+    // The path is what the harness's transcript says, which text an agent read can say too.
+    writeFileSync(join(directory, ".env"), "STRIPE_KEY=x\n")
+    mkdirSync(join(directory, ".aws"))
+    writeFileSync(join(directory, ".aws", "config"), "aws_secret_access_key = x\n")
+    symlinkSync(join(directory, ".aws"), join(directory, "logs"))
+    writeFileSync(join(directory, "out.log"), "built\n")
+    const shells = [
+      shell("1", join(directory, ".env")),
+      shell("2", join(directory, "logs", "config")),
+      shell("3", join(directory, "out.log")),
+    ]
+    expect(outputs(await read(tails, ...shells))).toEqual([
+      { state: "unreadable" },
+      { state: "unreadable" },
+      { state: "ready", firstLine: 1, lines: ["built"], total: 1 },
+    ])
+  })
+
   it("is the last lines of a file, numbered as they are in it", async ({ directory, tails }) => {
     const path = join(directory, "out.log")
     writeFileSync(path, Array.from({ length: 1000 }, (_, at) => `line ${at + 1}\n`).join(""))

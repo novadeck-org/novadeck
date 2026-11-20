@@ -40,6 +40,28 @@ describe("Codex's background shells, as captured", () => {
     ])
   })
 
+  it("ends one /stop killed with no code, though Codex's reaper took its SIGKILL's 137 first", () => {
+    const stopped = lines.findIndex((line) => line.includes('"exit_code":-1'))
+    expect(lines[stopped]).toContain("99018")
+    const reaped = lines.with(stopped, lines[stopped]!.replace('"exit_code":-1', '"exit_code":137'))
+    // On Windows Codex's kill leaves 1, an exit of the command's own to read: 137 is one too.
+    expect(shells(replay(reaped)).at(-1)).toMatchObject({
+      id: "99018",
+      code: process.platform === "win32" ? 137 : null,
+    })
+  })
+
+  it("keeps a code of the command's own beside the kill's, as 1 and 143 (SIGTERM)", () => {
+    const stopped = lines.findIndex((line) => line.includes('"exit_code":-1'))
+    for (const code of [1, 143]) {
+      const ended = lines.with(
+        stopped,
+        lines[stopped]!.replace('"exit_code":-1', `"exit_code":${code}`),
+      )
+      expect(shells(replay(ended)).at(-1)).toMatchObject({ id: "99018", code })
+    }
+  })
+
   it("tells no shell for a command that ended within its call", () => {
     const quick = [
       JSON.stringify({

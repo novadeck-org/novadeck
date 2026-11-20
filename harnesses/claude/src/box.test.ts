@@ -1,4 +1,4 @@
-import type { ScreenText } from "@novadeck/emulator/headless"
+import { createScreen, readScreen, type ScreenText } from "@novadeck/emulator/headless"
 import { readSlice } from "@novadeck/harness-core/slices"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { checkPaste, hidesText, newTurn, tailOf, takesQueue } from "@novadeck/tui-input/box"
@@ -692,6 +692,21 @@ describe("Claude Code's box where it draws no colour or dim", () => {
     expect(box.read(typed('Try "edit foo" and then more', 2))?.text).toBe(
       'Try "edit foo" and then more',
     )
+  })
+
+  it("reads its placeholder as an empty box below a row the terminal wrapped", async () => {
+    // A row the next one continues keeps its trailing blank, as where a wide character
+    // didn't fit its last column, and its bright twin doesn't: nothing on it is dim.
+    const terminal = createScreen({ cols: 20, rows: 4, scrollback: 0 })
+    await new Promise<void>((done) => terminal.write(`${"a".repeat(19)}漢字 tail\r\n`, done))
+    const read = readScreen(terminal)
+    expect([read.rows[0], read.bright[0]]).toEqual([`${"a".repeat(19)} `, "a".repeat(19)])
+    const wrapped = {
+      ...fresh,
+      rows: fresh.rows.map((row, at) => (at === 0 ? read.rows[0]! : row)),
+      bright: fresh.bright.map((row, at) => (at === 0 ? read.bright[0]! : row)),
+    }
+    expect(box.read(wrapped)).toMatchObject({ text: "", mode: "prompt" })
   })
 
   it("reads the suggestion's shape as the person's own where colour is on", () => {

@@ -6,13 +6,27 @@ import { telemetryLimits, type StartupScreen } from "@novadeck/protocol"
 import { abandoned, latestOf } from "./call-memory.js"
 import { accounted } from "./listing.js"
 
-// Statuses of a subagent that no longer runs.
-const finished = new Set(["done", "completed", "finished", "idle", "failed", "cancelled", "error"])
+// Statuses of a subagent that no longer runs. Its binary names a subagent's states idle,
+// running, killed and waiting (1.5.12).
+const finished = new Set([
+  "done",
+  "completed",
+  "finished",
+  "idle",
+  "failed",
+  "cancelled",
+  "canceled",
+  "error",
+  "killed",
+  "stopped",
+])
 
 /**
  * How many subagents the status line lists still running. It lists them while they run,
- * and after, as `completed` (probed 2026-10-04, 1.2.14); one that names its state counts
- * only while that is not a finished one.
+ * and after, as `completed` (probed 2026-10-04, 1.2.14), killed (manage_subagents kill or
+ * kill_all) or failed (its model call refused) alike (probed 2026-11-20, 1.5.12,
+ * fixtures/subagent-ends-status.probe.json); one that names its state counts only while
+ * that is not a finished one.
  */
 const subagentsRunning = (subagents: unknown): number =>
   Array.isArray(subagents)

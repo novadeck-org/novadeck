@@ -78,6 +78,35 @@ describe("the command", () => {
     }
   })
 
+  it("fails a promotion that writes no notes, where a prerelease's run goes on", async () => {
+    const promoting = fakeSources({
+      tags: ["v0.0.151", "v0.0.152"],
+      stable: "v0.0.151",
+      commits: { "v0.0.151..v0.0.152": [commit(330)] },
+      bodies: { "v0.0.152": releaseBody },
+    })
+    const refused = withReply(async () => new Response("no credit", { status: 402 }))
+    const out = scratch()
+    const printed: string[] = []
+    process.env.GITHUB_ACTIONS = "true"
+    try {
+      expect(
+        await main(["promote", "v0.0.152", out], promoting, refused, (l) => printed.push(l)),
+      ).toBe(1)
+      expect(await main(["release", "v0.0.152", out], promoting, refused, () => {})).toBe(0)
+    } finally {
+      delete process.env.GITHUB_ACTIONS
+    }
+    expect(existsSync(out)).toBe(false)
+    expect(printed.some((line) => line.startsWith("::error title=Release notes::"))).toBe(true)
+    // A dry run only shows why, whatever the mode.
+    expect(await main(["promote", "v0.0.152", "--dry-run"], promoting, refused, () => {})).toBe(0)
+    // Written, a promotion's run exits 0.
+    expect(
+      await main(["promote", "v0.0.152", scratch()], promoting, saying(answer), () => {}),
+    ).toBe(0)
+  })
+
   it("prints a warning annotation with the reason alone when a run skips on GitHub Actions", async () => {
     const printed: string[] = []
     process.env.GITHUB_ACTIONS = "true"

@@ -53,6 +53,8 @@ import type { DemoAction, DemoActionContext, DemoActionGroup, DemoStates } from 
 
 // How long an agent works before its turn ends, so the person can look elsewhere.
 const turnMs = 3000
+// How long an agent that "writes its words" takes to, after the question it asked.
+const askWordsMs = 6000
 // How long a new terminal takes to fail when it fails "right away".
 const quickFailMs = 400
 const burst = 30
@@ -231,6 +233,11 @@ const waitingForWake: DemoWaiting = {
   wake: { reason: "Check the deploy" },
   inMinutes: 8,
 }
+// A wake-up a week off, which a tab says by the days to it, not the clock.
+const waitingForWeekWake: DemoWaiting = {
+  wake: { reason: "Check the deploy" },
+  inMinutes: 7 * 24 * 60,
+}
 
 // The background shells the shell states leave running, and for how long they have.
 const oneShell: readonly DemoShell[] = [{ command: "pnpm dev --filter storefront", minutes: 4 }]
@@ -280,8 +287,10 @@ const crowdOfShells: readonly DemoShell[] = [
   { command: "pnpm lint --watch", minutes: 1 },
 ]
 
-// How long from now the gallery's paused agent's usage limit resets.
+// How long from now the gallery's paused agent's usage limit resets, and a limit's that is
+// days off, which a tab says by the days to it, not the clock.
 const limitResetMs = 80 * 60_000
+const farLimitResetMs = 8 * 86_400_000
 
 // One terminal per state, named after it, so every tab and window shows one at a time.
 // The last stays selected; a done mark needs the person to be looking elsewhere, so the
@@ -362,6 +371,11 @@ const gallery: readonly {
       verbs.finish(key, undefined, "completed", { after: turnMs, waiting: waitingForWake }),
   },
   {
+    name: "Waiting, wakes in 7 days",
+    agent: (verbs, key) =>
+      verbs.finish(key, undefined, "completed", { after: turnMs, waiting: waitingForWeekWake }),
+  },
+  {
     name: "Working, a side question",
     agent: (verbs, key) => verbs.work(key, undefined),
     asks: "text",
@@ -373,6 +387,15 @@ const gallery: readonly {
         after: turnMs,
         error: "Usage limit reached",
         limit: { minutes: 300, resetsAt: Date.now() + limitResetMs },
+      }),
+  },
+  {
+    name: "Paused, resets in 8 days",
+    agent: (verbs, key) =>
+      verbs.finish(key, undefined, "failed", {
+        after: turnMs,
+        error: "Usage limit reached",
+        limit: { minutes: 10_080, resetsAt: Date.now() + farLimitResetMs },
       }),
   },
   {
@@ -788,6 +811,22 @@ export const createDemoStates = (
       harnesses: true,
       actions: [
         verb("Work", "Working; tab shows it running", (v, k, t) => v.work(k, t), verbs),
+        {
+          label: "Asks, words in 6 s",
+          hint: "The agent works and asks (MCP) in the viewed terminal: the ask shows in the Inbox list, but the bell, the app badge and the tab's ? wait for its words, 6 s on (or the turn's end, or 15 s)",
+          run: (context) => {
+            const key = targetOf(context)
+            if (!key) return
+            verbs.as(context.harness).work(key, terminalOf(context.workspace(), key), {
+              says: askWordsMs,
+            })
+            const own = inbox()
+            const row = mcpAsk(context.workspace(), key, "text", Date.now(), context.harness)
+            if (!row || !isDemoInbox(own)) return
+            own.add(row)
+            panelAsks.add(row.id)
+          },
+        },
         verb(
           "Plan mode",
           "Working in plan mode",

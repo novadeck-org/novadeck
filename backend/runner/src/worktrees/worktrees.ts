@@ -2,7 +2,7 @@ import { existsSync } from "node:fs"
 import { mkdir, realpath } from "node:fs/promises"
 import { join, resolve, sep } from "node:path"
 
-import { behindMain, onMain } from "../checkouts/repository.js"
+import { behindMain } from "../checkouts/repository.js"
 import { logs } from "../log.js"
 import { Cleanup, type CleanupHost, type OwnerState } from "./cleanup.js"
 import type { WorktreeRecord, WorktreeRecords } from "./records.js"
@@ -19,9 +19,12 @@ import {
   homeOf,
   keepStrayHead,
   keepWork,
+  nestedRepositories,
+  nestedWork,
   removeFolder,
   repositoryAt,
   said,
+  setUpstream,
   standingOf,
   startOf,
   validBranch,
@@ -83,13 +86,25 @@ export type WorktreeChange =
     }
   | { readonly type: "removed"; readonly root: string }
 
+/**
+ * What origin has of a branch opened with no local one and no `from`: `current`, origin has it
+ * now, and the new branch starts from it; `unchecked`, origin couldn't be asked, and the new
+ * branch starts from it as last fetched; `gone`, origin no longer has it (only an earlier fetch
+ * left it), and the new branch starts as one with no `from` does.
+ */
+export type OriginBranch = "current" | "unchecked" | "gone"
+
 export type Opened = {
   readonly ok: true
   readonly path: string
   readonly branch: string
-  /** Whether the branch already existed and was checked out. */
+  /** Whether the branch already existed here and was checked out. */
   readonly existing: boolean
   readonly base: string
+  /** Where the branch was only origin's: what origin has of it (see `OriginBranch`). */
+  readonly origin?: OriginBranch
+  /** Whether the new branch tracks origin's, where it starts from it. */
+  readonly tracking?: boolean
   /** The paths of the instruction files at its top. */
   readonly instructions: readonly string[]
 }
@@ -115,6 +130,9 @@ export type Closed =
     }
   | Failure
   | Holding
+
+/** Origin's remote-tracking ref of a branch. */
+const originRef = (branch: string): string => `refs/remotes/origin/${branch}`
 
 /** A path made safe as one folder name: letters, digits, dots, dashes and underscores. */
 export const folderName = (text: string): string =>
@@ -309,9 +327,10 @@ export class Worktrees {
   }
 
   /**
-   * Makes a worktree for the terminal: a new branch from `from` (when omitted, the remote's main if the
-   * checkout is on a main that is behind it, else the checkout's HEAD), or an existing branch checked out. `cwd` is where the terminal is; `repo` a
-   * folder in the repository, absolute or relative to it.
+   * Makes a worktree for the terminal: a new branch from `from` (when omitted, origin's branch of
+   * that name, tracking it, where origin has one; else the remote's main if the checkout is on a
+   * main that is behind it, else the checkout's HEAD), or an existing branch checked out. `cwd` is
+   * where the terminal is; `repo` a folder in the repository, absolute or relative to it.
    */
   open(input: {
     readonly projectId: string
@@ -322,29 +341,41 @@ export class Worktrees {
     readonly from?: string | undefined
     readonly group?: string | undefined
   }): Promise<Opened | Failure> {
-    // Main is made current before the queue, which every repository's operations wait in.
-    return this.fresh(input).then(() => this.serial(() => this.opening(input)))
+    // Origin's refs are made current, and asked about, before the queue, which every
+    // repository's operations wait in.
+    return this.fresh(input).then((origin) => this.serial(() => this.opening(input, origin)))
   }
 
-  // A new branch from a checkout on main starts from the remote's main, fetched for a moment at
-  // most: a slow or failing remote leaves the cached one, and the fetch carries on meanwhile.
-  private async fresh(input: Parameters<Worktrees["open"]>[0]): Promise<void> {
-    if (input.from !== undefined) return
+  // A new branch with no `from` starts from origin's branch of that name, or from the remote's main
+  // when the checkout is on main: both fetched for a moment at most, as a slow or failing remote
+  // leaves the cached refs and the fetch carries on meanwhile. A fetch prunes nothing, so where
+  // origin's branch is cached, origin is asked whether it still has it, as briefly. What origin
+  // has of the branch, where it was cached; undefined where it wasn't, or a local branch exists.
+  private async fresh(input: Parameters<Worktrees["open"]>[0]): Promise<OriginBranch | undefined> {
+    if (input.from !== undefined) return undefined
     try {
       const folder = resolve(input.cwd, input.repo ?? ".")
       const found = await repositoryAt(folder)
-      if (!found.ok || (await onMain(folder)) === undefined) return
-      if ((await branchTip(found.repository.home, input.branch)) !== undefined) return
-      await this.cleanup.fetchBriefly(
-        found.repository.commonDir,
-        this.host.freshMainMs ?? freshMainMs,
-      )
+      if (!found.ok) return undefined
+      const { home, commonDir } = found.repository
+      // A name git refuses is refused in the queue, with nothing fetched or asked for it.
+      if (!(await validBranch(home, input.branch))) return undefined
+      if ((await branchTip(home, input.branch)) !== undefined) return undefined
+      const ms = this.host.freshMainMs ?? freshMainMs
+      await this.cleanup.fetchBriefly(commonDir, ms)
+      if ((await commitAt(home, originRef(input.branch))) === undefined) return undefined
+      const has = await this.cleanup.remoteHas(commonDir, input.branch, ms)
+      return has === undefined ? "unchecked" : has ? "current" : "gone"
     } catch {
-      // The cached main stands.
+      // The cached refs stand.
+      return undefined
     }
   }
 
-  private async opening(input: Parameters<Worktrees["open"]>[0]): Promise<Opened | Failure> {
+  private async opening(
+    input: Parameters<Worktrees["open"]>[0],
+    origin: OriginBranch | undefined,
+  ): Promise<Opened | Failure> {
     const folder = resolve(input.cwd, input.repo ?? ".")
     const found = await repositoryAt(folder)
     if (!found.ok) return found
@@ -366,8 +397,14 @@ export class Worktrees {
       return refused(
         `${input.branch} exists already, so it is checked out as it is: leave from out.`,
       )
-    // Left out, it starts from main when the checkout sits on a stale local main, else from HEAD.
-    const start = input.from ?? (await behindMain(folder))?.commit ?? "HEAD"
+    // Left out, it starts from origin's branch of that name where origin has it (or couldn't say),
+    // else from main when the checkout sits on a stale local main, else from HEAD. Read again
+    // here, as a fetch may have moved it.
+    const remote =
+      tip === undefined && input.from === undefined && origin !== undefined && origin !== "gone"
+        ? await commitAt(repository.home, originRef(input.branch))
+        : undefined
+    const start = input.from ?? remote ?? (await behindMain(folder))?.commit ?? "HEAD"
     const base = tip ?? (await commitAt(folder, start))
     if (base === undefined) return refused(`${start} isn't a commit in ${repository.name}.`)
     await mkdir(join(wanted, ".."), { recursive: true })
@@ -403,6 +440,10 @@ export class Worktrees {
         await deleteBranch(repository.home, input.branch)
       return refused(`git couldn't make the worktree: ${said(added)}.`)
     }
+    const tracking =
+      remote === undefined
+        ? undefined
+        : await setUpstream(repository.home, input.branch, originRef(input.branch))
     this.made({ root: real, projectId: input.projectId })
     return {
       ok: true,
@@ -410,6 +451,10 @@ export class Worktrees {
       branch: input.branch,
       existing: tip !== undefined,
       base,
+      // Said only where it decided the start: origin's branch was taken, or passed over as gone.
+      ...(origin !== undefined &&
+        (remote !== undefined || (tip === undefined && origin === "gone")) && { origin }),
+      ...(tracking !== undefined && { tracking }),
       instructions: instructionFiles
         .map((name) => join(real, name))
         .filter((file) => existsSync(file)),
@@ -608,7 +653,9 @@ export class Worktrees {
    * and commits only HEAD reaches are kept on `refs/novadeck/kept/` first, the folder goes,
    * the branch goes only when Novadeck made it and the main branch holds all of it, and the
    * row goes last. Without `force` it refuses a worktree that holds anything the main branch
-   * doesn't, unless it is `safe` (see `closeAt`). Ignored files (such as .env or data) are not kept. Run in the queue.
+   * doesn't, unless it is `safe` (see `closeAt`). Ignored files (such as .env or data) are not kept.
+   * One with submodules, or with an untracked git repository of its own inside that holds work
+   * (`nestedWork`), which no ref can keep, is never removed, forced or not. Run in the queue.
    */
   private async removal(row: WorktreeRecord, force: boolean, safe = false): Promise<Closed> {
     const home = homeOf(row.commonDir)
@@ -641,6 +688,22 @@ export class Worktrees {
               "stays: close it yourself or ask the user.",
       )
     const dirty = standing.dirty > 0
+    // A repository of its own inside, untracked, which no ref can keep but as a gitlink: it goes
+    // only where it holds nothing a remote lacks. A clean worktree has none.
+    const nested = dirty ? await nestedRepositories(row.path) : []
+    if (nested === undefined)
+      return refused(
+        "Novadeck couldn't tell whether the worktree holds a git repository of its own, so it stays.",
+      )
+    for (const each of nested) {
+      // eslint-disable-next-line no-await-in-loop -- One repository at a time.
+      const work = await nestedWork(join(row.path, each))
+      if (work !== undefined)
+        return refused(
+          `The worktree holds a git repository of its own, not tracked, at ${each}, with ${work}: ` +
+            "Novadeck can't keep its files and commits, so the worktree stays, even with force.",
+        )
+    }
     // A safe one's commits are merged or kept on its remote: main lacking them asks nothing.
     // What it holds uncommitted still does, as it may have changed since it was read safe.
     const unmerged = !standing.inMain && !safe
@@ -701,8 +764,8 @@ export class Worktrees {
 
   /**
    * Removes all of a project's worktrees, keeping what isn't safe elsewhere, before its rows
-   * go. One git couldn't read, or that has submodules, stays on disk (its row goes with the
-   * project), and is logged.
+   * go. One git couldn't read, or that has submodules or an untracked git repository of its own
+   * holding work, stays on disk (its row goes with the project), and is logged.
    */
   removeProject(projectId: string): Promise<void> {
     return this.serial(async () => {

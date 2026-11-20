@@ -15,6 +15,7 @@ import type {
 } from "@novadeck/harness-core/harness"
 import { at, entry, joined, noteEntry, textOf, withImages } from "@novadeck/harness-core/items"
 import { outcome } from "@novadeck/harness-core/outcomes"
+import { continuationPrompt } from "@novadeck/harness-core/prompts"
 import { shellCall } from "@novadeck/harness-core/tools"
 
 import { taskNotification } from "./decode.js"
@@ -62,10 +63,6 @@ const inOtherProject = async (reported: string, sessionId: string): Promise<stri
  * takes into that turn beside a tool's result, is no user record but an attachment of the
  * turn (see `queuedPrompt`); it reads as the person's prompt all the same.
  */
-
-// Agents' messages Novadeck handed the agent as a prompt of their own (as 2.1.294 wrote
-// them), which are no words of the person's.
-const delivery = /^\s*<novadeck-messages[\s>]/
 
 // A shell-mode command, as `<bash-input>`; its output follows as stdout and stderr, which
 // hold what the command printed, however it ended (a failed one's output is in stderr). A
@@ -235,7 +232,7 @@ const textItems = (
       ),
     ]
   if (role === "user" && taskNotification.test(content)) return notified(content, time)
-  return content && !taskNotification.test(content) && !delivery.test(content)
+  return content && !taskNotification.test(content) && !continuationPrompt(content)
     ? [entry(role, "text", content, { at: time, interrupted: interruption(content) })]
     : []
 }

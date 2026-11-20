@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
 
 import { describe, expect, it as base } from "../test.js"
+import { hostless, ownHome } from "../testing/host.js"
 import { installShellFiles } from "./install.js"
 
 type Fixture = {
@@ -26,7 +27,11 @@ const it = base.extend<{ shim: Fixture }>({
     const root = mkdtempSync(join(tmpdir(), "novadeck-agy-posix-shim-"))
     resources.defer(() => rmSync(root, { recursive: true, force: true }))
     const worktrees = join(root, "worktrees")
-    const paths = await installShellFiles(join(root, "shell"), { worktrees, platform: "linux" })
+    const paths = await installShellFiles(join(root, "shell"), {
+      ...ownHome(root),
+      worktrees,
+      platform: "linux",
+    })
     const home = join(root, "home")
     const settings = join(home, ".gemini", "antigravity-cli", "settings.json")
     mkdirSync(join(home, ".gemini", "antigravity-cli"), { recursive: true })
@@ -46,14 +51,13 @@ const it = base.extend<{ shim: Fixture }>({
     const run: Fixture["run"] = (args, env = {}, path = [paths.bin, real]) => {
       rmSync(log, { force: true })
       const result = spawnSync(join(paths.bin, "agy"), args, {
-        env: {
-          ...process.env,
+        env: hostless({
           PATH: [...path, process.env.PATH].join(delimiter),
           HOME: home,
           NOVADECK_TERMINAL_ID: terminal,
           NOVADECK_SHIMS: "claude agy",
           ...env,
-        },
+        }),
         encoding: "utf8",
         timeout: 30_000,
       })
@@ -162,7 +166,9 @@ describe.skipIf(process.platform === "win32")("agy shim on Linux and macOS", () 
   it("passes over another Novadeck's shim on PATH, which would call this one back", async ({
     shim,
   }) => {
-    const other = await installShellFiles(mkdtempSync(join(tmpdir(), "novadeck-other-")), {
+    const otherRoot = mkdtempSync(join(tmpdir(), "novadeck-other-"))
+    const other = await installShellFiles(otherRoot, {
+      ...ownHome(otherRoot),
       platform: "linux",
     })
     mkdirSync(shim.worktrees)

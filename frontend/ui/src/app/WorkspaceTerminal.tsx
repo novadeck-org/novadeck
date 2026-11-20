@@ -87,7 +87,7 @@ const useWindowFrame = (
   tile: Tile,
   { onFlyTo }: TerminalLayoutControls,
 ): Omit<WindowShellProps, "children" | "icon"> => {
-  const { backend, commands } = useWorkspaceServices()
+  const { backend, commands, landing } = useWorkspaceServices()
   const { openWindowed, openFocus, close, startRename, openSwitcher } = commands
   const { resetTitle, changeRenameDraft, saveRename, cancelRename } = commands
   const id = tile.id
@@ -110,8 +110,8 @@ const useWindowFrame = (
     shallowEqual,
   )
   const target = useWorkspaceState(currentTarget, sameTarget)
-  // What the raw Inbox says of it, not the landing rule's, which only marks how rows land.
-  const { need, subject, dialog, snoozed, snoozedRequests } = useTerminalMarks(backend.inbox, {
+  // What the landed Inbox says of it: a need, but for an ask the landing rule still holds back.
+  const { need, subject, dialog, snoozed, snoozedRequests } = useTerminalMarks(landing.inbox, {
     ...target,
     terminalId: id,
   })

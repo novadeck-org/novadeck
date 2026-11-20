@@ -566,7 +566,7 @@ with every safety check again at that time:
   and length, drawn by the page), are read through `companions.part` with the file's own stamp,
   lazily and nearest first; a PDF, a recording and a text file show their kind's icon. It is
   the same for Claude Code, Codex and Antigravity, as the runner reads the folder. Secrets
-  follow `companions/secrets.ts`: a folder that may hold secrets (by its name, by what lies under it, as gcloud's, or as one the person's environment moves a tool's logins to, as `GNUPGHOME`) is refused (`show` answers
+  follow `companions/secrets.ts`: a folder that may hold secrets (by its name, by what lies under it, as gcloud's, or as one the person's environment moves a tool's logins to, as `GNUPGHOME`; judged by the name it is asked by, each name its links lead through and where it leads, so a `.ssh` that links to `keys` is one, and so is a `stuff` that links to that `.ssh`) is refused (`show` answers
   with why, and nothing in it is listed), a secret file or folder inside one is named and
   flagged, never opened, counted, read or given a thumbnail, and a symbolic link that leaves
   the opened folder is listed as a link and never followed. Of a folder holding more than 2000
@@ -746,7 +746,7 @@ with every safety check again at that time:
   that no terminal's current checkout is the worktree with its agent working or a command running),
   so it can't race an agent's take, give or close; a command run elsewhere with `git -C` into it is
   not seen. The trash button waits while `working`. A refusal (`CONFLICT`, with the service's reason: git
-  status unreadable, submodules) shows above the list, as does a work that can't be shown; a
+  status unreadable, submodules, a git repository of its own inside that holds work) shows above the list, as does a work that can't be shown; a
   worktree an agent closed meanwhile counts as closed. A work whose owner is closed (in History)
   shows on the selected terminal's bar. With no works the list says what appears there. The panel
   and its rail toggle show only while Preferences → Experimental → Agent worktrees is
@@ -940,14 +940,24 @@ with every safety check again at that time:
   common dir, branch, the commit it `base`d on, project, owner terminal (plain text: a live
   terminal or one in History, null once orphaned), whether it was `adopted` and whether Novadeck made
   its branch (`branch_made`). A terminal may own several, and ownership moves only through agents.
-  - **`open_worktree({ branch, repo?, from?, group? })`** runs `git worktree add -b` from
-    `from` (left out: the checkout's `HEAD`, or the remote's main when the checkout is on the local
-    branch that main is, as `main` for `origin/main`, and `HEAD` is a strict ancestor of it, so a stale
-    checkout doesn't make a stale branch; a feature branch, a `HEAD` ahead or diverged, or no main
-    keeps `HEAD`; main is fetched first, before the service's queue and not if it was fetched in the last
-    minute, and the call waits at most five seconds for it: the fetch keeps its usual time limit and
-    carries on in the background, and a remote that is slow or fails leaves the cached main, so creating
-    never waits on the network), or checks out the branch if it exists, with 60 seconds,
+  - **`open_worktree({ branch, repo?, from?, group? })`** checks out the branch if it exists
+    locally, or runs `git worktree add -b` from `from`. Left out, `from` is origin's branch of that
+    name where `refs/remotes/origin/<branch>` exists, which the new branch then tracks
+    (`git branch --set-upstream-to`), as a teammate's pull request branch, fetched but never checked
+    out, is; else the remote's main when the checkout is on the local branch that main is, as `main`
+    for `origin/main`, and `HEAD` is a strict ancestor of it, so a stale checkout doesn't make a stale
+    branch; else the checkout's `HEAD` (a feature branch, a `HEAD` ahead or diverged, or no main).
+    Only `origin` is looked at, the one remote Novadeck fetches. With no local branch and no `from`,
+    origin is fetched first, before the service's queue and not if it was fetched in the last minute,
+    and the call waits at most five seconds for it: the fetch keeps its usual time limit and carries
+    on in the background, and a remote that is slow or fails leaves the cached refs, so creating
+    never waits long on the network. As that fetch prunes nothing, origin is then asked whether it
+    still has the branch (`git ls-remote --exit-code`, as briefly): a branch it no longer has (one
+    deleted after its merge) is passed over, and the new branch starts as above; where origin can't
+    be asked, the cached `origin/<branch>` is used. The answer says which (`origin`: `current`,
+    `unchecked` or `gone`), and whether the branch tracks origin's (`tracking`, false where git
+    couldn't set the upstream, which the answer says too). A name `git check-ref-format --branch`
+    refuses is refused before any of this, with nothing fetched. It runs with 60 seconds,
     and `core.longpaths` on Windows, after `git check-ref-format --branch`. It answers the path,
     the branch and the paths of AGENTS.md, CLAUDE.md and GEMINI.md at the worktree's top, and
     tells the agent to read them, as no harness loads them from an added folder.
@@ -980,7 +990,15 @@ with every safety check again at that time:
     not kept) as a commit at `refs/novadeck/kept/<branch>-work-<sha>`, and commits only a
     detached HEAD or a stopped rebase reaches at `…-head-<sha>`, then removes the folder. The
     branch goes only if Novadeck created it and the main branch holds all of it. A worktree
-    whose status git couldn't read, or that has submodules, is never removed, forced or not.
+    whose status git couldn't read, that has submodules, or that holds an untracked folder which is
+    a git repository of its own holding work no remote has, is never removed, forced or not. A
+    nested repository is any untracked folder `git ls-files --others --exclude-standard` lists as a
+    folder, at any depth (read as it streams, keeping only those, so a huge untracked tree never
+    passes the listing's cap): a commit could keep one only as a gitlink, none of its files or
+    commits. One holds work unless it is clean (no uncommitted or untracked file), has no stash and
+    no submodule checked out, and every commit of its HEAD and its local branches is on one of its
+    remote-tracking branches as last fetched; anything git can't read counts as work. The refusal
+    names the first that holds work, and what. A clone with nothing to lose goes with the folder.
     The row goes last. A `git worktree remove` that stops partway (on Windows, a file in the
     folder still held for a moment) deletes git's record of the worktree even where the folder
     wouldn't go, so where git's own listing no longer has it, Novadeck deletes what is left
@@ -990,9 +1008,10 @@ with every safety check again at that time:
     Every `path` may be a folder inside the worktree. Only a worktree of
     the project's repositories, and not locked, is adopted.
   - **At the runner's start** every row is checked: a folder that is gone is pruned from its
-    repository and its row deleted, an owner that exists neither live nor in History leaves
+    repository (its own entry only, found by the path in the entry's `gitdir`, which git 2.48's
+    `worktree.useRelativePaths` writes relative to the entry's folder) and its row deleted, an owner that exists neither live nor in History leaves
     the worktree orphaned. Removing a project removes its worktrees first, the same way as
-    `force`, before the rows cascade away. Nothing here watches git for worktrees made
+    `force`, before the rows cascade away; one `force` can't remove stays on disk, and is logged. Nothing here watches git for worktrees made
     another way.
   - **Cleanup** (`worktrees/cleanup.ts`) removes worktrees nobody needs, in the service's queue
     and whatever the switch says. _Merged_ is the Worktrees panel's test (HEAD in main, or merging it
@@ -1008,8 +1027,8 @@ with every safety check again at that time:
     When the owner's History row is pruned (`ClosedTerminals.prune`, the only place that tells
     cleanup; a restore also deletes a row but does not), its worktrees are removed with `force`
     semantics: uncommitted work and a detached HEAD are kept on `refs/novadeck/kept/` refs and an
-    unmerged branch is kept. If git couldn't read the worktree, it has submodules or an agent
-    works in it, the row is orphaned instead, the folder stays, and a warning is logged. Each
+    unmerged branch is kept. If git couldn't read the worktree, it has submodules or a git
+    repository of its own inside that holds work, or an agent works in it, the row is orphaned instead, the folder stays, and a warning is logged. Each
     automatic removal is logged at info level (`worktrees.cleaned`); no agent is told. Cleanup
     runs when a terminal is closed for good (`Terminals.forget`), at the runner's start after the
     reconcile above (which orphans rows whose owner is gone, so a merged one among them goes at

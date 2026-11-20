@@ -147,7 +147,7 @@ describe("loops: subagents", () => {
   it("do not count after an abort", () => {
     const loops = known()
     loops.observe(T, [subStarted("a")], 100)
-    loops.observe(T, [act({ type: "subagent-turn-aborted", actor: "a" })], 150)
+    loops.observe(T, [act({ type: "subagent-stopped", actor: "a" })], 150)
     expect(loops.worked(T, 120, 140)).toBe(true)
     expect(loops.worked(T, 150, 300)).toBe(false)
   })
@@ -217,7 +217,38 @@ describe("loops: requests waiting on the person", () => {
   it("stop counting for a subagent whose turn aborted", () => {
     const loops = known()
     loops.observe(T, [requested("r", "sub")], 100)
-    loops.observe(T, [act({ type: "subagent-turn-aborted", actor: "sub" })], 150)
+    loops.observe(T, [act({ type: "subagent-stopped", actor: "sub" })], 150)
+    expect(loops.worked(T, 160, 300)).toBe(false)
+  })
+
+  it("stop counting for those a list of what runs leaves out, but a status line's count", () => {
+    const listed = (ids: readonly string[], startedAt: number) =>
+      act({ type: "subagents-listed", subagents: ids.map((id) => ({ id, type: null })) }, startedAt)
+    const loops = known()
+    loops.observe(T, [subStarted("a"), subStarted("b"), requested("r", "a")], 100)
+    loops.observe(T, [listed(["b"], 150)], 150)
+    expect(loops.worked(T, 160, 300)).toBe(true)
+    loops.observe(T, [listed([], 200)], 200)
+    expect(loops.worked(T, 210, 300)).toBe(false)
+  })
+
+  it("keep counting one that started after the list, and count one it lists as running", () => {
+    const listed = (ids: readonly string[], startedAt: number) =>
+      act({ type: "subagents-listed", subagents: ids.map((id) => ({ id, type: null })) }, startedAt)
+    const late = known()
+    // Its start's hook began after the Stop's, and arrived first.
+    late.observe(T, [act({ type: "subagent-started", actor: "a", actorType: null }, 160)], 100)
+    late.observe(T, [listed([], 150)], 150)
+    expect(late.worked(T, 160, 300)).toBe(true)
+    const healed = known()
+    healed.observe(T, [listed(["a"], 150)], 150)
+    expect(healed.worked(T, 160, 300)).toBe(true)
+  })
+
+  it("count a subagent's later turn once, as Codex tells it by its start and its prompt", () => {
+    const loops = known()
+    loops.observe(T, [subStarted("a"), subStarted("a")], 100)
+    loops.observe(T, [act({ type: "subagent-stopped", actor: "a" })], 150)
     expect(loops.worked(T, 160, 300)).toBe(false)
   })
 })

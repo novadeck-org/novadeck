@@ -109,6 +109,10 @@ export type AgentStatus = {
   // The absolute path its running turn's edit tools wrote last, root or a subagent, as it is
   // written; absent once the turn ends and until it writes something.
   readonly wrote?: string
+  // When its running turn last had it write words (epoch milliseconds, as its transcript dates
+  // them): an assistant text, no thinking or tool call. Absent once the turn ends, and until it
+  // writes some.
+  readonly wordsAt?: number
   // How its latest turn ended, once none runs, with the start of its last reply where its
   // harness tells it (see `AgentTurnEnd`).
   readonly lastTurn?: AgentTurnEnd

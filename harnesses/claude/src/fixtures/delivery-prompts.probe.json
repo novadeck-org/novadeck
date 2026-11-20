@@ -1,0 +1,20 @@
+{
+  "harness": "claude",
+  "version": "2.1.328",
+  "source": "backend/runner/src/e2e/probes/delivery-prompts.e2e.ts, 2026-11-20, against the fake model",
+  "how": "A Stop Novadeck continues with a message (t1 works on 'Hold then stop' while t2 sends to it), then a ring of an idle agent (t1 asks t2). `prompts`: every prompt the harness submitted, as its UserPromptSubmit hook gave it, or for Antigravity, whose hooks name none, each typed entry its transcript records. `deliveries`: where the delivered messages landed in its records, the text before them cut to 160 characters.",
+  "prompts": [
+    "Hold then stop",
+    "Tell moth the news",
+    "Ask fox for its colour",
+    "[Novadeck: automatic notice, agent messages waiting, Da7APM]"
+  ],
+  "deliveries": [
+    "\":\"e606386e-79d0-4255-a6da-3b6ece8b01c0\",\"hookEvent\":\"Stop\",\"content\":\"\",\"stdout\":\"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"Stop\\\",\\\"additionalContext\\\":\\\"<",
+    "9d05d6dbb1d6c4ba481eef66468b0c182f948a47ea62492d3\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"<system-reminder>\\nStop hook additional context: <",
+    ":\"[ -n \\\"$NOVADECK_HOOK\\\" ] && \\\"$NOVADECK_HOOK\\\" claude Stop || true\",\"durationMs\":20}],\"hookErrors\":[],\"failedHookErrorIndexes\":[],\"hookAdditionalContext\":[\"<",
+    "e977a34f1ace1d1952e6484f3944680c77467c6ce61b7f08c5523f\",\"message\":{\"role\":\"system\",\"content\":[{\"type\":\"text\",\"text\":\"UserPromptSubmit hook additional context: <",
+    "{\"parentUuid\":\"1b68ed5b-0cee-456a-b9fc-841abc4ff8b0\",\"isSidechain\":false,\"attachment\":{\"type\":\"hook_additional_context\",\"content\":[\"<",
+    "{\"parentUuid\":\"af95c600-e6e8-4056-8322-a22d6c7ca6ca\",\"isSidechain\":false,\"attachment\":{\"type\":\"hook_additional_context\",\"content\":[\"<"
+  ]
+}

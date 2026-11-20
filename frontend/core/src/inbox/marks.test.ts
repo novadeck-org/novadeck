@@ -29,7 +29,28 @@ const limit = (resetsAt: number, autoResume: boolean | null): InboxRow =>
 const done = (seen = false): InboxRow =>
   row({ kind: "update", update: { type: "done", subject: "Done", body: "" } }, { seen })
 
-describe("the marks the raw Inbox makes", () => {
+describe("the marks the landed Inbox makes", () => {
+  it("makes none for an ask the landing rule holds back, and does once it counts", () => {
+    const held = { ...ask({ type: "text" }), heldBack: true as const }
+    expect(inboxMarks([held], at, now)).toEqual({
+      need: undefined,
+      subject: undefined,
+      dialog: undefined,
+    })
+    expect(inboxMarks([ask({ type: "text" })], at, now).need).toBe("ask")
+  })
+
+  it("marks the terminal by its other rows while one ask is held", () => {
+    const held = { ...ask({ type: "text" }), heldBack: true as const }
+    expect(
+      inboxMarks(
+        [held, ask({ type: "action", command: "x", directory: null, doneLabel: "ok" })],
+        at,
+        now,
+      ).need,
+    ).toBe("unblock")
+  })
+
   it("is a need with its row's subject, an unblock before an ask", () => {
     expect(inboxMarks([ask({ type: "text" })], at, now)).toEqual({
       need: "ask",

@@ -1,10 +1,10 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { afterEach, describe, expect, it } from "vitest"
 
-import { FolderWatch } from "./folder.js"
+import { FolderWatch, loadFolder } from "./folder.js"
 
 const roots: string[] = []
 const folder = (): string => {
@@ -73,5 +73,44 @@ describe("a folder's watch", () => {
     } finally {
       watch.close()
     }
+  })
+})
+
+describe("a folder's steps", () => {
+  it("never lists one that may hold secrets by the name it is reached by", async () => {
+    const top = folder()
+    mkdirSync(join(top, "keys"))
+    writeFileSync(join(top, "keys", "id_work"), "KEY\n")
+    symlinkSync(join(top, "keys"), join(top, ".ssh"))
+    await expect(loadFolder({ path: top }, ".ssh", {})).resolves.toMatchObject({
+      content: { state: "unavailable", reason: "secret" },
+    })
+    await expect(loadFolder({ path: top }, "keys", {})).resolves.toMatchObject({
+      content: { state: "ready" },
+    })
+  })
+})
+
+describe("a folder's links", () => {
+  it("are held by a name they lead through on the way, in the listing and as a step", async () => {
+    const top = folder()
+    mkdirSync(join(top, "config"))
+    mkdirSync(join(top, "keys"))
+    writeFileSync(join(top, "config", "dev.vars"), "STRIPE_KEY=x\n")
+    writeFileSync(join(top, "keys", "id_work"), "KEY\n")
+    symlinkSync(join(top, "config", "dev.vars"), join(top, ".env"))
+    symlinkSync(join(top, ".env"), join(top, "notes.txt"))
+    symlinkSync(join(top, "keys"), join(top, ".ssh"))
+    symlinkSync(join(top, ".ssh"), join(top, "stuff"))
+    const listed = await loadFolder({ path: top }, "", {})
+    const entries =
+      listed.content.state === "ready" && listed.content.content.kind === "folder"
+        ? listed.content.content.entries
+        : []
+    const held = Object.fromEntries(entries.map(({ name, secret }) => [name, secret]))
+    expect(held).toMatchObject({ "notes.txt": true, stuff: true, config: false, keys: false })
+    await expect(loadFolder({ path: top }, "stuff", {})).resolves.toMatchObject({
+      content: { state: "unavailable", reason: "secret" },
+    })
   })
 })

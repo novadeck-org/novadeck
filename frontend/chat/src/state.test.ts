@@ -1,19 +1,24 @@
+import { workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { workspaceFixture } from "@novadeck/core/testing"
 import type { AgentStatus } from "@novadeck/core/types"
+import { afterEach, beforeEach, vi } from "vitest"
 
+import type { Attachment } from "./attachments"
 import { setChatReply } from "./replies"
+import type { ChatSend } from "./sends"
 import {
   answerInTerminal,
   createChat,
   dictateIntoDraft,
   resetAnswering,
   watchChat,
+  chatAttachmentsOf,
   chatDraftOf,
   chatReplyOf,
   setChatDraft,
 } from "./state"
-import { describe, expect, it } from "./test"
+import { context as situation, describe, expect, it } from "./test"
 
 const context = "project/initial"
 const target = { projectId: "project", workspaceSessionId: "initial" }
@@ -143,6 +148,116 @@ describe("watching the workspace", () => {
     workspace.dispatch({ type: "terminal/close", target, terminalId: "01" })
     expect(chat.store.getSnapshot().drafts).toEqual({})
     expect(chat.store.getSnapshot().replies).toEqual({})
+    stop()
+  })
+
+  situation("for a terminal that moved to another session of its project", () => {
+    const other = "project/other"
+    const image = (id: string): Attachment => ({
+      id,
+      n: 1,
+      name: "shot.png",
+      preview: `blob:${id}`,
+      state: "ready",
+      path: `/tmp/${id}.png`,
+      error: null,
+    })
+    const send: ChatSend = {
+      ref: "ref",
+      draft: "on its way",
+      text: "on its way",
+      images: [],
+      at: [],
+      to: null,
+      phase: "sent",
+    }
+    // Two sessions, the second holding none of the first's terminals, which 01 then moves to.
+    const moving = () => {
+      const fixture = workspaceFixture({ sessions: ["initial", "other"] })
+      const empty = (["01", "02"] as const).reduce(
+        (workspace, terminalId) =>
+          workspaceReducer(workspace, {
+            type: "terminal/close",
+            target: { projectId: "project", workspaceSessionId: "other" },
+            terminalId,
+          }),
+        fixture,
+      )
+      const workspace = createWorkspaceStore(empty)
+      // An agent at rest runs in it.
+      workspace.dispatch(running({ working: false }))
+      const chat = createChat()
+      const stop = watchChat(chat, workspace)
+      const terminal = workspace.getSnapshot().projects[0]!.history[0]!.state.roster.terminals[0]!
+      const move = () =>
+        workspace.dispatch({
+          type: "terminal/move",
+          projectId: "project",
+          from: "initial",
+          to: "other",
+          terminal,
+        })
+      return { workspace, chat, stop, move }
+    }
+    const revoked = vi.fn<(url: string) => void>()
+    beforeEach(() => {
+      revoked.mockClear()
+      vi.stubGlobal("URL", Object.assign(Object.create(URL), { revokeObjectURL: revoked }))
+    })
+    afterEach(() => void vi.unstubAllGlobals())
+
+    it("takes everything the chat kept for it there, its images still shown", () => {
+      const { chat, stop, move } = moving()
+      chat.update((state) => ({
+        ...state,
+        drafts: setChatDraft(state.drafts, context, "01", "half a thought"),
+        attachments: { [context]: { "01": [image("a")] } },
+        imageNotes: { [context]: { "01": "The box holds 3 images at most, so 1 went." } },
+        replies: setChatReply(state.replies, context, "01", { request: "r", dialog: "d" }),
+        shells: { [context]: { "01": [{ text: "!ls", at: 1 }] } },
+        answering: { [context]: { "01": true } },
+        sends: { [context]: { "01": [send] } },
+      }))
+      move()
+      const held = chat.store.getSnapshot()
+      expect(chatDraftOf(held.drafts, other, "01")).toBe("half a thought")
+      expect(chatAttachmentsOf(held.attachments, other, "01")).toEqual([image("a")])
+      expect(revoked).not.toHaveBeenCalled()
+      expect(held.imageNotes).toEqual({ [other]: { "01": expect.any(String) } })
+      // Its agent goes on there, still asking: the reply is still to its question.
+      expect(chatReplyOf(held.replies, other, "01")).toEqual({ request: "r", dialog: "d" })
+      expect(held.shells).toEqual({ [other]: { "01": [{ text: "!ls", at: 1 }] } })
+      expect(held.sends).toEqual({ [other]: { "01": [send] } })
+      expect(held.answering).toEqual({ [other]: { "01": true } })
+      stop()
+    })
+
+    it("keeps what the chat there holds already, and lets go of the images that lost", () => {
+      const { chat, stop, move } = moving()
+      chat.update((state) => ({
+        ...state,
+        drafts: { [context]: { "01": "old" }, [other]: { "01": "new" } },
+        attachments: { [context]: { "01": [image("a")] }, [other]: { "01": [image("b")] } },
+      }))
+      move()
+      const held = chat.store.getSnapshot()
+      expect(held.drafts).toEqual({ [other]: { "01": "new" } })
+      expect(held.attachments).toEqual({ [other]: { "01": [image("b")] } })
+      expect(revoked).toHaveBeenCalledExactlyOnceWith("blob:a")
+      stop()
+    })
+  })
+
+  it("drops a closed terminal's shell history and image notes, with nothing else kept", () => {
+    const { workspace, chat, stop } = open()
+    chat.update((state) => ({
+      ...state,
+      imageNotes: { [context]: { "01": "note" } },
+      shells: { [context]: { "01": [{ text: "!ls", at: 1 }] } },
+    }))
+    workspace.dispatch({ type: "terminal/close", target, terminalId: "01" })
+    expect(chat.store.getSnapshot().imageNotes).toEqual({})
+    expect(chat.store.getSnapshot().shells).toEqual({})
     stop()
   })
 

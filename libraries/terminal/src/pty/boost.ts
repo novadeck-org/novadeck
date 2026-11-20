@@ -17,6 +17,11 @@ export type Boost = {
   /** Whether it is raised now, or about to be: a program started now starts raised. */
   readonly active: boolean
   set(active: boolean): void
+  /**
+   * The shell's pid has become known: a terminal in use since before then, when nothing could
+   * be changed, is raised now.
+   */
+  known(): void
 }
 
 export type BoostParts = {
@@ -79,6 +84,9 @@ export const boosting = (parts: BoostParts): Boost => {
       if (next === active) return
       active = next
       apply()
+    },
+    known() {
+      if (active) apply()
     },
   }
 }

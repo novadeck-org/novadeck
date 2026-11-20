@@ -10,6 +10,7 @@ import { afterEach, beforeEach, vi } from "vitest"
 import { started } from "../../harnesses/activity.js"
 import { describe, expect, it } from "../../test.js"
 import { adapterFolder } from "../../testing/adapters.js"
+import { hostless } from "../../testing/host.js"
 import type { Record } from "../record.js"
 import { Bindings, type BindingsHost } from "./facts.js"
 
@@ -50,7 +51,7 @@ process.stdin.on("end", () => {
     { mode: 0o755 },
   )
   return {
-    env: { ...process.env, PATH: temporary },
+    env: hostless({ PATH: temporary }),
     home: temporary,
     platform: process.platform,
     plugin: temporary,

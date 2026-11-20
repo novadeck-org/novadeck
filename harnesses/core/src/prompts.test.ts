@@ -229,3 +229,23 @@ describe("what a prompt says of its ring", () => {
     expect(ringOf("Fix it")).toBeNull()
   })
 })
+
+describe("a prompt that holds a delivery of agents' messages", () => {
+  const base = { agent: "claude", sessionId: "s-00000001", instance: null, startedAt: 1 } as const
+  const delivery = '<novadeck-messages note="x"><message id="m-1">hi</message></novadeck-messages>'
+
+  it("is the harness's own where it is the delivery", () => {
+    expect(promptStart(base, delivery)).toMatchObject({ cause: "harness" })
+    expect(promptStart(base, `\n ${delivery}`)).toMatchObject({ cause: "harness" })
+  })
+
+  it("is the person's where their words quote one", () => {
+    const prompt = `What does this mean? I saw it above:\n${delivery}`
+    expect(promptStart(base, prompt)).toEqual({
+      type: "turn-started",
+      ...base,
+      cause: "prompt",
+      prompt,
+    })
+  })
+})

@@ -142,6 +142,11 @@ export const agentActivity = z.strictObject({
   // runs now, updated by each write, one already written again included. Absent while no
   // turn runs, and until the turn writes something.
   wrote: z.string().min(1).max(maxTurnFilePath).optional(),
+  // When the root agent last wrote words in the turn that runs now (epoch milliseconds, as its
+  // transcript or rollout dates the text): an assistant text, not its thinking or a tool call.
+  // Absent while no turn runs, and until the turn writes some, and where nothing tells it.
+  // Every harness tells it from its own records, as no hook fires for a text.
+  wordsAt: z.number().optional(),
   // How its latest turn ended: `completed` as its harness said, `failed` on an error,
   // `interrupted` by the person (Escape, or a request they refused, as its hooks or records
   // tell), or `unknown` when it only went idle, as an Escape or a refusal shows in
