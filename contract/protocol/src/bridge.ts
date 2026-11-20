@@ -91,6 +91,21 @@ export type DesktopBridge = {
    */
   onScreenReader?(listener: (running: boolean) => void): () => void
   /**
+   * Calls `listener` with the room the window's own controls (macOS's close, minimise and zoom
+   * buttons) take over the page's top-left corner, as CSS pixels from its left edge: at once,
+   * and again on each change. 0 while they don't show there, as in full screen or hidden by
+   * `placeWindowControls`. Returns a function that stops listening. Absent where the window
+   * draws its own title bar above the page, as on Windows and Linux, and from apps that came
+   * before it.
+   */
+  onWindowControls?(listener: (inset: number) => void): () => void
+  /**
+   * Centres the window's own controls on a line `middle` CSS pixels below the page's top, as
+   * the middle of its header, or hides them (null). The app drops anything else. Present
+   * exactly where `onWindowControls` is.
+   */
+  placeWindowControls?(middle: number | null): void
+  /**
    * Calls `listener` with the terminal id of each notice the person clicks, once the app
    * has brought its window to the front. Returns a function that stops listening. Absent
    * from apps that came before it.

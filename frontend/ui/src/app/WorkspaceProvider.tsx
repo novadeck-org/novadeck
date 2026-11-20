@@ -54,6 +54,7 @@ import {
   type UiLocation,
 } from "./ui-store"
 import { watchUnreadTurns } from "./unread-turns"
+import { watchWindowControls } from "./window-controls"
 
 const now = (): number => Date.now()
 
@@ -200,6 +201,10 @@ export const WorkspaceProvider = ({
   }, [services])
   useEffect(() => watchChat(services.chat, services.workspace), [services])
   useEffect(() => watchPageFocus(services.ui, window, services.backend.windowFocus), [services])
+  useEffect(
+    () => watchWindowControls(services.ui, window, services.backend.windowControls),
+    [services],
+  )
   useEffect(
     () => watchActiveTerminal(services.workspace, services.ui, services.backend.activeTerminal),
     [services],

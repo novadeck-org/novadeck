@@ -43,6 +43,12 @@
   border-radius: 0;
   box-shadow: none;
 }
+/* The window's own controls, shown in Zen while the pointer is in the top-left corner (macOS,
+   app/window-controls.ts), sit on the Focus window's header, which moves aside for them. */
+:root[data-window-controls] .workspace[data-zen="true"] .focus-stage .terminal-header {
+  padding-inline-start: var(--window-controls-inset, 0px);
+  transition: padding-inline-start var(--motion-state) var(--ease-interface);
+}
 /* The dock floats over the focused window's foot, so the terminal's screen and its chat keep
    clear of it; a window with a taskbar already ends above the dock, which sits on the bar. */
 .workspace[data-zen="true"]

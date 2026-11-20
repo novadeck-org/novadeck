@@ -45,6 +45,38 @@
   text-decoration: none;
 }
 
+/* Where the window's own controls sit over the page (macOS; `data-window-controls` on the
+   root, app/window-controls.ts), the header is the window's title bar: it moves the window,
+   and a double click zooms it, but for what takes a click in it; and its start keeps clear of
+   the controls, `--window-controls-inset` from the window's edge (0 in full screen). Whatever
+   takes a click anywhere keeps it, should it land over the header (a toast, a popover), as
+   does whatever is portalled to the body (a menu, a tooltip, a dialog's backdrop). */
+:root[data-window-controls] .app-header {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+:root[data-window-controls]
+  :is(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    label,
+    [contenteditable],
+    [role],
+    [tabindex],
+    [data-part]
+  ),
+:root[data-window-controls] body > :not(#root) {
+  -webkit-app-region: no-drag;
+}
+:root[data-window-controls] .header-workspace {
+  /* With the header's own 1rem, as far from the controls as a macOS toolbar's first item. */
+  padding-inline-start: var(--window-controls-inset, 0px);
+  transition: padding-inline-start var(--motion-state) var(--ease-interface);
+}
+
 .app-footer {
   position: relative;
   border-top-width: var(--border-width);

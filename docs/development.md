@@ -803,6 +803,12 @@ App:
   Preferences > Appearance's Screen reader support on Automatic: the terminal in focus keeps a
   reader's text only while one runs. "As in a browser" boots back to a page nothing tells, which
   offers On and Off alone.
+- **Window controls:** boot as the macOS desktop app, whose window sets its close, minimise and
+  zoom buttons into the header (drawn in the page as stand-ins): the header's start keeps clear of
+  them, and in Zen they hide and come back while the pointer is in the top-left corner, the Focus
+  window's header moving aside for them. "macOS, full screen" boots with them gone to the menu
+  bar, the header starting at its edge; "Own title bar" boots back to a window with its own, as on
+  Windows, Linux and in a browser.
 - **Agent worktrees:** the page's update channel starts stable, which turns the
   setting off, so the rail has no Worktrees toggle, as in a stable build. "On, with Worktrees" boots on
   the experimental channel with the setting on, for the Worktrees panel and the Worktrees group's

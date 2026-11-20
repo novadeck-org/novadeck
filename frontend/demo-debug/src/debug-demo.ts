@@ -35,6 +35,11 @@ import { demoShowScale } from "./desktop/scale"
 import { createDemoScreenReader } from "./desktop/screen-reader"
 import { createDemoUninstall, type DemoUninstall } from "./desktop/uninstall"
 import { updatesGroup, type DemoUpdates } from "./desktop/updates"
+import {
+  clearDemoWindowControls,
+  createDemoWindowControls,
+  type DemoWindowControls,
+} from "./desktop/window-controls"
 import { doorbellGroups } from "./doorbell"
 import { feedbackGroups } from "./feedback"
 import { filesGroups } from "./files"
@@ -79,6 +84,11 @@ export type DemoLaunch = {
   readonly screenReader: boolean | undefined
   // Boots again with the desktop app saying this of a screen reader (or nothing).
   readonly setScreenReader: (running: boolean | undefined) => void
+  // How the desktop app's window holds its own controls; undefined for one with its own title
+  // bar, as on Windows and Linux, or a browser.
+  readonly windowControls: DemoWindowControls | undefined
+  // Boots again with the window holding its controls so (or with its own title bar).
+  readonly setWindowControls: (controls: DemoWindowControls | undefined) => void
   // The portable copy the desktop app plays; undefined for an installed one.
   readonly portable: DemoPortable | undefined
   // Boots again as this portable copy (or an installed one).
@@ -135,6 +145,16 @@ export const debugPanelOf = (backend: Backend): DebugPanel | undefined => panels
 // Wraps a demo variant in the shell the runner's backend has around it: a connection
 // that can drop, a crash loop that can trip, a boot that takes its time, and the states
 // the runner's terminals, agents and desktop can be in, all driven by the debug panel.
+// The window's controls the launch plays, drawn in the page; a launch with none takes away
+// those an earlier boot drew.
+const windowControlsOf = (
+  controls: DemoWindowControls | undefined,
+): Pick<Backend, "windowControls"> => {
+  if (controls) return { windowControls: createDemoWindowControls(controls) }
+  clearDemoWindowControls()
+  return {}
+}
+
 export const createDebugDemo = (launch: DemoLaunch): Backend => {
   const connection = createStore<BackendConnectionState>("connected")
   const crashes = createStore(0)
@@ -285,6 +305,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
       : { screenReader: createDemoScreenReader(launch.screenReader).screenReader }),
     ...(launch.portable ? { portable: createDemoPortable(launch.portable).portable } : {}),
     ...(launch.uninstall ? { uninstall: createDemoUninstall(launch.uninstall).uninstall } : {}),
+    ...windowControlsOf(launch.windowControls),
     showScale: demoShowScale,
     pickDirectory: states.pickDirectory,
     ...(inner.moveTerminal ? { moveTerminal: states.moveTerminal(inner.moveTerminal) } : {}),

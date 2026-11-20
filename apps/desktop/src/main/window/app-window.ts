@@ -15,8 +15,9 @@ import {
   type WebContents,
 } from "electron"
 
-import { windowFocusChannel } from "../../bridge.js"
+import { insetsWindowControls, windowFocusChannel } from "../../bridge.js"
 import { developmentOrigin, uiAddress, uiFile } from "../resources.js"
+import { controlsWindowOptions } from "./controls.js"
 import { ownPage } from "./permissions.js"
 
 // The folder the main process's bundle runs from, which the preload's sits beside.
@@ -91,7 +92,9 @@ export const watchAppPage = (contents: WebContents, log: Log): void => {
 
 /**
  * Opens a window on the app's page, hidden until its page is ready to show, on `ground`
- * so a dark theme never flashes white, and at the app's scale `zoomFactor`. `preloadArguments` reach its preload. It never
+ * so a dark theme never flashes white, and at the app's scale `zoomFactor`. On macOS its
+ * own controls sit in the page's header, which stands in for its title bar (./controls.ts).
+ * `preloadArguments` reach its preload. It never
  * navigates away; links to the web open in the system's browser, and only page views of
  * the pages' partition attach.
  */
@@ -112,6 +115,7 @@ export const openAppWindow = ({
     show: false,
     autoHideMenuBar: true,
     backgroundColor: ground,
+    ...controlsWindowOptions(insetsWindowControls(process.platform), zoomFactor),
     webPreferences: {
       additionalArguments: [...preloadArguments],
       // The app's scale, so the first paint is at it (scale.ts re-applies it as the page loads).

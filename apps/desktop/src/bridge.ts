@@ -105,6 +105,25 @@ export const screenReaderRequestChannel = "novadeck:screen-reader-request"
 export const tellsScreenReader = (platform: string): boolean =>
   platform === "darwin" || platform === "win32" || platform === "linux"
 
+/**
+ * Whether the app's window puts its own controls over the page's top-left corner, the page's
+ * header standing in for a title bar: on macOS. Windows and Linux keep the system's title bar.
+ */
+export const insetsWindowControls = (platform: string): boolean => platform === "darwin"
+
+/**
+ * Main-to-renderer report of the room the window's controls take from the page's left edge,
+ * in CSS pixels, 0 while they don't show; see main/window/controls.ts. Sent on each change and
+ * in answer to each `windowControlsPlaceChannel` request.
+ */
+export const windowControlsChannel = "novadeck:window-controls"
+
+/**
+ * Renderer-to-main request to centre the window's controls on a line that many CSS pixels
+ * below the page's top, or to hide them (null).
+ */
+export const windowControlsPlaceChannel = "novadeck:window-controls-place"
+
 /** Main-to-renderer report of the terminal id of a notification the person clicked. */
 export const noticeClickChannel = "novadeck:notice-click"
 

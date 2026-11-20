@@ -150,6 +150,30 @@ export const shellGroups = ({
     },
     {
       section: "App",
+      title: "Window controls",
+      actions: [
+        {
+          label: "macOS, in the header",
+          hint: "The window's close, minimise and zoom buttons sit at the header's start, which keeps clear of them; in Zen they hide, and come back while the pointer is in the top-left corner",
+          reboots: true,
+          run: () => launch.setWindowControls("inset"),
+        },
+        {
+          label: "macOS, full screen",
+          hint: "No buttons over the page, as macOS keeps them in the menu bar that slides down: the header starts at its edge",
+          reboots: true,
+          run: () => launch.setWindowControls("fullScreen"),
+        },
+        {
+          label: "Own title bar",
+          hint: "As on Windows, Linux and in a browser: nothing over the header",
+          reboots: true,
+          run: () => launch.setWindowControls(undefined),
+        },
+      ],
+    },
+    {
+      section: "App",
       title: "Agent worktrees",
       actions: [
         {

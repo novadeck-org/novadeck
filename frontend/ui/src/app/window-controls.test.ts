@@ -1,0 +1,178 @@
+import type { Backend } from "@novadeck/core/port"
+import { createStore } from "@novadeck/core/store"
+
+import { context, describe, expect, it } from "../test"
+import type { UiState } from "./ui-store"
+import { controlsMiddle, revealsInZen, watchWindowControls, zenMiddle } from "./window-controls"
+
+// The part of the UI store the watch reads: whether Zen is on.
+const uiWith = (zen: boolean) =>
+  createStore({ shell: { zen: zen ? { at: 0 } : null } } as unknown as UiState)
+
+const setZen = (ui: ReturnType<typeof uiWith>, zen: boolean): void =>
+  void ui.update(
+    (state) => ({ ...state, shell: { ...state.shell, zen: zen ? { at: 0 } : null } }) as UiState,
+  )
+
+// A page as the watch sees it: its root, its header's box, its events and its frames, run when
+// told.
+const page = (header: { top: number; height: number } | null = { top: 0, height: 64 }) => {
+  const root = document.createElement("html")
+  const frames: (() => void)[] = []
+  const boxes = new Map<string, { top: number; height: number } | null>([[".app-header", header]])
+  const view = Object.assign(new EventTarget(), {
+    document: {
+      documentElement: root,
+      querySelector: (selector: string) => {
+        const box = boxes.get(selector)
+        return box ? { getBoundingClientRect: () => box } : null
+      },
+    },
+    requestAnimationFrame: (run: () => void) => frames.push(run),
+    cancelAnimationFrame: () => {},
+  }) as unknown as Window
+  const pointer = (x: number, y: number): void =>
+    void view.dispatchEvent(Object.assign(new Event("pointermove"), { clientX: x, clientY: y }))
+  return { root, view, boxes, pointer, draw: () => frames.splice(0).forEach((run) => run()) }
+}
+
+// The desktop app's controls as the page sees them: where it was asked to place them, and the
+// room it says they take, as the app answers each placing (none while hidden).
+const controls = () => {
+  const placed: (number | null)[] = []
+  let listener: ((inset: number) => void) | undefined
+  const port: NonNullable<Backend["windowControls"]> = {
+    place: (middle) => {
+      placed.push(middle)
+      listener?.(middle === null ? 0 : 74)
+    },
+    onInset: (next) => {
+      listener = next
+      return () => {
+        listener = undefined
+      }
+    },
+  }
+  return { port, placed }
+}
+
+describe("where the window's controls go", () => {
+  it("is the header's middle while it shows", () => {
+    expect(controlsMiddle({ zen: false, revealed: false, header: { top: 0, height: 64 } })).toBe(32)
+  })
+
+  it("is nowhere new until there is a header to place them on", () => {
+    expect(controlsMiddle({ zen: false, revealed: false, header: undefined })).toBeUndefined()
+    expect(
+      controlsMiddle({ zen: false, revealed: false, header: { top: 0, height: 0 } }),
+    ).toBeUndefined()
+  })
+
+  context("in Zen", () => {
+    it("is hidden", () => {
+      expect(controlsMiddle({ zen: true, revealed: false, header: undefined })).toBeNull()
+    })
+
+    it("is the Focus window's header, along the page's top, while the pointer reveals them", () => {
+      expect(
+        controlsMiddle({
+          zen: true,
+          revealed: true,
+          header: undefined,
+          zenHeader: { top: 0, height: 48 },
+        }),
+      ).toBe(24)
+    })
+
+    it("is a line near the top where no window's header runs along it", () => {
+      expect(
+        controlsMiddle({
+          zen: true,
+          revealed: true,
+          header: undefined,
+          zenHeader: { top: 40, height: 48 },
+        }),
+      ).toBe(zenMiddle)
+      expect(controlsMiddle({ zen: true, revealed: true, header: undefined })).toBe(zenMiddle)
+    })
+  })
+})
+
+describe("revealing the controls in Zen", () => {
+  it("takes the pointer in the window's top-left corner", () => {
+    expect(revealsInZen(40, 14, false)).toBe(true)
+    expect(revealsInZen(140, 14, false)).toBe(false)
+  })
+
+  it("holds them a little past that corner, so they don't flicker at its edge", () => {
+    expect(revealsInZen(140, 60, true)).toBe(true)
+    expect(revealsInZen(200, 60, true)).toBe(false)
+  })
+})
+
+describe("watching the window's controls", () => {
+  it("does nothing where the window has a title bar of its own", () => {
+    const { root, view } = page()
+    watchWindowControls(uiWith(false), view, undefined)()
+    expect(root.dataset.windowControls).toBeUndefined()
+  })
+
+  it("places them on the header and gives the page the room they take", () => {
+    const { root, view } = page()
+    const { port, placed } = controls()
+    const stop = watchWindowControls(uiWith(false), view, port)
+    expect(placed).toEqual([32])
+    expect(root.dataset.windowControls).toBe("inset")
+    expect(root.style.getPropertyValue("--window-controls-inset")).toBe("74px")
+    stop()
+    expect(root.dataset.windowControls).toBeUndefined()
+    expect(root.style.getPropertyValue("--window-controls-inset")).toBe("")
+  })
+
+  it("follows the header as the page resizes", () => {
+    const { view, boxes } = page()
+    const { port, placed } = controls()
+    const stop = watchWindowControls(uiWith(false), view, port)
+    boxes.set(".app-header", { top: 0, height: 60 })
+    view.dispatchEvent(new Event("resize"))
+    // A resize that leaves the header as it was asks nothing new.
+    view.dispatchEvent(new Event("resize"))
+    expect(placed).toEqual([32, 30])
+    stop()
+  })
+
+  it("hides them in Zen, and shows them again once Zen ends and the header is drawn", () => {
+    const { view, draw } = page()
+    const { port, placed } = controls()
+    const ui = uiWith(false)
+    const stop = watchWindowControls(ui, view, port)
+    setZen(ui, true)
+    draw()
+    setZen(ui, false)
+    draw()
+    expect(placed).toEqual([32, null, 32])
+    stop()
+  })
+
+  it("shows them in Zen while the pointer is in the top-left corner", () => {
+    const { view, boxes, pointer } = page()
+    boxes.set('.workspace[data-zen="true"] .focus-stage .terminal-header', { top: 0, height: 48 })
+    const { port, placed } = controls()
+    const stop = watchWindowControls(uiWith(true), view, port)
+    pointer(400, 300)
+    pointer(40, 14)
+    pointer(120, 50)
+    pointer(400, 300)
+    expect(placed).toEqual([null, 24, null])
+    stop()
+  })
+
+  it("leaves the pointer alone outside Zen", () => {
+    const { view, pointer } = page()
+    const { port, placed } = controls()
+    const stop = watchWindowControls(uiWith(false), view, port)
+    pointer(40, 14)
+    expect(placed).toEqual([32])
+    stop()
+  })
+})

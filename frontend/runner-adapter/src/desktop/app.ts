@@ -110,6 +110,23 @@ export const desktopWindowFocus = (app: DesktopApp | undefined): Backend["window
     })
 }
 
+// The app's own window controls where they sit over the page (macOS): only a finite number
+// crosses either way.
+export const desktopWindowControls = (app: DesktopApp | undefined): Backend["windowControls"] => {
+  const listen = app?.onWindowControls
+  const place = app?.placeWindowControls
+  if (!listen || !place) return undefined
+  return {
+    place: (middle) => {
+      if (middle === null || Number.isFinite(middle)) place(middle)
+    },
+    onInset: (listener) =>
+      listen((inset) => {
+        if (typeof inset === "number" && Number.isFinite(inset)) listener(inset)
+      }),
+  }
+}
+
 // The app's report of whether a screen reader runs, where it has one: only a boolean crosses.
 export const desktopScreenReader = (app: DesktopApp | undefined): Backend["screenReader"] => {
   const listen = app?.onScreenReader
@@ -349,6 +366,7 @@ export const desktopOptions = (
   const notices = desktopNotices(app)
   const badge = desktopBadge(app)
   const windowFocus = desktopWindowFocus(app)
+  const windowControls = desktopWindowControls(app)
   const screenReader = desktopScreenReader(app)
   const updates = desktopUpdates(app)
   const whatsNew = desktopWhatsNew(app)
@@ -365,6 +383,7 @@ export const desktopOptions = (
     ...(notices ? { notices } : {}),
     ...(badge ? { badge } : {}),
     ...(windowFocus ? { windowFocus } : {}),
+    ...(windowControls ? { windowControls } : {}),
     ...(screenReader ? { screenReader } : {}),
     ...(updates ? { updates } : {}),
     ...(whatsNew ? { whatsNew } : {}),
