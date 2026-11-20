@@ -262,6 +262,21 @@ const novadeckTool = (tool: string, fields: Fields | null): ToolSummary | undefi
         title: `Released${text("to") ? ` ${text("to")}` : " an agent"}`,
         detail: "",
       }
+    // Worded as a doing, true whether the user approves it or, in Swarm, it happens at once.
+    case "join":
+      return {
+        kind: "agent",
+        title: `Join${text("to") ? ` ${text("to")}'s` : " a"} team`,
+        detail: text("message"),
+      }
+    case "leave":
+      return { kind: "agent", title: "Leave its team", detail: "" }
+    case "hand_lead":
+      return {
+        kind: "agent",
+        title: `Hand the lead${text("to") ? ` to ${text("to")}` : " on"}`,
+        detail: "",
+      }
     case "show":
     case "close": {
       // A page by its address under page, since show and close took pages so.
@@ -718,6 +733,9 @@ const novadeck = [
   "give_worktree",
   "lead",
   "release",
+  "join",
+  "leave",
+  "hand_lead",
   "show",
   "close",
   "showing",

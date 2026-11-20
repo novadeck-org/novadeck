@@ -80,6 +80,22 @@ describe("Novadeck's own tools", () => {
     })
   })
 
+  it("labels the team changes, join, leave and hand_lead", () => {
+    expect(novadeckTool("join", { to: "fox", message: "I work on the API." })).toEqual({
+      kind: "agent",
+      title: "Join fox's team",
+      detail: "I work on the API.",
+    })
+    expect(novadeckTool("join", {})?.title).toBe("Join a team")
+    expect(novadeckTool("leave", {})).toEqual({
+      kind: "agent",
+      title: "Leave its team",
+      detail: "",
+    })
+    expect(novadeckTool("hand_lead", { to: "owl" })?.title).toBe("Hand the lead to owl")
+    expect(novadeckTool("hand_lead", {})?.title).toBe("Hand the lead on")
+  })
+
   it("labels an ask by its shape, with its subject", () => {
     const subject = "Open a pull request?"
     const ask = (shape?: object) => novadeckTool("ask", { subject, body: "Ready.", shape })
