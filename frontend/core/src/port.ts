@@ -3,6 +3,7 @@ import type { Voice } from "./addons/voice"
 import type { TelemetryReader } from "./agents/telemetry"
 import type { Conversations } from "./conversation"
 import type { PortableState } from "./desktop/portable"
+import type { ProjectWindows } from "./desktop/project-windows"
 import type { SandboxState } from "./desktop/sandbox"
 import type { UninstallPlan, UninstallResult } from "./desktop/uninstall"
 import type { UpdateChannel, UpdateOffer, WhatsNew } from "./desktop/update"
@@ -523,6 +524,10 @@ export type BackendFields = {
   // own document, it stays focused while focus is inside a frame of the page, as a page
   // in the companion pane. Absent where nothing surrounds the page, as in a browser.
   readonly windowFocus?: (listener: (focused: boolean) => void) => () => void
+  // Optional. The desktop app's project windows: this page is one window of several, each
+  // showing one project. Absent where nothing can open another window, as in a browser, the
+  // demo and the try page.
+  readonly projectWindows?: ProjectWindows
   // Optional. The window's own controls where they sit over the page's top, its header standing
   // in for a title bar, at its `side`: macOS's close, minimise and zoom buttons at the start,
   // Windows' caption buttons at the end, which run from the page's top and can't hide: `place`

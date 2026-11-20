@@ -1,4 +1,8 @@
 import type { PortableState } from "@novadeck/core/desktop/portable"
+import type {
+  ProjectWindowsState,
+  ProjectWindowTarget,
+} from "@novadeck/core/desktop/project-windows"
 import type { SandboxState } from "@novadeck/core/desktop/sandbox"
 import type { UninstallPlan, UninstallResult } from "@novadeck/core/desktop/uninstall"
 import type { UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
@@ -8,6 +12,8 @@ import type {
   UpdateOffer as BridgeOffer,
   WhatsNew as BridgeWhatsNew,
   PortableState as BridgePortable,
+  ProjectWindowsState as BridgeWindowsState,
+  ProjectWindowTarget as BridgeWindowTarget,
   SandboxState as BridgeState,
   UninstallPlan as BridgePlan,
   UninstallResult as BridgeUninstall,
@@ -27,6 +33,7 @@ import {
   desktopWhatsNew,
   desktopScreenReader,
   desktopWindowControls,
+  desktopProjectWindows,
   desktopWindowFocus,
   desktopNoticeOf,
   sandboxStateOf,
@@ -229,6 +236,72 @@ describe("the desktop window's focus", () => {
   it("is absent in a browser, or an app that came before it", () => {
     expect(desktopWindowFocus(undefined)).toBeUndefined()
     expect(desktopWindowFocus({} as DesktopApp)).toBeUndefined()
+  })
+})
+
+describe("the desktop app's project windows", () => {
+  const bridge = (calls: unknown[][]) =>
+    ({
+      onProjectWindows: (listener: (state: unknown) => void) => {
+        calls.push(["listen"])
+        listener({ elsewhere: ["p1"], voice: false })
+        listener({ elsewhere: "p1", voice: false })
+        return () => void calls.push(["stop"])
+      },
+      showProjectWindow: (id: unknown) => void calls.push(["show", id]),
+      useProjectWindows: (on: unknown) => void calls.push(["use", on]),
+      openProjectWindow: (id: unknown) => void calls.push(["open", id]),
+      swapProjectWindow: (id: unknown) => void calls.push(["swap", id]),
+      handOffToProjectWindow: (target: unknown) => void calls.push(["handOff", target]),
+      onProjectWindowNavigate: (listener: (target: unknown) => void) => {
+        listener({ projectId: "p2", terminalId: "t" })
+        listener({ terminalId: "t" })
+        return () => {}
+      },
+      extraWindow: true,
+    }) as unknown as DesktopApp
+
+  it("passes the app's states and places to the page as they are valid, and the page's asks with ids", () => {
+    const calls: unknown[][] = []
+    const windows = desktopProjectWindows(bridge(calls))!
+    const states: unknown[] = []
+    const places: unknown[] = []
+    const stop = windows.onState((state) => states.push(state))
+    windows.onNavigate((place) => places.push(place))
+    windows.show("p1")
+    windows.show(null)
+    windows.use(true)
+    windows.open("p2")
+    windows.swap("")
+    windows.handOff({ projectId: "p3", rowId: "r" })
+    stop()
+    expect(states).toEqual([{ elsewhere: ["p1"], voice: false }])
+    expect(places).toEqual([{ projectId: "p2", terminalId: "t" }])
+    expect(calls).toEqual([
+      ["listen"],
+      ["show", "p1"],
+      ["show", null],
+      ["use", true],
+      ["open", "p2"],
+      ["handOff", { projectId: "p3", rowId: "r" }],
+      ["stop"],
+    ])
+    expect(windows.extra).toBe(true)
+  })
+
+  it("fits the protocol's, which the page's own copy must keep to", () => {
+    const state: ProjectWindowsState = { elsewhere: ["p"], voice: true }
+    const place: ProjectWindowTarget = { projectId: "p", terminalId: "t", rowId: "r" }
+    const theirs: BridgeWindowsState = state
+    const theirPlace: BridgeWindowTarget = place
+    const back: ProjectWindowsState = theirs
+    const backPlace: ProjectWindowTarget = theirPlace
+    expect([back, backPlace]).toEqual([state, place])
+  })
+
+  it("is absent in a browser, or an app that came before it", () => {
+    expect(desktopProjectWindows(undefined)).toBeUndefined()
+    expect(desktopProjectWindows({} as DesktopApp)).toBeUndefined()
   })
 })
 

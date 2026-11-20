@@ -150,6 +150,8 @@ export type RunnerBackendOptions = {
   // Where the app shows the Inbox count on the app icon.
   readonly badge?: Backend["badge"]
   readonly windowFocus?: Backend["windowFocus"]
+  // Where the app can open a project in a window of its own.
+  readonly projectWindows?: Backend["projectWindows"]
   // Where the window's own controls sit over the page's header (macOS).
   readonly windowControls?: Backend["windowControls"]
   readonly screenReader?: Backend["screenReader"]
@@ -2117,6 +2119,7 @@ export const runnerBackend = (
     ...(options.notices ? { notices: options.notices } : {}),
     ...(options.badge ? { badge: options.badge } : {}),
     ...(options.windowFocus ? { windowFocus: options.windowFocus } : {}),
+    ...(options.projectWindows ? { projectWindows: options.projectWindows } : {}),
     ...(options.windowControls ? { windowControls: options.windowControls } : {}),
     ...(options.screenReader ? { screenReader: options.screenReader } : {}),
     ...(options.panePicture ? { panePicture: options.panePicture } : {}),
