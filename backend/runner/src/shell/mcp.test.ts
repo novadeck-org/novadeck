@@ -1039,7 +1039,11 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
             "A teammate you lead closes at once. Another agent's terminal closes only once the user confirms: Novadeck asks them and this answers at once; the outcome comes as a message from Novadeck once your turn ends.",
           )
           expect(tool("lead")).toContain(
-            "Use it only when the user asked you to direct that agent, or the work needs you to direct an agent already running; to start a new agent with a task, use open_agent. " +
+            // In Solo leading is only when the user asks.
+            (mode === "solo"
+              ? "Use it only when the user asked you to direct that agent"
+              : "Use it only when the user asked you to direct that agent, or the work needs you to direct an agent already running") +
+              "; to start a new agent with a task, use open_agent. " +
               asks +
               " If they approve, you lead that terminal",
           )

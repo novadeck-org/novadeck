@@ -234,7 +234,9 @@ export class WorktreeCalls {
   }
 
   /** The terminal that owns a worktree, running or asleep: a message to a sleeper wakes it. */
-  private ownerOf(ownerId: string): { readonly summary: { readonly id: string; readonly handle: string } } | undefined {
+  private ownerOf(
+    ownerId: string,
+  ): { readonly summary: { readonly id: string; readonly handle: string } } | undefined {
     return this.host.records().get(ownerId) ?? this.host.sleepers().peer(ownerId)
   }
 

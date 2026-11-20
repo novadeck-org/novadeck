@@ -298,7 +298,10 @@ describe("worktree calls", () => {
     const { path } = opened
     fx.asleep.set("t1", "moth")
     fx.records.delete("t1")
-    expect(await fx.calls.take(fx.call("t2", { path }))).toMatchObject({ asked: true, owner: "moth" })
+    expect(await fx.calls.take(fx.call("t2", { path }))).toMatchObject({
+      asked: true,
+      owner: "moth",
+    })
     fx.asked[0]!.settle("confirmed")
     await vi.waitFor(() => expect(fx.store.worktree(path)?.terminalId).toBe("t2"))
     expect(fx.notices.find(({ id }) => id === "t1")?.text).toContain("@fox take your worktree")

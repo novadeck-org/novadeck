@@ -859,8 +859,10 @@ const leadTerminal: Tool<{
     "@fox), and send it message as your brief. " +
     (mode === "swarm"
       ? "Use it when the work needs you to direct an agent already running"
-      : "Use it only when the user asked you to direct that agent, or the work needs you to " +
-        "direct an agent already running") +
+      : mode === "solo"
+        ? "Use it only when the user asked you to direct that agent"
+        : "Use it only when the user asked you to direct that agent, or the work needs you to " +
+          "direct an agent already running") +
     "; to start " +
     "a new agent with a task, use open_agent. " +
     (mode === "swarm"
