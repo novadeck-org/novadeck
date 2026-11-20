@@ -106,10 +106,12 @@ export type DesktopBridge = {
   onProjectWindows?(listener: (state: ProjectWindowsState) => void): () => void
   /**
    * Tells the app which project this window shows (null while it shows none), as the person
-   * changes it; the app keeps it to route what is about a project to that project's window
-   * and to reopen the windows at the next launch. Absent from apps that came before it.
+   * changes it, and the ids of the projects the page knows (`known`, at most
+   * `knownProjectsLimit`); the app keeps the first to route what is about a project to that
+   * project's window and to reopen the windows at the next launch, and opens a window only on
+   * a known project. Absent from apps that came before it.
    */
-  showProjectWindow?(projectId: string | null): void
+  showProjectWindow?(projectId: string | null, known?: readonly string[]): void
   /**
    * Tells the app whether the person has turned project windows on, which it keeps: only with
    * it on does quitting remember the open windows for the next launch. Absent from apps that
@@ -793,6 +795,33 @@ export type ProjectWindowTarget = {
   readonly projectId: string
   readonly terminalId?: string
   readonly rowId?: string
+  /**
+   * Something an agent did, not the person: the window goes there without coming forward or
+   * taking the system's focus. Only the person's own actions bring a window forward.
+   */
+  readonly quiet?: true
+}
+
+/** What a window tells the app of its project, and the projects its page knows. */
+export type ProjectWindowShown = {
+  readonly projectId: string | null
+  readonly known: readonly string[]
+}
+
+/** The most projects a page tells the app it knows. */
+export const knownProjectsLimit = 256
+
+/** A `ProjectWindowShown` when `value` is one the contract allows; otherwise undefined. */
+export const parseProjectWindowShown = (value: unknown): ProjectWindowShown | undefined => {
+  if (typeof value !== "object" || value === null) return undefined
+  const { projectId, known } = value as Record<string, unknown>
+  if (projectId !== null && windowIdOf(projectId) === undefined) return undefined
+  const listed = known === undefined ? [] : known
+  if (!Array.isArray(listed) || listed.length > knownProjectsLimit) return undefined
+  const ids = (listed as unknown[]).map(windowIdOf)
+  return ids.every((id) => id !== undefined)
+    ? { projectId: projectId as string | null, known: ids as string[] }
+    : undefined
 }
 
 // The longest id of a project or a terminal the windows pass on.
@@ -811,7 +840,7 @@ export const windowIdOf = (value: unknown): string | undefined =>
 /** A `ProjectWindowTarget` when `value` is one the contract allows; otherwise undefined. */
 export const parseProjectWindowTarget = (value: unknown): ProjectWindowTarget | undefined => {
   if (typeof value !== "object" || value === null) return undefined
-  const { projectId, terminalId, rowId } = value as Record<string, unknown>
+  const { projectId, terminalId, rowId, quiet } = value as Record<string, unknown>
   const project = windowIdOf(projectId)
   if (project === undefined) return undefined
   if (terminalId !== undefined && windowIdOf(terminalId) === undefined) return undefined
@@ -820,6 +849,7 @@ export const parseProjectWindowTarget = (value: unknown): ProjectWindowTarget | 
     projectId: project,
     ...(terminalId !== undefined && { terminalId: terminalId as string }),
     ...(rowId !== undefined && { rowId: rowId as string }),
+    ...(quiet === true && { quiet: true as const }),
   }
 }
 

@@ -1,7 +1,7 @@
 import type { ProjectWindowsState, ProjectWindowTarget } from "@novadeck/protocol/bridge"
 
 import { describe, expect, it } from "../../test"
-import { createProjectWindows } from "./project-windows"
+import { createProjectWindows, mostWindows } from "./project-windows"
 
 // Windows are named by letters; the project each opens on, when it opens on one, by number.
 const setup = () => {
@@ -84,6 +84,7 @@ describe("opening a project in a window of its own", () => {
   it("creates a window that shows it from the start", () => {
     const { windows, created, told } = setup()
     windows.add("a", "p1")
+    windows.show("a", "p1", ["p1", "p2"])
     windows.open("a", "p2")
     expect(created).toEqual(["new-p2"])
     expect(told.get("a")?.elsewhere).toEqual(["p2"])
@@ -109,9 +110,43 @@ describe("opening a project in a window of its own", () => {
   it("opens one window for two asks before its page reports", () => {
     const { windows, created } = setup()
     windows.add("a", "p1")
+    windows.show("a", "p1", ["p1", "p2"])
     windows.open("a", "p2")
     windows.open("a", "p2")
     expect(created).toEqual(["new-p2"])
+  })
+})
+
+describe("opening a window the app may not", () => {
+  it("opens nothing on a project no page knows", () => {
+    const { windows, created } = setup()
+    windows.add("a", "p1")
+    windows.show("a", "p1", ["p1"])
+    windows.open("a", "made-up")
+    expect(created).toEqual([])
+  })
+
+  it("learns the projects a page tells of, and forgets a window's when it closes", () => {
+    const { windows, created } = setup()
+    windows.add("a", "p1")
+    windows.add("b", "p2")
+    windows.show("b", "p2", ["p2", "p3"])
+    windows.open("a", "p3")
+    expect(created).toEqual(["new-p3"])
+    windows.remove("new-p3")
+    windows.remove("b")
+    windows.open("a", "p3")
+    expect(created).toEqual(["new-p3"])
+  })
+
+  it("opens no more windows than the most it allows", () => {
+    const { windows, created } = setup()
+    windows.add("w0", "p0")
+    const ids = Array.from({ length: mostWindows + 4 }, (_, index) => `p${index + 1}`)
+    windows.show("w0", "p0", ids)
+    for (const id of ids) windows.open("w0", id)
+    expect(created).toHaveLength(mostWindows - 1)
+    expect(windows.size()).toBe(mostWindows)
   })
 })
 
@@ -124,6 +159,15 @@ describe("swapping two windows' projects", () => {
     expect(navigated).toEqual([{ window: "b", target: { projectId: "p1" } }])
     expect(told.get("a")?.elsewhere).toEqual(["p1"])
     expect(told.get("b")?.elsewhere).toEqual(["p2"])
+  })
+
+  it("brings the other window forward, and sends it nowhere, when this one hadn't said what it showed", () => {
+    const { windows, navigated, forwarded } = setup()
+    windows.add("a")
+    windows.add("b", "p2")
+    windows.swap("a", "p2")
+    expect(navigated).toEqual([])
+    expect(forwarded).toEqual(["b"])
   })
 
   it("only records the window's project when no other window shows it", () => {
@@ -144,6 +188,16 @@ describe("handing a place in a project to its window", () => {
     windows.handOff("a", { projectId: "p2", terminalId: "t1" })
     expect(forwarded).toEqual(["b"])
     expect(navigated).toEqual([{ window: "b", target: { projectId: "p2", terminalId: "t1" } }])
+  })
+
+  it("never raises a window for what an agent asked, only sends it there", () => {
+    const { windows, forwarded, navigated } = setup()
+    windows.add("a", "p1")
+    windows.add("b", "p2")
+    windows.handOff("a", { projectId: "p2", terminalId: "t1", quiet: true })
+    windows.handOff("a", { projectId: "p3", quiet: true })
+    expect(forwarded).toEqual([])
+    expect(navigated.map(({ window }) => window)).toEqual(["b", "a"])
   })
 
   it("tells the asking window when no window shows the project", () => {

@@ -1,6 +1,7 @@
 import {
   desktopBadgeOf,
   parsePortableState,
+  parseProjectWindowShown,
   parseProjectWindowsState,
   parseProjectWindowTarget,
   windowIdOf,
@@ -325,9 +326,9 @@ const bridge = {
     }
   },
   // Only an id, or null, crosses; the main process checks it again.
-  showProjectWindow: (projectId) => {
-    if (projectId === null || windowIdOf(projectId) !== undefined)
-      ipcRenderer.send(projectWindowShowChannel, projectId)
+  showProjectWindow: (projectId, known = []) => {
+    const shown = parseProjectWindowShown({ projectId, known })
+    if (shown) ipcRenderer.send(projectWindowShowChannel, shown)
   },
   useProjectWindows: (on) => {
     if (typeof on === "boolean") ipcRenderer.send(projectWindowsUseChannel, on)

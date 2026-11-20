@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   desktopBadgeOf,
+  parseProjectWindowShown,
   parseProjectWindowsState,
   parseProjectWindowTarget,
   parseUpdateOffer,
@@ -134,6 +135,36 @@ describe("a place in a project handed to its window", () => {
     ["a row that is too long", { projectId: "p", rowId: "r".repeat(201) }],
   ])("is nothing for %s", (_name, value) => {
     expect(parseProjectWindowTarget(value)).toBeUndefined()
+  })
+})
+
+describe("a place an agent handed to a window", () => {
+  it("is marked quiet, which only a true mark keeps", () => {
+    expect(parseProjectWindowTarget({ projectId: "p", quiet: true })).toEqual({
+      projectId: "p",
+      quiet: true,
+    })
+    expect(parseProjectWindowTarget({ projectId: "p", quiet: "yes" })).toEqual({ projectId: "p" })
+  })
+})
+
+describe("what a window tells the app of its project", () => {
+  it("is the project, or none, and the projects its page knows", () => {
+    expect(parseProjectWindowShown({ projectId: "p", known: ["p", "q"] })).toEqual({
+      projectId: "p",
+      known: ["p", "q"],
+    })
+    expect(parseProjectWindowShown({ projectId: null })).toEqual({ projectId: null, known: [] })
+  })
+
+  it.each([
+    ["nothing", undefined],
+    ["a project that is not an id", { projectId: "", known: [] }],
+    ["a list that is not one", { projectId: "p", known: "p" }],
+    ["an id that is not text", { projectId: "p", known: [3] }],
+    ["more projects than a page may name", { projectId: "p", known: Array(257).fill("p") }],
+  ])("is nothing for %s", (_name, value) => {
+    expect(parseProjectWindowShown(value)).toBeUndefined()
   })
 })
 

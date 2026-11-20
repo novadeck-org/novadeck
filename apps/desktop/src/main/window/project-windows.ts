@@ -19,12 +19,19 @@ export type ProjectWindowsOutput<Window> = {
   readonly voiceMoved?: (from: Window | undefined, to: Window | undefined) => void
 }
 
+/** The most windows the app opens at the person's asking. */
+export const mostWindows = 16
+
 export const createProjectWindows = <Window>(output: ProjectWindowsOutput<Window>) => {
   // In the order the windows opened; a window with no project yet maps to undefined.
   const shown = new Map<Window, string | undefined>()
   // The windows the person used, the last first. The first of them has the voice.
   let used: Window[] = []
   let voice: Window | undefined
+  // The projects each window's page says it knows, which a window may be opened on.
+  const known = new Map<Window, ReadonlySet<string>>()
+  const isKnown = (projectId: string): boolean =>
+    [...known.values()].some((ids) => ids.has(projectId))
 
   const stateOf = (window: Window): ProjectWindowsState => ({
     elsewhere: [
@@ -63,11 +70,13 @@ export const createProjectWindows = <Window>(output: ProjectWindowsOutput<Window
     /** A new window, showing `projectId` if it opens on one. */
     add: (window: Window, projectId?: string): void => {
       shown.set(window, projectId)
+      if (projectId !== undefined) known.set(window, new Set([projectId]))
       changed()
     },
     /** A window closed: what it showed is shown nowhere. */
     remove: (window: Window): void => {
       if (!shown.delete(window)) return
+      known.delete(window)
       used = used.filter((each) => each !== window)
       changed()
     },
@@ -78,8 +87,10 @@ export const createProjectWindows = <Window>(output: ProjectWindowsOutput<Window
       changed()
     },
     /** A window's page says which project it shows now, or none. */
-    show: (window: Window, projectId: string | undefined): void => {
-      if (!shown.has(window) || shown.get(window) === projectId) return
+    show: (window: Window, projectId: string | undefined, projects?: readonly string[]): void => {
+      if (!shown.has(window)) return
+      if (projects) known.set(window, new Set(projects))
+      if (shown.get(window) === projectId) return
       shown.set(window, projectId)
       changed()
     },
@@ -89,12 +100,14 @@ export const createProjectWindows = <Window>(output: ProjectWindowsOutput<Window
     },
     /**
      * Opens a project in a window of its own; the window that shows it comes forward instead,
-     * and a window asking for the project it shows itself does nothing.
+     * and a window asking for the project it shows itself does nothing. A project no page
+     * knows, or one past `mostWindows` windows, opens nothing.
      */
     open: (from: Window, projectId: string): void => {
-      if (shown.get(from) === projectId) return
+      if (shown.get(from) === projectId || !isKnown(projectId)) return
       const window = windowOf(projectId, from)
       if (window !== undefined) return output.forward(window)
+      if (shown.size >= mostWindows) return
       const created = output.create(projectId)
       // A second ask before the new page reports finds it.
       shown.set(created, projectId)
@@ -111,16 +124,21 @@ export const createProjectWindows = <Window>(output: ProjectWindowsOutput<Window
       if (other !== undefined && former !== undefined && former !== projectId) {
         shown.set(other, former)
         output.navigate(other, { projectId: former })
+      } else if (other !== undefined && former === undefined) {
+        // This window hadn't said what it showed, so there is nothing to give the other: it
+        // comes forward, the person's pick, rather than being sent anywhere.
+        output.forward(other)
       }
       changed()
     },
     /**
-     * Brings forward the window that shows the target's project and tells it to go there;
-     * `from` is told instead when no other window shows it.
+     * Brings forward the window that shows the target's project and tells it to go there,
+     * unless an agent asked (`quiet`), which never raises a window; `from` is told instead
+     * when no other window shows it.
      */
     handOff: (from: Window, target: ProjectWindowTarget): void => {
       const window = windowOf(target.projectId, from) ?? from
-      output.forward(window)
+      if (target.quiet !== true) output.forward(window)
       output.navigate(window, target)
     },
     /** The windows, in the order they opened, with what each shows. */

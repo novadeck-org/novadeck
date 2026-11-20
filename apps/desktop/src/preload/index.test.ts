@@ -523,15 +523,15 @@ describe("the project windows", () => {
 
   it("sends what the page asks for, once it is what the contract allows", () => {
     const bridge = electron.exposed
-    bridge.showProjectWindow!("p1")
+    bridge.showProjectWindow!("p1", ["p1", "p2"])
     bridge.showProjectWindow!(null)
     bridge.useProjectWindows!(true)
     bridge.openProjectWindow!("p2")
     bridge.swapProjectWindow!("p3")
     bridge.handOffToProjectWindow!({ projectId: "p4", terminalId: "t1" })
     expect(electron.messages).toEqual([
-      [projectWindowShowChannel, "p1"],
-      [projectWindowShowChannel, null],
+      [projectWindowShowChannel, { projectId: "p1", known: ["p1", "p2"] }],
+      [projectWindowShowChannel, { projectId: null, known: [] }],
       [projectWindowsUseChannel, true],
       [projectWindowOpenChannel, "p2"],
       [projectWindowSwapChannel, "p3"],

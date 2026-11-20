@@ -19,7 +19,7 @@ const registered = (own: boolean) => {
     {
       window: () => (own ? "window" : undefined),
       ask: (window) => void calls.push(["ask", window]),
-      show: (window, id) => void calls.push(["show", window, id]),
+      show: (window, id, known) => void calls.push(["show", window, id, known]),
       use: (on) => void calls.push(["use", on]),
       open: (window, id) => void calls.push(["open", window, id]),
       swap: (window, id) => void calls.push(["swap", window, id]),
@@ -35,16 +35,16 @@ describe("the pages' project window requests", () => {
   it("reach the app for the window they came from", () => {
     const { send, calls } = registered(true)
     send(projectWindowsRequestChannel)
-    send(projectWindowShowChannel, "p1")
-    send(projectWindowShowChannel, null)
+    send(projectWindowShowChannel, { projectId: "p1", known: ["p1", "p2"] })
+    send(projectWindowShowChannel, { projectId: null, known: [] })
     send(projectWindowsUseChannel, true)
     send(projectWindowOpenChannel, "p2")
     send(projectWindowSwapChannel, "p3")
     send(projectWindowHandOffChannel, { projectId: "p4", terminalId: "t" })
     expect(calls).toEqual([
       ["ask", "window"],
-      ["show", "window", "p1"],
-      ["show", "window", undefined],
+      ["show", "window", "p1", ["p1", "p2"]],
+      ["show", "window", undefined, []],
       ["use", true],
       ["open", "window", "p2"],
       ["swap", "window", "p3"],
@@ -62,6 +62,7 @@ describe("the pages' project window requests", () => {
   it("are dropped when what they carry is not what the contract allows", () => {
     const { send, calls } = registered(true)
     send(projectWindowShowChannel, 7)
+    send(projectWindowShowChannel, { projectId: "", known: [] })
     send(projectWindowsUseChannel, "yes")
     send(projectWindowOpenChannel, "")
     send(projectWindowSwapChannel, { id: "p" })

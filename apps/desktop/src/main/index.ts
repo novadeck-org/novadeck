@@ -134,6 +134,7 @@ import { keepScale, registerScaleIpc } from "./window/scale.js"
 import { atspiReaders, runIn } from "./window/screen-reader-linux.js"
 import { electronReaders, registerScreenReaderIpc } from "./window/screen-reader.js"
 import { keepSpellcheckOffline } from "./window/spellcheck.js"
+import { clickNotice, createVoice, windowsToKeep } from "./window/voice.js"
 
 const appId = "dev.mzpk.novadeck"
 // The WebGL context limit, raised before the app is ready; the pages are told it.
@@ -359,15 +360,14 @@ const openWindows = (): SavedWindow[] =>
         ? []
         : [{ projectId, bounds: window.getNormalBounds(), maximized: window.isMaximized() }],
     )
-// Keeps the open windows as they stand. Nothing is kept once a quit is under way, whose closes
-// are no one leaving a window (`before-quit` keeps them before it closes them), and the last
-// window closing keeps the windows as they stood before it.
+// Keeps the open windows as they stand (see `windowsToKeep`: nothing once a quit is under way,
+// whose closes are no one leaving a window, `before-quit` having kept them before it closes
+// them, and none when the last window closed, which keeps the windows as they stood before it).
 const rememberWindows = (): void => {
   clearTimeout(windowsTimer)
   windowsTimer = undefined
-  if (quitting.stopping) return
-  const open = openWindows()
-  if (open.length > 0) void savedWindows.remember(open)
+  const keep = windowsToKeep(openWindows(), quitting.stopping)
+  if (keep) void savedWindows.remember(keep)
 }
 const rememberWindowsSoon = (): void => {
   clearTimeout(windowsTimer)
@@ -396,18 +396,17 @@ const badgeOf = (window: BrowserWindow, badge: DesktopBadge): void =>
   applyBadge({ platform: process.platform, app, nativeImage, window }, badge)
 
 // Only the window the person used last (the voice) raises notifications and counts on the
-// app's icon, so two windows never double up. Each window's last count is kept, for the window
-// that takes the voice to show; `closeNotices` takes away what a window that is gone showed.
-const noBadge: DesktopBadge = { count: 0, image: null }
-const counts = new WeakMap<BrowserWindow, DesktopBadge>()
+// app's icon, so two windows never double up (see ./window/voice.ts). `closeNotices` takes away
+// what the app shows, once the notices exist.
 let closeNotices: () => void = () => {}
-const voiceMoved = (from: BrowserWindow | undefined, to: BrowserWindow | undefined): void => {
-  if (from) {
-    if (from.isDestroyed()) closeNotices()
-    badgeOf(from, noBadge)
-  }
-  if (to && !to.isDestroyed()) badgeOf(to, counts.get(to) ?? noBadge)
-}
+const voiceBook = createVoice<BrowserWindow>({
+  hasVoice: (window) => projectWindows.hasVoice(window),
+  applyBadge: badgeOf,
+  closeNotices: () => closeNotices(),
+  alive: (window) => !window.isDestroyed(),
+})
+// How many windows the app has brought forward, which a notification's click watches.
+let forwards = 0
 
 // What each window shows and which the person used last, the project windows' book (see
 // ./window/project-windows.ts). The windows' own pages hear of it, and the badge, the
@@ -415,6 +414,7 @@ const voiceMoved = (from: BrowserWindow | undefined, to: BrowserWindow | undefin
 const projectWindows = createProjectWindows<BrowserWindow>({
   create: (projectId) => createWindow(appOrigin(), { projectId, extra: true }),
   forward: (window) => {
+    forwards += 1
     bringForward(window)
     if (process.platform === "darwin") app.focus({ steal: true })
   },
@@ -426,7 +426,7 @@ const projectWindows = createProjectWindows<BrowserWindow>({
     if (window.isDestroyed() || !isAppPage(window.webContents.getURL())) return
     window.webContents.send(projectWindowNavigateChannel, target)
   },
-  voiceMoved: (from, to) => voiceMoved(from, to),
+  voiceMoved: (from, to) => voiceBook.moved(from, to),
 })
 // The address the app's own server answers on, once it does.
 const appOrigin = (): string => {
@@ -477,7 +477,10 @@ const createWindow = (
   window.on("move", rememberWindowsSoon)
   window.on("resize", rememberWindowsSoon)
   window.on("closed", () => {
+    // Whether it had the voice, as it did when it closed: its notifications go with it.
+    const wasVoice = projectWindows.hasVoice(window)
     projectWindows.remove(window)
+    voiceBook.closed(window, wasVoice, projectWindows.size())
     rememberWindows()
   })
   // Its page opens at the scale, and takes it again whenever it loads.
@@ -624,18 +627,21 @@ const launch = async (): Promise<void> => {
   const notices = showNotices({
     supported: Notification.isSupported(),
     create: (notice) => new Notification(notificationOptions(notice, process.platform)),
-    clicked: (window: BrowserWindow, id) => {
-      if (window.isDestroyed()) return
-      // With project windows on, the page hands the click to the window of the project it
-      // is about, which comes forward, or to this one when none shows it.
-      if (!savedWindows.current().on) {
-        if (window.isMinimized()) window.restore()
-        window.show()
-        if (process.platform === "darwin") app.focus({ steal: true })
-        window.focus()
-      }
-      window.webContents.send(noticeClickChannel, id)
-    },
+    clicked: (window: BrowserWindow, id) =>
+      clickNotice({
+        windowsOn: savedWindows.current().on,
+        raising: window,
+        voice: projectWindows.voice(),
+        alive: (each) => !each.isDestroyed(),
+        send: (target) => target.webContents.send(noticeClickChannel, id),
+        forward: (target) => {
+          forwards += 1
+          bringForward(target)
+          if (process.platform === "darwin") app.focus({ steal: true })
+        },
+        forwards: () => forwards,
+        later: (run, ms) => void setTimeout(run, ms),
+      }),
   })
   closeNotices = notices.closeAll
   // A window whose page shows notices or a badge takes them away with it when that page
@@ -644,20 +650,7 @@ const launch = async (): Promise<void> => {
   const tend = (window: BrowserWindow): void => {
     if (tended.has(window)) return
     tended.add(window)
-    // Only the voice shows any, and a window that closes while others remain leaves theirs
-    // (`voiceMoved` takes away what the closed voice showed).
-    const reset = (): void => {
-      counts.delete(window)
-      if (!projectWindows.hasVoice(window)) return
-      notices.closeAll()
-      badgeOf(window, noBadge)
-    }
-    window.on("closed", () => {
-      counts.delete(window)
-      if (projectWindows.size() > 0) return
-      notices.closeAll()
-      badgeOf(window, noBadge)
-    })
+    const reset = (): void => voiceBook.reset(window)
     window.webContents.on("render-process-gone", reset)
     // Once a new page commits, as a reload: a navigation `will-navigate` cancels, as a file
     // dropped on the window, leaves the page and what it showed.
@@ -666,7 +659,7 @@ const launch = async (): Promise<void> => {
   registerNoticeIpc(ipcMain, {
     window: appWindow,
     show: (window, notice) => {
-      if (!projectWindows.hasVoice(window)) return
+      if (!voiceBook.mayRaise(window)) return
       tend(window)
       notices.show(window, notice)
     },
@@ -704,8 +697,7 @@ const launch = async (): Promise<void> => {
     window: appWindow,
     apply: (window: BrowserWindow, badge) => {
       tend(window)
-      counts.set(window, badge)
-      if (projectWindows.hasVoice(window)) badgeOf(window, badge)
+      voiceBook.counted(window, badge)
     },
   })
   // The pages' project windows: what each shows, opening one for a project, swapping two
@@ -713,8 +705,8 @@ const launch = async (): Promise<void> => {
   registerProjectWindowsIpc(ipcMain, {
     window: appWindow,
     ask: (window) => projectWindows.tell(window),
-    show: (window, projectId) => {
-      projectWindows.show(window, projectId)
+    show: (window, projectId, known) => {
+      projectWindows.show(window, projectId, known)
       rememberWindowsSoon()
     },
     use: (on) => void savedWindows.use(on).then(rememberWindows),

@@ -1,4 +1,5 @@
 import {
+  parseProjectWindowShown,
   parseProjectWindowTarget,
   windowIdOf,
   type ProjectWindowTarget,
@@ -38,7 +39,7 @@ export const registerProjectWindowsIpc = <Window>(
     /** The page starts listening, and wants the current state. */
     readonly ask: (window: Window) => void
     /** The window's page shows this project now, or none. */
-    readonly show: (window: Window, projectId: string | undefined) => void
+    readonly show: (window: Window, projectId: string | undefined, known: readonly string[]) => void
     /** The person turned project windows on or off. */
     readonly use: (on: boolean) => void
     readonly open: (window: Window, projectId: string) => void
@@ -54,9 +55,8 @@ export const registerProjectWindowsIpc = <Window>(
   }
   from(projectWindowsRequestChannel, (target) => ask(target))
   from(projectWindowShowChannel, (target, value) => {
-    if (value === null) return show(target, undefined)
-    const id = windowIdOf(value)
-    if (id !== undefined) show(target, id)
+    const shown = parseProjectWindowShown(value)
+    if (shown) show(target, shown.projectId ?? undefined, shown.known)
   })
   from(projectWindowsUseChannel, (_target, value) => {
     if (typeof value === "boolean") use(value)
