@@ -127,6 +127,17 @@ describe("responses", () => {
     expect(latest(call)).toContain("Generate a concise, single-line task title")
   })
 
+  it("tells a kept /side conversation's turn as the agent's, by its thread's source", () => {
+    // Its turn metadata from 0.171.0, as Codex sent it to the fake model (2026-11-20).
+    const asSide = (thread_source: string) => {
+      const body = JSON.parse(turn.body) as Record<string, unknown>
+      const metadata = JSON.stringify({ request_kind: "turn", thread_source })
+      return parse({ ...body, client_metadata: { "x-codex-turn-metadata": metadata } })
+    }
+    expect(asSide("tui_side_chat").side).toBe(false)
+    expect(asSide("thread_title").side).toBe(true)
+  })
+
   it("streams text as a message that completes the response", async () => {
     const { status, headers, events: streamed } = await answer(turn, () => ({ text: "Hi there" }))
     expect(status).toBe(200)

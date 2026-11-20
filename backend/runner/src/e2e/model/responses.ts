@@ -160,9 +160,12 @@ const metadata = z
 
 /**
  * Whether Codex makes the call for itself, as its thread's title: its turn metadata names
- * the thread's source, which is the person's (`user`) or an agent it spawned (`subagent`)
- * for the agent's own turns, and a feature's name, a review or a memory's otherwise.
+ * the thread's source, which is the person's (`user`), an agent it spawned (`subagent`) or,
+ * from 0.171.0, a `/side` conversation it keeps (`tui_side_chat`) for the agent's own turns,
+ * and a feature's name, a review or a memory's otherwise.
  */
+const turnSources = new Set(["user", "subagent", "tui_side_chat"])
+
 const sideOf = (request: z.infer<typeof payload>, headers: Request["headers"]): boolean => {
   const raw =
     string(request.client_metadata?.["x-codex-turn-metadata"]) || headers["x-codex-turn-metadata"]
@@ -170,7 +173,7 @@ const sideOf = (request: z.infer<typeof payload>, headers: Request["headers"]): 
   const turn = metadata.parse(parsed(raw))
   const source = turn.thread_source
   return (
-    (source !== undefined && source !== "user" && source !== "subagent") ||
+    (source !== undefined && !turnSources.has(source)) ||
     (turn.request_kind !== undefined && turn.request_kind !== "turn")
   )
 }
