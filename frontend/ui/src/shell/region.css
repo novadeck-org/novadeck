@@ -46,35 +46,27 @@
 }
 
 /* Where the window's own controls sit over the page (macOS; `data-window-controls` on the
-   root, app/window-controls.ts), the header is the window's title bar: it moves the window,
-   and a double click zooms it, but for what takes a click in it; and its start keeps clear of
-   the controls, `--window-controls-inset` from the window's edge (0 in full screen). Whatever
-   takes a click anywhere keeps it, should it land over the header (a toast, a popover), as
-   does whatever is portalled to the body (a menu, a tooltip, a dialog's backdrop). */
-:root[data-window-controls] .app-header {
+   root, set by the desktop app's entry), the page is the window's title bar: the header, and
+   the boot screens until it shows, move the window, and a double click zooms it, but for what
+   takes a click there. What may open over the header takes its clicks too: what is portalled
+   to the body (a menu, a tooltip, a dialog's backdrop), the Inbox in full window, and any
+   control (a toast's, the tour's). The header's start keeps clear of the controls,
+   `--window-controls-inset` from the window's edge (app/window-controls.ts; 0 in full screen),
+   at once: before the app says, the room they take at the normal scale. */
+:root[data-window-controls] :is(.app-header, .boot-splash:not(.pointer-events-none)) {
   -webkit-app-region: drag;
   user-select: none;
 }
 :root[data-window-controls]
-  :is(
-    a,
-    button,
-    input,
-    select,
-    textarea,
-    label,
-    [contenteditable],
-    [role],
-    [tabindex],
-    [data-part]
-  ),
-:root[data-window-controls] body > :not(#root) {
+  .app-header
+  :is(a, button, input, select, textarea, label, [role], [tabindex], [data-part]),
+:root[data-window-controls] :is(a, button, input, select, textarea, [contenteditable]),
+:root[data-window-controls] :is(body > :not(#root), .inbox-fullscreen) {
   -webkit-app-region: no-drag;
 }
 :root[data-window-controls] .header-workspace {
   /* With the header's own 1rem, as far from the controls as a macOS toolbar's first item. */
-  padding-inline-start: var(--window-controls-inset, 0px);
-  transition: padding-inline-start var(--motion-state) var(--ease-interface);
+  padding-inline-start: var(--window-controls-inset, 74px);
 }
 
 .app-footer {

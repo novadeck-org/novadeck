@@ -44,10 +44,25 @@
   box-shadow: none;
 }
 /* The window's own controls, shown in Zen while the pointer is in the top-left corner (macOS,
-   app/window-controls.ts), sit on the Focus window's header, which moves aside for them. */
+   app/window-controls.ts), sit on the Focus window's header, which moves aside for them at once,
+   so a click never lands on one that's only on its way. Elsewhere (Grid, Canvas) they sit on a
+   plate in the dock's look, which takes the clicks around them. */
 :root[data-window-controls] .workspace[data-zen="true"] .focus-stage .terminal-header {
   padding-inline-start: var(--window-controls-inset, 0px);
-  transition: padding-inline-start var(--motion-state) var(--ease-interface);
+}
+:root[data-window-controls-plate] .workspace[data-zen="true"]::before {
+  content: "";
+  position: fixed;
+  top: 0.25rem;
+  left: 0.5rem;
+  z-index: 45;
+  width: calc(var(--window-controls-inset, 0px) + 0.25rem);
+  height: 2rem;
+  border: var(--border-width) solid var(--zen-dock-border-color, var(--color-line));
+  border-radius: var(--zen-dock-radius, var(--radius-popover));
+  background-color: var(--zen-dock-bg, color-mix(in srgb, var(--color-paper) 95%, transparent));
+  box-shadow: var(--zen-dock-shadow, var(--shadow-control));
+  backdrop-filter: blur(var(--zen-dock-blur, 8px));
 }
 /* The dock floats over the focused window's foot, so the terminal's screen and its chat keep
    clear of it; a window with a taskbar already ends above the dock, which sits on the bar. */

@@ -12,11 +12,15 @@ const width = 54
 const size = 12
 const colors = ["#ff5f57", "#febc2e", "#28c840"] as const
 
-// Takes away the buttons an earlier boot drew.
-export const clearDemoWindowControls = (page: Document = document): void =>
+// Takes away the buttons an earlier boot drew, and the page's word that it is the window's
+// title bar.
+export const clearDemoWindowControls = (page: Document = document): void => {
   page.querySelectorAll("[data-demo-window-controls]").forEach((each) => each.remove())
+  delete page.documentElement.dataset.windowControls
+}
 
-// The preview page's stand-in for the desktop app's controls over the page: three buttons
+// The preview page's stand-in for the desktop app's controls over the page: the page's root
+// says it is the window's title bar, as the desktop app's entry says, and three buttons are
 // drawn where macOS puts them, on the line the page asks for, hidden when it asks so (as in
 // Zen) and in full screen, where the page keeps no room for them.
 export const createDemoWindowControls = (
@@ -24,6 +28,7 @@ export const createDemoWindowControls = (
   page: Document = document,
 ): NonNullable<Backend["windowControls"]> => {
   clearDemoWindowControls(page)
+  page.documentElement.dataset.windowControls = "inset"
   const listeners = new Set<(inset: number) => void>()
   const lights = page.createElement("div")
   lights.dataset.demoWindowControls = mode

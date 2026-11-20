@@ -806,7 +806,8 @@ App:
 - **Window controls:** boot as the macOS desktop app, whose window sets its close, minimise and
   zoom buttons into the header (drawn in the page as stand-ins): the header's start keeps clear of
   them, and in Zen they hide and come back while the pointer is in the top-left corner, the Focus
-  window's header moving aside for them. "macOS, full screen" boots with them gone to the menu
+  window's header moving aside for them, and in Grid and Canvas a plate in the dock's look
+  holding them. "macOS, full screen" boots with them gone to the menu
   bar, the header starting at its edge; "Own title bar" boots back to a window with its own, as on
   Windows, Linux and in a browser.
 - **Agent worktrees:** the page's update channel starts stable, which turns the

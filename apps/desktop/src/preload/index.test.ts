@@ -47,6 +47,8 @@ import {
   updateOfferChannel,
   updateRequestChannel,
   versionChannel,
+  windowControlsChannel,
+  windowControlsPlaceChannel,
   windowFocusChannel,
   windowFocusRequestChannel,
 } from "../bridge.js"
@@ -1006,5 +1008,53 @@ describe("feedback", () => {
     electron.answer = about
     expect(await electron.exposed.feedbackAbout!()).toEqual(about)
     expect(electron.sent).toEqual([feedbackAboutChannel])
+  })
+})
+
+// Loads the preload again as it loads on `platform`.
+const loadOn = async (platform: NodeJS.Platform): Promise<void> => {
+  const actual = Object.getOwnPropertyDescriptor(process, "platform")!
+  Object.defineProperty(process, "platform", { value: platform })
+  try {
+    vi.resetModules()
+    electron.renderer.removeAllListeners()
+    await import("./index")
+  } finally {
+    Object.defineProperty(process, "platform", actual)
+  }
+}
+
+describe("the window's own controls", () => {
+  for (const platform of ["linux", "win32"] as const)
+    it(`are none of the page's on ${platform}, whose window keeps the system's title bar`, async () => {
+      await loadOn(platform)
+      expect(electron.exposed.onWindowControls).toBeUndefined()
+      expect(electron.exposed.placeWindowControls).toBeUndefined()
+    })
+
+  context("on macOS", () => {
+    it("pass the page's placing on, a number or none and nothing else", async () => {
+      await loadOn("darwin")
+      electron.exposed.placeWindowControls?.(32)
+      electron.exposed.placeWindowControls?.(null)
+      electron.exposed.placeWindowControls?.(Number.NaN)
+      electron.exposed.placeWindowControls?.("32" as never)
+      expect(electron.messages).toEqual([
+        [windowControlsPlaceChannel, 32],
+        [windowControlsPlaceChannel, null],
+      ])
+    })
+
+    it("pass the app's room on to the page, a finite number only, until it stops", async () => {
+      await loadOn("darwin")
+      const insets: number[] = []
+      const stop = electron.exposed.onWindowControls!((inset) => insets.push(inset))
+      electron.renderer.emit(windowControlsChannel, {}, 74)
+      electron.renderer.emit(windowControlsChannel, {}, "74")
+      electron.renderer.emit(windowControlsChannel, {}, Number.POSITIVE_INFINITY)
+      stop()
+      electron.renderer.emit(windowControlsChannel, {}, 0)
+      expect(insets).toEqual([74])
+    })
   })
 })

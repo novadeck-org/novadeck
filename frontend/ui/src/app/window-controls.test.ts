@@ -114,7 +114,7 @@ describe("watching the window's controls", () => {
   it("does nothing where the window has a title bar of its own", () => {
     const { root, view } = page()
     watchWindowControls(uiWith(false), view, undefined)()
-    expect(root.dataset.windowControls).toBeUndefined()
+    expect(root.getAttributeNames()).toEqual([])
   })
 
   it("places them on the header and gives the page the room they take", () => {
@@ -122,11 +122,10 @@ describe("watching the window's controls", () => {
     const { port, placed } = controls()
     const stop = watchWindowControls(uiWith(false), view, port)
     expect(placed).toEqual([32])
-    expect(root.dataset.windowControls).toBe("inset")
     expect(root.style.getPropertyValue("--window-controls-inset")).toBe("74px")
     stop()
-    expect(root.dataset.windowControls).toBeUndefined()
     expect(root.style.getPropertyValue("--window-controls-inset")).toBe("")
+    expect(root.dataset.windowControlsPlate).toBeUndefined()
   })
 
   it("follows the header as the page resizes", () => {
@@ -173,6 +172,55 @@ describe("watching the window's controls", () => {
     const stop = watchWindowControls(uiWith(false), view, port)
     pointer(40, 14)
     expect(placed).toEqual([32])
+    stop()
+  })
+
+  it("puts a plate under them in Zen where no Focus window's header moves aside, as in Grid", () => {
+    const { root, view, pointer } = page()
+    const { port, placed } = controls()
+    const stop = watchWindowControls(uiWith(true), view, port)
+    pointer(40, 14)
+    expect(placed).toEqual([null, zenMiddle])
+    expect(root.dataset.windowControlsPlate).toBe("shown")
+    pointer(400, 300)
+    expect(root.dataset.windowControlsPlate).toBeUndefined()
+    stop()
+  })
+
+  it("puts no plate under them where they take no room, as in full screen", () => {
+    const { root, view, pointer } = page()
+    const placed: (number | null)[] = []
+    const port: NonNullable<Backend["windowControls"]> = {
+      place: (middle) => void placed.push(middle),
+      onInset: () => () => {},
+    }
+    const stop = watchWindowControls(uiWith(true), view, port)
+    pointer(40, 14)
+    expect(placed).toEqual([null, zenMiddle])
+    expect(root.dataset.windowControlsPlate).toBeUndefined()
+    stop()
+  })
+
+  it("hides them in Zen once the window loses focus", () => {
+    const { view, pointer } = page()
+    const { port, placed } = controls()
+    const stop = watchWindowControls(uiWith(true), view, port)
+    pointer(40, 14)
+    view.dispatchEvent(new Event("blur"))
+    expect(placed).toEqual([null, zenMiddle, null])
+    stop()
+  })
+
+  it("hides them in Zen once the pointer leaves the page, but by the corner, onto them", () => {
+    const { root, view, pointer } = page()
+    const { port, placed } = controls()
+    const stop = watchWindowControls(uiWith(true), view, port)
+    pointer(40, 14)
+    root.dispatchEvent(new Event("mouseleave"))
+    expect(placed).toEqual([null, zenMiddle])
+    pointer(140, 60)
+    root.dispatchEvent(new Event("mouseleave"))
+    expect(placed).toEqual([null, zenMiddle, null])
     stop()
   })
 })

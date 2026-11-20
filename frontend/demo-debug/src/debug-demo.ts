@@ -142,9 +142,6 @@ const panels = new WeakMap<Backend, DebugPanel>()
 /** The debug panel for a backend `createDebugDemo` made. */
 export const debugPanelOf = (backend: Backend): DebugPanel | undefined => panels.get(backend)
 
-// Wraps a demo variant in the shell the runner's backend has around it: a connection
-// that can drop, a crash loop that can trip, a boot that takes its time, and the states
-// the runner's terminals, agents and desktop can be in, all driven by the debug panel.
 // The window's controls the launch plays, drawn in the page; a launch with none takes away
 // those an earlier boot drew.
 const windowControlsOf = (
@@ -155,6 +152,9 @@ const windowControlsOf = (
   return {}
 }
 
+// Wraps a demo variant in the shell the runner's backend has around it: a connection
+// that can drop, a crash loop that can trip, a boot that takes its time, and the states
+// the runner's terminals, agents and desktop can be in, all driven by the debug panel.
 export const createDebugDemo = (launch: DemoLaunch): Backend => {
   const connection = createStore<BackendConnectionState>("connected")
   const crashes = createStore(0)

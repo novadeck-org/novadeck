@@ -29,7 +29,8 @@ export type ControlsPlacement = {
 /**
  * Where the buttons go for a page centring them on `middle` CSS pixels from its top (null:
  * hidden) at `zoom`, the app's scale. A window in full screen shows them only in the menu bar
- * that slides down with the pointer, so the page keeps no room for them then.
+ * that slides down with the pointer, so the page keeps no room for them then, and they stay
+ * there even where the page hides them (as Zen does), the bar being their only way back.
  */
 export const placeControls = ({
   middle,
@@ -43,7 +44,7 @@ export const placeControls = ({
   const { left, width, height } = controlsMetrics
   const line = middle ?? headerMiddle
   return {
-    visible: middle !== null,
+    visible: middle !== null || fullScreen,
     position: { x: left, y: Math.max(0, Math.round(line * zoom - height / 2)) },
     inset: middle === null || fullScreen ? 0 : Math.ceil((left + width) / zoom),
   }
@@ -87,6 +88,7 @@ export type ControlledWindow = {
     getZoomFactor(): number
     isDestroyed(): boolean
     send(channel: string, inset: number): void
+    on(event: "did-navigate" | "render-process-gone", listener: () => void): unknown
   }
 }
 
@@ -101,7 +103,9 @@ export type WindowControls = {
 /**
  * Keeps `window`'s buttons where its page asked, at its zoom, and tells the page the room they
  * take on each change, entering and leaving full screen among them: macOS shows the buttons
- * again as a window leaves full screen, so a page that hid them has them hidden again.
+ * again as a window leaves full screen, so a page that hid them has them hidden again. A page
+ * that goes, as it loads again or crashes, takes what it asked with it: the buttons go back to
+ * the header's middle, shown, for whatever the window shows next.
  */
 export const keepControls = (window: ControlledWindow): WindowControls => {
   let middle: number | null = headerMiddle
@@ -121,6 +125,14 @@ export const keepControls = (window: ControlledWindow): WindowControls => {
   }
   window.on("enter-full-screen", apply)
   window.on("leave-full-screen", apply)
+  const reset = (): void => {
+    middle = headerMiddle
+    told = undefined
+    apply()
+  }
+  // Once a new page commits, as a reload; the app's own routes move within the page.
+  window.webContents.on("did-navigate", reset)
+  window.webContents.on("render-process-gone", reset)
   return {
     place: (next) => {
       middle = next

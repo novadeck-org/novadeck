@@ -35,6 +35,7 @@ const controlled = () => {
       send: (channel, inset) => {
         if (channel === windowControlsChannel) state.told.push(inset)
       },
+      on: (event, listener) => void listeners.set(event, listener),
     },
   }
   const emit = (event: string): void => listeners.get(event)?.()
@@ -65,6 +66,12 @@ describe("placing the window's controls", () => {
   it("hides them, with no room kept, when the page asks for none", () => {
     const placement = placeControls({ middle: null, zoom: 1, fullScreen: false })
     expect(placement.visible).toBe(false)
+    expect(placement.inset).toBe(0)
+  })
+
+  it("keeps them in full screen's menu bar even where the page hides them, their only way back", () => {
+    const placement = placeControls({ middle: null, zoom: 1, fullScreen: true })
+    expect(placement.visible).toBe(true)
     expect(placement.inset).toBe(0)
   })
 })
@@ -142,6 +149,14 @@ describe("keeping a window's controls", () => {
     emit("leave-full-screen")
     expect(state.visible).toBe(false)
   })
+
+  for (const event of ["did-navigate", "render-process-gone"])
+    it(`shows them on the header again once the page goes (${event}), whatever it asked`, () => {
+      const { window, state, emit } = controlled()
+      keepControls(window).place(null)
+      emit(event)
+      expect(state).toMatchObject({ visible: true, position: { x: 20, y: 25 }, told: [0, 74] })
+    })
 })
 
 describe("the page's request to place them", () => {
