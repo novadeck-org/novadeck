@@ -374,7 +374,7 @@ export class CompanionItems {
    */
   private readonly folderReads = new Map<string, number>()
   /** The ends of shells' output files, read for their items. */
-  private readonly tails = new ShellTails()
+  private readonly tails = new ShellTails(() => secrets(this.environment()))
   /**
    * What each item's latest show carries out, with that show's version: the element a page
    * brings into view, or the second a video starts at. Only that show carries it out, so it

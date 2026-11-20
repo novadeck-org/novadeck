@@ -101,8 +101,10 @@ export const matchFolders = async (
   const last = Math.max(text.lastIndexOf("/"), text.lastIndexOf("\\"))
   const before = text.slice(0, last + 1)
   const prefix = text.slice(last + 1).toLowerCase()
-  const parent = await realFolder(resolve(cwd, expandHome(before === "" ? "." : before)))
-  if (parent === undefined || secret(parent)) return []
+  // The folder as typed, and where it leads: either may name one that holds secrets.
+  const typedParent = resolve(cwd, expandHome(before === "" ? "." : before))
+  const parent = await realFolder(typedParent)
+  if (parent === undefined || secret(parent) || secret(typedParent)) return []
   // A dot folder is named only by a path that starts one, as a shell completes.
   const hidden = prefix.startsWith(".")
   const names: { name: string; link: boolean }[] = []

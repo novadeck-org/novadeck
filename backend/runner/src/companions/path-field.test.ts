@@ -68,6 +68,17 @@ describe("a path with a home folder", () => {
 })
 
 describe("the folders a typed path may be", () => {
+  it("names none in a folder that may hold secrets, by the name it is typed by", async ({
+    directory,
+  }) => {
+    folder(directory, "keys", "work")
+    symlinkSync(join(directory, "keys"), join(directory, ".ssh"))
+    expect(await matchFolders(".ssh/", directory, secret, none)).toEqual([])
+    expect((await matchFolders("keys/", directory, secret, none)).map(({ real }) => real)).toEqual([
+      join(directory, "keys", "work"),
+    ])
+  })
+
   it("names the folders whose names start as the last part does, in any case, by name", async ({
     directory,
   }) => {

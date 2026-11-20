@@ -1,10 +1,10 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { afterEach, describe, expect, it } from "vitest"
 
-import { FolderWatch } from "./folder.js"
+import { FolderWatch, loadFolder } from "./folder.js"
 
 const roots: string[] = []
 const folder = (): string => {
@@ -73,5 +73,20 @@ describe("a folder's watch", () => {
     } finally {
       watch.close()
     }
+  })
+})
+
+describe("a folder's steps", () => {
+  it("never lists one that may hold secrets by the name it is reached by", async () => {
+    const top = folder()
+    mkdirSync(join(top, "keys"))
+    writeFileSync(join(top, "keys", "id_work"), "KEY\n")
+    symlinkSync(join(top, "keys"), join(top, ".ssh"))
+    await expect(loadFolder({ path: top }, ".ssh", {})).resolves.toMatchObject({
+      content: { state: "unavailable", reason: "secret" },
+    })
+    await expect(loadFolder({ path: top }, "keys", {})).resolves.toMatchObject({
+      content: { state: "ready" },
+    })
   })
 })

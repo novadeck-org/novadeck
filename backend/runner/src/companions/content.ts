@@ -219,12 +219,16 @@ export const pointAt = async (
   cwd: string,
   env?: NodeJS.ProcessEnv,
 ): Promise<Pointed | RequestFailure> => {
-  const path = await realpath(resolve(cwd, given)).catch(() => undefined)
+  // Judged by the name it was asked by as well as where it leads: a `.env` that links to
+  // `config/dev.vars` is still a secret, as the folder listing holds it.
+  const asked = resolve(cwd, given)
+  const path = await realpath(asked).catch(() => undefined)
   if (!path) return failure("That file doesn't exist.")
   const stats = await stat(path).catch(() => undefined)
   if (!stats) return failure("That file doesn't exist.")
   if (stats.isDirectory()) {
-    if (folderSecrets(env)(path))
+    const held = folderSecrets(env)
+    if (held(path) || held(asked))
       return failure("That folder may hold secrets, so Novadeck won't list what is in it.")
     return { ok: true, path, kind: "folder", size: 0, secret: false }
   }
@@ -237,7 +241,7 @@ export const pointAt = async (
     // A compiled object file is an .obj too, which no model is.
     kind: kind === "model" && (await isCompiledObject(path)) === true ? "file" : kind,
     size: stats.size,
-    secret: secret(path, env),
+    secret: secret(path, env) || secret(asked, env),
   }
 }
 

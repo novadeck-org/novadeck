@@ -180,14 +180,17 @@ const walk = async (folder: string, way: string, checks: Checks): Promise<Walked
   } catch (error) {
     return { ok: false, reason: errnoOf(error) === "EACCES" ? "unreadable" : "missing" }
   }
-  if (checks.folder(top)) return { ok: false, reason: "secret" }
+  if (checks.folder(top) || checks.folder(folder)) return { ok: false, reason: "secret" }
   const segments = segmentsOf(way)
   if (!segments) return { ok: false, reason: "missing" }
   let path = top
   for (const segment of segments) {
+    // A step is judged by its name as well as where it leads, as a folder's entries are.
+    const named = join(path, segment)
+    if (checks.folder(named)) return { ok: false, reason: "secret" }
     try {
       // eslint-disable-next-line no-await-in-loop -- Each step begins where the last ended.
-      path = await realpath(join(path, segment))
+      path = await realpath(named)
     } catch (error) {
       return { ok: false, reason: errnoOf(error) === "EACCES" ? "unreadable" : "missing" }
     }

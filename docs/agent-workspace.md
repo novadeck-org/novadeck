@@ -566,7 +566,7 @@ with every safety check again at that time:
   and length, drawn by the page), are read through `companions.part` with the file's own stamp,
   lazily and nearest first; a PDF, a recording and a text file show their kind's icon. It is
   the same for Claude Code, Codex and Antigravity, as the runner reads the folder. Secrets
-  follow `companions/secrets.ts`: a folder that may hold secrets (by its name, by what lies under it, as gcloud's, or as one the person's environment moves a tool's logins to, as `GNUPGHOME`) is refused (`show` answers
+  follow `companions/secrets.ts`: a folder that may hold secrets (by its name, by what lies under it, as gcloud's, or as one the person's environment moves a tool's logins to, as `GNUPGHOME`; judged by the name it is asked by as well as where it leads, so a `.ssh` that links to `keys` is one) is refused (`show` answers
   with why, and nothing in it is listed), a secret file or folder inside one is named and
   flagged, never opened, counted, read or given a thumbnail, and a symbolic link that leaves
   the opened folder is listed as a link and never followed. Of a folder holding more than 2000
