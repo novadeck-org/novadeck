@@ -209,6 +209,17 @@ describe("History's rows", () => {
       const whole = "Order receipts sent after the payment webhook"
       expect(summaryExcerpt(whole, "webhook")).toBe(whole)
     })
+
+    it("keeps the start of a summary whose long match begins near it, and shows the match", () => {
+      const summary =
+        "Plan: migrate the billing webhooks to the new queue and then retire the old cron job after the weekend"
+      const typed = "migrate the billing webhooks to the new queue"
+      // The match ends past the two lines, but starts within the lead: nothing to cut before it.
+      expect(summaryExcerpt(summary, typed)).toBe(summary)
+      expect(
+        litPieces(summaryExcerpt(summary, typed), typed).find((piece) => piece.lit)?.text,
+      ).toBe(typed)
+    })
   })
 
   context("under the pointer", () => {
