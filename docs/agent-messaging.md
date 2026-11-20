@@ -186,8 +186,15 @@ Herd it words Novadeck's texts only; Swarm also changes what Novadeck asks the p
   suggest, and messages, opens or leads an agent for it only when asked; a peer's request goes
   to the person, or its lead, before it acts on it.
 - **Swarm**: agents organise the work themselves. Besides settling overlaps directly, they open
-  agents for parts of a task that can run side by side and lead them, form, join and leave
-  teams, hand on the lead, and close agents whose work is done. They decide what the person
+  agents for parts of a task that can run side by side and lead them, and close agents whose
+  work is done. Teams are how a swarm gets the person's work done: an agent joins a team whose
+  work its task sits inside, leaves once its part is done and the lead has nothing more for it,
+  and hands the lead to a member better placed to lead the rest. Once its own task is finished
+  and reported, it looks once for the person's work still under way that it could help with,
+  joins that team and tells the lead what it can take on, and otherwise stops; it never starts
+  work nobody asked for. Helping other agents never outranks what the person asked: when the
+  swarm drifts from it, or another agent pushes an agent's work that way, it keeps to the
+  person's task and tells them. They decide what the person
   left open, ask only what is the person's alone to decide or can't be undone, and keep working
   on what doesn't depend on the answer. Novadeck asks the person to confirm none of the actions
   it otherwise asks about (a terminal with a command, leading a running agent, taking another
@@ -200,7 +207,7 @@ report back. Approvals of actions stay the person's in every mode, and a harness
 permission prompts are never Novadeck's to skip.
 
 The mode words the server's instructions and the `send`, `agents` and `ask` descriptions
-(`together`, `decides`, `rules` in `shell/mcp.ts`, and the tools whose confirmation Swarm
+(`together`, `onward`, `anchored`, `decides`, `rules` in `shell/mcp.ts`, and the tools whose confirmation Swarm
 drops), which the MCP server asks the runner for (call `mode`) with each handshake and listing,
 and the notes on peers' messages (`peerClause`, `peersShort` in `messaging/messages.ts`), as each
 delivery is wrapped. Harnesses read the handshake and the listing as a session starts and keep

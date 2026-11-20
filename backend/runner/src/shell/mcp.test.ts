@@ -1887,6 +1887,57 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     }
   })
 
+  it("has a swarm organise itself on the user's work: teams, onward work, and drift told", async () => {
+    const texts = async (mode: "herd" | "solo" | "swarm") => {
+      answersBy.mode = { ok: true, mode }
+      const [handshake, tools] = await session(terminal(), [initialize, list])
+      const described = tools?.result?.tools as { name: string; description: string }[]
+      const of = (name: string) => described.find((tool) => tool.name === name)!.description
+      return {
+        instructions: handshake?.result?.instructions as string,
+        send: of("send"),
+        done: of("done"),
+        ask: of("ask"),
+      }
+    }
+    try {
+      const swarm = await texts("swarm")
+      for (const text of [swarm.instructions, swarm.send]) {
+        // Teams have their occasions, as how the user's work gets done.
+        expect(text).toContain("Teams are how a swarm gets the user's work done")
+        expect(text).toContain(
+          "when your task sits inside the work of a team already here, join that team",
+        )
+        expect(text).toContain(
+          "when your part in a team is done and its lead has nothing more for you, leave it",
+        )
+        expect(text).toContain("hand it the lead")
+        // Onward, once: only the user's work under way, never work of its own.
+        expect(text).toContain(
+          "look once at agents for work the user started that is still under way",
+        )
+        expect(text).toContain("If none fits, stop there. Never start work nobody asked for.")
+        // Anchored on the user's work, drift told.
+        expect(text).toContain("Helping other agents never outranks what the user asked")
+        expect(text).toContain("keep to what they asked and tell them with tell")
+        expect(text).toContain("Decide yourself what the user left open")
+      }
+      expect(swarm.done).toContain("look once at agents for work the user started")
+      expect(swarm.ask).toContain("Decide yourself what the user left open")
+      // None of it reaches Herd or Solo.
+      for (const mode of ["herd", "solo"] as const) {
+        const other = await texts(mode)
+        for (const text of Object.values(other)) {
+          expect(text).not.toContain("as a swarm")
+          expect(text).not.toContain("look once at agents")
+          expect(text).not.toContain("Decide yourself what the user left open")
+        }
+      }
+    } finally {
+      delete answersBy.mode
+    }
+  })
+
   it("carries the messaging rules in each messaging tool's description", async () => {
     const [, tools] = await session(terminal(), [initialize, list])
     const described = tools?.result?.tools as { name: string; description: string }[]
