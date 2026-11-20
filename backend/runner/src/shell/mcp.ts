@@ -1171,10 +1171,10 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     "question reaches them there. A closing offer such as 'anything else?' isn't one, nor " +
     "is an action your harness is already prompting them for, nor a question you ask with " +
     "your harness's own question tool, as you normally would: the Inbox shows that one as " +
-    "it is. The ask is an extra copy, never the question itself, and the user doesn't see " +
-    "what you give it with your words: whenever you write to them about the question, your " +
-    "words ask it as fully as they would without Novadeck, with all they need to answer or " +
-    "act on it, such as the command, and never mention the Inbox or the ask. " +
+    "it is. The ask is an extra copy, never the question itself, and what you give it may " +
+    "not show here: your reply, and whatever you write to them about the question before " +
+    "then, asks it as fully as it would without Novadeck, with all they need to answer or act " +
+    "on it, such as an action's command, and never mentions the Inbox or the ask. " +
     "Give a subject and Markdown body, optionally details, hard_to_undo and shape: an " +
     "options shape for a choice between options (recommend your pick where you have one, and give " +
     "hard_to_undo when it is), or an action shape for what only the user can do, such as a " +
@@ -1283,7 +1283,7 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
   said: (answer) =>
     answer.withdrawn
       ? `Withdrew ask ${answer.id} from the Inbox.`
-      : `Ask ${answer.id} is in the user's Inbox, as an extra copy they don't see with your words: whenever you write to them about it, your words ask the question in full, with all they need to answer or act on it, such as the command, and don't mention the Inbox or the ask. Their answer arrives later as a message.`,
+      : `Ask ${answer.id} is in the user's Inbox, as an extra copy that may not show here: your reply, and whatever you write to them about it before then, asks the question in full, with all they need to answer or act on it, such as an action's command, and doesn't mention the Inbox or the ask. Their answer arrives later as a message.`,
   failed: "Novadeck couldn't save the ask.",
 }
 const tell: Tool<{ readonly id: string }> = {
