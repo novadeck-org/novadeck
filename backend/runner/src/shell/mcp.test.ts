@@ -1648,7 +1648,9 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
         'an agent the user asks for, as in "spawn an agent", "open a claude" or "get a codex on it", is one in its own Novadeck terminal, started with open_agent, unless they ask for a subagent',
       )
       // A team is always Novadeck's; subagents stay the agent's own, and are never one.
-      expect(text).toContain("a team is a lead and the agents in the Novadeck terminals it leads")
+      expect(text).toContain(
+        "a team, or a swarm, is a lead and the agents in the Novadeck terminals it leads",
+      )
       expect(text).toContain(
         "Subagents you start within your own turn stay yours to use for your own work",
       )

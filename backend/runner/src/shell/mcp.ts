@@ -493,8 +493,8 @@ const openTerminal: Tool<Opened> = {
     "Open a new terminal in Novadeck beside this one, optionally starting a command or a " +
     "TUI there, such as a dev server. It runs no agent: a command that does, such as a " +
     "bare claude, codex or agy, with flags, or on a prompt (claude -p, codex exec, agy -p), " +
-    "or resuming a session, isn't opened, and every agent, with a task or without, is " +
-    "started with open_agent. A command that runs no agent, such as claude mcp list, " +
+    "or resuming a session, isn't opened, and every agent in a Novadeck terminal, with a " +
+    "task or without, is started with open_agent. A command that runs no agent, such as claude mcp list, " +
     "codex login or agy update, is fine. A command is run only if the user approves it in " +
     "Novadeck: the call answers at once that they were asked, and a notice later tells you " +
     "their answer; a terminal with no command opens without asking. Use it when the user asks for a new terminal or " +
@@ -626,7 +626,8 @@ const withModel = (schema: object, models: Models): object => {
 const agentsHere =
   'In Novadeck, an agent the user asks for, as in "spawn an agent", "open a claude" or "get ' +
   'a codex on it", is one in its own Novadeck terminal, started with open_agent, unless they ' +
-  "ask for a subagent; a team is a lead and the agents in the Novadeck terminals it leads. " +
+  "ask for a subagent; a team, or a swarm, is a lead and the agents in the Novadeck " +
+  "terminals it leads. " +
   "Subagents you start within your own turn stay yours to use for your own work, as you " +
   "normally would, and are never a team."
 
@@ -634,7 +635,7 @@ const openAgent: Tool<Opened> = {
   name: "open_agent",
   description:
     "Open a new terminal in Novadeck beside this one and start an agent there: the only " +
-    "way to start one. " +
+    "way to start an agent in a Novadeck terminal. " +
     agentsHere +
     " Each agent works " +
     "in its own terminal, alongside you, on the harness and model you pick. Set lead from " +

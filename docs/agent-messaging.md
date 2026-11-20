@@ -768,7 +768,7 @@ sooner. The texts say these as facts and
 leave what the agent does with its turn to its harness and the person: "end your turn rather
 than wait" told agents with work left to stop, and "carry on with other work" to act on
 alone. How an agent asks the person, with a lead or not, is `ask`'s own description and
-the server's instructions. `open_agent`'s description adds that it is the only way to start an agent, with a brief or without, and the one that
+the server's instructions. `open_agent`'s description adds that it is the only way to start an agent in a Novadeck terminal, with a brief or without, and the one that
 can make the caller a lead (a `command` or a plain shell gets none), and that being a lead gives none of the person's approvals: what
 the worker needs the person to approve, they give in its own terminal or through an Inbox ask, so tell them to
 answer there. A text longer than 4 KB is refused by the MCP server itself, before it
@@ -779,9 +779,9 @@ Codex its agents, Antigravity subagents and a swarm. Novadeck settles what they 
 (`agentsHere` in `shell/mcp.ts`, in the server's instructions and in `open_agent`'s and `team`'s
 descriptions, which are what Codex and Antigravity read): an agent the person asks for is one in
 its own Novadeck terminal, started with `open_agent`, unless they ask for a subagent; a team is a
-lead and the agents in the Novadeck terminals it leads; and subagents an agent starts within its
+lead and the agents in the Novadeck terminals it leads, and so is a swarm; and subagents an agent starts within its
 own turn stay its own to use for its own work, and are never a team. It defines the words rather
-than forbid the harnesses' own features. In blind tabletop probes (Opus, Sonnet and Sol, three
+than forbid the harnesses' own features. In blind tabletop probes (Opus and Sonnet in Claude Code and Sol in Codex, three
 runs each, plus Antigravity), "make a team of three to review this PR" went from a harness's own
 agent team in 4 of 9 runs to a Novadeck team in all 9, and "have another agent double-check your
 diff" from a subagent in 9 of 9 to a Novadeck agent in 8, while "use a subagent to…" stayed a
