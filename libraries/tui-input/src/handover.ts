@@ -379,7 +379,8 @@ export class Handovers {
       }
       if (
         !profile.collapses(body) &&
-        wrappedRows(body, screen.columns) + 1 > profile.room(screen.rows.length)
+        wrappedRows(body, profile.columns?.(screen) ?? screen.columns) + 1 >
+          profile.room(screen.rows.length)
       ) {
         this.host.note(terminalId, "too-tall")
         return false

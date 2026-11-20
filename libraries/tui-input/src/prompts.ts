@@ -230,7 +230,8 @@ export const tooTall = (profile: BoxProfile, text: string, screen: ScreenText): 
   const typed = normalised(text).trim()
   return (
     !profile.collapses(typed) &&
-    wrappedRows(typed, screen.columns) + wrapMargin > profile.room(screen.rows.length)
+    wrappedRows(typed, profile.columns?.(screen) ?? screen.columns) + wrapMargin >
+      profile.room(screen.rows.length)
   )
 }
 
@@ -501,7 +502,8 @@ export class Prompts {
       if (
         !profile.collapses(typed) &&
         !(left && (profile.viewport !== undefined || profile.cut?.(left) === true)) &&
-        held + wrappedRows(typed, before.columns) + wrapMargin > profile.room(before.rows.length)
+        held + wrappedRows(typed, profile.columns?.(before) ?? before.columns) + wrapMargin >
+          profile.room(before.rows.length)
       ) {
         if (mode !== "alone") this.host.note?.(terminalId, "too-tall")
         throw new PromptRefusal(
