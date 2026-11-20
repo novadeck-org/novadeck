@@ -777,15 +777,22 @@ reaches the runner.
 "Agent" and "team" mean something in every harness: Claude Code has subagents and agent teams,
 Codex its agents, Antigravity subagents and a swarm. Novadeck settles what they mean here
 (`agentsHere` in `shell/mcp.ts`, in the server's instructions and in `open_agent`'s and `team`'s
-descriptions, which are what Codex and Antigravity read): an agent the person asks for is one in
-its own Novadeck terminal, started with `open_agent`, unless they ask for a subagent or say that is what they mean; a team is a
-lead and the agents in the Novadeck terminals it leads, and so is a swarm; and subagents an agent starts within its
-own turn stay its own to use for its own work, and are never a team. It defines the words rather
-than forbid the harnesses' own features. In blind tabletop probes (Opus and Sonnet in Claude Code and Sol in Codex, three
-runs each, plus Antigravity), "make a team of three to review this PR" went from a harness's own
-agent team in 4 of 9 runs to a Novadeck team in all 9, and "have another agent double-check your
-diff" from a subagent in 9 of 9 to a Novadeck agent in 8, while "use a subagent to…" stayed a
-subagent and "find every caller… use agents if it speeds things up" stayed the agent's own work.
+descriptions, which are what Codex and Antigravity read): an agent the person asks to take on a
+task ("spawn an agent to fix X", "open a claude") is one in its own Novadeck terminal, started with
+`open_agent`, unless they ask for a subagent or say that is what they mean, as an AGENTS.md line
+"when I ask for an agent, I mean a subagent" does; a team is a lead and the agents in the Novadeck
+terminals it leads, and so is a swarm; agents the agent, the person or a skill want used for the
+agent's own task, such as to do it faster, are its own pick as usual, except that a team is
+always a Novadeck one; and subagents it starts within its own turn are never a team. It defines
+the words rather than forbid the harnesses' own features. In blind tabletop probes (Opus and Sonnet
+in Claude Code and Sol in Codex, three runs each, plus fresh Antigravity sessions), "make a team of
+three to review this PR" went from a harness's own agent team in 4 of 9 runs to a Novadeck team in
+all 9, "use a swarm" from a harness team in 6 to a Novadeck team in 9, and "have another agent
+double-check your diff" from a subagent in 9 to a Novadeck agent in 7. Asks meant for subagents
+stayed subagents: "use the code-reviewer agent", "three Explore agents", "a couple of subagents",
+"a helper so your context stays clean", "fan this out", a skill's "launch 4 research agents" and
+"use agents to speed up this rename" (subagents in 8 of 9; the first wording, without the own-task
+sentence, opened Novadeck terminals for it in 6 and Antigravity's own team once).
 
 `open_agent({ agent, message?, model?, effort?, lead?, resume?, cwd?, title?, focus? })`
 opens a terminal running that agent. Without `message` the agent just starts at its prompt;

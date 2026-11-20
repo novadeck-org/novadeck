@@ -624,12 +624,13 @@ const withModel = (schema: object, models: Models): object => {
 // Novadeck's. Carried by the server's instructions for Claude Code and by open_agent's and
 // team's descriptions for every harness.
 const agentsHere =
-  'In Novadeck, an agent the user asks for, as in "spawn an agent", "open a claude" or "get ' +
-  'a codex on it", is one in its own Novadeck terminal, started with open_agent, unless they ' +
-  "ask for a subagent or say that is what they mean; a team, or a swarm, is a lead and the agents in the Novadeck " +
-  "terminals it leads. " +
-  "Subagents you start within your own turn stay yours to use for your own work, as you " +
-  "normally would, and are never a team."
+  'In Novadeck, an agent the user asks to take on a task, as in "spawn an agent to fix ' +
+  'X", "open a claude" or "get a codex on it", is one in its own Novadeck terminal, started ' +
+  "with open_agent, unless they ask for a subagent or say that is what they mean; a team, or " +
+  "a swarm, is a lead and the agents in the Novadeck terminals it leads. " +
+  "Agents that you, the user or a skill want used for your own task, such as to do it " +
+  "faster, are yours to pick as you normally would, except that a team is always a Novadeck " +
+  "one; subagents you start within your own turn are never a team."
 
 const openAgent: Tool<Opened> = {
   name: "open_agent",

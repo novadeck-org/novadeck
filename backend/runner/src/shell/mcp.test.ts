@@ -1643,18 +1643,19 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     const described = tools?.result?.tools as { name: string; description: string }[]
     const of = (name: string) => described.find((tool) => tool.name === name)!.description
     for (const text of [handshake?.result?.instructions as string, of("open_agent"), of("team")]) {
-      // An agent the user asks for opens in a Novadeck terminal, a subagent only when asked.
+      // An agent the user hands a task opens in a Novadeck terminal, a subagent only when asked.
       expect(text).toContain(
-        'an agent the user asks for, as in "spawn an agent", "open a claude" or "get a codex on it", is one in its own Novadeck terminal, started with open_agent, unless they ask for a subagent or say that is what they mean',
+        'an agent the user asks to take on a task, as in "spawn an agent to fix X", "open a claude" or "get a codex on it", is one in its own Novadeck terminal, started with open_agent, unless they ask for a subagent or say that is what they mean',
+      )
+      // Agents for the agent's own task, even asked for, stay its own pick.
+      expect(text).toContain(
+        "Agents that you, the user or a skill want used for your own task, such as to do it faster, are yours to pick as you normally would, except that a team is always a Novadeck one",
       )
       // A team is always Novadeck's; subagents stay the agent's own, and are never one.
       expect(text).toContain(
         "a team, or a swarm, is a lead and the agents in the Novadeck terminals it leads",
       )
-      expect(text).toContain(
-        "Subagents you start within your own turn stay yours to use for your own work",
-      )
-      expect(text).toContain("are never a team")
+      expect(text).toContain("subagents you start within your own turn are never a team")
     }
   })
 
