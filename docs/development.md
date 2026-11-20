@@ -1451,6 +1451,14 @@ the UI store's `windows`); the page decides at once what an action does:
   its old copy; a window picking a project the other was showing waits a moment (`swapSettleMs`) for that
   window to send what it changed there. A project the window never heard of, made in another window
   after it loaded, is learned the same way: no page reload.
+- **Terminals.** The runner lets one client control a terminal (`CONTROL_IN_USE` for the next), and a window's
+  screens used to keep control for seconds (parked) or minutes (retained) after it stopped showing their
+  project, so the window that took the project on found its terminals "Failed to start · Another window controls
+  it". Now a window that stops showing a project lets go of its screens at once (`TerminalScreens.release`, from
+  `Backend.showingProject`), and where windows share terminals by project an attach refused for that reason
+  is asked for again every 300 ms until the other window has let go (`SurfaceRuntime.sharing`), so no timing luck
+  is involved. Restart on such a terminal is harmless: the runner restarts only an exited terminal and refuses
+  `create` over a live id with `CONFLICT`, which the adapter takes as "still there" and attaches again.
 - **Saves.** With project windows on a window saves only the sessions of the project it shows
   (`Backend.limitSaves`, which sends what it changed before the limit moves), the others' copies here
   being stale until it takes them on, so two windows never overwrite each other's layouts.

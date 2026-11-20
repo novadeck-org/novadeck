@@ -123,6 +123,16 @@ describe("the runner's terminal screens' options", () => {
     expect(classify(new Error("boom"))).toBe("fatal")
   })
 
+  it("wait for a terminal another window controls where windows share the terminals by project", () => {
+    const { runtime } = runtimeOf({} as AttachedTerminal)
+    const { classify } = screensOptions({ ...runtime, sharing: () => true }, { theme: noTheme })
+    expect(classify(new WireError("CONTROL_IN_USE"))).toBe("busy")
+    // Anything else is as it was.
+    expect(classify(new WireError("TERMINAL_LIMIT"))).toBe("fatal")
+    const alone = screensOptions({ ...runtime, sharing: () => false }, { theme: noTheme })
+    expect(alone.classify(new WireError("CONTROL_IN_USE"))).toBe("fatal")
+  })
+
   it("wait for Enter after an exit that can start again, not after a clean one", () => {
     const { waitsAfter } = screensOptions(runtimeOf({} as AttachedTerminal).runtime, {
       theme: noTheme,

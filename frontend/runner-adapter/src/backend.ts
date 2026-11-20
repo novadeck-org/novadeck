@@ -308,6 +308,10 @@ export type SurfaceRuntime = {
   // Whether the terminal still exists and its session is the one on screen, so a screen
   // no view shows right now is kept for the next; one off screen is kept for a while.
   readonly shown: (key: TerminalKey) => boolean
+  // Whether this window shares the runner's terminals with others by project (project windows
+  // on): a terminal another window still controls, as it lets go of the project, is waited for
+  // rather than failed. Absent, or false, a terminal another window controls is failed.
+  readonly sharing?: () => boolean
 }
 
 export type RunnerBackend = {
@@ -405,6 +409,8 @@ export const runnerBackend = (
   const inUse = terminalInUse((terminalId) => runner.terminals.active(terminalId))
   // The project this window shows, told to the runner so an agent's request reaches the window
   // that shows its project (see `terminals.showing`).
+  // The project this window told the runner it shows, while project windows are on.
+  let shownProject: string | null = null
   const showing = terminalInUse((projectId) => runner.terminals.showing(projectId))
   const inSight = terminalsInSight((terminalIds) => runner.terminals.seen(terminalIds))
   // Every terminal a surface wants seen, told to the runner as it changes (see `terminals.seen`).
@@ -1785,6 +1791,7 @@ export const runnerBackend = (
         entry.dwell = undefined
       }
     },
+    sharing: () => saveScope !== null,
     shown: (key) => {
       const entry = registry.get(key)?.entry
       return entry !== undefined && !entry.closed && onScreen(entry)
@@ -2063,7 +2070,15 @@ export const runnerBackend = (
     murmur: murmur.murmur,
     typeInto: screens.typeInto,
     activeTerminal: inUse.report,
-    showingProject: showing.report,
+    showingProject: (projectId) => {
+      // A project this window stops showing is let go of at once: its screens detach, so the
+      // window that shows it now can control its terminals, rather than the screens parking and
+      // keeping control for seconds or minutes.
+      if (projectId !== null && shownProject !== null && shownProject !== projectId)
+        screens.release((key) => key.projectId === shownProject)
+      shownProject = projectId
+      showing.report(projectId)
+    },
     limitSaves: (projectId) => {
       // What this window changed in the project it showed is sent first.
       flush()

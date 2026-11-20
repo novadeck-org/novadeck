@@ -224,6 +224,57 @@ describe("the cap on parked screens", () => {
   })
 })
 
+describe("letting go of the screens of terminals another client is to control", () => {
+  it("closes a screen nobody holds at once, without waiting for it to park", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const { screens, told, show, hide, present } = capped(8)
+      show("p/a")
+      hide("p/a")
+      show("q/b")
+      hide("q/b")
+      screens.release((key) => key.startsWith("p/"))
+      expect(told).toContain("p/a gone")
+      expect(told).not.toContain("q/b gone")
+      expect(present("p/a")).toBe(false)
+    } finally {
+      closeScreens()
+      vi.useRealTimers()
+    }
+  })
+
+  it("closes a screen still held once its mount lets go, not before", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const { screens, told, show, hide } = capped(8)
+      show("p/a")
+      screens.release((key) => key.startsWith("p/"))
+      expect(told).not.toContain("p/a gone")
+      hide("p/a")
+      expect(told).toContain("p/a gone")
+    } finally {
+      closeScreens()
+      vi.useRealTimers()
+    }
+  })
+
+  it("leaves a screen that is shown again before its mount lets go", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const { screens, told, show, hide } = capped(8)
+      show("p/a")
+      screens.release((key) => key.startsWith("p/"))
+      show("p/a")
+      hide("p/a")
+      hide("p/a")
+      expect(told).not.toContain("p/a gone")
+    } finally {
+      closeScreens()
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe("a mount's hold on a screen", () => {
   it("lets go once, however often it is told to", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })

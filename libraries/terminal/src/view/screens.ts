@@ -203,6 +203,11 @@ export type TerminalScreens<K> = {
   // `restart`. Restarting past an open screen would leave it waiting for Enter, taking the
   // keys typed to the fresh shell as a restart's.
   readonly restart: (key: K) => void
+  // Lets go of the screens of every terminal `match` names, as when the owner stops showing
+  // their project and another client is to control them: each closes at once, detaching from its
+  // terminal, a screen still held by a mount as that mount lets go of it. A screen shown again
+  // before then stays. Never the terminal itself.
+  readonly release: (match: (key: K) => boolean) => void
   // Sets the terminal font from Preferences: new screens open in it and the open ones
   // whose size differs change to it and fit again.
   readonly setFont: (font: TerminalFont) => void
@@ -271,6 +276,9 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
   const parkAfterMs = o.park?.afterMs ?? parkMs
   const cap = o.park?.keep ?? parkedCap
   const entries = new Map<string, Entry>()
+  // The key each entry opened for, and the entries to close once nothing holds them.
+  const keys = new Map<string, K>()
+  const doomed = new Set<string>()
   // The parked screens, the one parked longest first: a map keeps the order its keys were
   // added in, so a screen shown again leaves it and parking it again puts it last.
   const parked = new Map<string, { key: K; entry: Entry }>()
@@ -286,6 +294,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
       container.setAttribute("class", o.markup.containerClass)
     const created: Entry = { container, users: 0 }
     entries.set(id(key), created)
+    keys.set(id(key), key)
     return created
   }
 
@@ -518,6 +527,8 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
 
   const close = (key: K, entry: Entry): void => {
     entries.delete(id(key))
+    keys.delete(id(key))
+    doomed.delete(id(key))
     parked.delete(id(key))
     clearTimeout(entry.timer)
     clearTimeout(entry.parking)
@@ -568,6 +579,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
       }
     }
     entry.users += 1
+    doomed.delete(id(key))
     if (entry.timer !== undefined) clearTimeout(entry.timer)
     entry.timer = undefined
     clearTimeout(entry.parking)
@@ -593,6 +605,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
     if (!entry) return
     entry.users -= 1
     if (entry.users > 0) return
+    if (doomed.has(id(key))) return close(key, entry)
     entry.unwatch?.()
     entry.unwatch = undefined
     if (entry.timer === undefined) settle(key, entry)
@@ -697,6 +710,14 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
         clearTimeout(fontSettling)
       } else for (const screen of changed) screen.followed.refit()
       fontSettling = setTimeout(fitAfterPause, resizeSettleMs)
+    },
+    release: (match) => {
+      for (const [name, entry] of entries) {
+        const key = keys.get(name)
+        if (key === undefined || !match(key)) continue
+        if (entry.users === 0) close(key, entry)
+        else doomed.add(name)
+      }
     },
     restart: (key) => {
       const screen = entries.get(id(key))?.screen
