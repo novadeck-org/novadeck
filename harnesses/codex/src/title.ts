@@ -76,7 +76,7 @@ const sideConversation = async (where: Install, session: string): Promise<boolea
  * Whether Codex just started, as a new root thread, the thread whose id starts with
  * `prefix`. It writes and holds a lock for each thread it starts through its thread store
  * (`live_writer::create_thread`, 0.159.3): a new or cleared root, but also an agent it
- * spawns (with `parent_thread_id`); none for an ephemeral `/side` fork, whose id its title
+ * spawns (with `parent_thread_id`); none for an ephemeral `/side` fork (0.170.0's by default), whose id its title
  * shows alike, but one from 0.171.0 for a `/side` fork it keeps, whose rollout says so
  * (`sideConversation`). So the lock must be made from a second before the title to a moment after
  * it (an agent's was made at its spawn, inside an earlier turn), and, where `holds` can

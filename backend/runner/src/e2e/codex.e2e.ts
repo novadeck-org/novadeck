@@ -139,10 +139,12 @@ describe.skipIf(!supported)("Codex", () => {
     expect(messages(t2).map((one) => one.state)).toEqual(["delivered"])
   })
 
-  // `/side` forks an ephemeral thread, which Codex shows in place of the root's (from 0.171.0
-  // on a wide screen beside it), its title naming it, though it takes no writer lock; the
-  // person asks it something on the side, then goes back to the root with Ctrl-/. Its hooks name no transcript (docs/agent-messaging.md,
-  // "Per harness"). The person's keys opening it leave the terminal Drafting, so nothing
+  // `/side` forks a thread, which Codex shows in place of the root's (from 0.171.0 on a screen of
+  // 100 columns or more beside it), its title naming it. Up to 0.170.0 the thread is ephemeral
+  // by default: it takes no writer lock, and its hooks name no transcript. From 0.171.0 Codex
+  // keeps it, with a lock and a rollout whose first record says it is a side conversation, which
+  // its `SessionStart` names (docs/agent-messaging.md, "Per harness"). The person asks it
+  // something on the side, then goes back to the root with Ctrl-/. The person's keys opening it leave the terminal Drafting, so nothing
   // rings the side conversation's box, and their next prompt in the root delivers.
   it("keeps its session bound through a /side conversation, and delivers at the root's next prompt", async ({
     e2e: run,
@@ -164,8 +166,9 @@ describe.skipIf(!supported)("Codex", () => {
     const calls = run.model.mark()
     const mark = t1.mark()
 
-    // The person opens a side conversation: its title names the fork, which no new lock
-    // confirms, so the root stays bound past the title's check.
+    // The person opens a side conversation: its title names the fork, which no new root's lock
+    // confirms (from 0.171.0 its lock comes with a side conversation's rollout), so the root
+    // stays bound past the title's check.
     await t1.submit("/side")
     await t1.until(side)
     await t2.submit("Tell moth the news")

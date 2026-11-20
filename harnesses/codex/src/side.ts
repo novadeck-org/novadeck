@@ -29,8 +29,8 @@ export const sideSource = "tui_side_chat"
  * Whether the rollout is a side conversation's, kept with its root: from 0.171.0 Codex keeps a
  * `/side` conversation as a thread of its own, with a writer lock and a rollout, whose
  * `session_meta` marks it `attached_thread`, its `thread_source` "tui_side_chat", forked from
- * the root (probed 2026-11-20, e2e/probes/codex-side.e2e.ts). Up to 0.170.0 it was ephemeral,
- * with neither. Undefined where the rollout's first record can't be read: Codex writes a new
+ * the root (probed 2026-11-20, e2e/probes/codex-side.e2e.ts). Up to 0.170.0 it was ephemeral by
+ * default, with neither (the kept thread is behind the `tui_workspace` feature there, off by default: `app/side.rs`, v0.170.0 source). Undefined where the rollout's first record can't be read: Codex writes a new
  * root's only once it has records to keep, a kept side conversation's as it makes the thread.
  */
 export const sideRollout = async (path: string): Promise<boolean | undefined> => {

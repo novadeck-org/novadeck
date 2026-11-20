@@ -1219,8 +1219,11 @@ transcript says.
     and `^c`); ctrl+c goes back to the root. From 0.171.0, on 100 columns or more, it is a
     pane of the sidebar beside the root's, its tab "Side chat", and ctrl+c asks to archive
     it ("^c to archive" where it takes the whole screen; `e2e/probes/codex-side.e2e.ts`).
-    Its thread is ephemeral: its first prompt fires a `SessionStart` saying `fork`, and
-    every hook of it gives `transcript_path` as null.
+    Up to 0.170.0 its thread is ephemeral by default: its first prompt fires a
+    `SessionStart` saying `fork`, and every hook of it gives `transcript_path` as null.
+    From 0.171.0 Codex keeps it, its hooks naming its rollout. An approval the root asks
+    while the side has the focus is held out of view until Ctrl-/ moves the focus to the
+    root (`e2e/probes/codex-side-dialog.e2e.ts`).
   - _Fork_: `codex fork` shows its "Fork a previous session" picker, latest first, each
     session by its first prompt, the first selected (`›`), with no title until one is
     picked ("enter fork"); picked, the fork shows "Thread forked from <id>", its title
