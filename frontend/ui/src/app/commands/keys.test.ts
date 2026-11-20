@@ -238,6 +238,47 @@ describe("key commands", () => {
       expect(app.shell().keyboardFocus).toEqual({ id: "02", view: "grid" })
     })
 
+    it("lets go of a terminal that closes while it shows, choosing the row that takes its place", () => {
+      const app = openKeys({ workspace: workspaceFixture({ terminals: 3 }) })
+      app.commands.openSwitcher("01", { isConnected: true, focus: () => {} })
+      app.keydown({ key: "ArrowDown" })
+      const { ids, index } = app.commands.visibleSwitcher()!
+      const gone = ids[index]!
+      app.workspace.dispatch({
+        type: "terminal/close",
+        target: { projectId: "project", workspaceSessionId: "initial" },
+        terminalId: gone,
+      })
+      const now = app.commands.visibleSwitcher()!
+      expect(now.ids).not.toContain(gone)
+      const next = now.ids[now.index]!
+      expect(app.keydown({ key: "Enter" })).toBe("handled")
+      expect(app.state().selected).toBe(next)
+      expect(app.shell().keyboardFocus).toEqual({ id: next, view: "grid" })
+    })
+
+    it("closes once every terminal it offered is gone", () => {
+      const app = openKeys({ workspace: workspaceFixture({ terminals: 2 }) })
+      app.commands.openSwitcher("01", { isConnected: true, focus: () => {} })
+      for (const terminalId of ["01", "02"])
+        app.workspace.dispatch({
+          type: "terminal/close",
+          target: { projectId: "project", workspaceSessionId: "initial" },
+          terminalId,
+        })
+      expect(app.ui.getSnapshot().recent.switcher).toBeNull()
+    })
+
+    it("takes nothing for a row whose terminal is gone, as a click on it can still ask", () => {
+      const app = openKeys({ workspace: workspaceFixture({ terminals: 3 }) })
+      app.commands.openSwitcher("01", { isConnected: true, focus: () => {} })
+      const before = app.shell().keyboardFocus
+      app.commands.chooseRecent("gone")
+      expect(app.ui.getSnapshot().recent.switcher).not.toBeNull()
+      expect(app.shell().keyboardFocus).toEqual(before)
+      expect(app.state().selected).toBe("01")
+    })
+
     it("closes with Escape and returns focus to the button after a microtask", () => {
       const app = openKeys()
       const focused: string[] = []

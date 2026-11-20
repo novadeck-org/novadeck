@@ -735,7 +735,8 @@ Canvas navigation uses gestures and
 keyboard shortcuts: +/− to zoom and 0 to fit all terminals.
 Focus becomes an edge-to-edge terminal, while Grid and Canvas gain the available space.
 In any view, click the terminal icon beside the name to open the terminal switcher.
-Choose a terminal, or use Up/Down and Enter. Escape closes the switcher.
+Choose a terminal, or use Up/Down and Enter. Escape closes the switcher. A terminal that
+closes while it shows leaves its list, the highlight moving to the one below it.
 This also works outside Zen; double-click or double-tap the name still renames it.
 Terminal names stay visible; header actions appear on hover or keyboard focus on desktop
 and stay visible on touch devices. Search and terminal shortcuts remain available.

@@ -1,7 +1,14 @@
 import { terminalFixture } from "@novadeck/core/testing"
 
 import { context, describe, expect, it } from "../test"
-import { cycleRecent, moveRecent, nextRecent, openRecent, visibleSwitcher } from "./recent"
+import {
+  cycleRecent,
+  moveRecent,
+  nextRecent,
+  openRecent,
+  visibleSwitcher,
+  withoutGone,
+} from "./recent"
 
 const ordered = [1, 2, 3].map((number) => terminalFixture(number, "~/project"))
 
@@ -64,6 +71,30 @@ describe("recent terminals", () => {
       expect(visibleSwitcher(switcher, "a", null)).toBe(switcher)
       expect(visibleSwitcher(switcher, "b", null)).toBeNull()
       expect(visibleSwitcher(switcher, "a", "search")).toBeNull()
+    })
+  })
+
+  context("when a terminal closes while it shows", () => {
+    const at = (index: number) => ({ ...openRecent("a", ["01", "02", "03", "04"], "01"), index })
+    const without =
+      (...gone: string[]) =>
+      (id: string) =>
+        !gone.includes(id)
+
+    it("keeps the highlight on its row, which moves up past the rows that went", () => {
+      expect(withoutGone(at(2), without("01"))).toMatchObject({ ids: ["02", "03", "04"], index: 1 })
+      expect(withoutGone(at(1), without("04"))).toMatchObject({ ids: ["01", "02", "03"], index: 1 })
+    })
+
+    it("moves the highlight to the row that takes the place of its own, or the last", () => {
+      expect(withoutGone(at(1), without("02"))).toMatchObject({ ids: ["01", "03", "04"], index: 1 })
+      expect(withoutGone(at(3), without("04"))).toMatchObject({ ids: ["01", "02", "03"], index: 2 })
+    })
+
+    it("closes once no row is left, and stays the same where none went", () => {
+      const switcher = at(0)
+      expect(withoutGone(switcher, () => false)).toBeNull()
+      expect(withoutGone(switcher, () => true)).toBe(switcher)
     })
   })
 })
