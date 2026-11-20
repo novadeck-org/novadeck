@@ -123,6 +123,29 @@ describe("a change's rows", () => {
     expect(rows.find((line) => line.text === "          <nav>")).toMatchObject({ old: 3, now: 5 })
   })
 
+  it("name the lines a change that only re-indents is at, not the context around them", () => {
+    const [change] = changes(
+      layoutOf(
+        {
+          hunks: [
+            hunk(38, 38, [
+              " before",
+              "-  const a = 1",
+              "-  const b = 2",
+              "+    const a = 1",
+              "+    const b = 2",
+              " after",
+            ]),
+          ],
+        },
+        null,
+        null,
+      ),
+    )
+    expect(change).toMatchObject({ added: 0, removed: 0, reindented: 2 })
+    expect(change!.lines).toEqual({ from: 39, to: 40 })
+  })
+
   it("clip a long change in the middle, counting what is hidden", () => {
     const body = Array.from({ length: clipOver + 14 }, (_, at) =>
       at % 3 === 0 ? `-old ${at}` : `+new ${at}`,

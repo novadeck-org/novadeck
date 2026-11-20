@@ -109,14 +109,15 @@ const markReplaced = (removed: readonly Line[], added: readonly Line[]): Line[] 
 const settle = (
   removed: readonly Line[],
   added: readonly Line[],
-): { rows: Line[]; reindented: number } => {
+): { rows: Line[]; reindented: number; moved: Line[] } => {
   // Pairing re-indented lines is quadratic: a block this big is left as it is.
   if (removed.length * added.length > pairingMost)
-    return { rows: [...removed, ...added], reindented: 0 }
+    return { rows: [...removed, ...added], reindented: 0, moved: [] }
   const keysOld = removed.map((line) => key(line.text))
   const keysNew = added.map((line) => key(line.text))
   const pairs = commonRun(keysOld, keysNew).filter(([i]) => keysOld[i] !== "")
   const rows: Line[] = []
+  const moved: Line[] = []
   let i = 0
   let j = 0
   for (const [pi, pj] of [...pairs, [removed.length, added.length] as const]) {
@@ -124,12 +125,14 @@ const settle = (
     if (pi < removed.length) {
       const was = removed[pi]!
       const now = added[pj]!
-      rows.push({ kind: "context", old: was.old, now: now.now, text: now.text, marks: [] })
+      const line: Line = { kind: "context", old: was.old, now: now.now, text: now.text, marks: [] }
+      rows.push(line)
+      moved.push(line)
     }
     i = pi + 1
     j = pj + 1
   }
-  return { rows, reindented: pairs.length }
+  return { rows, reindented: pairs.length, moved }
 }
 
 const numbered = (hunk: DiffHunk): Line[] => {
@@ -167,6 +170,7 @@ const changeOf = (
   const lines = numbered(hunk)
   const rows: Line[] = []
   let reindented = 0
+  const moved: Line[] = []
   for (let at = 0; at < lines.length;) {
     if (lines[at]!.kind === "context") {
       rows.push(lines[at]!)
@@ -179,6 +183,7 @@ const changeOf = (
     for (; lines[at]?.kind === "add"; at += 1) added.push(lines[at]!)
     const block = settle(removed, added)
     reindented += block.reindented
+    moved.push(...block.moved)
     rows.push(...block.rows)
   }
   const added = rows.filter((line) => line.kind === "add").length
@@ -186,6 +191,8 @@ const changeOf = (
   const onlyRemoves = added === 0 && removed > 0
   const kind = onlyRemoves ? "remove" : "add"
   const span = (line: Line | undefined) => (onlyRemoves ? line?.old : line?.now) ?? 0
+  // The lines a change is at: the ones it adds, or removes; where it only re-indents, those.
+  const where = added + removed === 0 ? moved : rows.filter((line) => line.kind === kind)
   return {
     kind: "change",
     id: `change-${index}`,
@@ -197,8 +204,8 @@ const changeOf = (
     reindented,
     fact,
     lines: {
-      from: span(rows.find((line) => line.kind === kind)),
-      to: span(rows.findLast((line) => line.kind === kind)),
+      from: span(where.at(0)),
+      to: span(where.at(-1)),
     },
     onlyRemoves,
   }
