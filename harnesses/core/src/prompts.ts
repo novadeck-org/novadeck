@@ -10,7 +10,7 @@ import type { EventBase, HarnessEvent } from "./events.js"
 // The doorbell line is one self-closing tag: `from` holds the waiting messages' senders' bare
 // handles (`novadeck` for Novadeck's own notices). A task's start prompt (`startLine`) quotes its
 // attributes with `'`, so a shell's double quotes can hold it. Transcripts of sessions from
-// before the tag hold the old bracket line, which every reader still knows (`oldDoorbell`).
+// before the tag hold the old bracket line, which every reader still knows (`oldPattern`).
 const tagPattern = String.raw`<novadeck-doorbell ring=["']([A-Za-z0-9]+)["'] from=["'][A-Za-z0-9_ -]*["']/>`
 const oldPattern = String.raw`\[Novadeck: automatic notice, agent messages waiting, ([A-Za-z0-9]+)\]`
 
