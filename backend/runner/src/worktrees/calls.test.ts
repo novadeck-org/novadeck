@@ -55,6 +55,8 @@ const fixture = (cleanup: (run: () => void) => void) => {
   const asked: Asked[] = []
   let nobody = false
   const state = { enabled: true, mode: "herd" as AgentMode }
+  // Terminals whose agents sleep: no record, but still owners, by handle.
+  const asleep = new Map<string, string>()
   const host = {
     records: () => records,
     stopping: () => false,
@@ -76,6 +78,10 @@ const fixture = (cleanup: (run: () => void) => void) => {
         ),
     }),
     agentMode: () => state.mode,
+    sleepers: () => ({
+      peer: (id: string) =>
+        asleep.has(id) ? { summary: { id, handle: asleep.get(id) } } : undefined,
+    }),
     approvals: () => ({
       refusal: () => (nobody ? "nobody" : undefined),
       request: (item: Asked["item"], settle: Asked["settle"]) => void asked.push({ item, settle }),
@@ -97,10 +103,12 @@ const fixture = (cleanup: (run: () => void) => void) => {
     project,
     calls,
     call,
+    records,
     notices,
     asked,
     state,
     live,
+    asleep,
     nobody: (value: boolean) => (nobody = value),
   }
 }
@@ -268,6 +276,32 @@ describe("worktree calls", () => {
     expect(fx.notices).toEqual([
       { id: "t1", text: expect.stringContaining("@fox took your worktree") },
     ])
+  })
+
+  it("take tells a sleeping owner, so it hears of the loss when it wakes", async ({ fx }) => {
+    const opened = await fx.calls.open(fx.call("t1", { branch: "zz" }))
+    if (!opened.ok) throw new Error(opened.reason)
+    const { path } = opened
+    // The owner's agent goes to sleep: no record, still in messaging.
+    fx.asleep.set("t1", "moth")
+    fx.records.delete("t1")
+    fx.state.mode = "swarm"
+    expect(await fx.calls.take(fx.call("t2", { path }))).toMatchObject({ ok: true, from: "moth" })
+    expect(fx.notices).toEqual([
+      { id: "t1", text: expect.stringContaining("@fox took your worktree") },
+    ])
+  })
+
+  it("take tells a sleeping owner of an approved take too", async ({ fx }) => {
+    const opened = await fx.calls.open(fx.call("t1", { branch: "yy" }))
+    if (!opened.ok) throw new Error(opened.reason)
+    const { path } = opened
+    fx.asleep.set("t1", "moth")
+    fx.records.delete("t1")
+    expect(await fx.calls.take(fx.call("t2", { path }))).toMatchObject({ asked: true, owner: "moth" })
+    fx.asked[0]!.settle("confirmed")
+    await vi.waitFor(() => expect(fx.store.worktree(path)?.terminalId).toBe("t2"))
+    expect(fx.notices.find(({ id }) => id === "t1")?.text).toContain("@fox take your worktree")
   })
 
   it("take reads the mode at each call, so a change reaches an agent already running", async ({

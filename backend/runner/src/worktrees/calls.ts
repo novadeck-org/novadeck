@@ -15,7 +15,7 @@ import type { Worktrees } from "./worktrees.js"
 /** What the worktree calls need of the runner. */
 export type WorktreeCallsHost = Pick<
   LeadsHost,
-  "records" | "stopping" | "messaging" | "peers" | "approvals" | "agentMode"
+  "records" | "stopping" | "messaging" | "peers" | "approvals" | "agentMode" | "sleepers"
 > & {
   /** The service; none where the runner keeps no ownership (some tests). */
   readonly worktrees: () => Worktrees | undefined
@@ -233,6 +233,11 @@ export class WorktreeCalls {
     }
   }
 
+  /** The terminal that owns a worktree, running or asleep: a message to a sleeper wakes it. */
+  private ownerOf(ownerId: string): { readonly summary: { readonly id: string; readonly handle: string } } | undefined {
+    return this.host.records().get(ownerId) ?? this.host.sleepers().peer(ownerId)
+  }
+
   /**
    * Where agents decide for themselves (Swarm), the caller takes a worktree another terminal
    * owns at once; the owner, if it still runs, is told.
@@ -247,8 +252,9 @@ export class WorktreeCalls {
     const { path, branch } = row
     if (!(await service.transfer(path, ownerId, call.terminalId)))
       return refused(`The worktree ${path} changed owner meanwhile, so nothing changed.`)
-    const owner = this.host.records().get(ownerId)
+    const owner = this.ownerOf(ownerId)
     if (owner) {
+      // A sleeping owner hears of it when the notice wakes it.
       this.host
         .messaging()
         .notice(ownerId, worktreeNotice.lostNow(caller.summary.handle, path, branch), {
@@ -280,7 +286,7 @@ export class WorktreeCalls {
           : "A question about that worktree's owner is still waiting for the user's answer, so " +
               "nothing changed. Try again once it is answered.",
       )
-    const owner = this.host.records().get(ownerId)
+    const owner = this.ownerOf(ownerId)
     const tell = (id: string, text: string) =>
       this.host.messaging().notice(id, text, { always: true })
     const { path, branch } = row
@@ -302,8 +308,8 @@ export class WorktreeCalls {
           if (!(await service.transfer(path, ownerId, call.terminalId)))
             return tell(call.terminalId, worktreeNotice.moved(path))
           tell(call.terminalId, worktreeNotice.taken(path, branch))
-          // Its old owner's agent, if it still runs, learns on its next turn.
-          if (this.host.records().has(ownerId)) {
+          // Its old owner's agent, if it still runs or sleeps, learns on its next turn or wake.
+          if (this.ownerOf(ownerId)) {
             tell(ownerId, worktreeNotice.lost(caller.summary.handle, path, branch))
             // The notice names the taker, so its handle is the old owner's to use.
             this.host.peers().introduce(ownerId, call.terminalId)
