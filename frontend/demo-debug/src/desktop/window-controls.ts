@@ -20,9 +20,11 @@ export const clearDemoWindowControls = (page: Document = document): void => {
 }
 
 // The preview page's stand-in for the desktop app's controls over the page: the page's root
-// says it is the window's title bar, its controls at the start, as the desktop app's entry says, and three buttons are
-// drawn where macOS puts them, on the line the page asks for, hidden when it asks so (as in
-// Zen) and in full screen, where the page keeps no room for them.
+// says it is the window's title bar, its controls at the start, as the desktop app's entry
+// says, and three buttons are drawn where macOS puts them, on the line the page asks for,
+// hidden when it asks so (as in Zen) and in full screen, where the page keeps no room for them.
+// A boot may make its backend more than once, each taking away the buttons of the one before,
+// so the buttons the page places are put back in it, in place of any other's.
 export const createDemoWindowControls = (
   mode: DemoWindowControls,
   page: Document = document,
@@ -56,6 +58,10 @@ export const createDemoWindowControls = (
   return {
     side: "start",
     place: (middle) => {
+      if (!lights.isConnected) {
+        page.querySelectorAll("[data-demo-window-controls]").forEach((each) => each.remove())
+        page.body.append(lights)
+      }
       const shown = middle !== null && mode === "inset"
       lights.style.display = shown ? "flex" : "none"
       if (middle !== null) lights.style.top = `${middle - size / 2}px`
