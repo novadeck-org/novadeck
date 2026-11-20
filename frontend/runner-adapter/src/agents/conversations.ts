@@ -100,6 +100,9 @@ export type ConversationStreams = {
 }
 
 export type RunnerConversations = Conversations & {
+  // The terminal moved to another session, still running, under `key` now: its conversation
+  // goes on, and its doorbell follows its messages there.
+  readonly moved: (key: TerminalKey) => void
   // Stops reading every terminal at once.
   readonly stop: () => void
 }
@@ -725,6 +728,9 @@ const read = (
 type Entry = {
   readonly store: MutableStore<Conversation>
   readonly conversation: Store<Conversation>
+  // The terminal is now under this key, as after it moved to another session: its doorbell
+  // follows the messages there.
+  readonly rekey: (key: TerminalKey) => void
 }
 
 export const createRunnerConversations = (
@@ -745,17 +751,19 @@ export const createRunnerConversations = (
     let subscribers = 0
     let timer: ReturnType<typeof setTimeout> | undefined
     let stopRinging: (() => void) | undefined
+    // Where the terminal's messages are kept: by its session too, which a move changes.
+    let path = terminalKeyPath(key)
+    let seen: TerminalThreads | undefined
+    const look = (): void => {
+      const terminal = messages?.getSnapshot().terminals[path]
+      if (terminal === seen) return
+      seen = terminal
+      store.update((now) => ({ ...now, doorbell: doorbellOf(terminal) }))
+    }
     // Follows the terminal's messages for its doorbell, for as long as anyone reads it.
     const followRinging = (): void => {
       if (!messages || stopRinging) return
-      const path = terminalKeyPath(key)
-      let seen: TerminalThreads | undefined
-      const look = (): void => {
-        const terminal = messages.getSnapshot().terminals[path]
-        if (terminal === seen) return
-        seen = terminal
-        store.update((now) => ({ ...now, doorbell: doorbellOf(terminal) }))
-      }
+      seen = undefined
       stopRinging = messages.subscribe(look)
       look()
     }
@@ -771,6 +779,12 @@ export const createRunnerConversations = (
     }
     const entry: Entry = {
       store,
+      rekey: (next) => {
+        const moved = terminalKeyPath(next)
+        if (moved === path) return
+        path = moved
+        if (stopRinging) look()
+      },
       conversation: {
         getSnapshot: store.getSnapshot,
         subscribe: (listener) => {
@@ -901,6 +915,7 @@ export const createRunnerConversations = (
     // The protocol's rule, which the runner refuses by; blank text has nothing to warn of yet.
     refused: (text, options) =>
       normalisedText(text).trim() !== "" && protocolRefusal(text, options) !== undefined,
+    moved: (key) => entries.get(key.terminalId)?.rekey(key),
     stop: () => {
       for (const halt of stoppers.values()) halt()
     },

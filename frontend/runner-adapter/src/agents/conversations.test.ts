@@ -1224,6 +1224,51 @@ describe("the runner's conversations", () => {
       stop()
     })
 
+    context("for a terminal that moved to another session", () => {
+      const before = { projectId: "p", workspaceSessionId: "s1", terminalId: "t" }
+      const after = { projectId: "p", workspaceSessionId: "s2", terminalId: "t" }
+      const listing = (ringing: boolean) => ({
+        terminalId: "t",
+        handle: "moth",
+        agent: true,
+        ringing,
+        threads: [],
+      })
+      const at = (where: typeof before, ringing: boolean): MessagesState => ({
+        ...noMessages,
+        terminals: { [terminalKeyPath(where)]: listing(ringing) },
+      })
+
+      it("follows its messages where they are kept now", () => {
+        const { streams } = setup()
+        const messages = createStore<MessagesState>(at(before, false))
+        const conversations = createRunnerConversations(streams, undefined, messages)
+        const conversation = conversations.conversation(before)
+        const stop = conversation.subscribe(() => {})
+        messages.update(() => at(after, true))
+        conversations.moved(after)
+        expect(conversation.getSnapshot().doorbell.ringing).toBe(true)
+        // Asked by the key it had, as by a send still on its way, it still reads them there.
+        expect(conversations.conversation(before)).toBe(conversation)
+        messages.update(() => at(after, false))
+        expect(conversation.getSnapshot().doorbell.ringing).toBe(false)
+        stop()
+      })
+
+      it("follows them there when it is read again after a while", async () => {
+        const { streams } = setup()
+        const messages = createStore<MessagesState>(at(before, false))
+        const conversations = createRunnerConversations(streams, undefined, messages)
+        conversations.conversation(before).subscribe(() => {})()
+        conversations.moved(after)
+        messages.update(() => at(after, true))
+        await vi.advanceTimersByTimeAsync(graceMs + 1)
+        const conversation = conversations.conversation(after)
+        conversation.subscribe(() => {})
+        expect(conversation.getSnapshot().doorbell.ringing).toBe(true)
+      })
+    })
+
     it("clears the agent's box, a failure telling why", async () => {
       const { conversations, streams } = setup()
       streams.clearBox.mockResolvedValueOnce({ cleared: true })

@@ -1561,6 +1561,7 @@ export const runnerBackend = (
         if (carried && !at(entry.key)?.[entry.key.terminalId]) noteUsage(entry, carried)
         noteUsage({ ...entry, key: from }, undefined)
         messages.unfollow(from)
+        conversations.moved(entry.key)
         followWhenReady(entry)
       })
       return entry
