@@ -27,6 +27,16 @@ describe("The tour's consent", () => {
     expect(offerTour(connections)).toEqual({ agent: "claude", starting: false })
   })
 
+  it("leaves out an agent still connected once its program is gone", () => {
+    const connections = [connection("claude"), connection("codex", { available: false })]
+    expect(tourAgents(connections)).toEqual(["claude"])
+    expect(offerTour(connections, "codex")).toEqual({
+      agent: "claude",
+      starting: false,
+      preferred: "codex",
+    })
+  })
+
   it("opens on the agent asked for where it can run the tour", () => {
     const connections = [connection("claude"), connection("codex")]
     expect(offerTour(connections, "codex")).toMatchObject({ agent: "codex" })
