@@ -49,6 +49,10 @@ button's label; leave out the names that live only in code, such as verdict, eng
 harness, manager, tick, selector, schema or channel. If a line can't be written without
 one of them, write what the reader sees instead, or leave the change out.
 
+The glossary at the end names the parts of the app the reader knows. Call each part by its
+name there, even when a commit calls it something else, and never by another's: a companion
+pane is not a view, and a session is not a terminal.
+
 When the "Why" says what the reader gains and the change alone doesn't make it plain, end the
 line with it: "so you can tell which windows belong together". Take the reason only from the
 "Why"; without one, tell the change alone. The reason has to fit the line's length: when the

@@ -100,10 +100,18 @@ export const clientFor = (
 export const responseSchema = withoutBounds(z.toJSONSchema(modelOutput))
 
 const prompt = readFileSync(join(import.meta.dirname, "prompt.md"), "utf8")
+// The names the app shows people, which the notes use too: the repository's GLOSSARY.md, less
+// from its first entry: its heading and its note to contributors are not for the model.
+const glossaryFile = readFileSync(join(import.meta.dirname, "../../GLOSSARY.md"), "utf8")
+const glossary = glossaryFile.slice(glossaryFile.indexOf("\n- ") + 1).trim()
 
-/** The instructions: prompt.md, which is plain prose to edit, and the areas and icons: code. */
+/**
+ * The instructions: prompt.md, which is plain prose to edit, the glossary, and the areas and
+ * icons: code.
+ */
 export const systemPrompt = (): string =>
-  `${prompt.trim()}\n\nAreas, spelled exactly so: ${noteAreas.join("; ")}.\n\n` +
+  `${prompt.trim()}\n\nGlossary:\n\n${glossary}\n\n` +
+  `Areas, spelled exactly so: ${noteAreas.join("; ")}.\n\n` +
   `Highlight icons, spelled exactly so: ${highlightIcons.join(", ")}.\n`
 
 /** The items as the model reads them: one block each, led by the pull requests they close. */

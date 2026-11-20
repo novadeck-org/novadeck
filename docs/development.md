@@ -1694,7 +1694,8 @@ a short title and line for the what's-new card with an icon the model picks from
 its change kept in full under its area; when a prerelease is promoted, its notes are rewritten
 with up to four highlights picked from everything since the last stable release: the changes
 that make the biggest difference to people who already use the app, by how many meet them,
-how often and how much, whether new features, speedups, fixes or reworks. The app
+how often and how much, whether new features, speedups, fixes or reworks. The model names
+the app's parts as [GLOSSARY.md](../GLOSSARY.md) does, which the prompt includes. The app
 shows a release's highlights after updating to it until the person dismisses them. The
 `OPENROUTER_API_KEY` repository secret enables it, and the `RELEASE_NOTES_PRERELEASE_MODEL`
 and `RELEASE_NOTES_PROMOTE_MODEL` repository variables pick the models (by default
