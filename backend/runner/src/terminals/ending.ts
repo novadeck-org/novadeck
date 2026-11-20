@@ -1,3 +1,7 @@
+import type { Install } from "@novadeck/harness-core/harness"
+import type { AgentName } from "@novadeck/protocol"
+
+import { harnesses } from "../harnesses/registry.js"
 import type { Record } from "./record.js"
 
 // How long a closed terminal's agent and what it started, and on Windows all its programs, have
@@ -27,3 +31,32 @@ export const agentProcess = (record: Pick<Record, "bound"> | undefined): number 
   const pid = Number(record?.bound?.binding.instance ?? Number.NaN)
   return Number.isSafeInteger(pid) && pid > 1 ? pid : undefined
 }
+
+/**
+ * What the terminal host follows as terminal `id` closes, by its record in `records`: its
+ * agent (`agentProcess`), and what that agent's harness runs apart from the terminal
+ * (`Harness.apart`), read where the person's harness keeps it (`install`). Taken as the close
+ * begins, so the binding it goes by is the one the closed terminal had.
+ */
+export const closing = (
+  records: { get(id: string): Pick<Record, "bound"> | undefined },
+  install: (agent: AgentName) => Promise<Install | undefined>,
+) => ({
+  follows: (id: string) => agentProcess(records.get(id)),
+  apart: (id: string) => {
+    const binding = records.get(id)?.bound?.binding
+    const apart = binding && harnesses[binding.agent].apart
+    if (!binding || !apart) return undefined
+    const where = install(binding.agent)
+    return {
+      kept: async () => {
+        const found = await where
+        return found ? apart.kept(found) : []
+      },
+      left: async (until: number) => {
+        const found = await where
+        return found ? apart.left(found, { sessionId: binding.sessionId }, until) : []
+      },
+    }
+  },
+})

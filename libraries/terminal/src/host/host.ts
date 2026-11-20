@@ -1,5 +1,6 @@
 import { TerminalError, type TerminalEvent } from "../contract.js"
-import { processListing, type Listing } from "../pty/descendants.js"
+import { endApart, type ApartProcess } from "../pty/apart.js"
+import { closeListMs, processListing, type Listing } from "../pty/descendants.js"
 import type { Disposable, EndBudget, ProcessTrees, PtyOptions } from "../pty/pty.js"
 import {
   createTerminal,
@@ -33,6 +34,19 @@ export type TerminalHostOptions = {
   readonly trees: ProcessTrees
   /** The pid of the agent terminal `id` runs, whose processes its end follows; if any. */
   readonly follows?: ((id: string) => number | undefined) | undefined
+  /**
+   * What the harness of terminal `id`'s agent runs apart from the terminal, if any: `kept`,
+   * read as it closes, is left by `follows`; `left`, asked once its agent has gone, waiting
+   * for the harness's own records until `until`, is ended (see `endApart`).
+   */
+  readonly apart?:
+    | ((id: string) =>
+        | {
+            readonly kept: () => Promise<readonly ApartProcess[]>
+            readonly left: (until: number) => Promise<readonly ApartProcess[]>
+          }
+        | undefined)
+    | undefined
   /** The processes, for `follows`: this system's unless a test plays them. */
   readonly listing?: Listing | undefined
   /** How its ptys start: as a test plays them, and where their programs are kept. */
@@ -144,6 +158,8 @@ type Entry = {
 
 export const createTerminalHost = (options: TerminalHostOptions): TerminalHost => {
   const listing = options.listing ?? processListing(options.pty?.platform)
+  // A close outside a quit lists with a longer bound (`closeListMs`).
+  const patient = options.listing ?? processListing(options.pty?.platform, undefined, closeListMs)
   const { limits, kill } = options
   const open = new Map<string, Entry>()
   const drained = new Map<string, Entry>()
@@ -205,16 +221,30 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
               shutdownBy - kill.shutdownTreesMs + kill.shutdownTreeGraceMs,
             ),
     }
+    // Asked at each listing, as a quit may begin while the close is under way.
+    const list: Listing = () => (shutdownBy === undefined ? patient : listing)()
+    const apart = options.apart?.(id)
+    const kept = apart ? await apart.kept().catch(() => []) : []
     await Promise.all([
       terminal.pty.end({
         graceMs: kill.graceMs,
         treeGraceMs: kill.treeGraceMs,
         trees: options.trees,
         budget,
-        follow: agent === undefined ? undefined : { agent, listing },
+        follow: agent === undefined ? undefined : { agent, listing: list, apart: kept },
       }),
       terminal.exited,
     ])
+    // Once the agent has gone, which its harness's records then tell, as they settle; not
+    // past a quit's own time, which the rest of the runner needs.
+    if (!apart || (shutdownBy !== undefined && Date.now() >= shutdownBy)) return
+    const left = await apart.left(budget.graceEnds(Date.now())).catch(() => [])
+    await endApart(left, {
+      platform: options.pty?.platform ?? process.platform,
+      listing: list,
+      trees: options.trees,
+      run: runMs,
+    })
   }
 
   // Keeps terminal `id` from going, exited or closed, until the returned function is called;

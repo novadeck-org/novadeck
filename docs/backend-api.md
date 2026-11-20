@@ -650,7 +650,11 @@ not command completion.
 - Closing sends a hangup to the owned shell, escalating if the shell ignores it.
   Where the terminal's bound agent holds the foreground, what the agent started is
   read first and waited for, 3 s for a close and 2 s for a shutdown, then gets
-  SIGTERM, and SIGKILL half a second on. Otherwise it is not a process-tree kill
+  SIGTERM, and SIGKILL half a second on. What the agent's harness runs apart from the
+  terminal (`Harness.apart`) is left out of that and handled once the agent has gone, on
+  every platform: Claude Code's background service, which ← at its prompt starts and the
+  person's other sessions share, ends with the unused copy of the closed conversation where
+  that leaves it serving no one (`harnesses/claude/src/daemon.ts`). Otherwise it is not a process-tree kill
   guarantee: daemonized jobs and descendants that ignore hangup may continue, as with
   an ordinary terminal emulator, and so may a daemon an agent left in a group of its
   own. Use an OS service/cgroup or a future supervisor if all descendant cleanup is

@@ -103,6 +103,23 @@ describe("what follows an agent past its hangup", () => {
     expect(pids(agentProcesses([self, row(30, 10, 30)], 10, 10))).toEqual([10, 30])
   })
 
+  it("leaves a service its harness runs apart, with all under it, though the agent started it", () => {
+    // Claude Code's background service: its own session and group, under the agent at the close.
+    const service = row(60, 20, 60)
+    const host = row(61, 60, 61)
+    const session = row(62, 61, 61)
+    const rows = [...everything, service, host, session]
+    expect(pids(agentProcesses(rows, 10, 20, [{ pid: 60, started: "at 60" }]))).toEqual([
+      20, 21, 30, 31, 32,
+    ])
+    expect(pids(agentProcesses(rows, 10, 20))).toEqual([20, 21, 30, 31, 32, 60, 61, 62])
+  })
+
+  it("follows a process kept apart once its pid names another, as it then is", () => {
+    const rows = [...everything, row(60, 20, 60, { started: "later" })]
+    expect(pids(agentProcesses(rows, 10, 20, [{ pid: 60, started: "at 60" }]))).toContain(60)
+  })
+
   it("is nothing once something else holds the foreground, as the person's own program", () => {
     const left = row(20, 1, 77, { zombie: false })
     const theirs = row(60, 10, 60)

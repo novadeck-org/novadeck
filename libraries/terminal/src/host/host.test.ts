@@ -3,6 +3,7 @@ import { spawn } from "node:child_process"
 import { describe, expect, it, onTestFinished, vi } from "vitest"
 
 import type { TerminalEvent } from "../contract.js"
+import type { ApartProcess } from "../pty/apart.js"
 import type { Listing } from "../pty/descendants.js"
 import type { NativeSpawn, ProcessTrees } from "../pty/pty.js"
 import { nativeStandIn } from "../testing.js"
@@ -22,7 +23,7 @@ const shellPid = 2 ** 30
 const hostOf = (
   limits: Partial<TerminalHostOptions["limits"]> = {},
   failed?: TerminalHostOptions["failed"],
-  more: Partial<Pick<TerminalHostOptions, "follows" | "listing" | "kill">> = {},
+  more: Partial<Pick<TerminalHostOptions, "follows" | "listing" | "kill" | "apart">> = {},
 ) => {
   const programs: Program[] = []
   const native: NativeSpawn = (...args) => {
@@ -152,6 +153,64 @@ describe.skipIf(process.platform === "win32")("a terminal's end that follows its
     const began = Date.now()
     await Promise.all([host.shutdown(), gone])
     expect(Date.now() - began).toBeLessThan(10_000)
+  })
+})
+
+// What a harness runs apart from the terminal, as Claude Code's background service: kept from
+// the follow at the hangup, and ended, as its harness then says, once the program has gone.
+describe.skipIf(process.platform === "win32")("a terminal's end with what runs apart", () => {
+  it("asks what is kept before the hangup, and ends what was left once the program has gone", async () => {
+    const service = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
+      detached: true,
+      stdio: "ignore",
+    })
+    onTestFinished(() => void service.kill("SIGKILL"))
+    const gone = new Promise((end) => service.once("exit", end))
+    const pid = service.pid!
+    const listing: Listing = async () => [
+      { pid, parent: 1, group: pid, foreground: 0, started: "same", zombie: false },
+    ]
+    const steps: string[] = []
+    const born = { after: 0, before: Number.MAX_SAFE_INTEGER }
+    const apart = {
+      kept: vi.fn<() => Promise<ApartProcess[]>>(async () => {
+        steps.push("kept")
+        return [{ pid, start: "same", born }]
+      }),
+      left: vi.fn<(until: number) => Promise<ApartProcess[]>>(async (until) => {
+        steps.push("left")
+        expect(until).toBeGreaterThan(Date.now())
+        return [{ pid, start: "same", born }]
+      }),
+    }
+    const { host, open, programs } = hostOf({}, undefined, {
+      listing,
+      apart: (id) => (id === "a" ? apart : undefined),
+    })
+    open("a")
+    const closing = host.terminate("a")
+    await vi.waitFor(() => expect(steps).toEqual(["kept"]))
+    steps.push("exit")
+    programs[0]!.exit(0)
+    await closing
+    await gone
+    expect(steps).toEqual(["kept", "exit", "left"])
+  })
+
+  it("ends nothing its harness didn't name as left", async () => {
+    const left = vi.fn<() => Promise<ApartProcess[]>>(async () => [])
+    const kill = vi.spyOn(process, "kill")
+    onTestFinished(() => kill.mockRestore())
+    const { host, open, programs } = hostOf({}, undefined, {
+      listing: async () => [],
+      apart: () => ({ kept: async () => [], left }),
+    })
+    open("a")
+    const closing = host.terminate("a")
+    programs[0]!.exit(0)
+    await closing
+    expect(left).toHaveBeenCalledTimes(1)
+    expect(kill.mock.calls.filter(([, signal]) => signal !== 0 && signal !== undefined)).toEqual([])
   })
 })
 

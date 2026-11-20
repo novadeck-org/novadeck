@@ -2,6 +2,7 @@ import { constants as system } from "node:os"
 
 import { spawn as nodePtySpawn } from "node-pty"
 
+import { listedApart, type ApartProcess } from "./apart.js"
 import { boosting, type Activity } from "./boost.js"
 import { agentProcesses, endFollowed, type Listing } from "./descendants.js"
 import { terminalForeground } from "./foreground.js"
@@ -98,9 +99,16 @@ export type EndOptions = {
   /**
    * On Linux and macOS, the agent the terminal runs, by its pid, and the processes, shared by
    * the terminals of a host: if it holds the foreground at the hangup, what it started is
-   * waited for and ended as it is on Windows, by `budget`.
+   * waited for and ended as it is on Windows, by `budget`. What its harness runs apart from
+   * the terminal (`apart`) is left, with all under it.
    */
-  readonly follow?: { readonly agent: number; readonly listing: Listing } | undefined
+  readonly follow?:
+    | {
+        readonly agent: number
+        readonly listing: Listing
+        readonly apart?: readonly ApartProcess[]
+      }
+    | undefined
 }
 
 export type Pty = {
@@ -415,7 +423,15 @@ export const spawnPty = (
             pty.pid,
           )
         if (gone) return await exit
-        const followed = following && rows && agentProcesses(rows, pty.pid!, following.agent)
+        const followed =
+          following &&
+          rows &&
+          agentProcesses(
+            rows,
+            pty.pid!,
+            following.agent,
+            listedApart(rows, following.apart ?? [], platform),
+          )
         // Windows has no process groups to hang up.
         const shell = rows?.find((row) => row.pid === pty.pid)
         const group =

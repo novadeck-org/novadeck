@@ -4,7 +4,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
-import { agentsViewOutlivesDeck, losesLineBreakKeys } from "./known-gaps.js"
+import { losesLineBreakKeys } from "./known-gaps.js"
 import { asked, gate, record, text as allOf, tool, type Call, type Rule } from "./model/script.js"
 import { delivered, own, replies, result, start, through, turn, unrung } from "./scenarios.js"
 
@@ -520,12 +520,14 @@ for (const setup of setups) {
     })
 
     // Left opens Claude Code's agents view, whose field reads as a box in prompt mode and whose
-    // Enter starts a session: with text in it, it reads as a view.
+    // Enter starts a session: with text in it, it reads as a view. It moves the conversation
+    // into Claude Code's background service, which the deck's close ends with the copy, on
+    // every platform (harnesses/claude/src/daemon.ts), as the sandbox's leftover check shows.
     it("takes Claude Code's agents view for a view at 14 rows, a paste in it", async ({
       e2e: run,
       skip,
     }) => {
-      if (setup.agent !== "claude" || agentsViewOutlivesDeck(setup)) skip()
+      if (setup.agent !== "claude") skip()
       run.model.use(replies("Warm up", "Warmed up."))
       const terminal = await start(run, setup)
       await turn(terminal, "Warm up", "Warmed up.")

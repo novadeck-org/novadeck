@@ -55,7 +55,7 @@ import { Companion, type Checkout } from "./companion.js"
 import { conversationDetail } from "./conversation.js"
 import { Murmur } from "./descriptions.js"
 import { agentWorking } from "./doorbell-host.js"
-import { agentProcess, shutdownTreeGraceMs, shutdownTreesMs, treeGraceMs } from "./ending.js"
+import { closing, shutdownTreeGraceMs, shutdownTreesMs, treeGraceMs } from "./ending.js"
 import { failed } from "./failures.js"
 import { Hibernation } from "./hibernation.js"
 import { historyHost } from "./history-host.js"
@@ -338,7 +338,7 @@ export class Terminals {
       scrollback: 1000,
       kill: { graceMs: 1000, treeGraceMs, shutdownTreesMs, shutdownTreeGraceMs },
       trees: this.trees,
-      follows: (id) => agentProcess(this.records.get(id)),
+      ...closing(this.records, this.options.install),
       pty: this.pty,
       failed: failed.terminal,
     })
