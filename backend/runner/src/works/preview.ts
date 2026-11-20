@@ -1,6 +1,6 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 
 import { previewLimits, type PreviewHunk } from "@novadeck/protocol"
 
@@ -90,11 +90,14 @@ export const carry = async (
       main: join(folder, "main"),
       base: join(folder, "base"),
       theirs: join(folder, "theirs"),
+      // No attributes: the diff reads this, empty, for the person's own.
+      attributes: join(folder, "attributes"),
     }
     await Promise.all([
       writeFile(files.main, main),
       writeFile(files.base, base),
       writeFile(files.theirs, theirs),
+      writeFile(files.attributes, ""),
     ])
     const merged = async (side: "ours" | "theirs", name: string): Promise<string | undefined> => {
       const run = await git(
@@ -108,15 +111,31 @@ export const carry = async (
     }
     const [applied, wanted] = [await merged("ours", "applied"), await merged("theirs", "wanted")]
     if (applied === undefined || wanted === undefined) return undefined
+    // Nothing but the two texts decides their diff. File attributes (a repository's, the
+    // person's or the system's) could call them binary (`-diff`, `binary`: no hunk at all, so
+    // the work would drop out of the preview), rewrite both (a clean `filter`) or their line
+    // ends (`text`, `eol`), as `core.autocrlf` does too (Git for Windows' default), and a
+    // textconv would diff its own text. So it runs in the temp folder, no repository's
+    // (`GIT_CEILING_DIRECTORIES` keeps git from finding one above it), with the person's
+    // attributes file swapped for an empty one, the system's left out, line ends as written,
+    // and every file read as text: `works.ts` keeps a text holding `\0` from coming here.
+    const isolated = {
+      ...diffCap,
+      env: { GIT_ATTR_NOSYSTEM: "1", GIT_CEILING_DIRECTORIES: dirname(folder) },
+    }
     const diff = async (name: string) => {
       const run = await git(
-        root,
+        folder,
         [
+          "-c",
+          "core.autocrlf=false",
+          "-c",
+          `core.attributesFile=${files.attributes}`,
           "diff",
           "--no-index",
+          "--text",
           "--no-color",
           "--no-ext-diff",
-          // A textconv of the person's attributes would diff its own text, not the file's.
           "--no-textconv",
           "-U0",
           // Never two changes joined over the lines between, whatever diff.interHunkContext says.
@@ -124,7 +143,7 @@ export const carry = async (
           files.main,
           join(folder, name),
         ],
-        diffCap,
+        isolated,
       )
       // Differing files exit 1.
       const out = run.ok ? run.out : run.kind === "exit" && run.status === 1 ? run.out : undefined

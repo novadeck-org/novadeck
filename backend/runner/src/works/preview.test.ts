@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process"
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -52,25 +53,35 @@ describe("the hunks of a diff", () => {
 })
 
 describe("carrying a worktree's file onto main", () => {
-  // Carries `theirs` onto `main` from `main`, under a home whose git config is `config`, a file
-  // beside it named by `files`, as the person's own.
+  // Carries a change of two lines onto main under a home whose git config is `config` (`$HOME`
+  // standing for it, with forward slashes, as git reads on every system) and holding `files`,
+  // as the person's own; with `repo`, that home is the repository the work is in. Each line ends
+  // in `eol`. Answers main's text with the hunks carried, after checking they are the two lines.
   const carried = async (
     config: string,
-    files: Readonly<Record<string, string>> = {},
+    options: { files?: Readonly<Record<string, string>>; repo?: boolean; eol?: string } = {},
   ): Promise<string> => {
     const home = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-preview-home-")))
     const was = { HOME: process.env.HOME, XDG: process.env.XDG_CONFIG_HOME }
     try {
-      for (const [name, text] of Object.entries(files)) writeFileSync(join(home, name), text)
-      writeFileSync(join(home, ".gitconfig"), config.replaceAll("$HOME", home))
+      for (const [name, text] of Object.entries(options.files ?? {}))
+        writeFileSync(join(home, name), text)
+      writeFileSync(
+        join(home, ".gitconfig"),
+        config.replaceAll("$HOME", home.replaceAll("\\", "/")),
+      )
       process.env.HOME = home
       delete process.env.XDG_CONFIG_HOME
-      const main = "one\ntwo\nthree\nfour\nfive\n"
-      const theirs = "one\nTWO\nthree\nFOUR\nfive\n"
+      if (options.repo) execFileSync("git", ["init", "--quiet"], { cwd: home })
+      const eol = options.eol ?? "\n"
+      const text = (lines: readonly string[]) => lines.map((line) => `${line}${eol}`).join("")
+      const end = eol.slice(0, -1)
+      const main = text(["one", "two", "three", "four", "five"])
+      const theirs = text(["one", "TWO", "three", "FOUR", "five"])
       const hunks = await carry(home, { main, base: main, theirs })
       expect(hunks).toEqual([
-        { at: 2, removed: 1, lines: ["TWO"], applies: true },
-        { at: 4, removed: 1, lines: ["FOUR"], applies: true },
+        { at: 2, removed: 1, lines: [`TWO${end}`], applies: true },
+        { at: 4, removed: 1, lines: [`FOUR${end}`], applies: true },
       ])
       return applied(main, hunks ?? [])
     } finally {
@@ -80,9 +91,11 @@ describe("carrying a worktree's file onto main", () => {
     }
   }
 
+  const changed = "one\nTWO\nthree\nFOUR\nfive\n"
+
   // The person's own git setting: git joins changes this many lines apart into one hunk.
   it("keeps main's unchanged lines between two changes under diff.interHunkContext", async () => {
-    expect(await carried("[diff]\n\tinterHunkContext = 5\n")).toBe("one\nTWO\nthree\nFOUR\nfive\n")
+    expect(await carried("[diff]\n\tinterHunkContext = 5\n")).toBe(changed)
   })
 
   // A textconv the person's attributes give every file: the preview's own files among them.
@@ -91,9 +104,53 @@ describe("carrying a worktree's file onto main", () => {
     async () => {
       const config =
         '[core]\n\tattributesFile = $HOME/attributes\n[diff "upper"]\n\ttextconv = tr a-z A-Z <\n'
-      expect(await carried(config, { attributes: "* diff=upper\n" })).toBe(
-        "one\nTWO\nthree\nFOUR\nfive\n",
-      )
+      expect(await carried(config, { files: { attributes: "* diff=upper\n" } })).toBe(changed)
     },
   )
+
+  // Attributes that call every file binary leave git no hunk to print, so the work would drop
+  // out of the preview.
+  for (const attribute of ["-diff", "binary"])
+    it(`reads the files as text where the person's attributes say ${attribute}`, async () => {
+      const config = "[core]\n\tattributesFile = $HOME/attributes\n"
+      expect(await carried(config, { files: { attributes: `* ${attribute}\n` } })).toBe(changed)
+    })
+
+  it("reads the files as text where the repository's own attributes say binary", async () => {
+    expect(await carried("", { repo: true, files: { ".gitattributes": "* binary\n" } })).toBe(
+      changed,
+    )
+  })
+
+  // A clean filter would rewrite both sides before they are compared.
+  it.skipIf(process.platform === "win32")(
+    "reads the files as written, whatever clean filter the person's attributes name",
+    async () => {
+      const config =
+        '[core]\n\tattributesFile = $HOME/attributes\n[filter "up"]\n\tclean = tr a-z A-Z\n'
+      expect(await carried(config, { files: { attributes: "* filter=up\n" } })).toBe(changed)
+    },
+  )
+
+  it.skipIf(process.platform === "win32")(
+    "reads the files as written, whatever clean filter the repository's own attributes name",
+    async () => {
+      const config = '[filter "up"]\n\tclean = tr a-z A-Z\n'
+      const files = { ".gitattributes": "* filter=up\n" }
+      expect(await carried(config, { repo: true, files })).toBe(changed)
+    },
+  )
+
+  // Git for Windows' installer sets core.autocrlf, which drops each line's \r from the hunks;
+  // core.eol and core.safecrlf only act on a conversion, which there now is none of.
+  it("keeps a CRLF file's line ends under core.autocrlf, core.eol and core.safecrlf", async () => {
+    const config = "[core]\n\tautocrlf = true\n\teol = crlf\n\tsafecrlf = true\n"
+    expect(await carried(config, { eol: "\r\n" })).toBe(changed.replaceAll("\n", "\r\n"))
+  })
+
+  it("keeps a CRLF file's line ends where the person's attributes say text and eol", async () => {
+    const config = "[core]\n\tattributesFile = $HOME/attributes\n"
+    const files = { attributes: "* text=auto eol=crlf\n" }
+    expect(await carried(config, { files, eol: "\r\n" })).toBe(changed.replaceAll("\n", "\r\n"))
+  })
 })
