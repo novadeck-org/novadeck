@@ -1957,13 +1957,13 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       }
       for (const text of [...herd, ...swarm]) {
         expect(text).toContain(
-          "tell the agents on that repository when you start what you hold and until when",
+          "tell the agents whose work it could slow when you start what you hold and until when",
         )
         expect(text).toContain("find out what holds it and settle it with whoever does")
       }
       for (const text of solo) {
         expect(text).toContain("find out who else uses it and tell the user")
-        expect(text).not.toContain("tell the agents on that repository")
+        expect(text).not.toContain("tell the agents whose work it could slow")
       }
     } finally {
       delete answersBy.mode

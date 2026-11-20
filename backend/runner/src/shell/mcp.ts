@@ -1092,8 +1092,8 @@ const meets: { readonly [mode in "herd" | "solo"]: string } = {
   herd:
     " Your work meets theirs whenever you both use the same thing, not only the same files: " +
     "when a task holds or loads something others use, such as a full test run or build, a " +
-    "port, server or container, CI runners, main or a release, tell the agents on that " +
-    "repository when you start what you hold and until when; and when your work waits on " +
+    "port, server or container, CI runners, main or a release, tell the agents whose work it " +
+    "could slow when you start what you hold and until when; and when your work waits on " +
     "such a thing, or runs slower than it should, find out what holds it and settle it with " +
     "whoever does.",
   solo:

@@ -205,7 +205,7 @@ Herd it words Novadeck's texts only; Swarm also changes what Novadeck asks the p
 Work meets not only in the same files but wherever agents use the same thing: the machine's CPU
 and memory (a full test run or build), a port, server or container, a service's rate limits, CI
 runners, main or a release. In Herd and Swarm an agent whose task holds or loads one tells the
-agents on that repository when it starts what it holds and until when, and one whose work waits
+agents whose work it could slow, when it starts, what it holds and until when, and one whose work waits
 on such a thing, or runs slower than it should, finds out what holds it and settles it with
 whoever does; in Solo it finds out who else uses it and tells the person (`meets` in
 `shell/mcp.ts`).
