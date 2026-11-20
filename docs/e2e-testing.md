@@ -851,8 +851,10 @@ for (const setup of setups) {
   - _`/side`_: with a side conversation open, t2's message waits, t1 Drafting from the
     person's keys, never Ringing nor Unbound, and no call holds the doorbell's line past
     the settle window. The side conversation's first prompt carries nothing; t1's
-    session and agent stay, the message queued. Back at the root (Ctrl-C closes the side
-    view), the person's next prompt carries the message, in the root's own conversation,
+    session and agent stay, the message queued. Back at the root (Ctrl-/ switches to it,
+    the side conversation kept, as both 0.170.0 and 0.171.0 do; from 0.171.0 Ctrl-C asks to
+    archive it, and on 120 columns it is a pane beside the root's), the person's next prompt
+    carries the message, in the root's own conversation,
     which never held the side question, and t1 settles, still bound to the root.
   - _A spawned agent's dialog dismissed with Esc_: t1's root spawns an agent
     (`spawn_agent`, `multi_agent_v1`) and its turn ends; the agent's escalated
@@ -1214,7 +1216,9 @@ transcript says.
     `CODEX_THREAD_ID`, so its decoder takes nothing of them.
   - _`/side`_: typed and submitted, it shows a side conversation, its footer saying "Side
     from main thread · ctrl+/ to switch · ctrl+c to close" (0.161.0 spells the keys `^/`
-    and `^c`); ctrl+c goes back to the root.
+    and `^c`); ctrl+c goes back to the root. From 0.171.0, on 100 columns or more, it is a
+    pane of the sidebar beside the root's, its tab "Side chat", and ctrl+c asks to archive
+    it ("^c to archive" where it takes the whole screen; `e2e/probes/codex-side.e2e.ts`).
     Its thread is ephemeral: its first prompt fires a `SessionStart` saying `fork`, and
     every hook of it gives `transcript_path` as null.
   - _Fork_: `codex fork` shows its "Fork a previous session" picker, latest first, each
