@@ -14,6 +14,19 @@
 @source "../../chat/src";
 @source "../../requests/src";
 @source not "../../terminal-views/src/**/*.test.ts";
+
+/* The header's narrow look (WorkspaceHeader.tsx): below 701px, or where Windows' caption buttons
+   hold the header's end, below 840px. */
+@custom-variant narrow-header {
+  @media (max-width: 701px) {
+    @slot;
+  }
+  @media (max-width: 840px) {
+    :root[data-window-controls="end"] & {
+      @slot;
+    }
+  }
+}
 @source not "../../terminal-views/src/**/*.test.tsx";
 @source not "../../demo/src/**/*.test.ts";
 @source not "../../demo/src/**/*.test.tsx";

@@ -154,7 +154,7 @@ export const shellGroups = ({
       actions: [
         {
           label: "macOS, in the header",
-          hint: "The window's close, minimise and zoom buttons sit at the header's start, which keeps clear of them; in Zen they hide, and come back while the pointer is in the top-left corner",
+          hint: "The window's close, minimise and zoom buttons sit at the header's start, where the mark gives way to them; in Zen they hide, and come back while the pointer is in the top-left corner",
           reboots: true,
           run: () => launch.setWindowControls("inset"),
         },
@@ -165,8 +165,14 @@ export const shellGroups = ({
           run: () => launch.setWindowControls("fullScreen"),
         },
         {
+          label: "Windows, in the header",
+          hint: "The window's caption buttons hold the header's end, as tall as it is, and the header keeps clear of them; in Zen they stay, on the Focus window's header or on a plate in the corner",
+          reboots: true,
+          run: () => launch.setWindowControls("caption"),
+        },
+        {
           label: "Own title bar",
-          hint: "As on Windows, Linux and in a browser: nothing over the header",
+          hint: "As on Linux and in a browser: nothing over the header",
           reboots: true,
           run: () => launch.setWindowControls(undefined),
         },

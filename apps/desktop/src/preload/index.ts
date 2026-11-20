@@ -86,6 +86,7 @@ import {
   windowControlsChannel,
   windowControlsPlaceChannel,
 } from "../bridge.js"
+import { captionView, relayCaptionRoom } from "./caption-room.js"
 
 // The edge of the page's top the window's own controls sit over, if they sit over it.
 const controlsSide = windowControlsSide(process.platform)
@@ -248,11 +249,12 @@ const bridge = {
     const path: unknown = await ipcRenderer.invoke(directoryPickerChannel)
     return typeof path === "string" ? path : null
   },
-  // Only the two fields cross; the main process checks them.
+  // Only the three fields cross; the main process checks them.
   showAppearance: (appearance) => {
     ipcRenderer.send(appearanceChannel, {
       scheme: appearance?.scheme,
       ground: appearance?.ground,
+      ink: appearance?.ink,
     })
   },
   // Only a number crosses; the main process clamps it.
@@ -324,18 +326,24 @@ const bridge = {
         },
       }
     : {}),
-  // Only where the window's controls sit over the page (macOS, at its start). Only a finite number
-  // comes back; the main process answers each placing with the room the controls take, as the
-  // page places them first thing when it starts listening, or loaded again.
+  // Only where the window's controls sit over the page (macOS at its start, Windows at its end).
+  // Only a finite number comes back; the main process answers each placing with the room the
+  // controls take, as the page places them first thing when it starts listening, or loaded
+  // again. Windows' room is the page's own measure where it has one (./caption-room.ts).
   ...(controlsSide
     ? {
         windowControlsSide: controlsSide,
         onWindowControls: (listener: (inset: number) => void) => {
+          const caption =
+            controlsSide === "end" ? relayCaptionRoom(captionView(window), listener) : undefined
           const relay = (_event: unknown, inset: unknown): void => {
-            if (typeof inset === "number" && Number.isFinite(inset)) listener(inset)
+            if (typeof inset !== "number" || !Number.isFinite(inset)) return
+            if (caption) caption.report(inset)
+            else listener(inset)
           }
           ipcRenderer.on(windowControlsChannel, relay)
           return () => {
+            caption?.stop()
             ipcRenderer.removeListener(windowControlsChannel, relay)
           }
         },

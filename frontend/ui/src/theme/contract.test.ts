@@ -728,6 +728,8 @@ const unlayered = (file: string): string[] => {
   const css = uncomment(read(file))
   const loose = cssNodes(css)
     .filter((node) => {
+      // A `@custom-variant` only names a condition for class names; it emits nothing itself.
+      if (/^@custom-variant\s/.test(node.prelude)) return false
       if (node.body !== undefined) return !/^@layer\s+[\w.-]+$/.test(node.prelude)
       // `@reference` and `@source` only tell Tailwind what to read; they emit nothing.
       if (/^@(layer|charset|reference|source)\s/.test(node.prelude)) return false

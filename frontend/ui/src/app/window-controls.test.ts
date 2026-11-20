@@ -3,7 +3,13 @@ import { createStore } from "@novadeck/core/store"
 
 import { context, describe, expect, it } from "../test"
 import type { UiState } from "./ui-store"
-import { controlsMiddle, revealsInZen, watchWindowControls, zenMiddle } from "./window-controls"
+import {
+  controlsMiddle,
+  revealsInZen,
+  watchWindowControls,
+  zenMiddle,
+  zenMiddles,
+} from "./window-controls"
 
 // The part of the UI store the watch reads: whether Zen is on.
 const uiWith = (zen: boolean) =>
@@ -36,16 +42,16 @@ const page = (header: { top: number; height: number } | null = { top: 0, height:
   return { root, view, boxes, pointer, draw: () => frames.splice(0).forEach((run) => run()) }
 }
 
-// The desktop app's controls as the page sees them: where it was asked to place them, and the
-// room it says they take, as the app answers each placing (none while hidden).
-const controls = () => {
+// The desktop app's controls as the page sees them, on `side`: where it was asked to place them,
+// and the room it says they take, as the app answers each placing (none while hidden).
+const controls = (side: "start" | "end" = "start") => {
   const placed: (number | null)[] = []
   let listener: ((inset: number) => void) | undefined
   const port: NonNullable<Backend["windowControls"]> = {
-    side: "start",
+    side,
     place: (middle) => {
       placed.push(middle)
-      listener?.(middle === null ? 0 : 74)
+      listener?.(middle === null ? 0 : side === "start" ? 74 : 138)
     },
     onInset: (next) => {
       listener = next
@@ -96,6 +102,26 @@ describe("where the window's controls go", () => {
       ).toBe(zenMiddle)
       expect(controlsMiddle({ zen: true, revealed: true, header: undefined })).toBe(zenMiddle)
     })
+  })
+})
+
+describe("where Windows' caption buttons go in Zen, as they can't hide", () => {
+  it("is the Focus window's header along the page's top, revealed or not", () => {
+    expect(
+      controlsMiddle({
+        side: "end",
+        zen: true,
+        revealed: false,
+        header: undefined,
+        zenHeader: { top: 0, height: 46 },
+      }),
+    ).toBe(23)
+  })
+
+  it("is the top-right corner's 32 pixels where no window's header runs along the top", () => {
+    expect(controlsMiddle({ side: "end", zen: true, revealed: false, header: undefined })).toBe(
+      zenMiddles.end,
+    )
   })
 })
 
@@ -224,5 +250,57 @@ describe("watching the window's controls", () => {
     root.dispatchEvent(new Event("mouseleave"))
     expect(placed).toEqual([null, zenMiddle, null])
     stop()
+  })
+
+  it("quietens the header with the controls while the window doesn't have the system's focus", () => {
+    const { root, view } = page()
+    const { port } = controls()
+    const ui = uiWith(false)
+    const stop = watchWindowControls(ui, view, port)
+    expect(root.dataset.windowInactive).toBeUndefined()
+    ui.update((state) => ({ ...state, pageFocused: false }))
+    expect(root.dataset.windowInactive).toBe("")
+    ui.update((state) => ({ ...state, pageFocused: true }))
+    expect(root.dataset.windowInactive).toBeUndefined()
+    ui.update((state) => ({ ...state, pageFocused: false }))
+    stop()
+    expect(root.dataset.windowInactive).toBeUndefined()
+  })
+
+  context("at the end, as Windows' caption buttons", () => {
+    it("keeps them in Zen, on a plate in the corner where no Focus header runs along the top", () => {
+      const { root, view, pointer } = page()
+      const { port, placed } = controls("end")
+      const stop = watchWindowControls(uiWith(true), view, port)
+      pointer(400, 300)
+      view.dispatchEvent(new Event("blur"))
+      root.dispatchEvent(new Event("mouseleave"))
+      expect(placed).toEqual([zenMiddles.end])
+      expect(root.dataset.windowControlsPlate).toBe("shown")
+      stop()
+    })
+
+    it("keeps them on the Focus window's header in Zen, with no plate", () => {
+      const { root, view, boxes } = page()
+      boxes.set('.workspace[data-zen="true"] .focus-stage .terminal-header', { top: 0, height: 46 })
+      const { port, placed } = controls("end")
+      const stop = watchWindowControls(uiWith(true), view, port)
+      expect(placed).toEqual([23])
+      expect(root.dataset.windowControlsPlate).toBeUndefined()
+      stop()
+    })
+
+    it("moves them from the header to Zen's place and back", () => {
+      const { view, draw } = page({ top: 0, height: 48 })
+      const { port, placed } = controls("end")
+      const ui = uiWith(false)
+      const stop = watchWindowControls(ui, view, port)
+      setZen(ui, true)
+      draw()
+      setZen(ui, false)
+      draw()
+      expect(placed).toEqual([24, zenMiddles.end, 24])
+      stop()
+    })
   })
 })

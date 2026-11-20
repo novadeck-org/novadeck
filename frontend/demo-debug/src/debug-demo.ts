@@ -85,7 +85,7 @@ export type DemoLaunch = {
   // Boots again with the desktop app saying this of a screen reader (or nothing).
   readonly setScreenReader: (running: boolean | undefined) => void
   // How the desktop app's window holds its own controls; undefined for one with its own title
-  // bar, as on Windows and Linux, or a browser.
+  // bar, as on Linux, or a browser.
   readonly windowControls: DemoWindowControls | undefined
   // Boots again with the window holding its controls so (or with its own title bar).
   readonly setWindowControls: (controls: DemoWindowControls | undefined) => void

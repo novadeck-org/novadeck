@@ -49,6 +49,12 @@ export const watchAppearance = (
   // The ground the page paints first: the body's, before the workspace draws on it.
   const groundOf = (): string | undefined =>
     tokenColors(view.document.body, ["--color-paper"])["--color-paper"]?.slice(0, 7)
+  // The header's ink, which the window's own controls draw in where they sit over the page
+  // (Windows' caption buttons): the region's own where the theme sets one, else the ink.
+  const inkOf = (): string | undefined => {
+    const colors = tokenColors(view.document.body, ["--region-header-fg", "--color-ink"])
+    return (colors["--region-header-fg"] ?? colors["--color-ink"])?.slice(0, 7)
+  }
   // What the page paints before anything else: <html>'s ground when the theme gives it an
   // opaque one, as Phosphor's black tube, else the body's paper.
   const firstGroundOf = (): string | undefined => {
@@ -98,9 +104,11 @@ export const watchAppearance = (
     if (!showAppearance) return
     const painted = groundOf()
     if (!painted) return
+    const ink = inkOf()
     const look: WindowAppearance = {
       scheme: windowScheme(preference, appearance.scheme),
       ground: painted,
+      ...(ink ? { ink } : {}),
     }
     pinned = look.scheme !== "system"
     const report = JSON.stringify(look)

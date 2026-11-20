@@ -43,14 +43,32 @@
   border-radius: 0;
   box-shadow: none;
 }
-/* The window's own controls, shown in Zen while the pointer is in the top-left corner (macOS,
-   app/window-controls.ts), sit on the Focus window's header, which moves aside for them at once,
-   so a click never lands on one that's only on its way. Elsewhere (Grid, Canvas) they sit on a
-   plate in the dock's look, which takes the clicks around them. */
+/* The window's own controls in Zen (app/window-controls.ts): macOS's, shown while the pointer
+   is in the top-left corner, and Windows', which can't hide, in the top-right one. They sit on
+   the Focus window's header, which moves aside for them at once, so a click never lands on one
+   that's only on its way; at the end a rule parts the terminal's own buttons from the window's,
+   so its close and the window's never read as one row. Elsewhere (Grid, Canvas) they sit on a
+   plate in the dock's look, which takes the clicks around them: near the corner on macOS, and
+   in it on Windows, whose buttons run from the window's top edge. */
 :root[data-window-controls="start"] .workspace[data-zen="true"] .focus-stage .terminal-header {
   padding-inline-start: var(--window-controls-inset, 0px);
 }
-:root[data-window-controls-plate] .workspace[data-zen="true"]::before {
+:root[data-window-controls="end"] .workspace[data-zen="true"] .focus-stage .terminal-header {
+  position: relative;
+  padding-inline-end: calc(var(--window-controls-inset, 0px) + 0.5rem);
+}
+:root[data-window-controls="end"] .workspace[data-zen="true"] .focus-stage .terminal-header::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: var(--window-controls-inset, 0px);
+  width: var(--border-width);
+  height: 1rem;
+  translate: 0 -50%;
+  background-color: var(--color-line);
+}
+:root[data-window-controls="start"][data-window-controls-plate]
+  .workspace[data-zen="true"]::before {
   content: "";
   position: fixed;
   top: 0.25rem;
@@ -60,6 +78,21 @@
   height: 2rem;
   border: var(--border-width) solid var(--zen-dock-border-color, var(--color-line));
   border-radius: var(--zen-dock-radius, var(--radius-popover));
+  background-color: var(--zen-dock-bg, color-mix(in srgb, var(--color-paper) 95%, transparent));
+  box-shadow: var(--zen-dock-shadow, var(--shadow-control));
+  backdrop-filter: blur(var(--zen-dock-blur, 8px));
+}
+:root[data-window-controls="end"][data-window-controls-plate] .workspace[data-zen="true"]::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 45;
+  width: var(--window-controls-inset, 0px);
+  height: 2rem;
+  border-bottom: var(--border-width) solid var(--zen-dock-border-color, var(--color-line));
+  border-left: var(--border-width) solid var(--zen-dock-border-color, var(--color-line));
+  border-end-start-radius: var(--zen-dock-radius, var(--radius-popover));
   background-color: var(--zen-dock-bg, color-mix(in srgb, var(--color-paper) 95%, transparent));
   box-shadow: var(--zen-dock-shadow, var(--shadow-control));
   backdrop-filter: blur(var(--zen-dock-blur, 8px));

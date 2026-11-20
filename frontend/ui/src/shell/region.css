@@ -46,13 +46,21 @@
 }
 
 /* Where the window's own controls sit over the page (`data-window-controls` on the root, set by
-   the desktop app's entry to the side they sit at: `start` on macOS), the page is the window's
-   title bar: the header, and the boot screens until it shows, move the window, and a double
-   click zooms it, but for what takes a click there. What may open over the header takes its clicks too: what is portalled
-   to the body (a menu, a tooltip, a dialog's backdrop), the Inbox in full window, and any
-   control (a toast's, the tour's). The header's start keeps clear of controls at the start,
-   `--window-controls-inset` from the window's edge (app/window-controls.ts; 0 in full screen),
-   at once: before the app says, the room they take at the normal scale. */
+   the desktop app's entry to the side they sit at: `start` on macOS, `end` on Windows), the page
+   is the window's title bar: the header, and the boot screens until it shows, move the window,
+   and a double click zooms it, but for what takes a click there. What may open over the header
+   takes its clicks too: what is portalled to the body (a menu, a tooltip, a dialog's backdrop),
+   the Inbox in full window, and any control (a toast's, the tour's). The header is as tall as
+   the system's own title bar there: a macOS toolbar's 52px, a Windows title bar's 48px. Its side
+   keeps clear of the controls, `--window-controls-inset` from the window's edge
+   (app/window-controls.ts; 0 in full screen), at once: before the app says, the room they take
+   at the normal scale. */
+:root[data-window-controls="start"] {
+  --app-header-height: 52px;
+}
+:root[data-window-controls="end"] {
+  --app-header-height: 48px;
+}
 :root[data-window-controls] :is(.app-header, .boot-splash:not(.pointer-events-none)) {
   -webkit-app-region: drag;
   user-select: none;
@@ -66,7 +74,34 @@
 }
 :root[data-window-controls="start"] .header-workspace {
   /* With the header's own 1rem, as far from the controls as a macOS toolbar's first item. */
-  padding-inline-start: var(--window-controls-inset, 74px);
+  padding-inline-start: var(--window-controls-inset, 70px);
+}
+/* Windows' caption buttons run flush to the window's edge; the header's own 1rem keeps the
+   actions as far from them as from its other edge. */
+:root[data-window-controls="end"] .header-actions {
+  padding-inline-end: var(--window-controls-inset, 138px);
+}
+/* While another window has the system's focus, the header quietens with the window's own
+   controls, as a title bar does; what asks for the person (a project's dot) keeps its colour. */
+:root[data-window-controls]
+  .app-header
+  :is(
+    .brand,
+    .workspace-switcher-trigger > :not(.workspace-switcher-dot),
+    .header-view-controls,
+    .header-actions
+  ) {
+  transition: opacity var(--motion-state) var(--ease-interface);
+}
+:root[data-window-controls][data-window-inactive]
+  .app-header
+  :is(
+    .brand,
+    .workspace-switcher-trigger > :not(.workspace-switcher-dot),
+    .header-view-controls,
+    .header-actions
+  ) {
+  opacity: 0.55;
 }
 
 .app-footer {

@@ -21,6 +21,11 @@
   --toast-top: calc(var(--inbox-toast-top, 7px) + var(--visitor-bar-offset, 0px));
   --toast-right: var(--inbox-toast-window-inset, 12px);
 }
+/* Windows' caption buttons hold the window's top-right corner, over everything the page draws:
+   the stack keeps to their left. */
+:root[data-window-controls="end"] .toasts {
+  --toast-right: calc(var(--window-controls-inset, 138px) + var(--inbox-toast-window-inset, 12px));
+}
 /* On a phone the stack takes the width between the gutters, under the header. */
 @media (max-width: 700px) {
   .toasts {

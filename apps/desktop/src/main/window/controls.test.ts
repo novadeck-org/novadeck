@@ -3,11 +3,16 @@ import type { IpcMainEvent } from "electron"
 import { windowControlsChannel, windowControlsPlaceChannel } from "../../bridge.js"
 import { describe, expect, it } from "../../test"
 import {
+  captionWidth,
   controlsWindowOptions,
+  keepCaption,
   keepControls,
   middleOf,
+  placeCaption,
   placeControls,
   registerControlsIpc,
+  symbolOn,
+  type CaptionWindow,
   type ControlledWindow,
   type WindowControls,
 } from "./controls"
@@ -46,16 +51,16 @@ describe("placing the window's controls", () => {
   it("centres them on the line the page asks for, and keeps room for them", () => {
     expect(placeControls({ middle: 32, zoom: 1, fullScreen: false })).toEqual({
       visible: true,
-      position: { x: 20, y: 25 },
-      inset: 74,
+      position: { x: 16, y: 25 },
+      inset: 70,
     })
   })
 
   it("follows the app's scale: the line moves down, the room the page keeps shrinks", () => {
     expect(placeControls({ middle: 32, zoom: 1.5, fullScreen: false })).toEqual({
       visible: true,
-      position: { x: 20, y: 41 },
-      inset: 50,
+      position: { x: 16, y: 41 },
+      inset: 47,
     })
   })
 
@@ -77,15 +82,31 @@ describe("placing the window's controls", () => {
 })
 
 describe("the window's options", () => {
-  it("hide the title bar and set the controls at the header's start, as on macOS", () => {
-    expect(controlsWindowOptions("start", 1)).toEqual({
+  const first = { zoom: 1, ground: "#0f1114" }
+
+  it("hide the title bar and set the controls at the 52px header's start, as on macOS", () => {
+    expect(controlsWindowOptions("start", first)).toEqual({
       titleBarStyle: "hiddenInset",
-      trafficLightPosition: { x: 20, y: 25 },
+      trafficLightPosition: { x: 16, y: 19 },
     })
   })
 
+  it("hide the title bar and set the caption buttons over the 48px header's end, as on Windows", () => {
+    expect(controlsWindowOptions("end", { ...first, ink: "#e6e8eb" })).toEqual({
+      titleBarStyle: "hidden",
+      titleBarOverlay: { color: "#00000000", symbolColor: "#e6e8eb", height: 48 },
+    })
+  })
+
+  it("draw the caption buttons in an ink that reads on the ground, before the page says", () => {
+    expect(controlsWindowOptions("end", first).titleBarOverlay?.symbolColor).toBe("#f2f2f2")
+    expect(
+      controlsWindowOptions("end", { zoom: 1.25, ground: "#ffffff", ink: "red" }).titleBarOverlay,
+    ).toEqual({ color: "#00000000", symbolColor: "#1a1a1a", height: 60 })
+  })
+
   it("keep the system's title bar elsewhere", () => {
-    expect(controlsWindowOptions(undefined, 1)).toEqual({})
+    expect(controlsWindowOptions(undefined, first)).toEqual({})
   })
 })
 
@@ -105,7 +126,7 @@ describe("keeping a window's controls", () => {
   it("places them where the page asks and tells it the room they take", () => {
     const { window, state } = controlled()
     keepControls(window).place(30)
-    expect(state).toMatchObject({ visible: true, position: { x: 20, y: 23 }, told: [74] })
+    expect(state).toMatchObject({ visible: true, position: { x: 16, y: 23 }, told: [70] })
   })
 
   it("hides them when the page asks, as Zen does", () => {
@@ -119,7 +140,7 @@ describe("keeping a window's controls", () => {
     const controls = keepControls(window)
     controls.place(32)
     controls.place(32)
-    expect(state.told).toEqual([74, 74])
+    expect(state.told).toEqual([70, 70])
   })
 
   it("puts them right again for a new zoom", () => {
@@ -128,7 +149,7 @@ describe("keeping a window's controls", () => {
     controls.place(32)
     state.zoom = 2
     controls.apply()
-    expect(state).toMatchObject({ position: { x: 20, y: 57 }, told: [74, 37] })
+    expect(state).toMatchObject({ position: { x: 16, y: 57 }, told: [70, 35] })
   })
 
   it("tells the page as the window enters and leaves full screen", () => {
@@ -138,7 +159,7 @@ describe("keeping a window's controls", () => {
     emit("enter-full-screen")
     state.fullScreen = false
     emit("leave-full-screen")
-    expect(state.told).toEqual([74, 0, 74])
+    expect(state.told).toEqual([70, 0, 70])
   })
 
   it("hides them again as the window leaves full screen, where the page had hidden them", () => {
@@ -155,7 +176,119 @@ describe("keeping a window's controls", () => {
       const { window, state, emit } = controlled()
       keepControls(window).place(null)
       emit(event)
-      expect(state).toMatchObject({ visible: true, position: { x: 20, y: 25 }, told: [0, 74] })
+      expect(state).toMatchObject({ visible: true, position: { x: 16, y: 19 }, told: [0, 70] })
+    })
+})
+
+// A Windows window as its caption buttons see it: the overlay's height and ink as last set, its
+// zoom and full screen, and what its page was told.
+const captioned = () => {
+  const listeners = new Map<string, () => void>()
+  const state = {
+    overlays: [] as { height?: number; symbolColor?: string }[],
+    zoom: 1,
+    fullScreen: false,
+    told: [] as number[],
+  }
+  const window: CaptionWindow = {
+    setTitleBarOverlay: (options) => void state.overlays.push(options),
+    isFullScreen: () => state.fullScreen,
+    isDestroyed: () => false,
+    on: (event, listener) => void listeners.set(event, listener),
+    webContents: {
+      getZoomFactor: () => state.zoom,
+      isDestroyed: () => false,
+      send: (channel, inset) => {
+        if (channel === windowControlsChannel) state.told.push(inset)
+      },
+      on: (event, listener) => void listeners.set(event, listener),
+    },
+  }
+  const emit = (event: string): void => listeners.get(event)?.()
+  return { window, state, emit }
+}
+
+describe("placing Windows' caption buttons", () => {
+  it("runs them from the window's top to twice the line the page asks for", () => {
+    expect(placeCaption({ middle: 24, zoom: 1, fullScreen: false })).toEqual({
+      height: 48,
+      inset: captionWidth,
+    })
+  })
+
+  it("follows the app's scale: taller in the window's points, less room in the page's", () => {
+    expect(placeCaption({ middle: 24, zoom: 1.5, fullScreen: false })).toEqual({
+      height: 72,
+      inset: 92,
+    })
+  })
+
+  it("keeps them on the header's middle when the page asks for none, as they can't hide", () => {
+    expect(placeCaption({ middle: null, zoom: 1, fullScreen: false }).height).toBe(48)
+  })
+
+  it("keeps no room in full screen, where Windows leaves them out", () => {
+    expect(placeCaption({ middle: 24, zoom: 1, fullScreen: true }).inset).toBe(0)
+  })
+})
+
+describe("an ink that reads on a ground", () => {
+  it("is light on a dark ground and dark on a light one", () => {
+    expect(symbolOn("#0f1114")).toBe("#f2f2f2")
+    expect(symbolOn("#f4f1ea")).toBe("#1a1a1a")
+  })
+})
+
+describe("keeping a window's caption buttons", () => {
+  it("sizes them to the header the page centres them on and tells it the room", () => {
+    const { window, state } = captioned()
+    keepCaption(window).place(23)
+    expect(state).toMatchObject({ overlays: [{ height: 46 }], told: [captionWidth] })
+  })
+
+  it("sets their height only when it changes, as each setting repaints them", () => {
+    const { window, state } = captioned()
+    const controls = keepCaption(window)
+    controls.place(24)
+    controls.place(24)
+    expect(state.overlays).toEqual([{ height: 48 }])
+    expect(state.told).toEqual([captionWidth, captionWidth])
+  })
+
+  it("follows a new zoom", () => {
+    const { window, state } = captioned()
+    const controls = keepCaption(window)
+    controls.place(24)
+    state.zoom = 2
+    controls.apply()
+    expect(state).toMatchObject({ overlays: [{ height: 48 }, { height: 96 }], told: [138, 69] })
+  })
+
+  it("tells the page as the window enters and leaves full screen", () => {
+    const { window, state, emit } = captioned()
+    keepCaption(window).place(24)
+    state.fullScreen = true
+    emit("enter-full-screen")
+    state.fullScreen = false
+    emit("leave-full-screen")
+    expect(state.told).toEqual([captionWidth, 0, captionWidth])
+  })
+
+  it("draws them in the page's ink, once per ink, and nothing that isn't one", () => {
+    const { window, state } = captioned()
+    const controls = keepCaption(window)
+    controls.paint("#e6e8eb")
+    controls.paint("#e6e8eb")
+    controls.paint("red")
+    expect(state.overlays).toEqual([{ symbolColor: "#e6e8eb" }])
+  })
+
+  for (const event of ["did-navigate", "render-process-gone"])
+    it(`puts them back on the header's middle once the page goes (${event})`, () => {
+      const { window, state, emit } = captioned()
+      keepCaption(window).place(16)
+      emit(event)
+      expect(state.overlays).toEqual([{ height: 32 }, { height: 48 }])
     })
 })
 
@@ -166,6 +299,7 @@ describe("the page's request to place them", () => {
     const controls: WindowControls = {
       place: (middle) => void placed.push(middle),
       apply: () => {},
+      paint: () => {},
     }
     registerControlsIpc({ on: (channel, listener) => void listeners.set(channel, listener) }, () =>
       own ? controls : undefined,

@@ -32,13 +32,15 @@ export type DesktopBridge = {
   beforeQuit(save: () => Promise<void>): () => void
   /**
    * Tells the window how the page looks: the scheme for native menus, title bars and the
-   * page's `prefers-color-scheme` (`system` while the page follows the system), and the
-   * ground as `#rrggbb`, which the window shows before the page paints. The app
-   * ignores anything else.
+   * page's `prefers-color-scheme` (`system` while the page follows the system), the
+   * ground as `#rrggbb`, which the window shows before the page paints, and the header's
+   * ink as `#rrggbb`, which the window's own controls draw in where they sit over the page
+   * (Windows' caption buttons). The app ignores anything else, and an ink that isn't one.
    */
   showAppearance(appearance: {
     readonly scheme: "system" | "light" | "dark"
     readonly ground: string
+    readonly ink?: string
   }): void
   /**
    * Scales every window of the app, as a fraction of its normal size, 0.8 to 2: its page, its
@@ -103,7 +105,8 @@ export type DesktopBridge = {
   /**
    * The edge of the page's top the window's own controls sit over, where the page's header
    * stands in for the window's title bar: `start` for macOS's close, minimise and zoom buttons
-   * at the top left. Present exactly where `onWindowControls` is.
+   * at the top left, `end` for Windows' caption buttons at the top right, which run from the
+   * window's top and can't hide. Present exactly where `onWindowControls` is.
    */
   windowControlsSide?: WindowControlsSide
   /**
@@ -111,13 +114,14 @@ export type DesktopBridge = {
    * pixels from its edge on `windowControlsSide`: at once, and again on each change. 0 while
    * they don't show there, as in full screen or hidden by `placeWindowControls`. Returns a
    * function that stops listening. Absent where the window draws its own title bar above the
-   * page, as on Windows and Linux, and from apps that came before it.
+   * page, as on Linux, and from apps that came before it.
    */
   onWindowControls?(listener: (inset: number) => void): () => void
   /**
    * Centres the window's own controls on a line `middle` CSS pixels below the page's top, as
-   * the middle of its header, or hides them (null). The app drops anything else. Present
-   * exactly where `onWindowControls` is.
+   * the middle of its header, or hides them (null; at the `end`, which can't hide, they go to
+   * the header's middle). At the `end` they run from the page's top, twice `middle` high. The
+   * app drops anything else. Present exactly where `onWindowControls` is.
    */
   placeWindowControls?(middle: number | null): void
   /**

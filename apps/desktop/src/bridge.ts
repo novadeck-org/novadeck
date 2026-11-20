@@ -109,11 +109,11 @@ export const tellsScreenReader = (platform: string): boolean =>
 
 /**
  * The edge of the page's top the app's window puts its own controls over, the page's header
- * standing in for a title bar: the start on macOS. Undefined where the window keeps the
- * system's title bar, as on Windows and Linux.
+ * standing in for a title bar: the start on macOS, the end on Windows. Undefined where the
+ * window keeps the system's title bar, as on Linux.
  */
 export const windowControlsSide = (platform: string): WindowControlsSide | undefined =>
-  platform === "darwin" ? "start" : undefined
+  platform === "darwin" ? "start" : platform === "win32" ? "end" : undefined
 
 /**
  * Main-to-renderer report of the room the window's controls take from the page's edge on their

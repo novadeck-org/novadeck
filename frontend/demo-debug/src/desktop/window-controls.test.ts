@@ -27,7 +27,7 @@ describe("demo window controls", () => {
     expect(lights()[0]?.style.top).toBe("26px")
     controls.place(null)
     expect(lights()[0]?.style.display).toBe("none")
-    expect(insets).toEqual([74, 0])
+    expect(insets).toEqual([70, 0])
   })
 
   context("when StrictMode makes the boot's backend twice", () => {
@@ -47,5 +47,28 @@ describe("demo window controls", () => {
     controls.place(32)
     expect(lights()[0]?.style.display).toBe("none")
     expect(insets).toEqual([0])
+  })
+
+  context("as Windows' caption buttons", () => {
+    const caption = (): HTMLElement | undefined =>
+      document.querySelector<HTMLElement>('[data-demo-window-controls="caption"]') ?? undefined
+
+    it("say the page is the title bar, its controls at the end", () => {
+      const controls = createDemoWindowControls("caption")
+      expect(controls.side).toBe("end")
+      expect(document.documentElement.dataset.windowControls).toBe("end")
+    })
+
+    it("run from the page's top to twice the line it asks for, and never hide", () => {
+      const controls = createDemoWindowControls("caption")
+      const insets: number[] = []
+      controls.onInset((inset) => insets.push(inset))
+      controls.place(24)
+      expect(caption()?.style.display).toBe("flex")
+      expect(caption()?.style.height).toBe("48px")
+      controls.place(null)
+      expect(caption()?.style.display).toBe("flex")
+      expect(insets).toEqual([138, 138])
+    })
   })
 })
