@@ -1989,7 +1989,7 @@ one from an earlier runner.
   refused (`Tour.openPolicy`, through the Terminals option `openPolicy`), so a teammate that
   follows the script anyway can't nest a team. `removed` names the projects it removed. A
   folder there that is no folder, or that holds files without the marker, is the person's and
-  is never emptied: `CONFLICT`, as are an agent Novadeck isn't connected to and a second run
+  is never emptied: `CONFLICT`, refused before any project is removed, as are an agent Novadeck isn't connected to and a second run
   while one is being readied. An agent whose cheapest model can't be told is `MODELS_UNLISTED`:
   Codex lists its models (its `models_cache.json`) only once it has started signed in. Neither
   changes anything. The client then opens the folder as a project and starts `command` in a
