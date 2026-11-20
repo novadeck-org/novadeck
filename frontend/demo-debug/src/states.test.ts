@@ -388,7 +388,7 @@ describe("demo states", () => {
       [
         ...Array<string>(3).fill("ask"),
         ...Array<string>(1).fill("ask"),
-        ...Array<string>(13).fill("finish"),
+        ...Array<string>(15).fill("finish"),
         ...Array<string>(4).fill("work"),
       ].toSorted(),
     )

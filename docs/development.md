@@ -290,7 +290,7 @@ Terminals:
   Canvas wire side by side (on neighbours, the teams chain through the middle one).
 - **New terminals:** "Every state at once" adds one terminal per state, named after it, so
   the tabs and the windows in Grid and Canvas show done, replied (unread), failed, working,
-  planning, subagents, asking, waiting, paused at its limit or at a model's own (weekly Fable), asleep (plain, done, asking),
+  planning, subagents, asking, waiting, paused at its limit (resetting soon, or in 8 days) or at a model's own (weekly Fable), waiting on a wake-up due in minutes or in 7 days, asleep (plain, done, asking),
   waking (plain, asking), ended and the rest side by side. Its agents are of the harness the group's switch chose (see Agent). "Asks (MCP)" and
   "Needs a sign-in" are agents with an `ask` open in the Inbox (a
   question, and an action ask), so their "?" and "!" show beside "Working, a side question",

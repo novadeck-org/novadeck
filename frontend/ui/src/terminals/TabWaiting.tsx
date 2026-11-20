@@ -1,4 +1,4 @@
-import { wakeFill, whenText, type Waiting } from "@novadeck/core/terminals/waiting"
+import { wakeFill, whenChip, type Waiting } from "@novadeck/core/terminals/waiting"
 import { minutesWaited } from "@novadeck/core/terminals/waiting-clock"
 import type { TerminalMetadata } from "@novadeck/core/types"
 
@@ -11,7 +11,8 @@ type Row = {
   readonly key: string
   readonly kind: "job" | "wake"
   readonly label: string
-  // How long the job has run, or when the wake-up is.
+  // How long the job has run, or when the wake-up is: the clock today, the weekday or the days
+  // to it beyond, short enough to leave its label room at the narrowest sidebar.
   readonly trail: string
   readonly fill?: number
 }
@@ -28,7 +29,7 @@ const rowsOf = (waiting: Waiting, fill: number): Row[] => {
       key: "wake",
       kind: "wake",
       label: waiting.wake.reason ?? "Wake-up",
-      trail: whenText(waiting.wake.at),
+      trail: whenChip(waiting.wake.at),
       fill,
     })
   return rows.length > waitRows
