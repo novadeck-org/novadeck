@@ -2440,6 +2440,9 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     const stream = fixture.items.content(shown.ok ? shown.id : "", undefined)
     const starts: number[] = []
     timing.slowMs = 100
+    // A wait is four times its read, which load stretches: without a cap, a loaded machine can
+    // wait longer than the test may take (10 s here at 5 times the load; its 20 s on Test (macOS)).
+    timing.maxWaitMs = 1_500
     timing.saw = (args) => {
       if (args.includes("--show-toplevel")) starts.push(Date.now())
     }
@@ -2449,6 +2452,7 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
       await next(stream)
     } finally {
       timing.slowMs = 1_000
+      timing.maxWaitMs = 15_000
       timing.saw = undefined
       fixture.items.close(shown.ok ? shown.id : "")
     }

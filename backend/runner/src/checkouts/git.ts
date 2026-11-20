@@ -22,6 +22,8 @@ export const timing = {
   gitMs: 5_000,
   /** A read slower than this makes the next wait longer (a test shortens it). */
   slowMs: 1_000,
+  /** The longest a slow read makes the next wait (a test shortens it, so load can't stretch the wait). */
+  maxWaitMs: 15_000,
   /** Called with the arguments of each git run (a test looks at them). */
   saw: undefined as ((args: readonly string[]) => void) | undefined,
 }
@@ -178,13 +180,10 @@ export const git = (
     })
   })
 
-// A change read slower than this is polled less often; it is polled at most this seldom.
-const maxChangesWait = 15_000
-
 /**
  * How long to wait before reading a change again, given how long the last read `took`
  * and the usual `every`: after a slow read (a big repository) four times as long as it
- * took, up to 15 seconds, and the usual wait again as reads get fast.
+ * took, up to `timing.maxWaitMs` (15 seconds), and the usual wait again as reads get fast.
  */
 export const waitAfter = (took: number, every: number): number =>
-  took > timing.slowMs ? Math.min(maxChangesWait, Math.max(every, took * 4)) : every
+  took > timing.slowMs ? Math.min(timing.maxWaitMs, Math.max(every, took * 4)) : every
