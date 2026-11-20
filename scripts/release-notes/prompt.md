@@ -114,9 +114,25 @@ highlight tells one of its changes again, shorter, and that change stays in `cha
 Leave `highlights` empty when nothing stands out.
 
 In promote mode, the changes are every change since the last stable release, or since the
-start when there is none. Pick one to four highlights, the changes a person would most want
-to hear about, each with a title and a short line. Put every visible change in `changes`,
-grouped by area, the highlighted ones too, with their full line.
+start when there is none. Put every visible change in `changes`, grouped by area, the
+highlighted ones too, with their full line. Then pick one to four highlights, each with a
+title and a short line: the changes that make the biggest difference to the day of someone who
+already uses Novadeck.
+
+Weigh each change by how many people meet it, how often, and how much it changes for them. A
+new feature, a speedup, a fix and a rework of something already there are weighed the same
+way, and none counts for more because it is new. Tell who meets a change from where it is in
+the app: every terminal, the views and the sidebar are in front of everyone all day; an
+agent's questions and the chat, in front of everyone who runs agents; one kind of file in the
+companion pane, in front of the few who open it. A new feature few people will use stays in
+`changes`, however new it is. A fix is a highlight when many people hit what it fixes, or it
+cost them work.
+
+Several changes can be one difference for a person, such as speedups that each remove part of
+the same lag, or steps of one rework: weigh them together, as one, and when they make a
+highlight, tell them in it as one and cite them all. A rework that moves or changes something
+people use every day is worth a highlight even when it adds nothing, so they find their way
+when it looks different.
 
 When there is no stable release yet, this is the first one: describe what the app does,
 not how it got there ("terminals are named by a word everywhere", "runs real shells").

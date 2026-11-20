@@ -1692,7 +1692,9 @@ Release notes are written by a model through OpenRouter
 commits become short lines grouped by area, led by up to two highlights of new features, each
 a short title and line for the what's-new card with an icon the model picks from a fixed set,
 its change kept in full under its area; when a prerelease is promoted, its notes are rewritten
-with up to four highlights picked from everything since the last stable release. The app
+with up to four highlights picked from everything since the last stable release: the changes
+that make the biggest difference to people who already use the app, by how many meet them,
+how often and how much, whether new features, speedups, fixes or reworks. The app
 shows a release's highlights after updating to it until the person dismisses them. The
 `OPENROUTER_API_KEY` repository secret enables it, and the `RELEASE_NOTES_PRERELEASE_MODEL`
 and `RELEASE_NOTES_PROMOTE_MODEL` repository variables pick the models (by default
