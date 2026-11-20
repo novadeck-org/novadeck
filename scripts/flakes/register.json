@@ -689,6 +689,17 @@
         "#984 run 43917530454 job 133483751858 (Windows), retried and passed",
         "#1031 run 44356893742 job 134987644349 (Windows), failed twice, passed on its third attempt"
       ]
+    },
+    {
+      "id": "e2e-codex-macos-startup-drain",
+      "jobs": ["^Codex \\(macOS(, [12][/-]2)?\\)$"],
+      "test": "src/e2e/controls.e2e.ts > Codex, its hooks untrusted > binds no session, yet sends, told replies can't reach it, and can't be sent to",
+      "signature": "timed out discarding buffered terminal input",
+      "status": "known",
+      "cause": "Codex's own startup, not Novadeck: its TUI exited before drawing a prompt with \"Error: timed out discarding buffered terminal input\" (tui/src/tui.rs, as it drains the terminal's replies to its startup probes), leaving the shell. Seen once, on a macOS runner during the 0.171.0 pin bump; the retry passed. The message is in 0.170.0's binary too, so it isn't new in 0.171.0.",
+      "seen": [
+        "fix/e2e-pins-latest-1120 run 44772308093 attempt 1 job 136420294467 (macOS, 1/2), retried and passed"
+      ]
     }
   ]
 }
