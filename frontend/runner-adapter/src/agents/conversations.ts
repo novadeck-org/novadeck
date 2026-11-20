@@ -9,6 +9,7 @@ import {
   type ChatPrompt,
   type ChatRequest,
   conflictFailure,
+  InDoubt,
   notCleared,
   SettleInTerminal,
   withReturned,
@@ -739,7 +740,17 @@ export const createRunnerConversations = (
   track: <T>(work: Promise<T>) => Promise<T> = (work) => work,
   // The terminals' messages, whose doorbell each conversation carries.
   messages?: Store<MessagesState>,
+  // Resolves once the runner is reachable again, or closed for good: a prompt or a Stop whose
+  // answer the link lost is said to be in doubt only then, so the conversation has caught up.
+  connected: () => Promise<void> = async () => {},
 ): RunnerConversations => {
+  // A call the link dropped under, the runner going on with it as it does: in doubt once the
+  // link is back (see `InDoubt`).
+  const lost = async (error: unknown): Promise<boolean> => {
+    if (!hasCode(error, "DISCONNECTED", "CLOSED")) return false
+    await connected()
+    return true
+  }
   const entries = new Map<string, Entry>()
   const readings = new Map<string, Reading>()
 
@@ -843,7 +854,9 @@ export const createRunnerConversations = (
     send: ({ terminalId }, text, options) =>
       track(streams.prompt(terminalId, text, options)).then(
         ({ tracked, returned }) => ({ tracked, returned: returned ?? null }),
-        (error: unknown) => {
+        async (error: unknown) => {
+          // Only a prompt named by its ref can be told by its receipt.
+          if (options?.ref !== undefined && (await lost(error))) throw new InDoubt()
           throw failure(error, "reach", "send", (options?.images?.length ?? 0) > 0)
         },
       ),
@@ -893,7 +906,8 @@ export const createRunnerConversations = (
           ...(images && { images }),
           ...(images && at && { at }),
         }),
-        (error: unknown) => {
+        async (error: unknown) => {
+          if (await lost(error)) throw new InDoubt()
           throw failure(error, "stop", "stop")
         },
       ),

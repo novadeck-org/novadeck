@@ -1,6 +1,7 @@
 import {
   boxNotCleared,
   returnedBy,
+  InDoubt,
   RingUnderWay,
   promptRef,
   questionsToSetAside,
@@ -134,7 +135,9 @@ export type ChatCommands = {
   // Stops the agent's turn, as Escape in its TUI does. The prompts queued in the chat are
   // never sent after it: they come back to the box after the words the agent handed back,
   // and before what the box holds, their sends resolving false. Rejects as
-  // `Conversations.interrupt` does, the queued prompts back in the box all the same.
+  // `Conversations.interrupt` does, the queued prompts back in the box all the same. A Stop whose
+  // answer the link lost (`InDoubt`) may have taken: a prompt of the chat's its receipt then
+  // says it withdrew comes back to the box too, as the words the answer would have handed back.
   readonly stopChat: (key: TerminalKey) => Promise<void>
   // Sets the question the terminal's draft replies to in a session, or that it is held.
   readonly setChatReply: (context: string, terminalId: string, to: ChatReplyTo | null) => void
@@ -144,6 +147,9 @@ export type ChatCommands = {
 // that receipt before the chat stops waiting on it, in milliseconds: the backend tells it as
 // the prompt's Enter goes, so only a receipt it dropped first is never seen.
 export const unseenMs = 15_000
+
+// What a prompt whose answer the link lost says once no receipt showed it went (see `InDoubt`).
+export const lostPrompt = "It didn't reach the agent before the link to the runner dropped."
 
 // How long a prompt waits in the queue behind rings before the person is told, in milliseconds:
 // a ring takes seconds, so one that outlasts this isn't ending by itself.
@@ -239,6 +245,13 @@ export const createChatCommands = ({
   >()
   // What follows each prompt sent until its receipt says whether the record has it, by ref.
   const watches = new Map<string, () => void>()
+  // The terminals a Stop is on its way to, each with the refs of the chat's prompts whose
+  // receipts said they were withdrawn meanwhile: their words are what the Stop hands back, so
+  // what becomes of them waits for its answer.
+  const stopping = new Map<string, Set<string>>()
+  // The chat's prompts on their way as a Stop's answer was lost: one its receipt says was
+  // withdrawn comes back to the box, as that answer would have handed it back.
+  const lostStops = new Set<string>()
 
   // The ids of the questions the terminal's agent asks now and waits on, which the person's
   // own Send or Stop sets aside (`questionsToSetAside`).
@@ -309,6 +322,15 @@ export const createChatCommands = ({
     }
   }
 
+  // A prompt of the chat's that a Stop withdrew, whose words no answer handed back: they come
+  // back to the box, ahead of what it holds, and it follows nothing more.
+  const backAgain = (key: TerminalKey, ref: string): void => {
+    watches.get(ref)?.()
+    watches.delete(ref)
+    lostStops.delete(ref)
+    handBack(key, (send) => send.ref === ref)
+  }
+
   // Each terminal's latest take of what the agent's box holds.
   const takes = new Map<string, Promise<unknown>>()
 
@@ -335,6 +357,7 @@ export const createChatCommands = ({
   const finished = (key: TerminalKey, ref: string, inBox: boolean, keep = false): void => {
     watches.get(ref)?.()
     watches.delete(ref)
+    lostStops.delete(ref)
     const own = sendsOf(key).find((send) => send.ref === ref)
     const was = own?.phase
     // A line the record never got can be sent again, or taken back to edit, with its images.
@@ -361,16 +384,40 @@ export const createChatCommands = ({
 
   // Follows a prompt's receipt until it says whether the record has it: it is done once it
   // does, or once it is gone, as when the agent moved to another session.
-  const watch = (key: TerminalKey, ref: string): void => {
+  //
+  // `doubt` for one whose answer the link lost (`InDoubt`): it went only if its receipt shows,
+  // and its promise waits for that. Until then it stays on its way, holding the queue behind it,
+  // as one sent does; with none by the wait, or once its agent moved on to another session, it
+  // didn't go, and it comes back to the box with what was queued behind it, as a send that
+  // failed does.
+  const watch = (key: TerminalKey, ref: string, doubt = false): void => {
     const store = conversations!.conversation(key)
     let seen = false
     const session = store.getSnapshot().session
     let settled = false
+    const unsent = (): void => {
+      watches.get(ref)?.()
+      watches.delete(ref)
+      handBack(key, (send) => send.ref === ref || send.phase === "queued", [
+        ref,
+        new Error(lostPrompt),
+      ])
+    }
     const look = (): void => {
       const conversation = store.getSnapshot()
       const receipt = receiptOf(conversation, ref)
+      if (receipt && !seen && doubt) {
+        const settle = settles.get(ref)
+        settles.delete(ref)
+        settle?.resolve(true)
+      }
       if (receipt) seen = true
+      // A Stop on its way decides what its withdrawal means (see `stopChat`), and one whose
+      // answer the link lost leaves it to come back to the box.
+      if (receipt?.state === "withdrawn" && stopping.get(key.terminalId)?.add(ref)) return
+      if (receipt?.state === "withdrawn" && lostStops.has(ref)) return backAgain(key, ref)
       const gone = !receipt && (seen || (session !== null && conversation.session !== session))
+      if (gone && doubt && !seen) return unsent()
       // Settled: the next goes at once, and its words stay to show it until its item
       // arrives, as the receipt carries none.
       if (!gone && receipt?.state === "settled" && receipt.item !== null) {
@@ -397,7 +444,9 @@ export const createChatCommands = ({
     // A receipt the backend dropped before this window saw it, as one whose session never
     // bound, holds the queue no longer than this.
     const unseen = setTimeout(() => {
-      if (!seen && watches.has(ref)) finished(key, ref, false)
+      if (seen || !watches.has(ref)) return
+      if (doubt) unsent()
+      else finished(key, ref, false)
     }, unseenMs)
     watches.set(ref, () => {
       clearTimeout(unseen)
@@ -527,6 +576,16 @@ export const createChatCommands = ({
             return
           }
           ringWaits.delete(next.ref)
+          // The link dropped as it went: on its way still, until its receipt tells.
+          if (failure instanceof InDoubt && sendsOf(key).some((send) => send.ref === next.ref)) {
+            update(key, (all) =>
+              withSend(all, contextOf(key), key.terminalId, next.ref, (send) => ({
+                ...send,
+                phase: "sent",
+              })),
+            )
+            return watch(key, next.ref, true)
+          }
           handBack(key, (send) => send.ref === next.ref || send.phase === "queued", [
             next.ref,
             failure,
@@ -918,6 +977,11 @@ export const createChatCommands = ({
       let returned: string | null = null
       let handed: readonly string[] | undefined
       let places: readonly number[] | undefined
+      // Whether the Stop's answer came; else what failed it.
+      let answered = false
+      let failure: unknown
+      const withdrawn = new Set<string>()
+      stopping.set(key.terminalId, withdrawn)
       try {
         // A Stop while the agent asks questions sets those aside and stops the agent.
         const asked = questionsAsked(key)
@@ -928,7 +992,12 @@ export const createChatCommands = ({
         returned = result.words
         handed = result.images
         places = result.at
+        answered = true
+      } catch (error) {
+        failure = error
+        throw error
       } finally {
+        if (stopping.get(key.terminalId) === withdrawn) stopping.delete(key.terminalId)
         // Back in the box after what the agent handed back, which it had before them.
         const context = contextOf(key)
         const { terminalId } = key
@@ -953,6 +1022,17 @@ export const createChatCommands = ({
           settles.get(send.ref)?.resolve(false)
           settles.delete(send.ref)
         }
+        // The chat's prompts the Stop withdrew: with its answer, their words were in what it
+        // handed back; without it, they come back to the box from the chat's own copy, ahead
+        // of what came back before them. One whose receipt says so later, after an answer
+        // the link lost, comes back then.
+        for (const ref of withdrawn)
+          if (answered) finished(key, ref, false)
+          else backAgain(key, ref)
+        if (failure instanceof InDoubt)
+          for (const send of sendsOf(key))
+            if (send.to === null && send.phase === "sent" && !withdrawn.has(send.ref))
+              lostStops.add(send.ref)
       }
     },
     setChatReply: (context, terminalId, to) =>

@@ -1444,6 +1444,7 @@ export const runnerBackend = (
     },
     track,
     messages.state,
+    () => connected(),
   )
   // The Inbox: built from the terminals' statuses, the messages and the requests of the
   // agents that ask, once the app binds it to its workspace. Every runner backend has it.

@@ -1,4 +1,5 @@
 import {
+  InDoubt,
   noConversation,
   returnedBy,
   RingUnderWay,
@@ -1302,6 +1303,57 @@ describe("the runner's conversations", () => {
       await conversations.interrupt(key)
       expect(streams.prompt).toHaveBeenCalledWith("t", "hello", undefined)
       expect(streams.interrupt).toHaveBeenCalledWith("t", undefined)
+    })
+
+    context("where the link drops under a prompt or a Stop", () => {
+      // The runner goes on with what it was given; the link comes back at `back`.
+      const dropping = () => {
+        const { streams } = setup()
+        let back = () => {}
+        const reconnected = new Promise<void>((resolve) => (back = resolve))
+        const conversations = createRunnerConversations(
+          streams,
+          undefined,
+          undefined,
+          () => reconnected,
+        )
+        streams.prompt.mockRejectedValue(new WireError("DISCONNECTED"))
+        streams.interrupt.mockRejectedValue(new WireError("DISCONNECTED"))
+        return { conversations, back: () => back() }
+      }
+
+      it("says a prompt named by its ref is in doubt, once the link is back", async () => {
+        const { conversations, back } = dropping()
+        let said: unknown
+        const sending = conversations
+          .send(key, "hello", { ref: "abcdefghijklmnop" })
+          .catch((error: unknown) => (said = error))
+        await settle()
+        expect(said).toBeUndefined()
+        back()
+        await sending
+        expect(said).toBeInstanceOf(InDoubt)
+      })
+
+      it("says a Stop is in doubt too, once the link is back", async () => {
+        const { conversations, back } = dropping()
+        back()
+        await expect(conversations.interrupt(key)).rejects.toBeInstanceOf(InDoubt)
+      })
+
+      it("says a prompt with no ref, which no receipt tells, didn't reach the agent", async () => {
+        const { conversations, back } = dropping()
+        back()
+        await expect(conversations.send(key, "hello")).rejects.toThrow("The runner is offline.")
+      })
+
+      it("says nothing in doubt of a prompt the runner refused", async () => {
+        const { streams, conversations } = setup()
+        streams.prompt.mockRejectedValueOnce(new WireError("PROMPT_REFUSED"))
+        await expect(
+          conversations.send(key, "hello", { ref: "abcdefghijklmnop" }),
+        ).rejects.not.toBeInstanceOf(InDoubt)
+      })
     })
 
     it("asks the runner to set a question aside for the person's own Send and Stop", async () => {
