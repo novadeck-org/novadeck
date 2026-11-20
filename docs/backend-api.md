@@ -1512,10 +1512,13 @@ one from an earlier runner.
   not the one on screen (another's, as with parallel calls) stays null until it is. The
   raw text is the screen's rows without trailing blanks, from the bottom up while they fit
   in 4 KiB, a run of blank rows made one. A request the screen alone tells (Codex's
-  "Implement this plan?" and Antigravity's plan for review, which fire no hook) is a
-  request like any other: the adapter's `screenRequest` raises it while its screen shows,
-  and it goes once the screen has been still for 500 ms without it, or the turn moves on,
-  or it was answered.
+  "Implement this plan?" and an MCP server's form, and Antigravity's plan for review, which
+  fire no hook) is a request like any other: the adapter's `screenRequest` raises it while
+  its screen shows, and it goes once the screen has been still for 500 ms without it, or it
+  was answered; the root's turns ending or starting under it leave it be. While a view of
+  the harness's own holds a dialog out of sight (the adapter's `reveal` says so, as for
+  Codex's `/diff` pager), one the screen no longer shows is hidden, not gone: it keeps its
+  ref, and the same request shows again as the view closes.
 - A `choices` or `questions` dialog carries an `id`, a fingerprint (a hash) of what the adapter
   read, and a `choices` dialog a `detail`: what the dialog shows of what it asks about (the
   command, the tool's arguments, the permission, the file), as the terminal draws it. An
