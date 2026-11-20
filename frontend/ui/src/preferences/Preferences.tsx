@@ -164,19 +164,19 @@ const modeChoices: readonly { mode: AgentMode; label: string; description: strin
     mode: "solo",
     label: "Solo",
     description:
-      "For working as in a regular AI chat, one task per agent. Each keeps to its own work and tells you when it runs into another agent's; it acts on that only when you ask.",
+      "Best when you run one or two agents and steer each yourself. Agents stick to their task and bring overlaps with other agents to you instead of handling them.",
   },
   {
     mode: "herd",
     label: "Herd",
     description:
-      "For running a fleet of agents. They sort out what they share, like files, ports, servers or CI, among themselves, while you set up the teams and make the calls.",
+      "Best when you run several agents side by side. They settle what they share, like files, ports, servers or CI, among themselves, so they don't block or undo each other. You set up the teams and make the calls.",
   },
   {
     mode: "swarm",
     label: "Swarm",
     description:
-      "For handing over a goal and letting agents do the rest: they split the work, open and close agents, form teams and pass the lead without asking you. Exciting, and less predictable.",
+      "Best for a big goal you want split up and finished without managing it. Agents open, lead and close other agents and reshuffle teams with no confirmations from you. Expect more agents running and more of your usage.",
   },
 ]
 
@@ -424,7 +424,7 @@ export const Preferences = ({
       id: "agent-modes",
       label: "Agent modes",
       description: agentModes
-        ? "Pick how agents work together, in the Agents tab: Solo for working as in a regular AI chat, Herd for running a fleet of agents, Swarm for handing over a goal. While this is off, agents work as Herd."
+        ? "Pick how agents work together, in the Agents tab: Solo for one or two agents you steer yourself, Herd for several side by side, Swarm for a big goal split across agents. While this is off, agents work as Herd."
         : "Not available here.",
       checked: agentModes?.enabled ?? false,
       onToggle: (enabled: boolean) => agentModes?.onChange(enabled),
