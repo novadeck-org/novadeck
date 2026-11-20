@@ -778,7 +778,7 @@ reaches the runner.
 Codex its agents, Antigravity subagents and a swarm. Novadeck settles what they mean here
 (`agentsHere` in `shell/mcp.ts`, in the server's instructions and in `open_agent`'s and `team`'s
 descriptions, which are what Codex and Antigravity read): an agent the person asks for is one in
-its own Novadeck terminal, started with `open_agent`, unless they ask for a subagent; a team is a
+its own Novadeck terminal, started with `open_agent`, unless they ask for a subagent or say that is what they mean; a team is a
 lead and the agents in the Novadeck terminals it leads, and so is a swarm; and subagents an agent starts within its
 own turn stay its own to use for its own work, and are never a team. It defines the words rather
 than forbid the harnesses' own features. In blind tabletop probes (Opus and Sonnet in Claude Code and Sol in Codex, three

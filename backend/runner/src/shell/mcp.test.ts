@@ -1645,7 +1645,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     for (const text of [handshake?.result?.instructions as string, of("open_agent"), of("team")]) {
       // An agent the user asks for opens in a Novadeck terminal, a subagent only when asked.
       expect(text).toContain(
-        'an agent the user asks for, as in "spawn an agent", "open a claude" or "get a codex on it", is one in its own Novadeck terminal, started with open_agent, unless they ask for a subagent',
+        'an agent the user asks for, as in "spawn an agent", "open a claude" or "get a codex on it", is one in its own Novadeck terminal, started with open_agent, unless they ask for a subagent or say that is what they mean',
       )
       // A team is always Novadeck's; subagents stay the agent's own, and are never one.
       expect(text).toContain(

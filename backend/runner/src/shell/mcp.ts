@@ -626,7 +626,7 @@ const withModel = (schema: object, models: Models): object => {
 const agentsHere =
   'In Novadeck, an agent the user asks for, as in "spawn an agent", "open a claude" or "get ' +
   'a codex on it", is one in its own Novadeck terminal, started with open_agent, unless they ' +
-  "ask for a subagent; a team, or a swarm, is a lead and the agents in the Novadeck " +
+  "ask for a subagent or say that is what they mean; a team, or a swarm, is a lead and the agents in the Novadeck " +
   "terminals it leads. " +
   "Subagents you start within your own turn stay yours to use for your own work, as you " +
   "normally would, and are never a team."
