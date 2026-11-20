@@ -1,5 +1,6 @@
 import { context, describe, expect, it } from "../test"
 import type { AgentStatus, AgentWaiting, TerminalMetadata } from "../types"
+import { day } from "../units"
 import { terminalPhase } from "./ending"
 import {
   clockTime,
@@ -128,6 +129,17 @@ describe("an agent that waits", () => {
       `Waits to wake at ${clockTime(now + 12 * minute)}`,
     )
     expect(waitingText(agent(undefined), now)).toBeUndefined()
+  })
+
+  it("says a wake-up a day or more off by its weekday or the days to it, not by the clock alone", () => {
+    const weekday = (at: number) => new Date(at).toLocaleDateString(undefined, { weekday: "short" })
+    const later = now + 2 * day
+    expect(waitingText(onWake(later), now)).toBe(
+      `Waits to wake at ${weekday(later)} ${clockTime(later)}`,
+    )
+    expect(waitingText(onWake(now + 7 * day), now)).toBe(
+      `Waits to wake in 7d · ${clockTime(now + 7 * day)}`,
+    )
   })
 
   it("renders again when its minutes or its glyph change, or its wake-up expires", () => {

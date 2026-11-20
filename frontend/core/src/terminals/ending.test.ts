@@ -1,6 +1,7 @@
 import { context, describe, expect, it } from "../test"
 import { terminalFixture } from "../testing"
 import type { AgentStatus, TerminalMetadata } from "../types"
+import { day, minute } from "../units"
 import {
   attentionText,
   doneText,
@@ -155,6 +156,18 @@ describe("terminal ending", () => {
       "Paused at its usage limit · it has reset and waits to be continued",
     )
     expect(pausedText(limited(false), at + 1)).not.toContain("resets 15:40")
+    // A reset days off says so, as the footer does: a weekday past a day, the days from six.
+    const weekday = new Date(at).toLocaleDateString(undefined, { weekday: "short" })
+    expect(pausedText(limited(false), at - 2 * day)).toBe(
+      `Paused at its usage limit · resets ${weekday} 15:40`,
+    )
+    expect(pausedText(limited(false), at - 6 * day)).toBe(
+      "Paused at its usage limit · resets in 6d · 15:40",
+    )
+    // Just under a day is still the clock alone.
+    expect(pausedText(limited(false), at - day + minute)).toBe(
+      "Paused at its usage limit · resets 15:40",
+    )
     // Limited with no window known has no time to show.
     expect(
       terminalPhase({

@@ -1,3 +1,4 @@
+import { farClock } from "../far-clock"
 import { harnesses } from "../harnesses"
 import type { Workspace } from "../types"
 import { day, hour, minute } from "../units"
@@ -207,12 +208,9 @@ const clock = (at: number): string =>
 // When a window resets, as people say it: how long from now with the time, within a day,
 // "in 2h 14m · 16:30"; the weekday and time further off, "Thu 09:00".
 export const resetText = (at: number, now = Date.now()): string => {
+  const far = farClock(at, now, clock)
+  if (far !== undefined) return far
   const minutes = Math.max(0, Math.ceil((at - now) / minute))
-  // Six days on, a weekday alone could be today's, so it counts the days instead.
-  if (minutes >= 6 * minutesPerDay)
-    return `in ${Math.floor(minutes / minutesPerDay)}d · ${clock(at)}`
-  if (minutes >= minutesPerDay)
-    return `${new Date(at).toLocaleDateString(undefined, { weekday: "short" })} ${clock(at)}`
   const hours = Math.floor(minutes / minutesPerHour)
   const left = hours > 0 ? `${hours}h ${minutes % minutesPerHour}m` : `${minutes}m`
   return `in ${left} · ${clock(at)}`

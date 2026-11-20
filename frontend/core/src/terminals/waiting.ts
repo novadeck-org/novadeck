@@ -1,3 +1,4 @@
+import { farClock } from "../far-clock"
 import type { AgentWaiting, TerminalMetadata } from "../types"
 import { counted, hour, minute } from "../units"
 
@@ -48,6 +49,11 @@ export const clockTime = (at: number): string => {
   const date = new Date(at)
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`
 }
+
+// A time as a tab's text says it: the clock within a day ("14:32"), the weekday or the days off
+// beyond ("Thu 09:00", "in 6d · 09:00"), as the footer's resets are said.
+export const whenText = (at: number, now = Date.now()): string =>
+  farClock(at, now, clockTime) ?? clockTime(at)
 
 // When the wake-up of an agent that has none left to wait on passed, as the tab's trace of
 // it says: "14:32". Undefined while it waits on something or never set one.
@@ -126,7 +132,10 @@ const waitedWords = (since: number, now: number): string => {
 export const waitingText = (terminal: TerminalMetadata, now = Date.now()): string | undefined => {
   const line = waitingLine(terminal, now)
   if (!line) return undefined
-  if (line.kind === "wake") return `Waits to wake at ${clockTime(line.at)}`
+  if (line.kind === "wake") {
+    const when = whenText(line.at, now)
+    return `Waits to wake ${when.startsWith("in ") ? when : `at ${when}`}`
+  }
   const what = line.more > 0 ? `${line.label} and ${counted(line.more, "other job")}` : line.label
   return `Waiting on ${what}, ${waitedWords(line.since, now)}`
 }

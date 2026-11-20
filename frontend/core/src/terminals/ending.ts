@@ -1,6 +1,6 @@
 import type { AgentStatus, TerminalMetadata } from "../types"
 import { isAgentProgram } from "./process"
-import { clockTime, waitingOf, waitingText as waitingNote } from "./waiting"
+import { waitingOf, waitingText as waitingNote, whenText } from "./waiting"
 
 // How a terminal's session ended, in words for its end-of-session bar and its sidebar
 // tab. The tone ranks it: a warning for a shell that exited with an error code, danger
@@ -151,14 +151,15 @@ export const doneText = (failed = false): string =>
   failed ? "Stopped with an error · reply unread" : "Done · reported"
 
 // What a paused agent says: it stopped at its usage limit, with when it resets as the clock
-// reads it ("Paused at its usage limit · resets 15:40"), or, once that time has passed, that
+// reads it within a day ("Paused at its usage limit · resets 15:40"), the weekday or the days
+// off beyond ("resets Thu 09:00", "resets in 6d · 09:00"), or, once that time has passed, that
 // the limit has reset and it waits to be continued.
 export const pausedText = (terminal: TerminalMetadata, now = Date.now()): string | undefined => {
   const at = pausedUntil(terminal)
   if (at === undefined) return undefined
   return at <= now
     ? "Paused at its usage limit · it has reset and waits to be continued"
-    : `Paused at its usage limit · resets ${clockTime(at)}`
+    : `Paused at its usage limit · resets ${whenText(at, now)}`
 }
 
 // The longest a shell command shows in a description before it is cut.
