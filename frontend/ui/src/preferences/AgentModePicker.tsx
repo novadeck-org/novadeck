@@ -41,7 +41,7 @@ export const AgentModePicker = ({
             indicatorClassName="absolute"
           />
         </fieldset>
-        <div className="settings-row grid grid-cols-[272px_minmax(0,1fr)] items-center gap-5 px-4 py-3.5 max-[480px]:grid-cols-1 max-[480px]:justify-items-center">
+        <div className="settings-row @container/agent-mode-map grid grid-cols-[272px_minmax(0,1fr)] items-center gap-5 px-4 py-3.5 max-[480px]:grid-cols-1 max-[480px]:justify-items-center">
           <AgentModeMap mode={choice.mode} label={choice.map} />
           <div
             className="flex min-w-0 flex-col gap-2 text-body max-[480px]:justify-self-stretch"
@@ -62,7 +62,7 @@ export const AgentModePicker = ({
         </div>
       </div>
       {mode !== first && (
-        <p className="settings-description m-0 px-0.5 text-control leading-5">
+        <p className="settings-description m-0 px-0.5 text-control leading-5" role="status">
           Agents already running follow it fully from their next session.
         </p>
       )}

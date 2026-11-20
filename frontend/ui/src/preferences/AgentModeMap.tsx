@@ -63,7 +63,7 @@ const teamWires: readonly Wire[] = [
 const keyOf = (wire: Wire): string => `${wire.d}|${wire.in}|${wire.tone ?? "rest"}`
 
 const delay = (ms: number | undefined): CSSProperties | undefined =>
-  ms === undefined ? undefined : ({ "--agent-mode-map-delay": `${ms}ms` } as CSSProperties)
+  ms === undefined ? undefined : ({ "--_delay": `${ms}ms` } as CSSProperties)
 
 const WirePath = ({ wire }: { readonly wire: Wire }): React.JSX.Element => (
   <path
@@ -112,7 +112,8 @@ const Agent = ({
 )
 
 // A small map of what a mode does to agents, under Preferences' choice of it. It plays once
-// when the person picks a mode, never as Preferences opens.
+// each time the person picks a mode, never as Preferences opens: data-play turns odd or even
+// with each pick, and the recipe gives each its own keyframes, so every pick plays afresh.
 export const AgentModeMap = ({
   mode,
   label,
@@ -121,10 +122,10 @@ export const AgentModeMap = ({
   readonly label: string
 }): React.JSX.Element => {
   const [shown, setShown] = useState(mode)
-  const [played, setPlayed] = useState(false)
+  const [picks, setPicks] = useState(0)
   if (mode !== shown) {
     setShown(mode)
-    setPlayed(true)
+    setPicks((count) => count + 1)
   }
   return (
     <div
@@ -132,21 +133,13 @@ export const AgentModeMap = ({
       role="img"
       aria-label={label}
       data-mode={mode}
-      data-play={played ? "" : undefined}
+      data-play={picks === 0 ? undefined : picks % 2 === 1 ? "odd" : "even"}
     >
       <svg viewBox="0 0 272 150" aria-hidden="true">
         <g className="agent-mode-map-ring">
           {ringWires.map((wire) => (
             <WirePath key={keyOf(wire)} wire={wire} />
           ))}
-          <rect
-            className="agent-mode-map-pulse"
-            data-in="herd"
-            x={agents.owl.x + 30}
-            y={ring.top - 4}
-            width={5}
-            height={8}
-          />
         </g>
         {teamWires.map((wire) => (
           <WirePath key={keyOf(wire)} wire={wire} />
@@ -156,6 +149,12 @@ export const AgentModeMap = ({
         <span className="agent-mode-map-port" style={{ left: port.x, top: port.y }}>
           :5173
         </span>
+        {/* Herd's message, run over the port's name so it shows the whole way. */}
+        <span
+          className="agent-mode-map-pulse"
+          data-in="herd"
+          style={{ left: agents.owl.x + 30, top: ring.top }}
+        />
         <Agent name="@owl" at={agents.owl} waitsIn="solo" asksIn="solo" />
         <Agent name="@fern" at={agents.fern} waitsIn="solo" asksIn="solo" />
         <Agent name="@moss" at={agents.moss} />

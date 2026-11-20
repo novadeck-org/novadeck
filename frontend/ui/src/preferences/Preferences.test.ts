@@ -207,6 +207,19 @@ describe("the Agents work as choice", () => {
     expect(map()?.getAttribute("data-mode")).toBe("swarm")
   })
 
+  it("says Solo keeps overlaps with you", async () => {
+    await show({
+      tab: "agents",
+      experimental: experimental(true),
+      agentModes: { enabled: true, onChange: () => {} },
+      agentMode: { mode: "solo", onChange: () => {} },
+    })
+
+    expect(panel()?.textContent).toContain("Overlaps between agents come to you.")
+    expect(panel()?.textContent).not.toContain("without asking")
+    expect(map()?.getAttribute("data-mode")).toBe("solo")
+  })
+
   it("saves the mode picked", async () => {
     const changes: string[] = []
     await show({

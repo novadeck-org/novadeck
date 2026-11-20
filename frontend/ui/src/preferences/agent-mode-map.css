@@ -13,23 +13,31 @@
    `.agent-mode-map-port`; `.agent-mode-map-lead` (the team's lead cursor). Beside the map,
    `.agent-mode-facts`: the list of what agents do in the mode, bulleted.
 
-   Hooks: data-mode (solo | herd | swarm) on the map. data-play once the person has picked a
-   mode: then what arrives with the mode draws in (a wire's data-draw) or fades in
-   (data-pop), each after its --agent-mode-map-delay; until then the map stands still.
+   Hooks: data-mode (solo | herd | swarm) on the map. data-play ("odd" | "even", turning with
+   each pick) once the person has picked a mode: then what the mode shows draws in (a wire's
+   data-draw) or fades in (data-pop), each after its private --_delay, and each pick plays
+   afresh; until then the map stands still.
    data-in on a part: the modes it shows in, space-separated. data-tone="lit" | "ask" on a
    wire. data-waits-in on a glyph: the mode its agent waits on you in. Reduced motion
    stills it all, as accessibility.css stills every animation.
 
-   Tokens, each optional (its fallback in brackets):
-   --agent-mode-map-ground (card-bg, else paper): the ground names sit on, which wires mix
-   into. --agent-mode-map-fg (strong): lit wires, the cursors, a held port.
-   --agent-mode-map-ask (warning-fg): asks, and the blinking cursor in Solo. */
+   Tokens, each optional (its fallback in brackets): --agent-mode-map-bg (card-bg, else paper):
+   the ground names sit on, which resting wires mix into. The rest are the sidebar's own, so
+   the map follows a theme's team wires and tabs: --team-wire-fg (strong), --team-wire-glow,
+   --team-wire-rest-fg, --tab-process-font (glyphs), --tab-glyph-fg (ink),
+   --tab-waiting-fg (muted), and --tab-need-fg (warning-fg) for asks and Solo's blinking
+   cursor. */
 .agent-mode-map {
-  --_ground: var(--agent-mode-map-ground, var(--card-bg, var(--color-paper)));
-  --_fg: var(--agent-mode-map-fg, var(--color-strong));
-  --_ask: var(--agent-mode-map-ask, var(--color-warning-fg));
-  --_glow: drop-shadow(0 0 2.5px color-mix(in srgb, var(--_fg) 40%, transparent));
-  --_rest: color-mix(in srgb, var(--color-line-strong) 42%, var(--_ground));
+  --_ground: var(--agent-mode-map-bg, var(--card-bg, var(--color-paper)));
+  --_fg: var(--team-wire-fg, var(--color-strong));
+  --_ask: var(--tab-need-fg, var(--color-warning-fg));
+  --_glow: drop-shadow(
+    var(--team-wire-glow, 0 0 2.5px color-mix(in srgb, var(--_fg) 40%, transparent))
+  );
+  --_rest: var(
+    --team-wire-rest-fg,
+    color-mix(in srgb, var(--color-line-strong) 42%, var(--_ground))
+  );
   position: relative;
   width: 272px;
   height: 150px;
@@ -60,7 +68,11 @@
   stroke: var(--_ask);
 }
 .agent-mode-map-pulse {
-  fill: var(--_fg);
+  position: absolute;
+  width: 5px;
+  height: 8px;
+  margin-top: -4px;
+  background-color: var(--_fg);
   opacity: 0;
 }
 /* The ring stands centred; Swarm moves it right, for its team on the left. */
@@ -98,14 +110,17 @@ div.agent-mode-map-ring {
 .agent-mode-map-need,
 .agent-mode-map-count {
   width: 1ch;
-  font-family: var(--font-glyphs);
+  font-family: var(--tab-process-font, var(--font-glyphs));
   text-align: center;
+}
+.agent-mode-map-glyph {
+  color: var(--tab-glyph-fg, var(--color-ink));
 }
 .agent-mode-map-glyph::before {
   content: "⠋";
 }
 .agent-mode-map[data-mode="solo"] .agent-mode-map-glyph[data-waits-in~="solo"] {
-  color: var(--color-muted);
+  color: var(--tab-waiting-fg, var(--color-muted));
 }
 .agent-mode-map[data-mode="solo"] .agent-mode-map-glyph[data-waits-in~="solo"]::before {
   content: "⣀";
@@ -164,7 +179,7 @@ div.agent-mode-map-ring {
   opacity: 0;
 }
 
-/* Once the person picks: the mode's own parts arrive. */
+/* Once the person picks: the mode's own parts arrive, on keyframes of the pick's parity. */
 .agent-mode-map[data-play] .agent-mode-map-ring {
   transition: transform var(--motion-layout) var(--ease-interface);
 }
@@ -175,21 +190,32 @@ div.agent-mode-map-ring {
 .agent-mode-map[data-play][data-mode="herd"] [data-in~="herd"][data-draw],
 .agent-mode-map[data-play][data-mode="swarm"] [data-in~="swarm"][data-draw] {
   stroke-dasharray: 1;
-  animation: agent-mode-map-draw 480ms var(--ease-interface) both;
-  animation-delay: var(--agent-mode-map-delay, 0ms);
+  animation: agent-mode-map-draw-odd 480ms var(--ease-interface) var(--_delay, 0ms) both;
 }
 .agent-mode-map[data-play][data-mode="solo"] [data-in~="solo"][data-pop],
 .agent-mode-map[data-play][data-mode="herd"] [data-in~="herd"][data-pop],
 .agent-mode-map[data-play][data-mode="swarm"] [data-in~="swarm"][data-pop] {
-  animation: agent-mode-map-pop 300ms var(--ease-interface) both;
-  animation-delay: var(--agent-mode-map-delay, 0ms);
+  animation: agent-mode-map-pop-odd 300ms var(--ease-interface) var(--_delay, 0ms) both;
 }
 /* Herd's message: a cursor-sized block runs along the lit wire from @owl to @fern. */
 .agent-mode-map[data-play][data-mode="herd"] .agent-mode-map-pulse {
-  animation: agent-mode-map-pulse 600ms var(--ease-interface) 820ms both;
+  animation: agent-mode-map-pulse-odd 600ms var(--ease-interface) 820ms both;
+}
+.agent-mode-map[data-play="even"][data-mode="solo"] [data-in~="solo"][data-draw],
+.agent-mode-map[data-play="even"][data-mode="herd"] [data-in~="herd"][data-draw],
+.agent-mode-map[data-play="even"][data-mode="swarm"] [data-in~="swarm"][data-draw] {
+  animation: agent-mode-map-draw-even 480ms var(--ease-interface) var(--_delay, 0ms) both;
+}
+.agent-mode-map[data-play="even"][data-mode="solo"] [data-in~="solo"][data-pop],
+.agent-mode-map[data-play="even"][data-mode="herd"] [data-in~="herd"][data-pop],
+.agent-mode-map[data-play="even"][data-mode="swarm"] [data-in~="swarm"][data-pop] {
+  animation: agent-mode-map-pop-even 300ms var(--ease-interface) var(--_delay, 0ms) both;
+}
+.agent-mode-map[data-play="even"][data-mode="herd"] .agent-mode-map-pulse {
+  animation: agent-mode-map-pulse-even 600ms var(--ease-interface) 820ms both;
 }
 
-@keyframes agent-mode-map-draw {
+@keyframes agent-mode-map-draw-odd {
   from {
     stroke-dashoffset: 1;
   }
@@ -197,7 +223,15 @@ div.agent-mode-map-ring {
     stroke-dashoffset: 0;
   }
 }
-@keyframes agent-mode-map-pop {
+@keyframes agent-mode-map-draw-even {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes agent-mode-map-pop-odd {
   from {
     opacity: 0;
   }
@@ -205,7 +239,15 @@ div.agent-mode-map-ring {
     opacity: 1;
   }
 }
-@keyframes agent-mode-map-pulse {
+@keyframes agent-mode-map-pop-even {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes agent-mode-map-pulse-odd {
   0% {
     opacity: 0;
     transform: translateX(0);
@@ -216,12 +258,33 @@ div.agent-mode-map-ring {
   }
   100% {
     opacity: 0;
-    transform: translateX(46px);
+    transform: translateX(49px);
+  }
+}
+@keyframes agent-mode-map-pulse-even {
+  0% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(49px);
   }
 }
 @keyframes agent-mode-map-blink {
   50% {
     opacity: 0;
+  }
+}
+
+/* A phone narrower than the map: it shrinks to fit its row. */
+@container agent-mode-map (max-width: 271px) {
+  .agent-mode-map {
+    zoom: 0.84;
   }
 }
 

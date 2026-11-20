@@ -42,16 +42,28 @@ describe("the agent mode map", () => {
   })
 
   context("once the person picks a mode", () => {
-    it("plays, and keeps playing for each pick after, back to the first one too", () => {
+    it("plays each pick afresh, back to the first mode too", () => {
       const page = render(mapOf("herd"))
 
       page.rerender(mapOf("swarm"))
       expect(map(page.container).dataset.mode).toBe("swarm")
-      expect(map(page.container).hasAttribute("data-play")).toBe(true)
+      expect(map(page.container).dataset.play).toBe("odd")
 
+      // A new parity names new keyframes, so parts Herd and Swarm share draw in again.
       page.rerender(mapOf("herd"))
-      expect(map(page.container).hasAttribute("data-play")).toBe(true)
+      expect(map(page.container).dataset.play).toBe("even")
+      page.rerender(mapOf("solo"))
+      expect(map(page.container).dataset.play).toBe("odd")
     })
+  })
+
+  it("runs Herd's message over the port's name, where it shows", () => {
+    const page = render(mapOf("herd"))
+    const pulse = page.container.querySelector<HTMLElement>(".agent-mode-map-pulse")!
+
+    expect(pulse.dataset.in).toBe("herd")
+    expect(pulse.parentElement?.querySelector(".agent-mode-map-port")).not.toBeNull()
+    expect(pulse.closest("svg")).toBeNull()
   })
 
   it("asks you only in Solo, and draws Swarm's team only in Swarm", () => {
