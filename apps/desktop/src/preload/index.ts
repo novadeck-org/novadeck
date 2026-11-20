@@ -1,6 +1,9 @@
 import {
   desktopBadgeOf,
   parsePortableState,
+  parseProjectWindowsState,
+  parseProjectWindowTarget,
+  windowIdOf,
   parseUpdateOffer,
   parseWhatsNew,
   rendererPoolOf,
@@ -41,6 +44,7 @@ import {
   directoryPickerChannel,
   dismissWhatsNewChannel,
   feedbackAboutChannel,
+  extraWindowArgumentPrefix,
   feedbackArgumentPrefix,
   feedbackSendChannel,
   installAppChannel,
@@ -76,6 +80,14 @@ import {
   whatsNewChannel,
   windowFocusChannel,
   windowFocusRequestChannel,
+  projectWindowHandOffChannel,
+  projectWindowNavigateChannel,
+  projectWindowOpenChannel,
+  projectWindowShowChannel,
+  projectWindowsChannel,
+  projectWindowsRequestChannel,
+  projectWindowsUseChannel,
+  projectWindowSwapChannel,
   screenReaderChannel,
   screenReaderRequestChannel,
   tellsScreenReader,
@@ -96,6 +108,9 @@ const apiUrl = new URL(argument.slice(apiUrlArgumentPrefix.length))
 
 // Whether the main process sends feedback notes: it says so by an argument, `1`.
 const feedback = process.argv.includes(`${feedbackArgumentPrefix}1`)
+
+// Whether this window is not the app's first: the main process says so by an argument, `1`.
+const extraWindow = process.argv.includes(`${extraWindowArgumentPrefix}1`)
 
 // What the main process raised Chromium's WebGL context limit to, when it says so in a form the
 // contract allows; the page keeps its browser default otherwise.
@@ -294,6 +309,49 @@ const bridge = {
     ipcRenderer.send(windowFocusRequestChannel)
     return () => {
       ipcRenderer.removeListener(windowFocusChannel, relay)
+    }
+  },
+  // Only a valid state comes back; the request makes the main process answer with the current
+  // one, as the page may have started listening after it last changed, or loaded again.
+  onProjectWindows: (listener) => {
+    const relay = (_event: unknown, value: unknown): void => {
+      const state = parseProjectWindowsState(value)
+      if (state) listener(state)
+    }
+    ipcRenderer.on(projectWindowsChannel, relay)
+    ipcRenderer.send(projectWindowsRequestChannel)
+    return () => {
+      ipcRenderer.removeListener(projectWindowsChannel, relay)
+    }
+  },
+  // Only an id, or null, crosses; the main process checks it again.
+  showProjectWindow: (projectId) => {
+    if (projectId === null || windowIdOf(projectId) !== undefined)
+      ipcRenderer.send(projectWindowShowChannel, projectId)
+  },
+  useProjectWindows: (on) => {
+    if (typeof on === "boolean") ipcRenderer.send(projectWindowsUseChannel, on)
+  },
+  openProjectWindow: (projectId) => {
+    if (windowIdOf(projectId) !== undefined) ipcRenderer.send(projectWindowOpenChannel, projectId)
+  },
+  swapProjectWindow: (projectId) => {
+    if (windowIdOf(projectId) !== undefined) ipcRenderer.send(projectWindowSwapChannel, projectId)
+  },
+  // Only the three fields cross; the main process checks them again.
+  handOffToProjectWindow: (target) => {
+    const place = parseProjectWindowTarget(target)
+    if (place) ipcRenderer.send(projectWindowHandOffChannel, place)
+  },
+  // Only a valid place comes back.
+  onProjectWindowNavigate: (listener) => {
+    const relay = (_event: unknown, value: unknown): void => {
+      const place = parseProjectWindowTarget(value)
+      if (place) listener(place)
+    }
+    ipcRenderer.on(projectWindowNavigateChannel, relay)
+    return () => {
+      ipcRenderer.removeListener(projectWindowNavigateChannel, relay)
     }
   },
   // Only where the app can tell whether a screen reader runs (macOS, Windows, Linux); elsewhere
@@ -506,5 +564,6 @@ contextBridge.exposeInMainWorld("novadeck", {
   livePages: true,
   ...(webglContexts === undefined ? {} : { webglContexts }),
   ...(feedback ? { feedback: true as const } : {}),
+  ...(extraWindow ? { extraWindow: true as const } : {}),
   ...bridge,
 } satisfies DesktopApp)

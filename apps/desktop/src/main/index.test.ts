@@ -73,7 +73,9 @@ describe("the compiled desktop app", () => {
       // The server that starts after the quit closed what it found is closed in turn, and
       // the window waits on both checks.
       const started = main.indexOf("const started = await startHttpServer(")
-      const window = main.indexOf("createWindow(server.origin);\n  void updates")
+      const window = main.indexOf(
+        "openFirstWindows(server.origin, await savedWindows.load());\n  void updates",
+      )
       expect(started).toBeGreaterThan(-1)
       expect(window).toBeGreaterThan(started)
       const tail = main.slice(started, window)

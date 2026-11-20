@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import {
   desktopBadgeOf,
+  parseProjectWindowsState,
+  parseProjectWindowTarget,
   parseUpdateOffer,
   parseWhatsNew,
   rendererPoolOf,
@@ -110,5 +112,44 @@ describe("what is new from an older host", () => {
       highlights: [item(1)],
     })
     expect(parseWhatsNew({ version: "1.5.0", highlights: [], headsUp: [item(1)] })).toBeUndefined()
+  })
+})
+
+describe("a place in a project handed to its window", () => {
+  it("is the project, with the terminal and the row when it names them", () => {
+    expect(parseProjectWindowTarget({ projectId: "p" })).toEqual({ projectId: "p" })
+    expect(parseProjectWindowTarget({ projectId: "p", terminalId: "t", rowId: "r" })).toEqual({
+      projectId: "p",
+      terminalId: "t",
+      rowId: "r",
+    })
+  })
+
+  it.each([
+    ["nothing", undefined],
+    ["no project", { terminalId: "t" }],
+    ["an empty project", { projectId: "" }],
+    ["a project with a control character", { projectId: "p\nq" }],
+    ["a terminal that is not text", { projectId: "p", terminalId: 4 }],
+    ["a row that is too long", { projectId: "p", rowId: "r".repeat(201) }],
+  ])("is nothing for %s", (_name, value) => {
+    expect(parseProjectWindowTarget(value)).toBeUndefined()
+  })
+})
+
+describe("what the app says of its other windows", () => {
+  it("is the projects they show and whether this window has the voice", () => {
+    expect(parseProjectWindowsState({ elsewhere: ["a", "b"], voice: false })).toEqual({
+      elsewhere: ["a", "b"],
+      voice: false,
+    })
+  })
+
+  it.each([
+    ["no voice", { elsewhere: [] }],
+    ["a list that is not one", { elsewhere: "a", voice: true }],
+    ["an id that is not text", { elsewhere: [3], voice: true }],
+  ])("is nothing for %s", (_name, value) => {
+    expect(parseProjectWindowsState(value)).toBeUndefined()
   })
 })

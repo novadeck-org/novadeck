@@ -97,6 +97,50 @@ export type DesktopBridge = {
    */
   onWindowFocus?(listener: (focused: boolean) => void): () => void
   /**
+   * Calls `listener` with what the app's other windows show, for a page that may open a
+   * project in a window of its own: at once, and again on each change. `elsewhere` are the ids
+   * of the projects other windows show, and `voice` whether this is the window the person
+   * used last, the only one that rings, raises notifications and counts on the app's icon.
+   * Returns a function that stops listening. Absent from apps that came before it.
+   */
+  onProjectWindows?(listener: (state: ProjectWindowsState) => void): () => void
+  /**
+   * Tells the app which project this window shows (null while it shows none), as the person
+   * changes it; the app keeps it to route what is about a project to that project's window
+   * and to reopen the windows at the next launch. Absent from apps that came before it.
+   */
+  showProjectWindow?(projectId: string | null): void
+  /**
+   * Tells the app whether the person has turned project windows on, which it keeps: only with
+   * it on does quitting remember the open windows for the next launch. Absent from apps that
+   * came before it.
+   */
+  useProjectWindows?(on: boolean): void
+  /**
+   * Opens a project in a new window, or brings forward the window that shows it already.
+   * Absent from apps that came before it.
+   */
+  openProjectWindow?(projectId: string): void
+  /**
+   * Swaps this window's project with another window's: the window that shows `projectId` shows
+   * what this window showed until now, and this window, which the page has already switched,
+   * shows `projectId`. Does nothing when no other window shows it. Absent from apps that came
+   * before it.
+   */
+  swapProjectWindow?(projectId: string): void
+  /**
+   * Brings forward the window that shows `target.projectId`, and tells it to go to the project and
+   * its terminal. When no other window shows the project, this window is told instead. Absent
+   * from apps that came before it.
+   */
+  handOffToProjectWindow?(target: ProjectWindowTarget): void
+  /**
+   * Calls `listener` with each place the app tells this window to go, as when another window
+   * handed it a terminal or swapped its project; the person's own action brought it. Returns a
+   * function that stops listening. Absent from apps that came before it.
+   */
+  onProjectWindowNavigate?(listener: (target: ProjectWindowTarget) => void): () => void
+  /**
    * Calls `listener` with whether a screen reader or other assistive technology is running,
    * as the system tells Chromium: at once with the current state, and again on each change.
    * Returns a function that stops listening. Absent from apps that came before it.
@@ -735,6 +779,59 @@ export const desktopBadgeOf = (value: unknown): DesktopBadge | undefined => {
   return badgeImagePattern.test(image) ? { count, image } : undefined
 }
 
+/** What the app tells a page about its windows: see `DesktopBridge.onProjectWindows`. */
+export type ProjectWindowsState = {
+  readonly elsewhere: readonly string[]
+  readonly voice: boolean
+}
+
+/**
+ * A place in a project: the project, and one of its terminals when it names one, and the Inbox
+ * row of that terminal to open.
+ */
+export type ProjectWindowTarget = {
+  readonly projectId: string
+  readonly terminalId?: string
+  readonly rowId?: string
+}
+
+// The longest id of a project or a terminal the windows pass on.
+const windowIdLength = 200
+
+/** A project or terminal id the windows may pass on: a short line without control characters. */
+export const windowIdOf = (value: unknown): string | undefined =>
+  typeof value === "string" &&
+  value !== "" &&
+  value.length <= windowIdLength &&
+  // eslint-disable-next-line no-control-regex
+  !/[\u0000-\u001f\u007f]/.test(value)
+    ? value
+    : undefined
+
+/** A `ProjectWindowTarget` when `value` is one the contract allows; otherwise undefined. */
+export const parseProjectWindowTarget = (value: unknown): ProjectWindowTarget | undefined => {
+  if (typeof value !== "object" || value === null) return undefined
+  const { projectId, terminalId, rowId } = value as Record<string, unknown>
+  const project = windowIdOf(projectId)
+  if (project === undefined) return undefined
+  if (terminalId !== undefined && windowIdOf(terminalId) === undefined) return undefined
+  if (rowId !== undefined && windowIdOf(rowId) === undefined) return undefined
+  return {
+    projectId: project,
+    ...(terminalId !== undefined && { terminalId: terminalId as string }),
+    ...(rowId !== undefined && { rowId: rowId as string }),
+  }
+}
+
+/** A `ProjectWindowsState` when `value` is one the contract allows; otherwise undefined. */
+export const parseProjectWindowsState = (value: unknown): ProjectWindowsState | undefined => {
+  if (typeof value !== "object" || value === null) return undefined
+  const { elsewhere, voice } = value as Record<string, unknown>
+  if (typeof voice !== "boolean" || !Array.isArray(elsewhere)) return undefined
+  const ids = (elsewhere as unknown[]).map(windowIdOf)
+  return ids.every((id) => id !== undefined) ? { elsewhere: ids as string[], voice } : undefined
+}
+
 /** `window.novadeck` in a desktop app's page. */
 export type DesktopApp = DesktopBridge & {
   /** The app's local HTTP API. */
@@ -753,6 +850,13 @@ export type DesktopApp = DesktopBridge & {
    * does not (a development run without a feedback address) and from apps that came before it.
    */
   readonly feedback?: true
+  /**
+   * True in a window that is not the app's first: one the person opened for a project, or a
+   * later one of those the app reopened. The page leaves the one-time things (the welcome,
+   * the tour, offers) to the first window. Absent in the first window and from apps that came
+   * before it.
+   */
+  readonly extraWindow?: true
 }
 
 /** `window.novadeck` where the page runs in a desktop app; undefined where it runs without one. */

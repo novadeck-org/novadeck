@@ -65,6 +65,7 @@ export const tellWindowFocus = (window: BrowserWindow): void => {
 
 /** Shows a window again, as a second launch asks for. */
 export const bringForward = (window: BrowserWindow): void => {
+  if (window.isDestroyed()) return
   if (window.isMinimized()) window.restore()
   window.show()
   window.focus()
@@ -104,16 +105,31 @@ export const openAppWindow = ({
   ink,
   zoomFactor,
   preloadArguments,
+  bounds,
+  maximized = false,
+  route,
 }: {
   readonly ground: string
   // The page's last ink, which Windows' caption buttons draw in until it says again.
   readonly ink?: string | undefined
   readonly zoomFactor: number
   readonly preloadArguments: readonly string[]
+  // Where the window opens and how large; the system's place and the usual size without.
+  readonly bounds?: {
+    readonly width: number
+    readonly height: number
+    readonly x?: number
+    readonly y?: number
+  }
+  readonly maximized?: boolean
+  // The page's route, as its hash names it (`/projects/…`), to open on; the page's own choice
+  // without one.
+  readonly route?: string
 }): BrowserWindow => {
   const window = new BrowserWindow({
-    width: 1120,
-    height: 720,
+    width: bounds?.width ?? 1120,
+    height: bounds?.height ?? 720,
+    ...(bounds?.x !== undefined && bounds.y !== undefined ? { x: bounds.x, y: bounds.y } : {}),
     minWidth: 760,
     minHeight: 520,
     show: false,
@@ -137,7 +153,10 @@ export const openAppWindow = ({
     },
   })
 
-  window.once("ready-to-show", () => window.show())
+  window.once("ready-to-show", () => {
+    if (maximized) window.maximize()
+    window.show()
+  })
   window.on("focus", () => tellWindowFocus(window))
   window.on("blur", () => tellWindowFocus(window))
 
@@ -157,9 +176,9 @@ export const openAppWindow = ({
   })
 
   if (app.isPackaged) {
-    void window.loadFile(uiFile())
+    void window.loadFile(uiFile(), route ? { hash: route } : {})
   } else {
-    void window.loadURL(developmentOrigin)
+    void window.loadURL(route ? `${developmentOrigin}/#${route}` : developmentOrigin)
   }
 
   return window

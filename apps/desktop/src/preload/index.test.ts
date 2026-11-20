@@ -8,6 +8,7 @@ import { afterEach, beforeEach, vi } from "vitest"
 import {
   apiUrlArgumentPrefix,
   feedbackAboutChannel,
+  extraWindowArgumentPrefix,
   feedbackArgumentPrefix,
   feedbackSendChannel,
   webglContextsArgumentPrefix,
@@ -48,6 +49,14 @@ import {
   windowControlsPlaceChannel,
   windowFocusChannel,
   windowFocusRequestChannel,
+  projectWindowHandOffChannel,
+  projectWindowNavigateChannel,
+  projectWindowOpenChannel,
+  projectWindowShowChannel,
+  projectWindowsChannel,
+  projectWindowsRequestChannel,
+  projectWindowsUseChannel,
+  projectWindowSwapChannel,
 } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
 
@@ -489,6 +498,78 @@ describe("the window's focus", () => {
     stop()
     electron.renderer.emit(windowFocusChannel, {}, true)
     expect(states).toEqual([true, false])
+  })
+})
+
+describe("the project windows", () => {
+  it("asks for what the other windows show once the page listens", () => {
+    electron.exposed.onProjectWindows!(() => {})
+    expect(electron.sent).toEqual([projectWindowsRequestChannel])
+  })
+
+  it("hears a valid state, and only that, until the page stops", () => {
+    const states: unknown[] = []
+    const stop = electron.exposed.onProjectWindows!((state) => states.push(state))
+    electron.renderer.emit(projectWindowsChannel, {}, { elsewhere: ["p1"], voice: false })
+    electron.renderer.emit(projectWindowsChannel, {}, { elsewhere: "p1", voice: false })
+    electron.renderer.emit(projectWindowsChannel, {}, { elsewhere: [], voice: true })
+    stop()
+    electron.renderer.emit(projectWindowsChannel, {}, { elsewhere: [], voice: false })
+    expect(states).toEqual([
+      { elsewhere: ["p1"], voice: false },
+      { elsewhere: [], voice: true },
+    ])
+  })
+
+  it("sends what the page asks for, once it is what the contract allows", () => {
+    const bridge = electron.exposed
+    bridge.showProjectWindow!("p1")
+    bridge.showProjectWindow!(null)
+    bridge.useProjectWindows!(true)
+    bridge.openProjectWindow!("p2")
+    bridge.swapProjectWindow!("p3")
+    bridge.handOffToProjectWindow!({ projectId: "p4", terminalId: "t1" })
+    expect(electron.messages).toEqual([
+      [projectWindowShowChannel, "p1"],
+      [projectWindowShowChannel, null],
+      [projectWindowsUseChannel, true],
+      [projectWindowOpenChannel, "p2"],
+      [projectWindowSwapChannel, "p3"],
+      [projectWindowHandOffChannel, { projectId: "p4", terminalId: "t1" }],
+    ])
+  })
+
+  it("sends nothing for what is not", () => {
+    const bridge = electron.exposed
+    bridge.showProjectWindow!("")
+    bridge.useProjectWindows!("yes" as unknown as boolean)
+    bridge.openProjectWindow!("a\nb")
+    bridge.swapProjectWindow!(7 as unknown as string)
+    bridge.handOffToProjectWindow!({ terminalId: "t" } as never)
+    expect(electron.sent).toEqual([])
+  })
+
+  it("hears a valid place to go, and only that, until the page stops", () => {
+    const places: unknown[] = []
+    const stop = electron.exposed.onProjectWindowNavigate!((place) => places.push(place))
+    electron.renderer.emit(projectWindowNavigateChannel, {}, { projectId: "p1", terminalId: "t" })
+    electron.renderer.emit(projectWindowNavigateChannel, {}, { terminalId: "t" })
+    stop()
+    electron.renderer.emit(projectWindowNavigateChannel, {}, { projectId: "p2" })
+    expect(places).toEqual([{ projectId: "p1", terminalId: "t" }])
+  })
+
+  it("marks a window that is not the app's first, from the argument it opened with", async () => {
+    expect(electron.exposed.extraWindow).toBeUndefined()
+    vi.resetModules()
+    const extra = `${extraWindowArgumentPrefix}1`
+    process.argv.push(extra)
+    try {
+      await import("./index")
+      expect(electron.exposed.extraWindow).toBe(true)
+    } finally {
+      process.argv.splice(process.argv.indexOf(extra), 1)
+    }
   })
 })
 
