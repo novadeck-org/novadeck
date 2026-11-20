@@ -6,6 +6,20 @@ import { context, describe, expect, it } from "../test"
 import { type Flake, failuresOf, judgeJob, judgeRun, parseRegister, verdictSummary } from "./match"
 
 const register = parseRegister(JSON.parse(readFileSync("scripts/flakes/register.json", "utf8")))
+// Every job the E2E workflow runs: each harness's shards on each system, Mixed, macOS's core
+// scenarios on a pull request, and the Windows quirks jobs. A shard's count changes its jobs'
+// names, which an entry must follow or its flake reads as unknown.
+const e2eJobs = (() => {
+  const ids = Object.keys(
+    JSON.parse(readFileSync("backend/runner/src/e2e/harnesses.json", "utf8")) as object,
+  )
+  const night = { event: "schedule", affected: undefined, runner: undefined, files: undefined }
+  return [
+    ...plan(night, ids, sharding()).rows.map((row) => row.job),
+    ...macosRows("pull_request", ids, ids, sharding()).map((row) => row.job),
+    ...quirks(ids).map((row) => `${row.name} (Windows quirks)`),
+  ]
+})()
 // A failed job's log as CI caught it, by the flake it shows.
 const fixture = (id: string): string => readFileSync(`scripts/flakes/fixtures/${id}.txt`, "utf8")
 // The job each fixture's log is from.
@@ -121,19 +135,45 @@ describe("the known-flake register", () => {
     })
   })
 
-  context("when it names E2E jobs", () => {
-    // Every job the E2E workflow runs: each harness's shards on each system, Mixed, macOS's
-    // core scenarios on a pull request, and the Windows quirks jobs. A shard's count changes
-    // its jobs' names, which an entry must follow or its flake reads as unknown.
-    const ids = Object.keys(
-      JSON.parse(readFileSync("backend/runner/src/e2e/harnesses.json", "utf8")) as object,
-    )
-    const night = { event: "schedule", affected: undefined, runner: undefined, files: undefined }
-    const jobs = [
-      ...plan(night, ids, sharding()).rows.map((row) => row.job),
-      ...macosRows("pull_request", ids, ids, sharding()).map((row) => row.job),
-      ...quirks(ids).map((row) => `${row.name} (Windows quirks)`),
+  context("when its job's log is named as Known Flakes saves it", () => {
+    // Known Flakes saves each failed job's log under the job's name with "/" as "-", and judges
+    // the job by that name: a pattern that names a shard's job only with "/" never matches its
+    // log, so its flake reads as unknown there and gets no rerun.
+    // Quality's Test jobs, as its workflow names them: Linux's in its matrix, macOS's and
+    // Windows's in the rows it plans by default.
+    const tests = [
+      ...new Set(
+        [
+          ...readFileSync(".github/workflows/quality.yml", "utf8").matchAll(
+            /Test \((?:Linux|macOS|Windows), \d+\/\d+\)/g,
+          ),
+        ].map(([name]) => name),
+      ),
     ]
+
+    it("is the job's name with each slash a dash", () => {
+      expect(readFileSync(".github/workflows/flakes.yml", "utf8")).toContain(
+        'file="$RUNNER_TEMP/logs/${name//\\//-}.log"',
+      )
+      expect(tests).toContain("Test (macOS, 1/3)")
+    })
+
+    it("names every shard's job in that form too", () => {
+      const missed = register.flakes.flatMap((flake) =>
+        flake.jobs.flatMap((pattern) =>
+          [...tests, ...e2eJobs]
+            .filter((job) => job.includes("/") && new RegExp(pattern).test(job))
+            .map((job) => job.replaceAll("/", "-"))
+            .filter((saved) => !new RegExp(pattern).test(saved))
+            .map((saved) => `${flake.id}: ${pattern} misses ${saved}`),
+        ),
+      )
+      expect(missed).toEqual([])
+    })
+  })
+
+  context("when it names E2E jobs", () => {
+    const jobs = e2eJobs
 
     it("names in each pattern a job that runs", () => {
       const e2e = /^\^(?:Claude Code|Codex|Antigravity|Mixed|Core scenarios)\b/
