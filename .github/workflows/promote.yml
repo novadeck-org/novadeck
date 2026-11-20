@@ -153,14 +153,13 @@ jobs:
           node scripts/nightly/promotion/main.ts
 
   # The notes are written before the release turns stable, so no install that updates to it
-  # finds them missing. They are a job of their own that may fail or run out of time without
-  # holding the promotion, which waits for it but needs only the verification.
+  # finds them missing. A release doesn't go stable without them: when they fail or run out of
+  # time, the promotion stops there, and a fresh run tries both again.
   notes:
     name: Write Release Notes
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    continue-on-error: true
     permissions:
       contents: write
     steps:
@@ -195,8 +194,10 @@ jobs:
 
       # Highlights for the app's what's-new card, and every change since the last stable
       # release grouped by area (scripts/release-notes). Without the key, or when anything
-      # fails, the script writes no notes, the release is promoted with the notes it has,
-      # and the app shows no card for it.
+      # fails, the script writes no notes and fails, and so does the promotion: a release
+      # promoted without them would show the app no card. OpenRouter holds a request's whole
+      # cost up front, so the key's daily limit has to cover the promotion's on top of the
+      # day's prereleases (a $1 limit refused v1.8.2's and v1.9.53's with 402).
       - name: Write Release Notes
         timeout-minutes: 12
         env:
@@ -209,8 +210,8 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "$OPENROUTER_API_KEY" ]]; then
-            echo "No OPENROUTER_API_KEY; the release keeps the notes it has."
-            exit 0
+            echo "::error title=Release notes::No OPENROUTER_API_KEY, so $TAG gets no notes and stays a prerelease."
+            exit 1
           fi
           node scripts/release-notes/main.ts promote "$TAG" "$RUNNER_TEMP/notes.md"
           if [[ -s "$RUNNER_TEMP/notes.md" ]]; then
@@ -220,7 +221,7 @@ jobs:
   promote:
     name: Promote
     needs: [verify, notes]
-    if: ${{ !cancelled() && needs.verify.result == 'success' }}
+    if: ${{ !cancelled() && needs.verify.result == 'success' && needs.notes.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -251,7 +252,7 @@ jobs:
   # (try.yml). A failed deploy leaves the release stable; run Try by hand to retry it.
   try:
     name: Visitor Demo
-    # By the promotion's own result: notes failing doesn't hold the promotion, so nor this.
+    # Once the promotion has gone through, by its own result.
     if: ${{ !cancelled() && needs.promote.result == 'success' }}
     needs: [verify, promote]
     permissions:
