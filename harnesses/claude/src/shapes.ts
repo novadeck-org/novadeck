@@ -58,6 +58,9 @@ export const lists: ShapeLists = {
     // subagent's is the result of the call that started it; any other task's stays out.
     "tag:task-notification",
     "attachment:queued_command/task-notification/task-notification",
+    // What a hook added to a prompt's context: Novadeck's standing notices ride on it, each
+    // read as an item of its own (probed 2026-11-20, 2.1.329); any other hook's text gives none.
+    "attachment:hook_additional_context",
   ],
   skipped: [
     // The rest of the model's reasoning stays out of the chat, as it does of the terminal's
@@ -129,7 +132,6 @@ export const lists: ShapeLists = {
     "attachment:edited_text_file",
     "attachment:environment",
     "attachment:file",
-    "attachment:hook_additional_context",
     "attachment:hook_blocking_error",
     "attachment:hook_cancelled",
     "attachment:hook_error_during_execution",

@@ -13,7 +13,15 @@ import type {
   TranscriptDecoder,
   TranscriptEntry,
 } from "@novadeck/harness-core/harness"
-import { at, entry, joined, noteEntry, textOf, withImages } from "@novadeck/harness-core/items"
+import {
+  at,
+  entry,
+  joined,
+  noteEntry,
+  noticeEntries,
+  textOf,
+  withImages,
+} from "@novadeck/harness-core/items"
 import { outcome } from "@novadeck/harness-core/outcomes"
 import { continuationPrompt } from "@novadeck/harness-core/prompts"
 import { shellCall } from "@novadeck/harness-core/tools"
@@ -56,7 +64,8 @@ const inOtherProject = async (reported: string, sessionId: string): Promise<stri
  * the person of it (the model's updates, see `shownThinking`), which reads as the agent's
  * text marked `thinking`. Also out are the records Claude Code writes for itself (`isMeta`),
  * its compaction summaries, and the notices of background tasks it hands the model as the
- * person's message. A command the person runs in shell
+ * person's message. What a hook adds to a prompt's context (`hook_additional_context`) reads as
+ * Novadeck's notices where it holds any, each an item of its own. A command the person runs in shell
  * mode (`!`) is two user records, the command and then its output, which read as the
  * person's `!command` and a Bash run (the output's record names the command's as its
  * parent, so they pair). A prompt the person gives while a turn runs, which Claude Code
@@ -166,6 +175,14 @@ const queuedNotice = (
   return { text: prompt, at: queued.timestamp ?? fields.timestamp }
 }
 
+// The strings an attachment of a hook's added context holds, as it records them.
+const hookContext = (fields: Record<string, unknown>): string[] => {
+  const attached = (fields.attachment ?? {}) as Record<string, unknown>
+  return attached.type === "hook_additional_context" && Array.isArray(attached.content)
+    ? attached.content.filter((each): each is string => typeof each === "string")
+    : []
+}
+
 const tagged = (text: string, tag: string): string | undefined =>
   new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`).exec(text)?.[1]?.trim()
 
@@ -267,6 +284,11 @@ export const transcripts: TranscriptDecoder = {
       // how a background subagent's report arrives (2.1.319): it is that call's result.
       const notice = queuedNotice(fields)
       if (notice) return notified(notice.text, at(notice.at))
+      // What a hook printed for the agent: Novadeck's standing notices ride on a prompt this
+      // way, read apart from a delivery the same text may hold, which is the ring's.
+      const hooked = hookContext(fields)
+      if (hooked.length > 0)
+        return hooked.flatMap((each) => noticeEntries(each, at(fields.timestamp)))
       const queued = queuedPrompt(fields)
       return queued
         ? withImages(

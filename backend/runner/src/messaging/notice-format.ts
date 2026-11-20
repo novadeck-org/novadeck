@@ -1,3 +1,5 @@
+import { noticePrefix } from "@novadeck/protocol/notices"
+
 /**
  * The one shape of every text Novadeck sends an agent of its own accord (see
  * docs/agent-messaging.md, "Notice format"): standing notices on the prompt, event notices
@@ -34,8 +36,8 @@ export const noticeKinds = [
 
 export type NoticeKind = (typeof noticeKinds)[number]
 
-/** What starts every notice's first line, up to its kind. */
-export const noticePrefix = "Novadeck · "
+/** What starts every notice's first line, up to its kind: one rule with whoever reads a notice. */
+export { noticePrefix }
 
 /** What a notice says: its facts, detail lines under them, and one line per action. */
 export type NoticeParts = {

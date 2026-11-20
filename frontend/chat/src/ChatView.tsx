@@ -233,8 +233,8 @@ const ChatBody = ({
   } = useHeldSnapshot(conversation.subscribe, conversation.getSnapshot)
   const name = agentName(harness ?? program)
   const blocks = useMemo(
-    () => groupItems(wentItems(items, prompts), doorbell.delivered),
-    [items, prompts, doorbell.delivered],
+    () => groupItems(wentItems(items, prompts), doorbell.delivered, doorbell.notices),
+    [items, prompts, doorbell.delivered, doorbell.notices],
   )
   // The pictures the thumbnails of recorded prompts show: this window's own previews of what it
   // sent, where it still has them, else what the backend finds in the record.

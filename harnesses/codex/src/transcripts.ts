@@ -8,7 +8,15 @@ import type {
   TranscriptDecoder,
   TranscriptEntry,
 } from "@novadeck/harness-core/harness"
-import { at, entry, joined, noteEntry, textOf, withImages } from "@novadeck/harness-core/items"
+import {
+  at,
+  entry,
+  joined,
+  noteEntry,
+  noticeEntries,
+  textOf,
+  withImages,
+} from "@novadeck/harness-core/items"
 import { exited } from "@novadeck/harness-core/outcomes"
 import { fileList, shellCall } from "@novadeck/harness-core/tools"
 
@@ -199,8 +207,8 @@ const scripted = (fields: Fields): readonly TranscriptEntry[] => {
  * Codex's transcripts are its rollouts: the session's, and one per subagent, named for
  * its thread and kept under the day it started, its parent's or a later one. Each response
  * item holds the person's or the agent's text, another agent's message to it, a tool call
- * or its output; reasoning stays out, as do developer messages and the context Codex adds
- * as the person's. Its terminal shows no reasoning in the conversation either: a summary is
+ * or its output; reasoning stays out, as do the developer messages but for Novadeck's notices
+ * a hook adds, and the context Codex adds as the person's. Its terminal shows no reasoning in the conversation either: a summary is
  * drawn only in the transcript overlay (Ctrl+T) and, as a heading, on the working line. A
  * command the person ran in shell mode is one user message, which reads as the person's
  * `!command` and a Bash run with its output, and its exit code when not
@@ -259,6 +267,9 @@ export const transcripts: TranscriptDecoder = {
     switch (payload.type) {
       case "message": {
         const { role } = payload
+        // What a hook adds to the context is a developer message: Novadeck's standing notices
+        // ride on a prompt this way. Any other instruction Codex gives the model stays out.
+        if (role === "developer") return noticeEntries(messageText(payload.content), time)
         if (role !== "user" && role !== "assistant") return []
         const text = messageText(payload.content)
         const reply = role === "user" ? asyncReplyText(text) : undefined

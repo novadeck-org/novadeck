@@ -53,6 +53,7 @@ const ring = (id: string): ChatBlock => ({
   at: null,
   messages: null,
   replies: false,
+  notices: [],
 })
 
 describe("where a turn starts", () => {

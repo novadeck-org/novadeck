@@ -55,6 +55,18 @@ export type AgentMessage = {
   readonly deliveredAt: number | null
 }
 
+// One of Novadeck's own notices delivered to a terminal's agent inside a delivery of messages: its
+// text as sent, `Novadeck · <Kind>` header and all (`./notices` reads it), and when it was sent and
+// delivered. Notices stand outside the threads: the Messages pane never lists them, and the chat
+// shows each in the ring it came with. The core can't import the protocol's wire contracts, so this
+// mirrors its `DeliveredNotice`.
+export type DeliveredNotice = {
+  readonly id: string
+  readonly text: string
+  readonly sentAt: number
+  readonly deliveredAt: number
+}
+
 // A terminal's thread with one other party, a terminal or the person: how many
 // messages it has had, how many idle ones in a row (sent while neither end worked), and its
 // messages, oldest first. `held` while the thread has a hold, `heldFor` its reason: `loop`,
@@ -123,6 +135,8 @@ export type TerminalThreads = {
   // Whether the doorbell is ringing its agent now.
   readonly ringing?: boolean
   readonly threads: readonly MessageThread[]
+  // The notices Novadeck delivered to its agent, oldest first; no thread holds them.
+  readonly notices?: readonly DeliveredNotice[]
 }
 
 // Another terminal of the session as a terminal's messages show it, by its id: its
@@ -231,6 +245,7 @@ export const doorbellOf = (terminalMessages: TerminalThreads | undefined): ChatD
   return {
     waiting: waitingFor(terminalMessages).toSorted((a, b) => a.sentAt - b.sentAt),
     delivered: delivered.toSorted((a, b) => a.deliveredAt! - b.deliveredAt!),
+    notices: terminalMessages.notices ?? [],
     waits: terminalMessages.waits ?? null,
     waitsSince: terminalMessages.waitsSince ?? null,
     ringing: terminalMessages.ringing === true,

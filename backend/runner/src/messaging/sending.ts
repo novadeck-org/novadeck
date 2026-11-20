@@ -1,4 +1,9 @@
-import { agentMode, type AgentName, type TerminalMessages } from "@novadeck/protocol"
+import {
+  agentMode,
+  listedNoticesMost,
+  type AgentName,
+  type TerminalMessages,
+} from "@novadeck/protocol"
 import { z } from "zod"
 
 import { agents as allAgents, harnesses } from "../harnesses/registry.js"
@@ -894,6 +899,19 @@ export class Sending {
       holdOf: (message) => store.holdOf(message),
       now: this.host.now(),
     })
+    const notices = [...store.messages()]
+      .filter(
+        (message) =>
+          isNotice(message) && message.to.terminalId === terminalId && message.deliveredAt !== null,
+      )
+      .toSorted((a, b) => a.deliveredAt! - b.deliveredAt!)
+      .slice(-listedNoticesMost)
+      .map((message) => ({
+        id: message.id,
+        text: message.text,
+        sentAt: message.sentAt,
+        deliveredAt: message.deliveredAt!,
+      }))
     return {
       terminalId,
       handle,
@@ -902,6 +920,7 @@ export class Sending {
       waitsSince: live ? holds.oldestHeld(live) : null,
       paused: store.isPaused(),
       threads,
+      notices,
     }
   }
 

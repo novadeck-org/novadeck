@@ -6,7 +6,14 @@ import type {
   TranscriptEntry,
   UserEntry,
 } from "@novadeck/harness-core/harness"
-import { at, entry, noteEntry, textOf, withImages } from "@novadeck/harness-core/items"
+import {
+  at,
+  entry,
+  noteEntry,
+  noticeEntries,
+  textOf,
+  withImages,
+} from "@novadeck/harness-core/items"
 import { outcome } from "@novadeck/harness-core/outcomes"
 import { flavourOf } from "@novadeck/harness-core/paths"
 
@@ -196,6 +203,10 @@ export const transcripts: TranscriptDecoder = {
     }
     if (fields.source === "SYSTEM" && fields.type === "CHECKPOINT")
       return [noteEntry({ type: "compaction" }, time, content)]
+    // What a hook injected: Novadeck's standing notices ride on a prompt this way, and any
+    // delivery of agents' messages the same text holds is read apart.
+    if (fields.source === "SYSTEM_SDK" && fields.type === "EPHEMERAL_MESSAGE")
+      return noticeEntries(content, time)
     if (fields.source === "SYSTEM" && fields.type === "SYSTEM_MESSAGE")
       return endedSubagents(content).flatMap((one) =>
         endOf(one.conversation, one.text, one.failed, time),

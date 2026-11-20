@@ -40,6 +40,7 @@ export const chatMark = ({
     prompts.map((prompt) => `${prompt.ref}:${prompt.state}`).join(","),
     doorbell.waiting.length,
     doorbell.delivered.length,
+    doorbell.notices.length,
     doorbell.ringing,
   ].join("\n")
 }

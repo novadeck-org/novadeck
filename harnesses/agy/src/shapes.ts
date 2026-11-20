@@ -27,15 +27,17 @@ export const lists: ShapeLists = {
     "step:SYSTEM/CHECKPOINT",
     // A background subagent's going idle, its report, or its failing (probed 2026-11-09, 1.5.2).
     "message:subagent-end",
+    // What a hook injected: Novadeck's standing notices ride on a prompt this way (probed
+    // 2026-11-20, 1.5.13); text with none of its notices is read for nothing.
+    "step:SYSTEM_SDK/EPHEMERAL_MESSAGE",
     "tag:USER_REQUEST",
     // An image the person gave, listed apart from the words and saved under the session
     // (probed 2026-10-31, 1.4.12).
     "media:USER_EXPLICIT/USER_INPUT",
   ],
   skipped: [
-    // Subagents' messages, hooks' continuations and notices, and injected messages.
+    // Subagents' messages and hooks' continuations.
     "step:SYSTEM/SYSTEM_MESSAGE",
-    "step:SYSTEM_SDK/EPHEMERAL_MESSAGE",
     // An image a tool read shows as the text beside it.
     "media:MODEL/GENERIC",
   ],

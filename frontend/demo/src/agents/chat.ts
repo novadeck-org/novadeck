@@ -362,9 +362,14 @@ export const createDemoChat = (
       session: `demo-${terminalKeyId(found.key)}`,
       slice: transcript?.slice ?? null,
       box: transcript?.box ?? null,
-      doorbell: transcript?.delivered
-        ? { ...noDoorbell, delivered: transcript.delivered }
-        : noDoorbell,
+      doorbell:
+        transcript?.delivered || transcript?.notices
+          ? {
+              ...noDoorbell,
+              delivered: transcript.delivered ?? [],
+              notices: transcript.notices ?? [],
+            }
+          : noDoorbell,
       loaded: true,
       // A demo agent without a transcript is a new one: its record holds nothing, it never had a
       // turn, and its screen sits at its box.

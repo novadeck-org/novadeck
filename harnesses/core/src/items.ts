@@ -6,6 +6,7 @@ import {
   type TranscriptItem,
   type TranscriptNote,
 } from "@novadeck/protocol"
+import { splitHookText } from "@novadeck/protocol/notices"
 
 import { cutText, ref } from "./decode.js"
 import type { EventBase, ActivityEvent } from "./events.js"
@@ -135,6 +136,16 @@ export const noteEntry = (
   ...entry("note", "text", text, { at: when }),
   note,
 })
+
+/**
+ * The notices of Novadeck's own that a hook's output holds, an item each, in the order it
+ * printed them: the standing notices that ride on a prompt (Describe, Show, Inbox, Worktrees,
+ * the hook's lines), which each harness records as a record of its own. The same text may
+ * hold a delivery of agents' messages (`<novadeck-messages>`), which is the ring's and read
+ * apart; text that holds no notice of Novadeck's gives none.
+ */
+export const noticeEntries = (hook: string, when: number | null): readonly TranscriptEntry[] =>
+  splitHookText(hook).notices.map((text) => noteEntry({ type: "notice" }, when, text))
 
 /**
  * The item that shows where the person interrupted a turn, for a harness whose records hold

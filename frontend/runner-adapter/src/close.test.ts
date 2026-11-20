@@ -194,6 +194,7 @@ const holdingRunner = (close: (id: string) => Promise<void>) => {
           waits: null,
           waitsSince: null,
           paused: false,
+          notices: [],
           threads: [
             {
               id: "th",

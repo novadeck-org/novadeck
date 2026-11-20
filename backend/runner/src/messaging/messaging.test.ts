@@ -2172,6 +2172,7 @@ describe("listing", () => {
       // Its agent idle, the message has waited since it was sent.
       waitsSince: time.now,
       paused: false,
+      notices: [],
       threads: [
         {
           id: expect.stringMatching(/^t-/),
@@ -5624,8 +5625,9 @@ describe("the loop hold", () => {
     expect(records.messages()).toMatchObject([{ from: { kind: "novadeck" }, state: "held" }])
     // At most one waits, and none while any message does.
     expect(messaging.notice("A", "Novadeck · Messages: again")).toBe(false)
-    // It is no peer's conversation: no listing shows it.
+    // It is no peer's conversation: no thread shows it, and no notice is listed before it is delivered.
     expect(messaging.list("A", "moth").threads).toEqual([])
+    expect(messaging.list("A", "moth").notices).toEqual([])
     messaging.pause(false)
     const answer = prompt("A", claude)
     expect(answer.stdout).toContain('from=\\"novadeck\\"')
@@ -5634,6 +5636,19 @@ describe("the loop hold", () => {
     expect(answer.stdout).not.toContain("Reply with send")
     messaging.acknowledge("A", answer.leaseId!)
     expect(records.messages().map(({ state }) => state)).toContain("delivered")
+    // Once delivered it is listed beside the threads, never in one, for the chat's ring.
+    const listed = messaging.list("A", "moth")
+    expect(listed.threads).toEqual([])
+    expect(listed.notices).toEqual([
+      {
+        id: expect.stringMatching(/^m-/),
+        text: "Novadeck · Messages: go on",
+        sentAt: expect.any(Number),
+        deliveredAt: expect.any(Number),
+      },
+    ])
+    // Another terminal's listing has none of it.
+    expect(messaging.list("B", "fox").notices).toEqual([])
   })
 
   it("queues an outcome notice though a peer's message already waits, and delivers both", () => {

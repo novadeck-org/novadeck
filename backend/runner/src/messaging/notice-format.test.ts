@@ -1,3 +1,4 @@
+import { noticeBody, noticeOneLine, readNotice, splitHookText } from "@novadeck/protocol/notices"
 import { describe, expect, it } from "vitest"
 
 import { closeNotice } from "../terminals/closes.js"
@@ -106,5 +107,36 @@ describe("every notice Novadeck words", () => {
     expect(text.match(/Novadeck · /g)).toHaveLength(1)
     expect(text).toContain(hold)
     expect(text.endsWith("\n→ Send it again in a few seconds.")).toBe(true)
+  })
+
+  // The chat and the terminal overlay take a notice apart by `@novadeck/protocol/notices`, which
+  // must read exactly what this module builds.
+  it("is read back whole by the one rule that strips its header", () => {
+    for (const text of texts) {
+      const { kind, facts, actions } = readNotice(text)
+      expect(noticeKinds).toContain(kind)
+      expect(facts.length).toBeGreaterThan(0)
+      expect(facts.join("\n")).not.toContain(noticePrefix)
+      // Header off, nothing else lost: the header and the body make the text again.
+      expect(`${noticePrefix}${kind}\n${noticeBody(text)}`).toBe(text)
+      expect(noticeOneLine(text)).not.toMatch(/\n|Novadeck · /)
+      for (const action of actions) expect(text).toContain(`\n→ ${action}`)
+    }
+  })
+
+  it("splits a hook's text back into the notices it joined, a blank line apart", () => {
+    expect(splitHookText(texts.join("\n\n"))).toEqual({ notices: texts, delivery: false })
+  })
+
+  it("keeps a delivery apart from the notices printed with it, either side of it", () => {
+    const delivery =
+      '<novadeck-messages note="Rules.">\n<message id="m-a" from="fox">Done.</message>\n</novadeck-messages>'
+    const [first, second] = texts
+    expect(splitHookText(`${delivery}\n\n${first}\n\n${second}`)).toEqual({
+      notices: [first, second],
+      delivery: true,
+    })
+    expect(splitHookText(`${first}\n\n${delivery}`)).toEqual({ notices: [first], delivery: true })
+    expect(splitHookText(delivery)).toEqual({ notices: [], delivery: true })
   })
 })

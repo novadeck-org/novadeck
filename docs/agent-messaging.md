@@ -2053,6 +2053,20 @@ Standing notices ride on the prompt, a blank line apart; event notices are sent 
 message from `novadeck`. The doorbell lines (`harnesses/core/src/prompts.ts`) and the tour's
 step lines are no notices and keep their own forms, as do tool results and refusals.
 
+**What the person sees.** Agent Chat shows each notice as a quiet, collapsed line of its own
+first words, its header off (the person reads the facts; `readNotice` in
+`@novadeck/protocol/notices` is the one rule that strips it and splits the facts from the `→`
+actions, read by the chat and any terminal overlay), which opens in place to the whole.
+Two paths bring them there. An event notice, delivered as a message from `novadeck`, is
+kept like any delivered message and listed beside the threads as `TerminalMessages.notices`
+(the latest 200, with `deliveredAt`; never in a thread, so the Messages pane leaves them
+out); the chat attaches each to the ring whose window its `deliveredAt` falls in, as it does
+the ring's messages. A standing notice (or a hook's line) is no message: each harness records
+what the prompt's hook printed (Claude Code's `hook_additional_context` attachment, Codex's
+developer message, Antigravity's `EPHEMERAL_MESSAGE` step), and the decoders read it as one
+`notice` item per notice, splitting off any `<novadeck-messages>` delivery the same text holds
+(that is the ring's). The chat shows each under the prompt it rode on.
+
 ### The doorbell
 
 In the Settled or Ready state, or when the screen proves an idle Fresh, Drafting or

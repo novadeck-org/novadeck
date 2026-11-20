@@ -24,6 +24,9 @@ export const lists: ShapeLists = {
   read: [
     "item:message/user",
     "item:message/assistant",
+    // What a hook adds to the context: Novadeck's standing notices ride on a prompt this way
+    // (probed 2026-11-20, 0.171.0); any other instruction Codex gives the model is read for none.
+    "item:message/developer",
     "item:function_call",
     "item:function_call_output",
     "item:custom_tool_call",
@@ -60,7 +63,6 @@ export const lists: ShapeLists = {
     "record:security_risk_score",
     // Reasoning, instructions for the model, and what compaction left.
     "item:reasoning",
-    "item:message/developer",
     "item:message/system",
     "item:additional_tools",
     "item:compaction",

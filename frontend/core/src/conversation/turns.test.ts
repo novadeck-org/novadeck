@@ -1,5 +1,5 @@
 import type { ChatItem, ChatPrompt, ToolOutcome } from "../conversation"
-import type { AgentMessage } from "../messages"
+import type { AgentMessage, DeliveredNotice } from "../messages"
 import { describe, expect, it } from "../test"
 import {
   agentName,
@@ -548,6 +548,46 @@ describe("a turn the doorbell started", () => {
     expect(brought([ring(null)], [message(10_000)])).toEqual([null])
   })
 
+  describe("with the notices Novadeck delivered", () => {
+    const notice = (deliveredAt: number): DeliveredNotice => ({
+      id: `m-n${deliveredAt}`,
+      text: "Novadeck · Worktrees\n@fox gave you its worktree.",
+      sentAt: deliveredAt - 500,
+      deliveredAt,
+    })
+    const noticed = (items: readonly ChatItem[], notices: readonly DeliveredNotice[]) =>
+      groupItems(items, [], notices).flatMap((block) =>
+        block.kind === "doorbell" ? [block.notices.map(({ deliveredAt }) => deliveredAt)] : [],
+      )
+
+    it("attaches each to the ring it came in, by the window its messages go by", () => {
+      const items = [ring(10_000), reply(11_000), prompt(30_000), ring(50_000)]
+      expect(noticed(items, [notice(8_500), notice(20_000), notice(51_000)])).toEqual([
+        [8_500, 20_000],
+        [51_000],
+      ])
+    })
+
+    it("leaves what came long before it or with the next prompt, and any with no dated record", () => {
+      expect(noticed([ring(10_000), prompt(30_000)], [notice(7_000), notice(29_500)])).toEqual([[]])
+      expect(noticed([ring(null)], [notice(10_000)])).toEqual([[]])
+    })
+
+    it("gives a notice to one ring only, the rings close together", () => {
+      expect(noticed([ring(10_000), ring(12_000)], [notice(9_000), notice(11_000)])).toEqual([
+        [9_000],
+        [11_000],
+      ])
+    })
+
+    it("is drawn again once a notice arrives", () => {
+      const rung = ring(10_000)
+      const before = groupItems([rung])[0]!
+      expect(sameBlock(before, groupItems([rung], [], [notice(10_000)])[0]!)).toBe(false)
+      expect(sameBlock(before, groupItems([rung], [], [])[0]!)).toBe(true)
+    })
+  })
+
   it("is drawn again once what it brought is known", () => {
     const rung = ring(10_000)
     const before = groupItems([rung])[0]!
@@ -715,5 +755,55 @@ describe("the agent's thinking", () => {
     const [reply] = groupItems([item({ id: "a", text: "x" })])
     expect(sameBlock(update!, update!)).toBe(true)
     expect(sameBlock(update!, reply!)).toBe(false)
+  })
+})
+
+describe("the notices that rode on a prompt's hook", () => {
+  const prompt = (at: number | null, text = "mine") =>
+    item({ role: "user", kind: "text", text, at })
+  const standing = (text: string, at: number | null = null) =>
+    item({ role: "note", note: { type: "notice" }, text, at })
+  const describing = "Novadeck · Describe\nThis terminal has no summary yet.\n→ Call describe."
+
+  it("stand as lines of their own under the prompt, the text as recorded", () => {
+    const blocks = groupItems([
+      prompt(1_000),
+      standing(describing, 1_001),
+      standing("Novadeck · Show\nShow it.", 1_002),
+    ])
+    expect(blocks.map(({ kind }) => kind)).toEqual(["user", "notice", "notice"])
+    expect(blocks[1]).toMatchObject({ at: 1_001, text: describing })
+  })
+
+  it("end a run of tool calls, since they were recorded between its calls", () => {
+    const blocks = groupItems([call("Bash", "c1"), standing(describing), call("Bash", "c2")])
+    expect(blocks.map(({ kind }) => kind)).toEqual(["tools", "notice", "tools"])
+  })
+
+  it("say one once a turn, though a harness records it at each of the turn's model calls", () => {
+    const items = [
+      prompt(1_000),
+      standing(describing),
+      call("Bash", "c1"),
+      standing(describing),
+      prompt(2_000),
+      standing(describing),
+    ]
+    expect(groupItems(items).map(({ kind }) => kind)).toEqual([
+      "user",
+      "notice",
+      "tools",
+      "user",
+      "notice",
+    ])
+  })
+
+  it("are drawn again when their words change", () => {
+    const line = standing(describing, 1_000)
+    const block = groupItems([line])[0]!
+    expect(sameBlock(block, groupItems([line])[0]!)).toBe(true)
+    expect(sameBlock(block, groupItems([{ ...line, text: "Novadeck · Show\nShow it." }])[0]!)).toBe(
+      false,
+    )
   })
 })

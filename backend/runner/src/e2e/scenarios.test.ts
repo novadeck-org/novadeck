@@ -159,6 +159,7 @@ const listing = (delivery: DeliveryState, state: MessageState): TerminalMessages
   waits: null,
   waitsSince: null,
   paused: false,
+  notices: [],
   threads: [
     {
       id: "thread-1",

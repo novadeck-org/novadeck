@@ -507,3 +507,44 @@ describe("a background subagent's other ends, as captured", () => {
     expect(ofLaunch(probe.exit).map(({ outcome }) => outcome?.running)).toEqual([true])
   })
 })
+
+const hooked = loadProbe(import.meta.dirname, "notices.probe.json") as { records: object[] }
+const [ring, delivery, prompt, describing] = hooked.records
+
+describe("Novadeck's notices on a prompt's hook, as Antigravity's steps record them", () => {
+  const read = (record: object) =>
+    transcripts.items(JSON.stringify(record)).map(({ role, kind, note, text }) => ({
+      shape: `${role} ${kind}${note ? ` ${note.type}` : ""}`,
+      text: text.slice(0, 40),
+    }))
+
+  it("reads an injected message that holds a notice as an item of its own, after the prompt", () => {
+    expect(read(prompt!).map(({ shape }) => shape)).toEqual(["note text mode", "user text"])
+    expect(read(describing!)).toEqual([
+      { shape: "note text notice", text: "Novadeck: automatic notice, not from the" },
+    ])
+    expect(transcripts.items(JSON.stringify(describing))[0]).toMatchObject({
+      at: Date.parse("2026-11-20T21:02:29Z"),
+      note: { type: "notice" },
+    })
+  })
+
+  it("splits the ring's injected message: the delivery is the ring's, the notice after it the prompt's", () => {
+    // The hook printed the delivery, then two notices (the older build's, as recorded).
+    expect(read(delivery!).map(({ shape }) => shape)).toEqual(Array(2).fill("note text notice"))
+    expect(read(ring!).map(({ shape }) => shape)).toEqual(["note text mode", "user text"])
+  })
+
+  it("reads no notice from a delivery with none beside it", () => {
+    const { content } = delivery as { content: string }
+    const alone = {
+      ...(delivery as object),
+      content: content.slice(0, content.indexOf("</novadeck-messages>") + 20),
+    }
+    expect(read(alone)).toEqual([])
+  })
+
+  it("keeps the injected message among the shapes it reads", () => {
+    expect(shapes(JSON.stringify(describing)).map(({ verdict }) => verdict)).toEqual(["read"])
+  })
+})

@@ -110,6 +110,15 @@ describe("what the chat has of a terminal's doorbell", () => {
     expect(doorbellOf(terminalMessages([sent]))).toMatchObject({ waiting: [], delivered: [] })
   })
 
+  it("holds the notices Novadeck delivered apart from the messages, and no thread for them", () => {
+    const notice = { id: "m-n", text: "Novadeck · Show\nShow it.", sentAt: 1, deliveredAt: 2 }
+    const terminal = { ...terminalMessages([]), notices: [notice] }
+    expect(doorbellOf(terminal)).toMatchObject({ waiting: [], delivered: [], notices: [notice] })
+    expect(doorbellOf(terminalMessages([])).notices).toEqual([])
+    // Notices are no conversation: a terminal with only notices has no messages view.
+    expect(hasMessages(terminal)).toBe(false)
+  })
+
   it("says why it waits, and that a ring is under way", () => {
     const terminal = {
       ...terminalMessages([]),
