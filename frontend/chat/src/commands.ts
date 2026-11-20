@@ -158,9 +158,6 @@ export const replyImagesNote = "A reply can't take images. Remove them, or send 
 export const shellImagesNote =
   "A shell command can't take images. Remove them, or send them as a message."
 
-// The session context a terminal's chat state is kept under.
-const contextOf = (key: TerminalKey) => `${key.projectId}/${key.workspaceSessionId}`
-
 // An object URL of a pasted image for its thumbnail; empty where the page can make none.
 const previewOf = (file: Blob): string =>
   typeof URL.createObjectURL === "function" ? URL.createObjectURL(file) : ""
@@ -211,20 +208,30 @@ const passedLingerMs = 1500
 export const createChatCommands = ({
   chat,
   conversations,
-  terminalOpen,
+  locate,
   context: currentContext,
   chatView,
 }: {
   readonly chat: Chat
   // The agents' conversations, where the backend reads them.
   readonly conversations: Conversations | undefined
-  // Whether the terminal is still in its session.
-  readonly terminalOpen: (key: TerminalKey) => boolean
+  // Where the terminal is now: under `key`, or in the session of its project it moved to
+  // since; null once it closed.
+  readonly locate: (key: TerminalKey) => TerminalKey | null
   // The current workspace context: `${projectId}/${workspaceSessionId}`.
   readonly context: () => string
   // Whether the chat view is on, so that terminals show as chats.
   readonly chatView: () => boolean
 }): ChatCommands => {
+  // A send, a Stop or a take of the box carries on with the key it began with: what it says
+  // of the chat's state goes where the terminal is now, as it may have moved meanwhile, and
+  // nowhere once it closed.
+  const terminalOpen = (key: TerminalKey): boolean => locate(key) !== null
+  // The session context a terminal's chat state is kept under, where it is now.
+  const contextOf = (key: TerminalKey): string => {
+    const { projectId, workspaceSessionId } = locate(key) ?? key
+    return `${projectId}/${workspaceSessionId}`
+  }
   // How each prompt's promise settles, by ref, while it waits in the queue or goes.
   const settles = new Map<
     string,

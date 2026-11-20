@@ -13,15 +13,17 @@ import {
 } from "@novadeck/core/conversation"
 import { createStore } from "@novadeck/core/store"
 import { refusing } from "@novadeck/core/testing"
+import type { TerminalKey } from "@novadeck/core/types"
 import { afterEach, beforeEach, vi } from "vitest"
 
+import { rehomeTerminals } from "./by-terminal"
 import { createChatCommands, ringRetryMs, ringWaitMs, unseenMs } from "./commands"
 import { chatDraftOf } from "./drafts"
 import { chatReplyOf } from "./replies"
 import { chatSendsOf } from "./sends"
 import { setAnsweringInTerminal } from "./shown"
 import { createChat } from "./state"
-import { describe, expect, it } from "./test"
+import { context as situation, describe, expect, it } from "./test"
 
 const key = { projectId: "project", workspaceSessionId: "initial", terminalId: "01" }
 const context = "project/initial"
@@ -90,10 +92,12 @@ const open = (
     ...(clearBox && { clearBox }),
   }
   const chat = createChat()
+  // Where terminal 01 is now: moved to another session, as the runner may, or closed.
+  let here: TerminalKey | null = key
   const commands = createChatCommands({
     chat,
     conversations,
-    terminalOpen: () => true,
+    locate: (asked) => (here && asked.terminalId === here.terminalId ? here : null),
     context: () => context,
     chatView: () => chatView,
   })
@@ -130,11 +134,30 @@ const open = (
     // In an object, so awaiting the setup doesn't await the queued send too.
     return { queued }
   }
+  // The terminal moves to session `to`, and the chat's state goes with it, as `watchChat`
+  // takes it there.
+  const move = (to: string) => {
+    const from = context
+    here = { ...key, workspaceSessionId: to }
+    const home = (at: string) => (at === from ? `project/${to}` : undefined)
+    chat.update((state) => ({
+      ...state,
+      drafts: rehomeTerminals(state.drafts, home),
+      attachments: rehomeTerminals(state.attachments, home),
+      sends: rehomeTerminals(state.sends, home),
+    }))
+  }
+  // The terminal closes.
+  const close = () => {
+    here = null
+  }
   return {
     commands,
     sent,
     phases,
     draft,
+    move,
+    close,
     reply,
     receipt,
     tell,
@@ -487,6 +510,80 @@ describe("the chat's send queue", () => {
       expect(sent).toEqual(["one", "two"])
       expect(phases()).toEqual([["two", "sent"]])
     })
+
+  situation("for a terminal that moved to another session meanwhile", () => {
+    const moved = "project/other"
+    const phasesAt = (chat: ReturnType<typeof open>["chat"], at: string) =>
+      chatSendsOf(chat.store.getSnapshot().sends, at, "01").map(({ text, phase }) => [text, phase])
+
+    it("sends the queued words there, and each leaves the queue there", async () => {
+      const { chat, sent, receipt, tell, two, move } = open()
+      const { queued } = await two()
+      move("other")
+      tell({ prompts: [receipt(0, "settled", 0)] })
+      await expect(queued).resolves.toBe(true)
+      expect(sent).toEqual(["one", "two"])
+      expect(phasesAt(chat, moved)).toEqual([
+        ["one", "settled"],
+        ["two", "sent"],
+      ])
+      tell({ items: [userItem(0, "one")] })
+      expect(phasesAt(chat, moved)).toEqual([["two", "sent"]])
+      expect(phasesAt(chat, context)).toEqual([])
+    })
+
+    it("puts the words of one that failed back in the box there", async () => {
+      let move = (_to: string) => {}
+      const setup = open("s1", {
+        sends: () => {
+          move("other")
+          throw withReturned(new Error("It didn't land."), "came back")
+        },
+      })
+      move = setup.move
+      setup.commands.setChatDraft("01", "the message")
+      await expect(setup.commands.sendChat(key, "the message", null)).rejects.toThrow(
+        "It didn't land.",
+      )
+      expect(chatDraftOf(setup.chat.store.getSnapshot().drafts, moved, "01")).toBe(
+        "came back\nthe message",
+      )
+      expect(phasesAt(setup.chat, moved)).toEqual([])
+    })
+
+    it("hands the queued words back there on a Stop it moved during", async () => {
+      let move = (_to: string) => {}
+      const setup = open("s1", {
+        interrupt: async () => {
+          move("other")
+          return { words: "in the agent's box" }
+        },
+      })
+      move = setup.move
+      const { queued } = await setup.two()
+      await setup.commands.stopChat(key)
+      await expect(queued).resolves.toBe(false)
+      expect(chatDraftOf(setup.chat.store.getSnapshot().drafts, moved, "01")).toBe(
+        "in the agent's box\ntwo",
+      )
+    })
+
+    it("puts nothing back once it closed", async () => {
+      let close = () => {}
+      const setup = open("s1", {
+        sends: () => {
+          close()
+          throw withReturned(new Error("It didn't land."), "came back")
+        },
+      })
+      close = setup.close
+      setup.commands.setChatDraft("01", "the message")
+      await expect(setup.commands.sendChat(key, "the message", null)).rejects.toThrow(
+        "It didn't land.",
+      )
+      expect(setup.chat.store.getSnapshot().drafts).toEqual({})
+    })
+  })
 
   it("sends the next once the session changes before the receipt was seen", async () => {
     const { commands, sent, tell } = open()

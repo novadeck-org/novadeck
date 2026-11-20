@@ -111,7 +111,7 @@ const inApp = (
     chatView: () => true,
     chat,
     conversations,
-    terminalOpen: () => true,
+    locate: (asked) => asked,
     context: () => context,
   })
   commands.setChatDraft("01", draft)
