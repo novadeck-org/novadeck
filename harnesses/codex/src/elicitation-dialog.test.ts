@@ -12,10 +12,15 @@ type Form = {
   readonly toolResult: string
   readonly novadeckSaw: unknown[]
 }
-const { forms } = loadProbe<{ forms: Record<string, Form> }>(
-  import.meta.dirname,
-  "elicitation.probe.json",
-)
+type Approval = {
+  readonly screens: Record<string, ScreenText>
+  readonly novadeckSaw: { readonly kind: string; readonly tool: string }[]
+}
+const { forms, approvals, subagent } = loadProbe<{
+  forms: Record<string, Form>
+  approvals: Record<string, Approval>
+  subagent: { readonly screens: Record<string, ScreenText>; readonly after: ScreenText }
+}>(import.meta.dirname, "elicitation.probe.json")
 
 const asked = (rows: readonly string[]) => dialogs.screenRequest!(rows)
 
@@ -65,6 +70,29 @@ describe("an MCP server's form in Codex", () => {
 
     it("is not an MCP tool's approval, which its hook asks for and is drawn the same", () => {
       for (const size of sizes) expect(asked(screen("mcp-tool-approval", size))).toBeUndefined()
+    })
+
+    describe("is not an MCP tool's approval wrapped over rows, at any width", () => {
+      for (const [name, approval] of Object.entries(approvals))
+        for (const [size, shown] of Object.entries(approval.screens))
+          it(`${name} at ${size}`, () => {
+            // Its hook raised the one request, a permission.
+            expect(approval.novadeckSaw.map(({ kind }) => kind)).toEqual(["permission"])
+            expect(asked(shown.rows)).toBeUndefined()
+          })
+    })
+
+    it("is not an approval whose message reads otherwise but whose options are its own", () => {
+      const shown = approvals["long-names"]!.screens["120x40"]!.rows
+      const rows = shown.map((row) => row.replace(/Allow the .* MCP server/, "May the server"))
+      expect(rows).not.toEqual(shown)
+      expect(asked(rows)).toBeUndefined()
+    })
+
+    it("is a spawned agent's too, drawn in its root's screen with no call naming its server", () => {
+      for (const shown of Object.values(subagent.screens))
+        expect(asked(shown.rows)).toEqual(request("Which colour do you want?", null))
+      expect(asked(subagent.after.rows)).toBeUndefined()
     })
   })
 

@@ -2,7 +2,7 @@
   "harness": "codex",
   "version": "0.170.0",
   "source": "backend/runner/src/e2e/probes/elicit-screens.e2e.ts, 2026-11-20, against the fake model; sandbox paths replaced",
-  "how": "The model calls the probe MCP server's `form` tool (elicit-probe-server.mjs, its tools approved), which asks the person to fill the form in `schema`. `screens`: the form at three sizes. `steps`: the screen after each answering step in `keys` (a key pressed, or words submitted), and `after` 3 s later. `toolResult`: what the model read back. `novadeckSaw`: the terminal's requests while the form showed, before this reader.",
+  "how": "The model calls the probe MCP server's `form` tool (elicit-probe-server.mjs, its tools approved), which asks the person to fill the form in `schema`. `screens`: the form at three sizes. `steps`: the screen after each answering step in `keys` (a key pressed, or words submitted), and `after` 3 s later. `toolResult`: what the model read back. `novadeckSaw`: the terminal's requests while the form showed, before this reader. `approvals`: Codex's own approval of an MCP tool's call (a third-party server's tool with long names, and codex_tui's send_message_to_thread), approval mode `prompt`, at five sizes, then Esc; `novadeckSaw` the requests its hook raised. `subagent`: a spawned agent's form, drawn in the root's screen with the root idle, answered with 2; `rootTurnEnds` each second's requests as the root's turn (a `sleep 8`) ended under such a form, before this change, its request asked again under a new ref.",
   "forms": {
     "enum": {
       "schema": {
@@ -1271,5 +1271,1224 @@
       "toolResult": "Wall time: 5.6668 seconds\nOutput:\nelicitation result: {\"action\":\"cancel\"}",
       "novadeckSaw": []
     }
+  },
+  "approvals": {
+    "long-names": {
+      "called": "mcp__my_company_tools.create_pull_request_review_comment",
+      "input": {
+        "body": "Looks good to me"
+      },
+      "screens": {
+        "120x40": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 8,
+            "column": 1
+          },
+          "rows": {
+            "0": " ",
+            "1": "  >_ OpenAI Codex (v0.170.0)",
+            "2": "     /sandbox/project",
+            "3": " ",
+            "4": " ",
+            "5": "› Ask now",
+            "6": " ",
+            "7": " ",
+            "8": "◦ Calling my-company-tools.create_pull_request_review_comment",
+            "9": "    + Show details                                                                                                      ",
+            "10": " ",
+            "11": " ",
+            "12": " ",
+            "13": " ",
+            "14": " ",
+            "15": " ",
+            "16": " ",
+            "17": " ",
+            "18": " ",
+            "19": " ",
+            "20": " ",
+            "21": " ",
+            "22": " ",
+            "23": " ",
+            "24": " ",
+            "25": " ",
+            "26": " ",
+            "27": " ",
+            "28": " ",
+            "29": " ",
+            "30": " ",
+            "31": "  Field 1/1",
+            "32": "  Allow the my-company-tools MCP server to run tool \"create_pull_request_review_comment\"?",
+            "33": " ",
+            "34": "  body: Looks good to me",
+            "35": " ",
+            "36": "  › 1. Allow   Run the tool and continue                                                                              ",
+            "37": "    2. Cancel  Cancel this tool call",
+            "38": "  enter to submit | esc to cancel",
+            "39": " "
+          },
+          "bright": {
+            "0": "",
+            "1": "  >_ OpenAI Codex",
+            "2": "",
+            "3": "",
+            "4": "",
+            "5": "  Ask now",
+            "6": "",
+            "7": "",
+            "8": "  Calling my-company-tools.create_pull_request_review_comment",
+            "9": "",
+            "10": "",
+            "11": "",
+            "12": "",
+            "13": "",
+            "14": "",
+            "15": "",
+            "16": "",
+            "17": "",
+            "18": "",
+            "19": "",
+            "20": "",
+            "21": "",
+            "22": "",
+            "23": "",
+            "24": "",
+            "25": "",
+            "26": "",
+            "27": "",
+            "28": "",
+            "29": "",
+            "30": "",
+            "31": "",
+            "33": "",
+            "35": "",
+            "36": "  › 1. Allow   Run the tool and continue",
+            "37": "    2. Cancel",
+            "38": "  enter to submit   esc to cancel",
+            "39": ""
+          }
+        },
+        "80x24": {
+          "height": 24,
+          "columns": 80,
+          "cursor": {
+            "row": 8,
+            "column": 1
+          },
+          "rows": {
+            "0": " ",
+            "1": "  >_ OpenAI Codex (v0.170.0)",
+            "2": "     /sandbox/project",
+            "3": " ",
+            "4": " ",
+            "5": "› Ask now",
+            "6": " ",
+            "7": " ",
+            "8": "◦ Calling my-company-tools.create_pull_request_review_comment",
+            "9": "    + Show details                                                              ",
+            "10": " ",
+            "11": " ",
+            "12": " ",
+            "13": " ",
+            "14": "  Field 1/1",
+            "15": "  Allow the my-company-tools MCP server to run tool",
+            "16": "  \"create_pull_request_review_comment\"?",
+            "17": " ",
+            "18": "  body: Looks good to me",
+            "19": " ",
+            "20": "  › 1. Allow   Run the tool and continue                                      ",
+            "21": "    2. Cancel  Cancel this tool call",
+            "22": "  enter to submit | esc to cancel",
+            "23": " "
+          },
+          "bright": {
+            "0": "",
+            "1": "  >_ OpenAI Codex",
+            "2": "",
+            "3": "",
+            "4": "",
+            "5": "  Ask now",
+            "6": "",
+            "7": "",
+            "8": "  Calling my-company-tools.create_pull_request_review_comment",
+            "9": "",
+            "10": "",
+            "11": "",
+            "12": "",
+            "13": "",
+            "14": "",
+            "17": "",
+            "19": "",
+            "20": "  › 1. Allow   Run the tool and continue",
+            "21": "    2. Cancel",
+            "22": "  enter to submit   esc to cancel",
+            "23": ""
+          }
+        },
+        "64x24": {
+          "height": 24,
+          "columns": 64,
+          "cursor": {
+            "row": 8,
+            "column": 1
+          },
+          "rows": {
+            "0": " ",
+            "1": "  >_ OpenAI Codex (v0.170.0)",
+            "2": "     /sandbox/project",
+            "3": " ",
+            "4": " ",
+            "5": "› Ask now",
+            "6": " ",
+            "7": " ",
+            "8": "• Calling my-company-tools.create_pull_request_review_comment",
+            "9": "    + Show details                                              ",
+            "10": " ",
+            "11": " ",
+            "12": " ",
+            "13": " ",
+            "14": "  Field 1/1",
+            "15": "  Allow the my-company-tools MCP server to run tool",
+            "16": "  \"create_pull_request_review_comment\"?",
+            "17": " ",
+            "18": "  body: Looks good to me",
+            "19": " ",
+            "20": "  › 1. Allow   Run the tool and continue                      ",
+            "21": "    2. Cancel  Cancel this tool call",
+            "22": "  enter to submit | esc to cancel",
+            "23": " "
+          },
+          "bright": {
+            "0": "",
+            "1": "  >_ OpenAI Codex",
+            "2": "",
+            "3": "",
+            "4": "",
+            "5": "  Ask now",
+            "6": "",
+            "7": "",
+            "9": "",
+            "10": "",
+            "11": "",
+            "12": "",
+            "13": "",
+            "14": "",
+            "17": "",
+            "19": "",
+            "20": "  › 1. Allow   Run the tool and continue",
+            "21": "    2. Cancel",
+            "22": "  enter to submit   esc to cancel",
+            "23": ""
+          }
+        },
+        "50x20": {
+          "height": 20,
+          "columns": 50,
+          "cursor": {
+            "row": 6,
+            "column": 1
+          },
+          "rows": {
+            "0": "     /sandbox/project",
+            "1": " ",
+            "2": " ",
+            "3": "› Ask now",
+            "4": " ",
+            "5": " ",
+            "6": "• Calling my-company-tools.create_pull_request_re…",
+            "7": "    + Show details                                ",
+            "8": " ",
+            "9": " ",
+            "10": "  Field 1/1",
+            "11": "  Allow the my-company-tools MCP server to run",
+            "12": "  tool \"create_pull_request_review_comment\"?",
+            "13": " ",
+            "14": "  body: Looks good to me",
+            "15": " ",
+            "16": "  › 1. Allow   Run the tool and continue        ",
+            "17": "    2. Cancel  Cancel this tool call",
+            "18": "  enter to submit | esc to cancel",
+            "19": " "
+          },
+          "bright": {
+            "0": "",
+            "1": "",
+            "2": "",
+            "3": "  Ask now",
+            "4": "",
+            "5": "",
+            "7": "",
+            "8": "",
+            "9": "",
+            "10": "",
+            "13": "",
+            "15": "",
+            "16": "  › 1. Allow   Run the tool and continue",
+            "17": "    2. Cancel",
+            "18": "  enter to submit   esc to cancel",
+            "19": ""
+          }
+        },
+        "40x20": {
+          "height": 20,
+          "columns": 40,
+          "cursor": {
+            "row": 3,
+            "column": 1
+          },
+          "rows": {
+            "0": "› Ask now",
+            "1": " ",
+            "2": " ",
+            "3": "◦ Calling my-company-tools.create_pull_…",
+            "4": "    + Show details                      ",
+            "5": " ",
+            "6": " ",
+            "7": "  Field 1/1",
+            "8": "  Allow the my-company-",
+            "9": "  tools MCP server to run tool",
+            "10": "  \"create_pull_request_review_comment\"",
+            "11": "  ?",
+            "12": " ",
+            "13": "  body: Looks good to me",
+            "14": " ",
+            "15": "  › 1. Allow   Run the tool and       ",
+            "16": "               continue               ",
+            "17": "    2. Cancel  Cancel this tool call",
+            "18": "  enter to submit | esc to cancel",
+            "19": " "
+          },
+          "bright": {
+            "0": "  Ask now",
+            "1": "",
+            "2": "",
+            "3": "  Calling my-company-tools.create_pull_…",
+            "4": "",
+            "5": "",
+            "6": "",
+            "7": "",
+            "12": "",
+            "14": "",
+            "15": "  › 1. Allow   Run the tool and",
+            "16": "               continue",
+            "17": "    2. Cancel",
+            "18": "  enter to submit   esc to cancel",
+            "19": ""
+          }
+        }
+      },
+      "after": {
+        "height": 40,
+        "columns": 120,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "0": " ",
+          "1": "  >_ OpenAI Codex (v0.170.0)",
+          "2": "     /sandbox/project",
+          "3": " ",
+          "4": " ",
+          "5": "› Ask now",
+          "6": " ",
+          "8": "• Failed my-company-tools.create_pull_request_review_comment",
+          "9": "  └ Error: user cancelled MCP tool call",
+          "10": "    + Show details                                                                                                      ",
+          "12": "• Done.",
+          "14": "  Worked for 6s • 08:36                                                                                                 ",
+          "33": " ",
+          "36": "› Ask Codex to do anything",
+          "38": "  fake-model default · /sandbox/project · Ask now",
+          "39": "  ← for agents · ? for shortcuts"
+        },
+        "bright": {
+          "0": "",
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "3": "",
+          "4": "",
+          "5": "  Ask now",
+          "6": "",
+          "9": "",
+          "10": "",
+          "12": "  Done.",
+          "14": "",
+          "33": "",
+          "36": "›"
+        }
+      },
+      "novadeckSaw": [
+        {
+          "kind": "permission",
+          "tool": "mcp__my_company_tools__create_pull_request_review_comment"
+        }
+      ]
+    },
+    "codex-tui": {
+      "called": "mcp__codex_tui.send_message_to_thread",
+      "input": {
+        "thread_id": "019a0000-0000-7000-8000-000000000001",
+        "message": "hi"
+      },
+      "screens": {
+        "120x40": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 8,
+            "column": 1
+          },
+          "rows": {
+            "0": " ",
+            "1": "  >_ OpenAI Codex (v0.170.0)",
+            "2": "     /sandbox/project",
+            "3": " ",
+            "4": " ",
+            "5": "› Ask now",
+            "6": " ",
+            "7": " ",
+            "8": "◦ Calling codex_tui.send_message_to_thread",
+            "9": "    + Show details                                                                                                      ",
+            "10": " ",
+            "11": " ",
+            "12": " ",
+            "13": " ",
+            "14": " ",
+            "15": " ",
+            "16": " ",
+            "17": " ",
+            "18": " ",
+            "19": " ",
+            "20": " ",
+            "21": " ",
+            "22": " ",
+            "23": " ",
+            "24": " ",
+            "25": " ",
+            "26": " ",
+            "27": " ",
+            "28": " ",
+            "29": " ",
+            "30": "  Field 1/1",
+            "31": "  Allow the codex_tui MCP server to run tool \"send_message_to_thread\"?",
+            "32": " ",
+            "33": "  message: hi",
+            "34": "  thread_id: 019a0000-0000-7000-8000-000000000001",
+            "35": " ",
+            "36": "  › 1. Allow   Run the tool and continue                                                                              ",
+            "37": "    2. Cancel  Cancel this tool call",
+            "38": "  enter to submit | esc to cancel",
+            "39": " "
+          },
+          "bright": {
+            "0": "",
+            "1": "  >_ OpenAI Codex",
+            "2": "",
+            "3": "",
+            "4": "",
+            "5": "  Ask now",
+            "6": "",
+            "7": "",
+            "8": "  Calling codex_tui.send_message_to_thread",
+            "9": "",
+            "10": "",
+            "11": "",
+            "12": "",
+            "13": "",
+            "14": "",
+            "15": "",
+            "16": "",
+            "17": "",
+            "18": "",
+            "19": "",
+            "20": "",
+            "21": "",
+            "22": "",
+            "23": "",
+            "24": "",
+            "25": "",
+            "26": "",
+            "27": "",
+            "28": "",
+            "29": "",
+            "30": "",
+            "32": "",
+            "35": "",
+            "36": "  › 1. Allow   Run the tool and continue",
+            "37": "    2. Cancel",
+            "38": "  enter to submit   esc to cancel",
+            "39": ""
+          }
+        },
+        "80x24": {
+          "height": 24,
+          "columns": 80,
+          "cursor": {
+            "row": 8,
+            "column": 1
+          },
+          "rows": {
+            "0": " ",
+            "1": "  >_ OpenAI Codex (v0.170.0)",
+            "2": "     /sandbox/project",
+            "3": " ",
+            "4": " ",
+            "5": "› Ask now",
+            "6": " ",
+            "7": " ",
+            "8": "• Calling codex_tui.send_message_to_thread",
+            "9": "    + Show details                                                              ",
+            "10": " ",
+            "11": " ",
+            "12": " ",
+            "13": " ",
+            "14": "  Field 1/1",
+            "15": "  Allow the codex_tui MCP server to run tool \"send_message_to_thread\"?",
+            "16": " ",
+            "17": "  message: hi",
+            "18": "  thread_id: 019a0000-0000-7000-8000-000000000001",
+            "19": " ",
+            "20": "  › 1. Allow   Run the tool and continue                                      ",
+            "21": "    2. Cancel  Cancel this tool call",
+            "22": "  enter to submit | esc to cancel",
+            "23": " "
+          },
+          "bright": {
+            "0": "",
+            "1": "  >_ OpenAI Codex",
+            "2": "",
+            "3": "",
+            "4": "",
+            "5": "  Ask now",
+            "6": "",
+            "7": "",
+            "9": "",
+            "10": "",
+            "11": "",
+            "12": "",
+            "13": "",
+            "14": "",
+            "16": "",
+            "19": "",
+            "20": "  › 1. Allow   Run the tool and continue",
+            "21": "    2. Cancel",
+            "22": "  enter to submit   esc to cancel",
+            "23": ""
+          }
+        },
+        "64x24": {
+          "height": 24,
+          "columns": 64,
+          "cursor": {
+            "row": 8,
+            "column": 1
+          },
+          "rows": {
+            "0": " ",
+            "1": "  >_ OpenAI Codex (v0.170.0)",
+            "2": "     /sandbox/project",
+            "3": " ",
+            "4": " ",
+            "5": "› Ask now",
+            "6": " ",
+            "7": " ",
+            "8": "• Calling codex_tui.send_message_to_thread",
+            "9": "    + Show details                                              ",
+            "10": " ",
+            "11": " ",
+            "12": " ",
+            "13": "  Field 1/1",
+            "14": "  Allow the codex_tui MCP server to run tool",
+            "15": "  \"send_message_to_thread\"?",
+            "16": " ",
+            "17": "  message: hi",
+            "18": "  thread_id: 019a0000-0000-7000-8000-000000000001",
+            "19": " ",
+            "20": "  › 1. Allow   Run the tool and continue                      ",
+            "21": "    2. Cancel  Cancel this tool call",
+            "22": "  enter to submit | esc to cancel",
+            "23": " "
+          },
+          "bright": {
+            "0": "",
+            "1": "  >_ OpenAI Codex",
+            "2": "",
+            "3": "",
+            "4": "",
+            "5": "  Ask now",
+            "6": "",
+            "7": "",
+            "9": "",
+            "10": "",
+            "11": "",
+            "12": "",
+            "13": "",
+            "16": "",
+            "19": "",
+            "20": "  › 1. Allow   Run the tool and continue",
+            "21": "    2. Cancel",
+            "22": "  enter to submit   esc to cancel",
+            "23": ""
+          }
+        },
+        "50x20": {
+          "height": 20,
+          "columns": 50,
+          "cursor": {
+            "row": 4,
+            "column": 1
+          },
+          "rows": {
+            "0": " ",
+            "1": "› Ask now",
+            "2": " ",
+            "3": " ",
+            "4": "◦ Calling codex_tui.send_message_to_thread",
+            "5": "    + Show details                                ",
+            "6": " ",
+            "7": " ",
+            "8": "  Field 1/1",
+            "9": "  Allow the codex_tui MCP server to run tool",
+            "10": "  \"send_message_to_thread\"?",
+            "11": " ",
+            "12": "  message: hi",
+            "13": "  thread_id: 019a0000-0000-7000-8000-",
+            "14": "  000000000001",
+            "15": " ",
+            "16": "  › 1. Allow   Run the tool and continue        ",
+            "17": "    2. Cancel  Cancel this tool call",
+            "18": "  enter to submit | esc to cancel",
+            "19": " "
+          },
+          "bright": {
+            "0": "",
+            "1": "  Ask now",
+            "2": "",
+            "3": "",
+            "4": "  Calling codex_tui.send_message_to_thread",
+            "5": "",
+            "6": "",
+            "7": "",
+            "8": "",
+            "11": "",
+            "15": "",
+            "16": "  › 1. Allow   Run the tool and continue",
+            "17": "    2. Cancel",
+            "18": "  enter to submit   esc to cancel",
+            "19": ""
+          }
+        },
+        "40x20": {
+          "height": 20,
+          "columns": 40,
+          "cursor": {
+            "row": 3,
+            "column": 1
+          },
+          "rows": {
+            "0": "› Ask now",
+            "1": " ",
+            "2": " ",
+            "3": "◦ Calling codex_tui.send_message_to_thr…",
+            "4": "    + Show details                      ",
+            "5": " ",
+            "6": " ",
+            "7": "  Field 1/1",
+            "8": "  Allow the codex_tui MCP server to",
+            "9": "  run tool \"send_message_to_thread\"?",
+            "10": " ",
+            "11": "  message: hi",
+            "12": "  thread_id: 019a0000-0000-7000-8000-",
+            "13": "  000000000001",
+            "14": " ",
+            "15": "  › 1. Allow   Run the tool and       ",
+            "16": "               continue               ",
+            "17": "    2. Cancel  Cancel this tool call",
+            "18": "  enter to submit | esc to cancel",
+            "19": " "
+          },
+          "bright": {
+            "0": "  Ask now",
+            "1": "",
+            "2": "",
+            "3": "  Calling codex_tui.send_message_to_thr…",
+            "4": "",
+            "5": "",
+            "6": "",
+            "7": "",
+            "10": "",
+            "14": "",
+            "15": "  › 1. Allow   Run the tool and",
+            "16": "               continue",
+            "17": "    2. Cancel",
+            "18": "  enter to submit   esc to cancel",
+            "19": ""
+          }
+        }
+      },
+      "after": {
+        "height": 40,
+        "columns": 120,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "0": " ",
+          "1": "  >_ OpenAI Codex (v0.170.0)",
+          "2": "     /sandbox/project",
+          "3": " ",
+          "4": " ",
+          "5": "› Ask now",
+          "6": " ",
+          "8": "• Failed codex_tui.send_message_to_thread",
+          "9": "  └ Error: user cancelled MCP tool call",
+          "10": "    + Show details                                                                                                      ",
+          "12": "• Done.",
+          "14": "  Worked for 6s • 08:37                                                                                                 ",
+          "33": " ",
+          "36": "› Ask Codex to do anything",
+          "38": "  fake-model default · /sandbox/project · Ask now",
+          "39": "  ← for agents · ? for shortcuts"
+        },
+        "bright": {
+          "0": "",
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "3": "",
+          "4": "",
+          "5": "  Ask now",
+          "6": "",
+          "9": "",
+          "10": "",
+          "12": "  Done.",
+          "14": "",
+          "33": "",
+          "36": "›"
+        }
+      },
+      "novadeckSaw": [
+        {
+          "kind": "permission",
+          "tool": "mcp__codex_tui__send_message_to_thread"
+        }
+      ]
+    }
+  },
+  "subagent": {
+    "screens": {
+      "120x40": {
+        "height": 40,
+        "columns": 120,
+        "cursor": {
+          "row": 38,
+          "column": 33
+        },
+        "rows": {
+          "0": " ",
+          "1": "  >_ OpenAI Codex (v0.170.0)",
+          "2": "     /sandbox/project",
+          "3": " ",
+          "4": " ",
+          "5": "› Spawn a helper",
+          "6": " ",
+          "7": " ",
+          "8": "• Spawned 01a1f7e3-3371-7b20-a895-75df1e0bee3c (fake-model medium)",
+          "9": "  └ Helper task: ask the server",
+          "10": " ",
+          "11": "• Spawned it.",
+          "12": " ",
+          "13": "  Worked for <1s • 08:37                                                                                                ",
+          "14": " ",
+          "15": " ",
+          "16": " ",
+          "17": " ",
+          "18": " ",
+          "19": " ",
+          "20": " ",
+          "21": " ",
+          "22": " ",
+          "23": " ",
+          "24": " ",
+          "25": " ",
+          "26": " ",
+          "27": " ",
+          "28": " ",
+          "29": " ",
+          "30": " ",
+          "31": " ",
+          "32": "  Field 1/1 (1 required unanswered)",
+          "33": "  Which colour do you want?",
+          "34": " ",
+          "35": "  Colour",
+          "36": "  › 1. red                                                                                                            ",
+          "37": "    2. green",
+          "38": "  enter to submit | esc to cancel",
+          "39": " "
+        },
+        "bright": {
+          "0": "",
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "3": "",
+          "4": "",
+          "5": "  Spawn a helper",
+          "6": "",
+          "7": "",
+          "8": "  Spawned 01a1f7e3-3371-7b20-a895-75df1e0bee3c (fake-model medium)",
+          "9": "    Helper task: ask the server",
+          "10": "",
+          "11": "  Spawned it.",
+          "12": "",
+          "13": "",
+          "14": "",
+          "15": "",
+          "16": "",
+          "17": "",
+          "18": "",
+          "19": "",
+          "20": "",
+          "21": "",
+          "22": "",
+          "23": "",
+          "24": "",
+          "25": "",
+          "26": "",
+          "27": "",
+          "28": "",
+          "29": "",
+          "30": "",
+          "31": "",
+          "32": "",
+          "34": "",
+          "36": "  › 1. red",
+          "38": "  enter to submit   esc to cancel",
+          "39": ""
+        }
+      },
+      "80x24": {
+        "height": 24,
+        "columns": 80,
+        "cursor": {
+          "row": 23,
+          "column": 1
+        },
+        "rows": {
+          "0": " ",
+          "1": "  >_ OpenAI Codex (v0.170.0)",
+          "2": "     /sandbox/project",
+          "3": " ",
+          "4": " ",
+          "5": "› Spawn a helper",
+          "6": " ",
+          "7": " ",
+          "8": "• Spawned 01a1f7e3-3371-7b20-a895-75df1e0bee3c (fake-model medium)",
+          "9": "  └ Helper task: ask the server",
+          "10": " ",
+          "11": "• Spawned it.",
+          "12": " ",
+          "13": "  Worked for <1s • 08:37                                                        ",
+          "14": " ",
+          "15": " ",
+          "16": "  Field 1/1 (1 required unanswered)",
+          "17": "  Which colour do you want?",
+          "18": " ",
+          "19": "  Colour",
+          "20": "  › 1. red                                                                    ",
+          "21": "    2. green",
+          "22": "  enter to submit | esc to cancel",
+          "23": " "
+        },
+        "bright": {
+          "0": "",
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "3": "",
+          "4": "",
+          "5": "  Spawn a helper",
+          "6": "",
+          "7": "",
+          "8": "  Spawned 01a1f7e3-3371-7b20-a895-75df1e0bee3c (fake-model medium)",
+          "9": "    Helper task: ask the server",
+          "10": "",
+          "11": "  Spawned it.",
+          "12": "",
+          "13": "",
+          "14": "",
+          "15": "",
+          "16": "",
+          "18": "",
+          "20": "  › 1. red",
+          "22": "  enter to submit   esc to cancel",
+          "23": ""
+        }
+      },
+      "64x24": {
+        "height": 24,
+        "columns": 64,
+        "cursor": {
+          "row": 23,
+          "column": 1
+        },
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.170.0)",
+          "1": "     /sandbox/project",
+          "2": " ",
+          "3": " ",
+          "4": "› Spawn a helper",
+          "5": " ",
+          "6": " ",
+          "7": "• Spawned 01a1f7e3-3371-7b20-a895-75df1e0bee3c (fake-model",
+          "8": "medium)",
+          "9": "  └ Helper task: ask the server",
+          "10": " ",
+          "11": "• Spawned it.",
+          "12": " ",
+          "13": "  Worked for <1s • 08:37                                        ",
+          "14": " ",
+          "15": " ",
+          "16": "  Field 1/1 (1 required unanswered)",
+          "17": "  Which colour do you want?",
+          "18": " ",
+          "19": "  Colour",
+          "20": "  › 1. red                                                    ",
+          "21": "    2. green",
+          "22": "  enter to submit | esc to cancel",
+          "23": " "
+        },
+        "bright": {
+          "0": "  >_ OpenAI Codex",
+          "1": "",
+          "2": "",
+          "3": "",
+          "4": "  Spawn a helper",
+          "5": "",
+          "6": "",
+          "7": "  Spawned 01a1f7e3-3371-7b20-a895-75df1e0bee3c (fake-model",
+          "9": "    Helper task: ask the server",
+          "10": "",
+          "11": "  Spawned it.",
+          "12": "",
+          "13": "",
+          "14": "",
+          "15": "",
+          "16": "",
+          "18": "",
+          "20": "  › 1. red",
+          "22": "  enter to submit   esc to cancel",
+          "23": ""
+        }
+      },
+      "50x20": {
+        "height": 20,
+        "columns": 50,
+        "cursor": {
+          "row": 19,
+          "column": 1
+        },
+        "rows": {
+          "0": "› Spawn a helper",
+          "1": " ",
+          "2": " ",
+          "3": "• Spawned 01a1f7e3-3371-7b20-a895-75df1e0bee3c",
+          "4": "(fake-model medium)",
+          "5": "  └ Helper task: ask the server",
+          "6": " ",
+          "7": "• Spawned it.",
+          "8": " ",
+          "9": "  Worked for <1s • 08:37                          ",
+          "10": " ",
+          "11": " ",
+          "12": "  Field 1/1 (1 required unanswered)",
+          "13": "  Which colour do you want?",
+          "14": " ",
+          "15": "  Colour",
+          "16": "  › 1. red                                      ",
+          "17": "    2. green",
+          "18": "  enter to submit | esc to cancel",
+          "19": " "
+        },
+        "bright": {
+          "0": "  Spawn a helper",
+          "1": "",
+          "2": "",
+          "3": "  Spawned 01a1f7e3-3371-7b20-a895-75df1e0bee3c",
+          "5": "    Helper task: ask the server",
+          "6": "",
+          "7": "  Spawned it.",
+          "8": "",
+          "9": "",
+          "10": "",
+          "11": "",
+          "12": "",
+          "14": "",
+          "16": "  › 1. red",
+          "18": "  enter to submit   esc to cancel",
+          "19": ""
+        }
+      },
+      "40x20": {
+        "height": 20,
+        "columns": 40,
+        "cursor": {
+          "row": 19,
+          "column": 1
+        },
+        "rows": {
+          "0": "› Spawn a helper",
+          "1": " ",
+          "2": " ",
+          "3": "• Spawned 01a1f7e3-3371-7b20-a895-",
+          "4": "75df1e0bee3c (fake-model medium)",
+          "5": "  └ Helper task: ask the server",
+          "6": " ",
+          "7": "• Spawned it.",
+          "8": " ",
+          "9": "  Worked for <1s • 08:37                ",
+          "10": " ",
+          "11": " ",
+          "12": "  Field 1/1 (1 required unanswered)",
+          "13": "  Which colour do you want?",
+          "14": " ",
+          "15": "  Colour",
+          "16": "  › 1. red                            ",
+          "17": "    2. green",
+          "18": "  enter to submit | esc to cancel",
+          "19": " "
+        },
+        "bright": {
+          "0": "  Spawn a helper",
+          "1": "",
+          "2": "",
+          "3": "  Spawned 01a1f7e3-3371-7b20-a895-",
+          "5": "    Helper task: ask the server",
+          "6": "",
+          "7": "  Spawned it.",
+          "8": "",
+          "9": "",
+          "10": "",
+          "11": "",
+          "12": "",
+          "14": "",
+          "16": "  › 1. red",
+          "18": "  enter to submit   esc to cancel",
+          "19": ""
+        }
+      }
+    },
+    "after": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 2
+      },
+      "rows": {
+        "0": " ",
+        "1": "  >_ OpenAI Codex (v0.170.0)",
+        "2": "     /sandbox/project",
+        "3": " ",
+        "4": " ",
+        "5": "› Spawn a helper",
+        "6": " ",
+        "8": "• Spawned 01a1f7e3-3371-7b20-a895-75df1e0bee3c (fake-model medium)",
+        "9": "  └ Helper task: ask the server",
+        "11": "• Spawned it.",
+        "13": "  Worked for <1s • 08:37                                                                                                ",
+        "36": "› Ask Codex to do anything",
+        "38": "  fake-model default · /sandbox/project · Spawn a helper · Main [default]",
+        "39": "  ← for agents · ? for shortcuts"
+      },
+      "bright": {
+        "0": "",
+        "1": "  >_ OpenAI Codex",
+        "2": "",
+        "3": "",
+        "4": "",
+        "5": "  Spawn a helper",
+        "6": "",
+        "8": "  Spawned 01a1f7e3-3371-7b20-a895-75df1e0bee3c (fake-model medium)",
+        "9": "    Helper task: ask the server",
+        "11": "  Spawned it.",
+        "13": "",
+        "36": "›"
+      }
+    },
+    "toolResult": "Wall time: 12.0271 seconds\nOutput:\nelicitation result: {\"action\":\"accept\",\"content\":{\"colour\":\"green\"}}",
+    "rootTurnEnds": [
+      {
+        "second": 0,
+        "state": "working",
+        "requests": [],
+        "refs": []
+      },
+      {
+        "second": 1,
+        "state": "working",
+        "requests": [
+          {
+            "tool": "mcp__elicitation",
+            "subject": "Which colour do you want?"
+          }
+        ],
+        "refs": ["M08pmX7h2BH4D9iR"]
+      },
+      {
+        "second": 2,
+        "state": "working",
+        "requests": [
+          {
+            "tool": "mcp__elicitation",
+            "subject": "Which colour do you want?"
+          }
+        ],
+        "refs": ["M08pmX7h2BH4D9iR"]
+      },
+      {
+        "second": 3,
+        "state": "working",
+        "requests": [
+          {
+            "tool": "mcp__elicitation",
+            "subject": "Which colour do you want?"
+          }
+        ],
+        "refs": ["M08pmX7h2BH4D9iR"]
+      },
+      {
+        "second": 4,
+        "state": "working",
+        "requests": [
+          {
+            "tool": "mcp__elicitation",
+            "subject": "Which colour do you want?"
+          }
+        ],
+        "refs": ["M08pmX7h2BH4D9iR"]
+      },
+      {
+        "second": 5,
+        "state": "working",
+        "requests": [
+          {
+            "tool": "mcp__elicitation",
+            "subject": "Which colour do you want?"
+          }
+        ],
+        "refs": ["M08pmX7h2BH4D9iR"]
+      },
+      {
+        "second": 6,
+        "state": "working",
+        "requests": [
+          {
+            "tool": "mcp__elicitation",
+            "subject": "Which colour do you want?"
+          }
+        ],
+        "refs": ["M08pmX7h2BH4D9iR"]
+      },
+      {
+        "second": 7,
+        "state": "working",
+        "requests": [
+          {
+            "tool": "mcp__elicitation",
+            "subject": "Which colour do you want?"
+          }
+        ],
+        "refs": ["M08pmX7h2BH4D9iR"]
+      },
+      {
+        "second": 8,
+        "state": "working",
+        "requests": [
+          {
+            "tool": "mcp__elicitation",
+            "subject": "Which colour do you want?"
+          }
+        ],
+        "refs": ["M08pmX7h2BH4D9iR"]
+      },
+      {
+        "second": 9,
+        "state": "idle",
+        "requests": [
+          {
+            "tool": "mcp__elicitation",
+            "subject": "Which colour do you want?"
+          }
+        ],
+        "refs": ["-VPMSCOnT6oQ0mMG"]
+      },
+      {
+        "second": 10,
+        "state": "idle",
+        "requests": [
+          {
+            "tool": "mcp__elicitation",
+            "subject": "Which colour do you want?"
+          }
+        ],
+        "refs": ["-VPMSCOnT6oQ0mMG"]
+      },
+      {
+        "second": 11,
+        "state": "idle",
+        "requests": [
+          {
+            "tool": "mcp__elicitation",
+            "subject": "Which colour do you want?"
+          }
+        ],
+        "refs": ["-VPMSCOnT6oQ0mMG"]
+      },
+      {
+        "second": 12,
+        "state": "idle",
+        "requests": [
+          {
+            "tool": "mcp__elicitation",
+            "subject": "Which colour do you want?"
+          }
+        ],
+        "refs": ["-VPMSCOnT6oQ0mMG"]
+      },
+      {
+        "second": 13,
+        "state": "idle",
+        "requests": [
+          {
+            "tool": "mcp__elicitation",
+            "subject": "Which colour do you want?"
+          }
+        ],
+        "refs": ["-VPMSCOnT6oQ0mMG"]
+      },
+      {
+        "second": 14,
+        "state": "idle",
+        "requests": [
+          {
+            "tool": "mcp__elicitation",
+            "subject": "Which colour do you want?"
+          }
+        ],
+        "refs": ["-VPMSCOnT6oQ0mMG"]
+      },
+      {
+        "second": 15,
+        "state": "idle",
+        "requests": [
+          {
+            "tool": "mcp__elicitation",
+            "subject": "Which colour do you want?"
+          }
+        ],
+        "refs": ["-VPMSCOnT6oQ0mMG"]
+      }
+    ]
   }
 }

@@ -35,6 +35,11 @@ createInterface({ input: process.stdin }).on("line", (line) => {
       result: {
         tools: [
           {
+            name: "create_pull_request_review_comment",
+            description: "Comments on a pull request; it asks nothing of the person",
+            inputSchema: { type: "object", properties: { body: { type: "string" } } },
+          },
+          {
             name: "form",
             description: "Asks the person to fill the form it is given",
             inputSchema: {
@@ -45,6 +50,8 @@ createInterface({ input: process.stdin }).on("line", (line) => {
         ],
       },
     })
+  if (m.method === "tools/call" && m.params?.name !== "form")
+    return send({ id: m.id, result: { content: [{ type: "text", text: "commented" }] } })
   if (m.method === "tools/call") {
     const id = nextId++
     let args = m.params?.arguments ?? {}

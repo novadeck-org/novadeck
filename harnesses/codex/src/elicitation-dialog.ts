@@ -12,9 +12,11 @@ import { agentLimits } from "@novadeck/protocol"
  *   unanswered)`, the server's message, then a field at a time, under a footer from
  *   `enter to submit` to `esc to cancel` (`… answer | ^p / ^n change field | esc to cancel`
  *   with several fields, which wraps onto a second row on a narrow screen). The server is the
- *   one the call above it names (`• Calling probe.form`). Codex's approval of an MCP tool's call
- *   is drawn the same, but asks `Allow the … MCP server to run tool "…"?` and has a hook of
- *   its own: it is no elicitation.
+ *   one the call above it names (`• Calling probe.form`), where it is a call of the root's: a
+ *   spawned agent's form is drawn in its root's screen too, with no call above it to name the
+ *   server. Codex's approval of an MCP tool's call is drawn the same, but asks `Allow the … MCP
+ *   server to run tool "…"?`, wrapped as the screen's width has it, offers `Allow` and
+ *   `Cancel`, and has a hook of its own: it is no elicitation.
  * - A form it can't (a number, a yes/no): `<server> needs your approval.`, `Server: <server>`,
  *   the message, then `Yes, provide the requested info (y)`, `No, but continue without it
  *   (esc)` and `Cancel this request (esc)` over `Press enter to confirm or esc to cancel`.
@@ -29,8 +31,13 @@ export type Elicitation = { readonly server: string | null; readonly message: st
 
 const formHeader = /^\s*Field \d+\/\d+(?: \(\d+ required unanswered\))?$/
 const formFooter = /^\s*enter to submit\b/
-// The first row of an MCP tool's approval, which wraps no sooner than the tool's name.
-const toolApproval = /^\s*Allow .+ to run tool "/
+// An MCP tool's approval, its message joined from the rows it wraps over, which on a narrow
+// screen may break inside a name and put its `?` on a row of its own; and its options, which
+// no elicitation draws, the first row of each whatever the width (probed 2026-11-20, 0.170.0,
+// at 120 down to 40 columns, fixtures/elicitation.probe.json `approvals`).
+const toolApproval = /^Allow .+ run tool "/
+const approvalOption =
+  /^\s*(?:› )?\d+\. (?:Allow {2,}Run the tool\b|Cancel {2,}Cancel this tool call\b)/
 // The call that asked, above the form: its server, then its tool.
 const calling = /^\s*[•◦] Call(?:ing|ed) ([^\s.]+)\.\S+$/
 
@@ -62,7 +69,12 @@ const form = (rows: readonly string[], last: number): Elicitation | undefined =>
   const header = rows.slice(0, start).findLastIndex((row) => formHeader.test(row))
   if (header < 0) return refuse("elicitation.form.3")
   const message = paragraph(rows, header + 1)
-  if (!message || toolApproval.test(rows[header + 1]!)) return refuse("elicitation.form.4")
+  if (!message) return refuse("elicitation.form.4")
+  if (
+    toolApproval.test(message) ||
+    rows.slice(header, start).some((row) => approvalOption.test(row))
+  )
+    return refuse("elicitation.form.5")
   const called = rows
     .slice(0, header)
     .findLast((row) => calling.test(row))
