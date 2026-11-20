@@ -29,7 +29,7 @@ import { useTerminalMarks } from "./useTerminalMarks"
 // a rename keystroke re-renders the tab being renamed and no other.
 const TabOfTile = memo(
   ({ terminal, index }: { readonly terminal: Tile; readonly index: number }): React.JSX.Element => {
-    const { commands, backend } = useWorkspaceServices()
+    const { commands, backend, landing } = useWorkspaceServices()
     const { id } = terminal
     const { context, selected, hidden } = useWorkspaceState((workspace) => {
       const { selected: current, layout } = currentState(workspace)
@@ -53,9 +53,8 @@ const TabOfTile = memo(
       shallowEqual,
     )
     const unread = useUiState((state) => unreadEnd(state.unread, context, id))
-    // What the raw Inbox says of it: a need. Not the landing rule's
-    // Inbox, which hides rows from its list, never from the marks.
-    const { need, subject, dialog, snoozed, snoozedRequests } = useTerminalMarks(backend.inbox, {
+    // What the landed Inbox says of it: a need, but for an ask the landing rule still holds back.
+    const { need, subject, dialog, snoozed, snoozedRequests } = useTerminalMarks(landing.inbox, {
       ...target,
       terminalId: id,
     })

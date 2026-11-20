@@ -91,6 +91,19 @@ describe("demo turns", () => {
       expect(agent(key("06"))).toMatchObject({ working: true })
     })
 
+    it("writes words once `says` has passed, the turn working on, and none before", () => {
+      const { turns, held, agent } = open()
+      turns.work(key("06"), held(key("06")), { says: 500 })
+      expect(agent(key("06"))).toEqual({ working: true })
+      vi.advanceTimersByTime(499)
+      expect(agent(key("06"))?.wordsAt).toBeUndefined()
+      vi.advanceTimersByTime(1)
+      expect(agent(key("06"))).toEqual({ working: true, wordsAt: Date.now() })
+      // Another verb takes it, and with it the words.
+      turns.work(key("06"), held(key("06")))
+      expect(agent(key("06"))).toEqual({ working: true })
+    })
+
     it("makes a terminal that runs no agent Claude Code first, and keeps usage", () => {
       const { turns, held, agent } = open()
       expect(held(key("02"))?.process).toBe("vite")

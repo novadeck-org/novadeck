@@ -174,6 +174,11 @@ export type Activity = {
    * reports it: after its end it is no cursor, and a report of a late write leaves it.
    */
   readonly wrote: string | null
+  /**
+   * When the root agent last wrote words in the running turn (`words-written`); same
+   * lifetime as `wrote`.
+   */
+  readonly wordsAt: number | null
   readonly lastTurn: LastTurn | null
 }
 
@@ -296,6 +301,7 @@ export const started = (at: number, wakes = true, records = true): Activity => (
   listed: false,
   files: [],
   wrote: null,
+  wordsAt: null,
   lastTurn: null,
 })
 
@@ -742,6 +748,15 @@ export const apply = (
         wrote: wrote ?? activity.wrote,
       }
     }
+    case "words-written":
+      // Only the running turn's own words: older than its start, they are some other turn's.
+      if (
+        activity.state !== "working" ||
+        event.startedAt < activity.turnAt ||
+        event.startedAt <= (activity.wordsAt ?? Number.NEGATIVE_INFINITY)
+      )
+        return undefined
+      return { ...activity, wordsAt: event.startedAt }
     case "tool-called":
       // Counted by the messaging loop guard alone: it changes nothing here.
       return undefined
@@ -941,6 +956,7 @@ export const apply = (
               ? (activity.lastTurn?.files ?? activity.files)
               : [],
         wrote: activity.state === "working" || event.cause === "call" ? activity.wrote : null,
+        wordsAt: activity.state === "working" || event.cause === "call" ? activity.wordsAt : null,
         lastTurn: null,
       }
     case "turn-continued":
@@ -1175,6 +1191,7 @@ export const summary = ({
   running,
   listed,
   wrote,
+  wordsAt,
   lastTurn,
 }: Activity): AgentActivity => {
   const detached = pending.length - blocking(pending).length
@@ -1205,6 +1222,7 @@ export const summary = ({
     subagents: subagents.map(({ id, type }) => ({ id: subagentRef(id), type })),
     // Only while its turn itself runs, not while subagents it left do.
     ...(state === "working" && wrote !== null && { wrote }),
+    ...(state === "working" && wordsAt !== null && { wordsAt }),
     lastTurn:
       state === "working" || !lastTurn
         ? null

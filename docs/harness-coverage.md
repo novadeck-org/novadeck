@@ -491,6 +491,18 @@ tools wrote last, root or subagent, on every harness: the same `file-touched` fa
 `lastTurn.files` holds. It is absent until the turn writes, and once the turn ends, and a write
 told late, after the Stop, joins `lastTurn.files` without bringing it back.
 
+Also while a turn runs, `activity.wordsAt` is when the root agent last wrote words, in epoch
+milliseconds as its transcript dates them: an assistant text that is no thinking and no tool
+call. No hook fires for a text, so every harness tells it from its own records, through the
+same `items` reader the chat uses (`wordsIn`, in `harnesses/core/src/items.ts`) in its `watch`:
+Claude Code's transcript (an `assistant` record's `text` block), Codex's rollout (a
+`response_item` message of the assistant) and Antigravity's transcript (a `PLANNER_RESPONSE`
+step's `content`, with or without calls). Each follows the file from where it is now (Codex's
+backlog keeps its latest). It is the `words-written` fact; the reducer takes it only while the
+turn runs and from its start on, and a later one moves it on, never back. It is absent until
+the turn writes words, and once it ends. The Inbox uses it to hold an ask of the terminal the
+person looks at until its agent has written the question out (see "The Inbox" in reference.md).
+
 | Harness     | How the turn ended                                                                                                               | Its last reply                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Claude Code | `Stop` completed, `StopFailure` failed, the transcript's interrupt marker interrupted, `stop_hook_summary` completed as recorded | `Stop`'s `last_assistant_message` (the hook keeps its first 4096 characters). A `Stop` or `StopFailure` naming none, as neither names the transcript, reads the bound session's transcript the runner follows: its last assistant text since the person's prompt, which Claude Code writes about 50 ms after its Stop hook starts (e2e, 2.1.287), so the runner looks up to four times, 100 ms apart. `stop_hook_summary` names none, and nothing is read for it |

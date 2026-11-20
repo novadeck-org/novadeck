@@ -13,6 +13,7 @@ import type { EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import { isFields, parseFields, type Fields } from "@novadeck/harness-core/fields"
 import { followLines } from "@novadeck/harness-core/follow"
 import type { Harness, Run, WrittenPlan } from "@novadeck/harness-core/harness"
+import { wordsIn } from "@novadeck/harness-core/items"
 import { agentLimits, telemetryLimits, type AgentTelemetry } from "@novadeck/protocol"
 
 import { callOf } from "./decode.js"
@@ -398,6 +399,21 @@ const backlogKind = (event: HarnessEvent): string =>
               : event.type
 
 /**
+ * The words the agent wrote, as one line of its rollout records them: a message of the
+ * assistant, dated by the record. Most lines are long outputs, parsed only where they may be one.
+ */
+export const rolloutWords = (
+  line: string,
+  { sessionId, instance }: Pick<Run, "sessionId" | "instance">,
+): HarnessEvent | undefined =>
+  wordsIn(
+    line,
+    transcripts.items,
+    (each) => /"role":\s*"assistant"/.test(each) && each.includes('"message"'),
+    { agent: "codex", sessionId, instance },
+  )
+
+/**
  * Follows a bound session's rollout. Codex writes a turn's mode before the hook that
  * binds the session starts, so what the rollout already holds counts too: its latest
  * mode, as of now, and its latest plan and token count, as of when they were written;
@@ -422,7 +438,9 @@ export const followRollout: NonNullable<Harness["watch"]> = async (run, signal, 
     path ?? run.transcript,
     signal,
     (line) => {
-      for (const event of rolloutEvents(line, run, commands)) {
+      // The words the agent wrote: its assistant messages, which no hook tells.
+      const words = rolloutWords(line, run)
+      for (const event of [...rolloutEvents(line, run, commands), ...(words ? [words] : [])]) {
         if (event.startedAt <= after) continue
         if (
           (event.type === "shell-started" || event.type === "shell-ended") &&

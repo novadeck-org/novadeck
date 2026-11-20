@@ -13,13 +13,14 @@ const subjectOf = (row: InboxRow): string | undefined => {
   return undefined
 }
 
-// The marks of one terminal from the Inbox's rows: raw ones, as the backend lists them, since
-// the landing rule hides rows from the Inbox, never from the marks. `now` decides whether a
-// limit has reset.
+// The marks of one terminal from the landed Inbox's rows: an ask the landing rule still holds
+// back (`heldBack`) makes none yet. `now` decides whether a limit has reset.
 // Where all it needs is snoozed, it says so, with what the snoozed would need and its subject.
 export const inboxMarks = (rows: readonly InboxRow[], at: TerminalKey, now: number): InboxMarks => {
   const need = terminalNeed(rows, at, now)
-  const mine = rows.filter((row) => atTerminal(row, at) && !row.settled && !row.snoozed)
+  const mine = rows.filter(
+    (row) => atTerminal(row, at) && !row.settled && !row.snoozed && !row.heldBack,
+  )
   const behind = need && mine.find((row) => inboxType(row) === need)
   const asleep = rows.filter((row) => atTerminal(row, at) && !row.settled && row.snoozed)
   // Its snoozed requests, whose live dialogs then make no mark.

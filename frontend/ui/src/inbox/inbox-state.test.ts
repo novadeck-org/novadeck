@@ -242,6 +242,15 @@ const ask = (
   ...(settled ? { settled } : {}),
 })
 
+describe("An ask the landing rule holds back", () => {
+  it("asks nothing yet: the bell and the count leave it out, while the list keeps it", () => {
+    const heldBack: InboxRow = { ...ask("a", 1), heldBack: true }
+    expect(needs(heldBack)).toBe(false)
+    expect(ids(needing([heldBack, ask("b", 2)]))).toEqual(["b"])
+    expect(ids(ordered([heldBack, ask("b", 2)]))).toEqual(["b", "a"])
+  })
+})
+
 describe("A row that is resolved", () => {
   const rows = [ask("a", 2), ask("b", 1, { how: "dismissed", at: 9 })]
 

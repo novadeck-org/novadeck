@@ -28,7 +28,7 @@ export const useLimitClock = (rows: readonly InboxRow[]): number => {
 
 const none: readonly InboxRow[] = []
 
-// Follows the raw Inbox for one terminal: it re-renders only when that terminal's own items
+// Follows an Inbox (the landed one) for one terminal: it re-renders only when that terminal's own items
 // change, and again when one of its limits resets (which makes it an Unblock).
 export const useTerminalMarks = (inbox: Inbox | undefined, at: TerminalKey): InboxMarks => {
   const { projectId, workspaceSessionId, terminalId } = at

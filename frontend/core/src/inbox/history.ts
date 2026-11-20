@@ -90,7 +90,11 @@ export const moved = (row: InboxRow): boolean =>
   !!row.trouble.stored &&
   !row.stopped
 
-const terminalOf = (workspace: Workspace, source: InboxSource): TerminalMetadata | undefined =>
+// The terminal a row came from, where the workspace still has it.
+export const terminalOf = (
+  workspace: Workspace,
+  source: InboxSource,
+): TerminalMetadata | undefined =>
   workspace.projects
     .find((project) => project.id === source.projectId)
     ?.history.find((session) => session.id === source.workspaceSessionId)

@@ -456,7 +456,13 @@ it stays until the agent's next turn, so Continue is there after the reset.
 Every item lands in the list at once. What concerns the terminal you are looking at (the
 selected one, while Novadeck has your focus, in every view) lands quietly: counted on the bell,
 but with no toast or system ping, because you see it happen there, and it stays quiet when you
-look away. An update (a `done` report or a `tell`) is read once you have looked at its terminal
+look away. A new ask from that terminal, while its agent works, is held for a moment: it is in
+the list, but the bell, the app icon's badge and the "?" on its tab, window and session don't
+count it yet, as the agent is about to write the same question in the terminal you are reading.
+The hold ends at the first of the agent's next words in that terminal, the end of its turn and
+15 seconds; then it counts, quietly. If you look away first, it counts at once as a row that
+arrived elsewhere does, and rings after its two seconds. Permission requests, updates and asks
+from other terminals aren't held. An update (a `done` report or a `tell`) is read once you have looked at its terminal
 for about a second, whether it arrived while you looked or before, and turns resolved; a glance
 while passing reads nothing. Its row in the Inbox list reads it the same way: in sight for about
 a second while Novadeck has your focus and no dialog covers it, it turns resolved, as its subject
@@ -465,7 +471,7 @@ tab's unread marks of replies and failed turns clear as soon as you look. On a n
 while the Inbox list covers the screen, no terminal counts as looked at. An item you open by its
 id, as Answer in Messages or a click on a notification does, isn't read by looking. If a read
 fails, looking doesn't try it again, so you can read the update by hand. The tabs' and windows'
-"!" and "?" read the Inbox's raw items.
+"!" and "?" read the same landed items, so a held ask makes none.
 
 The rows that ask something of you keep the Inbox's own order (the row added last first) until
 you drag one: they drag among each other into your order, or move a place with Alt+↑/↓ on the

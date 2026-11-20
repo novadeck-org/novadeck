@@ -87,6 +87,7 @@ const agentStatus = ({
   waiting,
   shells,
   wrote,
+  wordsAt,
   lastTurn,
 }: AgentActivity): AgentStatus => ({
   working: state !== "idle",
@@ -105,6 +106,7 @@ const agentStatus = ({
   ...(waiting ? { waiting } : {}),
   ...(shells ? { shells } : {}),
   ...(wrote ? { wrote } : {}),
+  ...(wordsAt === undefined ? {} : { wordsAt }),
   ...(lastTurn
     ? {
         lastTurn: {

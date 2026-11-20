@@ -5,7 +5,7 @@ import type { ActivityEvent, EventBase } from "@novadeck/harness-core/events"
 import { parseFields } from "@novadeck/harness-core/fields"
 import { followLines } from "@novadeck/harness-core/follow"
 import type { Harness, Run } from "@novadeck/harness-core/harness"
-import { at } from "@novadeck/harness-core/items"
+import { at, wordsIn } from "@novadeck/harness-core/items"
 import { agentLimits } from "@novadeck/protocol"
 
 import { transcripts } from "./transcripts.js"
@@ -141,3 +141,27 @@ export const followShells: NonNullable<Harness["watch"]> = async (run, signal, e
     }
   })
 }
+
+/**
+ * Follows a bound session's transcript for the words the agent writes (`words-written`): a
+ * planner response's `content`, which no hook tells, from where it is now: those of earlier
+ * steps are no news.
+ */
+export const followWords: NonNullable<Harness["watch"]> = async (run, signal, emit) => {
+  const path = await transcripts.locate(run.transcript, run.sessionId, null)
+  return followLines(path ?? run.transcript, signal, (line) => {
+    const words = planWords(line, run)
+    if (words) emit(words)
+  })
+}
+
+/** The words a planner response step of an Antigravity transcript holds, dated by the step. */
+export const planWords = (
+  line: string,
+  { sessionId, instance }: Pick<Run, "sessionId" | "instance">,
+): ActivityEvent | undefined =>
+  wordsIn(line, transcripts.items, (each) => each.includes('"PLANNER_RESPONSE"'), {
+    agent: "agy",
+    sessionId,
+    instance,
+  })

@@ -10,7 +10,13 @@ import { afterEach, describe, expect, it } from "vitest"
 import { decode } from "./decode.js"
 import { claude } from "./index.js"
 import { report } from "./report.test-support.js"
-import { followSubagent, subagentEvents, transcriptEvents, type Calls } from "./transcript-watch.js"
+import {
+  followSubagent,
+  subagentEvents,
+  transcriptEvents,
+  transcriptWords,
+  type Calls,
+} from "./transcript-watch.js"
 
 type Probe = { scenarios: { [name: string]: object[] } }
 const probe = loadProbe(import.meta.dirname, "transcript.probe.json") as Probe
@@ -321,5 +327,54 @@ describe("a subagent's own transcript, as captured", () => {
       )
       expect(told).toEqual([])
     })
+  })
+})
+
+describe("the words Claude Code's transcript records", () => {
+  const record = (content: object[], extra: object = {}) =>
+    JSON.stringify({
+      type: "assistant",
+      timestamp: "2026-11-20T10:00:05.000Z",
+      message: { role: "assistant", content },
+      ...extra,
+    })
+
+  it("tells an assistant text, dated by its record", () => {
+    expect(
+      transcriptWords(record([{ type: "text", text: "Which one do you want?" }]), session),
+    ).toEqual({
+      type: "words-written",
+      agent: "claude",
+      sessionId: "s",
+      instance: "7",
+      startedAt: Date.parse("2026-11-20T10:00:05.000Z"),
+    })
+  })
+
+  it("tells nothing for a tool call, thinking, an empty text, or the person's text", () => {
+    const call = { type: "tool_use", id: "c1", name: "Bash", input: { command: "ls" } }
+    expect(transcriptWords(record([call]), session)).toBeUndefined()
+    expect(
+      transcriptWords(record([{ type: "thinking", thinking: "Hmm", signature: "x" }]), session),
+    ).toBeUndefined()
+    expect(transcriptWords(record([{ type: "text", text: "  " }]), session)).toBeUndefined()
+    expect(
+      transcriptWords(
+        JSON.stringify({
+          type: "user",
+          timestamp: "2026-11-20T10:00:05.000Z",
+          message: { role: "user", content: [{ type: "text", text: "Go on" }] },
+        }),
+        session,
+      ),
+    ).toBeUndefined()
+  })
+
+  it("tells the words of a real turn's records, once at the agent's text", () => {
+    const told = probe.scenarios["interrupt"]!.flatMap((each) => {
+      const words = transcriptWords(JSON.stringify(each), session)
+      return words ? [words] : []
+    })
+    expect(told.every(({ type }) => type === "words-written")).toBe(true)
   })
 })

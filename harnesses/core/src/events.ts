@@ -311,6 +311,13 @@ export type ActivityEvent = EventBase &
         readonly type: "command-ran"
         readonly folder: string
       }
+    /**
+     * The root agent wrote words in its turn: an assistant text its transcript or rollout
+     * records, at `startedAt` (when the record says it was written), which is no thinking and no
+     * tool call. A reply the turn ends on is one too. Told by the records alone, as no hook
+     * fires for a text.
+     */
+    | { readonly type: "words-written" }
     | {
         readonly type: "file-touched"
         readonly actor: string | null
