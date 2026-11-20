@@ -1,4 +1,4 @@
-import { clockTime, wakeFill, type Waiting } from "@novadeck/core/terminals/waiting"
+import { wakeFill, whenText, type Waiting } from "@novadeck/core/terminals/waiting"
 import { minutesWaited } from "@novadeck/core/terminals/waiting-clock"
 import type { TerminalMetadata } from "@novadeck/core/types"
 
@@ -28,7 +28,7 @@ const rowsOf = (waiting: Waiting, fill: number): Row[] => {
       key: "wake",
       kind: "wake",
       label: waiting.wake.reason ?? "Wake-up",
-      trail: clockTime(waiting.wake.at),
+      trail: whenText(waiting.wake.at),
       fill,
     })
   return rows.length > waitRows

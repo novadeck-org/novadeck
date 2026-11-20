@@ -206,11 +206,12 @@ const clock = (at: number): string =>
   new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
 
 // When a window resets, as people say it: how long from now with the time, within a day,
-// "in 2h 14m · 16:30"; the weekday and time further off, "Thu 09:00".
+// "in 2h 14m · 16:30"; the weekday and time on another day, "Thu 09:00".
 export const resetText = (at: number, now = Date.now()): string => {
-  const far = farClock(at, now, clock)
-  if (far !== undefined) return far
   const minutes = Math.max(0, Math.ceil((at - now) / minute))
+  // From a day on it says the day. Within one it counts the time left, whatever day that is.
+  const far = minutes >= minutesPerDay ? farClock(at, now, clock) : undefined
+  if (far !== undefined) return far
   const hours = Math.floor(minutes / minutesPerHour)
   const left = hours > 0 ? `${hours}h ${minutes % minutesPerHour}m` : `${minutes}m`
   return `in ${left} · ${clock(at)}`

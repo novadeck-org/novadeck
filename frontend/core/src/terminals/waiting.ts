@@ -1,4 +1,4 @@
-import { farClock } from "../far-clock"
+import { farClock, farDay, nextDayChange } from "../far-clock"
 import type { AgentWaiting, TerminalMetadata } from "../types"
 import { counted, hour, minute } from "../units"
 
@@ -50,11 +50,22 @@ export const clockTime = (at: number): string => {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`
 }
 
-// A time as a tab's text says it: the clock within a day ("14:32"), the weekday or the days off
+// A time as a tab's text says it: the clock today ("14:32"), the weekday or the days off
 // beyond ("Thu 09:00", "in 6d · 09:00"), as the footer's resets are said.
 export const whenText = (at: number, now = Date.now()): string =>
   farClock(at, now, clockTime) ?? clockTime(at)
 
+// The same for a chip too narrow for the time of another day: "14:32" today, "Thu", "in 6d".
+export const whenChip = (at: number, now = Date.now()): string => farDay(at, now) ?? clockTime(at)
+
+// When a time said by `whenText` or `whenChip` next reads otherwise, for a view to render again:
+// the time itself, and before it each local midnight, as the days to it count down. Undefined
+// where there is no time.
+export const nextWhenChange = (at: number | undefined, now = Date.now()): number | undefined => {
+  if (at === undefined) return undefined
+  const midnight = nextDayChange(at, now)
+  return midnight === undefined ? at : Math.min(at, midnight)
+}
 // When the wake-up of an agent that has none left to wait on passed, as the tab's trace of
 // it says: "14:32". Undefined while it waits on something or never set one.
 export const wakePassed = (terminal: TerminalMetadata, now = Date.now()): string | undefined => {
@@ -164,6 +175,9 @@ export const nextWaitingChange = (
     const quarter = (wake.at - start) / wakeSteps
     const next = start + (Math.floor((now - start) / quarter) + 1) * quarter
     times.push(next < wake.at ? next : wake.at + wakeGraceMs)
+    // Said by the weekday or the days to it, which change at midnight.
+    const midnight = nextDayChange(wake.at, now)
+    if (midnight !== undefined) times.push(midnight)
   }
   return Math.min(...times)
 }

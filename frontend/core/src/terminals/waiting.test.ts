@@ -1,16 +1,19 @@
 import { context, describe, expect, it } from "../test"
 import type { AgentStatus, AgentWaiting, TerminalMetadata } from "../types"
-import { day } from "../units"
+import { day, hour } from "../units"
 import { terminalPhase } from "./ending"
 import {
   clockTime,
   nextWaitingChange,
+  nextWhenChange,
   wakeFill,
   wakeGraceMs,
   wakePassed,
   waitingLine,
   waitingOf,
   waitingText,
+  whenChip,
+  whenText,
 } from "./waiting"
 import { minutesWaited, wakeIn } from "./waiting-clock"
 
@@ -88,6 +91,40 @@ describe("an agent that waits", () => {
       expect(wakeFill(wake, now)).toBe(2)
       expect(wakeFill(wake, at - 1000)).toBe(3)
       expect(wakeFill(wake, at + minute)).toBe(3)
+    })
+  })
+
+  context("a time on another day", () => {
+    const weekday = (at: number) => new Date(at).toLocaleDateString(undefined, { weekday: "short" })
+    const tomorrow = new Date(2026, 9, 25, 8).getTime()
+    const evening = new Date(2026, 9, 24, 22).getTime()
+    // Seven days on by the calendar, whatever a clock change makes of the hours between.
+    const nextWeek = new Date(2026, 9, 31, 22).getTime()
+
+    it("reads as the clock today, the weekday by the calendar after, and the days from six", () => {
+      expect(whenText(evening + hour, evening)).toBe(clockTime(evening + hour))
+      expect(whenText(tomorrow, evening)).toBe(`${weekday(tomorrow)} 08:00`)
+      expect(whenText(nextWeek, evening)).toBe("in 7d · 22:00")
+      expect(whenChip(evening + hour, evening)).toBe("23:00")
+      expect(whenChip(tomorrow, evening)).toBe(weekday(tomorrow))
+      expect(whenChip(nextWeek, evening)).toBe("in 7d")
+    })
+
+    it("is rendered again at the reset, and before it at each midnight while it counts days", () => {
+      expect(nextWhenChange(undefined, evening)).toBeUndefined()
+      expect(nextWhenChange(evening + hour, evening)).toBe(evening + hour)
+      expect(nextWhenChange(nextWeek, evening)).toBe(new Date(2026, 9, 25).getTime())
+      // Nothing counts down inside the last day: the reset itself is the next change.
+      expect(nextWhenChange(tomorrow, new Date(2026, 9, 25, 1).getTime())).toBe(tomorrow)
+    })
+
+    it("reaches a waiting tab's next change before a wake-up days off changes its day", () => {
+      const far = new Date(2026, 9, 27, 22).getTime()
+      const next = nextWaitingChange(
+        onWake(far, { lastTurn: { outcome: "completed", at: evening } }),
+        evening,
+      )
+      expect(next).toBeLessThanOrEqual(new Date(2026, 9, 25).getTime())
     })
   })
 
