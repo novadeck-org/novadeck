@@ -30,8 +30,8 @@ describe("demo window controls", () => {
     expect(insets).toEqual([74, 0])
   })
 
-  context("when the boot makes its backend again", () => {
-    it("shows the buttons of the one the page places, and only those", () => {
+  context("when StrictMode makes the boot's backend twice", () => {
+    it("show the buttons of the one the page places, and only those", () => {
       const placed = createDemoWindowControls("inset")
       createDemoWindowControls("inset")
       placed.place(32)

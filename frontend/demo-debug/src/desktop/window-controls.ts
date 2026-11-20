@@ -23,8 +23,8 @@ export const clearDemoWindowControls = (page: Document = document): void => {
 // says it is the window's title bar, its controls at the start, as the desktop app's entry
 // says, and three buttons are drawn where macOS puts them, on the line the page asks for,
 // hidden when it asks so (as in Zen) and in full screen, where the page keeps no room for them.
-// A boot may make its backend more than once, each taking away the buttons of the one before,
-// so the buttons the page places are put back in it, in place of any other's.
+// StrictMode makes a boot's backend twice and keeps the first, so making one changes nothing a
+// second would undo: the buttons join the page only when it places them, in place of any other's.
 export const createDemoWindowControls = (
   mode: DemoWindowControls,
   page: Document = document,
@@ -54,7 +54,6 @@ export const createDemoWindowControls = (
     })
     lights.append(light)
   }
-  page.body.append(lights)
   return {
     side: "start",
     place: (middle) => {
