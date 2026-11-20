@@ -410,6 +410,13 @@ export const readFolderPart = async (
 const settle = 200
 /** The longest a steady stream of changes holds a read back. */
 const longest = 1000
+/**
+ * How soon after a watch is made the folder is read once more, unless the watch told of a change
+ * by then: a watch can start working only after it is made, telling nothing of what landed
+ * before. By libuv's code, macOS's does: it makes and starts its FSEvents stream later, on
+ * another thread, for events from then on, and makes it anew whenever any watch starts or stops.
+ */
+const starting = 1000
 
 /**
  * Tells when a folder may have changed: the file system's own watch, a few events together as
@@ -418,7 +425,8 @@ const longest = 1000
  * file written in a folder inside the one watched. So a wait ends after `safety` milliseconds
  * even where it works, and after the shorter `unwatched` where it doesn't (a folder that is gone,
  * a limit of watches reached): that is how such changes are found. A folder deleted and made
- * again is another one (its `ino`): the watch moves onto it.
+ * again is another one (its `ino`): the watch moves onto it. A new watch that has told nothing
+ * yet ends its first wait `starting` after it was made, as it may have started late.
  */
 export class FolderWatch {
   private watcher: FSWatcher | undefined
@@ -426,6 +434,8 @@ export class FolderWatch {
   private ino: string | undefined
   private first: number | undefined
   private wake: (() => void) | undefined
+  /** When the watch was made, until it tells of a change or a wait has read past its start. */
+  private made: number | undefined
 
   /** Whether the file system is telling of changes now. */
   get working(): boolean {
@@ -440,9 +450,12 @@ export class FolderWatch {
     this.dir = dir
     this.ino = ino
     this.first = undefined
+    this.made = undefined
     if (dir === undefined) return
     try {
       const watcher = watch(dir, { persistent: false }, (_event, name) => {
+        // It tells, so it has started.
+        this.made = undefined
         // The folder itself deleted or moved: what is watched is gone, whatever comes in its place.
         if (name === basename(dir)) {
           watcher.close()
@@ -458,6 +471,7 @@ export class FolderWatch {
         this.wake?.()
       })
       this.watcher = watcher
+      this.made = Date.now()
     } catch {
       this.watcher = undefined
     }
@@ -480,7 +494,16 @@ export class FolderWatch {
       const arm = (): void => {
         clearTimeout(timer)
         if (this.first === undefined) {
-          timer = setTimeout(done, this.watcher ? polls.safety : polls.unwatched)
+          const made = this.watcher ? this.made : undefined
+          this.made = undefined
+          timer = setTimeout(
+            done,
+            made !== undefined
+              ? Math.max(0, made + starting - Date.now())
+              : this.watcher
+                ? polls.safety
+                : polls.unwatched,
+          )
           return
         }
         const left = Math.max(0, this.first + longest - Date.now())
@@ -498,5 +521,6 @@ export class FolderWatch {
     this.watcher = undefined
     this.dir = undefined
     this.ino = undefined
+    this.made = undefined
   }
 }
