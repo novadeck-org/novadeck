@@ -529,7 +529,7 @@
     },
     {
       "id": "scripts-macos-runner-stall",
-      "jobs": ["^Test \\(macOS(?:, [1-3]/3)?\\)$"],
+      "jobs": ["^Test \\(macOS(?:, [1-3][/-]3)?\\)$"],
       "test": "scripts/",
       "signature": "Error: Test timed out in 5000ms\\.",
       "status": "known",
