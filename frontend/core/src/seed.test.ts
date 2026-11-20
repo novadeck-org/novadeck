@@ -338,9 +338,9 @@ describe("a project built from a seed", () => {
         },
       ],
     }
-    const defaults = { view: "grid", windowedView: "grid", now: 1 } as const
-    const built = projectFromSeed(seed, defaults)
-    expect(built).toEqual(workspaceFromSeed({ projects: [seed] }, defaults).projects[0])
+    const seeding = { view: "grid", windowedView: "grid", now: 1 } as const
+    const built = projectFromSeed(seed, seeding)
+    expect(built).toEqual(workspaceFromSeed({ projects: [seed] }, seeding).projects[0])
     expect(built.history[0]!.state.roster.terminals.map((each) => each.id)).toEqual(["01"])
   })
 })
