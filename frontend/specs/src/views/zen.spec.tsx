@@ -392,6 +392,11 @@ describe("Zen dock", () => {
       await openWorkspace()
       await enterZen().click()
       await expect.element(exitZen()).toBeVisible()
+      // The dock hears keys from inside it: focus comes to it a frame after it shows, and a
+      // key pressed before that goes to the page. From another of its controls, then.
+      await expect.element(dock().getByRole("button", { name: "New terminal" })).toHaveFocus()
+      await press("{Tab}")
+      await expect.element(hideControls()).toHaveFocus()
 
       await press("{Escape}")
 
