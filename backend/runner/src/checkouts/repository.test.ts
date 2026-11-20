@@ -36,6 +36,16 @@ const hasGit = (() => {
   }
 })()
 
+const hasSshKeygen = (() => {
+  try {
+    execFileSync("ssh-keygen", ["-?"], { stdio: "ignore" })
+    return true
+  } catch (error) {
+    // It prints its usage and exits 1: it is there.
+    return (error as { status?: number | null }).status === 1
+  }
+})()
+
 const it = base.extend<{ root: string }>({
   root: async ({ resources }, use) => {
     const root = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-works-repo-")))
@@ -415,6 +425,40 @@ describe("where a branch's work landed in main", () => {
       expect(await landedIn(root, main, "unmerged")).toBeUndefined()
       // A branch with nothing of its own since it parted landed nowhere.
       expect(await landedIn(root, main, "main~1")).toBeUndefined()
+    },
+  )
+
+  // GitHub signs the squashes it merges; a person's log.showSignature then has git print the
+  // signature's check ahead of each such commit's record.
+  it.skipIf(!hasGit || !hasSshKeygen)(
+    "finds a signed squash under log.showSignature",
+    async ({ root, resources }) => {
+      const keys = mkdtempSync(join(tmpdir(), "novadeck-works-key-"))
+      resources.defer(() => rmSync(keys, { recursive: true, force: true }))
+      const key = join(keys, "key")
+      execFileSync("ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-f", key])
+      git(root, "config", "log.showSignature", "true")
+      commitFile(root, "base", "0\n", "first")
+      git(root, "checkout", "--quiet", "-b", "feature")
+      commitFile(root, "a", "one\n", "one")
+      git(root, "checkout", "--quiet", "main")
+      commitFile(root, "other", "o\n", "main's own")
+      git(root, "merge", "--quiet", "--squash", "feature")
+      git(
+        root,
+        "-c",
+        "gpg.format=ssh",
+        "-c",
+        `user.signingkey=${key}`,
+        "commit",
+        "-S",
+        "--quiet",
+        "-m",
+        "squash",
+      )
+      const squash = git(root, "rev-parse", "HEAD")
+      commitFile(root, "a", "changed\n", "main changes it again")
+      expect(await landedIn(root, mainOf(root), "feature")).toBe(squash)
     },
   )
 

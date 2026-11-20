@@ -1,4 +1,4 @@
-import { nextLimitReset, noInbox } from "@novadeck/core/inbox"
+import { nextLimitReset } from "@novadeck/core/inbox"
 import { activeProject } from "@novadeck/core/state"
 import { useState } from "react"
 
@@ -14,12 +14,12 @@ const soonest = (a: number | undefined, b: number | undefined): number | undefin
   a === undefined ? b : b === undefined ? a : Math.min(a, b)
 
 // The marks of the open project's sessions, by id, read as the project rows read theirs: the
-// raw Inbox, the unread turns, and a clock that moves on as a limit resets or an agent's wait
+// landed Inbox, the unread turns, and a clock that moves on as a limit resets or an agent's wait
 // passes its grace.
 export const useSessionMarks = (): Readonly<Record<string, SessionMark>> => {
-  const { backend } = useWorkspaceServices()
+  const { landing } = useWorkspaceServices()
   const unread = useUiState((state) => state.unread)
-  const items = useStoreSelector((backend.inbox ?? noInbox).state, (state) => state.items)
+  const items = useStoreSelector(landing.inbox.state, (state) => state.items)
   const [now, setNow] = useState(() => Date.now())
   const waitEndsAt = useWorkspaceState((workspace) =>
     nextStatusChange([activeProject(workspace)!], now),

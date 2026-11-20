@@ -10,6 +10,23 @@ import { bash, it, create, reporter } from "./integration.test-support.js"
 const userLine = (text: string) =>
   `${JSON.stringify({ type: "user", timestamp: "2026-09-30T08:00:00Z", message: { content: text } })}\n`
 
+// The ref of a terminal's root actor, read from its details once its agent binds. Details that
+// end first fail the test: a finished generator answers at once, every time, so reading on would
+// spin without ever yielding to the timer that times a test out.
+const rootActor = async (details: AsyncGenerator<AgentDetail>): Promise<string> => {
+  try {
+    for (;;) {
+      // eslint-disable-next-line no-await-in-loop -- Reads snapshots until the agent binds.
+      const result = await details.next()
+      if (result.done) throw new Error("The detail stream ended before a root actor showed.")
+      const root = result.value.actors[0]?.ref
+      if (root) return root
+    }
+  } finally {
+    await details.return(undefined)
+  }
+}
+
 describe.skipIf(process.platform === "win32" || !existsSync(bash))(
   "bash shell integration: what a terminal shows of its agent",
   () => {
@@ -364,14 +381,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const terminal = await create(manager, shell)
       manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
       await shell.until(manager, terminal.id, "reports sent")
-      const details = manager.detail(terminal.id)
-      let root: string | undefined
-      while (!root) {
-        // eslint-disable-next-line no-await-in-loop -- Reads snapshots until the agent binds.
-        const { value } = await details.next()
-        root = value?.actors[0]?.ref
-      }
-      await details.return(undefined)
+      const root = await rootActor(manager.detail(terminal.id))
       await expect(manager.transcript(terminal.id, "x".repeat(16)).next()).rejects.toMatchObject({
         code: "NOT_FOUND",
       })
@@ -421,14 +431,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         const next = shell.watch(manager)
         const terminal = await create(manager, shell)
         manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
-        const details = manager.detail(terminal.id)
-        let root: string | undefined
-        while (!root) {
-          // eslint-disable-next-line no-await-in-loop -- Reads snapshots until the agent binds.
-          const { value } = await details.next()
-          root = value?.actors[0]?.ref
-        }
-        await details.return(undefined)
+        const root = await rootActor(manager.detail(terminal.id))
         await next((summary) => summary.id === terminal.id && summary.activity?.state === "working")
         const texts: string[] = []
         const reading = (async () => {
@@ -482,14 +485,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const next = shell.watch(manager)
       const terminal = await create(manager, shell)
       manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
-      const details = manager.detail(terminal.id)
-      let root: string | undefined
-      while (!root) {
-        // eslint-disable-next-line no-await-in-loop -- Reads snapshots until the agent binds.
-        const { value } = await details.next()
-        root = value?.actors[0]?.ref
-      }
-      await details.return(undefined)
+      const root = await rootActor(manager.detail(terminal.id))
       // The later report, whose model call starts a turn, names the transcript as it is
       // handled; a slower machine takes longer to get there, never a different way.
       await next((summary) => summary.activity?.state === "working")

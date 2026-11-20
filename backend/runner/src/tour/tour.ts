@@ -6,7 +6,7 @@ import type { AgentName, Project, TourPrepared } from "@novadeck/protocol"
 import { DomainError } from "../errors.js"
 import { agentLabel } from "../messaging/messages.js"
 import { briefFiles, nudgeLine, tourBrief, type BriefFacts, type Teammate } from "./brief.js"
-import { resetTourFolder, tourFolder } from "./folder.js"
+import { checkTourFolder, resetTourFolder, tourFolder } from "./folder.js"
 import { tourChoice, tourLaunch } from "./launch.js"
 import { pickName } from "./name.js"
 
@@ -56,7 +56,8 @@ export class Tour {
    * copywriter on `agent`'s, the designer on another connected harness's where one lists its
    * cheapest, else on `agent`'s too. An agent Novadeck isn't
    * connected to is a `CONFLICT`, as its tools would be missing; so is a folder that isn't
-   * Novadeck's (`resetTourFolder`), and a run asked for while another is being readied. One
+   * Novadeck's (`checkTourFolder`, asked before any project is removed), and a run asked for
+   * while another is being readied. One
    * whose cheapest model can't be told is `MODELS_UNLISTED`: Codex lists its models only once
    * it has started signed in (probed 2026-11-15, 0.169.0: a start not signed in writes no
    * models_cache.json). Nothing changes for any of them.
@@ -85,6 +86,8 @@ export class Tour {
         `${agentLabel(agent)} hasn't listed its models here yet, so the tour can't pick its cheapest. Start ${agentLabel(agent)} and sign in, then take the tour.`,
       )
     const directory = tourFolder(this.host.home)
+    // The folder's own refusal too, the last that can refuse, before anything is removed.
+    await checkTourFolder(directory)
     // Those being removed too, as their shells may still be closing there: the removal
     // under way is waited for.
     const removed = this.host.projects

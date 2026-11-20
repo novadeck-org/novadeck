@@ -58,7 +58,7 @@ export const statusText: Record<ProjectStatus, string> = {
   unheard: "Not reporting",
 }
 
-// The status of each terminal is what its tab shows: its need (the Inbox's raw `items`, as
+// The status of each terminal is what its tab shows: its need (the landed Inbox's `items`, as
 // the tab reads them, and the dialog its agent shows now), an unread turn that failed, a
 // done report that stands, or its agent's phase: paused at its limit, at work, waiting, or
 // unheard. An ended terminal shows nothing, as its tab reads ended, and only an agent at work

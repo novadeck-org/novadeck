@@ -768,11 +768,31 @@ sooner. The texts say these as facts and
 leave what the agent does with its turn to its harness and the person: "end your turn rather
 than wait" told agents with work left to stop, and "carry on with other work" to act on
 alone. How an agent asks the person, with a lead or not, is `ask`'s own description and
-the server's instructions. `open_agent`'s description adds that it is the only way to start an agent, with a brief or without, and the one that
+the server's instructions. `open_agent`'s description adds that it is the only way to start an agent in a Novadeck terminal, with a brief or without, and the one that
 can make the caller a lead (a `command` or a plain shell gets none), and that being a lead gives none of the person's approvals: what
 the worker needs the person to approve, they give in its own terminal or through an Inbox ask, so tell them to
 answer there. A text longer than 4 KB is refused by the MCP server itself, before it
 reaches the runner.
+
+"Agent" and "team" mean something in every harness: Claude Code has subagents and agent teams,
+Codex its agents, Antigravity subagents and a swarm. Novadeck settles what they mean here
+(`agentsHere` in `shell/mcp.ts`, in the server's instructions and in `open_agent`'s and `team`'s
+descriptions, which are what Codex and Antigravity read): an agent the person asks to take on a
+task ("spawn an agent to fix X", "open a claude") is one in its own Novadeck terminal, started with
+`open_agent`, unless they ask for a subagent or say that is what they mean, as an AGENTS.md line
+"when I ask for an agent, I mean a subagent" does; a team is a lead and the agents in the Novadeck
+terminals it leads, and so is a swarm; agents the agent, the person or a skill want used for the
+agent's own task, such as to do it faster, are its own pick as usual, except that a team is
+always a Novadeck one; and subagents it starts within its own turn are never a team. It defines
+the words rather than forbid the harnesses' own features. In blind tabletop probes (Opus and Sonnet
+in Claude Code and Sol in Codex, three runs each, plus fresh Antigravity sessions), "make a team of
+three to review this PR" went from a harness's own agent team in 4 of 9 runs to a Novadeck team in
+all 9, "use a swarm" from a harness team in 6 to a Novadeck team in 9, and "have another agent
+double-check your diff" from a subagent in 9 to a Novadeck agent in 7. Asks meant for subagents
+stayed subagents: "use the code-reviewer agent", "three Explore agents", "a couple of subagents",
+"a helper so your context stays clean", "fan this out", a skill's "launch 4 research agents" and
+"use agents to speed up this rename" (subagents in 8 of 9; the first wording, without the own-task
+sentence, opened Novadeck terminals for it in 6 and Antigravity's own team once).
 
 `open_agent({ agent, message?, model?, effort?, lead?, resume?, cwd?, title?, focus? })`
 opens a terminal running that agent. Without `message` the agent just starts at its prompt;
@@ -835,7 +855,12 @@ the question too. Whatever the agent puts in the Inbox (an ask, a `tell`, a `don
 extra copy for when the person is elsewhere: its reply says it all as fully as it would
 without Novadeck, and never mentions the Inbox or what it put there, as someone reading the
 reply is already looking at it. `ask`, `tell` and `done` say so, as do their answers, the
-server's instructions and the prompt-time notice. They say what the Inbox is for and
+server's instructions and the prompt-time notice. `ask` and its answer add that what the agent
+gave the ask may not show where the person reads it (a terminal folds the tool call), so its
+reply, and whatever it writes to them about the question before then, even in a note while
+its turn goes on, asks it in full, with what they need to answer or act on it, such as an
+action's command: an agent that wrote "I've asked you to save the key (command below)"
+mid-turn left the person, reading the terminal, with no command until its turn ended. They say what the Inbox is for and
 nothing of how the agent works: whether it asks, waits for the answer or goes on, and what
 it ships, are its harness's and the person's setup, as without Novadeck. Texts that said
 "most decisions aren't blocking" and "the person rarely watches" made agents build with

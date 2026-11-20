@@ -22,13 +22,13 @@ export const markDelay = (index: number) => ({ animationDelay: `-${((index + 1) 
 export const useGlance = (
   id: string,
 ): { tile: TerminalMetadata; glance: ReturnType<typeof terminalGlance> } | undefined => {
-  const { backend } = useWorkspaceServices()
+  const { landing } = useWorkspaceServices()
   const target = useWorkspaceState(currentTarget, sameTarget)
   const context = useWorkspaceState(currentContext)
   const tile = useWorkspaceState((workspace) =>
     currentState(workspace).roster.terminals.find((terminal) => terminal.id === id),
   )
-  const marks = useTerminalMarks(backend.inbox, { ...target, terminalId: id })
+  const marks = useTerminalMarks(landing.inbox, { ...target, terminalId: id })
   const unread = useUiState((state) => unreadEnd(state.unread, context, id))
   if (!tile || isWindow(tile)) return undefined
   return { tile, glance: terminalGlance(tile, marks, unread) }

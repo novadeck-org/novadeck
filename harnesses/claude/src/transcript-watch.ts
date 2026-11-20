@@ -3,7 +3,7 @@ import type { ActivityEvent, EventBase, TelemetryObserved } from "@novadeck/harn
 import { parseFields } from "@novadeck/harness-core/fields"
 import { followLines } from "@novadeck/harness-core/follow"
 import type { Harness, Run, WrittenPlan } from "@novadeck/harness-core/harness"
-import { at } from "@novadeck/harness-core/items"
+import { at, wordsIn } from "@novadeck/harness-core/items"
 
 import { presentedPlan, shellOutputs, shellsEnded } from "./decode.js"
 import { interruptions, mentionsInterruption } from "./interruption.js"
@@ -193,8 +193,8 @@ export const transcriptVersion = (line: string): string | undefined =>
   versionName(closing.exec(line.slice(-versionReach))?.[1])
 
 /**
- * Follows a bound session's transcript for what no hook reports: an interrupted turn, and
- * a request a timed-out prompt denied; and for the version of Claude Code writing it, told
+ * Follows a bound session's transcript for what no hook reports: an interrupted turn, the
+ * words the agent wrote (`words-written`), and a request a timed-out prompt denied; and for the version of Claude Code writing it, told
  * when it first shows and whenever it changes (a session resumed by a newer release).
  */
 export const followTranscript: NonNullable<Harness["watch"]> = async (run, signal, emit) => {
@@ -216,8 +216,29 @@ export const followTranscript: NonNullable<Harness["watch"]> = async (run, signa
       })
     }
     for (const event of transcriptEvents(line, run, calls)) emit(event)
+    const words = transcriptWords(line, run)
+    if (words) emit(words)
   })
 }
+
+/**
+ * The words the root agent wrote, as one line of its transcript records them: an assistant
+ * text, no thinking and no tool call, dated by the record. Most lines are long tool results,
+ * parsed only where they may hold one; a subagent's (`isSidechain`) is none.
+ */
+export const transcriptWords = (
+  line: string,
+  { sessionId, instance }: Pick<Run, "sessionId" | "instance">,
+): ActivityEvent | undefined =>
+  wordsIn(
+    line,
+    transcripts.items,
+    (each) =>
+      /"type":\s*"assistant"/.test(each) &&
+      /"type":\s*"text"/.test(each) &&
+      !/"isSidechain":\s*true/.test(each),
+    { agent: "claude", sessionId, instance },
+  )
 
 // The calls a line's tool results name, as Claude Code writes them, unspaced.
 const resultIds = /"tool_use_id":"([^"\\]+)"/g

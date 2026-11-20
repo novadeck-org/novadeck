@@ -293,13 +293,29 @@ export const demoTurns = (requestedMs = demoTurnMs) => {
         )
         // Its calls come one after another, as an agent's do, until another verb takes it.
         const tools = how?.tools ?? 0
-        if (tools > 0)
-          active.set(
-            terminalKeyId(key),
-            Array.from({ length: tools }, (_, index) =>
-              setTimeout(() => emit({ type: "tool", key }), (index + 1) * toolGapMs),
-            ),
-          )
+        const says = how?.says
+        const timers: Timers = [
+          ...Array.from({ length: tools }, (_, index) =>
+            setTimeout(() => emit({ type: "tool", key }), (index + 1) * toolGapMs),
+          ),
+          // Its words, which the status carries, the rest as it was.
+          ...(says === undefined
+            ? []
+            : [
+                setTimeout(
+                  () =>
+                    status(key, {
+                      working: true,
+                      ...(how?.planning ? { planning: true as const } : {}),
+                      ...(how?.subagents ? { subagents } : {}),
+                      ...shellsOf(how?.shells, Date.now()),
+                      wordsAt: Date.now(),
+                    }),
+                  says,
+                ),
+              ]),
+        ]
+        if (timers.length > 0) active.set(terminalKeyId(key), timers)
       },
       ask: (key, terminal, kind, count) => {
         const { agent, program, began } = take(key, terminal)

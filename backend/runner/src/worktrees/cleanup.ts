@@ -88,6 +88,11 @@ export class Cleanup {
     return this.fetcher.fetchBriefly(commonDir, ms, follow)
   }
 
+  /** Whether origin has the branch now: see `MainFetcher.remoteHas`. */
+  remoteHas(commonDir: string, branch: string, ms: number): Promise<boolean | undefined> {
+    return this.fetcher.remoteHas(commonDir, branch, ms)
+  }
+
   /** How many times the repository's checkout was moved to its main: see `MainFetcher.moved`. */
   moved(commonDir: string): number {
     return this.fetcher.moved(commonDir)
@@ -238,7 +243,8 @@ export class Cleanup {
   /**
    * Terminals left History for good (pruned): their worktrees go whatever they hold, with
    * uncommitted work and a detached HEAD kept on refs and an unmerged branch kept. One git
-   * couldn't read, or with submodules, stays on disk with no owner, and is logged.
+   * couldn't read, or with submodules or an untracked git repository of its own holding work, stays on disk
+   * with no owner, and is logged.
    */
   async pruned(terminalIds: readonly string[]): Promise<void> {
     if (this.stopped) return

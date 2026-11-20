@@ -564,6 +564,11 @@ Besides the facts shared with the agent model, decoders give
   quotas (`telemetry.ts`).
 - `file-touched` names a file an actor wrote or edited, from its write and edit tools,
   for the folders a session works in.
+- `words-written` says the root agent wrote words (an assistant text, no thinking or tool
+  call) at `startedAt`. No hook says it: a harness's `watch` follows its transcript or
+  rollout and tells it with `wordsIn`, which reads the line through the harness's own
+  `transcripts.items`, so the chat and this agree on what the agent said. It fills
+  `activity.wordsAt` while a turn runs.
 - `attention-requested` has `writes` where its harness can tell from the call which files
   a permission asks to write: Codex's `apply_patch`, its patch's files from the directory
   it asked in. A `file-touched` that `settles` (Codex's rollout) settles the latest

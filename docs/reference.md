@@ -456,7 +456,13 @@ it stays until the agent's next turn, so Continue is there after the reset.
 Every item lands in the list at once. What concerns the terminal you are looking at (the
 selected one, while Novadeck has your focus, in every view) lands quietly: counted on the bell,
 but with no toast or system ping, because you see it happen there, and it stays quiet when you
-look away. An update (a `done` report or a `tell`) is read in the Inbox, never by looking at
+look away. A new ask from that terminal, while its agent works, is held for a moment: it is in
+the list, but the bell, the app icon's badge and the "?" on its tab, window and session don't
+count it yet, as the agent is about to write the same question in the terminal you are reading.
+The hold ends at the first of the agent's next words in that terminal, the end of its turn and
+15 seconds (a turn that ended while background subagents run counts as ended); then it counts, quietly. If you look away first, it counts at once as a row that
+arrived elsewhere does, and rings after its two seconds. Permission requests, updates and asks
+from other terminals aren't held. Closing the asking terminal or switching session or project during a hold counts as looking away, and a row first seen late can be held up to 15 seconds past that. An update (a `done` report or a `tell`) is read in the Inbox, never by looking at
 its terminal. Its row counts as seen once it has been in sight in the list for about a second
 while Novadeck has your focus and no dialog covers it; a glance while scrolling past sees
 nothing. It stays as it came for as long as you look, and turns resolved when you then leave the
@@ -466,7 +472,7 @@ back. Opening an update reads it at once. The tab's unread marks of replies and 
 apart from this: they clear as soon as you look at the terminal. On a narrow window, while the
 Inbox list covers the screen, no terminal counts as looked at. If a read fails it isn't tried
 again, so you can read the update by opening it. The tabs' and windows' "!" and "?" read the
-Inbox's raw items.
+same landed items, so a held ask makes none.
 
 The rows that ask something of you keep the Inbox's own order (the row added last first) until
 you drag one: they drag among each other into your order, or move a place with Alt+↑/↓ on the

@@ -175,6 +175,11 @@ export type InboxRow = InboxContent & {
   // Set aside by the person until they bring it back: it keeps its place, and asks nothing
   // of them meanwhile. Only on an open row that asks, where the backend keeps snoozes.
   readonly snoozed?: true
+  // Held back by the landing rule: a new ask of the terminal the person is looking at, kept out
+  // of what counts (the bell, the app icon, the tab and window marks) until its agent has
+  // written its words in that terminal. It stays in the list. Set only on the landed Inbox's
+  // copy of the row, never by a backend.
+  readonly heldBack?: true
 }
 
 // The four ways the Inbox presents a row: Unblock (the agent can't go on without the
@@ -391,15 +396,16 @@ export const atTerminal = (row: InboxRow, at: TerminalKey): boolean =>
 
 // What a terminal needs of the person, for its tab's mark: "unblock" for any Unblock row
 // or a limit past its reset that Novadeck won't resume from; otherwise "ask" for any Ask;
-// otherwise nothing. Trouble, updates, resolved rows and what the person snoozed don't count.
-// Takes every row, as the backend lists them: the landing rule hides rows from the Inbox,
-// never from the marks.
+// otherwise nothing. Trouble, updates, resolved rows, what the person snoozed and an ask the
+// landing rule still holds back (`heldBack`) don't count. Takes the landed Inbox's rows.
 export const terminalNeed = (
   rows: readonly InboxRow[],
   at: TerminalKey,
   now: number,
 ): "unblock" | "ask" | undefined => {
-  const mine = rows.filter((row) => atTerminal(row, at) && !row.settled && !row.snoozed)
+  const mine = rows.filter(
+    (row) => atTerminal(row, at) && !row.settled && !row.snoozed && !row.heldBack,
+  )
   const limitReset = (row: InboxRow): boolean =>
     row.kind === "trouble" &&
     row.trouble.type === "limit" &&

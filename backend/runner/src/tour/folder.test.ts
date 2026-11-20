@@ -4,7 +4,7 @@ import { join } from "node:path"
 
 import { DomainError } from "../errors.js"
 import { describe, expect, it } from "../test.js"
-import { resetTourFolder, tourFolder, tourMarker } from "./folder.js"
+import { checkTourFolder, resetTourFolder, tourFolder, tourMarker } from "./folder.js"
 
 const scratch = async (resources: { defer: (cleanup: () => Promise<void>) => void }) => {
   const root = await mkdtemp(join(tmpdir(), "novadeck-tour-"))
@@ -50,6 +50,26 @@ describe("the tour's folder", () => {
     await mkdir(folder, { recursive: true })
     await resetTourFolder(folder, { "AGENTS.md": "brief\n" })
     expect(await readdir(folder)).toContain(tourMarker)
+  })
+
+  it("is checked without a change: refused where it isn't the tour's, else left as it is", async ({
+    resources,
+  }) => {
+    const root = await scratch(resources)
+    const folder = tourFolder(root)
+    await expect(checkTourFolder(folder)).resolves.toBeUndefined()
+    await expect(readdir(folder)).rejects.toThrow()
+    await resetTourFolder(folder, { "AGENTS.md": "old\n" })
+    await expect(checkTourFolder(folder)).resolves.toBeUndefined()
+    expect((await readdir(folder)).toSorted()).toEqual([tourMarker, "AGENTS.md"].toSorted())
+    const mine = join(root, "mine")
+    await mkdir(mine)
+    await writeFile(join(mine, "notes.md"), "mine")
+    await expect(checkTourFolder(mine)).rejects.toSatisfy(conflict)
+    const file = join(root, "file")
+    await writeFile(file, "x")
+    await expect(checkTourFolder(file)).rejects.toSatisfy(conflict)
+    expect(await readdir(mine)).toEqual(["notes.md"])
   })
 
   it("leaves a folder holding files without the marker as it is", async ({ resources }) => {

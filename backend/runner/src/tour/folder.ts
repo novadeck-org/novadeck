@@ -17,16 +17,11 @@ const markerText =
   "This folder is Novadeck's tour. Novadeck empties it each time the tour starts.\n"
 
 /**
- * Empties the tour's folder and writes `files` there, by name, with the marker beside them.
- * The folder is made where it is missing. One that is no folder (a file, or a link to
- * anywhere), or that holds files without the marker, is the person's: it is a `CONFLICT`,
- * and nothing in it changes. The folder itself stays, emptied in place, so a shell still in it
- * as it closes doesn't keep it from going on Windows.
+ * What the tour's folder holds, by name (none where it is missing), once it is known to be the
+ * tour's. One that is no folder (a file, or a link to anywhere), or that holds files without
+ * the marker, is the person's: it is a `CONFLICT`, and nothing in it changes.
  */
-export const resetTourFolder = async (
-  folder: string,
-  files: Readonly<Record<string, string>>,
-): Promise<void> => {
+const tourEntries = async (folder: string): Promise<string[]> => {
   const found = await lstat(folder).catch((error: unknown) => {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined
     throw error
@@ -39,6 +34,29 @@ export const resetTourFolder = async (
       "CONFLICT",
       `${folder} holds files Novadeck didn't put there, so the tour leaves it as it is. Move or remove that folder to take the tour.`,
     )
+  return entries
+}
+
+/**
+ * Refuses, as `resetTourFolder` would, a folder that isn't the tour's, changing nothing: asked
+ * before the tour removes the projects open there, so a refusal leaves them be.
+ */
+export const checkTourFolder = async (folder: string): Promise<void> => {
+  await tourEntries(folder)
+}
+
+/**
+ * Empties the tour's folder and writes `files` there, by name, with the marker beside them.
+ * The folder is made where it is missing. One that isn't the tour's is a `CONFLICT`
+ * (`tourEntries`), and nothing in it changes: asked again here, as files may have come while
+ * the projects there closed. The folder itself stays, emptied in place, so a shell still in it
+ * as it closes doesn't keep it from going on Windows.
+ */
+export const resetTourFolder = async (
+  folder: string,
+  files: Readonly<Record<string, string>>,
+): Promise<void> => {
+  const entries = await tourEntries(folder)
   // `rm` removes a link inside, never what it points to. On Windows a file a closing shell
   // still holds is busy for a moment, which the retries wait out.
   await Promise.all(

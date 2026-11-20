@@ -11,14 +11,14 @@ import {
   writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
-import { basename, join } from "node:path"
+import { basename, join, relative } from "node:path"
 
 import { git as realGit } from "../checkouts/git.js"
 import { describe, expect, it as base } from "../test.js"
 import { withOrigin } from "../testing/origin.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import { fetchTimeoutMs, MainFetcher } from "./fetching.js"
-import { finishRemoval } from "./repo.js"
+import { finishRemoval, nestedRepositories } from "./repo.js"
 import { Worktrees, folderName } from "./worktrees.js"
 
 const git = (cwd: string, ...args: string[]) =>
@@ -208,6 +208,118 @@ describe("opening a worktree", () => {
     expect(existsSync(join(opened.path, "b.txt"))).toBe(true)
     // The checkout itself is left alone.
     expect(existsSync(join(origin.repo, "b.txt"))).toBe(false)
+  })
+
+  it("checks out origin's branch of that name, tracking it, where only origin has it", async ({
+    resources,
+    fx: f,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
+    // A teammate's pull request branch, pushed since the checkout last fetched.
+    const pushed = origin.branch("feat")
+    const { worktrees } = recording(resources, f)
+    const opened = await worktrees.open({
+      projectId: "p2",
+      terminalId: "t1",
+      cwd: origin.repo,
+      branch: "feat",
+    })
+    if (!opened.ok) throw new Error(opened.reason)
+    expect(opened).toMatchObject({
+      existing: false,
+      base: pushed,
+      origin: "current",
+      tracking: true,
+    })
+    expect(git(opened.path, "rev-parse", "HEAD")).toBe(pushed)
+    expect(git(opened.path, "rev-parse", "--abbrev-ref", "feat@{upstream}")).toBe("origin/feat")
+    // Novadeck made the local branch, so it may go once main holds it.
+    expect(f.store.worktree(opened.path)?.branchMade).toBe(true)
+  })
+
+  it("passes over a branch origin no longer has, which an earlier fetch left behind", async ({
+    resources,
+    fx: f,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
+    const pushed = origin.branch("merged")
+    origin.fetch()
+    // Deleted on origin after its merge; the checkout's fetches never prune it, so its ref stays.
+    git(origin.repo, "push", "--quiet", "origin", "--delete", "merged")
+    git(origin.repo, "update-ref", "refs/remotes/origin/merged", pushed)
+    const head = git(origin.repo, "rev-parse", "HEAD")
+    const { worktrees } = recording(resources, f)
+    const opened = await worktrees.open({
+      projectId: "p2",
+      terminalId: "t1",
+      cwd: origin.repo,
+      branch: "merged",
+    })
+    if (!opened.ok) throw new Error(opened.reason)
+    expect(opened).toMatchObject({ existing: false, base: head, origin: "gone" })
+    expect(opened).not.toHaveProperty("tracking")
+    expect(git(opened.path, "rev-parse", "HEAD")).toBe(head)
+  })
+
+  it("uses origin's branch as last fetched where origin can't be asked, and says so", async ({
+    resources,
+    fx: f,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
+    const pushed = origin.branch("cached")
+    origin.fetch()
+    // Offline: origin is a folder that no longer exists.
+    git(origin.repo, "remote", "set-url", "origin", join(f.other, "gone.git"))
+    const { worktrees } = recording(resources, f)
+    const opened = await worktrees.open({
+      projectId: "p2",
+      terminalId: "t1",
+      cwd: origin.repo,
+      branch: "cached",
+    })
+    if (!opened.ok) throw new Error(opened.reason)
+    expect(opened).toMatchObject({ base: pushed, origin: "unchecked", tracking: true })
+    expect(git(opened.path, "rev-parse", "HEAD")).toBe(pushed)
+  })
+
+  it("fetches nothing for a branch name git refuses", async ({ resources, fx: f }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
+    const { fetches, worktrees } = recording(resources, f)
+    const opened = await worktrees.open({
+      projectId: "p2",
+      terminalId: "t1",
+      cwd: origin.repo,
+      branch: "x~1",
+    })
+    expect(opened).toMatchObject({ ok: false, reason: expect.stringContaining("isn't a branch") })
+    expect(fetches).toHaveLength(0)
+  })
+
+  it("leaves origin's branch alone when from is given, or the branch exists here", async ({
+    resources,
+    fx: f,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
+    origin.branch("theirs")
+    origin.fetch()
+    const head = git(origin.repo, "rev-parse", "HEAD")
+    const { worktrees } = recording(resources, f)
+    const given = await worktrees.open({
+      projectId: "p2",
+      terminalId: "t1",
+      cwd: origin.repo,
+      branch: "theirs",
+      from: "main",
+    })
+    if (!given.ok) throw new Error(given.reason)
+    expect(given).toMatchObject({ base: head })
+    expect(given).not.toHaveProperty("origin")
+    expect(given).not.toHaveProperty("tracking")
   })
 
   it.skipIf(process.platform === "win32")(
@@ -833,6 +945,128 @@ describe("closing a worktree", () => {
     ).toMatchObject({ ok: false, reason: expect.stringContaining("submodules") })
     expect(existsSync(a.path)).toBe(true)
   })
+
+  it("never removes a worktree holding an untracked repository of its own, forced or not, or on a project's removal", async ({
+    fx: f,
+  }) => {
+    const a = await open(f, "cloned")
+    if (!a.ok) throw new Error("open")
+    // An agent's clone of a library, in a folder nothing tracks, with a fix committed there and
+    // more not yet: a commit could keep it only as a gitlink.
+    const lib = join(a.path, "vendor", "deep", "lib")
+    mkdirSync(lib, { recursive: true })
+    git(lib, "init", "--quiet", "-b", "main")
+    writeFileSync(join(lib, "fix.c"), "the fix\n")
+    git(lib, "add", "-A")
+    git(lib, "commit", "--quiet", "-m", "fix")
+    writeFileSync(join(lib, "more.c"), "more\n")
+    // eslint-disable-next-line no-await-in-loop -- Two closes, one after the other.
+    for (const force of [false, true])
+      expect(
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        await f.worktrees.closeOwned({ terminalId: "t1", cwd: f.repo, path: a.path, force }),
+      ).toMatchObject({
+        ok: false,
+        reason: expect.stringContaining(
+          "a git repository of its own, not tracked, at vendor/deep/lib, with uncommitted or untracked files",
+        ),
+      })
+    await f.worktrees.removeProject(f.project)
+    expect(readFileSync(join(lib, "more.c"), "utf8")).toBe("more\n")
+    expect(git(lib, "log", "-1", "--format=%s")).toBe("fix")
+    expect(git(f.repo, "for-each-ref", "refs/novadeck")).toBe("")
+  })
+
+  it("finds a repository deep in an untracked folder among more untracked files than its cap holds", async ({
+    fx: f,
+  }) => {
+    const a = await open(f, "built")
+    if (!a.ok) throw new Error("open")
+    const out = join(a.path, "build", "out")
+    mkdirSync(out, { recursive: true })
+    // Their names alone pass the cap many times over, as a big build's or a dataset's would.
+    for (let index = 0; index < 2000; index += 1)
+      writeFileSync(join(out, `artifact-${index}.o`), "")
+    const lib = join(a.path, "build", "deep", "a", "b")
+    mkdirSync(lib, { recursive: true })
+    git(lib, "init", "--quiet", "-b", "main")
+    expect(await nestedRepositories(a.path, 1024)).toEqual(["build/deep/a/b"])
+  })
+
+  it("removes a worktree whose nested repositories hold nothing a remote lacks, when forced", async ({
+    fx: f,
+  }) => {
+    const a = await open(f, "reading")
+    if (!a.ok) throw new Error("open")
+    // A clone made to read a library: clean, its HEAD and branches on its origin.
+    const library = repository(f.other, "library")
+    git(a.path, "clone", "--quiet", library, join("vendor", "library"))
+    const unforced = await f.worktrees.closeOwned({
+      terminalId: "t1",
+      cwd: f.repo,
+      path: a.path,
+      force: false,
+    })
+    // Unforced it holds an untracked path, as any untracked folder does.
+    expect(unforced).toMatchObject({ ok: false, holds: expect.stringContaining("untracked") })
+    const forced = await f.worktrees.closeOwned({
+      terminalId: "t1",
+      cwd: f.repo,
+      path: a.path,
+      force: true,
+    })
+    expect(forced).toMatchObject({ ok: true })
+    expect(existsSync(a.path)).toBe(false)
+  })
+
+  it("keeps a worktree whose nested repository has a commit, a stash or a branch no remote has, and says which", async ({
+    fx: f,
+  }) => {
+    const library = repository(f.other, "library")
+    const cases: [string, (clone: string) => void, string][] = [
+      [
+        "committed",
+        (clone) => {
+          writeFileSync(join(clone, "fix.c"), "fix\n")
+          git(clone, "add", "-A")
+          git(clone, "commit", "--quiet", "-m", "fix")
+        },
+        "commits no remote has",
+      ],
+      [
+        "stashed",
+        (clone) => {
+          writeFileSync(join(clone, "a.txt"), "changed\n")
+          git(clone, "stash", "--quiet")
+        },
+        "a stash",
+      ],
+      [
+        "branched",
+        (clone) => {
+          git(clone, "checkout", "--quiet", "-b", "side")
+          writeFileSync(join(clone, "side.c"), "side\n")
+          git(clone, "add", "-A")
+          git(clone, "commit", "--quiet", "-m", "side")
+          git(clone, "checkout", "--quiet", "main")
+        },
+        "commits no remote has",
+      ],
+    ]
+    for (const [branch, make, said] of cases) {
+      // eslint-disable-next-line no-await-in-loop -- One worktree after another.
+      const a = await open(f, branch)
+      if (!a.ok) throw new Error("open")
+      const clone = join(a.path, "lib")
+      git(a.path, "clone", "--quiet", library, "lib")
+      make(clone)
+      expect(
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        await f.worktrees.closeOwned({ terminalId: "t1", cwd: f.repo, path: a.path, force: true }),
+      ).toMatchObject({ ok: false, reason: expect.stringContaining(`at lib, with ${said}`) })
+      expect(existsSync(clone)).toBe(true)
+    }
+  })
 })
 
 describe("what take may adopt", () => {
@@ -930,6 +1164,20 @@ describe("reconciling at the runner's start", () => {
     await f.worktrees.reconcile()
     expect(f.store.worktree(a.path)).toBeUndefined()
     expect(git(f.repo, "worktree", "list", "--porcelain")).not.toContain(asGit(a.path))
+  })
+
+  it("forgets the entry of a folder gone where git keeps its path relative", async ({ fx: f }) => {
+    const a = await open(f, "relative")
+    if (!a.ok) throw new Error("open")
+    // As git 2.48's worktree.useRelativePaths writes it: from the entry's own folder.
+    const entry = join(f.repo, ".git", "worktrees", basename(a.path))
+    const gitdir = join(entry, "gitdir")
+    expect(readFileSync(gitdir, "utf8").trim()).toBe(asGit(join(a.path, ".git")))
+    writeFileSync(gitdir, `${asGit(relative(entry, join(a.path, ".git")))}\n`)
+    rmSync(a.path, { recursive: true, force: true })
+    await f.worktrees.reconcile()
+    expect(f.store.worktree(a.path)).toBeUndefined()
+    expect(existsSync(entry)).toBe(false)
   })
 
   it("orphans a worktree whose owner is gone, and leaves the rest, and again", async ({

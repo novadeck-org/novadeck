@@ -48,6 +48,9 @@ export type DemoAgentVerbs = {
       readonly subagents?: true
       readonly shells?: readonly DemoShell[]
       readonly tools?: number
+      // Writes words `says` ms in, as an agent writing out the question it asked does: its status
+      // then carries `wordsAt`, which ends the hold on an ask of the terminal being viewed.
+      readonly says?: number
     },
   ) => void
   // Stops the agent's turn on `count` requests of `kind`, each answerable from the chat

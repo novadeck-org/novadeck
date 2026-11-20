@@ -1,7 +1,7 @@
 import { demoInboxIds } from "@novadeck/demo/inbox/fixtures"
 import { page } from "vitest/browser"
 
-import { desktopWindow } from "../support/backend"
+import { agentWorks, desktopWindow } from "../support/backend"
 import { expectStaysAbsent, openWorkspace, sidebarPanel, terminalTab } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
@@ -44,6 +44,29 @@ describe("The landing rule", () => {
       await noToast()
     })
   })
+
+  context(
+    "when an agent asks from the terminal the person looks at, and has yet to write its words",
+    () => {
+      it("lists it at once but counts it only once the agent's words follow, with no toast", async () => {
+        await open(storefront)
+        agentWorks("storefront-initial-01")
+
+        desktopWindow.arrive(demoInboxIds.preview)
+
+        await expectStaysAbsent(
+          { shown: () => bell().query() !== null, name: "the bell" },
+          { ms: 1_000 },
+        )
+        await sidebarPanel("Inbox").click()
+        await expect.element(inboxRow("Should the preview show")).toBeVisible()
+        agentWorks("storefront-initial-01", Date.now() + 1)
+
+        await expect.element(bell()).toHaveAccessibleName("Inbox, 1 waiting")
+        await noToast()
+      })
+    },
+  )
 
   context("when an agent asks from a terminal the person isn't looking at", () => {
     it("lands it and rings", async () => {

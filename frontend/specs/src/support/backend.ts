@@ -471,6 +471,27 @@ export const joinTeam = (name: string, lead: string): void => {
       }
 }
 
+/** The backend reports the agent of the terminal `terminalId` (of the project's first session
+ * that has it) as working, with the time it last wrote words where `wordsAt` is given. */
+export const agentWorks = (terminalId: string, wordsAt?: number): void => {
+  for (const { sink, seed } of started)
+    for (const project of seed.projects)
+      for (const session of project.sessions) {
+        if (!session.terminals.some((each) => each.id === terminalId)) continue
+        sink.dispatch([
+          {
+            type: "terminal/status",
+            target: { projectId: project.id, workspaceSessionId: session.id },
+            terminalId,
+            status: {
+              state: "running",
+              agent: { working: true, ...(wordsAt === undefined ? {} : { wordsAt }) },
+            },
+          },
+        ])
+      }
+}
+
 // Specs open the demo with a backend that has agents ask the person's approval with
 // `&approvals=on`: the spec makes an agent ask with `approvals.ask`, and reads the person's
 // answers with `approvals.answers`.

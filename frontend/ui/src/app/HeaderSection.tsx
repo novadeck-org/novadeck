@@ -1,4 +1,4 @@
-import { nextLimitReset, noInbox } from "@novadeck/core/inbox"
+import { nextLimitReset } from "@novadeck/core/inbox"
 import { viewModes } from "@novadeck/core/state"
 import type { Project } from "@novadeck/core/types"
 import { memo, useMemo, useState } from "react"
@@ -28,7 +28,7 @@ const sameProjects = (a: readonly Project[], b: readonly Project[]): boolean =>
 // The app header wired to the workspace: projects, views, search and preferences, and
 // under it the bar of pinned projects.
 export const HeaderSection = memo((): React.JSX.Element => {
-  const { backend, commands, navigation, ui } = useWorkspaceServices()
+  const { backend, commands, navigation, ui, landing } = useWorkspaceServices()
   const {
     switchProject,
     openFolder,
@@ -55,9 +55,9 @@ export const HeaderSection = memo((): React.JSX.Element => {
   )
   const unread = useUiState((state) => state.unread)
   const arrangement = useUiState((state) => state.projectArrangement)
-  // What the raw Inbox holds, as the tabs read it, not the landing rule's: its needs and
-  // done reports mark the projects as they mark the tabs.
-  const items = useStoreSelector((backend.inbox ?? noInbox).state, (state) => state.items)
+  // What the landed Inbox holds, as the tabs read it: its needs and done reports mark the
+  // projects as they mark the tabs.
+  const items = useStoreSelector(landing.inbox.state, (state) => state.items)
   // The time the marks are judged by: it moves on as a limit among the items resets, so
   // its project is marked then, and as an agent's wait passes by its grace, so its
   // project's mark clears then. The wait's end is read as a time, so the header renders

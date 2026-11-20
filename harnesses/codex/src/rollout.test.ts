@@ -14,7 +14,7 @@ import type { Report } from "@novadeck/harness-core/report"
 import { afterEach, describe, expect, it } from "vitest"
 
 import { decode } from "./decode.js"
-import { followRollout, rolloutEvents, subagentEvents } from "./rollout.js"
+import { followRollout, rolloutEvents, rolloutWords, subagentEvents } from "./rollout.js"
 
 const session = { sessionId: "s", instance: "7" }
 
@@ -285,5 +285,44 @@ describe("a subagent's MCP tool call, in its own rollout", () => {
     }[]
     expect(root?.requestId).toBeDefined()
     expect(root?.requestId).not.toBe(asked!.requestId)
+  })
+})
+
+describe("the words Codex's rollout records", () => {
+  const message = (role: string, text: string) =>
+    JSON.stringify({
+      timestamp: "2026-11-20T10:00:05.000Z",
+      type: "response_item",
+      payload: {
+        type: "message",
+        role,
+        content: [{ type: role === "assistant" ? "output_text" : "input_text", text }],
+      },
+    })
+  const run = { sessionId: "s", instance: "7" }
+
+  it("tells an assistant message, dated by its record", () => {
+    expect(rolloutWords(message("assistant", "Which one do you want?"), run)).toEqual({
+      type: "words-written",
+      agent: "codex",
+      sessionId: "s",
+      instance: "7",
+      startedAt: Date.parse("2026-11-20T10:00:05.000Z"),
+    })
+  })
+
+  it("tells nothing for the person's message, a tool call or its output", () => {
+    expect(rolloutWords(message("user", "Go on"), run)).toBeUndefined()
+    const record = (payload: object) =>
+      JSON.stringify({ timestamp: "2026-11-20T10:00:05.000Z", type: "response_item", payload })
+    expect(
+      rolloutWords(
+        record({ type: "function_call", name: "exec_command", call_id: "c", arguments: "{}" }),
+        run,
+      ),
+    ).toBeUndefined()
+    expect(
+      rolloutWords(record({ type: "function_call_output", call_id: "c", output: "ok" }), run),
+    ).toBeUndefined()
   })
 })

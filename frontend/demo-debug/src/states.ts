@@ -53,6 +53,8 @@ import type { DemoAction, DemoActionContext, DemoActionGroup, DemoStates } from 
 
 // How long an agent works before its turn ends, so the person can look elsewhere.
 const turnMs = 3000
+// How long an agent that "writes its words" takes to, after the question it asked.
+const askWordsMs = 6000
 // How long a new terminal takes to fail when it fails "right away".
 const quickFailMs = 400
 const burst = 30
@@ -809,6 +811,22 @@ export const createDemoStates = (
       harnesses: true,
       actions: [
         verb("Work", "Working; tab shows it running", (v, k, t) => v.work(k, t), verbs),
+        {
+          label: "Asks, words in 6 s",
+          hint: "The agent works and asks (MCP) in the viewed terminal: the ask shows in the Inbox list, but the bell, the app badge and the tab's ? wait for its words, 6 s on (or the turn's end, or 15 s)",
+          run: (context) => {
+            const key = targetOf(context)
+            if (!key) return
+            verbs.as(context.harness).work(key, terminalOf(context.workspace(), key), {
+              says: askWordsMs,
+            })
+            const own = inbox()
+            const row = mcpAsk(context.workspace(), key, "text", Date.now(), context.harness)
+            if (!row || !isDemoInbox(own)) return
+            own.add(row)
+            panelAsks.add(row.id)
+          },
+        },
         verb(
           "Plan mode",
           "Working in plan mode",

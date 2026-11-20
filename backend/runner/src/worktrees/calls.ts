@@ -10,7 +10,7 @@ import type { LeadsHost } from "../terminals/leads.js"
 import { peerOf } from "../terminals/peers-host.js"
 import type { Record } from "../terminals/record.js"
 import type { WorktreeRecord } from "./records.js"
-import type { Worktrees } from "./worktrees.js"
+import type { OriginBranch, Worktrees } from "./worktrees.js"
 
 /** What the worktree calls need of the runner. */
 export type WorktreeCallsHost = Pick<
@@ -122,6 +122,10 @@ export type WorktreeAnswer =
       readonly branch: string
       /** open_worktree: the branch existed and was checked out. */
       readonly existing?: boolean
+      /** open_worktree: what origin has of a branch only origin had (see `OriginBranch`). */
+      readonly origin?: OriginBranch
+      /** open_worktree: the new branch tracks origin's. */
+      readonly tracking?: boolean
       /** open_worktree: instruction files at its top. */
       readonly instructions?: readonly string[]
       /** take_worktree: it was yours already. */
@@ -197,6 +201,8 @@ export class WorktreeCalls {
       path: opened.path,
       branch: opened.branch,
       existing: opened.existing,
+      ...(opened.origin !== undefined && { origin: opened.origin }),
+      ...(opened.tracking !== undefined && { tracking: opened.tracking }),
       instructions: opened.instructions,
     }
   }

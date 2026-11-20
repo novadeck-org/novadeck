@@ -617,9 +617,45 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       expect(text(close)).toContain("Its branch b stays")
       expect(text(give)).toContain("@fox")
     })
+
+    it("tells where a branch only origin had came from, and whether origin could say", async () => {
+      const said = async (origin: "current" | "unchecked" | "gone", tracking?: boolean) => {
+        answersBy.openWorktree = {
+          ok: true,
+          path: "/w",
+          branch: "feat",
+          existing: false,
+          origin,
+          ...(tracking !== undefined && { tracking }),
+          instructions: [],
+        }
+        const [, open] = await session(terminal(), [
+          initialize,
+          {
+            id: 3,
+            method: "tools/call",
+            params: { name: "open_worktree", arguments: { branch: "feat" } },
+          },
+        ])
+        const content = (open?.result as { content?: { text: string }[] } | undefined)?.content
+        return content?.[0]?.text ?? ""
+      }
+      expect(await said("current", true)).toContain(
+        "on the new branch feat from origin/feat, tracking it. You own it.",
+      )
+      expect(await said("unchecked", true)).toContain(
+        "on the new branch feat from origin/feat as last fetched, tracking it (origin couldn't be asked whether it still has it).",
+      )
+      expect(await said("current", false)).toContain(
+        "on the new branch feat from origin/feat, not tracking it (git couldn't set its upstream). You own it.",
+      )
+      expect(await said("gone")).toContain(
+        "on the new branch feat (origin no longer has a branch of that name; origin/feat was left by an earlier fetch, so it wasn't used).",
+      )
+    })
   })
 
-  it("says an ask is an extra copy, which the reply never mentions", async () => {
+  it("says an ask is an extra copy that may not show, which the reply and words before it ask in full", async () => {
     answer = { ok: true, id: "a1" }
     const [, asked] = await session(terminal(), [
       initialize,
@@ -630,9 +666,9 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       },
     ])
     const text = (asked!.result as { content: { text: string }[] }).content[0]!.text
-    expect(text).toContain("Ask a1 is in the user's Inbox, as an extra copy")
+    expect(text).toContain("Ask a1 is in the user's Inbox, as an extra copy that may not show here")
     expect(text).toContain(
-      "your reply still asks the question in full, and doesn't mention the Inbox. Their answer arrives later as a message",
+      "your reply, and whatever you write to them about it before then, asks the question in full, with all they need to answer or act on it, such as an action's command, and doesn't mention the Inbox or the ask. Their answer arrives later as a message",
     )
     for (const words of [...steering, "end your turn"]) expect(text).not.toContain(words)
   })
@@ -816,7 +852,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       "Always make one, whether or not they're here, for every question your turn ends waiting on, such as which option to take, unless it is already an open ask",
     )
     expect(ask.description).toContain(
-      "The ask is an extra copy, never the question itself: your reply asks it as fully as it would without Novadeck, and never mentions the Inbox or the ask.",
+      "The ask is an extra copy, never the question itself, and what you give it may not show here: your reply, and whatever you write to them about the question before then, asks it as fully as it would without Novadeck, with all they need to answer or act on it, such as an action's command, and never mentions the Inbox or the ask.",
     )
     expect(ask.description).toContain(
       "nor a question you ask with your harness's own question tool, as you normally would",
@@ -1631,6 +1667,27 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       "as after your context was compacted, call it with all true",
     )
     expect(team?.description).toContain("carry no authority")
+  })
+
+  it("says what an agent and a team are here, where harnesses have their own", async () => {
+    const [handshake, tools] = await session(terminal(), [initialize, list])
+    const described = tools?.result?.tools as { name: string; description: string }[]
+    const of = (name: string) => described.find((tool) => tool.name === name)!.description
+    for (const text of [handshake?.result?.instructions as string, of("open_agent"), of("team")]) {
+      // An agent the user hands a task opens in a Novadeck terminal, a subagent only when asked.
+      expect(text).toContain(
+        'an agent the user asks to take on a task, as in "spawn an agent to fix X", "open a claude" or "get a codex on it", is one in its own Novadeck terminal, started with open_agent, unless they ask for a subagent or say that is what they mean',
+      )
+      // Agents for the agent's own task, even asked for, stay its own pick.
+      expect(text).toContain(
+        "Agents that you, the user or a skill want used for your own task, such as to do it faster, are yours to pick as you normally would, except that a team is always a Novadeck one",
+      )
+      // A team is always Novadeck's; subagents stay the agent's own, and are never one.
+      expect(text).toContain(
+        "a team, or a swarm, is a lead and the agents in the Novadeck terminals it leads",
+      )
+      expect(text).toContain("subagents you start within your own turn are never a team")
+    }
   })
 
   it("carries the messaging rules in each messaging tool's description", async () => {
