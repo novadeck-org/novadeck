@@ -160,12 +160,14 @@ export const largestStill = 512
 export type ModelStills = {
   /**
    * A still of `content`, fitted, as a PNG `size` pixels square; null where none is drawn, or
-   * once `signal` gives up on it.
+   * once `signal` gives up on it. `queued` is called as it starts waiting its turn behind the
+   * stills before it, and the function it gives back once its turn comes.
    */
   readonly still: (
     content: ModelContent,
     size: number,
     signal?: AbortSignal,
+    queued?: () => () => void,
   ) => Promise<Blob | null>
   /** Its frame was let go of (it went elsewhere, or never started): it draws no more stills. */
   readonly stopped: () => boolean
@@ -227,8 +229,11 @@ export const modelStills = (document: Document, frame: ModelFrame): ModelStills 
     content: ModelContent,
     size: number,
     signal?: AbortSignal,
+    queued?: () => () => void,
   ): Promise<Blob | null> => {
+    const turn = queued?.()
     const made = line.then(async () => {
+      turn?.()
       if (stopped || signal?.aborted) return null
       const at = (id += 1)
       const { message, transfer } = await opening(content)

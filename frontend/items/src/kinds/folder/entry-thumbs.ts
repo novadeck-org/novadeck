@@ -12,11 +12,14 @@ export type FolderEntryKind = FolderEntry["kind"]
 // What a renderer is given of the file: its name and size, and `read`, which reads it in parts
 // from `offset` as the folder reads any file of it (`companions.part`, with the file's path in
 // the folder and the stamp its listing gave): `changed` where it was rewritten meanwhile, or why
-// it can't be read.
+// it can't be read. A renderer that waits on something outside the file, as a 3D model's still
+// waits its turn in the frame every still shares, calls `queued` as it starts waiting, and the
+// function that gives back once its turn comes: the deadline doesn't run in between.
 export type EntryThumbFile = {
   readonly name: string
   readonly size: number
   readonly read: (offset: number, signal: AbortSignal) => Promise<FilePart>
+  readonly queued: () => () => void
 }
 
 // The size of the box the picture is drawn in, in CSS pixels; a picture may be drawn larger for a
@@ -27,9 +30,10 @@ export type EntryThumb = { readonly blob: Blob; readonly duration?: number }
 
 // Draws a file's picture, or answers null where it can't (too large, not what it says it is): the
 // folder then shows the kind's icon. It stops at once when `signal` aborts, which it also does
-// once a deadline of 15 s has passed (the icon is then shown whatever it does), and is not asked
-// again for the file while it is as its stamp names it, whether it drew a picture or not; unless
-// one of its reads failed, or was still on its way at the deadline, which says nothing of the file.
+// once it has taken 15 s, not counting its time `queued` (the icon is then shown whatever it
+// does), and is not asked again for the file while it is as its stamp names it, whether it drew a
+// picture or not; unless one of its reads failed, or was still on its way at the deadline, which
+// says nothing of the file.
 export type EntryThumbRenderer = (
   entry: EntryThumbFile,
   box: EntryThumbBox,

@@ -14,7 +14,17 @@ import {
 
 import { DomainError } from "../errors.js"
 import { tail } from "../text.js"
-import { hashOf, isAudio, isImage, isModel, isPdf, isVideo, readPart, stampOf } from "./content.js"
+import {
+  hashOf,
+  isAudio,
+  isCompiledObject,
+  isImage,
+  isModel,
+  isPdf,
+  isVideo,
+  readPart,
+  stampOf,
+} from "./content.js"
 import type { ItemRecord } from "./records.js"
 import { folderSecrets, secrets } from "./secrets.js"
 
@@ -104,6 +114,31 @@ export const entryKindOf = (name: string): Exclude<FolderEntry["kind"], "folder"
             : texts.has(extname(name).toLowerCase())
               ? "text"
               : "other"
+
+// What each .obj listed was found to be, by its stamp and real path, so a folder listed again as
+// it changes doesn't read each one again: a file rewritten has another stamp. One that couldn't be
+// read is tried again, as being locked changes no stamp. Emptied once full.
+const objects = new Map<string, boolean>()
+const maxObjects = 4096
+
+/**
+ * How a file is listed, by its real path and its stamp: as `entryKindOf` tells it by name, but a
+ * compiled object file named .obj, which its start tells (`isCompiledObject`), is no model.
+ */
+const fileKindOf = async (
+  path: string,
+  stamp: string,
+): Promise<Exclude<FolderEntry["kind"], "folder">> => {
+  const kind = entryKindOf(basename(path))
+  if (kind !== "model" || extname(path).toLowerCase() !== ".obj") return kind
+  const key = `${stamp}\0${path}`
+  const compiled = objects.get(key) ?? (await isCompiledObject(path))
+  if (compiled !== undefined && !objects.has(key)) {
+    if (objects.size >= maxObjects) objects.clear()
+    objects.set(key, compiled)
+  }
+  return compiled === true ? "other" : kind
+}
 
 /** Whether `path` is `top` or under it, both real paths. */
 const within = (top: string, path: string): boolean => {
@@ -270,8 +305,13 @@ const entryOf = async (
       children: held ? null : await countOf(real, stats.mtimeMs),
       stamp: "",
     }
-  // A link inside the top is its target's, by its name, as `readFolderPart` reads it.
-  const kind = stats.isFile() ? entryKindOf(basename(real)) : "other"
+  // A link inside the top is its target's, by its name, as `readFolderPart` reads it. A secret
+  // file is told by its name alone: nothing of it is read.
+  const kind = !stats.isFile()
+    ? "other"
+    : held
+      ? entryKindOf(basename(real))
+      : await fileKindOf(real, stampOf(stats))
   return {
     ...base,
     kind,
@@ -392,8 +432,13 @@ export const readFolderPart = async (
   if (item.path === null || name === undefined) return { state: "unavailable", reason: "missing" }
   const walked = await walk(item.path, part.path, checksOf(env))
   if (!walked.ok) return { state: "unavailable", reason: walked.reason }
-  // By what the file is, as `entryOf` lists it: the kind its real name tells, not a link's.
-  const largest = partLimits[entryKindOf(basename(walked.path))]
+  // By what the file is, as `entryOf` lists it: the kind its real name tells, not a link's, and
+  // for an .obj, its start.
+  const listed = entryKindOf(basename(walked.path))
+  const largest =
+    partLimits[
+      listed === "model" && (await isCompiledObject(walked.path)) === true ? "other" : listed
+    ]
   if (largest === undefined) throw new DomainError("NOT_FOUND", "That file isn't read in parts")
   // The file opened is the one found inside the top: a folder on the way swapped for a link
   // between finding it and opening it would open another.

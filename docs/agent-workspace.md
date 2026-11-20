@@ -514,7 +514,8 @@ with every safety check again at that time:
   preview. Its peek is a still of it.
   A folder (`show {"file": {"path": "<dir>/"}}`, or the person's "Open in the pane" on a
   Files panel row, kind `folder`) is listed, read-only, as a grid of thumbnails or a list
-  (newest first, or by name or size): the runner reads its entries (name, kind by extension,
+  (newest first, or by name or size): the runner reads its entries (name, kind by extension
+  (an `.obj` by its first bytes too, so a compiled object file is a plain file, not a model),
   size, modified time, and what a folder inside holds), watches it with the file system's own
   watch (a few events together, at most about four reads a second; a folder deleted and made again
   is watched anew), plus a poll for what a watch can't tell, as on a share or under a link that was

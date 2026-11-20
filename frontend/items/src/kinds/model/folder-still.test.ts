@@ -4,29 +4,42 @@ import { afterEach, vi } from "vitest"
 import { describe, expect, it } from "../../test"
 import { entryThumbRenderer } from "../folder/entry-thumbs"
 import "../folder/thumb-renderers"
+import { hasNoThumb, loadThumb } from "../folder/thumbs"
 import { folderStill, gridBytes } from "./folder-still"
 
-// jsdom has no WebGL: the frame every still shares is a stand-in that notes what it's asked.
+// jsdom has no WebGL: the frame every still shares is a stand-in that notes what it's asked, and
+// a line the test may hold a still in, as stills before it in the frame would.
 const asked = vi.hoisted(() => [] as { format: string; size: number; files: number }[])
+const line = vi.hoisted(() => ({ held: false, reached: () => {}, go: () => {} }))
 vi.mock("./stills", () => ({
   stillBlob: async (
     model: { format: string; bytes: Blob; files: readonly unknown[] },
     size: number,
+    _signal: AbortSignal,
+    queued?: () => () => void,
   ) => {
+    if (line.held) {
+      const turn = queued?.()
+      await new Promise<void>((resolve) => {
+        line.go = resolve
+        line.reached()
+      })
+      turn?.()
+    }
     asked.push({ format: model.format, size, files: model.files.length })
     return model.bytes.size > 0 ? new Blob([await model.bytes.arrayBuffer()]) : null
   },
 }))
 
+const partsOf =
+  (bytes: Uint8Array) =>
+  async (offset: number): Promise<FilePart> => ({ state: "part", bytes: bytes.slice(offset) })
+
 const fileOf = (name: string, bytes: Uint8Array, read?: (offset: number) => Promise<FilePart>) => ({
   name,
   size: bytes.length,
-  read:
-    read ??
-    (async (offset: number): Promise<FilePart> => ({
-      state: "part",
-      bytes: bytes.slice(offset),
-    })),
+  read: read ?? partsOf(bytes),
+  queued: () => () => {},
 })
 
 const box = { width: 96, height: 72 }
@@ -34,6 +47,8 @@ const box = { width: 96, height: 72 }
 describe("a 3D model in a folder's grid", () => {
   afterEach(() => {
     asked.length = 0
+    line.held = false
+    vi.useRealTimers()
     vi.unstubAllGlobals()
   })
 
@@ -80,5 +95,27 @@ describe("a 3D model in a folder's grid", () => {
       null,
     )
     expect(asked).toEqual([])
+  })
+
+  it("gets its picture though it waited its turn in the frame past the grid's 15 s", async () => {
+    vi.stubGlobal("URL", { createObjectURL: () => "blob:still", revokeObjectURL: () => {} })
+    line.held = true
+    const reached = new Promise<void>((resolve) => (line.reached = resolve))
+    vi.useFakeTimers()
+    const bytes = new TextEncoder().encode("solid queued")
+    const loading = loadThumb({
+      key: "model:queued",
+      kind: "model",
+      name: "queued.stl",
+      size: bytes.length,
+      read: partsOf(bytes),
+      signal: new AbortController().signal,
+    })
+    await reached
+    // Stills before it in the frame, peeks' or other tiles', take their time.
+    await vi.advanceTimersByTimeAsync(40_000)
+    line.go()
+    expect(await loading).toEqual({ url: "blob:still", duration: undefined })
+    expect(hasNoThumb("model:queued")).toBe(false)
   })
 })

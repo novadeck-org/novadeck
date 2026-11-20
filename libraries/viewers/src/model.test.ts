@@ -255,6 +255,26 @@ describe("a model's still", () => {
     expect(still!.inked).toBeGreaterThan(50)
   })
 
+  it("tells whoever asked how long it waits its turn behind the stills before it", async () => {
+    const heard: string[] = []
+    const queued = (name: string) => () => {
+      heard.push(`${name} waits`)
+      return () => heard.push(`${name}'s turn`)
+    }
+    const first = stills.still(content("stl", stl()), 64, undefined, queued("first"))
+    const second = stills.still(content("stl", stl()), 64, undefined, queued("second"))
+    expect(heard).toEqual(["first waits", "second waits"])
+    void first.then(() => heard.push("first drawn"))
+    expect((await drawn(await second))!.inked).toBeGreaterThan(50)
+    expect(heard).toEqual([
+      "first waits",
+      "second waits",
+      "first's turn",
+      "first drawn",
+      "second's turn",
+    ])
+  })
+
   it("is none for what can't be drawn, and the next one is still drawn", async () => {
     expect(await stills.still(content("stl", new Blob(["solid nothing\nendsolid"])), 64)).toBeNull()
     expect(await stills.still(content("glb", new Blob(["not a model at all"])), 64)).toBeNull()

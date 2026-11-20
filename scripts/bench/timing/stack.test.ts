@@ -70,6 +70,9 @@ describe("the runner's environment", () => {
 })
 
 describe("the welcome dialog, in the timing run", () => {
+  // Its body usually takes 0.1 to 0.6 s on Windows, but once took 5.3 s on a loaded runner, beside
+  // git-heavy tests in the same temp folder, and returned fine past Vitest's 5 s default. Nothing
+  // here can hold the database's lock, so that was the disk or CPU, not markWelcomed's busy wait.
   it("is marked seen in the runner's settings, whatever they held", () => {
     const [folder] = folders("data")
     const file = join(folder!, "workspace.sqlite")
@@ -84,5 +87,5 @@ describe("the welcome dialog, in the timing run", () => {
       { key: "welcomed", value: "true" },
     ])
     check.close()
-  })
+  }, 15_000)
 })
