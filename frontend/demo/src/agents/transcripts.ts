@@ -210,8 +210,8 @@ const rang = (nonce: string, replies = false, senders = ""): DemoDraft => ({
   role: "user",
   kind: "text",
   text: replies
-    ? `<novadeck-reply ring="${nonce}">Re your ask "Which rounding?": Round half up, the way the invoices do.</novadeck-reply><novadeck-end ring="${nonce}"/>`
-    : `<novadeck-doorbell ring="${nonce}" from="${senders}"/>`,
+    ? `<novadeck-reply>Re your ask "Which rounding?": Round half up, the way the invoices do.</novadeck-reply><end ring="${nonce}"/>`
+    : `<novadeck-doorbell from="${senders}" ring="${nonce}"/>`,
   ring: { nonce, replies },
 })
 

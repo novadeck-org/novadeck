@@ -6322,7 +6322,7 @@ describe("the person's reply at a turn's end", () => {
       expect(messaging.delivery(terminal)?.state).toBe("settled")
       expect(messaging.ringable(terminal)).toBe(true)
       expect(messaging.replyLine(terminal)?.("n1")).toBe(
-        '<novadeck-reply ring="n1">Re your ask "Merge it?": I picked "Merge".</novadeck-reply><novadeck-end ring="n1"/>',
+        '<novadeck-reply>Re your ask "Merge it?": I picked "Merge".</novadeck-reply><end ring="n1"/>',
       )
       const delivered = rung("n1")
       expect(delivered.leaseId).toEqual(expect.any(String))
@@ -6384,7 +6384,7 @@ describe("the person's reply at a turn's end", () => {
       time.now += 1_000
       reply("Also tag it")
       expect(messaging.replyLine(terminal)?.("n2")).toBe(
-        '<novadeck-reply ring="n2">Re your ask "Merge it?": Also tag it</novadeck-reply><novadeck-end ring="n2"/>',
+        '<novadeck-reply>Re your ask "Merge it?": Also tag it</novadeck-reply><end ring="n2"/>',
       )
     },
   )

@@ -108,7 +108,7 @@ describe.skipIf(!supported || !probing)(setup.name, () => {
 
   it("is given a reply the doorbell typed as a user message", async ({ e2e: run }) => {
     const given = await scenario(run, false)
-    expect(given).toMatch(/"user\\?":\\?"<novadeck-reply ring=\\?"[^"\\]*\\?">Re your ask/)
+    expect(given).toMatch(/"user\\?":\\?"<novadeck-reply>Re your ask/)
   })
 
   it("is not given a reply a Stop gave as context", async ({ e2e: run }) => {

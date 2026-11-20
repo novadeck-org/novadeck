@@ -199,14 +199,14 @@ describe("an agent's context from recorded transcripts", () => {
 
 describe("the words an agent was given", () => {
   const forms = [
-    ["doorbell tag", '<novadeck-doorbell ring="k3f9Xz" from="newtz hushz"/>'],
-    ["doorbell tag a task's start prompt typed", "<novadeck-doorbell ring='k3f9Xz' from=''/>"],
+    ["doorbell tag", '<novadeck-doorbell from="newtz hushz" ring="k3f9Xz"/>'],
+    ["doorbell tag a task's start prompt typed", "<novadeck-doorbell from='' ring='k3f9Xz'/>"],
     ["old doorbell line", "[Novadeck: automatic notice, agent messages waiting, k3f9Xz]"],
   ] as const
   const replies = [
     [
       "reply tag",
-      '<novadeck-reply ring="k3f9Xz">Re your ask "Merge #461?": I picked "Merge it".</novadeck-reply><novadeck-end ring="k3f9Xz"/>',
+      '<novadeck-reply>Re your ask "Merge #461?": I picked "Merge it".</novadeck-reply><end ring="k3f9Xz"/>',
     ],
     [
       "old reply line",
@@ -312,7 +312,7 @@ describe("the words an agent was given", () => {
     const items = [
       user("set up the inbox sheet task", 1),
       ...ran("pnpm install", "Done", 2),
-      user('<novadeck-doorbell ring="ABC123" from="moth"/>', 5),
+      user('<novadeck-doorbell from="moth" ring="ABC123"/>', 5),
       ...ran("pnpm test", "Tests 48 passed", 6),
     ]
     const found = agentContext("claude", items, [{ text: "use UTC, then report", at: 5 }])

@@ -274,7 +274,7 @@ const drawn = ({ height, columns, rows }: Pair["after"]): ScreenText => {
 // (2026-11-07, e2e/probes/reply-overflow.e2e.ts): only its end shows.
 const frame = "─".repeat(40)
 // What closes a reply line: its element, and the tag that names its ring again.
-const END = '</novadeck-reply><novadeck-end ring="n7Q2"/>'
+const END = '</novadeck-reply><end ring="n7Q2"/>'
 const padded = (rows: readonly string[]) => [
   ...Array.from({ length: 14 - rows.length }, () => ""),
   ...rows,
@@ -285,7 +285,7 @@ const tails = {
       frame,
       "❯ say so in the changelog merge it",
       "  and say so in the changelog merge it",
-      '  and say</novadeck-reply><novadeck-end ring="n7Q2"/>',
+      '  and say</novadeck-reply><end ring="n7Q2"/>',
       frame,
       "",
     ]),
@@ -297,7 +297,7 @@ const tails = {
       "  the changelog merge it and say so in",
       "  the changelog merge it and say so in",
       "  the changelog merge it and say",
-      '  </novadeck-reply><novadeck-end ring="n7Q2"/>',
+      '  </novadeck-reply><end ring="n7Q2"/>',
       "",
       "  fake-model default · /tmp/novadeck-e2…",
       "",
@@ -314,7 +314,7 @@ const tails = {
       "  in the changelog merge it and say so",
       "  in the changelog merge it and say so",
       "  in the changelog merge it and say",
-      '  </novadeck-reply><novadeck-end ring="n7Q2"/>',
+      '  </novadeck-reply><end ring="n7Q2"/>',
       frame,
       "                    Gemini 3.1 Pro · low",
       "",
@@ -325,8 +325,8 @@ const tails = {
 
 describe("the nonce closing what a box shows", () => {
   it("is a reply tag's end or a doorbell tag's, wrapped anywhere", () => {
-    expect(closingNonce('say so</novadeck-reply><novadeck-end\nring="n7Q2"/>')).toBe("n7Q2")
-    expect(closingNonce('<novadeck-doorbell ring="n7Q2" from="moth hu\nshz"/>')).toBe("n7Q2")
+    expect(closingNonce('say so</novadeck-reply><end\nring="n7Q2"/>')).toBe("n7Q2")
+    expect(closingNonce('<novadeck-doorbell from="moth hu\nshz" ring="n7Q2"/>')).toBe("n7Q2")
     expect(closingNonce("mess\nages waiting, n7\nQ2]")).toBe("n7Q2")
   })
 
@@ -340,8 +340,8 @@ describe("the nonce closing what a box shows", () => {
     expect(closingNonce("[n7Q2] and on")).toBeUndefined()
     expect(closingNonce("n7Q2]")).toBeUndefined()
     expect(closingNonce("[not a nonce!]")).toBeUndefined()
-    expect(closingNonce('<novadeck-end ring="n7Q2"/> and on')).toBeUndefined()
-    expect(closingNonce('<novadeck-end ring="not!"/>')).toBeUndefined()
+    expect(closingNonce('<end ring="n7Q2"/> and on')).toBeUndefined()
+    expect(closingNonce('<end ring="not!"/>')).toBeUndefined()
   })
 })
 
@@ -394,15 +394,15 @@ describe.each([
     "is the person's in a box run off the screen's bottom, which may hold their words under it",
     () => {
       const line =
-        '<novadeck-reply ring="n7Q2">Re your ask "Which one?": I picked "B".</novadeck-reply><novadeck-end ring="n7Q2"/>'
+        '<novadeck-reply>Re your ask "Which one?": I picked "B".</novadeck-reply><end ring="n7Q2"/>'
       const rows = [
         "● A reply",
         "",
         "✔ Update installed · /restart to apply",
         "─".repeat(40),
-        '❯ <novadeck-reply ring="n7Q2">Re your',
+        "❯ <novadeck-reply>Re your",
         '  ask "Which one?": I picked "B".</novadeck-reply>',
-        '  <novadeck-end ring="n7Q2"/>',
+        '  <end ring="n7Q2"/>',
       ]
       const clipped = screen({ rows, columns: 40, cursor: { row: 6, column: 8 } })
       expect(harnesses.claude.box.read(clipped)).toMatchObject({ clipped: true })
@@ -414,7 +414,7 @@ describe.each([
   )
 
   describe("in a box too short for it", () => {
-    const line = `<novadeck-reply ring="n7Q2">${"and say so in the changelog merge it ".repeat(7)}and say${END}`
+    const line = `<novadeck-reply>${"and say so in the changelog merge it ".repeat(7)}and say${END}`
     const typed = (nonce: string) => (nonce === "n7Q2" ? line : undefined)
     const tail = (last = tails[agent].rows[tails[agent].last]!) =>
       screen({
@@ -430,6 +430,24 @@ describe.each([
     it("is told by its end, read off the box's own screen", () => {
       expect(rings.reading("t", tail())).toBe("draft")
       expect(rings.leftover("t", tail(), typed)).toBe("n7Q2")
+    })
+
+    // The doorbell tag keeps its nonce last, so a box showing only its end still names the ring.
+    it.runIf(agent === "claude")("is told for a doorbell tag whose head is out of sight", () => {
+      const rows = padded([
+        frame,
+        '❯ doorbell from="moth newtz',
+        '  hushz"',
+        '  ring="n7Q2"/>',
+        frame,
+        "",
+      ])
+      const shown = screen({ rows, columns: 40, cursor: { row: 11, column: 15 } })
+      const names = ["moth", "newtz", "hushz"]
+      const tag = (nonce: string) => (nonce === "n7Q2" ? doorbellLine("n7Q2", names) : undefined)
+      expect(rings.leftover("t", shown, tag)).toBe("n7Q2")
+      // An end that isn't the typed line's is the person's.
+      expect(rings.leftover("t", shown, () => doorbellLine("n7Q2", ["fox"]))).toBeUndefined()
     })
 
     it("is the person's where the doorbell knows no such line", () => {
@@ -463,16 +481,15 @@ describe.each([
   })
 
   it.runIf(agent === "claude")("is finished though it fills the box of a small pane", () => {
-    // 14 rows: its line wrapped over two of them. Nothing is known to be out of sight, and a
-    // message left waiting for good is worse than any words going out with it.
+    // 14 rows: its line wrapped over two of them, as Claude Code's 40-column box wraps the tag
+    // (the break falls before `ring`: tag-box probe, 2.1.329). Nothing is known to be out of
+    // sight, and a message left waiting for good is worse than any words going out with it.
     const rule = "─".repeat(40)
-    const line = doorbellLine("n7Q2")
-    const cut = line.indexOf(" ", 30)
     const rows = [
       ...Array.from({ length: 8 }, () => ""),
       rule,
-      `❯ ${line.slice(0, cut)}`,
-      `  ${line.slice(cut + 1)}`,
+      '❯ <novadeck-doorbell from=""',
+      '  ring="n7Q2"/>',
       rule,
       "  footer",
       "",

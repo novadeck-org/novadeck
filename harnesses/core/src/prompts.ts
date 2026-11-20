@@ -8,41 +8,65 @@ import type { EventBase, HarnessEvent } from "./events.js"
  */
 
 // The doorbell line is one self-closing tag: `from` holds the waiting messages' senders' bare
-// handles (`novadeck` for Novadeck's own notices). A task's start prompt (`startLine`) quotes its
-// attributes with `'`, so a shell's double quotes can hold it. Transcripts of sessions from
-// before the tag hold the old bracket line, which every reader still knows (`oldPattern`).
-const tagPattern = String.raw`<novadeck-doorbell ring=["']([A-Za-z0-9]+)["'] from=["'][A-Za-z0-9_ -]*["']/>`
+// handles (`novadeck` for Novadeck's own notices), a few and then a count, and `ring`, the
+// nonce, comes last, so a box too short for the line still shows it at the end. A task's start
+// prompt (`startLine`) quotes its attributes with `'`, so a shell's double quotes can hold it.
+// Readers also take `ring` first, and the old bracket line of sessions from before the tag
+// (`oldPattern`), which transcripts of existing and resumed sessions hold.
+const fromClass = String.raw`[A-Za-z0-9_ +-]*`
+const tagPatterns = [
+  String.raw`<novadeck-doorbell from=["']${fromClass}["'] ring=["']([A-Za-z0-9]+)["']/>`,
+  String.raw`<novadeck-doorbell ring=["']([A-Za-z0-9]+)["'] from=["']${fromClass}["']/>`,
+]
 const oldPattern = String.raw`\[Novadeck: automatic notice, agent messages waiting, ([A-Za-z0-9]+)\]`
 
-/** The senders' handles a line names: bare, in order, each once (anything else is dropped). */
-const handlesOf = (from: readonly string[]): string =>
-  [...new Set(from.filter((handle) => /^[A-Za-z0-9_-]+$/.test(handle)))].join(" ")
+/** How many senders' handles a line names before it counts the rest. */
+export const namedSenders = 3
 
 /**
- * The line Novadeck's doorbell types, with its nonce and the bare handles of the senders of
- * the messages waiting, in delivery order (see docs/agent-messaging.md).
+ * The senders' handles a line names: bare, in delivery order, each once (anything else is
+ * dropped), the first few and then `+N` for the N others. `novadeck` stays among those named,
+ * in place of the last, where notices wait.
+ */
+const handlesOf = (from: readonly string[]): string => {
+  const all = [...new Set(from.filter((handle) => /^[A-Za-z0-9_-]+$/.test(handle)))]
+  if (all.length <= namedSenders) return all.join(" ")
+  const named = all.slice(0, namedSenders)
+  if (all.includes("novadeck") && !named.includes("novadeck")) named[namedSenders - 1] = "novadeck"
+  return `${named.join(" ")} +${all.length - namedSenders}`
+}
+
+/**
+ * The line Novadeck's doorbell types, with the bare handles of the senders of the messages
+ * waiting, in delivery order, and its nonce last (see docs/agent-messaging.md).
  */
 export const doorbellLine = (nonce: string, from: readonly string[] = []): string =>
-  `<novadeck-doorbell ring="${nonce}" from="${handlesOf(from)}"/>`
+  `<novadeck-doorbell from="${handlesOf(from)}" ring="${nonce}"/>`
 
 /**
  * The doorbell line a task's start prompt is: the same tag with `'` for its quotes, so a
  * command line can hold it in double quotes in every shell (`quotedLine`).
  */
-export const startLine = (nonce: string): string => `<novadeck-doorbell ring='${nonce}' from=''/>`
+export const startLine = (nonce: string): string => `<novadeck-doorbell from='' ring='${nonce}'/>`
 
-// The reply line is the person's Inbox replies as typed prompt text in one element, its nonce
-// in the opening tag and again in a tag after the element, so a line left in the box is told
-// apart from text typed after it, and a box showing only its end still names its ring.
-const replyPattern = String.raw`<novadeck-reply ring="([A-Za-z0-9]+)">[^\n<]*</novadeck-reply><novadeck-end ring="\1"/>`
+// The reply line is the person's Inbox replies as typed prompt text in one element, then a
+// tag naming its ring: so a line left in the box is told apart from text typed after it, and
+// a box showing only its end still names the ring. Words hold no `<`, so none can close the
+// element or fake the end tag.
+const replyPattern = String.raw`<novadeck-reply>[^\n<]*</novadeck-reply><end ring="([A-Za-z0-9]+)"/>`
 const oldReplyPattern = String.raw`\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] [^\n]*? \[\1\]`
 
 // A whole prompt that is a line of a form, its nonce captured.
-const bellForms = [tagPattern, oldPattern].map((source) => new RegExp(`^${source}$`))
+const bellForms = [...tagPatterns, oldPattern].map((source) => new RegExp(`^${source}$`))
 const replyForms = [replyPattern, oldReplyPattern].map((source) => new RegExp(`^${source}$`))
 
-/** Any doorbell line, of either form, wherever it is. */
-export const doorbell = new RegExp(`${tagPattern}|${oldPattern}`, "g")
+// The same forms as a box reader gives a line wrapped over rows, whitespace compacted away.
+const compactForms = [...tagPatterns, oldPattern, replyPattern, oldReplyPattern].map(
+  (source) => new RegExp(`^${source.replaceAll(" ", "")}$`),
+)
+
+/** Any doorbell line, of any form, wherever it is. */
+export const doorbell = new RegExp([...tagPatterns, oldPattern].join("|"), "g")
 
 /** Any reply line, of either form, wherever it is (a backreference per form). */
 export const replyDoorbell = new RegExp(
@@ -82,9 +106,10 @@ const unfit = new RegExp(
 
 /**
  * Text as one line that no harness treats specially and no one can read as the line's own
- * frame: whitespace runs one space, `@` and `$` (Claude Code attaches an `@path`, Codex
- * opens a picker on either) and `&` full-width, and brackets and angle brackets as
- * parentheses, so no text opens or closes a tag, or shows an old line's head or closing nonce.
+ * frame: whitespace runs one space; `@` and `$` (Claude Code attaches an `@path`, Codex
+ * opens a picker on either), `&`, `<` and `>` full-width, so the text opens or closes no tag
+ * and keeps its meaning (`a ＞ b`); and brackets as parentheses, so no text shows an old line's
+ * head or closing nonce.
  */
 const inline = (text: string): string =>
   text
@@ -93,8 +118,8 @@ const inline = (text: string): string =>
     .replaceAll("$", "＄")
     .replaceAll("[", "(")
     .replaceAll("]", ")")
-    .replaceAll("<", "(")
-    .replaceAll(">", ")")
+    .replaceAll("<", "＜")
+    .replaceAll(">", "＞")
     .replaceAll("&", "＆")
     .trim()
 
@@ -160,8 +185,7 @@ export const replyLine = (
   ])
   if (fields.some((field) => unfit.test(field))) return undefined
   const body = replies.map(replyPhrase).join(" | ")
-  const line = (nonce: string) =>
-    `<novadeck-reply ring="${nonce}">${body}</novadeck-reply><novadeck-end ring="${nonce}"/>`
+  const line = (nonce: string) => `<novadeck-reply>${body}</novadeck-reply><end ring="${nonce}"/>`
   // Whether they fit is told by a nonce as long as the typist's (`freshNonce`).
   if ([...line("x".repeat(nonceLength))].length > maxReplyLine) return undefined
   return line
@@ -205,7 +229,7 @@ export const withoutDoorbell = (prompt: string): string =>
     .trim()
 
 // The most rows a wrapped line is looked for over (a reply line at a narrow width).
-const rows = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+const maxRows = 32
 
 /**
  * Words given back from the box without the doorbell and reply lines among them: a line of
@@ -215,11 +239,20 @@ export const withoutDoorbellLines = (words: string): string => {
   const kept: string[] = []
   const lines = words.split("\n")
   for (let at = 0; at < lines.length;) {
-    // A box wraps a long line over rows, which come back as lines: where it broke at a space
-    // or inside a word, so the rows are joined with a space and without.
-    const span = rows.find((count) =>
-      [" ", ""].some((glue) => doorbellNonce(lines.slice(at, at + count).join(glue)) !== undefined),
-    )
+    // A box wraps a long line over rows, which come back as lines, some broken at a space and
+    // some inside a word: the rows read together with their whitespace compacted away, as
+    // the box's own leftover is (`compact`).
+    let span: number | undefined
+    for (let count = 1; count <= maxRows && at + count <= lines.length; count += 1) {
+      const text = lines
+        .slice(at, at + count)
+        .join("")
+        .replace(/\s+/g, "")
+      if (compactForms.some((form) => form.test(text))) {
+        span = count
+        break
+      }
+    }
     if (span === undefined) kept.push(lines[at]!)
     at += span ?? 1
   }

@@ -502,7 +502,7 @@ describe("the launch demo", () => {
     const first = await backend.conversations!.conversation(key(launch.asking)).getSnapshot()
     expect(first.items[0]).toMatchObject({
       role: "user",
-      text: expect.stringContaining("<novadeck-doorbell ring="),
+      text: expect.stringContaining("<novadeck-doorbell from="),
     })
   })
 

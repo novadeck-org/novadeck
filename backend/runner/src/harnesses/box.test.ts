@@ -534,8 +534,8 @@ const blanks = (count: number): readonly string[] => Array.from({ length: count 
 // A paste that landed anywhere but the box: the line's end shows, and the box stays as it was,
 // so none of them takes that end for the line (`tailOf`, in place of the paste check's far rows).
 describe("the end of a line outside the box", () => {
-  const line = `<novadeck-reply ring="n7Q2">${"and say so in the changelog ".repeat(10)}</novadeck-reply><novadeck-end ring="n7Q2"/>`
-  const end = '</novadeck-reply><novadeck-end ring="n7Q2"/>'
+  const line = `<novadeck-reply>${"and say so in the changelog ".repeat(10)}</novadeck-reply><end ring="n7Q2"/>`
+  const end = '</novadeck-reply><end ring="n7Q2"/>'
   const rule = "─".repeat(40)
   it.each([
     ["claude", claude, [end, "", rule, "❯ ", rule, "  footer", ...blanks(8)], 3],
@@ -908,7 +908,7 @@ describe("what ticks by itself while background work runs", () => {
       "background-prompt.probe.json",
     )
     const before = screens["1 stopped, work running"]!.rows
-    const line = '<novadeck-doorbell ring="ABCDEF" from="moth"/>'
+    const line = '<novadeck-doorbell from="moth" ring="ABCDEF"/>'
     // The box takes the line, the panel redraws its time, the footer's hint goes.
     const after = before.map((row, at) =>
       at === 18

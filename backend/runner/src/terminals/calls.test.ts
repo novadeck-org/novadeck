@@ -187,7 +187,7 @@ describe("the open call", () => {
     }
   }
 
-  const line = /^claude "<novadeck-doorbell ring='[A-Za-z0-9]{6}' from=''\/>"$/
+  const line = /^claude "<novadeck-doorbell from='' ring='[A-Za-z0-9]{6}'\/>"$/
 
   it("starts an agent at its prompt without a message, unled unless asked to lead it", async () => {
     const plain = setup()

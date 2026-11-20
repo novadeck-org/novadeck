@@ -40,8 +40,17 @@ describe("the line a failed ring left in a box", () => {
     expect(leftoverNonce(`${line} and then`)).toBeUndefined()
     expect(leftoverNonce(`${line}${reply("k3f9")}`)).toBeUndefined()
     expect(leftoverNonce(`${reply("k3f9")} ${doorbellLine("n7Q2")}`)).toBeUndefined()
-    // Another ring's end closes nothing.
-    expect(leftoverNonce(line.replace('end ring="n7Q2"', 'end ring="k3f9"'))).toBeUndefined()
+    // Text typed before it is no leftover either.
+    expect(leftoverNonce(`typed ${line}`)).toBeUndefined()
+  })
+
+  it("is the doorbell tag's end alone when a box is too short for its head, its nonce last", () => {
+    const line = doorbellLine("n7Q2", ["newtz", "hushz"])
+    expect(closingNonce(line.slice(-14))).toBe("n7Q2")
+    expect(closingNonce('hz" ring="n7Q2"/>')).toBe("n7Q2")
+    expect(closingNonce(`${line.slice(-14)} typed after`)).toBeUndefined()
+    // As an earlier build typed it, `ring` first, the end is the `from`.
+    expect(closingNonce('<novadeck-doorbell ring="n7Q2" from="moth"/>')).toBe("n7Q2")
   })
 
   it("is the reply line's end alone when a box is too short for its head", () => {
@@ -52,10 +61,10 @@ describe("the line a failed ring left in a box", () => {
 
   it("holds a ring's line beside the person's words, a reply line, or the plain tag", () => {
     expect(holdsRingLine(`my words ${doorbellLine("n7Q2")}`)).toBe(true)
-    expect(holdsRingLine('my words <novadeck-reply ring="n7Q2">Re')).toBe(true)
+    expect(holdsRingLine("my words <novadeck-reply>Re")).toBe(true)
     expect(holdsRingLine("my words about <novadeck-doorbell>")).toBe(false)
     expect(ringNotice(doorbellLine("n7Q2"))).toBe(true)
     expect(replyLeftover(doorbellLine("n7Q2"))).toBe(false)
-    expect(replyLeftover('<novadeck-reply ring="n7Q2">Re')).toBe(true)
+    expect(replyLeftover("<novadeck-reply>Re")).toBe(true)
   })
 })

@@ -249,7 +249,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           // Too large once escaped where delivered: refused before anything starts.
           openAgent({ agent: "codex", message: "&".repeat(4_000) }),
         ])) as { ok: boolean; text?: string }[]
-        const line = /^<novadeck-doorbell ring='[A-Za-z0-9]{6}' from=''\/>$/
+        const line = /^<novadeck-doorbell from='' ring='[A-Za-z0-9]{6}'\/>$/
         expect(requests.map(({ command }) => command)).toEqual([
           expect.stringMatching(quoted("claude")),
           expect.stringMatching(quoted("codex")),
@@ -394,7 +394,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           openAgent({ agent: "claude", effort: "low", ...task }),
           openAgent({ agent: "agy", model: "sonnet", effort: "low", ...task }),
         ])) as { ok: boolean; reason?: string }[]
-        const line = `"<novadeck-doorbell ring='[A-Za-z0-9]{6}' from=''/>"`
+        const line = `"<novadeck-doorbell from='' ring='[A-Za-z0-9]{6}'/>"`
         expect(requests.map(({ command }) => command)).toEqual([
           expect.stringMatching(new RegExp(`^claude --model opus --effort max ${line}$`)),
           expect.stringMatching(

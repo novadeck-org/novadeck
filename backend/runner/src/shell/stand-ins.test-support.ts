@@ -20,7 +20,7 @@ import { bash, type Fixture, create, toolCall } from "./integration.test-support
 
 // A command starting an agent with a doorbell line as its prompt.
 export const quoted = (start: string) =>
-  new RegExp(`^${start} "<novadeck-doorbell ring='[A-Za-z0-9]{6}' from=''/>"$`)
+  new RegExp(`^${start} "<novadeck-doorbell from='' ring='[A-Za-z0-9]{6}'/>"$`)
 
 // A stand-in agent with Novadeck's plugin connected: `agent <name> <session> <steps>` runs
 // the real hook for its SessionStart, says it is ready, then runs each step written to its
@@ -619,6 +619,8 @@ export const ringing = async (
   return {
     manager,
     idle,
+    // The handle of the terminal that sends: the one a ring's line names.
+    from: manager.get(sender.id).handle,
     type,
     received: () => lines<{ prompt: string; printed: string; picked?: true }>(received),
     // What the TUI got, after its first prompt.

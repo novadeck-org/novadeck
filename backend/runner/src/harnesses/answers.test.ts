@@ -140,7 +140,7 @@ describe("a doorbell prompt", () => {
     expect(doorbellNonce("[Novadeck: automatic notice, agent messages waiting, k3f9q2]")).toBe(
       "k3f9q2",
     )
-    expect(doorbellNonce(`<novadeck-doorbell ring="k3f9q2" from="moth newtz"/>`)).toBe("k3f9q2")
+    expect(doorbellNonce(`<novadeck-doorbell from="moth newtz" ring="k3f9q2"/>`)).toBe("k3f9q2")
     expect(promptStart(base, bell)).toEqual({
       type: "turn-started",
       ...base,

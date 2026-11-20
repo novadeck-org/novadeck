@@ -69,7 +69,7 @@ const inboxLead = {
 } as const
 
 const leadDrafts: readonly DemoDraft[] = [
-  user("<novadeck-doorbell ring='Q7mT2c' from=''/>"),
+  user("<novadeck-doorbell from='' ring='Q7mT2c'/>"),
   bash("toolu_i61", "pnpm bench ping-lag --runs 40"),
   got("toolu_i61", "warming up…\nping-lag: p50 12 ms, p95 31 ms\n40 runs"),
   use(

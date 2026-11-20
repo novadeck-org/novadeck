@@ -82,7 +82,7 @@ describe("a typed prompt where hooks name none", () => {
     // The same for the tag's senders, a task's start prompt, and the bracket line of before.
     const forms = [
       doorbellLine("k3f9q2", ["moth", "novadeck"]),
-      "<novadeck-doorbell ring='k3f9q2' from=''/>",
+      "<novadeck-doorbell from='' ring='k3f9q2'/>",
       "[Novadeck: automatic notice, agent messages waiting, k3f9q2]",
     ]
     const results = await Promise.all(forms.map((text) => told(entry(text, 12))))

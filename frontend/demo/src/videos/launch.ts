@@ -446,7 +446,7 @@ export const launchTranscripts = (now: number): Readonly<Record<string, DemoTran
 // A teammate's agent starts on Novadeck's doorbell notice, which it answers by reading the brief
 // its lead sent it: the person never typed its task.
 const noticeOf = (number: number): string =>
-  `<novadeck-doorbell ring='${["Q7mT2c", "R4kW9x", "H2nB6p"][number - jobs.length - 1]}' from=''/>`
+  `<novadeck-doorbell from='' ring='${["Q7mT2c", "R4kW9x", "H2nB6p"][number - jobs.length - 1]}'/>`
 const promptOf = (number: number, job: Job): string =>
   number > jobs.length ? noticeOf(number) : job.ask
 

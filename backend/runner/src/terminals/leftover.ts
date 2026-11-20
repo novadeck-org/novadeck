@@ -1,15 +1,17 @@
 import { compact } from "@novadeck/tui-input/box"
 
 // The forms of a ring's line as a box reader gives it, whitespace compacted away
-// (`@novadeck/tui-input/box`): a tag, or the bracket line of before it (a session may still
-// hold one). The quote of a tag's attributes is `"` as typed, or `'` as a task's start prompt.
+// (`@novadeck/tui-input/box`): a tag (`ring` last, or first as an earlier build typed it), or
+// the bracket line of before the tag (a session may still hold one). The quote of a tag's
+// attributes is `"` as typed, or `'` as a task's start prompt.
 const forms = {
   bell: [
-    /^<novadeck-doorbellring=["']([A-Za-z0-9]+)["']from=["'][A-Za-z0-9_-]*["']\/>$/,
+    /^<novadeck-doorbellfrom=["'][A-Za-z0-9_+-]*["']ring=["']([A-Za-z0-9]+)["']\/>$/,
+    /^<novadeck-doorbellring=["']([A-Za-z0-9]+)["']from=["'][A-Za-z0-9_+-]*["']\/>$/,
     /^\[Novadeck:automaticnotice,agentmessageswaiting,([A-Za-z0-9]+)\]$/,
   ],
   reply: [
-    /^<novadeck-replyring="([A-Za-z0-9]+)">[^<]*<\/novadeck-reply><novadeck-endring="\1"\/>$/,
+    /^<novadeck-reply>[^<]*<\/novadeck-reply><endring="([A-Za-z0-9]+)"\/>$/,
     /^\[NovadeckInboxreply,([A-Za-z0-9]+)\](?:(?!\[NovadeckInboxreply,).)*\[\1\]$/,
   ],
 }
@@ -33,9 +35,8 @@ export const leftoverNonce = (text: string): string | undefined => {
 export const closingNonce = (text: string): string | undefined => {
   const box = compact(text)
   return (
-    /<novadeck-(?:end|doorbell)ring=["']([A-Za-z0-9]+)["'](?:from=["'][A-Za-z0-9_-]*["'])?\/>$/.exec(
-      box,
-    )?.[1] ?? /[,[]([A-Za-z0-9]+)\]$/.exec(box)?.[1]
+    /ring=["']([A-Za-z0-9]+)["'](?:from=["'][A-Za-z0-9_+-]*["'])?\/>$/.exec(box)?.[1] ??
+    /[,[]([A-Za-z0-9]+)\]$/.exec(box)?.[1]
   )
 }
 
@@ -44,7 +45,7 @@ export const closingNonce = (text: string): string | undefined => {
  * a ring's own line is never to be handed to the person as their words.
  */
 export const holdsRingLine = (text: string): boolean =>
-  /<novadeck-doorbellring=|<novadeck-replyring=|\[Novadeck:automaticnotice,agentmessageswaiting,|\[NovadeckInboxreply,/.test(
+  /<novadeck-doorbell(?:from|ring)=|<novadeck-reply>|\[Novadeck:automaticnotice,agentmessageswaiting,|\[NovadeckInboxreply,/.test(
     compact(text),
   )
 
@@ -57,4 +58,4 @@ export const ringNotice = (text: string): boolean =>
 
 /** Whether a box's text is a reply line rather than the plain doorbell line. */
 export const replyLeftover = (text: string): boolean =>
-  /^(?:<novadeck-replyring=|\[NovadeckInboxreply,)/.test(compact(text))
+  /^(?:<novadeck-reply>|\[NovadeckInboxreply,)/.test(compact(text))

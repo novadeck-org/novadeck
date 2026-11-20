@@ -45,13 +45,15 @@ const maxResult = 80
 // Lines Novadeck types into the agent for itself: its doorbell, plain or with the person's
 // Inbox replies (which `answersOf` gives), and what hooks give back as a prompt (Codex's
 // `<hook_prompt>`, a delivery of agents' messages). Never the person's own prompt.
-// Both forms: the tag, and the bracket lines of sessions from before it.
+// Every form: the tag (`ring` last, or first as an earlier build typed it), the reply tag, and the
+// bracket lines of sessions from before them.
 const doorbell = new RegExp(
   [
-    String.raw`<novadeck-doorbell ring=["'][A-Za-z0-9]+["'] from=["'][A-Za-z0-9_ -]*["']/>`,
-    String.raw`<novadeck-reply ring="([A-Za-z0-9]+)">[^\n<]*</novadeck-reply><novadeck-end ring="\1"/>`,
+    String.raw`<novadeck-doorbell from=["'][A-Za-z0-9_ +-]*["'] ring=["'][A-Za-z0-9]+["']/>`,
+    String.raw`<novadeck-doorbell ring=["'][A-Za-z0-9]+["'] from=["'][A-Za-z0-9_ +-]*["']/>`,
+    String.raw`<novadeck-reply>[^\n<]*</novadeck-reply><end ring="[A-Za-z0-9]+"/>`,
     String.raw`\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]`,
-    String.raw`\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] [^\n]*? \[\2\]`,
+    String.raw`\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] [^\n]*? \[\1\]`,
   ].join("|"),
   "g",
 )
