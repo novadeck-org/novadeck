@@ -774,6 +774,19 @@ the worker needs the person to approve, they give in its own terminal or through
 answer there. A text longer than 4 KB is refused by the MCP server itself, before it
 reaches the runner.
 
+"Agent" and "team" mean something in every harness: Claude Code has subagents and agent teams,
+Codex its agents, Antigravity subagents and a swarm. Novadeck settles what they mean here
+(`agentsHere` in `shell/mcp.ts`, in the server's instructions and in `open_agent`'s and `team`'s
+descriptions, which are what Codex and Antigravity read): an agent the person asks for is one in
+its own Novadeck terminal, started with `open_agent`, unless they ask for a subagent; a team is a
+lead and the agents in the Novadeck terminals it leads; and subagents an agent starts within its
+own turn stay its own to use for its own work, and are never a team. It defines the words rather
+than forbid the harnesses' own features. In blind tabletop probes (Opus, Sonnet and Sol, three
+runs each, plus Antigravity), "make a team of three to review this PR" went from a harness's own
+agent team in 4 of 9 runs to a Novadeck team in all 9, and "have another agent double-check your
+diff" from a subagent in 9 of 9 to a Novadeck agent in 8, while "use a subagent to…" stayed a
+subagent and "find every caller… use agents if it speeds things up" stayed the agent's own work.
+
 `open_agent({ agent, message?, model?, effort?, lead?, resume?, cwd?, title?, focus? })`
 opens a terminal running that agent. Without `message` the agent just starts at its prompt;
 with it, `message` is its first task (see [Starting a task](#starting-a-task)). The caller
