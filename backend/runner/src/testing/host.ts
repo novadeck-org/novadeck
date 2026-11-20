@@ -1,18 +1,35 @@
 import { join } from "node:path"
 
-// What an agent session or a Novadeck terminal sets in the environment of everything run in
-// it: a test run inside one, as a developer's often is, must not hand them on to a shim, a
-// hook or a stand-in, which would read the developer's own terminal and session as theirs.
-// Claude Code's path to Git for Windows' bash is the machine's, not a session's.
-const session =
-  /^(?:NOVADECK_.*|CLAUDECODE|CLAUDE_PID|CLAUDE_CONFIG_DIR|CLAUDE_EFFORT|CLAUDE_CODE_(?!GIT_BASH_PATH$).*|CODEX_.*|CURSOR_VERSION)$/
+import { hookVariables } from "../shell/hook.js"
+import { inherited } from "../shell/inherited.js"
 
-/** Whether an environment variable is one an agent session or a Novadeck terminal set. */
-export const sessionVariable = (name: string): boolean => session.test(name)
+/**
+ * What a Novadeck terminal or an agent session sets in the environment of everything run in
+ * it, which a test run inside one, as a developer's often is, must not hand on to a shim, a
+ * hook or a stand-in: they would read the developer's own terminal and session as theirs.
+ * Those Novadeck itself keeps from what it starts (`inherited`), what its relay reads of a hook's
+ * agent (`hookVariables`), and the harnesses' config homes, which would point a stand-in at the
+ * developer's own.
+ */
+export const hostVariables: readonly string[] = [
+  ...new Set([...inherited, ...hookVariables, "CODEX_HOME", "CLAUDE_CONFIG_DIR"]),
+]
+
+/**
+ * Whether an environment variable is one of `hostVariables`. On Windows names have no case,
+ * as `stripInherited` takes them.
+ */
+export const sessionVariable = (
+  name: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean =>
+  platform === "win32"
+    ? hostVariables.some((each) => each.toUpperCase() === name.toUpperCase())
+    : hostVariables.includes(name)
 
 /**
  * The environment a test's child runs in: this process's, less what the developer's own
- * agent session or Novadeck terminal set, with `env` over it.
+ * agent session or Novadeck terminal set (`hostVariables`), with `env` over it.
  */
 export const hostless = (env: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({
   ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !sessionVariable(name))),

@@ -77,6 +77,10 @@ const shimTest = (pwsh: boolean) =>
         const options = {
           env: hostless({
             PATH: [paths.bin, real, process.env.PATH].join(delimiter),
+            // A home of its own: the shim reads `~/.codex/config.toml`, and the developer's
+            // own would change what it passes on.
+            HOME: join(root, "home"),
+            USERPROFILE: join(root, "home"),
             NOVADECK_TERMINAL_ID: "00000000-0000-4000-8000-000000000001",
             NOVADECK_SHIMS: "claude codex",
             ...env,
