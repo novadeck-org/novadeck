@@ -234,6 +234,15 @@ jobs:
           TAG: ${{ needs.verify.outputs.tag }}
         run: |
           set -euo pipefail
+          # A rerun of an old promotion's jobs (to write notes it went without) keeps Verify's
+          # first answer, so this asks again: a newer stable release than the tag stays latest,
+          # or every install would update back to the old one.
+          current="$(gh api "repos/$GH_REPO/releases/latest" --jq .tag_name 2> /dev/null || true)"
+          if [[ -n "$current" && "$current" != "$TAG" \
+            && "$(printf '%s\n%s\n' "$current" "$TAG" | sort -V | tail -n 1)" == "$current" ]]; then
+            echo "::error::$current is stable now, newer than $TAG, so $TAG stays as it is."
+            exit 1
+          fi
           gh release edit "$TAG" --prerelease=false --latest
           echo "Release $TAG is now the stable release." | tee -a "$GITHUB_STEP_SUMMARY"
 

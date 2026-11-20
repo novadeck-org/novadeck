@@ -392,6 +392,19 @@ describe("the notes of a promotion", () => {
     expect(first.ranges).toEqual(["..v0.0.152"])
   })
 
+  it("starts from the newest stable release before it, past tags without a release", async () => {
+    const rerun = fakeSources({
+      tags,
+      stable: "v0.0.152",
+      stables: ["v0.0.152", "v0.0.150", "v0.0.148"],
+      commits: { "v0.0.150..v0.0.152": [commit(195), commit(330)] },
+      // v0.0.151 has no release at all.
+      bodies: { "v0.0.152": releaseBody, "v0.0.150": "", "v0.0.149": "", "v0.0.148": "" },
+    })
+    await generatePromote("v0.0.152", rerun, answer(picked), repo)
+    expect(rerun.ranges).toEqual(["v0.0.150..v0.0.152"])
+  })
+
   it("won't promote a release that is not newer than the stable one", async () => {
     await expect(generatePromote("v0.0.150", sources("v0.0.152"), never, repo)).rejects.toThrow(
       /not newer/,
