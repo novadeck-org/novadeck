@@ -821,8 +821,8 @@ worktree as the person asks, through the worktrees service: it answers `{ closed
 and with the worktree holding uncommitted files or commits main lacks (squash- and rebase-merged
 work does not count, also once main has changed its files again), `{ closed: false, holds }` for the person to confirm before `force`. It
 refuses with `CONFLICT` and the reason while its owner's agent is working in it (checked afresh in
-the service's queue), when git status can't be read or the worktree has submodules (even with
-`force`), and answers `NOT_FOUND` for a root that is no work. A work that is `safe` (below) closes unforced
+the service's queue), when git status can't be read, the worktree has submodules, or it holds an
+untracked git repository of its own with work no remote has (even with `force`), and answers `NOT_FOUND` for a root that is no work. A work that is `safe` (below) closes unforced
 without that question, as it was read afresh just before the removal (an uncommitted file made since
 still asks); the agent-facing `close_worktree` is unchanged. These work with the Experimental switch off.
 

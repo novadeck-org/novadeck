@@ -214,18 +214,55 @@ export const hasSubmodules = async (path: string): Promise<boolean | undefined> 
  * The untracked folders of the worktree that are git repositories of their own, at any depth (an
  * agent's clone of a library, say), which git lists as folders and never looks into: a commit
  * keeps one only as a gitlink, a hash with none of its files or commits. Ignored ones are not
- * looked for, as ignored files are never kept. Undefined where git couldn't list them.
+ * looked for, as ignored files are never kept. Only those folders are kept as git lists every
+ * untracked file, so `cap` bounds them alone, however many files there are. Undefined where git
+ * couldn't list them.
  */
-export const nestedRepositories = async (path: string): Promise<readonly string[] | undefined> => {
+export const nestedRepositories = async (
+  path: string,
+  cap = listing.cap,
+): Promise<readonly string[] | undefined> => {
   const run = await git(path, ["ls-files", "--others", "--exclude-standard", "-z"], {
-    ...listing,
+    cap,
     ms: statusMs,
+    entries: (name) => name.endsWith("/"),
   })
   if (!run.ok) return undefined
   return run.out
     .split("\0")
     .filter((name) => name.endsWith("/"))
     .map((name) => name.slice(0, -1))
+}
+
+/**
+ * What a repository nested in a worktree holds that a removal would lose, in a few words, or
+ * undefined where it holds nothing of its own: no uncommitted or untracked file (ignored ones go,
+ * as everywhere), no stash, no submodule checked out, and every commit of its HEAD and its local
+ * branches on one of its remote-tracking branches, as last fetched. Where git can't tell, it is
+ * "what Novadeck couldn't read", and the repository counts as holding work.
+ */
+export const nestedWork = async (path: string): Promise<string | undefined> => {
+  const status = await git(path, ["status", "--porcelain=v1", "--untracked-files=normal", "-z"], {
+    ...small,
+    ms: statusMs,
+  })
+  if (!status.ok) return "what Novadeck couldn't read"
+  if (status.out !== "") return "uncommitted or untracked files"
+  const stash = await git(path, ["rev-parse", "--verify", "-q", "refs/stash"], patient)
+  if (stash.ok) return "a stash"
+  if (!(stash.kind === "exit" && stash.status === 1)) return "what Novadeck couldn't read"
+  const submodules = await hasSubmodules(path)
+  if (submodules !== false)
+    return submodules ? "submodules checked out" : "what Novadeck couldn't read"
+  const head = await git(path, ["rev-parse", "--verify", "-q", "HEAD"], patient)
+  if (!head.ok && !(head.kind === "exit" && head.status === 1)) return "what Novadeck couldn't read"
+  // A repository with no commit yet, and nothing in it, holds nothing.
+  const from = head.ok ? ["HEAD", "--branches"] : ["--branches"]
+  const unpushed = line(
+    await git(path, ["rev-list", "--count", ...from, "--not", "--remotes"], patient),
+  )
+  if (unpushed === undefined) return "what Novadeck couldn't read"
+  return unpushed === "0" ? undefined : "commits no remote has"
 }
 
 /**

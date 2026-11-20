@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -11,6 +11,33 @@ describe("how long a change waits to be read again", () => {
     expect(waitAfter(1000, 2000)).toBe(2000)
     expect(waitAfter(1500, 2000)).toBe(6000)
     expect(waitAfter(60_000, 2000)).toBe(15_000)
+  })
+})
+
+describe("a git run that keeps only some of its entries", () => {
+  it("reads past its cap whatever it doesn't keep, entries split across reads included", async () => {
+    const folder = mkdtempSync(join(tmpdir(), "novadeck-entries-"))
+    try {
+      expect((await git(folder, ["init", "--quiet"], { cap: 1024 })).ok).toBe(true)
+      // Far more than one read of output, and far more than the cap: about 300 KiB of names.
+      const names = Array.from({ length: 6000 }, (_, index) => `a-long-artifact-name-${index}.o`)
+      mkdirSync(join(folder, "out"))
+      for (const name of names) writeFileSync(join(folder, "out", name), "")
+      const listed = ["ls-files", "--others", "-z"]
+      expect(await git(folder, listed, { cap: 1024 })).toMatchObject({ ok: false, kind: "big" })
+      const kept = await git(folder, listed, {
+        cap: 1024,
+        entries: (name) => /-(?:7|1234|5999)\.o$/.test(name),
+      })
+      if (!kept.ok) throw new Error(kept.said)
+      expect(kept.out.split("\0").filter(Boolean).toSorted()).toEqual([
+        "out/a-long-artifact-name-1234.o",
+        "out/a-long-artifact-name-5999.o",
+        "out/a-long-artifact-name-7.o",
+      ])
+    } finally {
+      rmSync(folder, { recursive: true, force: true })
+    }
   })
 })
 

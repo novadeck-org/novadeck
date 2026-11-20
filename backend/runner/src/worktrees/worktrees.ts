@@ -20,6 +20,7 @@ import {
   keepStrayHead,
   keepWork,
   nestedRepositories,
+  nestedWork,
   removeFolder,
   repositoryAt,
   said,
@@ -651,8 +652,8 @@ export class Worktrees {
    * the branch goes only when Novadeck made it and the main branch holds all of it, and the
    * row goes last. Without `force` it refuses a worktree that holds anything the main branch
    * doesn't, unless it is `safe` (see `closeAt`). Ignored files (such as .env or data) are not kept.
-   * One with submodules, or with an untracked git repository of its own inside, which no ref can
-   * keep, is never removed, forced or not. Run in the queue.
+   * One with submodules, or with an untracked git repository of its own inside that holds work
+   * (`nestedWork`), which no ref can keep, is never removed, forced or not. Run in the queue.
    */
   private async removal(row: WorktreeRecord, force: boolean, safe = false): Promise<Closed> {
     const home = homeOf(row.commonDir)
@@ -685,18 +686,22 @@ export class Worktrees {
               "stays: close it yourself or ask the user.",
       )
     const dirty = standing.dirty > 0
-    // A repository of its own inside, untracked, which no ref can keep: a clean worktree has none.
+    // A repository of its own inside, untracked, which no ref can keep but as a gitlink: it goes
+    // only where it holds nothing a remote lacks. A clean worktree has none.
     const nested = dirty ? await nestedRepositories(row.path) : []
     if (nested === undefined)
       return refused(
         "Novadeck couldn't tell whether the worktree holds a git repository of its own, so it stays.",
       )
-    if (nested.length > 0)
-      return refused(
-        `The worktree holds ${nested.length === 1 ? "a git repository" : "git repositories"} of ` +
-          `its own, not tracked (${nested.slice(0, 3).join(", ")}${nested.length > 3 ? ", …" : ""}), ` +
-          "whose files and commits Novadeck can't keep, so it stays, even with force.",
-      )
+    for (const each of nested) {
+      // eslint-disable-next-line no-await-in-loop -- One repository at a time.
+      const work = await nestedWork(join(row.path, each))
+      if (work !== undefined)
+        return refused(
+          `The worktree holds a git repository of its own, not tracked, at ${each}, with ${work}: ` +
+            "Novadeck can't keep its files and commits, so the worktree stays, even with force.",
+        )
+    }
     // A safe one's commits are merged or kept on its remote: main lacking them asks nothing.
     // What it holds uncommitted still does, as it may have changed since it was read safe.
     const unmerged = !standing.inMain && !safe
@@ -757,8 +762,8 @@ export class Worktrees {
 
   /**
    * Removes all of a project's worktrees, keeping what isn't safe elsewhere, before its rows
-   * go. One git couldn't read, or that has submodules or an untracked git repository of its own,
-   * stays on disk (its row goes with the project), and is logged.
+   * go. One git couldn't read, or that has submodules or an untracked git repository of its own
+   * holding work, stays on disk (its row goes with the project), and is logged.
    */
   removeProject(projectId: string): Promise<void> {
     return this.serial(async () => {

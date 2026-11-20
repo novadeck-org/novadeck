@@ -316,6 +316,16 @@ describe("cleaning up when History lets a terminal go", () => {
     expect(f.store.worktree(path)?.terminalId).toBeNull()
   })
 
+  it("removes a worktree whose nested clone holds nothing its remote lacks", async ({ fx: f }) => {
+    const path = await f.work("reading")
+    // A clone made to read a library: clean, all of it on its origin.
+    git(path, "clone", "--quiet", repository(join(f.repo, ".."), "library"), "library")
+    f.owners.clear()
+    await f.worktrees.ownersPruned(["t1"])
+    expect(existsSync(path)).toBe(false)
+    expect(f.store.worktree(path)).toBeUndefined()
+  })
+
   it("leaves one an agent works in, orphaned", async ({ fx: f }) => {
     const path = await f.work("busy")
     f.busy.add(path)

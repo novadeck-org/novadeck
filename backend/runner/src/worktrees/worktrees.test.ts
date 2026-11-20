@@ -18,7 +18,7 @@ import { describe, expect, it as base } from "../test.js"
 import { withOrigin } from "../testing/origin.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import { fetchTimeoutMs, MainFetcher } from "./fetching.js"
-import { finishRemoval } from "./repo.js"
+import { finishRemoval, nestedRepositories } from "./repo.js"
 import { Worktrees, folderName } from "./worktrees.js"
 
 const git = (cwd: string, ...args: string[]) =>
@@ -954,13 +954,104 @@ describe("closing a worktree", () => {
       ).toMatchObject({
         ok: false,
         reason: expect.stringContaining(
-          "a git repository of its own, not tracked (vendor/deep/lib)",
+          "a git repository of its own, not tracked, at vendor/deep/lib, with uncommitted or untracked files",
         ),
       })
     await f.worktrees.removeProject(f.project)
     expect(readFileSync(join(lib, "more.c"), "utf8")).toBe("more\n")
     expect(git(lib, "log", "-1", "--format=%s")).toBe("fix")
     expect(git(f.repo, "for-each-ref", "refs/novadeck")).toBe("")
+  })
+
+  it("finds a repository deep in an untracked folder among more untracked files than its cap holds", async ({
+    fx: f,
+  }) => {
+    const a = await open(f, "built")
+    if (!a.ok) throw new Error("open")
+    const out = join(a.path, "build", "out")
+    mkdirSync(out, { recursive: true })
+    // Their names alone pass the cap many times over, as a big build's or a dataset's would.
+    for (let index = 0; index < 2000; index += 1)
+      writeFileSync(join(out, `artifact-${index}.o`), "")
+    const lib = join(a.path, "build", "deep", "a", "b")
+    mkdirSync(lib, { recursive: true })
+    git(lib, "init", "--quiet", "-b", "main")
+    expect(await nestedRepositories(a.path, 1024)).toEqual(["build/deep/a/b"])
+  })
+
+  it("removes a worktree whose nested repositories hold nothing a remote lacks, when forced", async ({
+    fx: f,
+  }) => {
+    const a = await open(f, "reading")
+    if (!a.ok) throw new Error("open")
+    // A clone made to read a library: clean, its HEAD and branches on its origin.
+    const library = repository(f.other, "library")
+    git(a.path, "clone", "--quiet", library, join("vendor", "library"))
+    const unforced = await f.worktrees.closeOwned({
+      terminalId: "t1",
+      cwd: f.repo,
+      path: a.path,
+      force: false,
+    })
+    // Unforced it holds an untracked path, as any untracked folder does.
+    expect(unforced).toMatchObject({ ok: false, holds: expect.stringContaining("untracked") })
+    const forced = await f.worktrees.closeOwned({
+      terminalId: "t1",
+      cwd: f.repo,
+      path: a.path,
+      force: true,
+    })
+    expect(forced).toMatchObject({ ok: true })
+    expect(existsSync(a.path)).toBe(false)
+  })
+
+  it("keeps a worktree whose nested repository has a commit, a stash or a branch no remote has, and says which", async ({
+    fx: f,
+  }) => {
+    const library = repository(f.other, "library")
+    const cases: [string, (clone: string) => void, string][] = [
+      [
+        "committed",
+        (clone) => {
+          writeFileSync(join(clone, "fix.c"), "fix\n")
+          git(clone, "add", "-A")
+          git(clone, "commit", "--quiet", "-m", "fix")
+        },
+        "commits no remote has",
+      ],
+      [
+        "stashed",
+        (clone) => {
+          writeFileSync(join(clone, "a.txt"), "changed\n")
+          git(clone, "stash", "--quiet")
+        },
+        "a stash",
+      ],
+      [
+        "branched",
+        (clone) => {
+          git(clone, "checkout", "--quiet", "-b", "side")
+          writeFileSync(join(clone, "side.c"), "side\n")
+          git(clone, "add", "-A")
+          git(clone, "commit", "--quiet", "-m", "side")
+          git(clone, "checkout", "--quiet", "main")
+        },
+        "commits no remote has",
+      ],
+    ]
+    for (const [branch, make, said] of cases) {
+      // eslint-disable-next-line no-await-in-loop -- One worktree after another.
+      const a = await open(f, branch)
+      if (!a.ok) throw new Error("open")
+      const clone = join(a.path, "lib")
+      git(a.path, "clone", "--quiet", library, "lib")
+      make(clone)
+      expect(
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        await f.worktrees.closeOwned({ terminalId: "t1", cwd: f.repo, path: a.path, force: true }),
+      ).toMatchObject({ ok: false, reason: expect.stringContaining(`at lib, with ${said}`) })
+      expect(existsSync(clone)).toBe(true)
+    }
   })
 })
 

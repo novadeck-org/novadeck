@@ -746,7 +746,7 @@ with every safety check again at that time:
   that no terminal's current checkout is the worktree with its agent working or a command running),
   so it can't race an agent's take, give or close; a command run elsewhere with `git -C` into it is
   not seen. The trash button waits while `working`. A refusal (`CONFLICT`, with the service's reason: git
-  status unreadable, submodules, a git repository of its own inside) shows above the list, as does a work that can't be shown; a
+  status unreadable, submodules, a git repository of its own inside that holds work) shows above the list, as does a work that can't be shown; a
   worktree an agent closed meanwhile counts as closed. A work whose owner is closed (in History)
   shows on the selected terminal's bar. With no works the list says what appears there. The panel
   and its rail toggle show only while Preferences → Experimental → Agent worktrees is
@@ -989,9 +989,14 @@ with every safety check again at that time:
     detached HEAD or a stopped rebase reaches at `…-head-<sha>`, then removes the folder. The
     branch goes only if Novadeck created it and the main branch holds all of it. A worktree
     whose status git couldn't read, that has submodules, or that holds an untracked folder which is
-    a git repository of its own (at any depth, as `git ls-files --others --exclude-standard` lists
-    it: a commit could keep it only as a gitlink, none of its files or commits), is never removed,
-    forced or not.
+    a git repository of its own holding work no remote has, is never removed, forced or not. A
+    nested repository is any untracked folder `git ls-files --others --exclude-standard` lists as a
+    folder, at any depth (read as it streams, keeping only those, so a huge untracked tree never
+    passes the listing's cap): a commit could keep one only as a gitlink, none of its files or
+    commits. One holds work unless it is clean (no uncommitted or untracked file), has no stash and
+    no submodule checked out, and every commit of its HEAD and its local branches is on one of its
+    remote-tracking branches as last fetched; anything git can't read counts as work. The refusal
+    names the first that holds work, and what. A clone with nothing to lose goes with the folder.
     The row goes last. A `git worktree remove` that stops partway (on Windows, a file in the
     folder still held for a moment) deletes git's record of the worktree even where the folder
     wouldn't go, so where git's own listing no longer has it, Novadeck deletes what is left
@@ -1021,7 +1026,7 @@ with every safety check again at that time:
     cleanup; a restore also deletes a row but does not), its worktrees are removed with `force`
     semantics: uncommitted work and a detached HEAD are kept on `refs/novadeck/kept/` refs and an
     unmerged branch is kept. If git couldn't read the worktree, it has submodules or a git
-    repository of its own inside, or an agent works in it, the row is orphaned instead, the folder stays, and a warning is logged. Each
+    repository of its own inside that holds work, or an agent works in it, the row is orphaned instead, the folder stays, and a warning is logged. Each
     automatic removal is logged at info level (`worktrees.cleaned`); no agent is told. Cleanup
     runs when a terminal is closed for good (`Terminals.forget`), at the runner's start after the
     reconcile above (which orphans rows whose owner is gone, so a merged one among them goes at
