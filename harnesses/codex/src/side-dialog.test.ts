@@ -4,7 +4,7 @@ import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { describe, expect, it } from "vitest"
 
 import { dialogs } from "./dialogs.js"
-import { rootRows, sideFocused } from "./panes.js"
+import { rootRows, sideFocused, sideToggle } from "./panes.js"
 
 // Probed on 0.170.0 and 0.171.0 (`e2e/probes/codex-side-dialog.e2e.ts`): the root's turn asks an
 // approval with a `/side` conversation open. `permissionSide`: the side opened mid-turn, in focus
@@ -39,9 +39,20 @@ describe("the root's approval beside a /side conversation (0.171.0)", () => {
     const held = wide.permissionSideHeld!
     expect(dialogs.read(held.rows, approval)).toBeUndefined()
     expect(sideFocused(held.rows, held.cursor)).toBe(true)
-    expect(revealed(held)).toBe("\x1f")
-    // Nothing on the screen alone says so: the cursor does.
-    expect(dialogs.reveal?.(held.rows)).toBeUndefined()
+    expect(revealed(held)).toBe(sideToggle())
+    // The sidebar's focus hint says so without the cursor, the root's pane drawing none.
+    expect(dialogs.reveal?.(held.rows)).toBe(sideToggle())
+    expect(held.rows.at(-1)).toMatch(/│ {2}← for agents · \? for shortcuts/)
+  })
+
+  it("is told by the cursor in the sidebar's composer where a draft takes the hint away", () => {
+    const { versions: drawn } = loadProbe<{
+      readonly versions: { readonly [version: string]: { readonly [label: string]: ScreenText } }
+    }>(import.meta.dirname, "side.probe.json")
+    const draft = drawn["0.171.0"]!["side draft"]!
+    expect(draft.rows.join("\n")).not.toMatch(/← for agents/)
+    expect(sideFocused(draft.rows, draft.cursor)).toBe(true)
+    expect(sideFocused(draft.rows, undefined)).toBe(false)
   })
 
   it("reads in the root's pane alone, each row going on past the divider into the sidebar", () => {
@@ -85,9 +96,9 @@ describe("the root's approval behind a /side conversation over the whole screen"
     ] as const) {
       expect(screen.rows.join("\n"), version).toMatch(/main needs approval/)
       expect(dialogs.read(screen.rows, approval), version).toBeUndefined()
-      expect(revealed(screen), version).toBe("\x1f")
+      expect(revealed(screen), version).toBe(sideToggle())
       // The footer alone says it, without the cursor.
-      expect(dialogs.reveal?.(screen.rows), version).toBe("\x1f")
+      expect(dialogs.reveal?.(screen.rows), version).toBe(sideToggle())
     }
   })
 
@@ -121,7 +132,7 @@ describe("where Codex leaves a hidden cursor", () => {
   })
 
   it("presses Ctrl-/ at most once for a request, a second press undoing it", () => {
-    expect(dialogs.revealToggles).toEqual(["\x1f"])
+    expect(dialogs.revealToggles).toEqual([sideToggle()])
   })
 })
 
@@ -138,5 +149,17 @@ describe("a side conversation's own approval", () => {
         expect(revealed(held), `${version} ${width}`).toBeUndefined()
       }
     }
+  })
+})
+
+describe("Ctrl-/ as each platform's terminal sends it", () => {
+  it("is 0x1F, which Codex reads as Ctrl-7, its alias for Ctrl-/, on Linux and macOS", () => {
+    expect(sideToggle("linux")).toBe("\x1f")
+    expect(sideToggle("darwin")).toBe("\x1f")
+  })
+
+  it("is a win32-input-mode record of the 7 key with Ctrl, down and up, on Windows", () => {
+    // ConPTY makes a bare 0x1F the - key with Ctrl and Shift, which Codex reads as neither.
+    expect(sideToggle("win32")).toBe("\x1b[55;8;0;1;8;1_\x1b[55;8;0;0;8;1_")
   })
 })

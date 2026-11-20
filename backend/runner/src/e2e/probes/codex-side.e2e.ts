@@ -8,6 +8,7 @@ import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
+import { sideToggle } from "@novadeck/harness-codex/box"
 import { screenRecord } from "@novadeck/harness-core/testing/probes"
 import { isEmpty } from "@novadeck/tui-input/box"
 
@@ -19,7 +20,8 @@ import { probing, sleep } from "./support.js"
 
 const enter = "\r"
 const ctrlC = "\x03"
-const ctrlSlash = "\x1f"
+// As this platform's terminal sends it: a bare 0x1F is no Ctrl-/ to Codex on Windows.
+const ctrlSlash = sideToggle()
 const right = "\x1b[C"
 
 type Step =

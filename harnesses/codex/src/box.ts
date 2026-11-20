@@ -15,6 +15,8 @@ import {
 
 import { paneOf } from "./panes.js"
 
+export { sideToggle } from "./panes.js"
+
 /** The markers leading its box's first row: `›` as a prompt, `!` in its shell mode. */
 const markers: Markers = { prompt: "›", shell: "!" }
 

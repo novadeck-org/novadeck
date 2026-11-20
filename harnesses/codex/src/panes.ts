@@ -109,14 +109,45 @@ const rootWaits =
 const marker = "›"
 
 /**
+ * The hint the pane in focus draws at the foot of its footer while its composer is empty: "←
+ * for agents · ? for shortcuts", "· ^/ for side" after it on the root's beside a kept side
+ * conversation. The other pane draws none (probed 0.171.0 on Linux, 2026-11-20,
+ * fixtures/side.probe.json and side-dialog.probe.json; and on Windows, the screens of #1123's CI
+ * runs), nor does a pane whose dialog is up.
+ */
+const focusHint = /← for agents/
+
+/** Whether the rows of the pane from column `from` to `to` draw the focus hint. */
+const hinted = (rows: readonly string[], from: number, to: number): boolean =>
+  rows.some((row) => focusHint.test(cellSlice(row, from, to)))
+
+/**
+ * The keys of Ctrl-/, which moves the focus between the root and a side conversation: Codex
+ * binds Ctrl-/ and Ctrl-7 to it (`toggle_side_conversation`, `tui/src/keymap.rs`, 0.171.0). A
+ * terminal sends either as 0x1F, which Codex reads as Ctrl-7 on Linux and macOS. On Windows
+ * ConPTY makes that byte a key event of its own (`VkKeyScan`: the `-` key with Ctrl and Shift on
+ * a US layout), which Codex reads as neither (crossterm's `parse_key_event_record` takes a
+ * control character's key from its virtual key), so it never switched there (#1123's Windows
+ * runs). There the keys are a win32-input-mode record, which ConPTY passes on as the key event
+ * it describes: the `7` key (`VK_7`, scan code 8) with Ctrl, down and up, read as Ctrl-7 on any
+ * layout whose `7` key types a 7.
+ */
+export const sideToggle = (platform: NodeJS.Platform = process.platform): string =>
+  platform === "win32" ? `${win32Key(true)}${win32Key(false)}` : "\x1f"
+
+/** A win32-input-mode record (`CSI Vk;Sc;Uc;Kd;Cs;Rc _`) of the `7` key with left Ctrl. */
+const win32Key = (down: boolean): string => `\x1b[55;8;0;${down ? 1 : 0};8;1_`
+
+/**
  * Whether a side conversation has the focus, so the root's dialog is held out of view: in the
  * sidebar, where the root's pane goes on showing what it did before its dialog came and nothing
  * says one waits; or over the whole screen, saying the root waits in its footer. Ctrl-/ moves the
  * focus to the root, which shows its dialog, and does nothing while one shows there (probed
  * 0.170.0 and 0.171.0, 2026-11-20, fixtures/side-dialog.probe.json).
  *
- * The sidebar has the focus only where the cursor is in its composer: right of the divider, on
- * the last of its rows that starts with `›`, past the marker. A cursor merely right of the divider
+ * The sidebar has the focus where it draws the focus hint and the root's pane doesn't, or where
+ * the cursor is in its composer: right of the divider, on the last of its rows that starts with
+ * `›`, past the marker (a draft there takes the hint away). A cursor merely right of the divider
  * says nothing: Codex hides it while the root's dialog is up and leaves it after the last cell it
  * drew, on the sidebar's "Working" row while the side's turn runs (`sideBusyFrames`).
  */
@@ -130,6 +161,8 @@ export const sideFocused = (
       .filter((row) => row.trim() !== "")
       .slice(-3)
       .some((row) => rootWaits.test(row))
+  // The hint, where the sidebar draws it and the root's pane doesn't, needs no cursor.
+  if (hinted(rows, at + 1, Infinity) && !hinted(rows, 0, at)) return true
   if (cursor === undefined || cursor.column <= at + 1) return false
   const composer = rows.findLastIndex((row) => cellSlice(row, at + 1, Infinity).startsWith(marker))
   return composer === cursor.row

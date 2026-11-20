@@ -10,7 +10,7 @@ import { asyncQuestions } from "./async-question-dialog.js"
 import { asyncTool } from "./async-question.js"
 import { clean, composerShown, type Parsed } from "./dialog-screen.js"
 import { elicitation, elicitationRequest } from "./elicitation-dialog.js"
-import { rootRows, sideFocused } from "./panes.js"
+import { rootRows, sideFocused, sideToggle } from "./panes.js"
 import { permission } from "./permission-dialog.js"
 import { plan, planTitle } from "./plan-dialog.js"
 import { questions } from "./question-dialog.js"
@@ -53,7 +53,7 @@ import { questions } from "./question-dialog.js"
  * (`*-dialog.ts`), and `dialog-screen.ts` holds what they share.
  */
 
-const ctrlSlash = "\x1f"
+const ctrlSlash = sideToggle()
 
 // The lines Codex leaves in its history once a dialog is answered.
 const resulted =

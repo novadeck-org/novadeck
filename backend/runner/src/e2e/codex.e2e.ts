@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { sideToggle } from "@novadeck/harness-codex/box"
 import { isEmpty } from "@novadeck/tui-input/box"
 
 import { harnesses } from "../harnesses/registry.js"
@@ -215,7 +216,7 @@ describe.skipIf(!supported)("Codex", () => {
     expect(messages(t1).map((one) => one.state)).toEqual(["queued"])
 
     // Back at the root, the side conversation kept, the person's next prompt carries the message.
-    t1.press("\x1f")
+    t1.press(sideToggle())
     await poll(() => rootInFocus(t1), "the root's empty box in focus")
     await t1.submit("Back at the root")
     const back = await run.model.waitFor((call) => delivered(call, "fox"), { after: calls })

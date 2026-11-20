@@ -12,6 +12,7 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
+import { sideToggle } from "@novadeck/harness-codex/box"
 import { screenRecord } from "@novadeck/harness-core/testing/probes"
 
 import { setups } from "../agents/index.js"
@@ -23,7 +24,8 @@ import { probing, sleep } from "./support.js"
 
 const outDir = process.env.PROBE_OUT ?? join(process.cwd(), "probe-out")
 const setup = setups.find((each) => each.agent === "codex")!
-const ctrlSlash = "\x1f"
+// As this platform's terminal sends it: a bare 0x1F is no Ctrl-/ to Codex on Windows.
+const ctrlSlash = sideToggle()
 
 const calls = {
   permission: {
