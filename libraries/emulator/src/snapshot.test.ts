@@ -143,6 +143,61 @@ describe("a snapshot", () => {
         }
       )._core // eslint-disable-line no-underscore-dangle -- The scroll region isn't in xterm's API.
 
+    it("the scroll region, so lines fed at its bottom scroll only it", async () => {
+      // A status line under a region set once, as tmux keeps one.
+      const draw = "\u001b[1;1Htitle\u001b[5;1Hstatus\u001b[2;4r\u001b[2;1Ha\r\nb\r\nc"
+      const { screen, restored } = await restoredWith(draw, "\u001b[4;1H\r\nd", 20)
+      expect(text(restored)).toBe(text(screen))
+      expect(text(restored)).toBe("title\nb\nc\nd\nstatus")
+      screen.dispose()
+      restored.dispose()
+    })
+
+    it("the scroll region of the alternate screen, and the cursor in it", async () => {
+      const draw = "\u001b[?1049h\u001b[1;1Htitle\u001b[5;1Hstatus\u001b[2;4r\u001b[3;3H"
+      const { screen, restored } = await restoredWith(draw, "\u001b[4;1H\r\nd", 20)
+      expect(restored.buffer.active.type).toBe("alternate")
+      expect(core(restored).buffer).toMatchObject({ scrollTop: 1, scrollBottom: 3 })
+      expect(cursor(restored)).toEqual(cursor(screen))
+      expect(text(restored)).toBe(text(screen))
+      screen.dispose()
+      restored.dispose()
+    })
+
+    it("the cursor's row inside the region, where origin mode counts from its top", async () => {
+      const draw = "\u001b[2;4r\u001b[?6h\u001b[2;3Hx\u001b[2;3H"
+      const { screen, restored } = await restoredWith(draw)
+      expect(readScreen(restored).cursor).toEqual({ row: 2, column: 2 })
+      expect(cursor(restored)).toEqual(cursor(screen))
+      expect(restored.modes.originMode).toBe(true)
+      expect(text(restored)).toBe(text(screen))
+      screen.dispose()
+      restored.dispose()
+    })
+
+    it("a screen with no region keeps none", async () => {
+      const { screen, restored } = await restoredWith("hello")
+      expect(core(restored).buffer).toMatchObject({ scrollTop: 0, scrollBottom: 4 })
+      screen.dispose()
+      restored.dispose()
+    })
+
+    it("the cursor below a row drawn to the last column, where a relative move came up a column short", async () => {
+      const { screen, restored } = await restoredWith("12345678\u001b[4;4H")
+      expect(cursor(screen)).toEqual({ row: 3, column: 3 })
+      expect(cursor(restored)).toEqual({ row: 3, column: 3 })
+      screen.dispose()
+      restored.dispose()
+    })
+
+    it("a wrap pending at the end of a full row, so the next character wraps", async () => {
+      const { screen, restored } = await restoredWith("12345678", "ab")
+      expect(text(restored)).toBe(text(screen))
+      expect(text(restored)).toBe("12345678\nab\n\n\n")
+      screen.dispose()
+      restored.dispose()
+    })
+
     it("no blank row's first cell as a fill, where a wrapped line's first row is blank", async () => {
       // A wrapped line whose first row was erased: the serializer fills that row to keep the
       // break, and erases the fill again from the wrong column.
