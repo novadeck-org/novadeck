@@ -1653,9 +1653,10 @@ describe("runner client works", () => {
     const found = new Map<string, unknown>()
     for (;;) {
       // eslint-disable-next-line no-await-in-loop -- Events arrive in order.
-      const { value } = await watch.next()
-      if (value?.type === "changed") found.set(value.work.root, value.work)
-      if (value?.type === "synced") break
+      const { done, value } = await watch.next()
+      if (done) throw new Error("The works watch ended before it synced.")
+      if (value.type === "changed") found.set(value.work.root, value.work)
+      if (value.type === "synced") break
     }
     expect(found.get(worktree)).toMatchObject({
       root: worktree,
@@ -1686,8 +1687,9 @@ describe("runner client works", () => {
     expect(existsSync(worktree)).toBe(false)
     for (;;) {
       // eslint-disable-next-line no-await-in-loop -- Events arrive in order.
-      const { value } = await watch.next()
-      if (value?.type === "removed") {
+      const { done, value } = await watch.next()
+      if (done) throw new Error("The works watch ended before the worktree was removed.")
+      if (value.type === "removed") {
         expect(value).toMatchObject({ root: worktree, projectId })
         break
       }
