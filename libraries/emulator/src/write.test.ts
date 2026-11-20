@@ -25,7 +25,10 @@ const bundles = [
 ] as const
 
 describe("a write whose parsing throws", () => {
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
 
   it.each(bundles)("is skipped in %s's %s", (name, bundle) => {
     const source = readFileSync(join(dirname(require.resolve(name)), bundle), "utf8")
@@ -74,11 +77,15 @@ describe("a write whose parsing throws", () => {
     await expect(writeTo(terminal, "before\x1b[z")).rejects.toBe(broken)
     expect(thrown).toEqual([broken])
     // Queued together, they are parsed in one run, which throws its first error alone again.
+    // A run goes on until xterm's time slice is up: its clock stands still here, as a pause on
+    // a busy runner would end the run early, and the next would throw its own first again.
+    const clock = vi.spyOn(performance, "now").mockReturnValue(performance.now())
     const again = await Promise.allSettled([
       writeTo(terminal, "\x1b[z"),
       writeTo(terminal, "\x1b[z"),
       writeTo(terminal, "\x1b[z"),
     ])
+    clock.mockRestore()
     expect(again.map((one) => one.status)).toEqual(["rejected", "rejected", "rejected"])
     expect(thrown).toEqual([broken, broken])
     await writeTo(terminal, "\r\nnext")
