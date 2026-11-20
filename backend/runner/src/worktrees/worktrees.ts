@@ -358,6 +358,8 @@ export class Worktrees {
       const found = await repositoryAt(folder)
       if (!found.ok) return undefined
       const { home, commonDir } = found.repository
+      // A name git refuses is refused in the queue, with nothing fetched or asked for it.
+      if (!(await validBranch(home, input.branch))) return undefined
       if ((await branchTip(home, input.branch)) !== undefined) return undefined
       const ms = this.host.freshMainMs ?? freshMainMs
       await this.cleanup.fetchBriefly(commonDir, ms)

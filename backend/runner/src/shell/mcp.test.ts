@@ -651,7 +651,9 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       expect(await said("unchecked", true)).toContain(
         "on the new branch feat from origin/feat as last fetched, tracking it (origin couldn't be asked whether it still has it).",
       )
-      expect(await said("current", false)).toContain("on the new branch feat from origin/feat. ")
+      expect(await said("current", false)).toContain(
+        "on the new branch feat from origin/feat, not tracking it (git couldn't set its upstream). You own it.",
+      )
       expect(await said("gone")).toContain(
         "on the new branch feat (origin no longer has a branch of that name; origin/feat was left by an earlier fetch, so it wasn't used).",
       )

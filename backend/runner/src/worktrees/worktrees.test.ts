@@ -285,6 +285,20 @@ describe("opening a worktree", () => {
     expect(git(opened.path, "rev-parse", "HEAD")).toBe(pushed)
   })
 
+  it("fetches nothing for a branch name git refuses", async ({ resources, fx: f }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
+    const { fetches, worktrees } = recording(resources, f)
+    const opened = await worktrees.open({
+      projectId: "p2",
+      terminalId: "t1",
+      cwd: origin.repo,
+      branch: "x~1",
+    })
+    expect(opened).toMatchObject({ ok: false, reason: expect.stringContaining("isn't a branch") })
+    expect(fetches).toHaveLength(0)
+  })
+
   it("leaves origin's branch alone when from is given, or the branch exists here", async ({
     resources,
     fx: f,

@@ -955,7 +955,9 @@ with every safety check again at that time:
     still has the branch (`git ls-remote --exit-code`, as briefly): a branch it no longer has (one
     deleted after its merge) is passed over, and the new branch starts as above; where origin can't
     be asked, the cached `origin/<branch>` is used. The answer says which (`origin`: `current`,
-    `unchecked` or `gone`, and `tracking`). It runs with 60 seconds,
+    `unchecked` or `gone`), and whether the branch tracks origin's (`tracking`, false where git
+    couldn't set the upstream, which the answer says too). A name `git check-ref-format --branch`
+    refuses is refused before any of this, with nothing fetched. It runs with 60 seconds,
     and `core.longpaths` on Windows, after `git check-ref-format --branch`. It answers the path,
     the branch and the paths of AGENTS.md, CLAUDE.md and GEMINI.md at the worktree's top, and
     tells the agent to read them, as no harness loads them from an added folder.

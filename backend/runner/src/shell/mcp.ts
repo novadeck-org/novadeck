@@ -1386,7 +1386,12 @@ type Worktree = {
 /** Where a new branch came from when origin had one of its name, as `open_worktree` says it. */
 const originSaid = (answer: Worktree): string => {
   const from = " from origin/" + answer.branch
-  const tracking = answer.tracking ? ", tracking it" : ""
+  const tracking =
+    answer.tracking === false
+      ? ", not tracking it (git couldn't set its upstream)"
+      : answer.tracking
+        ? ", tracking it"
+        : ""
   if (answer.origin === "current") return from + tracking
   if (answer.origin === "unchecked")
     return (
