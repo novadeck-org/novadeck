@@ -88,6 +88,17 @@
       ]
     },
     {
+      "id": "ui-companions-canvas-taskbar-click",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/companions/companions.spec.tsx > The pane in Canvas > goes on Enter in the terminal, which the key does not reach",
+      "signature": "TimeoutError: locator\\.click: Timeout \\d+ms exceeded[\\s\\S]*Plan: A home for Studio",
+      "status": "known",
+      "cause": "Unknown, not reproduced. For 29 s the click on Build Studio's plan icon was taken by the sidebar's Terminals list, so the camera had left that window's taskbar behind the sidebar; the file's test before it clicks the same icon and passed, and the retry passed at once. Locally the icon sits 85 px right of the list (x 357 against 272), the document never scrolls sideways, and the file passed 5 of 5 whole runs and the test 8 of 8 repeats at 6x CPU throttling, in behaviour-mac.",
+      "seen": [
+        "perf/xterm-a11y-rows run 44530517635 attempt 1 job 135590523426 (macOS, 3/3), after #1057"
+      ]
+    },
+    {
       "id": "e2e-codex-windows-folder-trust",
       "jobs": ["^Codex \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/e2e/controls.e2e.ts > Codex, its folder untrusted > never rings an agent at its folder-trust question",
