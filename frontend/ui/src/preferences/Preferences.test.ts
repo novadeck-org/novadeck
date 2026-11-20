@@ -169,8 +169,8 @@ describe("the Agents work as choice", () => {
     expect(radio("Herd")?.checked).toBe(true)
     expect(radio("Solo")?.checked).toBe(false)
     expect(radio("Swarm")?.checked).toBe(false)
-    expect(panel()?.textContent).toContain("act with other agents only when you ask")
-    expect(panel()?.textContent).toContain("without asking you first")
+    expect(panel()?.textContent).toContain("it acts on that only when you ask")
+    expect(panel()?.textContent).toContain("pass the lead without asking you")
   })
 
   it("saves the mode picked", async () => {
