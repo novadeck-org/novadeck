@@ -25,18 +25,43 @@ export const textAt = async (
   return run.kind === "exit" ? null : undefined
 }
 
-const header = /^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@/
+const header = /^@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@/
 
-/** The hunks of `git diff -U0`, as main's line numbers: a hunk of the old file's lines and the new ones. */
+/**
+ * The hunks of `git diff`, as main's line numbers: a hunk of the old file's lines and the new
+ * ones. Asked with `-U0` they hold changed lines only, but a context line, as git prints
+ * between two nearby changes it joins into one hunk, is one main keeps, so it stays among the
+ * new lines. Each hunk is read by its header's counts, so a blank context line
+ * (`diff.suppressBlankEmpty`) counts too, and the empty string after the last newline doesn't.
+ */
 export const hunksOf = (diff: string): Omit<PreviewHunk, "applies">[] => {
   const hunks: { at: number; removed: number; lines: string[] }[] = []
+  // What is left to read of the last hunk: its old lines and its new ones.
+  let old = 0
+  let now = 0
   for (const line of diff.split("\n")) {
     const found = header.exec(line)
     if (found) {
       const start = Number(found[1])
       const count = found[2] === undefined ? 1 : Number(found[2])
       hunks.push({ at: count === 0 ? start + 1 : start, removed: count, lines: [] })
-    } else if (line.startsWith("+") && hunks.length > 0) hunks.at(-1)!.lines.push(line.slice(1))
+      old = count
+      now = found[3] === undefined ? 1 : Number(found[3])
+      continue
+    }
+    const hunk = hunks.at(-1)
+    // "\ No newline at end of file" is no line.
+    if (!hunk || (old === 0 && now === 0) || line.startsWith("\\")) continue
+    if (line.startsWith("+")) {
+      hunk.lines.push(line.slice(1))
+      now -= 1
+    } else if (line.startsWith("-")) {
+      old -= 1
+    } else {
+      hunk.lines.push(line.slice(1))
+      old -= 1
+      now -= 1
+    }
   }
   return hunks
 }
@@ -91,7 +116,11 @@ export const carry = async (
           "--no-index",
           "--no-color",
           "--no-ext-diff",
+          // A textconv of the person's attributes would diff its own text, not the file's.
+          "--no-textconv",
           "-U0",
+          // Never two changes joined over the lines between, whatever diff.interHunkContext says.
+          "--inter-hunk-context=0",
           files.main,
           join(folder, name),
         ],
