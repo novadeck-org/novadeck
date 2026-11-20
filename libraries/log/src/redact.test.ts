@@ -127,6 +127,16 @@ describe("createRedactor", () => {
     ],
     ["a password setting", "password=hunter2 rejected", "password=<redacted> rejected"],
     ["secrets in JSON", '{"accessToken":"abc","id":3}', '{"accessToken":"<redacted>","id":3}'],
+    [
+      "a JSON secret with an escaped quote",
+      String.raw`{"password":"hu\"Zq9xW2vK7pL4mN8r","id":3}`,
+      '{"password":"<redacted>","id":3}',
+    ],
+    [
+      "a JSON secret ending in an escaped backslash",
+      String.raw`{"token":"Zq9x\\","id":3}`,
+      '{"token":"<redacted>","id":3}',
+    ],
     ["an email address", "signed in as ana.lopez+dev@acme.co.uk.", "signed in as <email>."],
     ["the account name as a word", "ana's session for ana", "<user>'s session for <user>"],
     ["the account name inside another word", "banana analytics", "banana analytics"],

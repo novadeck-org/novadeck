@@ -79,7 +79,9 @@ const shapes: readonly (readonly [RegExp, string])[] = [
     "$1$2<redacted>",
   ],
   [/\b(bearer)\s+[\w\-.~+/]+=*/gi, "$1 <redacted>"],
-  [new RegExp(String.raw`("${secretKey}"\s*:\s*)"[^"]*"`, "gi"), '$1"<redacted>"'],
+  // A JSON string whole, its escaped quotes and backslashes included: one that ended at `\"`
+  // would leave the rest of the value no longer after a name, out of every later rule's reach.
+  [new RegExp(String.raw`("${secretKey}"\s*:\s*)"(?:[^"\\]|\\.)*"`, "gi"), '$1"<redacted>"'],
   [
     new RegExp(
       String.raw`((?:^|[?&;\s"'(,])${secretKey})(\s*=(?![=>~])\s*)(?!<)[^&\s"';,)]+`,
