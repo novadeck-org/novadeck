@@ -243,13 +243,13 @@ export const Preferences = ({
     readonly minutes: number | null
     readonly onChange: (minutes: number | null) => void
   }
-  // How agents work with each other; absent where the backend has no such setting.
   // Whether Solo and Swarm may be picked, an Experimental feature the backend keeps; absent
   // where it has none. The picker below shows only while it is on.
   agentModes?: {
     readonly enabled: boolean
     readonly onChange: (enabled: boolean) => void
   }
+  // How agents work with each other; absent where the backend has no such setting.
   agentMode?: {
     readonly mode: AgentMode
     readonly onChange: (mode: AgentMode) => void
