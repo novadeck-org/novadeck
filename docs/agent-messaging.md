@@ -178,7 +178,9 @@ How far agents act on each other is the person's choice, Preferences → Agents 
 as" (`agentMode` in `settings.get`, `"herd"` until they pick `"solo"` or `"swarm"`). Solo and
 Swarm sit behind Preferences → Experimental → "Agent modes" (`agentModes`, off by default): the
 picker shows only while it is on, and while it is off the runner serves Herd whatever
-`agentMode` holds, which stays saved for when the switch goes on again. In Solo and
+`agentMode` holds, which stays saved for when the switch goes on again. The picker names the
+modes in a switch; under it, a small map (`AgentModeMap`, drawn in the sidebar's team wires and
+tab glyphs) shows what the picked mode does to agents, beside what it's for and what it costs. In Solo and
 Herd it words Novadeck's texts only; Swarm also changes what Novadeck asks the person:
 
 - **Herd** (the default): when an agent's work meets another's, or another has done or knows

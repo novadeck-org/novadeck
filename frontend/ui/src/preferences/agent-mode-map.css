@@ -1,0 +1,230 @@
+/* The agent mode map recipe (AgentModeMap.tsx): a small map of what a mode does to agents,
+   beside its words under Preferences → Agents → "Agents work as". It speaks the sidebar's
+   marks: wires are the team wire's (one pixel, square corners, resting mixed into the ground,
+   lit in the strong colour with its glow, a block cursor at a team's lead), agents are named
+   as the Terminals list names them (a glyph, held still, then the handle, and the need mark's
+   `?` while one asks), and "you" ends in the Nova mark's cursor, blinking while asks wait.
+
+   Parts: `.agent-mode-map` (the 272 × 150 map), its `svg` of `.agent-mode-map-wire`s and
+   the `.agent-mode-map-pulse` that runs along Herd's lit wire; `.agent-mode-map-ring` (the
+   SVG group and the layer of names that make the ring, which steps aside for Swarm's team);
+   `.agent-mode-map-agent` with its `.agent-mode-map-glyph` and `.agent-mode-map-need`;
+   `.agent-mode-map-you` with its `.agent-mode-map-cursor` and `.agent-mode-map-count`;
+   `.agent-mode-map-port`; `.agent-mode-map-lead` (the team's lead cursor). Beside the map,
+   `.agent-mode-facts`: the list of what agents do in the mode, bulleted.
+
+   Hooks: data-mode (solo | herd | swarm) on the map. data-play once the person has picked a
+   mode: then what arrives with the mode draws in (a wire's data-draw) or fades in
+   (data-pop), each after its --agent-mode-map-delay; until then the map stands still.
+   data-in on a part: the modes it shows in, space-separated. data-tone="lit" | "ask" on a
+   wire. data-waits-in on a glyph: the mode its agent waits on you in. Reduced motion
+   stills it all, as accessibility.css stills every animation.
+
+   Tokens, each optional (its fallback in brackets):
+   --agent-mode-map-ground (card-bg, else paper): the ground names sit on, which wires mix
+   into. --agent-mode-map-fg (strong): lit wires, the cursors, a held port.
+   --agent-mode-map-ask (warning-fg): asks, and the blinking cursor in Solo. */
+.agent-mode-map {
+  --_ground: var(--agent-mode-map-ground, var(--card-bg, var(--color-paper)));
+  --_fg: var(--agent-mode-map-fg, var(--color-strong));
+  --_ask: var(--agent-mode-map-ask, var(--color-warning-fg));
+  --_glow: drop-shadow(0 0 2.5px color-mix(in srgb, var(--_fg) 40%, transparent));
+  --_rest: color-mix(in srgb, var(--color-line-strong) 42%, var(--_ground));
+  position: relative;
+  width: 272px;
+  height: 150px;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--color-ink);
+}
+.agent-mode-map svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.agent-mode-map-wire {
+  fill: none;
+  stroke: var(--_rest);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+.agent-mode-map-wire[data-tone="lit"] {
+  stroke: var(--_fg);
+  filter: var(--_glow);
+}
+.agent-mode-map-wire[data-tone="ask"] {
+  stroke: var(--_ask);
+}
+.agent-mode-map-pulse {
+  fill: var(--_fg);
+  opacity: 0;
+}
+/* The ring stands centred; Swarm moves it right, for its team on the left. */
+.agent-mode-map-ring {
+  transform: translateX(-40px);
+}
+div.agent-mode-map-ring {
+  position: absolute;
+  inset: 0;
+}
+.agent-mode-map[data-mode="swarm"] .agent-mode-map-ring {
+  transform: none;
+}
+.agent-mode-map-agent,
+.agent-mode-map-you,
+.agent-mode-map-port,
+.agent-mode-map-lead {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+}
+.agent-mode-map-agent,
+.agent-mode-map-you,
+.agent-mode-map-port {
+  background-color: var(--_ground);
+}
+.agent-mode-map-agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 4px;
+}
+.agent-mode-map-glyph,
+.agent-mode-map-need,
+.agent-mode-map-count {
+  width: 1ch;
+  font-family: var(--font-glyphs);
+  text-align: center;
+}
+.agent-mode-map-glyph::before {
+  content: "⠋";
+}
+.agent-mode-map[data-mode="solo"] .agent-mode-map-glyph[data-waits-in~="solo"] {
+  color: var(--color-muted);
+}
+.agent-mode-map[data-mode="solo"] .agent-mode-map-glyph[data-waits-in~="solo"]::before {
+  content: "⣀";
+}
+.agent-mode-map-need,
+.agent-mode-map-count {
+  color: var(--_ask);
+  font-weight: 700;
+}
+.agent-mode-map-you {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  padding: 0 5px;
+  font-weight: 600;
+}
+.agent-mode-map-cursor {
+  width: 6px;
+  height: 11px;
+  background-color: var(--_fg);
+}
+.agent-mode-map[data-mode="solo"] .agent-mode-map-cursor {
+  background-color: var(--_ask);
+  animation: agent-mode-map-blink 1.06s step-end infinite;
+}
+.agent-mode-map-port {
+  height: 16px;
+  padding: 0 5px;
+  border: var(--border-width) solid var(--color-line-strong);
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--color-muted);
+}
+.agent-mode-map[data-mode="solo"] .agent-mode-map-port {
+  border-color: color-mix(in srgb, var(--_ask) 60%, var(--_ground));
+  color: var(--_ask);
+}
+.agent-mode-map:not([data-mode="solo"]) .agent-mode-map-port {
+  border-color: color-mix(in srgb, var(--_fg) 60%, var(--_ground));
+  color: var(--_fg);
+}
+.agent-mode-map-lead {
+  width: 5px;
+  height: 8px;
+  transform: translate(-2px, -4px);
+  background-color: var(--_fg);
+  filter: var(--_glow);
+}
+
+/* A part shows only in the modes it names. */
+.agent-mode-map[data-mode="solo"] [data-in]:not([data-in~="solo"]),
+.agent-mode-map[data-mode="herd"] [data-in]:not([data-in~="herd"]),
+.agent-mode-map[data-mode="swarm"] [data-in]:not([data-in~="swarm"]) {
+  opacity: 0;
+}
+
+/* Once the person picks: the mode's own parts arrive. */
+.agent-mode-map[data-play] .agent-mode-map-ring {
+  transition: transform var(--motion-layout) var(--ease-interface);
+}
+.agent-mode-map[data-play] [data-in] {
+  transition: opacity var(--motion-layout) var(--ease-interface);
+}
+.agent-mode-map[data-play][data-mode="solo"] [data-in~="solo"][data-draw],
+.agent-mode-map[data-play][data-mode="herd"] [data-in~="herd"][data-draw],
+.agent-mode-map[data-play][data-mode="swarm"] [data-in~="swarm"][data-draw] {
+  stroke-dasharray: 1;
+  animation: agent-mode-map-draw 480ms var(--ease-interface) both;
+  animation-delay: var(--agent-mode-map-delay, 0ms);
+}
+.agent-mode-map[data-play][data-mode="solo"] [data-in~="solo"][data-pop],
+.agent-mode-map[data-play][data-mode="herd"] [data-in~="herd"][data-pop],
+.agent-mode-map[data-play][data-mode="swarm"] [data-in~="swarm"][data-pop] {
+  animation: agent-mode-map-pop 300ms var(--ease-interface) both;
+  animation-delay: var(--agent-mode-map-delay, 0ms);
+}
+/* Herd's message: a cursor-sized block runs along the lit wire from @owl to @fern. */
+.agent-mode-map[data-play][data-mode="herd"] .agent-mode-map-pulse {
+  animation: agent-mode-map-pulse 600ms var(--ease-interface) 820ms both;
+}
+
+@keyframes agent-mode-map-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes agent-mode-map-pop {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes agent-mode-map-pulse {
+  0% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(46px);
+  }
+}
+@keyframes agent-mode-map-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.agent-mode-facts {
+  list-style: disc;
+}

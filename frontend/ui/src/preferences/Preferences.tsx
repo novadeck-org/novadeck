@@ -21,6 +21,7 @@ import { soundChoiceOf, soundInEffect, soundName, sounds } from "../sounds"
 import { themes, type ThemeEntry, type ThemeId } from "../theme/themes"
 import { AddonRow } from "./addon-parts"
 import { agentsExplanation, type AgentSwitch } from "./agent-switches"
+import { AgentModePicker } from "./AgentModePicker"
 import { AgentSwitches } from "./AgentSwitches"
 import { builtInFont, fontChoices, isBundled } from "./font-choices"
 import { forgesExplanation, type ForgeSwitch } from "./forge-switches"
@@ -157,28 +158,6 @@ const TabInView = ({
   }, [tab, within])
   return null
 }
-
-// How agents may work with each other, in the order Preferences offers them.
-const modeChoices: readonly { mode: AgentMode; label: string; description: string }[] = [
-  {
-    mode: "solo",
-    label: "Solo",
-    description:
-      "Best when you run one or two agents and steer each yourself. Agents stick to their task and bring overlaps with other agents to you instead of handling them.",
-  },
-  {
-    mode: "herd",
-    label: "Herd",
-    description:
-      "Best when you run several agents side by side. They settle what they share, like files, ports, servers or CI, among themselves, so they don't block or undo each other. You set up the teams and make the calls.",
-  },
-  {
-    mode: "swarm",
-    label: "Swarm",
-    description:
-      "Best for a big goal you want split up and finished without managing it. Agents open, lead and close other agents and reshuffle teams with no confirmations from you. Expect more agents running and more of your usage.",
-  },
-]
 
 // The list's value for a wait; none for one the list lacks.
 const idleChoice = (minutes: number | null): string => {
@@ -531,41 +510,7 @@ export const Preferences = ({
                   </div>
                 )}
                 {showAgentMode && (
-                  <fieldset className="agent-mode-preferences settings-fieldset m-0 mt-2.5 flex min-w-0 flex-col p-0">
-                    <legend className="w-full p-0 px-0.5">
-                      <span className={`block ${groupTitleClasses}`}>Agents work as</span>
-                    </legend>
-                    <div className="mt-1.5 grid grid-cols-1 gap-2">
-                      {modeChoices.map(({ mode, label, description }) => {
-                        const checked = agentMode.mode === mode
-                        return (
-                          <label
-                            key={mode}
-                            className="choice-card solid relative flex min-w-0 cursor-pointer flex-col gap-1 p-3 pr-9 text-body"
-                            data-state={checked ? "checked" : "unchecked"}
-                          >
-                            <span>{label}</span>
-                            <span className="settings-description text-control leading-5">
-                              {description}
-                            </span>
-                            <span className="checkbox absolute top-3 right-3 flex size-4 shrink-0 items-center justify-center">
-                              <input
-                                type="radio"
-                                name="agent-mode"
-                                className="checkbox-input absolute inset-0 m-0 size-full cursor-pointer"
-                                checked={checked}
-                                onChange={() => agentMode.onChange(mode)}
-                              />
-                              <span
-                                aria-hidden="true"
-                                className="checkbox-dot pointer-events-none relative"
-                              />
-                            </span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  </fieldset>
+                  <AgentModePicker mode={agentMode.mode} onChange={agentMode.onChange} />
                 )}
               </Section>
             )}

@@ -1,8 +1,8 @@
 import { nextFrame, render, type Rendered } from "@novadeck/test-kit/render"
-import { createElement, type ComponentProps } from "react"
+import { act, createElement, type ComponentProps } from "react"
 import { afterEach, vi } from "vitest"
 
-import { describe, expect, it } from "../test"
+import { describe, eventually, expect, it } from "../test"
 import { Preferences } from "./Preferences"
 import { readPreferences } from "./preferences-storage"
 
@@ -147,10 +147,17 @@ const experimental = (on: boolean | undefined) => ({ on, onChange: () => {} })
 describe("the Agents work as choice", () => {
   const panel = (): Element | null =>
     document.querySelector('[role="tabpanel"][aria-labelledby$="agents"]')
+  const modes = (): HTMLInputElement[] => [
+    ...document.querySelectorAll<HTMLInputElement>(
+      '[role="radiogroup"][aria-label="Agents work as"] input[type="radio"]',
+    ),
+  ]
   const radio = (label: "Solo" | "Herd" | "Swarm"): HTMLInputElement | null =>
-    [...document.querySelectorAll<HTMLLabelElement>("label")]
-      .find((item) => item.querySelector("span")?.textContent === label)
-      ?.querySelector("input") ?? null
+    modes().find((input) => input.getAttribute("aria-label") === label) ?? null
+  const map = (): Element | null => document.querySelector('[role="img"][data-mode]')
+  // The segment a person clicks: the hidden input's label.
+  const segment = (label: "Solo" | "Herd" | "Swarm"): HTMLElement | null =>
+    radio(label)?.closest("label") ?? null
 
   it("offers Solo, Herd and Swarm on the Agents tab, with Herd chosen", async () => {
     await show({
@@ -162,15 +169,42 @@ describe("the Agents work as choice", () => {
 
     expect(selected()).toBe("Agents")
     expect(panel()?.textContent).toContain("Agents work as")
-    const labels = [...document.querySelectorAll('input[name="agent-mode"]')].map(
-      (input) => input.closest("label")?.querySelector("span")?.textContent,
-    )
-    expect(labels).toEqual(["Solo", "Herd", "Swarm"])
+    expect(modes().map((input) => input.getAttribute("aria-label"))).toEqual([
+      "Solo",
+      "Herd",
+      "Swarm",
+    ])
     expect(radio("Herd")?.checked).toBe(true)
     expect(radio("Solo")?.checked).toBe(false)
     expect(radio("Swarm")?.checked).toBe(false)
-    expect(panel()?.textContent).toContain("bring overlaps with other agents to you")
-    expect(panel()?.textContent).toContain("with no confirmations from you")
+  })
+
+  it("says only what the picked mode does, beside its map", async () => {
+    await show({
+      tab: "agents",
+      experimental: experimental(true),
+      agentModes: { enabled: true, onChange: () => {} },
+      agentMode: { mode: "herd", onChange: () => {} },
+    })
+
+    expect(panel()?.textContent).toContain("Best when you run several agents side by side.")
+    expect(panel()?.textContent).not.toContain("steer each yourself")
+    expect(panel()?.textContent).not.toContain("more of your usage")
+    expect(map()?.getAttribute("data-mode")).toBe("herd")
+    expect(map()?.getAttribute("aria-label")).toContain("@owl tells @fern it holds port 5173")
+  })
+
+  it("says Swarm's cost with Swarm", async () => {
+    await show({
+      tab: "agents",
+      experimental: experimental(true),
+      agentModes: { enabled: true, onChange: () => {} },
+      agentMode: { mode: "swarm", onChange: () => {} },
+    })
+
+    expect(panel()?.textContent).toContain("Agents open, lead and close agents without asking.")
+    expect(panel()?.textContent).toContain("More agents running, and more of your usage.")
+    expect(map()?.getAttribute("data-mode")).toBe("swarm")
   })
 
   it("saves the mode picked", async () => {
@@ -182,10 +216,11 @@ describe("the Agents work as choice", () => {
       agentMode: { mode: "herd", onChange: (mode) => changes.push(mode) },
     })
 
-    radio("Solo")!.click()
-    radio("Swarm")!.click()
-
-    expect(changes).toEqual(["solo", "swarm"])
+    // The segment group tells of a pick a moment after the click.
+    act(() => segment("Solo")!.click())
+    await eventually(() => expect(changes).toEqual(["solo"]))
+    act(() => segment("Swarm")!.click())
+    await eventually(() => expect(changes).toEqual(["solo", "swarm"]))
   })
 
   it("hides the choice while the Agent modes switch is off, or the Experimental tab is not there", async () => {
@@ -195,7 +230,7 @@ describe("the Agents work as choice", () => {
       agentModes: { enabled: false, onChange: () => {} },
       agentMode: { mode: "solo", onChange: () => {} },
     })
-    expect(document.querySelector('input[name="agent-mode"]')).toBeNull()
+    expect(radio("Solo")).toBeNull()
     expect(document.body.textContent).not.toContain("Agents work as")
     mounted.splice(0).forEach((page) => page.unmount())
 
@@ -204,7 +239,7 @@ describe("the Agents work as choice", () => {
       agentModes: { enabled: true, onChange: () => {} },
       agentMode: { mode: "solo", onChange: () => {} },
     })
-    expect(document.querySelector('input[name="agent-mode"]')).toBeNull()
+    expect(radio("Solo")).toBeNull()
   })
 
   const modesSwitch = (): HTMLElement | null =>
