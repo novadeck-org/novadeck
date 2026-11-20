@@ -559,11 +559,13 @@ const launch = async (): Promise<void> => {
   })
   // The page asks for its window's focus when it starts listening, as when it loads again.
   registerWindowFocusIpc(ipcMain, { window: appWindow, request: tellWindowFocus })
-  // The page sets the window's controls on its header's middle, or hides them, as in Zen.
-  registerControlsIpc(ipcMain, (event) => {
-    const window = appWindow(event)
-    return window && windowControls.get(window)
-  })
+  // The page sets the window's controls on its header's middle, or hides them, as in Zen
+  // (macOS; elsewhere the window keeps the system's title bar and nothing listens).
+  if (insetsWindowControls(process.platform))
+    registerControlsIpc(ipcMain, (event) => {
+      const window = appWindow(event)
+      return window && windowControls.get(window)
+    })
   registerScaleIpc(
     ipcMain,
     (event) => appWindow(event) !== undefined,
