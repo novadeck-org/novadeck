@@ -13,7 +13,7 @@ import type { AgentDetail, SliceChange, TranscriptChange, TranscriptItem } from 
 import { WireError } from "@novadeck/wire"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { describe, expect, it } from "../test"
+import { context, describe, expect, it } from "../test"
 import { channel } from "../testing/channel"
 import {
   createRunnerConversations,
@@ -291,6 +291,78 @@ describe("the runner's conversations", () => {
       expect(streams.detail).toHaveBeenCalledTimes(1)
       expect(details.returned()).toBe(0)
       again()
+    })
+
+    context("once the runner has no terminal by its id", () => {
+      // A detail stream for each time it is opened, as `followRestarting` opens a fresh one.
+      const reopenable = () => {
+        const base = setup()
+        const opened: ReturnType<typeof channel<AgentDetail>>[] = []
+        base.streams.detail.mockImplementation(() => {
+          const next = channel<AgentDetail>()
+          opened.push(next)
+          return next.iterator
+        })
+        return { ...base, opened }
+      }
+
+      it("opens the detail again by itself, and reads the terminal back under its id", async () => {
+        const { opened, streams, transcripts, store } = reopenable()
+        store.subscribe(() => {})
+        opened[0]!.push(detail())
+        await vi.waitFor(() => expect(store.getSnapshot().agent).toBe("claude"))
+        // Asleep, or the runner restarted: the stream ends as gone.
+        opened[0]!.end()
+        await vi.waitFor(() => expect(store.getSnapshot().agent).toBeNull())
+        await vi.advanceTimersByTimeAsync(retryMs)
+        expect(streams.detail).toHaveBeenCalledTimes(2)
+        // Awake again, under the same id.
+        opened[1]!.push(detail({ sessionId: "s2" }))
+        await vi.waitFor(() => expect(store.getSnapshot().session).toBe("s2"))
+        transcripts[root]!.push(batch(item(0)))
+        await vi.waitFor(() => expect(store.getSnapshot().items).toHaveLength(1))
+      })
+
+      it("is read again for a subscriber that came back within the grace period", async () => {
+        const { opened, streams, store } = reopenable()
+        store.subscribe(() => {})()
+        opened[0]!.end()
+        await settle()
+        const again = store.subscribe(() => {})
+        await vi.advanceTimersByTimeAsync(retryMs)
+        expect(streams.detail).toHaveBeenCalledTimes(2)
+        again()
+      })
+
+      it("backs off while it stays away, and no further than the longest wait", async () => {
+        const { opened, streams, store } = reopenable()
+        store.subscribe(() => {})
+        opened[0]!.end()
+        await settle()
+        const waits = [retryMs, retryMs * 2, retryMs * 4, retryMs * 8, retryMaxMs, retryMaxMs]
+        for (const [at, wait] of waits.entries()) {
+          // eslint-disable-next-line no-await-in-loop -- Each wait follows the one before.
+          await vi.advanceTimersByTimeAsync(wait - 1)
+          expect(streams.detail).toHaveBeenCalledTimes(at + 1)
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await vi.advanceTimersByTimeAsync(1)
+          expect(streams.detail).toHaveBeenCalledTimes(at + 2)
+          opened[at + 1]!.end()
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await settle()
+        }
+        expect(store.getSnapshot().agent).toBeNull()
+      })
+
+      it("stops opening it once the reading stops", async () => {
+        const { opened, streams, conversations, store } = reopenable()
+        store.subscribe(() => {})
+        opened[0]!.end()
+        await settle()
+        conversations.stop()
+        await vi.advanceTimersByTimeAsync(retryMaxMs * 2)
+        expect(streams.detail).toHaveBeenCalledTimes(1)
+      })
     })
 
     it("ends every stream when stopped", async () => {

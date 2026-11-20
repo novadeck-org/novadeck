@@ -649,39 +649,67 @@ const read = (
     else retryAt(session, root, at)
   }
 
-  try {
-    detail = streams.detail(terminalId)
-  } catch {
-    end(detail)
-    return { stop: () => {} }
+  // The detail's stream ends once the runner has no terminal by this id, as while its agent
+  // sleeps or after the runner restarted: the conversation empties, and the stream is opened
+  // again, backing off, for as long as anyone reads it, since the terminal may come back under
+  // the same id. As the Inbox's own reader of the detail does.
+  let reopening: ReturnType<typeof setTimeout> | undefined
+  let backoff = retryMs
+  let emptied = false
+  const reopen = (): void => {
+    reopening = setTimeout(() => {
+      reopening = undefined
+      if (alive) connect()
+    }, backoff)
+    backoff = Math.min(backoff * 2, retryMaxMs)
   }
-  const stream = detail
-  followSlices(true)
-  void (async () => {
+
+  const connect = (): void => {
+    let stream: Stream<AgentDetail>
     try {
-      for await (const snapshot of stream) {
-        if (!alive) return
-        apply(snapshot)
-      }
+      stream = streams.detail(terminalId)
     } catch {
-      // The terminal is gone, or the runner closed.
+      detail = undefined
+      reopen()
+      return
     }
-    // Its terminal went: so did its conversation, and what waited on it hears so.
-    if (!alive) return
-    following = null
-    end(slices)
-    slices = undefined
-    end(transcript)
-    transcript = undefined
-    clearTimeout(settling)
-    clearTimeout(turning)
-    stopRetrying()
-    store.update((now) => ({ ...noConversation, doorbell: now.doorbell }))
-  })()
+    detail = stream
+    followSlices(true)
+    void (async () => {
+      try {
+        for await (const snapshot of stream) {
+          if (!alive || detail !== stream) return
+          backoff = retryMs
+          emptied = false
+          apply(snapshot)
+        }
+      } catch {
+        // The terminal is gone, or the runner closed.
+      }
+      // Its terminal went: so did its conversation, and what waited on it hears so.
+      if (!alive || detail !== stream) return
+      detail = undefined
+      following = null
+      end(slices)
+      slices = undefined
+      end(transcript)
+      transcript = undefined
+      clearTimeout(settling)
+      clearTimeout(turning)
+      clearTimeout(unidling)
+      stopRetrying()
+      // Emptied once: a stream that keeps ending as the terminal stays away tells nobody again.
+      if (!emptied) store.update((now) => ({ ...noConversation, doorbell: now.doorbell }))
+      emptied = true
+      reopen()
+    })()
+  }
+  connect()
 
   return {
     stop: () => {
       alive = false
+      clearTimeout(reopening)
       end(detail)
       end(slices)
       end(transcript)
