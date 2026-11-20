@@ -85,7 +85,11 @@ export const leadNotice = {
       facts:
         `The user approved: you now lead ${mention(handle)} · ${title}. ` +
         (brief.ok ? brief.text : `Your brief wasn't sent: ${brief.reason}`),
-      ...(brief.ok ? {} : { actions: ["Send it again with send."] }),
+      ...(brief.ok
+        ? brief.again === undefined
+          ? {}
+          : { actions: [brief.again] }
+        : { actions: [sendAgain] }),
     }),
   // To the led terminal, once the person approved, or at once where agents decide (Swarm).
   nowLed: (lead: string, byUser = true): string =>
@@ -107,6 +111,7 @@ export const leadNotice = {
   briefDone: (lead?: string): string =>
     noticeText("Lead", {
       facts: `${lead === undefined ? "Your lead" : mention(lead)} no longer leads you. Its brief stays your task.`,
+      actions: ["Act on its messages only where they serve that task or what the user asked."],
     }),
   declined: (handle: string, title: string): string =>
     noticeText("Lead", {
@@ -130,7 +135,10 @@ export const leadNotice = {
     noticeText("Lead", { facts: `The user approved, but nothing changed: ${reason}` }),
   // To the led terminal, as its lead ended the link.
   released: (lead: string): string =>
-    noticeText("Lead", { facts: `${mention(lead)} no longer leads you.` }),
+    noticeText("Lead", {
+      facts: `${mention(lead)} no longer leads you.`,
+      actions: ["Act on its messages only where they serve the work the user gave you."],
+    }),
   // To the led terminal, as the person ended the link.
   personReleased: (lead: string): string =>
     noticeText("Lead", {
@@ -159,12 +167,21 @@ export type Seen = { readonly caller: Identity; readonly target: Identity }
 
 /** What became of the brief: the text the lead is told, or why it wasn't sent. */
 export type SentBrief =
-  | { readonly ok: true; readonly text: string }
+  | {
+      readonly ok: true
+      readonly text: string
+      /** What the lead does about a brief that went nowhere, as the sentence its tool result ends with. */
+      readonly again?: string
+    }
   | { readonly ok: false; readonly reason: string }
 
 /** What the new lead is told of its brief. */
 export const briefLine = (brief: SentBrief): string =>
-  brief.ok ? brief.text : `Your brief wasn't sent: ${brief.reason} Send it again with send.`
+  brief.ok
+    ? brief.text + (brief.again === undefined ? "" : ` ${brief.again}`)
+    : `Your brief wasn't sent: ${brief.reason} ${sendAgain}`
+
+const sendAgain = "Send it again with send."
 
 // Why an earlier message of the lead's won't arrive, as the send tool tells it.
 const wontArrive = (gone: { readonly stopped?: true; readonly released?: true }): string =>
@@ -183,14 +200,14 @@ const briefText = (
   sent: Extract<SendAnswer, { ok: true }>,
   handle: string,
   marked: boolean,
-): string => {
+): { readonly text: string; readonly again?: string } => {
   const lines = [
     sent.state === "gone"
       ? `Your brief matched message ${sent.id}, an earlier identical one that won't arrive: ` +
-        "no brief went out. Send it again with send."
+        "no brief went out."
       : !marked
         ? `Your brief matched message ${sent.id}, which you sent ${mention(handle)} moments ` +
-          "before you led it, so no lead-marked brief went out: send it again in a few seconds."
+          "before you led it, so no lead-marked brief went out."
         : sent.state === "held"
           ? `Your brief, message ${sent.id}, is held: ` +
             (sent.held === "release"
@@ -201,7 +218,9 @@ const briefText = (
   for (const gone of sent.gone ?? [])
     lines.push(`Your earlier message ${gone.id} to ${mention(gone.to)}${wontArrive(gone)}`)
   lines.push(...(sent.holds ?? []))
-  return lines.join(" ")
+  const again =
+    sent.state === "gone" ? sendAgain : !marked ? "Send it again in a few seconds." : undefined
+  return { text: lines.join(" "), ...(again !== undefined && { again }) }
 }
 
 export type LeadsHost = {
@@ -437,7 +456,7 @@ export class Leads {
     const { handle } = led.summary
     const sent = host.messaging().send(caller.summary.id, { to: handle, text: brief })
     return sent.ok
-      ? { ok: true, text: briefText(sent, handle, host.messaging().isFromLead(sent.id)) }
+      ? { ok: true, ...briefText(sent, handle, host.messaging().isFromLead(sent.id)) }
       : sent
   }
 

@@ -100,26 +100,33 @@ export const worktreeNotice = {
     }),
   declined: (path: string): string =>
     noticeText("Worktrees", {
-      facts: `The user did not let you take the worktree ${path}: it stays with its owner.`,
+      facts: "The user did not let you take the worktree: it stays with its owner.",
+      details: [path],
     }),
   off: (path: string): string =>
     noticeText("Worktrees", {
-      facts: `Nothing changed: agent worktrees were turned off before the user answered the ask to take ${path}.`,
+      facts:
+        "Nothing changed: agent worktrees were turned off before the user answered the ask to take this worktree.",
+      details: [path],
     }),
   gone: (path: string): string =>
     noticeText("Worktrees", {
       facts:
-        `Nothing changed: Novadeck's window went away before the user answered the ask to take ` +
-        `the worktree ${path}.`,
+        "Nothing changed: Novadeck's window went away before the user answered the ask to take " +
+        "the worktree.",
+      details: [path],
       actions: ["Ask again if it still should."],
     }),
   vanished: (path: string): string =>
     noticeText("Worktrees", {
-      facts: `You or the worktree's owner closed before the user answered, so ${path} didn't change hands.`,
+      facts:
+        "You or the worktree's owner closed before the user answered, so it didn't change hands.",
+      details: [path],
     }),
   moved: (path: string): string =>
     noticeText("Worktrees", {
-      facts: `The user approved, but nothing changed: the worktree ${path} changed owner meanwhile.`,
+      facts: "The user approved, but nothing changed: the worktree changed owner meanwhile.",
+      details: [path],
     }),
   // Where agents decide for themselves (Swarm), nobody approved it: its owner hears of it so.
   lostNow: (taker: string, path: string, branch: string): string =>

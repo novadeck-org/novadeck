@@ -25,19 +25,20 @@ const named = (ids: readonly string[]): string =>
  * What a sender is told of its messages held long behind what keeps their recipient's
  * doorbell from it (`waits`, since `since`), in its next answer or hook.
  */
-export const holdNotice = (
+export const holdFact = (
   ids: readonly string[],
   to: string,
   waits: Waits | null,
   since: number,
 ): string =>
-  noticeText("Messages", {
-    facts:
-      `Your ${ids.length === 1 ? "message" : "messages"} ${named(ids)} to ${mention(to)} ` +
-      `${ids.length === 1 ? "has" : "have"} not arrived since ${clock(since)} ` +
-      `(${waits ? waitReasons[waits] : "its agent is idle, but Novadeck can't wake it yet"}); ` +
-      "the user is shown this in Novadeck's Inbox.",
-  })
+  `Your ${ids.length === 1 ? "message" : "messages"} ${named(ids)} to ${mention(to)} ` +
+  `${ids.length === 1 ? "has" : "have"} not arrived since ${clock(since)} ` +
+  `(${waits ? waitReasons[waits] : "its agent is idle, but Novadeck can't wake it yet"}); ` +
+  "the user is shown this in Novadeck's Inbox."
+
+/** A hold as a notice of its own, as a hook prints it; tool results embed `holdFact`. */
+export const holdNotice = (...hold: Parameters<typeof holdFact>): string =>
+  noticeText("Messages", { facts: holdFact(...hold) })
 
 /** A thread's idle messages in a row, and who sent them. */
 export type Run = { count: number; senders: readonly string[] }
@@ -114,7 +115,7 @@ export class Holds {
 
   /**
    * The caller's messages held at least `longHoldMs` behind what keeps their recipient's
-   * doorbell from it, as words: told now, once for each hold.
+   * doorbell from it, as facts (`holdFact`): told now, once for each hold.
    */
   heldFrom(terminalId: string): readonly string[] {
     const now = this.host.now()
@@ -135,7 +136,7 @@ export class Holds {
       held.set(to.terminalId, each)
     }
     return [...held.values()].map(({ live, waits, since, ids }) =>
-      holdNotice(ids, live.handle, waits, since),
+      holdFact(ids, live.handle, waits, since),
     )
   }
 

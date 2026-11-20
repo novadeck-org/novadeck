@@ -24,7 +24,7 @@ import { handleWords } from "../terminals/handles.js"
 import { bareHandle } from "../terminals/handles.js"
 import { describe, expect, it } from "../test.js"
 import { running, submitWindowMs } from "./delivery.js"
-import { holdNotice } from "./holds.js"
+import { holdFact, holdNotice } from "./holds.js"
 import type { Loops } from "./loops.js"
 import type { MessagingChange } from "./message-store.js"
 import { clock, closedSender, noteDigests, retentionMs, threadMs } from "./messages.js"
@@ -5238,7 +5238,7 @@ describe("a long hold of the doorbell", () => {
       expect(stop(from, bound[from]).stdout).not.toContain("not arrived")
       // The third, held long itself, is told in the next answer.
       const answer = sent(send(from, handle, "fourth"))
-      expect(answer.holds).toEqual([holdNotice([third], handle, "draft", since + longHoldMs - 1)])
+      expect(answer.holds).toEqual([holdFact([third], handle, "draft", since + longHoldMs - 1)])
     })
 
     it.runIf(from === "A")(
@@ -5270,7 +5270,7 @@ describe("a long hold of the doorbell", () => {
       time.now += longHoldMs
       expect(messaging.list(to, handle)).toMatchObject({ waits: "draft", waitsSince: since })
       expect(sent(send(from, handle, "second")).holds).toEqual([
-        holdNotice([id], handle, "draft", since),
+        holdFact([id], handle, "draft", since),
       ])
     })
 
@@ -5281,7 +5281,7 @@ describe("a long hold of the doorbell", () => {
       time.now += longHoldMs
       expect(messaging.list(to, handle)).toMatchObject({ waits: null, waitsSince: since })
       expect(sent(send(from, handle, "second")).holds).toEqual([
-        holdNotice([id], handle, null, since),
+        holdFact([id], handle, null, since),
       ])
       expect(holdNotice([id], handle, null, since)).toContain(
         "(its agent is idle, but Novadeck can't wake it yet)",

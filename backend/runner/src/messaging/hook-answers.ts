@@ -103,6 +103,11 @@ export type HookAnswersHost = {
 export class HookAnswers {
   constructor(readonly host: HookAnswersHost) {}
 
+  /** The terminal's long holds, each as a notice of its own. */
+  private heldNotices(terminalId: string): string[] {
+    return this.host.heldFrom(terminalId).map((facts) => noticeText("Messages", { facts }))
+  }
+
   /** What the terminal's root session did, decoded from a report, for its delivery state. */
   observe(terminalId: string, events: readonly HarnessEvent[], person?: Person): void {
     const { deliveries, withdrawals } = this.host
@@ -248,7 +253,7 @@ export class HookAnswers {
     const notes = noticed.texts
     // What a harness whose injected messages last one call gives again on each later call.
     const noting = profile.reinjectPerCall && notes.length > 0
-    const holds = [...notes, ...(time && !behind ? this.host.heldFrom(live.terminalId) : [])]
+    const holds = [...notes, ...(time && !behind ? this.heldNotices(live.terminalId) : [])]
     if (start.cause === "call") {
       // A notice paid at a later call is given again on the turn's remaining ones, as one
       // paid at its first is.
@@ -335,7 +340,7 @@ export class HookAnswers {
     if (!call || !called || !time || !running(live.delivery)) return silent
     // What this terminal sent that waits long goes beside the result too, once.
     const noticed = this.host.withdrawals.notices(live, root, person)
-    const holds = [...noticed.texts, ...this.host.heldFrom(live.terminalId)]
+    const holds = [...noticed.texts, ...this.heldNotices(live.terminalId)]
     const print = (text: string) => call(noted(text, holds), event)
     const lease = leasing.lease(live, root, {
       kind: "midturn",

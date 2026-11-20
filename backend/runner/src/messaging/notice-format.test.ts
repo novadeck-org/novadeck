@@ -14,7 +14,7 @@ import {
 import { runNotice } from "../terminals/runs.js"
 import { teamNotice } from "../terminals/teams.js"
 import { worktreeNotice } from "../worktrees/calls.js"
-import { holdNotice } from "./holds.js"
+import { holdFact, holdNotice } from "./holds.js"
 import { dismissedNotice, withdrawnNotice } from "./inbox.js"
 import { noticeKinds, noticeLines, noticePrefix, noticeText } from "./notice-format.js"
 
@@ -94,5 +94,17 @@ describe("every notice Novadeck words", () => {
     )
     for (const text of [leadNotice.nowLed("newtz"), leadNotice.released("newtz")])
       expect(text).not.toMatch(/still stands|lead mark|peer's/)
+  })
+
+  it("embeds a hold in the lead notice as a fact, never as a second notice, with the retry as an action", () => {
+    const hold = holdFact(["m-1"], "fox", "draft", 0)
+    const text = leadNotice.led("fox", "api", {
+      ok: true,
+      text: `Your brief matched message m-1. ${hold}`,
+      again: "Send it again in a few seconds.",
+    })
+    expect(text.match(/Novadeck · /g)).toHaveLength(1)
+    expect(text).toContain(hold)
+    expect(text.endsWith("\n→ Send it again in a few seconds.")).toBe(true)
   })
 })

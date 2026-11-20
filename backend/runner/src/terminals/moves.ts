@@ -8,7 +8,7 @@ import type { Messaging } from "../messaging/messaging.js"
 import { noticeText } from "../messaging/notice-format.js"
 import type { Approvals } from "./approvals.js"
 import { mention } from "./handles.js"
-import { leadNotice } from "./leads.js"
+import { reportBack } from "./leads.js"
 import type { Names } from "./names.js"
 import type { OpenRequests } from "./opens.js"
 import type { Record } from "./record.js"
@@ -120,6 +120,14 @@ export const moveNotice = {
         `The user moved ${mention(handle)} · ${title} to another session in Novadeck: you no ` +
         "longer lead it, and you can no longer see it. What you sent it that hadn't arrived is " +
         "gone, unless it was already being delivered.",
+    }),
+  // To the first terminal of a moved group that keeps its lead, whose handle may have changed.
+  ledAfter: (lead: string, renames: readonly Rename[] = []): string =>
+    noticeText("Move", {
+      facts:
+        `${mention(lead)} leads you from now on.` +
+        (renames.length === 0 ? "" : " " + changes(renames)),
+      actions: [reportBack, ...(renames.length === 0 ? [] : [useNew])],
     }),
   // To a terminal whose handle changed, or whose lead's or teammates' did, in the new session.
   renamed: (handle: string, renames: readonly Rename[]): string =>
@@ -465,7 +473,7 @@ export class Moves {
             ? moveNotice.left(leftHandle, renames)
             : moveNotice.leftGone(renames)
           : index === 0 && ledBy !== null && leadHandle !== undefined
-            ? leadNotice.nowLed(leadHandle) + (renames.length === 0 ? "" : " " + changes(renames))
+            ? moveNotice.ledAfter(leadHandle, renames)
             : renames.length > 0
               ? moveNotice.renamed(handle, renames)
               : moveNotice.alone()
