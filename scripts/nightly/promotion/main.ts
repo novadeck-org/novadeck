@@ -30,8 +30,8 @@ const required = (name: string): string => {
 const repo = (): string => required("GITHUB_REPOSITORY")
 
 // A page of 100 runs passed Node's 1 MiB default on 2026-11-20 (e2e.yml's: 1,067,425 bytes,
-// about 15 KB a run), and the check crashed with ENOBUFS; the other gh readers in scripts/
-// allow as much.
+// about 15 KB a run), and the check crashed with ENOBUFS; scripts/ci/plan/durations.ts and
+// scripts/e2e/plan/durations.ts allow as much.
 const output = { encoding: "utf8", maxBuffer: 1 << 28 } as const
 
 const api = <T>(path: string): T => JSON.parse(execFileSync("gh", ["api", path], output)) as T
