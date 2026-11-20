@@ -105,22 +105,32 @@ export const rootRows = (rows: readonly string[]): readonly string[] => {
 const rootWaits =
   /Side from main thread · (?:[^·]+ · )*main needs \w+ · (?:ctrl\+|\^|⌃)\/ to switch/
 
+/** The marker that leads Codex's composer row, and each prompt it echoes. */
+const marker = "›"
+
 /**
  * Whether a side conversation has the focus, so the root's dialog is held out of view: in the
- * sidebar (the cursor right of the divider), where the root's pane goes on showing what it did
- * before its dialog came and nothing says one waits; or over the whole screen, saying the root
- * waits in its footer. Ctrl-/ moves the focus to the root, which shows its dialog, and does
- * nothing while one shows there (probed 0.170.0 and 0.171.0, 2026-11-20,
- * fixtures/side-dialog.probe.json).
+ * sidebar, where the root's pane goes on showing what it did before its dialog came and nothing
+ * says one waits; or over the whole screen, saying the root waits in its footer. Ctrl-/ moves the
+ * focus to the root, which shows its dialog, and does nothing while one shows there (probed
+ * 0.170.0 and 0.171.0, 2026-11-20, fixtures/side-dialog.probe.json).
+ *
+ * The sidebar has the focus only where the cursor is in its composer: right of the divider, on
+ * the last of its rows that starts with `›`, past the marker. A cursor merely right of the divider
+ * says nothing: Codex hides it while the root's dialog is up and leaves it after the last cell it
+ * drew, on the sidebar's "Working" row while the side's turn runs (`sideBusyFrames`).
  */
 export const sideFocused = (
   rows: readonly string[],
-  cursor: { readonly column: number } | undefined,
+  cursor: { readonly row: number; readonly column: number } | undefined,
 ): boolean => {
   const at = splitAt(rows)
-  if (at !== undefined) return cursor !== undefined && cursor.column > at
-  return rows
-    .filter((row) => row.trim() !== "")
-    .slice(-3)
-    .some((row) => rootWaits.test(row))
+  if (at === undefined)
+    return rows
+      .filter((row) => row.trim() !== "")
+      .slice(-3)
+      .some((row) => rootWaits.test(row))
+  if (cursor === undefined || cursor.column <= at + 1) return false
+  const composer = rows.findLastIndex((row) => cellSlice(row, at + 1, Infinity).startsWith(marker))
+  return composer === cursor.row
 }

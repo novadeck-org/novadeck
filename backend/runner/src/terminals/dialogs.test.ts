@@ -688,9 +688,9 @@ describe("a dialog held out of view", () => {
     }
   })
 
-  it("presses again on a moving screen still holding it only once as long has passed", async () => {
+  it("presses only once for a request on a screen that keeps moving", async () => {
     const { tui, dialogs, pressed } = held({
-      raw: { still: 10_000, age: 40, latest: 150 },
+      raw: { still: 10_000, age: 40, latest: 60 },
       // The keys bring nothing into view.
       press: () => undefined,
     })
@@ -701,12 +701,27 @@ describe("a dialog held out of view", () => {
     try {
       dialogs.changed("t")
       await until(() => pressed.length > 0)
-      await settle(80)
-      expect(pressed).toHaveLength(1)
-      await until(() => pressed.length > 1)
+      await settle(400)
+      expect(pressed).toEqual([REVEAL])
     } finally {
       clearInterval(ticking)
     }
+  })
+
+  it("presses keys that toggle only once for a request, on still screens too", async () => {
+    // Each press changes the screen, which then holds still, the dialog still out of view.
+    const shifts = (_data: string, tui: FakeTui) => {
+      tui.noise += 1
+    }
+    const once = held({ adapter: { ...holding(), revealToggles: [REVEAL] }, press: shifts })
+    once.dialogs.changed("t")
+    await until(() => once.pressed.length > 0)
+    await settle(400)
+    expect(once.pressed).toEqual([REVEAL])
+    // Keys that don't toggle are pressed again on each still screen that holds it, as before.
+    const again = held({ press: shifts })
+    again.dialogs.changed("t")
+    await until(() => again.pressed.length > 1)
   })
 
   it("is never scrolled for a terminal a client has in sight", async () => {

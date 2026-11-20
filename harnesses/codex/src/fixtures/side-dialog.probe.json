@@ -1,7 +1,7 @@
 {
   "harness": "codex",
   "source": "src/e2e/probes/codex-side-dialog.e2e.ts, run with NOVADECK_E2E_PROBES=1 on Linux (2026-11-20)",
-  "how": "Codex driven in a PTY of 120x40 (permissionNarrow: 99x40) by the end-to-end deck against the fake model. The root's turn runs `sleep 8`, then asks an approval (`facts.permission`). permissionSide: `/side` opened mid-turn, in focus when the approval comes; then Ctrl-/ three times, then `y`. permissionRoot: a first turn, `/side` opened, Ctrl-/ back to the root, then the prompt; the same keys after. Labels name the scenario and the state each screen settled in. Paths are masked.",
+  "how": "Codex driven in a PTY of 120x40 (permissionNarrow: 99x40) by the end-to-end deck against the fake model. The root's turn runs `sleep 8`, then asks an approval (`facts.permission`). permissionSide: `/side` opened mid-turn, in focus when the approval comes; then Ctrl-/ three times, then `y`. permissionRoot: a first turn, `/side` opened, Ctrl-/ back to the root, then the prompt; the same keys after. Labels name the scenario and the state each screen settled in. Paths are masked. sideBusy: a first turn, `/side` asked something whose answer the model holds, Ctrl-/ back to the root, the root's prompt and its approval; sideBusyFrames is the cursor and its row in 60 frames 100 ms apart while the approval is up, the side's turn running. sideApproval120/99: the side conversation's own turn asks the approval; each state's Requests are the terminal's pending requests then.",
   "facts": {
     "permission": {
       "name": "exec_command",
@@ -1657,7 +1657,1217 @@
           "36": "›",
           "37": ""
         }
-      }
+      },
+      "sideBusySideWorking": {
+        "height": 40,
+        "columns": 120,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "0": " ",
+          "1": "› Ask on the side",
+          "2": " ",
+          "3": " ",
+          "4": " ",
+          "5": " ",
+          "6": " ",
+          "7": " ",
+          "8": " ",
+          "9": " ",
+          "10": " ",
+          "11": " ",
+          "12": " ",
+          "13": " ",
+          "14": " ",
+          "15": " ",
+          "16": " ",
+          "17": " ",
+          "18": " ",
+          "19": " ",
+          "20": " ",
+          "21": " ",
+          "22": " ",
+          "23": " ",
+          "24": " ",
+          "25": " ",
+          "26": " ",
+          "27": " ",
+          "28": " ",
+          "29": " ",
+          "30": " ",
+          "31": " ",
+          "32": " ",
+          "33": "◦ Working (1s • esc to interrupt)",
+          "34": " ",
+          "35": " ",
+          "36": "› Ask a follow-up question",
+          "37": " ",
+          "38": "  fake-model default · /tmp/novadeck-e2e-XXXXXX/project · Ask on the side · Agent",
+          "39": "  ← for agents · ? for shortcuts · Side from main thread · ^/ to switch · ^c to close"
+        },
+        "bright": {
+          "0": "",
+          "1": "  Ask on the side",
+          "2": "",
+          "3": "",
+          "4": "",
+          "5": "",
+          "6": "",
+          "7": "",
+          "8": "",
+          "9": "",
+          "10": "",
+          "11": "",
+          "12": "",
+          "13": "",
+          "14": "",
+          "15": "",
+          "16": "",
+          "17": "",
+          "18": "",
+          "19": "",
+          "20": "",
+          "21": "",
+          "22": "",
+          "23": "",
+          "24": "",
+          "25": "",
+          "26": "",
+          "27": "",
+          "28": "",
+          "29": "",
+          "30": "",
+          "31": "",
+          "32": "",
+          "33": "                esc",
+          "34": "",
+          "35": "",
+          "36": "›",
+          "37": ""
+        }
+      },
+      "sideBusyRootBack": {
+        "height": 40,
+        "columns": 120,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "0": " ",
+          "1": "  >_ OpenAI Codex (v0.170.0)",
+          "2": "     /tmp/novadeck-e2e-XXXXXX/project",
+          "3": " ",
+          "4": " ",
+          "5": "› Warm up",
+          "6": " ",
+          "7": " ",
+          "8": "• Warmed up.",
+          "9": " ",
+          "10": "  Worked for <1s • 09:41                                                                                                ",
+          "11": " ",
+          "12": " ",
+          "13": " ",
+          "14": " ",
+          "15": " ",
+          "16": " ",
+          "17": " ",
+          "18": " ",
+          "19": " ",
+          "20": " ",
+          "21": " ",
+          "22": " ",
+          "23": " ",
+          "24": " ",
+          "25": " ",
+          "26": " ",
+          "27": " ",
+          "28": " ",
+          "29": " ",
+          "30": " ",
+          "31": " ",
+          "32": " ",
+          "33": " ",
+          "34": " ",
+          "35": " ",
+          "36": "› Ask Codex to do anything",
+          "37": " ",
+          "38": "  fake-model default · /tmp/novadeck-e2e-XXXXXX/project · Warm up · Main [default]",
+          "39": "  ← for agents · ? for shortcuts · ^/ for side"
+        },
+        "bright": {
+          "0": "",
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "3": "",
+          "4": "",
+          "5": "  Warm up",
+          "6": "",
+          "7": "",
+          "8": "  Warmed up.",
+          "9": "",
+          "10": "",
+          "11": "",
+          "12": "",
+          "13": "",
+          "14": "",
+          "15": "",
+          "16": "",
+          "17": "",
+          "18": "",
+          "19": "",
+          "20": "",
+          "21": "",
+          "22": "",
+          "23": "",
+          "24": "",
+          "25": "",
+          "26": "",
+          "27": "",
+          "28": "",
+          "29": "",
+          "30": "",
+          "31": "",
+          "32": "",
+          "33": "",
+          "34": "",
+          "35": "",
+          "36": "›",
+          "37": ""
+        }
+      },
+      "sideBusyHeld": {
+        "height": 40,
+        "columns": 120,
+        "cursor": {
+          "row": 39,
+          "column": 120
+        },
+        "rows": {
+          "0": " ",
+          "1": "  >_ OpenAI Codex (v0.170.0)",
+          "2": "     /tmp/novadeck-e2e-XXXXXX/project",
+          "3": " ",
+          "4": " ",
+          "5": "› Warm up",
+          "6": " ",
+          "7": " ",
+          "8": "• Warmed up.",
+          "9": " ",
+          "10": "  Worked for <1s • 09:41                                                                                                ",
+          "11": " ",
+          "12": " ",
+          "13": "› Run the thing",
+          "14": " ",
+          "15": " ",
+          "16": "• Ran sleep 8; echo slept",
+          "17": "  └ slept",
+          "18": " ",
+          "19": "• Running echo approved > probe-out.txt",
+          "20": " ",
+          "21": " ",
+          "22": " ",
+          "23": " ",
+          "24": " ",
+          "25": " ",
+          "26": "  Would you like to run the following command?",
+          "27": " ",
+          "28": "  Environment: local",
+          "29": " ",
+          "30": "  Reason: Echo outside the sandbox",
+          "31": " ",
+          "32": "  $ echo approved > probe-out.txt",
+          "33": " ",
+          "34": " ",
+          "35": "› 1. Yes, proceed (y)                                                                                                   ",
+          "36": "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
+          "37": "  3. No, and tell Codex what to do differently (esc)",
+          "38": " ",
+          "39": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        "bright": {
+          "0": "",
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "3": "",
+          "4": "",
+          "5": "  Warm up",
+          "6": "",
+          "7": "",
+          "8": "  Warmed up.",
+          "9": "",
+          "10": "",
+          "11": "",
+          "12": "",
+          "13": "  Run the thing",
+          "14": "",
+          "15": "",
+          "17": "",
+          "18": "",
+          "20": "",
+          "21": "",
+          "22": "",
+          "23": "",
+          "24": "",
+          "25": "",
+          "27": "",
+          "29": "",
+          "31": "",
+          "33": "",
+          "34": "",
+          "35": "› 1. Yes, proceed (y)",
+          "38": "",
+          "39": "        enter               esc"
+        }
+      },
+      "sideBusyFrames": [
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "row": "  Press enter to confirm or esc to cancel                                                                               "
+        }
+      ],
+      "sideBusySideAnswered": {
+        "height": 40,
+        "columns": 120,
+        "cursor": {
+          "row": 39,
+          "column": 120
+        },
+        "rows": {
+          "0": " ",
+          "1": "  >_ OpenAI Codex (v0.170.0)",
+          "2": "     /tmp/novadeck-e2e-XXXXXX/project",
+          "3": " ",
+          "4": " ",
+          "5": "› Warm up",
+          "6": " ",
+          "7": " ",
+          "8": "• Warmed up.",
+          "9": " ",
+          "10": "  Worked for <1s • 09:41                                                                                                ",
+          "11": " ",
+          "12": " ",
+          "13": "› Run the thing",
+          "14": " ",
+          "15": " ",
+          "16": "• Ran sleep 8; echo slept",
+          "17": "  └ slept",
+          "18": " ",
+          "19": "• Running echo approved > probe-out.txt",
+          "20": " ",
+          "21": " ",
+          "22": " ",
+          "23": " ",
+          "24": " ",
+          "25": " ",
+          "26": "  Would you like to run the following command?",
+          "27": " ",
+          "28": "  Environment: local",
+          "29": " ",
+          "30": "  Reason: Echo outside the sandbox",
+          "31": " ",
+          "32": "  $ echo approved > probe-out.txt",
+          "33": " ",
+          "34": " ",
+          "35": "› 1. Yes, proceed (y)                                                                                                   ",
+          "36": "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
+          "37": "  3. No, and tell Codex what to do differently (esc)",
+          "38": " ",
+          "39": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        "bright": {
+          "0": "",
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "3": "",
+          "4": "",
+          "5": "  Warm up",
+          "6": "",
+          "7": "",
+          "8": "  Warmed up.",
+          "9": "",
+          "10": "",
+          "11": "",
+          "12": "",
+          "13": "  Run the thing",
+          "14": "",
+          "15": "",
+          "17": "",
+          "18": "",
+          "20": "",
+          "21": "",
+          "22": "",
+          "23": "",
+          "24": "",
+          "25": "",
+          "27": "",
+          "29": "",
+          "31": "",
+          "33": "",
+          "34": "",
+          "35": "› 1. Yes, proceed (y)",
+          "38": "",
+          "39": "        enter               esc"
+        }
+      },
+      "sideBusyAnswered": {
+        "height": 40,
+        "columns": 120,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "0": " ",
+          "1": "  >_ OpenAI Codex (v0.170.0)",
+          "2": "     /tmp/novadeck-e2e-XXXXXX/project",
+          "3": " ",
+          "4": " ",
+          "5": "› Warm up",
+          "6": " ",
+          "7": " ",
+          "8": "• Warmed up.",
+          "9": " ",
+          "10": "  Worked for <1s • 09:41                                                                                                ",
+          "11": " ",
+          "12": " ",
+          "13": "› Run the thing",
+          "14": " ",
+          "15": " ",
+          "16": "• Ran sleep 8; echo slept",
+          "17": "  └ slept",
+          "18": " ",
+          "19": "✔ You approved codex to run echo approved > probe-out.txt this time",
+          "20": " ",
+          "21": "• Ran echo approved > probe-out.txt",
+          "22": "  └ (no output)",
+          "23": " ",
+          "24": "• Finished the request.",
+          "25": "  └ Tip: You can run any shell command from Codex using ! (e.g. !ls)",
+          "26": " ",
+          "27": "  Worked for 18s • 09:42                                                                                                ",
+          "28": " ",
+          "29": " ",
+          "30": " ",
+          "31": " ",
+          "32": " ",
+          "33": " ",
+          "34": " ",
+          "35": " ",
+          "36": "› Ask Codex to do anything",
+          "37": " ",
+          "38": "  fake-model default · /tmp/novadeck-e2e-XXXXXX/project · Warm up · Main [default]",
+          "39": "  ← for agents · ? for shortcuts · ^/ for side"
+        },
+        "bright": {
+          "0": "",
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "3": "",
+          "4": "",
+          "5": "  Warm up",
+          "6": "",
+          "7": "",
+          "8": "  Warmed up.",
+          "9": "",
+          "10": "",
+          "11": "",
+          "12": "",
+          "13": "  Run the thing",
+          "14": "",
+          "15": "",
+          "17": "",
+          "18": "",
+          "19": "✔ You approved codex to run                               this time",
+          "20": "",
+          "22": "",
+          "23": "",
+          "24": "  Finished the request.",
+          "25": "    Tip: You can run any shell command from Codex using ! (e.g. !ls)",
+          "26": "",
+          "27": "",
+          "28": "",
+          "29": "",
+          "30": "",
+          "31": "",
+          "32": "",
+          "33": "",
+          "34": "",
+          "35": "",
+          "36": "›",
+          "37": ""
+        }
+      },
+      "sideApproval120Held": {
+        "height": 40,
+        "columns": 120,
+        "cursor": {
+          "row": 39,
+          "column": 120
+        },
+        "rows": {
+          "0": " ",
+          "1": "› Ask on the side",
+          "2": " ",
+          "3": " ",
+          "4": "• Running echo approved > probe-out.txt",
+          "5": " ",
+          "6": " ",
+          "7": " ",
+          "8": " ",
+          "9": " ",
+          "10": " ",
+          "11": " ",
+          "12": " ",
+          "13": " ",
+          "14": " ",
+          "15": " ",
+          "16": " ",
+          "17": " ",
+          "18": " ",
+          "19": " ",
+          "20": " ",
+          "21": " ",
+          "22": " ",
+          "23": " ",
+          "24": " ",
+          "25": " ",
+          "26": "  Would you like to run the following command?",
+          "27": " ",
+          "28": "  Environment: local",
+          "29": " ",
+          "30": "  Reason: Echo outside the sandbox",
+          "31": " ",
+          "32": "  $ echo approved > probe-out.txt",
+          "33": " ",
+          "34": " ",
+          "35": "› 1. Yes, proceed (y)                                                                                                   ",
+          "36": "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
+          "37": "  3. No, and tell Codex what to do differently (esc)",
+          "38": " ",
+          "39": "  Press enter to confirm or esc to cancel                                                                               "
+        },
+        "bright": {
+          "0": "",
+          "1": "  Ask on the side",
+          "2": "",
+          "3": "",
+          "5": "",
+          "6": "",
+          "7": "",
+          "8": "",
+          "9": "",
+          "10": "",
+          "11": "",
+          "12": "",
+          "13": "",
+          "14": "",
+          "15": "",
+          "16": "",
+          "17": "",
+          "18": "",
+          "19": "",
+          "20": "",
+          "21": "",
+          "22": "",
+          "23": "",
+          "24": "",
+          "25": "",
+          "27": "",
+          "29": "",
+          "31": "",
+          "33": "",
+          "34": "",
+          "35": "› 1. Yes, proceed (y)",
+          "38": "",
+          "39": "        enter               esc"
+        }
+      },
+      "sideApproval120HeldRequests": [],
+      "sideApproval120Answered": {
+        "height": 40,
+        "columns": 120,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "0": " ",
+          "1": "› Ask on the side",
+          "2": " ",
+          "3": " ",
+          "4": "✔ You approved codex to run echo approved > probe-out.txt this time",
+          "5": " ",
+          "6": "• Ran echo approved > probe-out.txt",
+          "7": "  └ (no output)",
+          "8": " ",
+          "9": "• Ran it on the side.",
+          "10": " ",
+          "11": "  Worked for 6s • 09:42                                                                                                 ",
+          "12": " ",
+          "13": " ",
+          "14": " ",
+          "15": " ",
+          "16": " ",
+          "17": " ",
+          "18": " ",
+          "19": " ",
+          "20": " ",
+          "21": " ",
+          "22": " ",
+          "23": " ",
+          "24": " ",
+          "25": " ",
+          "26": " ",
+          "27": " ",
+          "28": " ",
+          "29": " ",
+          "30": " ",
+          "31": " ",
+          "32": " ",
+          "33": " ",
+          "34": " ",
+          "35": " ",
+          "36": "› Ask a follow-up question",
+          "37": " ",
+          "38": "  fake-model default · /tmp/novadeck-e2e-XXXXXX/project · Ask on the side · Agent",
+          "39": "  ← for agents · ? for shortcuts · Side from main thread · ^/ to switch · ^c to close"
+        },
+        "bright": {
+          "0": "",
+          "1": "  Ask on the side",
+          "2": "",
+          "3": "",
+          "4": "✔ You approved codex to run                               this time",
+          "5": "",
+          "7": "",
+          "8": "",
+          "9": "  Ran it on the side.",
+          "10": "",
+          "11": "",
+          "12": "",
+          "13": "",
+          "14": "",
+          "15": "",
+          "16": "",
+          "17": "",
+          "18": "",
+          "19": "",
+          "20": "",
+          "21": "",
+          "22": "",
+          "23": "",
+          "24": "",
+          "25": "",
+          "26": "",
+          "27": "",
+          "28": "",
+          "29": "",
+          "30": "",
+          "31": "",
+          "32": "",
+          "33": "",
+          "34": "",
+          "35": "",
+          "36": "›",
+          "37": ""
+        }
+      },
+      "sideApproval120AnsweredRequests": [],
+      "sideApproval99Held": {
+        "height": 40,
+        "columns": 99,
+        "cursor": {
+          "row": 39,
+          "column": 99
+        },
+        "rows": {
+          "0": " ",
+          "1": "› Ask on the side",
+          "2": " ",
+          "3": " ",
+          "4": "• Running echo approved > probe-out.txt",
+          "5": " ",
+          "6": " ",
+          "7": " ",
+          "8": " ",
+          "9": " ",
+          "10": " ",
+          "11": " ",
+          "12": " ",
+          "13": " ",
+          "14": " ",
+          "15": " ",
+          "16": " ",
+          "17": " ",
+          "18": " ",
+          "19": " ",
+          "20": " ",
+          "21": " ",
+          "22": " ",
+          "23": " ",
+          "24": " ",
+          "25": " ",
+          "26": "  Would you like to run the following command?",
+          "27": " ",
+          "28": "  Environment: local",
+          "29": " ",
+          "30": "  Reason: Echo outside the sandbox",
+          "31": " ",
+          "32": "  $ echo approved > probe-out.txt",
+          "33": " ",
+          "34": " ",
+          "35": "› 1. Yes, proceed (y)                                                                              ",
+          "36": "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
+          "37": "  3. No, and tell Codex what to do differently (esc)",
+          "38": " ",
+          "39": "  Press enter to confirm or esc to cancel                                                          "
+        },
+        "bright": {
+          "0": "",
+          "1": "  Ask on the side",
+          "2": "",
+          "3": "",
+          "5": "",
+          "6": "",
+          "7": "",
+          "8": "",
+          "9": "",
+          "10": "",
+          "11": "",
+          "12": "",
+          "13": "",
+          "14": "",
+          "15": "",
+          "16": "",
+          "17": "",
+          "18": "",
+          "19": "",
+          "20": "",
+          "21": "",
+          "22": "",
+          "23": "",
+          "24": "",
+          "25": "",
+          "27": "",
+          "29": "",
+          "31": "",
+          "33": "",
+          "34": "",
+          "35": "› 1. Yes, proceed (y)",
+          "38": "",
+          "39": "        enter               esc"
+        }
+      },
+      "sideApproval99HeldRequests": [],
+      "sideApproval99Answered": {
+        "height": 40,
+        "columns": 99,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "0": " ",
+          "1": "› Ask on the side",
+          "2": " ",
+          "3": " ",
+          "4": "✔ You approved codex to run echo approved > probe-out.txt this time",
+          "5": " ",
+          "6": "• Ran echo approved > probe-out.txt",
+          "7": "  └ (no output)",
+          "8": " ",
+          "9": "• Ran it on the side.",
+          "10": " ",
+          "11": "  Worked for 6s • 09:42                                                                            ",
+          "12": " ",
+          "13": " ",
+          "14": " ",
+          "15": " ",
+          "16": " ",
+          "17": " ",
+          "18": " ",
+          "19": " ",
+          "20": " ",
+          "21": " ",
+          "22": " ",
+          "23": " ",
+          "24": " ",
+          "25": " ",
+          "26": " ",
+          "27": " ",
+          "28": " ",
+          "29": " ",
+          "30": " ",
+          "31": " ",
+          "32": " ",
+          "33": " ",
+          "34": " ",
+          "35": " ",
+          "36": "› Ask a follow-up question",
+          "37": " ",
+          "38": "  fake-model default · /tmp/novadeck-e2e-XXXXXX/project · Ask on the side · Agent",
+          "39": "  ← for agents · ? for shortcuts · Side from main thread · ^/ to switch · ^c to close"
+        },
+        "bright": {
+          "0": "",
+          "1": "  Ask on the side",
+          "2": "",
+          "3": "",
+          "4": "✔ You approved codex to run                               this time",
+          "5": "",
+          "7": "",
+          "8": "",
+          "9": "  Ran it on the side.",
+          "10": "",
+          "11": "",
+          "12": "",
+          "13": "",
+          "14": "",
+          "15": "",
+          "16": "",
+          "17": "",
+          "18": "",
+          "19": "",
+          "20": "",
+          "21": "",
+          "22": "",
+          "23": "",
+          "24": "",
+          "25": "",
+          "26": "",
+          "27": "",
+          "28": "",
+          "29": "",
+          "30": "",
+          "31": "",
+          "32": "",
+          "33": "",
+          "34": "",
+          "35": "",
+          "36": "›",
+          "37": ""
+        }
+      },
+      "sideApproval99AnsweredRequests": []
     },
     "0.171.0": {
       "permissionSideSideOpen": {
@@ -3373,7 +4583,1249 @@
           "36": "›",
           "37": ""
         }
-      }
+      },
+      "sideBusySideWorking": {
+        "height": 40,
+        "columns": 120,
+        "cursor": {
+          "row": 34,
+          "column": 82
+        },
+        "rows": {
+          "0": "                                                                               │ Ask on th…×                         +",
+          "1": "  >_ OpenAI Codex (v0.171.0)                                                   │",
+          "2": "     /tmp/novadeck-e2e-XXXXXX/project                                          │› Ask on the side",
+          "3": "                                                                               │",
+          "4": "                                                                               │",
+          "5": "› Warm up                                                                      │",
+          "6": "                                                                               │",
+          "7": "                                                                               │",
+          "8": "• Warmed up.                                                                   │",
+          "9": "                                                                               │",
+          "10": "  Worked for <1s • 09:40                                                       │",
+          "11": "                                                                               │",
+          "12": "                                                                               │",
+          "13": "                                                                               │",
+          "14": "                                                                               │",
+          "15": "                                                                               │",
+          "16": "                                                                               │",
+          "17": "                                                                               │",
+          "18": "                                                                               │",
+          "19": "                                                                               │",
+          "20": "                                                                               │",
+          "21": "                                                                               │",
+          "22": "                                                                               │",
+          "23": "                                                                               │",
+          "24": "                                                                               │",
+          "25": "                                                                               │",
+          "26": "                                                                               │",
+          "27": "                                                                               │",
+          "28": "                                                                               │",
+          "29": "                                                                               │",
+          "30": "                                                                               │",
+          "31": "                                                                               │◦ Working (1s • esc to interrupt)",
+          "32": "                                                                               │",
+          "33": "                                                                               │",
+          "34": "                                                                               │› Ask a follow-up question",
+          "35": "                                                                               │",
+          "36": "›                                                                              │  fake-model default · /tmp/novadeck-",
+          "37": "                                                                               │  e2e-XXXXXX/project · Ask on the side ·",
+          "38": "  fake-model default · /tmp/novadeck-e2e-XXXXXX/project · Warm up              │  Agent",
+          "39": "                                                                               │  ← for agents · ? for shortcuts"
+        },
+        "bright": {
+          "0": "                                                                                 Ask on th…×                         +",
+          "1": "  >_ OpenAI Codex",
+          "2": "                                                                                  Ask on the side",
+          "3": "",
+          "4": "",
+          "5": "  Warm up",
+          "6": "",
+          "7": "",
+          "8": "  Warmed up.",
+          "9": "",
+          "10": "",
+          "11": "",
+          "12": "",
+          "13": "",
+          "14": "",
+          "15": "",
+          "16": "",
+          "17": "",
+          "18": "",
+          "19": "",
+          "20": "",
+          "21": "",
+          "22": "",
+          "23": "",
+          "24": "",
+          "25": "",
+          "26": "",
+          "27": "",
+          "28": "",
+          "29": "",
+          "30": "",
+          "31": "                                                                                                esc",
+          "32": "",
+          "33": "",
+          "34": "                                                                                ›",
+          "35": "",
+          "36": "                                                                                  fake-model default · /tmp/novadeck-",
+          "37": "                                                                                  e2e-XXXXXX/project · Ask on the side ·",
+          "38": "                                                                                  Agent",
+          "39": "                                                                                  ← for agents · ? for shortcuts"
+        }
+      },
+      "sideBusyRootBack": {
+        "height": 40,
+        "columns": 120,
+        "cursor": {
+          "row": 35,
+          "column": 2
+        },
+        "rows": {
+          "0": "                                                                               │ Ask on th…×                         +",
+          "1": "  >_ OpenAI Codex (v0.171.0)                                                   │",
+          "2": "     /tmp/novadeck-e2e-XXXXXX/project                                          │› Ask on the side",
+          "3": "                                                                               │",
+          "4": "                                                                               │",
+          "5": "› Warm up                                                                      │",
+          "6": "                                                                               │",
+          "7": "                                                                               │",
+          "8": "• Warmed up.                                                                   │",
+          "9": "                                                                               │",
+          "10": "  Worked for <1s • 09:40                                                       │",
+          "11": "                                                                               │",
+          "12": "                                                                               │",
+          "13": "                                                                               │",
+          "14": "                                                                               │",
+          "15": "                                                                               │",
+          "16": "                                                                               │",
+          "17": "                                                                               │",
+          "18": "                                                                               │",
+          "19": "                                                                               │",
+          "20": "                                                                               │",
+          "21": "                                                                               │",
+          "22": "                                                                               │",
+          "23": "                                                                               │",
+          "24": "                                                                               │",
+          "25": "                                                                               │",
+          "26": "                                                                               │",
+          "27": "                                                                               │",
+          "28": "                                                                               │",
+          "29": "                                                                               │",
+          "30": "                                                                               │",
+          "31": "                                                                               │",
+          "32": "                                                                               │• Working (3s)",
+          "33": "                                                                               │",
+          "34": "                                                                               │                                        ",
+          "35": "› Ask Codex to do anything                                                     │›                                       ",
+          "36": "                                                                               │                                        ",
+          "37": "  fake-model default · /tmp/novadeck-e2e-XXXXXX/project · Warm up · Main       │  fake-model default · /tmp/novadeck-",
+          "38": "  [default]                                                                    │  e2e-XXXXXX/project · Ask on the side",
+          "39": "  ← for agents · ? for shortcuts · ^/ for side                                 │"
+        },
+        "bright": {
+          "0": "                                                                                 Ask on th…×                         +",
+          "1": "  >_ OpenAI Codex",
+          "2": "                                                                                  Ask on the side",
+          "3": "",
+          "4": "",
+          "5": "  Warm up",
+          "6": "",
+          "7": "",
+          "8": "  Warmed up.",
+          "9": "",
+          "10": "",
+          "11": "",
+          "12": "",
+          "13": "",
+          "14": "",
+          "15": "",
+          "16": "",
+          "17": "",
+          "18": "",
+          "19": "",
+          "20": "",
+          "21": "",
+          "22": "",
+          "23": "",
+          "24": "",
+          "25": "",
+          "26": "",
+          "27": "",
+          "28": "",
+          "29": "",
+          "30": "",
+          "31": "",
+          "32": "                                                                                •",
+          "33": "",
+          "34": "",
+          "35": "›",
+          "36": "",
+          "37": "  fake-model default · /tmp/novadeck-e2e-XXXXXX/project · Warm up · Main",
+          "38": "  [default]",
+          "39": "  ← for agents · ? for shortcuts · ^/ for side"
+        }
+      },
+      "sideBusyHeld": {
+        "height": 40,
+        "columns": 120,
+        "cursor": {
+          "row": 32,
+          "column": 81
+        },
+        "rows": {
+          "0": "                                                                               │ Ask on th…×                         +",
+          "1": "  >_ OpenAI Codex (v0.171.0)                                                   │",
+          "2": "     /tmp/novadeck-e2e-XXXXXX/project                                          │› Ask on the side",
+          "3": "                                                                               │",
+          "4": "                                                                               │",
+          "5": "› Warm up                                                                      │",
+          "6": "                                                                               │",
+          "7": "                                                                               │",
+          "8": "• Warmed up.                                                                   │",
+          "9": "                                                                               │",
+          "10": "  Worked for <1s • 09:40                                                       │",
+          "11": "                                                                               │",
+          "12": "                                                                               │",
+          "13": "› Run the thing                                                                │",
+          "14": "                                                                               │",
+          "15": "                                                                               │",
+          "16": "• Ran sleep 8; echo slept                                                      │",
+          "17": "  └ slept                                                                      │",
+          "18": "                                                                               │",
+          "19": "• Running echo approved > probe-out.txt                                        │",
+          "20": "                                                                               │",
+          "21": "                                                                               │",
+          "22": "                                                                               │",
+          "23": "                                                                               │",
+          "24": "                                                                               │",
+          "25": "  Would you like to run the following command?                                 │",
+          "26": "                                                                               │",
+          "27": "  Environment: local                                                           │",
+          "28": "                                                                               │",
+          "29": "  Reason: Echo outside the sandbox                                             │",
+          "30": "                                                                               │",
+          "31": "  $ echo approved > probe-out.txt                                              │",
+          "32": "                                                                               │◦ Working (13s)",
+          "33": "                                                                               │",
+          "34": "› 1. Yes, proceed (y)                                                          │                                        ",
+          "35": "  2. Yes, and don't ask again for commands that start with `echo approved >    │›                                       ",
+          "36": "     probe-out.txt` (p)                                                        │                                        ",
+          "37": "  3. No, and tell Codex what to do differently (esc)                           │  fake-model default · /tmp/novadeck-",
+          "38": "                                                                               │  e2e-XXXXXX/project · Ask on the side",
+          "39": "  Press enter to confirm or esc to cancel                                      │"
+        },
+        "bright": {
+          "0": "                                                                                 Ask on th…×                         +",
+          "1": "  >_ OpenAI Codex",
+          "2": "                                                                                  Ask on the side",
+          "3": "",
+          "4": "",
+          "5": "  Warm up",
+          "6": "",
+          "7": "",
+          "8": "  Warmed up.",
+          "9": "",
+          "10": "",
+          "11": "",
+          "12": "",
+          "13": "  Run the thing",
+          "14": "",
+          "15": "",
+          "16": "• Ran sleep 8; echo slept",
+          "17": "",
+          "18": "",
+          "19": "• Running echo approved > probe-out.txt",
+          "20": "",
+          "21": "",
+          "22": "",
+          "23": "",
+          "24": "",
+          "25": "  Would you like to run the following command?",
+          "26": "",
+          "27": "  Environment: local",
+          "28": "",
+          "29": "  Reason: Echo outside the sandbox",
+          "30": "",
+          "31": "  $ echo approved > probe-out.txt",
+          "32": "",
+          "33": "",
+          "34": "› 1. Yes, proceed (y)",
+          "35": "  2. Yes, and don't ask again for commands that start with `echo approved >",
+          "36": "     probe-out.txt` (p)",
+          "37": "  3. No, and tell Codex what to do differently (esc)",
+          "38": "",
+          "39": "        enter               esc"
+        }
+      },
+      "sideBusyFrames": [
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (13s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (13s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (13s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (13s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │• Working (14s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │• Working (14s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │• Working (14s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │• Working (14s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │• Working (14s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │• Working (14s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (14s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (14s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (14s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (14s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │◦ Working (15s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │◦ Working (15s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │• Working (15s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │• Working (15s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │• Working (15s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │• Working (15s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │• Working (15s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (15s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (15s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │◦ Working (16s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │◦ Working (16s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │◦ Working (16s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │◦ Working (16s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │• Working (16s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │• Working (16s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │• Working (16s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │• Working (16s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │• Working (16s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │• Working (16s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │◦ Working (17s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │◦ Working (17s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │◦ Working (17s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │◦ Working (17s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │◦ Working (17s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │◦ Working (17s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │• Working (17s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │• Working (17s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │• Working (17s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │• Working (17s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │• Working (18s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │• Working (18s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (18s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (18s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (18s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (18s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (18s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │• Working (18s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │• Working (18s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │• Working (19s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │• Working (19s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │• Working (19s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 93
+          },
+          "row": "                                                                               │• Working (19s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (19s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (19s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (19s)"
+        },
+        {
+          "cursor": {
+            "row": 32,
+            "column": 81
+          },
+          "row": "                                                                               │◦ Working (19s)"
+        }
+      ],
+      "sideBusySideAnswered": {
+        "height": 40,
+        "columns": 120,
+        "cursor": {
+          "row": 7,
+          "column": 119
+        },
+        "rows": {
+          "0": "                                                                               │ Ask on th…×                         +",
+          "1": "  >_ OpenAI Codex (v0.171.0)                                                   │",
+          "2": "     /tmp/novadeck-e2e-XXXXXX/project                                          │› Ask on the side",
+          "3": "                                                                               │",
+          "4": "                                                                               │",
+          "5": "› Warm up                                                                      │• Answered on the side.",
+          "6": "                                                                               │",
+          "7": "                                                                               │  Worked for 19s • 09:41                ",
+          "8": "• Warmed up.                                                                   │",
+          "9": "                                                                               │",
+          "10": "  Worked for <1s • 09:40                                                       │",
+          "11": "                                                                               │",
+          "12": "                                                                               │",
+          "13": "› Run the thing                                                                │",
+          "14": "                                                                               │",
+          "15": "                                                                               │",
+          "16": "• Ran sleep 8; echo slept                                                      │",
+          "17": "  └ slept                                                                      │",
+          "18": "                                                                               │",
+          "19": "• Running echo approved > probe-out.txt                                        │",
+          "20": "                                                                               │",
+          "21": "                                                                               │",
+          "22": "                                                                               │",
+          "23": "                                                                               │",
+          "24": "                                                                               │",
+          "25": "  Would you like to run the following command?                                 │",
+          "26": "                                                                               │",
+          "27": "  Environment: local                                                           │",
+          "28": "                                                                               │",
+          "29": "  Reason: Echo outside the sandbox                                             │",
+          "30": "                                                                               │",
+          "31": "  $ echo approved > probe-out.txt                                              │",
+          "32": "                                                                               │",
+          "33": "                                                                               │",
+          "34": "› 1. Yes, proceed (y)                                                          │                                        ",
+          "35": "  2. Yes, and don't ask again for commands that start with `echo approved >    │›                                       ",
+          "36": "     probe-out.txt` (p)                                                        │                                        ",
+          "37": "  3. No, and tell Codex what to do differently (esc)                           │  fake-model default · /tmp/novadeck-",
+          "38": "                                                                               │  e2e-XXXXXX/project · Ask on the side",
+          "39": "  Press enter to confirm or esc to cancel                                      │"
+        },
+        "bright": {
+          "0": "                                                                                 Ask on th…×                         +",
+          "1": "  >_ OpenAI Codex",
+          "2": "                                                                                  Ask on the side",
+          "3": "",
+          "4": "",
+          "5": "  Warm up                                                                         Answered on the side.",
+          "6": "",
+          "7": "",
+          "8": "  Warmed up.",
+          "9": "",
+          "10": "",
+          "11": "",
+          "12": "",
+          "13": "  Run the thing",
+          "14": "",
+          "15": "",
+          "16": "• Ran sleep 8; echo slept",
+          "17": "",
+          "18": "",
+          "19": "• Running echo approved > probe-out.txt",
+          "20": "",
+          "21": "",
+          "22": "",
+          "23": "",
+          "24": "",
+          "25": "  Would you like to run the following command?",
+          "26": "",
+          "27": "  Environment: local",
+          "28": "",
+          "29": "  Reason: Echo outside the sandbox",
+          "30": "",
+          "31": "  $ echo approved > probe-out.txt",
+          "32": "",
+          "33": "",
+          "34": "› 1. Yes, proceed (y)",
+          "35": "  2. Yes, and don't ask again for commands that start with `echo approved >",
+          "36": "     probe-out.txt` (p)",
+          "37": "  3. No, and tell Codex what to do differently (esc)",
+          "38": "",
+          "39": "        enter               esc"
+        }
+      },
+      "sideBusyAnswered": {
+        "height": 40,
+        "columns": 120,
+        "cursor": {
+          "row": 35,
+          "column": 2
+        },
+        "rows": {
+          "0": "                                                                               │ Ask on th…×                         +",
+          "1": "  >_ OpenAI Codex (v0.171.0)                                                   │",
+          "2": "     /tmp/novadeck-e2e-XXXXXX/project                                          │› Ask on the side",
+          "3": "                                                                               │",
+          "4": "                                                                               │",
+          "5": "› Warm up                                                                      │• Answered on the side.",
+          "6": "                                                                               │",
+          "7": "                                                                               │  Worked for 19s • 09:41                ",
+          "8": "• Warmed up.                                                                   │",
+          "9": "                                                                               │",
+          "10": "  Worked for <1s • 09:40                                                       │",
+          "11": "                                                                               │",
+          "12": "                                                                               │",
+          "13": "› Run the thing                                                                │",
+          "14": "                                                                               │",
+          "15": "                                                                               │",
+          "16": "• Ran sleep 8; echo slept                                                      │",
+          "17": "  └ slept                                                                      │",
+          "18": "                                                                               │",
+          "19": "✔ You approved codex to run echo approved > probe-out.txt this time            │",
+          "20": "                                                                               │",
+          "21": "• Ran echo approved > probe-out.txt                                            │",
+          "22": "  └ (no output)                                                                │",
+          "23": "                                                                               │",
+          "24": "• Finished the request.                                                        │",
+          "25": "  └ Tip: Coming back to a conversation? Use /recap to summarize it.            │",
+          "26": "                                                                               │",
+          "27": "  Worked for 18s • 09:41                                                       │",
+          "28": "                                                                               │",
+          "29": "                                                                               │",
+          "30": "                                                                               │",
+          "31": "                                                                               │",
+          "32": "                                                                               │",
+          "33": "                                                                               │",
+          "34": "                                                                               │                                        ",
+          "35": "› Ask Codex to do anything                                                     │›                                       ",
+          "36": "                                                                               │                                        ",
+          "37": "  fake-model default · /tmp/novadeck-e2e-XXXXXX/project · Warm up · Main       │  fake-model default · /tmp/novadeck-",
+          "38": "  [default]                                                                    │  e2e-XXXXXX/project · Ask on the side",
+          "39": "  ← for agents · ? for shortcuts · ^/ for side                                 │"
+        },
+        "bright": {
+          "0": "                                                                                 Ask on th…×                         +",
+          "1": "  >_ OpenAI Codex",
+          "2": "                                                                                  Ask on the side",
+          "3": "",
+          "4": "",
+          "5": "  Warm up                                                                         Answered on the side.",
+          "6": "",
+          "7": "",
+          "8": "  Warmed up.",
+          "9": "",
+          "10": "",
+          "11": "",
+          "12": "",
+          "13": "  Run the thing",
+          "14": "",
+          "15": "",
+          "16": "• Ran sleep 8; echo slept",
+          "17": "",
+          "18": "",
+          "19": "✔ You approved codex to run                               this time",
+          "20": "",
+          "21": "• Ran echo approved > probe-out.txt",
+          "22": "",
+          "23": "",
+          "24": "  Finished the request.",
+          "25": "    Tip: Coming back to a conversation? Use /recap to summarize it.",
+          "26": "",
+          "27": "",
+          "28": "",
+          "29": "",
+          "30": "",
+          "31": "",
+          "32": "",
+          "33": "",
+          "34": "",
+          "35": "›",
+          "36": "",
+          "37": "  fake-model default · /tmp/novadeck-e2e-XXXXXX/project · Warm up · Main",
+          "38": "  [default]",
+          "39": "  ← for agents · ? for shortcuts · ^/ for side"
+        }
+      },
+      "sideApproval120Held": {
+        "height": 40,
+        "columns": 120,
+        "cursor": {
+          "row": 39,
+          "column": 120
+        },
+        "rows": {
+          "0": "                                                                               │ Ask on th…×                         +",
+          "1": "  >_ OpenAI Codex (v0.171.0)                                                   │",
+          "2": "     /tmp/novadeck-e2e-XXXXXX/project                                          │› Ask on the side",
+          "3": "                                                                               │",
+          "4": "                                                                               │",
+          "5": "› Warm up                                                                      │• Running echo approved > probe-out.txt",
+          "6": "                                                                               │",
+          "7": "                                                                               │",
+          "8": "• Warmed up.                                                                   │",
+          "9": "                                                                               │",
+          "10": "  Worked for <1s • 09:41                                                       │",
+          "11": "                                                                               │",
+          "12": "                                                                               │",
+          "13": "                                                                               │",
+          "14": "                                                                               │",
+          "15": "                                                                               │",
+          "16": "                                                                               │",
+          "17": "                                                                               │",
+          "18": "                                                                               │",
+          "19": "                                                                               │",
+          "20": "                                                                               │",
+          "21": "                                                                               │  Would you like to run the following",
+          "22": "                                                                               │  command?",
+          "23": "                                                                               │",
+          "24": "                                                                               │  Environment: local",
+          "25": "                                                                               │",
+          "26": "                                                                               │  Reason: Echo outside the sandbox",
+          "27": "                                                                               │",
+          "28": "                                                                               │  $ echo approved > probe-out.txt",
+          "29": "                                                                               │",
+          "30": "                                                                               │",
+          "31": "                                                                               │› 1. Yes, proceed (y)                   ",
+          "32": "                                                                               │  2. Yes, and don't ask again for",
+          "33": "                                                                               │     commands that start with `echo",
+          "34": "                                                                               │     approved > probe-out.txt` (p)",
+          "35": "                                                                               │  3. No, and tell Codex what to do",
+          "36": "›                                                                              │     differently (esc)",
+          "37": "                                                                               │",
+          "38": "  fake-model default · /tmp/novadeck-e2e-XXXXXX/project · Warm up              │  Press enter to confirm or esc to      ",
+          "39": "                                                                               │  cancel                                "
+        },
+        "bright": {
+          "0": "                                                                                 Ask on th…×                         +",
+          "1": "  >_ OpenAI Codex",
+          "2": "                                                                                  Ask on the side",
+          "3": "",
+          "4": "",
+          "5": "  Warm up                                                                       • Running echo approved > probe-out.txt",
+          "6": "",
+          "7": "",
+          "8": "  Warmed up.",
+          "9": "",
+          "10": "",
+          "11": "",
+          "12": "",
+          "13": "",
+          "14": "",
+          "15": "",
+          "16": "",
+          "17": "",
+          "18": "",
+          "19": "",
+          "20": "",
+          "21": "                                                                                  Would you like to run the following",
+          "22": "                                                                                  command?",
+          "23": "",
+          "24": "                                                                                  Environment: local",
+          "25": "",
+          "26": "                                                                                  Reason: Echo outside the sandbox",
+          "27": "",
+          "28": "                                                                                  $ echo approved > probe-out.txt",
+          "29": "",
+          "30": "",
+          "31": "                                                                                › 1. Yes, proceed (y)",
+          "32": "                                                                                  2. Yes, and don't ask again for",
+          "33": "                                                                                     commands that start with `echo",
+          "34": "                                                                                     approved > probe-out.txt` (p)",
+          "35": "                                                                                  3. No, and tell Codex what to do",
+          "36": "                                                                                     differently (esc)",
+          "37": "",
+          "38": "                                                                                        enter               esc",
+          "39": ""
+        }
+      },
+      "sideApproval120HeldRequests": [],
+      "sideApproval120Answered": {
+        "height": 40,
+        "columns": 120,
+        "cursor": {
+          "row": 34,
+          "column": 82
+        },
+        "rows": {
+          "0": "                                                                               │ Ask on th…×                         +",
+          "1": "  >_ OpenAI Codex (v0.171.0)                                                   │",
+          "2": "     /tmp/novadeck-e2e-XXXXXX/project                                          │› Ask on the side",
+          "3": "                                                                               │",
+          "4": "                                                                               │",
+          "5": "› Warm up                                                                      │✔ You approved codex to run echo",
+          "6": "                                                                               │  approved > probe-out.txt this time",
+          "7": "                                                                               │",
+          "8": "• Warmed up.                                                                   │• Ran echo approved > probe-out.txt",
+          "9": "                                                                               │  └ (no output)",
+          "10": "  Worked for <1s • 09:41                                                       │",
+          "11": "                                                                               │• Ran it on the side.",
+          "12": "                                                                               │",
+          "13": "                                                                               │  Worked for 6s • 09:41                 ",
+          "14": "                                                                               │",
+          "15": "                                                                               │",
+          "16": "                                                                               │",
+          "17": "                                                                               │",
+          "18": "                                                                               │",
+          "19": "                                                                               │",
+          "20": "                                                                               │",
+          "21": "                                                                               │",
+          "22": "                                                                               │",
+          "23": "                                                                               │",
+          "24": "                                                                               │",
+          "25": "                                                                               │",
+          "26": "                                                                               │",
+          "27": "                                                                               │",
+          "28": "                                                                               │",
+          "29": "                                                                               │",
+          "30": "                                                                               │",
+          "31": "                                                                               │",
+          "32": "                                                                               │",
+          "33": "                                                                               │",
+          "34": "                                                                               │› Ask a follow-up question",
+          "35": "                                                                               │",
+          "36": "›                                                                              │  fake-model default · /tmp/novadeck-",
+          "37": "                                                                               │  e2e-XXXXXX/project · Ask on the side ·",
+          "38": "  fake-model default · /tmp/novadeck-e2e-XXXXXX/project · Warm up              │  Agent",
+          "39": "                                                                               │  ← for agents · ? for shortcuts"
+        },
+        "bright": {
+          "0": "                                                                                 Ask on th…×                         +",
+          "1": "  >_ OpenAI Codex",
+          "2": "                                                                                  Ask on the side",
+          "3": "",
+          "4": "",
+          "5": "  Warm up                                                                       ✔ You approved codex to run",
+          "6": "                                                                                                           this time",
+          "7": "",
+          "8": "  Warmed up.                                                                    • Ran echo approved > probe-out.txt",
+          "9": "",
+          "10": "",
+          "11": "                                                                                  Ran it on the side.",
+          "12": "",
+          "13": "",
+          "14": "",
+          "15": "",
+          "16": "",
+          "17": "",
+          "18": "",
+          "19": "",
+          "20": "",
+          "21": "",
+          "22": "",
+          "23": "",
+          "24": "",
+          "25": "",
+          "26": "",
+          "27": "",
+          "28": "",
+          "29": "",
+          "30": "",
+          "31": "",
+          "32": "",
+          "33": "",
+          "34": "                                                                                ›",
+          "35": "",
+          "36": "                                                                                  fake-model default · /tmp/novadeck-",
+          "37": "                                                                                  e2e-XXXXXX/project · Ask on the side ·",
+          "38": "                                                                                  Agent",
+          "39": "                                                                                  ← for agents · ? for shortcuts"
+        }
+      },
+      "sideApproval120AnsweredRequests": [],
+      "sideApproval99Held": {
+        "height": 40,
+        "columns": 99,
+        "cursor": {
+          "row": 39,
+          "column": 99
+        },
+        "rows": {
+          "0": " Ask on the side     ×                                                                          +",
+          "1": " ",
+          "2": "› Ask on the side",
+          "3": " ",
+          "4": " ",
+          "5": "• Running echo approved > probe-out.txt",
+          "6": " ",
+          "7": " ",
+          "8": " ",
+          "9": " ",
+          "10": " ",
+          "11": " ",
+          "12": " ",
+          "13": " ",
+          "14": " ",
+          "15": " ",
+          "16": " ",
+          "17": " ",
+          "18": " ",
+          "19": " ",
+          "20": " ",
+          "21": " ",
+          "22": " ",
+          "23": " ",
+          "24": " ",
+          "25": " ",
+          "26": "  Would you like to run the following command?",
+          "27": " ",
+          "28": "  Environment: local",
+          "29": " ",
+          "30": "  Reason: Echo outside the sandbox",
+          "31": " ",
+          "32": "  $ echo approved > probe-out.txt",
+          "33": " ",
+          "34": " ",
+          "35": "› 1. Yes, proceed (y)                                                                              ",
+          "36": "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
+          "37": "  3. No, and tell Codex what to do differently (esc)",
+          "38": " ",
+          "39": "  Press enter to confirm or esc to cancel                                                          "
+        },
+        "bright": {
+          "1": "",
+          "2": "  Ask on the side",
+          "3": "",
+          "4": "",
+          "6": "",
+          "7": "",
+          "8": "",
+          "9": "",
+          "10": "",
+          "11": "",
+          "12": "",
+          "13": "",
+          "14": "",
+          "15": "",
+          "16": "",
+          "17": "",
+          "18": "",
+          "19": "",
+          "20": "",
+          "21": "",
+          "22": "",
+          "23": "",
+          "24": "",
+          "25": "",
+          "27": "",
+          "29": "",
+          "31": "",
+          "33": "",
+          "34": "",
+          "35": "› 1. Yes, proceed (y)",
+          "38": "",
+          "39": "        enter               esc"
+        }
+      },
+      "sideApproval99HeldRequests": [],
+      "sideApproval99Answered": {
+        "height": 40,
+        "columns": 99,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "0": " Ask on the side     ×                                                                          +",
+          "1": " ",
+          "2": "› Ask on the side",
+          "3": " ",
+          "4": " ",
+          "5": "✔ You approved codex to run echo approved > probe-out.txt this time",
+          "6": " ",
+          "7": "• Ran echo approved > probe-out.txt",
+          "8": "  └ (no output)",
+          "9": " ",
+          "10": "• Ran it on the side.",
+          "11": " ",
+          "12": "  Worked for 6s • 09:41                                                                            ",
+          "13": " ",
+          "14": " ",
+          "15": " ",
+          "16": " ",
+          "17": " ",
+          "18": " ",
+          "19": " ",
+          "20": " ",
+          "21": " ",
+          "22": " ",
+          "23": " ",
+          "24": " ",
+          "25": " ",
+          "26": " ",
+          "27": " ",
+          "28": " ",
+          "29": " ",
+          "30": " ",
+          "31": " ",
+          "32": " ",
+          "33": " ",
+          "34": " ",
+          "35": " ",
+          "36": "› Ask a follow-up question",
+          "37": " ",
+          "38": "  fake-model default · /tmp/novadeck-e2e-XXXXXX/project · Ask on the side · Agent",
+          "39": "  ← for agents · ? for shortcuts · Side from main thread · ^/ to switch · ^c to archive"
+        },
+        "bright": {
+          "1": "",
+          "2": "  Ask on the side",
+          "3": "",
+          "4": "",
+          "5": "✔ You approved codex to run                               this time",
+          "6": "",
+          "8": "",
+          "9": "",
+          "10": "  Ran it on the side.",
+          "11": "",
+          "12": "",
+          "13": "",
+          "14": "",
+          "15": "",
+          "16": "",
+          "17": "",
+          "18": "",
+          "19": "",
+          "20": "",
+          "21": "",
+          "22": "",
+          "23": "",
+          "24": "",
+          "25": "",
+          "26": "",
+          "27": "",
+          "28": "",
+          "29": "",
+          "30": "",
+          "31": "",
+          "32": "",
+          "33": "",
+          "34": "",
+          "35": "",
+          "36": "›",
+          "37": ""
+        }
+      },
+      "sideApproval99AnsweredRequests": []
     }
   }
 }

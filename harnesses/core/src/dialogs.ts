@@ -140,6 +140,12 @@ export type DialogAdapter = {
     rows: readonly string[],
     cursor?: { readonly row: number; readonly column: number },
   ) => string | undefined
+  /**
+   * Those of `reveal`'s keys that toggle, which a second press would undo (Codex's Ctrl-/, which
+   * moves the focus between its root and a `/side` conversation): pressed at most once for each
+   * request.
+   */
+  readonly revealToggles?: readonly string[]
 }
 
 /**

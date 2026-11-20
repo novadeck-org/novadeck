@@ -43,9 +43,13 @@ import { questions } from "./question-dialog.js"
  * screen of 100 columns or more is a sidebar beside the root's pane: the root's dialogs are
  * read in its pane alone (`rootRows`), and one held while the side has the focus is brought
  * into view with Ctrl-/ (`sideFocused`), as on a narrower screen and in 0.170.0, where the side
- * takes the whole screen. Each dialog has its own file
+ * takes the whole screen. A side conversation's own approval puts no request on the terminal
+ * (probed both versions, both widths, 2026-11-20, `sideApproval*` in fixtures/side-dialog.probe.json:
+ * the terminal's pending requests stay empty while it shows), so none is read in the sidebar. Each dialog has its own file
  * (`*-dialog.ts`), and `dialog-screen.ts` holds what they share.
  */
+
+const ctrlSlash = "\x1f"
 
 // The lines Codex leaves in its history once a dialog is answered.
 const resulted =
@@ -110,8 +114,10 @@ export const dialogs: DialogAdapter = {
   // side conversation to the root, whose dialog then shows: neither answers anything.
   reveal: (rows, cursor) => {
     if (pager(rows)) return "q"
-    return sideFocused(rows, cursor) ? "\x1f" : undefined
+    return sideFocused(rows, cursor) ? ctrlSlash : undefined
   },
+  // A second Ctrl-/ would move the focus back where it was.
+  revealToggles: [ctrlSlash],
   screenRequest: (rows): ScreenRequest | undefined =>
     plan(clean(rootRows(rows))) === undefined
       ? undefined

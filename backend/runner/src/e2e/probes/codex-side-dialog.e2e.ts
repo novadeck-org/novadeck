@@ -150,3 +150,127 @@ describe.skipIf(!supported || !probing || !setup)("probe: a root dialog beside /
     })
   }
 })
+
+// Where Codex leaves its cursor, frame by frame, with the root's approval up and in focus while
+// the side conversation's turn runs beside it (its timer ticking in the sidebar); and whether an
+// approval the side conversation's own turn asks reaches Novadeck as the terminal's request.
+describe.skipIf(!supported || !probing || !setup)(
+  "probe: /side mid-turn and its own approval",
+  () => {
+    const it = e2e(setup)
+
+    it("sideBusy: the root's approval in focus, the side's turn running", async ({ e2e: run }) => {
+      const release = gate()
+      const sideDone = gate()
+      run.model.use(async (call: Call): Promise<Reply | undefined> => {
+        if (call.side) return undefined
+        if (asked(call, "Warm up")) return { text: "Warmed up." }
+        if (asked(call, "Ask on the side")) {
+          await sideDone.opened
+          return { text: "Answered on the side." }
+        }
+        const tools = call.turns.filter((one) => one.role === "tool").length
+        if (asked(call, "Run the thing") && tools === 0)
+          return {
+            calls: [
+              {
+                name: "exec_command",
+                input: { cmd: "sleep 8; echo slept", yield_time_ms: 30_000 },
+              },
+            ],
+          }
+        if (tools === 1) {
+          await release.opened
+          return { calls: [calls.permission] }
+        }
+        if (tools >= 2) return { text: "Finished the request." }
+        return undefined
+      })
+      const t = await run.deck.open("codex")
+      run.deck.seen.report("e2e", [t.id])
+      await t.reached("ready", { timeoutMs: 60_000 })
+      await prompted(t, setup)
+      version = /OpenAI Codex \(v(\d+\.\d+\.\d+)\)/.exec(await t.screen())?.[1] ?? version
+      const record = async (state: string) => {
+        states[`sideBusy${state}`] = screenRecord((await t.screenText())!)
+        write()
+      }
+      await turn(t, "Warm up", "Warmed up.")
+      run.deck.terminals.write({ terminalId: t.id, data: "/side" }, "e2e")
+      await sleep(800)
+      run.deck.terminals.write({ terminalId: t.id, data: "\r" }, "e2e")
+      await sleep(3_000)
+      run.deck.terminals.write({ terminalId: t.id, data: "Ask on the side" }, "e2e")
+      await sleep(800)
+      run.deck.terminals.write({ terminalId: t.id, data: "\r" }, "e2e")
+      await sleep(2_000)
+      await record("SideWorking")
+      t.press(ctrlSlash)
+      await sleep(1_500)
+      await record("RootBack")
+      await t.prompt("Run the thing")
+      release.open()
+      await sleep(10_000)
+      await record("Held")
+      // Each frame's cursor, the side's timer ticking: where a hidden cursor is parked.
+      const frames: unknown[] = []
+      for (let at = 0; at < 60; at++) {
+        const screen = (await t.screenText())!
+        frames.push({ cursor: screen.cursor, row: screen.rows[screen.cursor.row] ?? "" })
+        await sleep(100)
+      }
+      states.sideBusyFrames = frames
+      write()
+      sideDone.open()
+      await sleep(2_000)
+      await record("SideAnswered")
+      t.press("y")
+      await sleep(3_000)
+      await record("Answered")
+    })
+
+    for (const columns of [120, 99]) {
+      it(`sideApproval${columns}: the side conversation's own approval`, async ({ e2e: run }) => {
+        run.model.use(async (call: Call): Promise<Reply | undefined> => {
+          if (call.side) return undefined
+          if (asked(call, "Warm up")) return { text: "Warmed up." }
+          const tools = call.turns.filter((one) => one.role === "tool").length
+          if (asked(call, "Ask on the side") && tools === 0) return { calls: [calls.permission] }
+          if (tools >= 1) return { text: "Ran it on the side." }
+          return undefined
+        })
+        const t = await run.deck.open("codex")
+        run.deck.seen.report("e2e", [t.id])
+        await t.reached("ready", { timeoutMs: 60_000 })
+        await prompted(t, setup)
+        version = /OpenAI Codex \(v(\d+\.\d+\.\d+)\)/.exec(await t.screen())?.[1] ?? version
+        if (columns !== 120) {
+          t.resize(columns, 40)
+          await sleep(1_500)
+        }
+        const name = `sideApproval${columns}`
+        const record = async (state: string) => {
+          states[`${name}${state}`] = screenRecord((await t.screenText())!)
+          states[`${name}${state}Requests`] = (await t.detail()).requests.map((one) => ({
+            ref: one.ref,
+            dialog: one.dialog?.type ?? null,
+          }))
+          write()
+        }
+        await turn(t, "Warm up", "Warmed up.")
+        run.deck.terminals.write({ terminalId: t.id, data: "/side" }, "e2e")
+        await sleep(800)
+        run.deck.terminals.write({ terminalId: t.id, data: "\r" }, "e2e")
+        await sleep(3_000)
+        run.deck.terminals.write({ terminalId: t.id, data: "Ask on the side" }, "e2e")
+        await sleep(800)
+        run.deck.terminals.write({ terminalId: t.id, data: "\r" }, "e2e")
+        await sleep(6_000)
+        await record("Held")
+        t.press("y")
+        await sleep(3_000)
+        await record("Answered")
+      })
+    }
+  },
+)

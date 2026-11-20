@@ -10,12 +10,18 @@ import { rootRows, sideFocused } from "./panes.js"
 // approval with a `/side` conversation open. `permissionSide`: the side opened mid-turn, in focus
 // when the approval comes, then Ctrl-/ three times and `y`. `permissionRoot`: the side opened
 // after a first turn, Ctrl-/ back to the root before the prompt. `permissionNarrow`: as
-// `permissionSide`, on 99 columns, where the side takes the whole screen.
-const { versions } = loadProbe<{
-  readonly versions: {
-    readonly [version: string]: { readonly [state: string]: ScreenText }
-  }
-}>(import.meta.dirname, "side-dialog.probe.json")
+// `permissionSide`, on 99 columns, where the side takes the whole screen. `sideBusy`: the root's
+// approval up and in focus while the side's turn runs, with the cursor of 60 frames
+// (`sideBusyFrames`). `sideApproval120`/`99`: the side's own turn asks, with the terminal's
+// pending requests (`…Requests`).
+type Cursor = { readonly row: number; readonly column: number }
+type States = { readonly [state: string]: ScreenText } & {
+  readonly sideBusyFrames: readonly { readonly cursor: Cursor; readonly row: string }[]
+} & { readonly [requests: `${string}Requests`]: readonly unknown[] }
+const { versions } = loadProbe<{ readonly versions: { readonly [version: string]: States } }>(
+  import.meta.dirname,
+  "side-dialog.probe.json",
+)
 const wide = versions["0.171.0"]!
 const whole = versions["0.170.0"]!
 
@@ -95,6 +101,42 @@ describe("the root's approval behind a /side conversation over the whole screen"
       expect(dialogs.read(screen.rows, approval)?.dialog).toMatchObject({ type: "choices" })
       expect(rootRows(screen.rows)).toBe(screen.rows)
       expect(revealed(screen)).toBeUndefined()
+    }
+  })
+})
+
+describe("where Codex leaves a hidden cursor", () => {
+  it("tells the sidebar in focus only by its composer, never a cursor parked after a cell drawn there", () => {
+    const held = wide.sideBusyHeld!
+    // The root's approval is up and in focus, the side's turn ticking beside it.
+    expect(dialogs.read(held.rows, approval)?.dialog).toMatchObject({ type: "choices" })
+    const parked = wide.sideBusyFrames.filter(({ cursor }) => cursor.column > 79)
+    expect(parked.length).toBeGreaterThan(0)
+    for (const { cursor } of wide.sideBusyFrames) {
+      expect(sideFocused(held.rows, cursor), JSON.stringify(cursor)).toBe(false)
+      expect(dialogs.reveal?.(held.rows, cursor)).toBeUndefined()
+    }
+    // The side in focus, its turn running: the cursor in its composer.
+    expect(sideFocused(wide.sideBusySideWorking!.rows, wide.sideBusySideWorking!.cursor)).toBe(true)
+  })
+
+  it("presses Ctrl-/ at most once for a request, a second press undoing it", () => {
+    expect(dialogs.revealToggles).toEqual(["\x1f"])
+  })
+})
+
+describe("a side conversation's own approval", () => {
+  it("puts no request on the terminal, so none is read or revealed (both versions, both widths)", () => {
+    for (const [version, states] of [
+      ["0.171.0", wide],
+      ["0.170.0", whole],
+    ] as const) {
+      for (const width of ["120", "99"]) {
+        const held = states[`sideApproval${width}Held`]!
+        expect(held.rows.join("\n"), `${version} ${width}`).toContain("Would you like to run")
+        expect(states[`sideApproval${width}HeldRequests`], `${version} ${width}`).toEqual([])
+        expect(revealed(held), `${version} ${width}`).toBeUndefined()
+      }
     }
   })
 })
