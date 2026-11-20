@@ -1924,9 +1924,10 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       }
       expect(swarm.done).toContain("look once at agents for work the user started")
       expect(swarm.ask).toContain("Decide yourself what the user left open")
-      // None of it reaches Herd or Solo.
-      for (const mode of ["herd", "solo"] as const) {
-        const other = await texts(mode)
+      // None of it reaches Herd or Solo; each listing in turn, as they share the runner's mode.
+      const herd = await texts("herd")
+      const solo = await texts("solo")
+      for (const other of [herd, solo]) {
         for (const text of Object.values(other)) {
           expect(text).not.toContain("as a swarm")
           expect(text).not.toContain("look once at agents")
