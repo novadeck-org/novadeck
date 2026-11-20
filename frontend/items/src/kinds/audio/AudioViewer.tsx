@@ -1,8 +1,9 @@
+import { bytesText } from "@novadeck/core/command-text"
 import type { AudioContent } from "@novadeck/core/items"
 import { AudioLines } from "lucide-react"
 
 import type { ArtifactBodyProps } from "../../ArtifactViewer"
-import { bytesText, formatName } from "../video/format"
+import { formatName } from "../video/format"
 import { Playback } from "../video/Playback"
 import { AudioPlayer } from "./AudioPlayer"
 

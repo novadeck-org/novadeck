@@ -32,5 +32,8 @@ describe("a recording's facts", () => {
     expect(factsText("audio/x-wav", 900 * 1024)).toBe("WAV · 900 KB")
     expect(factsText("audio/x-m4a", 5 * 1024 * 1024)).toBe("M4A · 5.0 MB")
     expect(factsText("audio/x-speex", 1024 * 1024)).toBe("SPEEX · 1.0 MB")
+    // An empty recording is none, not a kilobyte; a big video steps up past the megabytes.
+    expect(factsText("audio/mpeg", 0)).toBe("MP3 · 0 B")
+    expect(factsText("video/mp4", 5 * 1024 ** 3)).toBe("MP4 · 5.0 GB")
   })
 })

@@ -86,3 +86,26 @@ const unsafeInLineRuns = new RegExp(`[\\t\\n${controls}${marks}]+`, "g")
 
 /** `text` as one line: each run of what one line may not hold (`unsafeInLine`) as a space, trimmed. */
 export const asLine = (text: string): string => text.replace(unsafeInLineRuns, " ").trim()
+
+const byteUnits = ["KB", "MB", "GB", "TB"] as const
+
+// A size in `unit` (0 for kilobytes) as it is written: whole kilobytes, a decimal beyond.
+const sized = (value: number, unit: number): string =>
+  unit === 0 ? String(Math.round(value)) : value.toFixed(1)
+
+/**
+ * A size in bytes as a list or a peek says it: `77 B`, `12 KB`, `1.4 MB`, `5.0 GB`. Whole
+ * kilobytes, one decimal from a megabyte up, and a step up to the next unit once the rounded
+ * figure would read 1024 of the last (1,048,000 bytes is `1.0 MB`, not `1024 KB`). One rule for
+ * the runner's companion items and the UI's folders, artifacts and media.
+ */
+export const bytesText = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`
+  let value = bytes / 1024
+  let unit = 0
+  while (unit < byteUnits.length - 1 && Number(sized(value, unit)) >= 1024) {
+    value /= 1024
+    unit += 1
+  }
+  return `${sized(value, unit)} ${byteUnits[unit]}`
+}

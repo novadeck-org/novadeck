@@ -1,5 +1,7 @@
 // How a video's or a recording's facts read: its format and size, its progress and its time.
 
+import { bytesText } from "@novadeck/core/command-text"
+
 const names: Record<string, string> = {
   "video/mp4": "MP4",
   "video/webm": "WebM",
@@ -32,12 +34,6 @@ const megabytes = (bytes: number): string => {
   const mb = bytes / 1024 / 1024
   return mb >= 10 ? String(Math.round(mb)) : mb.toFixed(1)
 }
-
-// A size as a peek says it: "12.3 MB", in KB under a megabyte.
-export const bytesText = (bytes: number): string =>
-  bytes < 1024 * 1024
-    ? `${Math.max(1, Math.round(bytes / 1024))} KB`
-    : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 
 // "MP4 · 12.3 MB".
 export const factsText = (mime: string, size: number): string =>

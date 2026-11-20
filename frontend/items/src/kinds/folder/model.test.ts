@@ -11,7 +11,6 @@ import {
   nextSort,
   noArrivals,
   parentOf,
-  sizeShort,
   sorted,
 } from "./model"
 
@@ -146,15 +145,6 @@ describe("a folder's listing", () => {
       ]
       expect(grown(before, after)).toEqual(["a"])
     })
-  })
-
-  it("writes a size short", () => {
-    expect([0, 77, 2048, 1.5 * 1024 * 1024].map(sizeShort)).toEqual([
-      "0 B",
-      "77 B",
-      "2 KB",
-      "1.5 MB",
-    ])
   })
 
   it("writes a duration as a player does", () => {

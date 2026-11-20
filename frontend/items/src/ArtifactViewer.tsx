@@ -1,3 +1,4 @@
+import { bytesText } from "@novadeck/core/command-text"
 import {
   pathOf,
   type ShownKind,
@@ -38,14 +39,6 @@ export const artifactLook = (
   item: Pick<Item, "name">,
 ): { readonly name: string; readonly label: string } => ({ name: item.name, label: item.name })
 
-// A size in bytes as a person reads it.
-export const sizeText = (bytes: number): string =>
-  bytes < 1024
-    ? `${bytes} bytes`
-    : bytes < 1024 * 1024
-      ? `${Math.round(bytes / 1024)} KB`
-      : `${(bytes / 1024 / 1024).toFixed(1)} MB`
-
 // Why it can't show, in a few words, as a peek says it.
 const shortReasons: Record<UnavailableReason, string> = {
   missing: "Not there any more",
@@ -79,7 +72,7 @@ const reasonText = (
       return `${name} is no longer a file.`
     case "too-large":
       return [
-        `${name} is too large to preview${size === null ? "" : ` (${sizeText(size)})`}.`,
+        `${name} is too large to preview${size === null ? "" : ` (${bytesText(size)})`}.`,
         ...(largest[kind] ? [largest[kind]] : []),
       ].join(" ")
     case "binary":

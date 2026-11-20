@@ -184,11 +184,3 @@ export const extensionOf = (name: string): string => {
 // The largest video that is read whole to draw its first frame and learn its length; a larger one
 // shows the kind's icon.
 export const videoFrameBytes = 24 * 1024 * 1024
-
-// A size as a list says it, short: 77 B, 12 KB, 1.4 MB.
-export const sizeShort = (bytes: number): string =>
-  bytes < 1024
-    ? `${bytes} B`
-    : bytes < 1024 * 1024
-      ? `${Math.round(bytes / 1024)} KB`
-      : `${(bytes / 1024 / 1024).toFixed(1)} MB`

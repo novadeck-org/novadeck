@@ -1,3 +1,4 @@
+import { bytesText } from "@novadeck/core/command-text"
 import type { UnavailableReason } from "@novadeck/core/items"
 import { Progress } from "@novadeck/toolkit/Progress"
 import { createKept } from "@novadeck/viewers"
@@ -10,7 +11,7 @@ import { usePaneNote } from "../../pane-row"
 import { loadParts } from "../../parts/load"
 import { useRevealed } from "../../store/use-item-store"
 import { useViewerSlot } from "../../ViewerSlot"
-import { bytesText, loadingText } from "../video/format"
+import { loadingText } from "../video/format"
 import { pdfAssets, pdfFrame } from "./assets"
 
 // The PDFs read for panes, by item and stamp, up to 256 MB in all: a pane that goes and comes

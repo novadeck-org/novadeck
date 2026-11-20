@@ -1,8 +1,9 @@
+import { bytesText } from "@novadeck/core/command-text"
 import type { VideoContent } from "@novadeck/core/items"
 import { Film } from "lucide-react"
 
 import type { ArtifactBodyProps } from "../../ArtifactViewer"
-import { formatName, bytesText } from "./format"
+import { formatName } from "./format"
 import { Playback } from "./Playback"
 import { VideoPlayer } from "./VideoPlayer"
 

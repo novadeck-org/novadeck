@@ -1,3 +1,4 @@
+import { bytesText } from "@novadeck/core/command-text"
 import type { FilePart, FolderEntry, Item } from "@novadeck/core/items"
 import {
   AudioLines,
@@ -17,15 +18,7 @@ import {
 import { createElement, useEffect, useRef, useState } from "react"
 
 import { entryThumbRenderer } from "./entry-thumbs"
-import {
-  countText,
-  durationText,
-  extensionOf,
-  intoFolder,
-  kindText,
-  modifiedText,
-  sizeShort,
-} from "./model"
+import { countText, durationText, extensionOf, intoFolder, kindText, modifiedText } from "./model"
 import { createQueue, hasNoThumb, holdThumb, keptThumb, loadThumb, type Thumb } from "./thumbs"
 
 // Three pictures are read at a time for the grids on screen, the nearest to the middle first.
@@ -212,7 +205,7 @@ export const Tile = ({
       ? entry.children === null
         ? "Folder"
         : countText(entry.children)
-      : `${sizeShort(entry.size)} · ${modifiedText(entry.modifiedAt, now)}`
+      : `${bytesText(entry.size)} · ${modifiedText(entry.modifiedAt, now)}`
   return (
     <button
       ref={ref}
@@ -293,7 +286,7 @@ export const Row = ({
           ? entry.children === null
             ? ""
             : countText(entry.children)
-          : sizeShort(entry.size)}
+          : bytesText(entry.size)}
       </td>
       <td className="folder-col-kind">{kindText(entry)}</td>
     </tr>
