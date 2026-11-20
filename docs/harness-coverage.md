@@ -497,7 +497,7 @@ call. No hook fires for a text, so every harness tells it from its own records, 
 same `items` reader the chat uses (`wordsIn`, in `harnesses/core/src/items.ts`) in its `watch`:
 Claude Code's transcript (an `assistant` record's `text` block), Codex's rollout (a
 `response_item` message of the assistant) and Antigravity's transcript (a `PLANNER_RESPONSE`
-step's `content`, with or without calls). Each follows the file from where it is now (Codex's
+step's `content`, with or without calls). Antigravity's are dated by when its follower reads the line, as a step's `created_at` is whole seconds and the time its generation began. Each follows the file from where it is now (Codex's
 backlog keeps its latest). It is the `words-written` fact; the reducer takes it only while the
 turn runs and from its start on, and a later one moves it on, never back. It is absent until
 the turn writes words, and once it ends. The Inbox uses it to hold an ask of the terminal the

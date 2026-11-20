@@ -415,6 +415,29 @@ describe("the landing rule", () => {
       made.stop()
     })
 
+    it("counts, quietly, once the turn ended though background subagents keep it working", () => {
+      const made = asked()
+      made.agent("01", { working: true, lastTurn: { outcome: "completed", at: made.row.at - 1 } })
+      expect(counted(made)).toEqual([])
+      made.agent("01", { working: true, lastTurn: { outcome: "completed", at: made.row.at + 1 } })
+      expect(counted(made)).toEqual(["a"])
+      expect(quietly(made.inbox, "a")).toBe(true)
+      made.stop()
+    })
+
+    it("arms the cap again when its timer fired before the clock reached it", () => {
+      const made = asked()
+      const real = Date.now()
+      const lagging = vi.spyOn(Date, "now").mockReturnValue(real)
+      vi.advanceTimersByTime(holdMs)
+      expect(counted(made)).toEqual([])
+      expect(vi.getTimerCount()).toBe(1)
+      lagging.mockRestore()
+      vi.advanceTimersByTime(holdMs)
+      expect(counted(made)).toEqual(["a"])
+      made.stop()
+    })
+
     it("lands as a row that landed elsewhere when the person looks away", () => {
       const made = asked()
       made.select("02")

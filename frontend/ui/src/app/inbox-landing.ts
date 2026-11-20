@@ -225,7 +225,11 @@ export const landInbox = (
           landed: landed.has(key),
           holding: hold !== undefined,
           fresh: now - row.at <= holdMs,
-          working: terminal !== undefined && agentWorking(terminal),
+          // Its turn ended after the ask, though background subagents keep it "working".
+          working:
+            terminal !== undefined &&
+            agentWorking(terminal) &&
+            !(terminal.state === "running" && (terminal.agent?.lastTurn?.at ?? 0) > row.at),
           said:
             terminal?.state === "running" &&
             (terminal.agent?.wordsAt ?? Number.NEGATIVE_INFINITY) > row.at,
@@ -236,7 +240,18 @@ export const landInbox = (
         const since = hold?.since ?? now
         // The cap ends it, though nothing else changes.
         const timer =
-          hold?.timer ?? (running ? setTimeout(sync, Math.max(0, holdMs - (now - since))) : null)
+          hold?.timer ??
+          (running
+            ? setTimeout(
+                () => {
+                  // Spent: forget it, so a compute that finds the cap not reached yet arms another.
+                  const own = holding.get(key)
+                  if (own) holding.set(key, { since: own.since, timer: null })
+                  sync()
+                },
+                Math.max(0, holdMs - (now - since)),
+              )
+            : null)
         holding.set(key, { since, timer })
       } else if (hold) {
         if (hold.timer !== null) clearTimeout(hold.timer)

@@ -1,8 +1,12 @@
+import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
 import type { ActivityEvent } from "@novadeck/harness-core/events"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { describe, expect, it } from "vitest"
 
-import { planWords, shellEvents, type Calls } from "./shells.js"
+import { followWords, planWords, shellEvents, type Calls } from "./shells.js"
 
 // Captured on Linux, whose log URLs name no drive; on Windows Antigravity's carry one
 // (`file:///C:/…`), as these are given here.
@@ -157,5 +161,35 @@ describe("the words an Antigravity transcript records", () => {
     expect(
       planWords(step({ source: "MODEL", type: "GENERIC", content: "done" }), session),
     ).toBeUndefined()
+  })
+})
+
+describe("the words Antigravity's follower tells", () => {
+  it("dates them by when the line is read, not by the step's whole second", async () => {
+    const folder = mkdtempSync(join(tmpdir(), "novadeck-agy-words-"))
+    const path = join(folder, "transcript.jsonl")
+    writeFileSync(path, "")
+    const told: ActivityEvent[] = []
+    const controller = new AbortController()
+    const following = followWords({ ...session, transcript: path }, controller.signal, (event) =>
+      told.push(event as ActivityEvent),
+    )
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      // A step dated seconds before it is written, as generation began then.
+      const stepAt = new Date(Date.now() - 3000).toISOString().replace(/\.\d+Z$/, "Z")
+      const before = Date.now()
+      appendFileSync(
+        path,
+        `${JSON.stringify({ step_index: 3, source: "MODEL", type: "PLANNER_RESPONSE", created_at: stepAt, content: "Which?" })}\n`,
+      )
+      await expect.poll(() => told.length, { timeout: 5000 }).toBe(1)
+      expect(told).toHaveLength(1)
+      expect(told[0]!.startedAt).toBeGreaterThanOrEqual(before)
+    } finally {
+      controller.abort()
+      await following
+      rmSync(folder, { recursive: true, force: true })
+    }
   })
 })

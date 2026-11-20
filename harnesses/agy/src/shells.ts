@@ -150,12 +150,15 @@ export const followShells: NonNullable<Harness["watch"]> = async (run, signal, e
 export const followWords: NonNullable<Harness["watch"]> = async (run, signal, emit) => {
   const path = await transcripts.locate(run.transcript, run.sessionId, null)
   return followLines(path ?? run.transcript, signal, (line) => {
+    // Dated by when the line is read, not by its step: a step's `created_at` is whole seconds
+    // and the time its generation began, which may precede the call that made the person's ask.
     const words = planWords(line, run)
-    if (words) emit(words)
+    if (words) emit({ ...words, startedAt: Date.now() })
   })
 }
 
-/** The words a planner response step of an Antigravity transcript holds, dated by the step. */
+/** The words a planner response step of an Antigravity transcript holds, dated by the step (see `followWords`
+ * for what the runner dates it by). */
 export const planWords = (
   line: string,
   { sessionId, instance }: Pick<Run, "sessionId" | "instance">,

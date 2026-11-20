@@ -460,9 +460,9 @@ look away. A new ask from that terminal, while its agent works, is held for a mo
 the list, but the bell, the app icon's badge and the "?" on its tab, window and session don't
 count it yet, as the agent is about to write the same question in the terminal you are reading.
 The hold ends at the first of the agent's next words in that terminal, the end of its turn and
-15 seconds; then it counts, quietly. If you look away first, it counts at once as a row that
+15 seconds (a turn that ended while background subagents run counts as ended); then it counts, quietly. If you look away first, it counts at once as a row that
 arrived elsewhere does, and rings after its two seconds. Permission requests, updates and asks
-from other terminals aren't held. An update (a `done` report or a `tell`) is read once you have looked at its terminal
+from other terminals aren't held. Closing the asking terminal or switching session or project during a hold counts as looking away, and a row first seen late can be held up to 15 seconds past that. An update (a `done` report or a `tell`) is read once you have looked at its terminal
 for about a second, whether it arrived while you looked or before, and turns resolved; a glance
 while passing reads nothing. Its row in the Inbox list reads it the same way: in sight for about
 a second while Novadeck has your focus and no dialog covers it, it turns resolved, as its subject

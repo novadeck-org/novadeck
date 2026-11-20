@@ -218,9 +218,9 @@ export const followTranscript: NonNullable<Harness["watch"]> = async (run, signa
 }
 
 /**
- * The words the agent wrote, as one line of its transcript records them: an assistant text,
- * no thinking and no tool call, dated by the record. Most lines are long tool results, parsed
- * only where they may hold one.
+ * The words the root agent wrote, as one line of its transcript records them: an assistant
+ * text, no thinking and no tool call, dated by the record. Most lines are long tool results,
+ * parsed only where they may hold one; a subagent's (`isSidechain`) is none.
  */
 export const transcriptWords = (
   line: string,
@@ -229,7 +229,10 @@ export const transcriptWords = (
   wordsIn(
     line,
     transcripts.items,
-    (each) => /"type":\s*"assistant"/.test(each) && /"type":\s*"text"/.test(each),
+    (each) =>
+      /"type":\s*"assistant"/.test(each) &&
+      /"type":\s*"text"/.test(each) &&
+      !/"isSidechain":\s*true/.test(each),
     { agent: "claude", sessionId, instance },
   )
 

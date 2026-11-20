@@ -351,6 +351,15 @@ describe("the words Claude Code's transcript records", () => {
     })
   })
 
+  it("tells nothing for a subagent's text", () => {
+    expect(
+      transcriptWords(
+        record([{ type: "text", text: "Found it." }], { isSidechain: true }),
+        session,
+      ),
+    ).toBeUndefined()
+  })
+
   it("tells nothing for a tool call, thinking, an empty text, or the person's text", () => {
     const call = { type: "tool_use", id: "c1", name: "Bash", input: { command: "ls" } }
     expect(transcriptWords(record([call]), session)).toBeUndefined()
