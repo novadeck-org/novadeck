@@ -40,6 +40,13 @@ describe("Codex's background shells, as captured", () => {
     ])
   })
 
+  it("keeps the 137 of one /stop killed whose status Codex's reaper took first, its true end", () => {
+    const stopped = lines.findIndex((line) => line.includes('"exit_code":-1'))
+    expect(lines[stopped]).toContain("99018")
+    const reaped = lines.with(stopped, lines[stopped]!.replace('"exit_code":-1', '"exit_code":137'))
+    expect(shells(replay(reaped)).at(-1)).toMatchObject({ id: "99018", code: 137 })
+  })
+
   it("tells no shell for a command that ended within its call", () => {
     const quick = [
       JSON.stringify({

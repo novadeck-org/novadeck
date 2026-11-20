@@ -249,8 +249,10 @@ const shellStarted = (
 /**
  * The end of a background shell: its CommandExecution item, which names its session as its
  * `process_id` and carries its `exit_code`, -1 when the person stopped it with /stop (no
- * code of the command's own). An item of a command that never went to the background names
- * no shell the activity knows.
+ * code of the command's own), or 137 (128 + SIGKILL) where Codex's reaper took the status of
+ * the kill /stop sent before its item was written (codex-rs 0.170.0, unified_exec), which is
+ * the shell's true end and kept. An item of a command that never went to the background
+ * names no shell the activity knows.
  */
 const shellEnded = (base: EventBase<"codex">, item: Fields): HarnessEvent[] => {
   const id = shortName(item.process_id, agentLimits.name)
