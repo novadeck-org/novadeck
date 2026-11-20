@@ -53,6 +53,8 @@ describe("a folder's watch", () => {
     try {
       watch.follow(dir)
       writeFileSync(join(dir, "one.png"), "1")
+      // Told before any wait: the watch has started, so no later wait ends at its start.
+      await new Promise((resolve) => setTimeout(resolve, 300))
       // Told: the wait ends a settle after the change.
       expect(await waited(watch, 3_000)).toBeDefined()
       expect(await waited(watch, 2_500)).toBeUndefined()
