@@ -825,7 +825,7 @@ App:
   here."; "A second window, not the first" boots as a window that isn't the app's first, with no
   welcome dialog, Agent Chat offer, voice or Murmur offer or what's-new card. The other windows
   are pretended: "Another window shows the next project" and "Other windows show every other
-  project" put the quiet window mark and its "Open in another window" tooltip on those projects in
+  project" put the quiet window mark and its "Shown in another window" tooltip on those projects in
   the switcher and the pins bar, picking one swaps (the project this window leaves takes the mark),
   and a project's right-click menu opens one in a window of its own ("Open in new window", not
   offered for the project on screen); "No other window" clears them. "Another window sends this one
@@ -1442,26 +1442,42 @@ the UI store's `windows`); the page decides at once what an action does:
 - **Open in new window** (a project's right-click menu in the switcher and the pins bar, not for the
   project on screen) opens a window on it (`openProjectWindow`: its route is
   `#/projects/<id>/sessions/_/_`, so the page takes the project's own session and view), or brings
-  forward the window that shows it. There is no other way to open one.
+  forward the window that shows it. The app opens only on a project a page has told it knows
+  (`showProjectWindow`'s `known`) and at most 16 windows. There is no other way to open one.
 - **Swap.** Picking, in the switcher, a pin or its shortcut, a project another window shows tells the app
   first (`swapProjectWindow`), then switches this window: the other window goes to this window's former
-  project (`onProjectWindowNavigate`). A project the other window's page doesn't know (made in a window
-  after it loaded; the runner has no projects watch) loads that page again on the project, which reads
-  every project from the runner.
+  project (`onProjectWindowNavigate`). Either window first reads the project from the runner
+  (`Backend.syncProject`, then the core's `project/sync`), so it shows what the other window saved, not
+  its old copy; a window picking a project the other was showing waits a moment (`swapSettleMs`) for that
+  window to send what it changed there. A project the window never heard of, made in another window
+  after it loaded, is learned the same way: no page reload.
+- **Saves.** With project windows on a window saves only the sessions of the project it shows
+  (`Backend.limitSaves`, which sends what it changed before the limit moves), the others' copies here
+  being stale until it takes them on, so two windows never overwrite each other's layouts.
 - **Routing.** What is about a project goes to its window, which comes forward and goes there
   (`handOffToProjectWindow`): `reveal` (an Inbox row's "Go to terminal", a message link, a toast),
-  an Inbox row's sheet (`InboxProvider`'s `routeAway`), an agent's `open_agent` with `focus` (the runner
-  sends a request to the newest window; the new terminal joins its session here and the other
-  windows adopt it from the runner's watch, so the target waits a moment for it), and a notification's
-  click (which, with project windows on, no longer brings the window that raised it forward: the
-  page hands it on, to this window when none shows the project). With none showing the project, the window acted in
-  switches to it as before. What isn't about a project (Preferences, search, dialogs) stays in the window
-  acted in; nothing changes a window on its own.
+  an Inbox row's sheet (`InboxProvider`'s `routeAway`), and a notification's click. A notification's click
+  always brings some window forward: the project's, else the one that raised it, else the voice's
+  (`clickNotice` in `window/voice.ts`). With none showing the project, the window acted in switches to
+  it as before. What isn't about a project (Preferences, search, dialogs) stays in the window acted in;
+  nothing changes a window on its own.
+- **Agents.** What an agent asks of the person goes to the window that shows the project of the terminal
+  that asked: the page tells the runner which project it shows (`terminals.showing`, while the switch is
+  on, lapsing with its connection) and an approval, a look at a page and `open_agent` go to that client,
+  else the one used last (its `terminals.active` or `showing` report came last), else the newest
+  (`ClientWindows`, `Followers.newest`), which is also what a client that says nothing gets. What an agent
+  does never raises a window: an `open_agent` with focus for a project another window shows is handed
+  over `quiet`, so that window goes there without coming forward or taking the system's focus. Only
+  the person's own actions (an Inbox row, a notification click, a swap, Open in new window) bring a window
+  forward. A request from a session the receiving window doesn't know (made after it loaded) is
+  answered "The terminal that asked isn't open in Novadeck."; with routing by project this mostly goes
+  away.
 - **One-time things** (the welcome, the Agent Chat offer, voice and Murmur offers, what's new) are left to
   the app's first window: later ones get `DesktopApp.extraWindow` and `Backend.projectWindows.extra`.
 - **Noise.** Only the window used last (the voice) plays the ding (`createDing`'s `on`), raises
   notifications and sets the badge (the main process drops the others' notices and badges and shows
-  the new voice's last count when the voice moves).
+  the new voice's last count when the voice moves; a closing voice's notifications go with it). The
+  rules are pure in `window/voice.ts`, tested there.
 - **Restore.** With the switch on the main process keeps each window's project and bounds in
   `windows.json` of the data folder (`window/saved-windows.ts`) and reopens them at the next launch; a
   window closed while others remain leaves the list, a quit keeps the windows open at its start, and
