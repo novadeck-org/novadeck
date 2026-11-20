@@ -183,6 +183,9 @@ export type RunnerBackendOptions = {
   // After how many idle minutes the runner stops an agent, null for never, as it said at
   // startup; not offered when absent.
   readonly hibernateAfterMinutes?: number | null
+  // Whether Solo and Swarm may be picked (an Experimental switch), as the runner said at
+  // startup; not offered when absent.
+  readonly agentModes?: boolean
   // How agents work with each other, as the runner said at startup; not offered when absent.
   readonly agentMode?: AgentMode
   // Whether the runner lets agents open worktrees, as it said at startup; not offered when

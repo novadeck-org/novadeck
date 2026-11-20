@@ -159,7 +159,7 @@ const TabInView = ({
 }
 
 // How agents may work with each other, in the order Preferences offers them.
-const agentModes: readonly { mode: AgentMode; label: string; description: string }[] = [
+const modeChoices: readonly { mode: AgentMode; label: string; description: string }[] = [
   {
     mode: "solo",
     label: "Solo",
@@ -198,6 +198,7 @@ export const Preferences = ({
   onFocusedAgent,
   transcripts,
   hibernation,
+  agentModes,
   agentMode,
   tour = false,
   worktrees,
@@ -243,6 +244,12 @@ export const Preferences = ({
     readonly onChange: (minutes: number | null) => void
   }
   // How agents work with each other; absent where the backend has no such setting.
+  // Whether Solo and Swarm may be picked, an Experimental feature the backend keeps; absent
+  // where it has none. The picker below shows only while it is on.
+  agentModes?: {
+    readonly enabled: boolean
+    readonly onChange: (enabled: boolean) => void
+  }
   agentMode?: {
     readonly mode: AgentMode
     readonly onChange: (mode: AgentMode) => void
@@ -363,7 +370,10 @@ export const Preferences = ({
   const hasExperimental = experimental?.on === true
   // Agents holds the agents and when to stop the idle ones; a backend with neither, as the
   // website's demo, has no tab for them.
-  const hasAgentsTab = hasAgents || hibernation !== undefined || agentMode !== undefined
+  // The mode picker is an Experimental feature: it shows only with its switch on, and only where
+  // the Experimental tab is there to turn it off.
+  const showAgentMode = agentMode !== undefined && agentModes?.enabled === true && hasExperimental
+  const hasAgentsTab = hasAgents || hibernation !== undefined || showAgentMode
   const hidden = (id: PreferencesTab): boolean =>
     (id === "agents" && !hasAgentsTab) ||
     (id === "addons" && !hasAddons) ||
@@ -409,6 +419,16 @@ export const Preferences = ({
       checked: worktrees?.enabled ?? false,
       onToggle: (enabled: boolean) => worktrees?.onChange(enabled),
       disabled: !worktrees,
+    },
+    {
+      id: "agent-modes",
+      label: "Agent modes",
+      description: agentModes
+        ? "Choose how agents work together, in the Agents tab: Solo, where each keeps to its own work and tells you what it notices, or Swarm, where they organise themselves without asking you. While this is off, agents work things out with each other when their work meets."
+        : "Not available here.",
+      checked: agentModes?.enabled ?? false,
+      onToggle: (enabled: boolean) => agentModes?.onChange(enabled),
+      disabled: !agentModes,
     },
   ]
   const lastView = value.enabledViews.length === 1
@@ -482,7 +502,7 @@ export const Preferences = ({
         </div>
         <div ref={panels} className="preferences-panels grid min-h-0 flex-1 overflow-y-auto">
           <TabPanel value="agents" className={panelClasses}>
-            {(agents || hibernation || agentMode) && (
+            {(agents || hibernation || showAgentMode) && (
               <Section title="Agents" {...(agents ? { description: agentsExplanation } : {})}>
                 {agents && (
                   <AgentSwitches
@@ -510,7 +530,7 @@ export const Preferences = ({
                     />
                   </div>
                 )}
-                {agentMode && (
+                {showAgentMode && (
                   <fieldset
                     className="agent-mode-preferences settings-fieldset m-0 mt-2.5 min-w-0 p-0"
                     aria-describedby="agent-mode-description"
@@ -519,7 +539,7 @@ export const Preferences = ({
                       <span className={`block ${groupTitleClasses}`}>Agents work as</span>
                     </legend>
                     <div id="agent-mode-description" className="mt-2.5 grid grid-cols-1 gap-2">
-                      {agentModes.map(({ mode, label, description }) => {
+                      {modeChoices.map(({ mode, label, description }) => {
                         const checked = agentMode.mode === mode
                         return (
                           <label

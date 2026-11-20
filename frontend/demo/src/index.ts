@@ -106,6 +106,7 @@ export const demoBackend = (
   // Idle agents are stopped after an hour unless the person chooses otherwise, as in the app.
   const hibernateAfter = createStore<number | null>(60)
   // Agents work as a herd unless the person chooses Solo, as in the app.
+  const agentModes = createStore(false)
   const agentMode = createStore<AgentMode>("herd")
   // Agent worktrees start on, so the demo shows the Worktrees panel they bring; a stable update
   // channel (the debug demo's page starts on one) turns them off as the app does.
@@ -176,6 +177,7 @@ export const demoBackend = (
       set: (enabled) => transcripts.update(() => enabled),
     },
     hibernation: { after: hibernateAfter, set: (minutes) => hibernateAfter.update(() => minutes) },
+    agentModes: { enabled: agentModes, set: (enabled) => agentModes.update(() => enabled) },
     agentMode: { mode: agentMode, set: (mode) => agentMode.update(() => mode) },
     worktrees: { enabled: worktrees, set: (enabled) => worktrees.update(() => enabled) },
     agents: {

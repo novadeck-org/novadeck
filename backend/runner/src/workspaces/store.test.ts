@@ -28,6 +28,7 @@ import { describe, expect, it as base } from "../test.js"
 import { fakeClock } from "../testing/clock.js"
 import { sealed as sealedText } from "../testing/sealing.js"
 import type { ClosedRecord } from "./closed.js"
+import { effectiveAgentMode } from "./settings.js"
 import {
   EarlierWorkspaceError,
   refusedByTable,
@@ -3440,6 +3441,7 @@ describe("saved terminals", () => {
       inboxHistory: [],
       hibernateAfterMinutes: 60,
       worktrees: false,
+      agentModes: false,
       agentMode: "herd",
     })
     workspace.settings.saveRunner({ transcripts: false })
@@ -3452,6 +3454,7 @@ describe("saved terminals", () => {
       inboxHistory: [],
       hibernateAfterMinutes: 60,
       worktrees: false,
+      agentModes: false,
       agentMode: "herd",
     })
   })
@@ -3482,6 +3485,23 @@ describe("saved terminals", () => {
     // A mode a newer build saved, which this one doesn't know, reads as Herd.
     workspace.settings.saveRunner({ agentMode: "hive" as "herd" })
     expect(workspace.settings.runner().agentMode).toBe("herd")
+  })
+
+  it("keep whether Solo and Swarm may be picked, off until turned on, and what then counts", ({
+    kept,
+  }) => {
+    const workspace = kept()
+    expect(workspace.settings.runner().agentModes).toBe(false)
+    workspace.settings.saveRunner({ agentMode: "swarm" })
+    // Off, the saved pick doesn't count, but stays.
+    expect(effectiveAgentMode(workspace.settings.runner())).toBe("herd")
+    expect(workspace.settings.runner().agentMode).toBe("swarm")
+    workspace.settings.saveRunner({ agentModes: true })
+    expect(workspace.settings.runner().agentModes).toBe(true)
+    expect(effectiveAgentMode(workspace.settings.runner())).toBe("swarm")
+    workspace.settings.saveRunner({ agentModes: false })
+    expect(effectiveAgentMode(workspace.settings.runner())).toBe("herd")
+    expect(workspace.settings.runner().agentMode).toBe("swarm")
   })
 
   it("keep whether agents get worktrees, off until turned on", ({ kept }) => {
@@ -3622,6 +3642,7 @@ describe("the messages", () => {
       inboxHistory: [],
       hibernateAfterMinutes: 60,
       worktrees: false,
+      agentModes: false,
       agentMode: "herd",
     })
     expect(reopened.terminalIdentity("a")).toMatchObject({ handle: "moth" })

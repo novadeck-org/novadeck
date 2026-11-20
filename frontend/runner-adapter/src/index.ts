@@ -157,6 +157,7 @@ export const connectRunnerBackend = async (
         inboxSnoozed,
         inboxHistory,
         hibernateAfterMinutes,
+        agentModes,
         agentMode,
         worktrees,
       },
@@ -189,6 +190,7 @@ export const connectRunnerBackend = async (
           inboxSnoozed,
           inboxHistory,
           hibernateAfterMinutes,
+          agentModes,
           agentMode,
           worktrees,
         })

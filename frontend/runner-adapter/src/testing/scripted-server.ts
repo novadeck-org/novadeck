@@ -374,6 +374,7 @@ export const scriptedRunner = ({
         inboxSnoozed: [],
         inboxHistory: [],
         hibernateAfterMinutes: 60,
+        agentModes: false,
         agentMode: "herd",
         worktrees: false,
       })),

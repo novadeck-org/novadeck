@@ -30,6 +30,7 @@ import { Tour } from "./tour/tour.js"
 import { Voice } from "./voice/service.js"
 import { Works } from "./works/works.js"
 import { Projects } from "./workspaces/projects.js"
+import { effectiveAgentMode } from "./workspaces/settings.js"
 import {
   EarlierWorkspaceError,
   setAsideWorkspace,
@@ -411,7 +412,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     transcripts: store.settings.runner().transcripts,
     // Read each time idle agents are looked at, so a change in Preferences counts at once.
     hibernateAfterMinutes: () => store.settings.runner().hibernateAfterMinutes,
-    agentMode: () => store.settings.runner().agentMode,
+    agentMode: () => effectiveAgentMode(store.settings.runner()),
     projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
     // Agents message each other within a project, and their messages are kept with it.
     messages: store,

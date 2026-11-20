@@ -348,6 +348,12 @@ export type BackendFields = {
     readonly after: Store<number | null>
     readonly set: (minutes: number | null) => void
   }
+  // Optional. Whether Solo and Swarm may be picked, an Experimental switch the runner keeps:
+  // while off, agents work as a Herd whatever the pick. Absent where the backend has none.
+  readonly agentModes?: {
+    readonly enabled: Store<boolean>
+    readonly set: (enabled: boolean) => void
+  }
   // Optional. How agents work with each other, which decides the version of Novadeck's tool
   // texts they get: Herd settles things between agents whose work meets, Solo keeps each to its
   // own work. Absent where the backend has no such setting.

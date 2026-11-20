@@ -400,6 +400,13 @@ describe("the IS_EXPERIMENTAL flag", () => {
     expect(experimental.enabled.getSnapshot()).toBe(true)
   })
 
+  it("turns the agent modes switch off where the channel is stable", async () => {
+    const enabled = createStore(true)
+    const agentModes = { enabled, set: (on: boolean) => enabled.update(() => on) }
+    watchExperimental(updates(Promise.resolve("stable")), () => {}, { agentModes })
+    await vi.waitFor(() => expect(enabled.getSnapshot()).toBe(false))
+  })
+
   it("turns agent worktrees off where the channel can't be read, and keeps the flag as it was", async () => {
     const enabled = createStore(true)
     const worktrees = { enabled, set: (on: boolean) => enabled.update(() => on) }

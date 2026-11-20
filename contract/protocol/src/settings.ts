@@ -49,7 +49,11 @@ export const runnerSettings = z.strictObject({
   // Whether agents may open git worktrees through Novadeck's tools, which tracks and cleans
   // them up; an Experimental feature, off until the person turns it on.
   worktrees: z.boolean(),
-  // How agents work with each other (see `agentMode`); Herd until the person picks another.
+  // Whether Solo and Swarm may be picked, an Experimental feature, off until the person turns
+  // it on: while off, agents work as a Herd whatever `agentMode` holds.
+  agentModes: z.boolean(),
+  // How agents work with each other (see `agentMode`), the pick that counts while `agentModes`
+  // is on; Herd until the person picks another.
   agentMode,
 })
 

@@ -71,6 +71,32 @@ describe("the idle agents setting", () => {
   })
 })
 
+describe("the agent modes setting", () => {
+  it("shows what the runner said, and changes it there", async () => {
+    const app = scripted({ shown: [] })
+    const agentModes = app.backend.agentModes!
+    expect(agentModes.enabled.getSnapshot()).toBe(false)
+    agentModes.set(true)
+    expect(agentModes.enabled.getSnapshot()).toBe(true)
+    await app.idle()
+    expect(app.of("settings")).toEqual([{ agentModes: true }])
+    app.stop()
+  })
+
+  it("goes back when the runner could not change it", async () => {
+    const app = scripted({
+      shown: [],
+      saveSettings: () => Promise.reject(new WireError("DISCONNECTED")),
+    })
+    const { enabled, set } = app.backend.agentModes!
+    set(true)
+    expect(enabled.getSnapshot()).toBe(true)
+    await app.idle()
+    expect(enabled.getSnapshot()).toBe(false)
+    app.stop()
+  })
+})
+
 describe("the agents' mode setting", () => {
   it("shows what the runner said, and changes it there", async () => {
     const app = scripted({ shown: [] })

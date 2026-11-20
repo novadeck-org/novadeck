@@ -405,6 +405,12 @@ export const switchOffWorktrees = (worktrees: Backend["worktrees"]): void => {
   if (worktrees?.enabled.getSnapshot()) worktrees.set(false)
 }
 
+// Turns the agent modes switch off where it is on, as the Experimental switch going off does:
+// the runner then has agents work as a Herd, and the saved pick stays for when it goes on again.
+export const switchOffAgentModes = (agentModes: Backend["agentModes"]): void => {
+  if (agentModes?.enabled.getSnapshot()) agentModes.set(false)
+}
+
 // Switches every forge integration off where it is on, as the Experimental switch going off does,
 // for the same reason.
 // A forge being switched (on, as far as anyone knows) goes off too: its switch lands after.
@@ -414,17 +420,22 @@ export const switchOffForges = (forges: Backend["forges"]): void => {
 }
 
 // The Experimental features a backend keeps as settings, which all go off with the switch.
-export type ExperimentalFeatures = Pick<Backend, "worktrees" | "forges">
+export type ExperimentalFeatures = Pick<Backend, "worktrees" | "forges" | "agentModes">
 
-export const switchOffExperimental = ({ worktrees, forges }: ExperimentalFeatures): void => {
+export const switchOffExperimental = ({
+  worktrees,
+  forges,
+  agentModes,
+}: ExperimentalFeatures): void => {
   switchOffWorktrees(worktrees)
+  switchOffAgentModes(agentModes)
   switchOffForges(forges)
 }
 
 // Asks the backend once, as the workspace comes up, whether the desktop app follows experimental
 // builds, which is what turns IS_EXPERIMENTAL on, through `set`. A desktop app that fails to say
-// leaves it off. A channel found stable, or unreadable, also turns agent worktrees and forge
-// integrations off.
+// leaves it off. A channel found stable, or unreadable, also turns agent worktrees, agent modes and
+// forge integrations off.
 export const watchExperimental = (
   updates: Backend["updates"],
   set: (on: boolean) => void,

@@ -26,6 +26,7 @@ export const runnerSwitches = (
     forges: forgeStates,
     welcomed,
     hibernateAfterMinutes,
+    agentModes: modesOffered,
     agentMode: howAgentsWork,
     worktrees: allowed,
   }: Pick<
@@ -36,16 +37,18 @@ export const runnerSwitches = (
     | "forges"
     | "welcomed"
     | "hibernateAfterMinutes"
+    | "agentModes"
     | "agentMode"
     | "worktrees"
   >,
   track: <T>(work: Promise<T>) => Promise<T>,
 ): Pick<
   Backend,
-  "transcripts" | "hibernation" | "agentMode" | "worktrees" | "agents" | "forges"
+  "transcripts" | "hibernation" | "agentModes" | "agentMode" | "worktrees" | "agents" | "forges"
 > => {
   const transcripts = createStore(kept ?? true)
   const hibernateAfter = createStore(hibernateAfterMinutes ?? null)
+  const agentModes = createStore(modesOffered ?? false)
   const agentMode = createStore<AgentMode>(howAgentsWork ?? "herd")
   const worktrees = createStore(allowed ?? false)
   const agents = createStore<readonly AgentConnection[]>(
@@ -160,6 +163,21 @@ export const runnerSwitches = (
               // Unsaved, the choice shows what the runner still does.
               void track(runner.settings.set({ hibernateAfterMinutes: minutes })).catch(() =>
                 hibernateAfter.update(() => before),
+              )
+            },
+          },
+        }
+      : {}),
+    ...(modesOffered !== undefined
+      ? {
+          agentModes: {
+            enabled: agentModes,
+            set: (enabled) => {
+              const before = agentModes.getSnapshot()
+              agentModes.update(() => enabled)
+              // Unsaved, the switch shows what the runner still does.
+              void track(runner.settings.set({ agentModes: enabled })).catch(() =>
+                agentModes.update(() => before),
               )
             },
           },

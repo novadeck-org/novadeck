@@ -175,7 +175,10 @@ An agent weighs what reaches it at three levels:
 ### Herd, Solo and Swarm
 
 How far agents act on each other is the person's choice, Preferences → Agents → "Agents work
-as" (`agentMode` in `settings.get`, `"herd"` until they pick `"solo"` or `"swarm"`). In Solo and
+as" (`agentMode` in `settings.get`, `"herd"` until they pick `"solo"` or `"swarm"`). Solo and
+Swarm sit behind Preferences → Experimental → "Agent modes" (`agentModes`, off by default): the
+picker shows only while it is on, and while it is off the runner serves Herd whatever
+`agentMode` holds, which stays saved for when the switch goes on again. In Solo and
 Herd it words Novadeck's texts only; Swarm also changes what Novadeck asks the person:
 
 - **Herd** (the default): when an agent's work meets another's, or another has done or knows
