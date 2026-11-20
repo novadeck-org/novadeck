@@ -1247,7 +1247,7 @@ describe("the browser viewer", () => {
         // Up again, and some browsers send Shift's sideways.
         wheel({ deltaX: -40, deltaY: 0, shiftKey: true })
         expect(top()).toBeCloseTo(start - 160, 6)
-        // Ctrl+wheel is the app's zoom, and a sideways swipe moves nothing.
+        // Ctrl+wheel, a zoom gesture elsewhere, and a sideways swipe move nothing.
         expect(wheel({ deltaY: 100, ctrlKey: true }).defaultPrevented).toBe(false)
         expect(wheel({ deltaX: 100, deltaY: 0 }).defaultPrevented).toBe(false)
         expect(top()).toBeCloseTo(start - 160, 6)

@@ -311,8 +311,8 @@ export const createPhoneZoom = (root: HTMLElement, options: ZoomOptions): PhoneZ
   }
   // The wheel over the stage moves a zoomed phone, as over anything taller than its box; over
   // the phone it's the page's, as its view takes it. Shift+wheel, which some systems send
-  // sideways, moves it too. Ctrl+wheel is the app's zoom, a sideways swipe moves nothing, and
-  // a phone at its end leaves the wheel to what's around it, as Grid scrolling past it.
+  // sideways, moves it too. Ctrl+wheel, a zoom gesture elsewhere, and a sideways swipe move
+  // nothing, and a phone at its end leaves the wheel to what's around it, as Grid scrolling.
   const wheeled = (event: WheelEvent): void => {
     if (event.ctrlKey || event.metaKey) return
     const by = event.deltaY || (event.shiftKey ? event.deltaX : 0)
