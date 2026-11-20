@@ -80,9 +80,13 @@ so the work on a group is bounded by a window for each row, not by all the rows 
   90%) because of a run of seven lowercase letters, and about 3% because a slash between two
   short lowercase stretches reads as a path.
 - A value is taken after a secret's name and `=`, `:`, or another assignment (`:=`, `?=`, `+=`,
-  `||=`), and after a quoted name and `=>`, as a hash's `'password' => '…'` has it. After a bare
-  name and `=>`, or a comparison (`==`, `!==`), only a quoted value is taken: an unquoted one
-  there is a JS arrow function's body or a compared variable, which is code.
+  `||=`), and after a quoted name and `=>`, as a hash's `'password' => '…'` has it. `=>`, `==`
+  and `!==` are code's operators only where white space touches them or a quote follows them
+  (`api_key => "…"`, `a=='b'`). After a bare name and one of those, only a quoted value is
+  taken: an unquoted one there is a JS arrow function's body or a compared variable, which is
+  code. Glued to both the name and an unquoted value (`PASSWORD=>x9!Kq`, `PASSWORD==Zq9`,
+  `PASSWORD=~Zq9`), the `=` joins a value that starts with `>`, `=` or `~`, as an env file
+  writes a password that does.
 - Not masked: what the rules do not find by shape (a bare password on a line by itself, an
   in-house token format), an unquoted value after a bare name and `=>` or a comparison, a value
   after R's `<-` (which Haskell and Go write before code too), a secret split by something other
