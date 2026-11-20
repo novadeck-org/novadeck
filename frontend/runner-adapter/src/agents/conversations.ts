@@ -104,6 +104,9 @@ export type RunnerConversations = Conversations & {
   // The terminal moved to another session, still running, under `key` now: its conversation
   // goes on, and its doorbell follows its messages there.
   readonly moved: (key: TerminalKey) => void
+  // The runner has the terminal's shell again, as a sleeper woke: its conversation, where one
+  // is read and waits to open again, opens at once rather than on its next try.
+  readonly ready: (key: TerminalKey) => void
   // Stops reading every terminal at once.
   readonly stop: () => void
 }
@@ -361,6 +364,8 @@ const refusal = (error: unknown): Error => {
 type Reading = {
   // Ends both streams; the reading is over.
   readonly stop: () => void
+  // The terminal has a shell again: a detail waiting to be opened again opens now.
+  readonly ready: () => void
 }
 
 const read = (
@@ -711,6 +716,13 @@ const read = (
   connect()
 
   return {
+    ready: () => {
+      if (!alive || reopening === undefined) return
+      clearTimeout(reopening)
+      reopening = undefined
+      backoff = retryMs
+      connect()
+    },
     stop: () => {
       alive = false
       clearTimeout(reopening)
@@ -930,6 +942,7 @@ export const createRunnerConversations = (
     refused: (text, options) =>
       normalisedText(text).trim() !== "" && protocolRefusal(text, options) !== undefined,
     moved: (key) => entries.get(key.terminalId)?.rekey(key),
+    ready: ({ terminalId }) => readings.get(terminalId)?.ready(),
     stop: () => {
       for (const halt of stoppers.values()) halt()
     },

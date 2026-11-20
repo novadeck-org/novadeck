@@ -1509,6 +1509,7 @@ export const runnerBackend = (
     void ready.then((ok) => {
       if (!ok || !following || entry.closed || entry.ready !== ready) return
       messages.follow(entry.key)
+      conversations.ready(entry.key)
     })
   }
 

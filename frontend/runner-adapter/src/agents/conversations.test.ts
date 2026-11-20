@@ -355,6 +355,30 @@ describe("the runner's conversations", () => {
         expect(store.getSnapshot().agent).toBeNull()
       })
 
+      it("opens it again at once once the terminal is ready, not on its next try", async () => {
+        const { opened, streams, conversations, store } = reopenable()
+        store.subscribe(() => {})
+        opened[0]!.end()
+        await settle()
+        // Asleep a while: the tries are far apart by now.
+        for (const at of [1, 2, 3]) {
+          // eslint-disable-next-line no-await-in-loop -- Each try follows the one before.
+          await vi.advanceTimersByTimeAsync(retryMaxMs)
+          opened[at]!.end()
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await settle()
+        }
+        const tries = streams.detail.mock.calls.length
+        // It woke: the runner has its shell again.
+        conversations.ready(key)
+        expect(streams.detail).toHaveBeenCalledTimes(tries + 1)
+        opened[tries]!.push(detail())
+        await vi.waitFor(() => expect(store.getSnapshot().agent).toBe("claude"))
+        // While it reads, nothing more opens.
+        conversations.ready(key)
+        expect(streams.detail).toHaveBeenCalledTimes(tries + 1)
+      })
+
       it("stops opening it once the reading stops", async () => {
         const { opened, streams, conversations, store } = reopenable()
         store.subscribe(() => {})
