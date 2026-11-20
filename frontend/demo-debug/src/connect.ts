@@ -33,6 +33,8 @@ export const connectDemo = (rehearsals: BootRehearsals, theme: ThemeSource): Con
   let windowControls: DemoWindowControls | undefined
   let portable: DemoPortable | undefined
   let uninstall: DemoUninstall | undefined
+  let projectWindows = true
+  let extraWindow = false
   let worktrees = true
   let forges = true
   let play: DemoLaunch["play"]
@@ -91,6 +93,16 @@ export const connectDemo = (rehearsals: BootRehearsals, theme: ThemeSource): Con
       uninstall,
       setUninstall: (next) => {
         uninstall = next
+        rehearsals.rehearse({ reboot: true })
+      },
+      projectWindows,
+      setProjectWindows: (next) => {
+        projectWindows = next
+        rehearsals.rehearse({ reboot: true })
+      },
+      extraWindow,
+      setExtraWindow: (next) => {
+        extraWindow = next
         rehearsals.rehearse({ reboot: true })
       },
       worktrees,

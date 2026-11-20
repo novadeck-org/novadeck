@@ -9,6 +9,7 @@
     "./boot-rehearsal": "./src/boot-rehearsal.ts",
     "./connect": "./src/connect.ts",
     "./desktop/portable": "./src/desktop/portable.ts",
+    "./desktop/project-windows": "./src/desktop/project-windows.ts",
     "./desktop/sandbox": "./src/desktop/sandbox.ts",
     "./desktop/scenarios": "./src/desktop/scenarios.ts",
     "./desktop/screen-reader": "./src/desktop/screen-reader.ts",

@@ -30,6 +30,7 @@ import type { BootRehearsals } from "./boot-rehearsal"
 import { chatOfferGroups } from "./chat-offer"
 import { createDebugPanel, type DebugPanel } from "./DebugPanel"
 import { createDemoPortable, type DemoPortable } from "./desktop/portable"
+import { createDemoProjectWindows } from "./desktop/project-windows"
 import { createDemoSandbox } from "./desktop/sandbox"
 import { demoShowScale } from "./desktop/scale"
 import { createDemoScreenReader } from "./desktop/screen-reader"
@@ -54,6 +55,7 @@ import { modelGroups } from "./models"
 import { murmurGroups } from "./murmur"
 import { pdfGroups } from "./pdfs"
 import { planGroups } from "./plans"
+import { projectWindowGroups } from "./project-windows"
 import { createDemoStates } from "./states"
 import { sessionTarget } from "./terminals"
 import { tourGroups } from "./tour"
@@ -106,6 +108,14 @@ export type DemoLaunch = {
   readonly worktrees: boolean
   // Boots again with the backend offering agent worktrees or not.
   readonly setWorktrees: (offered: boolean) => void
+  // Whether the desktop app can open a project in a window of its own; false in a browser.
+  readonly projectWindows: boolean
+  // Boots again with the app able to open windows or not.
+  readonly setProjectWindows: (offered: boolean) => void
+  // Whether this window is not the app's first, which leaves the one-time offers to the first.
+  readonly extraWindow: boolean
+  // Boots again as an extra window or as the first.
+  readonly setExtraWindow: (extra: boolean) => void
   // Whether the backend offers forge integrations; false for a runner without them.
   readonly forges: boolean
   // Boots again with the backend offering forge integrations or not.
@@ -163,6 +173,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
   const states = createDemoStates(turns, () => inner.inbox)
   if (launch.portable?.offer) states.offer(launch.portable.offer)
   launch.play?.(states.updateControls)
+  const projectWindows = createDemoProjectWindows({ extra: launch.extraWindow })
   let sink: BackendSink | undefined
   let latest: Workspace | undefined
   let failed: readonly TerminalKey[] = []
@@ -304,6 +315,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
       ? {}
       : { screenReader: createDemoScreenReader(launch.screenReader).screenReader }),
     ...(launch.portable ? { portable: createDemoPortable(launch.portable).portable } : {}),
+    ...(launch.projectWindows ? { projectWindows: projectWindows.windows } : {}),
     ...(launch.uninstall ? { uninstall: createDemoUninstall(launch.uninstall).uninstall } : {}),
     ...windowControlsOf(launch.windowControls),
     showScale: demoShowScale,
@@ -322,6 +334,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           ...states.groups,
           ...installGroups(installs, states),
           ...tourGroups(tour),
+          ...projectWindowGroups(launch, projectWindows, () => latest),
           updatesGroup(launch, states.updateControls),
           ...approvalGroups(approvals, () => latest),
           ...inboxGroups(isDemoInbox(inner.inbox) ? inner.inbox : undefined, inner.seed),

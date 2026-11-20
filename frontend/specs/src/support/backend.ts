@@ -10,6 +10,10 @@ import {
   type DemoPortable,
   type PortableSchedule,
 } from "@novadeck/demo-debug/desktop/portable"
+import {
+  createDemoProjectWindows,
+  type DemoProjectWindows,
+} from "@novadeck/demo-debug/desktop/project-windows"
 import { createDemoSandbox, sampleFix } from "@novadeck/demo-debug/desktop/sandbox"
 import {
   portableScenarios,
@@ -424,6 +428,40 @@ const withNestedTeam = (
   },
 })
 
+// Specs open the demo as a desktop app that opens a project in a window of its own with
+// `&windows=on`, whose other windows (pretended) a spec reads and moves with `projectWindows`;
+// `&windows=extra` makes this window one that is not the app's first.
+const windowsRequested = (): "first" | "extra" | undefined => {
+  const asked = addressParams().get("windows")
+  return asked === "on" ? "first" : asked === "extra" ? "extra" : undefined
+}
+
+// The project windows of every backend made since the page opened, as with `desktops`.
+const windowsMade: DemoProjectWindows[] = []
+
+const withWindows = (
+  backend: ReturnType<typeof createDemoBackend>,
+  kind: "first" | "extra",
+): ReturnType<typeof createDemoBackend> => {
+  const windows = createDemoProjectWindows({ extra: kind === "extra" })
+  windowsMade.push(windows)
+  return { ...backend, projectWindows: windows.windows }
+}
+
+/** The other windows of the app of `&windows=on`, pretended: what they show, the voice, and what
+ * the page asked of them. */
+export const projectWindows = {
+  /** The projects (by id) other windows show now. */
+  pretend: (ids: readonly string[]): void => windowsMade.forEach((each) => each.pretend(ids)),
+  /** Whether this window has the voice. */
+  voice: (voice: boolean): void => windowsMade.forEach((each) => each.setVoice(voice)),
+  /** Another window sends this one to a project. */
+  send: (projectId: string): void => windowsMade.forEach((each) => each.send({ projectId })),
+  /** The places the page handed to another window. */
+  handedOff: (): string[] =>
+    windowsMade.flatMap((each) => each.handedOff().map((place) => place.projectId)),
+}
+
 // The demo a spec opens, as its address's hash asks.
 export const createSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   const plain = plainSpecBackend()
@@ -431,7 +469,9 @@ export const createSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   const withApprovals = approvalsRequested() ? { ...demo, approvals: specApprovals() } : demo
   // Keeps no arrangement, as a demo doesn't, but takes the one a spec leaves in storage
   // (`novadeck.project-arrangement`) as an earlier client's, which the app imports.
-  const backend = desktopRequested() ? asDesktop(withApprovals) : withApprovals
+  const desktopLike = desktopRequested() ? asDesktop(withApprovals) : withApprovals
+  const kind = windowsRequested()
+  const backend = kind ? withWindows(desktopLike, kind) : desktopLike
   return {
     ...backend,
     arrange: async () => {},
