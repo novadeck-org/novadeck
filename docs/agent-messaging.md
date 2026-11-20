@@ -202,12 +202,20 @@ Herd it words Novadeck's texts only; Swarm also changes what Novadeck asks the p
   agent opened; closing a terminal the person opened still asks them. The runner reads the
   mode at each call, so these follow a switch at once.
 
+Work meets not only in the same files but wherever agents use the same thing: the machine's CPU
+and memory (a full test run or build), a port, server or container, a service's rate limits, CI
+runners, main or a release. In Herd and Swarm an agent whose task holds or loads one tells the
+agents on that repository when it starts what it holds and until when, and one whose work waits
+on such a thing, or runs slower than it should, finds out what holds it and settles it with
+whoever does; in Solo it finds out who else uses it and tells the person (`meets` in
+`shell/mcp.ts`).
+
 Teams work the same in Solo and Herd: a lead directs, and its teammates act on its messages and
 report back. Approvals of actions stay the person's in every mode, and a harness's own
 permission prompts are never Novadeck's to skip.
 
 The mode words the server's instructions and the `send`, `agents` and `ask` descriptions
-(`together`, `onward`, `anchored`, `decides`, `rules` in `shell/mcp.ts`, and the tools whose confirmation Swarm
+(`together`, `meets`, `onward`, `anchored`, `decides`, `rules` in `shell/mcp.ts`, and the tools whose confirmation Swarm
 drops), which the MCP server asks the runner for (call `mode`) with each handshake and listing,
 and the notes on peers' messages (`peerClause`, `peersShort` in `messaging/messages.ts`), as each
 delivery is wrapped. Harnesses read the handshake and the listing as a session starts and keep

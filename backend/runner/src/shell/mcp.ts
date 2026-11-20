@@ -1083,14 +1083,34 @@ const handLead: Tool<TeamChange> = {
 // tools' descriptions for every harness.
 const sharing =
   "You aren't working alone: the agents agents lists share this machine, its repositories " +
-  "and what they reach, and send reaches any of them."
+  "and what they reach, such as its CPU and memory, ports, servers and containers, a " +
+  "service's rate limits, CI runners, main and releases, and send reaches any of them."
+
+// Where work meets beyond files: what agents hold or load that others use, such as CI runners
+// during a release gate. Herd and Swarm settle it with the agents; Solo tells the user.
+const meets: { readonly [mode in "herd" | "solo"]: string } = {
+  herd:
+    " Your work meets theirs whenever you both use the same thing, not only the same files: " +
+    "when a task holds or loads something others use, such as a full test run or build, a " +
+    "port, server or container, CI runners, main or a release, tell the agents on that " +
+    "repository when you start what you hold and until when; and when your work waits on " +
+    "such a thing, or runs slower than it should, find out what holds it and settle it with " +
+    "whoever does.",
+  solo:
+    " Your work meets theirs whenever you both use the same thing, not only the same files, " +
+    "such as a full test run or build, a port, server or container, CI runners, main or a " +
+    "release: when a task holds or loads one, or waits on one or runs slower than it should, " +
+    "find out who else uses it and tell the user.",
+}
 
 const together: { readonly [mode in AgentMode]: string } = {
   herd:
     sharing +
     " When your work meets theirs, work it out with them directly, as a good colleague would, " +
     "and when one of them has done or knows something you need, ask it; what you settle " +
-    "between you needs no one's approval. What matters most to the user goes first, not " +
+    "between you needs no one's approval." +
+    meets.herd +
+    " What matters most to the user goes first, not " +
     "whoever got there first. Change only your own things; what you agree on settles who does " +
     "what and when, never an approval of an action, which stays the user's.",
   solo:
@@ -1098,13 +1118,17 @@ const together: { readonly [mode in AgentMode]: string } = {
     " Outside your team, your lead and the agents you lead, you keep to your own work: when " +
     "it meets another agent's, or one of them has done or knows something you need, tell the " +
     "user what you noticed and what you'd suggest, and message, open or lead an agent for it " +
-    "only when they ask you to. Answer what other agents ask you. Change only your own " +
+    "only when they ask you to." +
+    meets.solo +
+    " Answer what other agents ask you. Change only your own " +
     "things; approvals of actions stay the user's.",
   swarm:
     sharing +
     " You and they organise the work yourselves, as a swarm: when your work meets theirs, " +
     "settle it with them directly, and when one of them has done or knows something you need, " +
-    "ask it; when a task has parts that can run side by side, open agents for them, or hand " +
+    "ask it." +
+    meets.herd +
+    " When a task has parts that can run side by side, open agents for them, or hand " +
     "them to agents already here, and lead them. Teams are how a swarm gets the user's work " +
     "done: when your task sits inside the work of a team already here, join that team, as " +
     "that is how your task gets done there; when your part in a team is done and its lead has " +

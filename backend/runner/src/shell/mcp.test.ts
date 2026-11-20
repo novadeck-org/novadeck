@@ -1939,6 +1939,37 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     }
   })
 
+  it("has work meet over shared things too: told to agents in Herd and Swarm, to the user in Solo", async () => {
+    const texts = async (mode: "herd" | "solo" | "swarm") => {
+      answersBy.mode = { ok: true, mode }
+      const [handshake, tools] = await session(terminal(), [initialize, list])
+      const described = tools?.result?.tools as { name: string; description: string }[]
+      const of = (name: string) => described.find((tool) => tool.name === name)!.description
+      return [handshake?.result?.instructions as string, of("send"), of("agents")]
+    }
+    try {
+      const herd = await texts("herd")
+      const solo = await texts("solo")
+      const swarm = await texts("swarm")
+      for (const text of [...herd, ...solo, ...swarm]) {
+        expect(text).toContain("such as its CPU and memory, ports, servers and containers")
+        expect(text).toContain("Your work meets theirs whenever you both use the same thing")
+      }
+      for (const text of [...herd, ...swarm]) {
+        expect(text).toContain(
+          "tell the agents on that repository when you start what you hold and until when",
+        )
+        expect(text).toContain("find out what holds it and settle it with whoever does")
+      }
+      for (const text of solo) {
+        expect(text).toContain("find out who else uses it and tell the user")
+        expect(text).not.toContain("tell the agents on that repository")
+      }
+    } finally {
+      delete answersBy.mode
+    }
+  })
+
   it("carries the messaging rules in each messaging tool's description", async () => {
     const [, tools] = await session(terminal(), [initialize, list])
     const described = tools?.result?.tools as { name: string; description: string }[]
