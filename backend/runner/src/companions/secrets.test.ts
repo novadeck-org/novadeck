@@ -249,9 +249,9 @@ describe("the names a path's links lead through", () => {
   it("stops after as many links as realpath follows", async ({ directory }) => {
     writeFileSync(join(directory, "end"), "")
     let previous = "end"
-    for (let at = 0; at < 50; at += 1) {
-      symlinkSync(previous, join(directory, `l${at}`))
-      previous = `l${at}`
+    for (let link = 0; link < 50; link += 1) {
+      symlinkSync(previous, join(directory, `l${link}`))
+      previous = `l${link}`
     }
     await expect(linkHops(join(directory, previous))).resolves.toHaveLength(41)
   })
