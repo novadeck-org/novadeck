@@ -379,7 +379,7 @@ export const InboxProvider = ({
   // The updates seen in the list are read as the person leaves it: the panel goes, or they
   // stop looking at the page. One opened meanwhile is read already, and one whose read is on
   // its way or failed isn't read again.
-  const see = useReadOnLeaving(active && looking, (keys) => {
+  const noteSeen = useReadOnLeaving(active && looking, (keys) => {
     const snapshot = inbox.state.getSnapshot()
     for (const row of snapshot.items)
       if (
@@ -391,7 +391,7 @@ export const InboxProvider = ({
       )
         inbox.answer(row.id, { kind: "update", action: "read" })
   })
-  const sighted = useCallback((row: InboxRow): void => see(rowKey(row)), [see])
+  const sighted = useCallback((row: InboxRow): void => noteSeen(rowKey(row)), [noteSeen])
 
   const dismiss = useMemo(
     () => (inbox.dismiss ? (id: string): void => inbox.dismiss?.(id) : undefined),

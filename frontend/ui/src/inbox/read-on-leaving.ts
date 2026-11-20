@@ -107,8 +107,9 @@ export const useSight = (
 
 // One visit to the Inbox's list, from when the person starts looking at it (`visiting`) to
 // when they stop: returns what notes a row seen in it, by its key, and tells `read` the keys
-// seen as the visit ends, or as the list goes with the app. A visit that saw nothing reads
-// nothing.
+// seen as the visit ends, or as the list is taken down. A visit that saw nothing reads
+// nothing, and one the window closes on (a quit, a reload) reads nothing either: what was
+// seen in it is new again at the next start.
 export const useReadOnLeaving = (
   visiting: boolean,
   read: (keys: ReadonlySet<string>) => void,

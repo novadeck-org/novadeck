@@ -151,8 +151,8 @@ describe("A terminal's messages", () => {
       const chat = await openConversation(pane, "You")
       await expect.element(pane).toMatchTextContent("1 question waits for you")
       await expect.element(chat).toMatchTextContent("Asked you · answered")
-      // Opening its terminal looks at it, which reads the tell the agent left there.
-      await expect.element(chat).toMatchTextContent("Told you")
+      // Looking at its terminal doesn't read the tell the agent left there: the Inbox does.
+      await expect.element(chat).toMatchTextContent("Tells you")
       await expect.element(chat).toMatchTextContent("Asks you")
       await expect
         .poll(

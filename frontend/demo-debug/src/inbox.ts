@@ -388,7 +388,7 @@ export const inboxGroups = (
         },
         {
           label: "Fail the next answer",
-          hint: "The next answer to any row fails and the sheet says so, leaving the row to answer again (an update read by seeing it doesn't count)",
+          hint: "The next answer to any row fails and the sheet says so, leaving the row to answer again (an update's read on leaving the list doesn't count)",
           run: () => inbox.failNext(),
         },
         {

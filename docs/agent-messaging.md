@@ -898,7 +898,7 @@ queued lines back included. The person's own "Write your own" nudge is not marke
 stuck agent's sheet or an answer to a harness request sent on as the next prompt, are theirs,
 and do withdraw.
 
-`tell({ subject, body })` adds an Update, read once the person opens it, sees its row or looks at its terminal. An ask badges the
+`tell({ subject, body })` adds an Update, read once the person opens it, or sees its row in the Inbox and then leaves the list. An ask badges the
 Inbox bell; a tell doesn't. Every item is its own row, so a terminal with an ask, two
 tells and a finish shows four; nothing replaces or hides another. An ask
 shows stopped only once the agent has ended its turn, not because it called the tool.

@@ -486,6 +486,17 @@ describe("The Inbox's list", () => {
       inbox.view.unmount()
     })
 
+    it("reads it as the list is taken down while they look", async () => {
+      const inbox = mount([told("u", 1)])
+      await nextFrame()
+      vi.useFakeTimers()
+      sight(inbox.row("u"), true)
+      act(() => void vi.advanceTimersByTime(sightDwellMs))
+      inbox.view.unmount()
+      expect(inbox.answered).toEqual(["u"])
+      vi.useRealTimers()
+    })
+
     it("doesn't read one scrolled past, or one already resolved", async () => {
       const resolved = { ...told("r", 2), settled: { how: "read", at: 3 } } as InboxRow
       const inbox = mount([told("u", 1), resolved])

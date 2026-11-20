@@ -40,7 +40,7 @@ export type DemoInbox = Inbox & {
   readonly add: (row: InboxRow) => void
   readonly empty: () => void
   // The next answer fails instead of taking, so the sheet shows why: not an update's read,
-  // which seeing it does on its own.
+  // which the Inbox makes on its own.
   readonly failNext: (reason?: string) => void
   // An ask leaves: "withdrawn" by its agent leaves the Inbox, as the runner's does; "gone" (its
   // session ended) stays as a resolved row.
@@ -366,7 +366,7 @@ export const createDemoInbox = (
     if (!sources || !binding || target.settled || derived.getSnapshot().answering[target.id]) return
     if (target.kind !== given.kind)
       return tracker.fail(target.id, "That answer isn't for this item.")
-    // An update's read, which seeing it does on its own, isn't the answer that fails.
+    // An update's read, which the Inbox makes on its own, isn't the answer that fails.
     if (failing && given.kind !== "update") {
       const why = failing
       failing = null
@@ -457,7 +457,7 @@ export const createDemoInbox = (
           ...current,
           failed: { ...current.failed, [id]: "That answer isn't for this item." },
         }))
-      // An update's read, which seeing it does on its own, isn't the answer that fails.
+      // An update's read, which the Inbox makes on its own, isn't the answer that fails.
       if (failing && answer.kind !== "update") {
         const why = failing
         failing = null
