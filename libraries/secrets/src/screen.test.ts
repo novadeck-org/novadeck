@@ -360,6 +360,9 @@ describe("a secret after another joint than = or : on a screen", () => {
     ["'password' => 'Zq9xW2vK7pL4mN8r',", "'password' => '[redacted]',"],
     ['api_key => "Zq9xW2vK7pL4mN8r"', 'api_key => "[redacted]"'],
     ['password := "Zq9xW2vK7pL4mN8r"', 'password := "[redacted]"'],
+    ["PASSWORD=>x9!Kq#2mZ", "PASSWORD=[redacted]"],
+    ["PASSWORD=~Zq9xW2vK7pL4mN8r", "PASSWORD=[redacted]"],
+    ["PASSWORD==Zq9xW2vK7pL4mN8r==", "PASSWORD=[redacted]"],
   ])("masks the value of %s", (row, expected) => {
     expect(redactScreen([row], [false])).toEqual([expected])
   })

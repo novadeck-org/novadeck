@@ -525,7 +525,24 @@ describe("a secret after another joint than = or :", () => {
     ["@password ||= 'Zq9xW2vK7pL4mN8r'", "@password ||= '[redacted]'"],
     ['if password == "Zq9xW2vK7pL4mN8r"', 'if password == "[redacted]"'],
     ["if (token !== 'Zq9xW2vK7pL4mN8r')", "if (token !== '[redacted]')"],
+    // Code written without spaces: the operator is code's where a quote follows it.
+    ['api_key=>"Zq9xW2vK7pL4mN8r"', 'api_key=>"[redacted]"'],
+    ["'password'=>'Zq9xW2vK7pL4mN8r',", "'password'=>'[redacted]',"],
+    ["if(password=='Zq9xW2vK7pL4mN8r')", "if(password=='[redacted]')"],
+    ['if(token==="Zq9xW2vK7pL4mN8r")', 'if(token==="[redacted]")'],
   ])("masks the value of %s, never the joint", (text, expected) => {
+    expect(redact(text)).toBe(expected)
+  })
+
+  // An env file or an export writes no operator: a password that starts with `>`, `=` or `~`
+  // is glued to its `=`, and all of it after the `=` is the value.
+  it.each([
+    ["PASSWORD=>x9!Kq#2mZ", "PASSWORD=[redacted]"],
+    ["PASSWORD=~Zq9xW2vK7pL4mN8r", "PASSWORD=[redacted]"],
+    ["PASSWORD==Zq9xW2vK7pL4mN8r==", "PASSWORD=[redacted]"],
+    ["export NOVADECK_TOKEN=>Zq9xW2vK7pL4mN8r", "export NOVADECK_TOKEN=[redacted]"],
+    ["hasło=>Zq9xW2vK7pL4mN8r", "hasło=[redacted]"],
+  ])("masks a value glued to its = that starts like an operator, %s", (text, expected) => {
     expect(redact(text)).toBe(expected)
   })
 

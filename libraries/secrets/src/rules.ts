@@ -22,10 +22,15 @@ export type Rule =
       readonly field?: { readonly name: number; readonly value: RegExp }
     }
 
-// What may join a name to its value, longest first: an assignment, a hash's `=>` or a
-// comparison. None is followed by another `=`, `>` or `~`, so `==` is never read as `=` and a
-// value `=`, nor `=>` as `=` and a value `>`, nor `=~` (a regex match) as an assignment.
-const joints = String.raw`(?:=>|[=!]==?|(?:[:?+]|\|\|)?=)(?![=>~])`
+// An operator code writes between a name and a value: a hash's `=>`, or a comparison.
+const operator = String.raw`(?:=>|[=!]==?)`
+// What may join a name to its value, with the white space around it: an assignment (`=`,
+// `:=`, `?=`, `+=`, `||=`) not followed by another `=`, `>` or `~`; an operator, where white
+// space touches it or a quote follows it, as code writes one (`api_key => "…"`, `a=='b'`); or,
+// glued to both the name and an unquoted value, a plain `=` whose value starts with `=`, `>` or
+// `~`, as an env file or an export writes a password that does (`PASSWORD=>x9!Kq`). `=~`, a
+// regex match, joins nothing where white space touches it.
+const joints = String.raw`(?:[ \t]*(?:[:?+]|\|\|)?=(?![=>~])[ \t]*|[ \t]+${operator}[ \t]*|${operator}(?:[ \t]+|(?=\\?["']))|=(?=[=>~]))`
 // The joints after which only a quoted value is a secret's: `=>`, and the comparisons.
 const literalOnly = /=>|==|!=/
 
@@ -164,10 +169,7 @@ export const rules: readonly Rule[] = [
   // arrow function's) or a comparison (`==`, `!==`), only a quoted value is one: an arrow's
   // body and a compared variable are code.
   {
-    pattern: new RegExp(
-      `(?<![\\p{L}\\p{N}_.-])([\\p{L}_][\\p{L}\\p{N}_.-]*)([ \\t]*${joints}[ \\t]*)`,
-      "gu",
-    ),
+    pattern: new RegExp(`(?<![\\p{L}\\p{N}_.-])([\\p{L}_][\\p{L}\\p{N}_.-]*)(${joints})`, "gu"),
     judge: ({ offset, text }, all, name, joint, value) =>
       (!literalOnly.test(joint) || /^\\?["']/.test(value)) &&
       worthHiding(value, true) &&
@@ -179,11 +181,13 @@ export const rules: readonly Rule[] = [
   // Polish: hasło: tajne, haslo=tajne
   {
     pattern: new RegExp(
-      `(?<![\\p{L}])(has[lł]o|has[lł]a)([ \\t]*[:=](?![=>~])[ \\t]*)(${quoted}|\\S+)`,
+      `(?<![\\p{L}])(has[lł]o|has[lł]a)([ \\t]*:(?!=)[ \\t]*|${joints})(${quoted}|\\S+)`,
       "giu",
     ),
     judge: ({ offset, text }, all, name, joint, value) =>
-      worthHiding(value) && !closesLiteral(value, offset, text)
+      (!literalOnly.test(joint) || /^\\?["']/.test(value)) &&
+      worthHiding(value) &&
+      !closesLiteral(value, offset, text)
         ? `${name}${joint}${hideValue(value)}`
         : all,
   },

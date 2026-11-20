@@ -191,6 +191,20 @@ describe("createRedactor", () => {
       "list.map(token => token.trim())",
       "list.map(token => token.trim())",
     ],
+    ["a password glued to =, starting with >", "PASSWORD=>x9!Kq#2mZ", "PASSWORD=<redacted>"],
+    ["a password glued to =, starting with ~", "PASSWORD=~Zq9xW2vK7pL4mN8r", "PASSWORD=<redacted>"],
+    [
+      "a password glued to =, starting with =",
+      "PASSWORD==Zq9xW2vK7pL4mN8r==",
+      "PASSWORD=<redacted>",
+    ],
+    [
+      "a named variable glued to =>",
+      "NOVADECK_TOKEN=>Zq9xW2vK7pL4mN8r",
+      "NOVADECK_TOKEN=<redacted>",
+    ],
+    ["a token glued to =~/", "API_TOKEN=~/x9Kq2mZw8", "API_TOKEN=<redacted>"],
+    ["a hash's secret without spaces", "'password'=>'Zq9xW2vK7pL4mN8r'", "'password'=>'<secret>'"],
     [
       "a password on a command line",
       "mysql --password hunter2 -h db",
