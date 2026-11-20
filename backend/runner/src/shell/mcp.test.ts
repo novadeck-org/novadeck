@@ -1056,8 +1056,9 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
         )
         expect(swarm("lead")).not.toContain("The user must approve")
         expect(swarm("lead")).not.toContain("Use it only when the user asked")
-        expect(swarm("open_terminal")).toContain("A command is run at once;")
-        expect(swarm("open_terminal")).not.toContain("approves it")
+        // A command is the user's to approve in every mode.
+        expect(swarm("open_terminal")).toContain("A command is run only if the user approves it")
+        expect(swarm("open_terminal")).not.toContain("run at once")
         expect(swarm("take_worktree")).toContain("yours at once, and its owner is told.")
         expect(swarm("take_worktree")).not.toContain("only if the user agrees")
       } finally {

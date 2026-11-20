@@ -200,9 +200,10 @@ Herd it words Novadeck's texts only; Swarm also changes what Novadeck asks the p
   person's task and tells them. They decide what the person
   left open, ask only what is the person's alone to decide or can't be undone, and keep working
   on what doesn't depend on the answer. Novadeck asks the person to confirm none of the actions
-  it otherwise asks about (a terminal with a command, leading a running agent, taking another
+  it otherwise asks about (leading a running agent, taking another
   terminal's worktree, joining, leaving or handing on a team), nor a close of a terminal an
-  agent opened; closing a terminal the person opened still asks them. The runner reads the
+  agent opened; closing a terminal the person opened, and a terminal with a command, still
+  ask them. The runner reads the
   mode at each call, so these follow a switch at once.
 
 Work meets not only in the same files but wherever agents use the same thing: the machine's CPU

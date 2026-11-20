@@ -284,10 +284,9 @@ export class Calls {
       (await at(resolvePath(record.summary.cwd, folder)))
     if (cwd === undefined)
       return refused(`${request.cwd ?? record.summary.cwd} isn't a folder a terminal can open in.`)
-    // A command is the person's to approve, unless agents decide for themselves (Swarm): with
-    // no one to ask, or one question already waiting from this terminal, nothing is charged or
-    // asked. The mode is read now, so a change applies to the agents already running.
-    const asks = request.command !== undefined && this.host.agentMode() !== "swarm"
+    // A command is the person's to approve, in every mode: with no one to ask, or one question
+    // already waiting from this terminal, nothing is charged or asked.
+    const asks = request.command !== undefined
     if (asks) {
       const waiting = this.host.approvals().refusal(call.terminalId)
       if (waiting) return refused(waiting === "nobody" ? nobodyToRun : waitingToRun)

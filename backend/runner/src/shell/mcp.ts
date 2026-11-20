@@ -492,18 +492,16 @@ const focusProperty = {
 
 const openTerminal: Tool<Opened> = {
   name: "open_terminal",
-  description: (mode) =>
+  description: () =>
     "Open a new terminal in Novadeck beside this one, optionally starting a command or a " +
     "TUI there, such as a dev server. It runs no agent: a command that does, such as a " +
     "bare claude, codex or agy, with flags, or on a prompt (claude -p, codex exec, agy -p), " +
     "or resuming a session, isn't opened, and every agent, with a task or without, is " +
     "started with open_agent. A command that runs no agent, such as claude mcp list, " +
     "codex login or agy update, is fine. " +
-    (mode === "swarm"
-      ? "A command is run at once; "
-      : "A command is run only if the user approves it in " +
-        "Novadeck: the call answers at once that they were asked, and a notice later tells you " +
-        "their answer; ") +
+    "A command is run only if the user approves it in " +
+    "Novadeck: the call answers at once that they were asked, and a notice later tells you " +
+    "their answer; " +
     "a terminal with no command opens without asking. Use it when the user asks for a new terminal or " +
     "for something to run in one of its own. Set focus to true only when they asked to see " +
     "it or go to it; otherwise it opens without taking their attention.",

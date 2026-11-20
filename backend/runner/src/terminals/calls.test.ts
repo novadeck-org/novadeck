@@ -446,34 +446,23 @@ describe("the open call", () => {
       expect(run.notices).toEqual([{ to: "t1", text: runNotice.opened("fox", "npm run dev") }])
     })
 
-    it("opens at once, with no ask, where agents decide for themselves", async () => {
+    it("asks the person in Swarm too, and opens only once they approve", async () => {
       const run = setup()
+      run.person()
       run.mode("swarm")
-      expect(await run.open({ command: "npm run dev" })).toMatchObject({
-        ok: true,
-        handle: "fox",
-        command: "npm run dev",
-        cwd: work,
-      })
+      await run.open({ command: "npm run dev" })
+      await settle()
+      expect(run.asked).toEqual([])
+      expect(run.questions).toMatchObject([{ action: { type: "run", command: "npm run dev" } }])
+      run.approvals.answer({ requestId: run.questions[0]!.requestId, approved: true }, "person")
+      await settle()
       expect(run.asked.map(({ command }) => command)).toEqual(["npm run dev"])
-      expect(run.asked[0]!.opener).toMatchObject({
-        by: "t1",
-        handle: "moth",
-        leads: false,
-      })
-      expect(run.questions).toEqual([])
-      expect(run.notices).toEqual([])
     })
 
-    it("opens at once in Swarm with no client to ask, and asks again once the mode is Solo", async () => {
+    it("refuses a command in Swarm too when there is no one to ask", async () => {
       const run = setup()
       run.mode("swarm")
-      expect(await run.open({ command: "make" })).toMatchObject({ ok: true })
-      run.mode("solo")
-      expect(await run.open({ command: "make" })).toEqual({
-        ok: false,
-        reason: nobodyToRun,
-      })
+      expect(await run.open({ command: "make" })).toEqual({ ok: false, reason: nobodyToRun })
     })
 
     it("opens nothing and says so when the person declines", async () => {
