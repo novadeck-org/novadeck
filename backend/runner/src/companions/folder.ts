@@ -14,7 +14,17 @@ import {
 
 import { DomainError } from "../errors.js"
 import { tail } from "../text.js"
-import { hashOf, isAudio, isImage, isModel, isPdf, isVideo, readPart, stampOf } from "./content.js"
+import {
+  hashOf,
+  isAudio,
+  isCompiledObject,
+  isImage,
+  isModel,
+  isPdf,
+  isVideo,
+  readPart,
+  stampOf,
+} from "./content.js"
 import type { ItemRecord } from "./records.js"
 import { folderSecrets, secrets } from "./secrets.js"
 
@@ -104,6 +114,31 @@ export const entryKindOf = (name: string): Exclude<FolderEntry["kind"], "folder"
             : texts.has(extname(name).toLowerCase())
               ? "text"
               : "other"
+
+// What each .obj listed was found to be, by its stamp and real path, so a folder listed again as
+// it changes doesn't read each one again: a file rewritten has another stamp. One that couldn't be
+// read is tried again, as being locked changes no stamp. Emptied once full.
+const objects = new Map<string, boolean>()
+const maxObjects = 4096
+
+/**
+ * How a file is listed, by its real path and its stamp: as `entryKindOf` tells it by name, but a
+ * compiled object file named .obj, which its start tells (`isCompiledObject`), is no model.
+ */
+const fileKindOf = async (
+  path: string,
+  stamp: string,
+): Promise<Exclude<FolderEntry["kind"], "folder">> => {
+  const kind = entryKindOf(basename(path))
+  if (kind !== "model" || extname(path).toLowerCase() !== ".obj") return kind
+  const key = `${stamp}\0${path}`
+  const compiled = objects.get(key) ?? (await isCompiledObject(path))
+  if (compiled !== undefined && !objects.has(key)) {
+    if (objects.size >= maxObjects) objects.clear()
+    objects.set(key, compiled)
+  }
+  return compiled === true ? "other" : kind
+}
 
 /** Whether `path` is `top` or under it, both real paths. */
 const within = (top: string, path: string): boolean => {
@@ -270,8 +305,13 @@ const entryOf = async (
       children: held ? null : await countOf(real, stats.mtimeMs),
       stamp: "",
     }
-  // A link inside the top is its target's, by its name, as `readFolderPart` reads it.
-  const kind = stats.isFile() ? entryKindOf(basename(real)) : "other"
+  // A link inside the top is its target's, by its name, as `readFolderPart` reads it. A secret
+  // file is told by its name alone: nothing of it is read.
+  const kind = !stats.isFile()
+    ? "other"
+    : held
+      ? entryKindOf(basename(real))
+      : await fileKindOf(real, stampOf(stats))
   return {
     ...base,
     kind,
@@ -392,8 +432,13 @@ export const readFolderPart = async (
   if (item.path === null || name === undefined) return { state: "unavailable", reason: "missing" }
   const walked = await walk(item.path, part.path, checksOf(env))
   if (!walked.ok) return { state: "unavailable", reason: walked.reason }
-  // By what the file is, as `entryOf` lists it: the kind its real name tells, not a link's.
-  const largest = partLimits[entryKindOf(basename(walked.path))]
+  // By what the file is, as `entryOf` lists it: the kind its real name tells, not a link's, and
+  // for an .obj, its start.
+  const listed = entryKindOf(basename(walked.path))
+  const largest =
+    partLimits[
+      listed === "model" && (await isCompiledObject(walked.path)) === true ? "other" : listed
+    ]
   if (largest === undefined) throw new DomainError("NOT_FOUND", "That file isn't read in parts")
   // The file opened is the one found inside the top: a folder on the way swapped for a link
   // between finding it and opening it would open another.
@@ -410,6 +455,13 @@ export const readFolderPart = async (
 const settle = 200
 /** The longest a steady stream of changes holds a read back. */
 const longest = 1000
+/**
+ * How soon after a watch is made the folder is read once more, unless the watch told of a change
+ * by then: a watch can start working only after it is made, telling nothing of what landed
+ * before. By libuv's code, macOS's does: it makes and starts its FSEvents stream later, on
+ * another thread, for events from then on, and makes it anew whenever any watch starts or stops.
+ */
+const starting = 1000
 
 /**
  * Tells when a folder may have changed: the file system's own watch, a few events together as
@@ -418,7 +470,8 @@ const longest = 1000
  * file written in a folder inside the one watched. So a wait ends after `safety` milliseconds
  * even where it works, and after the shorter `unwatched` where it doesn't (a folder that is gone,
  * a limit of watches reached): that is how such changes are found. A folder deleted and made
- * again is another one (its `ino`): the watch moves onto it.
+ * again is another one (its `ino`): the watch moves onto it. A new watch that has told nothing
+ * yet ends its first wait `starting` after it was made, as it may have started late.
  */
 export class FolderWatch {
   private watcher: FSWatcher | undefined
@@ -426,6 +479,8 @@ export class FolderWatch {
   private ino: string | undefined
   private first: number | undefined
   private wake: (() => void) | undefined
+  /** When the watch was made, until it tells of a change or a wait has read past its start. */
+  private made: number | undefined
 
   /** Whether the file system is telling of changes now. */
   get working(): boolean {
@@ -440,9 +495,12 @@ export class FolderWatch {
     this.dir = dir
     this.ino = ino
     this.first = undefined
+    this.made = undefined
     if (dir === undefined) return
     try {
       const watcher = watch(dir, { persistent: false }, (_event, name) => {
+        // It tells, so it has started.
+        this.made = undefined
         // The folder itself deleted or moved: what is watched is gone, whatever comes in its place.
         if (name === basename(dir)) {
           watcher.close()
@@ -458,6 +516,7 @@ export class FolderWatch {
         this.wake?.()
       })
       this.watcher = watcher
+      this.made = Date.now()
     } catch {
       this.watcher = undefined
     }
@@ -480,7 +539,16 @@ export class FolderWatch {
       const arm = (): void => {
         clearTimeout(timer)
         if (this.first === undefined) {
-          timer = setTimeout(done, this.watcher ? polls.safety : polls.unwatched)
+          const made = this.watcher ? this.made : undefined
+          this.made = undefined
+          timer = setTimeout(
+            done,
+            made !== undefined
+              ? Math.max(0, made + starting - Date.now())
+              : this.watcher
+                ? polls.safety
+                : polls.unwatched,
+          )
           return
         }
         const left = Math.max(0, this.first + longest - Date.now())
@@ -498,5 +566,6 @@ export class FolderWatch {
     this.watcher = undefined
     this.dir = undefined
     this.ino = undefined
+    this.made = undefined
   }
 }

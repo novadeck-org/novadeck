@@ -76,6 +76,39 @@ describe("Claude Code's dialog held out of view", () => {
     expect(dialogs.reveal?.(states[state]!.rows)).toBe("\x1b[1;5F")
   })
 
+  // The probe ran on Linux at 120 columns. The pill's hint varies with the platform, the
+  // person's keys and the width (2.1.328's bundle); macOS's is what the nightly E2E saw on
+  // 2026-11-19. Its last row, with the hint swapped for each.
+  const withPill = (state: string, pill: string): string[] => {
+    const rows = [...states[state]!.rows]
+    const last = rows.findLastIndex((each) => each !== "")
+    rows[last] = rows[last]!.replace(/Waiting for your answer.*$/, pill)
+    return rows
+  }
+
+  it.each([
+    "Waiting for your answer · fn+↓ to scroll",
+    "Waiting for your answer (click) ↓",
+    "Waiting for your answer · ctrl+k ctrl+d to scroll",
+    "Waiting for your answer ↓",
+    "Waiting for your answer",
+  ])("is revealed with Ctrl+End under a pill reading %j", (pill) => {
+    for (const state of ["questionHidden", "permissionHidden"]) {
+      expect(dialogs.reveal?.(withPill(state, pill)), state).toBe("\x1b[1;5F")
+    }
+  })
+
+  it.each([
+    "1 new message (ctrl+End) ↓",
+    "Jump to bottom (ctrl+End) ↓",
+    "the line said Waiting for your answer, then",
+    "Waiting for your answer (ctrl+End) ↓ and more",
+    // A key the person bound to `scroll:bottom` instead, which Ctrl+End may not be.
+    "Waiting for your answer (alt+g) ↓",
+  ])("is not revealed under a last row ending %j", (line) => {
+    expect(dialogs.reveal?.(withPill("questionHidden", line))).toBeUndefined()
+  })
+
   it.each(["questionRevealed", "questionAnswered", "permissionRevealed"])(
     "is not revealed at %s",
     (state) => {

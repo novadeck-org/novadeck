@@ -13,16 +13,27 @@ export const Up = "\x1b[A"
 export const Enter = "\r"
 export const CtrlEnd = "\x1b[1;5F"
 
-const waitingPill = /Waiting for your answer \(ctrl\+End\) ↓$/
+// The pill's hint depends on the platform, the person's keys and the width (2.1.328's
+// bundle): "(ctrl+End) ↓" where `scroll:bottom` has its default key, on macOS, where it has
+// it too, "· fn+↓ to scroll" (Page Down's key, or the one bound to `scroll:pageDown`) or
+// "(click) ↓" with the mouse on, and narrower, " ↓" or nothing after the words. Another key
+// in the brackets is one the person bound to `scroll:bottom` instead, where Ctrl+End may do
+// nothing, so that pill stays unread, its dialog raw. Unbound, Linux and Windows draw the
+// narrow " ↓" at any width: Ctrl+End then does nothing either, and answering from a card
+// waits for a dialog that never comes into view. The bare words could be a transcript line's
+// end, but the last row is the footer's whenever no pill covers it.
+const waitingPill =
+  /(?:^|\s)Waiting for your answer(?: \((?:ctrl\+End|click)\) ↓| · .+ to scroll| ↓)?$/
 
 /**
  * Whether Claude Code's fullscreen renderer (`"tui": "fullscreen"`) holds a dialog below
  * the view: one that came while the person had the transcript scrolled up stays out of
- * sight, and only a pill on the last row, "Waiting for your answer (ctrl+End) ↓", over
- * the transcript's last line, says it waits. Ctrl+End scrolls it into view and answers
- * nothing; so do Enter and a digit, taken for the scroll alone. Escape acts on it as ever,
- * declining or denying, and leaves the view where it was (2.1.328, a question and a Bash
- * permission alike, `e2e/probes/fullscreen-scrolled.e2e.ts`).
+ * sight, and only a pill on the last row, "Waiting for your answer (ctrl+End) ↓" (on
+ * macOS "Waiting for your answer · fn+↓ to scroll"), over the transcript's last line, says
+ * it waits. Ctrl+End scrolls it into view and answers nothing; so do Enter and a digit,
+ * taken for the scroll alone. Escape acts on it as ever, declining or denying, and leaves
+ * the view where it was (2.1.328, a question and a Bash permission alike,
+ * `e2e/probes/fullscreen-scrolled.e2e.ts`).
  */
 export const belowView = (rows: readonly string[]): boolean => {
   const last = rows.findLastIndex((each) => each !== "")

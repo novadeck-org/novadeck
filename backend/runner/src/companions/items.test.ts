@@ -2440,6 +2440,9 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     const stream = fixture.items.content(shown.ok ? shown.id : "", undefined)
     const starts: number[] = []
     timing.slowMs = 100
+    // A wait is four times its read, which load stretches: without a cap, a loaded machine can
+    // wait longer than the test may take (10 s here at 5 times the load; its 20 s on Test (macOS)).
+    timing.maxWaitMs = 1_500
     timing.saw = (args) => {
       if (args.includes("--show-toplevel")) starts.push(Date.now())
     }
@@ -2449,6 +2452,7 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
       await next(stream)
     } finally {
       timing.slowMs = 1_000
+      timing.maxWaitMs = 15_000
       timing.saw = undefined
       fixture.items.close(shown.ok ? shown.id : "")
     }
@@ -2876,6 +2880,55 @@ describe("a folder beside its terminal", () => {
       state: "part",
       data: Buffer.from("solid bracket\nendsolid\n").toString("base64"),
     })
+  })
+
+  it("lists a compiled object file named .obj as a plain file, and reads none of it for a still", async ({
+    fixture,
+  }) => {
+    const place = render(fixture.directory)
+    // An x64 COFF object, as MSVC writes, and a Wavefront model beside it.
+    writeFileSync(join(place, "main.obj"), Buffer.from([0x64, 0x86, 0x03, 0x00, 0x5f, 0x00]))
+    writeFileSync(join(place, "cube.obj"), "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "render" } })
+    const itemId = shown.ok ? shown.id : ""
+    const entry = async (name: string) =>
+      listed(await fixture.items.load(itemId, false)).entries.find((found) => found.name === name)!
+    const object = await entry("main.obj")
+    expect(object.kind).toBe("other")
+    expect((await entry("cube.obj")).kind).toBe("model")
+    await expect(
+      fixture.items.part({ itemId, stamp: object.stamp, offset: 0, path: "main.obj" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    // Rewritten as the other, each is listed as what it holds now.
+    writeFileSync(join(place, "main.obj"), "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n# model\n")
+    writeFileSync(join(place, "cube.obj"), Buffer.from([0x4c, 0x01, 0x01, 0x00]))
+    expect((await entry("main.obj")).kind).toBe("model")
+    expect((await entry("cube.obj")).kind).toBe("other")
+  })
+
+  it("tells a compiled .obj it couldn't read once it can, though its stamp is the same", async ({
+    fixture,
+  }) => {
+    // No file is locked to the superuser, and Windows has no such modes.
+    if (process.platform === "win32" || process.getuid?.() === 0) return
+    const path = join(render(fixture.directory), "locked.obj")
+    writeFileSync(path, Buffer.from([0x64, 0x86, 0x03, 0x00, 0x5f, 0x00]))
+    chmodSync(path, 0o000)
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { file: { path: "render" } })
+    const itemId = shown.ok ? shown.id : ""
+    const kind = async () =>
+      listed(await fixture.items.load(itemId, false)).entries.find(
+        ({ name }) => name === "locked.obj",
+      )!.kind
+    try {
+      // Unread, it is what its name tells.
+      expect(await kind()).toBe("model")
+    } finally {
+      chmodSync(path, 0o644)
+    }
+    expect(await kind()).toBe("other")
   })
 
   it("reads a file of the folder by its path and stamp, as its kind is read anywhere", async ({

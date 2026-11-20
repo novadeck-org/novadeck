@@ -367,6 +367,44 @@ describe("the notes of a promotion", () => {
     await expect(generatePromote("v0.0.152", noRelease, never, repo)).rejects.toThrow(/no release/)
   })
 
+  it("writes a promoted release's missing notes from the stable release before it", async () => {
+    // The promotion went through without notes, so the release is already the latest stable.
+    const promoted = (stables: string[]) =>
+      fakeSources({
+        tags,
+        stable: "v0.0.152",
+        stables: ["v0.0.152", ...stables],
+        commits: {
+          "v0.0.148..v0.0.152": [commit(181), commit(195), commit(330)],
+          "..v0.0.152": [commit(181), commit(195), commit(330)],
+        },
+        bodies: Object.fromEntries(tags.map((tag) => [tag, tag === "v0.0.152" ? releaseBody : ""])),
+      })
+    const rerun = promoted(["v0.0.148"])
+    const generated = await generatePromote("v0.0.152", rerun, answer(picked), repo)
+    expect(rerun.ranges).toEqual(["v0.0.148..v0.0.152"])
+    expect(generated.compare).toBe(
+      "https://github.com/novadeck-org/novadeck/compare/v0.0.148...v0.0.152",
+    )
+    // With no stable release before it, it covers everything, as the first promotion does.
+    const first = promoted([])
+    await generatePromote("v0.0.152", first, answer(picked), repo)
+    expect(first.ranges).toEqual(["..v0.0.152"])
+  })
+
+  it("starts from the newest stable release before it, past tags without a release", async () => {
+    const rerun = fakeSources({
+      tags,
+      stable: "v0.0.152",
+      stables: ["v0.0.152", "v0.0.150", "v0.0.148"],
+      commits: { "v0.0.150..v0.0.152": [commit(195), commit(330)] },
+      // v0.0.151 has no release at all.
+      bodies: { "v0.0.152": releaseBody, "v0.0.150": "", "v0.0.149": "", "v0.0.148": "" },
+    })
+    await generatePromote("v0.0.152", rerun, answer(picked), repo)
+    expect(rerun.ranges).toEqual(["v0.0.150..v0.0.152"])
+  })
+
   it("won't promote a release that is not newer than the stable one", async () => {
     await expect(generatePromote("v0.0.150", sources("v0.0.152"), never, repo)).rejects.toThrow(
       /not newer/,

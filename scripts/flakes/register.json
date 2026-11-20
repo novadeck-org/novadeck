@@ -88,6 +88,17 @@
       ]
     },
     {
+      "id": "ui-companions-canvas-taskbar-click",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/companions/companions.spec.tsx > The pane in Canvas > goes on Enter in the terminal, which the key does not reach",
+      "signature": "TimeoutError: locator\\.click: Timeout \\d+ms exceeded[\\s\\S]*Plan: A home for Studio",
+      "status": "known",
+      "cause": "Unknown, not reproduced. For 29 s the click on Build Studio's plan icon was taken by the sidebar's Terminals list, so the camera had left that window's taskbar behind the sidebar; the file's test before it clicks the same icon and passed, and the retry passed at once. Locally the icon sits 85 px right of the list (x 357 against 272), the document never scrolls sideways, and the file passed 5 of 5 whole runs and the test 8 of 8 repeats at 6x CPU throttling, in behaviour-mac.",
+      "seen": [
+        "perf/xterm-a11y-rows run 44530517635 attempt 1 job 135590523426 (macOS, 3/3), after #1057"
+      ]
+    },
+    {
       "id": "e2e-codex-windows-folder-trust",
       "jobs": ["^Codex \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/e2e/controls.e2e.ts > Codex, its folder untrusted > never rings an agent at its folder-trust question",
@@ -257,7 +268,7 @@
     },
     {
       "id": "terminal-native-pty-final-output",
-      "jobs": ["^Test \\(macOS(?:, [1-3]/3)?\\)$"],
+      "jobs": ["^Test \\(macOS(?:, [1-3][/-]3)?\\)$"],
       "test": "src/pty/native.test.ts > installed native PTY dependency > starts a child and delivers its final output without hiding native startup errors",
       "signature": "AssertionError: expected '' to contain 'NATIVE_PTY_OK'",
       "status": "known",
@@ -381,7 +392,7 @@
     },
     {
       "id": "ui-process-windows-macos-import-fetch",
-      "jobs": ["^Test \\(macOS(?:, [1-3]/3)?\\)$"],
+      "jobs": ["^Test \\(macOS(?:, [1-3][/-]3)?\\)$"],
       "test": "src/terminals/process-windows.spec.tsx",
       "signature": "Error: Failed to import test file \\S+/process-windows\\.spec\\.tsx\\nCaused by: TypeError: Failed to fetch dynamically imported module",
       "status": "known",
@@ -453,7 +464,7 @@
     },
     {
       "id": "secrets-macos-hex-group-timeout",
-      "jobs": ["^Test \\(macOS(?:, [1-3]/3)?\\)$"],
+      "jobs": ["^Test \\(macOS(?:, [1-3][/-]3)?\\)$"],
       "test": "src/screen.test.ts > secrets longer than the window rows are read in > is quick for a 2,000-row group of one wrapped line of hex",
       "signature": "Test timed out in 60000ms",
       "status": "known",
@@ -462,7 +473,7 @@
     },
     {
       "id": "viewers-macos-diff-update-budget",
-      "jobs": ["^Test \\(macOS(?:, [1-3]/3)?\\)$"],
+      "jobs": ["^Test \\(macOS(?:, [1-3][/-]3)?\\)$"],
       "test": "src/diff.test.ts > the diff viewer > with many files > updates and reports its place without laying out the files out of sight",
       "signature": "AssertionError: expected [\\d.]+ to be less than 750",
       "status": "known",
@@ -471,7 +482,7 @@
     },
     {
       "id": "terminal-follow-hangup-saved-macos",
-      "jobs": ["^Test \\(macOS(?:, [1-3]/3)?\\)$"],
+      "jobs": ["^Test \\(macOS(?:, [1-3][/-]3)?\\)$"],
       "test": "src/pty/follow.test.ts > a hangup followed through an agent > wakes an agent stopped on its way out as soon as the shell has gone",
       "signature": "ENOENT: no such file or directory, open '[^']*terminal-follow-[^']*/saved'",
       "status": "fixed",
@@ -483,7 +494,7 @@
     },
     {
       "id": "runner-client-slow-viewer-resync-macos",
-      "jobs": ["^Test \\(macOS(?:, [1-3]/3)?\\)$"],
+      "jobs": ["^Test \\(macOS(?:, [1-3][/-]3)?\\)$"],
       "test": "src/client.test.ts > runner client over WebSocket > resynchronizes a slow viewer with a fresh snapshot instead of failing",
       "signature": "WireError: CONTROL_REQUIRED",
       "status": "fixed",
@@ -504,7 +515,7 @@
     },
     {
       "id": "test-macos-job-timeout",
-      "jobs": ["^Test \\(macOS(?:, [1-3]/3)?\\)$"],
+      "jobs": ["^Test \\(macOS(?:, [1-3][/-]3)?\\)$"],
       "signature": "##\\[error\\]The action 'Run Test \\(macOS(?:, [1-3]/3)?\\)' has timed out after \\d+ minutes",
       "status": "known",
       "cause": "Not a test: a slow macOS runner runs out of the test step's own time limit (whatever quality.yml sets for the row: the whole suite's two parts or the system packages) with no test failing.",
@@ -537,8 +548,46 @@
       "seen": ["#1002 run 44053570165 job 133946302766 (macOS), retried and passed"]
     },
     {
+      "id": "scripts-macos-runner-stall",
+      "jobs": ["^Test \\(macOS(?:, [1-3][/-]3)?\\)$"],
+      "test": "scripts/",
+      "signature": "Error: Test timed out in 5000ms\\.",
+      "status": "known",
+      "cause": "Not the tests: the macOS runner stopped for 28.6 s (15:38:49.6 to 15:39:18.3), with no test file finishing in the whole run, and each of the three tests that failed sat in a synchronous spawn through it (spawnSync node on retry.ts, execFileSync git, the flakes CLI under node), which blocks Vitest's own 5 s timer until it returns: they ran 28.5, 28.6 and 29.1 s and ended together. In 29 other Test (macOS) jobs of 11-19 the three files take 0.6 to 6.7 s and no stall in the scripts' run passes 6.5 s. Not reproduced, and nothing in the job's log says what stopped; whichever scripts tests are mid-spawn when it comes fail, so this matches any scripts test at the default limit, and the scripts get no retry of their own.",
+      "seen": [
+        "#1079 run 44554223867 job 135675265272 (macOS): scripts/ci/setup/scripts.test.ts, scripts/flakes/retries.test.ts, scripts/quality/plan/plan.test.ts, passed on rerun"
+      ]
+    },
+    {
+      "id": "runner-captures-simultaneous-looks",
+      "jobs": ["^Test \\((?:macOS|Linux|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/harnesses/captures.test.ts > finding the capture of a shell > does not give two simultaneous looks the same record",
+      "signature": "AssertionError: expected \\[ …\\(2\\) \\] to deeply equal \\[ Array\\(1\\) \\]",
+      "status": "fixed",
+      "cause": "The test's own, fixed before it merged. On #900's branch only the second of its two looks was given the logs already taken (`claimed`); the first's was an empty set. Captures.find holds a log it hands on only while `found` runs, so when the first look's folder read finished second, it took the same record again: the order of two concurrent reads, which a loaded runner turns either way. #900 merged (2026-11-13 12:02 UTC) with both looks given what `found` holds, as the terminal's shells do, and none of its retries came after it.",
+      "seen": [
+        "#900 run 43320385209 job 131539444070 (Windows, 3/3), retried and passed",
+        "#900 run 43387539270 job 131759449381 (Linux, 3/3), retried and passed",
+        "#903 run 43387546920 job 131764346632 (macOS), retried and passed",
+        "#900 run 43390960247 jobs 131770918598 (Windows, 3/3) and 131775951537 (macOS), retried and passed"
+      ]
+    },
+    {
+      "id": "runner-plugins-hook-launcher-gone-windows",
+      "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/shell/plugins.test.ts > agent plugin hook commands > do nothing where the launcher is set but gone for claude, as one that outlived its Novadeck",
+      "signature": "AssertionError: expected true to be false // Object\\.is equality",
+      "status": "fixed",
+      "cause": "Claude Code's hook ran past the test's 45 s, so `timedOut` was true. With its launcher gone, the hook did nothing but PowerShell's Test-Path, whose cmdlet lookup took 20 to 32 s in this package's full run on Windows: each case took 75 to 78 s for its two runs, its retry about 30 s. Fixed by #1045 (2026-11-19): Claude Code's hook leaves the check to its cmd (`if exist`), and the hook cases get 120 s on Windows. Codex's hook keeps Test-Path, as changing its text asks people to trust it again: its case passed in 22 to 32 s in the same runs, and was retried once the same way (#892, run 43253073065, 2026-11-12), so it is the likeliest to come back; the 120 s covers it too.",
+      "seen": [
+        "#952 run 43698298081 job 132763711406 (Windows), retried and passed",
+        "#959 run 43758106291 job 132946695449 (Windows), retried and passed",
+        "#967 run 43924547757 job 133500723141 (Windows), retried and passed"
+      ]
+    },
+    {
       "id": "ui-views-canvas-sessions-return-timeout",
-      "jobs": ["^Test \\(macOS(?:, [1-3]/3)?\\)$"],
+      "jobs": ["^Test \\(macOS(?:, [1-3][/-]3)?\\)$"],
       "test": "src/views/canvas-sessions.spec.tsx > Canvas across workspace sessions > when switching session right after moving the camera > frames every window afresh on returning, as on opening",
       "signature": "TimeoutError: locator\\.click: Timeout \\d+ms exceeded[\\s\\S]*name: 'Sessions'",
       "status": "known",
@@ -547,20 +596,34 @@
     },
     {
       "id": "ui-agents-chat-screen-grid-tile-timeout",
-      "jobs": ["^Test \\(macOS(?:, [1-3]/3)?\\)$"],
+      "jobs": ["^Test \\(macOS(?:, [1-3][/-]3)?\\)$"],
       "test": "src/agents/chat-screen.spec.tsx > The terminal behind a chat > keeps ",
-      "signature": "Test timed out in \\d+ms",
-      "status": "known",
-      "cause": "Unknown. The four Grid tile cases (Claude Code at 12 and 15px, Codex, Antigravity) share one body, so the entry names them all. Each retry ran out its 30 s test timeout on macOS. Two runs were far slower than the usual 17 to 27 min: about 40 min on #1002, and a test step of about 63 min on #1010, when other macOS runs that hour took 59 to 65 min. On #1002 the Antigravity retry passed in about 19.2 s, against 3.4 s locally (Linux). But on 44063445169 the test step took a usual 18 min, so slowness alone doesn't explain it: an attempt may stall. Not reproduced. The flake tally of 2026-11-16 counts one earlier retry (Claude Code at 12px), on 2026-11-13.",
+      "signature": "Test timed out in \\d+ms|TimeoutError: locator\\.click: Timeout \\d+ms exceeded",
+      "status": "fixed",
+      "cause": "Two spec workers starving each other of CPU on the slow macOS runners (3-vCPU Apple M1 (Virtual), see #1019 and #1057). Every retry ran in one of them: a whole-suite Test (macOS) job with two spec workers, of 57 to 68 min against a usual 17 to 27, where the cases beside it took 8.8 to 27.4 s against 2.5 s locally. Each case opens the whole app and switches its view three times, then turns the chat off from Preferences, so an attempt a little slower than its neighbours ran out the 30 s; the last ended in a click that got the 9.4 s left. This entry first read 44063445169 as a usual 18 min job, so as a stall; that was its second attempt, while the retry was in its first, whose test step timed out at 65 min. Locally at 6x CPU throttling (about such a runner's pace) the cases failed 3 of 4, and a profile shows the app's React rendering throughout, no one hot spot; at rest the page takes about 4.5% of a core. Fixed by #1057 (2026-11-19), which runs macOS's specs in two jobs of one worker each: there the four cases took 2.6 to 7.1 s (job 135590523426), and none was retried since.",
       "seen": [
+        "#900 run 43390960247 job 131775951537 (macOS), Claude Code at 12px, retried and passed",
         "#1002 run 44053570165 job 133946302766 (macOS), Antigravity at 13px, retried and passed, behaviour",
-        "feat/install-script-look run 44063445169 job 134014233533 (macOS), Claude Code at 15px, retried and passed",
-        "#1010 run 44076738880 job 134024642143 (macOS), Claude Code at 15px retried once and Antigravity at 13px twice, both passed"
+        "#1005 run 44063445169 attempt 1 job 133978514488 (macOS), Claude Code at 15px, retried and passed; its test step timed out at 65 min",
+        "#1010 run 44076738880 job 134024642143 (macOS), Claude Code at 15px retried once and Antigravity at 13px twice, both passed",
+        "fix/macos-spec-stalls (#1019) Nightly Quality run 44207200939 job 134476092692 (macOS), Claude Code at 15px, timed out waiting for a click, retried and passed",
+        "#1037 run 44413564950 job 135195523004 (macOS), Codex at 13px retried twice, locator.click timed out at 9397 ms, passed"
+      ]
+    },
+    {
+      "id": "ui-agents-chat-experimental-preferences-open",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/agents/chat.spec.tsx > The chat view > stays once Experimental is turned off, as it isn't one of the experimental features",
+      "signature": "VitestBrowserElementError: Cannot find element with locator: getByRole\\('dialog', \\{ name: 'Preferences' \\}\\)",
+      "status": "known",
+      "cause": "Unknown, not reproduced. Enter on the focused Workspace preferences button opened no Preferences for the 30 s the test had: the page's route still read Build's terminal with no dialog, so the press never reached the button or its navigation was lost; the other cases of its block took 0.7 to 2.5 s and the retry passed at once. Not the lazy Preferences chunk (its first open took about 1 s in preferences.spec in the same job), and not #1089 to #1095: the font list asks for fonts only once local-fonts is granted, and the scale row is hidden in a browser. Locally, with focus, keys and route writes logged, the file passed 7 of 7 whole runs at 6x CPU throttling (6 of them side by side) and the case 9 repeats under CPU load: there the demo's toasts closed first, each giving focus back to the chat's box, and nothing moved focus or wrote the route in the 70 ms between the button's focus and Enter.",
+      "seen": [
+        "test/register-shard-log-names (#1110) run 44650472631 job 136009886832 (macOS, 3/3), behaviour, after #1057; #1110 touches only register.json and match.test.ts"
       ]
     },
     {
       "id": "ui-process-windows-macos-timeout",
-      "jobs": ["^Test \\(macOS(?:, [1-3]/3)?\\)$"],
+      "jobs": ["^Test \\(macOS(?:, [1-3][/-]3)?\\)$"],
       "test": "src/terminals/process-windows.spec.tsx > process windows > presents ",
       "signature": "Test timed out in \\d+ms|TimeoutError: locator\\.click: Timeout \\d+ms exceeded",
       "status": "known",
@@ -572,7 +635,7 @@
     },
     {
       "id": "ui-dictation-addons-install-toasts-standing",
-      "jobs": ["^Test \\(macOS(?:, [1-3]/3)?\\)$"],
+      "jobs": ["^Test \\(macOS(?:, [1-3][/-]3)?\\)$"],
       "test": "src/interaction/dictation.spec.tsx > dictation > when voice input is not installed > brings the microphone and the shortcut back when installed from Addons",
       "signature": "AssertionError: expected \\[[\\s\\S]*\\] to have a length of \\+0 but got \\d+",
       "status": "known",
