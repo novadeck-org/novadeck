@@ -18,9 +18,9 @@ import {
 
 // A phone zooms from fit to one level on a double-click around it, easing about the pointer,
 // and back on another, or on Esc, which the pane asks of the viewer (`unzoom`) before it hides.
-// Zoomed, it's taller than the viewer: a rail in the viewer's
-// right margin shows which part is in view, and moves it, as Shift+scroll over the stage does. The viewer
-// sets --browser-view-scale and the rest of its framing from `framing` and `viewScale` (see
+// Zoomed, it's taller than the viewer: a rail in the viewer's right margin shows which part
+// is in view, and moves it, as the wheel over the stage does. The viewer sets
+// --browser-view-scale and the rest of its framing from `framing` and `viewScale` (see
 // browser.css), and data-zoom on itself for the cursor: "in" where a double-click would
 // zoom, "out" where it would zoom back.
 
@@ -31,6 +31,8 @@ export const hintMs = 4_000
 export const hintFadeMs = 200
 /** A press and release this far apart, in pixels, is a drag, not a click. */
 const dragPx = 4
+/** A wheel's line, in pixels, where it turns by lines. */
+const lineUnit = 40
 /** How far an arrow key moves the phone, of its travel. */
 const arrowLift = 0.1
 
@@ -75,8 +77,11 @@ export type PhoneZoom = {
    * isn't drawn zoomed: the key is the pane's then.
    */
   readonly out: () => boolean
-  /** Moves the phone up or down by `by` of its travel, as Shift+scroll over the stage does. */
-  readonly lift: (by: number) => void
+  /**
+   * Moves the phone up or down by `by` pixels, as the wheel over the stage does; true where it
+   * moved, false where it's at that end already.
+   */
+  readonly lift: (by: number) => boolean
   /** Brings the cursor, the rail and the hint up to date with the viewer's size and layout. */
   readonly sync: () => void
   readonly destroy: () => void
@@ -268,12 +273,16 @@ export const createPhoneZoom = (root: HTMLElement, options: ZoomOptions): PhoneZ
     act()
   })
 
-  const lift = (by: number): void => {
-    if (!resting || easing) return
+  // True where it moved: one already at that end stays.
+  const lift = (by: number): boolean => {
+    if (!resting || easing) return false
     const zoom = level()
-    if (zoom === undefined) return
+    if (zoom === undefined) return false
     const travel = phoneTravel(stage().height, zoom)
-    if (travel > 0) move(lifted + by / travel)
+    const to = Math.min(1, Math.max(0, lifted + by / travel))
+    if (!(travel > 0) || to === lifted) return false
+    move(to)
+    return true
   }
 
   // A double-click on the stage around the phone eases it, about the pointer; a drag across
@@ -300,10 +309,20 @@ export const createPhoneZoom = (root: HTMLElement, options: ZoomOptions): PhoneZ
     // For Esc to find the pane, as the viewer has no focus of its own to take it.
     root.focus({ preventScroll: true })
   }
+  // The wheel over the stage moves a zoomed phone, as over anything taller than its box; over
+  // the phone it's the page's, as its view takes it. Shift+wheel, which some systems send
+  // sideways, moves it too. Ctrl+wheel is the app's zoom, a sideways swipe moves nothing, and
+  // a phone at its end leaves the wheel to what's around it, as Grid scrolling past it.
   const wheeled = (event: WheelEvent): void => {
-    if (!event.shiftKey || !resting || easing || level() === undefined) return
-    event.preventDefault()
-    lift(event.deltaY || event.deltaX)
+    if (event.ctrlKey || event.metaKey) return
+    const by = event.deltaY || (event.shiftKey ? event.deltaX : 0)
+    const unit =
+      event.deltaMode === WheelEvent.DOM_DELTA_LINE
+        ? lineUnit
+        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+          ? stage().height
+          : 1
+    if (by && lift(by * unit)) event.preventDefault()
   }
   root.tabIndex = -1
   root.addEventListener("pointerdown", pressing)
