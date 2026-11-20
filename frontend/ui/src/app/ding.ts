@@ -129,9 +129,10 @@ export const dingOf = (backend: Backend, ui: UiStore): Ding => {
   }
   const ding = createDing({
     sound: () => {
-      const { preferences } = ui.getSnapshot()
+      const { preferences, windows } = ui.getSnapshot()
       return {
-        on: preferences.sound,
+        // Only the window the person used last rings, so two windows never double up.
+        on: preferences.sound && windows.voice,
         volume: preferences.soundVolume,
         name: soundInEffect(preferences),
       }

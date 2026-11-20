@@ -89,6 +89,25 @@ export const needNotice = (row: InboxRow): Notice => {
   }
 }
 
+// The row a notification about a terminal stands for: the one it names (`rowId`) if it still
+// stands; without one, or once it has gone, the terminal's done report, else its first row.
+export const rowOfNotice = (
+  terminalId: string,
+  rows: readonly InboxRow[],
+  rowId?: string,
+): InboxRow | undefined => {
+  const onTerminal = rows.filter(
+    ({ source, settled }) => source.terminalId === terminalId && !settled,
+  )
+  return (
+    onTerminal.find(({ id }) => id === rowId) ??
+    (rowId === undefined
+      ? onTerminal.find((each) => each.kind === "update" && each.update.type === "done")
+      : undefined) ??
+    onTerminal[0]
+  )
+}
+
 // What a click on a terminal's notification does: the Inbox opens on the row the notice was
 // about (`rowId`) if it still stands (a notice names its row); without one, or once it
 // has gone, the terminal's done report, else its first row, and the terminal itself when it
@@ -105,15 +124,7 @@ export const clickNotice = (
   },
   rowId?: string,
 ): void => {
-  const onTerminal = rows.filter(
-    ({ source, settled }) => source.terminalId === terminalId && !settled,
-  )
-  const row =
-    onTerminal.find(({ id }) => id === rowId) ??
-    (rowId === undefined
-      ? onTerminal.find((each) => each.kind === "update" && each.update.type === "done")
-      : undefined) ??
-    onTerminal[0]
+  const row = rowOfNotice(terminalId, rows, rowId)
   if (!row) return to.reveal(terminalId)
   to.open(row.id, to.peekInbox())
 }

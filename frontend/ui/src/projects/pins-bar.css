@@ -145,6 +145,9 @@
 .pin-mark {
   margin-left: 3px;
 }
+.pin .other-window-mark {
+  margin-left: 6px;
+}
 .pin[aria-current="true"] {
   --_fg: var(--color-ink);
   --_number-fg: var(--pin-current-number-fg, var(--color-strong));

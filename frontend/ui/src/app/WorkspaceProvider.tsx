@@ -31,6 +31,7 @@ import { landInbox, noLanding } from "./inbox-landing"
 import { noticeBoard, watchBellRings, watchInboxPings } from "./inbox-pings"
 import { nameFinished, watchFinishes } from "./murmur-offer"
 import { watchPageFocus } from "./page-focus"
+import { watchProjectWindows, watchWindowTitle } from "./project-windows"
 import { pullRequestsOf } from "./pull-requests"
 import { availablePanels, historyShown, resolveRoute, filesShown, reportsWorks } from "./routing"
 import { watchScale } from "./scale"
@@ -94,6 +95,7 @@ const createServices = (
         (backend.arrange && readStoredProjectArrangement()) ||
         listedArrangement(backend.seed.projects),
       foldedTeams: readFoldedTeams(),
+      extraWindow: backend.projectWindows?.extra === true,
     }),
   )
   const chat = createChat()
@@ -116,6 +118,7 @@ const createServices = (
     conversations: backend.conversations,
     companions: backend.companions,
     history: backend.history,
+    windows: backend.projectWindows,
     itemStore,
     canvas,
     effects: domEffects,
@@ -188,7 +191,14 @@ export const WorkspaceProvider = ({
       ),
     [services],
   )
-  useEffect(() => watchWhatsNew(services.backend.whatsNew, services.ui), [services])
+  // What is new is told once, in the app's first window.
+  useEffect(
+    () =>
+      services.backend.projectWindows?.extra
+        ? undefined
+        : watchWhatsNew(services.backend.whatsNew, services.ui),
+    [services],
+  )
   useEffect(() => watchSandbox(services.backend.sandbox, services.ui), [services])
   useEffect(() => watchPortable(services.backend.portable, services.ui), [services])
   useEffect(() => watchClosing(services.workspace, services.ui), [services])
@@ -201,6 +211,15 @@ export const WorkspaceProvider = ({
   }, [services])
   useEffect(() => watchChat(services.chat, services.workspace), [services])
   useEffect(() => watchPageFocus(services.ui, window, services.backend.windowFocus), [services])
+  useEffect(
+    () => watchProjectWindows(services.backend.projectWindows, services.workspace, services.ui),
+    [services],
+  )
+  useEffect(
+    () =>
+      watchWindowTitle(window, services.backend.projectWindows, services.workspace, services.ui),
+    [services],
+  )
   useEffect(
     () => watchWindowControls(services.ui, window, services.backend.windowControls),
     [services],

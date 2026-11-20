@@ -47,6 +47,8 @@ export type CommandsOptions = {
   readonly history?: CommandContext["history"]
   // The backend's move of a terminal to another session, when it has one.
   readonly moveTerminal?: CommandContext["moveTerminal"]
+  // The desktop app's project windows, when it opens them.
+  readonly windows?: CommandContext["windows"]
 }
 
 // Real stores, navigator, commands and store subscriptions over a fixture workspace, with effects that
@@ -68,6 +70,7 @@ export const openCommands = ({
     screenReader: "auto",
     chatView: false,
     agentAvatars: false,
+    projectWindows: false,
     onboardingTour: false,
     appScale: 100,
   },
@@ -82,6 +85,7 @@ export const openCommands = ({
   murmur,
   history,
   moveTerminal,
+  windows,
 }: CommandsOptions = {}) => {
   const [pathname = "", query = ""] = url.split("?")
   const resolved = resolveRoute(
@@ -188,6 +192,7 @@ export const openCommands = ({
     murmur,
     history,
     moveTerminal,
+    windows,
   }
   const commands = createWorkspaceCommands(context)
   // The subscriptions the provider attaches; nothing persists to storage here.

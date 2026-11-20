@@ -117,6 +117,9 @@ export type InboxContextValue = {
 // while a one-off is open is one too, with the first one's `after`. Any other open, or
 // closing it before then, makes it an ordinary sheet, and `after` never runs.
 export type OpenOptions = {
+  // Opens the sheet in this window even for a row whose project another window shows, which
+  // `routeAway` would give to that window: this window is the one that was handed it.
+  readonly here?: boolean
   // The rows, where the caller read them newer than the last commit.
   readonly rows?: readonly InboxRow[]
   // For its row alone, as a click on a toast or a notice opens it.
@@ -134,6 +137,7 @@ const InboxContext = createContext<InboxContextValue | null>(null)
 export type InboxOpener = (
   pick: (rows: readonly InboxRow[]) => InboxRow | undefined,
   once?: { readonly after: (() => void) | undefined },
+  options?: { readonly here?: boolean },
 ) => void
 
 const OpenerContext = createContext<InboxOpener | null>(null)
@@ -169,6 +173,7 @@ type Phone = {
 export const InboxProvider = ({
   inbox,
   reveal,
+  routeAway,
   phone,
   working = false,
   active = false,
@@ -178,6 +183,9 @@ export const InboxProvider = ({
   readonly inbox: Inbox
   // Shows the terminal a row is from.
   readonly reveal: (terminalId: string) => void
+  // Gives a row to another window where one shows its project, which then opens its sheet
+  // (`OpenOptions.here`); true when it did, and the sheet doesn't open here.
+  readonly routeAway?: ((row: InboxRow) => boolean) | undefined
   // Present where the Inbox has a screen of its own at a time.
   readonly phone?: Phone | undefined
   // Whether any agent in the workspace is at work.
@@ -271,10 +279,12 @@ export const InboxProvider = ({
   const current = standing ?? (view.open === null ? undefined : sent[view.open]?.row)
 
   const open = useCallback(
-    (id: string, { rows, once = false, after }: OpenOptions = {}): void => {
+    (id: string, { rows, once = false, after, here = false }: OpenOptions = {}): void => {
       const { state: snapshot, view: before, phone: screen, arranged: order } = latest.current
       const list = rows ?? snapshot.items
       const found = list.find((row) => row.id === id)
+      // Handed to another window, this one stays as it was, a peek at the Inbox put back.
+      if (found && !here && routeAway?.(found)) return after?.()
       const kept = once
         ? (oneOff.current?.after ?? (before.open === null ? after : undefined))
         : undefined
@@ -289,7 +299,7 @@ export const InboxProvider = ({
         inbox.answer(id, { kind: "update", action: "read" })
       if (before.open === null) screen?.hideList()
     },
-    [inbox],
+    [inbox, routeAway],
   )
 
   // Closing forgets every answer the sheet moved on from: their rows go with it.
@@ -599,11 +609,13 @@ export const InboxProvider = ({
     ],
   )
   const opener = useCallback<InboxOpener>(
-    (pick, once) => {
+    (pick, once, options) => {
       // The Inbox as it is now: a row just revealed is there before the next commit.
       const rows = inbox.state.getSnapshot().items
       const found = pick(rows)
-      if (found) open(found.id, once ? { rows, once: true, after: once.after } : { rows })
+      const here = options?.here === true
+      if (found)
+        open(found.id, once ? { rows, once: true, after: once.after, here } : { rows, here })
     },
     [open, inbox],
   )

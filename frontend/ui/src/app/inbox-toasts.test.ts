@@ -79,6 +79,7 @@ const setup = (items: InboxRow[] = [], pings = true) => {
         screenReader: "auto",
         chatView: false,
         agentAvatars: false,
+        projectWindows: false,
         onboardingTour: false,
         appScale: 100,
       },

@@ -160,7 +160,8 @@ const useApproval = (approvals: Backend["approvals"]): ApprovalView | null => {
 
 const noAgents: readonly never[] = []
 // The backend's connectable agents and whether to offer them at first run.
-const useAgents = (agents: Backend["agents"]) => {
+// The welcome is the app's first window's: a window that is not the first never offers it.
+const useAgents = (agents: Backend["agents"], extraWindow: boolean) => {
   const list = useSyncExternalStore(
     agents?.state.subscribe ?? always,
     () => agents?.state.getSnapshot() ?? noAgents,
@@ -169,7 +170,7 @@ const useAgents = (agents: Backend["agents"]) => {
     agents?.welcome.subscribe ?? always,
     () => agents?.welcome.getSnapshot() ?? false,
   )
-  return { list, welcome }
+  return { list, welcome: welcome && !extraWindow }
 }
 
 // The backend's forges and what each reads of its tool, for Preferences.
@@ -359,7 +360,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const agentModes = useAgentModes(backend.agentModes)
   const agentMode = useAgentMode(backend.agentMode)
   const worktrees = useWorktrees(backend.worktrees)
-  const agents = useAgents(backend.agents)
+  const agents = useAgents(backend.agents, backend.projectWindows?.extra === true)
   const installs = useInstalls(backend.agents)
   const driver = useTourRun()
   // Whether the project the tour ran in is still there, for its closing card to offer removing.
@@ -621,6 +622,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           {...(agentMode ? { agentMode } : {})}
           {...(worktrees ? { worktrees } : {})}
           tour={tour !== undefined}
+          windows={backend.projectWindows !== undefined}
           notices={backend.notices !== undefined}
           screenReaderKnown={backend.screenReader !== undefined}
           scalable={backend.showScale !== undefined}

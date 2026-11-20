@@ -173,6 +173,28 @@ describe("the ding", () => {
 })
 
 describe("the ding on a backend", () => {
+  it("is held back in a window that does not have the voice", () => {
+    const dingIn = (voice: boolean) =>
+      dingOf(
+        { notices: {} } as never,
+        {
+          getSnapshot: () => ({
+            preferences: {
+              sound: true,
+              soundVolume: 1,
+              soundChoice: "theme",
+              appearance: { theme: "coolant", scheme: "dark" },
+            },
+            windows: { elsewhere: [], voice },
+          }),
+        } as never,
+      )
+    // One backend object per window, as each page has its own.
+    expect(dingIn(true).take("a")).toBe(true)
+    expect(dingIn(false).take("a")).toBe(false)
+    expect(dingIn(false).on()).toBe(false)
+  })
+
   it("never sounds without desktop notifications", () => {
     const ding = dingOf(
       {} as never,
@@ -195,6 +217,7 @@ describe("the ding on a backend", () => {
               soundChoice,
               appearance: { theme, scheme: "dark" },
             },
+            windows: { elsewhere: [], voice: true },
           }),
         } as never,
       ).sound()

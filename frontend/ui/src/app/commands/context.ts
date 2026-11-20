@@ -1,5 +1,6 @@
 import type { Chat } from "@novadeck/chat/state"
 import type { Murmur } from "@novadeck/core/addons/murmur"
+import type { ProjectWindows } from "@novadeck/core/desktop/project-windows"
 import type { Rect } from "@novadeck/core/layout/spatial"
 import type { Backend } from "@novadeck/core/port"
 import type { WorkspaceStore } from "@novadeck/core/store"
@@ -70,6 +71,8 @@ export type CommandContext = {
   readonly companions?: Backend["companions"] | undefined
   // The item store, where the backend has companions.
   readonly itemStore?: ItemStore | undefined
+  // The desktop app's other windows, where it opens them (see `project-windows.ts`).
+  readonly windows?: ProjectWindows | undefined
   readonly canvas: { readonly current: CanvasHandle | null }
   // Murmur, where the backend has it: the one-time offer is counted with it.
   readonly murmur?: Pick<Murmur, "noteOffered"> | undefined

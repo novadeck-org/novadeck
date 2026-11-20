@@ -100,10 +100,12 @@ export const FooterSection = memo((): React.JSX.Element => {
       state.recent.switcher !== null ||
       crashLoopQuestion(state) > 0,
   )
-  const welcome = useSyncExternalStore(
+  // The welcome is the app's first window's.
+  const welcomeOpen = useSyncExternalStore(
     backend.agents?.welcome.subscribe ?? always,
     () => backend.agents?.welcome.getSnapshot() ?? false,
   )
+  const welcome = welcomeOpen && backend.projectWindows?.extra !== true
   // A tour that runs, or whose closing card is up: its spotlight and coach are not a dialog, so
   // the offer, whose Try Agent Chat would change how the tour's agent shows, waits until it ends.
   const tourBusy = useTourBusy()

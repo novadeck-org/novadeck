@@ -54,6 +54,7 @@ const ui = () =>
         screenReader: "auto",
         chatView: false,
         agentAvatars: false,
+        projectWindows: false,
         onboardingTour: false,
         appScale: 100,
       },

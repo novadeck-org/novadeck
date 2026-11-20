@@ -73,6 +73,11 @@
 .workspace-switcher-pinned {
   color: var(--workspace-switcher-pin-fg, var(--color-muted));
 }
+/* A project another window shows (project-windows.tsx): a window glyph as quiet as the pin's,
+   in the switcher's rows and the pins bar's pins. */
+.other-window-mark {
+  color: var(--workspace-switcher-pin-fg, var(--color-muted));
+}
 .workspace-switcher-row[data-dragging="true"] {
   z-index: 1;
 }

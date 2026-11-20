@@ -1,4 +1,5 @@
 import { descendantsOf, leadChain } from "@novadeck/core/derivations"
+import type { ProjectWindows } from "@novadeck/core/desktop/project-windows"
 import { activeProject, activeSession } from "@novadeck/core/state"
 import type {
   TerminalMetadata,
@@ -133,3 +134,18 @@ export const foldsOf = (
     hidden: descendantsOf(workspace, lead).filter((id) => !kept.has(id)),
   }))
 }
+
+// Whether project windows are on in this window: a desktop app that opens them, with its
+// Experimental switch and the feature's own on.
+export const projectWindowsOn = (
+  state: Pick<UiState, "preferences" | "flags">,
+  windows: ProjectWindows | undefined,
+): boolean =>
+  windows !== undefined && state.flags.IS_EXPERIMENTAL && state.preferences.projectWindows
+
+// Whether another window shows the project, with project windows on.
+export const shownElsewhere = (
+  state: Pick<UiState, "preferences" | "flags" | "windows">,
+  windows: ProjectWindows | undefined,
+  projectId: string,
+): boolean => projectWindowsOn(state, windows) && state.windows.elsewhere.includes(projectId)

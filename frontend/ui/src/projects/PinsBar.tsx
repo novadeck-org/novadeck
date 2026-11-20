@@ -18,6 +18,7 @@ import { usePinHandoff } from "./pin-handoff"
 import { ease, slide } from "./pin-motion"
 import { pinsThatFit } from "./pins-fit"
 import { statusText, type ProjectStatus } from "./project-status"
+import { OtherWindowMark, ProjectWindowMenu, useProjectWindows } from "./project-windows"
 
 type Pin = { readonly id: string; readonly name: string; readonly directory: string }
 
@@ -383,54 +384,58 @@ const PinButton = ({
   // A pin being dragged shows, though it has no room in the bar, as one just handed over.
   const shows = fits || isDragSource
   const shortcut = pinnedProjectShortcut(index)
+  const inAnotherWindow = useProjectWindows()?.elsewhere.has(project.id) === true
   return (
-    <Tooltip content={`${project.directory} · ${shortcut.display.join(" ")}`} disabled={dragging}>
-      <button
-        ref={(node) => {
-          button.current = node
-          ref(node)
-        }}
-        type="button"
-        data-pin={project.id}
-        inert={!shows}
-        style={shows ? undefined : { visibility: "hidden" }}
-        className="pin flex min-w-0 max-w-50 shrink-0 items-center text-body"
-        aria-current={current ? "true" : undefined}
-        aria-keyshortcuts={[
-          [
-            shortcut.meta ? "Meta" : "Control",
-            ...(shortcut.shift ? ["Shift"] : []),
-            shortcut.key,
-          ].join("+"),
-          ...(index > 0 ? ["Alt+ArrowLeft"] : []),
-          ...(last ? [] : ["Alt+ArrowRight"]),
-        ].join(" ")}
-        aria-description={status && statusText[status]}
-        data-project-status={status}
-        data-dragging={isDragSource ? "true" : undefined}
-        data-leaving={isDragSource && leaving ? "true" : undefined}
-        data-arriving={arriving ? "true" : undefined}
-        onClick={() => {
-          if (!current) onSelect()
-        }}
-        onKeyDown={(event) => {
-          if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
-          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
-          event.preventDefault()
-          const by = event.key === "ArrowLeft" ? -1 : 1
-          // Stepping past the last pin would unpin it; the bar only reorders.
-          if (by === 1 && last) return
-          onStep(by)
-        }}
-      >
-        <span aria-hidden="true" className="pin-number text-control">
-          {index + 1}
-        </span>
-        <span className="pin-name min-w-0 truncate" data-text={project.name}>
-          {project.name}
-        </span>
-        <span aria-hidden="true" className="project-status-mark pin-mark" />
-      </button>
-    </Tooltip>
+    <ProjectWindowMenu project={project} current={current} contents>
+      <Tooltip content={`${project.directory} · ${shortcut.display.join(" ")}`} disabled={dragging}>
+        <button
+          ref={(node) => {
+            button.current = node
+            ref(node)
+          }}
+          type="button"
+          data-pin={project.id}
+          inert={!shows}
+          style={shows ? undefined : { visibility: "hidden" }}
+          className="pin flex min-w-0 max-w-50 shrink-0 items-center text-body"
+          aria-current={current ? "true" : undefined}
+          aria-keyshortcuts={[
+            [
+              shortcut.meta ? "Meta" : "Control",
+              ...(shortcut.shift ? ["Shift"] : []),
+              shortcut.key,
+            ].join("+"),
+            ...(index > 0 ? ["Alt+ArrowLeft"] : []),
+            ...(last ? [] : ["Alt+ArrowRight"]),
+          ].join(" ")}
+          aria-description={status && statusText[status]}
+          data-project-status={status}
+          data-dragging={isDragSource ? "true" : undefined}
+          data-leaving={isDragSource && leaving ? "true" : undefined}
+          data-arriving={arriving ? "true" : undefined}
+          onClick={() => {
+            if (!current) onSelect()
+          }}
+          onKeyDown={(event) => {
+            if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+            event.preventDefault()
+            const by = event.key === "ArrowLeft" ? -1 : 1
+            // Stepping past the last pin would unpin it; the bar only reorders.
+            if (by === 1 && last) return
+            onStep(by)
+          }}
+        >
+          <span aria-hidden="true" className="pin-number text-control">
+            {index + 1}
+          </span>
+          <span className="pin-name min-w-0 truncate" data-text={project.name}>
+            {project.name}
+          </span>
+          {inAnotherWindow && <OtherWindowMark />}
+          <span aria-hidden="true" className="project-status-mark pin-mark" />
+        </button>
+      </Tooltip>
+    </ProjectWindowMenu>
   )
 }

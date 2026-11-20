@@ -4,6 +4,7 @@ import {
   readPortableCardRaised,
   writePortableCardRaised,
 } from "@novadeck/core/desktop/portable-card-raised"
+import { aloneInWindows, type ProjectWindowsState } from "@novadeck/core/desktop/project-windows"
 import type { SandboxState } from "@novadeck/core/desktop/sandbox"
 import type { UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
 import type { AgentName } from "@novadeck/core/harnesses"
@@ -65,8 +66,9 @@ export type UiState = {
   // The person chose "Not now" for this crash loop; it asks again only after the next one.
   readonly crashLoopDismissed: boolean
   // Which addon's offer (voice input or murmur) came up in this run of the app: each run
-  // offers at most one unasked; never persisted.
-  readonly addonOffer: "voice" | "murmur" | null
+  // offers at most one unasked ("none": a window that is not the app's first leaves it to
+  // the first); never persisted.
+  readonly addonOffer: "voice" | "murmur" | "none" | null
   // The terminal Murmur's offer chip sits on, by session context and id: the first whose
   // agent finished a turn, until the offer is answered; never persisted.
   readonly nameOffer: { readonly context: string; readonly id: string } | null
@@ -97,6 +99,10 @@ export type UiState = {
   readonly portable: PortableState | null
   // Whether the page has the person's focus: its window focused and showing.
   readonly pageFocused: boolean
+  // What the desktop app says of its other windows: the projects they show, and whether this
+  // is the window the person used last, the only one that rings (`watchProjectWindows`);
+  // never persisted.
+  readonly windows: ProjectWindowsState
   // How many new Inbox rows that need the person the bell has rung for in this run
   // (`watchBellRings`): its dot rings with each; never persisted.
   readonly bellRings: number
@@ -166,6 +172,7 @@ export const initialUi = ({
   chatOfferAnswered = false,
   projectArrangement = noArrangement,
   foldedTeams = noFoldedTeams,
+  extraWindow = false,
 }: {
   location: UiLocation
   preferences: PreferencesValue
@@ -173,6 +180,8 @@ export const initialUi = ({
   chatOfferAnswered?: boolean
   projectArrangement?: ProjectArrangement
   foldedTeams?: FoldedTeams
+  // A window that is not the app's first: the one-time offers are left to the first.
+  extraWindow?: boolean
 }): UiState => ({
   location,
   preferences,
@@ -188,18 +197,19 @@ export const initialUi = ({
   moved: null,
   agentFocus: null,
   crashLoopDismissed: false,
-  addonOffer: null,
+  addonOffer: extraWindow ? "none" : null,
   nameOffer: null,
   crashLoop: 0,
   update: null,
   portableCardOpen: false,
   whatsNew: null,
   chatOfferAnswered,
-  chatOfferHeld: false,
+  chatOfferHeld: extraWindow,
   sandbox: null,
   sandboxOpen: false,
   portable: null,
   pageFocused: true,
+  windows: aloneInWindows,
   bellRings: 0,
   historyDrops: 0,
   lastDrop: null,
