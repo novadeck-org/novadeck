@@ -32,6 +32,8 @@ import { requestRef, rootRef } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
 import { followRoot } from "../harnesses/roots.js"
 import { limitGraceMs } from "../harnesses/telemetry.js"
+import { memoryInbox } from "../messaging/inbox.js"
+import { retentionMs } from "../messaging/messages.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { describe, expect, it as base } from "../test.js"
 import { fakeClock } from "../testing/clock.js"
@@ -1557,6 +1559,27 @@ describe("a terminal's summary", () => {
     const restarted = await manager.restart({ terminalId: id, cols: 90, rows: 20 }, "owner")
     expect(restarted).toMatchObject({ cols: 90, rows: 20, exit: null, run: 2 })
     expect(agree()).toEqual(restarted)
+  })
+})
+
+describe("the runner starting over a saved Inbox", () => {
+  it("lets a closed terminal's old entries go as it starts", ({ terminals }) => {
+    const inbox = memoryInbox()
+    inbox.saveEntry({
+      id: randomUUID(),
+      terminalId: randomUUID(),
+      projectId: randomUUID(),
+      workspaceSessionId: randomUUID(),
+      agent: "claude",
+      sessionId: "first",
+      handle: "moth",
+      at: Date.now() - 2 * retentionMs,
+      content: { kind: "tell", subject: "Halfway", body: "Tests pass." },
+      state: "read",
+    })
+    const manager = terminals.manager({ inbox })
+    expect(inbox.entries()).toEqual([])
+    expect(manager.inboxEntries()).toEqual([])
   })
 })
 

@@ -686,6 +686,81 @@ describe("done entries", () => {
     closed.close()
   })
 
+  it("lets a day-old entry go as it is made, and tells its host of changes only once it is", ({
+    resources,
+  }) => {
+    const clock = inboxClock()
+    const records = memoryInbox()
+    const run = setup(records, undefined, clock)
+    resources.defer(run.stop)
+    const tell = (subject: string) => {
+      const sent = run.inbox.call(identity.terminalId, "tell", { subject, body: "Body" })
+      if (!sent.ok) throw new Error(sent.reason)
+      run.inbox.read([sent.id])
+    }
+    tell("Halfway")
+    clock.advance(60_000)
+    tell("Nearly")
+    run.stop()
+    clock.advance(retentionMs - 60_000)
+    // The runner's own host is still being put together while its Inbox is made.
+    const told: string[] = []
+    const booted = new Inbox(
+      {
+        owner: () => undefined,
+        reply: () => {},
+        replyState: () => undefined,
+        forgetReplies: () => {},
+        changed: (id) => void told.push(id),
+        exists: () => true,
+      },
+      records,
+      clock.now,
+      { sweepMs: 0 },
+    )
+    resources.defer(() => booted.close())
+    expect(records.entries().map((each) => each.content)).toMatchObject([{ subject: "Nearly" }])
+    expect(told).toEqual([])
+    clock.advance(60_000)
+    booted.prune()
+    expect(records.entries()).toEqual([])
+    expect(told).toEqual([identity.terminalId])
+  })
+
+  it("is made though its first prune fails, and prunes at the next", ({ resources }) => {
+    const clock = inboxClock()
+    const records = memoryInbox()
+    const run = setup(records, undefined, clock)
+    resources.defer(run.stop)
+    const sent = run.inbox.call(identity.terminalId, "tell", { subject: "Halfway", body: "Body" })
+    if (!sent.ok) throw new Error(sent.reason)
+    run.inbox.read([sent.id])
+    run.stop()
+    clock.advance(retentionMs)
+    let whole = false
+    const booted = new Inbox(
+      {
+        owner: () => undefined,
+        reply: () => {},
+        replyState: () => {
+          if (!whole) throw new Error("The host is not whole yet")
+          return undefined
+        },
+        forgetReplies: () => {},
+        changed: () => {},
+        exists: () => true,
+      },
+      records,
+      clock.now,
+      { sweepMs: 0 },
+    )
+    resources.defer(() => booted.close())
+    whole = true
+    expect(records.entries()).toHaveLength(1)
+    booted.prune()
+    expect(records.entries()).toEqual([])
+  })
+
   it("reports the saved session's while none is bound, as after a restart", ({ resources }) => {
     const records = memoryInbox()
     const run = setup(records)

@@ -380,6 +380,8 @@ export class Inbox {
   >()
   private readonly resumeGraceMs: number
   private readonly logSweepMs: number
+  /** Made, so read: until then a change has no one to tell, and the host may not be whole. */
+  private made = false
   private closed = false
   constructor(
     private readonly host: Host,
@@ -422,7 +424,10 @@ export class Inbox {
       else if (entry?.id) stale.push(entry.id)
     }
     if (stale.length > 0) this.save(() => records.removeEntries(stale))
-    this.prune()
+    // What the first prune lets go it tells no one, and a failure of it waits for the sweep:
+    // the runner is still starting, and must start.
+    this.maintain()
+    this.made = true
     if (sweepMs > 0) {
       this.sweeper = setInterval(() => {
         try {
@@ -1370,6 +1375,7 @@ export class Inbox {
     }
   }
   private changed(terminalId: string): void {
+    if (!this.made) return
     this.host.changed(terminalId)
     this.publish()
   }
