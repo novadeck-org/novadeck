@@ -40,6 +40,16 @@ describe("transcripts", () => {
     expect(text).not.toContain("\x1b[?1049h")
   })
 
+  it("keep a blank row before a wrapped line blank, with no fill left in its first column", async () => {
+    const old = open(10, 3)
+    // A wrapped line whose first row was erased.
+    await written(old, "xxxxxxxxxxxx\x1b[1;1H\x1b[2K")
+    const fresh = open(10, 3)
+    await written(fresh, transcript(old, 10_000)!)
+    expect(lines(fresh).join("\n")).not.toContain("-")
+    expect(lines(fresh)).toEqual(lines(old))
+  })
+
   it("replay, then a separator on the line after the last one drawn", async () => {
     const old = open()
     // A full-screen program left its cursor near the top.

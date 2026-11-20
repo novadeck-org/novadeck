@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest"
 
 import { trackMouse } from "./mouse.js"
-import { createScreen, written, type Screen } from "./screen.js"
+import { styledRows } from "./runs.js"
+import { createScreen, readScreen, written, type Screen } from "./screen.js"
 import { snapshot } from "./snapshot.js"
+
+const context = describe
 
 const text = (screen: Screen) =>
   Array.from({ length: screen.rows }, (_, index) =>
@@ -115,5 +118,40 @@ describe("a snapshot", () => {
     expect(sent).toEqual(["\u001b[<65;10;3M"])
     screen.dispose()
     restored.dispose()
+  })
+
+  context("restores what xterm's serializer leaves out", () => {
+    // The screen, serialized and drawn on a fresh one of the same size, then both given `more`.
+    const restoredWith = async (draw: string, more = "", cols = 8, rows = 5) => {
+      const screen = createScreen({ cols, rows, scrollback: 0 })
+      await written(screen, draw)
+      const restored = createScreen({ cols, rows, scrollback: 0 })
+      await written(restored, snapshot(screen, { fits: () => true, mouse: "default" })!)
+      if (more) await Promise.all([written(screen, more), written(restored, more)])
+      return { screen, restored }
+    }
+    const cursor = (screen: Screen) => readScreen(screen).cursor
+    const backgrounds = (screen: Screen) =>
+      styledRows(screen, 0, screen.rows - 1).map((row) => row.map((run) => run.bg))
+    const core = (screen: Screen) =>
+      (
+        screen as unknown as {
+          _core: {
+            buffer: { scrollTop: number; scrollBottom: number }
+            coreService: { isCursorHidden: boolean }
+          }
+        }
+      )._core // eslint-disable-line no-underscore-dangle -- The scroll region isn't in xterm's API.
+
+    it("no blank row's first cell as a fill, where a wrapped line's first row is blank", async () => {
+      // A wrapped line whose first row was erased: the serializer fills that row to keep the
+      // break, and erases the fill again from the wrong column.
+      const { screen, restored } = await restoredWith("xxxxxxxxxxxx\u001b[1;1H\u001b[2K", "", 10, 3)
+      expect(text(restored)).not.toContain("-")
+      expect(text(restored)).toBe(text(screen))
+      expect(readScreen(restored).wrapped).toEqual(readScreen(screen).wrapped)
+      screen.dispose()
+      restored.dispose()
+    })
   })
 })
