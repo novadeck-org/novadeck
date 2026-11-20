@@ -87,9 +87,15 @@ export const scheduleChange = (report: Report): ScheduleChange | undefined => {
   return undefined
 }
 
-/** Applies a change to the record's schedules; whatever another session held is dropped. */
+/**
+ * Applies a change to the record's schedules: an add in another session drops whatever the
+ * session before held; a remove in another session changes nothing.
+ */
 export const trackSchedules = (record: Pick<Record, "schedules">, change: ScheduleChange): void => {
   const same = record.schedules?.sessionId === change.sessionId
+  // An end in another session concerns none of the schedules held: an untracked timer going
+  // off in another conversation, or a delete reported under another session id.
+  if ("remove" in change && !same) return
   const items = new Map(same ? record.schedules!.items : [])
   if ("add" in change) items.set(change.add.key, change.add)
   else items.delete(change.remove)

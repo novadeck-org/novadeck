@@ -1,10 +1,14 @@
-// PROBE: whether Antigravity can cancel what its `schedule` tool set, as `scheduleChange`
-// (terminals/schedules.ts) needs to know: it tracks a cron, or a timer set out longer than a
-// day, by `<conversation>:<stepIdx>` of the call's PreToolUse hook, and never untracks one. The
-// fake model sets a cron and a 25-hour timer, lists the tasks, kills each by the id the list or
-// the call's result names, and lists again. Runs only with NOVADECK_E2E_PROBES=1, by path; with
-// PROBE_OUT set it writes $PROBE_OUT/agy-schedule.probe.json: the two tools' declarations, every
-// tool result the model saw, the PreToolUse and PostToolUse payloads, and the transcript.
+// PROBE: what `scheduleChange` (terminals/schedules.ts) relies on of Antigravity's `schedule`
+// tool: it tracks a cron, or a timer set out longer than a day, by `<conversation>:<stepIdx>`
+// of the call's PreToolUse hook, and untracks it at the PostToolUse that same call fires once
+// the schedule ends. `kill`: the fake model sets a cron and a 25-hour timer, lists the tasks,
+// kills each by the task id the call's result names, and lists again; each schedule's
+// PostToolUse comes at its kill, with its PreToolUse's stepIdx. `fires`: a cron set to every
+// minute fires, and fires no PostToolUse, and is still listed after. It asserts both, so a
+// release that changes either fails. Runs only with NOVADECK_E2E_PROBES=1, by path; with
+// PROBE_OUT set it writes $PROBE_OUT/agy-schedule-kill.json and agy-schedule-fires.json: every
+// tool result the model saw, the PreToolUse and PostToolUse payloads, and the transcript
+// (fixture: harnesses/agy/src/fixtures/schedules.probe.json).
 // Run: PROBE_OUT=<dir> NOVADECK_E2E_PROBES=1 NOVADECK_E2E_AGENTS=agy pnpm -C backend/runner exec \
 //   vitest run --config vitest.e2e.config.ts src/e2e/probes/agy-schedule.e2e.ts
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"

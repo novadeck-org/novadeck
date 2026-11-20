@@ -172,6 +172,35 @@ describe("what an agent scheduled that dies with it", () => {
     expect(scheduled(record, "c1", 5)).toBe(false)
   })
 
+  it("keeps the bound conversation's schedules through an end in another one", () => {
+    const record = {} as never
+    trackSchedules(record, { add: { key: "A:2", until: null }, agent: "agy", sessionId: "A" })
+    // A short timer, never tracked, goes off in conversation B of the same process.
+    const ended = scheduleChange(
+      report("agy", "PostToolUse", {
+        conversationId: "B",
+        stepIdx: 2,
+        toolCall: { name: "schedule", args: { DurationSeconds: 600 } },
+      }),
+    )
+    trackSchedules(record, ended!)
+    expect(scheduled(record, "A", 5)).toBe(true)
+  })
+
+  it("keeps a session's crons through a delete reported under another session", () => {
+    const record = {} as never
+    trackSchedules(record, scheduleChange(created())!)
+    const elsewhere = scheduleChange(
+      report("claude", "PostToolUse", {
+        session_id: "s2",
+        tool_name: "CronDelete",
+        tool_input: { id: "9284d66e" },
+      }),
+    )
+    trackSchedules(record, elsewhere!)
+    expect(scheduled(record, "s1", 5)).toBe(true)
+  })
+
   it("lets a long timer lapse once it has gone off", () => {
     const record = {} as never
     trackSchedules(record, { add: { key: "k", until: 100 }, agent: "agy", sessionId: "c1" })
