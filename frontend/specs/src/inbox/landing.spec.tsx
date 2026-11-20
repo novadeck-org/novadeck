@@ -45,28 +45,6 @@ describe("The landing rule", () => {
     })
   })
 
-  // The report arrives and the person looks away in one task, so no dwell can pass between
-  // them however slow the runner is.
-  context("when the person looks away from a done report before the dwell is over", () => {
-    it("leaves it unread and lands it", async () => {
-      await open(docs)
-      const away = page
-        .getByRole("button", { name: /^Select / })
-        .first()
-        .element() as HTMLElement
-
-      desktopWindow.arrive(demoInboxIds.done)
-      away.click()
-
-      await expectStaysAbsent(
-        { shown: () => !desktopWindow.rowIds().includes(demoInboxIds.done), name: "a read" },
-        { ms: 2_500 },
-      )
-      await sidebarPanel("Inbox").click()
-      await expect.element(inboxRow("Search index rebuilt")).toBeVisible()
-    })
-  })
-
   context("when an agent asks from a terminal the person isn't looking at", () => {
     it("lands it and rings", async () => {
       await open(storefront)
@@ -83,24 +61,49 @@ describe("The landing rule", () => {
   })
 
   context("when an agent reports it is done to the terminal the person looks at", () => {
-    it("lands quietly and is read by being seen, so it stays as history, however they look away", async () => {
+    it("lands quietly and stays unread until they have seen it in the Inbox and left", async () => {
       await open(docs)
 
       desktopWindow.arrive(demoInboxIds.done)
-      // It isn't read by the arrival itself, only once the person has looked at the terminal
-      // for a moment; then the backend has it read, and it stays as a resolved row.
-      expect(desktopWindow.openRowIds()).toContain(demoInboxIds.done)
-      await expect
-        .poll(() => desktopWindow.openRowIds(), { timeout: 5_000 })
-        .not.toContain(demoInboxIds.done)
+      // Looking at its terminal reads nothing, however long.
+      await expectStaysAbsent(
+        { shown: () => !desktopWindow.openRowIds().includes(demoInboxIds.done), name: "a read" },
+        { ms: 2_500 },
+      )
 
-      await page
-        .getByRole("button", { name: /^Select / })
-        .first()
-        .click()
+      // Nor does seeing its row in the list, while they look at it: it stays as it came.
+      await sidebarPanel("Inbox").click()
+      await expect.element(inboxRow("Search index rebuilt")).toBeVisible()
+      await expectStaysAbsent(
+        { shown: () => !desktopWindow.openRowIds().includes(demoInboxIds.done), name: "a read" },
+        { ms: 2_500 },
+      )
+      await expect.element(inboxRow("Search index rebuilt")).not.toHaveAccessibleName(/read$/)
+
+      // Leaving the list reads what they saw there: back in it, the row is history.
+      await sidebarPanel("Terminals").click()
+      await expect.poll(() => desktopWindow.openRowIds()).not.toContain(demoInboxIds.done)
       await sidebarPanel("Inbox").click()
       await expect.element(inboxRow("Search index rebuilt")).toHaveAccessibleName(/read$/)
       await expect.element(bell()).not.toBeInTheDocument()
+    })
+  })
+
+  context("when the person leaves the Inbox before an update's row was in sight a moment", () => {
+    it("leaves it unread", async () => {
+      await open(docs)
+      await sidebarPanel("Inbox").click()
+
+      // The report arrives and the person leaves in one task, so no dwell can pass between
+      // them however slow the runner is.
+      const terminals = sidebarPanel("Terminals").element() as HTMLElement
+      desktopWindow.arrive(demoInboxIds.done)
+      terminals.click()
+
+      await expectStaysAbsent(
+        { shown: () => !desktopWindow.openRowIds().includes(demoInboxIds.done), name: "a read" },
+        { ms: 2_500 },
+      )
     })
   })
 })

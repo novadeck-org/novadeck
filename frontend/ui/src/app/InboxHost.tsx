@@ -21,14 +21,13 @@ import { focusWhenReady, watchShowToasts } from "./show-toasts"
 
 // Hears a click on a terminal's notification (see `clickNotice`).
 const NoticeClicks = (): null => {
-  const { backend, commands, landing, ui } = useWorkspaceServices()
+  const { backend, commands, ui } = useWorkspaceServices()
   const opener = useInboxOpener()
   const { peekInbox, reveal } = commands
   useEffect(
     () =>
       backend.notices?.onClick((terminalId) =>
-        // The backend's rows: the click marks the one the notice is about as the person's to
-        // open (the landing's `reveal`) before it opens.
+        // The backend's rows, as the Inbox may hold the row back.
         clickNotice(
           terminalId,
           backend.inbox?.state.getSnapshot().items ?? [],
@@ -36,12 +35,11 @@ const NoticeClicks = (): null => {
             open: (id, after) => opener?.((rows) => rows.find((row) => row.id === id), { after }),
             peekInbox,
             reveal,
-            land: landing.reveal,
           },
           noticeBoard(backend.notices, dingOf(backend, ui))?.rowIdOf(terminalId),
         ),
       ),
-    [backend, ui, landing, opener, peekInbox, reveal],
+    [backend, ui, opener, peekInbox, reveal],
   )
   return null
 }
@@ -63,7 +61,7 @@ export const InboxHost = ({
   const { inbox } = landing
   // Whether an agent is at work in any project, for the empty Inbox to say.
   const working = useWorkspaceState((state) => anyAgentWorking(state.projects))
-  // Whether the person looks at the page, for an update's row in sight to be read.
+  // Whether the person looks at the page, for an update's row in sight to count as seen.
   const looking = useUiState((state) => state.pageFocused && !modalOpen(state))
   const { hideSidebar, reveal, select, showInbox, peekInbox } = commands
   const phone = useMemo(

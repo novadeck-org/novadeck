@@ -399,8 +399,7 @@ Agents:
   report or failed, so the Inbox lists every kind: its header counts the 10 that wait, and the
   2 done reports are Updates. It
   adds terminals to the current session if the workspace has too few, without selecting
-  them or leaving the Inbox, and leaves the selected terminal alone, since
-  a report is read once you have looked at its terminal for a moment. "Clear waiting agents" rests every agent,
+  them or leaving the Inbox. "Clear waiting agents" rests every agent,
   which answers every request and calls off the finishes still to come, reads every finish and
   the done reports its agents wrote, and withdraws and clears the MCP asks the panel opened
   (those of "Every state at once"), so nothing the agents or the panel made waits. The rows

@@ -20,7 +20,7 @@ import { iconKey, icons, tintOf, typeWords } from "./inbox-icons"
 import { asks as asking, needing } from "./inbox-state"
 import { endedWords, readLabel, resumesLabel, subjectOf, waitLabel } from "./inbox-text"
 import { started, useInboxContext } from "./InboxProvider"
-import { useReadOnSight } from "./read-on-sight"
+import { useSight } from "./read-on-leaving"
 import { Text } from "./sheet-parts"
 
 // Whether the person answered the row, here, and it has since gone: it keeps its place in
@@ -55,8 +55,8 @@ type Drag = { readonly index: number; readonly onStep: (by: -1 | 1) => void }
 // how long the agent has waited if it stopped, and under it the project and what is extra. A row
 // that asks something stays bright until it is answered, opened or not. A resolved row stays as
 // history, in gray, with how it ended under its subject, and opens its sheet to read; an open
-// Novadeck ask can be dismissed. An update is read once its row has been in sight for a moment
-// (`useReadOnSight`), as its subject is often all it says.
+// Novadeck ask can be dismissed. An update whose row has been in sight for a moment is read once
+// the person leaves the list (`read-on-leaving.ts`), as its subject is often all it says.
 // A row that asks drags among the others that do, into the person's order (`drag`), and can
 // be snoozed (S): it keeps its place, marked, its bell-off where its wait shows, and there its
 // unsnooze button instead of a dismiss button.
@@ -98,14 +98,14 @@ const Row = ({
     looking,
     open,
     close,
-    change,
+    sighted,
     dismiss,
     snooze,
   } = useInboxContext()
   const { settled } = row
-  // An update is read once its row has been in sight for a moment, on the Inbox's panel while
-  // it shows: seeing it is reading it. A panel on its way out stays in sight to the observer
-  // until it has faded (sidebar.css), so the panel's own flag says when it shows.
+  // An update is seen once its row has been in sight for a moment, on the Inbox's panel while
+  // it shows, and read when the person leaves the list. A panel on its way out stays in sight
+  // to the observer until it has faded (sidebar.css), so the panel's own flag says when it shows.
   const [element, setElement] = useState<HTMLDivElement | null>(null)
   const ref = useCallback(
     (node: HTMLDivElement | null): void => {
@@ -121,7 +121,7 @@ const Row = ({
     !settled &&
     !state.answering[row.id] &&
     state.failed[row.id] === undefined
-  useReadOnSight(element, unread, looking, () => change(row, { kind: "update", action: "read" }))
+  useSight(element, unread, looking, () => sighted(row))
   const type = inboxType(row)
   const pending = Boolean(state.answering[row.id])
   // Answered here and gone from the backend's rows, which keeps it until its sheet closes.

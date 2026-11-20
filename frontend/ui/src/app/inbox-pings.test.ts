@@ -609,7 +609,6 @@ describe("a click on a terminal's notification", () => {
         return shown ? undefined : () => void calls.push("put back")
       },
       reveal: (terminalId: string) => void calls.push(`reveal ${terminalId}`),
-      land: (id: string) => void calls.push(`land ${id}`),
     }
   }
 
@@ -617,19 +616,19 @@ describe("a click on a terminal's notification", () => {
     const { calls, ...handlers } = to()
     const settled = { ...ask("s"), settled: { how: "dismissed" as const, at: 2 } }
     clickNotice("t1", [settled, ask("a")], handlers)
-    expect(calls).toEqual(["land a", "inbox", "open a once"])
+    expect(calls).toEqual(["inbox", "open a once"])
   })
 
   it("opens that terminal's row in the Inbox when one stands", () => {
     const { calls, ...handlers } = to()
     clickNotice("t1", [update("u"), ask("a")], handlers)
-    expect(calls).toEqual(["land u", "inbox", "open u once"])
+    expect(calls).toEqual(["inbox", "open u once"])
   })
 
   it("opens the row the notice was about, among the terminal's several", () => {
     const { calls, ...handlers } = to()
     clickNotice("t1", [update("u"), ask("a"), update("v")], handlers, "v")
-    expect(calls).toEqual(["land v", "inbox", "open v once"])
+    expect(calls).toEqual(["inbox", "open v once"])
   })
 
   it("opens the terminal's done report for a notice that names no row", () => {
@@ -640,13 +639,13 @@ describe("a click on a terminal's notification", () => {
       update: { type: "done", subject: "Done", body: "" },
     }
     clickNotice("t1", [ask("a"), update("u"), finish], handlers)
-    expect(calls).toEqual(["land f", "inbox", "open f once"])
+    expect(calls).toEqual(["inbox", "open f once"])
   })
 
   it("falls back to the terminal's first row when the notice's row has left", () => {
     const { calls, ...handlers } = to()
     clickNotice("t1", [ask("a"), update("u")], handlers, "gone")
-    expect(calls).toEqual(["land a", "inbox", "open a once"])
+    expect(calls).toEqual(["inbox", "open a once"])
   })
 
   it("opens the row for itself alone, putting the sidebar back once it is answered", () => {
@@ -654,13 +653,13 @@ describe("a click on a terminal's notification", () => {
     let after: (() => void) | undefined
     clickNotice("t1", [ask("a")], { ...handlers, open: (_id, given) => void (after = given) })
     after?.()
-    expect(calls).toEqual(["land a", "inbox", "put back"])
+    expect(calls).toEqual(["inbox", "put back"])
   })
 
   it("opens an ordinary sheet where the Inbox showed already", () => {
     const { calls, ...handlers } = to(true)
     clickNotice("t1", [ask("a")], handlers)
-    expect(calls).toEqual(["land a", "inbox", "open a"])
+    expect(calls).toEqual(["inbox", "open a"])
   })
 
   it("shows the terminal otherwise", () => {

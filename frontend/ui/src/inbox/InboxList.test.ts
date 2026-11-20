@@ -14,7 +14,7 @@ import { context, describe, expect, it } from "../test"
 import { HeldPill, InboxCount, InboxList } from "./InboxList"
 import { InboxProvider, useInboxContext, type InboxContextValue } from "./InboxProvider"
 import { InboxSheet } from "./InboxSheet"
-import { sightDwellMs } from "./read-on-sight"
+import { sightDwellMs } from "./read-on-leaving"
 
 // jsdom has no ResizeObserver, which the sheet's placement watches its anchor with.
 Object.assign(globalThis, {
@@ -129,16 +129,12 @@ const mount = (
     })
     return null
   }
-  const view = render(
+  const shownInbox = snoozing ? withSnoozes(inbox, [], () => {}) : inbox
+  // The app, with the Inbox's panel on screen or not and the person looking at the page or not.
+  const tree = (panel: boolean, focused: boolean) =>
     createElement(
       InboxProvider,
-      {
-        inbox: snoozing ? withSnoozes(inbox, [], () => {}) : inbox,
-        reveal: () => {},
-        working,
-        active,
-        looking,
-      },
+      { inbox: shownInbox, reveal: () => {}, working, active: panel, looking: focused },
       createElement(
         "div",
         { id: "inbox-panel" },
@@ -148,8 +144,10 @@ const mount = (
       ),
       createElement(InboxSheet, { active: true }),
       createElement(Handlers),
-    ),
-  )
+    )
+  const view = render(tree(active, looking))
+  // The panel goes or comes back, or the person stops or starts looking at the page.
+  const show = (panel: boolean, focused = true): void => view.rerender(tree(panel, focused))
   const subjects = (): string[] =>
     Array.from(view.container.querySelectorAll(".inbox-row-subject")).map(
       (element) => element.textContent ?? "",
@@ -202,6 +200,7 @@ const mount = (
     })
   return {
     withdraw,
+    show,
     state,
     view,
     subjects,
@@ -446,15 +445,42 @@ describe("The Inbox's list", () => {
       watched.clear()
     })
 
-    it("reads it once it has stayed in sight for a moment, and nothing that asks", async () => {
-      const inbox = mount([told("u", 1), permission("a", 2)])
+    it("keeps it unread while the person looks at the list, however long", async () => {
+      const inbox = mount([told("u", 1)])
+      await nextFrame()
+      vi.useFakeTimers()
+      sight(inbox.row("u"), true)
+      act(() => void vi.advanceTimersByTime(sightDwellMs * 20))
+      expect(inbox.answered).toEqual([])
+      vi.useRealTimers()
+      inbox.view.unmount()
+    })
+
+    it("reads it once the panel goes, and nothing that asks or wasn't in sight", async () => {
+      const inbox = mount([told("u", 1), told("below", 2), permission("a", 3)])
       await nextFrame()
       vi.useFakeTimers()
       sight(inbox.row("u"), true)
       sight(inbox.row("a"), true)
-      act(() => void vi.advanceTimersByTime(sightDwellMs - 1))
+      act(() => void vi.advanceTimersByTime(sightDwellMs))
       expect(inbox.answered).toEqual([])
-      act(() => void vi.advanceTimersByTime(1))
+      inbox.show(false)
+      expect(inbox.answered).toEqual(["u"])
+      // Once: coming back and leaving again reads nothing more.
+      inbox.show(true)
+      inbox.show(false)
+      expect(inbox.answered).toEqual(["u"])
+      vi.useRealTimers()
+      inbox.view.unmount()
+    })
+
+    it("reads it once the person stops looking at the page", async () => {
+      const inbox = mount([told("u", 1)])
+      await nextFrame()
+      vi.useFakeTimers()
+      sight(inbox.row("u"), true)
+      act(() => void vi.advanceTimersByTime(sightDwellMs))
+      inbox.show(true, false)
       expect(inbox.answered).toEqual(["u"])
       vi.useRealTimers()
       inbox.view.unmount()
@@ -470,17 +496,40 @@ describe("The Inbox's list", () => {
       sight(inbox.row("u"), false)
       sight(inbox.row("r"), true)
       act(() => void vi.advanceTimersByTime(sightDwellMs * 2))
+      inbox.show(false)
       expect(inbox.answered).toEqual([])
       vi.useRealTimers()
       inbox.view.unmount()
     })
 
-    it("doesn't read it while the Inbox's panel isn't shown", async () => {
+    it("doesn't read one that was opened meanwhile, which reads it already", async () => {
+      const inbox = mount([told("u", 1)])
+      await nextFrame()
+      vi.useFakeTimers()
+      sight(inbox.row("u"), true)
+      act(() => void vi.advanceTimersByTime(sightDwellMs))
+      inbox.open("u")
+      expect(inbox.answered).toEqual(["u"])
+      act(() => {
+        inbox.state.update((current) => ({
+          ...current,
+          items: current.items.map((row) => ({ ...row, settled: { how: "read", at: 9 } })),
+        }))
+      })
+      inbox.show(false)
+      expect(inbox.answered).toEqual(["u"])
+      vi.useRealTimers()
+      inbox.view.unmount()
+    })
+
+    it("doesn't see it while the Inbox's panel isn't shown", async () => {
       const inbox = mount([told("u", 1)], false, false, false, false, false)
       await nextFrame()
       vi.useFakeTimers()
       sight(inbox.row("u"), true)
       act(() => void vi.advanceTimersByTime(sightDwellMs * 2))
+      inbox.show(true)
+      inbox.show(false)
       expect(inbox.answered).toEqual([])
       vi.useRealTimers()
       inbox.view.unmount()
@@ -489,23 +538,27 @@ describe("The Inbox's list", () => {
     it("doesn't read again one whose read failed, which waits to be opened", async () => {
       const inbox = mount([told("u", 1)])
       await nextFrame()
+      vi.useFakeTimers()
+      sight(inbox.row("u"), true)
+      act(() => void vi.advanceTimersByTime(sightDwellMs))
       act(() => {
         inbox.state.update((current) => ({ ...current, failed: { u: "That didn't take." } }))
       })
-      vi.useFakeTimers()
       sight(inbox.row("u"), true)
       act(() => void vi.advanceTimersByTime(sightDwellMs * 2))
+      inbox.show(false)
       expect(inbox.answered).toEqual([])
       vi.useRealTimers()
       inbox.view.unmount()
     })
 
-    it("doesn't read it while the person doesn't look at the page", async () => {
+    it("doesn't see it while the person doesn't look at the page", async () => {
       const inbox = mount([told("u", 1)], false, false, false, false, true, false)
       await nextFrame()
       vi.useFakeTimers()
       sight(inbox.row("u"), true)
       act(() => void vi.advanceTimersByTime(sightDwellMs * 2))
+      inbox.show(false, false)
       expect(inbox.answered).toEqual([])
       vi.useRealTimers()
       inbox.view.unmount()

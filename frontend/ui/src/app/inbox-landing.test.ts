@@ -10,7 +10,7 @@ import { appearance, workspaceFixture } from "@novadeck/core/testing"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
-import { decideRow, landInbox, readDwellMs, type RowFacts } from "./inbox-landing"
+import { landInbox } from "./inbox-landing"
 import { followNeeds } from "./inbox-pings"
 import { createUiStore, initialUi } from "./ui-store"
 
@@ -92,7 +92,7 @@ const setup = (initiallyWide = true) => {
     answer: (id, answer) => void answers.push([id, answer]),
     see: () => {},
   }
-  const { inbox, start, reveal } = landInbox(raw, workspace, ui, {
+  const { inbox, start } = landInbox(raw, workspace, ui, {
     is: () => wide,
     subscribe: (notify) => {
       widthListeners.add(notify)
@@ -104,11 +104,8 @@ const setup = (initiallyWide = true) => {
     inbox,
     stop,
     restart: start,
-    reveal,
     answers,
     set: (items: InboxRow[]) => void state.update((current) => ({ ...current, items })),
-    patch: (patch: Partial<InboxState>) =>
-      void state.update((current) => ({ ...current, ...patch })),
     resize: (next: boolean) => {
       wide = next
       widthListeners.forEach((notify) => notify())
@@ -194,87 +191,25 @@ describe("the landing rule", () => {
     beforeEach(() => void vi.useFakeTimers())
     afterEach(() => void vi.useRealTimers())
 
-    it("lands at once, quietly, and is read once, after the dwell", () => {
+    it("lands at once, quietly, and isn't read however long the person looks", () => {
       const { set, select, inbox, ids, answers, stop } = setup()
-      set([done("d", "01")])
-      expect(ids()).toEqual(["d"])
+      set([done("d", "01"), done("e", "02")])
+      expect(ids()).toEqual(["d", "e"])
       expect(quietly(inbox, "d")).toBe(true)
-      // Not synchronously, and not before the person has looked a moment.
-      expect(answers).toEqual([])
-      vi.advanceTimersByTime(readDwellMs - 1)
-      expect(answers).toEqual([])
-      vi.advanceTimersByTime(1)
-      expect(answers).toEqual([["d", { kind: "update", action: "read" }]])
-      // The read hasn't gone through yet; the row still shows as the person looks away.
+      vi.advanceTimersByTime(60_000)
       select("02")
-      expect(ids()).toEqual(["d"])
-      vi.advanceTimersByTime(readDwellMs * 3)
-      expect(answers).toHaveLength(1)
+      vi.advanceTimersByTime(60_000)
+      expect(answers).toEqual([])
+      expect(inbox.state.getSnapshot().items.every((row) => !row.settled)).toBe(true)
       stop()
     })
 
-    it("shows resolved once its read went through, as history", () => {
+    it("shows resolved once it was read in the Inbox, as history", () => {
       const { set, ids, inbox, stop } = setup()
       set([done("d", "01")])
-      vi.advanceTimersByTime(readDwellMs)
       set([{ ...done("d", "01"), settled: { how: "read", at: Date.now() } }])
       expect(ids()).toEqual(["d"])
       expect(inbox.state.getSnapshot().items[0]?.settled).toMatchObject({ how: "read" })
-      stop()
-    })
-
-    it("is not read by a glance", () => {
-      const { set, select, answers, stop } = setup()
-      set([done("d", "01")])
-      vi.advanceTimersByTime(readDwellMs - 1)
-      select("02")
-      vi.advanceTimersByTime(readDwellMs * 3)
-      expect(answers).toEqual([])
-      stop()
-    })
-
-    it("is read once the person selects its terminal for the dwell, after it landed elsewhere", () => {
-      const { set, select, inbox, answers, stop } = setup()
-      set([done("d", "02")])
-      expect(quietly(inbox, "d")).toBe(false)
-      select("02")
-      expect(answers).toEqual([])
-      vi.advanceTimersByTime(readDwellMs)
-      expect(answers).toEqual([["d", { kind: "update", action: "read" }]])
-      stop()
-    })
-
-    it("isn't read by looking once the person opened it by its id", () => {
-      const { set, reveal, ids, answers, stop } = setup()
-      set([done("d", "01")])
-      vi.advanceTimersByTime(readDwellMs / 2)
-      reveal("d")
-      vi.advanceTimersByTime(readDwellMs * 3)
-      expect(answers).toEqual([])
-      expect(ids()).toEqual(["d"])
-      stop()
-    })
-
-    it("isn't read again while the person looks once its read failed", () => {
-      const { set, patch, ids, answers, stop } = setup()
-      set([done("d", "01")])
-      vi.advanceTimersByTime(readDwellMs)
-      patch({ failed: { d: "Couldn't mark it read." } })
-      expect(ids()).toEqual(["d"])
-      vi.advanceTimersByTime(readDwellMs * 5)
-      expect(answers).toHaveLength(1)
-      stop()
-    })
-
-    it("isn't read again when it still stands after its read settled", () => {
-      const { set, patch, ids, answers, stop } = setup()
-      set([done("d", "01")])
-      vi.advanceTimersByTime(readDwellMs)
-      patch({ answering: { d: true } })
-      patch({ answering: {} })
-      vi.advanceTimersByTime(readDwellMs * 5)
-      expect(ids()).toEqual(["d"])
-      expect(answers).toHaveLength(1)
       stop()
     })
   })
@@ -316,22 +251,6 @@ describe("the landing rule", () => {
       expect(rung).toEqual([])
       unfollow()
       stop()
-    })
-  })
-
-  context("once stopped", () => {
-    beforeEach(() => void vi.useFakeTimers())
-    afterEach(() => void vi.useRealTimers())
-
-    it("arms no timer and sends no read", () => {
-      const { set, reveal, answers, stop } = setup()
-      set([done("d", "01")])
-      stop()
-      reveal("d")
-      set([done("e", "01")])
-      vi.advanceTimersByTime(readDwellMs * 5)
-      expect(answers).toEqual([])
-      expect(vi.getTimerCount()).toBe(0)
     })
   })
 
@@ -380,41 +299,5 @@ describe("the landing's start and stop", () => {
     set([ask("a", "02")])
     expect(ids()).toEqual(["a"])
     stopAgain()
-  })
-})
-
-describe("deciding one row", () => {
-  const facts: RowFacts = {
-    kind: "ask",
-    here: true,
-    landed: false,
-    kept: false,
-    read: false,
-    ripe: false,
-  }
-
-  it("lands a new row of the viewed terminal quietly, and waits on nothing for it", () => {
-    expect(decideRow(facts)).toEqual({ act: "none", quiet: true })
-  })
-
-  it("lands a row of a terminal not viewed as any row", () => {
-    expect(decideRow({ ...facts, here: false })).toEqual({ act: "none", quiet: false })
-  })
-
-  it("doesn't hush a row that landed already", () => {
-    expect(decideRow({ ...facts, landed: true }).quiet).toBe(false)
-  })
-
-  it("waits out the dwell on an update, then reads it, landed or not", () => {
-    expect(decideRow({ ...facts, kind: "update" }).act).toBe("dwell")
-    expect(decideRow({ ...facts, kind: "update", ripe: true }).act).toBe("read")
-    expect(decideRow({ ...facts, kind: "update", landed: true, ripe: true }).act).toBe("read")
-  })
-
-  it("reads no update that is kept, read already, or not viewed", () => {
-    const update = { ...facts, kind: "update" as const, ripe: true }
-    expect(decideRow({ ...update, kept: true }).act).toBe("none")
-    expect(decideRow({ ...update, read: true }).act).toBe("none")
-    expect(decideRow({ ...update, here: false }).act).toBe("none")
   })
 })

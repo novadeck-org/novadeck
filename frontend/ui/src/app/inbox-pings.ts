@@ -102,8 +102,6 @@ export const clickNotice = (
     // Shows the Inbox for the row; returns what puts the sidebar back, unless it showed already.
     readonly peekInbox: () => (() => void) | undefined
     readonly reveal: (terminalId: string) => void
-    // Marks the row as the person's to open before it opens (the landing's `reveal`).
-    readonly land?: (id: string) => void
   },
   rowId?: string,
 ): void => {
@@ -117,7 +115,6 @@ export const clickNotice = (
       : undefined) ??
     onTerminal[0]
   if (!row) return to.reveal(terminalId)
-  to.land?.(row.id)
   to.open(row.id, to.peekInbox())
 }
 

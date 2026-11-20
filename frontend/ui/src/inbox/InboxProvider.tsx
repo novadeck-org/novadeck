@@ -36,6 +36,7 @@ import {
   visible,
   type InboxView,
 } from "./inbox-state"
+import { useReadOnLeaving } from "./read-on-leaving"
 
 // An answer the person gave, kept with its row and what it did, so the sheet can say so
 // after the backend drops the row.
@@ -83,10 +84,12 @@ export type InboxContextValue = {
   readonly phone: boolean
   // Whether any agent in the workspace is at work, which the empty list says.
   readonly working: boolean
-  // Whether the Inbox's panel is on screen, where seeing an update's row reads it.
+  // Whether the Inbox's panel is on screen, where an update's row can be seen.
   readonly active: boolean
   // Whether the person looks at the page: it has their focus and no dialog covers it.
   readonly looking: boolean
+  // Notes an update's row as seen in the list: it is read once the person leaves the list.
+  readonly sighted: (row: InboxRow) => void
   // Opens a row's sheet; with `once`, for that row alone (see `OpenOptions`).
   readonly open: (id: string, options?: OpenOptions) => void
   readonly close: () => void
@@ -373,6 +376,23 @@ export const InboxProvider = ({
     [inbox],
   )
 
+  // The updates seen in the list are read as the person leaves it: the panel goes, or they
+  // stop looking at the page. One opened meanwhile is read already, and one whose read is on
+  // its way or failed isn't read again.
+  const see = useReadOnLeaving(active && looking, (keys) => {
+    const snapshot = inbox.state.getSnapshot()
+    for (const row of snapshot.items)
+      if (
+        keys.has(rowKey(row)) &&
+        row.kind === "update" &&
+        !row.settled &&
+        !snapshot.answering[row.id] &&
+        snapshot.failed[row.id] === undefined
+      )
+        inbox.answer(row.id, { kind: "update", action: "read" })
+  })
+  const sighted = useCallback((row: InboxRow): void => see(rowKey(row)), [see])
+
   const dismiss = useMemo(
     () => (inbox.dismiss ? (id: string): void => inbox.dismiss?.(id) : undefined),
     [inbox],
@@ -538,6 +558,7 @@ export const InboxProvider = ({
       working,
       active,
       looking,
+      sighted,
       open,
       close,
       showHeld,
@@ -564,6 +585,7 @@ export const InboxProvider = ({
       working,
       active,
       looking,
+      sighted,
       open,
       close,
       showHeld,
