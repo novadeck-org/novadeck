@@ -18,7 +18,7 @@ import type { TerminalKey } from "@novadeck/core/types"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { rehomeTerminals } from "./by-terminal"
-import { createChatCommands, lostPrompt, ringRetryMs, ringWaitMs, unseenMs } from "./commands"
+import { createChatCommands, inDoubtNote, ringRetryMs, ringWaitMs, unseenMs } from "./commands"
 import { chatDraftOf } from "./drafts"
 import { chatReplyOf } from "./replies"
 import { chatSendsOf } from "./sends"
@@ -630,6 +630,47 @@ describe("a prompt whose answer the link lost", () => {
     return setup
   }
 
+  // No receipt ever follows these: no wait can tell whether they went.
+  // A shell command goes back after the words behind it, as `joinDraft` keeps words out of
+  // its lines.
+  for (const [what, words, asked, back] of [
+    ["a shell command", "!npm run migrate", false, "next\n!npm run migrate"],
+    [
+      "words that answer a question set aside",
+      "Use the other table",
+      true,
+      "Use the other table\nnext",
+    ],
+  ] as const)
+    it(`comes back at once, said as may have gone, for ${what}, with what was queued behind`, async () => {
+      const setup = losing()
+      const { commands, sent, phases, draft, tell } = setup
+      if (asked)
+        tell({
+          requests: [
+            {
+              id: "q1",
+              kind: "question",
+              tool: "AskUserQuestion",
+              subject: null,
+              choices: [],
+              subagent: false,
+              dialog: { type: "questions", id: "q1:d", chat: "prompt", questions: [] },
+              answered: false,
+              askedAt: 0,
+            },
+          ],
+        })
+      commands.setChatDraft("01", words)
+      const first = commands.sendChat(key, words, null)
+      const second = commands.sendChat(key, "next", null)
+      await expect(first).rejects.toThrow(inDoubtNote)
+      await expect(second).resolves.toBe(false)
+      expect(phases()).toEqual([])
+      expect(draft()).toBe(back)
+      expect(sent).toEqual([words])
+    })
+
   it("stays on its way, holding what was queued behind it, until its receipt says it went", async () => {
     const { commands, sent, phases, draft, receipt, tell } = losing()
     commands.setChatDraft("01", "one")
@@ -676,7 +717,7 @@ describe("a prompt whose answer the link lost", () => {
       ["two", "queued"],
     ])
     await vi.advanceTimersByTimeAsync(1)
-    await expect(first).rejects.toThrow(lostPrompt)
+    await expect(first).rejects.toThrow(inDoubtNote)
     await expect(second).resolves.toBe(false)
     expect(phases()).toEqual([])
     expect(draft()).toBe("one\ntwo")
@@ -690,7 +731,7 @@ describe("a prompt whose answer the link lost", () => {
     void first.catch(() => {})
     await vi.waitFor(() => expect(draft()).toBe(""))
     tell({ session: "s2" })
-    await expect(first).rejects.toThrow(lostPrompt)
+    await expect(first).rejects.toThrow(inDoubtNote)
     expect(draft()).toBe("one")
   })
 })

@@ -148,8 +148,10 @@ export type ChatCommands = {
 // the prompt's Enter goes, so only a receipt it dropped first is never seen.
 export const unseenMs = 15_000
 
-// What a prompt whose answer the link lost says once no receipt showed it went (see `InDoubt`).
-export const lostPrompt = "It didn't reach the agent before the link to the runner dropped."
+// What a message whose answer the link lost says as it comes back to the box, its receipt not
+// having shown that it went (see `InDoubt`): all that is known is that it may have.
+export const inDoubtNote =
+  "The link to the runner dropped as this went, so it may have reached the agent. Look at the terminal before you send it again."
 
 // How long a prompt waits in the queue behind rings before the person is told, in milliseconds:
 // a ring takes seconds, so one that outlasts this isn't ending by itself.
@@ -400,7 +402,7 @@ export const createChatCommands = ({
       watches.delete(ref)
       handBack(key, (send) => send.ref === ref || send.phase === "queued", [
         ref,
-        new Error(lostPrompt),
+        new Error(inDoubtNote),
       ])
     }
     const look = (): void => {
@@ -576,7 +578,17 @@ export const createChatCommands = ({
             return
           }
           ringWaits.delete(next.ref)
-          // The link dropped as it went: on its way still, until its receipt tells.
+          // The link dropped as it went: on its way still, until its receipt tells. A shell
+          // command has no receipt, nor words that answered a question set aside: no wait can
+          // tell whether they went, so they come back at once, said as may have gone.
+          const receipted = shellCommand(next.text) === undefined && setAside.length === 0
+          if (failure instanceof InDoubt && !receipted) {
+            handBack(key, (send) => send.ref === next.ref || send.phase === "queued", [
+              next.ref,
+              new Error(inDoubtNote),
+            ])
+            return
+          }
           if (failure instanceof InDoubt && sendsOf(key).some((send) => send.ref === next.ref)) {
             update(key, (all) =>
               withSend(all, contextOf(key), key.terminalId, next.ref, (send) => ({
