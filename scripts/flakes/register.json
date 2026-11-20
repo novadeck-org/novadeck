@@ -528,6 +528,17 @@
       "seen": ["#1002 run 44053570165 job 133946302766 (macOS), retried and passed"]
     },
     {
+      "id": "scripts-macos-runner-stall",
+      "jobs": ["^Test \\(macOS(?:, [1-3]/3)?\\)$"],
+      "test": "scripts/",
+      "signature": "Error: Test timed out in 5000ms\\.",
+      "status": "known",
+      "cause": "Not the tests: the macOS runner stopped for 28.6 s (15:38:49.6 to 15:39:18.3), with no test file finishing in the whole run, and each of the three tests that failed sat in a synchronous spawn through it (spawnSync node on retry.ts, execFileSync git, the flakes CLI under node), which blocks Vitest's own 5 s timer until it returns: they ran 28.5, 28.6 and 29.1 s and ended together. In 29 other Test (macOS) jobs of 11-19 the three files take 0.6 to 6.7 s and no stall in the scripts' run passes 6.5 s. Not reproduced, and nothing in the job's log says what stopped; whichever scripts tests are mid-spawn when it comes fail, so this matches any scripts test at the default limit, and the scripts get no retry of their own.",
+      "seen": [
+        "#1079 run 44554223867 job 135675265272 (macOS): scripts/ci/setup/scripts.test.ts, scripts/flakes/retries.test.ts, scripts/quality/plan/plan.test.ts, passed on rerun"
+      ]
+    },
+    {
       "id": "ui-views-canvas-sessions-return-timeout",
       "jobs": ["^Test \\(macOS(?:, [1-3]/3)?\\)$"],
       "test": "src/views/canvas-sessions.spec.tsx > Canvas across workspace sessions > when switching session right after moving the camera > frames every window afresh on returning, as on opening",
