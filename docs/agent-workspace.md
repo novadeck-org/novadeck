@@ -384,8 +384,9 @@ one unbroken range (`selection.ts`), whose files `changeRange` lists. A file the
 any selection, until the file changes again: the runner keeps it read (`changeRead`, in the
 content's `read`), across restarts, and the pane grays it at once until the content comes again. One click on a file unfolds what it changed under its row, one file
 at a time, as `.terminal-tab-branches` unfold a terminal tab's subagents (├ └ rows with the
-tab's own fold and transition), each a fact (where the change sits, `+N −N`); a double click, or
-Enter, opens the file. The **file view** is the row grown into a plain heading (‹ back, the folder
+tab's own fold and transition), each a fact (where the change sits, `+N −N`), with "Open diff ›" under them; that, a double click,
+Enter, or the `›` at the row's end (shown where the pointer is, on the unfolded row, and always
+where nothing hovers) opens the file. The **file view** is the row grown into a plain heading (‹ back, the folder
 dim and the name in body type, the file's counts, ⌃ ⌄ and "N of M" within the selection), a line of
 what the file came to, and its changes, each headed by where it sits ("2/4 in requireUser()", "new
 refreshSession()") and the lines it spans; a change past 36 rows shows its start and end with

@@ -173,4 +173,14 @@ describe("A change's pane", () => {
     await page.elementLocator(arrow).click()
     await expect.element(pane.getByText("5 of 6")).toBeVisible()
   })
+
+  it("moves the arrow keys on from an unfolded file's Open diff as from its row", async () => {
+    const pane = await openChange()
+    await file(pane, "cookies.ts").click()
+
+    pane.getByRole("button", { name: "Open diff" }).element().focus()
+    await userEvent.keyboard("{ArrowDown}")
+
+    await expect.element(file(pane, "session.test.ts")).toHaveFocus()
+  })
 })

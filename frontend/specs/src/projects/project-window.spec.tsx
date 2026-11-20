@@ -34,7 +34,7 @@ describe("The project window", () => {
     })
   }
 
-  it("opens once on a double-click, as it did before a click opened it", async () => {
+  it("still opens on a double-click, as before a click opened it", async () => {
     await openFiles()
 
     await row("package.json").dblClick()

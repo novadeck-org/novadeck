@@ -303,22 +303,22 @@
   padding: 0 14px 0 56px;
 }
 /* The way into a file's diff, so it isn't left to a double click: an arrow at the row's end,
-   where the pointer is, on the unfolded row, and always where nothing hovers; and a muted line
-   under what the file changed. */
+   where the pointer is, on the unfolded row, and always where nothing hovers, its place kept
+   so the counts never move; and a muted line under what the file changed. */
 .changes-file-open {
-  display: none;
   width: 22px;
   height: 22px;
   flex: none;
   margin: 0 4px 0 -4px;
+  visibility: hidden;
 }
 .diff-file:hover .changes-file-open,
 .changes-item[data-open] > .diff-file .changes-file-open {
-  display: inline-flex;
+  visibility: visible;
 }
 @media (hover: none) {
   .changes-file-open {
-    display: inline-flex;
+    visibility: visible;
   }
 }
 .changes-peek-open {

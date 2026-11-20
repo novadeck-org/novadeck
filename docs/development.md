@@ -595,7 +595,7 @@ Agents:
   stands only while its lead has work too (else its workers are solo chips), and an agent in
   two teams sits in the first squad that names it. The `agents`, `inbox` and try demos have no
   team, so their strips are solo chips.
-- **File preview:** in the `agents`, `messages` and `inbox` variants, double-click
+- **File preview:** in the `agents`, `messages` and `inbox` variants, click
   `src/checkout/Checkout.tsx` in the Files panel (or click it under a selected row of the Worktrees
   panel) to open the project window as the file would be once the agents' work merges onto main:
   Moth's and Crow's changes carried onto main's copy (`frontend/demo/src/preview.ts`), each under a

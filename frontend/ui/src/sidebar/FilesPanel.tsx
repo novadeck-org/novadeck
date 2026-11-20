@@ -344,8 +344,8 @@ const FilesPanelView = ({
     event.stopPropagation()
     setKept(noAgents)
   }
-  // The tree keyboard pattern; Space and a folder's Enter are the buttons' own click, a file's
-  // Enter opens it.
+  // The tree keyboard pattern; Space and a folder's Enter are the buttons' own click (which opens
+  // a file), a file's Enter opens it.
   const onKeyDown = (event: React.KeyboardEvent): void => {
     onEscape(event)
     if (event.altKey || event.ctrlKey || event.metaKey) return

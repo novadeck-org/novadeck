@@ -87,11 +87,15 @@ export const FileTree = ({
   stamp: string
   layers: readonly string[]
 }): React.JSX.Element => {
-  // Arrow keys move between the rows, as in a tree.
+  // Arrow keys move between the rows, as in a tree; from an unfolded file's "Open diff", as from
+  // its row.
   const move = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
     const items = [...event.currentTarget.querySelectorAll<HTMLElement>('[role="treeitem"]')]
-    const at = items.indexOf(document.activeElement as HTMLElement)
+    const from = document.activeElement
+      ?.closest(".changes-item")
+      ?.querySelector('[role="treeitem"]')
+    const at = items.indexOf((from ?? document.activeElement) as HTMLElement)
     const next = items[at + (event.key === "ArrowDown" ? 1 : -1)]
     if (!next) return
     event.preventDefault()
