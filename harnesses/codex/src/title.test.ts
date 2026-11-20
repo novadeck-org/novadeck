@@ -102,6 +102,43 @@ describe("a thread Codex just started", () => {
     )
   })
 
+  // A rollout of the thread, its first record as Codex 0.171.0 writes it (probed 2026-11-20).
+  const rollout = (where: Install, meta: object) => {
+    const made = new Date(Number.parseInt(thread.replaceAll("-", "").slice(0, 12), 16))
+    const pad = (value: number) => String(value).padStart(2, "0")
+    const day = join(
+      where.home,
+      "sessions",
+      String(made.getFullYear()),
+      pad(made.getMonth() + 1),
+      pad(made.getDate()),
+    )
+    mkdirSync(day, { recursive: true })
+    const record = { type: "session_meta", payload: { id: thread, source: "cli", ...meta } }
+    writeFileSync(
+      join(day, `rollout-2026-10-01T00-00-00-${thread}.jsonl`),
+      `${JSON.stringify(record)}\n`,
+    )
+  }
+
+  it("is no new root where its rollout says it is a /side conversation kept with the root", async () => {
+    const now = Date.now()
+    const side = home([{ id: thread, at: now }])
+    rollout(side, {
+      forked_from_id: "01a0f99e-0000-7000-8000-000000000000",
+      attached_thread: true,
+      thread_source: "tui_side_chat",
+    })
+    expect(await startedSession(side, shown, now, undefined, 0)).toBe(false)
+    // A thread the person goes on in, as a /clear's or a /fork's, says its source is theirs.
+    const forked = home([{ id: thread, at: now }])
+    rollout(forked, {
+      forked_from_id: "01a0f99e-0000-7000-8000-000000000000",
+      thread_source: "user",
+    })
+    expect(await startedSession(forked, shown, now, undefined, 0)).toBe(true)
+  })
+
   it("waits a moment for a lock made just after the title", async () => {
     const now = Date.now()
     const where = home([])

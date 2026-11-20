@@ -4,7 +4,9 @@ import { join } from "node:path"
 import type { PromptShown } from "@novadeck/harness-core/events"
 import type { Install } from "@novadeck/harness-core/harness"
 
+import { liveRollout } from "./conversation.js"
 import { codexHome } from "./home.js"
+import { sideRollout } from "./side.js"
 
 /**
  * The items Novadeck's shim gives Codex's terminal title, as one `-c` setting: its run
@@ -58,11 +60,25 @@ export const titleWorking = (text: string): boolean => {
 export const confirmingPrefix = 23
 
 /**
+ * Whether the thread is a side conversation kept with its root, by its rollout (`sideRollout`),
+ * looked at once: Codex writes a kept side conversation's rollout as it makes the thread, right
+ * after its lock and before the thread is there to show (`live_writer::create_thread` persists
+ * an `attached_thread`'s, 0.171.0 source), so a title naming it comes after. A new root's comes
+ * only with its first prompt: no rollout is no side conversation, and waiting for one would hold
+ * every `/clear` up.
+ */
+const sideConversation = async (where: Install, session: string): Promise<boolean> => {
+  const path = await liveRollout(where, session)
+  return path !== undefined && (await sideRollout(path)) === true
+}
+
+/**
  * Whether Codex just started, as a new root thread, the thread whose id starts with
  * `prefix`. It writes and holds a lock for each thread it starts through its thread store
  * (`live_writer::create_thread`, 0.159.3): a new or cleared root, but also an agent it
  * spawns (with `parent_thread_id`); none for an ephemeral `/side` fork, whose id its title
- * shows alike. So the lock must be made from a second before the title to a moment after
+ * shows alike, but one from 0.171.0 for a `/side` fork it keeps, whose rollout says so
+ * (`sideConversation`). So the lock must be made from a second before the title to a moment after
  * it (an agent's was made at its spawn, inside an earlier turn), and, where `holds` can
  * tell, held by a process of the terminal's foreground group, where its Codex runs (a
  * wrapper may run the program that holds it). The caller rules out a turn running as the title
@@ -92,7 +108,9 @@ export const startedSession = async (
       // A second of slack either way for clocks that round.
       if (made < since - 1_000 || made > since + waitMs + 1_000) continue
       // eslint-disable-next-line no-await-in-loop -- As above.
-      if ((await holds?.(path)) !== false) return true
+      if ((await holds?.(path)) === false) continue
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      if (!(await sideConversation(where, name.slice(0, -".lock".length)))) return true
     }
     if (Date.now() >= until) return false
     // eslint-disable-next-line no-await-in-loop -- As above.

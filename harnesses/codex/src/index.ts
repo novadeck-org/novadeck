@@ -22,6 +22,7 @@ import { connect, connected, disconnect, files, hook, hookDialect } from "./plug
 import { followRollout, followSubagent, rolloutPlans } from "./rollout.js"
 import { conversational, shapes } from "./shapes.js"
 import { cmdShim, posixShim } from "./shim.js"
+import { aside } from "./side.js"
 import { heldScreen } from "./startup.js"
 import { startedSession, title, titleWorking } from "./title.js"
 import { transcripts } from "./transcripts.js"
@@ -253,6 +254,7 @@ export const codex = {
   screenVersion: bannerVersion,
   screenMarker: bannerMarker,
   startedSession,
+  aside,
   heldScreen,
   hooksTrusted,
   // Where it keeps its threads' locks and its configuration, and how it is found.

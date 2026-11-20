@@ -1,4 +1,4 @@
-import type { HarnessEvent } from "@novadeck/harness-core/events"
+import type { HarnessEvent, SessionObserved } from "@novadeck/harness-core/events"
 import { vi } from "vitest"
 
 import { harnesses } from "../../harnesses/registry.js"
@@ -14,7 +14,7 @@ import {
   worktreesOnNotice,
 } from "../nudges.js"
 import type { Record } from "../record.js"
-import { Reports, type ReportsHost } from "./reports.js"
+import { Reports, withoutAside, type ReportsHost } from "./reports.js"
 
 describe("a root turn's prompt told from the transcript", () => {
   // Their hooks name the prompt (UserPromptSubmit), so a session bound at its prompt, as a
@@ -43,6 +43,34 @@ describe("a root turn's prompt told from the transcript", () => {
       expect(await reports.attributed(record, events)).toBe(events)
       expect(record.seenEntry).toBeUndefined()
     })
+})
+
+describe("a session its harness keeps beside its root", () => {
+  const base = { agent: "codex", instance: "1", startedAt: 1 } as const
+  const side: HarnessEvent = {
+    ...base,
+    type: "session-observed",
+    sessionId: "side",
+    evidence: "native-switch",
+    transcript: "/side.jsonl",
+  }
+  const root: HarnessEvent = { ...side, sessionId: "root", transcript: "/root.jsonl" }
+  const turn: HarnessEvent = { ...base, type: "turn-started", sessionId: "side", cause: "prompt" }
+
+  it("is left out of what its report tells, as its harness says, and nothing else", async () => {
+    const aside = vi.fn<(event: SessionObserved) => Promise<boolean>>(
+      async (event) => event.sessionId === "side",
+    )
+    expect(await withoutAside([side, root, turn], aside)).toEqual([root, turn])
+    expect(aside).toHaveBeenCalledTimes(2)
+  })
+
+  it("is never asked about where the harness keeps none, or the report names no session", async () => {
+    const aside = vi.fn<(event: SessionObserved) => Promise<boolean>>(async () => true)
+    expect(await withoutAside([side], undefined)).toEqual([side])
+    expect(await withoutAside([turn], aside)).toEqual([turn])
+    expect(aside).not.toHaveBeenCalled()
+  })
 })
 
 describe("the screen an agent says it is at before its first session", () => {

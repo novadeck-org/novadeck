@@ -10,7 +10,13 @@ import type { BoxProfile } from "@novadeck/tui-input/box"
 
 import type { Conversation, ConversationScan, Known } from "./conversation.js"
 import type { DialogAdapter } from "./dialogs.js"
-import type { HarnessEvent, LimitsCover, PlanSource, PromptShown } from "./events.js"
+import type {
+  HarnessEvent,
+  LimitsCover,
+  PlanSource,
+  PromptShown,
+  SessionObserved,
+} from "./events.js"
 import type { Dialect } from "./hook-command.js"
 import type { Report } from "./report.js"
 import type { Shape } from "./shapes.js"
@@ -365,6 +371,13 @@ export type Harness = {
     since: number,
     holds?: (path: string) => Promise<boolean | undefined>,
   ) => Promise<boolean>
+  /**
+   * Whether a session its hooks name is one the harness keeps beside its root, never the
+   * terminal's own, though its start names a transcript as a root's does: Codex's `/side`
+   * conversation from 0.171.0, whose rollout says so. Its `session-observed` binds nothing and
+   * names no new root. Where omitted, every session its hooks name may.
+   */
+  readonly aside?: (event: SessionObserved) => Promise<boolean>
   /**
    * The variables of its process that say where it lives and which program it runs (as
    * Codex's `CODEX_HOME`), read from the terminal's own process where the platform tells,
