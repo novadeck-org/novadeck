@@ -124,3 +124,16 @@ export const codexAnswerPrompt = (question: string, answer: string): string =>
   `> ${question}\n\n${answer}`
 
 export const isCodexAnswer = (text: string): boolean => /^(?:Re: [^\n]+\n|> [^\n]+\n\n)/.test(text)
+
+/**
+ * Whether a text is a delivery of agents' messages, as Novadeck frames one
+ * (`<novadeck-messages note=…>`), rather than the person's words: one that starts with it, as
+ * Claude Code wrote a Stop's at 2.1.294, or with it behind the "Stop hook feedback:" Claude
+ * Code puts before a Stop's `decision: "block"` reason. Only the start counts: the person's
+ * words may quote a delivery, and no harness puts one after other text in a prompt (probed
+ * 2026-11-20 with Claude Code 2.1.328, Codex 0.170.0 and Antigravity 1.5.12,
+ * `backend/runner/src/e2e/probes/delivery-prompts.e2e.ts`). The adapters, the chat and the
+ * Inbox read deliveries by this one rule.
+ */
+export const isDelivery = (text: string): boolean =>
+  /^\s*(?:Stop hook feedback:\s*)?<novadeck-messages[\s>]/.test(text)

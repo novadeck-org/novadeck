@@ -5,6 +5,7 @@ import { promisify } from "node:util"
 import { connectRunner } from "@novadeck/runner-client"
 import { websocket } from "@novadeck/wire/client"
 
+import { hostless } from "./host.js"
 import type { Resources } from "./resources.js"
 
 const executable = fileURLToPath(new URL("../../dist/cli.js", import.meta.url))
@@ -27,7 +28,7 @@ const bounded = async <T>(operation: Promise<T>, description: string): Promise<T
 
 /** Starts the distributed CLI, including its cwd-based environment-file loading. */
 export const launchCli = async (directory: string, resources: Resources) => {
-  const environment = { ...process.env }
+  const environment = hostless()
   const configured = new Set([
     "HOST",
     "PORT",

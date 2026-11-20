@@ -309,8 +309,8 @@ export const spawnPty = (
     child.onData(() => {
       if (lowered || !(child.pid > 0)) return
       lowered = true
-      // Its terminal in use already: it stays at normal.
-      if (boost.active) return
+      // Its terminal in use already: raised now, as it couldn't be while its pid was unknown.
+      if (boost.active) return boost.known()
       const shell = child.pid
       options.priority?.lower(shell)
       if (options.priority)

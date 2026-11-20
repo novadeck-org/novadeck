@@ -543,6 +543,17 @@ export const boxNotCleared = (): SettleInTerminal =>
     "That didn't clear the agent's input box. Look at it above, or clear it in the terminal.",
   )
 
+// What `Conversations.send` and `interrupt` reject with when the link to the backend dropped
+// while the call was on its way, once it is back: the call may have taken there, as the backend
+// goes on with it, or not, and its answer can't say which. A prompt sent with a `ref` is then
+// told by what the conversation shows next: its receipt (`Conversation.prompts`), or none.
+export class InDoubt extends Error {
+  constructor(message = "The link to the runner dropped as it went.") {
+    super(message)
+    this.name = "InDoubt"
+  }
+}
+
 // A failure with the words the message took out of the agent's box before it failed, which the
 // chat's box takes all the same: they are in the agent's no longer.
 export const withReturned = <E extends Error>(failure: E, returned: string | undefined): E =>

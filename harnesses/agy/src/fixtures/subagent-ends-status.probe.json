@@ -1,0 +1,585 @@
+{
+  "harness": "agy",
+  "version": "1.5.12",
+  "source": "captured against the fake model (2026-11-20), by backend/runner/src/e2e/probes/subagent-ends-agy.e2e.ts",
+  "how": "One session. The root invokes subagent A (TypeName self), held at its model call, kills it with manage_subagents kill, then sends it a message (refused: it is killed); invokes B, whose model call is refused with a 400; invokes C, held, and kills all with kill_all; invokes D, held. Each step's status line snapshots in order (agent_state, its subagents list, task_count), and the root's Stop hooks' fullyIdle",
+  "ids": {
+    "a": "e886b710-2840-4420-a45e-658ede8ee42c",
+    "b": "4d19f5be-c312-4b83-8b43-fdc40f5306e6",
+    "c": "ebb24d0d-5cf9-4f6a-a6ec-d9ff7fd6e9e3",
+    "d": "4f503a07-6e1b-4d11-bb79-c607e974e9d6"
+  },
+  "steps": [
+    {
+      "step": "A started, held",
+      "stops": [
+        {
+          "fullyIdle": false
+        }
+      ],
+      "statusLines": [
+        {
+          "state": "authenticating"
+        },
+        {
+          "state": "authenticating"
+        },
+        {
+          "state": "idle"
+        },
+        {
+          "state": "idle"
+        },
+        {
+          "state": "working"
+        },
+        {
+          "state": "working"
+        },
+        {
+          "state": "idle"
+        },
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Helper A",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "running"
+            }
+          ]
+        },
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "running"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "A killed",
+      "stops": [
+        {
+          "fullyIdle": true
+        }
+      ],
+      "statusLines": [
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "running"
+            }
+          ]
+        },
+        {
+          "state": "working",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "running"
+            }
+          ]
+        },
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "running"
+            }
+          ]
+        },
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "A messaged after the kill",
+      "stops": [
+        {
+          "fullyIdle": true
+        }
+      ],
+      "statusLines": [
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "state": "working",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "state": "working",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "B's model call failed",
+      "stops": [
+        {
+          "fullyIdle": false
+        },
+        {
+          "fullyIdle": true
+        },
+        {
+          "fullyIdle": true
+        }
+      ],
+      "statusLines": [
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "state": "working",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "state": "working",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Helper B",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "C killed by kill_all",
+      "stops": [
+        {
+          "fullyIdle": false
+        },
+        {
+          "fullyIdle": true
+        }
+      ],
+      "statusLines": [
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Helper B",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "state": "working",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Helper B",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Helper B",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Helper B",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Work C held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "running"
+            }
+          ]
+        },
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Helper B",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Work C held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "running"
+            }
+          ]
+        },
+        {
+          "state": "working",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Helper B",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Work C held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "running"
+            }
+          ]
+        },
+        {
+          "state": "working",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Helper B",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Work C held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "running"
+            }
+          ]
+        },
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Helper B",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Work C held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "running"
+            },
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Helper B",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Work C held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "D started, held",
+      "stops": [
+        {
+          "fullyIdle": false
+        }
+      ],
+      "statusLines": [
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Helper B",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Work C held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "state": "working",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Helper B",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Work C held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "state": "working",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Helper B",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Work C held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Helper B",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Work C held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "state": "idle",
+          "subagents": [
+            {
+              "name": "self",
+              "role": "Helper B",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Work C held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            },
+            {
+              "name": "self",
+              "role": "Work D held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "running"
+            },
+            {
+              "name": "self",
+              "role": "Work A held",
+              "model": "Gemini 3.1 Pro (Low)",
+              "status": "completed"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -90,6 +90,19 @@ describe("a terminal in use", () => {
     expect([early.raised, ended.raised, ended.weights]).toEqual([[], [], []])
   })
 
+  it("raises a terminal in use since before its shell's pid was known once it is", async () => {
+    let shell: number | undefined
+    const { all, raised } = parts({ scope: undefined, platform: "darwin", shell: () => shell })
+    const boost = boosting(all)
+    boost.known()
+    boost.set(true)
+    await Promise.resolve()
+    expect(raised).toEqual([])
+    shell = 10
+    boost.known()
+    await vi.waitFor(() => expect(raised).toEqual([10]))
+  })
+
   it("does nothing where there is no scope and no priority", () => {
     const { all } = parts({ scope: undefined, priority: undefined })
     expect(() => boosting(all).set(true)).not.toThrow()

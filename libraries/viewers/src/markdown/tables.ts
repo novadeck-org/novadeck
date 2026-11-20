@@ -1,3 +1,4 @@
+import { fencedLines } from "../fence.js"
 import type { RowAnnotations } from "./annotations.js"
 
 // Markdown tables in a text, down to each cell's place in it, so a cell can be edited
@@ -100,12 +101,12 @@ export const findTables = (text: string, annotations: Markers | null = null): Ta
     [0],
   )
   const tables: Table[] = []
-  let fenced = false
+  const fenced = fencedLines(lines)
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index]!
-    if (/^\s*```/.test(line)) fenced = !fenced
     const next = lines[index + 1]
-    if (fenced || !line.includes("|") || next === undefined || !delimiterRow.test(next)) continue
+    if (fenced[index] || !line.includes("|") || next === undefined || !delimiterRow.test(next))
+      continue
     const head = rowOf(line, starts[index]!, annotations)
     // As in GFM, the delimiter row has a cell for each header cell; a lone `---` under a
     // line with a pipe in it underlines a heading instead.

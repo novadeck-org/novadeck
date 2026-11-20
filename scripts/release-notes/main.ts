@@ -45,9 +45,11 @@ export const skippedSummary = (mode: string, tag: string, skip: Skip): string =>
  * `node scripts/release-notes/main.ts promote <tag> <out file>`: the body for a promotion,
  * covering every change since the latest stable one.
  *
- * Whatever goes wrong with the model, its answer or `gh` writes no file and still exits 0,
- * saying why: the workflows edit a release only when the file exists, so it keeps its body.
- * A usage error or a failure of git exits non-zero. `--dry-run` prints the body and the
+ * Whatever goes wrong with the model, its answer or `gh` writes no file and says why: the
+ * workflows edit a release only when the file exists, so it keeps its body. A prerelease's run
+ * still exits 0, as a build goes out without notes; a promotion's exits 1, as a stable release
+ * doesn't (Promote to Stable stops there, and a fresh run tries both again). A usage error or a
+ * failure of git exits non-zero. `--dry-run` prints the body and the
  * model's answer, or the reason there is no body, and writes no file. OPENROUTER_API_KEY is
  * the model's key; RELEASE_NOTES_PRERELEASE_MODEL and RELEASE_NOTES_PROMOTE_MODEL name the
  * model for each mode. GH_REPO and GH_TOKEN are `gh`'s, and GH_REPO also names the
@@ -58,7 +60,7 @@ export const main = async (
   sources: Sources = gitSources,
   clientFor: (mode: "release" | "promote") => Client = defaultClientFor,
   log: (message: string) => void = console.log,
-): Promise<void> => {
+): Promise<number> => {
   const dryRun = args.includes("--dry-run")
   const [mode, tag, out, ...rest] = args.filter((arg) => arg !== "--dry-run")
   if ((mode !== "release" && mode !== "promote") || !tag || (!out && !dryRun) || rest.length > 0)
@@ -67,6 +69,7 @@ export const main = async (
   const client = clientFor(mode)
   const ask: Ask = (kind, version, items) => askModel(client, kind, version, items)
   let summary: string
+  let code = 0
   try {
     // Before anything is collected: a run without a key has nothing to wait for.
     if (!client.apiKey) throw new Skip("No OPENROUTER_API_KEY")
@@ -96,19 +99,22 @@ export const main = async (
   } catch (error) {
     if (!(error instanceof Skip)) throw error
     summary = skippedSummary(mode, tag, error)
-    // On the run's page the reason shows as a warning; it holds no line text or credit amount.
+    // A promotion without notes fails; a prerelease's goes on. On the run's page the reason
+    // shows as an error or a warning; it holds no line text or credit amount.
+    if (mode === "promote" && !dryRun) code = 1
     if (process.env.GITHUB_ACTIONS)
-      log(`::warning title=Release notes::${annotation(error.message)}`)
+      log(`::${code ? "error" : "warning"} title=Release notes::${annotation(error.message)}`)
     // A file left from an earlier run would be taken for this run's notes.
     if (!dryRun) rmSync(out!, { force: true })
     log(dryRun && error.raw ? `${summary}\n--- model answer ---\n${error.raw}` : summary)
   }
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary)
+  return code
 }
 
 if (import.meta.main) {
   try {
-    await main()
+    process.exitCode = await main()
   } catch (error) {
     console.error(error)
     process.exitCode = 1

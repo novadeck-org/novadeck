@@ -863,8 +863,9 @@ for (const setup of setups) {
     `activity.attention`) from a subagent it lists as running. t2's message waits queued
     past the settle window, t1 never rung and no call holding the doorbell's line. The
     person presses Esc on the dialog (`escape()`, never Enter), which fires no hook:
-    Novadeck's request goes to none by following the agent's own rollout, the subagent
-    still listed as running, and t1 is then rung and its hook delivers. Codex's own
+    Novadeck's request goes to none by following the agent's own rollout, whose abort
+    ends the subagent's turn as its stop would (no longer listed), and t1 is then rung
+    and its hook delivers. Codex's own
     evidence that it aborted: the dialog's thread line leaves the screen, the agent's
     rollout (`rollout-<time>-<agent id>.jsonl` under `CODEX_HOME/sessions`) holds
     `turn_aborted`, and no call of its conversation ever looks at the command's result.
@@ -931,10 +932,11 @@ versions it names). That's where they pay:
   (`PROBE_OUT` and its siblings). The job keeps those as its `probes-<harness>-<slice>` artifact,
   with a `fixtures.diff` of the fixtures the probes rewrote in the tree, and its summary
   says which changed: against the latest release, that is the harness's drift, before a
-  pin moves. Two assert what the code relies on, so a release that changes it fails the night
+  pin moves. Three assert what the code relies on, so a release that changes it fails the night
   (and `nightly.yml` opens its issue): `launch-flags` (a bare resume forgets exactly the
-  flags `forgets` lists) and `cron-id` (CronCreate's `tool_response.id` is CronDelete's
-  `tool_input.id`). Another exception is `agy-stop-boundary`, which asserts that each prompt reached
+  flags `forgets` lists), `cron-id` (CronCreate's `tool_response.id` is CronDelete's
+  `tool_input.id`) and `agy-schedule` (an Antigravity schedule's PostToolUse comes at its kill,
+  with its PreToolUse's `stepIdx`, and none at a cron's firing). Another exception is `agy-stop-boundary`, which asserts that each prompt reached
   the model exactly once; it runs only with `AGY_CAPTURE`, and the Flaky capture workflow
   runs it when it, its config or that workflow changes.
 - Every case starts a real harness, and the ask probes run dozens of cases each (Antigravity's

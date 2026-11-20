@@ -139,6 +139,20 @@ export const generateRelease = async (
   }
 }
 
+/** The newest stable release among the release tags older than `tag`, newest first. */
+const stableBefore = async (
+  tag: string,
+  tags: readonly string[],
+  sources: Sources,
+): Promise<string | undefined> => {
+  for (const older of tags.slice(0, tags.indexOf(tag)).toReversed()) {
+    // oxlint-disable-next-line no-await-in-loop -- Newest first, stopping at the first stable one.
+    const release = await viaGh(`read ${older}'s release`, sources.release(older))
+    if (release && !release.prerelease) return older
+  }
+  return undefined
+}
+
 /**
  * A promotion's notes: every change since the latest stable one, up to `tag`. The details
  * keep only the promoted release's own changelog and a link to the whole range.
@@ -152,7 +166,11 @@ export const generatePromote = async (
   if (!versionOf(tag)) throw new Error(`${tag} is not a vX.Y.Z tag`)
   const tags = sorted(await sources.tags(tag))
   if (!tags.includes(tag)) throw new Error(`${tag} is not among the release tags merged into it`)
-  const stable = await viaGh("look up the latest stable release", sources.stable())
+  let stable = await viaGh("look up the latest stable release", sources.stable())
+  // Already the stable release: its promotion went through without notes (the model refused,
+  // as OpenRouter's 402 did for v1.8.2 and v1.9.53), and a rerun writes them from the stable
+  // release before it.
+  if (stable === tag) stable = await stableBefore(tag, tags, sources)
   if (stable && versionOf(stable) && compare(stable, tag) >= 0)
     throw new Skip(`${tag} is not newer than the stable release ${stable}`)
   if (stable && versionOf(stable) && !tags.includes(stable)) throw new Error(unmarked(stable, tag))

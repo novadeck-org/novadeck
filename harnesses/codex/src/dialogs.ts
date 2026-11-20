@@ -9,6 +9,7 @@ import type {
 import { asyncQuestions } from "./async-question-dialog.js"
 import { asyncTool } from "./async-question.js"
 import { clean, composerShown, type Parsed } from "./dialog-screen.js"
+import { elicitation, elicitationRequest } from "./elicitation-dialog.js"
 import { rootRows, sideFocused } from "./panes.js"
 import { permission } from "./permission-dialog.js"
 import { plan, planTitle } from "./plan-dialog.js"
@@ -39,13 +40,16 @@ import { questions } from "./question-dialog.js"
  *   drops the questions, and the answer is a prompt of the person's, `> {question}`, a
  *   blank line, the answer, for each. Read only while the screen is that panel, that
  *   picker or an idle composer with nothing else on it; any other screen reads as none.
- * An MCP server's own elicitation form is not read. From 0.171.0 a `/side` conversation on a
- * screen of 100 columns or more is a sidebar beside the root's pane: the root's dialogs are
- * read in its pane alone (`rootRows`), and one held while the side has the focus is brought
- * into view with Ctrl-/ (`sideFocused`), as on a narrower screen and in 0.170.0, where the side
- * takes the whole screen. A side conversation's own approval puts no request on the terminal
- * (probed both versions, both widths, 2026-11-20, `sideApproval*` in fixtures/side-dialog.probe.json:
- * the terminal's pending requests stay empty while it shows), so none is read in the sidebar. Each dialog has its own file
+ * - An MCP server's own form (an elicitation) fires no hook: the screen alone raises its
+ *   request (`screenRequest`), as it does the plan prompt's, and the person answers it in
+ *   the terminal.
+ * From 0.171.0 a `/side` conversation on a screen of 100 columns or more is a sidebar beside the
+ * root's pane: the root's dialogs are read in its pane alone (`rootRows`), and one held while the
+ * side has the focus is brought into view with Ctrl-/ (`sideFocused`), as on a narrower screen and
+ * in 0.170.0, where the side takes the whole screen. A side conversation's own approval puts no
+ * request on the terminal (probed both versions, both widths, 2026-11-20, `sideApproval*` in
+ * fixtures/side-dialog.probe.json: the terminal's pending requests stay empty while it shows), so
+ * none is read in the sidebar. Each dialog has its own file
  * (`*-dialog.ts`), and `dialog-screen.ts` holds what they share.
  */
 
@@ -118,8 +122,13 @@ export const dialogs: DialogAdapter = {
   },
   // A second Ctrl-/ would move the focus back where it was.
   revealToggles: [ctrlSlash],
-  screenRequest: (rows): ScreenRequest | undefined =>
-    plan(clean(rootRows(rows))) === undefined
-      ? undefined
-      : { kind: "plan", tool: "plan", input: null, subject: planTitle },
+  // The prompt after a plan, and an MCP server's form (`elicitation-dialog.ts`): neither fires
+  // a hook. Both are the root's, read in its pane.
+  screenRequest: (rows): ScreenRequest | undefined => {
+    const root = rootRows(rows)
+    if (plan(clean(root)) !== undefined)
+      return { kind: "plan", tool: "plan", input: null, subject: planTitle }
+    const asked = elicitation(root)
+    return asked === undefined ? undefined : elicitationRequest(asked)
+  },
 }

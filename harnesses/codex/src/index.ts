@@ -268,4 +268,5 @@ export const codex = {
   watch: followRollout,
   // A subagent's rollout records Esc on its request, which no hook reports.
   watchActor: followSubagent,
+  watchesRunning: true,
 } satisfies Harness

@@ -113,6 +113,8 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
       return actor
         ? []
         : [
+            // Before the turn's end, so the requests of those gone settle with it.
+            ...subagentsRunning(base, payload.background_tasks),
             {
               type: "turn-ended",
               ...base,
@@ -132,6 +134,7 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
         errorText(payload.error_details) ??
         (text(payload.error) === "unknown" ? undefined : errorText(payload.error))
       return [
+        ...subagentsRunning(base, payload.background_tasks),
         {
           type: "turn-ended",
           ...base,
@@ -281,7 +284,9 @@ const finished = (prompt: string): string[] =>
  * The root's background shells a call tells of, from its result (probed 2026-11-10, 2.1.316):
  * a Bash run in the background starts one, by its `backgroundTaskId`, with the command it
  * was given; TaskStop ends one the agent stopped (`task_id`), which writes no notification.
- * A Monitor is no shell. A subagent's calls are its own.
+ * A TaskStop of a subagent (`task_type` `local_agent`) ends that subagent instead, which
+ * fires no SubagentStop (probed 2026-11-20, 2.1.328, fixtures/subagent-ends.probe.json). A
+ * Monitor is no shell. A subagent's calls are its own.
  */
 const shells = (
   base: EventBase<"claude">,
@@ -291,7 +296,10 @@ const shells = (
   const result = isFields(payload.tool_response) ? payload.tool_response : {}
   if (tool === "TaskStop") {
     const stopped = shortName(result.task_id, agentLimits.name)
-    return stopped === undefined ? [] : [{ type: "shell-ended", ...base, id: stopped, code: null }]
+    if (stopped === undefined) return []
+    return result.task_type === "local_agent"
+      ? [{ type: "subagent-stopped", ...base, actor: stopped }]
+      : [{ type: "shell-ended", ...base, id: stopped, code: null }]
   }
   const id = tool === "Bash" ? shortName(result.backgroundTaskId, agentLimits.name) : undefined
   const command = isFields(payload.tool_input) ? errorText(payload.tool_input.command) : undefined
@@ -312,6 +320,24 @@ const shellsRunning = (base: EventBase<"claude">, tasks: unknown): HarnessEvent[
     return type === "shell" && status === "running" && named !== undefined ? [named] : []
   })
   return [{ type: "shells-listed", ...base, ids }]
+}
+
+/**
+ * The subagents a Stop's list of background tasks names running, nested ones included, for
+ * any other to have ended unseen (see `subagents-listed`): a subagent stopped from Claude
+ * Code's task list, and the children that died with it, which fire no SubagentStop (probed
+ * 2026-11-20, 2.1.328, fixtures/subagent-ends.probe.json). None where it lists none, as a
+ * hook of an older release: no list is not an empty one.
+ */
+const subagentsRunning = (base: EventBase<"claude">, tasks: unknown): HarnessEvent[] => {
+  if (!Array.isArray(tasks)) return []
+  const subagents = (tasks as unknown[]).flatMap((task) => {
+    const fields = isFields(task) ? task : ({} as Record<string, unknown>)
+    const id = shortName(fields.id, agentLimits.name)
+    if (fields.type !== "subagent" || fields.status !== "running" || id === undefined) return []
+    return [{ id, type: text(fields.agent_type) ?? null }]
+  })
+  return [{ type: "subagents-listed", ...base, subagents }]
 }
 
 // How a notification's summary tells a command's exit code: "completed (exit code 0)",

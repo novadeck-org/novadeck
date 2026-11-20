@@ -1,6 +1,7 @@
 import { existsSync, realpathSync } from "node:fs"
+import { lstat, readlink } from "node:fs/promises"
 import { homedir } from "node:os"
-import { delimiter, dirname, isAbsolute, join, resolve, sep } from "node:path"
+import { delimiter, dirname, isAbsolute, join, parse, resolve, sep } from "node:path"
 
 import { harnesses } from "@novadeck/protocol"
 
@@ -167,3 +168,48 @@ const secretPlaces = (
 
 /** Whether one file may hold secrets (see `secrets`). */
 export const secret = (path: string, env?: NodeJS.ProcessEnv): boolean => secrets(env)(path)
+
+/** The most links a path is followed through, one at a time: as many as `realpath` takes. */
+const maxHops = 40
+
+/** The path of the first link on the way to `path`, from its root, and what follows it. */
+const firstLink = async (
+  path: string,
+): Promise<{ readonly at: string; readonly rest: string } | undefined> => {
+  const { root } = parse(path)
+  const names = path
+    .slice(root.length)
+    .split(sep)
+    .filter((name) => name !== "")
+  for (let index = 0; index < names.length; index += 1) {
+    const at = join(root, ...names.slice(0, index + 1))
+    // eslint-disable-next-line no-await-in-loop -- Each name is looked at on the way down.
+    const own = await lstat(at).catch(() => undefined)
+    if (!own) return undefined
+    if (own.isSymbolicLink()) return { at, rest: join(...names.slice(index + 1), "") }
+  }
+  return undefined
+}
+
+/**
+ * Every path `path` (absolute) is on its way to where it leads, one link at a time, itself
+ * first: `notes.txt`, then `.env` it links to, then `config/dev.vars` that links to. A name
+ * along the way may say a secret where neither the first nor the last does, so a file or a
+ * folder is judged by each (see `secrets`, `folderSecrets`). It ends where no link is left, at
+ * a link it can't read or a loop, or after `maxHops`, where `realpath` gives up too.
+ */
+export const linkHops = async (path: string): Promise<readonly string[]> => {
+  const hops = [resolve(path)]
+  for (let hop = 0; hop < maxHops; hop += 1) {
+    // eslint-disable-next-line no-await-in-loop -- Each hop starts where the last led.
+    const link = await firstLink(hops.at(-1)!)
+    if (!link) break
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    const target = await readlink(link.at).catch(() => undefined)
+    if (target === undefined) break
+    const next = resolve(dirname(link.at), target, link.rest)
+    if (hops.includes(next)) break
+    hops.push(next)
+  }
+  return hops
+}

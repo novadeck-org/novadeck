@@ -14,6 +14,7 @@ import { delimiter, join } from "node:path"
 import { relayPath } from "@novadeck/relay"
 
 import { describe, expect, it as base } from "../test.js"
+import { hostless } from "../testing/host.js"
 import { shellFiles, shellPaths } from "./scripts.js"
 import { pipedPrompt, quotedPrompts, splitPrompt } from "./shim-prompts.test-support.js"
 
@@ -61,13 +62,12 @@ const it = base.extend<{ fixture: Fixture }>({
     const launch: Fixture["launch"] = (program, args) => {
       rmSync(log, { force: true })
       const result = spawnSync(process.env.COMSPEC ?? "cmd.exe", ["/d", "/c", program, ...args], {
-        env: {
-          ...process.env,
+        env: hostless({
           PATH: [paths.bin, real, process.env.PATH].join(delimiter),
           USERPROFILE: profile,
           NOVADECK_TERMINAL_ID: terminal,
           NOVADECK_SHIMS: "agy",
-        },
+        }),
         encoding: "utf8",
         timeout: 30_000,
       })

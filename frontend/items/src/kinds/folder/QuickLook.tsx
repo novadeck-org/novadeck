@@ -1,9 +1,10 @@
+import { bytesText } from "@novadeck/core/command-text"
 import type { FolderEntry, Item } from "@novadeck/core/items"
 import { useEffect, useRef, useState } from "react"
 
 import { swallowRepeats } from "../../homes/terminal/cover-keys"
 import { EntryIcon, hasPicture, heldText, type Reader } from "./Entries"
-import { durationText, kindText, modifiedText, sizeShort } from "./model"
+import { durationText, kindText, modifiedText } from "./model"
 import { hasNoThumb, holdThumb, keptThumb, loadThumb, type Thumb } from "./thumbs"
 
 // The box a quick look's picture is drawn in: larger than a tile's, as far as a kind's renderer
@@ -183,7 +184,7 @@ export const QuickLook = ({
           {entry.name}
         </span>
         <span className="folder-look-meta">
-          {[dimensions, sizeShort(entry.size)].filter(Boolean).join(" · ")}
+          {[dimensions, bytesText(entry.size)].filter(Boolean).join(" · ")}
         </span>
         <span className="folder-look-keys">
           <kbd>←</kbd>

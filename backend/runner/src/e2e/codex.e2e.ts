@@ -290,7 +290,7 @@ describe.skipIf(!supported)("Codex", () => {
   // A spawned agent's approval dialog shows in its root's screen, naming its thread. Esc on
   // it fires no hook (no Interrupt, no SubagentStop) and aborts only that agent's turn,
   // which only its own rollout records, `turn_aborted`; Novadeck follows that rollout while
-  // the request waits (docs/agent-messaging.md, "What counts"). The root's turn has ended,
+  // the agent runs (docs/agent-messaging.md, "What counts"). The root's turn has ended,
   // so nothing else would ever say the dialog is gone.
   it("never rings while a spawned agent's request waits, and rings once its rollout records Esc on it", async ({
     e2e: run,
@@ -357,8 +357,9 @@ describe.skipIf(!supported)("Codex", () => {
       return detail.requests.length === 0 ? detail : undefined
     }, "Novadeck to take the spawned agent's request as settled")
     expect(after.activity?.attention?.pending ?? 0).toBe(0)
-    // Its turn aborted, its thread open: it still runs.
-    expect(after.activity?.subagents.map((one) => one.id)).toEqual([asking])
+    // Its turn aborted, which ends it as its stop would: its thread stays open, and a
+    // later turn of it would show it again.
+    expect(after.activity?.subagents).toEqual([])
     expect(thread(agentId).test(await t1.screen())).toBe(false)
     const records = rollout(run.sandbox.home, agentId)
     expect(

@@ -245,14 +245,14 @@ describe("a Codex subagent's rollout", () => {
   const run = { ...session, transcript: "/sessions/2026/10/03/rollout-root.jsonl" }
   const since = Date.parse("2026-10-03T01:03:10.000Z")
 
-  it("says its turn aborted, as Esc on its request does with no hook, at the abort's time, its thread still open", () => {
+  it("ends it as its turn aborted, as Esc on its request and the root's close_agent do with no hook, at the abort's time", () => {
     const aborted = event("2026-10-03T01:03:12.500Z", {
       type: "turn_aborted",
       reason: "interrupted",
     })
     expect(subagentEvents(aborted, run, "a1", since)).toEqual([
       {
-        type: "subagent-turn-aborted",
+        type: "subagent-stopped",
         agent: "codex",
         sessionId: "s",
         instance: "7",
@@ -262,7 +262,7 @@ describe("a Codex subagent's rollout", () => {
     ])
   })
 
-  it("says nothing of an abort before its request, a completed turn, other records or a broken line", () => {
+  it("says nothing of an abort before it started, a completed turn, other records or a broken line", () => {
     for (const line of [
       event("2026-10-03T01:03:09.000Z", { type: "turn_aborted" }),
       event("2026-10-03T01:03:12.000Z", { type: "task_complete" }),
@@ -306,7 +306,7 @@ describe("a Codex subagent's rollout", () => {
     appendFileSync(own, `${event("2026-10-03T01:03:12.000Z", { type: "turn_aborted" })}\n`)
     await expect.poll(() => events, { timeout: 5000 }).toHaveLength(1)
     expect(events[0]).toMatchObject({
-      type: "subagent-turn-aborted",
+      type: "subagent-stopped",
       actor: "a1",
       startedAt: Date.parse("2026-10-03T01:03:12.000Z"),
     })

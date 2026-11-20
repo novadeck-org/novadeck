@@ -355,6 +355,19 @@ describe("redacting values across a screen's rows", () => {
   })
 })
 
+describe("a secret after another joint than = or : on a screen", () => {
+  it.each([
+    ["'password' => 'Zq9xW2vK7pL4mN8r',", "'password' => '[redacted]',"],
+    ['api_key => "Zq9xW2vK7pL4mN8r"', 'api_key => "[redacted]"'],
+    ['password := "Zq9xW2vK7pL4mN8r"', 'password := "[redacted]"'],
+    ["PASSWORD=>x9!Kq#2mZ", "PASSWORD=[redacted]"],
+    ["PASSWORD=~Zq9xW2vK7pL4mN8r", "PASSWORD=[redacted]"],
+    ["PASSWORD==Zq9xW2vK7pL4mN8r==", "PASSWORD=[redacted]"],
+  ])("masks the value of %s", (row, expected) => {
+    expect(redactScreen([row], [false])).toEqual([expected])
+  })
+})
+
 describe("a row with a value that reaches the cap", () => {
   it("masks the cells of a later password, not ones beside them", () => {
     const row = `API_KEY=${"Ab1".repeat(400)}/pass=x ; token=hunter2`

@@ -1,0 +1,17 @@
+{
+  "harness": "codex",
+  "version": "0.170.0",
+  "source": "backend/runner/src/e2e/probes/delivery-prompts.e2e.ts, 2026-11-20, against the fake model",
+  "how": "A Stop Novadeck continues with a message (t1 works on 'Hold then stop' while t2 sends to it), then a ring of an idle agent (t1 asks t2). `prompts`: every prompt the harness submitted, as its UserPromptSubmit hook gave it, or for Antigravity, whose hooks name none, each typed entry its transcript records. `deliveries`: where the delivered messages landed in its records, the text before them cut to 160 characters.",
+  "prompts": [
+    "Hold then stop",
+    "Tell moth the news",
+    "Ask fox for its colour",
+    "[Novadeck: automatic notice, agent messages waiting, 24jDit]"
+  ],
+  "deliveries": [
+    "\"type\":\"input_text\",\"text\":\"<hook_prompt hook_run_id=\\\"stop:8:/sandbox/home/.codex/plugins/cache/novadeck/novadeck/1.2.0/hooks/hooks.json\\\">&lt;",
+    ",\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"id\":\"msg_01a1f7ad-fedf-7542-a4e3-54b44be66a6f\",\"role\":\"developer\",\"content\":[{\"type\":\"input_text\",\"text\":\"<",
+    "f23450ea29\",\"turn_id\":\"01a1f7ad-7e10-78c2-b7f1-e56aa290d745\",\"item\":{\"type\":\"HookPrompt\",\"id\":\"msg_01a1f7ad-7fe7-7013-a345-927e9b522cb3\",\"fragments\":[{\"text\":\"<"
+  ]
+}

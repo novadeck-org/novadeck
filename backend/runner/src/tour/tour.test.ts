@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -171,6 +171,24 @@ describe("readying the tour", () => {
     expect(removed).toEqual([])
     await expect(readdir(tourFolder(home))).rejects.toThrow()
   })
+
+  for (const agent of ["claude", "codex", "agy"] as const)
+    it(`refuses a folder of the person's own before removing any project, with ${agent}`, async ({
+      resources,
+    }) => {
+      const home = await scratchHome(resources)
+      const directory = tourFolder(home)
+      await mkdir(directory, { recursive: true })
+      await writeFile(join(directory, "notes.md"), "mine\n")
+      const { tour, removed } = tourIn(home, {
+        connected: [agent],
+        lists: { codex: [{ id: "gpt-e2e-luna", efforts: ["low"] }] },
+        projects: [project("mine", directory), project("inside", join(directory, "site"))],
+      })
+      await expect(tour.prepare(agent)).rejects.toSatisfy(conflict)
+      expect(removed).toEqual([])
+      expect(await readdir(directory)).toEqual(["notes.md"])
+    })
 
   it("refuses a second run while the first is being readied", async ({ resources }) => {
     const home = await scratchHome(resources)

@@ -234,6 +234,9 @@ export const createKeyCommands = (
       run: handled(() => {
         const switcher = commands.visibleSwitcher()
         const id = switcher?.ids[switcher.index]
+        // A row whose terminal is gone takes nothing, as the held switcher's commit doesn't:
+        // the switcher stays for another (`watchSwitcher` lets go of such a row as it closes).
+        if (id !== undefined && !hasTile(state().roster, id)) return
         commands.setSwitcher(null)
         if (!id) return
         commands.setKeyboardFocus({ id, view: state().view })

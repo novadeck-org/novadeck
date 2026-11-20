@@ -18,6 +18,7 @@ import { afterAll, afterEach, beforeAll, onTestFinished } from "vitest"
 import { readCloseShownRequest, readShowRequest } from "../companions/request.js"
 import { unboundNote } from "../messaging/peers.js"
 import { describe, expect, it } from "../test.js"
+import { hostless, ownHome } from "../testing/host.js"
 import { installShellFiles } from "./install.js"
 import { mcpAnswer, mcpVersions } from "./mcp.js"
 import { listenForReports, unheard, type Call, type Reports } from "./reports.js"
@@ -95,15 +96,9 @@ const session = (
     if (close) child.stdin.end()
   })
 
-// This environment without the variables of a Novadeck terminal the tests run in.
-const outside = (): NodeJS.ProcessEnv => {
-  const env = { ...process.env }
-  delete env.NOVADECK_MCP
-  delete env.NOVADECK_TERMINAL_ID
-  delete env.NOVADECK_REPORT
-  delete env.NOVADECK_REPORT_TOKEN
-  return env
-}
+// This environment without the variables of a Novadeck terminal or agent session the tests
+// run in.
+const outside = (): NodeJS.ProcessEnv => hostless()
 
 const initialize = { id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } }
 const initialized = { method: "notifications/initialized" }
@@ -1732,7 +1727,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
 
   // The server as Claude Code's plugin names it; the others name it alike.
   const installed = async (): Promise<Start> => {
-    const paths = await installShellFiles(join(folder, "launcher"))
+    const paths = await installShellFiles(join(folder, "launcher"), ownHome(folder))
     const config = JSON.parse(
       await readFile(join(paths.plugins.claude, "novadeck", ".mcp.json"), "utf8"),
     ) as { mcpServers: { novadeck: Start } }

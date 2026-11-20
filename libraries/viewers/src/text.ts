@@ -2,6 +2,8 @@
 // an app that only lists a document's headings shouldn't load it. Nothing here imports
 // CodeMirror, and nothing that does may be imported from here.
 
+import { fencedLines } from "./fence.js"
+
 /** A heading below the title, and where it starts in the text. */
 export type Heading = { readonly text: string; readonly at: number; readonly depth: 2 | 3 }
 
@@ -11,11 +13,11 @@ export type Heading = { readonly text: string; readonly at: number; readonly dep
  */
 export const outline = (text: string): Heading[] => {
   const headings: Heading[] = []
-  let fenced = false
+  const lines = text.split("\n")
+  const fenced = fencedLines(lines)
   let at = 0
-  for (const line of text.split("\n")) {
-    if (/^\s*```/.test(line)) fenced = !fenced
-    const heading = !fenced && /^(#{2,3}) (.+)$/.exec(line)
+  for (const [index, line] of lines.entries()) {
+    const heading = !fenced[index] && /^(#{2,3}) (.+)$/.exec(line)
     if (heading) headings.push({ text: heading[2]!.trim(), at, depth: heading[1]!.length as 2 | 3 })
     at += line.length + 1
   }

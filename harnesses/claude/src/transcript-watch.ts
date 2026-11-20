@@ -116,7 +116,11 @@ export const transcriptEvents = (
     ? content.map((block) => (block as { text?: unknown })?.text)
     : [content]
   if (!texts.some((text) => typeof text === "string" && interruptions.has(text))) return settled
-  return [...settled, { type: "turn-ended", ...base, outcome: "interrupted" }]
+  // The subagents the turn started run on through it: on 2.1.328 every Agent call launched
+  // in the background, run_in_background or not, and each finished after the Escape with
+  // its own SubagentStop (probed 2026-11-20, fixtures/subagent-ends.probe.json `escape`). One
+  // that did die with it is gone from the next Stop's list.
+  return [...settled, { type: "turn-ended", ...base, outcome: "interrupted", keepsSubagents: true }]
 }
 
 // The text a record's content holds: a prompt's string, and the text blocks of a message,

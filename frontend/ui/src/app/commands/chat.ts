@@ -19,12 +19,16 @@ export type ChatCommands = ChatWrites & {
   readonly showTerminal: (terminalId: string) => void
 }
 
-// Whether the terminal is still in its session.
-const terminalOpen = (snapshot: Workspace, key: TerminalKey): boolean =>
-  snapshot.projects
-    .find((project) => project.id === key.projectId)
-    ?.history.find((session) => session.id === key.workspaceSessionId)
-    ?.state.roster.terminals.some((terminal) => terminal.id === key.terminalId) === true
+// Where the terminal is now: in its session, or in the session of its project it moved to;
+// null once it closed. A terminal's id is its own in every session.
+const locate = (snapshot: Workspace, key: TerminalKey): TerminalKey | null => {
+  const sessions = snapshot.projects.find((project) => project.id === key.projectId)?.history ?? []
+  const holds = (session: (typeof sessions)[number]) =>
+    session.state.roster.terminals.some((terminal) => terminal.id === key.terminalId)
+  const here = sessions.find((session) => session.id === key.workspaceSessionId)
+  const session = here && holds(here) ? here : sessions.find(holds)
+  return session ? { ...key, workspaceSessionId: session.id } : null
+}
 
 export const createChatCommands = (ctx: CommandContext): ChatCommands => {
   const { workspace, navigation, conversations, chat, ui } = ctx
@@ -33,7 +37,7 @@ export const createChatCommands = (ctx: CommandContext): ChatCommands => {
     ...createChatWrites({
       chat,
       conversations,
-      terminalOpen: (key) => terminalOpen(workspace.getSnapshot(), key),
+      locate: (key) => locate(workspace.getSnapshot(), key),
       context: () => currentContext(workspace.getSnapshot()),
       chatView: () => chatViewOn(ui.getSnapshot()),
     }),

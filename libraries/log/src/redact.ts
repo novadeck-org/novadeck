@@ -58,6 +58,12 @@ const commonNames = new Set([
   "work",
 ])
 
+// A `=` glued to both its name and a value that starts with `=`, `>` or `~`, as an env file or an
+// export writes a password that does (`PASSWORD=>x9!Kq`): the value is all after the `=`. Glued
+// to a quote after it, as `key=>"v"` or `a=='b'`, it is code's operator, left to the secrets
+// rules, which take the quoted value.
+const gluedEquals = String.raw`=(?=[=>~]+[^=>~"'\\\s])`
+
 // Names whose value is a secret, in a query (`?token=…`), a setting (`password=…`) or JSON.
 const secretKey = String.raw`[\w.-]*?(?:token|secret|passw(?:or)?d|pass|pwd|key|auth|credentials?|signature|sig|session)`
 
@@ -79,14 +85,19 @@ const shapes: readonly (readonly [RegExp, string])[] = [
     "$1$2<redacted>",
   ],
   [/\b(bearer)\s+[\w\-.~+/]+=*/gi, "$1 <redacted>"],
-  [new RegExp(String.raw`("${secretKey}"\s*:\s*)"[^"]*"`, "gi"), '$1"<redacted>"'],
+  // A JSON string whole, its escaped quotes and backslashes included: one that ended at `\"`
+  // would leave the rest of the value no longer after a name, out of every later rule's reach.
+  [new RegExp(String.raw`("${secretKey}"\s*:\s*)"(?:[^"\\]|\\.)*"`, "gi"), '$1"<redacted>"'],
   [
-    new RegExp(String.raw`((?:^|[?&;\s"'(,])${secretKey})(\s*=\s*)(?!<)[^&\s"';,)]+`, "gi"),
+    new RegExp(
+      String.raw`((?:^|[?&;\s"'(,])${secretKey})(\s*=(?![=>~])\s*|${gluedEquals})(?!<)[^&\s"';,)]+`,
+      "gi",
+    ),
     "$1$2<redacted>",
   ],
   // `password: hunter2`, as YAML or a dump writes it, and `--password hunter2` on a command line.
   [
-    /\b((?:passw(?:or)?d|pwd|secret|api[_-]?key|access[_-]?key|(?:auth|access|refresh|api)[_-]?token|token)\s*:\s*)(?!<)[^\s"',;]+/gi,
+    /\b((?:passw(?:or)?d|pwd|secret|api[_-]?key|access[_-]?key|(?:auth|access|refresh|api)[_-]?token|token)\s*:(?!=)\s*)(?!<)[^\s"',;]+/gi,
     "$1<redacted>",
   ],
   [
@@ -166,7 +177,10 @@ export const createRedactor = (options: RedactOptions): Redactor => {
     .map((secret) => new RegExp(escapeRegExp(secret), "g"))
   const named = (options.secretNames ?? []).map(
     (name) =>
-      new RegExp(String.raw`\b(${escapeRegExp(name)})(\s*[=:]\s*)(["']?)(?!<)[^\s"']+`, "g"),
+      new RegExp(
+        String.raw`\b(${escapeRegExp(name)})(\s*[=:](?![=>~])\s*|${gluedEquals})(["']?)(?!<)[^\s"']+`,
+        "g",
+      ),
   )
   const user = options.user
   const account =

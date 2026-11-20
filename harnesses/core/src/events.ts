@@ -154,6 +154,11 @@ export type ActivityEvent = EventBase &
         readonly error?: string
         /** The turn failed on a usage limit, as its harness said. */
         readonly limited?: true
+        /**
+         * Interrupted, it leaves the subagents it started running, as Codex's and Claude Code's
+         * do (probed 2026-11-20, 0.170.0 and 2.1.328); unsaid, they ended with it.
+         */
+        readonly keepsSubagents?: true
       }
     | {
         readonly type: "turn-idle"
@@ -390,13 +395,24 @@ export type ActivityEvent = EventBase &
         /** What kind of subagent it is, in the harness's own words. */
         readonly actorType: string | null
       }
+    /**
+     * A subagent's turn is over: its stop hook, or what ends it that no hook reports, as
+     * Claude Code's TaskStop of an agent, Codex's close_agent, or Codex's rollout recording
+     * its turn aborted. What it asked by then waits on the person no longer. A later turn of
+     * it starts it again (`subagent-started`).
+     */
     | { readonly type: "subagent-stopped"; readonly actor: string }
     /**
-     * A subagent's turn aborted, its thread still open, as Codex's rollout records Esc on
-     * its request, which no hook reports: what it asked by then waits on the person no
-     * longer, and it runs on.
+     * The harness listed the subagents it has running at `startedAt`, by id with their kind in
+     * its own words, as Claude Code's Stop does, its nested ones too: one started before then
+     * and not named here ended unseen, as one stopped with its parent does, and one named here
+     * that isn't known to run, nor known to have ended since, runs. Told only where the harness
+     * gave a list; a hook that names none tells nothing.
      */
-    | { readonly type: "subagent-turn-aborted"; readonly actor: string }
+    | {
+        readonly type: "subagents-listed"
+        readonly subagents: readonly { readonly id: string; readonly type: string | null }[]
+      }
     | { readonly type: "mode-observed"; readonly planning: boolean }
     | { readonly type: "plan-observed"; readonly actor: string | null; readonly plan: PlanSource }
   )

@@ -7,7 +7,7 @@ import {
   releaseImages,
   type ChatAttachments,
 } from "./attachments"
-import { keepTerminals, type ByTerminal } from "./by-terminal"
+import { keepTerminals, rehomeTerminals, type ByTerminal } from "./by-terminal"
 import { chatDraftOf, noChatDrafts, setChatDraft, type ChatDrafts } from "./drafts"
 import { noChatReplies, settleChatReplies, type ChatReplies } from "./replies"
 import { noChatSends, type ChatSends } from "./sends"
@@ -120,10 +120,25 @@ const terminalsOf = (workspace: Workspace): Map<string, TerminalMetadata> =>
     ),
   )
 
+// Where each terminal of every session is, by its id: its session context. A terminal's id is
+// its own in every session, so one that moved to another session is found there.
+const contextsOf = (workspace: Workspace): Map<string, string> =>
+  new Map(
+    workspace.projects.flatMap((project) =>
+      project.history.flatMap((session) =>
+        session.state.roster.terminals.map(
+          (terminal) => [terminal.id, `${project.id}/${session.id}`] as const,
+        ),
+      ),
+    ),
+  )
+
 // A terminal shows its chat only while an agent runs in it: once the agent ends, or the
 // terminal goes, the screen comes back. A terminal the person went to answer in shows its
 // chat again once its agent no longer waits on them, or a later agent starts. What was
 // typed in the chat and not sent stays until the terminal goes, for the next agent there.
+// A terminal that moved to another session of its project takes all of it there: its draft
+// and images, what it replies to, its shell history, the words on their way.
 export const watchChat = (chat: Chat, workspace: Store<Workspace>): (() => void) => {
   let previous = workspace.getSnapshot()
   return workspace.subscribe(() => {
@@ -136,15 +151,26 @@ export const watchChat = (chat: Chat, workspace: Store<Workspace>): (() => void)
       held.answering === noTerminalAnswers &&
       held.drafts === noChatDrafts &&
       held.attachments === noChatAttachments &&
-      held.replies === noChatReplies
+      Object.keys(held.imageNotes).length === 0 &&
+      held.replies === noChatReplies &&
+      held.sends === noChatSends &&
+      held.shells === noChatShells
     )
       return
     const terminals = terminalsOf(snapshot)
+    const homes = contextsOf(snapshot)
     const keep = (context: string, id: string): boolean => {
       const terminal = terminals.get(`${context}/${id}`)
       return terminal !== undefined && chatKept(terminal)
     }
     const open = (context: string, id: string): boolean => terminals.has(`${context}/${id}`)
+    // The session a terminal no longer in `context` moved to, in the same project.
+    const home = (context: string, id: string): string | undefined => {
+      if (open(context, id)) return undefined
+      const to = homes.get(id)
+      const project = context.slice(0, context.indexOf("/") + 1)
+      return to?.startsWith(project) ? to : undefined
+    }
     const earlier = held.answering === noTerminalAnswers ? undefined : terminalsOf(before)
     // Answered: its agent waited on the person a moment ago, and no longer does.
     const answered = (context: string, id: string): boolean => {
@@ -159,30 +185,33 @@ export const watchChat = (chat: Chat, workspace: Store<Workspace>): (() => void)
     }
     chat.update((state) => {
       const answering = keepTerminalAnswers(
-        state.answering,
+        rehomeTerminals(state.answering, home),
         (context, id) => keep(context, id) && !answered(context, id),
       )
-      const drafts = keepTerminals(state.drafts, open)
-      const attachments = keepTerminals(state.attachments, open)
+      const drafts = keepTerminals(rehomeTerminals(state.drafts, home), open)
+      const attachments = keepTerminals(rehomeTerminals(state.attachments, home), open)
       releaseImages(droppedImages(state.attachments, attachments))
-      const imageNotes = keepTerminals(state.imageNotes, open)
+      const imageNotes = keepTerminals(rehomeTerminals(state.imageNotes, home), open)
       // What a draft replies to, or that it is held, stays as long as the draft: a reply
       // whose question went with its agent comes back held, never as a message, and never
       // replies to a later agent's question.
       const replies = settleChatReplies(
-        keepTerminals(state.replies, open),
+        keepTerminals(rehomeTerminals(state.replies, home), open),
         drafts,
         (context, id) => open(context, id) && !keep(context, id),
       )
-      const shells = keepTerminals(state.shells, open)
+      const shells = keepTerminals(rehomeTerminals(state.shells, home), open)
+      // The words on their way finish by themselves, a closed terminal's too (see `commands`).
+      const sends = rehomeTerminals(state.sends, home)
       return answering === state.answering &&
         drafts === state.drafts &&
         attachments === state.attachments &&
         imageNotes === state.imageNotes &&
         replies === state.replies &&
-        shells === state.shells
+        shells === state.shells &&
+        sends === state.sends
         ? state
-        : { ...state, answering, drafts, attachments, imageNotes, replies, shells }
+        : { ...state, answering, drafts, attachments, imageNotes, replies, shells, sends }
     })
   })
 }

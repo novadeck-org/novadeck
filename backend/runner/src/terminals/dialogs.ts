@@ -573,8 +573,14 @@ export class Dialogs {
         if (held) this.host.clear(terminalId, held.ref)
         this.host.ask(terminalId, seen)
       } else if (!seen && held) {
-        if (settled) this.host.clear(terminalId, held.ref)
-        else waiting = true
+        // Hidden is not gone: a view of the harness's own may hold it out of sight (Codex's
+        // `/diff` pager), and closing that view shows it again, the same request. It keeps
+        // its ref while the adapter says one holds a dialog out of view (`reveal`).
+        // Looked at again as the screen changes, as that view closes.
+        const hidden =
+          found?.reveal !== undefined && attempt(state, () => found.reveal!(rows)) !== undefined
+        if (!hidden && settled) this.host.clear(terminalId, held.ref)
+        else if (!hidden) waiting = true
       }
     }
     const requests = this.host.pending(terminalId)?.requests ?? []

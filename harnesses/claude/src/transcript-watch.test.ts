@@ -20,7 +20,7 @@ const all = (name: string) =>
 const events = (name: string) => all(name).filter(({ type }) => type !== "telemetry-observed")
 
 describe("Claude Code's transcript, as captured", () => {
-  it("ends the turn when the person pressed Esc while a tool ran", () => {
+  it("ends the turn when the person pressed Esc while a tool ran, its subagents running on", () => {
     expect(events("interrupt")).toEqual([
       {
         type: "turn-ended",
@@ -29,6 +29,7 @@ describe("Claude Code's transcript, as captured", () => {
         instance: "7",
         startedAt: expect.any(Number),
         outcome: "interrupted",
+        keepsSubagents: true,
       },
     ])
   })

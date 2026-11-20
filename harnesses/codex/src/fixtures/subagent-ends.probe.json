@@ -1,0 +1,969 @@
+{
+  "harness": "codex",
+  "version": "0.170.0",
+  "source": "captured against the fake model (2026-11-20), by backend/runner/src/e2e/probes/subagent-ends-codex.e2e.ts; sandbox paths replaced, ids the run's own",
+  "how": "One session (multi_agent_v1). The root spawns A, held at its model call, and closes it with close_agent; resumes it with resume_agent and sends it input, which it finishes; spawns B while its own turn runs on, then the person presses Esc on the root's turn; spawns C, whose command asks, and the person dismisses the request with Esc, then the root sends C input, which it finishes; spawns D, held. Each step's hooks in order, as the runner heard them (PreToolUse left out), and the event_msg types of each rollout's last records, by the rollout's thread id (the subagent's own id; root.jsonl the root's)",
+  "ids": {
+    "a": "01a1f7b2-a99e-7831-bfcf-9de614e1cd6d",
+    "b": "01a1f7b2-ddda-75f1-9860-9c74664bdf7f",
+    "c": "01a1f7b3-0f10-73f2-a4fe-5ffec18029d0",
+    "d": "01a1f7b3-5878-7582-ab98-2a6dde457b44"
+  },
+  "steps": [
+    {
+      "step": "A spawned, held",
+      "hooks": [
+        {
+          "event": "SessionStart",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "SessionStart",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "source": "startup"
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-a8d3-7ec3-bef8-7ca23fdb848a",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Spawn A"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-a8d3-7ec3-bef8-7ca23fdb848a",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "PostToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "spawn_agent",
+            "tool_input": {
+              "message": "Helper task A: wait"
+            },
+            "tool_response": "{\"agent_id\":\"01a1f7b2-a99e-7831-bfcf-9de614e1cd6d\",\"nickname\":\"Mencius\"}",
+            "tool_use_id": "call_0501d5022408830e4426eea7"
+          }
+        },
+        {
+          "event": "SubagentStart",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-a9a8-7f00-aa06-53f07f01eeee",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-03-01a1f7b2-a99e-7831-bfcf-9de614e1cd6d.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "SubagentStart",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "agent_id": "01a1f7b2-a99e-7831-bfcf-9de614e1cd6d",
+            "agent_type": "default"
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-a9a8-7f00-aa06-53f07f01eeee",
+            "agent_id": "01a1f7b2-a99e-7831-bfcf-9de614e1cd6d",
+            "agent_type": "default",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-03-01a1f7b2-a99e-7831-bfcf-9de614e1cd6d.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Helper task A: wait"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-a8d3-7ec3-bef8-7ca23fdb848a",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "Stop",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "stop_hook_active": false,
+            "last_assistant_message": "Result: {\"agent_id\":\"01a1f7b2-a99e-7831-bfcf-9de614e1cd6d\",\"nickname\":\"Mencius\"}"
+          }
+        }
+      ],
+      "rollouts": {
+        "root.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "item_completed",
+          "token_count",
+          "task_complete"
+        ],
+        "01a1f7b2-a99e-7831-bfcf-9de614e1cd6d.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed"
+        ]
+      }
+    },
+    {
+      "step": "A closed by close_agent",
+      "hooks": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-b747-7891-9084-469fae5c806e",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Close A"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-b747-7891-9084-469fae5c806e",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "PostToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "multi_agent_v1close_agent",
+            "tool_input": {
+              "target": "01a1f7b2-a99e-7831-bfcf-9de614e1cd6d"
+            },
+            "tool_response": "{\"previous_status\":\"running\"}",
+            "tool_use_id": "call_359e581d2623f5a4af0c6096"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-b747-7891-9084-469fae5c806e",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "Stop",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "stop_hook_active": false,
+            "last_assistant_message": "OK."
+          }
+        }
+      ],
+      "rollouts": {
+        "root.jsonl": [
+          "token_count",
+          "item_completed",
+          "token_count",
+          "task_complete",
+          "thread_settings_applied",
+          "task_started",
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "item_completed",
+          "token_count",
+          "task_complete"
+        ],
+        "01a1f7b2-a99e-7831-bfcf-9de614e1cd6d.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed",
+          "turn_aborted"
+        ]
+      }
+    },
+    {
+      "step": "A resumed",
+      "hooks": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-c42c-75f1-afaf-f1642a4239a8",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Resume A"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-c42c-75f1-afaf-f1642a4239a8",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "PostToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "multi_agent_v1resume_agent",
+            "tool_input": {
+              "id": "01a1f7b2-a99e-7831-bfcf-9de614e1cd6d"
+            },
+            "tool_response": "{\"status\":\"interrupted\"}",
+            "tool_use_id": "call_aac92c8ca5b309d197c4817f"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-c42c-75f1-afaf-f1642a4239a8",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "Stop",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "stop_hook_active": false,
+            "last_assistant_message": "Result: {\"status\":\"interrupted\"}"
+          }
+        }
+      ],
+      "rollouts": {
+        "root.jsonl": [
+          "token_count",
+          "item_completed",
+          "token_count",
+          "task_complete",
+          "thread_settings_applied",
+          "task_started",
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "item_completed",
+          "token_count",
+          "task_complete"
+        ],
+        "01a1f7b2-a99e-7831-bfcf-9de614e1cd6d.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed",
+          "turn_aborted"
+        ]
+      }
+    },
+    {
+      "step": "A messaged",
+      "hooks": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-d0f4-78f0-b0e8-6ed9c09cb2dc",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Message A"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-d0f4-78f0-b0e8-6ed9c09cb2dc",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "PostToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "multi_agent_v1send_input",
+            "tool_input": {
+              "target": "01a1f7b2-a99e-7831-bfcf-9de614e1cd6d",
+              "message": "Again A"
+            },
+            "tool_response": "{\"submission_id\":\"01a1f7b2-d139-7870-9a63-e0967d32a22b\"}",
+            "tool_use_id": "call_69d9df1fb190fd6d13335bf1"
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-d139-7870-9a63-e0967d32a22b",
+            "agent_id": "01a1f7b2-a99e-7831-bfcf-9de614e1cd6d",
+            "agent_type": "default",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-03-01a1f7b2-a99e-7831-bfcf-9de614e1cd6d.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Again A"
+          }
+        },
+        {
+          "event": "SubagentStop",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-d139-7870-9a63-e0967d32a22b",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "agent_transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-03-01a1f7b2-a99e-7831-bfcf-9de614e1cd6d.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "SubagentStop",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "stop_hook_active": false,
+            "agent_id": "01a1f7b2-a99e-7831-bfcf-9de614e1cd6d",
+            "agent_type": "default",
+            "last_assistant_message": "A again done."
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-d0f4-78f0-b0e8-6ed9c09cb2dc",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "Stop",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "stop_hook_active": false,
+            "last_assistant_message": "Result: {\"submission_id\":\"01a1f7b2-d139-7870-9a63-e0967d32a22b\"}"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-d0f4-78f0-b0e8-6ed9c09cb2dc",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "Stop",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "stop_hook_active": false,
+            "last_assistant_message": "OK."
+          }
+        }
+      ],
+      "rollouts": {
+        "root.jsonl": [
+          "token_count",
+          "task_complete",
+          "thread_settings_applied",
+          "task_started",
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "item_completed",
+          "token_count",
+          "item_completed",
+          "token_count",
+          "task_complete"
+        ],
+        "01a1f7b2-a99e-7831-bfcf-9de614e1cd6d.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed",
+          "turn_aborted",
+          "task_started",
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "task_complete"
+        ]
+      }
+    },
+    {
+      "step": "B spawned, root working",
+      "hooks": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-ddb6-7d51-a9ab-184ee8fb42f6",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Spawn B and wait"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-ddb6-7d51-a9ab-184ee8fb42f6",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "PostToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "spawn_agent",
+            "tool_input": {
+              "message": "Helper task B: wait"
+            },
+            "tool_response": "{\"agent_id\":\"01a1f7b2-ddda-75f1-9860-9c74664bdf7f\",\"nickname\":\"Turing\"}",
+            "tool_use_id": "call_a1411778b1c3933d02c18fd6"
+          }
+        },
+        {
+          "event": "SubagentStart",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-ddde-7ef3-9b66-0f0435792e84",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-16-01a1f7b2-ddda-75f1-9860-9c74664bdf7f.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "SubagentStart",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "agent_id": "01a1f7b2-ddda-75f1-9860-9c74664bdf7f",
+            "agent_type": "default"
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-ddde-7ef3-9b66-0f0435792e84",
+            "agent_id": "01a1f7b2-ddda-75f1-9860-9c74664bdf7f",
+            "agent_type": "default",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-16-01a1f7b2-ddda-75f1-9860-9c74664bdf7f.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Helper task B: wait"
+          }
+        }
+      ],
+      "rollouts": {
+        "root.jsonl": [
+          "item_completed",
+          "token_count",
+          "item_completed",
+          "token_count",
+          "item_completed",
+          "token_count",
+          "task_complete",
+          "thread_settings_applied",
+          "task_started",
+          "item_completed",
+          "item_completed",
+          "token_count"
+        ],
+        "01a1f7b2-a99e-7831-bfcf-9de614e1cd6d.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed",
+          "turn_aborted",
+          "task_started",
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "task_complete"
+        ],
+        "01a1f7b2-ddda-75f1-9860-9c74664bdf7f.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed"
+        ]
+      }
+    },
+    {
+      "step": "root Esc while B runs",
+      "hooks": [
+        {
+          "event": "Interrupt",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b2-ddb6-7d51-a9ab-184ee8fb42f6",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "Interrupt",
+            "model": "fake-model",
+            "permission_mode": "default"
+          }
+        }
+      ],
+      "rollouts": {
+        "root.jsonl": [
+          "token_count",
+          "item_completed",
+          "token_count",
+          "item_completed",
+          "token_count",
+          "task_complete",
+          "thread_settings_applied",
+          "task_started",
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "turn_aborted"
+        ],
+        "01a1f7b2-a99e-7831-bfcf-9de614e1cd6d.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed",
+          "turn_aborted",
+          "task_started",
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "task_complete"
+        ],
+        "01a1f7b2-ddda-75f1-9860-9c74664bdf7f.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed"
+        ]
+      }
+    },
+    {
+      "step": "C asks",
+      "hooks": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b3-0ee3-74b2-a926-5485cbb9a323",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Spawn C"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b3-0ee3-74b2-a926-5485cbb9a323",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "PostToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "spawn_agent",
+            "tool_input": {
+              "message": "Helper task C: ask"
+            },
+            "tool_response": "{\"agent_id\":\"01a1f7b3-0f10-73f2-a4fe-5ffec18029d0\",\"nickname\":\"Kuhn\"}",
+            "tool_use_id": "call_76dd92434eaf9ff8f51ab3e1"
+          }
+        },
+        {
+          "event": "SubagentStart",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b3-0f15-7df2-8d23-f9ecc61b56d0",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-29-01a1f7b3-0f10-73f2-a4fe-5ffec18029d0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "SubagentStart",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "agent_id": "01a1f7b3-0f10-73f2-a4fe-5ffec18029d0",
+            "agent_type": "default"
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b3-0f15-7df2-8d23-f9ecc61b56d0",
+            "agent_id": "01a1f7b3-0f10-73f2-a4fe-5ffec18029d0",
+            "agent_type": "default",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-29-01a1f7b3-0f10-73f2-a4fe-5ffec18029d0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Helper task C: ask"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b3-0ee3-74b2-a926-5485cbb9a323",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "Stop",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "stop_hook_active": false,
+            "last_assistant_message": "Result: {\"agent_id\":\"01a1f7b3-0f10-73f2-a4fe-5ffec18029d0\",\"nickname\":\"Kuhn\"}"
+          }
+        },
+        {
+          "event": "PermissionRequest",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b3-0f15-7df2-8d23-f9ecc61b56d0",
+            "agent_id": "01a1f7b3-0f10-73f2-a4fe-5ffec18029d0",
+            "agent_type": "default",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-29-01a1f7b3-0f10-73f2-a4fe-5ffec18029d0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "PermissionRequest",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "echo approved",
+              "description": "Echo outside the sandbox"
+            }
+          }
+        }
+      ],
+      "rollouts": {
+        "root.jsonl": [
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "turn_aborted",
+          "thread_settings_applied",
+          "task_started",
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "item_completed",
+          "token_count",
+          "task_complete"
+        ],
+        "01a1f7b2-a99e-7831-bfcf-9de614e1cd6d.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed",
+          "turn_aborted",
+          "task_started",
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "task_complete"
+        ],
+        "01a1f7b2-ddda-75f1-9860-9c74664bdf7f.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed"
+        ],
+        "01a1f7b3-0f10-73f2-a4fe-5ffec18029d0.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed"
+        ]
+      }
+    },
+    {
+      "step": "C's request Esc",
+      "hooks": [],
+      "rollouts": {
+        "root.jsonl": [
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "turn_aborted",
+          "thread_settings_applied",
+          "task_started",
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "item_completed",
+          "token_count",
+          "task_complete"
+        ],
+        "01a1f7b2-a99e-7831-bfcf-9de614e1cd6d.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed",
+          "turn_aborted",
+          "task_started",
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "task_complete"
+        ],
+        "01a1f7b2-ddda-75f1-9860-9c74664bdf7f.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed"
+        ],
+        "01a1f7b3-0f10-73f2-a4fe-5ffec18029d0.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed",
+          "token_count",
+          "turn_aborted"
+        ]
+      }
+    },
+    {
+      "step": "C messaged again",
+      "hooks": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b3-3be5-71b2-81cb-6e2c536a4f5b",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Message C"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b3-3be5-71b2-81cb-6e2c536a4f5b",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "PostToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "multi_agent_v1send_input",
+            "tool_input": {
+              "target": "01a1f7b3-0f10-73f2-a4fe-5ffec18029d0",
+              "message": "Again C"
+            },
+            "tool_response": "{\"submission_id\":\"01a1f7b3-3c16-75d0-95c2-151ae80c80d7\"}",
+            "tool_use_id": "call_3df899657b81a7f7dd641a6a"
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b3-3c16-75d0-95c2-151ae80c80d7",
+            "agent_id": "01a1f7b3-0f10-73f2-a4fe-5ffec18029d0",
+            "agent_type": "default",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-29-01a1f7b3-0f10-73f2-a4fe-5ffec18029d0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Again C"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b3-3be5-71b2-81cb-6e2c536a4f5b",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "Stop",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "stop_hook_active": false,
+            "last_assistant_message": "Result: {\"submission_id\":\"01a1f7b3-3c16-75d0-95c2-151ae80c80d7\"}"
+          }
+        },
+        {
+          "event": "SubagentStop",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b3-3c16-75d0-95c2-151ae80c80d7",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "agent_transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-29-01a1f7b3-0f10-73f2-a4fe-5ffec18029d0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "SubagentStop",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "stop_hook_active": false,
+            "agent_id": "01a1f7b3-0f10-73f2-a4fe-5ffec18029d0",
+            "agent_type": "default",
+            "last_assistant_message": "C again done."
+          }
+        }
+      ],
+      "rollouts": {
+        "root.jsonl": [
+          "token_count",
+          "item_completed",
+          "token_count",
+          "task_complete",
+          "thread_settings_applied",
+          "task_started",
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "item_completed",
+          "token_count",
+          "task_complete"
+        ],
+        "01a1f7b2-a99e-7831-bfcf-9de614e1cd6d.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed",
+          "turn_aborted",
+          "task_started",
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "task_complete"
+        ],
+        "01a1f7b2-ddda-75f1-9860-9c74664bdf7f.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed"
+        ],
+        "01a1f7b3-0f10-73f2-a4fe-5ffec18029d0.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed",
+          "token_count",
+          "turn_aborted",
+          "task_started",
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "task_complete"
+        ]
+      }
+    },
+    {
+      "step": "D spawned, held",
+      "hooks": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b3-5850-7a22-bd4a-49ab3e211819",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Spawn D"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b3-5850-7a22-bd4a-49ab3e211819",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "PostToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "spawn_agent",
+            "tool_input": {
+              "message": "Helper task D: wait"
+            },
+            "tool_response": "{\"agent_id\":\"01a1f7b3-5878-7582-ab98-2a6dde457b44\",\"nickname\":\"Nietzsche\"}",
+            "tool_use_id": "call_f0db4f21136f35b14d5e3c22"
+          }
+        },
+        {
+          "event": "SubagentStart",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b3-587b-7a43-aeb1-4ba2b737685f",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-48-01a1f7b3-5878-7582-ab98-2a6dde457b44.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "SubagentStart",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "agent_id": "01a1f7b3-5878-7582-ab98-2a6dde457b44",
+            "agent_type": "default"
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b3-587b-7a43-aeb1-4ba2b737685f",
+            "agent_id": "01a1f7b3-5878-7582-ab98-2a6dde457b44",
+            "agent_type": "default",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-48-01a1f7b3-5878-7582-ab98-2a6dde457b44.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Helper task D: wait"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "01a1f7b2-a65f-7d12-a2d7-39219f551d26",
+            "turn_id": "01a1f7b3-5850-7a22-bd4a-49ab3e211819",
+            "transcript_path": "/home/user/sandbox/home/.codex/sessions/2026/11/20/rollout-2026-11-20T07-44-02-01a1f7b2-a65f-7d12-a2d7-39219f551d26.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "Stop",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "stop_hook_active": false,
+            "last_assistant_message": "Result: {\"agent_id\":\"01a1f7b3-5878-7582-ab98-2a6dde457b44\",\"nickname\":\"Nietzsche\"}"
+          }
+        }
+      ],
+      "rollouts": {
+        "root.jsonl": [
+          "token_count",
+          "item_completed",
+          "token_count",
+          "task_complete",
+          "thread_settings_applied",
+          "task_started",
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "item_completed",
+          "token_count",
+          "task_complete"
+        ],
+        "01a1f7b2-a99e-7831-bfcf-9de614e1cd6d.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed",
+          "turn_aborted",
+          "task_started",
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "task_complete"
+        ],
+        "01a1f7b2-ddda-75f1-9860-9c74664bdf7f.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed"
+        ],
+        "01a1f7b3-0f10-73f2-a4fe-5ffec18029d0.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed",
+          "token_count",
+          "turn_aborted",
+          "task_started",
+          "item_completed",
+          "item_completed",
+          "token_count",
+          "task_complete"
+        ],
+        "01a1f7b3-5878-7582-ab98-2a6dde457b44.jsonl": [
+          "task_started",
+          "thread_settings_applied",
+          "item_completed"
+        ]
+      }
+    }
+  ]
+}

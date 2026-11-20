@@ -13,11 +13,12 @@ import {
 } from "@novadeck/core/terminals/ending"
 import { showsHandle, terminalLabel } from "@novadeck/core/terminals/handle"
 import {
-  clockTime,
   nextWaitingChange,
+  nextWhenChange,
   waitingOf,
   wakeFill,
   wakePassed,
+  whenChip,
 } from "@novadeck/core/terminals/waiting"
 import type { Tile } from "@novadeck/core/types"
 import { Avatar, type AvatarLive } from "@novadeck/items/Avatar"
@@ -234,7 +235,13 @@ export const TerminalTab = ({
   // How long ago a done tab's agent finished, beside its program, kept current.
   const finished = phase === "done" ? shell : undefined
   const age = finished && turnAge(finished)
-  useRenderAt(finished ? nextTurnAge(finished) : waits && shell ? nextWaitingChange(shell) : resets)
+  useRenderAt(
+    finished
+      ? nextTurnAge(finished)
+      : waits && shell
+        ? nextWaitingChange(shell)
+        : nextWhenChange(resets),
+  )
   // A window runs no program; a project window names its file's folder there instead.
   // A sleeping agent has no process; its name stands there.
   const process = (shell?.state === "sleeping" ? shell.agent : shell?.process) ?? folder ?? ""
@@ -297,9 +304,10 @@ export const TerminalTab = ({
               <>
                 <span className="terminal-tab-process truncate">{process}</span>
                 {needMark}
-                {/* Paused, when its usage limit resets, in the age's place. */}
+                {/* Paused, when its usage limit resets, in the age's place: the clock today, the
+                    weekday or the days to it beyond, as the chip has no room for more. */}
                 {resets !== undefined && (
-                  <span className="terminal-tab-age shrink-0">{clockTime(resets)}</span>
+                  <span className="terminal-tab-age shrink-0">{whenChip(resets)}</span>
                 )}
                 {marks && <SubagentLine marks={marks} />}
               </>

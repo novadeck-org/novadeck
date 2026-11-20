@@ -29,7 +29,7 @@ import {
   pdfLimits,
   folderLimits,
 } from "@novadeck/protocol"
-import { vi } from "vitest"
+import { afterEach, beforeEach, vi } from "vitest"
 
 import { timing } from "../checkouts/git.js"
 import type { Shell } from "../harnesses/shells.js"
@@ -2026,6 +2026,17 @@ describe("what the pane tells of a page", () => {
 const folder = (path: string): string => (process.platform === "win32" ? path.toLowerCase() : path)
 
 describe.skipIf(!gitInstalled)("the changes of a repository", () => {
+  // A read slower than a second waits four times as long before the next, up to 15 s, and a
+  // loaded machine makes a read that slow: under load here a change's first read took 1.6 to 2 s
+  // and so waited 6.2 to 8 s, and Test (macOS) ran a test past its 20 s. Every test that reads a
+  // change again waits at most 1.5 s here, which still shows a slow read waiting longer.
+  beforeEach(() => {
+    timing.maxWaitMs = 1_500
+  })
+  afterEach(() => {
+    timing.maxWaitMs = 15_000
+  })
+
   /** A repository with one commit and a change on top of it, and a terminal working in it. */
   const repository = (fixture: Fixture) => {
     const root = join(fixture.directory, "work")
@@ -2440,9 +2451,6 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     const stream = fixture.items.content(shown.ok ? shown.id : "", undefined)
     const starts: number[] = []
     timing.slowMs = 100
-    // A wait is four times its read, which load stretches: without a cap, a loaded machine can
-    // wait longer than the test may take (10 s here at 5 times the load; its 20 s on Test (macOS)).
-    timing.maxWaitMs = 1_500
     timing.saw = (args) => {
       if (args.includes("--show-toplevel")) starts.push(Date.now())
     }
@@ -2452,11 +2460,10 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
       await next(stream)
     } finally {
       timing.slowMs = 1_000
-      timing.maxWaitMs = 15_000
       timing.saw = undefined
       fixture.items.close(shown.ok ? shown.id : "")
     }
-    // The usual wait is 10 ms here; a read of 0.3 s waits four times as long.
+    // The usual wait is 10 ms here; a read of 0.3 s waits four times as long, within the cap.
     expect(starts.length).toBeGreaterThanOrEqual(2)
     expect((starts.at(-1) ?? 0) - (starts.at(-2) ?? 0)).toBeGreaterThan(900)
   })

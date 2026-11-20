@@ -1,5 +1,9 @@
+import type { ScreenText } from "@novadeck/emulator/headless"
+import { dialogs as codexDialogs } from "@novadeck/harness-codex/dialogs"
 import type { DialogAdapter, ScreenRequest } from "@novadeck/harness-core/dialogs"
+import type { ActivityEvent } from "@novadeck/harness-core/events"
 import { fakeAdapter, FakeTui } from "@novadeck/harness-core/testing/dialogs"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import {
   dialogTextLimits,
   maxRawDialogText,
@@ -7,8 +11,11 @@ import {
   type AgentName,
 } from "@novadeck/protocol"
 
+import { apply, started as startedActivity, type Activity } from "../harnesses/activity.js"
+import type { Binding } from "../harnesses/bindings.js"
 import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
+import { adapterFolder } from "../testing/adapters.js"
 import { Dialogs, identified, rawText, type Waiting } from "./dialogs.js"
 import { SeenTerminals } from "./seen.js"
 
@@ -494,6 +501,36 @@ describe("requests only the screen tells", () => {
   })
 })
 
+describe("an MCP server's form in Codex, which only its screen tells", () => {
+  type Form = { readonly screens: Record<string, ScreenText>; readonly after: ScreenText }
+  const { forms } = loadProbe<{ forms: Record<string, Form> }>(
+    adapterFolder("codex"),
+    "elicitation.probe.json",
+  )
+
+  it("waits on the person while the form shows, raw to answer in the terminal, and goes with it", async () => {
+    const { tui, dialogs, asked, cleared, use, state } = terminal({ requests: [] })
+    use(codexDialogs)
+    const form = forms.enum!
+    tui.rows = () => [...form.screens["120x40"]!.rows]
+    dialogs.changed("t")
+    await until(() => asked.length === 1)
+    expect(asked[0]).toMatchObject({
+      kind: "question",
+      tool: "mcp__probe__elicitation",
+      subject: "Which colour do you want?",
+    })
+    await until(() => dialogs.shown("t", "screen") !== null)
+    expect(dialogs.shown("t", "screen")).toMatchObject({ type: "raw" })
+    // Answered in the terminal, the call's result takes its place: the request goes.
+    tui.rows = () => [...form.after.rows]
+    dialogs.changed("t")
+    await until(() => cleared.length === 1)
+    expect(state.requests).toEqual([])
+    expect(asked).toHaveLength(1)
+  })
+})
+
 describe("requests only the screen tells, where the adapter throws on a later screen", () => {
   const prompt: ScreenRequest = { kind: "plan", tool: "plan", input: null, subject: "A plan" }
 
@@ -515,6 +552,177 @@ describe("requests only the screen tells, where the adapter throws on a later sc
     await new Promise((resolve) => setTimeout(resolve, 80))
     expect(cleared).toEqual([])
     expect(state.requests.map((each) => each.ref)).toEqual(["screen"])
+  })
+})
+
+describe("requests only the screen tells, held out of sight by a view of their harness's own", () => {
+  const prompt: ScreenRequest = { kind: "plan", tool: "plan", input: null, subject: "A plan" }
+  // A view over the prompt, as Codex's `/diff` pager is: closing it shows the prompt again.
+  const viewing = (): DialogAdapter => ({
+    ...fakeAdapter(),
+    screenRequest: (rows) => (rows.includes("PLAN") ? prompt : undefined),
+    reveal: (rows) => (rows.includes("PAGER") ? "q" : undefined),
+  })
+  const showing = (tui: FakeTui, row: string) => {
+    tui.state = "other"
+    const rows = FakeTui.prototype.rows
+    tui.rows = function (this: FakeTui) {
+      return [...rows.call(this), row]
+    }
+  }
+
+  it("keep their ref while the view hides them, and go once nothing shows or hides them", async () => {
+    // A terminal in sight, so nothing is revealed by itself: only the request's life is tested.
+    const seen = new SeenTerminals()
+    seen.report("window", ["t"])
+    const { tui, dialogs, asked, cleared, state, use } = terminal({ requests: [], seen })
+    use(viewing())
+    showing(tui, "PLAN")
+    dialogs.changed("t")
+    await until(() => asked.length === 1)
+    // The view opens over it, long enough for a still screen: hidden, not gone.
+    showing(tui, "PAGER")
+    dialogs.changed("t")
+    await new Promise((resolve) => setTimeout(resolve, 120))
+    expect(cleared).toEqual([])
+    // It closes, and the prompt shows again: the same request, not a second.
+    showing(tui, "PLAN")
+    dialogs.changed("t")
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    expect(asked).toHaveLength(1)
+    expect(cleared).toEqual([])
+    // Answered in the terminal, nothing in its place: it goes once the screen is still.
+    showing(tui, "DONE")
+    dialogs.changed("t")
+    await until(() => cleared.length === 1)
+    expect(state.requests).toEqual([])
+  })
+
+  it("keep Codex's MCP form through its /diff pager, as probed", async () => {
+    const { forms } = loadProbe<{
+      forms: Record<string, { screens: Record<string, ScreenText>; after: ScreenText }>
+    }>(adapterFolder("codex"), "elicitation.probe.json")
+    const { states } = loadProbe<{ states: Record<string, ScreenText> }>(
+      adapterFolder("codex"),
+      "hidden-dialog.probe.json",
+    )
+    const seen = new SeenTerminals()
+    seen.report("window", ["t"])
+    const { tui, dialogs, asked, cleared, use } = terminal({ requests: [], seen })
+    use(codexDialogs)
+    const form = forms.enum!
+    tui.rows = () => [...form.screens["120x40"]!.rows]
+    dialogs.changed("t")
+    await until(() => asked.length === 1)
+    // The pager over it (0.170.0's, as it holds a dialog out of view).
+    tui.rows = () => [...states.permissionHeld!.rows]
+    dialogs.changed("t")
+    await new Promise((resolve) => setTimeout(resolve, 120))
+    expect(cleared).toEqual([])
+    tui.rows = () => [...form.screens["120x40"]!.rows]
+    dialogs.changed("t")
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    expect(asked).toHaveLength(1)
+    expect(cleared).toEqual([])
+  })
+})
+
+describe("a request only the screen tells, through the root's turns", () => {
+  const binding: Binding = { agent: "codex", sessionId: "s", instance: "7" }
+  const base = { agent: "codex", sessionId: "s", instance: "7" } as const
+  const prompt: ScreenRequest = { kind: "plan", tool: "plan", input: null, subject: "A plan" }
+
+  it("outlives the root's turn's end, and goes once the screen is still without it", async () => {
+    // The dialogs over the activity the runner keeps: what they raise and clear is applied to
+    // it, as the terminals' typing does (`dialogsHost`), and the root's turn ends in it.
+    let activity: Activity = apply(startedActivity(0), binding, {
+      ...base,
+      type: "turn-started",
+      startedAt: 1,
+      cause: "prompt",
+    } as ActivityEvent)!
+    const step = (event: ActivityEvent) => (activity = apply(activity, binding, event) ?? activity)
+    const tui = new FakeTui()
+    const shows = { on: true }
+    tui.state = "other"
+    const rows = FakeTui.prototype.rows
+    tui.rows = function (this: FakeTui) {
+      return [...rows.call(this), ...(shows.on ? ["PLAN"] : [])]
+    }
+    const asked: string[] = []
+    const dialogs = new Dialogs(
+      {
+        pending: () => ({
+          agent: "codex" as AgentName,
+          requests: activity.pending.map((each): Waiting => ({
+            ref: each.requestId,
+            actor: each.actor,
+            facts: { kind: each.kind, tool: each.toolName, input: null, cwd: null },
+            subject: each.subject,
+            screen: each.screen === true,
+            askedAt: each.askedAt,
+          })),
+        }),
+        adapter: () => ({
+          ...fakeAdapter(),
+          screenRequest: (screen) => (screen.includes("PLAN") ? prompt : undefined),
+        }),
+        screen: () => Promise.resolve(tui.screen()),
+        ask: (_terminal, each) => {
+          const requestId = `screen:${each.tool}:${asked.length}`
+          asked.push(requestId)
+          step({
+            ...base,
+            type: "attention-requested",
+            startedAt: Date.now(),
+            requestId,
+            actor: null,
+            toolName: each.tool,
+            kind: each.kind,
+            subject: each.subject,
+            choices: [],
+            screen: true,
+          } as ActivityEvent)
+          dialogs.changed("t")
+        },
+        clear: (_terminal, ref) =>
+          step({
+            ...base,
+            type: "attention-resolved",
+            startedAt: Date.now(),
+            requestId: ref,
+            actor: null,
+            toolName: "plan",
+            loose: false,
+            outcome: "allowed",
+          } as ActivityEvent),
+        changed: () => {},
+        busy: () => false,
+        press: () => true,
+      },
+      { throttleMs: 5, settleMs: 40, rawStillMs: 40, rawAgeMs: 40, graceMs: 0 },
+    )
+    dialogs.changed("t")
+    await until(() => asked.length === 1)
+    // The root's turn ends under it: the request stands, and no second is raised.
+    step({
+      ...base,
+      type: "turn-ended",
+      outcome: "completed",
+      startedAt: Date.now(),
+    } as ActivityEvent)
+    expect(activity.pending.map(({ requestId }) => requestId)).toEqual(asked)
+    tui.noise = 1
+    dialogs.changed("t")
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    expect(asked).toHaveLength(1)
+    expect(activity.pending).toHaveLength(1)
+    // The screen without it, and still: it goes.
+    shows.on = false
+    tui.noise = 2
+    dialogs.changed("t")
+    await until(() => activity.pending.length === 0)
+    expect(asked).toHaveLength(1)
   })
 })
 

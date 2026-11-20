@@ -79,10 +79,15 @@ export const prompted = async (
 
 /**
  * Opens a terminal running the harness and waits until Novadeck sees it Ready and its
- * prompt shows (`prompted`), so a prompt can be submitted at once.
+ * prompt shows (`prompted`), so a prompt can be submitted at once; `options` as `deck.open`
+ * takes them.
  */
-export const start = async ({ deck }: E2E, setup: AgentSetup): Promise<DeckTerminal> => {
-  const terminal = await deck.open(setup.agent)
+export const start = async (
+  { deck }: E2E,
+  setup: AgentSetup,
+  options?: Parameters<E2E["deck"]["open"]>[1],
+): Promise<DeckTerminal> => {
+  const terminal = await deck.open(setup.agent, options)
   await terminal.reached("ready", { timeoutMs: 60_000 })
   await prompted(terminal, setup)
   return terminal

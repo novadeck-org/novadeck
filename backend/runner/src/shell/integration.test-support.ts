@@ -18,6 +18,7 @@ import { handleWords } from "../terminals/handles.js"
 import { Terminals, type TerminalOptions } from "../terminals/index.js"
 import type { AgentTurn } from "../terminals/saved-terminals.js"
 import { it as base } from "../test.js"
+import { hostless, ownHome } from "../testing/host.js"
 import { plainSealer } from "../testing/sealing.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import { installShellFiles } from "./install.js"
@@ -93,12 +94,17 @@ export const it = base.extend<{ shell: Fixture }>({
       const terminals: Terminals = new Terminals({
         shell: bash,
         env: { HOME: home, PS1: "$ ", PATH: process.env.PATH },
+        // Nothing of the developer's own Novadeck terminal or agent session the tests may
+        // run in reaches the shells.
+        baseEnv: hostless(),
+        // Read anew as before (Windows), whatever the base.
+        freshPath: true,
         // Only when the test has none of its own: an install nobody waits for would fail
         // unseen once the folder goes.
         shellFiles:
           "shellFiles" in options
             ? options.shellFiles
-            : installShellFiles(join(root, "data", "shell")),
+            : installShellFiles(join(root, "data", "shell"), ownHome(root)),
         records: store,
         messages: store,
         projectOf: (sessionId) => store.session(sessionId).projectId,

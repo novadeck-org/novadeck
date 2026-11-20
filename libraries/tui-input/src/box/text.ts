@@ -98,7 +98,9 @@ const wrappedLine = (line: string, width: number): number => {
     }
     if (size > width) {
       rows += Math.ceil(size / width) - 1
-      used = size % width
+      // Its last row, with the space after it: a row it filled exactly is full, so the next
+      // word starts a row of its own.
+      used = (size % width || width) + cells(word) - size
     } else used += cells(word)
   }
   return rows

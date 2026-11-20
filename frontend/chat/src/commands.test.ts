@@ -1,6 +1,7 @@
 import {
   noConversation,
   noDoorbell,
+  InDoubt,
   RingUnderWay,
   SettleInTerminal,
   withReturned,
@@ -13,15 +14,17 @@ import {
 } from "@novadeck/core/conversation"
 import { createStore } from "@novadeck/core/store"
 import { refusing } from "@novadeck/core/testing"
+import type { TerminalKey } from "@novadeck/core/types"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { createChatCommands, ringRetryMs, ringWaitMs, unseenMs } from "./commands"
+import { rehomeTerminals } from "./by-terminal"
+import { createChatCommands, inDoubtNote, ringRetryMs, ringWaitMs, unseenMs } from "./commands"
 import { chatDraftOf } from "./drafts"
 import { chatReplyOf } from "./replies"
 import { chatSendsOf } from "./sends"
 import { setAnsweringInTerminal } from "./shown"
 import { createChat } from "./state"
-import { describe, expect, it } from "./test"
+import { context as situation, describe, expect, it } from "./test"
 
 const key = { projectId: "project", workspaceSessionId: "initial", terminalId: "01" }
 const context = "project/initial"
@@ -90,10 +93,12 @@ const open = (
     ...(clearBox && { clearBox }),
   }
   const chat = createChat()
+  // Where terminal 01 is now: moved to another session, as the runner may, or closed.
+  let here: TerminalKey | null = key
   const commands = createChatCommands({
     chat,
     conversations,
-    terminalOpen: () => true,
+    locate: (asked) => (here && asked.terminalId === here.terminalId ? here : null),
     context: () => context,
     chatView: () => chatView,
   })
@@ -130,11 +135,30 @@ const open = (
     // In an object, so awaiting the setup doesn't await the queued send too.
     return { queued }
   }
+  // The terminal moves to session `to`, and the chat's state goes with it, as `watchChat`
+  // takes it there.
+  const move = (to: string) => {
+    const from = context
+    here = { ...key, workspaceSessionId: to }
+    const home = (at: string) => (at === from ? `project/${to}` : undefined)
+    chat.update((state) => ({
+      ...state,
+      drafts: rehomeTerminals(state.drafts, home),
+      attachments: rehomeTerminals(state.attachments, home),
+      sends: rehomeTerminals(state.sends, home),
+    }))
+  }
+  // The terminal closes.
+  const close = () => {
+    here = null
+  }
   return {
     commands,
     sent,
     phases,
     draft,
+    move,
+    close,
     reply,
     receipt,
     tell,
@@ -488,6 +512,80 @@ describe("the chat's send queue", () => {
       expect(phases()).toEqual([["two", "sent"]])
     })
 
+  situation("for a terminal that moved to another session meanwhile", () => {
+    const moved = "project/other"
+    const phasesAt = (chat: ReturnType<typeof open>["chat"], at: string) =>
+      chatSendsOf(chat.store.getSnapshot().sends, at, "01").map(({ text, phase }) => [text, phase])
+
+    it("sends the queued words there, and each leaves the queue there", async () => {
+      const { chat, sent, receipt, tell, two, move } = open()
+      const { queued } = await two()
+      move("other")
+      tell({ prompts: [receipt(0, "settled", 0)] })
+      await expect(queued).resolves.toBe(true)
+      expect(sent).toEqual(["one", "two"])
+      expect(phasesAt(chat, moved)).toEqual([
+        ["one", "settled"],
+        ["two", "sent"],
+      ])
+      tell({ items: [userItem(0, "one")] })
+      expect(phasesAt(chat, moved)).toEqual([["two", "sent"]])
+      expect(phasesAt(chat, context)).toEqual([])
+    })
+
+    it("puts the words of one that failed back in the box there", async () => {
+      let move = (_to: string) => {}
+      const setup = open("s1", {
+        sends: () => {
+          move("other")
+          throw withReturned(new Error("It didn't land."), "came back")
+        },
+      })
+      move = setup.move
+      setup.commands.setChatDraft("01", "the message")
+      await expect(setup.commands.sendChat(key, "the message", null)).rejects.toThrow(
+        "It didn't land.",
+      )
+      expect(chatDraftOf(setup.chat.store.getSnapshot().drafts, moved, "01")).toBe(
+        "came back\nthe message",
+      )
+      expect(phasesAt(setup.chat, moved)).toEqual([])
+    })
+
+    it("hands the queued words back there on a Stop it moved during", async () => {
+      let move = (_to: string) => {}
+      const setup = open("s1", {
+        interrupt: async () => {
+          move("other")
+          return { words: "in the agent's box" }
+        },
+      })
+      move = setup.move
+      const { queued } = await setup.two()
+      await setup.commands.stopChat(key)
+      await expect(queued).resolves.toBe(false)
+      expect(chatDraftOf(setup.chat.store.getSnapshot().drafts, moved, "01")).toBe(
+        "in the agent's box\ntwo",
+      )
+    })
+
+    it("puts nothing back once it closed", async () => {
+      let close = () => {}
+      const setup = open("s1", {
+        sends: () => {
+          close()
+          throw withReturned(new Error("It didn't land."), "came back")
+        },
+      })
+      close = setup.close
+      setup.commands.setChatDraft("01", "the message")
+      await expect(setup.commands.sendChat(key, "the message", null)).rejects.toThrow(
+        "It didn't land.",
+      )
+      expect(setup.chat.store.getSnapshot().drafts).toEqual({})
+    })
+  })
+
   it("sends the next once the session changes before the receipt was seen", async () => {
     const { commands, sent, tell } = open()
     await commands.sendChat(key, "one", null)
@@ -511,6 +609,170 @@ describe("the chat's send queue", () => {
     await vi.advanceTimersByTimeAsync(1)
     await second
     expect(sent).toEqual(["one", "two"])
+  })
+})
+
+describe("a prompt whose answer the link lost", () => {
+  // The first send's call fails as the link drops under it, the runner going on with it; the
+  // rest go. `before` runs as the link comes back, ahead of the failure: a resync that already
+  // carries the receipt.
+  const losing = (before?: (setup: ReturnType<typeof open>) => void) => {
+    let calls = 0
+    let setup: ReturnType<typeof open> | undefined = undefined
+    setup = open("s1", {
+      sends: () => {
+        calls += 1
+        if (calls > 1) return
+        before?.(setup!)
+        throw new InDoubt()
+      },
+    })
+    return setup
+  }
+
+  // No receipt ever follows these: no wait can tell whether they went.
+  // A shell command goes back after the words behind it, as `joinDraft` keeps words out of
+  // its lines.
+  for (const [what, words, asked, back] of [
+    ["a shell command", "!npm run migrate", false, "next\n!npm run migrate"],
+    [
+      "words that answer a question set aside",
+      "Use the other table",
+      true,
+      "Use the other table\nnext",
+    ],
+  ] as const)
+    it(`comes back at once, said as may have gone, for ${what}, with what was queued behind`, async () => {
+      const setup = losing()
+      const { commands, sent, phases, draft, tell } = setup
+      if (asked)
+        tell({
+          requests: [
+            {
+              id: "q1",
+              kind: "question",
+              tool: "AskUserQuestion",
+              subject: null,
+              choices: [],
+              subagent: false,
+              dialog: { type: "questions", id: "q1:d", chat: "prompt", questions: [] },
+              answered: false,
+              askedAt: 0,
+            },
+          ],
+        })
+      commands.setChatDraft("01", words)
+      const first = commands.sendChat(key, words, null)
+      const second = commands.sendChat(key, "next", null)
+      await expect(first).rejects.toThrow(inDoubtNote)
+      await expect(second).resolves.toBe(false)
+      expect(phases()).toEqual([])
+      expect(draft()).toBe(back)
+      expect(sent).toEqual([words])
+    })
+
+  it("stays on its way, holding what was queued behind it, until its receipt says it went", async () => {
+    const { commands, sent, phases, draft, receipt, tell } = losing()
+    commands.setChatDraft("01", "one")
+    const first = commands.sendChat(key, "one", null)
+    const second = commands.sendChat(key, "two", null)
+    let went: boolean | undefined
+    void first.then((result) => (went = result))
+    await vi.waitFor(() =>
+      expect(phases()).toEqual([
+        ["one", "sent"],
+        ["two", "queued"],
+      ]),
+    )
+    // Neither refused nor gone: not in the box, and its promise still waits.
+    expect(draft()).toBe("")
+    expect(went).toBeUndefined()
+    expect(sent).toEqual(["one"])
+    // Back after the reconnect: the runner took it.
+    tell({ prompts: [receipt(0, "pending")] })
+    await expect(first).resolves.toBe(true)
+    tell({ prompts: [receipt(0, "settled", 0)] })
+    await expect(second).resolves.toBe(true)
+    expect(sent).toEqual(["one", "two"])
+  })
+
+  it("goes by a receipt that came with the reconnect, ahead of the failure", async () => {
+    const { commands, phases } = losing(({ tell, receipt }) =>
+      tell({ prompts: [receipt(0, "pending")] }),
+    )
+    await expect(commands.sendChat(key, "one", null)).resolves.toBe(true)
+    expect(phases()).toEqual([["one", "sent"]])
+  })
+
+  it("comes back to the box with what was queued behind it, in order, once no receipt shows", async () => {
+    vi.useFakeTimers()
+    const { commands, sent, phases, draft } = losing()
+    commands.setChatDraft("01", "one")
+    const first = commands.sendChat(key, "one", null)
+    const second = commands.sendChat(key, "two", null)
+    void first.catch(() => {})
+    await vi.advanceTimersByTimeAsync(unseenMs - 1)
+    expect(phases()).toEqual([
+      ["one", "sent"],
+      ["two", "queued"],
+    ])
+    await vi.advanceTimersByTimeAsync(1)
+    await expect(first).rejects.toThrow(inDoubtNote)
+    await expect(second).resolves.toBe(false)
+    expect(phases()).toEqual([])
+    expect(draft()).toBe("one\ntwo")
+    expect(sent).toEqual(["one"])
+  })
+
+  it("comes back to the box once its agent moved on to another session with no receipt", async () => {
+    const { commands, draft, tell } = losing()
+    commands.setChatDraft("01", "one")
+    const first = commands.sendChat(key, "one", null)
+    void first.catch(() => {})
+    await vi.waitFor(() => expect(draft()).toBe(""))
+    tell({ session: "s2" })
+    await expect(first).rejects.toThrow(inDoubtNote)
+    expect(draft()).toBe("one")
+  })
+})
+
+describe("a Stop whose answer the link lost", () => {
+  it("puts back the chat's prompt its receipt says it withdrew, whenever that shows", async () => {
+    for (const when of ["during", "after"] as const) {
+      let tellWithdrawn = () => {}
+      const setup = open("s1", {
+        interrupt: async () => {
+          if (when === "during") tellWithdrawn()
+          throw new InDoubt()
+        },
+      })
+      const { commands, receipt, tell, draft, phases, two } = setup
+      tellWithdrawn = () => tell({ prompts: [receipt(0, "withdrawn")] })
+      // eslint-disable-next-line no-await-in-loop -- One case after the other.
+      const { queued } = await two()
+      commands.setChatDraft("01", "typed meanwhile")
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await expect(commands.stopChat(key)).rejects.toThrow(InDoubt)
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await expect(queued).resolves.toBe(false)
+      if (when === "after") tellWithdrawn()
+      expect(draft(), when).toBe("one\ntwo\ntyped meanwhile")
+      expect(phases(), when).toEqual([])
+    }
+  })
+
+  it("puts nothing back twice where the Stop's answer came", async () => {
+    const setup = open("s1", {
+      interrupt: async () => {
+        setup.tell({ prompts: [setup.receipt(0, "withdrawn")] })
+        return { words: "one" }
+      },
+    })
+    const { commands, draft, phases, two } = setup
+    await two()
+    await commands.stopChat(key)
+    expect(draft()).toBe("one\ntwo")
+    expect(phases()).toEqual([])
   })
 })
 

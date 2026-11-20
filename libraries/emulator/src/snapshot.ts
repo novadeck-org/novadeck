@@ -1,11 +1,14 @@
 import { restoreMouseEncoding, type MouseEncoding } from "./mouse.js"
+import { restoreState } from "./restore.js"
 import { serializeWithin, type Screen } from "./screen.js"
 
 /**
  * The screen serialized with as much scrollback as `fits` accepts, halving it until then:
  * the visible screen always stays. The serializer leaves out the mouse's encoding, so it
  * follows the screen: a fresh terminal restored without it would report the mouse to an
- * SGR program as X10. Undefined when not even the visible screen fits.
+ * SGR program as X10. It leaves out more, which `restoreState` adds: the backgrounds of blank
+ * rows, the scroll region, a hidden cursor, and the cursor's exact place. Undefined when not
+ * even the visible screen fits.
  */
 export const snapshot = (
   screen: Screen,
@@ -14,6 +17,8 @@ export const snapshot = (
   serializeWithin(
     screen,
     (serializer, scrollback) =>
-      serializer.serialize({ scrollback }) + restoreMouseEncoding(options.mouse),
+      serializer.serialize({ scrollback }) +
+      restoreMouseEncoding(options.mouse) +
+      restoreState(screen),
     options.fits,
   )

@@ -1,11 +1,12 @@
 import { constants } from "node:fs"
-import { open, type FileHandle } from "node:fs/promises"
+import { open, realpath, type FileHandle } from "node:fs/promises"
 
 import { companionLimits, type AgentName, type ItemContent } from "@novadeck/protocol"
 
 import type { Shell } from "../harnesses/shells.js"
 import { cut } from "../text.js"
 import { hashOf } from "./content.js"
+import { secrets } from "./secrets.js"
 
 /** The background shells of the agent bound in a terminal, as its activity lists them. */
 export type PlaceShells = { readonly agent: AgentName; readonly shells: readonly Shell[] }
@@ -163,6 +164,13 @@ export class ShellTails {
   private readonly counted = new Map<string, Counted>()
 
   /**
+   * `held` tells a file that may hold secrets (see `secrets`), as the person's environment
+   * says now. The path is the harness's report, read from what its transcript says, so a
+   * file it names that may hold secrets is never read, by its name or where it leads.
+   */
+  constructor(private readonly held: () => (path: string) => boolean = () => secrets()) {}
+
+  /**
    * What the shells of an agent's terminal have output now: each shell's last lines, within
    * `shellsText` together (the oldest lines of the largest tails go first), and a stamp that
    * changes as a shell or its file does.
@@ -199,6 +207,8 @@ export class ShellTails {
   private async read(
     path: string,
   ): Promise<{ readonly output: ShellOutput; readonly mark: string }> {
+    const held = this.held()
+    if (held(path) || held(await realpath(path).catch(() => path))) return unreadable
     let handle: FileHandle
     try {
       // A pipe or device put in its place never blocks the reader, nor does a link get followed.

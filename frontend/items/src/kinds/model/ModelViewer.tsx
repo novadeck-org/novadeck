@@ -1,3 +1,4 @@
+import { bytesText } from "@novadeck/core/command-text"
 import type { FilePart, Item, ModelContent, UnavailableReason } from "@novadeck/core/items"
 import type { WorkspaceTarget } from "@novadeck/core/types"
 import { Progress } from "@novadeck/toolkit/Progress"
@@ -15,7 +16,7 @@ import { usePaneNote } from "../../pane-row"
 import { loadParts } from "../../parts/load"
 import { useRevealed } from "../../store/use-item-store"
 import { useViewerSlot } from "../../ViewerSlot"
-import { bytesText, loadingText } from "../video/format"
+import { loadingText } from "../video/format"
 import { modelFrame } from "./assets"
 import { formatNames, totalOf } from "./ModelBadge"
 

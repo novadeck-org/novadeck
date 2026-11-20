@@ -190,6 +190,18 @@ describe("the account's subscription usage", () => {
     expect(text.length).toBeGreaterThan(weekday.length + 1)
   })
 
+  it("counts the hours left within a day, though the reset is on tomorrow's date", () => {
+    const evening = new Date(2026, 9, 7, 22).getTime()
+    const tomorrow = new Date(2026, 9, 8, 8).getTime()
+    expect(resetText(tomorrow, evening)).toMatch(/^in 10h 0m · \S/)
+    // Past a day, by the calendar: the weekday up to five days off, the days counted after.
+    const weekday = new Date(2026, 9, 9).toLocaleDateString(undefined, { weekday: "short" })
+    expect(resetText(new Date(2026, 9, 9, 9).getTime(), evening).startsWith(`${weekday} `)).toBe(
+      true,
+    )
+    expect(resetText(new Date(2026, 9, 13, 9).getTime(), evening)).toMatch(/^in 6d · \S/)
+  })
+
   it("keeps the order the person left, and remembers agents not shown now", () => {
     const terminals = [
       agent("1", "claude", [{ minutes: 300, used: 0.4, resetsAt: null }]),

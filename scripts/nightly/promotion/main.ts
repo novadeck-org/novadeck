@@ -29,8 +29,12 @@ const required = (name: string): string => {
 
 const repo = (): string => required("GITHUB_REPOSITORY")
 
-const api = <T>(path: string): T =>
-  JSON.parse(execFileSync("gh", ["api", path], { encoding: "utf8" })) as T
+// A page of 100 runs passed Node's 1 MiB default on 2026-11-20 (e2e.yml's: 1,067,425 bytes,
+// about 15 KB a run), and the check crashed with ENOBUFS; scripts/ci/plan/durations.ts and
+// scripts/e2e/plan/durations.ts allow as much.
+const output = { encoding: "utf8", maxBuffer: 1 << 28 } as const
+
+const api = <T>(path: string): T => JSON.parse(execFileSync("gh", ["api", path], output)) as T
 
 /** The completed runs of a workflow on main, as far back as one page reaches. */
 const runsOf = (nightly: Nightly): readonly Run[] =>
@@ -69,7 +73,7 @@ const jobsOf = (run: Run): readonly Job[] =>
       "--jq",
       ".jobs[] | {name, labels, conclusion}",
     ],
-    { encoding: "utf8" },
+    output,
   )
     .split("\n")
     .filter(Boolean)

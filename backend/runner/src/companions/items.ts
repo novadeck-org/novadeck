@@ -28,6 +28,7 @@ import type {
   FolderMatch,
   WroteFolder,
 } from "@novadeck/protocol"
+import { bytesText } from "@novadeck/protocol/text"
 import { KeyedChanges } from "@novadeck/wire/server"
 
 import { waitAfter } from "../checkouts/git.js"
@@ -200,12 +201,6 @@ type Pointer = Pick<
   | "compare"
 >
 
-const size = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-}
-
 /**
  * A path's real path, as `realpath` gives it while it exists; for one that doesn't, the
  * real path of its deepest existing ancestor with the rest appended, so a path through
@@ -374,7 +369,7 @@ export class CompanionItems {
    */
   private readonly folderReads = new Map<string, number>()
   /** The ends of shells' output files, read for their items. */
-  private readonly tails = new ShellTails()
+  private readonly tails = new ShellTails(() => secrets(this.environment()))
   /**
    * What each item's latest show carries out, with that show's version: the element a page
    * brings into view, or the second a video starts at. Only that show carries it out, so it
@@ -1612,7 +1607,7 @@ export class CompanionItems {
       pointed.kind === "pdf" ||
       pointed.kind === "model"
     ) {
-      return `${size(pointed.size)} ${formatOf(pointed.path)}`
+      return `${bytesText(pointed.size)} ${formatOf(pointed.path)}`
     }
     if (pointed.kind === "folder") return tail(pointed.path, companionLimits.detail)
     const shown = project && inside(project, pointed.path) ? relative(project, pointed.path) : given

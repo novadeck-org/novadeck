@@ -223,7 +223,7 @@ export const codex: AgentSetup = {
   // next prompt, and a v2 one's end with none. Novadeck rightly calls such a root Settled.
   absent: {
     forms:
-      "its MCP elicitation form fires no hook, so no request waits for it, and none shows as raw (probed 2026-10-06, 0.159.3)",
+      "its MCP elicitation form fires no hook: its screen raises the request, whose dialog stays raw, answered in the terminal (probed 2026-11-20, 0.170.0)",
     multiSelect: "request_user_input takes one option of a question (probed 2026-10-06, 0.159.3)",
     background: "nothing it starts wakes it once its turn has ended (probed 2026-10-02, 0.159.3)",
     "background.command":

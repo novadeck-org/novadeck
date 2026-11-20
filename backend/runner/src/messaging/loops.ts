@@ -22,7 +22,8 @@ const statusLine = "\0status-line"
 type Span = { start: number; end: number | null }
 
 type Request = Span & { readonly id: string; readonly actor: string | null }
-type Subagent = Span & { readonly actor: string }
+/** A subagent's run, `startedAt` when the hook that started it did. */
+type Subagent = Span & { readonly actor: string; readonly startedAt: number }
 
 /** A turn's edge: its start, a Stop that ended it, or a Stop Novadeck continued. */
 type Mark = {
@@ -275,13 +276,41 @@ const fold = (history: History, event: HarnessEvent, at: number): void => {
       }
       return
     case "subagent-started":
-      history.subagents.push({ start: at, end: null, actor: event.actor })
+      // Codex tells a turn of its subagent by its prompt too, after its start.
+      if (!running(history, event.actor))
+        history.subagents.push({
+          start: at,
+          end: null,
+          actor: event.actor,
+          startedAt: event.startedAt,
+        })
       return
     case "subagent-stopped":
-    case "subagent-turn-aborted":
       close(history.subagents, at, (span) => span.actor === event.actor)
       close(history.requests, at, (span) => span.actor === event.actor)
       return
+    case "subagents-listed": {
+      // As the activity takes it: those it no longer lists that started before it ended
+      // unseen, and one it lists that isn't running runs. What a status line counts is its own.
+      const ids = event.subagents.map(({ id }) => id)
+      const ended = new Set(
+        history.subagents
+          .filter(
+            (span) =>
+              span.end === null &&
+              span.actor !== statusLine &&
+              span.startedAt < event.startedAt &&
+              !ids.includes(span.actor),
+          )
+          .map(({ actor }) => actor),
+      )
+      close(history.subagents, at, (span) => ended.has(span.actor))
+      close(history.requests, at, (span) => span.actor !== null && ended.has(span.actor))
+      for (const id of ids)
+        if (!running(history, id))
+          history.subagents.push({ start: at, end: null, actor: id, startedAt: event.startedAt })
+      return
+    }
     case "turn-started":
       settle(history, at)
       history.marks.push({ at, startedAt: event.startedAt, kind: "start" })
@@ -325,7 +354,12 @@ const fold = (history: History, event: HarnessEvent, at: number): void => {
       history.requests.push({ id: event.requestId, actor: event.actor, start: at, end: null })
       // A subagent not seen running runs from its request on, as the activity takes it.
       if (event.actor !== null && !running(history, event.actor)) {
-        history.subagents.push({ start: at, end: null, actor: event.actor })
+        history.subagents.push({
+          start: at,
+          end: null,
+          actor: event.actor,
+          startedAt: event.startedAt,
+        })
       }
       return
     case "attention-resolved":
@@ -358,7 +392,8 @@ const settle = (history: History, at: number): void => {
  */
 const counted = (history: History, agents: number, at: number): void => {
   const open = running(history, statusLine)
-  if (agents > 0 && !open) history.subagents.push({ start: at, end: null, actor: statusLine })
+  if (agents > 0 && !open)
+    history.subagents.push({ start: at, end: null, actor: statusLine, startedAt: at })
   if (agents === 0 && open) close(history.subagents, at, (span) => span.actor === statusLine)
 }
 

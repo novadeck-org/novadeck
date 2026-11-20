@@ -56,7 +56,8 @@ for (const setup of setups) {
       const it = e2e(setup)
 
       it("runs in its terminal's own scope", async ({ e2e: run }) => {
-        const terminal = await start(run, setup)
+        // Not in use, as a terminal in a window looking at another: it opens at a terminal's share.
+        const terminal = await start(run, setup, { inUse: false })
         const shell = shellOf(run, terminal)
         expect(cgroupOf(shell)).toMatch(new RegExp(`-term${shell}\\.scope$`))
         const agent = await terminalForeground(shell)
@@ -70,7 +71,8 @@ for (const setup of setups) {
       it("gives the CPU of the app's window to the terminal in use, agent and all, and takes it back", async ({
         e2e: run,
       }) => {
-        const terminal = await start(run, setup)
+        // Not in use, as a terminal in a window looking at another: it opens at a terminal's share.
+        const terminal = await start(run, setup, { inUse: false })
         const shell = shellOf(run, terminal)
         const agent = await terminalForeground(shell)
         expect(agent).toBeDefined()

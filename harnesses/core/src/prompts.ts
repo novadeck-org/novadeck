@@ -1,3 +1,5 @@
+import { isDelivery } from "@novadeck/protocol/harnesses"
+
 import type { EventBase, HarnessEvent } from "./events.js"
 
 /**
@@ -212,10 +214,11 @@ export const quotedLine = (line: string): string => {
 
 /**
  * Whether a prompt is a delivery of agents' messages rather than the person's, in any
- * harness. A harness's own continuations it tells itself (see `promptStart`), and a doorbell
- * prompt is told apart by `doorbellNonce`.
+ * harness, by the one rule the chat and the Inbox read too (`isDelivery`): one that starts
+ * with a delivery, never the person's words that quote one. A harness's own continuations
+ * it tells itself (see `promptStart`), and a doorbell prompt is told apart by `doorbellNonce`.
  */
-export const continuationPrompt = (prompt: string): boolean => prompt.includes("<novadeck-messages")
+export const continuationPrompt = (prompt: string): boolean => isDelivery(prompt)
 
 /**
  * The turn a root prompt starts, from its text: Novadeck's doorbell, a delivery (or

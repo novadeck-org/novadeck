@@ -522,6 +522,9 @@ export const landedIn = async (
     root,
     [
       "log",
+      // A log setting that shows signatures would put gpg's words ahead of a signed commit's
+      // record, which then reads as part of the commit before it.
+      "--no-show-signature",
       "--first-parent",
       "--diff-merges=first-parent",
       "--no-renames",

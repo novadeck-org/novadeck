@@ -290,7 +290,7 @@ Terminals:
   Canvas wire side by side (on neighbours, the teams chain through the middle one).
 - **New terminals:** "Every state at once" adds one terminal per state, named after it, so
   the tabs and the windows in Grid and Canvas show done, replied (unread), failed, working,
-  planning, subagents, asking, waiting, paused at its limit or at a model's own (weekly Fable), asleep (plain, done, asking),
+  planning, subagents, asking, waiting, paused at its limit (resetting soon, or in 8 days) or at a model's own (weekly Fable), waiting on a wake-up due in minutes or in 7 days, asleep (plain, done, asking),
   waking (plain, asking), ended and the rest side by side. Its agents are of the harness the group's switch chose (see Agent). "Asks (MCP)" and
   "Needs a sign-in" are agents with an `ask` open in the Inbox (a
   question, and an action ask), so their "?" and "!" show beside "Working, a side question",
@@ -662,7 +662,9 @@ App:
   Review page sends them. "Plan with a change field" adds Claude Code 2.1.287's plan, whose only
   way back is "Tell Claude what to change": that row is a field that must say what. "Form from
   an MCP server" adds the form an MCP server asks Claude Code to fill in, answered in the card as
-  the chat's is (a text, a choice, a number and a yes/no; Submit or Decline). A request's sheet
+  the chat's is (a text, a choice, a number and a yes/no; Submit or Decline); "Form from an MCP
+  server, in Codex" adds the one Codex draws, which only its screen tells, shown as its text to
+  answer in the terminal. A request's sheet
   is the chat's own card, and its draft (the words in its options, its picks and page, a form's
   entries) stays with its row. Answering any
   row moves the sheet on to the next that needs you (updates skipped) with a one-line receipt,
@@ -1694,10 +1696,15 @@ shows a release's highlights after updating to it until the person dismisses the
 and `RELEASE_NOTES_PROMOTE_MODEL` repository variables pick the models (by default
 `anthropic/claude-haiku-5.5`, and `anthropic/claude-opus-5.5` at high effort; a different model a
 variable names thinks at its own default). Without the key, when the key is
-out of credit, or when a run fails, a release keeps the notes it has, the run page shows a
-warning, and neither step holds a release or a promotion. A promotion costs about $0.10 to
-$0.30, and a prerelease about a tenth of a cent. OpenRouter holds a promotion's whole output
-limit up front, about $0.70 on Opus, so the key's limit needs that much free when one runs. With `OPENROUTER_API_KEY` and a `gh` login,
+out of credit, or when a run fails, a prerelease keeps the notes it has and the run page shows a
+warning, but a promotion fails and the release stays a prerelease: a stable release without
+notes shows the app no card, so run Promote to Stable again once the cause is fixed. A promotion
+costs about $0.10 to $0.30, and a prerelease about a tenth of a cent. OpenRouter holds a
+promotion's whole output limit up front, about $0.70 on Opus plus its input, so the key's daily
+limit needs that much free after the day's prereleases ($3 since 2026-11-20; $1 refused v1.8.2's
+and v1.9.53's notes with 402). The latest stable release can get its notes written again by
+rerunning its promotion's Write Release Notes job: they start from the stable release before
+it, and Promote, which reruns with it, refuses to mark an older tag latest. With `OPENROUTER_API_KEY` and a `gh` login,
 `node scripts/release-notes/main.ts promote v1.2.3 --dry-run` prints what a promotion would
 write without changing any release; it asks the model, so it spends credit.
 

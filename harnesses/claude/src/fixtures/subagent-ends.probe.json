@@ -1,0 +1,3174 @@
+{
+  "harness": "claude",
+  "version": "2.1.328",
+  "source": "captured against the fake model (2026-11-20), by backend/runner/src/e2e/probes/subagent-ends-claude.e2e.ts; sandbox paths replaced, ids the run's own",
+  "how": "One session. The root starts a background subagent (first), held at its model call, and stops it with TaskStop; then resumes it with SendMessage and lets it finish. Then it starts a second background subagent, which starts two of its own (one in the background, one in the foreground), all held; a root turn ends while they run; then the person stops the second from Claude Code's task list (↓ twice to select it, then x) and the nested ones are let go. Each step's hooks in order, as the runner heard them (ToolSearch's result left out), with the screen's last rows where they tell the keys",
+  "ids": {
+    "first": "a215a2814211b4a3d",
+    "second": "a45230acf74305306"
+  },
+  "steps": [
+    {
+      "step": "started",
+      "hooks": [
+        {
+          "event": "SessionStart",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "SessionStart",
+            "source": "startup",
+            "model": "claude-opus-5-5"
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "Start the work"
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:CronCreate,CronDelete,CronList,EnterPlanMode,EnterWorktree,ExitPlanMode,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 30
+            },
+            "tool_use_id": "toolu_3f67ff0f5e4ee5f5ea4ce60c",
+            "tool_response": "(tool list left out)"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:CronCreate,CronDelete,CronList,EnterPlanMode,EnterWorktree,ExitPlanMode,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 30
+            },
+            "tool_use_id": "toolu_3f67ff0f5e4ee5f5ea4ce60c",
+            "duration_ms": 1,
+            "tool_response": "(tool list left out)"
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "ToolSearch",
+                "tool_input": {
+                  "query": "select:CronCreate,CronDelete,CronList,EnterPlanMode,EnterWorktree,ExitPlanMode,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+                  "max_results": 30
+                },
+                "tool_use_id": "toolu_3f67ff0f5e4ee5f5ea4ce60c",
+                "tool_response": [
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "CronCreate"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "CronDelete"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "CronList"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "EnterPlanMode"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "EnterWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "ExitPlanMode"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "ExitWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "Monitor"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "NotebookEdit"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "SendMessage"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "TaskStop"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebFetch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebSearch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__agents"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__ask"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__describe"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__done"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__feedback"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__lead"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__look"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_agent"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__release"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__send"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__show"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__showing"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__team"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__tell"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Agent",
+            "tool_input": {
+              "description": "First work",
+              "prompt": "novadeck-probe-first-work: reply when done.",
+              "subagent_type": "general-purpose"
+            },
+            "tool_use_id": "toolu_e1ae89017d905936563586b7"
+          }
+        },
+        {
+          "event": "SubagentStart",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "agent_id": "a215a2814211b4a3d",
+            "agent_type": "general-purpose",
+            "hook_event_name": "SubagentStart"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Agent",
+            "tool_input": {
+              "description": "First work",
+              "prompt": "novadeck-probe-first-work: reply when done.",
+              "subagent_type": "general-purpose"
+            },
+            "tool_response": {
+              "isAsync": true,
+              "status": "async_launched",
+              "agentId": "a215a2814211b4a3d",
+              "description": "First work",
+              "resolvedModel": "claude-opus-5-5",
+              "prompt": "novadeck-probe-first-work: reply when done.",
+              "outputFile": "/home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b/tasks/a215a2814211b4a3d.output",
+              "canReadOutputFile": true,
+              "canContinueAgent": true
+            },
+            "tool_use_id": "toolu_e1ae89017d905936563586b7",
+            "duration_ms": 12
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "Agent",
+                "tool_input": {
+                  "description": "First work",
+                  "prompt": "novadeck-probe-first-work: reply when done.",
+                  "subagent_type": "general-purpose",
+                  "run_in_background": true
+                },
+                "tool_use_id": "toolu_e1ae89017d905936563586b7",
+                "tool_response": [
+                  {
+                    "type": "text",
+                    "text": "Async agent launched successfully. (This tool result is internal metadata — never quote or paste any part of it, including the agentId below, into a user-facing reply.)\nagentId: a215a2814211b4a3d (internal ID - do not mention to user. Use SendMessage with to: 'a215a2814211b4a3d', summary: '<5-10 word recap>' to continue this agent.)\nThe agent is working in the background. You will be notified automatically when it completes. You know nothing about its results until that notification arrives — do not report, assume, or predict them; continue other work or respond to the user in the meantime.\nDo not duplicate this agent's work — avoid working with the same files or topics it is using.\noutput_file: /home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b/tasks/a215a2814211b4a3d.output\nDo NOT Read or tail this file via the shell tool — it is the full subagent JSONL transcript and reading it will overflow your context. If the user asks for progress, say the agent is still running; you'll get a completion notification."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a215a2814211b4a3d",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 25
+            },
+            "tool_use_id": "toolu_530d634d10aff0bd2bfcf25d",
+            "tool_response": "(tool list left out)"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false,
+            "last_assistant_message": "Done with that.",
+            "background_tasks": [
+              {
+                "id": "a215a2814211b4a3d",
+                "type": "subagent",
+                "status": "running",
+                "description": "First work",
+                "agent_type": "general-purpose"
+              }
+            ]
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a215a2814211b4a3d",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 25
+            },
+            "tool_use_id": "toolu_530d634d10aff0bd2bfcf25d",
+            "duration_ms": 1,
+            "tool_response": "(tool list left out)"
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a215a2814211b4a3d",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "ToolSearch",
+                "tool_input": {
+                  "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+                  "max_results": 25
+                },
+                "tool_use_id": "toolu_530d634d10aff0bd2bfcf25d",
+                "tool_response": [
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "EnterWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "ExitWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "Monitor"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "NotebookEdit"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "SendMessage"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "TaskStop"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebFetch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebSearch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__agents"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__ask"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__describe"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__done"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__feedback"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__lead"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__look"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_agent"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__release"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__send"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__show"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__showing"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__team"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__tell"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "step": "stopped by TaskStop",
+      "hooks": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "Stop the work"
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "TaskStop",
+            "tool_input": {
+              "task_id": "a215a2814211b4a3d"
+            },
+            "tool_use_id": "toolu_6cb369b2b5e8d29c713adeff"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "TaskStop",
+            "tool_input": {
+              "task_id": "a215a2814211b4a3d"
+            },
+            "tool_response": {
+              "message": "Successfully stopped task: a215a2814211b4a3d (First work)",
+              "task_id": "a215a2814211b4a3d",
+              "task_type": "local_agent",
+              "command": "First work"
+            },
+            "tool_use_id": "toolu_6cb369b2b5e8d29c713adeff",
+            "duration_ms": 2
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "TaskStop",
+                "tool_input": {
+                  "task_id": "a215a2814211b4a3d"
+                },
+                "tool_use_id": "toolu_6cb369b2b5e8d29c713adeff",
+                "tool_response": "{\"message\":\"Successfully stopped task: a215a2814211b4a3d (First work)\",\"task_id\":\"a215a2814211b4a3d\",\"task_type\":\"local_agent\",\"command\":\"First work\"}"
+              }
+            ]
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "<task-notification>\n<task-id>a215a2814211b4a3d</task-id>\n<tool-use-id>toolu_e1ae89017d905936563586b7</tool-use-id>\n<output-file>/home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b/tasks/a215a2814211b4a3d.output</output-file>\n<status>killed</status>\n<summary>Agent \"First work\" was stopped by Claude</summary>\n<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>\n</task-notification>"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false,
+            "last_assistant_message": "Done with that.",
+            "background_tasks": []
+          }
+        }
+      ]
+    },
+    {
+      "step": "resumed",
+      "hooks": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "Resume the work"
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "SendMessage",
+            "tool_input": {
+              "to": "a215a2814211b4a3d",
+              "summary": "Keep going",
+              "message": "Keep going",
+              "type": "message",
+              "recipient": "a215a2814211b4a3d",
+              "recipient_kind": "agent",
+              "content": "Keep going"
+            },
+            "tool_use_id": "toolu_212478af52409714ba0db050"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "SendMessage",
+            "tool_input": {
+              "to": "a215a2814211b4a3d",
+              "summary": "Keep going",
+              "message": "Keep going"
+            },
+            "tool_response": {
+              "success": true,
+              "message": "Resuming agent a215a28",
+              "resumedAgentId": "a215a2814211b4a3d",
+              "revivedAgentId": "a215a2814211b4a3d",
+              "pin": {
+                "id": "a215a2814211b4a3d",
+                "name": "a215a2814211b4a3d",
+                "ref": "819b1f"
+              }
+            },
+            "tool_use_id": "toolu_212478af52409714ba0db050",
+            "duration_ms": 25
+          }
+        },
+        {
+          "event": "SubagentStart",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "agent_id": "a215a2814211b4a3d",
+            "agent_type": "general-purpose",
+            "hook_event_name": "SubagentStart"
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "SendMessage",
+                "tool_input": {
+                  "to": "a215a2814211b4a3d",
+                  "message": "Keep going"
+                },
+                "tool_use_id": "toolu_212478af52409714ba0db050",
+                "tool_response": [
+                  {
+                    "type": "text",
+                    "text": "{\"success\":true,\"message\":\"Resuming agent a215a28\",\"resumedAgentId\":\"a215a2814211b4a3d\",\"pin\":{\"id\":\"a215a2814211b4a3d\",\"name\":\"a215a2814211b4a3d\",\"ref\":\"819b1f\"}}"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false,
+            "last_assistant_message": "Done with that.",
+            "background_tasks": [
+              {
+                "id": "a215a2814211b4a3d",
+                "type": "subagent",
+                "status": "running",
+                "description": "First work",
+                "agent_type": "general-purpose"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "step": "resumed one finished",
+      "hooks": [
+        {
+          "event": "SubagentStop",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a215a2814211b4a3d",
+            "agent_type": "general-purpose",
+            "hook_event_name": "SubagentStop",
+            "stop_hook_active": false,
+            "agent_transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b/subagents/agent-a215a2814211b4a3d.jsonl",
+            "last_assistant_message": "Resumed work done.",
+            "background_tasks": [
+              {
+                "id": "a215a2814211b4a3d",
+                "type": "subagent",
+                "status": "running",
+                "description": "First work",
+                "agent_type": "general-purpose"
+              }
+            ]
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "<task-notification>\n<task-id>a215a2814211b4a3d</task-id>\n<tool-use-id>toolu_212478af52409714ba0db050</tool-use-id>\n<output-file>/home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b/tasks/a215a2814211b4a3d.output</output-file>\n<status>completed</status>\n<summary>Agent \"First work\" finished</summary>\n<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>\n<result>Resumed work done.</result>\n<usage><subagent_tokens>3695</subagent_tokens><tool_uses>1</tool_uses><duration_ms>12332</duration_ms></usage>\n</task-notification>"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false,
+            "last_assistant_message": "OK.",
+            "background_tasks": []
+          }
+        }
+      ]
+    },
+    {
+      "step": "second and its nested started",
+      "hooks": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "Start more work"
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Agent",
+            "tool_input": {
+              "description": "Second work",
+              "prompt": "novadeck-probe-second-work: reply when done.",
+              "subagent_type": "general-purpose"
+            },
+            "tool_use_id": "toolu_bc6ceaf92b9a72ad98bc2c6e"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Agent",
+            "tool_input": {
+              "description": "Second work",
+              "prompt": "novadeck-probe-second-work: reply when done.",
+              "subagent_type": "general-purpose"
+            },
+            "tool_response": {
+              "isAsync": true,
+              "status": "async_launched",
+              "agentId": "a45230acf74305306",
+              "description": "Second work",
+              "resolvedModel": "claude-opus-5-5",
+              "prompt": "novadeck-probe-second-work: reply when done.",
+              "outputFile": "/home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b/tasks/a45230acf74305306.output",
+              "canReadOutputFile": true,
+              "canContinueAgent": true
+            },
+            "tool_use_id": "toolu_bc6ceaf92b9a72ad98bc2c6e",
+            "duration_ms": 7
+          }
+        },
+        {
+          "event": "SubagentStart",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "agent_id": "a45230acf74305306",
+            "agent_type": "general-purpose",
+            "hook_event_name": "SubagentStart"
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "Agent",
+                "tool_input": {
+                  "description": "Second work",
+                  "prompt": "novadeck-probe-second-work: reply when done.",
+                  "subagent_type": "general-purpose",
+                  "run_in_background": true
+                },
+                "tool_use_id": "toolu_bc6ceaf92b9a72ad98bc2c6e",
+                "tool_response": [
+                  {
+                    "type": "text",
+                    "text": "Async agent launched successfully. (This tool result is internal metadata — never quote or paste any part of it, including the agentId below, into a user-facing reply.)\nagentId: a45230acf74305306 (internal ID - do not mention to user. Use SendMessage with to: 'a45230acf74305306', summary: '<5-10 word recap>' to continue this agent.)\nThe agent is working in the background. You will be notified automatically when it completes. You know nothing about its results until that notification arrives — do not report, assume, or predict them; continue other work or respond to the user in the meantime.\nDo not duplicate this agent's work — avoid working with the same files or topics it is using.\noutput_file: /home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b/tasks/a45230acf74305306.output\nDo NOT Read or tail this file via the shell tool — it is the full subagent JSONL transcript and reading it will overflow your context. If the user asks for progress, say the agent is still running; you'll get a completion notification."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a45230acf74305306",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 25
+            },
+            "tool_use_id": "toolu_8dfd2ae3b39a4c9c634f7669",
+            "tool_response": "(tool list left out)"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false,
+            "last_assistant_message": "Done with that.",
+            "background_tasks": [
+              {
+                "id": "a45230acf74305306",
+                "type": "subagent",
+                "status": "running",
+                "description": "Second work",
+                "agent_type": "general-purpose"
+              }
+            ]
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a45230acf74305306",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 25
+            },
+            "tool_use_id": "toolu_8dfd2ae3b39a4c9c634f7669",
+            "duration_ms": 0,
+            "tool_response": "(tool list left out)"
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a45230acf74305306",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "ToolSearch",
+                "tool_input": {
+                  "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+                  "max_results": 25
+                },
+                "tool_use_id": "toolu_8dfd2ae3b39a4c9c634f7669",
+                "tool_response": [
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "EnterWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "ExitWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "Monitor"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "NotebookEdit"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "SendMessage"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "TaskStop"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebFetch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebSearch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__agents"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__ask"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__describe"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__done"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__feedback"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__lead"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__look"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_agent"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__release"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__send"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__show"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__showing"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__team"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__tell"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a45230acf74305306",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Agent",
+            "tool_input": {
+              "description": "Nested foreground",
+              "prompt": "novadeck-probe-nested-foreground: reply when done.",
+              "subagent_type": "general-purpose"
+            },
+            "tool_use_id": "toolu_62c2e8b664b72f969da4a1b3"
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a45230acf74305306",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Agent",
+            "tool_input": {
+              "description": "Nested background",
+              "prompt": "novadeck-probe-nested-background: reply when done.",
+              "subagent_type": "general-purpose"
+            },
+            "tool_use_id": "toolu_4bd1a74fd5b998eb99c2f00e"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a45230acf74305306",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Agent",
+            "tool_input": {
+              "description": "Nested foreground",
+              "prompt": "novadeck-probe-nested-foreground: reply when done.",
+              "subagent_type": "general-purpose"
+            },
+            "tool_response": {
+              "isAsync": true,
+              "status": "async_launched",
+              "agentId": "a972fc104eb34c696",
+              "description": "Nested foreground",
+              "resolvedModel": "claude-opus-5-5",
+              "prompt": "novadeck-probe-nested-foreground: reply when done.",
+              "outputFile": "/home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b/tasks/a972fc104eb34c696.output",
+              "canReadOutputFile": true,
+              "canContinueAgent": true
+            },
+            "tool_use_id": "toolu_62c2e8b664b72f969da4a1b3",
+            "duration_ms": 8
+          }
+        },
+        {
+          "event": "SubagentStart",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "agent_id": "a972fc104eb34c696",
+            "agent_type": "general-purpose",
+            "hook_event_name": "SubagentStart"
+          }
+        },
+        {
+          "event": "SubagentStart",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "agent_id": "a96122616dbe0ff99",
+            "agent_type": "general-purpose",
+            "hook_event_name": "SubagentStart"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a45230acf74305306",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Agent",
+            "tool_input": {
+              "description": "Nested background",
+              "prompt": "novadeck-probe-nested-background: reply when done.",
+              "subagent_type": "general-purpose"
+            },
+            "tool_response": {
+              "isAsync": true,
+              "status": "async_launched",
+              "agentId": "a96122616dbe0ff99",
+              "description": "Nested background",
+              "resolvedModel": "claude-opus-5-5",
+              "prompt": "novadeck-probe-nested-background: reply when done.",
+              "outputFile": "/home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b/tasks/a96122616dbe0ff99.output",
+              "canReadOutputFile": true,
+              "canContinueAgent": true
+            },
+            "tool_use_id": "toolu_4bd1a74fd5b998eb99c2f00e",
+            "duration_ms": 6
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a45230acf74305306",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "Agent",
+                "tool_input": {
+                  "description": "Nested background",
+                  "prompt": "novadeck-probe-nested-background: reply when done.",
+                  "subagent_type": "general-purpose",
+                  "run_in_background": true
+                },
+                "tool_use_id": "toolu_4bd1a74fd5b998eb99c2f00e",
+                "tool_response": [
+                  {
+                    "type": "text",
+                    "text": "Async agent launched successfully. (This tool result is internal metadata — never quote or paste any part of it, including the agentId below, into a user-facing reply.)\nagentId: a96122616dbe0ff99 (internal ID - do not mention to user. Use SendMessage with to: 'a96122616dbe0ff99', summary: '<5-10 word recap>' to continue this agent.)\nThe agent is working in the background. You will be notified automatically when it completes. You know nothing about its results until that notification arrives — do not report, assume, or predict them; continue other work or respond to the user in the meantime.\nDo not duplicate this agent's work — avoid working with the same files or topics it is using.\noutput_file: /home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b/tasks/a96122616dbe0ff99.output\nDo NOT Read or tail this file via the shell tool — it is the full subagent JSONL transcript and reading it will overflow your context. If the user asks for progress, say the agent is still running; you'll get a completion notification."
+                  }
+                ]
+              },
+              {
+                "tool_name": "Agent",
+                "tool_input": {
+                  "description": "Nested foreground",
+                  "prompt": "novadeck-probe-nested-foreground: reply when done.",
+                  "subagent_type": "general-purpose"
+                },
+                "tool_use_id": "toolu_62c2e8b664b72f969da4a1b3",
+                "tool_response": [
+                  {
+                    "type": "text",
+                    "text": "Async agent launched successfully. (This tool result is internal metadata — never quote or paste any part of it, including the agentId below, into a user-facing reply.)\nagentId: a972fc104eb34c696 (internal ID - do not mention to user. Use SendMessage with to: 'a972fc104eb34c696', summary: '<5-10 word recap>' to continue this agent.)\nThe agent is working in the background. You will be notified automatically when it completes. You know nothing about its results until that notification arrives — do not report, assume, or predict them; continue other work or respond to the user in the meantime.\nDo not duplicate this agent's work — avoid working with the same files or topics it is using.\noutput_file: /home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b/tasks/a972fc104eb34c696.output\nDo NOT Read or tail this file via the shell tool — it is the full subagent JSONL transcript and reading it will overflow your context. If the user asks for progress, say the agent is still running; you'll get a completion notification."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a972fc104eb34c696",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 25
+            },
+            "tool_use_id": "toolu_ee0229d2e4af662ab42101df",
+            "tool_response": "(tool list left out)"
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a96122616dbe0ff99",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 25
+            },
+            "tool_use_id": "toolu_5d4ce246d1554a094613b4ca",
+            "tool_response": "(tool list left out)"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a972fc104eb34c696",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 25
+            },
+            "tool_use_id": "toolu_ee0229d2e4af662ab42101df",
+            "duration_ms": 1,
+            "tool_response": "(tool list left out)"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a96122616dbe0ff99",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 25
+            },
+            "tool_use_id": "toolu_5d4ce246d1554a094613b4ca",
+            "duration_ms": 1,
+            "tool_response": "(tool list left out)"
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a972fc104eb34c696",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "ToolSearch",
+                "tool_input": {
+                  "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+                  "max_results": 25
+                },
+                "tool_use_id": "toolu_ee0229d2e4af662ab42101df",
+                "tool_response": [
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "EnterWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "ExitWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "Monitor"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "NotebookEdit"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "SendMessage"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "TaskStop"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebFetch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebSearch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__agents"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__ask"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__describe"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__done"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__feedback"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__lead"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__look"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_agent"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__release"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__send"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__show"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__showing"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__team"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__tell"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a96122616dbe0ff99",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "ToolSearch",
+                "tool_input": {
+                  "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+                  "max_results": 25
+                },
+                "tool_use_id": "toolu_5d4ce246d1554a094613b4ca",
+                "tool_response": [
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "EnterWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "ExitWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "Monitor"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "NotebookEdit"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "SendMessage"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "TaskStop"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebFetch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebSearch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__agents"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__ask"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__describe"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__done"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__feedback"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__lead"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__look"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_agent"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__release"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__send"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__show"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__showing"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__team"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__tell"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "step": "a root turn while nested run",
+      "hooks": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "Ping now"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false,
+            "last_assistant_message": "OK.",
+            "background_tasks": [
+              {
+                "id": "a45230acf74305306",
+                "type": "subagent",
+                "status": "running",
+                "description": "Second work",
+                "agent_type": "general-purpose"
+              },
+              {
+                "id": "a972fc104eb34c696",
+                "type": "subagent",
+                "status": "running",
+                "description": "Nested foreground",
+                "agent_type": "general-purpose"
+              },
+              {
+                "id": "a96122616dbe0ff99",
+                "type": "subagent",
+                "status": "running",
+                "description": "Nested background",
+                "agent_type": "general-purpose"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "step": "stopped from the task list",
+      "hooks": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "<task-notification>\n<task-id>a45230acf74305306</task-id>\n<tool-use-id>toolu_bc6ceaf92b9a72ad98bc2c6e</tool-use-id>\n<output-file>/home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b/tasks/a45230acf74305306.output</output-file>\n<status>killed</status>\n<summary>Agent \"Second work\" was stopped by user</summary>\n<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>\n</task-notification>"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "149d9f88-8663-4b22-9202-c904c2a3155b",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/149d9f88-8663-4b22-9202-c904c2a3155b.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false,
+            "last_assistant_message": "OK.",
+            "background_tasks": []
+          }
+        }
+      ]
+    },
+    {
+      "step": "after",
+      "hooks": []
+    },
+    {
+      "step": "nested released",
+      "hooks": []
+    }
+  ],
+  "taskList": {
+    "down": {
+      "36": "  enter to view · x to stop · ctrl+x ctrl+k to stop all agents",
+      "38": "  ● main",
+      "39": "❯ ◯ general-purpose (+2)  Second work                                                               9s · ↓ 3.7k tokens"
+    },
+    "x": {
+      "36": "  enter to view · x to clear",
+      "38": "  ● main",
+      "39": "❯ ◯ general-purpose (+2)  Second work                                                    stopped · 10s · ↓ 3.7k tokens"
+    }
+  },
+  "escapeHow": "A second session (probe `records what a root Escape does to the subagents its turn started`): the root starts a subagent in the background, then one with no run_in_background (which 2.1.328 launched in the background all the same), then both at once, each held at its model call while the root’s own next model call is held too; the person presses Escape, then each is let go, and a root turn follows. Each step’s hooks in order (the interruption itself is a transcript record, not a hook)",
+  "escape": [
+    {
+      "step": "background: running",
+      "hooks": [
+        {
+          "event": "SessionStart",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "hook_event_name": "SessionStart",
+            "source": "startup",
+            "model": "claude-opus-5-5"
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "Escape background"
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:CronCreate,CronDelete,CronList,EnterPlanMode,EnterWorktree,ExitPlanMode,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 30
+            },
+            "tool_use_id": "toolu_58775f2f94f950bba169e863",
+            "tool_response": "(tool list left out)"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:CronCreate,CronDelete,CronList,EnterPlanMode,EnterWorktree,ExitPlanMode,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 30
+            },
+            "tool_response": "(tool list left out)",
+            "tool_use_id": "toolu_58775f2f94f950bba169e863",
+            "duration_ms": 2
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "ToolSearch",
+                "tool_input": {
+                  "query": "select:CronCreate,CronDelete,CronList,EnterPlanMode,EnterWorktree,ExitPlanMode,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+                  "max_results": 30
+                },
+                "tool_use_id": "toolu_58775f2f94f950bba169e863",
+                "tool_response": [
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "CronCreate"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "CronDelete"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "CronList"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "EnterPlanMode"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "EnterWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "ExitPlanMode"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "ExitWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "Monitor"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "NotebookEdit"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "SendMessage"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "TaskStop"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebFetch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebSearch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__agents"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__ask"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__describe"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__done"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__feedback"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__lead"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__look"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_agent"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__release"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__send"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__show"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__showing"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__team"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__tell"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Agent",
+            "tool_input": {
+              "description": "Held background bg",
+              "prompt": "novadeck-probe-escape-background-bg: reply when done.",
+              "subagent_type": "general-purpose"
+            },
+            "tool_use_id": "toolu_475690fce1b554a3f257268c"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Agent",
+            "tool_input": {
+              "description": "Held background bg",
+              "prompt": "novadeck-probe-escape-background-bg: reply when done.",
+              "subagent_type": "general-purpose"
+            },
+            "tool_response": {
+              "isAsync": true,
+              "status": "async_launched",
+              "agentId": "a5203680bb489b846",
+              "description": "Held background bg",
+              "resolvedModel": "claude-opus-5-5",
+              "prompt": "novadeck-probe-escape-background-bg: reply when done.",
+              "outputFile": "/home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0/tasks/a5203680bb489b846.output",
+              "canReadOutputFile": true,
+              "canContinueAgent": true
+            },
+            "tool_use_id": "toolu_475690fce1b554a3f257268c",
+            "duration_ms": 15
+          }
+        },
+        {
+          "event": "SubagentStart",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "agent_id": "a5203680bb489b846",
+            "agent_type": "general-purpose",
+            "hook_event_name": "SubagentStart"
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "Agent",
+                "tool_input": {
+                  "description": "Held background bg",
+                  "prompt": "novadeck-probe-escape-background-bg: reply when done.",
+                  "subagent_type": "general-purpose",
+                  "run_in_background": true
+                },
+                "tool_use_id": "toolu_475690fce1b554a3f257268c",
+                "tool_response": [
+                  {
+                    "type": "text",
+                    "text": "Async agent launched successfully. (This tool result is internal metadata — never quote or paste any part of it, including the agentId below, into a user-facing reply.)\nagentId: a5203680bb489b846 (internal ID - do not mention to user. Use SendMessage with to: 'a5203680bb489b846', summary: '<5-10 word recap>' to continue this agent.)\nThe agent is working in the background. You will be notified automatically when it completes. You know nothing about its results until that notification arrives — do not report, assume, or predict them; continue other work or respond to the user in the meantime.\nDo not duplicate this agent's work — avoid working with the same files or topics it is using.\noutput_file: /home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0/tasks/a5203680bb489b846.output\nDo NOT Read or tail this file via the shell tool — it is the full subagent JSONL transcript and reading it will overflow your context. If the user asks for progress, say the agent is still running; you'll get a completion notification."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a5203680bb489b846",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 25
+            },
+            "tool_use_id": "toolu_4871eb436fa4e42bff0a3e6d",
+            "tool_response": "(tool list left out)"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a5203680bb489b846",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 25
+            },
+            "tool_response": "(tool list left out)",
+            "tool_use_id": "toolu_4871eb436fa4e42bff0a3e6d",
+            "duration_ms": 1
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a5203680bb489b846",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "ToolSearch",
+                "tool_input": {
+                  "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+                  "max_results": 25
+                },
+                "tool_use_id": "toolu_4871eb436fa4e42bff0a3e6d",
+                "tool_response": [
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "EnterWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "ExitWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "Monitor"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "NotebookEdit"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "SendMessage"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "TaskStop"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebFetch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebSearch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__agents"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__ask"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__describe"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__done"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__feedback"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__lead"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__look"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_agent"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__release"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__send"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__show"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__showing"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__team"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__tell"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "step": "background: after the Escape",
+      "hooks": []
+    },
+    {
+      "step": "background: subagents let go",
+      "hooks": [
+        {
+          "event": "SubagentStop",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a5203680bb489b846",
+            "agent_type": "general-purpose",
+            "hook_event_name": "SubagentStop",
+            "stop_hook_active": false,
+            "agent_transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0/subagents/agent-a5203680bb489b846.jsonl",
+            "last_assistant_message": "Subagent done.",
+            "background_tasks": [
+              {
+                "id": "a5203680bb489b846",
+                "type": "subagent",
+                "status": "running",
+                "description": "Held background bg",
+                "agent_type": "general-purpose"
+              }
+            ]
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "<task-notification>\n<task-id>a5203680bb489b846</task-id>\n<tool-use-id>toolu_475690fce1b554a3f257268c</tool-use-id>\n<output-file>/home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0/tasks/a5203680bb489b846.output</output-file>\n<status>completed</status>\n<summary>Agent \"Held background bg\" finished</summary>\n<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>\n<result>Subagent done.</result>\n<usage><subagent_tokens>3658</subagent_tokens><tool_uses>1</tool_uses><duration_ms>13103</duration_ms></usage>\n</task-notification>"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false,
+            "last_assistant_message": "OK.",
+            "background_tasks": []
+          }
+        }
+      ]
+    },
+    {
+      "step": "background: a root turn after",
+      "hooks": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "Ping now"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false,
+            "last_assistant_message": "OK.",
+            "background_tasks": []
+          }
+        }
+      ]
+    },
+    {
+      "step": "foreground: running",
+      "hooks": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "Escape foreground"
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Agent",
+            "tool_input": {
+              "description": "Held foreground fg",
+              "prompt": "novadeck-probe-escape-foreground-fg: reply when done.",
+              "subagent_type": "general-purpose"
+            },
+            "tool_use_id": "toolu_41cc3dd5318680567cc81569"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Agent",
+            "tool_input": {
+              "description": "Held foreground fg",
+              "prompt": "novadeck-probe-escape-foreground-fg: reply when done.",
+              "subagent_type": "general-purpose"
+            },
+            "tool_response": {
+              "isAsync": true,
+              "status": "async_launched",
+              "agentId": "aaca12c27323d1700",
+              "description": "Held foreground fg",
+              "resolvedModel": "claude-opus-5-5",
+              "prompt": "novadeck-probe-escape-foreground-fg: reply when done.",
+              "outputFile": "/home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0/tasks/aaca12c27323d1700.output",
+              "canReadOutputFile": true,
+              "canContinueAgent": true
+            },
+            "tool_use_id": "toolu_41cc3dd5318680567cc81569",
+            "duration_ms": 7
+          }
+        },
+        {
+          "event": "SubagentStart",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "agent_id": "aaca12c27323d1700",
+            "agent_type": "general-purpose",
+            "hook_event_name": "SubagentStart"
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "Agent",
+                "tool_input": {
+                  "description": "Held foreground fg",
+                  "prompt": "novadeck-probe-escape-foreground-fg: reply when done.",
+                  "subagent_type": "general-purpose"
+                },
+                "tool_use_id": "toolu_41cc3dd5318680567cc81569",
+                "tool_response": [
+                  {
+                    "type": "text",
+                    "text": "Async agent launched successfully. (This tool result is internal metadata — never quote or paste any part of it, including the agentId below, into a user-facing reply.)\nagentId: aaca12c27323d1700 (internal ID - do not mention to user. Use SendMessage with to: 'aaca12c27323d1700', summary: '<5-10 word recap>' to continue this agent.)\nThe agent is working in the background. You will be notified automatically when it completes. You know nothing about its results until that notification arrives — do not report, assume, or predict them; continue other work or respond to the user in the meantime.\nDo not duplicate this agent's work — avoid working with the same files or topics it is using.\noutput_file: /home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0/tasks/aaca12c27323d1700.output\nDo NOT Read or tail this file via the shell tool — it is the full subagent JSONL transcript and reading it will overflow your context. If the user asks for progress, say the agent is still running; you'll get a completion notification."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "aaca12c27323d1700",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 25
+            },
+            "tool_use_id": "toolu_9f4b13bc6ee2ba564061544f",
+            "tool_response": "(tool list left out)"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "aaca12c27323d1700",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 25
+            },
+            "tool_response": "(tool list left out)",
+            "tool_use_id": "toolu_9f4b13bc6ee2ba564061544f",
+            "duration_ms": 1
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "aaca12c27323d1700",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "ToolSearch",
+                "tool_input": {
+                  "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+                  "max_results": 25
+                },
+                "tool_use_id": "toolu_9f4b13bc6ee2ba564061544f",
+                "tool_response": [
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "EnterWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "ExitWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "Monitor"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "NotebookEdit"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "SendMessage"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "TaskStop"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebFetch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebSearch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__agents"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__ask"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__describe"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__done"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__feedback"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__lead"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__look"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_agent"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__release"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__send"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__show"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__showing"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__team"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__tell"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "step": "foreground: after the Escape",
+      "hooks": []
+    },
+    {
+      "step": "foreground: subagents let go",
+      "hooks": [
+        {
+          "event": "SubagentStop",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "aaca12c27323d1700",
+            "agent_type": "general-purpose",
+            "hook_event_name": "SubagentStop",
+            "stop_hook_active": false,
+            "agent_transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0/subagents/agent-aaca12c27323d1700.jsonl",
+            "last_assistant_message": "Subagent done.",
+            "background_tasks": [
+              {
+                "id": "aaca12c27323d1700",
+                "type": "subagent",
+                "status": "running",
+                "description": "Held foreground fg",
+                "agent_type": "general-purpose"
+              }
+            ]
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "<task-notification>\n<task-id>aaca12c27323d1700</task-id>\n<tool-use-id>toolu_41cc3dd5318680567cc81569</tool-use-id>\n<output-file>/home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0/tasks/aaca12c27323d1700.output</output-file>\n<status>completed</status>\n<summary>Agent \"Held foreground fg\" finished</summary>\n<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>\n<result>Subagent done.</result>\n<usage><subagent_tokens>3658</subagent_tokens><tool_uses>1</tool_uses><duration_ms>12923</duration_ms></usage>\n</task-notification>"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false,
+            "last_assistant_message": "OK.",
+            "background_tasks": []
+          }
+        }
+      ]
+    },
+    {
+      "step": "foreground: a root turn after",
+      "hooks": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "Ping now"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false,
+            "last_assistant_message": "OK.",
+            "background_tasks": []
+          }
+        }
+      ]
+    },
+    {
+      "step": "both: running",
+      "hooks": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "Escape both"
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Agent",
+            "tool_input": {
+              "description": "Held both fg",
+              "prompt": "novadeck-probe-escape-both-fg: reply when done.",
+              "subagent_type": "general-purpose"
+            },
+            "tool_use_id": "toolu_cca2bff3a265d9045330352d"
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Agent",
+            "tool_input": {
+              "description": "Held both bg",
+              "prompt": "novadeck-probe-escape-both-bg: reply when done.",
+              "subagent_type": "general-purpose"
+            },
+            "tool_use_id": "toolu_62f6ec0b0b45f4b013966f10"
+          }
+        },
+        {
+          "event": "SubagentStart",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "agent_id": "a3f493d4c11f70221",
+            "agent_type": "general-purpose",
+            "hook_event_name": "SubagentStart"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Agent",
+            "tool_input": {
+              "description": "Held both fg",
+              "prompt": "novadeck-probe-escape-both-fg: reply when done.",
+              "subagent_type": "general-purpose"
+            },
+            "tool_response": {
+              "isAsync": true,
+              "status": "async_launched",
+              "agentId": "a3f493d4c11f70221",
+              "description": "Held both fg",
+              "resolvedModel": "claude-opus-5-5",
+              "prompt": "novadeck-probe-escape-both-fg: reply when done.",
+              "outputFile": "/home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0/tasks/a3f493d4c11f70221.output",
+              "canReadOutputFile": true,
+              "canContinueAgent": true
+            },
+            "tool_use_id": "toolu_cca2bff3a265d9045330352d",
+            "duration_ms": 4
+          }
+        },
+        {
+          "event": "SubagentStart",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "agent_id": "a68f7f260eff97eee",
+            "agent_type": "general-purpose",
+            "hook_event_name": "SubagentStart"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Agent",
+            "tool_input": {
+              "description": "Held both bg",
+              "prompt": "novadeck-probe-escape-both-bg: reply when done.",
+              "subagent_type": "general-purpose"
+            },
+            "tool_response": {
+              "isAsync": true,
+              "status": "async_launched",
+              "agentId": "a68f7f260eff97eee",
+              "description": "Held both bg",
+              "resolvedModel": "claude-opus-5-5",
+              "prompt": "novadeck-probe-escape-both-bg: reply when done.",
+              "outputFile": "/home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0/tasks/a68f7f260eff97eee.output",
+              "canReadOutputFile": true,
+              "canContinueAgent": true
+            },
+            "tool_use_id": "toolu_62f6ec0b0b45f4b013966f10",
+            "duration_ms": 5
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "Agent",
+                "tool_input": {
+                  "description": "Held both bg",
+                  "prompt": "novadeck-probe-escape-both-bg: reply when done.",
+                  "subagent_type": "general-purpose",
+                  "run_in_background": true
+                },
+                "tool_use_id": "toolu_62f6ec0b0b45f4b013966f10",
+                "tool_response": [
+                  {
+                    "type": "text",
+                    "text": "Async agent launched successfully. (This tool result is internal metadata — never quote or paste any part of it, including the agentId below, into a user-facing reply.)\nagentId: a68f7f260eff97eee (internal ID - do not mention to user. Use SendMessage with to: 'a68f7f260eff97eee', summary: '<5-10 word recap>' to continue this agent.)\nThe agent is working in the background. You will be notified automatically when it completes. You know nothing about its results until that notification arrives — do not report, assume, or predict them; continue other work or respond to the user in the meantime.\nDo not duplicate this agent's work — avoid working with the same files or topics it is using.\noutput_file: /home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0/tasks/a68f7f260eff97eee.output\nDo NOT Read or tail this file via the shell tool — it is the full subagent JSONL transcript and reading it will overflow your context. If the user asks for progress, say the agent is still running; you'll get a completion notification."
+                  }
+                ]
+              },
+              {
+                "tool_name": "Agent",
+                "tool_input": {
+                  "description": "Held both fg",
+                  "prompt": "novadeck-probe-escape-both-fg: reply when done.",
+                  "subagent_type": "general-purpose"
+                },
+                "tool_use_id": "toolu_cca2bff3a265d9045330352d",
+                "tool_response": [
+                  {
+                    "type": "text",
+                    "text": "Async agent launched successfully. (This tool result is internal metadata — never quote or paste any part of it, including the agentId below, into a user-facing reply.)\nagentId: a3f493d4c11f70221 (internal ID - do not mention to user. Use SendMessage with to: 'a3f493d4c11f70221', summary: '<5-10 word recap>' to continue this agent.)\nThe agent is working in the background. You will be notified automatically when it completes. You know nothing about its results until that notification arrives — do not report, assume, or predict them; continue other work or respond to the user in the meantime.\nDo not duplicate this agent's work — avoid working with the same files or topics it is using.\noutput_file: /home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0/tasks/a3f493d4c11f70221.output\nDo NOT Read or tail this file via the shell tool — it is the full subagent JSONL transcript and reading it will overflow your context. If the user asks for progress, say the agent is still running; you'll get a completion notification."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a3f493d4c11f70221",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 25
+            },
+            "tool_use_id": "toolu_569889127e386a8555f9ac7b",
+            "tool_response": "(tool list left out)"
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a68f7f260eff97eee",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 25
+            },
+            "tool_use_id": "toolu_2453923ade7b010ebb24c739",
+            "tool_response": "(tool list left out)"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a3f493d4c11f70221",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 25
+            },
+            "tool_response": "(tool list left out)",
+            "tool_use_id": "toolu_569889127e386a8555f9ac7b",
+            "duration_ms": 1
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a68f7f260eff97eee",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 25
+            },
+            "tool_response": "(tool list left out)",
+            "tool_use_id": "toolu_2453923ade7b010ebb24c739",
+            "duration_ms": 0
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a3f493d4c11f70221",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "ToolSearch",
+                "tool_input": {
+                  "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+                  "max_results": 25
+                },
+                "tool_use_id": "toolu_569889127e386a8555f9ac7b",
+                "tool_response": [
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "EnterWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "ExitWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "Monitor"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "NotebookEdit"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "SendMessage"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "TaskStop"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebFetch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebSearch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__agents"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__ask"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__describe"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__done"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__feedback"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__lead"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__look"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_agent"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__release"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__send"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__show"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__showing"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__team"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__tell"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a68f7f260eff97eee",
+            "agent_type": "general-purpose",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "ToolSearch",
+                "tool_input": {
+                  "query": "select:EnterWorktree,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+                  "max_results": 25
+                },
+                "tool_use_id": "toolu_2453923ade7b010ebb24c739",
+                "tool_response": [
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "EnterWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "ExitWorktree"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "Monitor"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "NotebookEdit"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "SendMessage"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "TaskStop"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebFetch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "WebSearch"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__agents"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__ask"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__close_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__describe"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__done"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__feedback"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__lead"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__look"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_agent"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__open_terminal"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__release"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__send"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__show"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__showing"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__team"
+                  },
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "mcp__plugin_novadeck_novadeck__tell"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "step": "both: after the Escape",
+      "hooks": []
+    },
+    {
+      "step": "both: subagents let go",
+      "hooks": [
+        {
+          "event": "SubagentStop",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a68f7f260eff97eee",
+            "agent_type": "general-purpose",
+            "hook_event_name": "SubagentStop",
+            "stop_hook_active": false,
+            "agent_transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0/subagents/agent-a68f7f260eff97eee.jsonl",
+            "last_assistant_message": "Subagent done.",
+            "background_tasks": [
+              {
+                "id": "a3f493d4c11f70221",
+                "type": "subagent",
+                "status": "running",
+                "description": "Held both fg",
+                "agent_type": "general-purpose"
+              },
+              {
+                "id": "a68f7f260eff97eee",
+                "type": "subagent",
+                "status": "running",
+                "description": "Held both bg",
+                "agent_type": "general-purpose"
+              }
+            ]
+          }
+        },
+        {
+          "event": "SubagentStop",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "agent_id": "a3f493d4c11f70221",
+            "agent_type": "general-purpose",
+            "hook_event_name": "SubagentStop",
+            "stop_hook_active": false,
+            "agent_transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0/subagents/agent-a3f493d4c11f70221.jsonl",
+            "last_assistant_message": "Subagent done.",
+            "background_tasks": [
+              {
+                "id": "a3f493d4c11f70221",
+                "type": "subagent",
+                "status": "running",
+                "description": "Held both fg",
+                "agent_type": "general-purpose"
+              },
+              {
+                "id": "a68f7f260eff97eee",
+                "type": "subagent",
+                "status": "running",
+                "description": "Held both bg",
+                "agent_type": "general-purpose"
+              }
+            ]
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "<task-notification>\n<task-id>a68f7f260eff97eee</task-id>\n<tool-use-id>toolu_62f6ec0b0b45f4b013966f10</tool-use-id>\n<output-file>/home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0/tasks/a68f7f260eff97eee.output</output-file>\n<status>completed</status>\n<summary>Agent \"Held both bg\" finished</summary>\n<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>\n<result>Subagent done.</result>\n<usage><subagent_tokens>3657</subagent_tokens><tool_uses>1</tool_uses><duration_ms>12927</duration_ms></usage>\n</task-notification>"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false,
+            "last_assistant_message": "OK.",
+            "background_tasks": []
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "<task-notification>\n<task-id>a3f493d4c11f70221</task-id>\n<tool-use-id>toolu_cca2bff3a265d9045330352d</tool-use-id>\n<output-file>/home/user/sandbox/tmp/claude-1000/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0/tasks/a3f493d4c11f70221.output</output-file>\n<status>completed</status>\n<summary>Agent \"Held both fg\" finished</summary>\n<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>\n<result>Subagent done.</result>\n<usage><subagent_tokens>3657</subagent_tokens><tool_uses>1</tool_uses><duration_ms>12967</duration_ms></usage>\n</task-notification>"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false,
+            "last_assistant_message": "OK.",
+            "background_tasks": []
+          }
+        }
+      ]
+    },
+    {
+      "step": "both: a root turn after",
+      "hooks": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "Ping now"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "11faf804-0fc4-4015-b8b8-691f7be79ad0",
+            "transcript_path": "/home/user/sandbox/home/.claude/projects/-home-user-sandbox-project/11faf804-0fc4-4015-b8b8-691f7be79ad0.jsonl",
+            "cwd": "/home/user/sandbox/project",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false,
+            "last_assistant_message": "OK.",
+            "background_tasks": []
+          }
+        }
+      ]
+    }
+  ]
+}

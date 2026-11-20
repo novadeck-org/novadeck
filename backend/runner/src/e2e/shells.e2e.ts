@@ -225,7 +225,9 @@ for (const setup of setups) {
           for (const shell of ended)
             if (shell.exit) expect(shell.exit.at).toBeGreaterThanOrEqual(shell.since)
 
-          // Stopped, the last ends with no code of its own.
+          // Stopped, the last ends with no code of its own. Codex's item for it reads -1, or the
+          // 137 of the SIGKILL its /stop sent where its reaper took that first, as macOS's
+          // runners saw now and then: both are read as none (codex rollout.ts, `killedByCodex`).
           await stop()
           const stopped = await t.poll(
             async () => {

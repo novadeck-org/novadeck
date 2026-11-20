@@ -396,8 +396,9 @@ export type Harness = {
   /**
    * Follows one of a bound session's subagents, by its id, in its own sources, for what
    * ends its turn that no hook reports, as Codex's rollout records a request dismissed
-   * with Esc: from `since`, when its oldest request still waiting was asked, until
-   * `signal` aborts. Novadeck follows it only while that subagent's request waits.
+   * with Esc: from `since` until `signal` aborts. Novadeck follows it while that
+   * subagent's request waits, from when its oldest still waiting was asked, or, where
+   * `watchesRunning` says, for as long as it runs, from its start.
    */
   readonly watchActor?: (
     run: Run,
@@ -406,6 +407,12 @@ export type Harness = {
     signal: AbortSignal,
     emit: (event: HarnessEvent) => void,
   ) => Promise<void>
+  /**
+   * Whether `watchActor` follows every running subagent, not only one with a request
+   * waiting: where a subagent's turn may end in its own sources alone, as a Codex
+   * subagent's aborts when the root closes it.
+   */
+  readonly watchesRunning?: true
 }
 
 /**

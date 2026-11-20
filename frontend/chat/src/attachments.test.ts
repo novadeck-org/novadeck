@@ -1,6 +1,7 @@
 import {
   attachmentsHold,
   chatAttachmentsOf,
+  droppedImages,
   noChatAttachments,
   setChatAttachments,
   withAttachment,
@@ -19,6 +20,13 @@ const image = (id: string, state: Attachment["state"] = "ready"): Attachment => 
 })
 
 describe("a terminal's pasted images", () => {
+  it("are let go once no terminal holds them, not as they move with their terminal", () => {
+    const before = { "p/s": { t: [image("a"), image("b")], u: [image("c")] } }
+    const after = { "p/other": { t: [image("a")] }, "p/s": { u: [image("c")] } }
+    expect(droppedImages(before, after)).toEqual([image("b")])
+    expect(droppedImages(before, {})).toEqual([image("a"), image("b"), image("c")])
+  })
+
   it("are kept by terminal, and an empty list is not kept", () => {
     const some = setChatAttachments(noChatAttachments, "c", "t", [image("a")])
     expect(chatAttachmentsOf(some, "c", "t")).toEqual([image("a")])

@@ -1,7 +1,6 @@
+import { bytesText } from "@novadeck/core/command-text"
 import type { ModelContent } from "@novadeck/core/items"
 import { Box } from "lucide-react"
-
-import { bytesText } from "../video/format"
 
 /** The names of formats, as the pane's note and a peek's badge say them. */
 export const formatNames: Record<ModelContent["format"], string> = {

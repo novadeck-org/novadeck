@@ -210,6 +210,15 @@
       ]
     },
     {
+      "id": "e2e-codex-windows-paste-as-text",
+      "jobs": ["^Codex \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/e2e/chat.e2e.ts > Codex > sends a long message along with a draft, and one over a pasted placeholder",
+      "signature": "Timed out after \\d+ ms waiting for \\S+: its box to show the paste as a placeholder",
+      "status": "known",
+      "cause": "Unknown. Codex 0.170.0 took the test's 1350-character paste into its box as text and never as a placeholder, so the wait for one timed out; the trace shows the paste written in one write. Codex on Windows reads a paste as keys, takes keys under 60 ms apart for one paste and makes a placeholder only past 1000 characters (its paste_burst.rs and chat_composer.rs); the same paste sent as keys split at a 300 ms stall into parts under 1000 fails the same way on Linux, but whether a stall split it here isn't known. A lead, not tied to it: the deck never told the runner which terminal it used, so on Windows Codex's terminal was never raised to normal priority, as the one a person types in is; at what priority it ran isn't known, as the trace holds none. The deck now tells the runner.",
+      "seen": ["#1086 run 44587534282 job 135784969881 (Windows), retried in the job and passed"]
+    },
+    {
       "id": "e2e-claude-macos-continuation-stop",
       "jobs": ["^Claude Code \\(macOS(?:, [12][/-]2)?\\)$", "^Core scenarios \\(macOS\\)$"],
       "test": "src/e2e/messaging.e2e.ts > Claude Code > ends a continuation whose own Stop hook's report never came",
@@ -599,6 +608,17 @@
         "#1010 run 44076738880 job 134024642143 (macOS), Claude Code at 15px retried once and Antigravity at 13px twice, both passed",
         "fix/macos-spec-stalls (#1019) Nightly Quality run 44207200939 job 134476092692 (macOS), Claude Code at 15px, timed out waiting for a click, retried and passed",
         "#1037 run 44413564950 job 135195523004 (macOS), Codex at 13px retried twice, locator.click timed out at 9397 ms, passed"
+      ]
+    },
+    {
+      "id": "ui-agents-chat-experimental-preferences-open",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/agents/chat.spec.tsx > The chat view > stays once Experimental is turned off, as it isn't one of the experimental features",
+      "signature": "VitestBrowserElementError: Cannot find element with locator: getByRole\\('dialog', \\{ name: 'Preferences' \\}\\)",
+      "status": "known",
+      "cause": "Unknown, not reproduced. Enter on the focused Workspace preferences button opened no Preferences for the 30 s the test had: the page's route still read Build's terminal with no dialog, so the press never reached the button or its navigation was lost; the other cases of its block took 0.7 to 2.5 s and the retry passed at once. Not the lazy Preferences chunk (its first open took about 1 s in preferences.spec in the same job), and not #1089 to #1095: the font list asks for fonts only once local-fonts is granted, and the scale row is hidden in a browser. Locally, with focus, keys and route writes logged, the file passed 7 of 7 whole runs at 6x CPU throttling (6 of them side by side) and the case 9 repeats under CPU load: there the demo's toasts closed first, each giving focus back to the chat's box, and nothing moved focus or wrote the route in the 70 ms between the button's focus and Enter.",
+      "seen": [
+        "test/register-shard-log-names (#1110) run 44650472631 job 136009886832 (macOS, 3/3), behaviour, after #1057; #1110 touches only register.json and match.test.ts"
       ]
     },
     {

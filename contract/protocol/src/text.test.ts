@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import { agentAsk } from "./inbox.js"
 import { hasControlCharacters } from "./prompts.js"
 import { startupCommand, terminalTitle, titleFrom } from "./terminals.js"
-import { asLine, hiddenAt, hiddenIn, unsafeCharacter, unsafeInLine } from "./text.js"
+import { asLine, bytesText, hiddenAt, hiddenIn, unsafeCharacter, unsafeInLine } from "./text.js"
 
 // What the one rule for text a person reads refuses, each a way to make a line read as
 // something it isn't or to reach a terminal as an escape.
@@ -148,5 +148,42 @@ describe("a character that draws as nothing", () => {
       expect(hiddenAt("a️", 1)).toBe(true)
       expect(hiddenAt("️", 0)).toBe(true)
     })
+  })
+})
+
+describe("a size in bytes", () => {
+  const kb = 1024
+  const mb = kb * kb
+  const gb = mb * kb
+
+  it("reads in bytes, whole kilobytes, and megabytes with a decimal", () => {
+    expect([0, 1, 77, 1023, 1024, 2048, 12 * kb, 1.5 * mb, 12.3 * mb].map(bytesText)).toEqual([
+      "0 B",
+      "1 B",
+      "77 B",
+      "1023 B",
+      "1 KB",
+      "2 KB",
+      "12 KB",
+      "1.5 MB",
+      "12.3 MB",
+    ])
+  })
+
+  it("steps up to the next unit where the rounded figure would read 1024 of the last", () => {
+    expect(bytesText(mb - 1)).toBe("1.0 MB")
+    expect(bytesText(1_048_100)).toBe("1.0 MB")
+    expect(bytesText(1_048_000)).toBe("1023 KB")
+    expect(bytesText(1023.4 * kb)).toBe("1023 KB")
+    expect(bytesText(gb - 1)).toBe("1.0 GB")
+    expect(bytesText(1023.96 * mb)).toBe("1.0 GB")
+    expect(bytesText(1023.9 * mb)).toBe("1023.9 MB")
+  })
+
+  it("goes on in gigabytes and terabytes", () => {
+    expect(bytesText(5 * gb)).toBe("5.0 GB")
+    expect(bytesText(1.5 * gb)).toBe("1.5 GB")
+    expect(bytesText(3 * kb * gb)).toBe("3.0 TB")
+    expect(bytesText(5000 * kb * gb)).toBe("5000.0 TB")
   })
 })

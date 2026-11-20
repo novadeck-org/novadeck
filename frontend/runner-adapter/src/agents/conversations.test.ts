@@ -1,4 +1,5 @@
 import {
+  InDoubt,
   noConversation,
   returnedBy,
   RingUnderWay,
@@ -13,7 +14,7 @@ import type { AgentDetail, SliceChange, TranscriptChange, TranscriptItem } from 
 import { WireError } from "@novadeck/wire"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { describe, expect, it } from "../test"
+import { context, describe, expect, it } from "../test"
 import { channel } from "../testing/channel"
 import {
   createRunnerConversations,
@@ -291,6 +292,102 @@ describe("the runner's conversations", () => {
       expect(streams.detail).toHaveBeenCalledTimes(1)
       expect(details.returned()).toBe(0)
       again()
+    })
+
+    context("once the runner has no terminal by its id", () => {
+      // A detail stream for each time it is opened, as `followRestarting` opens a fresh one.
+      const reopenable = () => {
+        const base = setup()
+        const opened: ReturnType<typeof channel<AgentDetail>>[] = []
+        base.streams.detail.mockImplementation(() => {
+          const next = channel<AgentDetail>()
+          opened.push(next)
+          return next.iterator
+        })
+        return { ...base, opened }
+      }
+
+      it("opens the detail again by itself, and reads the terminal back under its id", async () => {
+        const { opened, streams, transcripts, store } = reopenable()
+        store.subscribe(() => {})
+        opened[0]!.push(detail())
+        await vi.waitFor(() => expect(store.getSnapshot().agent).toBe("claude"))
+        // Asleep, or the runner restarted: the stream ends as gone.
+        opened[0]!.end()
+        await vi.waitFor(() => expect(store.getSnapshot().agent).toBeNull())
+        await vi.advanceTimersByTimeAsync(retryMs)
+        expect(streams.detail).toHaveBeenCalledTimes(2)
+        // Awake again, under the same id.
+        opened[1]!.push(detail({ sessionId: "s2" }))
+        await vi.waitFor(() => expect(store.getSnapshot().session).toBe("s2"))
+        transcripts[root]!.push(batch(item(0)))
+        await vi.waitFor(() => expect(store.getSnapshot().items).toHaveLength(1))
+      })
+
+      it("is read again for a subscriber that came back within the grace period", async () => {
+        const { opened, streams, store } = reopenable()
+        store.subscribe(() => {})()
+        opened[0]!.end()
+        await settle()
+        const again = store.subscribe(() => {})
+        await vi.advanceTimersByTimeAsync(retryMs)
+        expect(streams.detail).toHaveBeenCalledTimes(2)
+        again()
+      })
+
+      it("backs off while it stays away, and no further than the longest wait", async () => {
+        const { opened, streams, store } = reopenable()
+        store.subscribe(() => {})
+        opened[0]!.end()
+        await settle()
+        const waits = [retryMs, retryMs * 2, retryMs * 4, retryMs * 8, retryMaxMs, retryMaxMs]
+        for (const [at, wait] of waits.entries()) {
+          // eslint-disable-next-line no-await-in-loop -- Each wait follows the one before.
+          await vi.advanceTimersByTimeAsync(wait - 1)
+          expect(streams.detail).toHaveBeenCalledTimes(at + 1)
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await vi.advanceTimersByTimeAsync(1)
+          expect(streams.detail).toHaveBeenCalledTimes(at + 2)
+          opened[at + 1]!.end()
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await settle()
+        }
+        expect(store.getSnapshot().agent).toBeNull()
+      })
+
+      it("opens it again at once once the terminal is ready, not on its next try", async () => {
+        const { opened, streams, conversations, store } = reopenable()
+        store.subscribe(() => {})
+        opened[0]!.end()
+        await settle()
+        // Asleep a while: the tries are far apart by now.
+        for (const at of [1, 2, 3]) {
+          // eslint-disable-next-line no-await-in-loop -- Each try follows the one before.
+          await vi.advanceTimersByTimeAsync(retryMaxMs)
+          opened[at]!.end()
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await settle()
+        }
+        const tries = streams.detail.mock.calls.length
+        // It woke: the runner has its shell again.
+        conversations.ready(key)
+        expect(streams.detail).toHaveBeenCalledTimes(tries + 1)
+        opened[tries]!.push(detail())
+        await vi.waitFor(() => expect(store.getSnapshot().agent).toBe("claude"))
+        // While it reads, nothing more opens.
+        conversations.ready(key)
+        expect(streams.detail).toHaveBeenCalledTimes(tries + 1)
+      })
+
+      it("stops opening it once the reading stops", async () => {
+        const { opened, streams, conversations, store } = reopenable()
+        store.subscribe(() => {})
+        opened[0]!.end()
+        await settle()
+        conversations.stop()
+        await vi.advanceTimersByTimeAsync(retryMaxMs * 2)
+        expect(streams.detail).toHaveBeenCalledTimes(1)
+      })
     })
 
     it("ends every stream when stopped", async () => {
@@ -1152,6 +1249,51 @@ describe("the runner's conversations", () => {
       stop()
     })
 
+    context("for a terminal that moved to another session", () => {
+      const before = { projectId: "p", workspaceSessionId: "s1", terminalId: "t" }
+      const after = { projectId: "p", workspaceSessionId: "s2", terminalId: "t" }
+      const listing = (ringing: boolean) => ({
+        terminalId: "t",
+        handle: "moth",
+        agent: true,
+        ringing,
+        threads: [],
+      })
+      const at = (where: typeof before, ringing: boolean): MessagesState => ({
+        ...noMessages,
+        terminals: { [terminalKeyPath(where)]: listing(ringing) },
+      })
+
+      it("follows its messages where they are kept now", () => {
+        const { streams } = setup()
+        const messages = createStore<MessagesState>(at(before, false))
+        const conversations = createRunnerConversations(streams, undefined, messages)
+        const conversation = conversations.conversation(before)
+        const stop = conversation.subscribe(() => {})
+        messages.update(() => at(after, true))
+        conversations.moved(after)
+        expect(conversation.getSnapshot().doorbell.ringing).toBe(true)
+        // Asked by the key it had, as by a send still on its way, it still reads them there.
+        expect(conversations.conversation(before)).toBe(conversation)
+        messages.update(() => at(after, false))
+        expect(conversation.getSnapshot().doorbell.ringing).toBe(false)
+        stop()
+      })
+
+      it("follows them there when it is read again after a while", async () => {
+        const { streams } = setup()
+        const messages = createStore<MessagesState>(at(before, false))
+        const conversations = createRunnerConversations(streams, undefined, messages)
+        conversations.conversation(before).subscribe(() => {})()
+        conversations.moved(after)
+        messages.update(() => at(after, true))
+        await vi.advanceTimersByTimeAsync(graceMs + 1)
+        const conversation = conversations.conversation(after)
+        conversation.subscribe(() => {})
+        expect(conversation.getSnapshot().doorbell.ringing).toBe(true)
+      })
+    })
+
     it("clears the agent's box, a failure telling why", async () => {
       const { conversations, streams } = setup()
       streams.clearBox.mockResolvedValueOnce({ cleared: true })
@@ -1185,6 +1327,57 @@ describe("the runner's conversations", () => {
       await conversations.interrupt(key)
       expect(streams.prompt).toHaveBeenCalledWith("t", "hello", undefined)
       expect(streams.interrupt).toHaveBeenCalledWith("t", undefined)
+    })
+
+    context("where the link drops under a prompt or a Stop", () => {
+      // The runner goes on with what it was given; the link comes back at `back`.
+      const dropping = () => {
+        const { streams } = setup()
+        let back = () => {}
+        const reconnected = new Promise<void>((resolve) => (back = resolve))
+        const conversations = createRunnerConversations(
+          streams,
+          undefined,
+          undefined,
+          () => reconnected,
+        )
+        streams.prompt.mockRejectedValue(new WireError("DISCONNECTED"))
+        streams.interrupt.mockRejectedValue(new WireError("DISCONNECTED"))
+        return { conversations, back: () => back() }
+      }
+
+      it("says a prompt named by its ref is in doubt, once the link is back", async () => {
+        const { conversations, back } = dropping()
+        let said: unknown
+        const sending = conversations
+          .send(key, "hello", { ref: "abcdefghijklmnop" })
+          .catch((error: unknown) => (said = error))
+        await settle()
+        expect(said).toBeUndefined()
+        back()
+        await sending
+        expect(said).toBeInstanceOf(InDoubt)
+      })
+
+      it("says a Stop is in doubt too, once the link is back", async () => {
+        const { conversations, back } = dropping()
+        back()
+        await expect(conversations.interrupt(key)).rejects.toBeInstanceOf(InDoubt)
+      })
+
+      it("says a prompt with no ref, which no receipt tells, didn't reach the agent", async () => {
+        const { conversations, back } = dropping()
+        back()
+        await expect(conversations.send(key, "hello")).rejects.toThrow("The runner is offline.")
+      })
+
+      it("says nothing in doubt of a prompt the runner refused", async () => {
+        const { streams, conversations } = setup()
+        streams.prompt.mockRejectedValueOnce(new WireError("PROMPT_REFUSED"))
+        await expect(
+          conversations.send(key, "hello", { ref: "abcdefghijklmnop" }),
+        ).rejects.not.toBeInstanceOf(InDoubt)
+      })
     })
 
     it("asks the runner to set a question aside for the person's own Send and Stop", async () => {

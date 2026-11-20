@@ -87,11 +87,26 @@ describe("the debug panel's Inbox group", () => {
     const inbox = createDemoInbox(1, [])
     const notes: string[] = []
     // Lifecycle controls and variants change or add rows rather than adding a kind.
-    const kinds = inboxGroups(inbox, seed)[0]!.actions.length - 22
+    const kinds = inboxGroups(inbox, seed)[0]!.actions.length - 23
     for (let each = 0; each < kinds; each += 1) run(inbox, "A new row arrives", notes)
     expect(inbox.state.getSnapshot().items).toHaveLength(kinds)
     run(inbox, "A new row arrives", notes)
     expect(notes).toEqual(["Every kind is in the Inbox already."])
+  })
+
+  it("adds Codex's form from an MCP server, which only its screen tells, as its text", () => {
+    const inbox = createDemoInbox(1, [])
+    run(inbox, "Form from an MCP server, in Codex")
+    const [row] = inbox.state.getSnapshot().items
+    expect(row).toMatchObject({
+      kind: "request",
+      source: { agent: "codex" },
+      request: {
+        kind: "question",
+        tool: "mcp__deploy__elicitation",
+        dialog: { type: "raw", text: expect.stringContaining("Field 1/2") },
+      },
+    })
   })
 
   it("adds a permission whose command hides a line, for the card to mark", () => {

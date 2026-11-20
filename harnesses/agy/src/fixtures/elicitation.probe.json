@@ -1,0 +1,145 @@
+{
+  "harness": "agy",
+  "version": "1.5.12",
+  "source": "backend/runner/src/e2e/probes/elicit-screens.e2e.ts, 2026-11-20, against the fake model; sandbox paths replaced",
+  "how": "The model calls the probe MCP server's `form` tool through call_mcp_tool; Antigravity confirms the call (`confirmation`, answered with 1), then the server asks for the form in `schema`. Antigravity declares elicitation (form and url) to the server, and answers its elicitation/create with a cancel within milliseconds, drawing nothing: `mcp` is the traffic from the call on, `screens` the screen 1.2 s after, and `toolResult` what the model read.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "colour": {
+        "type": "string",
+        "title": "Colour",
+        "enum": ["red", "green"]
+      }
+    },
+    "required": ["colour"]
+  },
+  "confirmation": {
+    "height": 40,
+    "columns": 120,
+    "cursor": {
+      "row": 29,
+      "column": 0
+    },
+    "rows": {
+      "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+      "1": "See \"man sudo_root\" for details.",
+      "4": "      ▄▀▀▄        Antigravity CLI 1.5.12",
+      "5": "     ▀▀▀▀▀▀       Gemini API key",
+      "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+      "7": "   ▄▀▀    ▀▀▄     /sandbox/project",
+      "8": "  ▄▀▀      ▀▀▄",
+      "10": "────────────────────────────────────────────────────────────",
+      "11": "> Ask now",
+      "13": "● Called 1 MCP tool (probe/form) (ctrl+o to expand)",
+      "15": "MCP",
+      "16": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+      "18": "probe/form",
+      "20": "Allow calling this tool?",
+      "21": "> 1. Yes, allow tool call",
+      "22": "  2. Yes, and always allow tool 'probe/form' in this conversation",
+      "23": "  3. Yes, and always allow tool 'probe/form' (Persist to settings.json)",
+      "24": "  4. No, deny tool call",
+      "25": "  5. No, and always deny tool 'probe/form' in this conversation",
+      "26": "  6. No, and always deny tool 'probe/form' (Persist to settings.json)",
+      "28": "  ↑/↓ Navigate · tab Amend",
+      "29": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+    },
+    "bright": {
+      "29": "esc to cancel"
+    }
+  },
+  "capabilities": {
+    "elicitation": {
+      "form": {},
+      "url": {}
+    }
+  },
+  "mcp": [
+    {
+      "in": {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "method": "tools/call",
+        "params": {
+          "name": "form",
+          "arguments": "{\"message\":\"Which colour do you want?\",\"schema\":{\"type\":\"object\",\"properties\":{\"colour\":{\"type\":\"string\",\"title\":\"Colour\",\"enum\":[\"red\",\"green\"]}},\"required\":[\"colour\"]}}"
+        }
+      }
+    },
+    {
+      "out": {
+        "id": 1000,
+        "method": "elicitation/create",
+        "params": {
+          "mode": "form",
+          "message": "Which colour do you want?",
+          "requestedSchema": {
+            "type": "object",
+            "properties": {
+              "colour": {
+                "type": "string",
+                "title": "Colour",
+                "enum": ["red", "green"]
+              }
+            },
+            "required": ["colour"]
+          }
+        }
+      }
+    },
+    {
+      "in": {
+        "jsonrpc": "2.0",
+        "id": 1000,
+        "result": {
+          "action": "cancel"
+        }
+      }
+    },
+    {
+      "out": {
+        "id": 4,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "elicitation result: {\"action\":\"cancel\"}"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "screens": {
+    "120x40": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 18,
+        "column": 1
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.5.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /sandbox/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────",
+        "11": "> Ask now",
+        "13": "● Called 1 MCP tool (probe/form) (ctrl+o to expand)",
+        "15": "  Done.",
+        "17": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "18": ">",
+        "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "20": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "20": "? for shortcuts"
+      }
+    }
+  },
+  "toolResult": "Created At: 2026-11-20T07:56:33+01:00\nCompleted At: 2026-11-20T07:56:34+01:00\nelicitation result: {\"action\":\"cancel\"}"
+}

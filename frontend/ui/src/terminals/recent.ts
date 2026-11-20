@@ -65,3 +65,21 @@ export const cycleRecent = (
     mode: visible?.mode ?? "held",
   }
 }
+
+// The switcher without the rows of terminals and windows that left (`here` says which are
+// still there), as one an agent closed while it shows: the highlight stays on its row, or,
+// where that row went, moves to the row that takes its place, the last where it was the last.
+// Null once no row is left; the same switcher where none went.
+export const withoutGone = (
+  switcher: RecentSwitcher,
+  here: (id: string) => boolean,
+): RecentSwitcher | null => {
+  const ids = switcher.ids.filter(here)
+  if (ids.length === switcher.ids.length) return switcher
+  if (ids.length === 0) return null
+  const highlighted = switcher.ids[switcher.index]
+  const kept = highlighted === undefined ? -1 : ids.indexOf(highlighted)
+  // Rows before the highlight that went move it up by as many.
+  const before = switcher.ids.slice(0, switcher.index).filter(here).length
+  return { ...switcher, ids, index: kept >= 0 ? kept : Math.min(before, ids.length - 1) }
+}
