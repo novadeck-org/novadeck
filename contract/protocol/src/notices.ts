@@ -72,24 +72,25 @@ const headerLine = /^(?:Novadeck · |Novadeck: automatic notice, not from the us
 // A hook's text may lead with the phrase Claude Code puts before a Stop's reason.
 const stopLead = /^\s*Stop hook (?:feedback|says):\s*/
 
-/**
- * What one hook printed, split: the notices in it (each as `readNotice` reads it) and
- * whether it holds a delivery of agents' messages (`<novadeck-messages>`, the ring's own,
- * read apart). A hook joins its notices, and a delivery, with a blank line. Text that
- * is neither starts with neither, and is no Novadeck's: no notices are read from it.
- */
-export const splitHookText = (
-  text: string,
-): { readonly notices: readonly string[]; readonly delivery: boolean } => {
-  const start = text.indexOf("<novadeck-messages")
-  const close = "</novadeck-messages>"
-  const end = text.lastIndexOf(close)
-  const delivery = start !== -1
-  const rest = delivery
-    ? `${text.slice(0, start).replace(stopLead, "")}\n\n${end === -1 ? "" : text.slice(end + close.length)}`
-    : text
-  const body = rest.trim()
-  if (!headerLine.test(body.split("\n")[0] ?? "")) return { notices: [], delivery }
+const open = "<novadeck-messages"
+const close = "</novadeck-messages>"
+
+// Where a delivery that starts at `start` ends: after its closing tag; where the text was cut
+// short and has none, at the next notice's header after a blank line, else the text's end.
+const deliveryEnd = (text: string, start: number): number => {
+  const end = text.indexOf(close, start)
+  if (end !== -1) return end + close.length
+  const next = new RegExp(String.raw`\n[ \t]*\n(?=${noticePrefix}|${legacyPrefix})`).exec(
+    text.slice(start),
+  )
+  return next ? start + next.index : text.length
+}
+
+// The notices a stretch of text between deliveries holds: it must start with one, after the Stop
+// phrase Claude Code puts before a Stop's reason.
+const noticesIn = (chunk: string): string[] => {
+  const body = chunk.replace(stopLead, "").trim()
+  if (!headerLine.test(body.split("\n")[0] ?? "")) return []
   const notices: string[] = []
   let current: string[] = []
   for (const line of body.split("\n")) {
@@ -100,5 +101,27 @@ export const splitHookText = (
     current.push(line)
   }
   notices.push(current.join("\n").trim())
+  return notices
+}
+
+/**
+ * What one hook printed, split: the notices in it (each as `readNotice` reads it) and
+ * whether it holds a delivery of agents' messages (`<novadeck-messages>`), the ring's own,
+ * read apart. A hook joins its notices, and a delivery, with a blank line. Every stretch outside a
+ * delivery is read on its own, so notices before, between and after deliveries all count, and so
+ * does a Stop's text with no delivery. A stretch that doesn't start with a notice is no Novadeck's.
+ */
+export const splitHookText = (
+  text: string,
+): { readonly notices: readonly string[]; readonly delivery: boolean } => {
+  const notices: string[] = []
+  let delivery = false
+  let from = 0
+  for (let start = text.indexOf(open); start !== -1; start = text.indexOf(open, from)) {
+    delivery = true
+    notices.push(...noticesIn(text.slice(from, start)))
+    from = deliveryEnd(text, start)
+  }
+  notices.push(...noticesIn(text.slice(from)))
   return { notices, delivery }
 }

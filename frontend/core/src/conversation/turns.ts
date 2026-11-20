@@ -228,6 +228,29 @@ const noticesOfRing = (
     : []
 }
 
+// The notices no ring claims: delivered with the person's prompt hook, a Stop's continuation or a
+// later call, so no ring's window holds them, and no transcript item of a standing notice says
+// them (the same words at the same time). Oldest first; the chat shows each where it was delivered.
+const unclaimedNotices = (
+  items: readonly ChatItem[],
+  notices: readonly DeliveredNotice[],
+): DeliveredNotice[] => {
+  const spans = items.flatMap((item, index) => (item.ring ? [ringSpan(items, index)] : []))
+  const standing = items.filter((item) => item.note?.type === "notice")
+  return notices
+    .filter(
+      ({ deliveredAt, text }) =>
+        !spans.some((span) => span && deliveredAt >= span.from && deliveredAt < span.until) &&
+        !standing.some(
+          (item) =>
+            item.text === text &&
+            item.at !== null &&
+            Math.abs(item.at - deliveredAt) <= ringSlackMs,
+        ),
+    )
+    .toSorted((a, b) => a.deliveredAt - b.deliveredAt)
+}
+
 // The items grouped in order. A result is paired by `call` with its call wherever it is
 // (it may come first); one with no `call` goes to the latest call still waiting. A result
 // whose call is not among the items stands alone.
@@ -276,6 +299,15 @@ export const groupItems = (
   // The notices a turn's prompt carried, by their text: a harness that gives them again on each
   // later model call of the turn (Antigravity) records each time, and a turn says one once.
   let turnNotices = new Set<string>()
+  // Notices delivered outside any ring, each shown once its time has come among the items.
+  const pending = unclaimedNotices(items, notices)
+  const flushNotices = (before: number): void => {
+    while (pending.length > 0 && pending[0]!.deliveredAt < before) {
+      const { id, text, deliveredAt } = pending.shift()!
+      open.run = null
+      blocks.push({ kind: "notice", id, at: deliveredAt, text })
+    }
+  }
   let mode: string | undefined
   // The run of tool calls the latest items continue, if they do.
   const open: { run: ToolEntry[] | null } = { run: null }
@@ -287,6 +319,7 @@ export const groupItems = (
     }
   }
   for (const item of items) {
+    if (item.at !== null) flushNotices(item.at - ringSlackMs)
     if (item.kind === "tool-call") {
       const result = item.call ? results.get(item.call) : undefined
       if (item.run?.subagent) {
@@ -365,6 +398,9 @@ export const groupItems = (
       mode = said
       continue
     }
+    // A notice a turn already said ends nothing: a harness that gives it again at each model call
+    // (Antigravity) leaves the run of calls whole.
+    if (item.note?.type === "notice" && turnNotices.has(item.text)) continue
     open.run = null
     if (item.note) {
       const { note } = item
@@ -380,7 +416,7 @@ export const groupItems = (
         blocks.push({ kind: "gap", id: item.id, raw: item.text, truncated: item.truncated })
       else if (note.type === "plan-approved")
         blocks.push({ kind: "note", id: item.id, text: "plan approved" })
-      else if (note.type === "notice" && !turnNotices.has(item.text)) {
+      else if (note.type === "notice") {
         turnNotices.add(item.text)
         blocks.push({ kind: "notice", id: item.id, at: item.at, text: item.text })
       }
@@ -409,6 +445,9 @@ export const groupItems = (
                 ...(item.images && { images: item.images }),
               },
       )
+      // What its hook delivered with it comes under it, not after what follows.
+      if (!item.ring && !item.interrupted && item.at !== null)
+        flushNotices(item.at + ringSlackMs + 1)
     } else if (item.role === "agent" && codexSubagent(item.author))
       blocks.push({
         kind: "subagent",
@@ -441,6 +480,7 @@ export const groupItems = (
         ...(item.thinking && { thinking: item.thinking }),
       })
   }
+  flushNotices(Infinity)
   return blocks
 }
 

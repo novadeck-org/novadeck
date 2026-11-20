@@ -269,7 +269,12 @@ export const transcripts: TranscriptDecoder = {
         const { role } = payload
         // What a hook adds to the context is a developer message: Novadeck's standing notices
         // ride on a prompt this way. Any other instruction Codex gives the model stays out.
-        if (role === "developer") return noticeEntries(messageText(payload.content), time)
+        // Each part is one hook's text, read alone: a later part (`<collaboration_mode>`) never folds
+        // into a notice's body, and a notice in a later part is not lost.
+        if (role === "developer")
+          return (Array.isArray(payload.content) ? payload.content : []).flatMap((part) =>
+            noticeEntries(messageText([part]), time),
+          )
         if (role !== "user" && role !== "assistant") return []
         const text = messageText(payload.content)
         const reply = role === "user" ? asyncReplyText(text) : undefined

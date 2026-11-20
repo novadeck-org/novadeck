@@ -40,7 +40,9 @@ export const chatMark = ({
     prompts.map((prompt) => `${prompt.ref}:${prompt.state}`).join(","),
     doorbell.waiting.length,
     doorbell.delivered.length,
-    doorbell.notices.length,
+    // The latest one, not their count: the runner lists no more than a number of them.
+    doorbell.notices.at(-1)?.id ?? "",
+    doorbell.notices.at(-1)?.deliveredAt ?? 0,
     doorbell.ringing,
   ].join("\n")
 }

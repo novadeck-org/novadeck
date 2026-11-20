@@ -34,6 +34,9 @@ const ringBrought = (ring: Ring): string =>
   [
     ...(fromAgents(ring).length > 0 ? [counted(fromAgents(ring).length, "message")] : []),
     ...(ring.replies || fromPerson(ring).length > 0 ? ["your reply"] : []),
+    ...(ring.notices.length > 0
+      ? [ring.notices.length === 1 ? "a notice" : `${ring.notices.length} notices`]
+      : []),
   ].join(", ")
 
 // The doorbell's own line, only where the ring holds what it can't show: a reply of the person's
@@ -475,24 +478,6 @@ const BlockView = memo(
                 written={message.sentAt}
               />
             ))}
-            {block.notices.map((notice) => (
-              <NoticeLine
-                key={notice.id}
-                id={notice.id}
-                text={notice.text}
-                written={notice.sentAt}
-                // With no line of its own, nor a message before it, the ring's time is its first notice's.
-                at={
-                  line === null &&
-                  fromAgents(block).length === 0 &&
-                  fromPerson(block).length === 0 &&
-                  notice === block.notices[0]
-                    ? block.at
-                    : null
-                }
-                mention={mention}
-              />
-            ))}
             {fromPerson(block).map((message, index) => (
               <article
                 key={message.id}
@@ -514,6 +499,17 @@ const BlockView = memo(
                   <TimeFact at={block.at} hover />
                 )}
               </article>
+            ))}
+            {block.notices.map((notice) => (
+              <NoticeLine
+                key={notice.id}
+                id={notice.id}
+                text={notice.text}
+                written={notice.sentAt}
+                // Each says when it was delivered, as a line of its own.
+                at={notice.deliveredAt}
+                mention={mention}
+              />
             ))}
           </article>
         )

@@ -806,4 +806,76 @@ describe("the notices that rode on a prompt's hook", () => {
       false,
     )
   })
+
+  it("leave a run of calls whole when a harness gives the notice again at each model call", () => {
+    const blocks = groupItems([
+      prompt(1_000),
+      standing(describing),
+      call("Bash", "c1"),
+      result("c1"),
+      standing(describing),
+      call("Bash", "c2"),
+      result("c2"),
+      standing(describing),
+      call("Bash", "c3"),
+      result("c3"),
+    ])
+    expect(blocks.map(({ kind }) => kind)).toEqual(["user", "notice", "tools"])
+    expect(blocks[2]).toMatchObject({ entries: [{ call: "c1" }, { call: "c2" }, { call: "c3" }] })
+  })
+})
+
+describe("the notices Novadeck delivered outside a ring", () => {
+  const ring = (at: number) =>
+    item({
+      role: "user",
+      kind: "text",
+      text: "[line]",
+      at,
+      ring: { nonce: "n7Q2", replies: false },
+    })
+  const prompt = (at: number) => item({ role: "user", kind: "text", text: "mine", at })
+  const notice = (
+    deliveredAt: number,
+    text = "Novadeck · Worktrees\n@fox gave you its worktree.",
+  ): DeliveredNotice => ({
+    id: `m-n${deliveredAt}`,
+    text,
+    sentAt: deliveredAt - 500,
+    deliveredAt,
+  })
+  const shown = (blocks: ReturnType<typeof groupItems>) =>
+    blocks.map((block) =>
+      block.kind === "notice"
+        ? `notice@${block.at}`
+        : block.kind === "doorbell"
+          ? `ring(${block.notices.length})`
+          : block.kind,
+    )
+
+  it("each get a line of their own where they were delivered, none twice", () => {
+    const blocks = groupItems(
+      [prompt(1_000), call("Bash", "c1"), ring(5_000), prompt(20_000)],
+      [],
+      [notice(1_000), notice(5_000), notice(21_000)],
+    )
+    expect(shown(blocks)).toEqual([
+      "user",
+      "notice@1000",
+      "tools",
+      "ring(1)",
+      "user",
+      "notice@21000",
+    ])
+  })
+
+  it("leave out one a transcript's standing notice already says, the same words at the same time", () => {
+    const words = "Novadeck · Describe\nNo summary yet."
+    const blocks = groupItems(
+      [prompt(1_000), item({ role: "note", note: { type: "notice" }, text: words, at: 1_200 })],
+      [],
+      [notice(1_000, words), notice(1_000)],
+    )
+    expect(shown(blocks)).toEqual(["user", "notice@1000", "notice@1200"])
+  })
 })

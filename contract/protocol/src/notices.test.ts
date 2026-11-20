@@ -69,4 +69,21 @@ describe("splitHookText", () => {
     })
     expect(splitHookText("")).toEqual({ notices: [], delivery: false })
   })
+
+  it("reads the notices between two deliveries, and after the last", () => {
+    expect(splitHookText(`${delivery}\n\n${host}\n\n${delivery}\n\n${worktrees}`)).toEqual({
+      notices: [host, worktrees],
+      delivery: true,
+    })
+  })
+
+  it("reads the notices after a delivery cut short, which has no closing tag", () => {
+    const cut = delivery.slice(0, delivery.indexOf("</novadeck-messages>"))
+    expect(splitHookText(`${cut}\n\n${host}`)).toEqual({ notices: [host], delivery: true })
+    expect(splitHookText(cut)).toEqual({ notices: [], delivery: true })
+  })
+
+  it("leads the Stop's phrase off a text with no delivery, too", () => {
+    expect(splitHookText(`Stop hook says: ${host}`)).toEqual({ notices: [host], delivery: false })
+  })
 })

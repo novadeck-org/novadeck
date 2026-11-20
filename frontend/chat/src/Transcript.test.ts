@@ -733,4 +733,32 @@ context("Novadeck's own notices", () => {
     rerender(view(looks))
     expect(container.querySelectorAll(".markdown-mention")).toHaveLength(1)
   })
+
+  it("puts a ring's notices last, after the person's replies from the Inbox too", () => {
+    const reply = { id: "r", text: "Round up.", from: { kind: "person" }, sentAt: 900 }
+    const agent = { id: "m", text: "Keep it.", from: { kind: "agent", handle: "moth" } }
+    const container = show([ring([worktrees], [agent, reply])])
+    expect(
+      [...container.querySelector(".chat-ring")!.children].map(
+        (child) => child.getAttribute("data-role") ?? child.getAttribute("data-notice"),
+      ),
+    ).toEqual(["agent", "user", "n0"])
+  })
+
+  it("gives each notice of a ring the time it was delivered", () => {
+    const text = (id: string) =>
+      container.querySelector(`[data-notice="${id}"] .chat-fact`)?.textContent
+    const container = show([ring([worktrees, host])])
+    expect(text("n0")).toBeTruthy()
+    expect(text("n1")).toBe(text("n0"))
+  })
+
+  it("counts its notices where the ring tells a screen reader what it brought", () => {
+    const message = { id: "m", text: "Keep it.", from: { kind: "agent", handle: "moth" } }
+    const label = (blocks: ChatBlock[]) =>
+      show(blocks).querySelector(".chat-ring")?.getAttribute("aria-label")
+    expect(label([ring([worktrees])])).toBe("Doorbell, a notice")
+    expect(label([ring([worktrees, host])])).toBe("Doorbell, 2 notices")
+    expect(label([ring([host], [message])])).toBe("Doorbell, 1 message, a notice")
+  })
 })

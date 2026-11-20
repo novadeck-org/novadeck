@@ -638,6 +638,26 @@ describe("Novadeck's notices on a prompt's hook, as a Codex rollout records them
     expect(read(ring!)).toHaveLength(1)
   })
 
+  it("reads each part of a developer message alone", () => {
+    const parts = (...texts: string[]) => ({
+      ...(describing as object),
+      payload: {
+        ...(describing as { payload: object }).payload,
+        content: texts.map((text) => ({ type: "input_text", text })),
+      },
+    })
+    const full = (record: object) =>
+      transcripts.items(JSON.stringify(record)).map(({ text }) => text)
+    const one = "Novadeck · Show\nShow it.\n→ Use show."
+    const two = "Novadeck · Host load\nCPU at 90%+ for 3 min."
+    expect(full(parts("<collaboration_mode>plan</collaboration_mode>", one, two))).toEqual([
+      one,
+      two,
+    ])
+    // A part after a notice never becomes part of its body.
+    expect(full(parts(one, "<collaboration_mode>plan</collaboration_mode>"))).toEqual([one])
+  })
+
   it("reads no notice from a delivery with none beside it", () => {
     const text = (delivery as { payload: { content: { text: string }[] } }).payload.content[0]!.text
     const alone = text.slice(0, text.indexOf("</novadeck-messages>") + 20)
