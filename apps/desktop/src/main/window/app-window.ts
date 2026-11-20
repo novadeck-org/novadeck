@@ -160,6 +160,19 @@ export const openAppWindow = ({
   window.on("focus", () => tellWindowFocus(window))
   window.on("blur", () => tellWindowFocus(window))
 
+  // The page moves through its hash routes without leaving, and Chromium then reports the title
+  // of the history entry it makes, the page's at the moment it was made, over the one the page
+  // has now: the page's own title, which names its project, is put back.
+  window.webContents.on("did-navigate-in-page", () => {
+    window.webContents
+      .executeJavaScript("document.title")
+      .then((title: unknown) => {
+        if (!window.isDestroyed() && typeof title === "string" && title !== "")
+          window.setTitle(title)
+      })
+      .catch(() => {})
+  })
+
   window.webContents.on("will-navigate", (event) => event.preventDefault())
   // The app uses no WebRTC, and no page policy can keep a frame in it from opening a peer
   // connection, as a PDF's (libraries/viewers/src/pdf.ts) could: none of it sends UDP that

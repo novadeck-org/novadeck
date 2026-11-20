@@ -640,7 +640,7 @@ const launch = async (): Promise<void> => {
           if (process.platform === "darwin") app.focus({ steal: true })
         },
         forwards: () => forwards,
-        later: (run, ms) => void setTimeout(run, ms),
+        later: (wait, ms) => void setTimeout(wait, ms),
       }),
   })
   closeNotices = notices.closeAll
@@ -705,8 +705,8 @@ const launch = async (): Promise<void> => {
   registerProjectWindowsIpc(ipcMain, {
     window: appWindow,
     ask: (window) => projectWindows.tell(window),
-    show: (window, projectId, known) => {
-      projectWindows.show(window, projectId, known)
+    show: (window, projectId, projects) => {
+      projectWindows.show(window, projectId, projects)
       rememberWindowsSoon()
     },
     use: (on) => void savedWindows.use(on).then(rememberWindows),
