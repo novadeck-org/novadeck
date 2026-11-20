@@ -531,17 +531,11 @@ export const Preferences = ({
                   </div>
                 )}
                 {showAgentMode && (
-                  <fieldset
-                    className="agent-mode-preferences settings-fieldset m-0 mt-2.5 min-w-0 p-0"
-                    aria-describedby="agent-mode-description"
-                  >
-                    <legend className="float-left mb-1.5 w-full p-0 px-0.5">
+                  <fieldset className="agent-mode-preferences settings-fieldset m-0 mt-2.5 flex min-w-0 flex-col p-0">
+                    <legend className="w-full p-0 px-0.5">
                       <span className={`block ${groupTitleClasses}`}>Agents work as</span>
                     </legend>
-                    <div
-                      id="agent-mode-description"
-                      className="clear-both mt-2.5 grid grid-cols-1 gap-2"
-                    >
+                    <div className="mt-1.5 grid grid-cols-1 gap-2">
                       {modeChoices.map(({ mode, label, description }) => {
                         const checked = agentMode.mode === mode
                         return (
@@ -652,15 +646,15 @@ export const Preferences = ({
             )}
             <Section title="Layout">
               <fieldset
-                className="view-preferences settings-fieldset m-0 min-w-0 p-0"
+                className="view-preferences settings-fieldset m-0 flex min-w-0 flex-col p-0"
                 aria-describedby="view-modes-description"
               >
-                <legend className="float-left mb-1.5 w-full p-0 px-0.5">
+                <legend className="w-full p-0 px-0.5">
                   <span className={`block ${groupTitleClasses}`}>View modes</span>
                 </legend>
                 <p
                   id="view-modes-description"
-                  className={`clear-both px-0.5 ${sectionDescriptionClasses}`}
+                  className={`mt-1.5 px-0.5 ${sectionDescriptionClasses}`}
                 >
                   Layouts shown in the header. At least one stays on; with one, the header has no
                   switch.
@@ -700,15 +694,15 @@ export const Preferences = ({
               {/* Only where the backend reads agents' conversations. */}
               {chat && (
                 <fieldset
-                  className="agent-chat-preferences settings-fieldset m-0 mt-2.5 min-w-0 p-0"
+                  className="agent-chat-preferences settings-fieldset m-0 mt-2.5 flex min-w-0 flex-col p-0"
                   aria-describedby="agent-chat-description"
                 >
-                  <legend className="float-left mb-1.5 w-full p-0 px-0.5">
+                  <legend className="w-full p-0 px-0.5">
                     <span className={`block ${groupTitleClasses}`}>Show agents as</span>
                   </legend>
                   <p
                     id="agent-chat-description"
-                    className={`clear-both px-0.5 ${sectionDescriptionClasses}`}
+                    className={`mt-1.5 px-0.5 ${sectionDescriptionClasses}`}
                   >
                     Agent Chat: read and reply to agents in a chat instead of their terminal. When
                     the chat can't handle something, answer in the terminal.
