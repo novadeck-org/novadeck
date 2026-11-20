@@ -11,7 +11,7 @@ import { join } from "node:path"
 import { screenRecord } from "@novadeck/harness-core/testing/probes"
 
 import { codex } from "../agents/codex.js"
-import { describe, e2e, supported } from "../fixture.js"
+import { describe, e2e, expect, supported } from "../fixture.js"
 import { asked, gate, type Call } from "../model/script.js"
 import { own, result, start } from "../scenarios.js"
 import { listen } from "./subagent-ends-support.js"
@@ -164,11 +164,37 @@ describe.skipIf(!supported || !probing)("probe: a Codex subagent that ends unfin
 
       await t.submit("Close A")
       await step("2 A closed by close_agent")
+      // What Novadeck reads as the close (decode.ts `closed`): close_agent's PostToolUse names
+      // the spawned agent's own id as its target, and no SubagentStop comes for it.
+      const closing = ears.heard.find(
+        ({ event, payload }) =>
+          event === "PostToolUse" && String(payload.tool_name).endsWith("close_agent"),
+      )
+      expect(closing?.payload.tool_input).toMatchObject({ target: ids.a })
+      expect(
+        ears.heard.some(
+          ({ event, payload }) => event === "SubagentStop" && payload.agent_id === ids.a,
+        ),
+      ).toBe(false)
 
       await t.submit("Resume A")
       await step("3 A resumed")
       await t.submit("Message A")
       await step("4 A messaged")
+      // A later turn of it starts with its prompt's hook alone, no SubagentStart.
+      expect(
+        ears.heard.filter(
+          ({ event, payload }) => event === "SubagentStart" && payload.agent_id === ids.a,
+        ),
+      ).toHaveLength(1)
+      expect(
+        ears.heard.some(
+          ({ event, payload }) =>
+            event === "UserPromptSubmit" &&
+            payload.agent_id === ids.a &&
+            payload.prompt === "Again A",
+        ),
+      ).toBe(true)
 
       await t.submit("Spawn B and wait")
       ids.b = await spawned("B")

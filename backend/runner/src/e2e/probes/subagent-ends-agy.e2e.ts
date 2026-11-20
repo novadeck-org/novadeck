@@ -10,7 +10,7 @@ import { join } from "node:path"
 import { screenRecord } from "@novadeck/harness-core/testing/probes"
 
 import { agy } from "../agents/agy.js"
-import { describe, e2e, supported } from "../fixture.js"
+import { describe, e2e, expect, supported } from "../fixture.js"
 import { asked, gate, Refusal, type Call } from "../model/script.js"
 import { own, result, start } from "../scenarios.js"
 import { listen } from "./subagent-ends-support.js"
@@ -123,6 +123,14 @@ describe.skipIf(!supported || !probing)(
         await step("1 A started, held")
         await t.submit("Kill A")
         await step("2 A killed")
+        // What Novadeck counts (status-line.ts): the idle snapshot after a kill no longer names
+        // the subagent running.
+        const idle = ears.heard.findLast(
+          ({ event, payload }) => event === "StatusLine" && payload.agent_state === "idle",
+        )
+        const listed = (idle?.payload.subagents ?? []) as { status?: string }[]
+        expect(listed.length).toBeGreaterThan(0)
+        expect(listed.filter(({ status }) => status === "running")).toEqual([])
         await t.submit("Message A")
         await sleep(4000)
         await step("3 A messaged after the kill")
