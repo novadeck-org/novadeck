@@ -210,6 +210,26 @@ describe("a snapshot", () => {
       shown.restored.dispose()
     })
 
+    it("the background blank rows below the text were painted with, and the cursor and style as they were", async () => {
+      // A ground painted by erasing, one line at the top, and the cursor on the third row.
+      const draw = "\u001b[48;5;236m\u001b[2J\u001b[Hhello\u001b[3;2H\u001b[1;32m"
+      const { screen, restored } = await restoredWith(draw, "X")
+      expect(new Set(backgrounds(screen).flat())).toEqual(new Set([236]))
+      expect(backgrounds(restored)).toEqual(backgrounds(screen))
+      expect(styledRows(restored, 2, 2)).toEqual(styledRows(screen, 2, 2))
+      expect(cursor(restored)).toEqual(cursor(screen))
+      screen.dispose()
+      restored.dispose()
+    })
+
+    it("true-colour backgrounds of part of a blank row", async () => {
+      const draw = "text\u001b[3;3H\u001b[48;2;10;20;30m\u001b[3X\u001b[0m\u001b[1;1H"
+      const { screen, restored } = await restoredWith(draw)
+      expect(backgrounds(restored)).toEqual(backgrounds(screen))
+      screen.dispose()
+      restored.dispose()
+    })
+
     it("no blank row's first cell as a fill, where a wrapped line's first row is blank", async () => {
       // A wrapped line whose first row was erased: the serializer fills that row to keep the
       // break, and erases the fill again from the wrong column.

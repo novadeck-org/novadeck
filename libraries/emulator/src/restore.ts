@@ -1,3 +1,5 @@
+import type { IBufferCell } from "@xterm/headless"
+
 import type { Screen } from "./screen.js"
 
 // What xterm's serializer leaves out of a screen's text, and a fresh screen needs to behave as
@@ -16,6 +18,41 @@ type Core = {
 const coreOf = (screen: Screen): Core =>
   // eslint-disable-next-line no-underscore-dangle -- xterm keeps these to itself.
   (screen as unknown as { _core: Core })._core
+
+// The SGR that sets a cell's background, undefined for the terminal's default.
+const background = (cell: IBufferCell): string | undefined => {
+  if (cell.isBgRGB()) {
+    const value = cell.getBgColor()
+    return `48;2;${(value >> 16) & 255};${(value >> 8) & 255};${value & 255}`
+  }
+  return cell.isBgPalette() ? `48;5;${cell.getBgColor()}` : undefined
+}
+
+// Paints the blank rows below the last row that holds a character with the backgrounds they
+// have, as the erases that made them did: the serializer drops those rows. The cursor and its
+// style are saved around it (DECSC) and restored (DECRC).
+const paintRows = (screen: Screen): string => {
+  const buffer = screen.buffer.active
+  const cell = buffer.getNullCell()
+  let last = -1
+  for (let row = 0; row < screen.rows; row += 1)
+    if (buffer.getLine(buffer.baseY + row)?.translateToString(true) !== "") last = row
+  let paint = ""
+  for (let row = last + 1; row < screen.rows; row += 1) {
+    const line = buffer.getLine(buffer.baseY + row)
+    if (!line) continue
+    let column = 0
+    while (column < screen.cols) {
+      const sgr = line.getCell(column, cell) && background(cell)
+      let end = column + 1
+      if (sgr)
+        while (end < screen.cols && line.getCell(end, cell) && background(cell) === sgr) end += 1
+      if (sgr) paint += `\u001b[${row + 1};${column + 1}H\u001b[${sgr}m\u001b[${end - column}X`
+      column = end
+    }
+  }
+  return paint === "" ? "" : `\u001b7${paint}\u001b8`
+}
 
 /**
  * The text that, written after the screen's serialized text on a fresh screen of the same size,
@@ -36,6 +73,7 @@ export const restoreState = (screen: Screen): string => {
   // serialized text left it there if it ended on that row, and only setting the region moves it.
   const pending = buffer.cursorX >= screen.cols && region === ""
   return (
+    paintRows(screen) +
     region +
     (core.coreService.isCursorHidden ? "\u001b[?25l" : "") +
     (pending ? "" : `\u001b[${row};${buffer.cursorX + 1}H`)
