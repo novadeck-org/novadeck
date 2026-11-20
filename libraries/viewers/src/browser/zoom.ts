@@ -77,11 +77,6 @@ export type PhoneZoom = {
    * isn't drawn zoomed: the key is the pane's then.
    */
   readonly out: () => boolean
-  /**
-   * Moves the phone up or down by `by` pixels, as the wheel over the stage does; true where it
-   * moved, false where it's at that end already.
-   */
-  readonly lift: (by: number) => boolean
   /** Brings the cursor, the rail and the hint up to date with the viewer's size and layout. */
   readonly sync: () => void
   readonly destroy: () => void
@@ -273,7 +268,7 @@ export const createPhoneZoom = (root: HTMLElement, options: ZoomOptions): PhoneZ
     act()
   })
 
-  // True where it moved: one already at that end stays.
+  // Moves it up or down by `by` pixels: true where it moved, false where it's at that end.
   const lift = (by: number): boolean => {
     if (!resting || easing) return false
     const zoom = level()
@@ -342,7 +337,6 @@ export const createPhoneZoom = (root: HTMLElement, options: ZoomOptions): PhoneZ
       ease(false)
       return true
     },
-    lift,
     sync: () => {
       const can = size() === "phone" && level() !== undefined
       const mark = !can ? undefined : wants() ? "out" : "in"
