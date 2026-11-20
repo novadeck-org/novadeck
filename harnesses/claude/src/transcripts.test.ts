@@ -565,6 +565,13 @@ describe("Claude Code's wrappers around the person's words", () => {
         .map(({ role, kind, text: shown }) => [role, kind, shown])
     expect(blocks("<command-name>/mcp</command-name>")).toEqual([["user", "text", "/mcp"]])
     expect(blocks('<novadeck-messages note="x">hi</novadeck-messages>')).toEqual([])
+    expect(
+      blocks('Stop hook feedback:\n<novadeck-messages note="x">hi</novadeck-messages>'),
+    ).toEqual([])
+    // The person's words that quote a delivery are theirs.
+    expect(blocks('what is this?\n<novadeck-messages note="x">hi</novadeck-messages>')).toEqual([
+      ["user", "text", 'what is this?\n<novadeck-messages note="x">hi</novadeck-messages>'],
+    ])
     expect(blocks('see \n\n<pasted_content id="y">\nthis\n</pasted_content id="y">\n')).toEqual([
       ["user", "text", "see this"],
     ])
