@@ -77,15 +77,15 @@ describe("placing the window's controls", () => {
 })
 
 describe("the window's options", () => {
-  it("hide the title bar and set the controls on the header on macOS", () => {
-    expect(controlsWindowOptions(true, 1)).toEqual({
+  it("hide the title bar and set the controls at the header's start, as on macOS", () => {
+    expect(controlsWindowOptions("start", 1)).toEqual({
       titleBarStyle: "hiddenInset",
       trafficLightPosition: { x: 20, y: 25 },
     })
   })
 
   it("keep the system's title bar elsewhere", () => {
-    expect(controlsWindowOptions(false, 1)).toEqual({})
+    expect(controlsWindowOptions(undefined, 1)).toEqual({})
   })
 })
 

@@ -9,6 +9,16 @@ import type { NoticeSound } from "./sounds.js"
  */
 export const runnerPortMessage = "novadeck:runner-port"
 
+/**
+ * The edge of the page's top a window's own controls sit over, where the page's header stands
+ * in for its title bar: `start` (left), as macOS's buttons, or `end` (right), as Windows' are.
+ */
+export type WindowControlsSide = "start" | "end"
+
+/** Whether `value` is a `WindowControlsSide`. */
+export const isWindowControlsSide = (value: unknown): value is WindowControlsSide =>
+  value === "start" || value === "end"
+
 export type DesktopBridge = {
   requestRunner(id: string): void
   /** Asks the person to choose a folder; resolves its absolute path, or null when cancelled. */
@@ -91,12 +101,17 @@ export type DesktopBridge = {
    */
   onScreenReader?(listener: (running: boolean) => void): () => void
   /**
-   * Calls `listener` with the room the window's own controls (macOS's close, minimise and zoom
-   * buttons) take over the page's top-left corner, as CSS pixels from its left edge: at once,
-   * and again on each change. 0 while they don't show there, as in full screen or hidden by
-   * `placeWindowControls`. Returns a function that stops listening. Absent where the window
-   * draws its own title bar above the page, as on Windows and Linux, and from apps that came
-   * before it.
+   * The edge of the page's top the window's own controls sit over, where the page's header
+   * stands in for the window's title bar: `start` for macOS's close, minimise and zoom buttons
+   * at the top left. Present exactly where `onWindowControls` is.
+   */
+  windowControlsSide?: WindowControlsSide
+  /**
+   * Calls `listener` with the room the window's own controls take over the page's top, as CSS
+   * pixels from its edge on `windowControlsSide`: at once, and again on each change. 0 while
+   * they don't show there, as in full screen or hidden by `placeWindowControls`. Returns a
+   * function that stops listening. Absent where the window draws its own title bar above the
+   * page, as on Windows and Linux, and from apps that came before it.
    */
   onWindowControls?(listener: (inset: number) => void): () => void
   /**

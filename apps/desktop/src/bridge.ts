@@ -1,3 +1,5 @@
+import type { WindowControlsSide } from "@novadeck/protocol/bridge"
+
 export const apiUrlArgumentPrefix = "--novadeck-api-url="
 export const databaseArgumentPrefix = "--novadeck-database="
 /** The relay agents start for Novadeck's MCP server and hooks, as the app ships it. */
@@ -106,15 +108,17 @@ export const tellsScreenReader = (platform: string): boolean =>
   platform === "darwin" || platform === "win32" || platform === "linux"
 
 /**
- * Whether the app's window puts its own controls over the page's top-left corner, the page's
- * header standing in for a title bar: on macOS. Windows and Linux keep the system's title bar.
+ * The edge of the page's top the app's window puts its own controls over, the page's header
+ * standing in for a title bar: the start on macOS. Undefined where the window keeps the
+ * system's title bar, as on Windows and Linux.
  */
-export const insetsWindowControls = (platform: string): boolean => platform === "darwin"
+export const windowControlsSide = (platform: string): WindowControlsSide | undefined =>
+  platform === "darwin" ? "start" : undefined
 
 /**
- * Main-to-renderer report of the room the window's controls take from the page's left edge,
- * in CSS pixels, 0 while they don't show; see main/window/controls.ts. Sent on each change and
- * in answer to each `windowControlsPlaceChannel` request.
+ * Main-to-renderer report of the room the window's controls take from the page's edge on their
+ * side, in CSS pixels, 0 while they don't show; see main/window/controls.ts. Sent on each change
+ * and in answer to each `windowControlsPlaceChannel` request.
  */
 export const windowControlsChannel = "novadeck:window-controls"
 

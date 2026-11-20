@@ -20,7 +20,7 @@ export const clearDemoWindowControls = (page: Document = document): void => {
 }
 
 // The preview page's stand-in for the desktop app's controls over the page: the page's root
-// says it is the window's title bar, as the desktop app's entry says, and three buttons are
+// says it is the window's title bar, its controls at the start, as the desktop app's entry says, and three buttons are
 // drawn where macOS puts them, on the line the page asks for, hidden when it asks so (as in
 // Zen) and in full screen, where the page keeps no room for them.
 export const createDemoWindowControls = (
@@ -28,7 +28,7 @@ export const createDemoWindowControls = (
   page: Document = document,
 ): NonNullable<Backend["windowControls"]> => {
   clearDemoWindowControls(page)
-  page.documentElement.dataset.windowControls = "inset"
+  page.documentElement.dataset.windowControls = "start"
   const listeners = new Set<(inset: number) => void>()
   const lights = page.createElement("div")
   lights.dataset.demoWindowControls = mode
@@ -54,6 +54,7 @@ export const createDemoWindowControls = (
   }
   page.body.append(lights)
   return {
+    side: "start",
     place: (middle) => {
       const shown = middle !== null && mode === "inset"
       lights.style.display = shown ? "flex" : "none"

@@ -41,7 +41,7 @@ import {
   runnerPortChannel,
   versionChannel,
   tellsScreenReader,
-  insetsWindowControls,
+  windowControlsSide,
 } from "../bridge.js"
 import { openProcessLog, saltFileIn, type LogSetup } from "../logging.js"
 import { dataFolderName, logsFolder } from "./data-folder.js"
@@ -364,7 +364,7 @@ const createWindow = (origin: string): BrowserWindow => {
   })
   // Its page opens at the scale, and takes it again whenever it loads.
   window.webContents.on("dom-ready", () => scale.apply(window.webContents))
-  if (insetsWindowControls(process.platform)) windowControls.set(window, keepControls(window))
+  if (windowControlsSide(process.platform)) windowControls.set(window, keepControls(window))
   // Closing the last window quits, which ends the shells, except on macOS; either way
   // the page saves first.
   saveBeforeClose(
@@ -561,7 +561,7 @@ const launch = async (): Promise<void> => {
   registerWindowFocusIpc(ipcMain, { window: appWindow, request: tellWindowFocus })
   // The page sets the window's controls on its header's middle, or hides them, as in Zen
   // (macOS; elsewhere the window keeps the system's title bar and nothing listens).
-  if (insetsWindowControls(process.platform))
+  if (windowControlsSide(process.platform))
     registerControlsIpc(ipcMain, (event) => {
       const window = appWindow(event)
       return window && windowControls.get(window)

@@ -16,6 +16,7 @@ import {
   updateChannels,
   updateVersionPattern,
   type DesktopApp,
+  isWindowControlsSide,
   parsePortableState,
   parseUpdateOffer,
   parseWhatsNew,
@@ -110,13 +111,15 @@ export const desktopWindowFocus = (app: DesktopApp | undefined): Backend["window
     })
 }
 
-// The app's own window controls where they sit over the page (macOS): only a finite number
-// crosses either way.
+// The app's own window controls where they sit over the page (macOS, at its start): a known
+// side, and only a finite number crosses either way.
 export const desktopWindowControls = (app: DesktopApp | undefined): Backend["windowControls"] => {
+  const side = app?.windowControlsSide
   const listen = app?.onWindowControls
   const place = app?.placeWindowControls
-  if (!listen || !place) return undefined
+  if (!isWindowControlsSide(side) || !listen || !place) return undefined
   return {
+    side,
     place: (middle) => {
       if (middle === null || Number.isFinite(middle)) place(middle)
     },

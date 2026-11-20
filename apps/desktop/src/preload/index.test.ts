@@ -1028,11 +1028,17 @@ describe("the window's own controls", () => {
   for (const platform of ["linux", "win32"] as const)
     it(`are none of the page's on ${platform}, whose window keeps the system's title bar`, async () => {
       await loadOn(platform)
+      expect(electron.exposed.windowControlsSide).toBeUndefined()
       expect(electron.exposed.onWindowControls).toBeUndefined()
       expect(electron.exposed.placeWindowControls).toBeUndefined()
     })
 
   context("on macOS", () => {
+    it("sit at the start of the page's top", async () => {
+      await loadOn("darwin")
+      expect(electron.exposed.windowControlsSide).toBe("start")
+    })
+
     it("pass the page's placing on, a number or none and nothing else", async () => {
       await loadOn("darwin")
       electron.exposed.placeWindowControls?.(32)

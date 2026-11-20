@@ -15,7 +15,7 @@ import {
   type WebContents,
 } from "electron"
 
-import { insetsWindowControls, windowFocusChannel } from "../../bridge.js"
+import { windowControlsSide, windowFocusChannel } from "../../bridge.js"
 import { developmentOrigin, uiAddress, uiFile } from "../resources.js"
 import { controlsWindowOptions } from "./controls.js"
 import { ownPage } from "./permissions.js"
@@ -115,7 +115,7 @@ export const openAppWindow = ({
     show: false,
     autoHideMenuBar: true,
     backgroundColor: ground,
-    ...controlsWindowOptions(insetsWindowControls(process.platform), zoomFactor),
+    ...controlsWindowOptions(windowControlsSide(process.platform), zoomFactor),
     webPreferences: {
       additionalArguments: [...preloadArguments],
       // The app's scale, so the first paint is at it (scale.ts re-applies it as the page loads).

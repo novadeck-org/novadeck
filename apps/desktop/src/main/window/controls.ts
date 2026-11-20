@@ -2,6 +2,7 @@
 // header rather than over a title bar of their own: the window hides its title bar, and the
 // page says where its header's middle is, so the buttons sit on it, and hears how much room
 // they take, so it keeps clear of them.
+import type { WindowControlsSide } from "@novadeck/protocol/bridge"
 import type { IpcMainEvent } from "electron"
 
 import { windowControlsChannel, windowControlsPlaceChannel } from "../../bridge.js"
@@ -51,17 +52,17 @@ export const placeControls = ({
 }
 
 /**
- * The window options that set the buttons into the page on macOS, at a page's first paint at
- * `zoom`; none elsewhere, whose windows keep the system's title bar.
+ * The window options that set the buttons into the page's top on `side` (the start, macOS's), at
+ * a page's first paint at `zoom`; none where the window keeps the system's title bar (undefined).
  */
 export const controlsWindowOptions = (
-  inset: boolean,
+  side: WindowControlsSide | undefined,
   zoom: number,
 ): {
   readonly titleBarStyle?: "hiddenInset"
   readonly trafficLightPosition?: { readonly x: number; readonly y: number }
 } =>
-  inset
+  side === "start"
     ? {
         titleBarStyle: "hiddenInset",
         trafficLightPosition: placeControls({ middle: headerMiddle, zoom, fullScreen: false })

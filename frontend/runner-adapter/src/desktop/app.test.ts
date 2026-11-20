@@ -953,6 +953,7 @@ describe("the window's own controls", () => {
     let report: ((inset: unknown) => void) | undefined
     const placed: unknown[] = []
     const bridge = {
+      windowControlsSide: "start",
       onWindowControls: (listener: (inset: unknown) => void) => {
         report = listener
         return () => {
@@ -962,6 +963,7 @@ describe("the window's own controls", () => {
       placeWindowControls: (middle: unknown) => void placed.push(middle),
     } as unknown as DesktopApp
     const controls = desktopWindowControls(bridge)!
+    expect(controls.side).toBe("start")
     const insets: number[] = []
     const stop = controls.onInset((inset) => insets.push(inset))
     controls.place(32)
@@ -983,5 +985,17 @@ describe("the window's own controls", () => {
     expect(
       desktopWindowControls({ onWindowControls: () => () => {} } as unknown as DesktopApp),
     ).toBeUndefined()
+  })
+
+  it("is absent where the app names no side it knows", () => {
+    const bridge = (side: unknown) =>
+      ({
+        windowControlsSide: side,
+        onWindowControls: () => () => {},
+        placeWindowControls: () => {},
+      }) as unknown as DesktopApp
+    expect(desktopWindowControls(bridge(undefined))).toBeUndefined()
+    expect(desktopWindowControls(bridge("left"))).toBeUndefined()
+    expect(desktopWindowControls(bridge("end"))?.side).toBe("end")
   })
 })

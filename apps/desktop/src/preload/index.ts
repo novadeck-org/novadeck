@@ -82,10 +82,13 @@ import {
   screenReaderChannel,
   screenReaderRequestChannel,
   tellsScreenReader,
-  insetsWindowControls,
+  windowControlsSide,
   windowControlsChannel,
   windowControlsPlaceChannel,
 } from "../bridge.js"
+
+// The edge of the page's top the window's own controls sit over, if they sit over it.
+const controlsSide = windowControlsSide(process.platform)
 
 const argument = process.argv.find((value) => value.startsWith(apiUrlArgumentPrefix))
 
@@ -321,11 +324,12 @@ const bridge = {
         },
       }
     : {}),
-  // Only where the window's controls sit over the page (macOS). Only a finite number comes back;
-  // the main process answers each placing with the room the controls take, as the page places
-  // them first thing when it starts listening, or loaded again.
-  ...(insetsWindowControls(process.platform)
+  // Only where the window's controls sit over the page (macOS, at its start). Only a finite number
+  // comes back; the main process answers each placing with the room the controls take, as the
+  // page places them first thing when it starts listening, or loaded again.
+  ...(controlsSide
     ? {
+        windowControlsSide: controlsSide,
         onWindowControls: (listener: (inset: number) => void) => {
           const relay = (_event: unknown, inset: unknown): void => {
             if (typeof inset === "number" && Number.isFinite(inset)) listener(inset)

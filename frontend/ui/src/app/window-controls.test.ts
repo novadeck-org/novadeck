@@ -42,6 +42,7 @@ const controls = () => {
   const placed: (number | null)[] = []
   let listener: ((inset: number) => void) | undefined
   const port: NonNullable<Backend["windowControls"]> = {
+    side: "start",
     place: (middle) => {
       placed.push(middle)
       listener?.(middle === null ? 0 : 74)
@@ -191,6 +192,7 @@ describe("watching the window's controls", () => {
     const { root, view, pointer } = page()
     const placed: (number | null)[] = []
     const port: NonNullable<Backend["windowControls"]> = {
+      side: "start",
       place: (middle) => void placed.push(middle),
       onInset: () => () => {},
     }
