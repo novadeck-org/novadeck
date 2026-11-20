@@ -233,7 +233,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(tui.received()).toHaveLength(1)
     })
 
-    it("follows a Codex spawned agent's next request after its rollout records Esc on one, its thread still open", async ({
+    it("follows a Codex spawned agent's next request after its rollout records Esc on one, which ended its turn", async ({
       shell,
     }) => {
       const tui = await ringing(shell, "subagain")
@@ -252,19 +252,20 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           own,
           `${JSON.stringify({ timestamp: new Date().toISOString(), type: "event_msg", payload: { type: "turn_aborted", reason: "interrupted" } })}\n`,
         )
-      // Esc on its first request ends that turn only: it still runs.
+      // Esc on its first request ends that turn, as its stop would: no longer listed.
       abort()
       await expect.poll(pending, { timeout: 5_000 }).toBe(0)
-      expect(activity()?.subagents).toHaveLength(1)
-      // Rung, the root's turn ends, and the spawned agent asks again: followed again.
+      expect(activity()?.subagents).toHaveLength(0)
+      // Rung, the root's turn ends, and the spawned agent asks again: running, followed again.
       expect(await tui.send("Review a.ts")).toMatchObject({ ok: true })
       await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
       await expect.poll(pending, { timeout: 5_000 }).toBe(1)
+      expect(activity()?.subagents).toHaveLength(1)
       abort()
       await expect.poll(pending, { timeout: 5_000 }).toBe(0)
     })
 
-    it("stops following a spawned agent once its request settles or resolves, and when the binding ends", async ({
+    it("follows a spawned agent while it runs, letting go once its turn aborts or the binding ends", async ({
       shell,
     }) => {
       const watch = vi.spyOn(codexHarness, "watchActor")
@@ -277,7 +278,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         await expect.poll(pending, { timeout: 10_000 }).toBe(1)
         await expect.poll(() => signals().length).toBe(1)
         expect(signals()[0]!.aborted).toBe(false)
-        // Esc on it, as its rollout records: settled, no longer followed.
+        // Esc on it, as its rollout records: settled, its turn over, no longer followed.
         const own = join(
           shell.home,
           "received.jsonl.sessions/2026/10/03/rollout-2026-10-03T00-00-01-a1.jsonl",
@@ -289,22 +290,23 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         )
         await expect.poll(pending, { timeout: 5_000 }).toBe(0)
         expect(signals()[0]!.aborted).toBe(true)
-        // Its next request, allowed with Enter: resolved, no longer followed.
+        // Its next request runs it again, followed again; allowed with Enter, resolved, it
+        // runs on, still followed.
         await tui.send("Review a.ts")
         await expect.poll(pending, { timeout: 10_000 }).toBe(1)
         await expect.poll(() => signals().length).toBe(2)
         expect(signals()[1]!.aborted).toBe(false)
         tui.type("\r")
         await expect.poll(pending, { timeout: 5_000 }).toBe(0)
-        expect(signals()[1]!.aborted).toBe(true)
-        // Another, then the agent exits: the binding ends, and its follower with it.
+        expect(signals()[1]!.aborted).toBe(false)
+        // Another of its requests, by the same follower; then the agent exits: the binding
+        // ends, and its follower with it.
         await tui.send("Review b.ts")
         await expect.poll(pending, { timeout: 10_000 }).toBe(1)
-        await expect.poll(() => signals().length).toBe(3)
-        expect(signals()[2]!.aborted).toBe(false)
+        expect(signals()).toHaveLength(2)
         tui.leave()
         await expect.poll(() => tui.manager.get(tui.idle.id).agent, { timeout: 5_000 }).toBeNull()
-        expect(signals()[2]!.aborted).toBe(true)
+        expect(signals()[1]!.aborted).toBe(true)
       } finally {
         watch.mockRestore()
       }

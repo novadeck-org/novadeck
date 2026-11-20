@@ -30,6 +30,7 @@ export const events = [
   "Elicitation",
   "ElicitationResult",
   "Stop",
+  "SubagentStart",
   "SubagentStop",
 ]
 

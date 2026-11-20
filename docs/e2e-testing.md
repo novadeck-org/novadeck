@@ -861,8 +861,9 @@ for (const setup of setups) {
     `activity.attention`) from a subagent it lists as running. t2's message waits queued
     past the settle window, t1 never rung and no call holding the doorbell's line. The
     person presses Esc on the dialog (`escape()`, never Enter), which fires no hook:
-    Novadeck's request goes to none by following the agent's own rollout, the subagent
-    still listed as running, and t1 is then rung and its hook delivers. Codex's own
+    Novadeck's request goes to none by following the agent's own rollout, whose abort
+    ends the subagent's turn as its stop would (no longer listed), and t1 is then rung
+    and its hook delivers. Codex's own
     evidence that it aborted: the dialog's thread line leaves the screen, the agent's
     rollout (`rollout-<time>-<agent id>.jsonl` under `CODEX_HOME/sessions`) holds
     `turn_aborted`, and no call of its conversation ever looks at the command's result.

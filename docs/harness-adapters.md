@@ -1112,23 +1112,42 @@ or a subagent's stop or its turn's abort. Neither a subagent's next request nor 
 result for another call counts: its parallel calls may show several dialogs at once,
 and that call may have run alongside the one asked about. A request answered with no
 report otherwise waits until its subagent stops, as the person missing a ring is safe
-and a ring onto a live dialog is not. A Codex subagent's `SubagentStop` ends its turn,
-but Esc on its request fires no hook at all; only its own rollout records
-`turn_aborted`, and its thread stays open. So while a subagent's request waits, the
-adapter's `watchActor` follows that subagent's own sources (Codex: its rollout, found
-beside the root's by its id), and an abort recorded at or after the request was asked
-settles that subagent's requests asked by then, at the abort's time, the subagent
-still running. It stops following once the subagent has no request waiting, or the
-binding ends. A Claude Code background subagent's denied request, or one whose prompt
-timed out, fires no hook either, and it runs on to its `SubagentStop`; its own
-transcript (`<session>/subagents/agent-<id>.jsonl`) records the call's result, which
+and a ring onto a live dialog is not. A subagent's row means a subagent with a turn
+running, and it ends with what ends that turn on each harness, not only its stop hook
+(probed 2026-11-20 on Claude Code 2.1.328, Codex 0.170.0 and Antigravity 1.5.12,
+`fixtures/subagent-ends.probe.json` of each and Antigravity's
+`subagent-ends-status.probe.json`):
+
+- Claude Code: `SubagentStop`; the root's `TaskStop` of an agent (its result's `task_type`
+  is `local_agent`), which fires no `SubagentStop`; and its `Stop` and `StopFailure`, whose
+  `background_tasks` list every running subagent, nested ones too, so one started before
+  that list and left out of it ended unseen, as one the person stopped from Claude Code's
+  task list and the children that died with it do (`subagents-listed`). A hook that lists
+  no tasks, as an older release's, tells nothing. A `SendMessage` that resumes a stopped
+  one fires `SubagentStart` again, under the id it kept.
+- Codex: `SubagentStop`; the root's `close_agent` (its input's `target`), which fires no
+  `SubagentStop`; and its own rollout recording `turn_aborted`, as Esc on its request and
+  the close do, with no hook. Its thread stays open, and a later turn of it (`send_input`
+  after a close, an abort or a stop) fires no `SubagentStart`, only its `UserPromptSubmit`
+  with its `agent_id`, which starts it again. The root's `Interrupt` leaves the subagents
+  it spawned running (`keepsSubagents`). The adapter's `watchActor` follows each running
+  subagent's own rollout (found beside the root's by its id) from its start, as its
+  harness `watchesRunning`, and stops once it ends or the binding does.
+- Antigravity: no hook names a subagent; its status line lists them with a `status`, and
+  one killed (`manage_subagents` kill or kill_all) or whose model call failed shows as
+  `completed`, which counts as ended, as `killed`, `stopped` and `cancelled` would.
+
+A stop settles that subagent's requests asked by then, at the stop's time; one that comes
+twice (Codex's close and its rollout's abort) settles nothing more. A late hook of a turn
+already ended (its start older than the end) doesn't bring the subagent back; a later turn
+does. A Claude Code background subagent's denied request, or one whose prompt timed out,
+fires no hook either, and it runs on to its `SubagentStop`; while its request waits, its
+own transcript (`<session>/subagents/agent-<id>.jsonl`) records the call's result, which
 settles that request at the result's time, as the root's transcript does the root's.
 A subagent asking that Novadeck never saw start, as its start came before the binding or its harness reported its
 stop at a turn's end, counts as running from that request on, unless a stop after the
-request says it is over. At most 32 subagents are followed; once that many run, the one
-whose turn aborted longest ago, with no request since, makes room for another, which it
-joins again as one never seen starting if it asks later; with none such, a further
-subagent isn't followed, and its request settles at the root's next turn start or end.
+request says it is over. At most 32 subagents are listed; with that many running a further
+one isn't, and its request settles at the root's next turn start or end.
 Claude Code's `AskUserQuestion` goes through
 `PermissionRequest` too, so the attention kind comes from the tool name.
 
@@ -1578,8 +1597,10 @@ nothing else, confirmed by its hook, never retried; see
       Subagents outlive turns, as a background one does, so no turn fences
       them. An interrupted turn ends the subagents it started, since an
       interrupted subagent reports no stop, and a background one from an
-      earlier turn runs on; a start that arrives after its stop, or within an
-      interrupted turn, is not taken for a new subagent.
+      earlier turn runs on, but for Codex's, which run on through the root's
+      interrupt; a start that arrives after its stop, or within an
+      interrupted turn, is not taken for a new subagent. What ends a subagent
+      that no stop hook reports is in "Events, identity and live state" above.
       Antigravity's hooks report no subagents. Subagent transcripts follow.
    4. Telemetry, then the status line bridge. It starts from the sources
       already followed: Codex's rollout gives the context against the model's

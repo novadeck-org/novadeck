@@ -264,9 +264,11 @@ const known = (name: string, fields: Fields | undefined, input: string): ToolRun
   }
 }
 
-// A multi_agent tool by its own name, however Codex spells its namespace: `multi_agent_v1.x`,
-// `multi_agent_v1__x`, or `collaborationx` in a hook.
-const subagentTool = (name: string): string =>
+/**
+ * A multi_agent tool by its own name, however Codex spells its namespace: `multi_agent_v1.x`,
+ * `multi_agent_v1__x`, or `multi_agent_v1x` and `collaborationx` in a hook.
+ */
+export const subagentTool = (name: string): string =>
   /^(?:multi_agent_v\d+|collaboration)(?:\.|__)?(spawn_agent|send_message|send_input|followup_task|list_agents|wait_agent|close_agent|resume_agent)$/.exec(
     name,
   )?.[1] ?? name

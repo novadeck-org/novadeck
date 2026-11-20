@@ -147,7 +147,7 @@ describe("loops: subagents", () => {
   it("do not count after an abort", () => {
     const loops = known()
     loops.observe(T, [subStarted("a")], 100)
-    loops.observe(T, [act({ type: "subagent-turn-aborted", actor: "a" })], 150)
+    loops.observe(T, [act({ type: "subagent-stopped", actor: "a" })], 150)
     expect(loops.worked(T, 120, 140)).toBe(true)
     expect(loops.worked(T, 150, 300)).toBe(false)
   })
@@ -217,7 +217,23 @@ describe("loops: requests waiting on the person", () => {
   it("stop counting for a subagent whose turn aborted", () => {
     const loops = known()
     loops.observe(T, [requested("r", "sub")], 100)
-    loops.observe(T, [act({ type: "subagent-turn-aborted", actor: "sub" })], 150)
+    loops.observe(T, [act({ type: "subagent-stopped", actor: "sub" })], 150)
+    expect(loops.worked(T, 160, 300)).toBe(false)
+  })
+
+  it("stop counting for those a list of what runs leaves out, but a status line's count", () => {
+    const loops = known()
+    loops.observe(T, [subStarted("a"), subStarted("b"), requested("r", "a")], 100)
+    loops.observe(T, [act({ type: "subagents-listed", ids: ["b"] })], 150)
+    expect(loops.worked(T, 160, 300)).toBe(true)
+    loops.observe(T, [act({ type: "subagents-listed", ids: [] })], 200)
+    expect(loops.worked(T, 210, 300)).toBe(false)
+  })
+
+  it("count a subagent's later turn once, as Codex tells it by its start and its prompt", () => {
+    const loops = known()
+    loops.observe(T, [subStarted("a"), subStarted("a")], 100)
+    loops.observe(T, [act({ type: "subagent-stopped", actor: "a" })], 150)
     expect(loops.worked(T, 160, 300)).toBe(false)
   })
 })

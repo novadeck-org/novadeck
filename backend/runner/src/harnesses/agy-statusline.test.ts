@@ -338,6 +338,47 @@ describe("Antigravity's status line, as captured", () => {
     expect(run([preInvocation, report(idle!, 3), report(working!, 4)])).toBe("working")
   })
 })
+describe("Antigravity's status line, listing subagents that ended unfinished", () => {
+  type Line = { state: string; subagents?: Report["payload"][]; tasks?: number }
+  const { steps } = loadProbe(adapterFolder("agy"), "subagent-ends-status.probe.json") as {
+    steps: { step: string; statusLines: Line[] }[]
+  }
+  // How many subagents each idle snapshot of a step counts running, as Novadeck reads it.
+  const counted = (name: string) =>
+    steps
+      .find(({ step }) => step === name)!
+      .statusLines.filter(({ state }) => state === "idle")
+      .map(({ subagents }) => {
+        const payload = { conversation_id: "c", agent_state: "idle", subagents }
+        const idle = decode(report(payload)).find(({ type }) => type === "turn-idle")
+        return idle?.type === "turn-idle" ? idle.background.agents : null
+      })
+
+  it("counts one killed, all killed, or whose model call failed as no longer running", () => {
+    // Each shows as `completed` on the idle snapshot after its end (probed 2026-11-20, 1.5.12).
+    expect(counted("A started, held").at(-1)).toBe(1)
+    expect(counted("A killed").at(-1)).toBe(0)
+    expect(counted("B's model call failed").at(-1)).toBe(0)
+    expect(counted("C killed by kill_all")).toContain(1)
+    expect(counted("C killed by kill_all").at(-1)).toBe(0)
+    expect(counted("D started, held").at(-1)).toBe(1)
+  })
+
+  it("counts a subagent its binary calls killed, stopped or cancelled as no longer running, and one waiting as running", () => {
+    const running = (status: string) => {
+      const payload = {
+        conversation_id: "c",
+        agent_state: "working",
+        subagents: [{ name: "self", role: "Helper", status }],
+      }
+      const working = decode(report(payload)).find(({ type }) => type === "turn-working")
+      return working?.type === "turn-working" ? working.running : null
+    }
+    expect(["killed", "stopped", "canceled", "cancelled"].map(running)).toEqual([0, 0, 0, 0])
+    expect(running("waiting")).toBe(1)
+  })
+})
+
 describe("Antigravity's status line, listing its subagents", () => {
   const { payloads: snapshots } = JSON.parse(
     readFileSync(join(adapterFolder("agy"), "fixtures", "subagents.probe.json"), "utf8"),

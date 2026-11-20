@@ -1115,9 +1115,10 @@ but the label a run shows (`novadeckTool` in the harness core).
   doorbell rings meanwhile. A running subagent's request, as a background one's,
   survives its parent's turn ending, as does one whose hook started before that end
   and reported after it (see [Harness adapters](harness-adapters.md)). It clears at its
-  own resolution, its stop, or, for a Codex subagent whose dialog Esc dismissed with no
-  hook, its own rollout recording that turn aborted, the subagent still running; it
-  keeps the doorbell from ringing until then. Neither its next request nor its result
+  own resolution, or its stop, which counts what ends its turn with no stop hook (Claude
+  Code's TaskStop and its Stop's list of what runs, Codex's close_agent and its own
+  rollout recording that turn aborted, as Esc dismissing its dialog does; see [Harness
+  adapters](harness-adapters.md)); it keeps the doorbell from ringing until then. Neither its next request nor its result
   for another call clears it, as its parallel calls may show several dialogs at once:
   one answered with no report waits until the subagent stops, a missed ring rather
   than one onto a live dialog. A subagent asking that Novadeck never saw start, as one

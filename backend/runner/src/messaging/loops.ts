@@ -275,13 +275,22 @@ const fold = (history: History, event: HarnessEvent, at: number): void => {
       }
       return
     case "subagent-started":
-      history.subagents.push({ start: at, end: null, actor: event.actor })
+      // Codex tells a turn of its subagent by its prompt too, after its start.
+      if (!running(history, event.actor))
+        history.subagents.push({ start: at, end: null, actor: event.actor })
       return
     case "subagent-stopped":
-    case "subagent-turn-aborted":
       close(history.subagents, at, (span) => span.actor === event.actor)
       close(history.requests, at, (span) => span.actor === event.actor)
       return
+    case "subagents-listed": {
+      // Those it no longer lists ended unseen; what a status line counts is its own.
+      const gone = (span: { readonly actor: string | null }) =>
+        span.actor !== null && span.actor !== statusLine && !event.ids.includes(span.actor)
+      close(history.subagents, at, gone)
+      close(history.requests, at, gone)
+      return
+    }
     case "turn-started":
       settle(history, at)
       history.marks.push({ at, startedAt: event.startedAt, kind: "start" })

@@ -130,6 +130,8 @@ export const rolloutEvents = (
           ...base,
           outcome,
           recorded: true,
+          // Its spawned subagents run on through the root's abort.
+          ...(outcome === "interrupted" && { keepsSubagents: true as const }),
           ...(turn && { turn }),
           ...replied(fields.last_agent_message),
           ...(failed && errored(fields.error)),
@@ -459,13 +461,15 @@ export const followRollout: NonNullable<Harness["watch"]> = async (run, signal, 
 
 /**
  * What one line of a subagent's own rollout says that no hook does: its turn aborted, as
- * Esc on its request does, firing neither `Interrupt` nor `SubagentStop` (probed
- * 2026-10-03, 0.159.3). Its turn over, it waits on the person no longer, though its
- * thread stays open, so it runs on; only an abort from `since` on, when its request was
- * asked, counts. An MCP tool call of its own completing settles its request too, as the
- * root's does in the root's rollout: one the person cancelled fires no hook, and its turn
- * runs on. That a subagent's item is filed in its own rollout is assumed, not probed: its
- * hooks name it by its own id, and the root's rollout holds its root's items alone.
+ * Esc on its request does (probed 2026-10-03, 0.159.3) and the root's close_agent does
+ * (probed 2026-11-20, 0.170.0), firing neither `Interrupt` nor `SubagentStop`. Its turn is
+ * over as a SubagentStop would say: it waits on the person no longer, and though its thread
+ * stays open, it runs no more until a later turn of it starts (its prompt's hook says so);
+ * only an abort from `since` on, when it started, counts. An MCP tool call of its own
+ * completing settles its request too, as the root's does in the root's rollout: one the
+ * person cancelled fires no hook, and its turn runs on. That a subagent's item is filed in
+ * its own rollout is assumed, not probed: its hooks name it by its own id, and the root's
+ * rollout holds its root's items alone.
  */
 export const subagentEvents = (
   line: string,
@@ -485,9 +489,7 @@ export const subagentEvents = (
   if (!Number.isFinite(startedAt) || startedAt < since) return []
   const { type: kind, item } = (payload ?? {}) as { type?: unknown; item?: unknown }
   if (kind === "turn_aborted")
-    return [
-      { type: "subagent-turn-aborted", agent: "codex", sessionId, instance, actor, startedAt },
-    ]
+    return [{ type: "subagent-stopped", agent: "codex", sessionId, instance, actor, startedAt }]
   if (kind === "item_completed" && isFields(item) && item.type === "McpToolCall")
     return mcpSettled({ agent: "codex", sessionId, instance, startedAt }, actor, item)
   if (kind === "item_completed" && isFields(item) && item.type === "CommandExecution")
@@ -499,10 +501,10 @@ export const subagentEvents = (
 const locateMs = 1000
 
 /**
- * Follows a subagent's own rollout, which Codex files beside its root's under its own
- * id (its hooks name only the root's), for its turn aborting, or its MCP calls
- * completing, from `since` on. Looked for
- * until found, as Codex may write it after the hook that asks.
+ * Follows a running subagent's own rollout, which Codex files beside its root's under its
+ * own id (its hooks name only the root's), for its turn aborting, or its MCP calls
+ * completing, from `since` on. Looked for until found, as Codex may write it after the
+ * hook that starts it.
  */
 export const followSubagent: NonNullable<Harness["watchActor"]> = async (
   run,
