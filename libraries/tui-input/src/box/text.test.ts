@@ -30,6 +30,12 @@ describe("wrappedRows", () => {
     expect(wrappedRows("aaaa bbbb", 8)).toBe(2)
     expect(wrappedRows("aaaa\nbbbb", 40)).toBe(2)
     expect(wrappedRows("a".repeat(13), 8)).toBe(3)
+    // A word longer than a row that fills its last row exactly leaves no room on it; one that
+    // doesn't leaves the rest, less the space after it.
+    expect(wrappedRows(`${"a".repeat(20)} bb`, 12)).toBe(3)
+    expect(wrappedRows(`${"a".repeat(25)} bb`, 12)).toBe(3)
+    expect(wrappedRows(`${"a".repeat(25)} bbbbb`, 12)).toBe(4)
+    expect(wrappedRows(`${"a".repeat(25)} bbbb`, 12)).toBe(3)
   })
 })
 
