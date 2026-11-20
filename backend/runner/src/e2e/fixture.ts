@@ -13,6 +13,7 @@ import { it as base } from "../test.js"
 import { watchAddedFolders } from "./added-folders.js"
 import type { AgentSetup, Seed } from "./agents/agent.js"
 import { setups as every } from "./agents/index.js"
+import { endClaudeService } from "./claude-service.js"
 import { harnessLogins, loginStore } from "./credentials.js"
 import { createDeck, type Deck, type DeckOptions } from "./deck.js"
 import { installHarness } from "./install.js"
@@ -182,6 +183,26 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[], handles?: DeckOption
           return none
         }
       }
+      // Claude Code's background service is the login's, not the deck's: the sandbox's ends as
+      // a logout would end it, strictly (claude-service.ts), named apart from the leaks.
+      const background = await checked(
+        "Claude Code's background service",
+        () =>
+          endClaudeService(
+            harnesses.claude.home({
+              env,
+              home: sandbox.home,
+              platform: process.platform,
+              plugin: "",
+            }),
+            trees,
+          ),
+        [],
+      )
+      if (background.length > 0)
+        console.info(
+          `Claude Code's background service, ended as the sandbox's logout would (by design): ${background.join(", ")}`,
+        )
       const leftovers = await checked("leftover processes", () => reap(sandbox), [])
       const changes = await checked("the developer's harness home", changed, [])
       const appeared = await checked(loginStore, () => harnessLogins(setups), [])

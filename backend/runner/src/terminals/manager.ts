@@ -338,7 +338,7 @@ export class Terminals {
       scrollback: 1000,
       kill: { graceMs: 1000, treeGraceMs, shutdownTreesMs, shutdownTreeGraceMs },
       trees: this.trees,
-      ...closing(this.records, this.options.install),
+      ...closing(this.records),
       pty: this.pty,
       failed: failed.terminal,
     })

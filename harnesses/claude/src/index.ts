@@ -218,6 +218,6 @@ export const claude = {
   // A subagent's request its person denied, or whose prompt timed out, fires no hook: its own
   // transcript records the call's result.
   watchActor: followSubagent,
-  // Its background service and the sessions ← moves into it (daemon.ts).
+  // Its background service, shared by the person's sessions, which a close leaves (daemon.ts).
   apart: claudeApart,
 } satisfies Harness

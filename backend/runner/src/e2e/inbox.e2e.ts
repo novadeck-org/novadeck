@@ -521,8 +521,8 @@ for (const setup of setups) {
 
     // Left opens Claude Code's agents view, whose field reads as a box in prompt mode and whose
     // Enter starts a session: with text in it, it reads as a view. It moves the conversation
-    // into Claude Code's background service, which the deck's close ends with the copy, on
-    // every platform (harnesses/claude/src/daemon.ts), as the sandbox's leftover check shows.
+    // into Claude Code's background service, which the deck's close leaves running and the
+    // sandbox then ends as a logout would (claude-service.ts), so this runs on every platform.
     it("takes Claude Code's agents view for a view at 14 rows, a paste in it", async ({
       e2e: run,
       skip,

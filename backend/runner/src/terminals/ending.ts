@@ -1,6 +1,3 @@
-import type { Install } from "@novadeck/harness-core/harness"
-import type { AgentName } from "@novadeck/protocol"
-
 import { harnesses } from "../harnesses/registry.js"
 import type { Record } from "./record.js"
 
@@ -34,29 +31,21 @@ export const agentProcess = (record: Pick<Record, "bound"> | undefined): number 
 
 /**
  * What the terminal host follows as terminal `id` closes, by its record in `records`: its
- * agent (`agentProcess`), and what that agent's harness runs apart from the terminal
- * (`Harness.apart`), read where the person's harness keeps it (`install`). Taken as the close
- * begins, so the binding it goes by is the one the closed terminal had.
+ * agent (`agentProcess`), and what that agent's harness runs apart from the terminal, which
+ * the close leaves (`Harness.apart`), found by the session's own transcript. Taken as the
+ * close begins, so the binding it goes by is the one the closed terminal had.
  */
-export const closing = (
-  records: { get(id: string): Pick<Record, "bound"> | undefined },
-  install: (agent: AgentName) => Promise<Install | undefined>,
-) => ({
+export const closing = (records: {
+  get(id: string): Pick<Record, "bound" | "agents"> | undefined
+}) => ({
   follows: (id: string) => agentProcess(records.get(id)),
-  apart: (id: string) => {
-    const binding = records.get(id)?.bound?.binding
+  apart: async (id: string) => {
+    const record = records.get(id)
+    const binding = record?.bound?.binding
     const apart = binding && harnesses[binding.agent].apart
-    if (!binding || !apart) return undefined
-    const where = install(binding.agent)
-    return {
-      kept: async () => {
-        const found = await where
-        return found ? apart.kept(found) : []
-      },
-      left: async (until: number) => {
-        const found = await where
-        return found ? apart.left(found, { sessionId: binding.sessionId }, until) : []
-      },
-    }
+    if (!binding || !apart) return []
+    const report = record.agents[binding.agent]
+    const transcript = report?.sessionId === binding.sessionId ? report.transcript : undefined
+    return apart({ transcript })
   },
 })

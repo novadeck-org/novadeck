@@ -156,61 +156,70 @@ describe.skipIf(process.platform === "win32")("a terminal's end that follows its
   })
 })
 
-// What a harness runs apart from the terminal, as Claude Code's background service: kept from
-// the follow at the hangup, and ended, as its harness then says, once the program has gone.
+// What a harness runs apart from the terminal, as Claude Code's background service: the agent
+// started it, and it is still its child at the close, yet the close leaves it running.
 describe.skipIf(process.platform === "win32")("a terminal's end with what runs apart", () => {
-  it("asks what is kept before the hangup, and ends what was left once the program has gone", async () => {
-    const service = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
-      detached: true,
-      stdio: "ignore",
+  // An agent that ignores the hangup and answers SIGTERM, and a service in a group of its own.
+  const running = () => {
+    const child = spawn(
+      process.execPath,
+      ["-e", 'process.on("SIGHUP", () => {}); setInterval(() => {}, 1000)'],
+      { detached: true, stdio: "ignore" },
+    )
+    onTestFinished(() => void child.kill("SIGKILL"))
+    const gone = new Promise((end) => child.once("exit", end))
+    return {
+      pid: child.pid!,
+      gone,
+      alive: () => child.exitCode === null && child.signalCode === null,
+    }
+  }
+  const close = async (keep: boolean) => {
+    const agent = running()
+    const service = running()
+    const asked: string[] = []
+    const apart = async (id: string): Promise<ApartProcess[]> => {
+      asked.push(id)
+      return keep ? [{ pid: service.pid, start: "same" }] : []
+    }
+    const row = { started: "same", zombie: false, foreground: 0 }
+    let listed = () => {}
+    const walked = new Promise<void>((resolve) => {
+      listed = () => setTimeout(resolve, 20)
     })
-    onTestFinished(() => void service.kill("SIGKILL"))
-    const gone = new Promise((end) => service.once("exit", end))
-    const pid = service.pid!
-    const listing: Listing = async () => [
-      { pid, parent: 1, group: pid, foreground: 0, started: "same", zombie: false },
-    ]
-    const steps: string[] = []
-    const born = { after: 0, before: Number.MAX_SAFE_INTEGER }
-    const apart = {
-      kept: vi.fn<() => Promise<ApartProcess[]>>(async () => {
-        steps.push("kept")
-        return [{ pid, start: "same", born }]
-      }),
-      left: vi.fn<(until: number) => Promise<ApartProcess[]>>(async (until) => {
-        steps.push("left")
-        expect(until).toBeGreaterThan(Date.now())
-        return [{ pid, start: "same", born }]
-      }),
+    const listing: Listing = async () => {
+      listed()
+      return [
+        { ...row, pid: shellPid, parent: 1, group: shellPid, foreground: agent.pid },
+        { ...row, pid: agent.pid, parent: shellPid, group: agent.pid },
+        { ...row, pid: service.pid, parent: agent.pid, group: service.pid },
+      ]
     }
     const { host, open, programs } = hostOf({}, undefined, {
+      follows: () => agent.pid,
       listing,
-      apart: (id) => (id === "a" ? apart : undefined),
+      apart,
+      kill: { graceMs: 1000, treeGraceMs: 50, shutdownTreesMs: 300, shutdownTreeGraceMs: 50 },
     })
     open("a")
     const closing = host.terminate("a")
-    await vi.waitFor(() => expect(steps).toEqual(["kept"]))
-    steps.push("exit")
+    await walked
     programs[0]!.exit(0)
     await closing
-    await gone
-    expect(steps).toEqual(["kept", "exit", "left"])
+    await agent.gone
+    return { service, asked }
+  }
+
+  it("leaves what the harness keeps apart running, though the agent started it", async () => {
+    const { service, asked } = await close(true)
+    expect(asked).toEqual(["a"])
+    expect(service.alive()).toBe(true)
   })
 
-  it("ends nothing its harness didn't name as left", async () => {
-    const left = vi.fn<() => Promise<ApartProcess[]>>(async () => [])
-    const kill = vi.spyOn(process, "kill")
-    onTestFinished(() => kill.mockRestore())
-    const { host, open, programs } = hostOf({}, undefined, {
-      listing: async () => [],
-      apart: () => ({ kept: async () => [], left }),
-    })
-    open("a")
-    const closing = host.terminate("a")
-    programs[0]!.exit(0)
-    await closing
-    expect(left).toHaveBeenCalledTimes(1)
-    expect(kill.mock.calls.filter(([, signal]) => signal !== 0 && signal !== undefined)).toEqual([])
+  it("ends it with the agent where the harness keeps nothing, as before", async () => {
+    const { service } = await close(false)
+    await service.gone
+    expect(service.alive()).toBe(false)
   })
 })
 

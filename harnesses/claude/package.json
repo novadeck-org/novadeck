@@ -13,6 +13,11 @@
       "types": "./dist/box.d.ts",
       "default": "./dist/box.js"
     },
+    "./daemon": {
+      "development": "./src/daemon.ts",
+      "types": "./dist/daemon.d.ts",
+      "default": "./dist/daemon.js"
+    },
     "./decode": {
       "development": "./src/decode.ts",
       "types": "./dist/decode.d.ts",

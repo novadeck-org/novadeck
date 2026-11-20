@@ -1,5 +1,5 @@
 import { TerminalError, type TerminalEvent } from "../contract.js"
-import { endApart, type ApartProcess } from "../pty/apart.js"
+import type { ApartProcess } from "../pty/apart.js"
 import { closeListMs, processListing, type Listing } from "../pty/descendants.js"
 import type { Disposable, EndBudget, ProcessTrees, PtyOptions } from "../pty/pty.js"
 import {
@@ -35,18 +35,10 @@ export type TerminalHostOptions = {
   /** The pid of the agent terminal `id` runs, whose processes its end follows; if any. */
   readonly follows?: ((id: string) => number | undefined) | undefined
   /**
-   * What the harness of terminal `id`'s agent runs apart from the terminal, if any: `kept`,
-   * read as it closes, is left by `follows`; `left`, asked once its agent has gone, waiting
-   * for the harness's own records until `until`, is ended (see `endApart`).
+   * What the harness of terminal `id`'s agent runs apart from the terminal, shared with the
+   * person's other sessions, read as it closes: `follows` leaves it, with all under it.
    */
-  readonly apart?:
-    | ((id: string) =>
-        | {
-            readonly kept: () => Promise<readonly ApartProcess[]>
-            readonly left: (until: number) => Promise<readonly ApartProcess[]>
-          }
-        | undefined)
-    | undefined
+  readonly apart?: ((id: string) => Promise<readonly ApartProcess[]>) | undefined
   /** The processes, for `follows`: this system's unless a test plays them. */
   readonly listing?: Listing | undefined
   /** How its ptys start: as a test plays them, and where their programs are kept. */
@@ -167,6 +159,8 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
   const evicted = new Set<Listeners["evicted"]>()
   let exits = 0
   let shutdownBy: number | undefined
+  // A close's listing, asked at each listing, as a quit may begin while the close is under way.
+  const list: Listing = () => (shutdownBy === undefined ? patient : listing)()
   let stopping = false
 
   // How long a relay or taskkill run may take now: `usual`, or as the host shuts down, what is
@@ -221,10 +215,8 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
               shutdownBy - kill.shutdownTreesMs + kill.shutdownTreeGraceMs,
             ),
     }
-    // Asked at each listing, as a quit may begin while the close is under way.
-    const list: Listing = () => (shutdownBy === undefined ? patient : listing)()
-    const apart = options.apart?.(id)
-    const kept = apart ? await apart.kept().catch(() => []) : []
+    const kept =
+      agent === undefined ? [] : await (options.apart?.(id) ?? Promise.resolve([])).catch(() => [])
     await Promise.all([
       terminal.pty.end({
         graceMs: kill.graceMs,
@@ -235,16 +227,6 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
       }),
       terminal.exited,
     ])
-    // Once the agent has gone, which its harness's records then tell, as they settle; not
-    // past a quit's own time, which the rest of the runner needs.
-    if (!apart || (shutdownBy !== undefined && Date.now() >= shutdownBy)) return
-    const left = await apart.left(budget.graceEnds(Date.now())).catch(() => [])
-    await endApart(left, {
-      platform: options.pty?.platform ?? process.platform,
-      listing: list,
-      trees: options.trees,
-      run: runMs,
-    })
   }
 
   // Keeps terminal `id` from going, exited or closed, until the returned function is called;

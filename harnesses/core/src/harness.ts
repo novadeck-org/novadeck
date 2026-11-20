@@ -401,46 +401,30 @@ export type Harness = {
    */
   readonly watchesRunning?: true
   /**
-   * What it runs apart from any one terminal's processes, which a terminal's close would
-   * otherwise miss or take from its other sessions, as Claude Code's background service.
+   * What it runs apart from any one terminal's processes, shared with the person's other
+   * sessions, which a terminal's close leaves running though its agent started it, as Claude
+   * Code's background service.
    */
   readonly apart?: Apart
 }
 
 /**
  * A process a harness runs apart from a terminal, named as the harness recorded it, so it
- * is ended only while its pid still names it: `start` as Linux's /proc/<pid>/stat holds it
- * (clock ticks since boot) or as macOS's `ps -o lstart` gives it in UTC, and where neither
- * says, as on Windows, `born`, the milliseconds since the epoch between which it started.
+ * is known only while its pid still names it: `start` as Linux's /proc/<pid>/stat holds it
+ * (clock ticks since boot) or as macOS's `ps -o lstart` gives it in UTC.
  */
-export type ApartProcess = {
-  readonly pid: number
-  readonly start?: string
-  readonly born: { readonly after: number; readonly before: number }
-}
+export type ApartProcess = { readonly pid: number; readonly start: string }
 
 /**
- * How a terminal's close treats what the harness runs apart from it (see `Harness.apart`).
- * The files these read are the harness's own, never written.
+ * Read as a terminal closes, before its agent is hung up, from the harness's own files,
+ * never written: the processes the close leaves, with all they run, though the agent started
+ * them and they still lead back to it. `transcript` is the closed session's: it says where the
+ * harness kept its files for that terminal, which its shell may have moved from where the
+ * runner would look. Without it, none.
  */
-export type Apart = {
-  /**
-   * Read as the terminal closes, before its agent is hung up: processes shared with the
-   * person's other sessions, which the close leaves to `left` even where the agent started
-   * them and they still lead back to it.
-   */
-  readonly kept: (install: Install) => Promise<readonly ApartProcess[]>
-  /**
-   * Once the closed terminal's agent, bound to session `sessionId`, has gone: what it left
-   * that is its alone, to end. The harness's own records may take a moment to settle, which
-   * it waits for until `until` (milliseconds since the epoch).
-   */
-  readonly left: (
-    install: Install,
-    closed: { readonly sessionId: string },
-    until: number,
-  ) => Promise<readonly ApartProcess[]>
-}
+export type Apart = (closed: {
+  readonly transcript?: string | undefined
+}) => Promise<readonly ApartProcess[]>
 
 /**
  * What a harness knows of agents' messaging (see docs/agent-messaging.md): what its hooks
