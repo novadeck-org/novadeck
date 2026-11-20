@@ -71,6 +71,8 @@ export const worthHiding = (value: string, code = false): boolean => {
   if (code && codeWords.has(value)) return false
   const bare = value.replace(/^\\?["']|\\?["']$/g, "").trim()
   if (bare === "" || bare.includes(sentinel) || bare.includes(redacted)) return false
+  // Only an operator's characters (`>` of `=>`, `=` of `==`): the value is after it.
+  if (/^[=<>!:+|?~-]+$/.test(bare)) return false
   // A path, a home folder, or YAML's `~` for nothing; `~hunter2` is none of them.
   if (/^\/|^~(?:[^\s/]*\/|$)|^\.\.?\//.test(bare)) return false
   if (/^\d{1,7}$/.test(bare)) return false

@@ -512,6 +512,37 @@ describe("values under a secret name that only look like code or a path", () => 
   })
 })
 
+describe("a secret after another joint than = or :", () => {
+  it.each([
+    ['api_key => "Zq9xW2vK7pL4mN8r"', 'api_key => "[redacted]"'],
+    ["'password' => 'Zq9xW2vK7pL4mN8r',", "'password' => '[redacted]',"],
+    [':secret_key_base => "Zq9xW2vK7pL4mN8r"', ':secret_key_base => "[redacted]"'],
+    ['"client_secret" => "Zq9xW2vK7pL4mN8r"', '"client_secret" => "[redacted]"'],
+    ['password := "Zq9xW2vK7pL4mN8r"', 'password := "[redacted]"'],
+    ["DB_PASSWORD := Zq9xW2vK7pL4mN8r", "DB_PASSWORD := [redacted]"],
+    ["PASSWORD ?= Zq9xW2vK7pL4mN8r", "PASSWORD ?= [redacted]"],
+    ['TOKEN+="Zq9xW2vK7pL4mN8r"', 'TOKEN+="[redacted]"'],
+    ["@password ||= 'Zq9xW2vK7pL4mN8r'", "@password ||= '[redacted]'"],
+    ['if password == "Zq9xW2vK7pL4mN8r"', 'if password == "[redacted]"'],
+    ["if (token !== 'Zq9xW2vK7pL4mN8r')", "if (token !== '[redacted]')"],
+  ])("masks the value of %s, never the joint", (text, expected) => {
+    expect(redact(text)).toBe(expected)
+  })
+
+  it.each([
+    "items.map(token => token.value)",
+    "const check = (password) => password.length > 8",
+    "password => hash(password)",
+    "if (token == null) return",
+    "if token == other_token:",
+    "password =~ /^[a-z]+$/",
+    "'password' => env('DB_PASSWORD'),",
+    '"secret" => ENV.fetch("SECRET")',
+  ])("keeps %s", (text) => {
+    expect(redact(text)).toBe(text)
+  })
+})
+
 describe("a plainly secret name with its value glued to the colon", () => {
   it.each([
     ["password:hunter2", "password:[redacted]"],

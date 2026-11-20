@@ -172,6 +172,15 @@ describe("createRedactor", () => {
       "password: <redacted> was refused",
     ],
     ["a token as a dump writes it", "auth_token: abcdef1234567890", "auth_token: <redacted>"],
+    ["a hash's secret", "'password' => 'Zq9xW2vK7pL4mN8r',", "'password' => '<secret>',"],
+    ["a secret after =>", 'api_key => "Zq9xW2vK7pL4mN8r"', 'api_key => "<secret>"'],
+    ["a secret after :=", 'password := "Zq9xW2vK7pL4mN8r"', 'password := "<secret>"'],
+    ["a secret compared", 'if token == "Zq9xW2vK7pL4mN8r"', 'if token == "<secret>"'],
+    [
+      "an arrow function's body",
+      "list.map(token => token.trim())",
+      "list.map(token => token.trim())",
+    ],
     [
       "a password on a command line",
       "mysql --password hunter2 -h db",

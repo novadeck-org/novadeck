@@ -22,6 +22,13 @@ export type Rule =
       readonly field?: { readonly name: number; readonly value: RegExp }
     }
 
+// What may join a name to its value, longest first: an assignment, a hash's `=>` or a
+// comparison. None is followed by another `=`, `>` or `~`, so `==` is never read as `=` and a
+// value `=`, nor `=>` as `=` and a value `>`, nor `=~` (a regex match) as an assignment.
+const joints = String.raw`(?:=>|[=!]==?|(?:[:?+]|\|\|)?=)(?![=>~])`
+// The joints after which only a quoted value is a secret's: `=>`, and the comparisons.
+const literalOnly = /=>|==|!=/
+
 // The longest value a rule takes whole at once; a secret that reaches it is masked to the end of its run.
 export const valueCap = 1024
 
@@ -152,14 +159,19 @@ export const rules: readonly Rule[] = [
         ? `${head}${hideValue(value)}`
         : all,
   },
-  // NAME=value, where the name sounds secret.
+  // NAME=value, where the name sounds secret, and the other assignments configs and code
+  // write (`:=`, `?=`, `+=`, `||=`). After `=>` (a Ruby, PHP or Perl hash's, but also a JS
+  // arrow function's) or a comparison (`==`, `!==`), only a quoted value is one: an arrow's
+  // body and a compared variable are code.
   {
     pattern: new RegExp(
-      `(?<![\\p{L}\\p{N}_.-])([\\p{L}_][\\p{L}\\p{N}_.-]*)([ \\t]*=[ \\t]*)`,
+      `(?<![\\p{L}\\p{N}_.-])([\\p{L}_][\\p{L}\\p{N}_.-]*)([ \\t]*${joints}[ \\t]*)`,
       "gu",
     ),
     judge: ({ offset, text }, all, name, joint, value) =>
-      worthHiding(value, true) && !closesLiteral(value, offset, text)
+      (!literalOnly.test(joint) || /^\\?["']/.test(value)) &&
+      worthHiding(value, true) &&
+      !closesLiteral(value, offset, text)
         ? `${name}${joint}${hideValue(value)}`
         : all,
     field: { name: 1, value: new RegExp(`${quoted}|[^\\s"',;&]{1,${valueCap}}`, "uy") },
@@ -167,7 +179,7 @@ export const rules: readonly Rule[] = [
   // Polish: hasło: tajne, haslo=tajne
   {
     pattern: new RegExp(
-      `(?<![\\p{L}])(has[lł]o|has[lł]a)([ \\t]*[:=][ \\t]*)(${quoted}|\\S+)`,
+      `(?<![\\p{L}])(has[lł]o|has[lł]a)([ \\t]*[:=](?![=>~])[ \\t]*)(${quoted}|\\S+)`,
       "giu",
     ),
     judge: ({ offset, text }, all, name, joint, value) =>
@@ -182,9 +194,13 @@ export const rules: readonly Rule[] = [
       soundsSecret(name) && worthHiding(value) ? `${head}${name}${gap}${hide(value)}` : all,
   },
   // "name": "value", as JSON has it, and 'name': 'value'; in a string of a log line the
-  // quotes are escaped: {\"name\":\"value\"}.
+  // quotes are escaped: {\"name\":\"value\"}. A quoted name before `=>` is a hash's key, as
+  // PHP's arrays and Ruby's hashes write them: 'name' => 'value'.
   {
-    pattern: new RegExp(`(\\\\?)(["'])([\\p{L}_][\\p{L}\\p{N}_.-]*)\\1\\2([ \\t]*:[ \\t]*)`, "gu"),
+    pattern: new RegExp(
+      `(\\\\?)(["'])([\\p{L}_][\\p{L}\\p{N}_.-]*)\\1\\2([ \\t]*(?::(?!=)|=>)[ \\t]*)`,
+      "gu",
+    ),
     judge: ({ offset, text }, all, slash, quote, name, joint, value) =>
       worthHiding(value) && !closesLiteral(value, offset, text)
         ? `${slash}${quote}${name}${slash}${quote}${joint}${hideValue(value)}`
@@ -197,7 +213,7 @@ export const rules: readonly Rule[] = [
   // (`secret:password: hunter2`).
   {
     pattern: new RegExp(
-      `(?<![\\p{L}\\p{N}_.-])([\\p{L}_][\\p{L}\\p{N}_.-]*)([ \\t]*:(?:[ \\t]+|(?=[^\\s:/\\\\])))`,
+      `(?<![\\p{L}\\p{N}_.-])([\\p{L}_][\\p{L}\\p{N}_.-]*)([ \\t]*:(?:[ \\t]+|(?=[^\\s:/\\\\=])))`,
       "gu",
     ),
     judge: ({ offset, text }, all, name, joint, value) =>

@@ -81,12 +81,15 @@ const shapes: readonly (readonly [RegExp, string])[] = [
   [/\b(bearer)\s+[\w\-.~+/]+=*/gi, "$1 <redacted>"],
   [new RegExp(String.raw`("${secretKey}"\s*:\s*)"[^"]*"`, "gi"), '$1"<redacted>"'],
   [
-    new RegExp(String.raw`((?:^|[?&;\s"'(,])${secretKey})(\s*=\s*)(?!<)[^&\s"';,)]+`, "gi"),
+    new RegExp(
+      String.raw`((?:^|[?&;\s"'(,])${secretKey})(\s*=(?![=>~])\s*)(?!<)[^&\s"';,)]+`,
+      "gi",
+    ),
     "$1$2<redacted>",
   ],
   // `password: hunter2`, as YAML or a dump writes it, and `--password hunter2` on a command line.
   [
-    /\b((?:passw(?:or)?d|pwd|secret|api[_-]?key|access[_-]?key|(?:auth|access|refresh|api)[_-]?token|token)\s*:\s*)(?!<)[^\s"',;]+/gi,
+    /\b((?:passw(?:or)?d|pwd|secret|api[_-]?key|access[_-]?key|(?:auth|access|refresh|api)[_-]?token|token)\s*:(?!=)\s*)(?!<)[^\s"',;]+/gi,
     "$1<redacted>",
   ],
   [
@@ -166,7 +169,10 @@ export const createRedactor = (options: RedactOptions): Redactor => {
     .map((secret) => new RegExp(escapeRegExp(secret), "g"))
   const named = (options.secretNames ?? []).map(
     (name) =>
-      new RegExp(String.raw`\b(${escapeRegExp(name)})(\s*[=:]\s*)(["']?)(?!<)[^\s"']+`, "g"),
+      new RegExp(
+        String.raw`\b(${escapeRegExp(name)})(\s*[=:](?![=>~])\s*)(["']?)(?!<)[^\s"']+`,
+        "g",
+      ),
   )
   const user = options.user
   const account =
