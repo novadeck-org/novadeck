@@ -1122,9 +1122,13 @@ running, and it ends with what ends that turn on each harness, not only its stop
   is `local_agent`), which fires no `SubagentStop`; and its `Stop` and `StopFailure`, whose
   `background_tasks` list every running subagent, nested ones too, so one started before
   that list and left out of it ended unseen, as one the person stopped from Claude Code's
-  task list and the children that died with it do (`subagents-listed`). A hook that lists
-  no tasks, as an older release's, tells nothing. A `SendMessage` that resumes a stopped
-  one fires `SubagentStart` again, under the id it kept.
+  task list and the children that died with it do (`subagents-listed`), and one listed that
+  Novadeck doesn't hold runs, with the `agent_type` the list gives, unless its end came after
+  the list was made. A hook that lists no tasks, as an older release's, tells nothing. A
+  `SendMessage` that resumes a stopped one fires `SubagentStart` again, under the id it
+  kept. The root's Escape leaves the subagents its turn started running, as 2.1.328
+  launches every `Agent` call in the background (`keepsSubagents` on the transcript's
+  interruption record); each ends with its own `SubagentStop`.
 - Codex: `SubagentStop`; the root's `close_agent` (its input's `target`), which fires no
   `SubagentStop`; and its own rollout recording `turn_aborted`, as Esc on its request and
   the close do, with no hook. Its thread stays open, and a later turn of it (`send_input`
@@ -1597,9 +1601,10 @@ nothing else, confirmed by its hook, never retried; see
       Subagents outlive turns, as a background one does, so no turn fences
       them. An interrupted turn ends the subagents it started, since an
       interrupted subagent reports no stop, and a background one from an
-      earlier turn runs on, but for Codex's, which run on through the root's
-      interrupt; a start that arrives after its stop, or within an
-      interrupted turn, is not taken for a new subagent. What ends a subagent
+      earlier turn runs on, but for Claude Code's and Codex's, which run on
+      through the root's interrupt (`keepsSubagents`); a start that arrives
+      after its stop, or within an interrupted turn that ended its subagents,
+      is not taken for a new subagent. What ends a subagent
       that no stop hook reports is in "Events, identity and live state" above.
       Antigravity's hooks report no subagents. Subagent transcripts follow.
    4. Telemetry, then the status line bridge. It starts from the sources

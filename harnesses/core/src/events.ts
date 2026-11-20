@@ -155,8 +155,8 @@ export type ActivityEvent = EventBase &
         /** The turn failed on a usage limit, as its harness said. */
         readonly limited?: true
         /**
-         * Interrupted, it leaves the subagents it started running, as Codex's do (probed
-         * 2026-11-20, 0.170.0); unsaid, they ended with it, as Claude Code's foreground ones.
+         * Interrupted, it leaves the subagents it started running, as Codex's and Claude Code's
+         * do (probed 2026-11-20, 0.170.0 and 2.1.328); unsaid, they ended with it.
          */
         readonly keepsSubagents?: true
       }
@@ -403,12 +403,16 @@ export type ActivityEvent = EventBase &
      */
     | { readonly type: "subagent-stopped"; readonly actor: string }
     /**
-     * The harness listed the subagents it has running at `startedAt`, as Claude Code's Stop
-     * does, its nested ones too: one started before then and not named here ended unseen,
-     * as one stopped with its parent does. Told only where the harness gave a list; a hook
-     * that names none tells nothing.
+     * The harness listed the subagents it has running at `startedAt`, by id with their kind in
+     * its own words, as Claude Code's Stop does, its nested ones too: one started before then
+     * and not named here ended unseen, as one stopped with its parent does, and one named here
+     * that isn't known to run, nor known to have ended since, runs. Told only where the harness
+     * gave a list; a hook that names none tells nothing.
      */
-    | { readonly type: "subagents-listed"; readonly ids: readonly string[] }
+    | {
+        readonly type: "subagents-listed"
+        readonly subagents: readonly { readonly id: string; readonly type: string | null }[]
+      }
     | { readonly type: "mode-observed"; readonly planning: boolean }
     | { readonly type: "plan-observed"; readonly actor: string | null; readonly plan: PlanSource }
   )

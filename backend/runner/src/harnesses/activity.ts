@@ -829,20 +829,38 @@ export const apply = (
     case "subagents-listed": {
       // What its harness lists running is all that runs of what started before the list:
       // the rest ended unseen, as children stopped with their parent do. One that started
-      // since, its start racing the list, runs on.
-      const { ids, startedAt } = event
+      // since, its start racing the list, runs on. One listed that isn't known to run runs,
+      // as one wrongly taken to have ended at an interrupt, unless its end came after the
+      // list was made.
+      const { subagents: listed, startedAt } = event
+      const ids = new Set(listed.map(({ id }) => id))
       const gone = activity.subagents
-        .filter((each) => each.startedAt < startedAt && !ids.includes(each.id))
+        .filter((each) => each.startedAt < startedAt && !ids.has(each.id))
         .map(({ id }) => id)
-      if (gone.length === 0) return undefined
+      const kept = activity.subagents.filter(({ id }) => !gone.includes(id))
+      const found = listed
+        .filter(({ id }) => id.length <= agentLimits.name)
+        .filter(({ id }) => !kept.some((each) => each.id === id))
+        .filter(({ id }) => (endOf(activity.ended, id) ?? Number.NEGATIVE_INFINITY) < startedAt)
+        .slice(0, Math.max(0, agentLimits.subagents - kept.length))
+        .map(({ id, type }) => ({
+          id,
+          type: (type && cut(type, agentLimits.name)) ?? null,
+          startedAt,
+        }))
+      if (gone.length === 0 && found.length === 0) return undefined
       return {
         ...activity,
         pending: activity.pending.filter(
           (request) =>
             request.actor === null || !gone.includes(request.actor) || request.askedAt > startedAt,
         ),
-        subagents: activity.subagents.filter(({ id }) => !gone.includes(id)),
-        ended: end(activity.ended, gone, startedAt),
+        subagents: [...kept, ...found],
+        ended: end(
+          activity.ended.filter(({ id }) => !found.some((each) => each.id === id)),
+          gone,
+          startedAt,
+        ),
       }
     }
     case "attention-resolved": {

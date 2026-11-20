@@ -331,12 +331,13 @@ const shellsRunning = (base: EventBase<"claude">, tasks: unknown): HarnessEvent[
  */
 const subagentsRunning = (base: EventBase<"claude">, tasks: unknown): HarnessEvent[] => {
   if (!Array.isArray(tasks)) return []
-  const ids = (tasks as unknown[]).flatMap((task) => {
-    const { type, id, status } = isFields(task) ? task : ({} as Record<string, unknown>)
-    const named = shortName(id, agentLimits.name)
-    return type === "subagent" && status === "running" && named !== undefined ? [named] : []
+  const subagents = (tasks as unknown[]).flatMap((task) => {
+    const fields = isFields(task) ? task : ({} as Record<string, unknown>)
+    const id = shortName(fields.id, agentLimits.name)
+    if (fields.type !== "subagent" || fields.status !== "running" || id === undefined) return []
+    return [{ id, type: text(fields.agent_type) ?? null }]
   })
-  return [{ type: "subagents-listed", ...base, ids }]
+  return [{ type: "subagents-listed", ...base, subagents }]
 }
 
 // How a notification's summary tells a command's exit code: "completed (exit code 0)",

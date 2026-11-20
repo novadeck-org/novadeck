@@ -8,6 +8,7 @@ type Hook = { event: string; payload: Record<string, unknown> }
 const probe = loadProbe(import.meta.dirname, "subagent-ends.probe.json") as {
   ids: { first: string; second: string }
   steps: { step: string; hooks: Hook[] }[]
+  escape: { step: string; hooks: Hook[] }[]
 }
 const { first, second } = probe.ids
 const step = (name: string): Hook[] => probe.steps.find((each) => each.step === name)!.hooks
@@ -37,14 +38,17 @@ describe("Claude Code's subagents that end unseen, as captured", () => {
       // shell of its id.
       expect.objectContaining({ type: "shell-ended", id: first }),
       // The Stop after it lists none running.
-      expect.objectContaining({ type: "subagents-listed", ids: [] }),
+      expect.objectContaining({ type: "subagents-listed", subagents: [] }),
     ])
   })
 
   it("starts it again when SendMessage resumes it, under the id it kept", () => {
     expect(told(step("resumed"))).toEqual([
       expect.objectContaining({ type: "subagent-started", actor: first }),
-      expect.objectContaining({ type: "subagents-listed", ids: [first] }),
+      expect.objectContaining({
+        type: "subagents-listed",
+        subagents: [{ id: first, type: "general-purpose" }],
+      }),
     ])
   })
 
@@ -53,9 +57,9 @@ describe("Claude Code's subagents that end unseen, as captured", () => {
     const listed = told(step("a root turn while nested run"))
     expect(listed).toHaveLength(1)
     const [stop] = listed
-    expect(stop?.type === "subagents-listed" && stop.ids.toSorted()).toEqual(
-      [second, ...nested].toSorted(),
-    )
+    expect(
+      stop?.type === "subagents-listed" && stop.subagents.map(({ id }) => id).toSorted(),
+    ).toEqual([second, ...nested].toSorted())
   })
 
   it("lists none once the person stopped one from its task list, its children with it", () => {
@@ -64,7 +68,7 @@ describe("Claude Code's subagents that end unseen, as captured", () => {
     expect(told(step("stopped from the task list"))).toEqual([
       // The notification's id is a shell's end to the activity, which knows no shell of it.
       expect.objectContaining({ type: "shell-ended", id: second }),
-      expect.objectContaining({ type: "subagents-listed", ids: [] }),
+      expect.objectContaining({ type: "subagents-listed", subagents: [] }),
     ])
     expect(step("after")).toEqual([])
     expect(step("nested released")).toEqual([])
@@ -86,12 +90,31 @@ describe("Claude Code's subagents that end unseen, as captured", () => {
     expect(told([{ event: "StopFailure", payload: { error: "unknown" } }])).toEqual([])
     expect(
       told([{ event: "StopFailure", payload: { error: "unknown", background_tasks: [] } }]),
-    ).toEqual([expect.objectContaining({ type: "subagents-listed", ids: [] })])
+    ).toEqual([expect.objectContaining({ type: "subagents-listed", subagents: [] })])
   })
 
   it("lists none from a subagent's own stop, which names its root's tasks", () => {
     expect(
       told(step("resumed one finished").filter(({ event }) => event === "SubagentStop")),
     ).toEqual([expect.objectContaining({ type: "subagent-stopped", actor: first })])
+  })
+
+  it("leaves the subagents a root Escape interrupted running, each ending with its own stop", () => {
+    // Every Agent call launched in the background, run_in_background or not, and the
+    // Escape fired no hook for them: each finished later with its SubagentStop.
+    const steps = (name: string) => probe.escape.find((each) => each.step === name)!.hooks
+    for (const which of ["background", "foreground", "both"]) {
+      const launched = steps(`${which}: running`).filter(
+        ({ event, payload }) => event === "PostToolUse" && payload.tool_name === "Agent",
+      )
+      expect(launched.length).toBe(which === "both" ? 2 : 1)
+      for (const { payload } of launched)
+        expect(payload.tool_response).toMatchObject({ isAsync: true, status: "async_launched" })
+      expect(steps(`${which}: after the Escape`)).toEqual([])
+      const stopped = told(steps(`${which}: subagents let go`)).filter(
+        ({ type }) => type === "subagent-stopped",
+      )
+      expect(stopped).toHaveLength(launched.length)
+    }
   })
 })

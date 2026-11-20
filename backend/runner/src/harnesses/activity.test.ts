@@ -825,7 +825,11 @@ describe("applying activity", () => {
     // from its task list, and the children that died with it, fire no SubagentStop (probed
     // 2026-11-20, 2.1.328).
     const listed = (names: readonly string[], startedAt: number) =>
-      fact({ type: "subagents-listed", ids: names, startedAt })
+      fact({
+        type: "subagents-listed",
+        subagents: names.map((id) => ({ id, type: "explorer" })),
+        startedAt,
+      })
     let running = started(0)
     for (const [actor, at] of [
       ["parent", 3],
@@ -853,6 +857,36 @@ describe("applying activity", () => {
     // One started after the list, its start racing it, runs on.
     const racing = apply(asked, binding, subagent("subagent-started", "new", 12))!
     expect(apply(racing, binding, listed([], 11))?.subagents.map(({ id }) => id)).toEqual(["new"])
+  })
+
+  it("takes in a subagent a list of what runs names that it held to have ended, unless it ended since", () => {
+    // A subagent wrongly taken to have ended at an interrupt that ran on, as Claude Code's do,
+    // shows again at the next Stop that lists it, with the kind the list gives.
+    const listed = (startedAt: number) =>
+      fact({
+        type: "subagents-listed",
+        subagents: [{ id: "bg", type: "general-purpose" }],
+        startedAt,
+      })
+    const turn = apply(started(0), binding, fact({ type: "turn-started", startedAt: 10 }))!
+    const running = apply(turn, binding, subagent("subagent-started", "bg", 12))!
+    const dropped = apply(
+      running,
+      binding,
+      fact({ type: "turn-ended", outcome: "interrupted", startedAt: 20 }),
+    )!
+    expect(summary(dropped).subagents).toEqual([])
+    const healed = apply(dropped, binding, listed(30))!
+    expect(summary(healed).subagents).toEqual([{ id: subagentRef("bg"), type: "general-purpose" }])
+    // Its own stop, after the list, ends it.
+    expect(
+      summary(apply(healed, binding, subagent("subagent-stopped", "bg", 40))!).subagents,
+    ).toEqual([])
+    // A stop that came after the list was made, reported before it, keeps it out.
+    const stopped = apply(dropped, binding, subagent("subagent-stopped", "bg", 35))
+    expect(apply(stopped ?? dropped, binding, listed(30))).toBeUndefined()
+    // Nor does a list add one it already runs.
+    expect(apply(running, binding, listed(30))).toBeUndefined()
   })
 
   it("keeps each of a subagent's requests raised alongside until its own result", () => {
