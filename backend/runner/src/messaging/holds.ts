@@ -14,6 +14,7 @@ import {
   stopBlocks,
   type Message,
 } from "./messages.js"
+import { noticeText } from "./notice-format.js"
 import type { Sessions } from "./sessions.js"
 
 /** Message ids as a notice names them: the first few, then how many more. */
@@ -30,10 +31,13 @@ export const holdNotice = (
   waits: Waits | null,
   since: number,
 ): string =>
-  `Novadeck: your ${ids.length === 1 ? "message" : "messages"} ${named(ids)} to ${mention(to)} ` +
-  `${ids.length === 1 ? "has" : "have"} not arrived since ${clock(since)} ` +
-  `(${waits ? waitReasons[waits] : "its agent is idle, but Novadeck can't wake it yet"}); ` +
-  "the user is shown this in Novadeck's Inbox."
+  noticeText("Messages", {
+    facts:
+      `Your ${ids.length === 1 ? "message" : "messages"} ${named(ids)} to ${mention(to)} ` +
+      `${ids.length === 1 ? "has" : "have"} not arrived since ${clock(since)} ` +
+      `(${waits ? waitReasons[waits] : "its agent is idle, but Novadeck can't wake it yet"}); ` +
+      "the user is shown this in Novadeck's Inbox.",
+  })
 
 /** A thread's idle messages in a row, and who sent them. */
 export type Run = { count: number; senders: readonly string[] }

@@ -212,14 +212,8 @@ describe("the strain notice", () => {
     const strain = new Strain()
     strain.run(strained({ me: 40, owl: 30 }, 4 * 60_000), agents, send)
     expect(sent).toEqual([
-      [
-        "me",
-        "Novadeck: automatic notice, not from the user: Host CPU has been at 90% or more for 4 min; heaviest here: you 40%, @owl 30%.",
-      ],
-      [
-        "owl",
-        "Novadeck: automatic notice, not from the user: Host CPU has been at 90% or more for 4 min; heaviest here: @fox 40%, you 30%.",
-      ],
+      ["me", "Novadeck · Host load\nCPU at 90%+ for 4 min. Heaviest: you 40%, @owl 30%."],
+      ["owl", "Novadeck · Host load\nCPU at 90%+ for 4 min. Heaviest: @fox 40%, you 30%."],
     ])
     // Not again while the strain lasts.
     strain.run(strained({ me: 40, owl: 30 }, 5 * 60_000), agents, send)
@@ -250,10 +244,7 @@ describe("the strain notice", () => {
     const { sent, send } = sink()
     new Strain().run(strained({ me: 40, elk: 30 }), agents, send)
     expect(sent).toEqual([
-      [
-        "me",
-        "Novadeck: automatic notice, not from the user: Host CPU has been at 90% or more for 3 min; heaviest here: you 40%, @elk 30%.",
-      ],
+      ["me", "Novadeck · Host load\nCPU at 90%+ for 3 min. Heaviest: you 40%, @elk 30%."],
     ])
   })
 

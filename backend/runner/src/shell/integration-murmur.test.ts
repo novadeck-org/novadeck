@@ -70,9 +70,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // Its first prompt tells the agent of the bar beside its terminal and of the Inbox,
       // and asks for a title and a summary.
       const first = (await prompt(codex.id, "Fix the login bug")).split("\n\n")
-      expect(first[0]).toMatch(/^Novadeck: automatic notice, not from the user: beside this/)
-      expect(first[1]).toMatch(/Novadeck's Inbox shows the user a copy/)
-      expect(first[2]).toMatch(/this terminal has no summary yet.*describe tool/)
+      expect(first[0]).toMatch(/^Novadeck · Show\nBeside this/)
+      expect(first[1]).toMatch(/The user's Inbox gets a copy/)
+      expect(first[2]).toMatch(/This terminal has no summary yet[\s\S]*describe tool/)
       // Its prompt titles nothing.
       await new Promise((resolve) => setTimeout(resolve, 300))
       expect(agentDigests()).toHaveLength(0)
@@ -202,10 +202,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       })
       const after = (await prompt("and now?")).split("\n\n")
       // All: the bar and the Inbox again, then the summary to update only for another subject.
-      expect(after[0]).toMatch(/beside this terminal/)
-      expect(after[1]).toMatch(/Novadeck's Inbox shows the user a copy/)
+      expect(after[0]).toMatch(/Beside this terminal/)
+      expect(after[1]).toMatch(/The user's Inbox gets a copy/)
       expect(after[2]).toMatch(
-        /summary is "Fixes the build\."; if the work here is now about something else/,
+        /summary is "Fixes the build\."\.\n→ If the work here is now about something else/,
       )
       await expect(prompt("next")).resolves.toBe("")
       // Murmur titled it from its summary; the compaction, the Stops and the prompts after
@@ -233,10 +233,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         expect(
           JSON.parse(await step(peer.id, { call: "send", request: { to: "moth", text } })),
         ).toMatchObject({ ok: true })
-      const pointer = "the full note given earlier in this session has the rules"
+      const pointer = "Rules as given earlier."
       await send(one.step, "First.")
       const given = await prompt(one.step, "Fix the build")
-      expect(given).toMatch(/beside this terminal/)
+      expect(given).toMatch(/Beside this terminal/)
       expect(given).toContain("First.")
       expect(given).not.toContain(pointer)
       await one.step(terminal.id, {
@@ -269,7 +269,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const resumed = await prompt(two.step, "go on")
       expect(resumed).toContain("Second.")
       expect(resumed).toContain(pointer)
-      expect(resumed).not.toMatch(/beside this terminal/)
+      expect(resumed).not.toMatch(/Beside this terminal/)
       await two.step(terminal.id, { hook: "Stop", payload: {} })
 
       // Compacted, it may have lost them: all again, and the report holds nothing.
@@ -284,8 +284,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const after = (await prompt(two.step, "and now?")).split("\n\n")
       expect(after[0]).toContain("Third.")
       expect(after[0]).not.toContain(pointer)
-      expect(after[1]).toMatch(/beside this terminal/)
-      expect(after[2]).toMatch(/Novadeck's Inbox shows the user a copy/)
+      expect(after[1]).toMatch(/Beside this terminal/)
+      expect(after[2]).toMatch(/The user's Inbox gets a copy/)
       await second.shutdown()
     })
 
@@ -667,7 +667,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const prompt = async (text: string) =>
         context(await step(terminal.id, { hook: "UserPromptSubmit", payload: { prompt: text } }))
       expect(await prompt("Go on")).toMatch(
-        /summary is "Fixes the login bug\.", but it has no title yet.*describe tool/,
+        /summary is "Fixes the login bug\.", but it has no title yet[\s\S]*describe tool/,
       )
       await step(terminal.id, { hook: "Stop", payload: {} })
       expect(await prompt("And then")).toContain("but it has no title yet")
@@ -1179,12 +1179,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // session's first, takes the notices of the bar, the Inbox and the summary.
       await expect(
         prompt("s-1", "[Novadeck: automatic notice, agent messages waiting, abc123]"),
-      ).resolves.toContain("beside this terminal is a bar")
+      ).resolves.toContain("Beside this terminal is a bar")
       expect(shell.store.terminal(terminal.id)?.work?.first ?? null).toBeNull()
       // Prompts title nothing; while there is no summary, each asks for one.
-      const bar = /^Novadeck: automatic notice, not from the user: beside this terminal/
+      const bar = /^Novadeck · Show\nBeside this terminal/
       await expect(prompt("s-1", "Fix the login bug")).resolves.toMatch(
-        /^Novadeck: automatic notice, not from the user: this terminal has no summary yet/,
+        /^Novadeck · Describe\nThis terminal has no summary yet/,
       )
       await prompt("s-1", "Now its tests")
       expect(manager.get(terminal.id)).toMatchObject({
@@ -1257,9 +1257,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       items.pageTrouble({ itemId, shown: 1, troubles })
       // A doorbell's turn takes it as the person's prompt would, after what it says.
       const told = await prompt("[Novadeck: automatic notice, agent messages waiting, abc123]")
-      expect(told).toMatch(
-        /\n\nNovadeck: automatic notice, not from the user: the page you showed, /,
-      )
+      expect(told).toMatch(/\n\nNovadeck · Page\nThe page you showed, /)
       expect(told).toContain('error "x is undefined" at "/a.js:3".')
       // Told once for that show, however often the page repeats itself.
       items.pageTrouble({ itemId, shown: 1, troubles })
@@ -1267,7 +1265,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // A new show starts over.
       await items.show(manager.place(terminal.id)!, { page: { url: "http://localhost:5173/app" } })
       items.pageTrouble({ itemId, shown: 2, troubles })
-      await expect(prompt("Again?")).resolves.toContain("the page you showed")
+      await expect(prompt("Again?")).resolves.toContain("The page you showed")
     })
 
     it("drops what a page had when its item is closed or shown again, and with a new session", async ({
@@ -1327,7 +1325,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // A show of the new session is told (its latest version).
       await show("http://localhost:5175/")
       items.pageTrouble({ itemId: third, shown: shell.store.item(third)!.version, troubles })
-      await expect(prompt("s-2", "And?")).resolves.toContain("the page you showed")
+      await expect(prompt("s-2", "And?")).resolves.toContain("The page you showed")
     })
   },
 )

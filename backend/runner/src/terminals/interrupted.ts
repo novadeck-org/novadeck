@@ -1,5 +1,6 @@
 import type { AgentActivity, AgentName } from "@novadeck/protocol"
 
+import { noticeText } from "../messaging/notice-format.js"
 import { busy } from "./busy.js"
 import { failed } from "./failures.js"
 import type { Record, Started } from "./record.js"
@@ -108,17 +109,20 @@ export const restored = (
 }
 
 const notices = {
-  running:
-    "Novadeck: automatic notice, not from the user: Novadeck restarted (for an update, or " +
-    "because it was closed) while your turn was running, and has resumed this session. " +
-    "Anything running then, such as commands and subagents, has stopped. Carry on where " +
-    "you left off; if that work is already done, say so in a line. This notice needs no " +
-    "other reply.",
-  waking:
-    "Novadeck: automatic notice, not from the user: Novadeck restarted (for an update, or " +
-    "because it was closed) while you waited on a background command or a wake-up you set, " +
-    "and has resumed this session. It has stopped and will not wake you. Check on that work " +
-    "and carry on. This notice needs no other reply.",
+  running: noticeText("Restart", {
+    facts:
+      "Novadeck restarted (for an update, or because it was closed) while your turn was " +
+      "running, and resumed this session. Anything running then, such as commands and " +
+      "subagents, has stopped.",
+    actions: ["Carry on where you left off. If that work is already done, say so in a line."],
+  }),
+  waking: noticeText("Restart", {
+    facts:
+      "Novadeck restarted (for an update, or because it was closed) while you waited on a " +
+      "background command or a wake-up you set, and resumed this session. It has stopped and " +
+      "will not wake you.",
+    actions: ["Check on that work and carry on."],
+  }),
 } as const satisfies { [turn in AgentTurn]: string }
 
 /**

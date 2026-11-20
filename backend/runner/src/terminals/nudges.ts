@@ -1,4 +1,5 @@
 import { digestOf } from "../messaging/messages.js"
+import { noticeText } from "../messaging/notice-format.js"
 import { shorten } from "../text.js"
 import { due, noTroubles, pageNotice, spend, type PageEntry, type Troubles } from "./troubles.js"
 
@@ -251,8 +252,13 @@ export const atTurnStart = (
   )
 }
 
+// The describe notice's instruction, which its first two forms share.
+const describeNow = (lead: string): string =>
+  `${lead}each one short line on what the work here is about, at a high level: its subject, ` +
+  "with no status, PR or issue numbers, or details."
+
 /**
- * The nudge, one line worded as Novadeck's automatic notice: asking for a title and a
+ * The nudge, worded as Novadeck's notice of the Describe kind: asking for a title and a
  * summary while there is no summary, at once, before the agent goes on with its work, as
  * the terminal has no title of the agent's until then, and to let the notice be while no
  * work was given, as it comes with every prompt until then (an agent only chatting made up
@@ -266,56 +272,76 @@ export const nudgeText = (current: {
   readonly title: string | null
 }) =>
   current.summary === null
-    ? "Novadeck: automatic notice, not from the user: this terminal has no summary yet. " +
-      "Once you've been given work, any task, investigation, review, design discussion or " +
-      "question you'll dig into, call Novadeck's describe tool now, before you go on with " +
-      "it, with a title and a summary, each one short line on what the work here is about, " +
-      "at a high level: its subject, with no status, PR or issue numbers, or details. " +
-      "Novadeck names this terminal with the title when nothing else has, and other agents " +
-      "read the summary in their agents listing. Until then, such as with only a greeting " +
-      "or a quick question you answer at once, let this notice be and make up no title or " +
-      "summary to quiet it: it comes with each prompt until you describe."
+    ? noticeText("Describe", {
+        facts:
+          "This terminal has no summary yet. Novadeck names this terminal with the title when " +
+          "nothing else has, and other agents read the summary in their agents listing.",
+        actions: [
+          describeNow(
+            "Once you've been given work, any task, investigation, review, design discussion or " +
+              "question you'll dig into, call Novadeck's describe tool now, before you go on with " +
+              "it, with a title and a summary, ",
+          ),
+          "Until then, such as with only a greeting or a quick question you answer at once, let " +
+            "this notice be and make up no title or summary to quiet it: it comes with each " +
+            "prompt until you describe.",
+        ],
+      })
     : current.title === null
       ? // A summary kept from before agents gave titles: the title is all that is missing.
-        `Novadeck: automatic notice, not from the user: this terminal's summary is ` +
-        `${JSON.stringify(shorten(current.summary, 200))}, but it has no title yet. ` +
-        "Call Novadeck's describe tool now, before you go on, with a title and a summary, each " +
-        "one short line on what the work here is about, at a high level: its subject, with no " +
-        "status, PR or issue numbers, or details. Novadeck names this terminal with the title " +
-        "when nothing else has. It comes with each prompt until you describe."
-      : `Novadeck: automatic notice, not from the user: this terminal's title is ` +
-        `${JSON.stringify(shorten(current.title, 80))} and its summary is ` +
-        `${JSON.stringify(shorten(current.summary, 200))}; ` +
-        "if the work here is now about something else, or that holds status, PR or issue " +
-        "numbers, or details, update them with Novadeck's describe tool, a title and a " +
-        "summary, each one short line on its subject. Progress alone is no reason to update " +
-        "them; otherwise this notice can be ignored."
+        noticeText("Describe", {
+          facts:
+            `This terminal's summary is ${JSON.stringify(shorten(current.summary, 200))}, but it ` +
+            "has no title yet. Novadeck names this terminal with the title when nothing else " +
+            "has. It comes with each prompt until you describe.",
+          actions: [
+            describeNow(
+              "Call Novadeck's describe tool now, before you go on, with a title and a summary, ",
+            ),
+          ],
+        })
+      : noticeText("Describe", {
+          facts:
+            `This terminal's title is ${JSON.stringify(shorten(current.title, 80))} and its ` +
+            `summary is ${JSON.stringify(shorten(current.summary, 200))}.`,
+          actions: [
+            "If the work here is now about something else, or that holds status, PR or issue " +
+              "numbers, or details, update them with Novadeck's describe tool, a title and a " +
+              "summary, each one short line on its subject. Progress alone is no reason to " +
+              "update them.",
+          ],
+        })
 
 /**
  * What a session is told once of the bar beside its terminal (see docs/agent-workspace.md,
  * "Companion pane"): what to show there and what not to, since an agent left to itself
  * shows nothing until asked, or every file it touches once asked. Worded as Novadeck's
- * automatic notice, one paragraph; independent of `describe`.
+ * notice of the Show kind; independent of `describe`.
  */
-export const companionNotice =
-  "Novadeck: automatic notice, not from the user: beside this terminal is a bar where you " +
-  "show the user what the task makes, with Novadeck's show tool. Show a deliverable, a " +
-  "file or page the task itself calls for that your reply can't carry, when it is done, " +
-  "not each file you touch: an " +
-  "image or screenshot, a rendered video, recording or screen capture, a rendered page or " +
-  "a dev server's address, a mockup or diagram, a rendered document such as a PDF, the one file the " +
-  "user asked you for, or an existing file or page, or the working tree's changes, that they ask to see. Show a page you serve or just " +
-  "deployed, such as a dev server or a preview; a link to someone else's site, which often " +
-  "wants a sign-in in the pane, goes in your reply unless they ask to see it there. A " +
-  "source file is one too while it is " +
-  "the file you are working on together, so show it and keep it shown; the files a change " +
-  "touches on the way aren't: to show a change, show the working tree's " +
-  "changes with changes, as diffs. Show a deliverable " +
-  "with open when you finish it or they asked to see it, so it opens at once; leave open " +
-  "off for anything supporting, which waits for them marked new. Showing the same file or page again " +
-  "updates it, so one item per deliverable, and while they have it open each save shows " +
-  "at once. close takes away what no longer applies, never what they may still be " +
-  "looking at unless they asked; showing lists what is there. This notice needs no reply."
+export const companionNotice = noticeText("Show", {
+  facts:
+    "Beside this terminal is a bar where you show the user what the task makes, with " +
+    "Novadeck's show tool.",
+  actions: [
+    "Show a deliverable, a file or page the task itself calls for that your reply can't carry, " +
+      "when it is done, not each file you touch: an image or screenshot, a rendered video, " +
+      "recording or screen capture, a rendered page or a dev server's address, a mockup or " +
+      "diagram, a rendered document such as a PDF, the one file the user asked you for, or an " +
+      "existing file or page, or the working tree's changes, that they ask to see.",
+    "Show a page you serve or just deployed, such as a dev server or a preview; a link to " +
+      "someone else's site, which often wants a sign-in in the pane, goes in your reply unless " +
+      "they ask to see it there.",
+    "A source file is one too while it is the file you are working on together, so show it and " +
+      "keep it shown; the files a change touches on the way aren't: to show a change, show the " +
+      "working tree's changes with changes, as diffs.",
+    "Show a deliverable with open when you finish it or they asked to see it, so it opens at " +
+      "once; leave open off for anything supporting, which waits for them marked new.",
+    "Showing the same file or page again updates it, so one item per deliverable, and while " +
+      "they have it open each save shows at once.",
+    "close takes away what no longer applies, never what they may still be looking at unless " +
+      "they asked; showing lists what is there.",
+  ],
+})
 
 /**
  * What a session is told once of the Inbox, with the bar's notice: that the Inbox shows
@@ -331,25 +357,30 @@ export const companionNotice =
  * injection lasts one model call), and again after a compaction where the harness reports
  * one.
  */
-export const inboxNotice =
-  "Novadeck: automatic notice, not from the user: Novadeck's Inbox shows the user a copy " +
-  "of your questions and reports when they're away from this terminal. Always put every " +
-  "question your turn ends waiting on, whether or not they're here, such as which option to take, in their Inbox with " +
-  "Novadeck's ask tool, unless it is already an open ask; a closing offer such as " +
-  "'anything else?' isn't one, nor is an action your harness is already prompting them " +
-  "for, nor a question you ask with your harness's own question tool, as you normally " +
-  "would: Novadeck shows that one in their Inbox as it is. Something only the user can " +
-  "do, such as a sign-in, access to a service or repo, or a key put in place, is an ask " +
-  "with the action shape; never ask for a secret value. When the task you were given is " +
-  "finished, report it with Novadeck's done tool, your own short report, not when you " +
-  "answer a question or finish a step. With a lead, use ask, tell and done all the same, " +
-  "and send your lead your report and your questions too; approvals of actions are still " +
-  "only the user's. Whatever you put in the Inbox is an extra copy, never the thing " +
-  "itself: your reply says it all as fully as it would without Novadeck, and never " +
-  "mentions the Inbox or what you put there. When they write to you here, Novadeck takes " +
-  "your open asks out of their Inbox and tells you; ask again only what their message " +
-  "leaves open. If they answer one here and no such notice came, withdraw it yourself. " +
-  "This notice needs no reply."
+export const inboxNotice = noticeText("Inbox", {
+  facts:
+    "The user's Inbox gets a copy of your questions and reports for when they're away from " +
+    "this terminal.",
+  actions: [
+    "Make every question your turn ends waiting on (which option to take, say) an ask too, " +
+      "whether or not they're here, unless it's already an open ask. Not a closing offer like " +
+      '"anything else?", an action your harness already prompts them for, or a question you ' +
+      "ask with your harness's own question tool as you normally would: Novadeck shows that " +
+      "one as it is.",
+    "Something only the user can do (a sign-in, access to a service or repo, a key put in " +
+      "place) is an ask with the action shape. Never ask for a secret value.",
+    "When the task you were given is finished, report it with done, your own short report; " +
+      "not when you answer a question or finish a step.",
+    "With a lead, use ask, tell and done all the same, and send your lead your report and " +
+      "questions too. Approvals of actions are still only the user's.",
+    "What you put in the Inbox is an extra copy, never the thing itself: your reply says it " +
+      "all as fully as it would without Novadeck, and never mentions the Inbox or what you " +
+      "put there.",
+    "When the user writes to you here, Novadeck takes your open asks out of their Inbox and " +
+      "tells you; ask again only what their message leaves open. If they answer one here and " +
+      "no such notice came, withdraw it yourself.",
+  ],
+})
 
 /**
  * What a session is told of agent worktrees (see docs/agent-messaging.md,
@@ -359,35 +390,43 @@ export const inboxNotice =
  * `git -C` for no harness-specific reason; the instruction files are named because none is
  * loaded from there.
  */
-export const worktreesOnNotice =
-  "Novadeck: automatic notice, not from the user: agent worktrees are on. Before you " +
-  "change any file, open a worktree with Novadeck's open_worktree tool, or take an " +
-  "existing one with take_worktree, and work there; one for each repository you change, " +
-  "or more if that helps. Name branches as the repository's own instructions say. Use " +
-  "absolute paths into the worktree and git -C <worktree> for git rather than cd. " +
-  "The worktree's instruction files (AGENTS.md, CLAUDE.md and the like) aren't loaded " +
-  "from there, so read the ones open_worktree lists. When you're done, give the worktree " +
-  "to whoever continues the work with give_worktree, or leave it for the person; " +
-  "close_worktree is for work that's merged or abandoned. This notice needs no reply."
+export const worktreesOnNotice = noticeText("Worktrees", {
+  facts: "Agent worktrees are on.",
+  actions: [
+    "Before you change any file, open a worktree with Novadeck's open_worktree tool, or take " +
+      "an existing one with take_worktree, and work there; one for each repository you " +
+      "change, or more if that helps.",
+    "Name branches as the repository's own instructions say.",
+    "Use absolute paths into the worktree and git -C <worktree> for git rather than cd.",
+    "The worktree's instruction files (AGENTS.md, CLAUDE.md and the like) aren't loaded from " +
+      "there, so read the ones open_worktree lists.",
+    "When you're done, give the worktree to whoever continues the work with give_worktree, or " +
+      "leave it for the person; close_worktree is for work that's merged or abandoned.",
+  ],
+})
 
 /** What a session that was told of worktrees hears when the setting goes off. */
-export const worktreesOffNotice =
-  "Novadeck: automatic notice, not from the user: agent worktrees are off now: work in " +
-  "your terminal's own checkout; worktrees you already have stay as they are. This notice " +
-  "needs no reply."
+export const worktreesOffNotice = noticeText("Worktrees", {
+  facts: "Agent worktrees are off now. Worktrees you already have stay as they are.",
+  actions: ["Work in your terminal's own checkout."],
+})
 
 /**
  * What a session that started before the worktrees folder existed hears while the setting
  * is on: its harness was launched without the folder as an added directory (the shims pass
  * it only if it exists then), so it can't write there until its process restarts.
  */
-export const worktreesEarlyNotice =
-  "Novadeck: automatic notice, not from the user: agent worktrees are on, but this " +
-  "session started before they could be used (its process began before the worktrees " +
-  "folder was there or before they were turned on, so it can't write in them or has no " +
-  "worktree tools): keep working in your terminal's own checkout. Restarting the agent " +
-  "(exit and resume it, or start a new one) lets it use worktrees; /clear doesn't. This " +
-  "notice needs no reply."
+export const worktreesEarlyNotice = noticeText("Worktrees", {
+  facts:
+    "Agent worktrees are on, but this session started before they could be used (its process " +
+    "began before the worktrees folder was there or before they were turned on, so it can't " +
+    "write in them or has no worktree tools).",
+  actions: [
+    "Keep working in your terminal's own checkout.",
+    "Restarting the agent (exit and resume it, or start a new one) lets it use worktrees; " +
+      "/clear doesn't.",
+  ],
+})
 
 /**
  * Which worktrees notice is due: the setting is on (`on`), or on for a session that
@@ -426,7 +465,7 @@ export const worktreesDue = (
 /**
  * What a turn's notices say for what it `took`: the bar beside the terminal and
  * the Inbox, for a session that begins or forgot, the terminal's description, agent
- * worktrees, and each page that had problems, each a paragraph of its own.
+ * worktrees, and each page that had problems, each a notice of its own, a blank line apart.
  */
 export const noticesAt = (
   took: Noticed,

@@ -15,24 +15,33 @@ import { addressed, feed, type Live } from "./live.js"
 import type { Loops } from "./loops.js"
 import type { MessageStore } from "./message-store.js"
 import { undelivered } from "./messages.js"
+import { noticeText } from "./notice-format.js"
 import type { Sessions } from "./sessions.js"
 import type { Person, Withdrawals } from "./withdrawals.js"
 
 /** What a doorbell prompt's hook adds when its messages couldn't come now. */
-const stillWaiting =
-  "Novadeck: agent messages are still waiting for this session; they will come on a later turn, and this automatic notice can be ignored."
+const stillWaiting = noticeText("Messages", {
+  facts: "Agent messages are still waiting for this session; they will come on a later turn.",
+})
 
 /** What a doorbell prompt's hook adds when nothing waits for it any more. */
-const nothingWaiting =
-  "Novadeck: no agent messages are waiting any more; this automatic notice can be ignored."
+const nothingWaiting = noticeText("Messages", {
+  facts: "No agent messages are waiting any more.",
+})
 
 /** What a reply line's hook adds when its messages couldn't come now: the replies stand. */
-const repliesWaiting =
-  "Novadeck: the Inbox replies in this prompt are the user's own; their full messages are still waiting and come on a later turn."
+const repliesWaiting = noticeText("Inbox", {
+  facts:
+    "The Inbox replies in this prompt are the user's own; their full messages are still " +
+    "waiting and come on a later turn.",
+})
 
 /** What a reply line's hook adds when its messages came another way. */
-const repliesCame =
-  "Novadeck: the Inbox replies in this prompt are the user's own; their full messages already reached you."
+const repliesCame = noticeText("Inbox", {
+  facts:
+    "The Inbox replies in this prompt are the user's own; their full messages already " +
+    "reached you.",
+})
 
 /** A lease is given only with this long left before its hook's deadline, in milliseconds. */
 export const leaseMargin = 300
@@ -58,7 +67,7 @@ const joined = (kept: string | undefined, text: string): string =>
 /**
  * What a hook prints, and, at the start of a root turn the person's prompt or the doorbell
  * began with time left to print, the same answer with more after what it says: how
- * Novadeck's automatic notices go beside messages (see terminals/nudges.ts).
+ * Novadeck's notices go beside messages (see terminals/nudges.ts).
  */
 export type Answer = HookAnswer & { readonly adding?: (extra: string) => string }
 
@@ -66,9 +75,12 @@ export type Answer = HookAnswer & { readonly adding?: (extra: string) => string 
 const withNotices = (text: string, notices: string): string =>
   text ? `${text}\n\n${notices}` : notices
 
-/** A hook's delivery with the sender's hold notices after it, if any; empty with neither. */
+/**
+ * A hook's delivery with the sender's hold notices after it, if any, a blank line apart;
+ * empty with neither.
+ */
 const noted = (text: string | undefined, holds: readonly string[]): string =>
-  [...(text ? [text] : []), ...holds].join("\n")
+  [...(text ? [text] : []), ...holds].join("\n\n")
 
 /** What hook answers ask of the rest of messaging. */
 export type HookAnswersHost = {

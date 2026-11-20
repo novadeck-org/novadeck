@@ -45,17 +45,19 @@ describe("what an agent is told about a close that waits for the person", () => 
 
   it("tells the outcome of the person's answer, or of a request that ended without it", () => {
     expect(closeNotice.confirmed("fox", "api", "Codex")).toBe(
-      "Novadeck: automatic notice, not from the user: The user confirmed closing @fox · api, which ran Codex, and it is closed. Messages " +
+      "Novadeck · Close\nThe user confirmed closing @fox · api, which ran Codex, and it is closed. Messages " +
         "waiting for it never arrive.",
     )
     expect(closeNotice.confirmed("fox", "api", undefined)).toContain("closing @fox · api, and")
     expect(closeNotice.declined("fox", "api")).toBe(
-      "Novadeck: automatic notice, not from the user: The user kept @fox · api open: it was not closed.",
+      "Novadeck · Close\nThe user kept @fox · api open: it was not closed.",
     )
     expect(closeNotice.vanished("fox")).toBe(
-      "Novadeck: automatic notice, not from the user: @fox closed, or its shell ended, before the user answered, so there is nothing left to confirm.",
+      "Novadeck · Close\n@fox closed, or its shell ended, before the user answered, so there is nothing left to confirm.",
     )
-    expect(closeNotice.gone("fox")).toContain("Nothing closed: Novadeck's window went away")
+    expect(closeNotice.gone("fox")).toBe(
+      "Novadeck · Close\nNothing closed: Novadeck's window went away before the user answered the ask to close @fox.\n→ Ask again if it still should.",
+    )
   })
 })
 

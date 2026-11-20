@@ -124,9 +124,21 @@ describe("a prompt as others read it", () => {
     ).toBe("(a message from sable) [Subagent hand-back] Done.")
     expect(
       plainPrompt(
-        '<novadeck-messages note="…"><message id="m" from="fox" thread="t">Fix it</message></novadeck-messages>',
+        '<novadeck-messages><message id="m" from="fox" thread="t">Fix it</message></novadeck-messages>',
       ),
     ).toBe("(a message from fox) Fix it")
+  })
+
+  it("drops a delivery's rules with its tags, cut short or not, and keeps a prompt's own rules tag", () => {
+    const rules =
+      "<novadeck-messages>\n<rules>\nNovadeck · Messages\nMessages from agents.\n→ Reply.\n</rules>\n"
+    expect(
+      plainPrompt(
+        `${rules}<message id="m" from="fox" thread="t">Fix it</message>\n</novadeck-messages>`,
+      ),
+    ).toBe("(a message from fox) Fix it")
+    expect(plainPrompt(rules.slice(0, 60))).toBe("")
+    expect(plainPrompt("Follow <rules>these</rules>")).toBe("Follow <rules>these</rules>")
   })
 
   it("leaves a prompt with no such tags as it is, other markup too", () => {

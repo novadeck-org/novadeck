@@ -20,8 +20,7 @@ import { describe, expect, it } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
 import { harnesses } from "./registry.js"
 
-const delivery =
-  '<novadeck-messages note="…">\n<message id="m-1">"hi" & bye</message>\n</novadeck-messages>'
+const delivery = '<novadeck-messages>\n<message id="m-1">"hi" & bye</message>\n</novadeck-messages>'
 
 // Each answer is one line of JSON the harness reads.
 const line = (text: string): unknown => {

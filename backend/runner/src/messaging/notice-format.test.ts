@@ -1,0 +1,98 @@
+import { describe, expect, it } from "vitest"
+
+import { closeNotice } from "../terminals/closes.js"
+import { leadNotice } from "../terminals/leads.js"
+import { moveNotice } from "../terminals/moves.js"
+import {
+  companionNotice,
+  inboxNotice,
+  nudgeText,
+  worktreesEarlyNotice,
+  worktreesOffNotice,
+  worktreesOnNotice,
+} from "../terminals/nudges.js"
+import { runNotice } from "../terminals/runs.js"
+import { teamNotice } from "../terminals/teams.js"
+import { worktreeNotice } from "../worktrees/calls.js"
+import { holdNotice } from "./holds.js"
+import { dismissedNotice, withdrawnNotice } from "./inbox.js"
+import { noticeKinds, noticeLines, noticePrefix, noticeText } from "./notice-format.js"
+
+describe("noticeText", () => {
+  it("is a header, the facts, indented details and an arrow line per action", () => {
+    expect(
+      noticeText("Worktrees", {
+        facts: "@newtz gave you its worktree. It's yours now.",
+        details: ["/home/me/work"],
+        actions: ["Work there with absolute paths.", "Don't close it."],
+      }),
+    ).toBe(
+      [
+        "Novadeck · Worktrees",
+        "@newtz gave you its worktree. It's yours now.",
+        "  /home/me/work",
+        "→ Work there with absolute paths.",
+        "→ Don't close it.",
+      ].join("\n"),
+    )
+  })
+
+  it("has no arrow line where there is nothing to do", () => {
+    expect(noticeText("Host load", { facts: "CPU at 90%+ for 3 min." })).toBe(
+      "Novadeck · Host load\nCPU at 90%+ for 3 min.",
+    )
+    expect(noticeLines({ facts: "x" })).toEqual(["x"])
+  })
+
+  it("starts with a middle dot between single spaces", () => {
+    expect(noticePrefix).toBe("Novadeck · ")
+  })
+})
+
+describe("every notice Novadeck words", () => {
+  const texts: readonly string[] = [
+    nudgeText({ summary: null, title: null }),
+    nudgeText({ summary: "Builds the API.", title: null }),
+    nudgeText({ summary: "Builds the API.", title: "API" }),
+    companionNotice,
+    inboxNotice,
+    worktreesOnNotice,
+    worktreesOffNotice,
+    worktreesEarlyNotice,
+    withdrawnNotice(["Which palette?"]),
+    dismissedNotice([{ subject: "Which palette?", action: "options" }]),
+    holdNotice(["m-1"], "fox", "draft", 0),
+    closeNotice.confirmed("fox", "api", "Codex"),
+    closeNotice.gone("fox"),
+    runNotice.opened("dev", "pnpm dev"),
+    runNotice.gone("pnpm dev"),
+    leadNotice.nowLed("newtz"),
+    leadNotice.openedLed("newtz"),
+    leadNotice.released("newtz"),
+    leadNotice.led("fox", "api", { ok: false, reason: "No window." }),
+    teamNotice.joined("fox", "api", true),
+    teamNotice.nowJoined("newtz", "api"),
+    teamNotice.newLead("newtz", "hushz", true),
+    moveNotice.left("newtz", [{ was: "fox", now: "fox2" }]),
+    moveNotice.alone(),
+    worktreeNotice.given("newtz", "/w/x", "fix/x"),
+    worktreeNotice.lost("hushz", "/w/x", "fix/x"),
+  ]
+
+  it("opens with `Novadeck · <Kind>` of a listed kind, and says nothing of where it comes from", () => {
+    for (const text of texts) {
+      const [header, ...rest] = text.split("\n")
+      expect(noticeKinds.map((kind) => `${noticePrefix}${kind}`)).toContain(header)
+      expect(rest.length).toBeGreaterThan(0)
+      expect(text).not.toMatch(/automatic notice|needs no (other )?reply|notice can be ignored/)
+    }
+  })
+
+  it("keeps a lead's report-back as an action, and its standing rules out of the event", () => {
+    expect(leadNotice.nowLed("newtz")).toBe(
+      "Novadeck · Lead\nThe user let @newtz lead you from now on.\n→ Report back to it with send when you're done or stuck.",
+    )
+    for (const text of [leadNotice.nowLed("newtz"), leadNotice.released("newtz")])
+      expect(text).not.toMatch(/still stands|lead mark|peer's/)
+  })
+})

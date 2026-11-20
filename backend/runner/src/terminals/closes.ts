@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { clock } from "../messaging/messages.js"
+import { noticeText } from "../messaging/notice-format.js"
 import { bareHandle, mention } from "./handles.js"
 import { allowOpen } from "./opens.js"
 
@@ -127,8 +128,6 @@ export const nobodyRefusal = "Novadeck isn't open to ask the user, so nothing cl
 const named = (handle: string, title: string, ran: string | undefined): string =>
   `${mention(handle)} · ${title}` + (ran ? `, which ran ${ran}` : "")
 
-export const notice = "Novadeck: automatic notice, not from the user: "
-
 /** What the asking agent is told once the person answered, or the request ended without them. */
 export const closeNotice = {
   confirmed: (
@@ -137,21 +136,30 @@ export const closeNotice = {
     ran: string | undefined,
     coming: readonly OnTheWay[] = [],
   ): string =>
-    notice +
-    `The user confirmed closing ${named(handle, title, ran)}, and it is closed. Messages ` +
-    "waiting for it never arrive." +
-    (coming.length > 0 ? " " + onTheWayLine(coming) : ""),
+    noticeText("Close", {
+      facts:
+        `The user confirmed closing ${named(handle, title, ran)}, and it is closed. Messages ` +
+        "waiting for it never arrive." +
+        (coming.length > 0 ? " " + onTheWayLine(coming) : ""),
+    }),
   declined: (handle: string, title: string): string =>
-    notice + `The user kept ${mention(handle)} · ${title} open: it was not closed.`,
+    noticeText("Close", {
+      facts: `The user kept ${mention(handle)} · ${title} open: it was not closed.`,
+    }),
   // Another close, or its own exit, ended it first.
   vanished: (handle: string): string =>
-    notice +
-    `${mention(handle)} closed, or its shell ended, before the user answered, so there is ` +
-    "nothing left to confirm.",
+    noticeText("Close", {
+      facts:
+        `${mention(handle)} closed, or its shell ended, before the user answered, so there is ` +
+        "nothing left to confirm.",
+    }),
   gone: (handle: string): string =>
-    notice +
-    `Nothing closed: Novadeck's window went away before the user answered the ask to close ` +
-    `${mention(handle)}. Ask again if it still should.`,
+    noticeText("Close", {
+      facts:
+        `Nothing closed: Novadeck's window went away before the user answered the ask to close ` +
+        `${mention(handle)}.`,
+      actions: ["Ask again if it still should."],
+    }),
 }
 
 /** What an agent hears once agents have closed as many terminals as they may for now. */

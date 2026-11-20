@@ -2086,13 +2086,14 @@ describe("asks the person's own prompt withdraws", () => {
     expect(inbox.list().find((each) => each.id === id)?.settled?.how).not.toBe("replied")
   })
 
-  it("names a few subjects in one short paragraph, as the agent's quoted words", () => {
+  it("names a few subjects in one short notice, as the agent's quoted words", () => {
     const subjects = Array.from({ length: 7 }, (_, index) => `Question ${index + 1} "quoted"`)
     const notice = withdrawnNotice([...subjects, "x".repeat(400)])
-    expect(notice.startsWith("Novadeck: automatic notice, not from the user: ")).toBe(true)
+    expect(notice.startsWith("Novadeck · Inbox\n")).toBe(true)
     expect(notice).toContain('"Question 1 \\"quoted\\""')
     expect(notice).toContain("and 3 more")
-    expect(notice).not.toContain("\n")
+    // A header, the facts and one action line: no subject's own newline splits it further.
+    expect(notice.split("\n")).toHaveLength(3)
     expect(Buffer.byteLength(notice)).toBeLessThan(1_000)
     // What they left open is asked again in the reply, with an ask as its copy, and the
     // Inbox goes unmentioned; their message isn't taken for an answer it may not be.
@@ -2211,14 +2212,14 @@ describe("asks the person dismisses", () => {
   it("words the notice by the ask's shape", () => {
     const options = dismissedNotice([{ subject: "S", action: "options" }])
     expect(options).toBe(
-      'Novadeck: automatic notice, not from the user: the user dismissed your ask "S" from their Inbox without answering it. ' +
-        "That is no answer: they chose none of its options. This notice needs no reply.",
+      'Novadeck · Inbox\nThe user dismissed your ask "S" from their Inbox without answering it. ' +
+        "That is no answer: they chose none of its options.",
     )
     expect(dismissedNotice([{ subject: "S", action: "text" }])).toContain(
-      "without answering it. That is no answer. This notice",
+      "without answering it. That is no answer.",
     )
     expect(dismissedNotice([{ subject: "S", action: "action" }])).toBe(
-      'Novadeck: automatic notice, not from the user: the user dismissed your ask "S" from their Inbox without doing it. This notice needs no reply.',
+      'Novadeck · Inbox\nThe user dismissed your ask "S" from their Inbox without doing it.',
     )
     // A dismissal is a fact, never a guess at what they want or a say on going on.
     for (const action of ["options", "text", "action"])

@@ -1,4 +1,4 @@
-import { notice } from "./closes.js"
+import { noticeText } from "../messaging/notice-format.js"
 import { mention } from "./handles.js"
 import { quotedText } from "./troubles.js"
 
@@ -294,9 +294,9 @@ export class Strain {
         const list = contributors.map(({ agent: each, share }) =>
           shown(each.id === agent.id ? "you" : mention(each.handle), share),
         )
-        const text =
-          `${notice}Host CPU has been at ${cpuHighPercent}% or more for ${minutes(load.cpuHighFor)}; ` +
-          `heaviest here: ${list.join(", ")}.`
+        const text = noticeText("Host load", {
+          facts: `CPU at ${cpuHighPercent}%+ for ${minutes(load.cpuHighFor)}. Heaviest: ${list.join(", ")}.`,
+        })
         if (!send(agent.id, text)) continue
         this.told.add(agent.id)
         sent.push(agent.id)

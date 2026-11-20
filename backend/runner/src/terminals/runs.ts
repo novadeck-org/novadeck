@@ -1,4 +1,4 @@
-import { notice } from "./closes.js"
+import { noticeText } from "../messaging/notice-format.js"
 import { mention } from "./handles.js"
 import { quotedText } from "./troubles.js"
 
@@ -11,17 +11,25 @@ const shown = (command: string): string => quotedText(command, 200)
 
 export const runNotice = {
   opened: (handle: string, command: string): string =>
-    notice +
-    `The user approved running ${shown(command)}: it is open as ${mention(handle)} and the command started.`,
+    noticeText("Run", {
+      facts: `The user approved running ${shown(command)}: it is open as ${mention(handle)} and the command started.`,
+    }),
   declined: (command: string): string =>
-    notice + `The user declined running ${shown(command)}: no terminal opened and nothing ran.`,
+    noticeText("Run", {
+      facts: `The user declined running ${shown(command)}: no terminal opened and nothing ran.`,
+    }),
   // The client went away before the person answered.
   gone: (command: string): string =>
-    notice +
-    `Nothing ran: Novadeck's window went away before the user answered the ask to run ` +
-    `${shown(command)}. Ask again if it still should.`,
+    noticeText("Run", {
+      facts:
+        `Nothing ran: Novadeck's window went away before the user answered the ask to run ` +
+        `${shown(command)}.`,
+      actions: ["Ask again if it still should."],
+    }),
   refused: (command: string, reason: string): string =>
-    notice + `The user approved running ${shown(command)}, but no terminal opened: ${reason}`,
+    noticeText("Run", {
+      facts: `The user approved running ${shown(command)}, but no terminal opened: ${reason}`,
+    }),
 }
 
 /** What an agent hears when no window of Novadeck is open to ask the person. */

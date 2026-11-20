@@ -127,7 +127,7 @@ export const isCodexAnswer = (text: string): boolean => /^(?:Re: [^\n]+\n|> [^\n
 
 /**
  * Whether a text is a delivery of agents' messages, as Novadeck frames one
- * (`<novadeck-messages note=…>`), rather than the person's words: one that starts with it, as
+ * (`<novadeck-messages>`, its `<rules>` first), rather than the person's words: one that starts with it, as
  * Claude Code wrote a Stop's at 2.1.294, or with it behind the "Stop hook feedback:" Claude
  * Code puts before a Stop's `decision: "block"` reason. Only the start counts: the person's
  * words may quote a delivery, and no harness puts one after other text in a prompt (probed

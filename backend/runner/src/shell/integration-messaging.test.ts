@@ -72,7 +72,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         hook: "UserPromptSubmit",
         payload: { prompt: "ask codex" },
       })
-      expect(firstPrompt).toContain("this terminal has no summary yet")
+      expect(firstPrompt).toContain("This terminal has no summary yet")
       // Claude Code's additionalContext carries each paragraph: the bar's, the Inbox's, then
       // the summary's.
       const carried = (
@@ -80,15 +80,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       ).hookSpecificOutput.additionalContext
       const paragraphs = carried.split("\n\n")
       expect(paragraphs).toHaveLength(3)
-      expect(paragraphs[0]).toMatch(
-        /^Novadeck: automatic notice, not from the user: beside this terminal/,
-      )
-      expect(paragraphs[1]).toMatch(
-        /^Novadeck: automatic notice, not from the user: Novadeck's Inbox shows the user a copy/,
-      )
-      expect(paragraphs[2]).toMatch(
-        /^Novadeck: automatic notice, not from the user: this terminal has no/,
-      )
+      expect(paragraphs[0]).toMatch(/^Novadeck · Show\nBeside this terminal/)
+      expect(paragraphs[1]).toMatch(/^Novadeck · Inbox\nThe user's Inbox gets a copy/)
+      expect(paragraphs[2]).toMatch(/^Novadeck · Describe\nThis terminal has no/)
       const reply = await send(codex.id, "moth", "Looks good & ships.")
       expect(reply).toMatchObject({
         ok: true,
@@ -175,9 +169,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         expect(rung).toContain(">Build the page.</message>")
         const notices = rung.slice(rung.indexOf("</novadeck-messages>")).split("\n\n").slice(1)
         expect(notices).toHaveLength(3)
-        expect(notices[0]).toMatch(/^Novadeck: automatic notice, not from the user: beside this/)
-        expect(notices[1]).toMatch(/Novadeck's Inbox shows the user a copy/)
-        expect(notices[2]).toMatch(/this terminal has no summary yet/)
+        expect(notices[0]).toMatch(/^Novadeck · Show\nBeside this/)
+        expect(notices[1]).toMatch(/The user's Inbox gets a copy/)
+        expect(notices[2]).toMatch(/This terminal has no summary yet/)
         await expect
           .poll(() => manager.messages(worker.id).threads[0]?.messages[0]?.state)
           .toBe("delivered")
@@ -188,8 +182,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           await step(worker.id, { hook: "UserPromptSubmit", payload: { prompt: ring } }),
         )
         expect(again).toContain(">And the footer.</message>")
-        expect(again).toContain("this terminal has no summary yet")
-        expect(again).not.toContain("beside this terminal is a bar")
+        expect(again).toContain("This terminal has no summary yet")
+        expect(again).not.toContain("Beside this terminal is a bar")
       }
       await teammate("claude")
       await teammate("codex")

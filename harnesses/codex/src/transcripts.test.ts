@@ -580,7 +580,7 @@ describe("Codex's context in the person's place", () => {
   it("leaves out what a Stop hook gave back to go on with, as Claude Code's is", () => {
     expect(
       said(
-        '<hook_prompt hook_run_id="stop:27:/h/hooks.json">&lt;novadeck-messages note="x"&gt;hi&lt;/novadeck-messages&gt;</hook_prompt>',
+        '<hook_prompt hook_run_id="stop:27:/h/hooks.json">&lt;novadeck-messages&gt;hi&lt;/novadeck-messages&gt;</hook_prompt>',
       ),
     ).toEqual([])
     expect(said("<hook_prompt>go on</hook_prompt>")).toEqual([])

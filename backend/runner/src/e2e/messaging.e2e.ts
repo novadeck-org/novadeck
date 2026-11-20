@@ -318,7 +318,7 @@ for (const setup of setups) {
         after: calls,
       })
       const [first] = messages(t1).map((one) => one.id)
-      expect(wrappers(continued)).toEqual([{ note: expect.any(String), ids: [first] }])
+      expect(wrappers(continued)).toEqual([{ rules: expect.any(String), ids: [first] }])
       expect(pointsBack(wrappers(continued)[0]!)).toBe(false)
       await t1.until("Noted.")
       await t1.reached("settled", { after: mark })

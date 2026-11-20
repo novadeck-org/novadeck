@@ -232,7 +232,7 @@ describe("what a prompt says of its ring", () => {
 
 describe("a prompt that holds a delivery of agents' messages", () => {
   const base = { agent: "claude", sessionId: "s-00000001", instance: null, startedAt: 1 } as const
-  const delivery = '<novadeck-messages note="x"><message id="m-1">hi</message></novadeck-messages>'
+  const delivery = '<novadeck-messages><message id="m-1">hi</message></novadeck-messages>'
 
   it("is the harness's own where it is the delivery", () => {
     expect(promptStart(base, delivery)).toMatchObject({ cause: "harness" })

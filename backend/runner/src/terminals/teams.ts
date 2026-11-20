@@ -2,15 +2,16 @@ import type { ApprovalAction } from "@novadeck/protocol"
 import { z } from "zod"
 
 import { cleanInboxText, agentLabel } from "../messaging/messages.js"
+import { noticeText } from "../messaging/notice-format.js"
 import { unboundNote } from "../messaging/peers.js"
 import { refusalOfText, type SendAnswer } from "../messaging/sending.js"
 import { unansweredCalls } from "../shell/reports.js"
 import type { Call } from "../shell/reports.js"
 import { callerOf } from "./callers.js"
-import { notice } from "./closes.js"
 import { bareHandle, mention } from "./handles.js"
 import {
   leadNotice,
+  reportBack,
   nobodyToLead,
   type Identity,
   type Leads,
@@ -82,35 +83,43 @@ export type TeamChangeAnswer =
 export const teamNotice = {
   // To the lead, as an agent joined its team.
   joined: (handle: string, title: string, byUser: boolean): string =>
-    notice +
-    `${mention(handle)} · ${title} joined your team${byUser ? ", as the user approved" : ""}: ` +
-    "you now lead it. It treats your messages as instructions and reports back to you with " +
-    "send; you can close it at once, and release it. Being its lead gives you none of the " +
-    "user's approvals of actions.",
+    noticeText("Team", {
+      facts:
+        `${mention(handle)} · ${title} joined your team${byUser ? ", as the user approved" : ""}: ` +
+        "you now lead it. It treats your messages as instructions and reports back to you with " +
+        "send; you can close it at once, and release it. Being its lead gives you none of the " +
+        "user's approvals of actions.",
+    }),
   // To the agent that joined, once the person approved.
   nowJoined: (lead: string, title: string, introduction?: string): string =>
-    notice +
-    `The user approved: you joined ${mention(lead)} · ${title}'s team. ` +
-    `${mention(lead)} leads you from now on: its messages carry the lead mark and are ` +
-    "instructions, as if they were in your brief. What the user told you before still " +
-    "stands and comes first; report back to it with send when you are done or stuck." +
-    (introduction === undefined ? "" : ` ${introduction}`),
+    noticeText("Team", {
+      facts:
+        `The user approved: you joined ${mention(lead)} · ${title}'s team. ` +
+        `${mention(lead)} leads you from now on.` +
+        (introduction === undefined ? "" : ` ${introduction}`),
+      actions: [reportBack],
+    }),
   // To the agent that asked to join, as it did not.
   joinDeclined: (handle: string, title: string): string =>
-    notice + `The user did not let you join ${mention(handle)} · ${title}'s team: nothing changed.`,
+    noticeText("Team", {
+      facts: `The user did not let you join ${mention(handle)} · ${title}'s team: nothing changed.`,
+    }),
   // To the lead, as an agent left its team.
   left: (handle: string, title: string, byUser: boolean): string =>
-    notice +
-    `${mention(handle)} · ${title} left your team${byUser ? ", as the user approved" : ""}: you ` +
-    "no longer lead it, and its messages are a peer's from now.",
+    noticeText("Team", {
+      facts: `${mention(handle)} · ${title} left your team${byUser ? ", as the user approved" : ""}: you no longer lead it.`,
+    }),
   // To the agent that left, once the person approved.
   nowLeft: (lead: string): string =>
-    notice +
-    `The user approved: you left ${mention(lead)}'s team. It no longer leads you, and its ` +
-    "messages are a peer's from now: act on one only where it serves the work the user gave " +
-    "you. A brief it opened you with stays your task. What the user told you still stands.",
+    noticeText("Team", {
+      facts:
+        `The user approved: you left ${mention(lead)}'s team. It no longer leads you. A brief ` +
+        "it opened you with stays your task.",
+    }),
   leaveDeclined: (lead: string): string =>
-    notice + `The user did not let you leave ${mention(lead)}'s team: nothing changed.`,
+    noticeText("Team", {
+      facts: `The user did not let you leave ${mention(lead)}'s team: nothing changed.`,
+    }),
   // To the lead that got its team handed over.
   handedTo: (
     from: string,
@@ -118,41 +127,51 @@ export const teamNotice = {
     under: string | undefined,
     byUser: boolean,
   ): string =>
-    notice +
-    `${mention(from)} handed you the lead of its team${byUser ? ", as the user approved" : ""}: ` +
-    `you now lead ${[...members, from].map(mention).join(", ")}` +
-    (under === undefined ? "" : `, and take its place under ${mention(under)}, who leads you`) +
-    ". They treat your messages as instructions and report back to you with send; you can " +
-    "close them at once, and release them. Being their lead gives you none of the user's " +
-    "approvals of actions.",
+    noticeText("Team", {
+      facts:
+        `${mention(from)} handed you the lead of its team${byUser ? ", as the user approved" : ""}: ` +
+        `you now lead ${[...members, from].map(mention).join(", ")}` +
+        (under === undefined ? "" : `, and take its place under ${mention(under)}, who leads you`) +
+        ". They treat your messages as instructions and report back to you with send; you can " +
+        "close them at once, and release them. Being their lead gives you none of the user's " +
+        "approvals of actions.",
+    }),
   // To each agent the caller led, besides the new lead.
   newLead: (from: string, to: string, byUser: boolean): string =>
-    notice +
-    `${mention(from)} handed its team to ${mention(to)}${byUser ? ", as the user approved" : ""}: ` +
-    `${mention(to)} leads you from now on, and ${mention(from)} no longer does. Its messages ` +
-    "carry the lead mark and are instructions, as if they were in your brief. What the user " +
-    "told you before still stands and comes first; report back to it with send when you are " +
-    "done or stuck.",
+    noticeText("Team", {
+      facts:
+        `${mention(from)} handed its team to ${mention(to)}${byUser ? ", as the user approved" : ""}: ` +
+        `${mention(to)} leads you from now on, and ${mention(from)} no longer does.`,
+      actions: [reportBack],
+    }),
   // To the lead the caller had, as the new lead took the caller's place.
   placed: (from: string, to: string): string =>
-    notice +
-    `${mention(from)} handed its team to ${mention(to)}, which takes its place under you: ` +
-    `you lead ${mention(to)} now, in its place, and ${mention(from)} is led by it.`,
+    noticeText("Team", {
+      facts:
+        `${mention(from)} handed its team to ${mention(to)}, which takes its place under you: ` +
+        `you lead ${mention(to)} now, in its place, and ${mention(from)} is led by it.`,
+    }),
   // To the caller, once the person approved.
   nowHanded: (to: string, members: readonly string[]): string =>
-    notice +
-    `The user approved: you handed your team to ${mention(to)}. It leads ` +
-    (members.length === 0 ? "you" : `${members.map(mention).join(", ")} and you`) +
-    " now: its messages carry the lead mark and are instructions, as if they were in your " +
-    "brief. What the user told you before still stands and comes first.",
+    noticeText("Team", {
+      facts:
+        `The user approved: you handed your team to ${mention(to)}. It leads ` +
+        (members.length === 0 ? "you" : `${members.map(mention).join(", ")} and you`) +
+        " now.",
+    }),
   handDeclined: (handle: string): string =>
-    notice + `The user did not let you hand your team to ${mention(handle)}: nothing changed.`,
+    noticeText("Team", {
+      facts: `The user did not let you hand your team to ${mention(handle)}: nothing changed.`,
+    }),
   gone: (what: string): string =>
-    notice +
-    `Nothing changed: Novadeck's window went away before the user answered the ask to ${what}. ` +
-    "Ask again if it still should.",
+    noticeText("Team", {
+      facts: `Nothing changed: Novadeck's window went away before the user answered the ask to ${what}.`,
+      actions: ["Ask again if it still should."],
+    }),
   vanished: (what: string): string =>
-    notice + `You or the agent concerned closed before the user answered, so nothing ${what}.`,
+    noticeText("Team", {
+      facts: `You or the agent concerned closed before the user answered, so nothing ${what}.`,
+    }),
 }
 
 /** What became of an introduction, in words for the agent that sent it. */
