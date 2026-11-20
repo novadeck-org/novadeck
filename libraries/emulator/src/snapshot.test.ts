@@ -198,6 +198,104 @@ describe("a snapshot", () => {
       restored.dispose()
     })
 
+    it("a wrap pending at the end of a full row under a painted ground, so the next character wraps", async () => {
+      // Painting the blank rows below moves the cursor; the wrap must be pending after it.
+      const draw = "\u001b[48;5;236m\u001b[2J\u001b[H12345678"
+      const { screen, restored } = await restoredWith(draw, "ab")
+      expect(text(restored)).toBe(text(screen))
+      expect(text(restored)).toBe("12345678\nab\n\n\n")
+      expect(backgrounds(restored)).toEqual(backgrounds(screen))
+      screen.dispose()
+      restored.dispose()
+    })
+
+    it("a wrap pending at the end of a full row in a scroll region", async () => {
+      // Setting the region homes the cursor, which the program's next character must not feel.
+      const { screen, restored } = await restoredWith("\u001b[2;4r\u001b[2;1H12345678", "ab")
+      expect(text(restored)).toBe(text(screen))
+      expect(text(restored)).toBe("\n12345678\nab\n\n")
+      screen.dispose()
+      restored.dispose()
+    })
+
+    it("a wrap pending after a wide character in the last two columns, in a region", async () => {
+      const { screen, restored } = await restoredWith("\u001b[2;4r\u001b[2;1H123456中", "ab")
+      expect(text(restored)).toBe(text(screen))
+      expect(text(restored)).toBe("\n123456中\nab\n\n")
+      screen.dispose()
+      restored.dispose()
+    })
+
+    it("a wrap pending at the end of a styled full row in a region, the style as the pen has it", async () => {
+      // The last cell is drawn in the pen's own style, so it is written again as it was.
+      const draw = "\u001b[2;4r\u001b[2;1H\u001b[1;31m12345678"
+      const { screen, restored } = await restoredWith(draw, "ab")
+      expect(text(restored)).toBe(text(screen))
+      expect(styledRows(restored, 1, 2)).toEqual(styledRows(screen, 1, 2))
+      screen.dispose()
+      restored.dispose()
+    })
+
+    it("a wrap pending in a region with origin mode on, counting rows from its top", async () => {
+      const draw = "\u001b[2;4r\u001b[?6h\u001b[1;1H12345678"
+      const { screen, restored } = await restoredWith(draw, "ab")
+      expect(text(restored)).toBe(text(screen))
+      screen.dispose()
+      restored.dispose()
+    })
+
+    it("leaves the pen as it was after a pending wrap is written again", async () => {
+      const draw = "\u001b[2;4r\u001b[2;1H\u001b[4;38;5;99m12345678"
+      const { screen, restored } = await restoredWith(draw, "ab")
+      expect(styledRows(restored, 1, 2)).toEqual(styledRows(screen, 1, 2))
+      screen.dispose()
+      restored.dispose()
+    })
+
+    it("a screen that ends at its cursor, as at a prompt, with no more than the serializer wrote", async () => {
+      const screen = createScreen({ cols: 20, rows: 4, scrollback: 0 })
+      await written(screen, "line one\r\nuser@host:~$ ")
+      const data = snapshot(screen, { fits: () => true, mouse: "default" })!
+      expect(data).toBe("line one\r\nuser@host:~$ ")
+      // A wide character before the cursor, and the cursor left elsewhere, are told.
+      await written(screen, "中\u001b[1;1H")
+      expect(
+        snapshot(screen, { fits: () => true, mouse: "default" })?.endsWith("\u001b[1;1H"),
+      ).toBe(true)
+      screen.dispose()
+    })
+
+    it("a wrap pending after a last cell in another style than the pen's, which is set for it and put back", async () => {
+      // A reverse-video bar to the last column, then the pen back to plain, and the wrap pending.
+      const draw = "\u001b[2;4r\u001b[2;1H\u001b[7;34m12345678\u001b[0m"
+      const { screen, restored } = await restoredWith(draw, "ab")
+      expect(text(restored)).toBe(text(screen))
+      expect(styledRows(restored, 1, 2)).toEqual(styledRows(screen, 1, 2))
+      screen.dispose()
+      restored.dispose()
+    })
+
+    it("a wrap pending where a style can't be written, as far as a cursor move goes", async () => {
+      // A curly underline has a style of its own, which the restore doesn't write: the cursor is
+      // on the last column, and the program's next character overwrites it.
+      const draw = "\u001b[2;4r\u001b[2;1H\u001b[4:3m12345678"
+      const { screen, restored } = await restoredWith(draw)
+      expect(cursor(restored)).toEqual({ row: 1, column: 7 })
+      expect(cursor(screen).column).toBe(8)
+      screen.dispose()
+      restored.dispose()
+    })
+
+    it("no saved cursor of its own, so the program's later restore of it goes where it does on the host", async () => {
+      // Painting the ground moves the cursor; it must not leave a saved place behind.
+      const draw = "\u001b[48;5;236m\u001b[2J\u001b[Hhello"
+      const { screen, restored } = await restoredWith(draw, "\u001b8x")
+      expect(text(restored)).toBe(text(screen))
+      expect(cursor(restored)).toEqual(cursor(screen))
+      screen.dispose()
+      restored.dispose()
+    })
+
     it("a hidden cursor, but not a synchronized update, which would hold the viewer's drawing", async () => {
       const { screen, restored } = await restoredWith("\u001b[?25l\u001b[?2026hhi")
       expect(core(restored).coreService.isCursorHidden).toBe(true)
