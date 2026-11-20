@@ -952,6 +952,16 @@ describe("Claude Code's AskUserQuestion held below a scrolled fullscreen view", 
     expect(dialogs.read(rows("questionHidden"), long)).toBeUndefined()
   })
 
+  it("reads the question under macOS's pill, whose hint names fn+↓", () => {
+    const mac = rows("questionHidden")
+    const last = mac.findLastIndex((each) => each !== "")
+    mac[last] = mac[last]!.replace(
+      "Waiting for your answer (ctrl+End) ↓",
+      "Waiting for your answer · fn+↓ to scroll",
+    )
+    expect(need(dialogs.read(mac, asking)).reveal).toBe(CtrlEnd)
+  })
+
   // The pill doesn't say whose dialog it holds: a question's facts read on a permission's
   // pill too. Which of several pending requests may read from it is the tracker's to settle.
   it("reads the question from any pill, its own or not", () => {

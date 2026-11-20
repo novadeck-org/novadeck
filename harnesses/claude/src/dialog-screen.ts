@@ -13,16 +13,22 @@ export const Up = "\x1b[A"
 export const Enter = "\r"
 export const CtrlEnd = "\x1b[1;5F"
 
-const waitingPill = /Waiting for your answer \(ctrl\+End\) ↓$/
+// The pill's hint depends on the platform, the person's keys and the width (2.1.328's
+// bundle): "(ctrl+End) ↓" where `scroll:bottom` has its key, on macOS "· fn+↓ to scroll"
+// (Page Down's key there) or "(click) ↓" with the mouse on, the key they bound instead,
+// and narrower, " ↓" or nothing after the words. Ctrl+End stays `scroll:bottom`'s key on
+// every platform.
+const waitingPill = /(?:^|\s)Waiting for your answer(?: \([^()]+\) ↓| · \S+ to scroll| ↓)?$/
 
 /**
  * Whether Claude Code's fullscreen renderer (`"tui": "fullscreen"`) holds a dialog below
  * the view: one that came while the person had the transcript scrolled up stays out of
- * sight, and only a pill on the last row, "Waiting for your answer (ctrl+End) ↓", over
- * the transcript's last line, says it waits. Ctrl+End scrolls it into view and answers
- * nothing; so do Enter and a digit, taken for the scroll alone. Escape acts on it as ever,
- * declining or denying, and leaves the view where it was (2.1.328, a question and a Bash
- * permission alike, `e2e/probes/fullscreen-scrolled.e2e.ts`).
+ * sight, and only a pill on the last row, "Waiting for your answer (ctrl+End) ↓" (on
+ * macOS "Waiting for your answer · fn+↓ to scroll"), over the transcript's last line, says
+ * it waits. Ctrl+End scrolls it into view and answers nothing; so do Enter and a digit,
+ * taken for the scroll alone. Escape acts on it as ever, declining or denying, and leaves
+ * the view where it was (2.1.328, a question and a Bash permission alike,
+ * `e2e/probes/fullscreen-scrolled.e2e.ts`).
  */
 export const belowView = (rows: readonly string[]): boolean => {
   const last = rows.findLastIndex((each) => each !== "")
