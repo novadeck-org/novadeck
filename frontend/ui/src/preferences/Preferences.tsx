@@ -538,7 +538,10 @@ export const Preferences = ({
                     <legend className="float-left mb-1.5 w-full p-0 px-0.5">
                       <span className={`block ${groupTitleClasses}`}>Agents work as</span>
                     </legend>
-                    <div id="agent-mode-description" className="mt-2.5 grid grid-cols-1 gap-2">
+                    <div
+                      id="agent-mode-description"
+                      className="clear-both mt-2.5 grid grid-cols-1 gap-2"
+                    >
                       {modeChoices.map(({ mode, label, description }) => {
                         const checked = agentMode.mode === mode
                         return (
