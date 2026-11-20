@@ -17,6 +17,7 @@ import { DomainError } from "../errors.js"
 import { agentLabel } from "../messaging/messages.js"
 import type { SendAnswer } from "../messaging/sending.js"
 import { list } from "../text.js"
+import type { ClientWindows } from "./client-windows.js"
 import { Followers } from "./followers.js"
 
 /**
@@ -224,6 +225,9 @@ export type Asked =
 export class OpenRequests {
   /** Each client's stream, oldest first. */
   private readonly followers = new Followers<TerminalRequest>()
+
+  constructor(private readonly windows: () => ClientWindows | undefined = () => undefined) {}
+
   /** Requests waiting for their answer, by id, with the client each went to and who asked. */
   private readonly pending = new Map<
     string,
@@ -247,11 +251,12 @@ export class OpenRequests {
   }
 
   /**
-   * Sends the request to the newest client and waits up to `ms` for its answer; the
+   * Sends the request to the client that shows the asking terminal's project, else the one
+   * used last, else the newest, and waits up to `ms` for its answer; the
    * `opener`, with the title it asked for, waits for the terminal the client creates for it.
    */
   request(request: Omit<TerminalRequest, "requestId">, ms: number, opener: Opener): Promise<Asked> {
-    const follower = this.followers.newest()
+    const follower = this.followers.newest(this.windows()?.choosing(request.sessionId))
     if (!follower) return Promise.resolve({ type: "nobody" })
     const requestId = randomUUID()
     return new Promise<Asked>((resolve) => {

@@ -38,6 +38,7 @@ import { DomainError } from "../errors.js"
 import { harnesses } from "../harnesses/registry.js"
 import { logs } from "../log.js"
 import { agentLabel } from "../messaging/messages.js"
+import type { ClientWindows } from "../terminals/client-windows.js"
 import { mention } from "../terminals/handles.js"
 import { tail } from "../text.js"
 import { displayed, repositoryOf, samePlace, worktreeBranch } from "./changes.js"
@@ -121,6 +122,8 @@ type CompanionOptions = {
   readonly terminal: (terminalId: string) => TerminalPlace | undefined
   /** The folders every harness keeps for itself, which its agents' writes there are not listed from. */
   readonly harnessBookkeeping?: () => Promise<readonly string[]>
+  /** Which project each client shows, which a look goes by to reach the client that shows the page's project. */
+  readonly clients?: ClientWindows
   /** The terminals the runner keeps in a session, as `terminal` tells them. */
   readonly terminals?: (sessionId: string) => readonly TerminalPlace[]
   /** The folder of a session's project, which the person's project window opens files from; undefined for an unknown session. */
@@ -385,7 +388,7 @@ export class CompanionItems {
    */
   private readonly modelFiles = new Map<string, ModelLoad>()
   /** Agents' looks at pages, on their way to the client. */
-  private readonly looks = new PageLooks()
+  private readonly looks = new PageLooks(() => this.options.clients)
   private readonly lookMs: number
   /** Plan observations, one after another, so two never add the same slot twice. */
   private observing: Promise<void> = Promise.resolve()
@@ -803,6 +806,7 @@ export class CompanionItems {
     const looked = await this.looks.ask(
       { itemId: item.id, shown: item.version, url: item.url },
       this.lookMs,
+      place.sessionId,
     )
     switch (looked.type) {
       case "nobody":

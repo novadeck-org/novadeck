@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto"
 import type { AgentName, Approval, ApprovalAction, ApprovalAnswer } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
+import type { ClientWindows } from "./client-windows.js"
 import { Followers } from "./followers.js"
 
 /** How an approval went: the person approved or declined it, or it ended with neither. */
@@ -53,6 +54,9 @@ export const closeWay = (input: {
 export class Approvals {
   /** Each client's stream, oldest first. */
   private readonly followers = new Followers<Approval>()
+
+  constructor(private readonly windows: () => ClientWindows | undefined = () => undefined) {}
+
   /** Requests waiting for the person, by id, with the client each went to. */
   private readonly pending = new Map<
     string,
@@ -80,7 +84,7 @@ export class Approvals {
   }
 
   /**
-   * Sends the newest client the request for `from` to do `action` to `terminalId`, in
+   * Sends the client that shows the asking terminal's project, else the one used last, else the newest, the request for `from` to do `action` to `terminalId`, in
    * `sessionId`; `settled` hears how it went, once. Call `refusal` first: with no client, or one
    * already waiting for `terminalId`, nothing is sent and `settled` hears `gone`.
    */
@@ -93,7 +97,7 @@ export class Approvals {
     },
     settled: (outcome: ApprovalOutcome) => void,
   ): void {
-    const follower = this.followers.newest()
+    const follower = this.followers.newest(this.windows()?.choosing(item.sessionId))
     if (!follower || this.refusal(item.terminalId)) return settled("gone")
     const requestId = randomUUID()
     this.pending.set(requestId, {

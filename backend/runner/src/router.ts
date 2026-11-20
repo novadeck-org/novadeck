@@ -24,6 +24,7 @@ import { logs } from "./log.js"
 import type { Feedback } from "./messaging/feedback.js"
 import type { Murmur } from "./murmur/service.js"
 import type { ActiveTerminals } from "./terminals/active.js"
+import type { ClientWindows } from "./terminals/client-windows.js"
 import type { Terminals } from "./terminals/index.js"
 import type { SeenTerminals } from "./terminals/seen.js"
 import type { Uploads } from "./terminals/uploads.js"
@@ -142,6 +143,8 @@ export const createRouter = (options: {
   closing: () => boolean
   /** Which terminals the people at the clients use; without it, reports of them are ignored. */
   activity?: Pick<ActiveTerminals, "report">
+  /** Which project each client shows; without it, reports of it are ignored. */
+  clients?: Pick<ClientWindows, "report" | "touch">
   /** Which terminals the clients have in sight; without it, reports of them are ignored. */
   seen?: Pick<SeenTerminals, "report">
   /** The runner settings were saved. */
@@ -247,8 +250,12 @@ export const createRouter = (options: {
           signal,
         ),
       ),
-      active: api.terminals.active.handler(({ input, context }) =>
-        options.activity?.report(context.session.id, input.terminalId),
+      active: api.terminals.active.handler(({ input, context }) => {
+        options.clients?.touch(context.session.id)
+        options.activity?.report(context.session.id, input.terminalId)
+      }),
+      showing: api.terminals.showing.handler(({ input, context }) =>
+        options.clients?.report(context.session.id, input.projectId),
       ),
       seen: api.terminals.seen.handler(({ input, context }) =>
         options.seen?.report(context.session.id, input.terminalIds),

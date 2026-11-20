@@ -333,6 +333,13 @@ export const contract = {
     // most to the system, however fast they are told. A terminal not there is not an error: the
     // call stands for whenever it starts.
     active: procedure.input(z.strictObject({ terminalId: id.nullable() })).output(z.void()),
+    // The project this client shows now, null to say nothing of any (as with project windows off), which the desktop app's project windows
+    // tell so that what an agent asks of the person (a terminal to open, a command to approve, a
+    // look at a page) goes to the window that shows the project of the terminal that asked: else
+    // to the client used last, else to the one that connected last. Each client has one, which
+    // replaces its last and lapses with its connection; a client that never calls it is only
+    // reached by the last of these.
+    showing: procedure.input(z.strictObject({ projectId: id.nullable() })).output(z.void()),
     // The terminals this client's person has in sight now, as a whole list that replaces its
     // last: really on screen and legible, which is what lets a sleeper wake. Each client has
     // its own, which lapses with its connection. A terminal no client lists is unseen, and

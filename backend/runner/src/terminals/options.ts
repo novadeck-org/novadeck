@@ -12,6 +12,7 @@ import type { InstalledShell } from "../shell/install.js"
 import type { ClosedRecords } from "../workspaces/closed.js"
 import type { WorktreesWiring } from "../worktrees/calls.js"
 import type { AnswersOptions } from "./answers.js"
+import type { ClientWindows } from "./client-windows.js"
 import type { MurmurTimes } from "./descriptions.js"
 import type { DialogsOptions } from "./dialogs.js"
 import type { HibernationOptions } from "./hibernation.js"
@@ -102,6 +103,11 @@ export type TerminalOptions = {
    * agents show nothing without it.
    */
   items?: CompanionItems
+  /**
+   * Which project each client shows (see `ClientWindows`), which agents' requests to a
+   * client go by; without it they go to the client that connected last.
+   */
+  clients?: ClientWindows
   /** The folder of the project a session belongs to, which names the files its agents show. */
   projectFolder?: (sessionId: string) => string | undefined
   /** How long an agent's request for a new terminal waits for the client's answer, in milliseconds. */

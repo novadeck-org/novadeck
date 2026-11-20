@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto"
 import type { PageLook, PageLookAnswer } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
+import type { ClientWindows } from "../terminals/client-windows.js"
 import { Followers } from "../terminals/followers.js"
 
 /**
@@ -21,6 +22,9 @@ export type Looked =
 export class PageLooks {
   /** Each client's stream, oldest first. */
   private readonly followers = new Followers<PageLook>()
+
+  constructor(private readonly windows: () => ClientWindows | undefined = () => undefined) {}
+
   /** Looks waiting for their answer, by id, with the client each went to. */
   private readonly pending = new Map<
     string,
@@ -35,9 +39,15 @@ export class PageLooks {
     return this.followers.follow(owner, (each) => this.abandon(each), signal)
   }
 
-  /** Sends the look to the newest client and waits up to `ms` for its answer. */
-  ask(look: Omit<PageLook, "lookId">, ms: number): Promise<Looked> {
-    const follower = this.followers.newest()
+  /**
+   * Sends the look, of a page beside a terminal of `sessionId`, to the client that shows that
+   * terminal's project, else the one used last, else the newest, and waits up to `ms` for its
+   * answer.
+   */
+  ask(look: Omit<PageLook, "lookId">, ms: number, sessionId?: string): Promise<Looked> {
+    const follower = this.followers.newest(
+      sessionId === undefined ? undefined : this.windows()?.choosing(sessionId),
+    )
     if (!follower) return Promise.resolve({ type: "nobody" })
     const lookId = randomUUID()
     return new Promise<Looked>((resolve) => {

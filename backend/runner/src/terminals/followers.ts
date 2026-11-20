@@ -1,4 +1,5 @@
 import { DomainError } from "../errors.js"
+import type { Choose } from "./client-windows.js"
 
 /** One stream to a client: the items sent to it, in order. */
 export class Follower<T> {
@@ -77,9 +78,17 @@ export class Followers<T> {
     }
   }
 
-  /** The client that subscribed last, if any follows. */
-  newest(): Follower<T> | undefined {
-    return this.followers.findLast((each) => each.open)
+  /**
+   * The client that gets an item: the one `choose` names among those following, else the one
+   * that subscribed last, if any follows.
+   */
+  newest(choose?: Choose): Follower<T> | undefined {
+    const open = this.followers.filter((each) => each.open)
+    const owner = choose?.(open.map((each) => each.owner))
+    return (
+      (owner === undefined ? undefined : open.findLast((each) => each.owner === owner)) ??
+      open.at(-1)
+    )
   }
 
   /** Whether `owner` follows on a stream still open. */

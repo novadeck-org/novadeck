@@ -314,6 +314,8 @@ export type Runner = {
      */
     /** The terminal this client's person uses now, or none; see the contract's `terminals.active`. */
     active(terminalId: string | null): Promise<void>
+    /** The project this client shows now, or none; see the contract's `terminals.showing`. */
+    showing(projectId: string | null): Promise<void>
     /**
      * Tells the runner which terminals this client has in sight, replacing its last list
      * (`terminals.seen`); the runner takes any other as unseen.
@@ -891,6 +893,7 @@ export const connectRunner = async (
         call((client) => client.terminals.rename({ terminalId, title })),
       resetTitle: (terminalId) => call((client) => client.terminals.resetTitle({ terminalId })),
       active: (terminalId) => call((client) => client.terminals.active({ terminalId })),
+      showing: (projectId) => call((client) => client.terminals.showing({ projectId })),
       seen: (terminalIds) =>
         call((client) => client.terminals.seen({ terminalIds: [...terminalIds] })),
       busy: (only) => call((client) => client.terminals.busy(only)),

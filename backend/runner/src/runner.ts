@@ -21,6 +21,7 @@ import { Murmur } from "./murmur/service.js"
 import { apiError, createRouter } from "./router.js"
 import { codexConfig, installShellFiles } from "./shell/install.js"
 import { ActiveTerminals } from "./terminals/active.js"
+import { ClientWindows } from "./terminals/client-windows.js"
 import { Terminals, type TerminalOptions } from "./terminals/index.js"
 import { createTranscriptSealer, transcriptsAvailable } from "./terminals/sealing.js"
 import { SeenTerminals } from "./terminals/seen.js"
@@ -262,7 +263,10 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   })
   // What agents show and the person attaches beside terminals, kept in the store; it
   // asks the terminals where each one is.
+  // Which project each client shows, which agents' requests to a client go by.
+  const clients = new ClientWindows((sessionId) => store.session(sessionId).projectId)
   const items = new CompanionItems({
+    clients,
     records: store,
     terminal: (terminalId) => terminals.place(terminalId),
     harnessBookkeeping: () => agents.bookkeeping(),
@@ -418,6 +422,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     messages: store,
     inbox: store,
     projectOf: (sessionId) => store.session(sessionId).projectId,
+    clients,
     items,
     // Without an engine nothing is described, so terminals have nothing to wait for.
     ...(options.murmur?.engine !== undefined && { describer: murmur }),
@@ -551,6 +556,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     rootFolder,
     tour,
     activity,
+    clients,
     seen,
   }
 }
@@ -630,6 +636,7 @@ const startRunner = (options: RunnerOptions): Runner => {
     rootFolder,
     tour,
     activity,
+    clients,
     seen,
   } = wire(options)
   let closing: Promise<void> | undefined
@@ -655,6 +662,7 @@ const startRunner = (options: RunnerOptions): Runner => {
         settingsSaved: () => rootFolder.ensure(),
         tour,
         activity,
+        clients,
         seen,
       }),
       error: apiError,
@@ -665,6 +673,7 @@ const startRunner = (options: RunnerOptions): Runner => {
       closed: (session) => {
         log.info("client.closed", "A client's session ended.", { data: { session: session.id } })
         activity.release(session.id)
+        clients.release(session.id)
         seen.release(session.id)
         terminals.release(session.id)
         works.release(session.id)

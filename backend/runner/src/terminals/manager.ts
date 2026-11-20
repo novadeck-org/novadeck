@@ -48,6 +48,7 @@ import { Shown } from "./binding/shown.js"
 import { savedSession } from "./binding/standing.js"
 import { callerOf } from "./callers.js"
 import { Calls } from "./calls.js"
+import type { ClientWindows } from "./client-windows.js"
 import { type CloseAnswer } from "./closes.js"
 import { coalesced } from "./coalesce.js"
 import { expectedAgent } from "./commands.js"
@@ -141,9 +142,9 @@ export class Terminals {
   )
   private readonly pendingOwners = new PendingOwners()
   /** Agents' requests for a new terminal, on their way to the client. */
-  private readonly opens = new OpenRequests()
+  private readonly opens = new OpenRequests(() => this.options.clients)
   /** Agents' requests to close a terminal, on their way to the client that asks the person. */
-  private readonly confirms = new Approvals()
+  private readonly confirms = new Approvals(() => this.options.clients)
   /** Samples running terminals' foreground processes. */
   private readonly sampler: Sampler<Record>
   /** The host's CPU and memory and who uses them, for agents' listings and strain notices. */
@@ -219,6 +220,7 @@ export class Terminals {
       | "redactor"
       | "sealer"
       | "transcriptKeyMs"
+      | "clients"
       | "projectFolder"
       | "messages"
       | "inbox"
@@ -242,6 +244,7 @@ export class Terminals {
     env: NodeJS.ProcessEnv
     shellArgs: readonly string[] | undefined
     records: TerminalRecords | undefined
+    clients: ClientWindows | undefined
     projectFolder: ((sessionId: string) => string | undefined) | undefined
     projectOf: ((sessionId: string) => string | undefined) | undefined
     worktrees: WorktreesWiring | undefined
@@ -309,6 +312,7 @@ export class Terminals {
       connected: options.connected ?? (() => Promise.resolve(true)),
       saveMs: positive(options.saveMs, 5000),
       transcriptChars: positive(options.transcriptChars, 256 * 1024),
+      clients: options.clients,
       projectFolder: options.projectFolder,
       projectOf: options.projectOf,
       worktrees: options.worktrees,

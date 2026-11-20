@@ -182,6 +182,7 @@ export const scriptedRunner = ({
       release: api.terminals.release.handler(unplayed("terminals.release")),
       move: api.terminals.move.handler(unplayed("terminals.move")),
       active: api.terminals.active.handler(() => {}),
+      showing: api.terminals.showing.handler(() => {}),
       seen: api.terminals.seen.handler(() => {}),
       watch: api.terminals.watch.handler(async function* ({ signal }) {
         const changes = channel<TerminalChange>()
