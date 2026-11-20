@@ -1,7 +1,7 @@
 import type { Tour, TourRun } from "@novadeck/core/port"
 
-import { describe, expect, it } from "../test"
 import { startTour, type TourEffects } from "./start"
+import { describe, expect, it } from "./test"
 
 const run = (brief: TourRun["brief"]): TourRun => ({
   directory: "/home/x/.novadeck/tour",

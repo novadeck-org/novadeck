@@ -3,8 +3,8 @@ import type { AgentMessage, MessagesState } from "@novadeck/core/messages"
 import { itemFixture, terminalFixture, workspaceFixture } from "@novadeck/core/testing"
 import type { TerminalMetadata } from "@novadeck/core/types"
 
-import { describe, expect, it } from "../test"
 import { leadState, noTeam, tourSignals } from "./signals"
+import { describe, expect, it } from "./test"
 
 const terminal = (parts: Partial<TerminalMetadata>): TerminalMetadata =>
   ({ ...terminalFixture(1, "~/.novadeck/tour"), ...parts }) as TerminalMetadata

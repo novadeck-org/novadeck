@@ -5,6 +5,10 @@ import type { AgentMode, Backend } from "@novadeck/core/port"
 import { orderedTiles, tileOf } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import type { SchemePreference, Tile } from "@novadeck/core/types"
+import { TourClosingCard } from "@novadeck/tour/ClosingCard"
+import { TourSpotlight } from "@novadeck/tour/Spotlight"
+import { TourConsentDialog } from "@novadeck/tour/TourConsent"
+import { useTourOffer, useTourRun } from "@novadeck/tour/TourProvider"
 import {
   memo,
   Suspense,
@@ -37,9 +41,6 @@ import { MoveTeammateDialog } from "../terminals/MoveTeammateDialog"
 import { visibleSwitcher } from "../terminals/recent"
 import { TerminalSwitcher } from "../terminals/TerminalSwitcher"
 import { schemeCountOfTheme } from "../theme/themes"
-import { TourClosingCard } from "../tour/ClosingCard"
-import { TourSpotlight } from "../tour/Spotlight"
-import { TourConsentDialog } from "../tour/TourConsent"
 import { CloseTeamRows } from "./CloseTeamRows"
 import {
   useFeatureFlag,
@@ -60,7 +61,6 @@ import {
   sameItems,
   shallowEqual,
 } from "./selectors"
-import { useTourOffer, useTourRun } from "./TourProvider"
 import { chatViewOn, switchOffExperimental, type ExperimentalFeatures } from "./ui-store"
 import { useForgeRuns } from "./useForgeRuns"
 import { useInstalls } from "./useInstalls"

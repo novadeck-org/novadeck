@@ -1,0 +1,40 @@
+{
+  "name": "@novadeck/tour",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Novadeck's onboarding tour: its consent, the run it follows and the steps it plays, and how it shows over the workspace, with its own print look apart from the app's themes.",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "exports": {
+    "./ClosingCard": "./src/ClosingCard.tsx",
+    "./tour-host": "./src/tour-host.ts",
+    "./Spotlight": "./src/Spotlight.tsx",
+    "./TourConsent": "./src/TourConsent.tsx",
+    "./TourProvider": "./src/TourProvider.tsx",
+    "./tour.css": "./src/tour.css"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@novadeck/core": "workspace:*",
+    "@novadeck/toolkit": "workspace:*",
+    "lucide-react": "^1.71.0",
+    "react": "^19.3.1"
+  },
+  "devDependencies": {
+    "@novadeck/build-kit": "workspace:*",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "jsdom": "^31.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.8",
+    "vitest": "^5.1.0"
+  },
+  "novadeck": {
+    "platform": "neutral"
+  }
+}

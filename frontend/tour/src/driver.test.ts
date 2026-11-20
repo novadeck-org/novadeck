@@ -1,7 +1,7 @@
-import { context, describe, expect, it } from "../test"
 import { awaitsNext, beginRun, coachNow, nextTick, stepRun, type TourRun } from "./driver"
 import { noTeam, type LeadState, type TourSignals } from "./signals"
 import { screenCoach, startStep, tourSteps, type TourStep } from "./steps"
+import { context, describe, expect, it } from "./test"
 
 const patience = 1_000
 

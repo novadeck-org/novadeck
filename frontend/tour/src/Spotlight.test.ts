@@ -1,5 +1,5 @@
-import { describe, expect, it } from "../test"
 import { coachPlace } from "./Spotlight"
+import { describe, expect, it } from "./test"
 
 const card = { width: 340, height: 190 }
 const view = { width: 1440, height: 900 }

@@ -13,6 +13,7 @@
 @source "../../items/src";
 @source "../../chat/src";
 @source "../../requests/src";
+@source "../../tour/src";
 @source not "../../terminal-views/src/**/*.test.ts";
 
 /* The header's narrow look (WorkspaceHeader.tsx): below 701px, or where Windows' caption buttons
@@ -40,6 +41,8 @@
 @source not "../../chat/src/**/*.test.tsx";
 @source not "../../requests/src/**/*.test.ts";
 @source not "../../requests/src/**/*.test.tsx";
+@source not "../../tour/src/**/*.test.ts";
+@source not "../../tour/src/**/*.test.tsx";
 @import "./theme/contract.css";
 @import "allotment/dist/style.css" layer(base);
 @import "./theme/base.css" layer(base);
@@ -128,7 +131,7 @@
 @import "./preferences/agent-mode-map.css" layer(components);
 @import "./preferences/welcome.css" layer(components);
 @import "./preferences/welcome-preview.css" layer(components);
-@import "./tour/tour.css" layer(components);
+@import "@novadeck/tour/tour.css" layer(components);
 @import "./search/search.css" layer(components);
 
 @import "./theme/coolant.css" layer(themes);

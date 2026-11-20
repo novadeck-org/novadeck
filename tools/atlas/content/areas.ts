@@ -52,6 +52,7 @@ export const roots: Root[] = [
   { token: "frontend/items", dir: "frontend/items", node: "renderer" },
   { token: "frontend/chat", dir: "frontend/chat", node: "renderer" },
   { token: "frontend/requests", dir: "frontend/requests", node: "renderer" },
+  { token: "frontend/tour", dir: "frontend/tour", node: "renderer" },
   { token: "frontend/runner-adapter", dir: "frontend/runner-adapter", node: "renderer" },
   { token: "frontend/terminal-views", dir: "frontend/terminal-views", node: "renderer" },
   { token: "frontend/demo", dir: "frontend/demo", node: "renderer" },
@@ -339,11 +340,6 @@ export const notes: Record<string, Note> = {
     purpose: "Preferences, the welcome dialog and the voice and murmur add-ons.",
   },
   "frontend/ui/search": { purpose: "Finding a terminal." },
-  "frontend/ui/tour": {
-    purpose:
-      "The tour: its consent, and starting a run, which opens the tour's folder as a project of its own with one terminal starting the person's agent.",
-    entries: [{ file: `${ui}/tour/start.ts` }],
-  },
   "frontend/ui/inbox": {
     purpose:
       "The Inbox: what agents ask of the person, as sidebar rows and the sheet that answers.",
@@ -390,6 +386,14 @@ export const notes: Record<string, Note> = {
     purpose:
       "The chat view: a conversation's blocks as a transcript, the requests an agent waits on, the composer, and the chat's own store and commands.",
     entries: [{ file: "frontend/chat/src/ChatView.tsx", text: "export const ChatView" }],
+  },
+  "frontend/tour": {
+    purpose:
+      "The onboarding tour: its consent, starting a run (the tour's folder opened as a project of its own with one terminal starting the person's agent), the driver that follows the run and plays its steps, and what it draws over the workspace, with a look of its own apart from the app's themes.",
+    entries: [
+      { file: "frontend/tour/src/start.ts" },
+      { file: "frontend/tour/src/TourProvider.tsx", text: "export const TourProvider" },
+    ],
   },
   "frontend/requests": {
     purpose:

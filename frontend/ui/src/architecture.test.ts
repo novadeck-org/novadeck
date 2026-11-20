@@ -23,7 +23,8 @@ import { describe, expect, it } from "./test"
 // package.json's; items/ is `@novadeck/items`, the companion pane, the undocked window and the
 // bar drag; chat/ is `@novadeck/chat`, the chat view, its store and its commands; requests/ is
 // `@novadeck/requests`, an agent's request drawn and answered, which the chat and the Inbox
-// share, so it is the base's. Test helpers from other packages are testing/
+// share, so it is the base's; tour/ is `@novadeck/tour`, the onboarding tour, which only the app
+// composes. Test helpers from other packages are testing/
 // (`@novadeck/core/testing` and `@novadeck/test-kit`).
 const base = ["core/", "interaction/", "toolkit/", "requests/", "theme/", "sounds/"]
 // The workspace's frame: terminals/, and the items and the chat that live in its terminals.
@@ -39,7 +40,6 @@ const features = [
   "projects/",
   "search/",
   "sidebar/",
-  "tour/",
   "voice/",
 ]
 // The chat's parts a feature draws as the chat does, each named: the Inbox's sheet draws an
@@ -59,7 +59,7 @@ const rules: Record<string, readonly string[]> = {
   "terminals/": [...base, ...frame],
   "layouts/": [...base, "layouts/", ...frame],
   "shell/": [...base, "shell/", "sidebar/", ...frame, "layouts/", "projects/", "inbox/"],
-  "app/": ["app/", ...base, ...features, ...frame, "layouts/", "shell/"],
+  "app/": ["app/", ...base, ...features, ...frame, "layouts/", "shell/", "tour/"],
   // Commands are plain functions over the stores: no React, no DOM libraries.
   "app/commands/": [
     "app/commands/",
@@ -151,6 +151,7 @@ const modules: Record<string, string> = {
   "@novadeck/items/": "items/",
   "@novadeck/chat/": "chat/",
   "@novadeck/requests/": "requests/",
+  "@novadeck/tour/": "tour/",
   "@novadeck/core/testing": "testing/core.ts",
   "@novadeck/test-kit/": "testing/test-kit/",
 }

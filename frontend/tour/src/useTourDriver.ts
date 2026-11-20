@@ -1,6 +1,5 @@
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import { messagesKey } from "@novadeck/core/items/companion-bar"
-import type { Backend } from "@novadeck/core/port"
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 
 import {
@@ -11,11 +10,12 @@ import {
   stepRun,
   type TourEvent,
   type TourRun,
-} from "../tour/driver"
-import { noTeam, sameSignals, tourSignals, type TourSignals } from "../tour/signals"
-import type { TourStarted } from "../tour/start"
-import { tourSteps, type Coach, type TourMove } from "../tour/steps"
-import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
+} from "./driver"
+import { noTeam, sameSignals, tourSignals, type TourSignals } from "./signals"
+import type { TourStarted } from "./start"
+import { tourSteps, type Coach, type TourMove } from "./steps"
+import type { TourHost } from "./tour-host"
+import { useSelected } from "./use-selected"
 
 // How long the tour waits on its agent at a step before nudging it, unless the backend says.
 const defaultPatienceMs = 90_000
@@ -131,11 +131,8 @@ export type TourDriver = {
  * first line, or a nudge, through the backend. It never takes the person's view back: a step's
  * moves are made once, and only while the tour's project is on screen.
  */
-export const useTourDriver = (
-  backend: Pick<Backend, "tour" | "messages" | "inbox">,
-): TourDriver => {
+export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourDriver => {
   const { tour } = backend
-  const { commands, workspace } = useWorkspaceServices()
   // What else its signals read: the agents' messages and the Inbox, where the backend has them.
   const messages = useSyncExternalStore(backend.messages?.state.subscribe ?? noState, () =>
     backend.messages?.state.getSnapshot(),
@@ -170,7 +167,8 @@ export const useTourDriver = (
     sources.current = { messages, inbox }
   }, [messages, inbox])
   const patienceMs = tour?.patienceMs ?? defaultPatienceMs
-  const signals = useWorkspaceState(
+  const signals = useSelected(
+    workspace,
     (state) => (run ? tourSignals(state, run.terminalId, { messages, inbox }) : noSignals),
     sameSignals,
   )
@@ -314,7 +312,8 @@ export const useTourDriver = (
     })
   }, [dispatch, workspace, messages, inbox])
 
-  const projectOf = useWorkspaceState(
+  const projectOf = useSelected(
+    workspace,
     (state) =>
       run
         ? (state.projects.find((project) =>

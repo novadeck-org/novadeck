@@ -1,5 +1,10 @@
-import { terminalElement } from "../interaction/dom"
 import type { TourAnchor } from "./steps"
+
+// A terminal as the workspace draws it, by the `data-terminal` mark every view puts on it.
+const terminalElement = (id: string): HTMLElement | null =>
+  document
+    .querySelector("[data-workspace-area]")
+    ?.querySelector<HTMLElement>(`[data-terminal="${CSS.escape(id)}"]`) ?? null
 
 // Where each of the tour's anchors is in the page: its `data-tour` mark, then a stable hook of
 // the element's own where the mark is drawn by a shared part (a sidebar panel, a rail toggle).

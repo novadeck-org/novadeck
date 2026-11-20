@@ -1,6 +1,6 @@
 import { createContext, useContext, useSyncExternalStore, type ReactNode } from "react"
 
-import { useWorkspaceServices } from "./controller/context"
+import type { TourHost } from "./tour-host"
 import { useTour, type TourOffer } from "./useTour"
 import { useTourDriver, type TourDriver } from "./useTourDriver"
 
@@ -15,14 +15,20 @@ const noAgents: readonly never[] = []
  * dialog share, and the driver that follows a run. They are two contexts, so the footer
  * re-renders as the offer changes and not with each step of a run.
  */
-export const TourProvider = ({ children }: { readonly children: ReactNode }): React.JSX.Element => {
-  const { backend } = useWorkspaceServices()
-  const driver = useTourDriver(backend)
+export const TourProvider = ({
+  host,
+  children,
+}: {
+  readonly host: TourHost
+  readonly children: ReactNode
+}): React.JSX.Element => {
+  const { backend } = host
+  const driver = useTourDriver(host)
   const connections = useSyncExternalStore(
     backend.agents?.state.subscribe ?? always,
     () => backend.agents?.state.getSnapshot() ?? noAgents,
   )
-  const offer = useTour(backend, connections, driver.begin)
+  const offer = useTour(host, connections, driver.begin)
   return (
     <DriverContext value={driver}>
       <OfferContext value={offer}>{children}</OfferContext>

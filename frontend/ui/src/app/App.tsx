@@ -48,7 +48,7 @@ import { historyShown, filesShown } from "./routing"
 import { currentContext, currentState, currentTarget, sameItems, shallowEqual } from "./selectors"
 import { SidebarSection } from "./SidebarSection"
 import { previewTeamFold, toggleTeamFold, useFoldedLeads } from "./team-fold"
-import { TourProvider } from "./TourProvider"
+import { TourRoot } from "./TourRoot"
 import { useWorktreesShown, useLeaveHiddenWorktrees } from "./use-worktrees-shown"
 import { useInboxBadge } from "./useInboxBadge"
 import { useSessionMarks } from "./useSessionMarks"
@@ -313,7 +313,7 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
   )
   return (
     <DictationContext.Provider value={voice}>
-      <TourProvider>
+      <TourRoot>
         <InboxHost active={sidebarPanel === "inbox" && shell.sidebarVisible}>
           <main
             className="workspace flex h-dvh min-h-100 flex-col overflow-hidden"
@@ -378,7 +378,7 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
             <PanelSection panel={panel} />
           </main>
         </InboxHost>
-      </TourProvider>
+      </TourRoot>
     </DictationContext.Provider>
   )
 }

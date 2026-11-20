@@ -105,6 +105,7 @@ describe("the package graph", () => {
       "frontend/items",
       "frontend/chat",
       "frontend/requests",
+      "frontend/tour",
       "frontend/demo",
       "frontend/demo-debug",
       "frontend/runner-adapter",
@@ -226,6 +227,27 @@ describe("the package graph", () => {
     // Of the frontend, what it ships with names the core and the toolkit alone.
     expect(
       named("frontend/requests", "shipped").filter(
+        (folder) =>
+          folder.startsWith("frontend/") &&
+          folder !== "frontend/core" &&
+          folder !== "frontend/toolkit",
+      ),
+    ).toEqual([])
+  })
+
+  it("keeps the tour off the UI, the chat, the items package, every backend and every harness", () => {
+    // The tour is handed what it needs of the app (its host) at its provider: it reaches the
+    // core and the toolkit, and nothing that composes it.
+    const reached = reaches("frontend/tour")
+    const harnesses = [...packages.keys()].filter((folder) => folder.startsWith("harnesses/"))
+    expect(harnesses.length).toBeGreaterThan(0)
+    expect(
+      ["frontend/ui", "frontend/chat", "frontend/items", ...backends, ...harnesses]
+        .filter((folder) => reached.has(folder))
+        .map((f) => `frontend/tour -> ${f}`),
+    ).toEqual([])
+    expect(
+      named("frontend/tour", "shipped").filter(
         (folder) =>
           folder.startsWith("frontend/") &&
           folder !== "frontend/core" &&

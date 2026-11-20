@@ -1,5 +1,5 @@
 import type { AgentName } from "@novadeck/core/harnesses"
-import type { AgentConnection, Backend } from "@novadeck/core/port"
+import type { AgentConnection } from "@novadeck/core/port"
 import { useCallback, useMemo, useState } from "react"
 
 import {
@@ -11,9 +11,9 @@ import {
   tourAgents,
   tourFailed,
   type TourConsent,
-} from "../tour/consent"
-import { startTour, type TourEffects, type TourStarted } from "../tour/start"
-import { useWorkspaceServices } from "./controller/context"
+} from "./consent"
+import { startTour, type TourEffects, type TourStarted } from "./start"
+import type { TourHost } from "./tour-host"
 
 export type TourOffer = {
   // The consent while it is offered, null otherwise.
@@ -38,12 +38,11 @@ export type TourOffer = {
  * stays open with its reason. Absent (`undefined`) where the backend has no tour.
  */
 export const useTour = (
-  backend: Pick<Backend, "tour" | "agents">,
+  { backend, commands }: Pick<TourHost, "backend" | "commands">,
   connections: readonly AgentConnection[],
   // A run started, for the tour's driver to follow.
   onStarted: (agent: AgentName, started: TourStarted) => void,
 ): TourOffer | undefined => {
-  const { commands } = useWorkspaceServices()
   const [offered, setConsent] = useState<TourConsent | null>(null)
   const { tour } = backend
   const refresh = backend.agents?.refresh

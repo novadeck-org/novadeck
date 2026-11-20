@@ -1,6 +1,5 @@
 import { TourNeedsAgent, type AgentConnection } from "@novadeck/core/port"
 
-import { context, describe, expect, it } from "../test"
 import {
   chooseAgent,
   connectingAgent,
@@ -10,6 +9,7 @@ import {
   tourAgents,
   tourFailed,
 } from "./consent"
+import { context, describe, expect, it } from "./test"
 
 const connection = (
   agent: AgentConnection["agent"],

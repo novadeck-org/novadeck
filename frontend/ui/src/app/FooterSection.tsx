@@ -8,6 +8,7 @@ import type { TerminalKey } from "@novadeck/core/port"
 import { waitingAgents } from "@novadeck/core/terminals/ending"
 import { nextWaitingChange } from "@novadeck/core/terminals/waiting"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
+import { useTourBusy, useTourOffer } from "@novadeck/tour/TourProvider"
 import {
   memo,
   useCallback,
@@ -30,7 +31,6 @@ import { chatOfferDue, selectedAgentCanChat } from "./chat-offer"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useAccounts } from "./controller/footer-accounts"
 import { crashLoopQuestion, currentState, shallowEqual } from "./selectors"
-import { useTourBusy, useTourOffer } from "./TourProvider"
 import { chatViewOn, dismissWhatsNew, onboardingTourOn } from "./ui-store"
 import { useBusyTerminals } from "./use-busy-terminals"
 import { useOfferNews } from "./use-offer-news"
