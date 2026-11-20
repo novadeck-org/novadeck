@@ -314,6 +314,32 @@ describe("the facts of a change", () => {
     expect(facts?.headings).toEqual(["Debug panel"])
   })
 
+  it("keeps a heading's own trailing '#', and drops only a closing run after a space", async () => {
+    const md = (change: string) =>
+      [
+        "# Closed #",
+        "",
+        "## Why C#",
+        "",
+        change,
+        "",
+        "Setext C#",
+        "---------",
+        "",
+        "### Step ### ",
+        "",
+        change,
+        "",
+      ].join("\n")
+    const outline = await outlineOf("notes.md", md("text"))
+    expect(outline.headings.map((heading) => heading.text)).toEqual([
+      "Closed",
+      "Why C#",
+      "Setext C#",
+      "Step",
+    ])
+  })
+
   it("has no facts for a language it does not read", async () => {
     expect(await factsOf({ path: "a.py", before: "x", after: "y", hunks: [] })).toBeNull()
   })
