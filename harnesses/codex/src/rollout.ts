@@ -246,13 +246,20 @@ const shellStarted = (
   ]
 }
 
+// The code a shell Codex ended itself can carry: off Windows its every end of one (/stop, a
+// shell pruned past its limit, a failed write, Codex quitting) is a SIGKILL to the shell's group,
+// and the item reads the status its reaper took of it, 128 + 9, where that came before the
+// item was written (codex-rs 0.170.0, unified_exec/async_watcher.rs, utils/pty). Read as no
+// code, as a stop is for every harness; a kill -9 from outside (the OOM killer, a person's)
+// reads as stopped too, as the item can't tell them apart and the rollout records no /stop.
+// On Windows Codex kills with TerminateJobObject(…, 1), which can't be told from an exit 1.
+const killedByCodex = process.platform === "win32" ? undefined : 137
+
 /**
  * The end of a background shell: its CommandExecution item, which names its session as its
- * `process_id` and carries its `exit_code`, -1 when the person stopped it with /stop (no
- * code of the command's own), or 137 (128 + SIGKILL) where Codex's reaper took the status of
- * the kill /stop sent before its item was written (codex-rs 0.170.0, unified_exec), which is
- * the shell's true end and kept. An item of a command that never went to the background
- * names no shell the activity knows.
+ * `process_id` and carries its `exit_code`, -1 when Codex ended it before its status came,
+ * as /stop does (no code of the command's own), or the status of the kill (`killedByCodex`).
+ * An item of a command that never went to the background names no shell the activity knows.
  */
 const shellEnded = (base: EventBase<"codex">, item: Fields): HarnessEvent[] => {
   const id = shortName(item.process_id, agentLimits.name)
@@ -263,7 +270,10 @@ const shellEnded = (base: EventBase<"codex">, item: Fields): HarnessEvent[] => {
       type: "shell-ended",
       ...base,
       id,
-      code: typeof code === "number" && Number.isInteger(code) && code !== -1 ? code : null,
+      code:
+        typeof code === "number" && Number.isInteger(code) && code !== -1 && code !== killedByCodex
+          ? code
+          : null,
     },
   ]
 }

@@ -80,11 +80,6 @@ const stopping = (call: Call, agent: string): Reply => {
   }
 }
 
-// What a stopped shell's exit code can read: none of its own, as Claude Code's TaskStop and
-// Antigravity's cancel say it, or for Codex off Windows the SIGKILL its /stop sent.
-const stoppedCodes = (agent: string): (number | null)[] =>
-  agent === "codex" && process.platform !== "win32" ? [null, 137] : [null]
-
 const approve = async (t: DeckTerminal): Promise<void> => {
   const request = (await t.detail()).requests.find((each) => !each.answered)
   const { dialog } = request ?? {}
@@ -230,10 +225,9 @@ for (const setup of setups) {
           for (const shell of ended)
             if (shell.exit) expect(shell.exit.at).toBeGreaterThanOrEqual(shell.since)
 
-          // Stopped, the last ends with no code of its own, or as Codex can tell it: its /stop
-          // kills the shell's group, and its item reads the status its reaper took, 137
-          // (128 + SIGKILL), where that came first, else -1, no code (codex-rs 0.170.0,
-          // unified_exec/async_watcher.rs); macOS's runners saw 137 now and then.
+          // Stopped, the last ends with no code of its own. Codex's item for it reads -1, or the
+          // 137 of the SIGKILL its /stop sent where its reaper took that first, as macOS's
+          // runners saw now and then: both are read as none (codex rollout.ts, `killedByCodex`).
           await stop()
           const stopped = await t.poll(
             async () => {
@@ -243,7 +237,7 @@ for (const setup of setups) {
             "the last shell to end",
             60_000,
           )
-          expect(stopped.code).toBeOneOf(stoppedCodes(setup.agent))
+          expect(stopped.code).toBeNull()
           // Claude Code's loop ends within the second of its sleep it was in.
           await new Promise((resolve) => setTimeout(resolve, 3000))
           finished = true
