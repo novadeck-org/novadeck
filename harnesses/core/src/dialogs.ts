@@ -132,9 +132,14 @@ export type DialogAdapter = {
    * view. A screen that may hold one is judged strictly, for the keys are typed into the
    * person's composer anywhere else. The runner presses them only for a terminal no client
    * has in sight, so a person reading it is never moved. Absent for Antigravity, which draws
-   * its dialogs over its own views (`/help`, `/skills`).
+   * its dialogs over its own views (`/help`, `/skills`). `cursor` is where the terminal's
+   * cursor is, which tells which pane has the focus where a TUI shows two (Codex's `/side`
+   * sidebar, whose focus holds the root's dialog out of view).
    */
-  readonly reveal?: (rows: readonly string[]) => string | undefined
+  readonly reveal?: (
+    rows: readonly string[],
+    cursor?: { readonly row: number; readonly column: number },
+  ) => string | undefined
 }
 
 /**

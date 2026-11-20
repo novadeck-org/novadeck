@@ -28,13 +28,18 @@ const dividersOf = (row: string): number[] => {
   return found
 }
 
-/** The column every row draws the divider at, the first where several do. */
+/**
+ * The column every row draws the divider at, the first where several do. Most screens have
+ * none, told without segmenting a row: the first row lacks the divider, or a row does.
+ */
 const splitAt = (rows: readonly string[]): number | undefined => {
-  if (rows.length === 0) return undefined
-  const shared = rows.slice(1).reduce((columns, row) => {
+  if (rows.length === 0 || !rows.every((row) => row.includes(divider))) return undefined
+  let shared = dividersOf(rows[0]!)
+  for (const row of rows.slice(1)) {
+    if (shared.length === 0) return undefined
     const own = dividersOf(row)
-    return columns.filter((column) => own.includes(column))
-  }, dividersOf(rows[0]!))
+    shared = shared.filter((column) => own.includes(column))
+  }
   return shared[0]
 }
 
@@ -51,6 +56,17 @@ export type Pane = { readonly screen: ScreenText; readonly sidebar: boolean }
  * row is one pane, as it is.
  */
 export const paneOf = (screen: ScreenText): Pane => {
+  // One look at a screen asks several times (its overlay, its box, its width).
+  const known = panes.get(screen)
+  if (known) return known
+  const pane = split(screen)
+  panes.set(screen, pane)
+  return pane
+}
+
+const panes = new WeakMap<ScreenText, Pane>()
+
+const split = (screen: ScreenText): Pane => {
   const at = splitAt(screen.rows)
   if (at === undefined) return { screen, sidebar: false }
   const sidebar = screen.cursor.column > at
@@ -68,4 +84,43 @@ export const paneOf = (screen: ScreenText): Pane => {
     },
     sidebar,
   }
+}
+
+/**
+ * The root's pane of `rows`, the left of a split screen, where Codex draws the root's dialogs;
+ * the rows as they are where nothing is split. Its dialogs are read only there, for every row
+ * of a split screen goes on past the divider into the sidebar (fixtures/side-dialog.probe.json).
+ */
+export const rootRows = (rows: readonly string[]): readonly string[] => {
+  const at = splitAt(rows)
+  return at === undefined ? rows : rows.map((row) => cellSlice(row, 0, at))
+}
+
+/**
+ * What a side conversation shown over the whole screen says in its footer when the root waits
+ * on the person: "Side from main thread · main needs approval · ^/ to switch · ^c to archive"
+ * (0.170.0 and 0.171.0, probed 2026-11-20, fixtures/side-dialog.probe.json; "main needs input"
+ * for a question, from its source).
+ */
+const rootWaits =
+  /Side from main thread · (?:[^·]+ · )*main needs \w+ · (?:ctrl\+|\^|⌃)\/ to switch/
+
+/**
+ * Whether a side conversation has the focus, so the root's dialog is held out of view: in the
+ * sidebar (the cursor right of the divider), where the root's pane goes on showing what it did
+ * before its dialog came and nothing says one waits; or over the whole screen, saying the root
+ * waits in its footer. Ctrl-/ moves the focus to the root, which shows its dialog, and does
+ * nothing while one shows there (probed 0.170.0 and 0.171.0, 2026-11-20,
+ * fixtures/side-dialog.probe.json).
+ */
+export const sideFocused = (
+  rows: readonly string[],
+  cursor: { readonly column: number } | undefined,
+): boolean => {
+  const at = splitAt(rows)
+  if (at !== undefined) return cursor !== undefined && cursor.column > at
+  return rows
+    .filter((row) => row.trim() !== "")
+    .slice(-3)
+    .some((row) => rootWaits.test(row))
 }

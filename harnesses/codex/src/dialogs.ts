@@ -9,6 +9,7 @@ import type {
 import { asyncQuestions } from "./async-question-dialog.js"
 import { asyncTool } from "./async-question.js"
 import { clean, composerShown, type Parsed } from "./dialog-screen.js"
+import { rootRows, sideFocused } from "./panes.js"
 import { permission } from "./permission-dialog.js"
 import { plan, planTitle } from "./plan-dialog.js"
 import { questions } from "./question-dialog.js"
@@ -38,7 +39,11 @@ import { questions } from "./question-dialog.js"
  *   drops the questions, and the answer is a prompt of the person's, `> {question}`, a
  *   blank line, the answer, for each. Read only while the screen is that panel, that
  *   picker or an idle composer with nothing else on it; any other screen reads as none.
- * An MCP server's own elicitation form is not read. Each dialog has its own file
+ * An MCP server's own elicitation form is not read. From 0.171.0 a `/side` conversation on a
+ * screen of 100 columns or more is a sidebar beside the root's pane: the root's dialogs are
+ * read in its pane alone (`rootRows`), and one held while the side has the focus is brought
+ * into view with Ctrl-/ (`sideFocused`), as on a narrower screen and in 0.170.0, where the side
+ * takes the whole screen. Each dialog has its own file
  * (`*-dialog.ts`), and `dialog-screen.ts` holds what they share.
  */
 
@@ -47,10 +52,10 @@ const resulted =
   /^\s*(?:[✔✗] You |• Questions? \d+\/\d+ answered|You (?:granted|did not grant|denied|declined)\b)/
 
 const marks = (rows: readonly string[]): number =>
-  clean(rows).filter((line) => resulted.test(line)).length
+  clean(rootRows(rows)).filter((line) => resulted.test(line)).length
 
 const parse = (rows: readonly string[], facts: RequestFacts): Parsed | undefined => {
-  const lines = clean(rows)
+  const lines = clean(rootRows(rows))
   if (facts.kind === "question") {
     return facts.tool === asyncTool ? asyncQuestions(lines, facts) : questions(lines, facts)
   }
@@ -94,17 +99,21 @@ export const dialogs: DialogAdapter = {
       ...parsed,
       // Gone: the dialog this request asked is no longer the one on screen (a queued
       // request's takes its place with its own command, or the answer's line took it).
-      answered:
-        parsed.answered ??
-        ((later) =>
-          marks(later) > marks(rows) ||
-          (parse(later, request) === undefined && composerShown(later))),
+      answered: (later) =>
+        parsed.answered
+          ? parsed.answered(rootRows(later))
+          : marks(later) > marks(rows) ||
+            (parse(later, request) === undefined && composerShown(rootRows(later))),
     }
   },
-  // `q` closes the pager that holds a dialog out of view, and answers nothing.
-  reveal: (rows) => (pager(rows) ? "q" : undefined),
+  // `q` closes the pager that holds a dialog out of view, and Ctrl-/ moves the focus from a
+  // side conversation to the root, whose dialog then shows: neither answers anything.
+  reveal: (rows, cursor) => {
+    if (pager(rows)) return "q"
+    return sideFocused(rows, cursor) ? "\x1f" : undefined
+  },
   screenRequest: (rows): ScreenRequest | undefined =>
-    plan(clean(rows)) === undefined
+    plan(clean(rootRows(rows))) === undefined
       ? undefined
       : { kind: "plan", tool: "plan", input: null, subject: planTitle },
 }

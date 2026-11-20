@@ -224,6 +224,8 @@ type State = {
   since: number
   rows: readonly string[]
   columns: number
+  /** Where its cursor was on that screen, which tells a split screen's pane in focus. */
+  cursor: { readonly row: number; readonly column: number } | undefined
   /** What each request's dialog said as last announced. */
   announced: Map<string, string>
   timer: NodeJS.Timeout | undefined
@@ -238,6 +240,8 @@ type State = {
   unread: number | undefined
   /** The screen that keys were last pressed on to bring a held dialog into view, until it ends. */
   revealed: string | undefined
+  /** When they were pressed. */
+  revealedAt: number | undefined
 }
 
 /**
@@ -465,6 +469,7 @@ export class Dialogs {
         since: this.now(),
         rows: [],
         columns: 80,
+        cursor: undefined,
         announced: new Map(),
         timer: undefined,
         lastLook: 0,
@@ -474,6 +479,7 @@ export class Dialogs {
         failed: false,
         unread: undefined,
         revealed: undefined,
+        revealedAt: undefined,
       }
       this.states.set(terminalId, state)
     }
@@ -543,6 +549,7 @@ export class Dialogs {
     }
     state.rows = rows
     state.columns = screen.columns
+    state.cursor = screen.cursor
     if (state.answering > 0) return
     const settled = now - state.since >= this.settleMs
     let waiting = false
@@ -673,7 +680,9 @@ export class Dialogs {
   /**
    * Brings a dialog its harness holds out of view into view, for a terminal nobody has in
    * sight, once for each screen it is held on: the keys of the adapter's `reveal`, which
-   * answer nothing, pressed as the person's would be once the screen is still, no other work
+   * answer nothing, pressed as the person's would be once the screen is still (or, where it
+   * keeps moving, as a turn's timer ticks beside a dialog held out of view, once a request
+   * has waited unread as long as one's raw text waits at most, and no oftener), no other work
    * holds the terminal's input, and the terminal has been unseen for the grace period (a
    * window that reloads or reconnects says what it looks at only a moment later). Gives how
    * long to wait before looking again, in milliseconds; 0 for no need to.
@@ -684,20 +693,30 @@ export class Dialogs {
     adapter: DialogAdapter | undefined,
     request: Waiting,
   ): number {
-    const keys = adapter?.reveal ? attempt(state, () => adapter.reveal!(state.rows)) : undefined
+    const keys = adapter?.reveal
+      ? attempt(state, () => adapter.reveal!(state.rows, state.cursor))
+      : undefined
     if (keys === undefined) {
       // No longer held out of view: the next spell may press again.
       state.revealed = undefined
+      state.revealedAt = undefined
       return 0
     }
     if (this.seen?.has(terminalId) || state.revealed === state.text) return 0
-    const still = this.settleMs - (this.now() - state.since)
-    if (still > 0) return still
+    const now = this.now()
+    const still = this.settleMs - (now - state.since)
+    const moving =
+      Math.max(
+        (state.unread ?? now) + this.rawLatestMs,
+        (state.revealedAt ?? 0) + this.rawLatestMs,
+      ) - now
+    if (still > 0 && moving > 0) return Math.min(still, moving)
     const unseen = this.seen ? this.graceMs - this.seen.unseenFor(terminalId) : 0
     if (unseen > 0) return unseen
     // A prompt, message or answer under way holds the input box: looked at again soon.
     if (this.host.busy(terminalId)) return 250
     state.revealed = state.text
+    state.revealedAt = this.now()
     if (!this.host.press(terminalId, keys)) return 0
     const subject = this.subject(terminalId, state, request.ref)
     if (subject) this.diagnostics.revealed(subject)
