@@ -1,4 +1,4 @@
-import { allowSend, rates } from "./messages.js"
+import { allowSend, rates, recentSends } from "./messages.js"
 
 /** Why a send is over the rates, or the means to spend it once the message is kept. */
 export type Verdict =
@@ -18,11 +18,25 @@ const overRate = (limit: number): string =>
 const overAll =
   "Agents in Novadeck have sent as many messages as they may this minute; try again shortly."
 
-/** The send times that count against the rates: by sender, by sender and recipient, and all. */
+/** Lets go of the keys whose send times have all passed out of the rates' window by `now`. */
+const prune = (times: Map<string, readonly number[]>, now: number): void => {
+  for (const [key, each] of times) if (recentSends(each, now).length === 0) times.delete(key)
+}
+
+/**
+ * The send times that count against the rates: by sender, by sender and recipient, and all.
+ * A sender or pair whose sends have all passed out of the window is let go, so terminals long
+ * gone don't pile up over a runner's life.
+ */
 export class SendRates {
   private readonly sent = new Map<string, readonly number[]>()
   private readonly pairs = new Map<string, readonly number[]>()
   private all: readonly number[] = []
+
+  /** How many senders, and pairs of sender and recipient, it keeps send times for. */
+  get kept(): { readonly senders: number; readonly pairs: number } {
+    return { senders: this.sent.size, pairs: this.pairs.size }
+  }
 
   /**
    * Whether `sender` may send one more at `now`, within `limit` a minute and the runner's
@@ -30,6 +44,7 @@ export class SendRates {
    * count itself; one refused counts for nothing.
    */
   sender(sender: string, now: number, limit: number = rates.sender): Verdict {
+    prune(this.sent, now)
     const bySender = allowSend(this.sent.get(sender) ?? [], now, limit)
     const byAll = allowSend(this.all, now, rates.all)
     if (!bySender) return { ok: false, reason: overRate(limit) }
@@ -45,6 +60,7 @@ export class SendRates {
 
   /** Whether `sender` may send `recipient` one more at `now`, as `sender` judges the rest. */
   pair(sender: string, recipient: string, now: number, limit: number = rates.sender): Verdict {
+    prune(this.pairs, now)
     const pair = `${sender}\0${recipient}`
     const byPair = allowSend(this.pairs.get(pair) ?? [], now, rates.pair)
     if (!byPair) return { ok: false, reason: overRate(limit) }
