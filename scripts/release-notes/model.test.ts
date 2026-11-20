@@ -219,7 +219,7 @@ describe("the model call", () => {
       "has never seen its code",
       'Take the reason only from the "Why"',
       'no line or title needs "now"',
-      "a companion pane is not a view",
+      "a Companion Pane is not a view",
     ])
       expect(prompt).toContain(rule)
   })
@@ -227,7 +227,7 @@ describe("the model call", () => {
   it("gives the model the glossary's entries, not its note to contributors", () => {
     const prompt = systemPrompt()
     expect(prompt).toMatch(/Glossary:\n\n- \*\*Project\*\*: /)
-    expect(prompt).toContain("- **Companion pane**: the pane beside a terminal")
+    expect(prompt).toContain("- **Companion Pane**: the pane beside a terminal")
     expect(prompt).not.toContain("# Glossary")
     expect(prompt).not.toContain("earns a place here")
   })

@@ -50,8 +50,8 @@ harness, manager, tick, selector, schema or channel. If a line can't be written 
 one of them, write what the reader sees instead, or leave the change out.
 
 The glossary at the end names the parts of the app the reader knows. Call each part by its
-name there, even when a commit calls it something else, and never by another's: a companion
-pane is not a view, and a session is not a terminal.
+name there, even when a commit calls it something else, and never by another's: a Companion
+Pane is not a view, and a session is not a terminal.
 
 When the "Why" says what the reader gains and the change alone doesn't make it plain, end the
 line with it: "so you can tell which windows belong together". Take the reason only from the
@@ -128,7 +128,7 @@ new feature, a speedup, a fix and a rework of something already there are weighe
 way, and none counts for more because it is new. Tell who meets a change from where it is in
 the app: every terminal, the views and the sidebar are in front of everyone all day; an
 agent's questions and the chat, in front of everyone who runs agents; one kind of file in the
-companion pane, in front of the few who open it. A new feature few people will use stays in
+Companion Pane, in front of the few who open it. A new feature few people will use stays in
 `changes`, however new it is. A fix is a highlight when many people hit what it fixes, or it
 cost them work.
 

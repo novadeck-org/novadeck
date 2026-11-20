@@ -12,7 +12,7 @@ the app shows it; keep the list short.
 - **View**: how the terminals are laid out: **Focus** (one terminal), **Grid** (side by
   side) or **Canvas** (a board). These three are the only views; **Zen** hides everything
   else in any of them.
-- **Companion pane**: the pane beside a terminal, with a tab per thing it holds: a page, a
+- **Companion Pane**: the pane beside a terminal, with a tab per thing it holds: a page, a
   file, a plan, changes, Messages. It is not a view.
 - **Agent Chat**: an agent's terminal shown as a chat instead of its screen.
 - **Sidebar**: the panels down the window's side: Terminals, Inbox, Sessions, Worktrees,
