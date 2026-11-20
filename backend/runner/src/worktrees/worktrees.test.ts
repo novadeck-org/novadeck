@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
-import { basename, join } from "node:path"
+import { basename, join, relative } from "node:path"
 
 import { git as realGit } from "../checkouts/git.js"
 import { describe, expect, it as base } from "../test.js"
@@ -1059,6 +1059,20 @@ describe("reconciling at the runner's start", () => {
     await f.worktrees.reconcile()
     expect(f.store.worktree(a.path)).toBeUndefined()
     expect(git(f.repo, "worktree", "list", "--porcelain")).not.toContain(asGit(a.path))
+  })
+
+  it("forgets the entry of a folder gone where git keeps its path relative", async ({ fx: f }) => {
+    const a = await open(f, "relative")
+    if (!a.ok) throw new Error("open")
+    // As git 2.48's worktree.useRelativePaths writes it: from the entry's own folder.
+    const entry = join(f.repo, ".git", "worktrees", basename(a.path))
+    const gitdir = join(entry, "gitdir")
+    expect(readFileSync(gitdir, "utf8").trim()).toBe(asGit(join(a.path, ".git")))
+    writeFileSync(gitdir, `${asGit(relative(entry, join(a.path, ".git")))}\n`)
+    rmSync(a.path, { recursive: true, force: true })
+    await f.worktrees.reconcile()
+    expect(f.store.worktree(a.path)).toBeUndefined()
+    expect(existsSync(entry)).toBe(false)
   })
 
   it("orphans a worktree whose owner is gone, and leaves the rest, and again", async ({

@@ -1001,7 +1001,8 @@ with every safety check again at that time:
     Every `path` may be a folder inside the worktree. Only a worktree of
     the project's repositories, and not locked, is adopted.
   - **At the runner's start** every row is checked: a folder that is gone is pruned from its
-    repository and its row deleted, an owner that exists neither live nor in History leaves
+    repository (its own entry only, found by the path in the entry's `gitdir`, which git 2.48's
+    `worktree.useRelativePaths` writes relative to the entry's folder) and its row deleted, an owner that exists neither live nor in History leaves
     the worktree orphaned. Removing a project removes its worktrees first, the same way as
     `force`, before the rows cascade away; one `force` can't remove stays on disk, and is logged. Nothing here watches git for worktrees made
     another way.

@@ -371,7 +371,8 @@ export const forgetEntry = async (commonDirectory: string, path: string): Promis
     // eslint-disable-next-line no-await-in-loop -- A few entries, read one at a time.
     const gitdir = await readFile(join(entry, "gitdir"), "utf8").catch(() => undefined)
     if (gitdir === undefined) continue
-    const where = gitdir.trim().replace(/[\\/]\.git$/, "")
+    // A relative path (git's worktree.useRelativePaths) is from the entry's own folder.
+    const where = resolve(entry, gitdir.trim().replace(/[\\/]\.git$/, ""))
     // eslint-disable-next-line no-await-in-loop -- As above.
     if (samePath(where, path) && !(await stat(join(entry, "locked")).catch(() => undefined)))
       // eslint-disable-next-line no-await-in-loop -- As above.
