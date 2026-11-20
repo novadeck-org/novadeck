@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs"
 
+import { afterEach, vi } from "vitest"
+
 import { context, describe, expect, it } from "../test"
 import { timingComment, timingMarker, type TimingReport } from "./timing"
 import { besideMain } from "./timing-main"
@@ -101,11 +103,18 @@ describe("the timing run's comment", () => {
   })
 
   context("when main's report has fields this doesn't read", () => {
-    it("reports this run without it", () => {
+    afterEach(() => vi.restoreAllMocks())
+
+    // The warning is a workflow command: printed on CI it would read as every test job's own.
+    it("reports this run without it, and warns that it did", () => {
+      const warn = vi.spyOn(console, "error").mockImplementation(() => {})
       const main = { ...report, commit: 123 } as unknown as TimingReport
       const comment = besideMain(report, main, "This pull request")
       expect(comment).toContain("| Measure | This pull request |\n")
       expect(comment).not.toContain("Main")
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringMatching(/^::warning title=Main's timing report unread::TypeError/),
+      )
     })
 
     it("still fails on this run's own report", () => {
