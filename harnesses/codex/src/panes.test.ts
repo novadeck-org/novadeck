@@ -36,10 +36,26 @@ describe("a /side conversation in a pane beside the root's", () => {
   })
 
   it("is never the root's box, open, asked, archiving or back from a narrower screen", () => {
-    for (const label of ["side", "side draft", "side asked", "switched back", "closed"])
+    for (const label of [
+      "side",
+      "side draft",
+      "side asked",
+      "switched back",
+      "close asked",
+      "archive chosen",
+      "wide again",
+      "wide draft cleared",
+      "wide close asked",
+      "wide archive chosen",
+    ])
       expect([label, reading(wide[label]!)]).toEqual([label, "view"])
-    for (const label of ["wide again", "wide closed"])
-      expect([label, reading(wide[label]!)]).toEqual([label, "view"])
+  })
+
+  it("leaves the root's box, the whole screen again, once archived", () => {
+    for (const label of ["closed", "wide closed"]) {
+      expect([label, reading(wide[label]!)]).toEqual([label, "empty"])
+      expect(paneOf(wide[label]!).screen).toBe(wide[label])
+    }
   })
 
   it("leaves the root's box as it is once the root's pane is in focus", () => {
@@ -53,13 +69,21 @@ describe("a /side conversation over the whole screen", () => {
   it("is never the root's box, closed by Ctrl-C (0.170.0) or archived by it (0.171.0)", () => {
     for (const label of ["narrow side", "narrow side draft"])
       expect([label, reading(wide[label]!)]).toEqual([label, "view"])
-    for (const label of ["side", "side draft", "side asked", "switched back", "narrow side"])
+    for (const label of [
+      "side",
+      "side draft",
+      "side asked",
+      "switched back",
+      "narrow side",
+      "narrow side draft",
+      "wide draft cleared",
+    ])
       expect([label, reading(whole[label]!)]).toEqual([label, "view"])
     expect(paneOf(whole.side!).screen).toBe(whole.side)
   })
 
   it("leaves the root's box as it is once switched away or closed", () => {
-    for (const label of ["root", "switched", "closed"])
+    for (const label of ["root", "switched", "close asked", "closed", "wide close asked"])
       expect([label, reading(whole[label]!)]).toEqual([label, "empty"])
     expect(box.columns?.(whole.side!)).toBe(120)
   })

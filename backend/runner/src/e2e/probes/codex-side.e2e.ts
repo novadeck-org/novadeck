@@ -1,6 +1,6 @@
 // PROBE, not a test of Novadeck: what Codex draws for a `/side` conversation, at a width that
 // leaves room for a pane beside the root's and one that doesn't, and what its box reads as at
-// each step: opened, asked, answered, switched away and back, closed. Runs only with
+// each step: opened, asked, answered, switched away and back, closed (archived from 0.171.0). Runs only with
 // NOVADECK_E2E_PROBES=1, by path. Writes $PROBE_OUT/codex-side-<version>.json, each step a
 // `ScreenRecord` with the box as the adapter reads it.
 /* eslint-disable no-await-in-loop -- A probe's steps run in order, each after the screen settles. */
@@ -20,6 +20,7 @@ import { probing, sleep } from "./support.js"
 const enter = "\r"
 const ctrlC = "\x03"
 const ctrlSlash = "\x1f"
+const right = "\x1b[C"
 
 type Step =
   | { readonly label: string; readonly keys: string; readonly wait?: number }
@@ -32,13 +33,21 @@ const steps: readonly Step[] = [
   { label: "side asked", keys: enter, wait: 4000 },
   { label: "switched", keys: ctrlSlash, wait: 1500 },
   { label: "switched back", keys: ctrlSlash, wait: 1500 },
-  { label: "closed", keys: ctrlC, wait: 2000 },
+  // Ctrl-C closes it (0.170.0), or asks whether to archive it, Cancel chosen (0.171.0): → and
+  // Enter archive it there, and do nothing in the root's empty box.
+  { label: "close asked", keys: ctrlC, wait: 2000 },
+  { label: "archive chosen", keys: right },
+  { label: "closed", keys: enter, wait: 2000 },
   { label: "narrow", resize: [99, 40] },
   { label: "narrow side typed", keys: "/side" },
   { label: "narrow side", keys: enter, wait: 3000 },
   { label: "narrow side draft", keys: "Ask on the side" },
   { label: "wide again", resize: [120, 40] },
-  { label: "wide closed", keys: ctrlC, wait: 2000 },
+  // The first Ctrl-C clears the draft.
+  { label: "wide draft cleared", keys: ctrlC, wait: 1500 },
+  { label: "wide close asked", keys: ctrlC, wait: 2000 },
+  { label: "wide archive chosen", keys: right },
+  { label: "wide closed", keys: enter, wait: 2000 },
 ]
 
 /** The keys in plain form: a line of `\xNN`s reads better in the record than raw controls. */
