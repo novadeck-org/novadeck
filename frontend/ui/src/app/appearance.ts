@@ -74,7 +74,8 @@ export const watchAppearance = (
       if (ground) {
         pinned = false
         shown = undefined
-        showAppearance({ scheme: "system", ground })
+        const ink = inkOf()
+        showAppearance({ scheme: "system", ground, ...(ink ? { ink } : {}) })
         releasing = setTimeout(apply, releaseMs)
         return
       }

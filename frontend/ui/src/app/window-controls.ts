@@ -144,24 +144,33 @@ export const watchWindowControls = (
   }
   const pointer = (event: PointerEvent): void => {
     last = { x: event.clientX, y: event.clientY }
-    if (zen) reveal(revealsInZen(event.clientX, event.clientY, revealed))
+    if (zen && hides) reveal(revealsInZen(event.clientX, event.clientY, revealed))
   }
   const left = (): void => {
     if (!revealsInZen(last.x, last.y, false)) reveal(false)
   }
   const blurred = (): void => reveal(false)
-  const stopUi = ui.subscribe(() => {
-    showFocus()
-    const next = Boolean(ui.getSnapshot().shell.zen)
-    if (next === zen) return
-    zen = next
-    revealed = !hides
-    // The header shows or hides as React draws the change, after the store's.
+  // Places them again once React has drawn what the store changed, as the header shows or
+  // hides after the store's change.
+  const placeDrawn = (): void => {
     if (frame !== undefined) view.cancelAnimationFrame(frame)
     frame = view.requestAnimationFrame(() => {
       frame = undefined
       place()
     })
+  }
+  const stopUi = ui.subscribe(() => {
+    showFocus()
+    const next = Boolean(ui.getSnapshot().shell.zen)
+    if (next !== zen) {
+      zen = next
+      revealed = !hides
+      placeDrawn()
+      return
+    }
+    // In Zen, what runs along the page's top follows the view and the terminal shown (a Focus
+    // window's header, or none and the plate), so shown controls follow every change.
+    if (zen && revealed) placeDrawn()
   })
   view.addEventListener("resize", place)
   view.addEventListener("pointermove", pointer)

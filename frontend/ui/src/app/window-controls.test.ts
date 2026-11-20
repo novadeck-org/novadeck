@@ -290,6 +290,27 @@ describe("watching the window's controls", () => {
       stop()
     })
 
+    it("follows the view in Zen: off the Focus window's header onto the plate, and back", () => {
+      const { root, view, boxes, draw } = page()
+      const zenHeader = '.workspace[data-zen="true"] .focus-stage .terminal-header'
+      boxes.set(zenHeader, { top: 0, height: 46 })
+      const { port, placed } = controls("end")
+      const ui = uiWith(true)
+      const stop = watchWindowControls(ui, view, port)
+      // Grid: no Focus window's header along the top.
+      boxes.set(zenHeader, null)
+      ui.update((state) => ({ ...state }) as UiState)
+      draw()
+      expect(root.dataset.windowControlsPlate).toBe("shown")
+      // Focus again.
+      boxes.set(zenHeader, { top: 0, height: 46 })
+      ui.update((state) => ({ ...state }) as UiState)
+      draw()
+      expect(placed).toEqual([23, zenMiddles.end, 23])
+      expect(root.dataset.windowControlsPlate).toBeUndefined()
+      stop()
+    })
+
     it("moves them from the header to Zen's place and back", () => {
       const { view, draw } = page({ top: 0, height: 48 })
       const { port, placed } = controls("end")

@@ -37,8 +37,9 @@ export const measuredRoom = (view: CaptionView): number | undefined => {
 /**
  * Passes the main process's room for the buttons on to `listener`, measured by the page where it
  * can (0, the buttons left out as in full screen, passes as it is), and again whenever the
- * overlay's geometry changes. Returns the relay for each of the main process's reports and the
- * stop.
+ * overlay's geometry changes. The larger of the two stands, so a measure that misses the app's
+ * scale never lets the header run under the buttons. Returns the relay for each of the main
+ * process's reports and the stop.
  */
 export const relayCaptionRoom = (
   view: CaptionView,
@@ -47,7 +48,7 @@ export const relayCaptionRoom = (
   let last: number | undefined
   const tell = (): void => {
     if (last === undefined) return
-    listener(last > 0 ? (measuredRoom(view) ?? last) : last)
+    listener(last > 0 ? Math.max(measuredRoom(view) ?? 0, last) : last)
   }
   const overlay = view.navigator.windowControlsOverlay
   overlay?.addEventListener("geometrychange", tell)

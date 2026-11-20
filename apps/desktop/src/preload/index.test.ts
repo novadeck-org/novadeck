@@ -1042,11 +1042,11 @@ describe("the window's own controls", () => {
     })
 
     // The page's window as the preload measures it: 1000 wide, its overlay's title bar area
-    // ending 120 short of its right edge, or no overlay.
-    const stubPage = (overlay: boolean): void => {
+    // ending `room` short of its right edge, or no overlay.
+    const stubPage = (overlay: boolean, room = 160): void => {
       const geometry = Object.assign(new EventTarget(), {
         visible: true,
-        getTitlebarAreaRect: () => ({ x: 0, width: 880 }),
+        getTitlebarAreaRect: () => ({ x: 0, width: 1000 - room }),
       })
       vi.stubGlobal("window", {
         innerWidth: 1000,
@@ -1064,7 +1064,21 @@ describe("the window's own controls", () => {
         electron.renderer.emit(windowControlsChannel, {}, 0)
         stop()
         electron.renderer.emit(windowControlsChannel, {}, 138)
-        expect(insets).toEqual([120, 0])
+        expect(insets).toEqual([160, 0])
+      } finally {
+        vi.unstubAllGlobals()
+      }
+    })
+
+    it("keep the app's own room where the page measures less, so the header never runs under them", async () => {
+      await loadOn("win32")
+      stubPage(true, 110)
+      try {
+        const insets: number[] = []
+        const stop = electron.exposed.onWindowControls!((inset) => insets.push(inset))
+        electron.renderer.emit(windowControlsChannel, {}, 138)
+        stop()
+        expect(insets).toEqual([138])
       } finally {
         vi.unstubAllGlobals()
       }
