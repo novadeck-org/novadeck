@@ -121,6 +121,11 @@ export type BoxProfile = {
   /** How far a word may reach on a row of the box's text, on a screen `columns` wide. */
   readonly textWidth: (columns: number) => number
   /**
+   * How many columns the box's rows have on `screen`: fewer than the screen's where the program
+   * draws a pane beside the one holding its box, and the screen's where omitted.
+   */
+  readonly columns?: (screen: ScreenText) => number
+  /**
    * How the box takes a shell command (`!` typed in an empty box, then the command pasted):
    * `expands` where Enter runs a command it shows as a placeholder as the text the
    * placeholder stands for, false where it would run the placeholder's own text.

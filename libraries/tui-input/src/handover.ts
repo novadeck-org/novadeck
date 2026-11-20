@@ -337,7 +337,10 @@ export class Handovers {
   ): string {
     const known = this.host.known(terminalId, box.text)
     if (known !== undefined) return known
-    const words = unwrapped(box.text, profile.textWidth(screen.columns)).trim()
+    const words = unwrapped(
+      box.text,
+      profile.textWidth(profile.columns?.(screen) ?? screen.columns),
+    ).trim()
     return box.mode === "shell" ? `!${words}` : words
   }
 

@@ -875,7 +875,10 @@ export class Prompts {
       holding,
       (after) => leftoverOf(profile, after).kind === "empty",
     )
-    const words = unwrapped(box.text, profile.textWidth(screen.columns)).trim()
+    const words = unwrapped(
+      box.text,
+      profile.textWidth(profile.columns?.(screen) ?? screen.columns),
+    ).trim()
     if (!emptied) {
       this.host.note?.(terminalId, "shell-unconfirmed")
       // What the keys took of a command goes back all the same, or it would be nowhere.
