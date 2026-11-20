@@ -70,6 +70,9 @@ describe("the runner's environment", () => {
 })
 
 describe("the welcome dialog, in the timing run", () => {
+  // markWelcomed waits up to 5 s for the database's lock (busy_timeout), as the runner may hold
+  // it; on Windows a scan of the file just written can hold it too. Vitest's own 5 s limit
+  // failed it there at 5.3 s, a wait that ended in time, so the limit leaves room past that wait.
   it("is marked seen in the runner's settings, whatever they held", () => {
     const [folder] = folders("data")
     const file = join(folder!, "workspace.sqlite")
@@ -84,5 +87,5 @@ describe("the welcome dialog, in the timing run", () => {
       { key: "welcomed", value: "true" },
     ])
     check.close()
-  })
+  }, 15_000)
 })
