@@ -242,7 +242,13 @@ export const codex: AgentSetup = {
       trusts: /› 1\. Trust and continue/,
       probe: { away: "\x1b[B", moved: /› 2\. /u },
     },
-    hooks: { shows: /Hooks need review/, skip: "\x1b" },
+    // `3` is "Continue without trusting (hooks won't run)". Not Escape: the review draws, then
+    // discards pending input for up to a second (`discard_pending_terminal_input`, the same in
+    // 0.170.0 and 0.171.0), and a lone ESC read then is an unfinished sequence it waits out,
+    // failing the start with "timed out discarding buffered terminal input", which exits
+    // Codex (seen at 0.171.0 on a busy macOS and Linux runner). A `3` then is only discarded,
+    // and `leave` presses again while the review still shows.
+    hooks: { shows: /Hooks need review/, skip: "3" },
   },
   // Its hooks can be trusted only once Novadeck's plugin is in.
   connected: (sandbox, _model, seed) =>
