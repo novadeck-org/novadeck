@@ -10,6 +10,7 @@ import type { Screen } from "./screen.js"
 // visibility, which its public API doesn't tell.
 type Core = {
   readonly buffer: { readonly scrollTop: number; readonly scrollBottom: number }
+  readonly coreService: { readonly isCursorHidden: boolean }
 }
 
 const coreOf = (screen: Screen): Core =>
@@ -34,5 +35,9 @@ export const restoreState = (screen: Screen): string => {
   // A cursor past the last column has a wrap pending, which no cursor move can make: the
   // serialized text left it there if it ended on that row, and only setting the region moves it.
   const pending = buffer.cursorX >= screen.cols && region === ""
-  return region + (pending ? "" : `\u001b[${row};${buffer.cursorX + 1}H`)
+  return (
+    region +
+    (core.coreService.isCursorHidden ? "\u001b[?25l" : "") +
+    (pending ? "" : `\u001b[${row};${buffer.cursorX + 1}H`)
+  )
 }

@@ -198,6 +198,18 @@ describe("a snapshot", () => {
       restored.dispose()
     })
 
+    it("a hidden cursor, but not a synchronized update, which would hold the viewer's drawing", async () => {
+      const { screen, restored } = await restoredWith("\u001b[?25l\u001b[?2026hhi")
+      expect(core(restored).coreService.isCursorHidden).toBe(true)
+      expect(restored.modes.synchronizedOutputMode).toBe(false)
+      screen.dispose()
+      restored.dispose()
+      const shown = await restoredWith("\u001b[?25l\u001b[?25hhi")
+      expect(core(shown.restored).coreService.isCursorHidden).toBe(false)
+      shown.screen.dispose()
+      shown.restored.dispose()
+    })
+
     it("no blank row's first cell as a fill, where a wrapped line's first row is blank", async () => {
       // A wrapped line whose first row was erased: the serializer fills that row to keep the
       // break, and erases the fill again from the wrong column.
