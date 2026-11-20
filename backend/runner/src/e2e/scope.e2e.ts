@@ -42,11 +42,6 @@ const shellOf = (run: E2E, terminal: Pick<DeckTerminal, "id">): number => {
   return shell
 }
 
-// What a client's `terminals.active` reports, as the router hands it on.
-const activityOf = (run: E2E): ActiveTerminals =>
-  (run.deck.terminals as unknown as { pty: { activity: ActiveTerminals } }).pty.activity
-const settled = () => new Promise((resolve) => setTimeout(resolve, activeDelayMs + 500))
-
 // A shell with nothing in its rc reaches its first prompt in milliseconds, sooner than systemd
 // moves it to its scope, and the move takes only the shell: without the wait, its agent stays in
 // the app's scope, where running out of memory takes the app and every other terminal with it.
@@ -61,17 +56,14 @@ for (const setup of setups) {
       const it = e2e(setup)
 
       it("runs in its terminal's own scope", async ({ e2e: run }) => {
-        const terminal = await start(run, setup)
+        // Not in use, as a terminal in a window looking at another: it opens at a terminal's share.
+        const terminal = await start(run, setup, { inUse: false })
         const shell = shellOf(run, terminal)
         expect(cgroupOf(shell)).toMatch(new RegExp(`-term${shell}\\.scope$`))
         const agent = await terminalForeground(shell)
         expect(agent).toBeDefined()
         expect(agent).not.toBe(shell)
         expect(cgroupOf(agent!)).toBe(cgroupOf(shell))
-        // The deck's window uses the terminal it opened, as the app's does: with none in use, the
-        // terminal has a terminal's weight.
-        activityOf(run).report("e2e", null)
-        await settled()
         const weight = cpuWeightOf(shell)
         if (weight !== undefined) expect(weight).toBe(terminalCpuWeight)
       })
@@ -79,11 +71,16 @@ for (const setup of setups) {
       it("gives the CPU of the app's window to the terminal in use, agent and all, and takes it back", async ({
         e2e: run,
       }) => {
-        const terminal = await start(run, setup)
+        // Not in use, as a terminal in a window looking at another: it opens at a terminal's share.
+        const terminal = await start(run, setup, { inUse: false })
         const shell = shellOf(run, terminal)
         const agent = await terminalForeground(shell)
         expect(agent).toBeDefined()
-        const activity = activityOf(run)
+        // What a client's `terminals.active` reports, as the router hands it on.
+        const { activity } = (
+          run.deck.terminals as unknown as { pty: { activity: ActiveTerminals } }
+        ).pty
+        const settled = () => new Promise((resolve) => setTimeout(resolve, activeDelayMs + 500))
         // Where the slice gives no CPU controller, the weight is unset and there is nothing to read.
         if (cpuWeightOf(shell) === undefined) return
         activity.report("e2e", terminal.id)

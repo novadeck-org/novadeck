@@ -3,7 +3,6 @@ import { getPriority, setPriority } from "node:os"
 import { relayPath } from "@novadeck/relay"
 import { processesUnder, terminalForeground, terminalPriority, Trees } from "@novadeck/terminal/pty"
 
-import { activeDelayMs, type ActiveTerminals } from "../terminals/active.js"
 import { setups } from "./agents/index.js"
 import { poll, type DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
@@ -42,15 +41,9 @@ for (const setup of setups) {
         }
         if (getPriority(process.pid) !== 0)
           skip(`the suite runs at priority ${getPriority(process.pid)} and can't move to normal`)
-        const terminal = await start(run, setup)
+        // Not in use, as a terminal in a window looking at another: it opens lowered.
+        const terminal = await start(run, setup, { inUse: false })
         const shell = shellOf(run, terminal)
-        // The deck's window uses the terminal it opened, as the app's does, which on Windows
-        // raises it to normal: with none in use, it is lowered again, as every terminal not in use.
-        const { activity } = (
-          run.deck.terminals as unknown as { pty: { activity: ActiveTerminals } }
-        ).pty
-        activity.report("e2e", null)
-        await new Promise((resolve) => setTimeout(resolve, activeDelayMs + 500))
         expect(getPriority(shell)).toBe(terminalPriority)
         // Everything under the shell, the agent's launcher and the agent among them, and what
         // they started (on Windows Codex's npm chain is shell, node, codex). One that has
