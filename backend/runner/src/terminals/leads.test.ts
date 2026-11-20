@@ -75,11 +75,20 @@ const setup = (terminals: {
   // The brief each terminal's lead ends with, by terminal id.
   const briefs = new Map<string, string>()
   const listeners = new Set<(change: { kind: "terminal"; terminalId: string }) => void>()
-  // The running lead is the terminal `ledBy` names, in the same session.
+  // Whom each sleeper's lead is, by terminal id: messaging holds a sleeper's lead as a running one's.
+  const rested = new Map(
+    Object.entries(terminals)
+      .filter(([, { asleep }]) => asleep)
+      .map(([handle, { ledBy }]) => [`id-${handle}`, ledBy ? `id-${ledBy}` : null]),
+  )
+  const handleOf = (id: string) => id.replace(/^id-/, "")
+  const sleeping = (id: string) => rested.has(id) && !records.has(id)
+  // The lead is the terminal `ledBy` names, running or asleep, in the same session.
   const leadOf = (id: string) => {
-    const by = records.get(id)?.summary.ledBy
-    const lead = by ? records.get(by) : undefined
-    return lead && { terminalId: lead.summary.id, handle: lead.summary.handle }
+    const by = records.get(id)?.summary.ledBy ?? rested.get(id)
+    return by && (records.has(by) || sleeping(by))
+      ? { terminalId: by, handle: handleOf(by) }
+      : undefined
   }
   const host = {
     agentMode: () => mode,
@@ -89,10 +98,30 @@ const setup = (terminals: {
     approvals: () => approvals,
     sleepers: () =>
       ({
+        sleepersOf: () =>
+          [...rested.keys()].filter(sleeping).map((id) => ({
+            summary: { id, handle: handleOf(id), title: "Terminal", sessionId: "session" },
+          })),
+        setLead: (id: string, leadId: string) => {
+          rested.set(id, leadId)
+          saved.push(`${handleOf(id)} asleep, led by ${handleOf(leadId)}`)
+        },
+        endLead: (id: string) => {
+          rested.set(id, null)
+          saved.push(`${handleOf(id)} asleep, unled`)
+        },
         peer: (id: string) => {
           const handle = Object.keys(terminals).find((each) => `id-${each}` === id)
           return handle && terminals[handle]?.asleep && !records.has(id)
-            ? { summary: { id, handle, title: "Terminal", sessionId: "session", ledBy: null } }
+            ? {
+                summary: {
+                  id,
+                  handle,
+                  title: "Terminal",
+                  sessionId: "session",
+                  ledBy: rested.get(id) ?? null,
+                },
+              }
             : undefined
         },
         resting: (id: string) => {
@@ -113,13 +142,13 @@ const setup = (terminals: {
           return () => listeners.delete(listener)
         },
         agentIn: (id: string) => {
-          const found = agents.get(records.get(id)?.summary.handle ?? "")
+          const found = agents.get(handleOf(id))
           return found
             ? { ok: true, ...found }
             : {
                 ok: false,
                 code: "none",
-                reason: `@${records.get(id)?.summary.handle} has no agent running there that Novadeck can deliver to.`,
+                reason: `@${handleOf(id)} has no agent running there that Novadeck can deliver to.`,
               }
         },
         dropLeadMessages: (id: string) => {
@@ -1327,5 +1356,118 @@ describe("a lead handing its team to one of its members", () => {
     expect(run.notices).toEqual([
       { to: "id-moth", always: true, text: teamNotice.handDeclined("fox") },
     ])
+  })
+})
+
+describe("teams with agents that sleep", () => {
+  it("lets a member leave a sleeping lead, asking the person and telling the lead, so it may join again", async () => {
+    const run = setup({
+      moth: { agent: "claude", ledBy: "fox" },
+      fox: { agent: "codex", asleep: true },
+      owl: { agent: "claude" },
+    })
+    const asked = person(run.approvals)
+    await expect(run.leave("moth")).resolves.toMatchObject({ ok: true, asked: true, handle: "fox" })
+    await settle()
+    expect(asked).toMatchObject([
+      { from: "id-moth", terminalId: "id-fox", action: { type: "leave" } },
+    ])
+    run.approvals.answer({ requestId: asked[0]!.requestId, approved: true }, "person")
+    await settle()
+    expect(run.records.get("id-moth")!.summary.ledBy).toBeNull()
+    // The sleeping lead is told through the notice that queues to a sleeper and wakes it.
+    expect(run.notices.map(({ to }) => to)).toEqual(["id-fox", "id-moth"])
+    run.mode("swarm")
+    expect(await run.join("moth", "owl")).toMatchObject({ ok: true, joined: true })
+  })
+
+  it("lets a member leave a sleeping lead at once where agents decide", async () => {
+    const run = setup({
+      moth: { agent: "claude", ledBy: "fox" },
+      fox: { agent: "codex", asleep: true },
+    })
+    run.mode("swarm")
+    await expect(run.leave("moth")).resolves.toMatchObject({ ok: true, left: true })
+    expect(run.records.get("id-moth")!.summary.ledBy).toBeNull()
+    expect(run.notices).toEqual([
+      { to: "id-fox", always: true, text: teamNotice.left("moth", "Terminal", false) },
+    ])
+  })
+
+  it("hands sleeping members over too, and the new lead's notice names them", async () => {
+    const run = setup({
+      moth: { agent: "claude" },
+      fox: { agent: "codex", ledBy: "moth" },
+      owl: { agent: "agy", ledBy: "moth", asleep: true },
+    })
+    run.mode("swarm")
+    await expect(run.hand("moth", "fox")).resolves.toMatchObject({
+      ok: true,
+      handed: true,
+      members: ["owl"],
+    })
+    expect(run.saved).toContain("owl asleep, led by fox")
+    expect(run.notices[0]).toEqual({
+      to: "id-fox",
+      always: true,
+      text: teamNotice.handedTo("moth", ["owl"], undefined, false),
+    })
+    expect(run.notices.map(({ to }) => to)).toContain("id-owl")
+  })
+
+  it("drops what the old lead sent and hadn't arrived when a member leaves or a lead hands on", async () => {
+    const left = setup({ moth: { agent: "claude", ledBy: "fox" }, fox: { agent: "codex" } })
+    left.mode("swarm")
+    await left.leave("moth")
+    expect(left.dropped).toEqual(["id-moth"])
+    const handed = setup({
+      moth: { agent: "claude" },
+      fox: { agent: "codex", ledBy: "moth" },
+      owl: { agent: "agy", ledBy: "moth" },
+    })
+    handed.mode("swarm")
+    await handed.hand("moth", "fox")
+    expect(handed.dropped.toSorted()).toEqual(["id-fox", "id-moth", "id-owl"])
+  })
+
+  it("sees a sleeper's lead in the chain, so a join or lead can't close a cycle", async () => {
+    // moth is led by owl, asleep, which is led by fox: fox can't join or lead moth.
+    const run = setup({
+      moth: { agent: "claude", ledBy: "owl" },
+      owl: { agent: "claude", ledBy: "fox", asleep: true },
+      fox: { agent: "codex" },
+    })
+    for (const mode of ["herd", "swarm"] as const) {
+      run.mode(mode)
+      // eslint-disable-next-line no-await-in-loop -- In turn.
+      expect(await run.join("fox", "moth")).toMatchObject({
+        ok: false,
+        reason: expect.stringMatching(/You lead @moth/),
+      })
+    }
+    expect(await run.lead("fox", "moth")).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/already has a lead|leads you/),
+    })
+    expect(run.records.get("id-fox")!.summary.ledBy).toBeNull()
+  })
+
+  it("says a question is waiting about the lead, not that the lead waits for the user, when it has its own", async () => {
+    const run = setup({ moth: { agent: "claude", ledBy: "fox" }, fox: { agent: "codex" } })
+    person(run.approvals)
+    run.approvals.request(
+      {
+        from: "id-fox",
+        terminalId: "id-fox",
+        sessionId: "session",
+        action: { type: "lead" } as never,
+      },
+      () => undefined,
+    )
+    expect(await run.leave("moth")).toEqual({
+      ok: false,
+      reason:
+        "A question about @fox is still waiting for the user's answer, so nothing changed. Try again once it is answered.",
+    })
   })
 })

@@ -138,6 +138,9 @@ export const leadNotice = {
 /** An agent in a terminal, as messages reach it: its harness and root session, once bound. */
 export type Identity = { readonly agent: AgentName; readonly sessionId: string | null }
 
+/** A terminal as the checks of its agent read it: running, or asleep. */
+export type Named = { readonly summary: { readonly id: string; readonly handle: string } }
+
 /** The agents in both terminals when the person was asked. */
 export type Seen = { readonly caller: Identity; readonly target: Identity }
 
@@ -228,21 +231,24 @@ export class Leads {
     )
   }
 
-  /** Whether `target` leads `caller`, directly or up the chain of leads above it. */
+  /**
+   * Whether `target` leads `caller`, directly or up the chain of leads above it. A sleeping
+   * agent in the chain keeps its lead, which messaging holds for it as for a running one.
+   */
   above(caller: Record, target: Record): boolean {
     const seen = new Set<string>()
-    for (let at: Record | undefined = caller; at && !seen.has(at.summary.id);) {
-      seen.add(at.summary.id)
-      const lead = this.host.messaging().leadOf(at.summary.id)
+    for (let at = caller.summary.id; !seen.has(at);) {
+      seen.add(at)
+      const lead = this.host.messaging().leadOf(at)
       if (lead === undefined) return false
       if (lead.terminalId === target.summary.id) return true
-      at = this.byId(at.summary.sessionId, lead.terminalId)
+      at = lead.terminalId
     }
     return false
   }
 
   /** The agent and root session messages reach in the terminal now; undefined without one. */
-  identity(record: Record): Identity | undefined {
+  identity(record: Named): Identity | undefined {
     const found = this.host.messaging().agentIn(record.summary.id)
     return found?.ok ? { agent: found.agent, sessionId: found.sessionId } : undefined
   }
@@ -253,7 +259,7 @@ export class Leads {
    * same agent, and the target the same agent. A session's id is not compared, as a guess
    * at it may be corrected, and a new session of the same agent keeps its terminal's lead.
    */
-  changed(caller: Record, target: Record, seen: Seen): string | undefined {
+  changed(caller: Record, target: Named, seen: Seen): string | undefined {
     const now = this.identity(caller)
     if (!now || now.sessionId === null || now.agent !== seen.caller.agent)
       return "your agent session there is not the one that asked."
@@ -267,7 +273,7 @@ export class Leads {
    * Why no agent can be led or joined in `target`, in a sentence for the caller: messaging's
    * own judgment of the agent messages reach there, as `send` makes it; undefined when one runs.
    */
-  noAgent(target: Record): string | undefined {
+  noAgent(target: Named): string | undefined {
     const { handle } = target.summary
     const deliverable = this.host.messaging().agentIn(target.summary.id)
     if (deliverable?.ok) return undefined

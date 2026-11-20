@@ -37,6 +37,16 @@ const leaveRequest = z.strictObject({})
 
 type Failure = OpenFailure
 
+/** A terminal a team change is about: running, or asleep (no record; messaging holds its lead). */
+type Party = {
+  readonly summary: {
+    readonly id: string
+    readonly handle: string
+    readonly title: string
+    readonly sessionId: string
+  }
+}
+
 /** A terminal as the answers name it: its handle and title, with the agent that runs there. */
 type Named = {
   readonly handle: string
@@ -157,7 +167,7 @@ const introductionLine = (sent: SendAnswer): string =>
 type Asked = {
   readonly caller: Record
   /** The terminal named as the request's target. */
-  readonly target: Record
+  readonly target: Party
   readonly action: ApprovalAction
   readonly seen: Seen
   /** Why what was asked no longer holds once the person approved; undefined while it does. */
@@ -183,18 +193,48 @@ export class Teams {
   ) {}
 
   /** The agent running in the terminal, as an approval pins it down. */
-  private seenIn(caller: Identity, target: Record): Seen | undefined {
+  private seenIn(caller: Identity, target: Party): Seen | undefined {
     const there = this.leads.identity(target)
     return there ? { caller, target: there } : undefined
   }
 
-  /** The terminals, besides `except`, that the caller leads: running, in its session. */
-  private ledBy(caller: Record, ...except: readonly Record[]): Record[] {
+  /** The terminals, besides `except`, that the caller leads: running or asleep, in its session. */
+  private ledBy(caller: Record, ...except: readonly Record[]): Party[] {
     const { host } = this
-    return [...host.records().values()].filter(
-      (each) =>
-        !except.includes(each) &&
-        host.messaging().leadOf(each.summary.id)?.terminalId === caller.summary.id,
+    const mine = (each: Party) =>
+      !except.some((one) => one.summary.id === each.summary.id) &&
+      host.messaging().leadOf(each.summary.id)?.terminalId === caller.summary.id
+    return [
+      ...host.records().values(),
+      ...host.sleepers().sleepersOf(caller.summary.sessionId),
+    ].filter(mine)
+  }
+
+  /** Gives the terminal, running or asleep, `leadId` as its lead. */
+  private setLead(member: Party, leadId: string): void {
+    const { host } = this
+    const record = host.records().get(member.summary.id)
+    if (record) host.bindings().setLead(record, leadId)
+    else host.sleepers().setLead(member.summary.id, leadId)
+  }
+
+  /**
+   * Ends the terminal's lead, running or asleep. What the lead sent it that hadn't arrived is
+   * gone first, as when the person releases it, so none arrives lead-marked after.
+   */
+  private endLead(member: Party): void {
+    const { host } = this
+    const record = host.records().get(member.summary.id)
+    host.messaging().dropLeadMessages(member.summary.id)
+    if (record) host.bindings().endLead(record)
+    else host.sleepers().endLead(member.summary.id)
+  }
+
+  /** Whether the terminal is still there to be asked about: running, or asleep. */
+  private present(party: Party): boolean {
+    return (
+      this.host.records().has(party.summary.id) ||
+      this.host.sleepers().peer(party.summary.id) !== undefined
     )
   }
 
@@ -227,8 +267,8 @@ export class Teams {
           host.messaging().notice(caller.summary.id, text, { always: true })
         if (outcome === "declined") return void tell(asked.declined)
         if (outcome === "gone") return void tell(asked.gone)
-        const here = (record: Record) => host.records().get(record.summary.id) === record
-        if (outcome === "withdrawn" || !here(caller) || !here(target))
+        const here = host.records().get(caller.summary.id) === caller
+        if (outcome === "withdrawn" || !here || !this.present(target))
           return void tell(asked.vanished)
         // The person approved what was true when the agent asked: it must be true still.
         const unfit = asked.unfit() ?? this.leads.changed(caller, target, asked.seen)
@@ -239,10 +279,13 @@ export class Teams {
   }
 
   /** Why nobody can be asked about `target` now, as a refusal; undefined when someone can. */
-  private unaskable(handle: string, target: Record): Failure | undefined {
+  private unaskable(handle: string, target: Party): Failure | undefined {
     const waiting = this.host.approvals().refusal(target.summary.id)
     if (waiting === "waiting")
-      return refused(`${mention(handle)} is already waiting for the user's approval.`)
+      return refused(
+        `A question about ${mention(handle)} is still waiting for the user's answer, so nothing ` +
+          "changed. Try again once it is answered.",
+      )
     return waiting === "nobody" ? refused(nobodyToLead) : undefined
   }
 
@@ -332,10 +375,12 @@ export class Teams {
     return { ok: true, asked: true, ...named }
   }
 
-  /** Why `caller` can't leave its team now; the lead it has otherwise. */
-  private leaving(caller: Record): Record | string {
+  /** Why `caller` can't leave its team now; the lead it has otherwise, running or asleep. */
+  private leaving(caller: Record): Party | string {
     const lead = this.host.messaging().leadOf(caller.summary.id)
-    const found = lead && this.host.records().get(lead.terminalId)
+    const found =
+      lead &&
+      (this.host.records().get(lead.terminalId) ?? this.host.sleepers().peer(lead.terminalId))
     return found ?? "You have no lead, so there is no team to leave."
   }
 
@@ -353,7 +398,7 @@ export class Teams {
     const ran = agent?.ok ? agentLabel(agent.agent) : undefined
     const named = { handle, title, ...(ran !== undefined && { ran }) }
     const left = (byUser: boolean): void => {
-      host.bindings().endLead(caller)
+      this.endLead(caller)
       host
         .messaging()
         .notice(
@@ -443,10 +488,13 @@ export class Teams {
       }
       const tell = (whom: string, text: string) => messaging.notice(whom, text, { always: true })
       // The heir takes the caller's place: under the caller's own lead, or under none.
-      if (above) bindings.setLead(heir, above.terminalId)
+      // What the old lead and the lead above sent them that hadn't arrived is gone first, so
+      // none arrives lead-marked from one that no longer leads.
+      for (const each of [heir, caller, ...members]) messaging.dropLeadMessages(each.summary.id)
+      if (above) this.setLead(heir, above.terminalId)
       else bindings.endLead(heir)
-      for (const member of members) bindings.setLead(member, heir.summary.id)
-      bindings.setLead(caller, heir.summary.id)
+      for (const member of members) this.setLead(member, heir.summary.id)
+      this.setLead(caller, heir.summary.id)
       const handles = members.map((each) => each.summary.handle)
       tell(
         heir.summary.id,

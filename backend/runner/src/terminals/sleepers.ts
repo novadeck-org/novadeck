@@ -498,6 +498,13 @@ export class Sleepers {
     this.publish(terminalId)
   }
 
+  /** A sleeper's lead is another terminal now, as an agent's team change set it: kept like `endLead`. */
+  setLead(terminalId: string, leadId: string): void {
+    this.host.saves().setLead(terminalId, leadId)
+    this.host.messaging().setLead(terminalId, leadId)
+    this.publish(terminalId)
+  }
+
   /** Whether the sleeper is being woken, or a `create` of it is under way: it can't be moved. */
   waking(terminalId: string): boolean {
     return (

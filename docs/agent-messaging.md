@@ -238,14 +238,18 @@ once (`terminals/teams.ts`):
   it had led it with `lead` (lead mark, reports back, release and close rights), and is told by a
   Novadeck notice; `message` goes to it from the joiner as an introduction. Refused while the
   joiner has a running lead (it leaves first), where `to` runs no agent or is asleep or closing,
-  and where `to` is the caller or is led by it, directly or through others.
+  and where `to` is the caller or is led by it, directly or through others (a sleeping agent in
+  the chain counts).
 - **`leave()`**: the member-side mirror of `release`: the lead no longer leads the caller, their
   messages are a peer's from then on, and a brief it was opened with stays its task. The lead is
-  told. Refused with no running lead.
+  told, a sleeping lead too, by a notice that wakes it. A lead asleep doesn't stop it: the
+  person is asked as for a running one. What the lead sent it that hadn't arrived is gone, as
+  when the person releases it. Refused with no lead.
 - **`hand_lead(to)`**: a lead hands its team to one of the agents it leads directly: `to` then
-  leads every other running agent the caller led, and the caller too, and takes the caller's
-  place under the caller's own lead, if any. A sleeping member keeps the caller as its lead, now
-  under `to`. The new lead, the other members and the caller's old lead are told.
+  leads every other agent the caller led, running or asleep, and the caller too, and takes the
+  caller's place under the caller's own lead, if any. The new lead, the other members and the
+  caller's old lead are told, and the new lead is told each member's name; what the old leads sent the
+  caller, `to` and the members that hadn't arrived is gone, as when the person releases them.
 
 The rules that keep this safe:
 
