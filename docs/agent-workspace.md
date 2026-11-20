@@ -1150,31 +1150,6 @@ with every safety check again at that time:
   untold until it wakes again. Errors count as the page logs them, so a framework's dev
   warnings sent to `console.error` count too. Each wake loads the page afresh and tells again, which the runner keeps once per
   show. For a page on this machine the runner tells the agent at its next prompt.
-  A **loupe** magnifies the page under the pointer, on a live page at either size and on a
-  snapshot (so the demo has it): hold Alt (Option on a Mac) alone over the page, or turn on
-  the loupe tool beside the phone toggle (tooltip "Loupe · hold Alt"); Esc while the tool is
-  on, the tool again, or the pointer leaving the page turns the tool's off, and Esc is the
-  page's or the terminal's otherwise. A round lens (190 px) follows the pointer, clipped to
-  the page's area, never over the pane's tools, and clicks and the wheel reach the page
-  through it. It is fixed at twice what the page is drawn at (a desktop page drawn at 0.713 of
-  its size shows 143%, the label being in the page's real size, where 100% is a CSS pixel of
-  the page for a pixel of the pane), so a picture is never stretched past twice its pixels.
-  The pictures are JPEGs from `webContents.capturePage` of a region a little bigger than the
-  loupe's view, one asked for as the last lands, at most 30 a second while the pointer moves
-  and 5 while it rests, with the lens moving on the latest under the pointer meanwhile
-  (`libraries/viewers/src/browser/loupe.ts`, `loupe-view.ts`). A capture of a clip at a higher
-  scale would be sharper but moves the page while it is taken, so it isn't used. The page's
-  view takes the pointer and the keys, so the main process follows them (`watchLoupe` in
-  `browser/host.ts`, whose keys the window's page views hear together, so Alt pressed while
-  another page has focus still shows it) and tells the app's page (`pageLoupeChannel`);
-  Alt held alone, not with Ctrl, Meta or Shift (Windows reports AltGr as Ctrl and Alt); Electron's
-  mouse events carry no modifiers, so Alt is the keys' to say, and a window losing focus lets go
-  of it. While the pointer is over a page the
-  window keeps its auto-hidden menu bar from toggling on Alt (`createMenuGuard` in
-  `main/pages.ts`), which would show it and move the page; the page still gets its Alt. A
-  viewer kept out of sight tells the main process (`pageLoupeHold`'s `away`) as no mouse-leave
-  comes. Where the app can't follow the pointer (the web version), a live page has no loupe
-  tool; pressed on a page at rest, it wakes the page and goes on once it is there.
 - **Saving** would be a new authorized plan-write operation with the stamp check above,
   scoped like `show`: the caller may write only the plan the terminal's agent keeps.
   The runner doesn't offer it yet.
