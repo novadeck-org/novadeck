@@ -18,6 +18,7 @@ import { relayPath } from "@novadeck/relay"
 
 import { agents, harnesses } from "../harnesses/registry.js"
 import { describe, expect, it as base } from "../test.js"
+import { hostless, ownHome } from "../testing/host.js"
 import { hookVariables, prune, relayHook, windowsWords } from "./hook.js"
 import { installShellFiles } from "./install.js"
 import { listenForReports, unanswered, unheard, type Ack, type HookAnswer } from "./reports.js"
@@ -81,15 +82,14 @@ const it = base.extend<{ fixture: Fixture }>({
           relayPath,
           ["hook", "--config", relayConfigFile, agent, ...(event ? [event] : [])],
           {
-            env: {
-              ...process.env,
+            env: hostless({
               NOVADECK_TERMINAL_ID: terminalId,
               NOVADECK_REPORT: listening.endpoint,
               NOVADECK_REPORT_TOKEN: token,
               CURSOR_VERSION: "",
               CODEX_THREAD_ID: "",
               ...env,
-            },
+            }),
             stdio: ["pipe", "pipe", "inherit"],
           },
         )
@@ -106,13 +106,12 @@ const it = base.extend<{ fixture: Fixture }>({
     const run: Fixture["run"] = (agent, payload, env, event) =>
       new Promise((resolve) => {
         const child = spawn(relayPath, ["hook", "--config", relayConfigFile, agent, event], {
-          env: {
-            ...process.env,
+          env: hostless({
             NOVADECK_TERMINAL_ID: terminalId,
             NOVADECK_REPORT: listening.endpoint,
             NOVADECK_REPORT_TOKEN: token,
             ...env,
-          },
+          }),
           stdio: ["pipe", "pipe", "inherit"],
         })
         let printed = ""
@@ -142,7 +141,7 @@ const launched = (launcher: string, args: readonly string[], env: NodeJS.Process
         ? [process.env.COMSPEC || "cmd.exe", ["/d", "/c", launcher, ...args]]
         : [launcher, args]
     const child = spawn(command, given, {
-      env: { ...process.env, ...env },
+      env: hostless(env),
       stdio: ["pipe", "pipe", "inherit"],
     })
     let printed = ""
@@ -222,13 +221,12 @@ describe("agent hook", () => {
           codex,
           ["-c", `"${relayPath}" hook --config '${relayConfigFile}' codex SessionStart; true`],
           {
-            env: {
-              ...process.env,
+            env: hostless({
               CLAUDE_PID: "",
               NOVADECK_TERMINAL_ID: terminalId,
               NOVADECK_REPORT: fixture.endpoint,
               NOVADECK_REPORT_TOKEN: token,
-            },
+            }),
             stdio: ["pipe", "ignore", "inherit"],
           },
         )
@@ -260,13 +258,12 @@ describe("agent hook", () => {
             `cmd /d /c ""${relayPath}" hook --config "${relayConfigFile}" agy PreInvocation"`,
           ],
           {
-            env: {
-              ...process.env,
+            env: hostless({
               CLAUDE_PID: "",
               NOVADECK_TERMINAL_ID: terminalId,
               NOVADECK_REPORT: fixture.endpoint,
               NOVADECK_REPORT_TOKEN: token,
-            },
+            }),
             stdio: ["pipe", "ignore", "inherit"],
             windowsVerbatimArguments: true,
           },
@@ -358,7 +355,7 @@ describe("agent hook", () => {
     await new Promise<void>((resolve) => silent.listen(endpoint, resolve))
     resources.defer(() => new Promise<void>((resolve) => silent.close(() => resolve())))
     // The launcher as agents run it, which tells the relay which hooks ask.
-    const { launcher } = await installShellFiles(join(directory, "shell"))
+    const { launcher } = await installShellFiles(join(directory, "shell"), ownHome(directory))
     const took = async (event: string) => {
       const began = performance.now()
       await launched(launcher, ["agy", event], {
@@ -381,7 +378,7 @@ describe("agent hook", () => {
   }) => {
     const directory = mkdtempSync(join(tmpdir(), "novadeck-norelay-"))
     resources.defer(() => rmSync(directory, { recursive: true, force: true }))
-    const paths = await installShellFiles(join(directory, "shell"))
+    const paths = await installShellFiles(join(directory, "shell"), ownHome(directory))
     rmSync(paths.relay)
     const env = {
       NOVADECK_TERMINAL_ID: terminalId,
@@ -400,7 +397,7 @@ describe("agent hook", () => {
   }) => {
     const directory = mkdtempSync(join(tmpdir(), "novadeck-noconfig-"))
     resources.defer(() => rmSync(directory, { recursive: true, force: true }))
-    const paths = await installShellFiles(join(directory, "shell"))
+    const paths = await installShellFiles(join(directory, "shell"), ownHome(directory))
     rmSync(paths.relayConfig)
     const env = {
       NOVADECK_TERMINAL_ID: terminalId,
@@ -416,12 +413,11 @@ describe("agent hook", () => {
     const began = performance.now()
     const printed = await new Promise<string>((resolve) => {
       const child = spawn(relayPath, ["hook", "--config", relayConfigFile, "agy", "PreToolUse"], {
-        env: {
-          ...process.env,
+        env: hostless({
           NOVADECK_TERMINAL_ID: terminalId,
           NOVADECK_REPORT: fixture.endpoint,
           NOVADECK_REPORT_TOKEN: token,
-        },
+        }),
         stdio: ["pipe", "pipe", "inherit"],
       })
       let out = ""

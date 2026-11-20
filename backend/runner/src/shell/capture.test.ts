@@ -12,6 +12,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { describe, expect, it } from "../test.js"
+import { ownHome } from "../testing/host.js"
 import { captureFolder, prepareCaptureFolder } from "./capture.js"
 import { installShellFiles } from "./install.js"
 
@@ -24,7 +25,10 @@ describe.skipIf(windows)("the capture of an agent's commands", { timeout: 30_000
   const setup = async (resources: { defer: (undo: () => void) => void }) => {
     const root = mkdtempSync(join(tmpdir(), "novadeck-capture-"))
     resources.defer(() => rmSync(root, { recursive: true, force: true }))
-    const shell = await installShellFiles(join(root, "shell"), { worktrees: join(root, "w") })
+    const shell = await installShellFiles(join(root, "shell"), {
+      ...ownHome(root),
+      worktrees: join(root, "w"),
+    })
     const folder = prepareCaptureFolder("terminal-1", root)!
     // As Codex starts a command: its shell, with the variables the shim has it set.
     const run = (program: string, script: string, env: NodeJS.ProcessEnv = {}) =>

@@ -7,6 +7,7 @@ import { claude } from "@novadeck/harness-claude/index"
 import { gitBash } from "@novadeck/sandbox"
 
 import { describe, expect, it as base } from "../test.js"
+import { hostless, ownHome } from "../testing/host.js"
 import { installShellFiles } from "./install.js"
 import { pipedPrompt, quotedPrompts, splitPrompt } from "./shim-prompts.test-support.js"
 
@@ -40,7 +41,7 @@ const it = base.extend<{ shim: Fixture }>({
     const root = mkdtempSync(join(tmpdir(), "novadeck-claude-shim-"))
     resources.defer(() => rmSync(root, { recursive: true, force: true }))
     const worktrees = join(root, "worktrees")
-    const paths = await installShellFiles(join(root, "shell"), { worktrees })
+    const paths = await installShellFiles(join(root, "shell"), { ...ownHome(root), worktrees })
     const real = join(root, "real")
     mkdirSync(real)
     const log = join(root, "args.json")
@@ -67,13 +68,12 @@ const it = base.extend<{ shim: Fixture }>({
     const launch: Fixture["launch"] = (program, args, env = {}, cwd) => {
       rmSync(log, { force: true })
       const options = {
-        env: {
-          ...process.env,
+        env: hostless({
           PATH: [paths.bin, real, process.env.PATH].join(delimiter),
           NOVADECK_TERMINAL_ID: "00000000-0000-4000-8000-000000000001",
           NOVADECK_SHIMS: "claude codex",
           ...env,
-        },
+        }),
         encoding: "utf8" as const,
         timeout: 30_000,
         ...(cwd !== undefined && { cwd }),
@@ -119,7 +119,8 @@ describe("claude shim", { timeout: 60_000 }, () => {
     shim,
   }) => {
     // Another Novadeck's shell files, whose shim would call this one back.
-    const other = await installShellFiles(mkdtempSync(join(tmpdir(), "novadeck-other-")))
+    const otherRoot = mkdtempSync(join(tmpdir(), "novadeck-other-"))
+    const other = await installShellFiles(otherRoot, ownHome(otherRoot))
     const settings = expect.stringMatching(/statusline\.json$/)
     expect(
       shim.run(["hi"], {
@@ -234,7 +235,7 @@ describe("claude shim", { timeout: 60_000 }, () => {
         statusLine: { command: string }
       }
       const result = spawnSync(bash!, ["-c", statusLine.command], {
-        env: { ...process.env, NOVADECK_HOOK: launcher },
+        env: hostless({ NOVADECK_HOOK: launcher }),
         input: "{}",
         encoding: "utf8",
       })

@@ -19,6 +19,7 @@ import { afterEach, beforeEach, vi } from "vitest"
 
 import { describe, expect, it as base } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
+import { hostless } from "../testing/host.js"
 import { apply as applyActivity, started, summary } from "./activity.js"
 import { harnesses } from "./registry.js"
 
@@ -936,7 +937,7 @@ describe.skipIf(process.platform === "win32")("Novadeck's status line for Antigr
       spawnSync("sh", ["-c", statusLineCommand(own)], {
         input: '{"a":1}',
         encoding: "utf8",
-        env: { ...process.env, ...env },
+        env: hostless(env),
       }).stdout
     expect(run({ NOVADECK_HOOK: hook })).toBe(`{"A":1}\nit's mine\n`)
     expect(readFileSync(log, "utf8")).toBe('agy StatusLine {"a":1}\n')
@@ -949,7 +950,7 @@ describe.skipIf(process.platform === "win32")("Novadeck's status line for Antigr
     const result = spawnSync("sh", ["-c", statusLineCommand(undefined)], {
       input: "{}",
       encoding: "utf8",
-      env: { ...process.env, NOVADECK_HOOK: join(fixture.root, "missing") },
+      env: hostless({ NOVADECK_HOOK: join(fixture.root, "missing") }),
     })
     expect(result).toMatchObject({ status: 0, stdout: "" })
   })

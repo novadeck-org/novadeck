@@ -11,6 +11,7 @@ import { beforeAll } from "vitest"
 
 import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it as base } from "../test.js"
+import { hostless, ownHome } from "../testing/host.js"
 import { installShellFiles } from "./install.js"
 import { mcpVersions } from "./mcp.js"
 import { mcpStart, shellPaths, type ShellPaths } from "./scripts.js"
@@ -29,6 +30,7 @@ const it = base.extend<{ plugins: Fixture }>({
     const root = mkdtempSync(join(tmpdir(), "novadeck-plugins-"))
     resources.defer(() => rmSync(root, { recursive: true, force: true }))
     const paths = await installShellFiles(join(root, "shell"), {
+      ...ownHome(root),
       worktrees: join(root, "worktrees"),
     })
     const log = join(root, "launched.json")
@@ -64,7 +66,8 @@ const it = base.extend<{ plugins: Fixture }>({
 // Antigravity, the login shell for Codex; PowerShell for Claude Code and Codex and cmd for
 // Antigravity on Windows.
 const runHook = (agent: AgentName, event: string, hook: string | undefined, stdin: string) => {
-  const { NOVADECK_HOOK: _outer, ...rest } = process.env
+  // Never the hook, terminal or report of a Novadeck terminal the tests run in.
+  const rest = hostless()
   const env = hook ? { ...rest, NOVADECK_HOOK: hook } : rest
   const command = harnesses[agent].hook(process.platform, event)
   const [program, args] = windows
@@ -234,6 +237,7 @@ describe.runIf(windows)("the hook launcher on Windows", () => {
     const root = mkdtempSync(join(tmpdir(), "novadeck plugins ("))
     resources.defer(() => rmSync(root, { recursive: true, force: true }))
     const paths = await installShellFiles(join(root, "shell"), {
+      ...ownHome(root),
       worktrees: join(root, "worktrees"),
     })
     expect(paths.launcher).toMatch(/^[\w.:\\~-]+$/)
@@ -360,6 +364,7 @@ describe("Novadeck's MCP server in each agent's plugin", () => {
       )
       resources.defer(() => rmSync(root, { recursive: true, force: true }))
       const paths = await installShellFiles(join(root, "shell"), {
+        ...ownHome(root),
         worktrees: join(root, "worktrees"),
       })
       const { command, args } = server(paths.plugins.claude, join("novadeck", ".mcp.json"))
