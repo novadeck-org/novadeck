@@ -19,6 +19,7 @@ import {
   type DesktopApp,
   isWindowControlsSide,
   parsePortableState,
+  parseProjectWindowShown,
   parseProjectWindowsState,
   parseProjectWindowTarget,
   windowIdOf,
@@ -133,8 +134,9 @@ export const desktopProjectWindows = (app: DesktopApp | undefined): ProjectWindo
         const checked = parseProjectWindowsState(state)
         if (checked) listener(checked)
       }),
-    show: (projectId) => {
-      if (projectId === null || windowIdOf(projectId) !== undefined) show(projectId)
+    show: (projectId, known) => {
+      const shown = parseProjectWindowShown({ projectId, known })
+      if (shown) show(shown.projectId, shown.known)
     },
     use: (on) => use(on === true),
     open: (projectId) => {

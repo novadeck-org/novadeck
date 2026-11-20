@@ -1,7 +1,14 @@
 import { itemIdOf } from "./items"
 import { messagesKey } from "./items/companion-bar"
 import { orderedTiles } from "./roster"
-import { workspaceFromSeed, WorkspaceSeedError, type WorkspaceSeed, viewOf } from "./seed"
+import {
+  projectFromSeed,
+  workspaceFromSeed,
+  WorkspaceSeedError,
+  type ProjectSeed,
+  type WorkspaceSeed,
+  viewOf,
+} from "./seed"
 import { context, describe, expect, it } from "./test"
 import { itemFixture, terminalFixture } from "./testing"
 
@@ -312,5 +319,28 @@ describe("workspace from a backend seed", () => {
       const seed = { projects: [{ id: "one", name: "one", directory: "~/one", sessions: [] }] }
       expect(() => workspaceFromSeed(seed, defaults)).toThrow(/"one".*no session/)
     })
+  })
+})
+
+describe("a project built from a seed", () => {
+  it("is the project the workspace would build from it, sessions and terminals included", () => {
+    const seed: ProjectSeed = {
+      id: "p",
+      name: "P",
+      directory: "~/p",
+      sessions: [
+        {
+          id: "s",
+          name: "initial",
+          terminals: [terminalFixture(1, "~/p")],
+          windows: [],
+          items: [],
+        },
+      ],
+    }
+    const defaults = { view: "grid", windowedView: "grid", now: 1 } as const
+    const built = projectFromSeed(seed, defaults)
+    expect(built).toEqual(workspaceFromSeed({ projects: [seed] }, defaults).projects[0])
+    expect(built.history[0]!.state.roster.terminals.map((each) => each.id)).toEqual(["01"])
   })
 })

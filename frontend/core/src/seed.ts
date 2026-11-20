@@ -17,6 +17,7 @@ import type {
   ViewMode,
   WindowedView,
   Workspace,
+  WorkspaceProject,
   WorkspaceSession,
   WorkspaceState,
 } from "./types"
@@ -228,3 +229,8 @@ export const workspaceFromSeed = (seed: WorkspaceSeed, defaults: SeedDefaults): 
     }),
   }
 }
+
+// One project of a seed, built as the workspace builds each of its own: for a project the
+// backend read again (`project/sync`). Throws for a project without a session.
+export const projectFromSeed = (project: ProjectSeed, defaults: SeedDefaults): WorkspaceProject =>
+  workspaceFromSeed({ projects: [project], activeProjectId: project.id }, defaults).projects[0]!

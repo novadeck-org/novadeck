@@ -100,6 +100,10 @@ export type WorkspaceAction =
       initialSession?: WorkspaceSession
       enabledViews?: ViewMode[]
     }
+  // The backend read a project again, as a window that took it on from another window holds
+  // what the runner has now: its sessions, terminals and layouts replace this window's copy,
+  // keeping the open session if it is still there; a project this window didn't know joins it.
+  | { type: "project/sync"; project: WorkspaceProject }
   // The person removes a project, closing its terminals. The last one stays: the
   // workspace always has a project.
   | { type: "project/remove"; projectId: string; now: number; enabledViews?: ViewMode[] }
@@ -440,6 +444,21 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
       }
       const projects = left.map((item) => (item.id === project.id ? next : item))
       return { ...workspace, projects, activeProjectId: action.projectId }
+    }
+    case "project/sync": {
+      const { project } = action
+      if (!project.history.length) return workspace
+      const held = workspace.projects.find((each) => each.id === project.id)
+      if (!held) return { ...workspace, projects: [...workspace.projects, project] }
+      const activeSessionId = project.history.some((each) => each.id === held.activeSessionId)
+        ? held.activeSessionId
+        : project.activeSessionId
+      return {
+        ...workspace,
+        projects: workspace.projects.map((each) =>
+          each.id === project.id ? { ...project, activeSessionId } : each,
+        ),
+      }
     }
     case "project/remove": {
       const others = workspace.projects.filter((project) => project.id !== action.projectId)

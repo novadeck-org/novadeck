@@ -1,5 +1,4 @@
 import type { BackendConnection, ConnectFailure, ThemeSource } from "@novadeck/core/port"
-import { sessionName } from "@novadeck/core/session-name"
 import type { Project } from "@novadeck/protocol"
 import { desktopApp } from "@novadeck/protocol/bridge"
 import {
@@ -15,6 +14,7 @@ import { websocket, type Transport } from "@novadeck/wire/client"
 import { pause, runnerBackend, type RunnerBackend } from "./backend"
 import { desktopOptions } from "./desktop/app"
 import { reportPoolTo, sizePoolTo } from "./desktop/renderer-pool"
+import { listProject } from "./sessions/listing"
 import type { RunnerListing } from "./sessions/seed"
 
 /** The desktop app's runner: the one the app starts, over a port it hands the page. */
@@ -40,35 +40,7 @@ export const loadListing = async (
   newId: () => string,
   now: () => number,
 ): Promise<RunnerListing> => {
-  const load = async (project: Project): Promise<RunnerListing[number] | undefined> => {
-    try {
-      const found = await runner.sessions.list({ projectId: project.id })
-      const sessions = found.length
-        ? found
-        : [
-            await runner.sessions.create({
-              id: newId(),
-              projectId: project.id,
-              name: sessionName(now()),
-            }),
-          ]
-      return {
-        project,
-        sessions: await Promise.all(
-          sessions.map(async (session) => {
-            const [terminals, companions] = await Promise.all([
-              runner.terminals.list({ sessionId: session.id }),
-              runner.companions.list({ sessionId: session.id }),
-            ])
-            return { session, terminals, companions }
-          }),
-        ),
-      }
-    } catch (error) {
-      if (hasCode(error, "NOT_FOUND")) return undefined
-      throw error
-    }
-  }
+  const load = (project: Project) => listProject(runner, project, newId, now)
   const listed = await Promise.all((await runner.projects.list()).map(load))
   const loaded = listed.filter((item) => item !== undefined)
   if (loaded.length) return loaded

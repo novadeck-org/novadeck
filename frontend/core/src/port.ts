@@ -15,7 +15,7 @@ import type { History } from "./history"
 import type { Inbox } from "./inbox"
 import type { Companions } from "./items"
 import type { Messages } from "./messages"
-import type { WorkspaceSeed } from "./seed"
+import type { ProjectSeed, WorkspaceSeed } from "./seed"
 import type { NoticeSound } from "./sounds"
 import type { WorkspaceAction } from "./state"
 import type { Store } from "./store"
@@ -488,6 +488,20 @@ export type BackendFields = {
   // yield it. Told again, with no change, only where the link to the runner came back. Absent
   // where terminals run no programs on this machine, as in the demo.
   readonly activeTerminal?: (terminalId: string | null) => void
+  // Optional. Tells the backend which project this window shows (null for none), so what an
+  // agent asks of the person reaches the window that shows the project of the terminal that
+  // asked. Told again, with no change, only where the link to the runner came back. Called only
+  // while project windows are on. Absent where terminals run no programs, as in the demo.
+  readonly showingProject?: (projectId: string | null) => void
+  // Optional. Limits what this window saves to the sessions of one project (null: any), as
+  // with project windows on, where another window saves the others' and this window's copies
+  // of them may be stale. Whatever this window changed before is sent first.
+  readonly limitSaves?: (projectId: string | null) => void
+  // Optional. Reads a project from the runner again: its sessions, terminals and layouts as
+  // the runner holds them now, for a window that takes the project on from another window.
+  // Undefined for a project the runner no longer has. The page puts it in place with
+  // `project/sync`, which adds a project it didn't know.
+  readonly syncProject?: (projectId: string) => Promise<ProjectSeed | undefined>
   // Optional. Asks the person for a folder to open as a project; null when cancelled.
   // Absent where the backend cannot offer one.
   readonly pickDirectory?: () => Promise<string | null>

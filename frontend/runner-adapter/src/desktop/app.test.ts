@@ -248,7 +248,7 @@ describe("the desktop app's project windows", () => {
         listener({ elsewhere: "p1", voice: false })
         return () => void calls.push(["stop"])
       },
-      showProjectWindow: (id: unknown) => void calls.push(["show", id]),
+      showProjectWindow: (id: unknown, known: unknown) => void calls.push(["show", id, known]),
       useProjectWindows: (on: unknown) => void calls.push(["use", on]),
       openProjectWindow: (id: unknown) => void calls.push(["open", id]),
       swapProjectWindow: (id: unknown) => void calls.push(["swap", id]),
@@ -268,8 +268,8 @@ describe("the desktop app's project windows", () => {
     const places: unknown[] = []
     const stop = windows.onState((state) => states.push(state))
     windows.onNavigate((place) => places.push(place))
-    windows.show("p1")
-    windows.show(null)
+    windows.show("p1", ["p1", "p2"])
+    windows.show(null, [])
     windows.use(true)
     windows.open("p2")
     windows.swap("")
@@ -279,8 +279,8 @@ describe("the desktop app's project windows", () => {
     expect(places).toEqual([{ projectId: "p2", terminalId: "t" }])
     expect(calls).toEqual([
       ["listen"],
-      ["show", "p1"],
-      ["show", null],
+      ["show", "p1", ["p1", "p2"]],
+      ["show", null, []],
       ["use", true],
       ["open", "p2"],
       ["handOff", { projectId: "p3", rowId: "r" }],

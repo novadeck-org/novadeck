@@ -25,6 +25,10 @@ export type SessionSavesOptions = {
   // What the runner already holds for each session, so an unchanged state and visit are
   // not sent.
   readonly saved: Iterable<readonly [string, SavedState]>
+  // Whether this window may save the session: with project windows on only the sessions of
+  // the project it shows, as the others' copies here may be stale. A change to one it may not
+  // save is let go. Every session where omitted.
+  readonly allowed?: (sessionId: string) => boolean
 }
 
 export type SessionSaves = {
@@ -35,6 +39,9 @@ export type SessionSaves = {
   readonly schedule: () => void
   // Sends what changed now.
   readonly flush: () => void
+  // Notes what the runner holds for sessions this window read again, so what it read is not
+  // sent back.
+  readonly held: (entries: Iterable<readonly [string, SavedState]>) => void
   // Sends what changed now and resolves once every save sent so far has been answered,
   // as before a window closes or the app quits.
   readonly settle: () => Promise<void>
@@ -64,6 +71,7 @@ export const createSessionSaves = ({
   halted,
   delay,
   saved: initial,
+  allowed = () => true,
 }: SessionSavesOptions): SessionSaves => {
   const saved = new Map(initial)
   const seen = new Map<string, WorkspaceSession>()
@@ -76,6 +84,7 @@ export const createSessionSaves = ({
     timer = undefined
     for (const id of dirty) {
       dirty.delete(id)
+      if (!allowed(id)) continue
       const found = findSession(latest(), id)
       const exists = ready(id)
       if (!found || !exists) continue
@@ -128,6 +137,9 @@ export const createSessionSaves = ({
       }
       baseline = true
       schedule()
+    },
+    held: (entries) => {
+      for (const [id, state] of entries) saved.set(id, state)
     },
     schedule,
     flush,

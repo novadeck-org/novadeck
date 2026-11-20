@@ -17,6 +17,8 @@ export type ProjectWindowTarget = {
   readonly projectId: string
   readonly terminalId?: string
   readonly rowId?: string
+  // Something an agent did: the window goes there without coming forward.
+  readonly quiet?: true
 }
 
 // Before the app has said anything: the person's window is alone and has the voice.
@@ -26,8 +28,9 @@ export const aloneInWindows: ProjectWindowsState = { elsewhere: [], voice: true 
 // state at once and on each change, and returns the stop.
 export type ProjectWindows = {
   readonly onState: (listener: (state: ProjectWindowsState) => void) => () => void
-  // Tells the app which project this window shows, as it changes; null while it shows none.
-  readonly show: (projectId: string | null) => void
+  // Tells the app which project this window shows, as it changes (null while it shows none),
+  // and the ids of the projects this page knows.
+  readonly show: (projectId: string | null, known: readonly string[]) => void
   // Tells the app whether the person has project windows on, which it keeps for the next launch.
   readonly use: (on: boolean) => void
   // Opens a project in a new window, or brings forward the window that shows it.

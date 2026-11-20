@@ -1155,3 +1155,57 @@ describe("moving a terminal to another session", () => {
     expect(move(before, terminalFixture(5, "~/project"))).toBe(before)
   })
 })
+
+describe("a project the backend read again", () => {
+  // The project as the runner holds it now: terminal 07 in a session named like the open one,
+  // and a second session the window never heard of.
+  const reread = (workspace: Workspace): WorkspaceProject => {
+    const [held] = workspace.projects
+    const fresh = workspaceFixture({ terminals: 1, sessions: ["initial", "new"] }).projects[0]!
+    return {
+      ...held!,
+      history: fresh.history.map((session) => ({
+        ...session,
+        state: {
+          ...session.state,
+          roster: {
+            ...session.state.roster,
+            terminals: [terminalFixture(7, "~/project")],
+            order: ["07"],
+          },
+        },
+      })),
+      activeSessionId: "new",
+    }
+  }
+
+  it("replaces the window's copy of its sessions, keeping the open one open", () => {
+    const before = workspaceFixture()
+    const after = apply(before, { type: "project/sync", project: reread(before) })
+    const [project] = after.projects
+    expect(project!.history.map((session) => session.id)).toEqual(["initial", "new"])
+    expect(project!.activeSessionId).toBe("initial")
+    expect(project!.history[0]!.state.roster.terminals.map((each) => each.id)).toEqual(["07"])
+  })
+
+  it("opens the project's own open session where the one this window had is gone", () => {
+    const before = workspaceFixture({ sessions: ["gone"] })
+    const after = apply(before, { type: "project/sync", project: reread(before) })
+    expect(after.projects[0]!.activeSessionId).toBe("new")
+  })
+
+  it("adds a project the window didn't know, without opening it", () => {
+    const before = workspaceFixture()
+    const unknown = { ...reread(before), id: "other", name: "Other" }
+    const after = apply(before, { type: "project/sync", project: unknown })
+    expect(after.projects.map((project) => project.id)).toEqual(["project", "other"])
+    expect(after.activeProjectId).toBe("project")
+  })
+
+  it("changes nothing for a project with no session", () => {
+    const before = workspaceFixture()
+    expect(
+      apply(before, { type: "project/sync", project: { ...reread(before), history: [] } }),
+    ).toBe(before)
+  })
+})
