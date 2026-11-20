@@ -89,7 +89,7 @@ describe("Claude Code's dialog held out of view", () => {
   it.each([
     "Waiting for your answer · fn+↓ to scroll",
     "Waiting for your answer (click) ↓",
-    "Waiting for your answer (alt+g) ↓",
+    "Waiting for your answer · ctrl+k ctrl+d to scroll",
     "Waiting for your answer ↓",
     "Waiting for your answer",
   ])("is revealed with Ctrl+End under a pill reading %j", (pill) => {
@@ -103,6 +103,8 @@ describe("Claude Code's dialog held out of view", () => {
     "Jump to bottom (ctrl+End) ↓",
     "the line said Waiting for your answer, then",
     "Waiting for your answer (ctrl+End) ↓ and more",
+    // A key the person bound to `scroll:bottom` instead, which Ctrl+End may not be.
+    "Waiting for your answer (alt+g) ↓",
   ])("is not revealed under a last row ending %j", (line) => {
     expect(dialogs.reveal?.(withPill("questionHidden", line))).toBeUndefined()
   })

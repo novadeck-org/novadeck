@@ -14,11 +14,16 @@ export const Enter = "\r"
 export const CtrlEnd = "\x1b[1;5F"
 
 // The pill's hint depends on the platform, the person's keys and the width (2.1.328's
-// bundle): "(ctrl+End) ↓" where `scroll:bottom` has its key, on macOS "· fn+↓ to scroll"
-// (Page Down's key there) or "(click) ↓" with the mouse on, the key they bound instead,
-// and narrower, " ↓" or nothing after the words. Ctrl+End stays `scroll:bottom`'s key on
-// every platform.
-const waitingPill = /(?:^|\s)Waiting for your answer(?: \([^()]+\) ↓| · \S+ to scroll| ↓)?$/
+// bundle): "(ctrl+End) ↓" where `scroll:bottom` has its default key, on macOS, where it has
+// it too, "· fn+↓ to scroll" (Page Down's key, or the one bound to `scroll:pageDown`) or
+// "(click) ↓" with the mouse on, and narrower, " ↓" or nothing after the words. Another key
+// in the brackets is one the person bound to `scroll:bottom` instead, where Ctrl+End may do
+// nothing, so that pill stays unread, its dialog raw. Unbound, Linux and Windows draw the
+// narrow " ↓" at any width: Ctrl+End then does nothing either, and answering from a card
+// waits for a dialog that never comes into view. The bare words could be a transcript line's
+// end, but the last row is the footer's whenever no pill covers it.
+const waitingPill =
+  /(?:^|\s)Waiting for your answer(?: \((?:ctrl\+End|click)\) ↓| · .+ to scroll| ↓)?$/
 
 /**
  * Whether Claude Code's fullscreen renderer (`"tui": "fullscreen"`) holds a dialog below
