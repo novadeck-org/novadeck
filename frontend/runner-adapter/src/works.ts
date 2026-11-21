@@ -19,8 +19,10 @@ export type RunnerWorks = {
   // Reads the works once, as the backend starts, so the Worktrees panel lists them as soon as it
   // opens instead of after the runner's first read of every worktree: follows them until the
   // runner has reported every one, then lets go. The panel's own watch brings them up to date.
+  // A backend that starts again after `stop` (StrictMode's second mount, a reboot) is followed
+  // again, the panels that still watch included.
   readonly readOnce: () => void
-  // Ends the following for good, as the backend closes.
+  // Ends the following, as the backend closes; `readOnce` begins it again.
   readonly stop: () => void
 }
 
@@ -37,10 +39,16 @@ export const createRunnerWorks = (
   // The worktrees made since the backend began, counted by project for as long as it lives: the
   // stream carries one small event per worktree and the runner reads no git for it.
   const made = createStore<WorksMade>(new Map())
-  const madeStream = calls.made()
-  void consume(madeStream, ({ projectId }) => {
-    made.update((counts) => madeOne(counts, projectId))
-  })
+  let madeStream: AsyncIterableIterator<unknown, undefined> | undefined
+  const followMade = (): void => {
+    if (madeStream) return
+    const next = calls.made()
+    madeStream = next
+    void consume(next, ({ projectId }) => {
+      made.update((counts) => madeOne(counts, projectId))
+    })
+  }
+  followMade()
   // By root.
   const held = new Map<string, Work>()
   // The works of a sequence the runner has yet to finish with `synced`; until then `held` stays.
@@ -51,9 +59,10 @@ export const createRunnerWorks = (
   let reported = false
   // Lets go of the watch `readOnce` holds, once the runner has reported every work.
   let readDone: (() => void) | undefined
-  // How many are watching, and whether the backend has closed.
+  // How many are watching, and whether the backend has stopped: until it starts again they are
+  // counted but not followed.
   let watchers = 0
-  let closed = false
+  let stopped = false
 
   // Set while changes wait to be published.
   let pending: ReturnType<typeof setTimeout> | undefined
@@ -128,10 +137,13 @@ export const createRunnerWorks = (
   }
 
   const stop = (): void => {
-    closed = true
+    stopped = true
+    // The first read's hold on the following goes with it.
+    const release = readDone
     readDone = undefined
-    void madeStream.return?.()?.catch?.(() => {})
-    watchers = 0
+    release?.()
+    void madeStream?.return?.()?.catch?.(() => {})
+    madeStream = undefined
     unfollow()
   }
 
@@ -141,15 +153,14 @@ export const createRunnerWorks = (
     // Follows the works from the first watcher until the last one lets go, and goes on across
     // reconnections meanwhile.
     watch: () => {
-      if (closed) return () => {}
       watchers += 1
-      if (watchers === 1) follow()
+      if (watchers === 1 && !stopped) follow()
       let released = false
       return () => {
         if (released) return
         released = true
         watchers -= 1
-        if (watchers === 0) unfollow()
+        if (watchers === 0 && !stopped) unfollow()
       }
     },
     look: (root) => {
@@ -171,7 +182,13 @@ export const createRunnerWorks = (
     fetch: (projectId) => track(calls.fetch(projectId)),
   }
   const readOnce = (): void => {
-    if (closed || reported || readDone) return
+    if (stopped) {
+      // Started again: what the watchers still hold is followed afresh.
+      stopped = false
+      followMade()
+      if (watchers > 0) follow()
+    }
+    if (reported || readDone) return
     readDone = works.watch()
   }
   return { works, readOnce, stop }

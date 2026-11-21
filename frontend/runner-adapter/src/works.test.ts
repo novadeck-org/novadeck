@@ -213,11 +213,44 @@ describe("Works, as the runner reports them", () => {
     expect(watches).toBe(0)
   })
 
-  it("follows no more once the backend has stopped", () => {
+  it("follows no more while the backend has stopped", () => {
     const { works, stop, watches } = followed()
     stop()
     works.watch()
     expect(watches()).toBe(1)
+  })
+
+  // StrictMode mounts the app twice, stopping the first backend run before the second starts,
+  // and a reboot does the same: the works are followed on the second run too.
+  it("follows again once the backend starts again, for the panels still watching", async () => {
+    const first = channel<WorkWatchItem>()
+    const second = channel<WorkWatchItem>()
+    const streams = [first, second]
+    let watches = 0
+    const { works, readOnce, stop } = createRunnerWorks({
+      watch: () => streams[watches++]!.iterator,
+      made: () => channel<WorkMade>().iterator,
+      look: async () => {},
+      show: async () => ({ itemId: "x" }),
+      close: async () => ({ closed: true as const, branchDeleted: false }),
+      preview: async () => ({ main: null, works: [], renames: [] }),
+      fetch: async () => {},
+    })
+    readOnce()
+    stop()
+    // The panel mounts, and watches, while the backend is between its runs.
+    const release = works.watch()
+    expect(watches).toBe(1)
+    readOnce()
+    expect(watches).toBe(2)
+    second.push({ type: "reset" })
+    second.push({ type: "changed", work: work(1) })
+    second.push({ type: "synced" })
+    await vi.waitFor(() =>
+      expect(works.state.getSnapshot()).toEqual({ works: [work(1)], synced: true, reported: true }),
+    )
+    release()
+    await vi.waitFor(() => expect(second.returned()).toBe(1))
   })
 
   it("stops following when told to", async () => {
@@ -272,7 +305,7 @@ describe("reading the works once, as the backend starts", () => {
     await vi.waitFor(() => expect(stream.returned()).toBe(1))
   })
 
-  it("reads them no more once they were reported, or the backend has stopped", async () => {
+  it("reads them no more once they were reported", async () => {
     const { readOnce, stream, state, watches, stop } = unwatched()
     readOnce()
     readOnce()
@@ -281,8 +314,8 @@ describe("reading the works once, as the backend starts", () => {
     stream.push({ type: "synced" })
     await vi.waitFor(() => expect(state().reported).toBe(true))
     readOnce()
+    expect(watches()).toBe(1)
     stop()
-    readOnce()
     expect(watches()).toBe(1)
   })
 
@@ -423,7 +456,7 @@ describe("Worktrees made, as the runner reports them", () => {
     expect(count(works, "r")).toBe(0)
   })
 
-  it("lets go of the stream for good with the backend", () => {
+  it("lets go of the stream with the backend", () => {
     const { made, stop } = followed()
     expect(made.returned()).toBe(0)
     stop()
