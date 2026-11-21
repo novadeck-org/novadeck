@@ -399,8 +399,6 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     owned: { ofTerminal: (id) => worktrees.ownedRows(id), all: () => worktrees.all() },
     notify: (terminalId, text) =>
       shippingTerminals().messaging.notice(terminalId, text, { always: true }),
-    cwd: (terminalId) => shippingTerminals().cwdOf(terminalId),
-    agentOf: (terminalId) => shippingTerminals().agentOf(terminalId),
   })
   // The terminals below are made with the gate, which asks them only once it is answering.
   const shippingTerminals = (): Terminals => terminals

@@ -97,8 +97,6 @@ describe("the shipping service's cards", () => {
       enabled: () => true,
       owned: { ofTerminal: () => [], all: () => [] },
       notify: (_id, text) => (told.push(text), true),
-      cwd: () => "/w",
-      agentOf: () => "claude",
     })
     return { shipping, told }
   }

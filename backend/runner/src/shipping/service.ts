@@ -9,6 +9,7 @@ import type { AgentName } from "@novadeck/protocol"
 
 import { noticeText } from "../messaging/notice-format.js"
 import type { GateCall } from "../shell/hook.js"
+import type { Record } from "../terminals/record.js"
 import { Cards, type Card } from "./cards.js"
 import { declare, ghPull, type Declared, type DeclareAnswer } from "./declare.js"
 import { describeKey, Gate, type Turn } from "./gate.js"
@@ -23,9 +24,6 @@ export type ShippingHost = {
   readonly owned: Owned
   /** Tells the agent in a terminal something, as a Novadeck notice; whether it was queued. */
   readonly notify: (terminalId: string, text: string) => boolean
-  /** The folder a terminal's shell is in, and the agent it runs. */
-  readonly cwd: (terminalId: string) => string | undefined
-  readonly agentOf: (terminalId: string) => "claude" | "codex" | "agy" | undefined
 }
 
 // The tail of a rollout read for its latest turn context: a turn starts well within it.
@@ -89,7 +87,7 @@ export class Shipping {
 
   /** `request_permit`: see `declare`. */
   async declare(terminalId: string, input: Declared): Promise<DeclareAnswer> {
-    const cwd = this.host.cwd(terminalId)
+    const cwd = this.cwd(terminalId)
     if (cwd === undefined)
       return { ok: false, reason: "Novadeck can't tell where this terminal is." }
     return await declare(
@@ -99,7 +97,7 @@ export class Shipping {
         quotes: this.quotes,
         cards: this.cards,
         pull: ghPull,
-        agentOf: this.host.agentOf,
+        agentOf: (id) => this.agentOf(id),
       },
       terminalId,
       cwd,
@@ -126,13 +124,38 @@ export class Shipping {
         actions: allow
           ? [
               "run the command on its own, as declared" +
-                (this.host.agentOf(card.terminalId) === "codex"
+                (this.agentOf(card.terminalId) === "codex"
                   ? "; if the sandbox blocks it, run it again asking for escalation"
                   : ""),
             ]
           : [],
       }),
     )
+  }
+
+  private records: ReadonlyMap<string, Pick<Record, "summary" | "bound">> = new Map()
+
+  /**
+   * Joins the runner's terminals: the folder each shell is in and the agent it runs, which the
+   * gate reads, and what to publish when a terminal's open cards change.
+   */
+  attach<R extends Pick<Record, "summary" | "bound">>(
+    records: ReadonlyMap<string, R>,
+    changed: (record: R) => void,
+  ): void {
+    this.records = records
+    this.cards.watch((terminalId) => {
+      const record = records.get(terminalId)
+      if (record) changed(record)
+    })
+  }
+
+  private cwd(terminalId: string): string | undefined {
+    return this.records.get(terminalId)?.summary.cwd
+  }
+
+  private agentOf(terminalId: string): "claude" | "codex" | "agy" | undefined {
+    return this.records.get(terminalId)?.bound?.binding.agent
   }
 
   /** Whether the gate is on. */

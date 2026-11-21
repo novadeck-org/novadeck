@@ -435,10 +435,7 @@ export class Terminals {
         ),
     })
     // An action card opened, answered or withdrawn changes what the terminal's agent asks.
-    this.options.shipping?.cards.watch((terminalId) => {
-      const record = this.records.get(terminalId)
-      if (record) this.streams.detailed(record)
-    })
+    this.options.shipping?.attach(this.records, (record) => this.streams.detailed(record))
     this.names = new Names<Record>(options, this.saves, this.streams, {
       stopping: () => this.stopping,
       records: () => this.records.values(),
@@ -1597,14 +1594,6 @@ export class Terminals {
   }
   watchInbox(signal?: AbortSignal): AsyncGenerator<InboxEntry[]> {
     return this.inbox.watch(signal)
-  }
-  /** The folder a terminal's shell is in, for the shipping gate. */
-  cwdOf(terminalId: string): string | undefined {
-    return this.records.get(terminalId)?.summary.cwd
-  }
-  /** The agent a terminal's session runs, for the shipping gate. */
-  agentOf(terminalId: string): AgentName | undefined {
-    return this.records.get(terminalId)?.bound?.binding.agent
   }
   answerAsk(id: string, answer: AskAnswer): void {
     this.inbox.answer(id, answer)
