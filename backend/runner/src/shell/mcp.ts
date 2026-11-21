@@ -2082,7 +2082,7 @@ const initialized = async (params: unknown, call: McpCall | undefined) => {
 // Every tool as the agent lists it, with the schema the runner's state makes now.
 const listedTools = async (call: McpCall) => {
   // Asked together, so a listing waits for the slowest, not for each in turn.
-  const [{ worktrees: on, gate }, mode, listing] = await Promise.all([
+  const [{ worktrees: on, gate: gated }, mode, listing] = await Promise.all([
     offered(call),
     agentModeOf(call),
     Promise.all(
@@ -2095,7 +2095,7 @@ const listedTools = async (call: McpCall) => {
     ),
   ])
   return listing
-    .filter(({ needs }) => needs === undefined || (needs === "worktrees" ? on : gate))
+    .filter(({ needs }) => needs === undefined || (needs === "worktrees" ? on : gated))
     .map(({ name, description, inputSchema }) => ({
       name,
       description: typeof description === "string" ? description : description(mode),
