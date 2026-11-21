@@ -6,11 +6,13 @@ import { FileThumb, FileViewer } from "./FileViewer"
 import { previewFor } from "./previews"
 
 // A text file an agent showed: as code, or, for a type with a preview (./previews), as that,
-// with a switch to its source. A stack of files takes the code's icon whatever they are.
+// with a switch to its source. Its icon goes by its path, as the pane's preview does, since
+// an agent's title names it otherwise. A stack of files takes the code's icon whatever they are.
 export const file = {
   kind: "file",
   names: { one: "file", many: "Files" },
-  icon: (item: { readonly name: string }) => previewFor(item.name)?.icon ?? FileCode2,
+  icon: (item: { readonly name: string; readonly path?: string | null }) =>
+    previewFor(item.path ?? item.name)?.icon ?? FileCode2,
   stackIcon: FileCode2,
   look: artifactLook,
   Thumb: artifactThumb("file", FileThumb),

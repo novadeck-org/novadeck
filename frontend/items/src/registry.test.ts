@@ -11,6 +11,7 @@ import {
   Globe,
   Image,
   type LucideIcon,
+  PanelTop,
 } from "lucide-react"
 
 import type { StackKind } from "./bar/bar"
@@ -80,6 +81,12 @@ describe("the registry", () => {
         ["page", "localhost"],
       ] as const)
         expect(iconOf({ kind, name }), `${kind} ${name}`).toBe(oldIconOf({ kind, name }))
+    })
+
+    it("gives a file the icon of its path's type, whatever its title", () => {
+      expect(iconOf({ kind: "file", name: "Design notes", path: "/work/notes.md" })).toBe(BookText)
+      expect(iconOf({ kind: "file", name: "Strip", path: "/work/strip.html" })).toBe(PanelTop)
+      expect(iconOf({ kind: "file", name: "notes.md", path: "/work/notes.ts" })).toBe(FileCode2)
     })
   })
 

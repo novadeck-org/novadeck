@@ -34,9 +34,13 @@ export const registry = {
 // The registration that draws `item`.
 export const registrationOf = (item: Pick<Item, "kind">): ItemRegistration => registry[item.kind]
 
-// An artifact's icon: its kind's, or a document's for a markdown file.
-export const iconOf = (artifact: { readonly kind: ShownKind; readonly name: string }): LucideIcon =>
-  registry[artifact.kind].icon(artifact)
+// An artifact's icon: its kind's, or its preview's for a file of a type with one, by its path
+// where it has one.
+export const iconOf = (artifact: {
+  readonly kind: ShownKind
+  readonly name: string
+  readonly path?: string | null
+}): LucideIcon => registry[artifact.kind].icon(artifact)
 
 // How an item looks: its icon, its name as a peek and a menu say it, and how its button
 // reads to assistive technology.

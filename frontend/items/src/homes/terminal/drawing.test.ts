@@ -102,8 +102,16 @@ const subagent = itemFixture("sub", "01", {
   name: "old-migration.md",
   plan: { agent: "Codex", role: "subagent", source: "text" },
 })
-const markdown = itemFixture("voice", "01", { kind: "file", name: "brand-voice.md" })
-const upper = itemFixture("readme", "01", { kind: "file", name: "README.MARKDOWN" })
+const markdown = itemFixture("voice", "01", {
+  kind: "file",
+  name: "brand-voice.md",
+  path: "/p/brand-voice.md",
+})
+const upper = itemFixture("readme", "01", {
+  kind: "file",
+  name: "README.MARKDOWN",
+  path: "/p/README.MARKDOWN",
+})
 const code = itemFixture("app", "01", { kind: "file", name: "App.tsx" })
 const picture = itemFixture("hero", "01", { kind: "image", name: "hero.png" })
 const clip = itemFixture("demo", "01", { kind: "video", name: "demo.mp4" })

@@ -40,8 +40,8 @@ export type ToSource = (why?: { readonly note: string; readonly line?: number })
 export type FilePreview = {
   // Names the preview to the stylesheet and tests: the file's `data-file-preview`.
   readonly name: string
-  // Whether a file is of this type, by its name or its path: the bar's icon asks by the item's
-  // name, the pane by the shown file's path, so it matches by how the name ends.
+  // Whether a file is of this type, by its path, or its name where it has none (a folder's
+  // entry), so it matches by how the name ends.
   readonly matches: (path: string) => boolean
   // The file on its bar and tab, in place of a source file's.
   readonly icon: LucideIcon
