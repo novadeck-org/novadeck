@@ -168,8 +168,8 @@ for (const setup of setups) {
       // script, whose first step the model follows, as an agent's task.
       const notice = deliveries(first).find((one) => one.from === "novadeck")
       expect(notice?.text).toContain("## Steps")
-      expect(notice?.text).toContain('<svg xmlns="http://www.w3.org/2000/svg"')
-      expect(notice?.text).toContain("welcome card for ")
+      expect(notice?.text).toContain('<!doctype html><html><head><meta charset="utf-8">')
+      expect(notice?.text).toContain("comic strip of this tour for ")
       // The brief's own first step: the call to `describe`, and its greeting.
       await terminal.until("The tour has begun.", 60_000)
       await through(terminal, ["settled"])

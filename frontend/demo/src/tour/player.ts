@@ -123,7 +123,7 @@ export const playTourAgent = ({ key, harness, tour, turns, dispatch, terminal, s
       stage,
       terminal,
       quietTeam: plan.quietTeam === true,
-      finish: () => finish("Your team wrote the welcome card, and it's showing beside me."),
+      finish: () => finish("Your team made a comic strip of the tour, and it's showing beside me."),
     })
     stops.add(stopStory)
   }

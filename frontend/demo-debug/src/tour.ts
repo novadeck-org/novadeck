@@ -48,7 +48,7 @@ export const tourGroups = (tour: DemoTour): readonly DemoActionGroup[] => [
       },
       {
         label: "Tour story: answer the tagline ask (A)",
-        hint: "While the copywriter's ask waits in the Inbox (Which tagline for the welcome card?), answers it with option A as the person would: the row goes, the copywriter tells the lead, and the lead shows the welcome card",
+        hint: "While the copywriter's ask waits in the Inbox (Which tagline for the comic strip?), answers it with option A as the person would: the row goes, the copywriter tells the lead, and the lead shows the comic strip",
         run: () => tour.answerTagline(0),
       },
       {

@@ -54,7 +54,7 @@ export const checkTourFolder = async (folder: string): Promise<void> => {
  */
 export const resetTourFolder = async (
   folder: string,
-  files: Readonly<Record<string, string>>,
+  files: Readonly<Record<string, string | Uint8Array>>,
 ): Promise<void> => {
   const entries = await tourEntries(folder)
   // `rm` removes a link inside, never what it points to. On Windows a file a closing shell
@@ -67,10 +67,10 @@ export const resetTourFolder = async (
   await mkdir(folder, { recursive: true })
   await writeFile(join(folder, tourMarker), markerText)
   await Promise.all(
-    Object.entries(files).map(async ([name, text]) => {
+    Object.entries(files).map(async ([name, content]) => {
       // A name may sit in a folder of its own (`.claude/settings.json`).
       await mkdir(dirname(join(folder, name)), { recursive: true })
-      await writeFile(join(folder, name), text)
+      await writeFile(join(folder, name), content)
     }),
   )
 }

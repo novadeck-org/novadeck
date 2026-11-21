@@ -7,10 +7,17 @@ import type { AgentName, Project } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
 import { harnesses } from "../harnesses/registry.js"
-import { maxMessageBytes, tourBriefMark } from "../messaging/messages.js"
+import {
+  maxDeliveryBytes,
+  novadeckSender,
+  tourBriefMark,
+  type Message,
+} from "../messaging/messages.js"
+import { deliveredBytes } from "../messaging/sending.js"
 import { describe, expect, it } from "../test.js"
-import { nudgeLine } from "./brief.js"
+import { nudgeLine, tourBrief } from "./brief.js"
 import { tourFolder, tourMarker } from "./folder.js"
+import { stripFont } from "./strip-font.js"
 import { Tour, withinFolder, type TourHost } from "./tour.js"
 
 // Where a harness lives, for the model lists the tour picks from: Novadeck's own lists ignore it.
@@ -29,8 +36,6 @@ const tourIn = (
     models?: readonly Model[]
     // Models by harness, over the harnesses' own lists.
     lists?: Partial<Record<AgentName, readonly Model[]>>
-    git?: string
-    account?: string
     // How each removal goes; at once by default.
     removal?: () => Promise<void>
     // Each terminal's folder; the tour's own by default.
@@ -66,8 +71,6 @@ const tourIn = (
     },
     cwdOf: (terminalId) => options.cwds?.[terminalId] ?? tourFolder(home),
     leadOf: (terminalId) => options.leads?.[terminalId],
-    gitName: () => Promise.resolve(options.git),
-    account: () => options.account,
   }
   const tour = new Tour(host)
   // The lead's brief as the tour rings it now, composed of the run last readied.
@@ -95,9 +98,11 @@ describe("readying the tour", () => {
     expect(prepared).toMatchObject({ directory, brief: "doorbell", model: "haiku", removed: [] })
     expect(prepared.command).toMatch(/^claude --model haiku /)
     expect((await readdir(directory)).toSorted()).toEqual(
-      [".claude", "AGENTS.md", "CLAUDE.md", tourMarker].toSorted(),
+      [".claude", "AGENTS.md", "CLAUDE.md", stripFont.file, tourMarker].toSorted(),
     )
     expect(await readFile(join(directory, "CLAUDE.md"), "utf8")).toBe("@AGENTS.md\n")
+    // The strip's lettering, a woff2 file (its signature), beside where the strip goes.
+    expect((await readFile(join(directory, stripFont.file))).subarray(0, 4).toString()).toBe("wOF2")
     expect(JSON.parse(await readFile(join(directory, ".claude", "settings.json"), "utf8"))).toEqual(
       {
         permissions: { defaultMode: "acceptEdits" },
@@ -215,17 +220,16 @@ const opened = (text: string): string[] =>
 const luna: Model = { id: "gpt-e2e-luna", efforts: ["low", "medium"] }
 
 describe("the brief's facts", () => {
-  it("names the person and has a lead's own harness open both teammates on its cheapest model", async ({
+  it("has a lead's own harness open both teammates on its cheapest model", async ({
     resources,
   }) => {
     const home = await scratchHome(resources)
-    const { tour, brief } = tourIn(home, { git: "Ada Lovelace" })
+    const { tour, brief } = tourIn(home)
     await tour.prepare("claude")
     const text = brief()
-    expect(text).toContain("welcome card for Ada, with two teammates")
-    expect(text).toContain('NAME with "Ada"')
-    expect(text).toContain("welcome.svg")
-    expect(text).toContain('<text x="48" y="110"')
+    expect(text).toContain("comic strip of this tour for the person, with two teammates")
+    expect(text).toContain("tour-strip.html")
+    expect(text).toContain('<b class="c">You press start</b>')
     expect(opened(text)).toEqual([
       'agent "claude", model "haiku", effort "low"',
       'agent "claude", model "haiku", effort "low"',
@@ -288,24 +292,21 @@ describe("the brief's facts", () => {
     ])
   })
 
-  it("is composed again for each run", async ({ resources }) => {
+  it("never names the person, and tells its agents not to", async ({ resources }) => {
     const home = await scratchHome(resources)
-    const first = tourIn(home, { git: "Ada" })
-    await first.tour.prepare("claude")
-    expect(first.brief()).toContain("for Ada,")
-    const second = tourIn(home, { git: "Grace Hopper" })
-    await second.tour.prepare("claude")
-    expect(second.brief()).toContain("for Grace,")
+    const { tour, brief } = tourIn(home)
+    await tour.prepare("claude")
+    const text = brief()
+    expect(text).toContain("Never use the person's name, even if you know it")
+    expect(text).not.toMatch(/\bNAME\b/)
   })
 })
 
 describe("ringing the tour's brief", () => {
-  it("rings the lead's whole script, naming the person, to the terminal's agent", async ({
-    resources,
-  }) => {
+  it("rings the lead's whole script to the terminal's agent", async ({ resources }) => {
     const home = await scratchHome(resources)
     const notices: [string, string][] = []
-    const { tour } = tourIn(home, { notices, shown: ["t1"], git: "Ada" })
+    const { tour } = tourIn(home, { notices, shown: ["t1"] })
     await tour.prepare("claude")
     tour.brief("t1")
     expect(notices).toHaveLength(1)
@@ -313,11 +314,35 @@ describe("ringing the tour's brief", () => {
     expect(id).toBe("t1")
     expect(text.startsWith(tourBriefMark)).toBe(true)
     expect(text).toContain("## Steps")
-    expect(text).toContain("welcome card for Ada,")
-    // The SVG template keeps its quotes and angle brackets, and the whole of it is there.
-    expect(text).toContain('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450"')
-    expect(text).toContain("</svg>")
-    expect(Buffer.byteLength(text)).toBeLessThan(maxMessageBytes + 4096)
+    expect(text).toContain("comic strip of this tour for the person,")
+    // The HTML template keeps its quotes and angle brackets, and the whole of it is there.
+    expect(text).toContain('<!doctype html><html><head><meta charset="utf-8">')
+    expect(text).toContain("</div></body></html>")
+    // Delivered whole: wrapped as Novadeck's notice, in every harness, it fits one delivery,
+    // which a harness takes no more than (a brief past it is rung but never handed over).
+    const notice: Message = {
+      id: "m1",
+      projectId: "p1",
+      thread: "t-notice-m1",
+      hop: 1,
+      from: novadeckSender,
+      to: { terminalId: "t1", handle: "moth", agent: "claude", sessionId: null },
+      text,
+      sentAt: 0,
+      state: "queued",
+      deliveredAt: null,
+      notified: true,
+      stopped: false,
+      fromLead: false,
+      toLead: false,
+    }
+    expect(deliveredBytes(notice)).toBeLessThanOrEqual(maxDeliveryBytes)
+    // And so it does on the longest harness and model names, as \`agy\`'s.
+    const longest = tourBrief({
+      copywriter: { agent: "agy", model: "gemini-3-flash-lite-preview", effort: "medium" },
+      designer: { agent: "codex", model: "gpt-5.4-codex-mini-preview", effort: "medium" },
+    })
+    expect(deliveredBytes({ ...notice, text: longest })).toBeLessThanOrEqual(maxDeliveryBytes)
   })
 
   it("is refused before a run is readied", () => {
@@ -386,7 +411,7 @@ describe("the brief's wording", () => {
     await tour.prepare("claude")
     const text = brief()
     expect(text).toContain("Never answer your teammates' questions to the person yourself")
-    expect(text).toMatch(/body "The lead is making a\s+>\s+welcome card for/)
+    expect(text).toMatch(/body "The lead is making a\s+>\s+comic strip of the tour for you/)
     expect(text).toContain("dismissed the question")
     expect(text).toContain("their words as the tagline")
   })
@@ -416,14 +441,16 @@ describe("what the folder's own instructions say", () => {
     const { tour, brief } = tourIn(home)
     await tour.prepare("claude")
     const text = brief()
-    expect(text).toContain("Run no shell command at all: you need none")
-    expect(text.match(/Never call\s+> \\?`?open_agent|Never call/g)?.length).toBeGreaterThanOrEqual(
-      2,
-    )
+    expect(text).toContain("Run no shell command at all")
+    expect(text.match(/Never write files or call\s+(?:> )?`open_agent`/g)?.length).toBe(2)
     expect(text).not.toContain("Ignore the lead's steps")
     expect(text).toContain("don't explain,")
+    // Each teammate acts on its lead's messages, and loads Novadeck's tools where its harness
+    // defers them, as Claude Code does.
+    expect(text.match(/act on its messages/g)?.length).toBe(2)
+    expect(text.match(/if they're deferred, load them first/g)?.length).toBe(3)
     expect(text).toContain("Never answer your teammates' questions to the person yourself")
-    expect(text).toMatch(/body "The lead is making a\s+>\s+welcome card for/)
+    expect(text).toMatch(/body "The lead is making a\s+>\s+comic strip of the tour for you/)
     expect(text).toContain("dismissed the question")
   })
 })

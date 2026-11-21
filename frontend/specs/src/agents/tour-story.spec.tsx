@@ -57,7 +57,7 @@ const startTour = async (): Promise<void> => {
 beforeEach(switchTourOn)
 
 describe("The tour's story", () => {
-  it("plays from the agent's start to its card, the person's answer and all", async () => {
+  it("plays from the agent's start to its strip, the person's answer and all", async () => {
     await startTour()
     // It opens in Canvas, on the person's own agent.
     await coachSays("Your own agent. In a sandbox.")
@@ -75,15 +75,16 @@ describe("The tour's story", () => {
     // A teammate asks the person, who answers in the Inbox; the tour waits on them.
     await coachSays("Your call.")
     await expect.element(page.getByText(/^Act 3, Your call\./)).toBeInTheDocument()
-    await inboxRow(/Which tagline for the welcome card/).click()
+    await inboxRow(/Which tagline for the comic strip/).click()
     const sheet = page.getByRole("dialog", { name: "Copywriter" })
     // Pressed once the card stands still: a click just after it moved is held back.
     const pick = sheet.getByRole("button", { name: /Every agent, one calm workspace/ })
     await standsStill(pick)
     await pick.click()
 
-    // The lead shows the card the team made, and the tour holds on it a while.
+    // The lead shows the strip the team made, a page in its pane, and the tour holds on it a while.
     await coachSays("Made for you.")
+    await expect.element(page.getByText("tour-strip.html").first()).toBeVisible()
     await expect.element(page.getByText(/^Act 4, The result\./)).toBeInTheDocument()
 
     // It ends on a card that sends the person to their own project.
