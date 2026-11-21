@@ -135,6 +135,18 @@ export const askStep: TourStep = {
   wait: ({ asked }) => (asked ? "patient" : "nudge"),
 }
 
+// Still act 3: with the answer in, the lead makes the result, which takes it a while; the
+// tour looks at the lead meanwhile, and the result's act comes only once it's shown, so its wipe
+// is the reveal.
+export const makeStep: TourStep = {
+  id: "make",
+  act: 3,
+  enter: [{ kind: "fit-all" }],
+  coach: { look: "lead", line: "Now they make it." },
+  done: ({ shown }) => shown,
+  wait: "nudge",
+}
+
 // Act 4: the lead shows the result in the side pane beside its terminal, the team framed with
 // it, so the result's caption has room beside the lead. Once it's shown, it stays a few seconds
 // (while the tour's project is on screen) to be looked at, then the story ends and the closing
@@ -150,7 +162,14 @@ export const showStep: TourStep = {
 }
 
 // The tour's steps, in order: the story the brief asks its agent to play.
-export const tourSteps: readonly TourStep[] = [startStep, teamStep, talkStep, askStep, showStep]
+export const tourSteps: readonly TourStep[] = [
+  startStep,
+  teamStep,
+  talkStep,
+  askStep,
+  makeStep,
+  showStep,
+]
 
 // What the tour moves as its story ends: every window framed, for the closing card.
 export const closingMoves: readonly TourMove[] = [{ kind: "fit-all" }]

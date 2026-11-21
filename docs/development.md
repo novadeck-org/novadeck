@@ -803,7 +803,8 @@ App:
   words under it, or "It's asking your permission." while the lead or a teammate has an Unblock
   row waiting in the Inbox (any harness's own dialog, or a held message). End tour sits in the
   footer; while another project is on screen, a small bar stands in for it. Once
-  the card is shown, act 4 holds on it a few seconds before the closing card.
+  the person has answered, "Now they make it." stays on the lead until it shows what it made;
+  act 4 opens on that, its wipe the reveal, and holds on it a few seconds before the closing card.
 - **Boot failures:** each fails the first attempt as the runner would, so a transient one
   retries on its own and the others wait for Retry (an incompatible runner, or a workspace
   a newer Novadeck has used, only for Quit). Each hint carries the error code, so the search

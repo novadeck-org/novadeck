@@ -250,6 +250,7 @@ describe("The tour's story", () => {
       ["team", 2],
       ["talk", 2],
       ["ask", 3],
+      ["make", 3],
       ["show", 4],
     ])
   })
@@ -306,8 +307,13 @@ describe("The tour's story", () => {
     expect(nextTick(run, tourSteps, signals(quiet), patience)).toBe(patience)
   })
 
+  it("waits, once answered, for the lead to show what it made", () => {
+    expect(feed(atStep("make"), { shown: false }).run?.step).toBe(4)
+    expect(feed(atStep("make"), { shown: true }).run?.step).toBe(5)
+  })
+
   it("holds on the lead's card once shown", () => {
-    expect(feed(atStep("show"), { shown: true }).run).toMatchObject({ step: 4, doneAt: 1 })
+    expect(feed(atStep("show"), { shown: true }).run).toMatchObject({ step: 5, doneAt: 1 })
   })
 })
 
@@ -338,7 +344,7 @@ describe("The tour, with a teammate at a screen of its own", () => {
       { type: "signals", signals: signals(quiet, true, { answered: true }), now: 1 },
       patience,
     )
-    expect(tourSteps[outcome.run!.step]!.id).toBe("show")
+    expect(tourSteps[outcome.run!.step]!.id).toBe("make")
   })
 })
 
