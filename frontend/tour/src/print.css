@@ -25,29 +25,24 @@
 
 /* The marks the stage puts on the page's own elements while a step points at them, drawn here
    over whatever look the element has (so `!important`), and moving with it as it moves:
-   where to look, a magenta plate with its glow; what to press, the caption box's yellow,
-   blinking against its ink. Inset, so a parent that clips its children doesn't cut them. */
+   where to look, a thin magenta line; what to press, the caption box's yellow, breathing
+   slowly. Inset, so a parent that clips its children doesn't cut them. */
 [data-tour-look] {
-  outline: 3px solid oklch(0.66 0.226 341) !important;
-  outline-offset: -3px !important;
-  box-shadow:
-    inset 0 0 0 5px rgb(11 13 16 / 0.55),
-    0 0 28px 6px oklch(0.66 0.226 341 / 0.5) !important;
+  outline: 2px solid oklch(0.66 0.226 341 / 0.9) !important;
+  outline-offset: -2px !important;
+  box-shadow: 0 0 0 4px oklch(0.66 0.226 341 / 0.16) !important;
 }
 [data-tour-click] {
   outline-style: solid !important;
-  outline-width: 3px !important;
-  outline-offset: -3px !important;
+  outline-width: 2px !important;
+  outline-offset: -2px !important;
   outline-color: #ffe24a;
-  box-shadow:
-    inset 0 0 0 6px #140b1f,
-    0 0 0 3px #ffe24a,
-    0 0 22px 4px rgb(255 226 74 / 0.45) !important;
-  animation: tour-click 1s steps(1, end) infinite !important;
+  box-shadow: 0 0 0 4px rgb(255 226 74 / 0.18) !important;
+  animation: tour-click 1.8s ease-in-out infinite !important;
 }
 @keyframes tour-click {
   50% {
-    outline-color: #140b1f;
+    outline-color: rgb(255 226 74 / 0.35);
   }
 }
 

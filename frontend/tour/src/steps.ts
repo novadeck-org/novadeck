@@ -96,14 +96,15 @@ export const teamStep: TourStep = {
   wait: "nudge",
 }
 
-// Still act 2: the team talks, as the lead's Messages show.
+// Still act 2: the team talks, as the lead's Messages show: the first message a teammate sends
+// is the talk to see (the designer's look, to its lead).
 export const talkStep: TourStep = {
   id: "talk",
   act: 2,
   enter: [{ kind: "fit-all" }, { kind: "messages" }],
   frameTeam: true,
   coach: { look: "newest-message", line: "They talk to each other." },
-  done: ({ talks }) => talks >= 2,
+  done: ({ talks }) => talks >= 1,
   wait: "nudge",
 }
 

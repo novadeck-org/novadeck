@@ -260,8 +260,8 @@ describe("The tour's story", () => {
   })
 
   it("waits for the team to talk", () => {
-    expect(feed(atStep("talk"), { talks: 1 }).run?.step).toBe(2)
-    expect(feed(atStep("talk"), { talks: 2 }).run?.step).toBe(3)
+    expect(feed(atStep("talk"), { talks: 0 }).run?.step).toBe(2)
+    expect(feed(atStep("talk"), { talks: 1 }).run?.step).toBe(3)
   })
 
   it("takes a question gone from the Inbox, once seen, as the person's answer", () => {
