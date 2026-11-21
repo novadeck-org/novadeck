@@ -85,6 +85,9 @@ export type TourSources = {
   readonly previews?: readonly TourPreview[] | undefined
   // Every work the backend tracks, where it has them.
   readonly works?: readonly Work[] | undefined
+  // When the person's own opening of the tour's file counts, as a plain file window: not before,
+  // so a window from earlier, or one an agent showed, never ends the story. Absent, none counts.
+  readonly openedAfter?: number | undefined
 }
 
 export const noTeam: Pick<
@@ -140,7 +143,7 @@ const everyMessage = (messages: MessagesState | undefined) => {
 }
 
 // What a teammate says to the lead once its fix is made (both fixers' briefs ask for it).
-const fixedWord = /\bfixed bug\b/i
+const fixedWord = /^\s*fixed bug\b/i
 
 // The teammates that told the lead their fix is made.
 const reportersOf = (
@@ -166,7 +169,8 @@ const landedOf = (works: readonly Work[] | undefined, teammates: ReadonlySet<str
     (works ?? []).flatMap(({ terminalId, files, merged }) =>
       terminalId !== null &&
       teammates.has(terminalId) &&
-      (merged || files.some(({ path }) => path.split("/").pop() === tourFile))
+      (merged ||
+        files.some(({ path, status }) => status !== "deleted" && baseName(path) === tourFile))
         ? [terminalId]
         : [],
     ),
@@ -230,27 +234,46 @@ const freshShells = (history: WorkspaceProject["history"], lead: string): readon
     .map(({ id }) => id)
     .toReversed()
 
-const shows = (path: string | null): boolean => path?.split("/").pop() === tourFile
+// The last part of a path, whichever separator it is written with (Windows').
+const baseName = (path: string): string => path.split(/[\\/]/).pop() ?? ""
 
-// The window that shows the tour's file, while it is open in the project: its merged preview, or
-// else the file itself as a plain window, so a backend that opens it so still ends the story.
+const slashed = (path: string): string => path.replaceAll("\\", "/").toLowerCase()
+
+// Whether the path is the project's own copy of the tour's file: in its folder, not a worktree's.
+const ownFile = (project: WorkspaceProject, path: string | null): boolean =>
+  path !== null &&
+  baseName(path) === tourFile &&
+  slashed(path).startsWith(`${slashed(project.directory).replace(/\/+$/, "")}/`)
+
+// The window that shows the tour's file, while it is open in the project: its merged preview
+// first, else the file itself as a plain window the person opened since `openedAfter`, so a
+// backend that opens it so still ends the story. Never an agent's show, a worktree's copy, or a
+// window of before.
 const previewOf = (
   project: WorkspaceProject,
   previews: readonly TourPreview[] | undefined,
+  openedAfter: number | undefined,
 ): TourSignals["preview"] => {
-  for (const { state } of project.history) {
-    const merged = (previews ?? []).filter(
-      (preview) => preview.projectId === project.id && shows(preview.path),
-    )
+  const merged = (previews ?? []).filter(
+    (preview) => preview.projectId === project.id && baseName(preview.path) === tourFile,
+  )
+  for (const { state } of project.history)
     for (const preview of merged) {
       const window = state.roster.windows.find((each) => each.itemId === preview.itemId)
       if (window) return { windowId: window.id }
     }
+  if (openedAfter === undefined) return null
+  for (const { state } of project.history)
     for (const window of state.roster.windows) {
       const item = state.items.find((each) => each.id === window.itemId)
-      if (item?.kind === "file" && shows(item.path)) return { windowId: window.id }
+      if (
+        item?.kind === "file" &&
+        item.by === "person" &&
+        item.shownAt >= openedAfter &&
+        ownFile(project, item.path)
+      )
+        return { windowId: window.id }
     }
-  }
   return null
 }
 
@@ -303,7 +326,7 @@ export const tourSignals = (
         fixed: fixed.size,
         adopted: teammates.some(({ openedBy }) => !openedBy),
         fresh: freshShells(project.history, terminalId),
-        preview: previewOf(project, sources.previews),
+        preview: previewOf(project, sources.previews, sources.openedAfter),
       }
     }
   return { lead: { kind: "gone" }, onScreen: false, ...noTeam }

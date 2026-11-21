@@ -348,6 +348,14 @@ describe("The tour's story", () => {
     expect(heldThen("make", { team, fixed: 2 }).after?.step).toBe(stepNo("result"))
   })
 
+  it("marks when the result began, from which the person's opening of the file counts", () => {
+    const team = { count: 2, named: 2 }
+    const { after } = heldThen("make", { team, fixed: 2 })
+    expect(after?.step).toBe(stepNo("result"))
+    expect(typeof after?.fileAfter).toBe("number")
+    expect(atStep("make").fileAfter).toBeUndefined()
+  })
+
   it("waits on the person to open the file, then looks at its preview", () => {
     expect(feed(atStep("result"), {}).run?.step).toBe(stepNo("result"))
     expect(feed(atStep("result"), { preview: { windowId: "w1" } }).run?.step).toBe(stepNo("merged"))

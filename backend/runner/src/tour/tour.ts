@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs"
 import { posix, win32 } from "node:path"
 
 import type { Model } from "@novadeck/harness-core/harness"
@@ -37,6 +38,8 @@ export type TourHost = {
   readonly leadOf: (terminalId: string) => string | undefined
   /** The terminal's handle, as agents address it. */
   readonly handleOf: (terminalId: string) => string
+  /** Whether an agent has run in the terminal, which never changes back. */
+  readonly ranAgent: (terminalId: string) => boolean
   /** Whether the terminal is a plain shell at its prompt: no agent has run in it, and none runs. */
   readonly isFreshShell: (terminalId: string) => boolean
   /**
@@ -60,8 +63,10 @@ type Run = {
   readonly launch: TourLaunch
   /** The terminal the lead's brief was rung to. */
   lead?: string
-  /** The terminal of the second fixer, the person's own agent. */
+  /** The terminal of the second fixer, the person's own agent: claimed while it is readied. */
   fixer?: string | undefined
+  /** Whether that fixer has joined the team: before, its claim may still be given back. */
+  adopted?: boolean
 }
 
 // The order a second harness is looked for in, for the designer of a mixed team.
@@ -127,7 +132,7 @@ export class Tour {
     // under way is waited for.
     const removed = this.host.projects
       .list()
-      .filter(({ cwd }) => withinFolder(cwd, directory, this.host.platform))
+      .filter(({ cwd }) => this.inTour(cwd))
       .map(({ id }) => id)
     await Promise.all(
       removed.map((id) =>
@@ -194,37 +199,44 @@ export class Tour {
     if (!run) throw new DomainError("CONFLICT", "The tour hasn't been readied.")
     if (run.lead === undefined) throw new DomainError("CONFLICT", "The tour's lead hasn't started.")
     if (run.fixer !== undefined)
-      throw new DomainError("CONFLICT", "The tour's second fixer has started already.")
+      // While another call is waiting on its shell's prompt the claim may yet be given back, so
+      // it is no conflict: the client asks again. Once its fixer joined, it stands.
+      throw run.adopted === true
+        ? new DomainError("CONFLICT", "The tour's second fixer has started already.")
+        : new DomainError("CONTROL_IN_USE", "The tour's second fixer is starting: ask again.")
     const lead = run.lead
-    const check = (): void => {
-      if (
-        !withinFolder(this.host.cwdOf(terminalId), tourFolder(this.host.home), this.host.platform)
-      )
+    // What a shell can't change by itself, asked first; a shell still loading its profile isn't
+    // refused for that.
+    const fixed = (): void => {
+      if (!this.inTour(this.host.cwdOf(terminalId)))
         throw new DomainError("CONFLICT", "The terminal isn't one of the tour's.")
       if (terminalId === lead || this.host.leadOf(terminalId) !== undefined)
         throw new DomainError("CONFLICT", "The terminal is the lead or a teammate already.")
-      if (!this.host.isFreshShell(terminalId))
-        throw new DomainError("CONFLICT", "The terminal isn't a plain shell at its prompt.")
+      if (this.host.ranAgent(terminalId))
+        throw new DomainError("CONFLICT", "The terminal isn't a plain shell.")
       try {
         this.host.cwdOf(lead)
       } catch {
         throw new DomainError("CONFLICT", "The tour's lead is gone.")
       }
     }
-    check()
-    // Claimed first, so a second call meanwhile is refused; given back where a step fails.
+    fixed()
+    // Claimed first, so a second call meanwhile waits; given back where a step fails.
     run.fixer = terminalId
     try {
       // Once its shell has shown its first prompt, so what is typed isn't read by a profile
-      // still loading; checked again then, as the person may have used the shell meanwhile.
+      // still loading; then it must be a plain shell at it, as the person may have used it.
       await this.host.adopt(terminalId, lead, () => {
-        check()
+        fixed()
+        if (!this.host.isFreshShell(terminalId))
+          throw new DomainError("CONFLICT", "The terminal isn't a plain shell at its prompt.")
         this.host.type(terminalId, run.launch.command, ownerId)
       })
     } catch (error) {
       run.fixer = undefined
       throw error
     }
+    run.adopted = true
     this.host.expect(terminalId, run.agent)
     this.ring(terminalId, secondFixerBrief(mention(this.host.handleOf(lead))))
   }
@@ -250,15 +262,12 @@ export class Tour {
     } catch {
       return {}
     }
-    if (!withinFolder(cwd, tourFolder(this.host.home), this.host.platform)) return {}
+    if (!this.inTour(cwd)) return {}
     // The lead's fixers write in the folder unasked, for that launch only (`tourWrites`), and
     // only where they start in it: one it opens elsewhere gets none.
     return this.host.leadOf(terminalId) === undefined
       ? {
-          flags: (agent, at) =>
-            withinFolder(at, tourFolder(this.host.home), this.host.platform)
-              ? tourWrites[agent]
-              : [],
+          flags: (agent, at) => (this.inTour(at) ? tourWrites[agent] : []),
         }
       : {
           refusal:
@@ -272,21 +281,31 @@ export class Tour {
    */
   isTours(terminalId: string): boolean {
     try {
-      return withinFolder(
-        this.host.cwdOf(terminalId),
-        tourFolder(this.host.home),
-        this.host.platform,
-      )
+      return this.inTour(this.host.cwdOf(terminalId))
     } catch {
       return false
     }
+  }
+
+  /**
+   * Whether `path` is the tour's folder or inside it, by the path as given or by real paths on
+   * both sides: a terminal's folder is reported as its shell or the launcher resolved it, and the
+   * home folder or `~/.novadeck` may be a symlink.
+   */
+  private inTour(path: string): boolean {
+    const folder = tourFolder(this.host.home)
+    const { platform } = this.host
+    return (
+      withinFolder(path, folder, platform) ||
+      withinFolder(realPath(path), realPath(folder), platform)
+    )
   }
 
   // Only the tour's own terminals, those in its folder, are rung; one elsewhere is a
   // `CONFLICT`, as is one whose agent hasn't shown yet.
   private ring(terminalId: string, line: string): void {
     const cwd = this.host.cwdOf(terminalId)
-    if (!withinFolder(cwd, tourFolder(this.host.home), this.host.platform))
+    if (!this.inTour(cwd))
       throw new DomainError("CONFLICT", "The terminal isn't one of the tour's.")
     if (!this.host.notice(terminalId, line))
       throw new DomainError("CONFLICT", "The terminal's agent hasn't started yet.")
@@ -297,6 +316,15 @@ export class Tour {
 const teammate = (agent: AgentName, models: readonly Model[]): Teammate | undefined => {
   const { model, effort } = tourChoice(agent, models)
   return model === undefined ? undefined : { agent, model, ...(effort !== undefined && { effort }) }
+}
+
+// The path with its links resolved, or as it is where it can't be (missing, say).
+const realPath = (path: string): string => {
+  try {
+    return realpathSync.native(path)
+  } catch {
+    return path
+  }
 }
 
 /**

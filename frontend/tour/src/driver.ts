@@ -31,6 +31,9 @@ export type TourRun = {
   // When the step on now was done, where it holds a while before the run moves on (`holdMs`);
   // null while it isn't, as in a run kept from before holds were (read as null).
   readonly doneAt: number | null
+  // When the run reached the result step, from which the person's opening of the tour's file as
+  // a plain window counts (`TourSources.openedAfter`); absent before it.
+  readonly fileAfter?: number
 }
 
 // What moves the run on: the workspace's signals changing, the clock reaching a wait's end, the
@@ -80,7 +83,15 @@ const still = (run: TourRun | null): TourOutcome => ({ run, moves: [], brief: fa
 const nextStep = (run: TourRun, steps: readonly TourStep[], now: number): TourOutcome => {
   const step = Math.min(run.step + 1, steps.length)
   if (step === steps.length && run.briefed) return { ...still(null), end: "done" }
-  return still({ ...run, step, waitingSince: now, nudged: false, entered: false, doneAt: null })
+  return still({
+    ...run,
+    step,
+    waitingSince: now,
+    nudged: false,
+    entered: false,
+    doneAt: null,
+    ...(steps[step]?.id === "result" && { fileAfter: now }),
+  })
 }
 
 // Whether a done step still holds, for the person to look at what it shows.

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process"
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -47,6 +47,10 @@ const tourIn = (
     shells?: readonly string[]
     // The terminals typing into which fails, as a closed terminal's.
     failing?: readonly string[]
+    // The terminals an agent has run in.
+    ran?: readonly string[]
+    // What an adoption waits for, as a shell's first prompt, before it goes on.
+    gate?: Promise<void>
   } = {},
 ) => {
   const projects = options.projects ?? []
@@ -82,11 +86,12 @@ const tourIn = (
     cwdOf: (terminalId) => options.cwds?.[terminalId] ?? tourFolder(home),
     leadOf: (terminalId) => options.leads?.[terminalId],
     handleOf: (terminalId) => `h-${terminalId}`,
+    ranAgent: (terminalId) => (options.ran ?? []).includes(terminalId),
     isFreshShell: (terminalId) => (options.shells ?? []).includes(terminalId),
-    adopt: (terminalId, leadId, before) => {
+    adopt: async (terminalId, leadId, before) => {
+      await options.gate
       before()
       adopted.push([terminalId, leadId])
-      return Promise.resolve()
     },
     expect: (terminalId, agent) => void expected.push([terminalId, agent]),
     type: (terminalId, line, ownerId) => {
@@ -544,6 +549,60 @@ describe("taking the person's terminal as the second fixer", () => {
     expect(typed).toEqual([])
   })
 
+  it("asks a shell still loading its profile nothing of its prompt until it has shown one", async ({
+    resources,
+  }) => {
+    let open = (): void => {}
+    const gate = new Promise<void>((resolve) => (open = resolve))
+    const shells: string[] = []
+    const { tour, brief, typed } = await ready(resources, { shells, gate })
+    brief()
+    const done = tour.fixer("mine", "window")
+    // Not refused for being busy meanwhile: it settles once its prompt is there.
+    shells.push("mine")
+    open()
+    await done
+    expect(typed.map(([id]) => id)).toEqual(["mine"])
+  })
+
+  it("answers a second call, while the first waits, as one to ask again, and a conflict once adopted", async ({
+    resources,
+  }) => {
+    let open = (): void => {}
+    const gate = new Promise<void>((resolve) => (open = resolve))
+    const { tour, brief } = await ready(resources, { shells: ["mine", "other"], gate })
+    brief()
+    const first = tour.fixer("mine", "window")
+    await expect(tour.fixer("other", "window")).rejects.toMatchObject({ code: "CONTROL_IN_USE" })
+    open()
+    await first
+    await expect(tour.fixer("other", "window")).rejects.toMatchObject({ code: "CONFLICT" })
+  })
+
+  it("gives the claim back where the shell isn't plain once its prompt is there", async ({
+    resources,
+  }) => {
+    let open = (): void => {}
+    const gate = new Promise<void>((resolve) => (open = resolve))
+    const shells = ["mine", "next"]
+    const { tour, brief, typed } = await ready(resources, { shells, gate })
+    brief()
+    const first = tour.fixer("mine", "window")
+    // The person ran something in it meanwhile.
+    shells.splice(0, 1)
+    open()
+    await expect(first).rejects.toThrow(/plain shell/)
+    await tour.fixer("next", "window")
+    expect(typed.map(([id]) => id)).toEqual(["next"])
+  })
+
+  it("refuses a shell an agent has run in, before it waits for anything", async ({ resources }) => {
+    const { tour, brief, typed } = await ready(resources, { shells: ["mine"], ran: ["mine"] })
+    brief()
+    await expect(tour.fixer("mine", "window")).rejects.toThrow(/plain shell/)
+    expect(typed).toEqual([])
+  })
+
   it("gives the run back where typing fails, so the person's next terminal can be taken", async ({
     resources,
   }) => {
@@ -666,6 +725,23 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     expect(policy.flags?.("claude", "/h/code")).toEqual([])
     expect(policy.flags?.("codex", "/h/.novadeck/tour/sub")).not.toEqual([])
   })
+
+  it.skipIf(process.platform === "win32")(
+    "gives write flags to an agent that starts in the tour's folder by its real path, where the home is a link",
+    async ({ resources }) => {
+      const real = await scratchHome(resources)
+      await mkdir(join(real, ".novadeck", "tour"), { recursive: true })
+      const linked = join(await scratchHome(resources), "home")
+      await symlink(real, linked)
+      const { tour } = tourIn(linked)
+      const policy = tour.openPolicy("lead")
+      expect(policy.flags?.("claude", join(real, ".novadeck", "tour"))).toEqual([
+        "--permission-mode",
+        "acceptEdits",
+      ])
+      expect(tour.isTours("lead")).toBe(true)
+    },
+  )
 
   it("leaves a led terminal elsewhere, and a terminal the runner doesn't have, alone", () => {
     const { tour } = tourIn("/h", {

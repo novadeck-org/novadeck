@@ -375,14 +375,61 @@ describe("The tour's story signals", () => {
     expect(tourSignals(workspace, "01", { previews: elsewhere }).preview).toBeNull()
   })
 
-  it("see split.js open as a plain file window too, where no preview was made", () => {
-    const workspace = workspaceWithWindow()
-    const state = workspace.projects[0]!.history[0]!.state
-    const items = (path: string) =>
-      Object.assign(state, { items: state.items.map((each) => ({ ...each, path })) })
-    items("/project/split.js")
-    expect(tourSignals(workspace, "01").preview).toEqual({ windowId: "w1" })
-    items("/project/README.md")
-    expect(tourSignals(workspace, "01").preview).toBeNull()
+  describe("as a plain file window", () => {
+    // The window w1 shows an item with these parts, in the project at ~/project.
+    const shown = (item: object) => {
+      const workspace = workspaceWithWindow()
+      const state = workspace.projects[0]!.history[0]!.state
+      Object.assign(state, {
+        items: state.items.map((each) => ({
+          ...each,
+          path: "~/project/split.js",
+          by: "person",
+          from: null,
+          shownAt: 100,
+          ...item,
+        })),
+      })
+      return workspace
+    }
+    const seen = (workspace: ReturnType<typeof shown>, openedAfter: number | null = 50) =>
+      tourSignals(workspace, "01", { openedAfter: openedAfter ?? undefined }).preview
+
+    it("is the project's own split.js the person opened since the result began", () => {
+      expect(seen(shown({}))).toEqual({ windowId: "w1" })
+      expect(seen(shown({ path: "~\\project\\split.js" }))).toEqual({ windowId: "w1" })
+      expect(seen(shown({ path: "~/project/README.md" }))).toBeNull()
+    })
+
+    it("is none before the result began, or from a window of before it", () => {
+      expect(seen(shown({}), null)).toBeNull()
+      expect(seen(shown({ shownAt: 10 }))).toBeNull()
+    })
+
+    it("is not a worktree's copy, nor one an agent showed", () => {
+      const copy = "~/.novadeck/worktrees/abc/tour/split.js"
+      expect(seen(shown({ path: copy }))).toBeNull()
+      expect(seen(shown({ by: "agent" }))).toBeNull()
+    })
+
+    it("yields to the merged preview, which names its window", () => {
+      const previews = [{ projectId: "project", itemId: "hero", path: "~/project/split.js" }]
+      expect(
+        tourSignals(shown({ path: "~/.novadeck/worktrees/x/split.js" }), "01", { previews })
+          .preview,
+      ).toEqual({ windowId: "w1" })
+    })
+  })
+
+  it("take a question about a fix, or a fix away from split.js, for none", () => {
+    const question = { ...message("q", "02", "01"), text: "Have I fixed bug 1?" }
+    expect(tourSignals(teamWorkspace(), "01", { messages: messagesOf([question]) }).fixed).toBe(0)
+    const work = (status: string, path = "split.js") =>
+      ({ terminalId: "02", merged: false, files: [{ path, status }] }) as unknown as Work
+    expect(tourSignals(teamWorkspace(), "01", { works: [work("deleted")] }).fixed).toBe(0)
+    expect(tourSignals(teamWorkspace(), "01", { works: [work("renamed", "other.js")] }).fixed).toBe(
+      0,
+    )
+    expect(tourSignals(teamWorkspace(), "01", { works: [work("modified")] }).fixed).toBe(1)
   })
 })

@@ -2,10 +2,10 @@ import { describe, expect, it } from "../test.js"
 import { adoptTeammate, promptWait } from "./adopt.js"
 import type { CallsHost } from "./calls.js"
 
-// A host with two records, whose shell `member` has drawn `prompts` prompts, which a test raises.
+// A host with two records, whose shell `member` shows its first prompt when a test sets `promptedAt`.
 const hostOf = () => {
   const events: string[] = []
-  const member = { prompts: [] as unknown[], summary: { handle: "moth", title: "t" } }
+  const member = { promptedAt: null as number | null, summary: { handle: "moth", title: "t" } }
   const lead = { summary: { handle: "fox" } }
   const host = {
     records: () =>
@@ -26,7 +26,7 @@ describe("adopting the person's terminal as a teammate", () => {
     const done = adoptTeammate(host, "member", "lead", () => void events.push("before"))
     await new Promise((resolve) => setTimeout(resolve, promptWait.pollMs * 3))
     expect(events).toEqual([])
-    member.prompts.push({})
+    member.promptedAt = Date.now()
     await done
     expect(events).toEqual(["before", "led", "notice", "introduced"])
   })
@@ -45,7 +45,7 @@ describe("adopting the person's terminal as a teammate", () => {
 
   it("joins nothing where what runs before it refuses", async () => {
     const { host, member, events } = hostOf()
-    member.prompts.push({})
+    member.promptedAt = Date.now()
     await expect(
       adoptTeammate(host, "member", "lead", () => {
         throw new Error("no")

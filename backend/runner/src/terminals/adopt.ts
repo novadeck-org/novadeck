@@ -6,7 +6,7 @@ import { teamNotice } from "./teams.js"
 export const promptWait = { ms: 8_000, pollMs: 50 }
 
 /**
- * Resolves once the terminal's shell has drawn its first prompt (its integration reported one),
+ * Resolves once the terminal's shell has drawn its first prompt (its integration reported one, which `promptedAt` keeps),
  * so a line typed then isn't read by a profile still loading, or gives up after `promptWait.ms`:
  * a shell without integration never reports one, and is typed into as it is.
  */
@@ -14,7 +14,7 @@ const firstPrompt = async (host: Pick<CallsHost, "records">, terminalId: string)
   const until = Date.now() + promptWait.ms
   while (Date.now() < until) {
     const record = host.records().get(terminalId)
-    if (!record || record.prompts.length > 0) return
+    if (!record || record.promptedAt !== null) return
     // eslint-disable-next-line no-await-in-loop -- Polled in turn.
     await new Promise((resolve) => setTimeout(resolve, promptWait.pollMs))
   }

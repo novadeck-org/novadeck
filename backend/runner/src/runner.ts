@@ -452,6 +452,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     cwdOf: (terminalId) => terminals.get(terminalId).cwd,
     leadOf: (terminalId) => terminals.messaging.leadOf(terminalId)?.terminalId,
     handleOf: (terminalId) => terminals.get(terminalId).handle,
+    ranAgent: (terminalId) => terminals.get(terminalId).agentRan,
     isFreshShell: (terminalId) => {
       const shell = terminals.get(terminalId)
       return shell.started && !shell.busy && !shell.agentRan && shell.command === null

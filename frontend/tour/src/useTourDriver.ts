@@ -2,6 +2,7 @@ import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 
 import { beginRun, coachNow, nextTick, stepRun, type TourEvent, type TourRun } from "./driver"
+import { askFixer } from "./fixer-call"
 import { noTeam, sameSignals, tourSignals, type TourSignals } from "./signals"
 import type { TourStarted } from "./start"
 import {
@@ -193,15 +194,23 @@ export const useTourDriver = ({
     retry.current = { tries: 0 }
   }, [])
   // The same, for what runs later: a retry reads them as they are by then.
-  const sources = useRef({ messages, inbox, previews, works })
+  const sources = useRef({ messages, inbox, previews, works, openedAfter: run?.fileAfter })
   useEffect(() => {
-    sources.current = { messages, inbox, previews, works }
-  }, [messages, inbox, previews, works])
+    sources.current = { messages, inbox, previews, works, openedAfter: run?.fileAfter }
+  }, [messages, inbox, previews, works, run?.fileAfter])
   const patienceMs = tour?.patienceMs ?? defaultPatienceMs
   const signals = useSelected(
     workspace,
     (state) =>
-      run ? tourSignals(state, run.terminalId, { messages, inbox, previews, works }) : noSignals,
+      run
+        ? tourSignals(state, run.terminalId, {
+            messages,
+            inbox,
+            previews,
+            works,
+            openedAfter: run.fileAfter,
+          })
+        : noSignals,
     sameSignals,
   )
 
@@ -356,42 +365,14 @@ export const useTourDriver = ({
   const fixer = tour?.fixer
   const shells = run && steps[run.step]?.id === "yours" ? signals.fresh : noShells
   const [refused, setRefused] = useState<ReadonlySet<string>>(noRefused)
-  const fixing = useRef<{
-    terminalId: string
-    asked: boolean
-    // Asked at least once, and whether it stands (answered, or a conflict): no more are asked.
-    settled: boolean
-    tries: number
-    timer?: ReturnType<typeof setTimeout>
-  }>({ terminalId: "", asked: false, settled: false, tries: 0 })
   const candidate = shells.find((id) => !refused.has(id))
   useEffect(() => {
     if (!candidate || !fixer) return
-    if (fixing.current.terminalId !== candidate)
-      fixing.current = { terminalId: candidate, asked: false, settled: false, tries: 0 }
-    const state = fixing.current
-    const leave = (): void => {
-      state.settled = true
-      setRefused((now) => new Set(now).add(candidate))
-    }
-    const attempt = (): void => {
-      state.asked = true
-      fixer(candidate).then(
-        () => {
-          state.settled = true
-        },
-        (error: unknown) => {
-          console.error("Novadeck couldn't start the tour's second fixer:", error)
-          if ((error as { readonly code?: unknown } | null)?.code === "CONFLICT") return leave()
-          if (state.settled) return
-          if (state.tries >= briefTries) return leave()
-          state.tries += 1
-          state.timer = setTimeout(attempt, briefRetryMs)
-        },
-      )
-    }
-    if (!state.asked) attempt()
-    return () => clearTimeout(state.timer)
+    return askFixer(fixer, candidate, {
+      tries: briefTries,
+      retryMs: briefRetryMs,
+      onRefused: () => setRefused((now) => new Set(now).add(candidate)),
+    })
   }, [candidate, fixer])
 
   const projectOf = useSelected(

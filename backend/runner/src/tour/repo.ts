@@ -13,6 +13,8 @@ import { tourMarker } from "./folder.js"
 const small = { cap: 64 * 1024, ms: 30_000 }
 
 const needsGit = "The tour needs git, which isn't installed here. Install git, then take the tour."
+const brokenGit =
+  "The tour needs git, which didn't answer here. Check that git works, then take the tour."
 
 const said = (run: Run): string =>
   run.ok ? "" : run.kind === "no-git" ? needsGit : run.said || `git ${run.kind}`
@@ -23,7 +25,7 @@ const said = (run: Run): string =>
  */
 export const requireGit = async (): Promise<void> => {
   const run = await git(tmpdir(), ["--version"], small)
-  if (!run.ok) throw new DomainError("CONFLICT", needsGit)
+  if (!run.ok) throw new DomainError("CONFLICT", run.kind === "timeout" ? brokenGit : needsGit)
 }
 
 /**
