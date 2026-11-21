@@ -50,7 +50,7 @@ const made = (call: Call): number =>
 // The notice Novadeck puts in a terminal's first prompt, which names that terminal's
 // conversation: no other terminal's holds the same one.
 const notice = (call: Call): string | undefined =>
-  /\[Novadeck: [^\]]*\]/.exec(call.turns.find((turn) => turn.role === "user")?.text ?? "")?.[0]
+  /<novadeck-doorbell [^>]*>/.exec(call.turns.find((turn) => turn.role === "user")?.text ?? "")?.[0]
 
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {

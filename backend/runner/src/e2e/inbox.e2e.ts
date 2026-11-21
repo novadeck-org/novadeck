@@ -363,7 +363,9 @@ for (const setup of setups) {
         const calls = run.model.mark()
         const mark = terminal.mark()
         const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
-        const words = `Merge it${" and say so in the changelog".repeat(7)}, thanks.`
+        // The longest reply that fits the 320 characters beside the tag's frame (53), and still
+        // more than the box shows.
+        const words = `Merge it${" and say so in the changelog".repeat(6)}, thanks.`
         run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: words })
         const received = await run.model.waitFor((call) => !call.side && delivered(call, "you"), {
           after: calls,
@@ -569,7 +571,7 @@ for (const setup of setups) {
       expect(lined(received)).toBe(false)
       const shown = await terminal.screen()
       expect(shown).toContain("half a thought")
-      expect(shown).not.toContain("[Novadeck")
+      expect(shown).not.toContain("<novadeck-doorbell")
     })
 
     it("shows its done as reported until the person's next prompt gives it more to do", async ({

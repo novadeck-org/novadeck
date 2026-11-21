@@ -562,7 +562,7 @@ for (const setup of setups) {
       expect(t1.messages().waits).toBe("draft")
       const shown = await t1.screen()
       expect(shown).toContain("Tell me")
-      expect(shown).not.toContain("[Novadeck")
+      expect(shown).not.toContain("<novadeck-doorbell")
 
       // They clear it: nothing is typed or pressed by them, and the agent is rung.
       t1.press(backspace.repeat("Tell me".length))
@@ -611,7 +611,7 @@ for (const setup of setups) {
         // Said with the screen: a box that reads as a dialog (seen once on Windows, 2026-11-08,
         // with nothing recorded of the screen) shows what it held.
         expect(t1.messages().waits, await t1.screen()).toBe("draft")
-        expect(await t1.screen()).not.toContain("[Novadeck")
+        expect(await t1.screen()).not.toContain("<novadeck-doorbell")
         // The words are where they were, out of sight on Claude Code's box until scrolled back to.
         t1.press(down.repeat(lines))
         await t1.until("MY DRAFT BELOW")
@@ -636,7 +636,7 @@ for (const setup of setups) {
       await sleep(unrung)
       expect(states(t1, mark)).not.toContain("ringing")
       expect(t1.messages().waits).toBe("draft")
-      expect(await t1.screen()).not.toContain("[Novadeck")
+      expect(await t1.screen()).not.toContain("<novadeck-doorbell")
     })
 
     it("rings an agent whose screen has a row ticking by itself, a status line's clock", async ({
@@ -701,7 +701,7 @@ for (const setup of setups) {
       const shown = await t1.screen()
       expect(shown).toContain("and more")
       expect(occurrences(shown, "Lft7Bb")).toBe(1)
-      expect(occurrences(shown, "[Novadeck")).toBe(1)
+      expect(occurrences(shown, "<novadeck-doorbell")).toBe(1)
     })
 
     it("takes the line a failed ring left out of the box for a prompt from the chat, and the message comes", async ({
