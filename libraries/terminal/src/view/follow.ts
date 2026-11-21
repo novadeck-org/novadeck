@@ -24,6 +24,9 @@ export type ViewEvents<K> = {
   readonly stage?: (key: K, stage: "mounted" | "shown" | "gone") => void
   // Why the terminal could not be followed.
   readonly lost?: (key: K, error: unknown) => void
+  // An attach has been refused as busy for `busyToldMs` and goes on being asked for, quietly:
+  // the owner may say so where the person looks, once for each wait. `error` is the refusal.
+  readonly waiting?: (key: K, error: unknown) => void
   // The stream, until the returned release; the owner may note it.
   readonly attached?: (key: K, stream: AttachStream) => () => void
 }
@@ -96,6 +99,9 @@ const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 // with each failure in a row up to the most. A failure `apart` after the one before it is the
 // first again. One that fails on every snapshot, or soon after each, settles at a redraw every
 // `most`: short, as the screen shows "Loading output…" meanwhile, and a snapshot costs little.
+// How long an attach refused as busy is asked for before the owner is told it waits.
+export const busyToldMs = 4_000
+
 const redrawMs = { first: 250, most: 5_000, apart: 60_000 }
 
 // Attaches to the terminal, draws what it sends, and passes input and size back until
@@ -171,6 +177,8 @@ export const followTerminal = <K>(
   // Attaches, retrying after the host comes back; undefined when it cannot, or once
   // parked, which marks the stream cut.
   const open = async (entry: Lifecycle): Promise<AttachStream | undefined> => {
+    let busySince: number | undefined
+    let told = false
     while (wanted(entry)) {
       try {
         // eslint-disable-next-line no-await-in-loop -- Retry after the host comes back.
@@ -183,6 +191,11 @@ export const followTerminal = <K>(
       } catch (error) {
         const failure = options.classify(error)
         if (failure === "busy") {
+          busySince ??= Date.now()
+          if (!told && Date.now() - busySince >= busyToldMs) {
+            told = true
+            on?.waiting?.(key, error)
+          }
           // Too many calls in flight: try again shortly.
           // eslint-disable-next-line no-await-in-loop -- Back off before trying again.
           await Promise.race([pause(300), halted])

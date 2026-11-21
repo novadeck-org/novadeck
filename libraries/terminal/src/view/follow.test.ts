@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe as context, describe, expect, it, vi } 
 
 import type { AttachStream } from "../contract.js"
 import { exited, optionsOf, output, shell, snapshot, streamOf } from "./fakes.test-support.js"
-import { followTerminal, type FollowOptions } from "./follow.js"
+import { busyToldMs, followTerminal, type FollowOptions } from "./follow.js"
 
 const key = "t"
 
@@ -433,5 +433,48 @@ describe("following over the terminal library's stream", () => {
     )
     await vi.waitFor(() => expect(lost).toEqual([failure]))
     followed.stop()
+  })
+
+  it("tells the owner once that an attach refused as busy has waited a while, and goes on asking", async () => {
+    vi.useFakeTimers()
+    try {
+      const waiting: unknown[] = []
+      const lost: unknown[] = []
+      const refusal = new Error("in use")
+      let attempts = 0
+      const { attached } = streamOf([snapshot("$ ")], { ends: false })
+      const followed = followTerminal<string>(
+        {
+          attach: async () => {
+            attempts += 1
+            if (attempts < 30) throw refusal
+            return attached
+          },
+          lifecycle: () => shell(),
+          connection: { getSnapshot: () => "connected", subscribe: () => () => {} },
+          reconnected: async () => {},
+          classify: () => "busy",
+          waitsAfter: () => false,
+          on: {
+            waiting: (_key, error) => void waiting.push(error),
+            lost: (_key, error) => void lost.push(error),
+          },
+        },
+        "t",
+        drawing([]),
+      )
+      await vi.advanceTimersByTimeAsync(busyToldMs - 500)
+      expect(waiting).toEqual([])
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(waiting).toEqual([refusal])
+      await vi.advanceTimersByTimeAsync(5_000)
+      // Once, however long it takes, and never as lost.
+      expect(waiting).toHaveLength(1)
+      expect(lost).toEqual([])
+      expect(attempts).toBeGreaterThan(10)
+      followed.stop()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
