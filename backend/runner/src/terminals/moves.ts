@@ -97,7 +97,7 @@ const useNew = "Use the new handles."
 export const moveNotice = {
   // To a terminal that left its lead as it moved on its own.
   left: (lead: string, renames: readonly Rename[] = []): string =>
-    noticeText("Move", {
+    noticeText("Team", {
       facts:
         `The user moved you to another session in Novadeck, so ${mention(lead)} no longer leads ` +
         "you, and it can no longer see you." +
@@ -106,7 +106,7 @@ export const moveNotice = {
     }),
   // To a terminal that left a lead as it moved on its own, one that is gone and has no handle.
   leftGone: (renames: readonly Rename[] = []): string =>
-    noticeText("Move", {
+    noticeText("Team", {
       facts:
         "The user moved you to another session in Novadeck, so your lead no longer leads you, " +
         "and it can no longer see you." +
@@ -115,7 +115,7 @@ export const moveNotice = {
     }),
   // To the lead a terminal left as it moved.
   leftBy: (handle: string, title: string): string =>
-    noticeText("Move", {
+    noticeText("Team", {
       facts:
         `The user moved ${mention(handle)} · ${title} to another session in Novadeck: you no ` +
         "longer lead it, and you can no longer see it. What you sent it that hadn't arrived is " +
@@ -123,7 +123,7 @@ export const moveNotice = {
     }),
   // To the first terminal of a moved group that keeps its lead, whose handle may have changed.
   ledAfter: (lead: string, renames: readonly Rename[] = []): string =>
-    noticeText("Move", {
+    noticeText("Team", {
       facts:
         `${mention(lead)} leads you from now on.` +
         (renames.length === 0 ? "" : " " + changes(renames)),
@@ -131,7 +131,7 @@ export const moveNotice = {
     }),
   // To a terminal whose handle changed, or whose lead's or teammates' did, in the new session.
   renamed: (handle: string, renames: readonly Rename[]): string =>
-    noticeText("Move", {
+    noticeText("Team", {
       facts:
         `The user moved you to another session in Novadeck. Your handle there is ${mention(handle)}. ` +
         `${changes(renames)} The agents you knew there are out of reach, and you see this ` +
@@ -140,14 +140,14 @@ export const moveNotice = {
     }),
   // To a terminal moved on its own, whose handle and lead stayed.
   alone: (): string =>
-    noticeText("Move", {
+    noticeText("Team", {
       facts:
         "The user moved you to another session in Novadeck: the agents you knew there are out " +
         "of reach, but for your team if it came along, and you see this session's agents now.",
     }),
   // To the lead an undo of a move puts back over the terminal.
   leadsAgain: (handle: string, title: string): string =>
-    noticeText("Move", {
+    noticeText("Team", {
       facts:
         `The user moved ${mention(handle)} · ${title} back to this session in Novadeck: you ` +
         "lead it again, and you can see it.",

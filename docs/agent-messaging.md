@@ -2031,26 +2031,24 @@ agent, a page or the user wrote is quoted in "double quotes", one clipped line; 
 one. An event notice keeps only what changed, plus at most one action if something is due:
 the standing rules, such as a lead's messages being instructions, are the delivery rules'.
 
-The kinds (`noticeKinds`) are what the header names:
+The kinds (`noticeKinds`) are what the header names. A kind is a family, named for what the
+notice is about rather than for the code that sends it: a new source of the same sort of news
+joins its family (another shared resource under `Resources`, another shown item's problems
+under `Show`) instead of adding a kind.
 
-| Kind            | What it is                                                                                                                                                        |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Describe`      | The standing ask for a title and a summary (and the drift check); `terminals/nudges.ts`.                                                                          |
-| `Show`          | The standing notice of the bar beside the terminal; `nudges.ts`.                                                                                                  |
-| `Inbox`         | The standing notice of the Inbox; the asks withdrawn or dismissed (`messaging/inbox.ts`); the hook's line on a reply doorbell.                                    |
-| `Worktrees`     | The setting on, off and early (`nudges.ts`); a worktree changing owner (`worktrees/calls.ts`).                                                                    |
-| `Restart`       | A turn or a wait cut short by a restart (`terminals/interrupted.ts`).                                                                                             |
-| `Page`          | A shown page that had problems (`terminals/troubles.ts`).                                                                                                         |
-| `Host load`     | CPU strain (`terminals/host-load.ts`).                                                                                                                            |
-| `CI queue`      | A queued check and who holds the runners (`terminals/queue-notices.ts`).                                                                                          |
-| `Messages`      | A message held long (`messaging/holds.ts`); the hook's lines on a doorbell with nothing waiting (`messaging/hook-answers.ts`); the heading of a delivery's rules. |
-| `Close`         | The outcome of a request to close a terminal (`terminals/closes.ts`).                                                                                             |
-| `Run`           | The outcome of a request to run a command (`terminals/runs.ts`).                                                                                                  |
-| `Lead`          | A lead beginning or ending (`terminals/leads.ts`).                                                                                                                |
-| `Team`          | A team joined, left or handed over (`terminals/teams.ts`).                                                                                                        |
-| `Move`          | A terminal moved to another session (`terminals/moves.ts`).                                                                                                       |
-| `Inbox answers` | The heading of the delivery rules for the person's Inbox responses.                                                                                               |
-| `Notices`       | The heading of the delivery rules for Novadeck's own notices.                                                                                                     |
+| Kind            | What it is                                                                                                                                                                                                  |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Describe`      | The standing ask for a title and a summary (and the drift check); `terminals/nudges.ts`.                                                                                                                    |
+| `Show`          | What the agent shows the person: the standing notice of the bar beside the terminal (`nudges.ts`); a shown page that had problems (`terminals/troubles.ts`).                                                |
+| `Inbox`         | The standing notice of the Inbox; the asks withdrawn or dismissed (`messaging/inbox.ts`); the hook's line on a reply doorbell.                                                                              |
+| `Worktrees`     | The setting on, off and early (`nudges.ts`); a worktree changing owner (`worktrees/calls.ts`).                                                                                                              |
+| `Restart`       | A turn or a wait cut short by a restart (`terminals/interrupted.ts`).                                                                                                                                       |
+| `Resources`     | Something agents share running short, and who holds it: CPU strain (`terminals/host-load.ts`); a queued check and who holds the runners (`terminals/queue-notices.ts`).                                     |
+| `Messages`      | A message held long (`messaging/holds.ts`); the hook's lines on a doorbell with nothing waiting (`messaging/hook-answers.ts`); the heading of a delivery's rules.                                           |
+| `Terminals`     | The outcome of a request to close a terminal (`terminals/closes.ts`) or to run a command in a new one (`terminals/runs.ts`).                                                                                |
+| `Team`          | Who leads whom and who sees whom: a lead beginning or ending (`terminals/leads.ts`); a team joined, left or handed over (`terminals/teams.ts`); a terminal moved to another session (`terminals/moves.ts`). |
+| `Inbox answers` | The heading of the delivery rules for the person's Inbox responses.                                                                                                                                         |
+| `Notices`       | The heading of the delivery rules for Novadeck's own notices.                                                                                                                                               |
 
 Standing notices ride on the prompt, a blank line apart; event notices are sent as a
 message from `novadeck`. The doorbell lines (`harnesses/core/src/prompts.ts`) and the tour's

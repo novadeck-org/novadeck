@@ -147,7 +147,7 @@ describe("the notice of a page's troubles", () => {
         { kind: "load", text: "ERR_CONNECTION_REFUSED" },
       ),
     ).toBe(
-      "Novadeck · Page\nThe page you showed, Dashboard " +
+      "Novadeck · Show\nThe page you showed, Dashboard " +
         "(http://localhost:5173/app), had problems in the user's pane since you showed it: " +
         'error "TypeError: x is undefined" at "/src/main.js:42"; ' +
         'fetch "/api/users?page=2" answered 500; ' +

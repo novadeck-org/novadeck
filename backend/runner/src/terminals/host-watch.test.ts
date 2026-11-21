@@ -114,7 +114,7 @@ describe("watching the host", () => {
     await repeat(ticks, 96, { a: 40, b: 30, c: 15, d: 5 })
     expect(notices.map(([id]) => id)).toEqual(["a", "b"])
     expect(notices[0]![1]).toMatch(
-      /^Novadeck · Host load\nCPU at 90%\+ for \d+ min\. Heaviest: you 40%, @b 30%, @c 15%\.$/,
+      /^Novadeck · Resources\nCPU at 90%\+ for \d+ min\. Heaviest: you 40%, @b 30%, @c 15%\.$/,
     )
     await repeat(10, 96, { a: 40, b: 30, c: 15 })
     expect(notices).toHaveLength(2)

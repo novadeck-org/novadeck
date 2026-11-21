@@ -39,8 +39,8 @@ describe("noticeText", () => {
   })
 
   it("has no arrow line where there is nothing to do", () => {
-    expect(noticeText("Host load", { facts: "CPU at 90%+ for 3 min." })).toBe(
-      "Novadeck · Host load\nCPU at 90%+ for 3 min.",
+    expect(noticeText("Resources", { facts: "CPU at 90%+ for 3 min." })).toBe(
+      "Novadeck · Resources\nCPU at 90%+ for 3 min.",
     )
     expect(noticeLines({ facts: "x" })).toEqual(["x"])
   })
@@ -91,7 +91,7 @@ describe("every notice Novadeck words", () => {
 
   it("keeps a lead's report-back as an action, and its standing rules out of the event", () => {
     expect(leadNotice.nowLed("newtz")).toBe(
-      "Novadeck · Lead\nThe user let @newtz lead you from now on.\n→ Report back to it with send when you're done or stuck.",
+      "Novadeck · Team\nThe user let @newtz lead you from now on.\n→ Report back to it with send when you're done or stuck.",
     )
     for (const text of [leadNotice.nowLed("newtz"), leadNotice.released("newtz")])
       expect(text).not.toMatch(/still stands|lead mark|peer's/)

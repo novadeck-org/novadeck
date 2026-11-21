@@ -1166,7 +1166,7 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
           "Novadeck · Worktrees\n@moth gave you its worktree on fix/export-rounding.\n  /Users/alex/projects/novadeck-export\n→ Work there with absolute paths.\n→ Don't close it.",
         ]),
         ...noticesBy(review.items, "h5d1", [
-          "Novadeck · Host load\nCPU has been at 90% or more for 3 minutes; @owl and @fox are running tests.",
+          "Novadeck · Resources\nCPU has been at 90% or more for 3 minutes; @owl and @fox are running tests.",
         ]),
       ],
     },

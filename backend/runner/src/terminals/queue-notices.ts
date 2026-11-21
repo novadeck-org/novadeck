@@ -196,7 +196,7 @@ const recipients = (
     )
   told.set(
     queued.terminalId,
-    noticeText("CI queue", {
+    noticeText("Resources", {
       facts:
         `Your PR #${pull.number}'s ${kind} check has been queued ${minutes(since, now)}; ` +
         `${kind} runners held by ${held(queued.terminalId)}.`,
@@ -205,7 +205,7 @@ const recipients = (
   for (const holder of holders)
     told.set(
       holder.terminalId,
-      noticeText("CI queue", {
+      noticeText("Resources", {
         facts:
           `${mention(queued.handle)}'s PR #${pull.number}'s ${kind} check has been queued ` +
           `${minutes(since, now)}; ${kind} runners held by ${held(holder.terminalId)}.`,

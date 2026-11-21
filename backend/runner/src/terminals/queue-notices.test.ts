@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import { QueueNotices, queuedLongMs, type QueueEntry } from "./queue-notices.js"
 
 // Every queue notice's first line.
-const header = "Novadeck · CI queue\n"
+const header = "Novadeck · Resources\n"
 
 const now = Date.parse("2026-01-01T12:00:00Z")
 const ago = (min: number): number => now - min * 60_000

@@ -14,7 +14,12 @@ import { noticePrefix } from "@novadeck/protocol/notices"
  * (harnesses/core/src/prompts.ts) are no notices and keep their own form.
  */
 
-/** The kinds a notice has, each a header's second half. */
+/**
+ * The kinds a notice has, each a header's second half. A kind is a family, named for what the
+ * notice is about rather than for the code that sends it, so a new source of the same sort of
+ * news joins its family: another shared resource under `Resources`, another shown item's
+ * problems under `Show`.
+ */
 export const noticeKinds = [
   "Describe",
   "Show",
@@ -22,16 +27,11 @@ export const noticeKinds = [
   "Inbox answers",
   "Worktrees",
   "Restart",
-  "Page",
-  "Host load",
-  "CI queue",
+  "Resources",
   "Messages",
   "Notices",
-  "Close",
-  "Run",
-  "Lead",
+  "Terminals",
   "Team",
-  "Move",
 ] as const
 
 export type NoticeKind = (typeof noticeKinds)[number]

@@ -668,12 +668,12 @@ describe("Novadeck's notices on a prompt's hook, as Claude Code records them", (
       attachment: {
         type: "hook_additional_context",
         content: [
-          `${content}\n\nNovadeck · Host load\nCPU at 90%+ for 3 min.\n\nNovadeck · Show\nShow it.\n→ Use show.`,
+          `${content}\n\nNovadeck · Resources\nCPU at 90%+ for 3 min.\n\nNovadeck · Show\nShow it.\n→ Use show.`,
         ],
       },
     }
     expect(items([joined]).map(({ text }) => text)).toEqual([
-      "Novadeck · Host load\nCPU at 90%+ for 3 min.",
+      "Novadeck · Resources\nCPU at 90%+ for 3 min.",
       "Novadeck · Show\nShow it.\n→ Use show.",
     ])
   })

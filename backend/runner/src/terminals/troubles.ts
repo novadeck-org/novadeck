@@ -233,12 +233,12 @@ export const quotedText = quoted
 
 /**
  * What a session is told of a page it showed that had problems in the person's pane, a
- * notice of the Page kind. What a page supplies is its own text, so
+ * notice of the Show kind. What a page supplies is its own text, so
  * the notice quotes each such string, a line at a time and bounded in bytes.
  */
 export const pageNotice = (entry: PageEntry): string => {
   const told = troubleList(entry.troubles, entry.more, entry.url)
-  return noticeText("Page", {
+  return noticeText("Show", {
     facts:
       `The page you showed, ${clip(line(entry.name), 80)} (${clip(line(entry.url), 200)}), had ` +
       `problems in the user's pane since you showed it: ${told}. What a page logs is its own ` +

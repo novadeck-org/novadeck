@@ -394,7 +394,7 @@ describe("moving a terminal to another session", () => {
     })
     world.move(to("s2", "a", { handles: { a: "owl" }, lead: "lead" }))
     const text = world.log.notices.find(({ to: who }) => who === "a")!.text
-    expect(text.startsWith("Novadeck · Move\n@moth leads you from now on. Handles changed")).toBe(
+    expect(text.startsWith("Novadeck · Team\n@moth leads you from now on. Handles changed")).toBe(
       true,
     )
     expect(text).toContain("→ Report back to it with send when you're done or stuck.")

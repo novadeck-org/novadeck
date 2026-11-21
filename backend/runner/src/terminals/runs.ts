@@ -11,23 +11,23 @@ const shown = (command: string): string => quotedText(command, 200)
 
 export const runNotice = {
   opened: (handle: string, command: string): string =>
-    noticeText("Run", {
+    noticeText("Terminals", {
       facts: `The user approved running ${shown(command)}: it is open as ${mention(handle)} and the command started.`,
     }),
   declined: (command: string): string =>
-    noticeText("Run", {
+    noticeText("Terminals", {
       facts: `The user declined running ${shown(command)}: no terminal opened and nothing ran.`,
     }),
   // The client went away before the person answered.
   gone: (command: string): string =>
-    noticeText("Run", {
+    noticeText("Terminals", {
       facts:
         `Nothing ran: Novadeck's window went away before the user answered the ask to run ` +
         `${shown(command)}.`,
       actions: ["Ask again if it still should."],
     }),
   refused: (command: string, reason: string): string =>
-    noticeText("Run", {
+    noticeText("Terminals", {
       facts: `The user approved running ${shown(command)}, but no terminal opened: ${reason}`,
     }),
 }

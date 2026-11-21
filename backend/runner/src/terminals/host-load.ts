@@ -294,7 +294,7 @@ export class Strain {
         const list = contributors.map(({ agent: each, share }) =>
           shown(each.id === agent.id ? "you" : mention(each.handle), share),
         )
-        const text = noticeText("Host load", {
+        const text = noticeText("Resources", {
           facts: `CPU at ${cpuHighPercent}%+ for ${minutes(load.cpuHighFor)}. Heaviest: ${list.join(", ")}.`,
         })
         if (!send(agent.id, text)) continue

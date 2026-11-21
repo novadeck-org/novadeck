@@ -81,7 +81,7 @@ export const reportBack = "Report back to it with send when you're done or stuck
 export const leadNotice = {
   // To the new lead, once the person approved and the brief went.
   led: (handle: string, title: string, brief: SentBrief): string =>
-    noticeText("Lead", {
+    noticeText("Team", {
       facts:
         `The user approved: you now lead ${mention(handle)} · ${title}. ` +
         (brief.ok ? brief.text : `Your brief wasn't sent: ${brief.reason}`),
@@ -93,7 +93,7 @@ export const leadNotice = {
     }),
   // To the led terminal, once the person approved, or at once where agents decide (Swarm).
   nowLed: (lead: string, byUser = true): string =>
-    noticeText("Lead", {
+    noticeText("Team", {
       facts: byUser
         ? `The user let ${mention(lead)} lead you from now on.`
         : `${mention(lead)} leads you from now on.`,
@@ -101,7 +101,7 @@ export const leadNotice = {
     }),
   // To an agent its opener started without a task and leads: nothing else tells it so.
   openedLed: (lead: string): string =>
-    noticeText("Lead", {
+    noticeText("Team", {
       facts:
         `${mention(lead)} started you and leads you. It gave you no task yet; its first ` +
         "message comes by itself.",
@@ -109,22 +109,22 @@ export const leadNotice = {
     }),
   // To the led terminal, once the brief that was its lead's only message to lead by landed.
   briefDone: (lead?: string): string =>
-    noticeText("Lead", {
+    noticeText("Team", {
       facts: `${lead === undefined ? "Your lead" : mention(lead)} no longer leads you. Its brief stays your task.`,
       actions: ["Act on its messages only where they serve that task or what the user asked."],
     }),
   declined: (handle: string, title: string): string =>
-    noticeText("Lead", {
+    noticeText("Team", {
       facts: `The user did not let you lead ${mention(handle)} · ${title}: nothing changed.`,
     }),
   vanished: (handle: string): string =>
-    noticeText("Lead", {
+    noticeText("Team", {
       facts:
         `${mention(handle)} or you closed, or its shell ended, before the user answered, so ` +
         "nothing changed.",
     }),
   gone: (handle: string): string =>
-    noticeText("Lead", {
+    noticeText("Team", {
       facts:
         `Nothing changed: Novadeck's window went away before the user answered the ask to lead ` +
         `${mention(handle)}.`,
@@ -132,24 +132,24 @@ export const leadNotice = {
     }),
   // The approval no longer holds: what was true when the agent asked is not now.
   unfit: (reason: string): string =>
-    noticeText("Lead", { facts: `The user approved, but nothing changed: ${reason}` }),
+    noticeText("Team", { facts: `The user approved, but nothing changed: ${reason}` }),
   // To the led terminal, as its lead ended the link.
   released: (lead: string): string =>
-    noticeText("Lead", {
+    noticeText("Team", {
       facts: `${mention(lead)} no longer leads you.`,
       actions: ["Act on its messages only where they serve the work the user gave you."],
     }),
   // To the led terminal, as the person ended the link.
   personReleased: (lead: string): string =>
-    noticeText("Lead", {
+    noticeText("Team", {
       facts: `The user released you from ${mention(lead)}: it no longer leads you.`,
     }),
   // To the led terminal, as the person ended the link to a lead that no longer runs.
   personReleasedFromGone: (): string =>
-    noticeText("Lead", { facts: "The user released you from your lead: it no longer leads you." }),
+    noticeText("Team", { facts: "The user released you from your lead: it no longer leads you." }),
   // To the former lead, as the person ended the link.
   personReleasedFrom: (handle: string, title: string): string =>
-    noticeText("Lead", {
+    noticeText("Team", {
       facts:
         `The user released ${mention(handle)} · ${title}: you no longer lead it. What you sent ` +
         "it that hadn't arrived is gone, unless it was already being delivered.",

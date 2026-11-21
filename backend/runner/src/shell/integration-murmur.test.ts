@@ -1257,7 +1257,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       items.pageTrouble({ itemId, shown: 1, troubles })
       // A doorbell's turn takes it as the person's prompt would, after what it says.
       const told = await prompt("[Novadeck: automatic notice, agent messages waiting, abc123]")
-      expect(told).toMatch(/\n\nNovadeck · Page\nThe page you showed, /)
+      expect(told).toMatch(/\n\nNovadeck · Show\nThe page you showed, /)
       expect(told).toContain('error "x is undefined" at "/a.js:3".')
       // Told once for that show, however often the page repeats itself.
       items.pageTrouble({ itemId, shown: 1, troubles })

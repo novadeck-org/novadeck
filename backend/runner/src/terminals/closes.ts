@@ -136,25 +136,25 @@ export const closeNotice = {
     ran: string | undefined,
     coming: readonly OnTheWay[] = [],
   ): string =>
-    noticeText("Close", {
+    noticeText("Terminals", {
       facts:
         `The user confirmed closing ${named(handle, title, ran)}, and it is closed. Messages ` +
         "waiting for it never arrive." +
         (coming.length > 0 ? " " + onTheWayLine(coming) : ""),
     }),
   declined: (handle: string, title: string): string =>
-    noticeText("Close", {
+    noticeText("Terminals", {
       facts: `The user kept ${mention(handle)} · ${title} open: it was not closed.`,
     }),
   // Another close, or its own exit, ended it first.
   vanished: (handle: string): string =>
-    noticeText("Close", {
+    noticeText("Terminals", {
       facts:
         `${mention(handle)} closed, or its shell ended, before the user answered, so there is ` +
         "nothing left to confirm.",
     }),
   gone: (handle: string): string =>
-    noticeText("Close", {
+    noticeText("Terminals", {
       facts:
         `Nothing closed: Novadeck's window went away before the user answered the ask to close ` +
         `${mention(handle)}.`,

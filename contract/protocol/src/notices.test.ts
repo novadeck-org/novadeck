@@ -45,7 +45,7 @@ describe("readNotice", () => {
 describe("splitHookText", () => {
   const delivery =
     '<novadeck-messages note="x">\n<message id="m-a">Hi.</message>\n</novadeck-messages>'
-  const host = "Novadeck · Host load\nCPU at 90%+ for 3 min."
+  const host = "Novadeck · Resources\nCPU at 90%+ for 3 min."
 
   it("splits notices apart at their headers", () => {
     expect(splitHookText(`${worktrees}\n\n${host}`)).toEqual({

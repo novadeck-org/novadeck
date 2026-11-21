@@ -623,7 +623,7 @@ describe("an @handle in the words", () => {
 context("Novadeck's own notices", () => {
   const worktrees =
     "Novadeck · Worktrees\n@thorn gave you its worktree on fix/x.\n  /home/me/work\n→ Work there with absolute paths.\n→ Don't close it."
-  const host = "Novadeck · Host load\nCPU at 90%+ for 3 min."
+  const host = "Novadeck · Resources\nCPU at 90%+ for 3 min."
   const ring = (
     notices: readonly string[],
     messages: ChatBlock extends never ? never : unknown = null,

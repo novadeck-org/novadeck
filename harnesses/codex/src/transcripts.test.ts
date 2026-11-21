@@ -649,7 +649,7 @@ describe("Novadeck's notices on a prompt's hook, as a Codex rollout records them
     const full = (record: object) =>
       transcripts.items(JSON.stringify(record)).map(({ text }) => text)
     const one = "Novadeck · Show\nShow it.\n→ Use show."
-    const two = "Novadeck · Host load\nCPU at 90%+ for 3 min."
+    const two = "Novadeck · Resources\nCPU at 90%+ for 3 min."
     expect(full(parts("<collaboration_mode>plan</collaboration_mode>", one, two))).toEqual([
       one,
       two,
