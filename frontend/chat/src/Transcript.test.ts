@@ -167,6 +167,7 @@ describe("the scrollback", () => {
       id: "d",
       at: null,
       replies: false,
+      notices: [],
       messages: [
         {
           id: "m",
@@ -424,6 +425,7 @@ describe("the facts at a row's right edge", () => {
         at: t0,
         messages: null,
         replies: false,
+        notices: [],
       },
     ])
     expect(ring).toEqual([[stamp(t0), false, false]])
@@ -593,6 +595,7 @@ describe("an @handle in the words", () => {
         id: "d",
         at: null,
         replies: false,
+        notices: [],
         messages: [{ id: "m", text: "@fox go", from: { kind: "person" } } as never],
       },
     ]
@@ -614,5 +617,148 @@ describe("an @handle in the words", () => {
   it("takes the hue of a handle in any case, keeping the text as written", () => {
     const container = show([words("a", "assistant", "Ask @Fox")], undefined, looks)
     expect(hues(container)).toEqual([["@Fox", "5"]])
+  })
+})
+
+context("Novadeck's own notices", () => {
+  const worktrees =
+    "Novadeck · Worktrees\n@thorn gave you its worktree on fix/x.\n  /home/me/work\n→ Work there with absolute paths.\n→ Don't close it."
+  const host = "Novadeck · Host load\nCPU at 90%+ for 3 min."
+  const ring = (
+    notices: readonly string[],
+    messages: ChatBlock extends never ? never : unknown = null,
+  ): ChatBlock =>
+    ({
+      kind: "doorbell",
+      id: "d",
+      at: 1_000,
+      replies: false,
+      messages,
+      notices: notices.map((text, index) => ({
+        id: `n${index}`,
+        text,
+        sentAt: 900,
+        deliveredAt: 1_000,
+      })),
+    }) as ChatBlock
+  const standing = (id: string, text: string): ChatBlock => ({
+    kind: "notice",
+    id,
+    at: 1_000,
+    text,
+  })
+  const looks: PeerLooks = (handle) =>
+    handle === "thorn" ? { face: null, where: null, hue: 3 } : null
+  const key = (container: HTMLElement, id: string) =>
+    container.querySelector<HTMLButtonElement>(`[data-notice="${id}"] button`)!
+
+  it("shows a notice as a dim collapsed line of its own first words, its header off", () => {
+    const container = show([ring([worktrees])])
+    const line = container.querySelector('[data-notice="n0"]')!
+    expect(line.querySelector(".chat-notice-said")?.textContent).toBe(
+      "@thorn gave you its worktree on fix/x. /home/me/work → Work there with absolute paths. → Don't close it.",
+    )
+    expect(container.textContent).not.toContain("Novadeck ·")
+    expect(line.getAttribute("aria-label")).toBe("Novadeck notice, Worktrees")
+    expect(key(container, "n0").getAttribute("aria-expanded")).toBe("false")
+    // It is styled as a subagent's line is.
+    expect(line.classList.contains("chat-subagent")).toBe(true)
+  })
+
+  it("opens in place to the whole notice, facts then each action on its line, with no kind heading", () => {
+    const container = show([ring([worktrees])])
+    act(() => key(container, "n0").click())
+    expect(key(container, "n0").getAttribute("aria-expanded")).toBe("true")
+    expect(container.querySelector(".chat-notice-said")?.textContent).toBe(
+      "@thorn gave you its worktree on fix/x.\n  /home/me/work\n→ Work there with absolute paths.\n→ Don't close it.",
+    )
+    expect(container.textContent).not.toContain("Worktrees")
+    act(() => key(container, "n0").click())
+    expect(key(container, "n0").getAttribute("aria-expanded")).toBe("false")
+  })
+
+  it("keeps the handles in it in their hue, as the chat's other words do", () => {
+    const container = show([ring([worktrees])], undefined, looks)
+    expect(
+      [...container.querySelectorAll(".chat-notice-said .markdown-mention")].map((each) => [
+        each.textContent,
+        each.getAttribute("data-hue"),
+      ]),
+    ).toEqual([["@thorn", "3"]])
+  })
+
+  it("attaches the notices of a ring after its messages, a line each", () => {
+    const message = { id: "m", text: "Keep it.", from: { kind: "agent", handle: "moth" } }
+    const container = show([ring([worktrees, host], [message])])
+    const article = container.querySelector(".chat-ring")!
+    expect(
+      [...article.children].map(
+        (child) => child.getAttribute("data-role") ?? child.getAttribute("data-notice"),
+      ),
+    ).toEqual(["agent", "n0", "n1"])
+    // Its messages speak for it: no lone doorbell line.
+    expect(article.hasAttribute("data-line")).toBe(false)
+  })
+
+  it("keeps the lone doorbell line only for a ring with nothing known", () => {
+    expect(show([ring([])]).querySelector(".chat-ring .chat-note")?.textContent).toContain(
+      "doorbell",
+    )
+    expect(show([ring([host])]).querySelector(".chat-ring .chat-note")).toBeNull()
+  })
+
+  it("shows the standing notices under the prompt they rode on, each its own line", () => {
+    const container = show([
+      words("u", "user", "Tell moth the news"),
+      standing("s1", worktrees),
+      standing("s2", host),
+    ])
+    expect(
+      [...container.querySelectorAll("[data-role='user'], [data-notice]")].map(
+        (each) => each.getAttribute("data-notice") ?? "prompt",
+      ),
+    ).toEqual(["prompt", "s1", "s2"])
+    expect(container.querySelector('[data-notice="s2"] .chat-notice-said')?.textContent).toBe(
+      "CPU at 90%+ for 3 min.",
+    )
+  })
+
+  it("is drawn again, handles and all, as the app comes to know the agent", () => {
+    const blocks = [standing("s1", worktrees)]
+    const view = (known: PeerLooks) =>
+      createElement(Transcript, { blocks, agent: "Claude", working: false, looks: known })
+    const { container, unmount, rerender } = render(view(() => null))
+    unmounts.push(unmount)
+    expect(container.querySelectorAll(".markdown-mention")).toHaveLength(0)
+    rerender(view(looks))
+    expect(container.querySelectorAll(".markdown-mention")).toHaveLength(1)
+  })
+
+  it("puts a ring's notices last, after the person's replies from the Inbox too", () => {
+    const reply = { id: "r", text: "Round up.", from: { kind: "person" }, sentAt: 900 }
+    const agent = { id: "m", text: "Keep it.", from: { kind: "agent", handle: "moth" } }
+    const container = show([ring([worktrees], [agent, reply])])
+    expect(
+      [...container.querySelector(".chat-ring")!.children].map(
+        (child) => child.getAttribute("data-role") ?? child.getAttribute("data-notice"),
+      ),
+    ).toEqual(["agent", "user", "n0"])
+  })
+
+  it("gives each notice of a ring the time it was delivered", () => {
+    const text = (id: string) =>
+      container.querySelector(`[data-notice="${id}"] .chat-fact`)?.textContent
+    const container = show([ring([worktrees, host])])
+    expect(text("n0")).toBeTruthy()
+    expect(text("n1")).toBe(text("n0"))
+  })
+
+  it("counts its notices where the ring tells a screen reader what it brought", () => {
+    const message = { id: "m", text: "Keep it.", from: { kind: "agent", handle: "moth" } }
+    const label = (blocks: ChatBlock[]) =>
+      show(blocks).querySelector(".chat-ring")?.getAttribute("aria-label")
+    expect(label([ring([worktrees])])).toBe("Doorbell, a notice")
+    expect(label([ring([worktrees, host])])).toBe("Doorbell, 2 notices")
+    expect(label([ring([host], [message])])).toBe("Doorbell, 1 message, a notice")
   })
 })

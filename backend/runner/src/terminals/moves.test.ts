@@ -4,7 +4,6 @@ import { DomainError } from "../errors.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { describe, expect, it } from "../test.js"
 import type { Approvals } from "./approvals.js"
-import { leadNotice } from "./leads.js"
 import { Moves, moveNotice, type MovesHost, type MoveSessions } from "./moves.js"
 import type { OpenRequests } from "./opens.js"
 import type { Record } from "./record.js"
@@ -383,8 +382,23 @@ describe("moving a terminal to another session", () => {
     world.move(to("s2", "a", { handles: { a: "owl" }, lead: "lead" }))
     expect(world.log.notices).toEqual([
       { to: "lead", text: moveNotice.leadsAgain("owl", "Title of a") },
-      { to: "a", text: leadNotice.nowLed("moth") },
+      { to: "a", text: moveNotice.ledAfter("moth") },
     ])
+  })
+
+  it("tells a moved terminal that keeps its lead what changed, with both actions where handles changed", () => {
+    const world = setup({
+      a: { session: "s1", handle: "owl" },
+      lead: { session: "s2", handle: "moth" },
+      taken: { session: "s2", handle: "owl" },
+    })
+    world.move(to("s2", "a", { handles: { a: "owl" }, lead: "lead" }))
+    const text = world.log.notices.find(({ to: who }) => who === "a")!.text
+    expect(text.startsWith("Novadeck · Move\n@moth leads you from now on. Handles changed")).toBe(
+      true,
+    )
+    expect(text).toContain("→ Report back to it with send when you're done or stuck.")
+    expect(text.endsWith("\n→ Use the new handles.")).toBe(true)
   })
 
   it("leaves its lead when moved on its own, and says which it left", () => {

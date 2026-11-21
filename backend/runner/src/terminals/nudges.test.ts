@@ -240,11 +240,11 @@ describe("a prompt's nudge", () => {
 })
 
 describe("a nudge", () => {
-  it("asks for a summary while there is none, as one line of Novadeck's notice", () => {
+  it("asks for a summary while there is none, as Novadeck's Describe notice", () => {
     const text = nudgeText({ summary: null, title: null })
-    expect(text).toMatch(/^Novadeck: automatic notice, not from the user: this terminal has no/)
+    expect(text).toMatch(/^Novadeck · Describe\nThis terminal has no/)
     expect(text).toContain("describe tool")
-    expect(text).not.toContain("\n")
+    expect(text).not.toContain("automatic notice")
     expect(text).not.toContain("asked")
   })
 
@@ -265,8 +265,13 @@ describe("a nudge", () => {
       expect(taken).toMatchObject({ companion: false, summarize: true })
       expect(noticesAt(taken, current)).toBe(nudgeText(current))
     }
-    expect(companionNotice).toMatch(/^Novadeck: automatic notice, not from the user: /)
-    expect(companionNotice).not.toContain("\n")
+    expect(companionNotice).toMatch(/^Novadeck · Show\n/)
+    expect(
+      companionNotice
+        .split("\n")
+        .slice(2)
+        .every((line) => line.startsWith("→ ")),
+    ).toBe(true)
     expect(companionNotice).not.toContain("report")
     expect(companionNotice).toContain(
       "or an existing file or page, or the working tree's changes, that they ask to see",
@@ -287,25 +292,29 @@ describe("a nudge", () => {
       "close",
     ])
       expect(companionNotice).toContain(word)
-    expect(inboxNotice).toMatch(/^Novadeck: automatic notice, not from the user: /)
-    expect(inboxNotice).not.toContain("\n")
+    expect(inboxNotice).toMatch(/^Novadeck · Inbox\n/)
+    expect(
+      inboxNotice
+        .split("\n")
+        .slice(2)
+        .every((line) => line.startsWith("→ ")),
+    ).toBe(true)
     for (const words of [
-      "Novadeck's Inbox shows the user a copy of your questions and reports when they're away from this terminal",
-      "Always put every question your turn ends waiting on, whether or not they're here, such as which option to take",
-      "in their Inbox with Novadeck's ask tool, unless it is already an open ask",
-      "a closing offer such as 'anything else?' isn't one",
-      "nor is an action your harness is already prompting them for",
-      "nor a question you ask with your harness's own question tool, as you normally would",
-      "Novadeck shows that one in their Inbox as it is",
-      "With a lead, use ask, tell and done all the same, and send your lead your report and your questions too",
-      "approvals of actions are still only the user's",
-      "Whatever you put in the Inbox is an extra copy, never the thing itself",
+      "The user's Inbox gets a copy of your questions and reports for when they're away from this terminal",
+      "Make every question your turn ends waiting on (which option to take, say) an ask too, whether or not they're here, unless it's already an open ask",
+      'Not a closing offer like "anything else?"',
+      "an action your harness already prompts them for",
+      "a question you ask with your harness's own question tool as you normally would",
+      "Novadeck shows that one as it is",
+      "With a lead, use ask, tell and done all the same, and send your lead your report and questions too",
+      "Approvals of actions are still only the user's",
+      "What you put in the Inbox is an extra copy, never the thing itself",
       "never mentions the Inbox or what you put there",
       "is an ask with the action shape",
-      "never ask for a secret value",
-      "report it with Novadeck's done tool, your own short report",
+      "Never ask for a secret value",
+      "report it with done, your own short report",
       "not when you answer a question or finish a step",
-      "When they write to you here, Novadeck takes your open asks out of their Inbox and tells you",
+      "When the user writes to you here, Novadeck takes your open asks out of their Inbox and tells you",
       "ask again only what their message leaves open",
       "If they answer one here and no such notice came, withdraw it yourself",
     ])
@@ -341,18 +350,19 @@ describe("a nudge", () => {
   it("shows the current description later, to update only for another subject or what a summary leaves out", () => {
     const text = nudgeText({ summary: "Users API.\nPaging done, #12 in CI.", title: "Users API" })
     expect(text).toBe(
-      "Novadeck: automatic notice, not from the user: this terminal's title is " +
-        '"Users API" and its summary is "Users API. Paging done, #12 in CI."; if the work ' +
-        "here is now about something else, or that holds status, PR or issue numbers, or " +
-        "details, update them with Novadeck's describe tool, a title and a summary, each one " +
-        "short line on its subject. Progress alone is no reason to update them; otherwise " +
-        "this notice can be ignored.",
+      "Novadeck · Describe\nThis terminal's title is " +
+        '"Users API" and its summary is "Users API. Paging done, #12 in CI.".\n' +
+        "→ If the work here is now about something else, or that holds status, PR or issue " +
+        "numbers, or details, update them with Novadeck's describe tool, a title and a " +
+        "summary, each one short line on its subject. Progress alone is no reason to update " +
+        "them.",
     )
   })
 
   it("asks a terminal with a summary and no title for the title, as it comes with each prompt", () => {
     const text = nudgeText({ summary: "Users API.", title: null })
     expect(text).toContain('summary is "Users API.", but it has no title yet')
+    expect(text).toMatch(/^Novadeck · Describe\n/)
     expect(text).toContain("Call Novadeck's describe tool now")
     expect(text).toContain("until you describe")
     expect(text).not.toContain("can be ignored")
@@ -360,9 +370,7 @@ describe("a nudge", () => {
 
   it("asks for the first summary as one short line on the work's subject, not its status", () => {
     const text = nudgeText({ summary: null, title: null })
-    expect(text).toMatch(
-      /^Novadeck: automatic notice, not from the user: this terminal has no summary yet\./,
-    )
+    expect(text).toMatch(/^Novadeck · Describe\nThis terminal has no summary yet\./)
     expect(text).toContain("one short line on what the work here is about, at a high level")
     expect(text).toContain("no status, PR or issue numbers, or details")
   })
@@ -391,9 +399,8 @@ describe("a nudge", () => {
 })
 
 describe("the worktrees notice", () => {
-  it("is worded as Novadeck's notice, one paragraph, with what an agent needs to work in a worktree", () => {
-    expect(worktreesOnNotice).toMatch(/^Novadeck: automatic notice, not from the user: /)
-    expect(worktreesOnNotice).not.toContain("\n")
+  it("is worded as Novadeck's notice, a line per rule, with what an agent needs to work in a worktree", () => {
+    expect(worktreesOnNotice).toMatch(/^Novadeck · Worktrees\nAgent worktrees are on\.\n→ /)
     for (const words of [
       "open_worktree",
       "take_worktree",
@@ -409,8 +416,8 @@ describe("the worktrees notice", () => {
       expect(worktreesOnNotice).toContain(words)
     // Some sandboxes (Codex's workspace-write) can't commit, so it promises nothing of it.
     expect(worktreesOnNotice).not.toMatch(/commit/i)
-    expect(worktreesOffNotice).toContain(
-      "agent worktrees are off now: work in your terminal's own checkout; worktrees you already have stay as they are.",
+    expect(worktreesOffNotice).toBe(
+      "Novadeck · Worktrees\nAgent worktrees are off now. Worktrees you already have stay as they are.\n→ Work in your terminal's own checkout.",
     )
     expect(worktreesDigests.on).not.toBe(worktreesDigests.off)
   })
@@ -439,7 +446,7 @@ describe("the worktrees notice", () => {
     expect(worktreesEarlyNotice).toContain(
       "before the worktrees folder was there or before they were turned on",
     )
-    expect(worktreesEarlyNotice).toContain("keep working in your terminal's own checkout")
+    expect(worktreesEarlyNotice).toContain("→ Keep working in your terminal's own checkout")
     expect(worktreesEarlyNotice).toContain(
       "Restarting the agent (exit and resume it, or start a new one)",
     )

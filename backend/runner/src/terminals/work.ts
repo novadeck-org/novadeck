@@ -63,17 +63,24 @@ export const promptChars = 120
 // before this kept a prompt cut short with its tags.
 const wrapper = /<\/?((?:[a-z]+-)*messages?)(\s[^<>]*)?(?:>|$)/gi
 
+// The rules a Novadeck delivery opens with: the `<rules>` element right after its wrapper's
+// tag, which holds no message; or cut off at the end, as a prompt kept short may leave it. An
+// older runner's rules were the wrapper's `note` attribute, which `wrapper` drops with the tag.
+const rules = /(<novadeck-messages>\s*)<rules>[\s\S]*?(?:<\/rules>|$)/gi
+
 /**
  * A prompt as others read it: tags wrapping a message one agent handed another dropped,
  * with who it is from where the first names a sender, so its words show rather than the
- * markup around them.
+ * markup around them, and the rules of a Novadeck delivery dropped.
  */
 export const plainPrompt = (prompt: string): string => {
   let from: string | undefined
-  const words = prompt.replace(wrapper, (_tag, _name: string, attributes?: string) => {
-    if (from === undefined && attributes) from = /\sfrom="([^"]{1,64})"/.exec(attributes)?.[1]
-    return " "
-  })
+  const words = prompt
+    .replace(rules, "$1")
+    .replace(wrapper, (_tag, _name: string, attributes?: string) => {
+      if (from === undefined && attributes) from = /\sfrom="([^"]{1,64})"/.exec(attributes)?.[1]
+      return " "
+    })
   if (words === prompt) return prompt
   const text = words.replace(/\s+/g, " ").trim()
   return from ? `(a message from ${from}) ${text}` : text

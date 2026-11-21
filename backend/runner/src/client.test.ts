@@ -1132,6 +1132,7 @@ describe("runner client messages", () => {
       waits: null,
       waitsSince: null,
       paused: false,
+      notices: [],
       threads: [],
     })
     await client.messages.pause(true)
@@ -1172,6 +1173,7 @@ describe("runner client message watch", () => {
         waits: null,
         waitsSince: null,
         paused: false,
+        notices: [],
         threads: [],
       },
     })

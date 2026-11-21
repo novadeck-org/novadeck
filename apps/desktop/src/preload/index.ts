@@ -17,7 +17,6 @@ import {
   type UninstallPlan,
   type UninstallResult,
 } from "@novadeck/protocol/bridge"
-import { pageLoupeChannel, pageLoupeMessage, parsePageLoupe } from "@novadeck/viewers/browser/loupe"
 import {
   pageSignInChannel,
   pageSignInMessage,
@@ -58,8 +57,6 @@ import {
   pageLookChannel,
   pagePictureChannel,
   pagePhoneChannel,
-  pageLoupeHoldChannel,
-  pageLoupeLookChannel,
   pageZoomChannel,
   panePictureChannel,
   portableChannel,
@@ -139,15 +136,6 @@ ipcRenderer.on(pageRequestChannel, (_event, contentsId: unknown, failure: unknow
 ipcRenderer.on(pageSignInChannel, (_event, contentsId: unknown, open: unknown) => {
   const notice = parsePageSignIn({ contentsId, open })
   if (notice) window.postMessage({ type: pageSignInMessage, ...notice }, "*")
-})
-
-// Where the loupe over a page in a view is, as the main process tells of it (it sees the
-// pointer, the wheel and the keys the view takes): to the app's page as a window message,
-// for that page's viewer.
-ipcRenderer.on(pageLoupeChannel, (_event, contentsId: unknown, notice: unknown) => {
-  const fields = typeof notice === "object" && notice !== null ? notice : {}
-  const parsed = parsePageLoupe({ ...fields, contentsId })
-  if (parsed) window.postMessage({ type: pageLoupeMessage, ...parsed }, "*")
 })
 
 // Control and format characters, which include the marks that reorder text, and the line
@@ -504,20 +492,6 @@ const bridge = {
     (await ipcRenderer.invoke(pagePhoneChannel, page, phone)) === true,
   pageZoom: async (page, factor) =>
     (await ipcRenderer.invoke(pageZoomChannel, page, factor)) === true,
-  // Only a JPEG picture comes back; the main process checks the page is one of this page's.
-  pageLoupe: async (page, rect) => {
-    const picture: unknown = await ipcRenderer.invoke(pageLoupeLookChannel, page, {
-      x: rect.x,
-      y: rect.y,
-      width: rect.width,
-      height: rect.height,
-    })
-    return typeof picture === "string" && picture.startsWith("data:image/jpeg;base64,")
-      ? picture
-      : undefined
-  },
-  pageLoupeHold: async (page, on, away) =>
-    (await ipcRenderer.invoke(pageLoupeHoldChannel, page, on, away === true)) === true,
   pathForFile: (file) => {
     try {
       return webUtils.getPathForFile(file)

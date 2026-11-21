@@ -1,10 +1,10 @@
 import type { PullRequest } from "@novadeck/protocol"
 import { z } from "zod"
 
+import { noticeText } from "../messaging/notice-format.js"
 import { unansweredCalls, type Call } from "../shell/reports.js"
 import type { ApprovalOutcome } from "../terminals/approvals.js"
 import { callerOf } from "../terminals/callers.js"
-import { notice } from "../terminals/closes.js"
 import { bareHandle, mention } from "../terminals/handles.js"
 import type { LeadsHost } from "../terminals/leads.js"
 import { peerOf } from "../terminals/peers-host.js"
@@ -88,35 +88,59 @@ const read = <T>(
 /** What agents are told when a worktree's ownership changes hands. */
 export const worktreeNotice = {
   taken: (path: string, branch: string): string =>
-    notice + `The user approved: you now own the worktree ${path} on branch ${branch}.`,
+    noticeText("Worktrees", {
+      facts: `The user approved: you now own the worktree on branch ${branch}.`,
+      details: [path],
+    }),
   lost: (taker: string, path: string, branch: string): string =>
-    notice +
-    `The user let ${mention(taker)} take your worktree ${path} (branch ${branch}). It is no ` +
-    "longer yours: don't change files there, and don't close it.",
+    noticeText("Worktrees", {
+      facts: `The user let ${mention(taker)} take your worktree on branch ${branch}. It is no longer yours.`,
+      details: [path],
+      actions: ["Don't change files there, and don't close it."],
+    }),
   declined: (path: string): string =>
-    notice + `The user did not let you take the worktree ${path}: it stays with its owner.`,
+    noticeText("Worktrees", {
+      facts: "The user did not let you take the worktree: it stays with its owner.",
+      details: [path],
+    }),
   off: (path: string): string =>
-    notice +
-    `Nothing changed: agent worktrees were turned off before the user answered the ask to take ${path}.`,
+    noticeText("Worktrees", {
+      facts:
+        "Nothing changed: agent worktrees were turned off before the user answered the ask to take this worktree.",
+      details: [path],
+    }),
   gone: (path: string): string =>
-    notice +
-    `Nothing changed: Novadeck's window went away before the user answered the ask to take ` +
-    `the worktree ${path}. Ask again if it still should.`,
+    noticeText("Worktrees", {
+      facts:
+        "Nothing changed: Novadeck's window went away before the user answered the ask to take " +
+        "the worktree.",
+      details: [path],
+      actions: ["Ask again if it still should."],
+    }),
   vanished: (path: string): string =>
-    notice +
-    `You or the worktree's owner closed before the user answered, so ${path} didn't change hands.`,
+    noticeText("Worktrees", {
+      facts:
+        "You or the worktree's owner closed before the user answered, so it didn't change hands.",
+      details: [path],
+    }),
   moved: (path: string): string =>
-    notice +
-    `The user approved, but nothing changed: the worktree ${path} changed owner meanwhile.`,
+    noticeText("Worktrees", {
+      facts: "The user approved, but nothing changed: the worktree changed owner meanwhile.",
+      details: [path],
+    }),
   // Where agents decide for themselves (Swarm), nobody approved it: its owner hears of it so.
   lostNow: (taker: string, path: string, branch: string): string =>
-    notice +
-    `${mention(taker)} took your worktree ${path} (branch ${branch}). It is no longer yours: ` +
-    "don't change files there, and don't close it.",
+    noticeText("Worktrees", {
+      facts: `${mention(taker)} took your worktree on branch ${branch}. It is no longer yours.`,
+      details: [path],
+      actions: ["Don't change files there, and don't close it."],
+    }),
   given: (giver: string, path: string, branch: string): string =>
-    notice +
-    `${mention(giver)} gave you the worktree ${path} on branch ${branch}: you own it now. Work ` +
-    "there with absolute paths and git -C.",
+    noticeText("Worktrees", {
+      facts: `${mention(giver)} gave you its worktree on branch ${branch}. It's yours now.`,
+      details: [path],
+      actions: ["Work there with absolute paths and git -C."],
+    }),
 }
 
 /** The sentence a taken worktree is answered with, or the ask. */

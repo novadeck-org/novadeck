@@ -157,4 +157,30 @@ describe("A change's pane", () => {
     await pane.getByRole("button", { name: "Back to the files" }).click()
     await expect.element(pane.getByRole("listbox", { name: "Layers" })).toBeVisible()
   })
+
+  it("opens a file from under what it changed, and from the arrow at its row's end", async () => {
+    const pane = await openChange()
+
+    await file(pane, "cookies.ts").click()
+    await pane.getByRole("button", { name: "Open diff" }).click()
+    await expect.element(pane.getByText("1 of 6")).toBeVisible()
+    await pane.getByRole("button", { name: "Back to the files" }).click()
+
+    // The arrow is the pointer's: it shows where the pointer is.
+    const row = file(pane, "routes.ts")
+    await row.hover()
+    const arrow = row.element().closest(".diff-file")!.querySelector(".changes-file-open")!
+    await page.elementLocator(arrow).click()
+    await expect.element(pane.getByText("5 of 6")).toBeVisible()
+  })
+
+  it("moves the arrow keys on from an unfolded file's Open diff as from its row", async () => {
+    const pane = await openChange()
+    await file(pane, "cookies.ts").click()
+
+    pane.getByRole("button", { name: "Open diff" }).element().focus()
+    await userEvent.keyboard("{ArrowDown}")
+
+    await expect.element(file(pane, "session.test.ts")).toHaveFocus()
+  })
 })

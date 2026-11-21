@@ -761,6 +761,38 @@
 .chat-subagent-summary[aria-expanded="true"] .chat-subagent-said {
   display: none;
 }
+/* One of Novadeck's own notices: a subagent's dim line with no name, its first words to the edge,
+   the handles in them keeping their hue, a step dimmer. Open, the line is the whole notice, each
+   `→` action on its own line, and a click on it closes it. */
+.chat-notice {
+  margin-top: calc(var(--_lh) * 0.4);
+}
+.chat-notice + .chat-notice {
+  margin-top: calc(var(--_lh) * 0.1);
+}
+.chat-notice-said {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--_muted);
+  text-overflow: ellipsis;
+}
+.chat-notice-said .markdown-mention {
+  opacity: 0.75;
+}
+.chat-notice-said[data-open] {
+  overflow: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+@media (hover: hover) {
+  .chat-notice-key:hover .chat-notice-said {
+    color: var(--_ink);
+  }
+}
+.chat-notice-key[aria-expanded="true"] {
+  overflow: visible;
+}
 .chat-tools-list {
   display: flex;
   flex-direction: column;

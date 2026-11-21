@@ -46,6 +46,7 @@ export const messagesOf = (listing: TerminalMessages): TerminalThreads => ({
   waits: listing.waits,
   waitsSince: listing.waitsSince,
   ringing: listing.delivery === "ringing",
+  notices: listing.notices,
   threads: listing.threads.map((thread) => ({
     id: thread.id,
     peer: partyOf(thread.peer),

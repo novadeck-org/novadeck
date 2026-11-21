@@ -1115,24 +1115,25 @@ describe("The Files panel", () => {
         button.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }))
       })
 
-    it("opens it on a double click, and only selects it on a single one", async () => {
+    it("opens it on a click, and once on a double click's two", async () => {
       const opened: string[] = []
       const panel = await mount(undefined, undefined, undefined, backend(), (path) => {
         opened.push(path)
         return Promise.resolve()
       })
       await panel.click("package.json")
-      expect(opened).toEqual([])
+      expect(opened).toEqual(["package.json"])
+      expect(panel.row("package.json").getAttribute("data-selected")).toBe("true")
 
+      // A double click's second click comes with a count of two.
       act(() =>
         panel
           .row("package.json")
           .querySelector<HTMLElement>("[role=treeitem]")!
-          .dispatchEvent(new MouseEvent("dblclick", { bubbles: true })),
+          .dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 2 })),
       )
 
       expect(opened).toEqual(["package.json"])
-      expect(panel.row("package.json").getAttribute("data-selected")).toBe("true")
       await nextFrame()
       panel.view.unmount()
     })

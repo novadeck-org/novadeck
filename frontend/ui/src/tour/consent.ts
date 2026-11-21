@@ -14,14 +14,16 @@ export type TourConsent = {
   readonly preferred?: AgentName
 }
 
-// The agents the tour can run, in Novadeck's order of harnesses: those connected, and those
-// being connected now, as the welcome's choices are once the person takes the tour from it.
+// The agents the tour can run, in Novadeck's order of harnesses: those installed and either
+// connected or being connected now, as the welcome's choices are once the person takes the tour
+// from it. One left connected after its program was removed (its plugin's files outlive it) is
+// not among them, as the tour couldn't start it.
 export const tourAgents = (connections: readonly AgentConnection[]): readonly AgentName[] =>
   harnesses
     .map(({ id }) => id)
     .filter((id) =>
       connections.some(
-        (each) => each.agent === id && (each.connected || (each.busy && each.available)),
+        (each) => each.agent === id && each.available && (each.connected || each.busy),
       ),
     )
 

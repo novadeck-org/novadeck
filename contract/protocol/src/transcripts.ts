@@ -86,12 +86,14 @@ export const toolOutcome = z.strictObject({
 // word (`default`, `acceptEdits`, `plan`, ...), on any item that says one, a change or not; a
 // plan approved; a compaction, its summary the item's `text`; or a gap, where the record holds a
 // part of the conversation its decoder has never seen, the line as written its `text`, which
-// is empty where that line holds the agent's reasoning too.
+// is empty where that line holds the agent's reasoning too; or a notice, one of Novadeck's own
+// that rode on a hook's output, its text the item's `text` (`@novadeck/protocol/notices` reads it).
 export const transcriptNote = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("mode"), mode: z.string().min(1).max(64) }),
   z.strictObject({ type: z.literal("plan-approved") }),
   z.strictObject({ type: z.literal("compaction") }),
   z.strictObject({ type: z.literal("gap") }),
+  z.strictObject({ type: z.literal("notice") }),
 ])
 export type TranscriptImage = z.infer<typeof transcriptImage>
 export type TranscriptImageResult = z.infer<typeof transcriptImageResult>

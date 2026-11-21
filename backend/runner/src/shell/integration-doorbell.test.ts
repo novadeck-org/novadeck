@@ -78,7 +78,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await tui.first()
       // Its first prompt carries the notices of the bar beside it, the Inbox and the summary.
       expect(tui.received()).toMatchObject([
-        { prompt: "hello", printed: expect.stringContaining("beside this terminal") },
+        { prompt: "hello", printed: expect.stringContaining("Beside this terminal") },
       ])
       expect(await tui.send("Review a.ts")).toMatchObject({
         ok: true,

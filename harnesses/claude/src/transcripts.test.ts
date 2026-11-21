@@ -7,6 +7,7 @@ import { transcriptLimits } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
 import { signature } from "./narration.test-support.js"
+import { shapes } from "./shapes.js"
 import { transcripts, unwrapPasted } from "./transcripts.js"
 
 const { scenarios } = loadProbe(import.meta.dirname, "transcript.probe.json") as {
@@ -381,6 +382,8 @@ describe("Claude Code's prompts taken into a running turn", () => {
     ).toEqual([
       "user text: First quick",
       'assistant tool-call: {"query":"select:SendMessage"}',
+      // What the tool call's hook added: one of Novadeck's notices, in the place it was recorded.
+      "note text: Novadeck: automatic notice, not from the user: <text>",
       "tool tool-result: ",
       "user text: Second quick",
       "assistant text: Did first. Did second.",
@@ -564,13 +567,11 @@ describe("Claude Code's wrappers around the person's words", () => {
         )
         .map(({ role, kind, text: shown }) => [role, kind, shown])
     expect(blocks("<command-name>/mcp</command-name>")).toEqual([["user", "text", "/mcp"]])
-    expect(blocks('<novadeck-messages note="x">hi</novadeck-messages>')).toEqual([])
-    expect(
-      blocks('Stop hook feedback:\n<novadeck-messages note="x">hi</novadeck-messages>'),
-    ).toEqual([])
+    expect(blocks("<novadeck-messages>hi</novadeck-messages>")).toEqual([])
+    expect(blocks("Stop hook feedback:\n<novadeck-messages>hi</novadeck-messages>")).toEqual([])
     // The person's words that quote a delivery are theirs.
-    expect(blocks('what is this?\n<novadeck-messages note="x">hi</novadeck-messages>')).toEqual([
-      ["user", "text", 'what is this?\n<novadeck-messages note="x">hi</novadeck-messages>'],
+    expect(blocks("what is this?\n<novadeck-messages>hi</novadeck-messages>")).toEqual([
+      ["user", "text", "what is this?\n<novadeck-messages>hi</novadeck-messages>"],
     ])
     expect(blocks('see \n\n<pasted_content id="y">\nthis\n</pasted_content id="y">\n')).toEqual([
       ["user", "text", "see this"],
@@ -621,8 +622,71 @@ describe("Claude Code's wrappers around the person's words", () => {
   })
 
   it("leave out agents' messages Novadeck handed the agent as a prompt", () => {
-    expect(said('<novadeck-messages note="x"><message>hi</message></novadeck-messages>')).toEqual(
-      [],
-    )
+    expect(said("<novadeck-messages><message>hi</message></novadeck-messages>")).toEqual([])
+  })
+})
+
+const hooked = loadProbe(import.meta.dirname, "notices.probe.json") as {
+  scenarios: { hooks: Record<string, unknown>[] }
+}
+const hookRecords = hooked.scenarios.hooks
+
+describe("Novadeck's notices on a prompt's hook, as Claude Code records them", () => {
+  const read = (records: readonly object[]) =>
+    items(records).map(({ role, kind, note, text }) => ({
+      shape: `${role} ${kind}${note ? ` ${note.type}` : ""}`,
+      text: text.slice(0, 40),
+    }))
+  const header = "Novadeck: automatic notice, not from the"
+
+  it("reads each notice a prompt's hook added as an item of its own, after the prompt", () => {
+    expect(read(hookRecords.slice(2, 4))).toEqual([
+      { shape: "note text mode", text: "" },
+      { shape: "user text", text: "Hold then stop" },
+      { shape: "note text notice", text: header },
+    ])
+    expect(items(hookRecords.slice(3, 4))[0]).toMatchObject({
+      at: Date.parse("2026-11-20T21:01:38.954Z"),
+      note: { type: "notice" },
+    })
+    // A hook that printed three notices makes three items, in the order it printed them.
+    expect(read(hookRecords.slice(1, 2)).map(({ shape }) => shape)).toEqual([
+      "note text notice",
+      "note text notice",
+      "note text notice",
+    ])
+  })
+
+  it("leaves the delivery a Stop's hook records to its ring", () => {
+    expect(items(hookRecords.slice(4))).toEqual([])
+  })
+
+  it("splits a hook's text that holds a delivery and notices: the notices are the prompt's", () => {
+    const content = (hookRecords[4] as { attachment: { content: string[] } }).attachment.content[0]
+    const joined = {
+      ...(hookRecords[4] as object),
+      attachment: {
+        type: "hook_additional_context",
+        content: [
+          `${content}\n\nNovadeck · Host load\nCPU at 90%+ for 3 min.\n\nNovadeck · Show\nShow it.\n→ Use show.`,
+        ],
+      },
+    }
+    expect(items([joined]).map(({ text }) => text)).toEqual([
+      "Novadeck · Host load\nCPU at 90%+ for 3 min.",
+      "Novadeck · Show\nShow it.\n→ Use show.",
+    ])
+  })
+
+  it("reads no notice from another hook's context", () => {
+    const other = {
+      ...(hookRecords[1] as object),
+      attachment: { type: "hook_additional_context", content: ["Run the linter first."] },
+    }
+    expect(items([other])).toEqual([])
+  })
+
+  it("keeps the hook's attachment among the shapes it reads", () => {
+    expect(shapes(JSON.stringify(hookRecords[3])).map(({ verdict }) => verdict)).toEqual(["read"])
   })
 })

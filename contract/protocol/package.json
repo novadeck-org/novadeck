@@ -21,6 +21,11 @@
       "types": "./dist/harnesses.d.ts",
       "default": "./dist/harnesses.js"
     },
+    "./notices": {
+      "development": "./src/notices.ts",
+      "types": "./dist/notices.d.ts",
+      "default": "./dist/notices.js"
+    },
     "./pages": {
       "development": "./src/pages.ts",
       "types": "./dist/pages.d.ts",

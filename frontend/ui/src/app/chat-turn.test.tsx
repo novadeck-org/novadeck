@@ -14,7 +14,7 @@ import { act } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
-import { ChatTurn } from "./chat-turn"
+import { ChatTurn, chatMark } from "./chat-turn"
 
 const said = (id: string, text: string): ChatItem => ({
   id,
@@ -224,5 +224,19 @@ describe("a chat in its turn", () => {
     const again = open(stepped().turns, pictures)
     expect(standIn(again.container)).not.toBeNull()
     expect(picture(again.container)).toBeNull()
+  })
+})
+
+describe("the mark of a chat's conversation", () => {
+  const notice = (id: string, deliveredAt: number) => ({ id, text: "x", sentAt: 0, deliveredAt })
+  const marked = (notices: ReturnType<typeof notice>[]) =>
+    chatMark({ ...noConversation, doorbell: { ...noConversation.doorbell, notices } })
+
+  it("changes with each new notice, though the runner lists no more than a fixed number of them", () => {
+    const full = Array.from({ length: 200 }, (_, index) => notice(`m-${index}`, index))
+    // The oldest leaves as the newest comes: the count is the same, the conversation is not.
+    const next = [...full.slice(1), notice("m-200", 200)]
+    expect(marked(next)).not.toBe(marked(full))
+    expect(marked(full)).toBe(marked([...full]))
   })
 })

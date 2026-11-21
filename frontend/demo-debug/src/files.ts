@@ -35,7 +35,7 @@ export const filesGroups = (files: DemoFiles | undefined): readonly DemoActionGr
             },
             {
               label: "Agent writes Checkout.tsx",
-              hint: "Open Files and double-click src/checkout/Checkout.tsx (agents demo): the file preview's change of the selected storefront agent (Crow's if none) grows by a line, pulsing cyan, with its cursor at the end of it, and the Files row pulses the same; an agent that isn't working loses the cursor again at the workspace's next change",
+              hint: "Open Files and click src/checkout/Checkout.tsx (agents demo): the file preview's change of the selected storefront agent (Crow's if none) grows by a line, pulsing cyan, with its cursor at the end of it, and the Files row pulses the same; an agent that isn't working loses the cursor again at the workspace's next change",
               run: ({ selected, workspace }) =>
                 files.write(handleOf(selected(), workspace()), demoPaths.checkout),
             },

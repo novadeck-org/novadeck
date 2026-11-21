@@ -23,6 +23,7 @@ const blocks: readonly ChatBlock[] = [
     id: "2",
     at: null,
     replies: false,
+    notices: [],
     messages: [
       {
         id: "m",

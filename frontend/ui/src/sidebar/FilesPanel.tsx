@@ -298,15 +298,16 @@ const FilesPanelView = ({
     } else next.delete(path)
     setOpenFolders(next)
   }
-  const activate = (row: FilesRow): void => {
-    if (!row.node.folder) setSelected(row.node.path)
-    else if (expandable(row.node)) toggle(row.node.path)
-  }
   // A file that can't be opened may be gone: its folder is read again.
   const openFile = (row: FilesRow): void => {
     if (row.node.folder) return
     setSelected(row.node.path)
     onOpenFile(row.node.path).catch(() => read(parentOf(row.node.path)))
+  }
+  // A click opens a file, as Enter does, and folds a folder.
+  const activate = (row: FilesRow): void => {
+    if (!row.node.folder) openFile(row)
+    else if (expandable(row.node)) toggle(row.node.path)
   }
   // A folder shown in the pane; one that can't be opened may be gone: its parent is read again.
   const openFolder = (row: FilesRow): void => {
@@ -343,8 +344,8 @@ const FilesPanelView = ({
     event.stopPropagation()
     setKept(noAgents)
   }
-  // The tree keyboard pattern; Space and a folder's Enter are the buttons' own click, a file's
-  // Enter opens it.
+  // The tree keyboard pattern; Space and a folder's Enter are the buttons' own click (which opens
+  // a file), a file's Enter opens it.
   const onKeyDown = (event: React.KeyboardEvent): void => {
     onEscape(event)
     if (event.altKey || event.ctrlKey || event.metaKey) return
@@ -490,7 +491,6 @@ const FilesPanelView = ({
                       pulse={pulses[line.node.path]}
                       shownTimes={shownTimes}
                       onActivate={activate}
-                      onOpenFile={openFile}
                       onOpenFolder={onOpenFolder && openFolder}
                       onFocus={setStop}
                       onLight={setHovered}

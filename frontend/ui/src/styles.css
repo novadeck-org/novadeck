@@ -124,6 +124,7 @@
 @import "@novadeck/items/prose.css" layer(components);
 @import "@novadeck/items/syntax.css" layer(components);
 @import "./preferences/settings.css" layer(components);
+@import "./preferences/agent-mode-map.css" layer(components);
 @import "./preferences/welcome.css" layer(components);
 @import "./preferences/welcome-preview.css" layer(components);
 @import "./tour/tour.css" layer(components);

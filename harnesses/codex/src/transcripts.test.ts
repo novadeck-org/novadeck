@@ -6,6 +6,7 @@ import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { transcriptLimits } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
+import { shapes } from "./shapes.js"
 import { transcripts } from "./transcripts.js"
 
 const { records } = loadProbe(import.meta.dirname, "rollout.probe.json") as { records: object[] }
@@ -580,7 +581,7 @@ describe("Codex's context in the person's place", () => {
   it("leaves out what a Stop hook gave back to go on with, as Claude Code's is", () => {
     expect(
       said(
-        '<hook_prompt hook_run_id="stop:27:/h/hooks.json">&lt;novadeck-messages note="x"&gt;hi&lt;/novadeck-messages&gt;</hook_prompt>',
+        '<hook_prompt hook_run_id="stop:27:/h/hooks.json">&lt;novadeck-messages&gt;hi&lt;/novadeck-messages&gt;</hook_prompt>',
       ),
     ).toEqual([])
     expect(said("<hook_prompt>go on</hook_prompt>")).toEqual([])
@@ -603,5 +604,74 @@ describe("Codex's context in the person's place", () => {
     expect(said("What does <hook_prompt> do?").map(({ text }) => text)).toEqual([
       "What does <hook_prompt> do?",
     ])
+  })
+})
+
+const hooked = loadProbe(import.meta.dirname, "notices.probe.json") as { records: object[] }
+const [skills, ring, delivery, prompt, describing] = hooked.records
+
+describe("Novadeck's notices on a prompt's hook, as a Codex rollout records them", () => {
+  const read = (record: object) =>
+    transcripts.items(JSON.stringify(record)).map(({ role, kind, note, text }) => ({
+      shape: `${role} ${kind}${note ? ` ${note.type}` : ""}`,
+      text: text.slice(0, 40),
+    }))
+
+  it("reads a developer message that holds a notice as an item of its own, after the prompt", () => {
+    expect([prompt, describing].flatMap((record) => read(record!))).toEqual([
+      { shape: "user text", text: "Tell moth the news" },
+      { shape: "note text notice", text: "Novadeck: automatic notice, not from the" },
+    ])
+    expect(transcripts.items(JSON.stringify(describing))[0]).toMatchObject({
+      at: Date.parse("2026-11-20T21:02:06.031Z"),
+      note: { type: "notice" },
+    })
+  })
+
+  it("leaves Codex's own instructions, a developer message too, out", () => {
+    expect(read(skills!)).toEqual([])
+  })
+
+  it("splits the ring's hook text: the delivery is the ring's, the notice after it the prompt's", () => {
+    // The hook printed the delivery, then three notices (the older build's, as recorded).
+    expect(read(delivery!).map(({ shape }) => shape)).toEqual(Array(3).fill("note text notice"))
+    expect(read(ring!)).toHaveLength(1)
+  })
+
+  it("reads each part of a developer message alone", () => {
+    const parts = (...texts: string[]) => ({
+      ...(describing as object),
+      payload: {
+        ...(describing as { payload: object }).payload,
+        content: texts.map((text) => ({ type: "input_text", text })),
+      },
+    })
+    const full = (record: object) =>
+      transcripts.items(JSON.stringify(record)).map(({ text }) => text)
+    const one = "Novadeck · Show\nShow it.\n→ Use show."
+    const two = "Novadeck · Host load\nCPU at 90%+ for 3 min."
+    expect(full(parts("<collaboration_mode>plan</collaboration_mode>", one, two))).toEqual([
+      one,
+      two,
+    ])
+    // A part after a notice never becomes part of its body.
+    expect(full(parts(one, "<collaboration_mode>plan</collaboration_mode>"))).toEqual([one])
+  })
+
+  it("reads no notice from a delivery with none beside it", () => {
+    const text = (delivery as { payload: { content: { text: string }[] } }).payload.content[0]!.text
+    const alone = text.slice(0, text.indexOf("</novadeck-messages>") + 20)
+    const only = {
+      ...(delivery as object),
+      payload: {
+        ...(delivery as { payload: object }).payload,
+        content: [{ type: "input_text", text: alone }],
+      },
+    }
+    expect(read(only)).toEqual([])
+  })
+
+  it("keeps the developer message among the shapes it reads", () => {
+    expect(shapes(JSON.stringify(describing)).map(({ verdict }) => verdict)).toEqual(["read"])
   })
 })

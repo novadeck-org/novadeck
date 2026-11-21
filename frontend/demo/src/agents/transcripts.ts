@@ -10,7 +10,7 @@ import type {
   ToolOutcome,
   ToolRun,
 } from "@novadeck/core/conversation"
-import type { AgentMessage } from "@novadeck/core/messages"
+import type { AgentMessage, DeliveredNotice } from "@novadeck/core/messages"
 
 // What a demo agent's conversation opens with: its records, as its harness wrote them, and
 // what waits on the person.
@@ -21,6 +21,8 @@ export type DemoTranscript = {
   readonly slice?: ChatSlice
   // The messages the doorbell delivered to its agent, as the Messages pane has them.
   readonly delivered?: readonly AgentMessage[]
+  // The notices Novadeck delivered with them, which no thread holds.
+  readonly notices?: readonly DeliveredNotice[]
   // What its agent's own box holds, which a message sent now goes out with.
   readonly box?: ChatBox
   // What answering a request does, by the request's id: only for those the demo can answer.
@@ -214,6 +216,30 @@ const rang = (nonce: string, replies = false, senders = ""): DemoDraft => ({
     : `<novadeck-doorbell from="${senders}" ring="${nonce}"/>`,
   ring: { nonce, replies },
 })
+
+// One of Novadeck's own notices that rode on a prompt's hook, as its record keeps it: a note of
+// its text, `Novadeck · <Kind>` header and all.
+const standing = (text: string): DemoDraft => ({
+  role: "note",
+  kind: "text",
+  text,
+  note: { type: "notice" },
+})
+
+// The notices a ring among `items` delivered, as the runner lists them.
+const noticesBy = (
+  items: readonly ChatItem[],
+  nonce: string,
+  texts: readonly string[],
+): readonly DeliveredNotice[] => {
+  const at = items.find((item) => item.ring?.nonce === nonce)?.at ?? 0
+  return texts.map((text, index) => ({
+    id: `ring-${nonce}-notice-${index}`,
+    text,
+    sentAt: at - 5_000,
+    deliveredAt: at,
+  }))
+}
 
 // The messages a ring among `items` delivered, by who sent them, as the Messages pane has them:
 // another agent's by its handle, the person's answer through the Inbox by `null`.
@@ -484,6 +510,13 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
   "04": {
     items: written("04", now, [
       user("Review the checkout change on this branch for bugs, and fix what you find."),
+      // What the prompt's hook added: Novadeck's standing notices, a line each under the prompt.
+      standing(
+        "Novadeck · Describe\nThis terminal has no summary yet.\n→ Once you've been given work, call describe with a title and a summary.",
+      ),
+      standing(
+        "Novadeck · Inbox\nThe Inbox shows the user a copy of your questions and reports when they're away.\n→ Put every question your turn ends waiting on in it with ask.",
+      ),
       say("I'll read the diff first, then have two explorers check the call sites."),
       use(
         "call_04a",
@@ -533,6 +566,8 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
       from("/root/explorer_2", "No other caller depends on the old rounding."),
       rang("k3f9", false, "moth"),
       rang("p8w2", true),
+      // A ring that brought only a notice.
+      rang("h5d1"),
       use(
         "call_04c",
         "apply_patch",
@@ -1125,6 +1160,14 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
           ["moth", "Does the export job still round cents the old way? Check it before you patch."],
         ]),
         ...deliveredBy(review.items, "p8w2", [[null, "Round half up, the way the invoices do."]]),
+      ],
+      notices: [
+        ...noticesBy(review.items, "k3f9", [
+          "Novadeck · Worktrees\n@moth gave you its worktree on fix/export-rounding.\n  /Users/alex/projects/novadeck-export\n→ Work there with absolute paths.\n→ Don't close it.",
+        ]),
+        ...noticesBy(review.items, "h5d1", [
+          "Novadeck · Host load\nCPU has been at 90% or more for 3 minutes; @owl and @fox are running tests.",
+        ]),
       ],
     },
   }

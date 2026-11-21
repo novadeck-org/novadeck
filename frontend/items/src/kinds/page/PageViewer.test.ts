@@ -31,12 +31,10 @@ const show = (
   {
     awake,
     pictures,
-    loupe,
     onKeyDown,
   }: {
     awake?: Awake
     pictures?: string[]
-    loupe?: Companions["loupe"]
     onKeyDown?: (event: ReactKeyboardEvent<HTMLElement>) => void
   } = {},
 ) => {
@@ -57,7 +55,6 @@ const show = (
     save: () => new Promise(() => {}),
     trouble: (_target, _id, version, troubles) => told.push({ shown: version, troubles }),
     ...(pictures && { picture: async () => pictures.shift() }),
-    ...(loupe && { loupe }),
   }
   const workspace = createWorkspaceStore(
     workspaceReducer(workspaceFixture(), { type: "item/upsert", target, item }),
@@ -206,19 +203,6 @@ describe("a page beside a terminal", () => {
       await vi.waitFor(() => expect(notice()).not.toBe(""))
       act(() => button(rendered.container, "Back to desktop size")!.click())
       expect(notice()).toBe("")
-    })
-
-    it("has a loupe tool beside the phone's where the app can follow the page's pointer", () => {
-      const without = show({ kind: "page", url, shown: 1, live: true })
-      expect(button(without.container, "Loupe · hold Alt")).toBeUndefined()
-      const rendered = show({ kind: "page", url, shown: 1, live: true }, true, {
-        loupe: {
-          look: async () => undefined,
-          hold: async () => true,
-        },
-      })
-      expect(button(rendered.container, "Loupe · hold Alt")).toBeDefined()
-      expect(button(rendered.container, "Show at phone size")).toBeDefined()
     })
 
     it("goes quiet while it's kept out of sight", () => {
@@ -852,31 +836,6 @@ describe("a page beside a terminal", () => {
       expect(button(container, "Back")).toBeUndefined()
       expect(button(container, "Show at phone size")).toBeUndefined()
       expect(container.querySelector(".artifact-browser")?.getAttribute("aria-busy")).toBe("false")
-    })
-
-    it("has a loupe tool, on while pressed, off again as the pointer leaves the snapshot", () => {
-      const { container } = show({
-        kind: "page",
-        url,
-        shown: 1,
-        live: false,
-        snapshot:
-          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1024' height='768'/%3E",
-      })
-      const loupe = () => button(container, "Loupe · hold Alt")!
-      expect(loupe().getAttribute("aria-pressed")).toBe("false")
-      act(() => loupe().click())
-      expect(loupe().getAttribute("aria-pressed")).toBe("true")
-      const scroll = container.querySelector(".browser-snapshot")!
-      act(() => {
-        scroll.dispatchEvent(
-          new PointerEvent("pointermove", { clientX: 10, clientY: 10, bubbles: true }),
-        )
-      })
-      act(() => {
-        scroll.dispatchEvent(new PointerEvent("pointerleave"))
-      })
-      expect(loupe().getAttribute("aria-pressed")).toBe("false")
     })
 
     it("opens an address the person types in the browser", () => {

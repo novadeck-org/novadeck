@@ -686,6 +686,7 @@ describe("runner backend", () => {
           waits: null,
           waitsSince: null,
           ringing: false,
+          notices: [],
           threads: [],
         }),
       )

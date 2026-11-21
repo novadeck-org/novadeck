@@ -89,6 +89,20 @@ const messageThread = z.strictObject({
   messages: z.array(agentMessage).max(1000),
 })
 
+// One of Novadeck's own notices that reached a terminal's agent inside a delivery of messages: its
+// text as sent (`Novadeck · <Kind>` header and all, which `@novadeck/protocol/notices` reads) and
+// when it was sent and delivered. Notices are no conversation: they stand outside the threads, and
+// only the chat's rings hold them, by when each was delivered. Only delivered ones are listed.
+const deliveredNotice = z.strictObject({
+  id: messageId,
+  text: z.string().max(65_536),
+  sentAt: z.number(),
+  deliveredAt: z.number(),
+})
+
+// How many delivered notices a listing holds, the latest ones, as it holds a thread's last messages.
+export const listedNoticesMost = 200
+
 // Why the doorbell can't ring an idle agent whose messages wait, as it saw: its activity
 // saying a turn runs (`working`), a prompt the harness shows queued (`queued`), its box in
 // shell mode (`shell`), text in its input box (`draft`), a dialog, picker or other screen
@@ -113,7 +127,8 @@ export const longHoldMs = 3 * 60_000
 // can't ring it if it is idle (`waits`), since when the longest-held message for its idle
 // agent has waited (`waitsSince`, epoch milliseconds: the later of when the agent last went
 // idle and when the message last came to wait; null with none), whether messaging is
-// paused, and every thread it is in, latest first.
+// paused, every thread it is in, latest first, and the notices Novadeck delivered to its agent
+// (`notices`, oldest first), which no thread holds.
 export const terminalMessages = z.strictObject({
   terminalId: id,
   handle,
@@ -122,6 +137,7 @@ export const terminalMessages = z.strictObject({
   waitsSince: z.number().int().nonnegative().nullable(),
   paused: z.boolean(),
   threads: z.array(messageThread).max(1000),
+  notices: z.array(deliveredNotice).max(listedNoticesMost),
 })
 
 export type MessageState = z.infer<typeof messageState>
@@ -129,4 +145,5 @@ export type DeliveryState = z.infer<typeof deliveryState>
 export type MessageParty = z.infer<typeof messageParty>
 export type MessageRecipient = z.infer<typeof messageRecipient>
 export type MessageThread = z.infer<typeof messageThread>
+export type DeliveredNotice = z.infer<typeof deliveredNotice>
 export type TerminalMessages = z.infer<typeof terminalMessages>

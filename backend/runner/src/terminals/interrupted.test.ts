@@ -239,7 +239,7 @@ describe("the notice to a resumed agent whose turn the stop cut short", () => {
   it("says what stopped and to carry on, for a turn that ran, once", () => {
     const record = resumed()
     const notice = interruptedFor(record, "claude", { sessionId: "s1" })
-    expect(notice).toContain("Novadeck: automatic notice, not from the user:")
+    expect(notice).toContain("Novadeck · Restart\n")
     expect(notice).toContain("while your turn was running")
     expect(notice).toContain("subagents")
     expect(record.resumeTold).toBe(true)
@@ -273,8 +273,8 @@ describe("the notice to a resumed agent whose turn the stop cut short", () => {
   it("tells nothing of another session than the one resumed, by id or by the prefix a prompt showed", () => {
     expect(interruptedFor(resumed(), "claude", { sessionId: "s2" })).toBeUndefined()
     expect(interruptedFor(resumed(), "claude", { prefix: "x" })).toBeUndefined()
-    expect(interruptedFor(resumed(), "claude", { prefix: "s" })).toContain("automatic notice")
-    expect(interruptedFor(resumed(), "claude", { prefix: null })).toContain("automatic notice")
+    expect(interruptedFor(resumed(), "claude", { prefix: "s" })).toContain("Novadeck · Restart")
+    expect(interruptedFor(resumed(), "claude", { prefix: null })).toContain("Novadeck · Restart")
   })
 
   it("tells nothing once a turn runs meanwhile", () => {
@@ -298,7 +298,7 @@ describe("the notice to a resumed agent whose turn the stop cut short", () => {
       { notice: (id, text) => !!sent.push(`${id}:${text}`) },
     )
     expect(sent).toHaveLength(1)
-    expect(sent[0]).toMatch(/^t1:Novadeck: automatic notice/)
+    expect(sent[0]).toMatch(/^t1:Novadeck · Restart\n/)
     const again = { ...resumed(), summary: { id: "t1" } } as never
     expect(() =>
       tellInterrupted(

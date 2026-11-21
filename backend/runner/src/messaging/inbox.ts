@@ -34,6 +34,7 @@ import {
   undelivered,
   type Message,
 } from "./messages.js"
+import { noticeText } from "./notice-format.js"
 import type { Happening, Reports } from "./peers.js"
 import {
   clampedTurn,
@@ -309,15 +310,18 @@ const noticedSubjects = 5
 export const withdrawnNotice = (subjects: readonly string[]): string => {
   const named = subjects.map((each) => JSON.stringify(shorten(each, 80)))
   const one = subjects.length === 1
-  return (
-    "Novadeck: automatic notice, not from the user: the user wrote to you, " +
-    `so Novadeck took your open ${one ? "ask" : "asks"} out of their Inbox: ` +
-    `${firstFew(named, noticedSubjects)}. ` +
-    `${one ? "It is" : "They are"} closed and can no longer be answered in the Inbox. ` +
-    `What ${one ? "it" : "they"} asked that their message leaves open and your turn ends ` +
-    "waiting on, ask again as before: in your reply, with an ask as its copy, never " +
-    "mentioning the Inbox. This notice needs no reply."
-  )
+  return noticeText("Inbox", {
+    facts:
+      "The user wrote to you, " +
+      `so Novadeck took your open ${one ? "ask" : "asks"} out of their Inbox: ` +
+      `${firstFew(named, noticedSubjects)}. ` +
+      `${one ? "It is" : "They are"} closed and can no longer be answered in the Inbox.`,
+    actions: [
+      `What ${one ? "it" : "they"} asked that their message leaves open and your turn ends ` +
+        "waiting on, ask again as before: in your reply, with an ask as its copy, never " +
+        "mentioning the Inbox.",
+    ],
+  })
 }
 
 /**
@@ -332,21 +336,22 @@ export const dismissedNotice = (
     noticedSubjects,
   )
   const one = asks.length === 1
-  const head = "Novadeck: automatic notice, not from the user: the user dismissed "
-  const tail = " This notice needs no reply."
+  const head = "The user dismissed "
   const acts = asks.filter((each) => each.action === "action").length
   if (acts === asks.length)
-    return (
-      `${head}your ${one ? "ask" : "asks"} ${list} from their Inbox without doing ` +
-      `${one ? "it" : "them"}.${tail}`
-    )
+    return noticeText("Inbox", {
+      facts:
+        `${head}your ${one ? "ask" : "asks"} ${list} from their Inbox without doing ` +
+        `${one ? "it" : "them"}.`,
+    })
   const options = asks.some((each) => each.action === "options")
-  return (
-    `${head}your ${one ? "ask" : "asks"} ${list} from their Inbox without answering ` +
-    `${one ? "it" : "them"}. That is no answer` +
-    (options ? `: they chose none of ${one ? "its" : "their"} options` : "") +
-    `.${tail}`
-  )
+  return noticeText("Inbox", {
+    facts:
+      `${head}your ${one ? "ask" : "asks"} ${list} from their Inbox without answering ` +
+      `${one ? "it" : "them"}. That is no answer` +
+      (options ? `: they chose none of ${one ? "its" : "their"} options` : "") +
+      ".",
+  })
 }
 
 export class Inbox {

@@ -15,24 +15,33 @@ import { addressed, feed, type Live } from "./live.js"
 import type { Loops } from "./loops.js"
 import type { MessageStore } from "./message-store.js"
 import { undelivered } from "./messages.js"
+import { noticeText } from "./notice-format.js"
 import type { Sessions } from "./sessions.js"
 import type { Person, Withdrawals } from "./withdrawals.js"
 
 /** What a doorbell prompt's hook adds when its messages couldn't come now. */
-const stillWaiting =
-  "Novadeck: agent messages are still waiting for this session; they will come on a later turn, and this automatic notice can be ignored."
+const stillWaiting = noticeText("Messages", {
+  facts: "Agent messages are still waiting for this session; they will come on a later turn.",
+})
 
 /** What a doorbell prompt's hook adds when nothing waits for it any more. */
-const nothingWaiting =
-  "Novadeck: no agent messages are waiting any more; this automatic notice can be ignored."
+const nothingWaiting = noticeText("Messages", {
+  facts: "No agent messages are waiting any more.",
+})
 
 /** What a reply line's hook adds when its messages couldn't come now: the replies stand. */
-const repliesWaiting =
-  "Novadeck: the Inbox replies in this prompt are the user's own; their full messages are still waiting and come on a later turn."
+const repliesWaiting = noticeText("Inbox", {
+  facts:
+    "The Inbox replies in this prompt are the user's own; their full messages are still " +
+    "waiting and come on a later turn.",
+})
 
 /** What a reply line's hook adds when its messages came another way. */
-const repliesCame =
-  "Novadeck: the Inbox replies in this prompt are the user's own; their full messages already reached you."
+const repliesCame = noticeText("Inbox", {
+  facts:
+    "The Inbox replies in this prompt are the user's own; their full messages already " +
+    "reached you.",
+})
 
 /** A lease is given only with this long left before its hook's deadline, in milliseconds. */
 export const leaseMargin = 300
@@ -58,7 +67,7 @@ const joined = (kept: string | undefined, text: string): string =>
 /**
  * What a hook prints, and, at the start of a root turn the person's prompt or the doorbell
  * began with time left to print, the same answer with more after what it says: how
- * Novadeck's automatic notices go beside messages (see terminals/nudges.ts).
+ * Novadeck's notices go beside messages (see terminals/nudges.ts).
  */
 export type Answer = HookAnswer & { readonly adding?: (extra: string) => string }
 
@@ -66,9 +75,12 @@ export type Answer = HookAnswer & { readonly adding?: (extra: string) => string 
 const withNotices = (text: string, notices: string): string =>
   text ? `${text}\n\n${notices}` : notices
 
-/** A hook's delivery with the sender's hold notices after it, if any; empty with neither. */
+/**
+ * A hook's delivery with the sender's hold notices after it, if any, a blank line apart;
+ * empty with neither.
+ */
 const noted = (text: string | undefined, holds: readonly string[]): string =>
-  [...(text ? [text] : []), ...holds].join("\n")
+  [...(text ? [text] : []), ...holds].join("\n\n")
 
 /** What hook answers ask of the rest of messaging. */
 export type HookAnswersHost = {
@@ -90,6 +102,11 @@ export type HookAnswersHost = {
  */
 export class HookAnswers {
   constructor(readonly host: HookAnswersHost) {}
+
+  /** The terminal's long holds, each as a notice of its own. */
+  private heldNotices(terminalId: string): string[] {
+    return this.host.heldFrom(terminalId).map((facts) => noticeText("Messages", { facts }))
+  }
 
   /** What the terminal's root session did, decoded from a report, for its delivery state. */
   observe(terminalId: string, events: readonly HarnessEvent[], person?: Person): void {
@@ -236,7 +253,7 @@ export class HookAnswers {
     const notes = noticed.texts
     // What a harness whose injected messages last one call gives again on each later call.
     const noting = profile.reinjectPerCall && notes.length > 0
-    const holds = [...notes, ...(time && !behind ? this.host.heldFrom(live.terminalId) : [])]
+    const holds = [...notes, ...(time && !behind ? this.heldNotices(live.terminalId) : [])]
     if (start.cause === "call") {
       // A notice paid at a later call is given again on the turn's remaining ones, as one
       // paid at its first is.
@@ -323,7 +340,7 @@ export class HookAnswers {
     if (!call || !called || !time || !running(live.delivery)) return silent
     // What this terminal sent that waits long goes beside the result too, once.
     const noticed = this.host.withdrawals.notices(live, root, person)
-    const holds = [...noticed.texts, ...this.host.heldFrom(live.terminalId)]
+    const holds = [...noticed.texts, ...this.heldNotices(live.terminalId)]
     const print = (text: string) => call(noted(text, holds), event)
     const lease = leasing.lease(live, root, {
       kind: "midturn",

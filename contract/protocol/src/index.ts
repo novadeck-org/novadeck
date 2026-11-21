@@ -170,7 +170,9 @@ export {
   maxAskOptions,
 } from "./inbox.js"
 export {
+  type DeliveredNotice,
   type DeliveryState,
+  listedNoticesMost,
   longHoldMs,
   type MessageParty,
   type MessageRecipient,

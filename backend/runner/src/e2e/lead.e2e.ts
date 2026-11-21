@@ -78,8 +78,8 @@ for (const setup of setups) {
       const mark = / lead="([0-9A-Za-z]{8})"/.exec(tag ?? "")?.[1]
       if (!mark) throw new Error(`no lead mark in ${tag}`)
       expect(text(first)).toContain(leadNote)
-      // The note names the very mark of the message, in single quotes within its attribute.
-      expect(text(first)).toContain(`lead='${mark}'`)
+      // The rules name the very mark of the message.
+      expect(text(first)).toContain(`Those marked lead="${mark}"`)
       expect(text(first)).toContain(brief)
       await t2.until("Surveying now.")
     })

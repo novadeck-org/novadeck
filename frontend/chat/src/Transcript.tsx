@@ -1,5 +1,6 @@
 import { sameBlock, turnsWorked, type ChatBlock } from "@novadeck/core/conversation/turns"
 import type { MessageParty } from "@novadeck/core/messages"
+import { noticeBody, noticeOneLine, readNotice } from "@novadeck/core/notices"
 import { counted } from "@novadeck/core/units"
 import { shownControls } from "@novadeck/requests/shown-controls"
 import { Markdown } from "@novadeck/toolkit/Markdown"
@@ -33,6 +34,9 @@ const ringBrought = (ring: Ring): string =>
   [
     ...(fromAgents(ring).length > 0 ? [counted(fromAgents(ring).length, "message")] : []),
     ...(ring.replies || fromPerson(ring).length > 0 ? ["your reply"] : []),
+    ...(ring.notices.length > 0
+      ? [ring.notices.length === 1 ? "a notice" : `${ring.notices.length} notices`]
+      : []),
   ].join(", ")
 
 // The doorbell's own line, only where the ring holds what it can't show: a reply of the person's
@@ -40,7 +44,7 @@ const ringBrought = (ring: Ring): string =>
 const ringLine = (ring: Ring): string | null =>
   ring.replies && fromPerson(ring).length === 0
     ? "doorbell · your reply"
-    : fromAgents(ring).length + fromPerson(ring).length === 0
+    : fromAgents(ring).length + fromPerson(ring).length + ring.notices.length === 0
       ? "doorbell"
       : null
 
@@ -227,6 +231,52 @@ const SubagentLine = ({
   )
 }
 
+// One of Novadeck's own notices, whether it came in a ring's delivery or rode on the prompt's hook:
+// a dim line of its own first words, its `Novadeck · <Kind>` header off (the person reads the
+// facts, not the header), which opens in place to the whole, each `→` action on its line. As a
+// subagent's report is, not as someone's message is: nobody said it, so no author and no face.
+const NoticeLine = ({
+  id,
+  text,
+  at,
+  written,
+  mention,
+}: {
+  readonly id: string
+  readonly text: string
+  // The time its line shows, where it shows one; `written` when its words were, for the handles in them.
+  readonly at: number | null
+  readonly written: number | null
+  readonly mention: Mention | undefined
+}): React.JSX.Element => {
+  const [open, setOpen] = useState(false)
+  const { kind } = readNotice(text)
+  const said = mentionAt(mention, written)
+  return (
+    <div
+      className="chat-subagent chat-notice"
+      data-notice={id}
+      role="group"
+      aria-label={kind ? `Novadeck notice, ${kind}` : "Novadeck notice"}
+    >
+      <button
+        type="button"
+        className="chat-subagent-summary chat-notice-key nodrag nopan"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="chat-notice-said" data-open={open || undefined}>
+          <MentionedText
+            text={shownControls(open ? noticeBody(text) : noticeOneLine(text))}
+            mention={said}
+          />
+        </span>
+      </button>
+      <TimeFact at={at} hover />
+    </div>
+  )
+}
+
 // A line of the record that is no one's words: a compaction, a part the chat can't read. It reads
 // as a tool line does, dim, and opens to what it holds, where it holds anything.
 const RecordLine = ({
@@ -310,6 +360,7 @@ const namesPeers = (block: ChatBlock): boolean =>
   block.kind === "agent" ||
   block.kind === "assistant" ||
   block.kind === "user" ||
+  block.kind === "notice" ||
   block.kind === "doorbell"
 
 const BlockView = memo(
@@ -449,6 +500,17 @@ const BlockView = memo(
                 )}
               </article>
             ))}
+            {block.notices.map((notice) => (
+              <NoticeLine
+                key={notice.id}
+                id={notice.id}
+                text={notice.text}
+                written={notice.sentAt}
+                // Each says when it was delivered, as a line of its own.
+                at={notice.deliveredAt}
+                mention={mention}
+              />
+            ))}
           </article>
         )
       }
@@ -463,6 +525,16 @@ const BlockView = memo(
             at={block.at}
             body={block.summary}
             truncated={block.truncated}
+          />
+        )
+      case "notice":
+        return (
+          <NoticeLine
+            id={block.id}
+            text={block.text}
+            at={block.at}
+            written={block.at}
+            mention={mention}
           />
         )
       case "gap":

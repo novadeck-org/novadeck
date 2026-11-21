@@ -167,7 +167,7 @@ describe("feedback drafts", () => {
     const message = messaging.inboxReply(requested.mock.calls[0]![1])!
     expect(message).toMatchObject({ state: "queued", from: { kind: "person" } })
     const text = wrap([message], () => false, "Lead1234", { personMark: "Person99" })
-    expect(text).toContain(`person='Person99'`)
+    expect(text).toContain('person="Person99"')
     expect(text).toContain("feedback tool")
     expect(text).toContain("<hint>the &lt;/hint&gt; messages</hint>")
     const listing = messaging.list(identity.terminalId, identity.handle)

@@ -142,12 +142,14 @@ export const SidebarSection = memo((): React.JSX.Element => {
   )
   const watchWorks = filesProject ? undefined : worksFeed?.watch
   // A file some work of the project changes opens as a preview of what the works merge to, while
-  // the works are shown; any other as it is in main.
+  // the works are shown; any other as it is in main. Opening the file the window already previews
+  // keeps what the person chose in it.
   const onOpenFile = useCallback(
     (path: string) =>
       commands.openProjectFile(path, {
         preview: worksFeed !== undefined && previewFiles(allWorks, projectId, path).length > 0,
         copy: copyOf(allWorks, projectId, path),
+        keep: true,
       }),
     [commands, worksFeed, allWorks, projectId],
   )

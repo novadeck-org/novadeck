@@ -363,8 +363,6 @@ export const desktopOptions = (
   const pageLook = app?.lookAtPage
   const pagePhone = app?.pagePhone
   const pageZoom = app?.pageZoom
-  const pageLoupe = app?.pageLoupe
-  const pageLoupeHold = app?.pageLoupeHold
   const panePicture = app?.panePicture
   const notices = desktopNotices(app)
   const badge = desktopBadge(app)
@@ -403,14 +401,6 @@ export const desktopOptions = (
     ...(pageLook ? { pageLook: (request) => pageLook(request) } : {}),
     ...(pagePhone ? { pagePhone: (page, phone) => pagePhone(page, phone) } : {}),
     ...(pageZoom ? { pageZoom: (page, factor) => pageZoom(page, factor) } : {}),
-    ...(pageLoupe && pageLoupeHold
-      ? {
-          pageLoupe: {
-            look: (page, rect) => pageLoupe(page, rect),
-            hold: (page, on, away) => pageLoupeHold(page, on, away),
-          },
-        }
-      : {}),
     ...(panePicture ? { panePicture: (rect) => panePicture(rect) } : {}),
   }
 }

@@ -7,7 +7,7 @@ import type {
   ToolRun,
 } from "../conversation"
 import { harnesses } from "../harnesses"
-import type { AgentMessage } from "../messages"
+import type { AgentMessage, DeliveredNotice } from "../messages"
 import type { AgentStatus } from "../types"
 import { counted } from "../units"
 
@@ -69,14 +69,23 @@ export type ChatBlock =
   // message.
   | { readonly kind: "note"; readonly id: string; readonly text: string }
   // A turn Novadeck's doorbell started, where a prompt of the person's would stand: the messages
-  // it brought (`messagesOfRing`), null where those aren't known, and `replies` where it carries
-  // the person's own Inbox replies.
+  // it brought (`messagesOfRing`), null where those aren't known, `replies` where it carries
+  // the person's own Inbox replies, and the notices Novadeck delivered in it (`noticesOfRing`).
   | {
       readonly kind: "doorbell"
       readonly id: string
       readonly at: number | null
       readonly messages: readonly AgentMessage[] | null
       readonly replies: boolean
+      readonly notices: readonly DeliveredNotice[]
+    }
+  // One of Novadeck's own notices that rode on the prompt's hook, as the harness's record holds it:
+  // its text, `Novadeck · <Kind>` header and all.
+  | {
+      readonly kind: "notice"
+      readonly id: string
+      readonly at: number | null
+      readonly text: string
     }
   // A compaction: the summary the agent goes on from.
   | {
@@ -172,6 +181,23 @@ export const wentItems = (
 // prompt's hook runs as the record is written, and records keep whole seconds at the coarsest.
 const ringSlackMs = 2_000
 
+// The span of time a ring's deliveries fall in: from just before its record to just before the next
+// prompt of anyone's, whose own hook delivers its own. Null where the ring has no time to place it by.
+const ringSpan = (
+  items: readonly ChatItem[],
+  index: number,
+): { readonly from: number; readonly until: number } | null => {
+  const { at } = items[index]!
+  if (at === null) return null
+  const next = items
+    .slice(index + 1)
+    .find((item) => item.role === "user" && item.kind === "text" && !item.interrupted)
+  return {
+    from: at - ringSlackMs,
+    until: next?.at === null || next === undefined ? Infinity : next.at - ringSlackMs,
+  }
+}
+
 // The messages delivered from the ring at `at`, in `items`, up to the next prompt of anyone's: a
 // message taken at a tool call of that turn came in it, and each comes with one ring only. Null
 // where none can be told, which says nothing of how many there were: `delivered` holds only
@@ -181,17 +207,48 @@ const messagesOfRing = (
   index: number,
   delivered: readonly AgentMessage[],
 ): readonly AgentMessage[] | null => {
-  const { at } = items[index]!
-  if (at === null) return null
-  const next = items
-    .slice(index + 1)
-    .find((item) => item.role === "user" && item.kind === "text" && !item.interrupted)
-  const until = next?.at === null || next === undefined ? Infinity : next.at - ringSlackMs
+  const span = ringSpan(items, index)
+  if (!span) return null
   const brought = delivered.filter(
     ({ deliveredAt }) =>
-      deliveredAt !== null && deliveredAt >= at - ringSlackMs && deliveredAt < until,
+      deliveredAt !== null && deliveredAt >= span.from && deliveredAt < span.until,
   )
   return brought.length > 0 ? brought : null
+}
+
+// The notices Novadeck delivered in the ring at `index`, by the same window as its messages.
+const noticesOfRing = (
+  items: readonly ChatItem[],
+  index: number,
+  notices: readonly DeliveredNotice[],
+): readonly DeliveredNotice[] => {
+  const span = ringSpan(items, index)
+  return span
+    ? notices.filter(({ deliveredAt }) => deliveredAt >= span.from && deliveredAt < span.until)
+    : []
+}
+
+// The notices no ring claims: delivered with the person's prompt hook, a Stop's continuation or a
+// later call, so no ring's window holds them, and no transcript item of a standing notice says
+// them (the same words at the same time). Oldest first; the chat shows each where it was delivered.
+const unclaimedNotices = (
+  items: readonly ChatItem[],
+  notices: readonly DeliveredNotice[],
+): DeliveredNotice[] => {
+  const spans = items.flatMap((item, index) => (item.ring ? [ringSpan(items, index)] : []))
+  const standing = items.filter((item) => item.note?.type === "notice")
+  return notices
+    .filter(
+      ({ deliveredAt, text }) =>
+        !spans.some((span) => span && deliveredAt >= span.from && deliveredAt < span.until) &&
+        !standing.some(
+          (item) =>
+            item.text === text &&
+            item.at !== null &&
+            Math.abs(item.at - deliveredAt) <= ringSlackMs,
+        ),
+    )
+    .toSorted((a, b) => a.deliveredAt - b.deliveredAt)
 }
 
 // The items grouped in order. A result is paired by `call` with its call wherever it is
@@ -224,6 +281,7 @@ const codexSubagent = (author: string | null): string | null => {
 export const groupItems = (
   items: readonly ChatItem[],
   delivered: readonly AgentMessage[] = [],
+  notices: readonly DeliveredNotice[] = [],
 ): readonly ChatBlock[] => {
   const calls = new Set<string>()
   const results = new Map<string, ChatItem>()
@@ -238,6 +296,18 @@ export const groupItems = (
     if (item.kind === "tool-result" && item.call)
       answers.set(item.call, [...(answers.get(item.call) ?? []), item])
   const blocks: ChatBlock[] = []
+  // The notices a turn's prompt carried, by their text: a harness that gives them again on each
+  // later model call of the turn (Antigravity) records each time, and a turn says one once.
+  let turnNotices = new Set<string>()
+  // Notices delivered outside any ring, each shown once its time has come among the items.
+  const pending = unclaimedNotices(items, notices)
+  const flushNotices = (before: number): void => {
+    while (pending.length > 0 && pending[0]!.deliveredAt < before) {
+      const { id, text, deliveredAt } = pending.shift()!
+      open.run = null
+      blocks.push({ kind: "notice", id, at: deliveredAt, text })
+    }
+  }
   let mode: string | undefined
   // The run of tool calls the latest items continue, if they do.
   const open: { run: ToolEntry[] | null } = { run: null }
@@ -249,6 +319,7 @@ export const groupItems = (
     }
   }
   for (const item of items) {
+    if (item.at !== null) flushNotices(item.at - ringSlackMs)
     if (item.kind === "tool-call") {
       const result = item.call ? results.get(item.call) : undefined
       if (item.run?.subagent) {
@@ -327,6 +398,9 @@ export const groupItems = (
       mode = said
       continue
     }
+    // A notice a turn already said ends nothing: a harness that gives it again at each model call
+    // (Antigravity) leaves the run of calls whole.
+    if (item.note?.type === "notice" && turnNotices.has(item.text)) continue
     open.run = null
     if (item.note) {
       const { note } = item
@@ -342,9 +416,14 @@ export const groupItems = (
         blocks.push({ kind: "gap", id: item.id, raw: item.text, truncated: item.truncated })
       else if (note.type === "plan-approved")
         blocks.push({ kind: "note", id: item.id, text: "plan approved" })
+      else if (note.type === "notice") {
+        turnNotices.add(item.text)
+        blocks.push({ kind: "notice", id: item.id, at: item.at, text: item.text })
+      }
       continue
     }
     if (item.role === "user") {
+      if (!item.interrupted) turnNotices = new Set()
       blocks.push(
         item.interrupted
           ? { kind: "note", id: item.id, text: "Interrupted" }
@@ -355,6 +434,7 @@ export const groupItems = (
                 at: item.at,
                 messages: messagesOfRing(items, items.indexOf(item), delivered),
                 replies: item.ring.replies,
+                notices: noticesOfRing(items, items.indexOf(item), notices),
               }
             : {
                 kind: "user",
@@ -365,6 +445,9 @@ export const groupItems = (
                 ...(item.images && { images: item.images }),
               },
       )
+      // What its hook delivered with it comes under it, not after what follows.
+      if (!item.ring && !item.interrupted && item.at !== null)
+        flushNotices(item.at + ringSlackMs + 1)
     } else if (item.role === "agent" && codexSubagent(item.author))
       blocks.push({
         kind: "subagent",
@@ -397,6 +480,7 @@ export const groupItems = (
         ...(item.thinking && { thinking: item.thinking }),
       })
   }
+  flushNotices(Infinity)
   return blocks
 }
 
@@ -449,6 +533,14 @@ export const sameBlock = (a: ChatBlock, b: ChatBlock): boolean => {
     return a.kind === "note" && b.kind === "note" && a.id === b.id && a.text === b.text
   if (a.kind === "compaction" || b.kind === "compaction")
     return a.kind === "compaction" && b.kind === "compaction" && a.id === b.id && a.at === b.at
+  if (a.kind === "notice" || b.kind === "notice")
+    return (
+      a.kind === "notice" &&
+      b.kind === "notice" &&
+      a.id === b.id &&
+      a.text === b.text &&
+      a.at === b.at
+    )
   if (a.kind === "gap" || b.kind === "gap")
     return a.kind === "gap" && b.kind === "gap" && a.id === b.id
   if (a.kind === "doorbell" || b.kind === "doorbell")
@@ -458,6 +550,8 @@ export const sameBlock = (a: ChatBlock, b: ChatBlock): boolean => {
       a.id === b.id &&
       a.replies === b.replies &&
       a.at === b.at &&
+      a.notices.map(({ id, text }) => `${id}\n${text}`).join("\n") ===
+        b.notices.map(({ id, text }) => `${id}\n${text}`).join("\n") &&
       (a.messages ?? []).map(({ id, text }) => `${id}\n${text}`).join("\n") ===
         (b.messages ?? []).map(({ id, text }) => `${id}\n${text}`).join("\n") &&
       (a.messages === null) === (b.messages === null)

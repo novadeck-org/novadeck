@@ -1228,7 +1228,7 @@ describe("the browser viewer", () => {
           })
       })
 
-      it("moves up and down by Shift+scroll, and leaves a plain scroll to the page", () => {
+      it("moves up and down by the wheel over the stage, Shift or not", () => {
         const { root, top, mouse } = zoomable()
         const wheel = (init: WheelEventInit) => {
           const turn = new WheelEvent("wheel", { bubbles: true, cancelable: true, ...init })
@@ -1236,22 +1236,31 @@ describe("the browser viewer", () => {
           return turn
         }
         // Not zoomed: nothing to move.
+        expect(wheel({ deltaY: 100 }).defaultPrevented).toBe(false)
         expect(wheel({ deltaY: 100, shiftKey: true }).defaultPrevented).toBe(false)
         mouse("dblclick", [8, 0])
         const start = top()
-        expect(wheel({ deltaY: 100 }).defaultPrevented).toBe(false)
-        expect(top()).toBe(start)
-        expect(wheel({ deltaY: 100, shiftKey: true }).defaultPrevented).toBe(true)
+        expect(wheel({ deltaY: 100 }).defaultPrevented).toBe(true)
         expect(top()).toBe(start - 100)
-        // Up again, and some browsers send it sideways.
+        expect(wheel({ deltaY: 100, shiftKey: true }).defaultPrevented).toBe(true)
+        expect(top()).toBeCloseTo(start - 200, 6)
+        // Up again, and some browsers send Shift's sideways.
         wheel({ deltaX: -40, deltaY: 0, shiftKey: true })
-        expect(top()).toBe(start - 60)
-        // Never past either bezel's margin.
-        wheel({ deltaY: -10_000, shiftKey: true })
+        expect(top()).toBeCloseTo(start - 160, 6)
+        // Ctrl+wheel, a zoom gesture elsewhere, and a sideways swipe move nothing.
+        expect(wheel({ deltaY: 100, ctrlKey: true }).defaultPrevented).toBe(false)
+        expect(wheel({ deltaX: 100, deltaY: 0 }).defaultPrevented).toBe(false)
+        expect(top()).toBeCloseTo(start - 160, 6)
+        // A wheel by lines moves it by 40 pixels a line.
+        wheel({ deltaY: 1, deltaMode: WheelEvent.DOM_DELTA_LINE })
+        expect(top()).toBeCloseTo(start - 200, 6)
+        // Never past either bezel's margin, where it leaves the wheel to what's around it.
+        wheel({ deltaY: -10_000 })
         expect(top()).toBe(phoneMargin + phoneBezel)
-        wheel({ deltaY: 10_000, shiftKey: true })
+        expect(wheel({ deltaY: -100 }).defaultPrevented).toBe(false)
+        wheel({ deltaY: 10_000 })
         const end = top()
-        wheel({ deltaY: 10_000, shiftKey: true })
+        expect(wheel({ deltaY: 10_000 }).defaultPrevented).toBe(false)
         expect(top()).toBe(end)
         expect(end + phoneScreen.height * level(560) + phoneBezel).toBeCloseTo(560 - phoneMargin, 3)
       })
@@ -1361,7 +1370,7 @@ describe("the browser viewer", () => {
         const first = zoomable()
         first.mouse("dblclick", [8, 0])
         first.root.dispatchEvent(
-          new WheelEvent("wheel", { deltaY: 90, shiftKey: true, bubbles: true, cancelable: true }),
+          new WheelEvent("wheel", { deltaY: 90, bubbles: true, cancelable: true }),
         )
         const saved = first.viewer.state()
         const kept = (saved as unknown as { browser: { zoom?: { lift: number } } }).browser.zoom

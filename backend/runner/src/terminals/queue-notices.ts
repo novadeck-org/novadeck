@@ -1,8 +1,8 @@
 import type { PullRequest } from "@novadeck/protocol"
 
 import { kindShown, minutes, pullsOf, type Party, type Pull } from "../messaging/coordination.js"
+import { noticeText } from "../messaging/notice-format.js"
 import { listed } from "../messaging/peers.js"
-import { notice } from "./closes.js"
 import { mention } from "./handles.js"
 import { waitingOf } from "./peers-host.js"
 import type { Record } from "./record.js"
@@ -196,14 +196,20 @@ const recipients = (
     )
   told.set(
     queued.terminalId,
-    `${notice}Your PR #${pull.number}'s ${kind} check has been queued ${minutes(since, now)}; ` +
-      `${kind} runners held by ${held(queued.terminalId)}.`,
+    noticeText("CI queue", {
+      facts:
+        `Your PR #${pull.number}'s ${kind} check has been queued ${minutes(since, now)}; ` +
+        `${kind} runners held by ${held(queued.terminalId)}.`,
+    }),
   )
   for (const holder of holders)
     told.set(
       holder.terminalId,
-      `${notice}${mention(queued.handle)}'s PR #${pull.number}'s ${kind} check has been queued ` +
-        `${minutes(since, now)}; ${kind} runners held by ${held(holder.terminalId)}.`,
+      noticeText("CI queue", {
+        facts:
+          `${mention(queued.handle)}'s PR #${pull.number}'s ${kind} check has been queued ` +
+          `${minutes(since, now)}; ${kind} runners held by ${held(holder.terminalId)}.`,
+      }),
     )
   return told
 }

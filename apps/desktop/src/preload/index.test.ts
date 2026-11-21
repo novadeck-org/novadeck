@@ -1,7 +1,6 @@
 import type { EventEmitter } from "node:events"
 
 import { runnerPortMessage, type DesktopApp } from "@novadeck/protocol/bridge"
-import { pageLoupeChannel, pageLoupeMessage } from "@novadeck/viewers/browser/loupe"
 import { pageSignInChannel, pageSignInMessage } from "@novadeck/viewers/browser/sign-in"
 import { pageRequestChannel, pageRequestMessage } from "@novadeck/viewers/browser/trouble"
 import { afterEach, beforeEach, vi } from "vitest"
@@ -28,8 +27,6 @@ import {
   pagePictureChannel,
   panePictureChannel,
   pagePhoneChannel,
-  pageLoupeHoldChannel,
-  pageLoupeLookChannel,
   pageZoomChannel,
   portableChannel,
   portableStateChannel,
@@ -192,60 +189,6 @@ describe("a page view's sign-in windows", () => {
   it("are dropped when the word is malformed", () => {
     expect(told("7", 1)).not.toHaveBeenCalled()
     expect(told(7, -1)).not.toHaveBeenCalled()
-  })
-})
-
-describe("the loupe over a page view", () => {
-  const told = (...args: unknown[]) => {
-    const posted = vi.fn<(message: unknown, origin: string) => void>()
-    vi.stubGlobal("window", { postMessage: posted })
-    try {
-      electron.renderer.emit(pageLoupeChannel, {}, ...args)
-    } finally {
-      vi.unstubAllGlobals()
-    }
-    return posted
-  }
-  const notice = { shown: true, toggled: false, x: 4, y: 5 }
-
-  it("reaches the page as a window message naming its view, where the pointer is and whether it shows", () => {
-    expect(told(7, notice)).toHaveBeenCalledExactlyOnceWith(
-      { type: pageLoupeMessage, contentsId: 7, ...notice },
-      "*",
-    )
-  })
-
-  it("is dropped when the word is malformed", () => {
-    expect(told("7", notice)).not.toHaveBeenCalled()
-    expect(told(7, { ...notice, x: "4" })).not.toHaveBeenCalled()
-    expect(told(7, undefined)).not.toHaveBeenCalled()
-  })
-
-  it("is asked for a picture by view id and part, and only a JPEG comes back", async () => {
-    electron.answer = "data:image/jpeg;base64,AAAA"
-    const rect = { x: 1, y: 2, width: 30, height: 40, extra: "dropped" }
-    expect(await electron.exposed.pageLoupe?.(7, rect)).toBe("data:image/jpeg;base64,AAAA")
-    expect(electron.messages.at(-1)).toEqual([
-      pageLoupeLookChannel,
-      7,
-      { x: 1, y: 2, width: 30, height: 40 },
-    ])
-    const answers = ["data:text/html,x", "data:image/png;base64,AA", 5, undefined]
-    const pictures = answers.map((answer) => {
-      electron.answer = answer
-      return electron.exposed.pageLoupe?.(7, rect)
-    })
-    expect(await Promise.all(pictures)).toEqual(answers.map(() => undefined))
-  })
-
-  it("is held by view id, and did only when the main process says so", async () => {
-    electron.answer = true
-    expect(await electron.exposed.pageLoupeHold?.(7, true)).toBe(true)
-    expect(electron.messages.at(-1)).toEqual([pageLoupeHoldChannel, 7, true, false])
-    await electron.exposed.pageLoupeHold?.(7, false, true)
-    expect(electron.messages.at(-1)).toEqual([pageLoupeHoldChannel, 7, false, true])
-    electron.answer = "true"
-    expect(await electron.exposed.pageLoupeHold?.(7, true)).toBe(false)
   })
 })
 

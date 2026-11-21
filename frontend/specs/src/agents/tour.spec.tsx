@@ -93,6 +93,26 @@ describe("The tour", () => {
       await expect.element(start()).toHaveFocus()
     })
 
+    it("offers a choice of agent only where more than one can run it", async () => {
+      await openWorkspace(offered)
+      await offerFromHelp()
+      await consentSays("Runs Claude Code")
+      const picker = consent().getByRole("radiogroup", { name: "Agent for the tour" })
+      expect(picker.query()).toBeNull()
+      await consent().getByRole("button", { name: "Not now" }).click()
+      await expect.element(consent()).not.toBeInTheDocument()
+      await openPreferencesOn("Agents")
+      const codex = preferencesDialog().getByRole("switch", { name: "Codex" })
+      await codex.click()
+      await expect.element(codex).toHaveAttribute("aria-checked", "true")
+      await closePreferences()
+      await takeTourFromHelp()
+      await expect.element(picker).toBeVisible()
+      await expect.element(picker.getByRole("radio", { name: "Claude Code" })).toBeVisible()
+      await expect.element(picker.getByRole("radio", { name: "Codex" })).toBeVisible()
+      expect(picker.getByRole("radio", { name: "Antigravity" }).query()).toBeNull()
+    })
+
     it("opens the Tour project with its agent starting on its cheapest model", async () => {
       await openWorkspace(offered)
       const before = terminalTabNames()
@@ -115,7 +135,7 @@ describe("The tour", () => {
     it("says to connect an agent first where none is", async () => {
       await openWorkspace(offered)
       await offerFromHelp({ connect: false })
-      await consentSays("Connect Claude Code, Codex or Antigravity")
+      await consentSays("Install and connect Claude Code, Codex or Antigravity")
       expect(start().query()).toBeNull()
       await consent().getByRole("button", { name: "Close" }).click()
       await expect.element(consent()).not.toBeInTheDocument()

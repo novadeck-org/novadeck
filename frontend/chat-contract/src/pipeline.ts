@@ -163,6 +163,12 @@ const lineOf = (block: Element): { line: string; rows: number } => {
     )
     return { line: `tools: ${folded}${rows.join("; ")}`, rows: rows.length }
   }
+  // One of Novadeck's own notices, as it opens: its words, the header off, each action behind its arrow.
+  if (block.matches(".chat-notice")) {
+    const line = block.querySelector<HTMLElement>(".chat-subagent-summary")!
+    if (line.getAttribute("aria-expanded") === "false") click(line)
+    return { line: `notice: ${textOf(line)}`, rows: 0 }
+  }
   // A subagent's report: its name, whether it runs or failed, and the whole of what it said.
   if (block.matches(".chat-subagent")) {
     const line = block.querySelector<HTMLElement>(".chat-subagent-summary")!

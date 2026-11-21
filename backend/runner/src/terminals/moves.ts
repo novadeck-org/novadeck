@@ -5,10 +5,10 @@ import { DomainError } from "../errors.js"
 import type { Feedback } from "../messaging/feedback.js"
 import type { Inbox } from "../messaging/inbox.js"
 import type { Messaging } from "../messaging/messaging.js"
+import { noticeText } from "../messaging/notice-format.js"
 import type { Approvals } from "./approvals.js"
-import { notice } from "./closes.js"
 import { mention } from "./handles.js"
-import { leadNotice } from "./leads.js"
+import { reportBack } from "./leads.js"
 import type { Names } from "./names.js"
 import type { OpenRequests } from "./opens.js"
 import type { Record } from "./record.js"
@@ -84,50 +84,74 @@ type Placed = {
 /** A handle that changed as its terminal moved. */
 type Rename = { readonly was: string; readonly now: string }
 
-/** The renames in a sentence: whoever addressed the old handle must use the new one. */
+/** The renames as a fact: what each handle became. */
 const changes = (renames: readonly Rename[]): string =>
-  "Handles changed with the move, so use the new ones: " +
+  "Handles changed with the move: " +
   renames.map(({ was, now }) => `${mention(was)} is now ${mention(now)}`).join(", ") +
   "."
+
+// What an agent whose handles changed does with the new ones.
+const useNew = "Use the new handles."
 
 /** What the people and agents in a moved terminal's old and new place are told. */
 export const moveNotice = {
   // To a terminal that left its lead as it moved on its own.
   left: (lead: string, renames: readonly Rename[] = []): string =>
-    notice +
-    `The user moved you to another session in Novadeck, so ${mention(lead)} no longer leads ` +
-    "you: its messages are a peer's from now, and it can no longer see you. What the user " +
-    "told you still stands." +
-    (renames.length === 0 ? "" : " " + changes(renames)),
+    noticeText("Move", {
+      facts:
+        `The user moved you to another session in Novadeck, so ${mention(lead)} no longer leads ` +
+        "you, and it can no longer see you." +
+        (renames.length === 0 ? "" : " " + changes(renames)),
+      ...(renames.length === 0 ? {} : { actions: [useNew] }),
+    }),
   // To a terminal that left a lead as it moved on its own, one that is gone and has no handle.
   leftGone: (renames: readonly Rename[] = []): string =>
-    notice +
-    "The user moved you to another session in Novadeck, so your lead no longer leads you: its " +
-    "messages are a peer's from now, and it can no longer see you. What the user told you " +
-    "still stands." +
-    (renames.length === 0 ? "" : " " + changes(renames)),
+    noticeText("Move", {
+      facts:
+        "The user moved you to another session in Novadeck, so your lead no longer leads you, " +
+        "and it can no longer see you." +
+        (renames.length === 0 ? "" : " " + changes(renames)),
+      ...(renames.length === 0 ? {} : { actions: [useNew] }),
+    }),
   // To the lead a terminal left as it moved.
   leftBy: (handle: string, title: string): string =>
-    notice +
-    `The user moved ${mention(handle)} · ${title} to another session in Novadeck: you no ` +
-    "longer lead it, and you can no longer see it. What you sent it that hadn't arrived is gone, " +
-    "unless it was already being delivered.",
+    noticeText("Move", {
+      facts:
+        `The user moved ${mention(handle)} · ${title} to another session in Novadeck: you no ` +
+        "longer lead it, and you can no longer see it. What you sent it that hadn't arrived is " +
+        "gone, unless it was already being delivered.",
+    }),
+  // To the first terminal of a moved group that keeps its lead, whose handle may have changed.
+  ledAfter: (lead: string, renames: readonly Rename[] = []): string =>
+    noticeText("Move", {
+      facts:
+        `${mention(lead)} leads you from now on.` +
+        (renames.length === 0 ? "" : " " + changes(renames)),
+      actions: [reportBack, ...(renames.length === 0 ? [] : [useNew])],
+    }),
   // To a terminal whose handle changed, or whose lead's or teammates' did, in the new session.
   renamed: (handle: string, renames: readonly Rename[]): string =>
-    notice +
-    `The user moved you to another session in Novadeck. Your handle there is ${mention(handle)}. ` +
-    `${changes(renames)} The agents you knew there are out of reach, and you see this ` +
-    "session's agents now.",
+    noticeText("Move", {
+      facts:
+        `The user moved you to another session in Novadeck. Your handle there is ${mention(handle)}. ` +
+        `${changes(renames)} The agents you knew there are out of reach, and you see this ` +
+        "session's agents now.",
+      actions: [useNew],
+    }),
   // To a terminal moved on its own, whose handle and lead stayed.
   alone: (): string =>
-    notice +
-    "The user moved you to another session in Novadeck: the agents you knew there are out of " +
-    "reach, but for your team if it came along, and you see this session's agents now.",
+    noticeText("Move", {
+      facts:
+        "The user moved you to another session in Novadeck: the agents you knew there are out " +
+        "of reach, but for your team if it came along, and you see this session's agents now.",
+    }),
   // To the lead an undo of a move puts back over the terminal.
   leadsAgain: (handle: string, title: string): string =>
-    notice +
-    `The user moved ${mention(handle)} · ${title} back to this session in Novadeck: you lead ` +
-    "it again, and you can see it.",
+    noticeText("Move", {
+      facts:
+        `The user moved ${mention(handle)} · ${title} back to this session in Novadeck: you ` +
+        "lead it again, and you can see it.",
+    }),
 }
 
 /**
@@ -449,7 +473,7 @@ export class Moves {
             ? moveNotice.left(leftHandle, renames)
             : moveNotice.leftGone(renames)
           : index === 0 && ledBy !== null && leadHandle !== undefined
-            ? leadNotice.nowLed(leadHandle) + (renames.length === 0 ? "" : " " + changes(renames))
+            ? moveNotice.ledAfter(leadHandle, renames)
             : renames.length > 0
               ? moveNotice.renamed(handle, renames)
               : moveNotice.alone()

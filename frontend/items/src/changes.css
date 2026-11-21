@@ -302,6 +302,47 @@
 .diff-branches {
   padding: 0 14px 0 56px;
 }
+/* The way into a file's diff, so it isn't left to a double click: an arrow at the row's end,
+   where the pointer is, on the unfolded row, and always where nothing hovers, its place kept
+   so the counts never move; and a muted line under what the file changed. */
+.changes-file-open {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  margin: 0 4px 0 -4px;
+  visibility: hidden;
+}
+.diff-file:hover .changes-file-open,
+.changes-item[data-open] > .diff-file .changes-file-open {
+  visibility: visible;
+}
+@media (hover: none) {
+  .changes-file-open {
+    visibility: visible;
+  }
+}
+.changes-peek-open {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 2px;
+  height: 20px;
+  margin: 2px 0 0 -6px;
+  padding: 0 6px;
+  border-radius: var(--radius-control);
+  color: var(--color-muted);
+  font-family: var(--font-sans);
+  transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    color var(--motion-feedback) var(--ease-interface);
+}
+.changes-peek-open:hover {
+  background-color: var(--color-soft);
+  color: var(--color-ink);
+}
+.changes-peek-open:focus-visible {
+  outline-offset: -2px;
+}
 .changes-change code,
 .changes-scope code {
   color: var(--color-ink);

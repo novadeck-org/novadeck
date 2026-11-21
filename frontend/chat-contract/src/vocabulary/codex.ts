@@ -270,7 +270,7 @@ export const codexVocabulary: readonly Written[] = [
       said("Wait for the reviewer."),
       replied("Waiting."),
       said(
-        '<hook_prompt hook_run_id="stop:1:/home/user/.codex/plugins/novadeck/hooks.json">&lt;novadeck-messages note="Messages from other agents"&gt;Looks good.&lt;/novadeck-messages&gt;</hook_prompt>',
+        '<hook_prompt hook_run_id="stop:1:/home/user/.codex/plugins/novadeck/hooks.json">&lt;novadeck-messages&gt;\n&lt;rules&gt;\nNovadeck · Messages\n&lt;/rules&gt;\n&lt;message id="m-1" from="reviewer"&gt;Looks good.&lt;/message&gt;\n&lt;/novadeck-messages&gt;</hook_prompt>',
       ),
       replied("The reviewer approved it."),
     ],

@@ -18,6 +18,7 @@ const listing = (change: Partial<TerminalMessages> = {}): TerminalMessages => ({
   waits: null,
   waitsSince: null,
   paused: false,
+  notices: [],
   threads: [
     {
       id: "t-1",
@@ -106,6 +107,7 @@ describe("the runner's messages", () => {
         waits: null,
         waitsSince: null,
         ringing: false,
+        notices: [],
         threads: [
           {
             id: "t-1",
@@ -152,6 +154,16 @@ describe("the runner's messages", () => {
         waits: null,
         waitsSince: null,
       }),
+    )
+  })
+
+  it("carry the notices Novadeck delivered, apart from the threads", async () => {
+    const { messages, push } = streams()
+    messages.follow(key)
+    const notice = { id: "m-n1", text: "Novadeck · Show\nShow it.", sentAt: 1, deliveredAt: 2 }
+    push(listing({ notices: [notice] }))
+    await vi.waitFor(() =>
+      expect(messages.state.getSnapshot().terminals[id]).toMatchObject({ notices: [notice] }),
     )
   })
 

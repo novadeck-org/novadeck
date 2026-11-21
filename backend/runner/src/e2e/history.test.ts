@@ -11,6 +11,7 @@ const listing = (delivery: DeliveryState, state?: MessageState): TerminalMessage
   waits: null,
   waitsSince: null,
   paused: false,
+  notices: [],
   threads:
     state === undefined
       ? []
