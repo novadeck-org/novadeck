@@ -797,12 +797,12 @@ App:
   plays four acts in Canvas, each opened by a wipe (an ink sheet with the act's number and
   name), and its stage (`Stage.tsx`, in its own print look, `print.css`) marks the page's own
   elements, `data-tour-look` where to look (a magenta line) and `data-tour-click` what to
-  press (a slowly breathing yellow one), each drawn by a mark put inside the element, over all
-  it holds, and letters one caption box beside them in space no window takes: "Your own agent. In
+  press (a slowly breathing yellow one), each drawn by a mark a little way out from the element
+  (where what clips it leaves room), over all it holds, and letters one caption box beside them in space no window takes: "Your own agent. In
   a sandbox.", or, while a startup screen holds, "It wants an answer first." with that screen's
   words under it, or "It's asking your permission." while the lead or a teammate has an Unblock
-  row waiting in the Inbox (any harness's own dialog, or a held message). The act plates and End
-  tour sit in the footer; while another project is on screen, a small bar stands in for it. Once
+  row waiting in the Inbox (any harness's own dialog, or a held message). End tour sits in the
+  footer; while another project is on screen, a small bar stands in for it. Once
   the card is shown, act 4 holds on it a few seconds before the closing card.
 - **Boot failures:** each fails the first attempt as the runner would, so a transient one
   retries on its own and the others wait for Retry (an incompatible runner, or a workspace

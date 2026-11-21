@@ -39,33 +39,86 @@ const sameScene = (a: Scene, b: Scene): boolean =>
 const drawn = (box: Box | null): box is Box => box !== null && box.width > 0 && box.height > 0
 
 // The attributes the stage puts on what its step marks: where to look, and what to press. Each
-// marked element gets a mark of its kind inside it, which print.css draws over all the element
-// holds, so none of its parts paints over the mark; an element that isn't positioned is made so
+// marked element gets a mark of its kind, which print.css draws a little way out from it, over
+// all it holds, so none of its parts paints over the mark. The mark goes in its host: the element
+// itself, or, where the element cuts off what goes past its edges (as a window does) and its
+// parent is the same box, that parent. A host that isn't positioned is made so
 // (`data-tour-anchor`), to hold it.
 const lookMark = "data-tour-look"
 const clickMark = "data-tour-click"
+const host = "data-tour-host"
 const anchor = "data-tour-anchor"
+
+// How far out from what it marks a mark stands, where there's room.
+const markGap = 6
 
 const kindOf = (mark: string): string => (mark === lookMark ? "look" : "click")
 
-// The mark of `mark`'s kind inside `element`, put there if it isn't (as when a view redrew it).
+const clips = (element: Element): boolean => {
+  const { overflowX, overflowY } = getComputedStyle(element)
+  return overflowX !== "visible" || overflowY !== "visible"
+}
+
+const hostOf = (element: HTMLElement): HTMLElement => {
+  const parent = element.parentElement
+  return parent && clips(element) && sameBox(boxOf(parent), boxOf(element)) ? parent : element
+}
+
+// The mark of `mark`'s kind in `place`, if there is one.
+const markIn = (place: HTMLElement, mark: string): HTMLElement | null =>
+  place.querySelector<HTMLElement>(`:scope > [data-tour-mark="${kindOf(mark)}"]`)
+
+// How far out the mark can stand on each side, within whatever around its host cuts off what
+// overflows it, in the host's own pixels (as Canvas scales it).
+const gapsOf = (place: HTMLElement): readonly [number, number, number, number] => {
+  const box = place.getBoundingClientRect()
+  const scale = place.offsetWidth > 0 ? box.width / place.offsetWidth : 1
+  const most = markGap * scale
+  let [top, right, bottom, left] = [most, most, most, most]
+  for (let around = place.parentElement; around; around = around.parentElement) {
+    if (!clips(around)) continue
+    const edge = around.getBoundingClientRect()
+    top = Math.min(top, box.top - edge.top)
+    right = Math.min(right, edge.right - box.right)
+    bottom = Math.min(bottom, edge.bottom - box.bottom)
+    left = Math.min(left, box.left - edge.left)
+  }
+  const local = (room: number): number => Math.max(0, Math.floor(room / scale))
+  return [local(top), local(right), local(bottom), local(left)]
+}
+
+// The mark of `mark`'s kind for `element`, put in its host if it isn't there (as when a view
+// redrew it), and kept as far out as there's room.
 const drawMark = (element: HTMLElement, mark: string): void => {
-  const kind = kindOf(mark)
-  for (const child of element.children)
-    if (child instanceof HTMLElement && child.dataset.tourMark === kind) return
-  const line = document.createElement("span")
-  line.className = "tour-mark"
-  line.dataset.tourMark = kind
-  line.setAttribute("aria-hidden", "true")
-  element.append(line)
+  const place = hostOf(element)
+  if (!place.hasAttribute(host)) {
+    place.setAttribute(host, "")
+    if (getComputedStyle(place).position === "static") place.setAttribute(anchor, "")
+  }
+  let line = markIn(place, mark)
+  if (!line) {
+    line = document.createElement("span")
+    line.className = "tour-mark"
+    line.dataset.tourMark = kindOf(mark)
+    line.setAttribute("aria-hidden", "true")
+    place.append(line)
+  }
+  const inset = gapsOf(place)
+    .map((gap) => `${-gap}px`)
+    .join(" ")
+  if (line.style.inset !== inset) line.style.inset = inset
 }
 
 const unmark = (element: HTMLElement, mark: string): void => {
   element.removeAttribute(mark)
-  for (const line of element.querySelectorAll(`:scope > [data-tour-mark="${kindOf(mark)}"]`))
-    line.remove()
-  if (!element.hasAttribute(lookMark) && !element.hasAttribute(clickMark))
-    element.removeAttribute(anchor)
+  for (const place of [element, element.parentElement]) {
+    if (!place) continue
+    markIn(place, mark)?.remove()
+    if (!place.querySelector(":scope > [data-tour-mark]")) {
+      place.removeAttribute(host)
+      place.removeAttribute(anchor)
+    }
+  }
 }
 
 // What a coach marks now: where to look, and the first of its targets to press that's drawn.
@@ -91,7 +144,6 @@ const remark = (mark: string, before: Set<HTMLElement>, next: readonly HTMLEleme
   for (const element of next) {
     if (!before.has(element)) {
       element.setAttribute(mark, "")
-      if (getComputedStyle(element).position === "static") element.setAttribute(anchor, "")
       before.add(element)
     }
     drawMark(element, mark)
@@ -194,10 +246,9 @@ const useWipe = (act: TourAct): TourAct | null => {
 /**
  * The tour as it shows over the workspace, in a print look of its own: each act opened by a
  * wipe, marks on what its step points at (where to look, and what to press: `print.css`), and
- * one lettered caption box beside it in space
- * no window takes, with the act plates and End tour in the middle of the app's footer, which no
- * window takes either (or, with the footer hidden, at the workspace's foot). It is no dialog:
- * it takes no focus and covers nothing but its box, plates and button, so the person's keys and
+ * one lettered caption box beside it in space no window takes, with End tour in the middle of
+ * the app's footer, which no window takes either (or, with the footer hidden, at the workspace's
+ * foot). It is no dialog: it takes no focus and covers nothing but its box and button, so the person's keys and
  * shortcuts work on as without it. While the person is in another project, a small bar takes
  * its place, to go back to it.
  */
@@ -256,13 +307,13 @@ export const TourStage = ({
       </p>
       {area &&
         (slot ? (
-          createPortal(<Controls act={act} onEnd={onEnd} />, slot)
+          createPortal(<Controls onEnd={onEnd} />, slot)
         ) : (
           <div
             className="tour-controls tour-controls-free"
             style={{ left: area.left + area.width / 2, top: area.top + area.height - 24 }}
           >
-            <Controls act={act} onEnd={onEnd} />
+            <Controls onEnd={onEnd} />
           </div>
         ))}
       {wiping !== null && (
@@ -278,23 +329,10 @@ export const TourStage = ({
   )
 }
 
-// The stage's controls: the four act plates, the one on now inked in, and End tour. They go in
-// the footer's middle, or, with the footer hidden (as in Zen), at the workspace's foot.
-const Controls = ({
-  act,
-  onEnd,
-}: {
-  readonly act: TourAct
-  readonly onEnd: () => void
-}): React.JSX.Element => (
+// The stage's control, End tour: in the footer's middle, or, with the footer hidden (as in Zen),
+// at the workspace's foot. Which act is on, each act's wipe says, and the live region.
+const Controls = ({ onEnd }: { readonly onEnd: () => void }): React.JSX.Element => (
   <span className="tour-print tour-controls">
-    <ol aria-label={`Act ${act} of ${tourActs.length}: ${tourActs[act - 1]}`} className="tour-acts">
-      {tourActs.map((name, index) => (
-        <li key={name} aria-current={index + 1 === act ? "step" : undefined}>
-          {index + 1}
-        </li>
-      ))}
-    </ol>
     <button type="button" className="tour-button" onClick={onEnd}>
       End tour
     </button>
@@ -302,7 +340,7 @@ const Controls = ({
 )
 
 // Where the controls stand at the workspace's foot, which the caption box keeps clear of.
-const controlsWidth = 260
+const controlsWidth = 110
 const footlessControls = (area: Box): readonly Box[] => [
   {
     left: area.left + (area.width - controlsWidth) / 2,

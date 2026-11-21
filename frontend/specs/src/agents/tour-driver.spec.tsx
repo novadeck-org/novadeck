@@ -58,7 +58,7 @@ describe("The tour's driver", () => {
   it("points at the agent as it starts, and moves on once it has taken its brief", async () => {
     await startTour()
     await coachSays("Your own agent. In a sandbox.")
-    await expect.element(page.getByRole("list", { name: "Act 1 of 4: Your agent" })).toBeVisible()
+    await expect.element(page.getByText(/^Act 1, Your agent\./)).toBeInTheDocument()
     // The agent describes itself as the tour's lead: its step is done.
     await expect.poll(terminalTabNames, leadNamed).toContain("Tour lead")
     await coachSays("It hired two more.")

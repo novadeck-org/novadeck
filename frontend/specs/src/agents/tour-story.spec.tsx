@@ -74,7 +74,7 @@ describe("The tour's story", () => {
 
     // A teammate asks the person, who answers in the Inbox; the tour waits on them.
     await coachSays("Your call.")
-    await expect.element(page.getByRole("list", { name: "Act 3 of 4: Your call" })).toBeVisible()
+    await expect.element(page.getByText(/^Act 3, Your call\./)).toBeInTheDocument()
     await inboxRow(/Which tagline for the welcome card/).click()
     const sheet = page.getByRole("dialog", { name: "Copywriter" })
     // Pressed once the card stands still: a click just after it moved is held back.
@@ -84,7 +84,7 @@ describe("The tour's story", () => {
 
     // The lead shows the card the team made, and the tour holds on it a while.
     await coachSays("Made for you.")
-    await expect.element(page.getByRole("list", { name: "Act 4 of 4: The result" })).toBeVisible()
+    await expect.element(page.getByText(/^Act 4, The result\./)).toBeInTheDocument()
 
     // It ends on a card that sends the person to their own project.
     await expect.element(closing(), { timeout: 15_000 }).toBeVisible()
