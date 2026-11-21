@@ -43,6 +43,7 @@ import {
   type SliceChange,
   type TerminalChange,
   type TerminalMessages,
+  type TerminalRings,
   type TerminalRequest,
   type TerminalMove,
   type TerminalMoved,
@@ -728,6 +729,12 @@ export type Runner = {
     /** A terminal's threads and messages with their states; `TERMINAL_NOT_FOUND` when unknown. */
     list(terminalId: string): Promise<TerminalMessages>
     /**
+     * What the terminal's doorbell rings and the hooks' deliveries say after sequence `since` (0 for
+     * all the runner keeps), which its view draws over the harness's lines; `list` gives the latest
+     * sequence as `ringSeq`. `TERMINAL_NOT_FOUND` when unknown.
+     */
+    rings(terminalId: string, since: number): Promise<TerminalRings>
+    /**
      * Follows a terminal's threads and messages: what `list` says, then again on each
      * change to them, to its delivery state or to the pause, across reconnections.
      * Iteration ends once the terminal is gone, the runner closes, or on `return()`.
@@ -1051,6 +1058,7 @@ export const connectRunner = async (
     },
     messages: {
       list: (terminalId) => call((client) => client.messages.list({ terminalId })),
+      rings: (terminalId, since) => call((client) => client.messages.rings({ terminalId, since })),
       watch: (terminalId) =>
         followRestarting(connection, (client, signal) =>
           client.messages.watch({ terminalId }, { signal }),

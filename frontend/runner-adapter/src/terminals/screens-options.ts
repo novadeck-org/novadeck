@@ -1,5 +1,6 @@
+import type { MessagesState } from "@novadeck/core/messages"
 import type { TerminalKey, ThemeSource } from "@novadeck/core/port"
-import { createStore } from "@novadeck/core/store"
+import { createStore, type Store } from "@novadeck/core/store"
 import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { RendererPool } from "@novadeck/emulator/browser"
 import { maxUploadBytes } from "@novadeck/protocol"
@@ -10,6 +11,7 @@ import { openEmulator } from "@novadeck/terminal-views/emulator"
 import { screenMarkup } from "@novadeck/terminal-views/mount"
 import { copiedNotice, pasteNotice as sharedNotice } from "@novadeck/terminal-views/paste-notice"
 import { pageRendererPool } from "@novadeck/terminal-views/renderer-pool"
+import { ringRows, type RingFeed } from "@novadeck/terminal-views/rings"
 import { terminalTheme } from "@novadeck/terminal-views/theme"
 import type { PasteFailure } from "@novadeck/terminal/view"
 import { parkedCap, parkMs, type TerminalScreensOptions } from "@novadeck/terminal/view"
@@ -53,19 +55,41 @@ export const pasteNotice = (failure: PasteFailure): string =>
       : failure,
   )
 
+const none: readonly never[] = []
+
+// What a terminal's screen draws its doorbell rows from: the rings and deliveries the runner
+// lists with the terminal's messages, and the handles of the session's agents.
+export const ringFeed = (messages: Store<MessagesState>, terminalId: string): RingFeed => ({
+  get: () => {
+    const { terminals } = messages.getSnapshot()
+    const mine = Object.values(terminals).find((each) => each.terminalId === terminalId)
+    return {
+      rings: mine?.rings ?? none,
+      deliveries: mine?.deliveries ?? none,
+      handles: new Set(Object.values(terminals).map((each) => each.handle)),
+      agent: mine?.agent === true,
+    }
+  },
+  subscribe: (listener) => messages.subscribe(listener),
+})
+
 // The runner backend's terminal screens: its runtime, the emulator drawn with the page's
-// WebGL pool and theme, a screen reader's tree for the terminal in focus, and the app's
-// words and policies.
+// WebGL pool and theme, a screen reader's tree for the terminal in focus, the doorbell's
+// rows drawn from the messages, and the app's words and policies.
 export const screensOptions = (
   runtime: SurfaceRuntime,
   {
     pool = pageRendererPool(),
     cap = parkedCap,
     theme,
-  }: { pool?: RendererPool; cap?: number; theme: ThemeSource },
+    messages,
+  }: { pool?: RendererPool; cap?: number; theme: ThemeSource; messages?: Store<MessagesState> },
 ): TerminalScreensOptions<TerminalKey> => ({
   keyOf: terminalKeyId,
   emulator: openEmulator({ pool, screenReader: true }),
+  ...(messages && {
+    overlay: (key, view) => ringRows(view, { feed: ringFeed(messages, key.terminalId), theme }),
+  }),
   theme: terminalTheme(theme),
   store: createStore,
   markup: screenMarkup,

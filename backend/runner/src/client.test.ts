@@ -1191,6 +1191,25 @@ describe("runner client message watch", () => {
   })
 })
 
+describe("runner client message rings", () => {
+  it("gives a terminal's rings after a sequence, none yet, and refuses an unknown terminal", async ({
+    resources,
+  }) => {
+    const app = await deployed(resources)
+    const client = await app.connect()
+    const { id: sessionId } = await session(client, app.directory)
+    const terminal = await client.terminals.create(shell(sessionId))
+    await expect(client.messages.rings(terminal.id, 0)).resolves.toEqual({
+      seq: 0,
+      rings: [],
+      deliveries: [],
+    })
+    await expect(client.messages.rings(crypto.randomUUID(), 0)).rejects.toMatchObject({
+      code: "TERMINAL_NOT_FOUND",
+    })
+  })
+})
+
 describe("runner client terminal requests", () => {
   it("follows agents' requests until the client closes, and refuses what it can't start", async ({
     resources,

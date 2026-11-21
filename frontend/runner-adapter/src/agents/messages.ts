@@ -7,7 +7,13 @@ import {
 } from "@novadeck/core/messages"
 import { createStore } from "@novadeck/core/store"
 import { type TerminalKey, terminalKeyPath } from "@novadeck/core/types"
-import type { MessageParty, TerminalMessages } from "@novadeck/protocol"
+import {
+  listedDeliveriesMost,
+  listedRingsMost,
+  type MessageParty,
+  type TerminalMessages,
+  type TerminalRings,
+} from "@novadeck/protocol"
 
 import { reasonOf } from "../errors"
 import { reportCaught } from "../streams"
@@ -19,6 +25,8 @@ import { reportCaught } from "../streams"
 
 export type MessageStreams = {
   readonly watch: (terminalId: string) => AsyncIterableIterator<TerminalMessages, undefined>
+  // What a terminal's rings and deliveries say after the sequence the caller has.
+  readonly rings: (terminalId: string, since: number) => Promise<TerminalRings>
   readonly pause: (paused: boolean) => Promise<void>
   readonly release: (thread: string) => Promise<void>
   readonly stop: (thread: string) => Promise<void>
@@ -47,6 +55,7 @@ export const messagesOf = (listing: TerminalMessages): TerminalThreads => ({
   waitsSince: listing.waitsSince,
   ringing: listing.delivery === "ringing",
   notices: listing.notices,
+  ...(listing.ringSeq !== undefined && { ringSeq: listing.ringSeq }),
   threads: listing.threads.map((thread) => ({
     id: thread.id,
     peer: partyOf(thread.peer),
@@ -129,22 +138,71 @@ export const createRunnerMessages = (
       return
     }
     followed.set(id, stream)
+    // The rings and deliveries are not in the listing, which would send them whole on every
+    // change: they only grow at their end, so each listing that says the sequence moved has what
+    // came after the last one held asked for, and appended.
+    let have = 0
+    let pulling = false
+    const pull = async (latest: () => number): Promise<void> => {
+      if (pulling) return
+      pulling = true
+      try {
+        while (latest() > have && followed.get(id) === stream) {
+          // eslint-disable-next-line no-await-in-loop -- One request at a time, from the last held.
+          const more = await streams.rings(key.terminalId, have)
+          if (followed.get(id) !== stream) return
+          have = more.seq
+          state.update((current) => {
+            const terminal = current.terminals[id]
+            if (!terminal) return current
+            const rings = [...(terminal.rings ?? []), ...more.rings].slice(-listedRingsMost)
+            const deliveries = [...(terminal.deliveries ?? []), ...more.deliveries].slice(
+              -listedDeliveriesMost,
+            )
+            return {
+              ...current,
+              terminals: { ...current.terminals, [id]: { ...terminal, rings, deliveries } },
+            }
+          })
+        }
+      } catch {
+        // Rows stay as the harness drew them; the next listing that moves the sequence asks again.
+      } finally {
+        pulling = false
+      }
+    }
+    let ringSeq = 0
     void (async () => {
       try {
         for await (const listing of stream) {
           if (followed.get(id) !== stream) return
+          ringSeq = listing.ringSeq ?? 0
+          // A runner that started afresh counts from the start again.
+          const restarted = ringSeq < have
+          if (restarted) have = 0
           // A reader that throws is reported; the next listing reaches the state as usual.
           try {
-            state.update((current) =>
-              reconcile({
+            state.update((current) => {
+              const before = current.terminals[id]
+              const next = messagesOf(listing)
+              const held = restarted ? undefined : before
+              return reconcile({
                 ...current,
                 paused: listing.paused,
-                terminals: { ...current.terminals, [id]: messagesOf(listing) },
-              }),
-            )
+                terminals: {
+                  ...current.terminals,
+                  [id]: {
+                    ...next,
+                    ...(held?.rings && { rings: held.rings }),
+                    ...(held?.deliveries && { deliveries: held.deliveries }),
+                  },
+                },
+              })
+            })
           } catch (error) {
             reportCaught(error)
           }
+          if (ringSeq > have) void pull(() => ringSeq)
         }
       } catch {
         // The runner closed or lost the terminal.

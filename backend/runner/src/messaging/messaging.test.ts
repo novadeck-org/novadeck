@@ -2458,6 +2458,75 @@ describe("ringing", () => {
     expect(messaging.senders("nowhere")).toEqual([])
   })
 
+  it("tells the terminal's view what a ring says by its nonce, after the sequence it has", () => {
+    const { messaging, prompt, stop, send, codex } = create()
+    prompt("B", codex)
+    stop("B", codex)
+    expect(messaging.list("B", "fox").ringSeq).toBeUndefined()
+    expect(messaging.rings("B", 0)).toEqual({ seq: 0, rings: [], deliveries: [] })
+    expect(messaging.notice("B", "Novadeck · Worktrees\none is merged\n→ trash it")).toBe(true)
+    sent(send("A", "fox", `first words of the message${" and more".repeat(60)}`))
+    messaging.noteRing("B", "n7Q2xk", false)
+    // The listing says only how far the sequence is, not the content.
+    expect(messaging.list("B", "fox")).toMatchObject({ ringSeq: 1 })
+    expect(messaging.list("B", "fox")).not.toHaveProperty("rings")
+    const { seq, rings, deliveries } = messaging.rings("B", 0)
+    expect(seq).toBe(1)
+    expect(deliveries).toEqual([])
+    expect(rings).toHaveLength(1)
+    expect(rings[0]).toMatchObject({ seq: 1, nonce: "n7Q2xk" })
+    const [notice, message] = rings[0]!.parts
+    expect(notice).toMatchObject({ kind: "notice" })
+    expect(notice!.text).toContain("one is merged")
+    expect(message).toMatchObject({ kind: "agent", handle: "moth" })
+    // Cut for the row, with an ellipsis.
+    expect(message!.text.startsWith("first words of the message")).toBe(true)
+    expect(message!.text.length).toBeLessThanOrEqual(240)
+    expect(message!.text.endsWith("…")).toBe(true)
+    // A later ring adds to the earlier ones, and a reader asks for what it has not.
+    messaging.noteRing("B", "n9", false)
+    expect(messaging.rings("B", 0).rings.map((ring) => ring.nonce)).toEqual(["n7Q2xk", "n9"])
+    expect(messaging.rings("B", 1).rings.map((ring) => ring.nonce)).toEqual(["n9"])
+    expect(messaging.rings("B", 2).rings).toEqual([])
+    messaging.unregister("B", true)
+    expect(messaging.list("B", "fox").ringSeq).toBeUndefined()
+  })
+
+  it("keeps a delivery's messages by their ids, as the hook is given them to print", () => {
+    const { messaging, prompt, stop, send, codex } = create()
+    prompt("B", codex)
+    stop("B", codex)
+    const first = sent(send("A", "fox", "please review a.ts"))
+    prompt("B", codex)
+    const { deliveries } = messaging.rings("B", 0)
+    expect(deliveries).toHaveLength(1)
+    expect(deliveries[0]!.ids).toEqual([first.id])
+    expect(deliveries[0]!.parts).toEqual([
+      { kind: "agent", handle: "moth", text: "please review a.ts", id: first.id },
+    ])
+  })
+
+  it("says a task's start prompt as the task, from the agent that opened it", () => {
+    const { messaging, prompt, stop, codex } = create()
+    prompt("B", codex)
+    stop("B", codex)
+    messaging.noteStart("B", "st4rt1", "moth", "Fix the parser tests")
+    expect(messaging.rings("B", 0).rings).toMatchObject([
+      { nonce: "st4rt1", parts: [{ kind: "agent", handle: "moth", text: "Fix the parser tests" }] },
+    ])
+  })
+
+  it("keeps only the latest rings of a terminal, the most its scrollback may hold", () => {
+    const { messaging, prompt, stop, codex } = create()
+    prompt("B", codex)
+    stop("B", codex)
+    for (let at = 0; at < 120; at += 1) messaging.noteRing("B", `n${at}`, false)
+    const { rings } = messaging.rings("B", 0)
+    expect(rings).toHaveLength(100)
+    expect(rings[0]!.nonce).toBe("n20")
+    expect(rings.at(-1)!.nonce).toBe("n119")
+  })
+
   it("is allowed once per Settled period, with messages waiting for the root session", () => {
     const { messaging, prompt, stop, send, codex, clock: time } = create()
     prompt("B", codex)

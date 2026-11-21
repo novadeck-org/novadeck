@@ -64,6 +64,7 @@ const streams = (overrides: Partial<MessageStreams> = {}) => {
   const { watch, push } = streamed()
   const api = {
     watch,
+    rings: vi.fn<MessageStreams["rings"]>(async () => ({ seq: 0, rings: [], deliveries: [] })),
     pause: vi.fn<MessageStreams["pause"]>(async () => {}),
     release: vi.fn<MessageStreams["release"]>(async () => {}),
     stop: vi.fn<MessageStreams["stop"]>(async () => {}),
@@ -165,6 +166,78 @@ describe("the runner's messages", () => {
     await vi.waitFor(() =>
       expect(messages.state.getSnapshot().terminals[id]).toMatchObject({ notices: [notice] }),
     )
+  })
+
+  context("the rings and deliveries", () => {
+    const ring = (seq: number) => ({
+      seq,
+      nonce: `n${seq}`,
+      at: seq,
+      parts: [{ kind: "agent" as const, handle: "moth", text: "hi" }],
+    })
+    const delivery = (seq: number) => ({
+      seq,
+      at: seq,
+      ids: [`m-${seq}`],
+      parts: [{ kind: "notice" as const, text: "Novadeck · Show\nShow it.", id: `m-${seq}` }],
+    })
+
+    it("are asked for once the listing's sequence grows, and appended to what is held", async () => {
+      const rings = vi.fn<MessageStreams["rings"]>(async (_terminal, since) =>
+        since === 0
+          ? { seq: 2, rings: [ring(1)], deliveries: [delivery(2)] }
+          : { seq: 3, rings: [ring(3)], deliveries: [] },
+      )
+      const { messages, push } = streams({ rings })
+      messages.follow(key)
+      push(listing({ ringSeq: 2 }))
+      await vi.waitFor(() =>
+        expect(messages.state.getSnapshot().terminals[id]).toMatchObject({
+          rings: [ring(1)],
+          deliveries: [delivery(2)],
+        }),
+      )
+      expect(rings).toHaveBeenCalledWith(key.terminalId, 0)
+      // Later listings that don't move the sequence ask for nothing, and keep what is held.
+      push(listing({ ringSeq: 2, paused: true }))
+      await vi.waitFor(() => expect(messages.state.getSnapshot().paused).toBe(true))
+      expect(rings).toHaveBeenCalledTimes(1)
+      expect(messages.state.getSnapshot().terminals[id]?.rings).toEqual([ring(1)])
+      push(listing({ ringSeq: 3 }))
+      await vi.waitFor(() =>
+        expect(messages.state.getSnapshot().terminals[id]?.rings).toEqual([ring(1), ring(3)]),
+      )
+      expect(rings).toHaveBeenLastCalledWith(key.terminalId, 2)
+    })
+
+    it("start again when the runner's sequence went back", async () => {
+      const rings = vi.fn<MessageStreams["rings"]>(async (_terminal, since) =>
+        since === 0
+          ? { seq: 1, rings: [ring(1)], deliveries: [] }
+          : { seq: 1, rings: [], deliveries: [] },
+      )
+      const { messages, push } = streams({ rings })
+      messages.follow(key)
+      push(listing({ ringSeq: 1 }))
+      await vi.waitFor(() =>
+        expect(messages.state.getSnapshot().terminals[id]?.rings).toHaveLength(1),
+      )
+      push(listing())
+      await vi.waitFor(() =>
+        expect(messages.state.getSnapshot().terminals[id]?.rings).toBeUndefined(),
+      )
+    })
+
+    it("stay as the harness drew them where the runner can't be asked", async () => {
+      const rings = vi.fn<MessageStreams["rings"]>(async () => {
+        throw new Error("no")
+      })
+      const { messages, push } = streams({ rings })
+      messages.follow(key)
+      push(listing({ ringSeq: 1 }))
+      await vi.waitFor(() => expect(rings).toHaveBeenCalled())
+      expect(messages.state.getSnapshot().terminals[id]?.rings).toBeUndefined()
+    })
   })
 
   it("take an agent whose own prompt shows, with no session bound yet, as one there", async () => {

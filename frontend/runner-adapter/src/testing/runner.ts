@@ -216,6 +216,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
     feedback: runner.feedback,
     messages: {
       list: (terminalId) => runner.messages.list(terminalId),
+      rings: (terminalId, since) => runner.messages.rings(terminalId, since),
       watch: (terminalId) => runner.messages.watch(terminalId),
       pause: (paused) => note(`pause messages ${paused}`, () => runner.messages.pause(paused)),
       release: (thread) => note(`release ${thread}`, () => runner.messages.release(thread)),

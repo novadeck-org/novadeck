@@ -1,3 +1,4 @@
+import { noMessages, type MessagesState, type TerminalThreads } from "@novadeck/core/messages"
 import type { BackendConnectionState } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
 import type { TerminalEvent } from "@novadeck/protocol"
@@ -9,7 +10,7 @@ import { afterEach, vi } from "vitest"
 
 import type { SurfaceRuntime } from "../backend"
 import { context, describe, expect, it } from "../test"
-import { pasteNotice, retainMs, screensOptions } from "./screens-options"
+import { pasteNotice, retainMs, ringFeed, screensOptions } from "./screens-options"
 
 describe("a failed paste's notice", () => {
   it("says the clipboard could not be read", () => {
@@ -350,5 +351,49 @@ describe("the runner's terminal screens over a runtime", () => {
     element.querySelector("textarea")!.dispatchEvent(paste)
     await vi.waitFor(() => expect(hold.state.getSnapshot().notice).toBe("Couldn't paste the image"))
     expect(upload).toHaveBeenCalledWith("t", expect.objectContaining({ name: expect.any(String) }))
+  })
+})
+
+describe("the doorbell rows' feed", () => {
+  const terminal = (terminalId: string, handle: string, more: Partial<TerminalThreads> = {}) => ({
+    terminalId,
+    handle,
+    agent: true,
+    threads: [],
+    ...more,
+  })
+
+  it("reads the terminal's rings and deliveries, and the handles of every terminal's agent", () => {
+    const rings = [
+      { seq: 1, nonce: "n7Q2xk", at: 1, parts: [{ kind: "notice" as const, text: "x" }] },
+    ]
+    const store = createStore<MessagesState>({
+      ...noMessages,
+      terminals: {
+        "p/s/t": terminal("t", "fox", { rings }),
+        "p/s/u": terminal("u", "moth"),
+      },
+    })
+    const feed = ringFeed(store, "t")
+    expect(feed.get()).toEqual({
+      rings,
+      deliveries: [],
+      handles: new Set(["fox", "moth"]),
+      agent: true,
+    })
+    expect(ringFeed(store, "u").get().rings).toEqual([])
+    expect(ringFeed(store, "none").get().rings).toEqual([])
+  })
+
+  it("tells of each change of the messages, until stopped", () => {
+    const store = createStore<MessagesState>(noMessages)
+    const feed = ringFeed(store, "t")
+    const heard = vi.fn<() => void>()
+    const stop = feed.subscribe(heard)
+    store.update((current) => ({ ...current, paused: true }))
+    expect(heard).toHaveBeenCalledOnce()
+    stop()
+    store.update((current) => ({ ...current, paused: false }))
+    expect(heard).toHaveBeenCalledOnce()
   })
 })

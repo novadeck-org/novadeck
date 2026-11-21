@@ -241,6 +241,7 @@ export const doorbellHost = <R extends DoorbellRecord>(
     },
     replies: (terminalId) => messaging.replyLine(terminalId),
     senders: (terminalId) => messaging.senders(terminalId),
+    noted: (terminalId, nonce, replies) => messaging.noteRing(terminalId, nonce, replies),
     ringsPlain: (terminalId, plain) => messaging.ringsPlain(terminalId, plain),
     ringLeftover: (terminalId, nonce) => {
       const rung = messaging.ringLeftover(terminalId, nonce)

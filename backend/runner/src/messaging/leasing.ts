@@ -45,6 +45,10 @@ export type LeasingHost = {
   readonly held?: ((terminalId: string, root: Root, held: Held) => void) | undefined
   /** How the user has agents work together, which the notes on peers' messages follow; Herd when omitted. */
   readonly mode?: (() => AgentMode) | undefined
+  /** Told the messages a hook is given to print, which its harness may show as a block. */
+  readonly notes?:
+    | { readonly delivery: (terminalId: string, messages: readonly Message[]) => void }
+    | undefined
 }
 
 /**
@@ -141,6 +145,8 @@ export class Leasing {
     const messages = deliveryOf(queued, (taken) => prints(taken) <= maxDeliveryBytes)
     // The first always goes, as it fits alone; beside what the turn holds it may not.
     if (messages.length === 0 || prints(messages) > maxDeliveryBytes) return undefined
+    // Told before the puts, whose change notices then carry it.
+    this.host.notes?.delivery(live.terminalId, messages)
     for (const message of messages) store.put({ ...message, state: "leased" })
     const text = wrapped(messages)
     const gave: Held = lasting ? givenIn(held, noteKinds(messages, isFromLead), mode) : {}

@@ -2,8 +2,8 @@
 import "@novadeck/ui/styles.css"
 import type { BackendSelection } from "@novadeck/core/port"
 import { App } from "@novadeck/ui/app/App"
+import { pageTheme } from "@novadeck/ui/app/page-theme"
 import { start } from "@novadeck/ui/entries/start"
-import { pageTheme } from "@novadeck/ui/theme/source"
 
 // The app in a browser (`pnpm dev:web`): a runner over a WebSocket, whose client and terminal
 // emulator load with the connection instead of the entry point.

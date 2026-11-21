@@ -52,7 +52,7 @@ import { directory, id, name } from "./fields.js"
 import { forgeIntegration, forgeName } from "./forges.js"
 import { closedTerminal, historyChange } from "./history.js"
 import { askAnswer, inboxEntry } from "./inbox.js"
-import { terminalMessages, threadId } from "./messages.js"
+import { terminalMessages, terminalRings, threadId } from "./messages.js"
 import {
   checkoutState,
   checkoutUpdate,
@@ -896,6 +896,12 @@ export const contract = {
     // A terminal's threads and messages with their states. An unknown terminal is
     // TERMINAL_NOT_FOUND.
     list: procedure.input(z.strictObject({ terminalId: id })).output(terminalMessages),
+    // What the terminal's doorbell rings and the hooks' deliveries say after sequence `since`
+    // (0 for all the runner keeps), for the terminal's view to draw: `list` carries the latest
+    // sequence (`ringSeq`), so a reader asks once it grew. An unknown terminal is TERMINAL_NOT_FOUND.
+    rings: procedure
+      .input(z.strictObject({ terminalId: id, since: z.number().int().nonnegative() }))
+      .output(terminalRings),
     // What `list` says, then again on each change to the terminal's threads, messages or
     // delivery state, or to the pause, until the terminal is gone. An unknown terminal is
     // TERMINAL_NOT_FOUND.

@@ -338,6 +338,7 @@ export const scriptedRunner = ({
     },
     messages: {
       list: api.messages.list.handler(unplayed("messages.list")),
+      rings: api.messages.rings.handler(unplayed("messages.rings")),
       watch: api.messages.watch.handler(idle),
       pause: api.messages.pause.handler(unplayed("messages.pause")),
       release: api.messages.release.handler(unplayed("messages.release")),

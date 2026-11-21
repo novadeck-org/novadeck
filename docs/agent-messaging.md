@@ -2496,6 +2496,53 @@ limits: a queued command forked before the runner hears of the turn's end, by mo
 resolution, is not found (not seen in the Linux e2e), and on macOS the interval after a
 turn's end reaches back a second.
 
+### The doorbell's row in the terminal
+
+The tag holds no words, so Novadeck's own terminal view draws the row over it, for the
+person, on every harness: the cells the tag's row holds, and the blank ones to their right on
+that row (never another row). The harness's own screen is untouched, and copying the row gives the raw tag.
+
+- **What it says.** `@newtz: first words of the message…`: the handle in its agent's hue (the
+  Messages pane's, `hueOf`, from the theme's tokens), the words in the terminal's ink, and the
+  `:`, `·`, `…` and `+N more` dim. Messages share the row equally (each at least about 30
+  cells), the ones that don't fit becoming `+N more`. Novadeck's notices are dim, their facts and
+  `→` actions on one line, `Novadeck · <Kind>` header off (`noticeOneLine`, one rule with the chat), a
+  handle in one keeping its hue, dimmed; a ring of notices alone is dim throughout. The person's Inbox
+  reply is `you: …` in their hue. A ring whose content isn't known says a dim `doorbell`.
+- **Where the content comes from.** The runner keeps what each ring said, by its nonce
+  (`RingNotes`, `messaging/ring-notes.ts`): the doorbell makes its line (`DoorbellHost.noted`) and
+  the waiting messages, or the person's replies where the line is the reply line, become parts
+  (agent, notice or person; each text cut to 240 characters, at most 8 parts, and `more` for the
+  rest); a task's start prompt (`startLine`, quoted with `'`) says the task, from the agent that
+  opened it (`noteStart`). For each lease a hook is given it keeps the messages' ids and parts
+  (`deliveries`), as the block a harness may print has no nonce. Rings and deliveries are numbered
+  in one sequence a terminal's listing says (`ringSeq`); they only grow at their end, so the app asks
+  `messages.rings` for what came after the last sequence it holds and appends it, instead of the
+  listing sending them whole with every change. The latest 100 rings and 40 deliveries of a
+  terminal stay (a few rows each of its 1000 lines of scrollback) until the terminal closes for
+  good. A runner that restarts has none, and its terminals' older rows stay as the harness drew them.
+- **What the view draws.** Only rows whose nonce (or, for a block, whose message ids) it was told,
+  never a pattern alone, and only a tag that fills its row: nothing before it but a prompt mark
+  (`❯ › >`), a border and blanks, nothing after it but a border and blanks, wrapped rows included, so
+  an agent quoting the tag in its reply, in code or in prose is left alone, and only the first row of
+  a nonce is drawn. The tag is read with its whitespace taken out, so it matches wrapped over rows,
+  in either attribute order, with either quote. It is never drawn on the alternate screen unless an
+  agent runs in the terminal (an agent started with a task prompt draws its TUI there in Claude Code
+  and Codex; xterm draws no decoration over that screen, so the overlay lays its own element over the
+  row); a pager's is left alone. A tag in the person's own box is left as typed: the cursor on its rows, or below them in
+  rows of one multi-line input (blank, indented, or shaded as its row), within 12 rows. Every write
+  checks the covered cells (those on the screen: scrollback rows only change as they are trimmed) and
+  drops the drawing when the harness drew there again, looking at once for the row where it moved; a
+  synchronized update (Codex wraps each redraw in one) is left alone until it ends. A snapshot of the
+  host's screen (opening, a reattach) and the return from the alternate screen rescan the whole
+  scrollback. The ink is the tag's own, as the harness drew it (Claude Code and Codex shade a
+  history prompt dark in every theme), dimmed toward that row's ground, and every hue is lightened
+  or darkened until it reads on that ground (4.5:1; dim text 3:1).
+- **Turn-end blocks.** Claude Code prints `Stop hook says:` and Codex `Blocked by hook`, each followed
+  by the raw `<novadeck-messages>`; the view draws a row per message, then a dim `rules for the
+  agent`, then blank, over the block's rows. Antigravity prints no such block, so there is none to
+  draw there (its model still gets the delivery).
+
 ### Message states
 
 `queued` → `leased` → `delivered`, or back to `queued` when a lease lapses. `held` while

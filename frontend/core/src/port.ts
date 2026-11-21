@@ -125,6 +125,9 @@ export type TerminalFont = { readonly size: number; readonly family?: string }
 export type ThemeSource = {
   readonly tokens: (element: Element, names: readonly string[]) => Partial<Record<string, string>>
   readonly onChange: (listener: () => void) => () => void
+  // The hue (1 to 8) the page draws an agent's handle in, as the Messages pane does, for what a
+  // terminal draws of its agents' messages; handles read alike without it.
+  readonly hueOf?: (handle: string) => number
 }
 
 // How a backend draws terminals: it mounts them into elements the UI gives it.

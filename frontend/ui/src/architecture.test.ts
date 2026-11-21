@@ -348,6 +348,8 @@ describe("UI architecture", () => {
 describe("the UI's exports", () => {
   const publicSubpaths = [
     "./app/App",
+    // The page's theme with the hue Messages draws handles in, which the runner backend's terminals read.
+    "./app/page-theme",
     "./styles.css",
     "./theme/source",
     "./entries/start",

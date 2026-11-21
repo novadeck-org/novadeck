@@ -1,0 +1,44 @@
+{"t":13,"d":"\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}
+{"t":42,"d":"\u001b[?2026h\u001b[?25l\u001b[12;2H\u001b[0m\u001b[49m\u001b[K\u001b[13;2H\u001b[0m\u001b[49m\u001b[K\u001b[14;2H\u001b[0m\u001b[49m\u001b[K\u001b[15;2H\u001b[0m\u001b[49m\u001b[K\u001b[16;2H\u001b[0m\u001b[49m\u001b[K\u001b[17;2H\u001b[0m\u001b[49m\u001b[K\u001b[18;2H\u001b[0m\u001b[49m\u001b[K\u001b[19;2H\u001b[0m\u001b[49m\u001b[K\u001b[20;2H\u001b[0m\u001b[49m\u001b[K\u001b[21;2H\u001b[0m\u001b[49m\u001b[K\u001b[22;2H\u001b[0m\u001b[49m\u001b[K\u001b[23;2H\u001b[0m\u001b[49m\u001b[K\u001b[24;2H\u001b[0m\u001b[49m\u001b[K\u001b[25;2H\u001b[0m\u001b[49m\u001b[K\u001b[26;2H\u001b[0m\u001b[49m\u001b[K\u001b[27;2H\u001b[0m\u001b[49m\u001b[K\u001b[28;2H\u001b[0m\u001b[49m\u001b[K\u001b[37;18H\u001b[0m\u001b[49m\u001b[K\u001b[40;2H\u001b[0m\u001b[49m\u001b[K\u001b[37;3HAsk and work on\u001b[39m\u001b[49m\u001b[0m\u001b[37;18H\u001b[?25h\u001b[?2026l"}
+{"t":271,"d":"\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[37;18H\u001b[?25h\u001b[?2026l"}
+{"t":272,"d":"\u001b]7501;state=working:app=codex\u001b\\"}
+{"t":274,"d":"\u001b[?2026h\u001b[?25l"}
+{"t":274,"d":"\u001b[5;2H\u001b[0m\u001b[48;5;238m\u001b[K\u001b[6;18H\u001b[0m\u001b[48;5;238m\u001b[K\u001b[7;2H\u001b[0m\u001b[48;5;238m\u001b[K\u001b[5;1H\u001b[38;5;255;48;5;238m \u001b[6;1H\u001b[1m\u001b[2m› \u001b[22mAsk and work on\u001b[7;1H \u001b[37;3H\u001b[2m\u001b[39;49mAsk Codex to do anything\u001b[40;3H\u001b[22m\u001b[1m←\u001b[40;5H\u001b[22mfor\u001b[40;9Hagents\u001b[40;16H·\u001b[40;18H\u001b[1m?\u001b[40;20H\u001b[22mfor\u001b[40;24Hshortcuts\u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}
+{"t":279,"d":"\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}
+{"t":281,"d":"\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h"}
+{"t":281,"d":"\u001b[?2026l"}
+{"t":393,"d":"\u001b]0;Working | 01a1fbb4-d87c-7b00-b14a-0ed51...\u0007"}
+{"t":395,"d":"\u001b[?2026h\u001b[?25l"}
+{"t":395,"d":"\u001b[34;1H•\u001b[34;3H\u001b[2mWorking\u001b[34;11H(0s • \u001b[22m\u001b[1mesc\u001b[22m\u001b[2m to interrupt)\u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}
+{"t":403,"d":"\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}
+{"t":413,"d":"\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}
+{"t":423,"d":"\u001b[?2026h\u001b[?25l\u001b[39;57H·\u001b[39;59H\u001b[38;5;111;49mAsk and work on\u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}
+{"t":442,"d":"\u001b[?2026h\u001b[?25l"}
+{"t":442,"d":"\u001b[9;1H•\u001b[9;3H\u001b[1mCalling\u001b[9;11H\u001b[22m\u001b[38;5;75;49mnovadeck.ask (environment local)\u001b[10;1H\u001b[2m\u001b[39;49m    + Show details                                                                                                      \u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}
+{"t":450,"d":"\u001b[?2026h\u001b[?25l"}
+{"t":450,"d":"\u001b[9;42H\u001b[0m\u001b[49m\u001b[K\u001b[9;1H\u001b[1m\u001b[38;5;2;49m•\u001b[9;7H\u001b[39;49med\u001b[22m \u001b[38;5;75;49mnovadeck.ask (environment local)\u001b[10;3H\u001b[2m\u001b[39;49m└\u001b[10;5HAsk a6e2\u001b[10;14H6\u001b[10;16H6-e489-4f90-8c5b-a80226659326\u001b[10;46His\u001b[10;49Hin\u001b[10;52Hthe\u001b[10;56Huser's\u001b[10;63HInbox,\u001b[10;70Has\u001b[10;73Han\u001b[10;76Hextra\u001b[10;82Hcopy\u001b[10;87Hthat\u001b[10;92Hmay\u001b[10;96Hnot\u001b[10;100Hshow\u001b[10;105Hhere:\u001b[10;111Hyour\u001b[10;116Hrepl…\u001b[11;1H    + Show details                                                                                                      \u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}
+{"t":460,"d":"\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}
+{"t":471,"d":"\u001b[?2026h\u001b[?25l\u001b[34;2H\u001b[0m\u001b[49m\u001b[K\u001b[13;1H\u001b[2m• \u001b[22mWorked\u001b[13;10Hon.\u001b[34;1H \u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}
+{"t":479,"d":"\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}
+{"t":479,"d":"\u001b]0;Ready | 01a1fbb4-d87c-7b00-b14a-0ed51...\u0007"}
+{"t":489,"d":"\u001b]7501;state=done:app=codex\u001b\\"}
+{"t":489,"d":"\u001b[?2026h\u001b[?25l"}
+{"t":489,"d":"\u001b[15;1H\u001b[2m  Worked for <1s • 02:24                                                                                                \u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}
+{"t":8331,"d":"\u001b]7501;state=idle:app=codex\u001b\\"}
+{"t":8332,"d":"\u001b[?2026h\u001b[?25l\u001b[40;2H\u001b[0m\u001b[49m\u001b[K\u001b[36;1H\u001b[1m›\u001b[36;3H\u001b[22m<novadeck-reply>Re\u001b[36;22Hyour\u001b[36;27Hask\u001b[36;31H\"Push\u001b[36;37Hit?\":\u001b[36;43HI\u001b[36;45Hpicked\u001b[36;52H\"Push\"\u001b[36;59Hand\u001b[36;63Hwrote:\u001b[36;70HYes,\u001b[36;75Hpush\u001b[36;80Hit\u001b[36;83H＆\u001b[36;86Hthen\u001b[36;91Htidy\u001b[36;96H＜\u001b[36;98Hb＞\u001b[36;101Hup＜\u001b[36;105H/b＞\u001b[36;110H(soon)\u001b[36;117H＠\u001b[36;119Hx\u001b[37;1H \u001b[37;3H＄\u001b[37;5Hy</novadeck-reply><end\u001b[37;28Hring=\"5C2L9g\"/>\u001b[39m\u001b[49m\u001b[0m\u001b[37;43H\u001b[?25h\u001b[?2026l"}
+{"t":8435,"d":"\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[37;43H\u001b[?25h\u001b[?2026l"}
+{"t":8436,"d":"\u001b]7501;state=working:app=codex\u001b\\"}
+{"t":8437,"d":"\u001b[?2026h\u001b[?25l\u001b[17;2H\u001b[0m\u001b[48;5;238m\u001b[K\u001b[18;120H\u001b[0m\u001b[48;5;238m\u001b[K\u001b[19;43H\u001b[0m\u001b[48;5;238m\u001b[K\u001b[20;2H\u001b[0m\u001b[48;5;238m\u001b[K\u001b[36;2H\u001b[0m\u001b[49m\u001b[K\u001b[37;27H\u001b[0m\u001b[49m\u001b[K\u001b[17;1H\u001b[38;5;255;48;5;238m \u001b[18;1H\u001b[1m\u001b[2m› \u001b[22m<novadeck-reply>Re your ask \"Push it?\": I picked \"Push\" and wrote: Yes, push it ＆\u001b[18;85H then tidy ＜\u001b[18;98Hb＞\u001b[18;101Hup＜\u001b[18;105H/b＞\u001b[18;109H (soon) ＠\u001b[18;119Hx\u001b[19;1H  ＄\u001b[19;5Hy</novadeck-reply><end ring=\"5C2L9g\"/>\u001b[20;1H \u001b[36;1H\u001b[39;49m \u001b[37;1H\u001b[1m›\u001b[37;3H\u001b[22m\u001b[2mAsk Codex to do anything\u001b[40;3H\u001b[22m\u001b[1m←\u001b[40;5H\u001b[22mfor\u001b[40;9Hagents\u001b[40;16H·\u001b[40;18H\u001b[1m?\u001b[40;20H\u001b[22mfor\u001b[40;24Hshortcuts\u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}
+{"t":8447,"d":"\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}
+{"t":8451,"d":"\u001b]0;Working | 01a1fbb4-d87c-7b00-b14a-0ed51...\u0007"}
+{"t":8453,"d":"\u001b[?2026h\u001b[?25l\u001b[34;1H•\u001b[34;3H\u001b[2mWorking\u001b[34;11H(0s • \u001b[22m\u001b[1mesc\u001b[22m\u001b[2m to interrupt)\u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h"}
+{"t":8453,"d":"\u001b[?2026l"}
+{"t":8464,"d":"\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}
+{"t":8472,"d":"\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}
+{"t":8483,"d":"\u001b[?2026h\u001b[?25l\u001b[34;2H\u001b[0m\u001b[49m\u001b[K\u001b[22;1H\u001b[2m• \u001b[22mDone\u001b[22;8Hwith\u001b[22;13Hit.\u001b[34;1H \u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h"}
+{"t":8483,"d":"\u001b[?2026l"}
+{"t":8492,"d":"\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}
+{"t":8493,"d":"\u001b]0;Ready | 01a1fbb4-d87c-7b00-b14a-0ed51...\u0007"}
+{"t":8501,"d":"\u001b]7501;state=done:app=codex\u001b\\"}
+{"t":8502,"d":"\u001b[?2026h\u001b[?25l"}
+{"t":8502,"d":"\u001b[24;1H\u001b[2m  Worked for <1s • 02:25                                                                                                \u001b[39m\u001b[49m\u001b[0m\u001b[37;3H\u001b[?25h\u001b[?2026l"}

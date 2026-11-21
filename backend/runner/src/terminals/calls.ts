@@ -365,6 +365,11 @@ export class Calls {
           this.host.save(opened)
           // Only a brief-only lead's brief is held as its one marked message: an ordinary
           // lead's later messages carry the mark too.
+          // The row the agent's start prompt shows is drawn as this task.
+          if (started.prompted && started.nonce)
+            this.host
+              .messaging()
+              .noteStart(opened.summary.id, started.nonce, record.summary.handle, request.message)
           const brief = { to: opened.summary.handle, text: request.message }
           task = briefOnly
             ? this.host.messaging().sendBrief(call.terminalId, brief)

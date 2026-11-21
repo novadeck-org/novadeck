@@ -11,6 +11,7 @@
     "./app/controller/context": "./src/app/controller/context.ts",
     "./app/deferred-views": "./src/app/deferred-views.ts",
     "./app/NameOffer": "./src/app/NameOffer.tsx",
+    "./app/page-theme": "./src/app/page-theme.ts",
     "./app/selectors": "./src/app/selectors.ts",
     "./app/WorkspaceProvider": "./src/app/WorkspaceProvider.tsx",
     "./app/WorkspaceTerminal": "./src/app/WorkspaceTerminal.tsx",

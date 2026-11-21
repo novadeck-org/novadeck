@@ -30,6 +30,9 @@ resumable stream of it, its browser view, and shell integration.
     know no app, wire or protocol. `store` is optional (a plain store otherwise); an owner
     that observes its stores passes its own. Files pasted in are saved on the terminal's host
     through the owner's `paste.upload`, and go in as their paths there.
+  - `overlay(key, view)` is optional: what the owner draws over the terminal's own output, given its
+    view as its screen opens. Its `restored` is called once a snapshot of the host's screen is
+    drawn (on opening and on every reattach), its `dispose` as the screen closes.
   - `parkMs` and `parkedCap` are the park defaults, and `ViewPhase` and `PasteFailure` what an
     owner words.
   - It builds on `@novadeck/emulator/browser`, and its tests run under jsdom.

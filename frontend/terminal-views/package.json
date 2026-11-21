@@ -10,6 +10,7 @@
     "./mount": "./src/mount.ts",
     "./paste-notice": "./src/paste-notice.ts",
     "./renderer-pool": "./src/renderer-pool.ts",
+    "./rings": "./src/rings.ts",
     "./theme": "./src/theme.ts"
   },
   "scripts": {

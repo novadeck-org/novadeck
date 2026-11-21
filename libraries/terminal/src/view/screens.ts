@@ -69,6 +69,13 @@ export type TerminalScreensOptions<K> = FollowOptions<K> & {
     // The class of the element a screen draws in.
     readonly containerClass?: string
   }
+  // What the owner draws over the terminal's own output, given its view when its screen opens:
+  // `restored` is called once a snapshot of the host's screen is drawn (on opening and on every
+  // reattach), `dispose` as the screen closes.
+  readonly overlay?: (
+    key: K,
+    view: View,
+  ) => { readonly restored: () => void; readonly dispose: () => void } | undefined
   // Called with the terminal's restart, as Enter asks for it in an ended shell.
   readonly restart: (key: K) => void
   // How long a screen nobody shows follows its terminal before it parks, and how many parked
@@ -307,6 +314,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
       theme: resolved.theme,
     })
     const xterm = view.terminal
+    const overlay = o.overlay?.(key, view)
     const queries = silenceQueries(xterm)
     for (const [name, value] of Object.entries(o.markup?.input ?? {}))
       xterm.textarea?.setAttribute(name, value)
@@ -333,6 +341,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
         xterm.reset()
         xterm.write("\x18")
       },
+      restored: () => overlay?.restored(),
       pace: () => paceMs,
       paced: () => new Promise<void>((resolve) => paceWaiters.add(resolve)),
       resize: ({ cols, rows }) => {
@@ -519,6 +528,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
       clearTimeout(noticed)
       queries.dispose()
       followed.stop()
+      overlay?.dispose()
       view.dispose()
       container.remove()
     }

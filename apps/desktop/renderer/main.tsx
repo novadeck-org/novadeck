@@ -3,8 +3,8 @@ import "@novadeck/ui/styles.css"
 import type { BackendSelection } from "@novadeck/core/port"
 import { desktopApp, isWindowControlsSide } from "@novadeck/protocol/bridge"
 import { App } from "@novadeck/ui/app/App"
+import { pageTheme } from "@novadeck/ui/app/page-theme"
 import { start } from "@novadeck/ui/entries/start"
-import { pageTheme } from "@novadeck/ui/theme/source"
 
 import { reportPageErrors } from "./page-errors"
 

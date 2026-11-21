@@ -204,6 +204,39 @@ describe("a hold on a terminal's screen", () => {
     expect(stages).toEqual(["mounted", "shown"])
   })
 
+  it("gives the owner's overlay its view, tells it of every snapshot drawn, and closes it with the screen", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const events: string[] = []
+      const { attached } = streamOf([snapshot("hello\r\n")])
+      const screens = screensOf(
+        optionsOf({
+          attach: async () => attached,
+          overlay: (key, view) => {
+            events.push(`open ${key} ${view.terminal.cols}`)
+            return {
+              restored: () =>
+                void events.push(
+                  `restored ${view.terminal.buffer.active.getLine(0)?.translateToString(true)}`,
+                ),
+              dispose: () => void events.push("dispose"),
+            }
+          },
+        }),
+      )
+      const hold = screens.acquire("01", running)
+      hold.place(slot())
+      expect(events).toEqual(["open 01 80"])
+      // The snapshot is drawn when the overlay hears of it, so a rescan finds its rows.
+      await vi.waitFor(() => expect(events).toEqual(["open 01 80", "restored hello"]))
+      hold.release({ unmount: true })
+      closeScreens()
+      expect(events.at(-1)).toBe("dispose")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   context("when a view switch holds it in another place", () => {
     // A live stream that drew one line and then waits, and a hold over it; `shown` says
     // whether the terminal's session is on screen.

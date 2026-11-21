@@ -1,7 +1,12 @@
 import { existsSync } from "node:fs"
 import { basename, isAbsolute, relative } from "node:path"
 
-import type { CompanionItem, PullRequest, TerminalMessages } from "@novadeck/protocol"
+import type {
+  CompanionItem,
+  PullRequest,
+  TerminalMessages,
+  TerminalRings,
+} from "@novadeck/protocol"
 
 import { planTitle } from "../companions/content.js"
 import { secrets } from "../companions/secrets.js"
@@ -388,6 +393,13 @@ export class TerminalPeers {
     const terminal = this.options.terminal(terminalId)
     if (!terminal) throw new DomainError("TERMINAL_NOT_FOUND")
     return this.options.messaging.list(terminalId, terminal.summary.handle)
+  }
+
+  /** What a terminal's rings and deliveries say after sequence `since`. */
+  rings(terminalId: string, since: number): TerminalRings {
+    if (this.options.stopping()) throw new DomainError("CLOSING")
+    if (!this.options.terminal(terminalId)) throw new DomainError("TERMINAL_NOT_FOUND")
+    return this.options.messaging.rings(terminalId, since)
   }
 
   /** Pauses messaging across the whole runner, or resumes it. */

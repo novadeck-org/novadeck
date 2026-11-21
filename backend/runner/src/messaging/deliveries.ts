@@ -327,6 +327,16 @@ export class Deliveries {
   }
 
   /**
+   * What the doorbell's line says now, for the terminal's view: the person's replies where it
+   * is the reply line, else every message waiting, in delivery order.
+   */
+  ringMessages(terminalId: string, replies: boolean): readonly Message[] {
+    const live = this.host.sessions.get(terminalId)
+    if (!live) return []
+    return replies ? this.repliesFor(live) : [...this.waitingFor(live)]
+  }
+
+  /**
    * The doorbell's line, by its nonce, where the person's Inbox replies no line has said yet
    * wait for the terminal's root session (`replyLine`), oldest first; undefined for none. A
    * request for feedback is none.

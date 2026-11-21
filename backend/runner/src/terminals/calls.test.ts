@@ -63,6 +63,7 @@ describe("the open call", () => {
     ])
     const asked: { command?: string; opener: Opener }[] = []
     const sent: { to: string; text: string }[] = []
+    const starts: { terminal: string; nonce: string; from: string; text: string }[] = []
     const notices: { to: string; text: string }[] = []
     const ended: string[] = []
     let listener: ((change: { kind: "terminal"; terminalId: string }) => void) | undefined
@@ -123,6 +124,8 @@ describe("the open call", () => {
           briefed = true
           return { ok: true, id: "m1", to: request.to, state: "queued" }
         },
+        noteStart: (terminal: string, nonce: string, from: string, text: string) =>
+          void starts.push({ terminal, nonce, from, text }),
         briefOf: () => (briefed ? "m1" : undefined),
         notice: (to: string, text: string) => {
           notices.push({ to, text })
@@ -164,6 +167,7 @@ describe("the open call", () => {
       questions,
       asked,
       sent,
+      starts,
       notices,
       ended,
       claims,
@@ -273,6 +277,10 @@ describe("the open call", () => {
       task: { ok: true, id: "m1" },
     })
     expect(run.opened.startedWith).toMatch(/^[A-Za-z0-9]{6}$/)
+    // Its start prompt's row says the task, from the agent that opened it.
+    expect(run.starts).toEqual([
+      { terminal: "t2", nonce: run.opened.startedWith, from: "moth", text: "Review a.ts." },
+    ])
     // The brief tells it who leads it: no notice beside it.
     expect(run.notices).toEqual([])
     run.deliver()

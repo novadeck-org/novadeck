@@ -429,6 +429,9 @@ export const createRouter = (options: {
     },
     messages: {
       list: api.messages.list.handler(({ input }) => terminals.messages(input.terminalId)),
+      rings: api.messages.rings.handler(({ input }) =>
+        terminals.rings(input.terminalId, input.since),
+      ),
       watch: api.messages.watch.handler(({ input, signal }) =>
         terminals.watchMessages(input.terminalId, signal),
       ),

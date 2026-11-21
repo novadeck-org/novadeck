@@ -67,6 +67,40 @@ export type DeliveredNotice = {
   readonly deliveredAt: number
 }
 
+// One message of a ring or a delivery, as the terminal's view draws it: an agent's with its sender's
+// handle, one of Novadeck's own notices (its text as sent, header and all), or the person's Inbox
+// reply. Its words are cut for one row. `id` is the message's, which finds a delivery's block in
+// the terminal. The core can't import the protocol's wire contracts, so this mirrors its `RingPart`.
+export type RingNote =
+  | {
+      readonly kind: "agent"
+      readonly handle: string
+      readonly text: string
+      readonly id?: string | undefined
+    }
+  | { readonly kind: "notice" | "person"; readonly text: string; readonly id?: string | undefined }
+
+// What a ring the doorbell typed says, by its nonce; mirrors `RingContent`.
+export type RingContent = {
+  readonly seq: number
+  readonly nonce: string
+  readonly at: number
+  readonly parts: readonly RingNote[]
+  // How many messages it held beyond the parts.
+  readonly more?: number | undefined
+}
+
+// What the messages a hook printed say, which the harness may show as a block; mirrors
+// `DeliveryContent`.
+export type DeliveryContent = {
+  readonly seq: number
+  readonly at: number
+  // The ids of all its messages, which a block in the terminal is matched by.
+  readonly ids: readonly string[]
+  readonly parts: readonly RingNote[]
+  readonly more?: number | undefined
+}
+
 // A terminal's thread with one other party, a terminal or the person: how many
 // messages it has had, how many idle ones in a row (sent while neither end worked), and its
 // messages, oldest first. `held` while the thread has a hold, `heldFor` its reason: `loop`,
@@ -137,6 +171,12 @@ export type TerminalThreads = {
   readonly threads: readonly MessageThread[]
   // The notices Novadeck delivered to its agent, oldest first; no thread holds them.
   readonly notices?: readonly DeliveredNotice[]
+  // The latest sequence of its rings and deliveries the runner keeps, as listed.
+  readonly ringSeq?: number
+  // What its rings and deliveries say, oldest first, for as long as their rows may be in the
+  // terminal's scrollback: fetched as `ringSeq` grows, not listed.
+  readonly rings?: readonly RingContent[]
+  readonly deliveries?: readonly DeliveryContent[]
 }
 
 // Another terminal of the session as a terminal's messages show it, by its id: its

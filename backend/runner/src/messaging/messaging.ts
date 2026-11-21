@@ -1,6 +1,6 @@
 import type { ActivityEvent, HarnessEvent } from "@novadeck/harness-core/events"
 import { hookShellSlackMs } from "@novadeck/harness-core/hook-command"
-import type { AgentName, MessageState, TerminalMessages } from "@novadeck/protocol"
+import type { AgentName, MessageState, TerminalMessages, TerminalRings } from "@novadeck/protocol"
 import type { KeyKind } from "@novadeck/tui-input"
 
 import type { Binding } from "../harnesses/bindings.js"
@@ -18,6 +18,7 @@ import type { Held, Message } from "./messages.js"
 import type { About } from "./peers.js"
 import { memoryMessages, type MessageRecords } from "./records.js"
 import { Relays, type InboxOwner } from "./relays.js"
+import { RingNotes, startRing } from "./ring-notes.js"
 import {
   Sending,
   type AgentsAnswer,
@@ -104,6 +105,7 @@ export class Messaging {
   private readonly sessions: Sessions
   private readonly deliveries: Deliveries
   private readonly leasing: Leasing
+  private readonly ringNotes: RingNotes
   private readonly withdrawals: Withdrawals
   private readonly hookAnswers: HookAnswers
   private readonly holds: Holds
@@ -138,7 +140,17 @@ export class Messaging {
       letBriefGo: (terminalId) => this.leading.letBriefGo(terminalId),
     })
     this.sessions = sessions
-    const leasing = { sessions, store, loops, now, step, held: options.held, mode: options.mode }
+    this.ringNotes = new RingNotes((terminalId) => store.changed(terminalId), now)
+    const leasing = {
+      sessions,
+      store,
+      loops,
+      now,
+      step,
+      held: options.held,
+      mode: options.mode,
+      notes: this.ringNotes,
+    }
     this.leasing = new Leasing(options.leaseMs ?? 5_000, leasing)
     this.deliveries = new Deliveries({
       sessions,
@@ -252,6 +264,7 @@ export class Messaging {
 
   unregister(terminalId: string, forGood = false, reason?: string): void {
     this.sessions.unregister(terminalId, forGood, reason)
+    if (forGood) this.ringNotes.forget(terminalId)
   }
 
   /** The terminal moves to another session of its project (see `Sessions.move`). */
@@ -408,6 +421,21 @@ export class Messaging {
 
   replyLine(terminalId: string): ((nonce: string) => string) | undefined {
     return this.deliveries.replyLine(terminalId)
+  }
+
+  /** The doorbell made its line under `nonce`: what it says is kept for the terminal's view (`RingNotes`). */
+  noteRing(terminalId: string, nonce: string, replies: boolean): void {
+    this.ringNotes.ring(terminalId, nonce, this.deliveries.ringMessages(terminalId, replies))
+  }
+
+  /** A task's start prompt, typed by the command line, says `text`, from the handle that opened it. */
+  noteStart(terminalId: string, nonce: string, from: string, text: string): void {
+    this.ringNotes.ringOf(terminalId, nonce, startRing(from, text))
+  }
+
+  /** The rings and deliveries of the terminal after sequence `since`, for its view. */
+  rings(terminalId: string, since: number): TerminalRings {
+    return this.ringNotes.since(terminalId, since)
   }
 
   personPrompt(terminalId: string): string | undefined {
@@ -575,7 +603,7 @@ export class Messaging {
   }
 
   list(terminalId: string, handle: string): TerminalMessages {
-    return this.sending.list(terminalId, handle)
+    return { ...this.sending.list(terminalId, handle), ...this.ringNotes.listed(terminalId) }
   }
 
   deliveredAt(): ReadonlyMap<string, number> {

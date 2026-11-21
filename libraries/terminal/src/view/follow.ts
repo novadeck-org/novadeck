@@ -71,6 +71,9 @@ export type Screen = {
   // Resolves once the pace changes, which ends a wait at once, as when the terminal is
   // selected.
   readonly paced?: () => Promise<void>
+  // Called once the host's snapshot of the screen is drawn, which is the whole screen and
+  // scrollback again: on opening, and on every reattach.
+  readonly restored?: () => void
 }
 
 // The most output a paced screen gathers before drawing it: a flood draws in steps, and what
@@ -156,6 +159,7 @@ export const followTerminal = <K>(
       screen.resize(event)
       sent = `${event.cols}x${event.rows}`
       await screen.write(event.data)
+      screen.restored?.()
       // A park that came while it drew has let go of this stream already.
       if (!unparked) screen.live(true)
       on?.stage?.(key, "shown")

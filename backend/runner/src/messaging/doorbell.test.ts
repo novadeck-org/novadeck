@@ -91,6 +91,7 @@ const terminal = (
   const emptied: number[] = []
   const blocks: (Waits | null)[] = []
   const plains: boolean[] = []
+  const noted: { nonce: string; replies: boolean }[] = []
   let leftover = options.leftover
   const ringLeftovers: string[] = []
   // What the doorbell asked of the agent and the foreground, in order.
@@ -175,6 +176,7 @@ const terminal = (
     ...(options.replies && { replies: () => options.replies }),
     ...(options.senders && { senders: () => options.senders! }),
     ringsPlain: (_, plain) => void plains.push(plain),
+    noted: (_, nonce, replies) => void noted.push({ nonce, replies }),
   }
   const target: TypingTarget = {
     screen: async () => {
@@ -253,6 +255,7 @@ const terminal = (
     emptied,
     blocks,
     plains,
+    noted,
     ringLeftovers,
     asked,
     emptiedAt,
@@ -610,11 +613,16 @@ describe("the doorbell", () => {
   it("rings with the person's Inbox replies as its line, and the plain line after a ring of them failed", async () => {
     const replies = (nonce: string) =>
       `<novadeck-reply>Re "x": yes</novadeck-reply><end ring="${nonce}"/>`
-    const { host, written, failed, rearm, plains } = terminal({ takes: "elsewhere", replies })
+    const { host, written, failed, rearm, plains, noted } = terminal({
+      takes: "elsewhere",
+      replies,
+    })
     const doorbell = new Doorbell(host, host.queue, fast)
     doorbell.changed("t")
     await vi.waitFor(() => expect(failed).toHaveLength(1))
     expect(plains).toEqual([true])
+    // The view is told what each line says, once per nonce: the replies, then the plain line.
+    expect(noted).toEqual([{ nonce: failed[0], replies: true }])
     expect(written[0]).toMatch(
       // eslint-disable-next-line no-control-regex -- A bracketed paste's markers.
       /^\x1b\[200~<novadeck-reply>Re "x": yes<\/novadeck-reply><end ring="([A-Za-z0-9]{6})"\/>\x1b\[201~$/,
@@ -626,6 +634,7 @@ describe("the doorbell", () => {
       // eslint-disable-next-line no-control-regex -- A bracketed paste's markers.
       /^\x1b\[200~<novadeck-doorbell from="" ring="[A-Za-z0-9]{6}"\/>\x1b\[201~$/,
     )
+    expect(noted.map((each) => each.replies)).toEqual([true, false])
     doorbell.close()
   })
 

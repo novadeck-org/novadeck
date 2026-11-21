@@ -1450,6 +1450,7 @@ export const runnerBackend = (
   const messages = createRunnerMessages(
     {
       watch: (terminalId) => runner.messages.watch(terminalId),
+      rings: (terminalId, since) => runner.messages.rings(terminalId, since),
       pause: (paused) => runner.messages.pause(paused),
       release: (thread) => runner.messages.release(thread),
       stop: (thread) => runner.messages.stop(thread),
@@ -2088,7 +2089,7 @@ export const runnerBackend = (
     }
   }
 
-  const screenOptions = screensOptions(runtime, { theme: options.theme })
+  const screenOptions = screensOptions(runtime, { theme: options.theme, messages: messages.state })
   const screens = createTerminalScreens(screenOptions)
   const backend: Backend = {
     seed,

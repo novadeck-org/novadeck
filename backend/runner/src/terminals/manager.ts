@@ -13,6 +13,7 @@ import type {
   TerminalChange,
   TerminalEvent,
   TerminalMessages,
+  TerminalRings,
   TerminalMove,
   TerminalMoved,
   TerminalRequest,
@@ -1593,6 +1594,11 @@ export class Terminals {
   /** A terminal's threads and messages with their states. */
   messages(terminalId: string): TerminalMessages {
     return this.inbox.history(terminalId, this.peers.messages(terminalId))
+  }
+
+  /** What a terminal's rings and deliveries say after sequence `since`. */
+  rings(terminalId: string, since: number): TerminalRings {
+    return this.peers.rings(terminalId, since)
   }
 
   /**

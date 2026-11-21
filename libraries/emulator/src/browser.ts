@@ -5,3 +5,13 @@ export { createRendererPool, loadWebgl, rendererPoolCap, webglRendererPool } fro
 export type { Drawing, RendererPool, RendererPoolStats, ScreenRenderer } from "./renderer.js"
 export type { IDisposable, ITheme, Terminal } from "@xterm/xterm"
 export { writeTo } from "./write.js"
+export { attachDoorbell } from "./doorbell.js"
+export type {
+  DeliveryEntry,
+  Doorbell,
+  DoorbellContent,
+  DoorbellOptions,
+  DoorbellStats,
+  RingEntry,
+} from "./doorbell.js"
+export type { HueOf, RingPart, Run, Tone } from "./doorbell-layout.js"
