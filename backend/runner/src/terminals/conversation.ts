@@ -2,7 +2,7 @@ import type { AgentBox, AgentDetail, PromptReceipt, RequestDialog } from "@novad
 
 import type { Activity } from "../harnesses/activity.js"
 import type { Binding } from "../harnesses/bindings.js"
-import { agentDetail } from "../harnesses/detail.js"
+import { agentDetail, type HeldCard } from "../harnesses/detail.js"
 import { savedSession } from "./binding/standing.js"
 import type { Record } from "./record.js"
 
@@ -56,6 +56,7 @@ export const conversationDetail = (
   answered: ReadonlySet<string>,
   prompts: readonly PromptReceipt[],
   box: AgentBox | null,
+  held: readonly HeldCard[] = [],
 ): AgentDetail =>
   agentDetail(
     record.summary.id,
@@ -66,4 +67,5 @@ export const conversationDetail = (
     answered,
     prompts,
     box,
+    held,
   )

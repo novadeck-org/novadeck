@@ -20,6 +20,23 @@ export const requestRef = ({ sessionId }: Binding, { requestId, askedAt }: Reque
   ref("request", sessionId, requestId, String(askedAt))
 
 /**
+ * A request Novadeck holds for the person on an agent's behalf (an action card of the shipping
+ * gate), drawn from fields Novadeck resolved. It asks without holding the agent, so the prompt
+ * stays free, and its answer resolves in the runner, not by keys in a dialog.
+ */
+export type HeldCard = {
+  readonly id: string
+  readonly title: string
+  readonly detail: string
+  readonly askedAt: number
+}
+
+/** A held card's reference and the ids of its dialog and options. */
+export const heldRef = ({ sessionId }: Binding, card: Pick<HeldCard, "id" | "askedAt">): string =>
+  ref("request", sessionId, `permit-${card.id}`, String(card.askedAt))
+export const heldOptions = { allow: "allow", deny: "deny" } as const
+
+/**
  * The agent a terminal runs, in detail: its root and subagents, each request waiting on
  * the person, and what its harness tells. Harnesses do not say which agent started a
  * nested subagent, so a subagent's parent stays unresolved.
@@ -33,6 +50,7 @@ export const agentDetail = (
   answered: ReadonlySet<string> = new Set(),
   prompts: readonly PromptReceipt[] = [],
   box: AgentBox | null = null,
+  held: readonly HeldCard[] = [],
 ): AgentDetail => {
   if (!binding)
     return {
@@ -101,7 +119,30 @@ export const agentDetail = (
           askedAt: request.askedAt,
           ...(request.detached === true && { detached: true as const }),
         }
-      }),
+      })
+      .concat(
+        held.map((card) => ({
+          ref: heldRef(binding, card),
+          actor: root,
+          kind: "permission" as const,
+          tool: "request_permit",
+          subject: card.title,
+          choices: ["Allow", "Deny"],
+          dialog: {
+            type: "choices" as const,
+            id: `permit-${card.id}`,
+            title: card.title,
+            detail: card.detail,
+            options: [
+              { id: heldOptions.allow, label: "Allow", text: null },
+              { id: heldOptions.deny, label: "Deny", text: null },
+            ],
+          },
+          answered: false,
+          askedAt: card.askedAt,
+          detached: true as const,
+        })),
+      ),
     coverage: harnesses[binding.agent].coverage,
     prompts: prompts.slice(-agentLimits.prompts),
     box,

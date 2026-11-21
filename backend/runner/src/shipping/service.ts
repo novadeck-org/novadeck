@@ -7,8 +7,11 @@ import { open } from "node:fs/promises"
 
 import type { AgentName } from "@novadeck/protocol"
 
+import { noticeText } from "../messaging/notice-format.js"
 import type { GateCall } from "../shell/hook.js"
-import { Gate, type Turn } from "./gate.js"
+import { Cards, type Card } from "./cards.js"
+import { declare, ghPull, type Declared, type DeclareAnswer } from "./declare.js"
+import { describeKey, Gate, type Turn } from "./gate.js"
 import { gitLookups, type Owned } from "./lookups.js"
 import { Permits, Quotes } from "./permits.js"
 import { claudeRules, codexRules } from "./rules.js"
@@ -18,6 +21,11 @@ export type ShippingHost = {
   /** Whether the Experimental shipping gate is on, read each time a hook comes. */
   readonly enabled: () => boolean
   readonly owned: Owned
+  /** Tells the agent in a terminal something, as a Novadeck notice; whether it was queued. */
+  readonly notify: (terminalId: string, text: string) => boolean
+  /** The folder a terminal's shell is in, and the agent it runs. */
+  readonly cwd: (terminalId: string) => string | undefined
+  readonly agentOf: (terminalId: string) => "claude" | "codex" | "agy" | undefined
 }
 
 // The tail of a rollout read for its latest turn context: a turn starts well within it.
@@ -62,6 +70,7 @@ export const turnOf = async (transcript: string | undefined): Promise<Turn | und
 export class Shipping {
   readonly permits = new Permits()
   readonly quotes = new Quotes()
+  readonly cards = new Cards()
   private readonly gate: Gate
 
   constructor(private readonly host: ShippingHost) {
@@ -71,6 +80,59 @@ export class Shipping {
       rules: (agent, cwd) => (agent === "claude" ? claudeRules(cwd) : codexRules()),
       turn: turnOf,
     })
+    // An open card is withdrawn when another source gives the permit.
+    this.permits.onGiven((permit) => {
+      const card = this.cards.covering(permit.terminalId, permit.key)
+      if (card && permit.source.type !== "answer") this.cards.close(card)
+    })
+  }
+
+  /** `request_permit`: see `declare`. */
+  async declare(terminalId: string, input: Declared): Promise<DeclareAnswer> {
+    const cwd = this.host.cwd(terminalId)
+    if (cwd === undefined)
+      return { ok: false, reason: "Novadeck can't tell where this terminal is." }
+    return await declare(
+      {
+        lookups: (id) => gitLookups(id, this.host.owned),
+        permits: this.permits,
+        quotes: this.quotes,
+        cards: this.cards,
+        pull: ghPull,
+        agentOf: this.host.agentOf,
+      },
+      terminalId,
+      cwd,
+      input,
+    )
+  }
+
+  /**
+   * The person answered a card: Allow gives the terminal's permit for the card's targets,
+   * and either way the agent is told, as a Novadeck notice.
+   */
+  answered(card: Card, allow: boolean): void {
+    this.cards.close(card)
+    if (allow)
+      for (const key of card.keys)
+        this.permits.give(card.terminalId, key, card.singleUse, { type: "answer", card: card.id })
+    const what = describeKey(card.keys[0]!)
+    this.host.notify(
+      card.terminalId,
+      noticeText("Shipping", {
+        facts: allow
+          ? `The user allowed it: ${card.title} (${what}). The permit holds for ten minutes.`
+          : `The user declined it: ${card.title} (${what}). No permit was given.`,
+        actions: allow
+          ? [
+              "run the command on its own, as declared" +
+                (this.host.agentOf(card.terminalId) === "codex"
+                  ? "; if the sandbox blocks it, run it again asking for escalation"
+                  : ""),
+            ]
+          : [],
+      }),
+    )
   }
 
   /** Whether the gate is on. */
@@ -111,5 +173,6 @@ export class Shipping {
   closed(terminalId: string): void {
     this.permits.forget(terminalId)
     this.quotes.forget(terminalId)
+    this.cards.forget(terminalId)
   }
 }

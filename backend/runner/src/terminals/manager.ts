@@ -40,6 +40,7 @@ import { Messaging } from "../messaging/messaging.js"
 import type { AgentsAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.js"
 import { stripInherited } from "../shell/inherited.js"
 import { type Ack, type Call } from "../shell/reports.js"
+import { answeredCard } from "../shipping/held.js"
 import type { Shipping } from "../shipping/service.js"
 import type { HintFacts } from "../voice/hint.js"
 import { ownedWorktrees, worktreeHost, type WorktreesWiring } from "../worktrees/calls.js"
@@ -421,6 +422,7 @@ export class Terminals {
           this.typing.dialogs.answered(record.summary.id),
           this.typing.receipts.view(record.summary.id),
           this.typing.boxes.view(record.summary.id),
+          this.options.shipping?.cards.of(record.summary.id) ?? [],
         ),
       detailOpened: (terminalId) => this.typing.boxes.changed(terminalId),
       messages: (terminalId) => this.messages(terminalId),
@@ -431,6 +433,11 @@ export class Terminals {
           this.typing.dialogs.view(terminalId),
           this.messaging.shownAgent(terminalId),
         ),
+    })
+    // An action card opened, answered or withdrawn changes what the terminal's agent asks.
+    this.options.shipping?.cards.watch((terminalId) => {
+      const record = this.records.get(terminalId)
+      if (record) this.streams.detailed(record)
     })
     this.names = new Names<Record>(options, this.saves, this.streams, {
       stopping: () => this.stopping,
@@ -718,6 +725,7 @@ export class Terminals {
       messaging: () => this.messaging,
       inbox: () => this.inbox,
       feedback: () => this.feedback,
+      shipping: () => this.options.shipping,
       peers: () => this.peers,
       opens: () => this.opens,
       approvals: () => this.confirms,
@@ -1102,7 +1110,9 @@ export class Terminals {
    * ring, comes between the answer and the words that follow it.
    */
   answer(input: { terminalId: string; request: string; answer: RequestAnswer }): Promise<void> {
-    return this.typing.answer(input.terminalId, input.request, input.answer)
+    const { terminalId, request, answer } = input
+    const held = answeredCard(this.options.shipping, this.records.get(terminalId), request, answer)
+    return held ?? this.typing.answer(terminalId, request, answer)
   }
 
   /**
@@ -1587,6 +1597,14 @@ export class Terminals {
   }
   watchInbox(signal?: AbortSignal): AsyncGenerator<InboxEntry[]> {
     return this.inbox.watch(signal)
+  }
+  /** The folder a terminal's shell is in, for the shipping gate. */
+  cwdOf(terminalId: string): string | undefined {
+    return this.records.get(terminalId)?.summary.cwd
+  }
+  /** The agent a terminal's session runs, for the shipping gate. */
+  agentOf(terminalId: string): AgentName | undefined {
+    return this.records.get(terminalId)?.bound?.binding.agent
   }
   answerAsk(id: string, answer: AskAnswer): void {
     this.inbox.answer(id, answer)

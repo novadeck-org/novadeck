@@ -69,7 +69,7 @@ type Tool<A> = {
   /** The schema as the runner's state makes it now, when that differs from `inputSchema`. */
   schema?(call: McpCall): Promise<object>
   /** A setting of the user's the tool is listed only while on; always listed when omitted. */
-  readonly needs?: "worktrees"
+  readonly needs?: "worktrees" | "gate"
   readonly call: CallType
   request(args: Arguments): Arguments
   /** Why the call can't go at all, said before anything goes to the runner. */
@@ -1926,6 +1926,57 @@ const giveWorktree: Tool<Worktree> = {
   failed: "Novadeck couldn't give the worktree.",
 }
 
+// What the runner answers `request_permit` with, as the tool reads it.
+type Permit = { readonly state: "permitted" | "asked"; readonly text: string }
+
+const requestPermit: Tool<Permit> = {
+  needs: "gate",
+  name: "request_permit",
+  description:
+    "Declare a shipping action before you run it: merging a PR, opening one, pushing to a " +
+    "branch that isn't yours, landing work on another branch. While the user has the shipping " +
+    "gate on, Novadeck's hook allows such a git or gh command only when a live permit covers " +
+    "its exact target, and only as the whole command on its own; any other is refused. A " +
+    "permit comes from the user's own words typed in this terminal (quote them in `said`, word " +
+    "for word; Novadeck checks them against what they typed here, and a message from another " +
+    "agent never counts) or from the user's answer to a card Novadeck shows them, and lasts ten " +
+    "minutes. Novadeck reads the real target from git and gh itself and says what it went by. " +
+    "Returns at once; an answer from the user reaches you as a Novadeck notice. Refused while " +
+    "the shipping gate is off.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      action: {
+        type: "string",
+        enum: ["merge_pr", "open_pr", "push", "force_push", "land"],
+        description:
+          "merge_pr: gh pr merge. open_pr: gh pr create, or gh pr edit --base. push: git push to a branch that isn't yours. force_push: the same with force. land: a merge, pull, rebase, cherry-pick or reset onto another branch.",
+      },
+      target: {
+        type: "string",
+        description:
+          "merge_pr: the PR's number. open_pr: the base branch, if you name one. push and force_push: the branch pushed to. land: the branch landed on.",
+      },
+      said: {
+        type: "string",
+        description:
+          "Optional: the user's own words, exactly as they typed them in this terminal, that ask for this.",
+      },
+      folder: {
+        type: "string",
+        description:
+          "The checkout the command runs in, absolute or relative to this terminal's current directory; this terminal's current directory when left out.",
+      },
+    },
+    required: ["action"],
+    additionalProperties: false,
+  },
+  call: "permit",
+  request: (args) => picked(args, ["action", "target", "said", "folder"]),
+  said: (answer) => answer.text,
+  failed: "Novadeck couldn't declare it.",
+}
+
 const tools: readonly Tool<unknown>[] = [
   ask,
   tell,
@@ -1941,6 +1992,7 @@ const tools: readonly Tool<unknown>[] = [
   takeWorktree,
   closeWorktree,
   giveWorktree,
+  requestPermit,
   leadTerminal,
   release,
   join,
@@ -2030,8 +2082,8 @@ const initialized = async (params: unknown, call: McpCall | undefined) => {
 // Every tool as the agent lists it, with the schema the runner's state makes now.
 const listedTools = async (call: McpCall) => {
   // Asked together, so a listing waits for the slowest, not for each in turn.
-  const [on, mode, listing] = await Promise.all([
-    worktreesAreOn(call),
+  const [{ worktrees: on, gate }, mode, listing] = await Promise.all([
+    offered(call),
     agentModeOf(call),
     Promise.all(
       tools.map(async ({ name, description, inputSchema, schema, needs }) => ({
@@ -2043,7 +2095,7 @@ const listedTools = async (call: McpCall) => {
     ),
   ])
   return listing
-    .filter(({ needs }) => needs !== "worktrees" || on)
+    .filter(({ needs }) => needs === undefined || (needs === "worktrees" ? on : gate))
     .map(({ name, description, inputSchema }) => ({
       name,
       description: typeof description === "string" ? description : description(mode),
@@ -2070,12 +2122,13 @@ const agentModeOf = async (call: McpCall): Promise<AgentMode> => {
 // Whether the user turned agent worktrees on, as the runner says; off where it can't say. The
 // listing is cached by some harnesses for the whole session, so the runner refuses the calls
 // while it is off all the same.
-const worktreesAreOn = async (call: McpCall): Promise<boolean> => {
+const offered = async (call: McpCall): Promise<{ worktrees: boolean; gate: boolean }> => {
   try {
     const answer = await call("worktrees", {})
-    return object(answer) && answer.ok === true && answer.on === true
+    const ok = object(answer) && answer.ok === true
+    return { worktrees: ok && answer.on === true, gate: ok && answer.gate === true }
   } catch {
-    return false
+    return { worktrees: false, gate: false }
   }
 }
 
