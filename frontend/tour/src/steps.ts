@@ -116,12 +116,14 @@ export const askStep: TourStep = {
   wait: ({ asked }) => (asked ? "patient" : "nudge"),
 }
 
-// Act 4: the lead shows the result in the side pane beside its terminal. Once it's shown, it
-// stays a few seconds to be looked at, then the story ends and the closing card comes.
+// Act 4: the lead shows the result in the side pane beside its terminal, the team framed with
+// it, so the result's caption has room beside the lead. Once it's shown, it stays a few seconds
+// (while the tour's project is on screen) to be looked at, then the story ends and the closing
+// card comes.
 export const showStep: TourStep = {
   id: "show",
   act: 4,
-  enter: [{ kind: "reveal" }],
+  enter: [{ kind: "fit-all" }],
   holdMs: 6_000,
   coach: { anchor: "side-pane", line: "Made for you." },
   done: ({ shown }) => shown,

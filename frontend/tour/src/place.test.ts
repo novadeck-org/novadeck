@@ -46,10 +46,21 @@ describe("Where the tour's caption box stands", () => {
       for (const window of cells) expect(overlaps(place, window)).toBe(false)
     })
 
-    it("docks low in the corner where no spot is free", () => {
+    it("docks at the foot of the workspace, in its middle, where no spot is free", () => {
       const full: Box[] = [...cells, { left: 640, top: 400, width: 640, height: 350 }]
-      expect(placeBox(full[0]!, card, area, full)).toEqual({ left: 16, top: 674 })
+      expect(placeBox(full[0]!, card, area, full)).toEqual({ left: 490, top: 674 })
     })
+  })
+
+  it("takes the free spot nearest a subject outside the workspace, as an Inbox row", () => {
+    // The Inbox row is in the sidebar, left of the workspace; a window fills the workspace's top.
+    const row: Box = { left: -220, top: 90, width: 200, height: 60 }
+    const top: Box = { left: 0, top: 50, width: 1280, height: 400 }
+    const place = placeBox(row, card, area, [top])
+    // Hard by the sidebar, just under the window: the nearest the row it can be.
+    expect(place.left).toBe(16)
+    expect(place.top).toBeGreaterThanOrEqual(450)
+    expect(place.top).toBeLessThan(450 + 24)
   })
 
   it("always within the workspace, however small", () => {

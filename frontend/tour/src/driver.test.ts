@@ -373,7 +373,7 @@ describe("The tour's last act", () => {
   it("holds on the result a while, its moves made, before the story ends", () => {
     const held = stepRun(atShow, tourSteps, { type: "signals", signals: shown, now: 100 }, patience)
     expect(held.run).toMatchObject({ doneAt: 100, entered: true })
-    expect(held.moves).toEqual([{ kind: "reveal" }])
+    expect(held.moves).toEqual([{ kind: "fit-all" }])
     expect(coachNow(held.run!, tourSteps, shown)?.line).toBe("Made for you.")
     expect(nextTick(held.run!, tourSteps, shown, patience)).toBe(6_100)
     const still = stepRun(

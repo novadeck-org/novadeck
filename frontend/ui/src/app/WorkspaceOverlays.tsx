@@ -502,7 +502,11 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           }}
         />
       )}
-      {driver.shown && <TourStage {...driver.shown} onEnd={driver.end} onBack={driver.back} />}
+      {driver.shown && (
+        <Suspense fallback={null}>
+          <TourStage {...driver.shown} onEnd={driver.end} onBack={driver.back} />
+        </Suspense>
+      )}
       {driver.closing && (
         <Suspense fallback={null}>
           <TourClosingCard

@@ -141,12 +141,14 @@ const follow = (
   // now, not at some later change), but never ended in the event that rings its first line.
   if (typeof run.doneAt === "number" || step.done(signals, briefed)) {
     // A step that holds stays, its coach still said and its moves made, until its time is up.
-    if (holding(briefed, step, now)) {
+    // Its time counts only while the tour's project is on screen: away, it starts over, so the
+    // person sees what it holds on, and the story never ends in another project.
+    if (holding(briefed, step, now) || (step.holdMs !== undefined && !signals.onScreen)) {
       const enter = !briefed.entered && signals.onScreen
       const held = {
         ...briefed,
         entered: briefed.entered || enter,
-        doneAt: typeof briefed.doneAt === "number" ? briefed.doneAt : now,
+        doneAt: typeof briefed.doneAt === "number" && signals.onScreen ? briefed.doneAt : now,
       }
       return { run: held, moves: enter ? step.enter : [], brief, nudge: false }
     }

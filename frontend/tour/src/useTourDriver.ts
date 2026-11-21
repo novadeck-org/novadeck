@@ -275,14 +275,20 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
 
   // While a step frames the team, each window the team gains is framed with the rest, a moment
   // after it lands: Canvas sets its camera afresh as a window comes, and drops a framing asked
-  // before it settles.
+  // before it settles. Only a new window: coming back to the tour, the person's own framing stays.
   const framing =
     run && tourSteps[run.step]?.frameTeam && signals.onScreen ? signals.team.count : null
+  const framingFor = run?.terminalId
+  // The most windows framed so far, for the run it was for: another run starts from none.
+  const framed = useRef({ terminalId: framingFor, count: 0 })
   useEffect(() => {
-    if (framing === null) return
+    if (framed.current.terminalId !== framingFor)
+      framed.current = { terminalId: framingFor, count: 0 }
+    if (framing === null || framing <= framed.current.count) return
+    framed.current = { terminalId: framingFor, count: framing }
     const timer = setTimeout(() => commands.frameAll(), frameSettleMs)
     return () => clearTimeout(timer)
-  }, [framing, commands])
+  }, [framing, framingFor, commands])
 
   // A teammate held at its own agent's screen (a mixed team's folder trust), or an agent asking
   // the person's permission, waits on them in its terminal, which isn't on screen: brought there

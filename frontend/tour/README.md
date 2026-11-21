@@ -13,8 +13,9 @@ the workspace's signals and plays its steps, and what it draws over the workspac
   would. `scripts/workspace/graph.test.ts` holds it off the UI, the chat, the items package, every
   backend and every harness.
 - **Its look is its own.** The tour is meant to stand apart from the app, so what it draws over
-  the workspace (`print.css`) follows none of the app's themes: Nyx's caption box from the skits
-  and the website's print, every colour set on `.tour-print`, none a theme token. The stage and
+  the workspace (`print.css`) takes no colour from the app's themes: Nyx's caption box from the
+  skits and the website's print, every colour set on `.tour-print`, none a theme token, and a
+  theme's glow on text turned off. (Phosphor's tube, drawn over the whole page, still covers it.) The stage and
   the closing card bring that sheet and its font (Bangers) with them, and the app loads both only
   as a tour runs, so its first load carries neither. `tour.css` holds the consent's few rules,
   which do follow the theme, as the consent is an ordinary dialog of the app.

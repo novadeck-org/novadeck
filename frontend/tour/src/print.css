@@ -7,8 +7,10 @@
    (runner-skits video/src/kit/Captions.tsx: yellow, an ink rule and shadow, Bangers caps), and
    the website's print for the rest (novadeck-website src/styles/global.css: the cyan and magenta
    plates set off register, ink on them). Every colour is set here, on `.tour-print`, and none is
-   a theme token, so a theme or a scheme never reaches it. */
+   a theme token, so no theme's or scheme's colour reaches it. */
 .tour-print {
+  /* A theme's glow on the page's text (Phosphor's) stays off the print. */
+  text-shadow: none;
   --tour-yellow: #ffe24a;
   --tour-ink: #140b1f;
   --tour-paper: #e8e9ed;
@@ -69,6 +71,9 @@
   rotate: -1.5deg;
   animation: tour-pop 100ms steps(3, end);
 }
+.tour-caption-line[data-tilt="right"] {
+  rotate: 1.5deg;
+}
 /* What the person has to do, where a moment asks it of them: ink on paper, under the box. */
 .tour-caption-note {
   margin: 0;
@@ -88,14 +93,17 @@
   }
 }
 
-/* The stage's controls, centred on where they stand: the four act plates, the one on now inked
-   in, and End tour. */
+/* The stage's controls: in the footer's middle, beside what else stands there, or, with the
+   footer hidden, centred at the workspace's foot. */
 .tour-controls {
-  position: fixed;
-  z-index: 40;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  padding-inline: 8px;
+}
+.tour-controls-free {
+  position: fixed;
+  z-index: 40;
   translate: -50% -50%;
 }
 .tour-acts {
