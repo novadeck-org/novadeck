@@ -720,6 +720,20 @@ with every safety check again at that time:
   its files once all of them have been touched, oldest first, at most 32). Such a work lists no
   files and conflicts with nothing, and the panel lets merged win over a conflict. Work that merges
   cleanly but would change main (main reverted it) is not merged.
+  It is true too for work **landed by git**, a fast-forward landing included (`landedByReflog`,
+  `works/landed.ts`), which history can't tell from a branch that only caught up: a local holder
+  (home, home's name without `origin/`, the repository's main) has a reflog line `merge <what was
+  typed>: Fast-forward` or `…: Merge made by…` (git writes it for `git merge`, `--ff-only`,
+  `--no-ff`, and `pull <args>: …` for `git pull . <branch>`; a rebase then a fast-forward is that
+  merge), whose arguments name the branch (or its tip) and whose result holds the branch's head
+  where the branch before did not, and the holder still holds it. Precision first: a branch that
+  caught up is named by no line; a squash (`merge --squash` writes a plain `commit:` line, though
+  the content check above finds a squash on its own), a `reset`, an `update-ref`, a `--no-commit`
+  merge finished by `git commit`, a reflog that expired or is off, and `pull origin x` read as
+  today. It reads the reflog file (one read per holder, no git run) and runs git only for a line
+  that names the branch (three ancestor checks), at a measurement, which the work's read key
+  already limits: a landing moves its holder's commit, which is in the key. The panel's word is
+  the same "Merged". Git-only, so alike for Claude Code, Codex and Antigravity.
   It is not the close side's "merged" below (HEAD is in main, which a fresh
   worktree is too). It is
   measured as before: the working tree against main by an in-memory `merge-tree`, with what is unread

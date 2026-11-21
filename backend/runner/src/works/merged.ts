@@ -24,7 +24,8 @@ const ancestor = async (root: string, a: string, b: string): Promise<boolean | u
  * A worktree behind its start, or one that merged main in with no work of its own, is neither.
  *
  * Known limits: a branch merged fast-forward only sits on the first-parent line, so it reads as
- * not merged, as does a worktree that synced to main after its merge (a fast-forward pull, or a
+ * not merged here (`landedByReflog`, in landed.ts, finds it by git's own merge line in the
+ * holder's reflog), as does a worktree that synced to main after its merge (a fast-forward pull, or a
  * rebase that drops the squashed commits); a commit and its revert, or an empty commit, read as
  * merged. False where `base` is unknown; undefined where git failed, so the read is tried again.
  * Work that landed in main whose files main has changed again since (so it still differs) is
