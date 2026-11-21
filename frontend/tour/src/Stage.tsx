@@ -38,10 +38,35 @@ const sameScene = (a: Scene, b: Scene): boolean =>
 
 const drawn = (box: Box | null): box is Box => box !== null && box.width > 0 && box.height > 0
 
-// The attributes the stage puts on what its step marks, which print.css draws: where to look,
-// and what to press.
+// The attributes the stage puts on what its step marks: where to look, and what to press. Each
+// marked element gets a mark of its kind inside it, which print.css draws over all the element
+// holds, so none of its parts paints over the mark; an element that isn't positioned is made so
+// (`data-tour-anchor`), to hold it.
 const lookMark = "data-tour-look"
 const clickMark = "data-tour-click"
+const anchor = "data-tour-anchor"
+
+const kindOf = (mark: string): string => (mark === lookMark ? "look" : "click")
+
+// The mark of `mark`'s kind inside `element`, put there if it isn't (as when a view redrew it).
+const drawMark = (element: HTMLElement, mark: string): void => {
+  const kind = kindOf(mark)
+  for (const child of element.children)
+    if (child instanceof HTMLElement && child.dataset.tourMark === kind) return
+  const line = document.createElement("span")
+  line.className = "tour-mark"
+  line.dataset.tourMark = kind
+  line.setAttribute("aria-hidden", "true")
+  element.append(line)
+}
+
+const unmark = (element: HTMLElement, mark: string): void => {
+  element.removeAttribute(mark)
+  for (const line of element.querySelectorAll(`:scope > [data-tour-mark="${kindOf(mark)}"]`))
+    line.remove()
+  if (!element.hasAttribute(lookMark) && !element.hasAttribute(clickMark))
+    element.removeAttribute(anchor)
+}
 
 // What a coach marks now: where to look, and the first of its targets to press that's drawn.
 const marksOf = (
@@ -60,14 +85,17 @@ const marksOf = (
 const remark = (mark: string, before: Set<HTMLElement>, next: readonly HTMLElement[]): void => {
   for (const element of before)
     if (!next.includes(element)) {
-      element.removeAttribute(mark)
+      unmark(element, mark)
       before.delete(element)
     }
-  for (const element of next)
+  for (const element of next) {
     if (!before.has(element)) {
       element.setAttribute(mark, "")
+      if (getComputedStyle(element).position === "static") element.setAttribute(anchor, "")
       before.add(element)
     }
+    drawMark(element, mark)
+  }
 }
 
 const lookAt = (subject: HTMLElement | undefined): Scene => {

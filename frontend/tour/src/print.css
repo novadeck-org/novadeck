@@ -33,22 +33,35 @@
    over whatever look the element has (so `!important`), and moving with it as it moves:
    where to look, a thin magenta line; what to press, the caption box's yellow, breathing
    slowly. Inset, so a parent that clips its children doesn't cut them. */
-[data-tour-look] {
-  outline: 2px solid oklch(0.66 0.226 341 / 0.9) !important;
-  outline-offset: -2px !important;
-  box-shadow: 0 0 0 4px oklch(0.66 0.226 341 / 0.16) !important;
-}
+/* What the tour marks: a line around the element's inside, over all the element holds, with a
+   soft glow inward (outward it would be cut by an element that clips what overflows it).
+   Magenta where to look; yellow, slowly breathing, what to press. */
+[data-tour-look],
 [data-tour-click] {
-  outline-style: solid !important;
-  outline-width: 2px !important;
-  outline-offset: -2px !important;
-  outline-color: #ffe24a;
-  box-shadow: 0 0 0 4px rgb(255 226 74 / 0.18) !important;
-  animation: tour-click 1.8s ease-in-out infinite !important;
+  isolation: isolate !important;
+}
+[data-tour-anchor] {
+  position: relative !important;
+}
+.tour-mark {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 2147483647 !important;
+  border-radius: inherit;
+  pointer-events: none !important;
+}
+.tour-mark[data-tour-mark="look"] {
+  border: 2px solid oklch(0.66 0.226 341 / 0.9);
+  box-shadow: inset 0 0 0 4px oklch(0.66 0.226 341 / 0.14);
+}
+.tour-mark[data-tour-mark="click"] {
+  border: 2px solid #ffe24a;
+  box-shadow: inset 0 0 0 4px rgb(255 226 74 / 0.16);
+  animation: tour-click 1.8s ease-in-out infinite;
 }
 @keyframes tour-click {
   50% {
-    outline-color: rgb(255 226 74 / 0.35);
+    border-color: rgb(255 226 74 / 0.35);
   }
 }
 
@@ -400,7 +413,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-tour-click] {
+  .tour-mark {
     animation: none !important;
   }
   .tour-caption-panel,
