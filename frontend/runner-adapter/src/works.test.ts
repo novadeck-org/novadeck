@@ -42,7 +42,7 @@ const followed = (
   const made = channel<WorkMade>()
   const shown: string[] = []
   let watches = 0
-  const { works, stop } = createRunnerWorks({
+  const { works, stop, readOnce } = createRunnerWorks({
     watch: () => ((watches += 1), stream.iterator),
     made: () => made.iterator,
     look: calls.look ?? (async () => {}),
@@ -60,7 +60,7 @@ const followed = (
       .getSnapshot()
       .works.map((each) => each.root)
       .toSorted()
-  return { works, stream, made, stop, release, ids, shown, watches: () => watches }
+  return { works, stream, made, stop, readOnce, release, ids, shown, watches: () => watches }
 }
 
 describe("Works, as the runner reports them", () => {
@@ -220,16 +220,20 @@ describe("Works, as the runner reports them", () => {
     expect(watches()).toBe(1)
   })
 
-  // StrictMode mounts the app twice, stopping the first backend run before the second starts,
-  // and a reboot does the same: the works are followed on the second run too.
+  // StrictMode mounts the app twice in development, stopping the first backend run before the
+  // second starts: the works, and the worktrees made, are followed on the second run too.
   it("follows again once the backend starts again, for the panels still watching", async () => {
     const first = channel<WorkWatchItem>()
     const second = channel<WorkWatchItem>()
     const streams = [first, second]
     let watches = 0
+    let mades = 0
     const { works, readOnce, stop } = createRunnerWorks({
       watch: () => streams[watches++]!.iterator,
-      made: () => channel<WorkMade>().iterator,
+      made: () => {
+        mades += 1
+        return channel<WorkMade>().iterator
+      },
       look: async () => {},
       show: async () => ({ itemId: "x" }),
       close: async () => ({ closed: true as const, branchDeleted: false }),
@@ -243,6 +247,7 @@ describe("Works, as the runner reports them", () => {
     expect(watches).toBe(1)
     readOnce()
     expect(watches).toBe(2)
+    expect(mades).toBe(2)
     second.push({ type: "reset" })
     second.push({ type: "changed", work: work(1) })
     second.push({ type: "synced" })
@@ -437,7 +442,8 @@ describe("Worktrees made, as the runner reports them", () => {
     works.made!.getSnapshot().get(projectId) ?? 0
 
   it("counts each one, whether or not the works are watched", async () => {
-    const { works, made, release } = followed()
+    const { works, made, release, readOnce } = followed()
+    readOnce()
     expect(count(works)).toBe(0)
     release()
     made.push(newOne(1))
@@ -447,7 +453,8 @@ describe("Worktrees made, as the runner reports them", () => {
   })
 
   it("counts them by project", async () => {
-    const { works, made } = followed()
+    const { works, made, readOnce } = followed()
+    readOnce()
     made.push(newOne(1))
     made.push(newOne(2, "q"))
     made.push(newOne(3, "q"))
@@ -456,8 +463,26 @@ describe("Worktrees made, as the runner reports them", () => {
     expect(count(works, "r")).toBe(0)
   })
 
+  it("follows none until the backend starts, so a backend never started holds no stream", () => {
+    let mades = 0
+    const { readOnce } = createRunnerWorks({
+      watch: () => channel<WorkWatchItem>().iterator,
+      made: () => ((mades += 1), channel<WorkMade>().iterator),
+      look: async () => {},
+      show: async () => ({ itemId: "x" }),
+      close: async () => ({ closed: true as const, branchDeleted: false }),
+      preview: async () => ({ main: null, works: [], renames: [] }),
+      fetch: async () => {},
+    })
+    expect(mades).toBe(0)
+    readOnce()
+    readOnce()
+    expect(mades).toBe(1)
+  })
+
   it("lets go of the stream with the backend", () => {
-    const { made, stop } = followed()
+    const { made, stop, readOnce } = followed()
+    readOnce()
     expect(made.returned()).toBe(0)
     stop()
     expect(made.returned()).toBe(1)

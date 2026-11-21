@@ -19,8 +19,9 @@ export type RunnerWorks = {
   // Reads the works once, as the backend starts, so the Worktrees panel lists them as soon as it
   // opens instead of after the runner's first read of every worktree: follows them until the
   // runner has reported every one, then lets go. The panel's own watch brings them up to date.
-  // A backend that starts again after `stop` (StrictMode's second mount, a reboot) is followed
-  // again, the panels that still watch included.
+  // It also follows the worktrees made, from the backend's start. A backend that starts again
+  // after `stop` (StrictMode's second mount, in development) is followed again, the panels that
+  // still watch included.
   readonly readOnce: () => void
   // Ends the following, as the backend closes; `readOnce` begins it again.
   readonly stop: () => void
@@ -36,8 +37,9 @@ export const createRunnerWorks = (
   track: <T>(work: Promise<T>) => Promise<T> = (work) => work,
 ): RunnerWorks => {
   const state = createStore<WorksState>({ works: [], synced: false, reported: false })
-  // The worktrees made since the backend began, counted by project for as long as it lives: the
-  // stream carries one small event per worktree and the runner reads no git for it.
+  // The worktrees made since the backend started, counted by project for as long as it lives:
+  // the stream carries one small event per worktree and the runner reads no git for it. Followed
+  // from `readOnce`, so a backend made and never started (StrictMode's throwaway) holds none.
   const made = createStore<WorksMade>(new Map())
   let madeStream: AsyncIterableIterator<unknown, undefined> | undefined
   const followMade = (): void => {
@@ -48,7 +50,6 @@ export const createRunnerWorks = (
       made.update((counts) => madeOne(counts, projectId))
     })
   }
-  followMade()
   // By root.
   const held = new Map<string, Work>()
   // The works of a sequence the runner has yet to finish with `synced`; until then `held` stays.
@@ -182,10 +183,10 @@ export const createRunnerWorks = (
     fetch: (projectId) => track(calls.fetch(projectId)),
   }
   const readOnce = (): void => {
+    followMade()
     if (stopped) {
       // Started again: what the watchers still hold is followed afresh.
       stopped = false
-      followMade()
       if (watchers > 0) follow()
     }
     if (reported || readDone) return
