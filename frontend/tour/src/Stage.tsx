@@ -438,16 +438,19 @@ const CaptionBox = ({
   readonly clear: readonly Box[]
 }): React.JSX.Element => {
   const box = useRef<HTMLElement>(null)
-  // Shown a moment after what the step marks is on the page (at once where it marks nothing),
-  // and from then on.
+  // Shown a moment after what the step marks first shows on the page (a moment after it comes,
+  // where it marks nothing), and from then on. Counted from the first time only: a mark the
+  // view drops for a moment, as windows come and the camera reframes, doesn't start it over.
   const marks = coach.look !== undefined || (coach.click?.length ?? 0) > 0
   const pointed = !marks || scene.subject !== null
+  const [pointedOnce, setPointedOnce] = useState(false)
+  if (pointed && !pointedOnce) setPointedOnce(true)
   const [shown, setShown] = useState(false)
   useEffect(() => {
     if (shown) return
-    const timer = setTimeout(() => setShown(true), pointed ? holdMs : holdAtMostMs)
+    const timer = setTimeout(() => setShown(true), pointedOnce ? holdMs : holdAtMostMs)
     return () => clearTimeout(timer)
-  }, [pointed, shown])
+  }, [pointedOnce, shown])
   const [place, setPlace] = useState<{ readonly left: number; readonly top: number } | null>(null)
   useLayoutEffect(() => {
     const element = box.current

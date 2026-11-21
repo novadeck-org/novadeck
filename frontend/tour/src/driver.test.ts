@@ -254,14 +254,33 @@ describe("The tour's story", () => {
     ])
   })
 
-  it("waits for both teammates to be there and named", () => {
+  // A step done in moments stays a while, for its caption to be read, then the run moves on.
+  const heldThen = (id: string, story: Partial<TourSignals>) => {
+    const done = feed(atStep(id), story)
+    const later = (now: number) =>
+      stepRun(
+        done.run!,
+        tourSteps,
+        { type: "tick", signals: signals(quiet, true, story), now },
+        patience,
+      ).run
+    return { done: done.run, during: later(2_000), after: later(3_001) }
+  }
+
+  it("waits for both teammates to be there and named, then stays a moment", () => {
     expect(feed(atStep("team"), { team: { count: 2, named: 1 } }).run?.step).toBe(1)
-    expect(feed(atStep("team"), { team: { count: 2, named: 2 } }).run?.step).toBe(2)
+    const { done, during, after } = heldThen("team", { team: { count: 2, named: 2 } })
+    expect(done).toMatchObject({ step: 1, doneAt: 1 })
+    expect(during?.step).toBe(1)
+    expect(after?.step).toBe(2)
   })
 
-  it("waits for the team to talk", () => {
+  it("waits for the team to talk, then stays a moment", () => {
     expect(feed(atStep("talk"), { talks: 0 }).run?.step).toBe(2)
-    expect(feed(atStep("talk"), { talks: 1 }).run?.step).toBe(3)
+    const { done, during, after } = heldThen("talk", { talks: 1 })
+    expect(done).toMatchObject({ step: 2, doneAt: 1 })
+    expect(during?.step).toBe(2)
+    expect(after?.step).toBe(3)
   })
 
   it("takes a question gone from the Inbox, once seen, as the person's answer", () => {

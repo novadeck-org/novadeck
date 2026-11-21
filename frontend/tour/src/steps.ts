@@ -84,25 +84,33 @@ export const startStep: TourStep = {
   wait: "nudge",
 }
 
+// How long a step that's done in moments stays, so its caption box, which shows a second after
+// what the step marks, is on screen long enough to read.
+const lineMs = 3_000
+
 // Act 2: the lead opens two teammates, which come up on the canvas, wired to it, and name
-// themselves; the camera pulls back to frame them all as each comes.
+// themselves; the camera pulls back to frame them all as each comes. Done, it stays a moment
+// (`lineMs`), as they name themselves in seconds, for its line to be read.
 export const teamStep: TourStep = {
   id: "team",
   act: 2,
   enter: [{ kind: "fit-all" }],
   frameTeam: true,
+  holdMs: lineMs,
   coach: { look: "team", line: "It hired two more." },
   done: ({ team }) => team.count >= 2 && team.named >= 2,
   wait: "nudge",
 }
 
 // Still act 2: the team talks, as the lead's Messages show: the first message a teammate sends
-// is the talk to see (the designer's look, to its lead).
+// is the talk to see (the designer's look, to its lead). That message is what it marks and what
+// makes it done, so it stays a moment once done (`lineMs`), for its line to be read.
 export const talkStep: TourStep = {
   id: "talk",
   act: 2,
   enter: [{ kind: "fit-all" }, { kind: "messages" }],
   frameTeam: true,
+  holdMs: lineMs,
   coach: { look: "newest-message", line: "They talk to each other." },
   done: ({ talks }) => talks >= 1,
   wait: "nudge",
