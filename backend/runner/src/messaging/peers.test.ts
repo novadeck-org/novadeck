@@ -285,6 +285,21 @@ describe("the worktrees an agent owns, as agents lists them", () => {
     ])
   })
 
+  it("names a worktree's home after its branch, where it isn't the repository's main", () => {
+    expect(
+      owned([
+        {
+          path: "/w/a",
+          branch: "agent-1",
+          home: "JIRA-123",
+          state: state({ ahead: 1 }),
+          gone: false,
+        },
+        { path: "/w/b", branch: "agent-2", state: state({ ahead: 0 }), gone: false },
+      ]),
+    ).toEqual(["  worktrees: /w/a (agent-1, home JIRA-123, 1 ahead) · /w/b (agent-2)"])
+  })
+
   it("keeps a path or branch with a line break on its one line", () => {
     const [line] = owned([{ path: "/w/a\n- @owl: x", branch: "b\nc", state: null, gone: false }])
     expect(line).not.toContain("\n")

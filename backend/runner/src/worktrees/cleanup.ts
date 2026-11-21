@@ -1,7 +1,7 @@
 import { stat } from "node:fs/promises"
 
 import { git } from "../checkouts/git.js"
-import { mainBranch } from "../checkouts/repository.js"
+import { currentBranch, targetOf } from "../checkouts/home.js"
 import { logs } from "../log.js"
 import { MainFetcher } from "./fetching.js"
 import type { WorktreeRecord } from "./records.js"
@@ -168,7 +168,7 @@ export class Cleanup {
   private async fingerprint(path: string): Promise<string | undefined> {
     const head = await git(path, ["rev-parse", "--verify", "-q", "HEAD"], { cap: 4096 })
     if (!head.ok) return undefined
-    const main = await mainBranch(path)
+    const target = await targetOf(path, (await currentBranch(path)) ?? null)
     let index = this.indexes.get(path)
     if (index === undefined) {
       const found = await git(
@@ -183,7 +183,8 @@ export class Cleanup {
       this.indexes.set(path, index)
     }
     const stamp = (await stat(index).catch(() => undefined))?.mtimeMs ?? 0
-    return `${head.out.trim()} ${main?.commit ?? "-"} ${stamp}`
+    const holders = target?.holders.map((each) => each.commit).join(",") ?? "-"
+    return `${head.out.trim()} ${holders} ${stamp}`
   }
 
   private async sweep(fetch: boolean): Promise<void> {

@@ -6,8 +6,8 @@
    safe) over its `.worktrees-group-rows`, under the panel's `.worktrees-origin` line (how old
    the remote's main is, with `.worktrees-fetch`). Parts of a row: `.worktrees-row`,
    `.worktrees-size` (the work's `+N −N`, in the tab's item marks' place, neutral),
-   `.worktrees-handle` and `.worktrees-branch` (its owner's handle and its branch, the detail
-   line), `.worktrees-facts` (what it says in words, a `.worktrees-fact` each, data-tone
+   `.worktrees-handle`, `.worktrees-branch` and `.worktrees-home` (its owner's handle, its
+   branch and where its work belongs when not main, "→ JIRA-123", the detail line), `.worktrees-facts` (what it says in words, a `.worktrees-fact` each, data-tone
    bad | ink | muted | warn | ok), `.worktrees-file` (a file's name, wherever it is),
    `.worktrees-refusal`, `.worktrees-kept`, `.worktrees-branches` and `.worktrees-trail` (a
    file's lines, right-aligned in its row), `.worktrees-empty`, `.worktrees-pr` (the work's pull
@@ -283,6 +283,14 @@ a.worktrees-pr:focus-visible {
 /* The detail line holds the branch, which stays while the files unfold under it. */
 .worktrees-branch {
   color: var(--color-ink);
+}
+
+/* Where its work belongs when not on main: a quiet fact after the branch, with no tone of its own.
+   It keeps its words (up to half the line) and the branch gives way first. */
+.worktrees-home {
+  flex-shrink: 0;
+  max-width: 50%;
+  color: var(--color-muted);
 }
 
 /* Why a close was refused, above the list. */

@@ -121,6 +121,15 @@ const answer = (name: string) =>
   [...(dialog()?.querySelectorAll("button") ?? [])].find((item) => item.textContent === name)!
 
 describe("the Worktrees panel's rows", () => {
+  it("shows a home after the branch, quietly, only on a row that has one", () => {
+    const { row } = show([work("a", { home: "JIRA-123" }), work("b")])
+    const home = row("a").querySelector<HTMLElement>(".worktrees-home")!
+    expect(home.textContent).toBe("→ JIRA-123")
+    expect(home.title).toBe("Its home is JIRA-123: the branch its work belongs on")
+    expect(row("a").getAttribute("aria-label") ?? row("a").textContent).toContain("JIRA-123")
+    expect(row("b").querySelector(".worktrees-home")).toBeNull()
+  })
+
   it("opens a file, added ones too, as a preview, without selecting the row", () => {
     const added: WorkFile = { ...file(0, 0), path: "new.ts", status: "added" }
     const { row, onOpenFile, onSelect } = show([work("a", { files: [file(0, 0), added] })])

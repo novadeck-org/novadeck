@@ -1659,6 +1659,8 @@ type Worktree = {
   readonly origin?: "current" | "unchecked" | "gone"
   readonly tracking?: boolean
   readonly instructions?: readonly string[]
+  /** open_worktree and take_worktree: the branch its work belongs on. */
+  readonly home?: string
   readonly already?: true
   readonly asked?: true
   readonly owner?: string
@@ -1703,7 +1705,10 @@ const openWorktree: Tool<Worktree> = {
     "if this checkout is on a main that is behind it, else this checkout's HEAD). Name the branch as the repository's conventions and instructions say. " +
     "repo is a folder in the repository when your terminal isn't in it; give the same " +
     "group to the worktrees of several repositories for one piece of work, and they share " +
-    "a folder. The answer lists the worktree's instruction files (AGENTS.md, CLAUDE.md, " +
+    "a folder. Its home, the branch its work belongs on, is home when given, else the branch " +
+    "from names, else the repository's main: Novadeck measures its work, and whether it is " +
+    "merged, against its home and the main branch, and the answer says it. " +
+    "The answer lists the worktree's instruction files (AGENTS.md, CLAUDE.md, " +
     "GEMINI.md): your harness doesn't load them from here, so read them. Work there with " +
     "absolute paths and git -C, never cd and then git. Refused while the user has agent " +
     "worktrees off.",
@@ -1730,12 +1735,19 @@ const openWorktree: Tool<Worktree> = {
         description:
           "Names the folder shared by one piece of work's repositories; the branch's name when left out.",
       },
+      home: {
+        type: "string",
+        description:
+          "The branch the worktree's work belongs on, here or on origin (as x or origin/x), " +
+          "such as a feature branch several worktrees start from; when left out, the branch " +
+          "from names, else the repository's main.",
+      },
     },
     required: ["branch"],
     additionalProperties: false,
   },
   call: "openWorktree",
-  request: (args) => picked(args, ["branch", "repo", "from", "group"]),
+  request: (args) => picked(args, ["branch", "repo", "from", "group", "home"]),
   said: (answer) =>
     "Opened the worktree " +
     answer.path +
@@ -1743,6 +1755,7 @@ const openWorktree: Tool<Worktree> = {
     (answer.existing ? "the existing branch " : "the new branch ") +
     answer.branch +
     originSaid(answer) +
+    (answer.home === undefined ? "" : ", home " + answer.home) +
     ". You own it. Work there with absolute paths and git -C " +
     answer.path +
     ", never cd and then git. " +
@@ -1779,12 +1792,18 @@ const takeWorktree: Tool<Worktree> = {
         description:
           "The worktree's folder, absolute or relative to this terminal's current directory.",
       },
+      home: {
+        type: "string",
+        description:
+          "Sets the worktree's home, the branch its work belongs on (here or on origin), when " +
+          "it is yours by this call, your own included; when left out, its home stays.",
+      },
     },
     required: ["path"],
     additionalProperties: false,
   },
   call: "takeWorktree",
-  request: (args) => picked(args, ["path"]),
+  request: (args) => picked(args, ["path", "home"]),
   said: (answer) =>
     answer.asked
       ? "Asked the user to let you take the worktree " +
@@ -1796,11 +1815,17 @@ const takeWorktree: Tool<Worktree> = {
         ". It is yours only if they agree, and Novadeck tells you either way, as a message " +
         "once your turn ends."
       : answer.already
-        ? "The worktree " + answer.path + " (branch " + answer.branch + ") is yours already."
+        ? "The worktree " +
+          answer.path +
+          " (branch " +
+          answer.branch +
+          (answer.home === undefined ? "" : ", home " + answer.home) +
+          ") is yours already."
         : "You now own the worktree " +
           answer.path +
           " (branch " +
           answer.branch +
+          (answer.home === undefined ? "" : ", home " + answer.home) +
           ")" +
           (answer.from ? ", which " + mention(answer.from) + " owned and is told" : "") +
           ". Work there with absolute paths and git -C, never cd and then git, and read its " +
@@ -1813,12 +1838,12 @@ const closeWorktree: Tool<Worktree> = {
   name: "close_worktree",
   description:
     "Remove a git worktree you own, with its folder, when its work is done or merged. It is " +
-    "refused while the worktree holds uncommitted or untracked files, or commits the main " +
-    "branch doesn't have; commit or push what matters first. force closes it anyway: " +
+    "refused while the worktree holds uncommitted or untracked files, or commits neither its " +
+    "home nor the main branch has; commit or push what matters first. force closes it anyway: " +
     "uncommitted and untracked files are kept as a commit on a ref the answer names, but " +
     "ignored files (such as .env or generated data) are not kept and go with the folder, " +
-    "and a branch with commits stays. A branch is deleted only if Novadeck made it and the " +
-    "main branch holds all of it. A worktree Novadeck can't read, with submodules, or with " +
+    "and a branch with commits stays. A branch is deleted only if Novadeck made it and its " +
+    "home or the main branch holds all of it. A worktree Novadeck can't read, with submodules, or with " +
     "an untracked git repository of its own inside holding work no remote has, is never closed. Only the owner may close a worktree. Refused while the user has agent " +
     "worktrees off.",
   inputSchema: {
@@ -1850,7 +1875,7 @@ const closeWorktree: Tool<Worktree> = {
       : "") +
     (answer.keptHead ? "Commits only its HEAD reached are kept on " + answer.keptHead + ". " : "") +
     (answer.branchDeleted
-      ? "Its branch " + answer.branch + " is deleted, as the main branch holds all of it."
+      ? "Its branch " + answer.branch + " is deleted, as its home holds all of it."
       : "Its branch " + answer.branch + " stays."),
   failed: "Novadeck couldn't close the worktree.",
 }

@@ -141,14 +141,23 @@ const busyTip = "Its agent is working in this worktree. Close it once the turn e
 const closeTip = (row: ChangeRow): string =>
   row.close === "busy" ? busyTip : `Close the ${row.branch} worktree`
 
-// The row's detail line: its owner's handle, then its branch, cut in the middle where it runs
-// long so both its start and its end show.
+// The row's detail line: its owner's handle, then its branch, then, where its work belongs on
+// another branch than main, "→ home", quiet and cut at its end where it is long (the branch gives way first).
 const BranchLine = ({ row }: { row: ChangeRow }): React.JSX.Element => (
   <>
     {row.handle && <span className="worktrees-handle shrink-0">{row.handle}</span>}
     <span className="worktrees-branch min-w-0 truncate" title={row.branch}>
       {row.branch}
     </span>
+    {row.home && (
+      <span
+        className="worktrees-home truncate"
+        title={`Its home is ${row.home}: the branch its work belongs on`}
+      >
+        <span aria-hidden>→ </span>
+        {row.home}
+      </span>
+    )}
   </>
 )
 
@@ -272,6 +281,7 @@ const ChangeItem = ({
     row.title,
     row.handle,
     row.branch,
+    row.home && `its home is ${row.home}`,
     files,
     linesWords(work),
     // Lowercased to run on in the label, but not an initialism ("CI failing", "PR closed").

@@ -60,6 +60,11 @@ export const workConflict = z.discriminatedUnion("with", [
 // Absent where the repository's top is neither inside nor above the project's folder.
 // `pullRequest` is its branch's pull request on its repository's forge, where a forge the person
 // switched on found one (forges.ts); absent where none did, or none could be asked.
+// `home` is the branch its work belongs on where it isn't the repository's main: the one it
+// was opened with as `home` or `from` (git config `branch.<branch>.novadeckHome`, see
+// architecture/worktree-home.md); absent where home is the repository's main, as for most work.
+// `base` is then what home is measured by: home's remote-tracking branch where that holds local
+// home, else local home.
 // `uncommitted` is how many paths hold changes not committed (staged, unstaged or untracked,
 // not ignored); `unpushed` how many of HEAD's commits no remote-tracking branch holds (all of
 // its own where nothing was pushed). `safe` where closing it leaves nothing that lives only
@@ -73,6 +78,7 @@ export const work = z.strictObject({
   working: z.boolean(),
   branch: z.string().min(1).max(workLimits.branch).nullable(),
   base: z.string().min(1).max(workLimits.branch),
+  home: z.string().min(1).max(workLimits.branch).optional(),
   firstSeenAt: z.number(),
   merged: z.boolean(),
   fetchedAt: z.number().optional(),

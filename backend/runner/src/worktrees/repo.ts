@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { basename, dirname, join, resolve } from "node:path"
 
 import { git, type Run } from "../checkouts/git.js"
+import { currentBranch, targetOf } from "../checkouts/home.js"
 import {
   commonDir,
   landedIn,
@@ -140,10 +141,17 @@ export const addWorktree = (
     { ...small, ms: addMs },
   )
 
-/** What a worktree holds that the main branch doesn't. */
+/** What a worktree holds that its home doesn't. */
 export type Standing = {
-  /** The main branch it is measured against; undefined where the repository has none. */
+  /**
+   * What it is measured against: home (see `targetOf`), else the repository's main; undefined
+   * where there is neither.
+   */
   readonly main: Main | undefined
+  /** Every branch whose holding its work makes the work home: home, home's remote one, main. */
+  readonly holders: readonly Main[]
+  /** Home's name, where it isn't the repository's main (see `targetOf`). */
+  readonly home?: string
   /**
    * Whether git could say what the worktree holds. Where it couldn't (a timeout, output too
    * long, any error), nothing else here is known, and a worktree is never removed on it.
@@ -153,11 +161,12 @@ export type Standing = {
   readonly why: string
   /** How many paths are changed or untracked (an untracked folder counts once). */
   readonly dirty: number
-  /** Commits on HEAD that the main branch doesn't have; null where that can't be told. */
+  /** Commits on HEAD that home doesn't have; null where that can't be told. */
   readonly ahead: number | null
   /**
-   * Whether the main branch holds all of HEAD: HEAD is its ancestor, or merging HEAD into it
-   * changes nothing (a squash or rebase merge). Then there is nothing beyond it to lose.
+   * Whether a holder (home, home's remote one or the repository's main) holds all of HEAD: HEAD
+   * is its ancestor, or merging HEAD into it changes nothing (a squash or rebase merge). Then
+   * there is nothing beyond it to lose.
    */
   readonly inMain: boolean
 }
@@ -171,10 +180,15 @@ export const standingOf = async (path: string): Promise<Standing> => {
     cap: 16 * 1024 * 1024,
     ms: statusMs,
   })
-  const main = await mainBranch(path)
+  const target = await targetOf(path, (await currentBranch(path)) ?? null)
+  const main = target?.main
+  const holders = target?.holders ?? []
+  const home = target?.home === undefined ? {} : { home: target.home }
   if (!status.ok)
     return {
       main,
+      holders,
+      ...home,
       readable: false,
       why: status.kind === "big" ? "its status is too long to read" : said(status),
       dirty: 0,
@@ -182,12 +196,14 @@ export const standingOf = async (path: string): Promise<Standing> => {
       inMain: false,
     }
   const dirty = status.out.split("\0").filter((each) => each !== "").length
-  if (!main) return { main, readable: true, why: "", dirty, ahead: null, inMain: false }
+  if (!main)
+    return { main, holders, ...home, readable: true, why: "", dirty, ahead: null, inMain: false }
   const count = line(await git(path, ["rev-list", "--count", `${main.commit}..HEAD`], small))
   const ahead = count === undefined ? null : Number(count)
-  // Commits main lacks by hash may still be in it by content: squash- and rebase-merged.
-  const inMain = ahead === 0 || (ahead !== null && (await mergedInto(path, "HEAD", main)))
-  return { main, readable: true, why: "", dirty, ahead, inMain }
+  // Commits home lacks by hash may still be in it by content (squash- and rebase-merged), or in
+  // another holder.
+  const inMain = ahead === 0 || (ahead !== null && (await heldByAny(path, "HEAD", holders)))
+  return { main, holders, ...home, readable: true, why: "", dirty, ahead, inMain }
 }
 
 /**
@@ -273,6 +289,18 @@ export const heldByMain = async (folder: string, ref: string, main: Main): Promi
   line(await git(folder, ["rev-list", "--count", `${main.commit}..${ref}`], small)) === "0" ||
   (await mergedInto(folder, ref, main))
 
+/** Whether one of `holders` holds all of `ref`, as `heldByMain` tells it. */
+export const heldByAny = async (
+  folder: string,
+  ref: string,
+  holders: readonly Main[],
+): Promise<boolean> => {
+  for (const holder of holders)
+    // eslint-disable-next-line no-await-in-loop -- Few holders, the first that holds it.
+    if (await heldByMain(folder, ref, holder)) return true
+  return false
+}
+
 /** The commit a worktree adopted from elsewhere started from: where it left the main branch. */
 export const startOf = async (path: string): Promise<string> => {
   const main = await mainBranch(path)
@@ -351,13 +379,14 @@ export const keepWork = async (path: string, branch: string): Promise<string | u
 
 /**
  * Keeps HEAD when only it reaches some commits: a detached HEAD, or a rebase stopped midway,
- * leaves commits that neither the branch nor the main branch holds. Its ref, undefined when
- * the branch or the main branch holds all of HEAD, and null where git couldn't tell.
+ * leaves commits that neither the branch nor a holder (home, home's remote one, the main branch)
+ * holds. Its ref, undefined when the branch or a holder holds all of HEAD, and null where git
+ * couldn't tell.
  */
 export const keepStrayHead = async (
   path: string,
   branch: string,
-  main: Main | undefined,
+  holders: readonly Main[],
 ): Promise<string | undefined | null> => {
   const head = await commitAt(path, "HEAD")
   if (head === undefined) return null
@@ -369,9 +398,14 @@ export const keepStrayHead = async (
     return run.kind === "exit" && run.status === 1 ? false : null
   }
   const inBranch = await held(tip)
-  const inMain = await held(main?.commit)
-  if (inBranch === null || inMain === null) return null
-  if (inBranch || inMain) return undefined
+  if (inBranch === null) return null
+  if (inBranch) return undefined
+  for (const holder of holders) {
+    // eslint-disable-next-line no-await-in-loop -- Few holders, the first that holds it.
+    const inHolder = await held(holder.commit)
+    if (inHolder === null) return null
+    if (inHolder) return undefined
+  }
   return (await keepCommit(path, branch, "head", head)) ?? null
 }
 

@@ -16,6 +16,7 @@ import {
 import { KeyedChanges } from "@novadeck/wire/server"
 
 import { waitAfter } from "../checkouts/git.js"
+import { targetOf, type Target } from "../checkouts/home.js"
 import { listChanges, type Listed } from "../checkouts/listing.js"
 import {
   branchOf,
@@ -151,6 +152,8 @@ type Read = {
   readonly tree: string
   readonly branch: string | null
   readonly base: string
+  /** Home's name, where the branch's key names one that isn't the repository's main. */
+  readonly home: string | undefined
   /** Nothing differs and it has commits of its own that main holds: its work was merged. */
   readonly merged: boolean
   readonly changed: ReadonlyMap<string, Lines>
@@ -788,8 +791,10 @@ export class Works {
   }
 
   /**
-   * What the checkout differs from main by (nothing, once merging it changes nothing), null
-   * when its repository has no main branch, "keep" when git failed and what was known stands.
+   * What the checkout differs from its target by (home, or the repository's main: see
+   * `targetOf`; nothing, once merging it changes nothing), null when there is nothing to measure
+   * by, "keep" when git failed and what was known stands. `start` is the row's start commit,
+   * which the branch's own key overrides.
    */
   private async read(
     root: string,
@@ -797,15 +802,20 @@ export class Works {
     start: string | undefined,
     fresh = false,
   ): Promise<Read | null | "keep"> {
-    const main = await mainBranch(root)
-    if (!main) return null
+    const branch = await branchOf(root)
+    const target = await targetOf(root, branch)
+    if (!target) return null
+    const { main } = target
+    const from = target.base ?? start
     return this.options.snapshots.use(root, async (checkout) => {
       const snapshot = await checkout.take(fresh)
       if (!snapshot || snapshot.head === "") return "keep"
-      const branch = await branchOf(root)
       const watermark = state.remembered?.watermark ?? null
       const key = [
         main.commit,
+        // Another holder's move can make the work home without moving what it is measured by.
+        target.holders.map((each) => each.commit).join(","),
+        target.home,
         snapshot.tree,
         branch,
         watermark,
@@ -817,21 +827,29 @@ export class Works {
         snapshot.generation,
         // Commits that change no file leave the tree as it was, and make a work merged.
         snapshot.head,
-        start,
+        from,
       ].join(" ")
       // What the remotes hold moves without the key: a push, a fetch.
       const unpushed = await unpushedOf(root)
       if (state.read?.key === key) return { ...state.read, unpushed }
-      return this.measure(root, state, { main, snapshot, branch, watermark, key, start, unpushed })
+      return this.measure(root, state, {
+        target,
+        snapshot,
+        branch,
+        watermark,
+        key,
+        start: from,
+        unpushed,
+      })
     })
   }
 
-  /** What a snapshot of the checkout differs from main by, and what of it is unread. */
+  /** What a snapshot of the checkout differs from its target by, and what of it is unread. */
   private async measure(
     root: string,
     state: RootState,
     {
-      main,
+      target,
       snapshot,
       branch,
       watermark,
@@ -839,7 +857,7 @@ export class Works {
       start,
       unpushed,
     }: {
-      readonly main: Main
+      readonly target: Target
       readonly snapshot: Snapshot
       readonly branch: string | null
       readonly watermark: string | null
@@ -848,6 +866,9 @@ export class Works {
       readonly unpushed: number | undefined
     },
   ): Promise<Read | "keep"> {
+    const { main } = target
+    const others = target.holders.filter((each) => each.commit !== main.commit)
+    const home = target.home
     const uncommitted = await uncommittedOf(root, snapshot)
     const commit = await snapshotCommit(root, snapshot.tree, snapshot.head, snapshot.env)
     if (!commit) return "keep"
@@ -858,6 +879,7 @@ export class Works {
       tree: snapshot.tree,
       branch,
       base: main.name,
+      home,
       merged,
       changed: new Map(),
       kinds: new Map(),
@@ -871,10 +893,15 @@ export class Works {
       env: snapshot.env,
     })
     const nothing = async (): Promise<Read | "keep"> => {
-      const merged = await mergedWork(root, main, snapshot.head, start)
-      // Git failing is not an answer: what was told stands, and the next pass reads it again.
-      if (merged === undefined) return "keep"
-      return quiet(merged)
+      // Merged into any holder: home, home's remote one or the repository's main.
+      for (const holder of [main, ...others]) {
+        // eslint-disable-next-line no-await-in-loop -- Mostly one holder; the first that says so.
+        const merged = await mergedWork(root, holder, snapshot.head, start)
+        // Git failing is not an answer: what was told stands, and the next pass reads it again.
+        if (merged === undefined) return "keep"
+        if (merged) return quiet(true)
+      }
+      return quiet(false)
     }
     const merge = await mergeTrees(root, main.commit, commit, snapshot.env)
     if (merge.state === "clean" && merge.tree === main.tree) return nothing()
@@ -893,6 +920,9 @@ export class Works {
       (await landedIn(root, main, commit, snapshot.env)) !== undefined
     )
       return quiet(true)
+    // It differs from home, but another holder has all of it: the repository's main, where it
+    // reached main some other way (a stacked pull request retargeted to main), or home's other side.
+    if (await heldByAny(root, others, commit, snapshot.env)) return quiet(true)
     let unread: ReadonlyMap<string, Lines> | undefined
     if (watermark !== null) {
       const since = await listChanges(root, watermark, snapshot.tree, snapshot.env)
@@ -910,6 +940,7 @@ export class Works {
       tree: snapshot.tree,
       branch,
       base: main.name,
+      home,
       merged: false,
       changed,
       kinds: kindsOf(listed),
@@ -998,6 +1029,7 @@ export class Works {
           ),
         branch: read.branch,
         base: read.base,
+        ...(read.home !== undefined && { home: read.home }),
         merged: read.merged,
         // Only a main that a fetch moves (a remote-tracking ref) is as old as the fetch.
         ...(fetchedAt !== undefined && read.base.startsWith("origin/") && { fetchedAt }),
@@ -1133,4 +1165,25 @@ export class Works {
       ),
     )
   }
+}
+
+/**
+ * Whether one of `holders` already has all of `commit`: merging it in changes nothing, or it
+ * conflicts only because the holder changed the same lines again after the work landed in it.
+ */
+const heldByAny = async (
+  root: string,
+  holders: readonly Main[],
+  commit: string,
+  env: NodeJS.ProcessEnv | undefined,
+): Promise<boolean> => {
+  for (const holder of holders) {
+    // eslint-disable-next-line no-await-in-loop -- Few holders, the first that holds it.
+    const merge = await mergeTrees(root, holder.commit, commit, env)
+    if (merge.state === "clean" && merge.tree === holder.tree) return true
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    if (merge.state === "conflict" && (await landedIn(root, holder, commit, env)) !== undefined)
+      return true
+  }
+  return false
 }

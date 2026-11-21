@@ -147,6 +147,16 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
               },
             },
             {
+              label: "Work with a home",
+              hint: 'Open Worktrees: the selected terminal\'s row (made now if it had no worktree) says "→ JIRA-123" after its branch, muted; hover it: its home is JIRA-123, the branch its work belongs on. Run again to take it away',
+              run: ({ selected, workspace }) => {
+                const key = selected()
+                if (!key) return
+                const at = placed(workspace(), key)
+                works.setHome(at, works.ownedBy(key.terminalId)?.home ? undefined : "JIRA-123")
+              },
+            },
+            {
               label: "Origin fetched 3 h ago",
               hint: "Open Worktrees: the selected terminal's row (made now if it had no worktree) is measured against origin/main fetched 3 h ago, so the panel's top line reads origin/main, 3 h ago in amber, with Fetch; Fetch brings it to just now",
               run: ({ selected, workspace }) => {

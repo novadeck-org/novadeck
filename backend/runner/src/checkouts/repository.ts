@@ -44,14 +44,23 @@ export const mainBranch = async (root: string): Promise<Main | undefined> => {
   ]
   for (const ref of candidates) {
     // eslint-disable-next-line no-await-in-loop -- The first that exists is the one.
-    const commit = line(await git(root, ["rev-parse", "--verify", "-q", `${ref}^{commit}`], small))
-    if (!commit) continue
-    // eslint-disable-next-line no-await-in-loop -- Only the one found is asked for its tree.
-    const tree = line(await git(root, ["rev-parse", "--verify", "-q", `${commit}^{tree}`], small))
-    if (!tree) continue
-    return { name: cutName(ref.replace(/^refs\/(?:remotes|heads)\//, "")), commit, tree }
+    const found = await branchAt(root, ref)
+    if (found) return found
   }
   return undefined
+}
+
+/**
+ * A branch as a work is measured against it, by its full ref (`refs/heads/x` or
+ * `refs/remotes/origin/x`): named `x` or `origin/x`, with its commit and tree; undefined where
+ * the ref names no commit.
+ */
+export const branchAt = async (root: string, ref: string): Promise<Main | undefined> => {
+  const commit = line(await git(root, ["rev-parse", "--verify", "-q", `${ref}^{commit}`], small))
+  if (!commit) return undefined
+  const tree = line(await git(root, ["rev-parse", "--verify", "-q", `${commit}^{tree}`], small))
+  if (!tree) return undefined
+  return { name: cutName(ref.replace(/^refs\/(?:remotes|heads)\//, "")), commit, tree }
 }
 
 /** A checkout on its repository's main branch with the remote's main ahead of it. */

@@ -97,6 +97,8 @@ export type ChangeRow = {
   readonly safe: boolean
   // The branch, or "detached".
   readonly branch: string
+  // The branch its work belongs on, where that is not main; none for most.
+  readonly home: string | undefined
   readonly close: CloseMode
   // It conflicts, and was not merged.
   readonly conflict: boolean
@@ -165,8 +167,8 @@ export const ownerTitle = (
   titles: ReadonlyMap<string, string>,
 ): string => (terminalId === null ? "No owner" : (titles.get(terminalId) ?? "Closed terminal"))
 
-// What a work conflicts with, in words: main, and the other works by their owners' titles
-// (or, with none, their branches).
+// What a work conflicts with, in words: main (or the home it is measured against), and the
+// other works by their owners' titles (or, with none, their branches).
 export const conflictWords = (
   work: Work,
   titles: ReadonlyMap<string, string>,
@@ -327,7 +329,8 @@ export const changeRows = (
   orderedWorks(works).map((work) => {
     const files = orderedFiles(work.files)
     // Done (merged, or its pull request closed) wins over a conflict, as its group and icon say.
-    const words = groupOf(work) === "done" ? undefined : conflictWords(work, titles, works)
+    const words =
+      groupOf(work) === "done" ? undefined : conflictWords(work, titles, works, work.home ?? "main")
     return {
       work,
       title: ownerTitle(work.terminalId, titles),
@@ -337,6 +340,7 @@ export const changeRows = (
       facts: factsOf(work, titles, works, forges),
       safe: work.safe === true,
       branch: work.branch ?? "detached",
+      home: work.home,
       close: closeMode(work),
       conflict: words !== undefined,
       conflictWords: words,

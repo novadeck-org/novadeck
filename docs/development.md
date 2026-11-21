@@ -326,7 +326,7 @@ Terminals:
   rows' safe-to-close standing reads (a failing, a running and a passed check, a draft with none, a
   merged and a closed one that are safe, and docs-site's merged one holding two uncommitted files); New lines,
   Many files and Work merged move those counts too. Commits not pushed gives the worktree 2 commits no
-  remote holds, Uncommitted files 3 uncommitted paths (a merged one then reads unsafe), and Origin
+  remote holds, Work with a home adds "→ JIRA-123" after its branch (again to remove it), Uncommitted files 3 uncommitted paths (a merged one then reads unsafe), and Origin
   fetched 3 h ago dates its fetch three hours back; Commits main lacks is not merged because a merged one with nothing
   uncommitted is safe, and closes without asking. The demo's
   fetch moves its project's fetch time to now. In the showcase, selecting a row shows its work as a changes item on the terminal's

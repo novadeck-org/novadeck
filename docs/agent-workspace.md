@@ -954,7 +954,26 @@ with every safety check again at that time:
   common dir, branch, the commit it `base`d on, project, owner terminal (plain text: a live
   terminal or one in History, null once orphaned), whether it was `adopted` and whether Novadeck made
   its branch (`branch_made`). A terminal may own several, and ownership moves only through agents.
-  - **`open_worktree({ branch, repo?, from?, group? })`** checks out the branch if it exists
+  - **A worktree's home** is the branch its work belongs on (`checkouts/home.ts`; design in the
+    workspace's `architecture/worktree-home.md`). Git keeps it, not the table: the runner writes
+    `branch.<branch>.novadeckHome` in the repository's own config (shared by its worktrees, never
+    committed or pushed), with `novadeckBase` (the commit it started from) and `novadeckMade`
+    (Novadeck made the branch) beside it, so git moves them with a renamed branch and drops them
+    with a deleted one, and plain `git config` reads them in any harness. Only the runner writes
+    them, as an agent's sandbox may hold `.git` read-only. Home is the `home` an agent gives
+    (`open_worktree` or `take_worktree`, a branch here or `origin/<b>`), else the branch `from`
+    names, else the repository's main, for which no key is written: no key means exactly the
+    measure before homes (`mainBranch`). A worktree with a home is measured against it (its
+    remote-tracking branch where that holds local home, else local home) by the Worktrees
+    panel (`Work.home`, `base`), the changes item and `close_worktree`, and its work counts as
+    home once home, home's remote-tracking branch or the repository's main holds it, so a
+    stacked pull request retargeted to main reads merged too. The open and take answers, the
+    give notice and `agents` (where it isn't main) say it. At start, `reconcile` carries a row's
+    `base` and `branch_made` into keys its branch lacks, only while the row's branch is the one
+    checked out there. Keys are read with one `git config --get-regexp` per repository, again
+    only when its config file changes; a write retries while `config.lock` is held, and one
+    that fails is logged and never fails the call.
+  - **`open_worktree({ branch, repo?, from?, group?, home? })`** checks out the branch if it exists
     locally, or runs `git worktree add -b` from `from`. Left out, `from` is origin's branch of that
     name where `refs/remotes/origin/<branch>` exists, which the new branch then tracks
     (`git branch --set-upstream-to`), as a teammate's pull request branch, fetched but never checked
@@ -989,7 +1008,7 @@ with every safety check again at that time:
     `show { changes: { path } }` updates its item, with `open` when the work is done. An
     unopened item's detail is the count as of its last show: only a read the pane triggers
     brings it up to date.
-  - **`take_worktree({ path })`** records a linked worktree some other tool made, as adopted;
+  - **`take_worktree({ path, home? })`** records a linked worktree some other tool made, as adopted;
     takes one with no owner, or whose owner terminal exists neither live nor in History, at
     once; and, for one another existing terminal owns, asks the person (a `take` approval
     aimed at the owner, `{ type: "take", path, branch }`, answered like `close` and `lead`

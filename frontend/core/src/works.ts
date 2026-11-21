@@ -44,6 +44,10 @@ export type Work = {
   // `origin/main`.
   readonly branch: string | null
   readonly base: string
+  // The branch its work belongs on, where that isn't the repository's main (`JIRA-123` when
+  // agents fan out from a feature branch); absent for most work, whose home is main. `base`
+  // then names what home is measured by.
+  readonly home?: string | undefined
   // When it first differed from main, in milliseconds since the epoch: the panel's order.
   readonly firstSeenAt: number
   // Nothing differs from main and the worktree has commits of its own that main holds: its work

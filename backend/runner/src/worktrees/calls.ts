@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs"
+
 import type { PullRequest } from "@novadeck/protocol"
 import { z } from "zod"
 
@@ -10,7 +12,7 @@ import type { LeadsHost } from "../terminals/leads.js"
 import { peerOf } from "../terminals/peers-host.js"
 import type { Record } from "../terminals/record.js"
 import type { WorktreeRecord } from "./records.js"
-import type { OriginBranch, Worktrees } from "./worktrees.js"
+import { homeSaid, type OriginBranch, type Worktrees } from "./worktrees.js"
 
 /** What the worktree calls need of the runner. */
 export type WorktreeCallsHost = Pick<
@@ -65,8 +67,12 @@ const openRequest = z.strictObject({
   branch: z.string().min(1).max(255),
   from: z.string().min(1).max(255).optional(),
   group: z.string().min(1).max(80).optional(),
+  home: z.string().min(1).max(255).optional(),
 })
-const takeRequest = z.strictObject({ path: z.string().min(1) })
+const takeRequest = z.strictObject({
+  path: z.string().min(1),
+  home: z.string().min(1).max(255).optional(),
+})
 const closeRequest = z.strictObject({ path: z.string().min(1), force: z.boolean().optional() })
 const giveRequest = z.strictObject({
   path: z.string().min(1),
@@ -135,9 +141,12 @@ export const worktreeNotice = {
       details: [path],
       actions: ["Don't change files there, and don't close it."],
     }),
-  given: (giver: string, path: string, branch: string): string =>
+  given: (giver: string, path: string, branch: string, home?: string): string =>
     noticeText("Worktrees", {
-      facts: `${mention(giver)} gave you its worktree on branch ${branch}. It's yours now.`,
+      facts:
+        `${mention(giver)} gave you its worktree on branch ${branch}` +
+        (home === undefined ? "" : `, home ${home}`) +
+        ". It's yours now.",
       details: [path],
       actions: ["Work there with absolute paths and git -C."],
     }),
@@ -157,6 +166,8 @@ export type WorktreeAnswer =
       readonly tracking?: boolean
       /** open_worktree: instruction files at its top. */
       readonly instructions?: readonly string[]
+      /** open_worktree and take_worktree: the branch its work belongs on. */
+      readonly home?: string
       /** take_worktree: it was yours already. */
       readonly already?: true
       /** take_worktree: the person was asked; the worktree isn't yours yet. */
@@ -213,7 +224,7 @@ export class WorktreeCalls {
     const read1 = read(
       openRequest,
       call.request,
-      "open_worktree needs branch, and takes only repo, from and group besides.",
+      "open_worktree needs branch, and takes only repo, from, group and home besides.",
     )
     if (!read1.ok) return read1
     const { request } = read1
@@ -225,6 +236,7 @@ export class WorktreeCalls {
       branch: request.branch,
       from: request.from,
       group: request.group,
+      home: request.home,
     })
     if (!opened.ok) return opened
     return {
@@ -235,6 +247,7 @@ export class WorktreeCalls {
       ...(opened.origin !== undefined && { origin: opened.origin }),
       ...(opened.tracking !== undefined && { tracking: opened.tracking }),
       instructions: opened.instructions,
+      ...(opened.home !== undefined && { home: opened.home }),
     }
   }
 
@@ -242,13 +255,18 @@ export class WorktreeCalls {
     const context = this.context(call, unansweredCalls.takeWorktree)
     if ("ok" in context) return context
     const { record, service, projectId } = context
-    const read1 = read(takeRequest, call.request, "take_worktree needs path, and nothing else.")
+    const read1 = read(
+      takeRequest,
+      call.request,
+      "take_worktree needs path, and takes only home besides.",
+    )
     if (!read1.ok) return read1
     const taken = await service.take({
       projectId,
       terminalId: call.terminalId,
       cwd: record.summary.cwd,
       path: read1.request.path,
+      home: read1.request.home,
     })
     if (!taken.ok) return taken
     if ("approval" in taken)
@@ -260,6 +278,7 @@ export class WorktreeCalls {
       path: taken.path,
       branch: taken.branch,
       ...(taken.already && { already: true as const }),
+      ...(taken.home !== undefined && { home: taken.home }),
     }
   }
 
@@ -415,7 +434,12 @@ export class WorktreeCalls {
       .messaging()
       .notice(
         target.terminalId,
-        worktreeNotice.given(record.summary.handle, row.path, row.branch),
+        worktreeNotice.given(
+          record.summary.handle,
+          row.path,
+          row.branch,
+          existsSync(row.path) ? await homeSaid(row.path, row.branch) : undefined,
+        ),
         {
           always: true,
         },

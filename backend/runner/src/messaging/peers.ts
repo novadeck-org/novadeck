@@ -71,6 +71,8 @@ export type OwnedWorktree = {
   /** Its repository's git common dir and the commit it started from, where known. */
   readonly commonDir?: string | undefined
   readonly base?: string | undefined
+  /** The branch its work belongs on, where that isn't the repository's main. */
+  readonly home?: string | undefined
 }
 
 /**
@@ -538,17 +540,23 @@ const requestText = ({ number, state, ci }: PullRequest): string =>
   `PR #${number} ${state}${ci && ci !== "none" ? `, checks ${ci}` : ""}`
 
 /**
- * The git worktrees a terminal owns, in one line: each with its path, branch and state
- * (commits ahead, uncommitted changes, or that its folder is gone), so agents find each
+ * The git worktrees a terminal owns, in one line: each with its path, branch, home where it
+ * isn't the repository's main, and state (commits ahead, uncommitted changes, or that its
+ * folder is gone), so agents find each
  * other's work; a lookup (`full`) names more, each with its pull request. Null without any.
  */
 export const worktreesLine = (peer: Peer, full = false): string | null => {
   if (peer.worktrees.length === 0) return null
   const shown = peer.worktrees.slice(0, full ? lookedWorktrees : shownWorktrees)
-  const named = shown.map(({ path, branch, state, gone, pullRequest: found }) => {
+  const named = shown.map(({ path, branch, state, gone, pullRequest: found, home }) => {
     const notes = gone ? ["folder gone"] : stateParts(branch, state)
     const request = full && found ? requestText(found) : null
-    const detail = [flat(branch, titleChars), ...notes, request].filter((part) => Boolean(part))
+    const detail = [
+      flat(branch, titleChars),
+      home !== undefined && `home ${flat(home, titleChars)}`,
+      ...notes,
+      request,
+    ].filter((part) => Boolean(part))
     return `${flat(path, worktreePathChars)} (${detail.join(", ")})`
   })
   const more = peer.worktrees.length - named.length

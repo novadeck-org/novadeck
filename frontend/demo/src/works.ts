@@ -413,6 +413,8 @@ export type DemoWorksControl = {
   readonly setCi: (root: string, ci: NonNullable<PullRequest["ci"]>) => void
   // The terminal's worktree holds `count` uncommitted paths, whatever else it is.
   readonly setUncommitted: (at: Placed, count: number) => void
+  // The terminal's worktree belongs on the branch `home` (not main), or on main again.
+  readonly setHome: (at: Placed, home: string | undefined) => void
   // The terminal's worktree has `count` commits no remote holds.
   readonly setUnpushed: (at: Placed, count: number) => void
   // The terminal's worktree's origin was last fetched `minutes` ago.
@@ -749,6 +751,10 @@ export const createDemoWorks = (
     setUncommitted: (at, count) => {
       const { root } = ensure(at)
       change(root, (work) => ({ ...work, uncommitted: count }))
+    },
+    setHome: (at, home) => {
+      const { root } = ensure(at)
+      change(root, (work) => ({ ...work, home }))
     },
     setUnpushed: (at, count) => {
       const { root } = ensure(at)

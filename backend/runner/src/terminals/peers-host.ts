@@ -8,6 +8,7 @@ import type {
   TerminalRings,
 } from "@novadeck/protocol"
 
+import { keysOfBranch } from "../checkouts/home.js"
 import { planTitle } from "../companions/content.js"
 import { secrets } from "../companions/secrets.js"
 import { DomainError } from "../errors.js"
@@ -508,7 +509,18 @@ export class TerminalPeers {
         .map(async ({ path, branch, pullRequest, commonDir, base }) => {
           const gone = !existsSync(path)
           const state = gone ? null : await this.states.of(path)
-          return { path, branch, gone, state, commonDir, base, ...(pullRequest && { pullRequest }) }
+          // Only a home that isn't the repository's main is a key, and is said.
+          const home = gone ? undefined : (await keysOfBranch(path, branch)).home
+          return {
+            path,
+            branch,
+            gone,
+            state,
+            commonDir,
+            base,
+            ...(home !== undefined && { home }),
+            ...(pullRequest && { pullRequest }),
+          }
         }),
     )
   }

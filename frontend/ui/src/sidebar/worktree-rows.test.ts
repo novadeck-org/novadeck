@@ -106,6 +106,23 @@ describe("the Worktrees panel's rows", () => {
     expect(rows.map((row) => row.title)).toEqual(["No owner", "Closed terminal"])
   })
 
+  it("carries the home a work belongs on, none for a work whose home is main", () => {
+    const [homed, plain] = changeRows(
+      [work("a", 1, { home: "JIRA-123" }), work("b", 2)],
+      new Map(),
+    ).toSorted((a, b) => a.work.root.localeCompare(b.work.root))
+    expect(homed!.home).toBe("JIRA-123")
+    expect(plain!.home).toBeUndefined()
+  })
+
+  it("says a conflict is with home, where the work is measured against one", () => {
+    const [homed] = changeRows(
+      [work("a", 1, { home: "JIRA-123", conflicts: [{ with: "main" }] })],
+      new Map(),
+    )
+    expect(homed!.conflictWords).toBe("Conflicts with JIRA-123")
+  })
+
   it("names a detached worktree's branch as detached", () => {
     expect(changeRows([work("a", 1, { branch: null })], new Map())[0]?.branch).toBe("detached")
   })

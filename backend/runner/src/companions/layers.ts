@@ -17,8 +17,9 @@ import {
 } from "@novadeck/protocol"
 
 import { git, gitScope, type Run } from "../checkouts/git.js"
+import { currentBranch, targetOf } from "../checkouts/home.js"
 import { diffFlags, listChanges, metaBytes, type Listed } from "../checkouts/listing.js"
-import { mainBranch, mergeBase, type Taken } from "../checkouts/repository.js"
+import { mergeBase, type Taken } from "../checkouts/repository.js"
 import { SnapshotsClosed, type Checkout, type Snapshots } from "../checkouts/snapshots.js"
 import { ellipsized } from "../text.js"
 import {
@@ -221,7 +222,8 @@ const standing = async (
       cut: false,
       commits: [],
     }
-  const main = await mainBranch(root)
+  // Measured as the Worktrees panel measures the checkout: against its home where it has one.
+  const main = (await targetOf(root, (await currentBranch(root)) ?? null))?.main
   if (!main) return { head, base: "HEAD", since: undefined, cut: false, commits: [] }
   const since = await mergeBase(root, main.commit, head)
   // A main with no history in common (a shallow clone, say): there is nothing to measure from.

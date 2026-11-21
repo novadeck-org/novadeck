@@ -214,6 +214,14 @@ describe("the debug panel's Worktrees group", () => {
     }
   })
 
+  it("gives the selected terminal's work a home, and takes it away on a second run", () => {
+    const { run, work } = setup([])
+    run("Work with a home", 1)
+    expect(work(1)).toMatchObject({ home: "JIRA-123" })
+    run("Work with a home", 1)
+    expect(work(1)!.home).toBeUndefined()
+  })
+
   it("puts a spread of works in the session at once", () => {
     const { run, work, rootOf } = setup([])
     run("Every state in Worktrees", 0)

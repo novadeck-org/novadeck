@@ -530,6 +530,39 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
     expect(work.files.map((file) => file.path)).toEqual(["a.txt"])
   })
 
+  it("measures a worktree with a home against it, listing only its own work, and merged once it lands there", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    main.git("checkout", "--quiet", "-b", "JIRA-123")
+    main.write("j.txt", "jira\n")
+    main.git("add", "-A")
+    main.git("commit", "--quiet", "-m", "jira")
+    main.git("checkout", "--quiet", "main")
+    const agent = fixture.worktree("agent")
+    agent.git("reset", "--quiet", "--hard", "JIRA-123")
+    agent.git("config", "branch.agent.novadeckHome", "JIRA-123")
+    const start = agent.git("rev-parse", "HEAD").trim()
+    agent.git("config", "branch.agent.novadeckBase", start)
+    agent.write("fix.txt", "fix\n")
+    agent.git("add", "-A")
+    agent.git("commit", "--quiet", "-m", "fix")
+    const { works } = open(() => [{ terminalId: terminal(1), root: agent.root }])
+    resources.defer(() => works.close())
+    const work = (await current(works)).get(agent.root)!
+    expect(work).toMatchObject({ base: "JIRA-123", home: "JIRA-123", merged: false })
+    // Home's own commit (j.txt) isn't the worktree's work.
+    expect(work.files.map((file) => file.path)).toEqual(["fix.txt"])
+    // Landed on home by a merge commit, main left behind. (A fast-forward reads as not merged,
+    // as it does into main: see `mergedWork`'s known limits.)
+    main.git("checkout", "--quiet", "JIRA-123")
+    main.git("merge", "--quiet", "--no-ff", "-m", "land agent", "agent")
+    main.git("checkout", "--quiet", "main")
+    const landed = await current(works)
+    expect(landed.get(agent.root)).toMatchObject({ files: [], merged: true, home: "JIRA-123" })
+  })
+
   it("falls back to master when there is no main", async ({ fixture, resources }) => {
     const { main } = fixture
     main.git("branch", "-m", "main", "master")
