@@ -68,8 +68,8 @@ describe("sidebar settings", () => {
     })
 
     it("leaves a key alone where the rail has no toggle for its panel", async () => {
-      // The plain demo has no files to show.
-      await openWorkspace()
+      // The Babcia demo has no files to show (the plain demo lists the tour's repo).
+      await openWorkspace("/?demo=babcia")
       await sidebarPanel("Inbox").click()
       await expect.element(sidebar()).toHaveAccessibleName("Inbox")
 

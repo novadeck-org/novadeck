@@ -776,17 +776,24 @@ App:
   The tour's terminal runs a scripted agent (`frontend/demo/src/tour/player.ts`): after a few
   hundred ms it binds, works and names its terminal "Tour lead" (as its own describe);
   Antigravity starts working only once the UI rang `brief`. Then the story
-  (`frontend/demo/src/tour/story.ts`, as a runner would report it): the lead opens two
-  teammates (terminals with `ledBy` = the lead), "Copywriter" and "Designer", the designer on
-  another connected harness where there is one; the designer sends the lead its look (the
-  demo's messages); the copywriter asks the Inbox "Which tagline for the comic strip?" (options
-  A and B) and waits for the person; once answered it tells the lead, who shows its comic strip,
-  `tour-strip.html`, which the pane draws as a page (`by: "agent"`, asked to open) and finishes its turn. "Tour story: answer the tagline ask
-  (A)" answers it as the person would; "Tour story: teammates stay quiet until nudged" has the
-  next lead wait for `Tour.nudge` before opening its team; "Tour agent: stop" exits the lead's
-  process (the UI's "Your agent stopped."). "Tour agent: hold at folder trust" / "sign-in" /
-  "hooks" hold the next one at that startup screen until "Answer the startup screen"; "Tour
-  agent: quiet until nudged" has the next one sit idle at its prompt, no turn begun, until
+  (`frontend/demo/src/tour/story.ts`, as a runner would report it): the tour's folder is a tiny
+  repo with `split.js` and two bugs. The lead opens a first fixer ("Tip fixer", a terminal with
+  `ledBy` = the lead, on another connected harness where there is one), which opens its worktree
+  `fix-tip` (a work in the Worktrees panel), edits `split.js` there and tells the lead "Fixed
+  bug 1.". The person then opens a terminal (the tour's coach marks New terminal): the UI calls
+  `Tour.fixer` for it and the demo takes it as the second fixer ("Money fixer", led by the lead,
+  on the lead's harness), which opens `fix-money` and asks the Inbox "Whole amounts: $12.00 or
+  $12?" (options A and B, A recommended); once answered it edits `money()` the way they chose,
+  tells the lead "Fixed bug 2." and the lead says both bugs are fixed. The Files panel lists the
+  tour's repo (the tour's wrapper adds a files feed where the demo has none, and a project window
+  where its companions can't open one), and `works.preview` of `split.js` shows both fixes'
+  hunks merged. The Worktrees panel and the Files overlay show in the tour's project even with
+  Agent worktrees off (`useWorktreesShown`), and only there. "Tour story: answer the money ask
+  (A)" / "(B)" answer it as the person would; "Tour story: the lead's fixer stays quiet until
+  nudged" has the next lead wait for `Tour.nudge` before opening its fixer; "Tour agent: stop"
+  exits the lead's process (the UI's "Your agent stopped."). "Tour agent: hold at folder trust" /
+  "sign-in" / "hooks" hold the next one at that startup screen until "Answer the startup screen";
+  "Tour agent: quiet until nudged" has the next one sit idle at its prompt, no turn begun, until
   `Tour.nudge`, then work and name itself; "Tour agent: ask permission first" has the next one
   raise a permission dialog (an Inbox row, Unblock) and wait for the person's answer before it
   goes on, and the tour's coach points at its terminal meanwhile. Addresses: `&tourScreen=startup|sign-in|hooks`
@@ -798,13 +805,21 @@ App:
   act's name), the cuts at its start and its result, and its stage (`Stage.tsx`, in its own print look, `print.css`) marks the page's own
   elements, `data-tour-look` where to look (a magenta line) and `data-tour-click` what to
   press (a slowly breathing yellow one), each drawn by a mark a little way out from the element
-  (where what clips it leaves room), over all it holds, and, a second after a mark shows, letters one caption box beside them in space no window takes: "Your own agent. In
-  a sandbox.", or, while a startup screen holds, "It wants an answer first." with that screen's
-  words under it, or "It's asking your permission." while the lead or a teammate has an Unblock
-  row waiting in the Inbox (any harness's own dialog, or a held message). End tour sits in the
-  footer; while another project is on screen, a small bar stands in for it. Once
-  the person has answered, "Now they make it." stays on the lead until it shows what it made;
-  act 4 opens on that, its wipe the reveal, and holds on it a few seconds before the closing card.
+  (where what clips it leaves room), over all it holds, and, a second after a mark shows, letters one caption box beside them in space no window takes. Its seven steps:
+  "Your own agent. In a sandbox repo." (the lead describes itself); "It put a fixer on bug 1."
+  (the fixer is there and named); "Your turn. Open a terminal." (the Terminals panel opens and
+  New terminal is marked; the driver hands the shell the person opens to `Tour.fixer`, once, with
+  retries, and a backend without it has no such step; done once the team has two); "Your call.
+  They wait on you." (the Inbox, until the money ask is answered); "Now they fix it. Each in its
+  own worktree." (done once both fixers have sent the lead a message); "Both fixes, merged. Open
+  the file." (the Files panel opens, `split.js` is marked, and the step waits as long as the
+  person takes until its merged preview is open, which the app hands the tour as `previews`
+  in the `TourHost`); and "Two agents. One file. Merged live." (a few seconds on the preview,
+  then the closing card). While a startup screen holds, the coach says "It wants an answer
+  first." with that screen's words under it, or "It's asking your permission." while the lead or a
+  teammate has an Unblock row waiting in the Inbox (any harness's own dialog, or a held message).
+  End tour sits in the footer; while another project is on screen, a small bar stands in for it.
+  A run kept in session storage by a version with other steps is dropped, not followed.
 - **Boot failures:** each fails the first attempt as the runner would, so a transient one
   retries on its own and the others wait for Retry (an incompatible runner, or a workspace
   a newer Novadeck has used, only for Quit). Each hint carries the error code, so the search

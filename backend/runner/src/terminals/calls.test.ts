@@ -71,6 +71,7 @@ describe("the open call", () => {
     let briefed = false
     let plain = 0
     let barred: string | undefined
+    let flagged: readonly string[] | undefined
     const opened = {
       summary: { id: "t2", handle: "fox", title: "claude", ledBy: "t1" },
       terminal: { exiting: false },
@@ -93,7 +94,10 @@ describe("the open call", () => {
       save: () => undefined,
       install: () => Promise.resolve(undefined),
       models: () => Promise.resolve([{ id: "opus", efforts: ["low", "max"] }]),
-      openPolicy: () => ({ ...(barred !== undefined && { refusal: barred }) }),
+      openPolicy: () => ({
+        ...(barred !== undefined && { refusal: barred }),
+        ...(flagged !== undefined && { flags: () => flagged! }),
+      }),
       claims: () => claims,
       launcher: () => ({
         connected: () => Promise.resolve(true),
@@ -173,6 +177,7 @@ describe("the open call", () => {
       claims,
       opened,
       bar: (reason: string) => (barred = reason),
+      flag: (flags: readonly string[]) => (flagged = flags),
       mode: (next: AgentMode) => (mode = next),
       open: (request: object) =>
         run.open({
@@ -261,6 +266,15 @@ describe("the open call", () => {
       ok: false,
       reason: "Give a model with effort: Claude Code's efforts depend on the model.",
     })
+  })
+
+  it("starts an agent with the flags the runner's policy gives, right after its model, for that launch only", async () => {
+    const run = setup()
+    run.flag(["--permission-mode", "acceptEdits"])
+    await run.open({ agent: "claude", model: "opus", effort: "low" })
+    expect(run.asked[0]!.command).toBe(
+      "claude --model opus --effort low --permission-mode acceptEdits",
+    )
   })
 
   it("starts an agent with a brief as its prompt's doorbell, and leads it by default", async () => {

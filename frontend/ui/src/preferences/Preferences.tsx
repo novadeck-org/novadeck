@@ -396,7 +396,7 @@ export const Preferences = ({
       id: "onboarding-tour",
       label: "Onboarding tour",
       description: tour
-        ? "Add a Help menu to the footer that offers a short tour: your own agent, on its cheapest model, in a sandbox folder."
+        ? "Add a Help menu to the footer that offers a short tour: your own agent, on its cheapest model, in a sandbox repo."
         : "Not available here.",
       checked: tour && value.onboardingTour,
       onToggle: (onboardingTour: boolean) => onChange({ ...value, onboardingTour }),

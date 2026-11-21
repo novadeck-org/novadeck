@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process"
 import { readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
@@ -115,6 +116,26 @@ for (const setup of setups) {
         expect(loaded).not.toMatch(/open_agent|describe|Steps|lead agent/)
       }
       expect(await readFile(join(prepared.directory, "CLAUDE.md"), "utf8")).toBe("@AGENTS.md\n")
+      // A tiny git repo on main with one commit by the tour's own name, the marker kept out of it.
+      expect((await readdir(prepared.directory)).toSorted()).toEqual(
+        [
+          ".claude",
+          ".git",
+          ".novadeck-tour",
+          "AGENTS.md",
+          "CLAUDE.md",
+          "README.md",
+          "split.js",
+        ].toSorted(),
+      )
+      const gitIn = (...args: string[]) =>
+        execFileSync("git", ["-C", prepared.directory, ...args], {
+          encoding: "utf8",
+        }).trim()
+      expect(gitIn("branch", "--show-current")).toBe("main")
+      expect(gitIn("log", "--format=%an <%ae>")).toBe("Novadeck tour <tour@novadeck.invalid>")
+      expect(gitIn("status", "--porcelain")).toBe("")
+      expect(gitIn("ls-files")).not.toContain(".novadeck-tour")
       await expect(readFile(join(prepared.directory, tourMarker), "utf8")).resolves.toContain(
         "Novadeck's tour",
       )
@@ -168,8 +189,8 @@ for (const setup of setups) {
       // script, whose first step the model follows, as an agent's task.
       const notice = deliveries(first).find((one) => one.from === "novadeck")
       expect(notice?.text).toContain("## Steps")
-      expect(notice?.text).toContain('<!doctype html><html><head><meta charset="utf-8">')
-      expect(notice?.text).toContain("comic strip of this tour for ")
+      expect(notice?.text).toContain("fix-tip")
+      expect(notice?.text).toContain("bill splitter with two bugs")
       // The brief's own first step: the call to `describe`, and its greeting.
       await terminal.until("The tour has begun.", 60_000)
       await through(terminal, ["settled"])

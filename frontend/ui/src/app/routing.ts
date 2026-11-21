@@ -88,14 +88,17 @@ export const availablePanels = (
   )
 
 // Whether the rail shows the panel now: one the backend has, and Worktrees only while the person
-// has agent worktrees on (see `useWorktreesShown`).
+// has agent worktrees on, or the tour's project is on screen (`inTour`; see `useWorktreesShown`).
 export const panelShownOn =
-  (backend: Pick<Backend, "files" | "history" | "works" | "worktrees">) =>
+  (
+    backend: Pick<Backend, "files" | "history" | "works" | "worktrees">,
+    inTour: () => boolean = () => false,
+  ) =>
   (panel: SidebarPanel): boolean =>
     availablePanels(filesShown(backend), historyShown(backend), reportsWorks(backend)).includes(
       panel,
     ) &&
-    (panel !== "worktrees" || (backend.worktrees?.enabled.getSnapshot() ?? false))
+    (panel !== "worktrees" || (backend.worktrees?.enabled.getSnapshot() ?? false) || inTour())
 
 // The sidebar panel a URL names, Terminals for anything else, or for one the backend lacks.
 const panelOf = (name: string | null, panels: readonly SidebarPanel[]): SidebarPanel => {

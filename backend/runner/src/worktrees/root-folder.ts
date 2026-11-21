@@ -56,12 +56,27 @@ export class RootFolder {
   }
 
   /**
-   * Whether an agent process that started at `startedAt` (undefined where unknown, which is
-   * not ready) can use worktrees; `relists` for a harness that lists tools at each turn.
+   * Makes the folder whatever the setting says, for the tour, whose agents use worktrees
+   * either way; a failure is tried again at the next call.
    */
-  ready(startedAt: number | undefined, relists: boolean): boolean {
+  make(): void {
+    if (this.#folder !== null) return
+    try {
+      ;(this.host.make ?? ((made) => void mkdirSync(made, { recursive: true })))(this.path)
+      this.#folder = (this.host.now ?? Date.now)()
+    } catch {
+      // Agents are then told they can't write there yet.
+    }
+  }
+
+  /**
+   * Whether an agent process that started at `startedAt` (undefined where unknown, which is
+   * not ready) can use worktrees; `relists` for a harness that lists tools at each turn. A
+   * tour agent (`always`) lists them whatever the setting, so it needs only the folder.
+   */
+  ready(startedAt: number | undefined, relists: boolean, always = false): boolean {
     this.ensure()
     if (startedAt === undefined || this.#folder === null || startedAt < this.#folder) return false
-    return relists || (this.#on !== null && startedAt >= this.#on)
+    return always || relists || (this.#on !== null && startedAt >= this.#on)
   }
 }

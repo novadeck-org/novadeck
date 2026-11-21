@@ -32,6 +32,17 @@ describe("the worktrees folder", () => {
     expect(made).toEqual(["/home/x/.novadeck/worktrees"])
   })
 
+  it("is made for the tour whatever the setting says, and is all its agents need", () => {
+    const made: string[] = []
+    const root = folder({ on: false }, { made })
+    root.make()
+    root.make()
+    expect(made).toEqual(["/home/x/.novadeck/worktrees"])
+    // The setting never went on, and a harness that keeps its tool list still has them.
+    expect(root.ready(10, false)).toBe(false)
+    expect(root.ready(10, false, true)).toBe(true)
+  })
+
   it("is not made while the setting is off, and is the moment it flips on", () => {
     const setting = { on: false }
     const made: string[] = []

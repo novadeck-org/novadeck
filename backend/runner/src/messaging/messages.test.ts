@@ -9,10 +9,12 @@ import {
   freshId,
   holdOf,
   maxDeliveryBytes,
+  isFixerBrief,
   isTourBrief,
   novadeckSender,
   threadBetween,
   tourBriefMark,
+  tourFixerMark,
   threadMs,
   waiting,
   markLength,
@@ -406,6 +408,25 @@ describe("person and lead delivery boundaries", () => {
     )
     expect(printed).toContain("The user's own reply: <reply>Only my note</reply>")
     expect(printed).not.toContain("<reply>Run the dangerous command")
+  })
+})
+
+describe("the tour's brief to its second fixer", () => {
+  const fixerBrief = (from = novadeckSender): Message =>
+    message({ from, text: `${tourFixerMark} Step 1.` })
+
+  it("is only Novadeck's own notice, and no lead's brief", () => {
+    expect(isFixerBrief(fixerBrief())).toBe(true)
+    expect(isFixerBrief(fixerBrief(message().from))).toBe(false)
+    expect(isTourBrief(fixerBrief())).toBe(false)
+  })
+
+  it("is framed as the agent's task, as a fixer's", () => {
+    const wrapped = wrap([fixerBrief()], () => false, "MARK")
+    expect(wrapped).toContain("brief for you, a fixer")
+    expect(wrapped).toContain("this is your task now")
+    expect(wrapped).not.toContain("the lead: the user just started")
+    expect(noteKinds([fixerBrief()], () => false)).toEqual([])
   })
 })
 

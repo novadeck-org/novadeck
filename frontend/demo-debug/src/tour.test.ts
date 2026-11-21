@@ -69,19 +69,20 @@ describe("the tour the debug panel shares with the demo", () => {
     await expect(tour.prepare("claude")).resolves.toMatchObject({ model: "haiku" })
   })
 
-  it("drives the story: answers the tagline ask, quiets the team, stops the agent", () => {
+  it("drives the story: answers the money ask, quiets the fixer, stops the agent", () => {
     const tour = tourOf()
     const [group] = tourGroups(tour)
     const run = (label: string) =>
       void group!.actions.find((each) => each.label === label)!.run({} as never)
     const picked: number[] = []
     const stopped: string[] = []
-    tour.tagline((option) => picked.push(option))
+    tour.money((option) => picked.push(option))
     tour.stopped(() => stopped.push("stop"))
-    run("Tour story: answer the tagline ask (A)")
+    run("Tour story: answer the money ask (A)")
+    run("Tour story: answer the money ask (B)")
     run("Tour agent: stop")
-    run("Tour story: teammates stay quiet until nudged")
-    expect(picked).toEqual([0])
+    run("Tour story: the lead's fixer stays quiet until nudged")
+    expect(picked).toEqual([0, 1])
     expect(stopped).toEqual(["stop"])
     expect(tour.take()).toEqual({ quiet: false, quietTeam: true })
     expect(tour.take()).toEqual({ quiet: false })

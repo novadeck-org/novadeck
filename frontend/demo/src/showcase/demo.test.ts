@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { answerMs, answeredMs } from "../agents/chat"
 import { demoTurns, demoTurnMs } from "../agents/turns"
+import { isDemoFiles } from "../files"
 import { demoTerminalId } from "../samples"
 import { createDemo } from "../variants"
 import { authAgent, studioAgent } from "./agents"
@@ -58,10 +59,11 @@ const plans = [
 ] as const
 
 describe("the showcase demo", () => {
-  it("is marked as the demo, though it has no files to show", () => {
+  it("is marked as the demo, though it has no storefront files to show", () => {
     const backend = createDemo("showcase", undefined, demoTurns())
     expect(backend.demo).toBe(true)
-    expect(backend.files).toBeUndefined()
+    // Only the tour's repo, which the tour agent lists, never the storefront's simulated writes.
+    expect(isDemoFiles(backend.files)).toBe(false)
   })
 })
 

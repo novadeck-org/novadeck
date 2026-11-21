@@ -1,6 +1,6 @@
 import { inboxType, type InboxState, type SettledHow } from "@novadeck/core/inbox"
 import type { MessagesState } from "@novadeck/core/messages"
-import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
+import type { TerminalMetadata, Workspace, WorkspaceProject } from "@novadeck/core/types"
 
 // Where the tour's lead stands, as its terminal shows it:
 // - `gone`: its terminal closed, which ends the tour.
@@ -31,9 +31,6 @@ export type TourSignals = {
   readonly onScreen: boolean
   // The teammates the lead opened (terminals it leads), and how many have named themselves.
   readonly team: { readonly count: number; readonly named: number }
-  // How many messages the teammates have sent, to one another or to the lead: the lead's own
-  // to them (as `open_agent` sends each its task) aren't their talk.
-  readonly talks: number
   // Whether a teammate's question waits in the Inbox now, asked through Novadeck or its
   // harness's own question tool.
   readonly asking: boolean
@@ -54,29 +51,55 @@ export type TourSignals = {
   // its harness's own permission dialog, or a message held for them: an unsettled Inbox row of
   // type Unblock, whichever harness raised it. Null while none does.
   readonly permission: { readonly terminalId: string } | null
-  // Whether the lead has shown its brief's card: an image (the card is an SVG), or a page or
-  // file.
-  readonly shown: boolean
+  // How many distinct teammates have sent the lead a message (their report that they're done).
+  readonly reporters: number
+  // The shell the person opened in the tour's project that no agent holds yet: not the lead, no
+  // team's, nothing running in it; null while none is. The tour's second fixer starts there.
+  readonly fresh: string | null
+  // The merged preview of the tour's file (`split.js`) while it is open in the tour's project:
+  // the window that shows it; null while it isn't.
+  readonly preview: { readonly windowId: string } | null
 }
+
+// A file the person opened to preview what the agents' work merges to, as the app keeps it for
+// the session it is open in: the project, the window's item, and the file's path.
+export type TourPreview = {
+  readonly projectId: string
+  readonly itemId: string
+  readonly path: string
+}
+
+// The file the tour has the person open, as its preview is the story's end.
+export const tourFile = "split.js"
 
 // What else the signals are read from, where the backend has it.
 export type TourSources = {
   readonly messages?: MessagesState | undefined
   readonly inbox?: InboxState | undefined
+  readonly previews?: readonly TourPreview[] | undefined
 }
 
 export const noTeam: Pick<
   TourSignals,
-  "team" | "talks" | "asking" | "askingRow" | "answered" | "teamScreen" | "permission" | "shown"
+  | "team"
+  | "asking"
+  | "askingRow"
+  | "answered"
+  | "teamScreen"
+  | "permission"
+  | "reporters"
+  | "fresh"
+  | "preview"
 > = {
   team: { count: 0, named: 0 },
-  talks: 0,
   asking: false,
   askingRow: null,
   answered: false,
   teamScreen: null,
   permission: null,
-  shown: false,
+  reporters: 0,
+  fresh: null,
+  preview: null,
 }
 
 // A process that ended; `finished` is a command that ran its course, its shell still there.
@@ -106,20 +129,22 @@ const everyMessage = (messages: MessagesState | undefined) => {
   return [...seen.values()]
 }
 
-// How many messages the teammates sent to the team, the lead's own to them aside.
-const talksOf = (
+// How many distinct teammates sent the lead a message.
+const reportersOf = (
   messages: MessagesState | undefined,
   teammates: ReadonlySet<string>,
-  team: ReadonlySet<string>,
+  lead: string,
 ): number =>
-  everyMessage(messages).filter(
-    ({ from, to }) =>
+  new Set(
+    everyMessage(messages).flatMap(({ from, to }) =>
       from.kind === "agent" &&
       to.kind === "agent" &&
-      from.terminalId !== to.terminalId &&
-      teammates.has(from.terminalId) &&
-      team.has(to.terminalId),
-  ).length
+      to.terminalId === lead &&
+      teammates.has(from.terminalId)
+        ? [from.terminalId]
+        : [],
+    ),
+  ).size
 
 // The team's questions in the Inbox: its asks, or a harness's own question tool's (a request
 // the Inbox lists as a question), whichever a teammate used.
@@ -162,6 +187,36 @@ const permissionOf = (
   return row ? { terminalId: row.source.terminalId } : null
 }
 
+// The first shell of the project nobody has taken: not the lead, not led by anyone, no agent in it
+// and none run there. In the tour's project the person opens one at the tour's prompt.
+const freshShell = (history: WorkspaceProject["history"], lead: string): string | null => {
+  for (const { state } of history)
+    for (const each of state.roster.terminals)
+      if (
+        each.id !== lead &&
+        !each.ledBy &&
+        !each.agentRan &&
+        (each.state === "idle" || (each.state === "running" && !each.agent))
+      )
+        return each.id
+  return null
+}
+
+// The window that shows the tour's file merged, while its preview is open in the project.
+const previewOf = (
+  project: WorkspaceProject,
+  previews: readonly TourPreview[] | undefined,
+): TourSignals["preview"] => {
+  for (const preview of previews ?? []) {
+    if (preview.projectId !== project.id || preview.path.split("/").pop() !== tourFile) continue
+    for (const { state } of project.history) {
+      const window = state.roster.windows.find((each) => each.itemId === preview.itemId)
+      if (window) return { windowId: window.id }
+    }
+  }
+  return null
+}
+
 // The tour's signals, for its lead in `terminalId`.
 export const tourSignals = (
   workspace: Workspace,
@@ -190,7 +245,6 @@ export const tourSignals = (
           count: teammates.length,
           named: teammates.filter(({ titleSource }) => titleSource?.kind === "agent").length,
         },
-        talks: talksOf(sources.messages, mates, team),
         // The teammates' questions only: one of the lead's own, as for something it lacks, isn't
         // the story's question.
         asking: askingRowOf(sources.inbox, mates) !== null,
@@ -205,21 +259,9 @@ export const tourSignals = (
               }
             : null,
         permission: permissionOf(sources.inbox, team),
-        shown: project.history.some(({ state }) =>
-          state.items.some(
-            (item) =>
-              item.by === "agent" &&
-              (item.kind === "image" ||
-                item.kind === "video" ||
-                item.kind === "audio" ||
-                item.kind === "pdf" ||
-                item.kind === "model" ||
-                item.kind === "folder" ||
-                item.kind === "page" ||
-                item.kind === "file") &&
-              item.from?.terminalId === terminalId,
-          ),
-        ),
+        reporters: reportersOf(sources.messages, mates, terminalId),
+        fresh: freshShell(project.history, terminalId),
+        preview: previewOf(project, sources.previews),
       }
     }
   return { lead: { kind: "gone" }, onScreen: false, ...noTeam }
@@ -227,14 +269,15 @@ export const tourSignals = (
 
 export const sameSignals = (a: TourSignals, b: TourSignals): boolean =>
   a.onScreen === b.onScreen &&
-  a.talks === b.talks &&
   a.asking === b.asking &&
   a.askingRow === b.askingRow &&
   a.answered === b.answered &&
   a.teamScreen?.terminalId === b.teamScreen?.terminalId &&
   a.teamScreen?.screen === b.teamScreen?.screen &&
   a.permission?.terminalId === b.permission?.terminalId &&
-  a.shown === b.shown &&
+  a.reporters === b.reporters &&
+  a.fresh === b.fresh &&
+  a.preview?.windowId === b.preview?.windowId &&
   a.team.count === b.team.count &&
   a.team.named === b.team.named &&
   JSON.stringify(a.lead) === JSON.stringify(b.lead)

@@ -5,9 +5,19 @@ import type { AgentName, Project, TourPrepared } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
 import { agentLabel } from "../messaging/messages.js"
-import { briefFiles, nudgeLine, tourBrief, type BriefFacts, type Teammate } from "./brief.js"
+import { mention } from "../terminals/handles.js"
+import type { OpenPolicy } from "../terminals/options.js"
+import {
+  briefFiles,
+  nudgeLine,
+  secondFixerBrief,
+  tourBrief,
+  type BriefFacts,
+  type Teammate,
+} from "./brief.js"
 import { checkTourFolder, resetTourFolder, tourFolder } from "./folder.js"
-import { tourChoice, tourLaunch } from "./launch.js"
+import { tourChoice, tourLaunch, tourWrites, type TourLaunch } from "./launch.js"
+import { commitSandbox, requireGit } from "./repo.js"
 
 /** What the tour needs of the runner. */
 export type TourHost = {
@@ -25,6 +35,31 @@ export type TourHost = {
   readonly cwdOf: (terminalId: string) => string
   /** The terminal that leads this one, if one does. */
   readonly leadOf: (terminalId: string) => string | undefined
+  /** The terminal's handle, as agents address it. */
+  readonly handleOf: (terminalId: string) => string
+  /** Whether the terminal is a plain shell at its prompt: no agent has run in it, and none runs. */
+  readonly isFreshShell: (terminalId: string) => boolean
+  /**
+   * Makes the terminal `leadId`'s teammate, as `join` does once approved, and tells the lead:
+   * no approval is asked, as the person asked for it by opening the terminal.
+   */
+  readonly adopt: (terminalId: string, leadId: string) => void
+  /** Expects `agent` in the terminal, so a notice rung to it waits for its first session. */
+  readonly expect: (terminalId: string, agent: AgentName) => void
+  /** Types a command line into the terminal's shell for the client `ownerId` that controls it. */
+  readonly type: (terminalId: string, line: string, ownerId: string) => void
+  /** Makes the folder agents' worktrees live in, whatever the person's setting. */
+  readonly worktreesFolder: () => void
+}
+
+// What the run last readied is, once it starts: its agent's launch, and its terminals.
+type Run = {
+  readonly agent: AgentName
+  readonly launch: TourLaunch
+  /** The terminal the lead's brief was rung to. */
+  lead?: string
+  /** The terminal of the second fixer, the person's own agent. */
+  fixer?: string | undefined
 }
 
 // The order a second harness is looked for in, for the designer of a mixed team.
@@ -40,6 +75,7 @@ export class Tour {
   private preparing: Promise<TourPrepared> | undefined
   // The facts of the run last readied, which its brief is composed of when it is rung.
   private facts: BriefFacts | undefined
+  private run: Run | undefined
 
   constructor(private readonly host: TourHost) {}
 
@@ -47,9 +83,9 @@ export class Tour {
    * Readies a run of the tour with `agent`: removes any project open at its folder, closing
    * its terminals, so nothing runs there; then empties the folder and writes the brief there;
    * then builds the agent's launch line, on its cheapest model. The brief never names the
-   * person; it names the two teammates the lead opens, each on its harness's cheapest model: the
-   * copywriter on `agent`'s, the designer on another connected harness's where one lists its
-   * cheapest, else on `agent`'s too. An agent Novadeck isn't
+   * person; it names the one teammate the lead opens, on its harness's cheapest model: another
+   * connected harness's where one lists its cheapest, else `agent`'s. The folder is a git repo
+   * of its own (`commitSandbox`), so git is needed (`requireGit`, asked first of all). An agent Novadeck isn't
    * connected to is a `CONFLICT`, as its tools would be missing; so is a folder that isn't
    * Novadeck's (`checkTourFolder`, asked before any project is removed), and a run asked for
    * while another is being readied. One
@@ -73,6 +109,8 @@ export class Tour {
         "CONFLICT",
         `Novadeck isn't connected to ${agentLabel(agent)}, so the tour can't start with it.`,
       )
+    // Git first of all: the sandbox is a repo, and nothing is removed for a tour that can't be.
+    await requireGit()
     // Its cheapest model first, before anything is removed: the person agreed to that one.
     const models = await this.host.models(agent).catch((): readonly Model[] => [])
     if (tourChoice(agent, models).model === undefined)
@@ -99,17 +137,20 @@ export class Tour {
           }),
       ),
     )
-    const designer = await this.designerFor(agent, models)
-    const copywriter = teammate(agent, models)!
+    const fixer = await this.fixerFor(agent, models)
     await resetTourFolder(directory, briefFiles)
-    this.facts = { copywriter, designer }
+    await commitSandbox(directory)
+    // Before any agent starts: a process that began without the folder can't write in it.
+    this.host.worktreesFolder()
+    this.facts = { fixer }
     const launch = tourLaunch(agent, { models })
+    this.run = { agent, launch }
     return { ...launch, directory, removed }
   }
 
-  // The designer's harness: the first other connected one whose cheapest model is listed, else
-  // the lead's own.
-  private async designerFor(agent: AgentName, models: readonly Model[]): Promise<Teammate> {
+  // The first fixer's harness: the first other connected one whose cheapest model is listed,
+  // else the lead's own.
+  private async fixerFor(agent: AgentName, models: readonly Model[]): Promise<Teammate> {
     for (const other of agentOrder.filter((each) => each !== agent)) {
       // eslint-disable-next-line no-await-in-loop -- The first that fits is taken.
       if (!(await this.host.connected(other).catch(() => false))) continue
@@ -129,8 +170,50 @@ export class Tour {
    * readied no run since it started.
    */
   brief(terminalId: string): void {
-    if (!this.facts) throw new DomainError("CONFLICT", "The tour hasn't been readied.")
+    if (!this.facts || !this.run) throw new DomainError("CONFLICT", "The tour hasn't been readied.")
     this.ring(terminalId, tourBrief(this.facts))
+    this.run.lead = terminalId
+  }
+
+  /**
+   * Takes the terminal the person opened, a plain shell in the tour's folder, as the run's
+   * second fixer, by the client `ownerId` that controls it: types the run's agent launch there
+   * (its cheapest model, its write flags), makes the run's lead its lead, and rings it its
+   * brief, which waits for the agent's first session as any message to an agent that is
+   * starting does. Once a run: a terminal outside the tour's folder or with an agent or a lead
+   * already, a lead that hasn't started or is gone, or a run that has its second fixer is a
+   * `CONFLICT`, and nothing changes.
+   */
+  fixer(terminalId: string, ownerId: string): void {
+    const { run } = this
+    if (!run) throw new DomainError("CONFLICT", "The tour hasn't been readied.")
+    if (run.lead === undefined) throw new DomainError("CONFLICT", "The tour's lead hasn't started.")
+    if (run.fixer !== undefined)
+      throw new DomainError("CONFLICT", "The tour's second fixer has started already.")
+    const cwd = this.host.cwdOf(terminalId)
+    if (!withinFolder(cwd, tourFolder(this.host.home), this.host.platform))
+      throw new DomainError("CONFLICT", "The terminal isn't one of the tour's.")
+    if (terminalId === run.lead || this.host.leadOf(terminalId) !== undefined)
+      throw new DomainError("CONFLICT", "The terminal is the lead or a teammate already.")
+    if (!this.host.isFreshShell(terminalId))
+      throw new DomainError("CONFLICT", "The terminal isn't a plain shell at its prompt.")
+    try {
+      this.host.cwdOf(run.lead)
+    } catch {
+      throw new DomainError("CONFLICT", "The tour's lead is gone.")
+    }
+    const lead = run.lead
+    // Claimed first, so a second call meanwhile is refused; given back where the typing fails.
+    run.fixer = terminalId
+    try {
+      this.host.type(terminalId, run.launch.command, ownerId)
+    } catch (error) {
+      run.fixer = undefined
+      throw error
+    }
+    this.host.adopt(terminalId, lead)
+    this.host.expect(terminalId, run.agent)
+    this.ring(terminalId, secondFixerBrief(mention(this.host.handleOf(lead))))
   }
 
   /**
@@ -144,10 +227,10 @@ export class Tour {
   /**
    * What an `open_agent` of `terminalId` is subject to: a terminal in the tour's folder that has
    * a lead is a teammate, and only the tour's lead opens agents there, so it is refused. The
-   * lead (no lead of its own), a led terminal elsewhere, and a terminal the runner doesn't have
-   * are left to the call's own checks.
+   * lead (no lead of its own) opens them with the tour's write flags; a led terminal elsewhere,
+   * and a terminal the runner doesn't have, are left to the call's own checks.
    */
-  openPolicy(terminalId: string): { readonly refusal?: string } {
+  openPolicy(terminalId: string): OpenPolicy {
     let cwd: string
     try {
       cwd = this.host.cwdOf(terminalId)
@@ -155,12 +238,29 @@ export class Tour {
       return {}
     }
     if (!withinFolder(cwd, tourFolder(this.host.home), this.host.platform)) return {}
+    // The lead's fixers write in the folder unasked, for that launch only (`tourWrites`).
     return this.host.leadOf(terminalId) === undefined
-      ? {}
+      ? { flags: (agent) => tourWrites[agent] }
       : {
           refusal:
             "You're a teammate in Novadeck's tour: only the tour's lead opens agents. Do only the task in your lead's message.",
         }
+  }
+
+  /**
+   * Whether the terminal is one of the tour's, in its folder: its agents use worktrees
+   * whatever the person's setting says. False for a terminal the runner doesn't have.
+   */
+  isTours(terminalId: string): boolean {
+    try {
+      return withinFolder(
+        this.host.cwdOf(terminalId),
+        tourFolder(this.host.home),
+        this.host.platform,
+      )
+    } catch {
+      return false
+    }
   }
 
   // Only the tour's own terminals, those in its folder, are rung; one elsewhere is a

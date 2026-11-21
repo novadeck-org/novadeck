@@ -7,40 +7,42 @@ import { describe, e2e, expect, supported } from "./fixture.js"
 import { prompted } from "./scenarios.js"
 import { folder, seedTour, tell } from "./tour-story.js"
 
-// Novadeck's tour story (docs/tour.md), for each harness as the lead: it opens a copywriter
-// and a designer on the brief's model and effort, they describe themselves and send their
-// parts, the copywriter asks the person in the Inbox, and the lead shows its strip. The model
-// is a script (tour-story.ts) that follows the folder's lead.md. Only the lead's own
-// harness is connected here, so both teammates run on it; tour.mixed.e2e.ts has them differ.
+// Novadeck's tour story (docs/tour.md), for each harness as the lead: it opens a fixer for bug 1
+// on the brief's model and effort, which works in a worktree; the person's own terminal is
+// taken as a second fixer (`tour.fixer`), which asks the person and works in a worktree too;
+// both tell the lead, and both fixes show in one preview of split.js. The model is a script
+// (tour-story.ts) that follows the briefs. Only the lead's own harness is connected here, so
+// both fixers run on it; tour.mixed.e2e.ts has the first differ.
 
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
     const it = e2e.seeded({ trustedInHome: [folder] }, setup)
 
-    it("leads a copywriter and a designer to a comic strip, the person choosing its tagline", async ({
+    it("leads two fixers to both bugs fixed in worktrees, the person starting the second and choosing its way", async ({
       e2e: run,
     }) => {
-      const [writer, designer] = await tell(run, setup, [setup.agent])
+      const fixer = await tell(run, setup, [setup.agent])
 
-      // The same harness both times, on its own cheapest model.
-      expect(writer.agent).toBe(setup.agent)
-      expect(designer.agent).toBe(setup.agent)
+      // The same harness, on its own cheapest model.
+      expect(fixer.agent).toBe(setup.agent)
     })
 
     // As on every computer Novadeck has run agents on, the folder of agents' worktrees is
-    // there, and each shim gives it on, each harness its own way: the lead and its teammates
-    // still work in the tour's folder.
+    // there already, and each shim gives it on, each harness its own way: the lead and its
+    // fixers still work in the tour's folder.
     it("tells the same story while the folder of agents' worktrees is there", async ({
       e2e: run,
     }) => {
-      const [writer, designer] = await tell(run, setup, [setup.agent], { worktreesFolder: true })
-      expect([writer.agent, designer.agent]).toEqual([setup.agent, setup.agent])
+      const fixer = await tell(run, setup, [setup.agent], {
+        worktreesFolder: true,
+      })
+      expect(fixer.agent).toBe(setup.agent)
     })
   })
 }
 
-// The tour folder's own Claude Code settings take a teammate, which is given no launch flags,
-// out of a plan mode the person's own settings start it in: project settings outrank user ones.
+// The tour folder's own Claude Code settings take a teammate, which a person may start with no
+// launch flags, out of a plan mode the person's own settings start it in: project settings outrank user ones.
 describe.skipIf(!supported)(
   "Claude Code in the tour's folder, its user settings in plan mode",
   () => {

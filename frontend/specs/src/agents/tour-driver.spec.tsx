@@ -57,28 +57,49 @@ beforeEach(switchTourOn)
 describe("The tour's driver", () => {
   it("points at the agent as it starts, and moves on once it has taken its brief", async () => {
     await startTour()
-    await coachSays("Your own agent. In a sandbox.")
+    await coachSays("Your own agent. In a sandbox repo.")
     await expect.element(page.getByText(/^Act 1, Your agent\./)).toBeInTheDocument()
     // The agent describes itself as the tour's lead: its step is done.
     await expect.poll(terminalTabNames, leadNamed).toContain("Tour lead")
-    await coachSays("It hired two more.")
+    await coachSays("It put a fixer on bug 1.")
+  })
+
+  it("drops a run kept by a version whose steps were others, rather than follow it at the wrong one", async () => {
+    sessionStorage.setItem(
+      "novadeck.tour",
+      JSON.stringify({
+        terminalId: "gone",
+        agent: "claude",
+        brief: "launch",
+        step: 3,
+        waitingSince: 0,
+        nudged: false,
+        briefed: true,
+        asked: false,
+        entered: true,
+      }),
+    )
+    await openWorkspace(offered)
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    expect(coach().query()).toBeNull()
+    expect(bar().query()).toBeNull()
   })
 
   it("leaves the keyboard's focus where it was", async () => {
     await startTour()
-    await coachSays("Your own agent. In a sandbox.")
+    await coachSays("Your own agent. In a sandbox repo.")
     expect(coach().element().contains(document.activeElement)).toBe(false)
   })
 
   it("leaves the workspace's shortcuts, and Escape, to the person", async () => {
     await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=60000`)
-    await coachSays("Your own agent. In a sandbox.")
+    await coachSays("Your own agent. In a sandbox repo.")
     await pressShortcut("find")
     await expect.element(findDialog()).toBeVisible()
     await press("{Escape}")
     await expect.element(findDialog()).not.toBeInTheDocument()
     // The coach stays, as nothing it asked for was dismissed.
-    await coachSays("Your own agent. In a sandbox.")
+    await coachSays("Your own agent. In a sandbox repo.")
   })
 
   context("while the agent asks the person something of its own first", () => {
@@ -127,7 +148,7 @@ describe("The tour's driver", () => {
         .click()
 
       await bar().getByRole("button", { name: "Back to the tour" }).click()
-      await coachSays("It hired two more.")
+      await coachSays("It put a fixer on bug 1.")
       // The Inbox the person answered in is still open: the terminals are listed in their panel.
       await sidebarPanel("Terminals").click()
       await expect.poll(terminalTabNames, leadNamed).toContain("Tour lead")
@@ -136,7 +157,7 @@ describe("The tour's driver", () => {
 
   it("nudges an agent gone quiet, which then goes on", async () => {
     await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=600`)
-    await coachSays("Your own agent. In a sandbox.")
+    await coachSays("Your own agent. In a sandbox repo.")
     // Quiet, it never names itself unless nudged.
     await expect.poll(terminalTabNames, leadNamed).toContain("Tour lead")
   })
@@ -152,20 +173,20 @@ describe("The tour's driver", () => {
 
     it("gives way while the person is in another project, and takes them back", async () => {
       await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=60000`)
-      await coachSays("Your own agent. In a sandbox.")
+      await coachSays("Your own agent. In a sandbox repo.")
       await switchProject("storefront")
       await expect.element(coach()).not.toBeInTheDocument()
       await barSays("The tour goes on in its project.")
       await bar().getByRole("button", { name: "Back to the tour" }).click()
       await expect.poll(() => workspaceSwitcher().element().textContent ?? "").toContain("Tour")
       await expectSelected(terminalTabNames()[0]!)
-      await coachSays("Your own agent. In a sandbox.")
+      await coachSays("Your own agent. In a sandbox repo.")
     })
   })
 
   it("ends when its lead's terminal closes", async () => {
     await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=60000`)
-    await coachSays("Your own agent. In a sandbox.")
+    await coachSays("Your own agent. In a sandbox repo.")
     await tabAction(`Close ${terminalTabNames()[0]}`).click()
     // A running agent asks first.
     if (closeConfirmation().query()) await confirmClose()

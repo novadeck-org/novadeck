@@ -273,6 +273,10 @@ export type Tour = {
   // Optional. Rings the tour's agent in the terminal a nudge to carry on with its brief, as
   // Novadeck's notice, where it has gone quiet; for the tour's own terminals only.
   readonly nudge?: (terminalId: string) => Promise<void>
+  // Optional. Takes a terminal the person opened in the tour's project, a shell with no agent
+  // in it yet, as the tour's second fixer: the backend starts the run's agent there, led by the
+  // tour's lead, and rings it its brief once it shows. A backend without it has no such step.
+  readonly fixer?: (terminalId: string) => Promise<void>
   // Optional. How long the tour waits on its agent at a step before nudging it, in ms; the UI's
   // own wait when absent. The demo shortens it for specs.
   readonly patienceMs?: number

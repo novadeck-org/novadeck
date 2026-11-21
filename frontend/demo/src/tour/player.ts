@@ -68,8 +68,8 @@ type Player = {
 // Plays the tour's agent in its terminal: an optional startup screen, held until answered;
 // bound at the doorbell's ring where the harness waits for one (Antigravity), else at once;
 // working; describing itself (once nudged, where quiet); then, with the story on, opening its
-// team, which talks, asks the person and is answered, and showing a card (see `story.ts`); and
-// a finished turn. Answers a function that stops it.
+// first fixer, taking the person's terminal as its second, whose ask the person answers, and
+// saying both bugs are fixed (see `story.ts`); and a finished turn. Answers a function that stops it.
 export const playTourAgent = ({ key, harness, tour, turns, dispatch, terminal, stage }: Player) => {
   const plan = tour.take()
   const verbs = turns.as(harness)
@@ -123,7 +123,7 @@ export const playTourAgent = ({ key, harness, tour, turns, dispatch, terminal, s
       stage,
       terminal,
       quietTeam: plan.quietTeam === true,
-      finish: () => finish("Your team made a comic strip of the tour, and it's showing beside me."),
+      finish: () => finish("Both bugs are fixed, each in its own worktree."),
     })
     stops.add(stopStory)
   }

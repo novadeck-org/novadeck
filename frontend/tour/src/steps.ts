@@ -1,20 +1,21 @@
 import type { AgentName } from "@novadeck/core/harnesses"
-import type { ViewMode } from "@novadeck/core/types"
+import type { SidebarPanel, ViewMode } from "@novadeck/core/types"
 
 import type { LeadState, TourSignals } from "./signals"
 
 // What the tour marks on the page (`anchors.ts`): the lead's window, the terminal the coach
-// names, the teammates' windows, the newest conversation in the lead's Messages, the Inbox row
-// waiting on the person, the answers of the request sheet open now, and what the lead shows in
-// its side pane.
+// names, the teammates' windows, the New terminal button in the sidebar's Terminals panel, the
+// Inbox row waiting on the person, the answers of the request sheet open now, the tour's file in
+// the Files panel, and the window that shows its merged preview.
 export type TourTarget =
   | "lead"
   | "terminal"
   | "team"
-  | "newest-message"
+  | "new-terminal"
   | "asking-row"
   | "answers"
-  | "shown"
+  | "file-row"
+  | "preview"
 
 // The tour's four acts, each opened by a wipe with its number and name. A step belongs to one.
 export const tourActs = ["Your agent", "The team", "Your call", "The result"] as const
@@ -37,13 +38,12 @@ export type Coach = {
 }
 
 // What the tour moves as a step begins, never again: the view, the lead's terminal brought into
-// view and selected (in Canvas the camera flies to it), the Inbox, the lead's Messages in its side
-// pane, every window framed (Canvas).
+// view and selected (in Canvas the camera flies to it) with a sidebar panel opened where one is
+// named, the Inbox, every window framed (Canvas).
 export type TourMove =
   | { readonly kind: "view"; readonly view: ViewMode }
-  | { readonly kind: "reveal" }
+  | { readonly kind: "reveal"; readonly panel?: SidebarPanel }
   | { readonly kind: "inbox" }
-  | { readonly kind: "messages" }
   | { readonly kind: "fit-all" }
 
 // How a step waits: on the agent (`nudge`: it rings the lead once after the tour's patience,
@@ -81,7 +81,7 @@ export const startStep: TourStep = {
   id: "start",
   act: 1,
   enter: [{ kind: "view", view: "canvas" }, { kind: "reveal" }],
-  coach: { look: "lead", line: "Your own agent. In a sandbox." },
+  coach: { look: "lead", line: "Your own agent. In a sandbox repo." },
   // It describes itself, as its brief asks; or, where a cheap model skips that, its first turn
   // ends.
   done: ({ lead }) => lead.kind === "agent" && (lead.named || lead.answered),
@@ -92,35 +92,39 @@ export const startStep: TourStep = {
 // what the step marks, is on screen long enough to read.
 const lineMs = 3_000
 
-// Act 2: the lead opens two teammates, which come up on the canvas, wired to it, and name
-// themselves; the camera pulls back to frame them all as each comes. Done, it stays a moment
-// (`lineMs`), as they name themselves in seconds, for its line to be read.
-export const teamStep: TourStep = {
-  id: "team",
+// Act 2: the lead opens a fixer for the first bug, which comes up on the canvas, wired to it, and
+// names itself; the camera pulls back to frame them as it comes. Done, it stays a moment
+// (`lineMs`), as it names itself in seconds, for its line to be read.
+export const hireStep: TourStep = {
+  id: "hire",
   act: 2,
   enter: [{ kind: "fit-all" }],
   frameTeam: true,
   holdMs: lineMs,
-  coach: { look: "team", line: "It hired two more." },
-  done: ({ team }) => team.count >= 2 && team.named >= 2,
+  coach: { look: "team", line: "It put a fixer on bug 1." },
+  done: ({ team }) => team.count >= 1 && team.named >= 1,
   wait: "nudge",
 }
 
-// Still act 2: the team talks, as the lead's Messages show: the first message a teammate sends
-// is the talk to see (the designer's look, to its lead). That message is what it marks and what
-// makes it done, so it stays a moment once done (`lineMs`), for its line to be read.
-export const talkStep: TourStep = {
-  id: "talk",
+// Still act 2: the person's own doing. The sidebar's Terminals panel shows its New terminal
+// button, which the tour marks; the terminal they open gets their agent, which the driver asks
+// the backend for (`tour.fixer`), led by the lead, for the second bug. Done once it has joined
+// the team. It waits on the person as long as they take. A backend without `tour.fixer` has no
+// such step (`stepsOf`).
+export const yoursStep: TourStep = {
+  id: "yours",
   act: 2,
-  enter: [{ kind: "fit-all" }, { kind: "messages" }],
-  frameTeam: true,
-  holdMs: lineMs,
-  coach: { look: "newest-message", line: "They talk to each other." },
-  done: ({ talks }) => talks >= 1,
-  wait: "nudge",
+  enter: [{ kind: "reveal", panel: "terminals" }, { kind: "fit-all" }],
+  coach: {
+    click: ["new-terminal"],
+    line: "Your turn. Open a terminal.",
+    note: "Your agent starts in it and takes bug 2.",
+  },
+  done: ({ team }) => team.count >= 2,
+  wait: "patient",
 }
 
-// Act 3: a teammate asks the person in the Inbox, and the team carries on with the answer.
+// Act 3: the person's fixer asks them in the Inbox, and the team carries on with the answer.
 // It waits on the agent until the question shows, then on the person, as long as they take.
 export const askStep: TourStep = {
   id: "ask",
@@ -135,41 +139,58 @@ export const askStep: TourStep = {
   wait: ({ asked }) => (asked ? "patient" : "nudge"),
 }
 
-// Still act 3: with the answer in, the lead makes the result, which takes it a while; the
-// tour looks at the lead meanwhile, and the result's act comes only once it's shown, so its wipe
-// is the reveal.
+// Still act 3: with the answer in, the fixers make their fixes, each in its own worktree, and
+// report to the lead; the tour looks at the team meanwhile. Done once each of them has (it stays
+// a moment then, as they may report in seconds, for its line to be read). With no second fixer
+// (a backend without `tour.fixer`) the one reports alone.
 export const makeStep: TourStep = {
   id: "make",
   act: 3,
   enter: [{ kind: "fit-all" }],
-  coach: { look: "lead", line: "Now they make it." },
-  done: ({ shown }) => shown,
+  holdMs: lineMs,
+  coach: { look: "team", line: "Now they fix it. Each in its own worktree." },
+  done: ({ reporters, team }) => reporters >= 1 && reporters >= Math.min(2, team.count),
   wait: "nudge",
 }
 
-// Act 4: the lead shows the result in the side pane beside its terminal, the team framed with
-// it, so the result's caption has room beside the lead. Once it's shown, it stays a few seconds
-// (while the tour's project is on screen) to be looked at, then the story ends and the closing
-// card comes.
-export const showStep: TourStep = {
-  id: "show",
+// Act 4: the Files panel opens, with the tour's file in it, which the person opens: it shows
+// the file as both fixes merge it, in a window of its own. The result's wipe opens the act.
+export const resultStep: TourStep = {
+  id: "result",
   act: 4,
-  enter: [{ kind: "fit-all" }],
+  enter: [{ kind: "reveal", panel: "files" }, { kind: "fit-all" }],
+  coach: { click: ["file-row"], line: "Both fixes, merged. Open the file." },
+  done: ({ preview }) => preview !== null,
+  wait: "patient",
+}
+
+// Still act 4: the merged preview, looked at a few seconds (while the tour's project is on
+// screen), then the story ends and the closing card comes.
+export const mergedStep: TourStep = {
+  id: "merged",
+  act: 4,
+  enter: [],
   holdMs: 6_000,
-  coach: { look: "shown", line: "Made for you." },
-  done: ({ shown }) => shown,
-  wait: "nudge",
+  coach: { look: "preview", line: "Two agents. One file. Merged live." },
+  done: ({ preview }) => preview !== null,
+  wait: "patient",
 }
 
 // The tour's steps, in order: the story the brief asks its agent to play.
 export const tourSteps: readonly TourStep[] = [
   startStep,
-  teamStep,
-  talkStep,
+  hireStep,
+  yoursStep,
   askStep,
   makeStep,
-  showStep,
+  resultStep,
+  mergedStep,
 ]
+
+// The steps a backend plays: without `tour.fixer` there is no second fixer to start, so the
+// person's own step is left out.
+export const stepsOf = (hasFixer: boolean): readonly TourStep[] =>
+  hasFixer ? tourSteps : tourSteps.filter(({ id }) => id !== yoursStep.id)
 
 // What the tour moves as its story ends: every window framed, for the closing card.
 export const closingMoves: readonly TourMove[] = [{ kind: "fit-all" }]

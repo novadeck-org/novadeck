@@ -1,3 +1,5 @@
+import { activeProject } from "@novadeck/core/state"
+import { isTourFolder } from "@novadeck/core/tour-folder"
 import { useEffect } from "react"
 
 import {
@@ -78,7 +80,9 @@ export const useKeyboard = (dictation?: Dictation): void => {
       canvas,
       effects: domEffects,
       dictation,
-      panelShown: panelShownOn(backend),
+      panelShown: panelShownOn(backend, () =>
+        isTourFolder(activeProject(workspace.getSnapshot())!.directory),
+      ),
     })
     const bindings = keymapFor(currentPlatform())
     const dispatch = (phase: KeyPhase, event: Event, input: KeyInput): void => {

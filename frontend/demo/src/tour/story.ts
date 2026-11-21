@@ -1,59 +1,44 @@
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { InboxAnswer, InboxRow } from "@novadeck/core/inbox"
-import { itemIdOf, type Item, type ItemContent } from "@novadeck/core/items"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
 import type { TerminalMetadata } from "@novadeck/core/types"
 
 import type { DemoTurns } from "../agents/turns"
 import { demoTourFolder, type DemoTour, type TourStage } from "../tour"
 import { demoRun } from "../tour-runs"
+import { planFile, worktreeRoot } from "../works"
 import { terminalOf } from "../workspace"
+import { moneyAnswers, moneyBranch, splitFile, tipBranch } from "./split"
 
 // The rest of the tour's story, as a runner would report it once the lead described itself: it
-// opens two teammates, who talk, one asks the person which tagline to use, and the lead shows
-// the card it wrote with the answer. Every step reaches the UI as the real thing does: terminals
-// the lead leads, messages between them, an Inbox ask, an item on the lead's bar.
+// opens a fixer for the first bug, which opens its worktree, edits split.js and reports; the
+// person opens a terminal and the tour hands it their own agent as the second fixer, which opens
+// its worktree and asks which way to show whole amounts; once answered it edits and reports; and
+// the lead says both are fixed. Every step reaches the UI as the real thing does: terminals the
+// lead leads, messages between them, an Inbox ask, works that change split.js.
 
-// How long each step takes: short and fixed, so specs run fast. The person's answer waits as long
-// as it takes.
+// How long each step takes: short and fixed, so specs run fast. The person's answer, and their
+// terminal, wait as long as they take.
 export const tourStoryMs = { open: 300, bind: 300, work: 300, talk: 300, show: 400 } as const
 
-export const copywriterName = "Copywriter"
-export const designerName = "Designer"
+export const tipFixerName = "Tip fixer"
+export const moneyFixerName = "Money fixer"
 
-export const taglineSubject = "Which tagline for the comic strip?"
+export const moneySubject = "Whole amounts: $12.00 or $12?"
 
-// The two taglines the copywriter offers, as the ask's options A and B.
-export const taglines = [
-  { label: "A", line: "Every agent, one calm workspace." },
-  { label: "B", line: "Your agents, finally on the same page." },
-] as const
-
-// What the team says before the ask, as the brief has it: the designer sends its look to the
-// lead, and only to the lead. The copywriter tells the lead only the person's pick, once made.
-export const tourTalk = {
-  designerToLead:
-    "Look: background #fff6dc; text #140b1f; accent #ffe24a; line Ink on cream. Final.",
-} as const
-
-export const taglineMessage = (label: string, line: string): string =>
-  `The person picked ${label}: "${line}". Use it as the strip's punchline.`
+export const fixedTip = "Fixed bug 1."
+export const fixedMoney = "Fixed bug 2."
 
 const target = ({ projectId, workspaceSessionId }: TerminalKey) => ({
   projectId,
   workspaceSessionId,
 })
 
-// The harnesses the lead's two teammates run on: the copywriter on the lead's, the designer on
-// another connected agent where there is one, else on the lead's too, so the team is mixed
-// where the person has two agents.
-export const teamHarnesses = (
-  lead: AgentName,
-  connected: readonly AgentName[],
-): { readonly copywriter: AgentName; readonly designer: AgentName } => ({
-  copywriter: lead,
-  designer: connected.find((agent) => agent !== lead) ?? lead,
-})
+// The harness the lead's first fixer runs on: another connected agent where there is one, else the
+// lead's, so the team is mixed where the person has two agents. The second fixer is the person's
+// own agent, the lead's.
+export const fixerHarness = (lead: AgentName, connected: readonly AgentName[]): AgentName =>
+  connected.find((agent) => agent !== lead) ?? lead
 
 // The command a teammate's terminal runs, as `open_agent` starts an agent: its harness, on the
 // model the tour's lead runs on.
@@ -71,6 +56,14 @@ export const openedTeammate = (
   terminal: { ...terminal, ledBy: lead },
 })
 
+// A terminal the person opened, taken by the tour as the lead's second fixer: led by it from now.
+export const adoptedTeammate = (key: TerminalKey, lead: string): BackendAction => ({
+  type: "terminal/update",
+  target: target(key),
+  terminalId: key.terminalId,
+  ledBy: lead,
+})
+
 // An agent's describe: its terminal takes the name, as the agent's own, by its handle.
 export const namedAs = (key: TerminalKey, name: string, by: string): BackendAction => ({
   type: "terminal/update",
@@ -80,9 +73,9 @@ export const namedAs = (key: TerminalKey, name: string, by: string): BackendActi
   titleSource: { kind: "agent", by },
 })
 
-// The copywriter's ask, as the runner's `ask` makes its row: options A and B, each with its
-// line, from the copywriter's terminal, the agent working on meanwhile.
-export const taglineAsk = (
+// The second fixer's ask, as the runner's `ask` makes its row: options A and B, from its
+// terminal, the agent working on meanwhile.
+export const moneyAsk = (
   key: TerminalKey,
   terminal: TerminalMetadata,
   harness: AgentName,
@@ -104,113 +97,36 @@ export const taglineAsk = (
   stopped: false,
   seen: false,
   ask: {
-    subject: taglineSubject,
-    body: "The lead is making a comic strip of the tour for you. Which tagline should be its punchline?",
+    subject: moneySubject,
+    body: "money() shows $12.5 for 12.50, and for a whole amount it would show $12.0. Which should it show for $12?",
     details: null,
     hardToUndo: null,
     shape: {
       type: "options",
-      options: taglines.map(({ label, line }) => ({
+      options: moneyAnswers.map(({ label, summary }) => ({
         label,
-        summary: line,
+        summary,
         details: null,
         code: null,
       })),
-      recommend: null,
+      recommend: 0,
     },
   },
 })
 
 // The answer picking option `option`, as the Inbox sends it.
-export const pickTagline = (option: number): InboxAnswer => ({
+export const pickMoney = (option: number): InboxAnswer => ({
   kind: "ask",
   answer: { type: "reply", option, text: "" },
 })
 
-// The tagline an answer chose: its option's line, or the person's own words where they gave no
-// option. An ask that ended unanswered (dismissed, withdrawn) leaves it to the first.
-export const chosenTagline = (
-  answer: InboxAnswer | undefined,
-): { readonly label: string; readonly line: string } => {
+// The option an answer chose, by index (the person's own words win in the real agent; here they
+// pick the first); an ask that ended unanswered (dismissed, withdrawn) is the first.
+export const chosenMoney = (answer: InboxAnswer | undefined): number => {
   const reply = answer?.kind === "ask" && answer.answer.type === "reply" ? answer.answer : undefined
-  const option = reply?.option === null || reply === undefined ? undefined : taglines[reply.option]
-  if (option) return option
-  const words = reply?.text.trim()
-  return words ? { label: "your words", line: words } : taglines[0]
-}
-
-const escaped = (text: string): string =>
-  text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-
-// The strip as the lead writes it from its brief's template: three panels of the run, the
-// designer's look (paper, ink and accent), its line and the copywriter's, and the chosen
-// tagline as the punchline. One file, its look inline, lettered in the comic font the runner
-// puts beside it; the demo has no files beside it, so it letters in the fallback.
-export const stripPage = (line: string): readonly string[] => [
-  '<!doctype html><html><head><meta charset="utf-8"><style>',
-  ":root{--p:#fff6dc;--i:#140b1f;--a:#ffe24a}",
-  "@font-face{font-family:S;src:url(strip.woff2)}",
-  "body{margin:0;background:var(--i);font-family:S,Impact,sans-serif;letter-spacing:.04em}",
-  ".s{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.3fr);gap:10px;padding:10px;min-height:100vh;box-sizing:border-box}",
-  ".p{padding:0 14px 20px;background:var(--p);color:var(--i)}",
-  ".c,.b,.t{text-transform:uppercase}",
-  ".c{display:inline-block;margin:0 0 30px -14px;padding:5px 12px;background:var(--i);color:var(--p)}",
-  ".b{display:inline-block;padding:6px 10px;background:#fff;color:#111;border:2px solid;box-shadow:3px 3px 0}",
-  ".t{font-size:40px;line-height:1;overflow-wrap:anywhere}",
-  '</style></head><body><div class="s">',
-  '<div class="p"><b class="c">You press start</b><p class="b">your agent:<br>On it. Hiring two.</p></div>',
-  '<div class="p"><b class="c">Two hires, two opinions</b><p class="b">designer:<br>Ink on cream. Final.</p><p class="b">copywriter:<br>Two taglines. Boss picks.</p></div>',
-  `<div class="p" style="background:var(--a)"><b class="c">Your pick</b><p class="t">${escaped(line)}</p><p>Made by your team, in Novadeck.</p></div>`,
-  "</div></body></html>",
-]
-
-// What the lead shows: tour-strip.html as a file on its bar, which the pane draws as a page,
-// asked to open, from the lead's terminal (as the runner's `show` of a file makes, `by: "agent"`).
-export const tourStrip = (
-  key: TerminalKey,
-  handle: string,
-  line: string,
-  now: number,
-): { readonly item: Item; readonly content: ItemContent } => {
-  const lines = stripPage(line)
-  return {
-    item: {
-      id: itemIdOf(`tour-card-${key.terminalId}`),
-      holder: { terminalId: key.terminalId },
-      kind: "file",
-      name: "tour-strip.html",
-      detail: "tour-strip.html",
-      path: `${demoTourFolder}/tour-strip.html`,
-      url: null,
-      lines: null,
-      secret: false,
-      by: "agent",
-      from: { terminalId: key.terminalId, handle },
-      version: 1,
-      openAsked: true,
-      shownAt: now,
-      plan: null,
-    },
-    content: {
-      state: "ready",
-      stamp: "1",
-      content: {
-        kind: "file",
-        path: `${demoTourFolder}/tour-strip.html`,
-        firstLine: 1,
-        lines,
-        from: 1,
-        to: lines.length,
-        total: lines.length,
-        truncated: false,
-        clamped: false,
-      },
-    },
-  }
+  return reply?.option !== null && reply?.option !== undefined && moneyAnswers[reply.option]
+    ? reply.option
+    : 0
 }
 
 type Story = {
@@ -222,9 +138,9 @@ type Story = {
   readonly stage: TourStage
   // The lead's terminal as the workspace holds it now; none once it's closed.
   readonly terminal: () => TerminalMetadata | undefined
-  // The lead opens its team only once nudged again.
+  // The lead opens its fixer only once nudged again.
   readonly quietTeam: boolean
-  // Ends the lead's turn once the card is shown.
+  // Ends the lead's turn once both fixes are reported.
   readonly finish: () => void
 }
 
@@ -237,9 +153,7 @@ type Teammate = {
   readonly harness: AgentName
 }
 
-// Plays the story after the lead described itself, answering a function that stops it: the
-// teammates open, bind, work and name themselves; they talk; the copywriter asks the person; and,
-// once answered, tells the lead, who shows its card and finishes.
+// Plays the story after the lead described itself, answering a function that stops it.
 export const playTourStory = ({
   key,
   harness,
@@ -262,36 +176,36 @@ export const playTourStory = ({
     timers.add(timer)
   }
   const current = (at: TerminalKey) => terminalOf(stage.workspace(), at)
-  const team = teamHarnesses(harness, tour.connected())
-  const mates: Teammate[] = []
+  const sessionTarget = target(key)
   const lead = () => {
     const found = terminal()
     if (!found) over = true
     return found
   }
-  const sessionTarget = target(key)
 
-  // The lead opens one teammate: a terminal it leads, with a handle at once, which binds, works
-  // and names itself.
-  const open = (name: string, at: AgentName, named: () => void) => {
+  const say = (from: Teammate | "lead", text: string, then?: () => void) => {
     const found = lead()
     if (!found) return
-    const base = stage.newTerminal({
-      target: sessionTarget,
-      directory: demoTourFolder,
-      launch: { command: teammateCommand(at) },
-    })
-    const mate: Teammate = {
-      key: { ...sessionTarget, terminalId: base.id },
-      handle: handleOf(base, name.toLowerCase()),
-      harness: at,
-    }
-    mates.push(mate)
-    dispatch([openedTeammate(mate.key, base, found.id)])
+    const handle = (who: Teammate | "lead") =>
+      who === "lead" ? handleOf(found, harness) : who.handle
+    const sent = stage.messages?.send(sessionTarget, handle(from), handle("lead"), text, then, then)
+    // A refused send, or no messages here, goes on as if it landed.
+    if (!sent && then) later(tourStoryMs.talk, then)
+  }
+
+  // Each fixer's report the lead heard: once both are in, it says so and finishes its turn.
+  const reported = new Set<string>()
+  const reports = (mate: Teammate) => {
+    reported.add(mate.key.terminalId)
+    if (reported.size >= 2) later(tourStoryMs.show, finish)
+  }
+
+  // A fixer binds, works and names itself, then goes on with `named`.
+  const settle = (mate: Teammate, name: string, named: () => void) => {
     stage.messages?.join(sessionTarget, { terminalId: mate.key.terminalId, handle: mate.handle })
     later(tourStoryMs.bind, () => {
       if (!current(mate.key)) return
-      turns.as(at).work(mate.key, current(mate.key))
+      turns.as(mate.harness).work(mate.key, current(mate.key))
       later(tourStoryMs.work, () => {
         if (!current(mate.key)) return
         dispatch([namedAs(mate.key, name, mate.handle)])
@@ -300,39 +214,62 @@ export const playTourStory = ({
     })
   }
 
-  const say = (from: Teammate | "lead", to: Teammate | "lead", text: string, then?: () => void) => {
-    const found = lead()
-    if (!found) return
-    const handle = (who: Teammate | "lead") =>
-      who === "lead" ? handleOf(found, harness) : who.handle
-    const sent = stage.messages?.send(sessionTarget, handle(from), handle(to), text, then, then)
-    // A refused send, or no messages here, goes on as if it landed.
-    if (!sent && then) later(tourStoryMs.talk, then)
-  }
-
-  const present = (line: string) => {
-    const found = lead()
-    if (!found) return
-    const card = tourStrip(key, handleOf(found, harness), line, Date.now())
-    stage.hold(card.item.id, card.content)
-    dispatch([{ type: "item/upsert", target: sessionTarget, item: card.item }])
-    later(tourStoryMs.show, finish)
-  }
-
-  // Waits for the person's answer to the ask, as long as it takes, and goes on with the tagline
-  // it chose.
-  const asked = (copywriter: Teammate) => {
-    const found = lead()
-    const writer = current(copywriter.key)
-    if (!found || !writer) return
-    const project = stage.workspace()?.projects.find(({ id }) => id === key.projectId)
-    const row = taglineAsk(
-      copywriter.key,
-      writer,
-      copywriter.harness,
-      project?.name ?? "",
-      Date.now(),
+  // The fixer opens its worktree (`open_worktree`) on `branch`.
+  const worktree = (mate: Teammate, branch: string) =>
+    stage.works?.openBranch(
+      {
+        projectId: key.projectId,
+        terminalId: mate.key.terminalId,
+        root: worktreeRoot("tour", branch),
+      },
+      branch,
     )
+  // It edits split.js there, `lines` added and one removed.
+  const edit = (mate: Teammate, lines: number) =>
+    stage.works?.setFiles(mate.key.terminalId, [planFile(splitFile, lines, 1)], Date.now())
+  // It tells the lead, and its turn ends.
+  const report = (mate: Teammate, text: string) => {
+    say(mate, text)
+    turns.as(mate.harness).finish(mate.key, current(mate.key), "completed", {
+      after: tourStoryMs.talk,
+      reply: text,
+    })
+    later(tourStoryMs.talk, () => reports(mate))
+  }
+
+  // The lead opens the first fixer: a terminal it leads, with a handle at once, which binds,
+  // works, names itself, opens its worktree, edits and reports.
+  const hire = () => {
+    const found = lead()
+    if (!found) return
+    const at = fixerHarness(harness, tour.connected())
+    const base = stage.newTerminal({
+      target: sessionTarget,
+      directory: demoTourFolder,
+      launch: { command: teammateCommand(at) },
+    })
+    const mate: Teammate = {
+      key: { ...sessionTarget, terminalId: base.id },
+      handle: handleOf(base, "tipfixer"),
+      harness: at,
+    }
+    dispatch([openedTeammate(mate.key, base, found.id)])
+    settle(mate, tipFixerName, () => {
+      worktree(mate, tipBranch)
+      later(tourStoryMs.work, () => {
+        edit(mate, 1)
+        report(mate, fixedTip)
+      })
+    })
+  }
+
+  // The second fixer's ask waits for the person's answer, as long as it takes, then it edits the
+  // way they chose and reports.
+  const asked = (mate: Teammate) => {
+    const writer = current(mate.key)
+    if (!lead() || !writer) return
+    const project = stage.workspace()?.projects.find(({ id }) => id === key.projectId)
+    const row = moneyAsk(mate.key, writer, mate.harness, project?.name ?? "", Date.now())
     let seen = false
     let ended = false
     const end = () => {
@@ -342,13 +279,11 @@ export const playTourStory = ({
       stops.delete(stop)
       stopAnswer()
       stops.delete(stopAnswer)
-      const { label, line } = chosenTagline(stage.answeredWith(row.id))
+      const option = chosenMoney(stage.answeredWith(row.id))
+      stage.picked(option)
       later(tourStoryMs.talk, () => {
-        say(copywriter, "lead", taglineMessage(label, line), () => present(line))
-        turns.as(copywriter.harness).finish(copywriter.key, current(copywriter.key), "completed", {
-          after: tourStoryMs.talk,
-          reply: `Sent ${label} to the lead.`,
-        })
+        edit(mate, moneyAnswers[option]?.lines.length ?? 1)
+        report(mate, fixedMoney)
       })
     }
     const check = () => {
@@ -362,7 +297,7 @@ export const playTourStory = ({
       if (seen || held?.settled) end()
     }
     const stop = stage.inbox?.state.subscribe(check) ?? (() => {})
-    const stopAnswer = tour.tagline((option) => stage.answerRow(row.id, pickTagline(option)))
+    const stopAnswer = tour.money((option) => stage.answerRow(row.id, pickMoney(option)))
     stops.add(stop)
     stops.add(stopAnswer)
     if (!stage.inbox) return later(tourStoryMs.talk, end)
@@ -370,15 +305,26 @@ export const playTourStory = ({
     check()
   }
 
-  const talk = () => {
-    const [copywriter, designer] = mates
-    if (!copywriter || !designer) return
-    say(designer, "lead", tourTalk.designerToLead)
-    turns.as(designer.harness).finish(designer.key, current(designer.key), "completed", {
-      after: tourStoryMs.talk,
-      reply: "Sent the look.",
+  // The tour hands the shell the person opened their own agent: led by the lead from now, it
+  // binds, works, names itself, opens its worktree and asks.
+  let adopted = false
+  const adopt = (terminalId: string) => {
+    const found = lead()
+    const shell = current({ ...sessionTarget, terminalId })
+    if (!found || !shell || adopted) return
+    if (shell.directory !== demoTourFolder || shell.ledBy) return
+    if (shell.state === "running" && shell.agent) return
+    adopted = true
+    const mate: Teammate = {
+      key: { ...sessionTarget, terminalId },
+      handle: handleOf(shell, "moneyfixer"),
+      harness,
+    }
+    dispatch([adoptedTeammate(mate.key, found.id)])
+    settle(mate, moneyFixerName, () => {
+      worktree(mate, moneyBranch)
+      later(tourStoryMs.work, () => asked(mate))
     })
-    later(tourStoryMs.talk, () => asked(copywriter))
   }
 
   const begin = () => {
@@ -388,16 +334,11 @@ export const playTourStory = ({
       terminalId: key.terminalId,
       handle: handleOf(found, harness),
     })
-    let named = 0
-    const onNamed = () => {
-      named += 1
-      if (named === 2) later(tourStoryMs.talk, talk)
-    }
-    later(tourStoryMs.open, () => open(copywriterName, team.copywriter, onNamed))
-    later(tourStoryMs.open * 2, () => open(designerName, team.designer, onNamed))
+    stops.add(tour.onFixer(adopt))
+    later(tourStoryMs.open, hire)
   }
 
-  // A lead told to wait opens its team only once nudged again after the point it's at now.
+  // A lead told to wait opens its fixer only once nudged again after the point it's at now.
   const nudges = () => tour.nudged.getSnapshot().filter((id) => id === key.terminalId).length
   if (quietTeam) {
     const before = nudges()

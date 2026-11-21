@@ -1972,14 +1972,21 @@ one from an earlier runner.
   second for it).
 
 - `tour.prepare({ agent })` readies a run of Novadeck's tour with the person's own agent
-  (`backend/runner/src/tour/`). It removes every project open at the tour's folder,
-  `~/.novadeck/tour`, closing their terminals, so nothing runs there; empties the folder and
-  writes only a neutral sandbox note there (`AGENTS.md`, which Codex and Antigravity read, and
-  `CLAUDE.md`, which imports it: no role, no steps, since the agents the lead opens start in the
-  same folder and would follow a script they loaded) and a project `.claude/settings.json`
-  (`defaultMode: acceptEdits`, so Claude Code teammates, given no launch flags, take edits
-  unasked and a plan mode in the person's own settings doesn't hold them), beside a
-  `.novadeck-tour` marker; and answers `{ directory, command, brief, model?, removed }`.
+  (`backend/runner/src/tour/`). The tour's folder, `~/.novadeck/tour`, is a tiny git repository:
+  a bill splitter, `split.js`, with two bugs (a tip read as a fraction, an amount shown with one
+  decimal), its `README.md` that lists them, and one commit on `main` by "Novadeck tour"
+  (`tour@novadeck.invalid`, given per command: the person's git config is never touched, nor
+  their signing or hooks), with the `.novadeck-tour` marker kept out of it by
+  `.git/info/exclude`. Without git it is a `CONFLICT` ("The tour needs git..."), asked before
+  anything is removed. It removes every project open at the folder, closing their terminals, so
+  nothing runs there; empties the folder and writes the repo, beside a neutral sandbox note
+  (`AGENTS.md`, which Codex and Antigravity read, and `CLAUDE.md`, which imports it: no role,
+  no steps, since every tour agent starts in the same folder and would follow a script it
+  loaded) and a project `.claude/settings.json` (`defaultMode: acceptEdits`, so a Claude Code
+  agent started there with no flags takes edits unasked and a plan mode in the person's own
+  settings doesn't hold it); it also makes the folder agents' worktrees live in (`~/.novadeck/
+  worktrees`), before any agent starts, as the harness shims pass it on only where it exists;
+  and answers `{ directory, command, brief, model?, removed }`.
   `command` starts the agent there on its cheapest model (Claude Code's `haiku`, Codex's newest
   `*-luna` or else the last it lists, Antigravity's `gemini-3.8-flash-low`, each at its lowest
   effort), taking edits in the folder without asking for this launch only
@@ -1987,27 +1994,51 @@ one from an earlier runner.
   on-request`, `--mode accept-edits`), with no prompt on it, and nothing written to the agent's
   own settings. `brief` is always `doorbell`: the lead's script reaches it by `tour.brief`.
   The script is composed for each run, and never names the person: it calls them "you", and
-  tells every agent never to use their name, even one it knows. It has
-  the lead open two teammates with `open_agent`, a copywriter on the lead's own agent and a
-  designer on the first other connected agent whose cheapest model is listed (else the lead's),
-  each on that agent's cheapest model at its lowest effort, as above; teammates get no write
-  flags, and only the lead writes the strip, `tour-strip.html` (a page the side pane draws as one,
-  lettered in `strip.woff2`, the Bangers font the folder starts with beside its instructions). A terminal in the folder that has a lead is a teammate, and its `open_agent` is
-  refused (`Tour.openPolicy`, through the Terminals option `openPolicy`), so a teammate that
-  follows the script anyway can't nest a team. `removed` names the projects it removed. A
-  folder there that is no folder, or that holds files without the marker, is the person's and
-  is never emptied: `CONFLICT`, refused before any project is removed, as are an agent Novadeck isn't connected to and a second run
-  while one is being readied. An agent whose cheapest model can't be told is `MODELS_UNLISTED`:
-  Codex lists its models (its `models_cache.json`) only once it has started signed in. Neither
-  changes anything. The client then opens the folder as a project and starts `command` in a
-  terminal of it (`terminals.create`).
+  tells every agent never to use their name, even one it knows. It has the lead open one
+  teammate with `open_agent`, the first fixer, on the first other connected agent whose
+  cheapest model is listed (else the lead's own), at its lowest effort as above, with its task
+  as the message: describe itself, open a worktree on `fix-tip`, fix bug 1 in `split.js` there
+  by absolute path, and tell the lead; it tells the person that they start a second fixer for
+  bug 2 by opening a terminal, which joins the team (`tour.fixer`), and, once both fixers have
+  reported, that both bugs are fixed, each in its own worktree. The lead never edits. A teammate
+  the lead opens in the folder starts with the same write flags as the lead, for that launch
+  only (`OpenPolicy.flags`, through the Terminals option `openPolicy`, so `open_agent`'s
+  command line carries them right after the model). A terminal in the folder that has a lead
+  is a teammate, and its `open_agent` is refused (`Tour.openPolicy`), so a teammate that
+  follows a script anyway can't nest a team. `removed` names the projects it removed. A folder
+  there that is no folder, or that holds files without the marker, is the person's and is never
+  emptied: `CONFLICT`, refused before any project is removed, as are an agent Novadeck isn't
+  connected to and a second run while one is being readied. An agent whose cheapest model can't
+  be told is `MODELS_UNLISTED`: Codex lists its models (its `models_cache.json`) only once it
+  has started signed in. Neither changes anything. The client then opens the folder as a
+  project and starts `command` in a terminal of it (`terminals.create`).
+  Agent worktrees work for every terminal in the tour's folder whatever the person's "Agent
+  worktrees" setting (never changed by the tour): the MCP server lists the worktree tools and
+  the calls go through (`WorktreesWiring.enabled(terminalId)`), the folder counts as ready for
+  the agent's process once it exists, and each worktree's changes are shown on its owner's bar.
 - `tour.brief({ terminalId })` rings the lead's script (composed of the run last readied) to the
   agent in the terminal, as Novadeck's notice, for every harness: the doorbell delivers it once
-  the agent's prompt shows and its MCP tools are listed. Its delivery's note frames it as the
-  agent's task (the one notice that is), and its text keeps its quotes and angle brackets
-  (escaped as every message's is), whole: it is under the 8 KB a delivery prints. A terminal
-  whose agent hasn't shown yet, or that isn't in the tour's folder, is a `CONFLICT`, as is a
-  runner that has readied no run; the client asks once it has bound.
+  the agent's prompt shows and its MCP tools are listed. It records the terminal as the run's
+  lead. Its delivery's note frames it as the agent's task (the one notice that is), and its
+  text keeps its quotes and angle brackets (escaped as every message's is), whole: it is under
+  the 8 KB a delivery prints. A terminal whose agent hasn't shown yet, or that isn't in the
+  tour's folder, is a `CONFLICT`, as is a runner that has readied no run; the client asks once
+  it has bound.
+- `tour.fixer({ terminalId })` takes the terminal the person opened in the tour's project as
+  the run's second fixer, once per run, with no approval asked (the person asked for it by
+  opening the terminal at the tour's prompt). It must be in the tour's folder, a plain shell at
+  its prompt (no agent has run in it, none runs, it has no lead), not the lead, with the run's
+  lead started and still there; otherwise `CONFLICT`, and nothing changes. Then, in one go: it
+  types the run's agent launch (`command` of the run, the cheapest model and the write flags)
+  into the shell, on behalf of the window that controls the terminal; makes the run's lead its
+  lead and tells the lead it joined, as `join` does once approved (`adoptTeammate`); expects
+  the agent there; and rings it the second fixer's brief, as Novadeck's notice for every
+  harness, which waits for the agent's first session as any message to an agent that is
+  starting does. The brief (framed as a task, under 8 KB) has it describe itself, open a
+  worktree on `fix-money`, `ask` the person "Whole amounts: $12.00 or $12?" (recommending
+  `$12.00`), end its turn, fix `money()` in `split.js` in that worktree by the answer (their own
+  words win; dismissed is `$12.00`), and `send` the lead "Fixed bug 2.". `tour.nudge` works for
+  it as for the lead.
 - `tour.nudge({ terminalId })` rings the agent in one of the tour's terminals a fixed line, as
   Novadeck's notice, to carry on from the step it is on: the UI's tour driver sends it where a
   step has waited on the agent past its patience. Refused as `tour.brief` is.

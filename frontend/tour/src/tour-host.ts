@@ -3,7 +3,10 @@ import type { Backend } from "@novadeck/core/port"
 import type { Store } from "@novadeck/core/store"
 import type { SidebarPanel, ViewMode, Workspace } from "@novadeck/core/types"
 
+import type { TourPreview } from "./signals"
 import type { TourEffects } from "./start"
+
+export type { TourPreview } from "./signals"
 
 /**
  * What the tour needs of the app it runs in: the backend's tour and what its signals read, the
@@ -14,6 +17,9 @@ export type TourHost = {
   readonly backend: Pick<Backend, "tour" | "agents" | "messages" | "inbox">
   readonly workspace: Store<Workspace>
   readonly commands: TourCommands
+  // The files the person has open as the merged preview of the agents' work, as the app keeps
+  // them: the tour can't read the app's store, and its last step is the person opening one.
+  readonly previews: Store<readonly TourPreview[]>
 }
 
 export type TourCommands = Pick<TourEffects, "openTour" | "add"> & {

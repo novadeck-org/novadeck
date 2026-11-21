@@ -54,7 +54,7 @@ const fixture = (cleanup: (run: () => void) => void) => {
   const notices: { id: string; text: string }[] = []
   const asked: Asked[] = []
   let nobody = false
-  const state = { enabled: true, mode: "herd" as AgentMode }
+  const state = { enabled: true, mode: "herd" as AgentMode, tour: [] as string[] }
   // Terminals whose agents sleep: no record, but still owners, by handle.
   const asleep = new Map<string, string>()
   const host = {
@@ -87,7 +87,7 @@ const fixture = (cleanup: (run: () => void) => void) => {
       request: (item: Asked["item"], settle: Asked["settle"]) => void asked.push({ item, settle }),
     }),
     worktrees: () => worktrees,
-    enabled: () => state.enabled,
+    enabled: (terminalId: string) => state.enabled || state.tour.includes(terminalId),
     projectOf: () => project,
   } as unknown as WorktreeCallsHost
   const calls = new WorktreeCalls(host)
@@ -133,6 +133,21 @@ describe("worktree calls", () => {
     expect(fx.calls.listed(fx.call("t1", {}))).toEqual({ ok: true, on: false })
     fx.state.enabled = true
     expect(fx.calls.listed(fx.call("t1", {}))).toEqual({ ok: true, on: true })
+  })
+
+  it("go on for a tour terminal while the setting is off, for it alone", async ({ fx }) => {
+    fx.state.enabled = false
+    fx.state.tour = ["t2"]
+    expect(fx.calls.listed({ ...fx.call("t2", {}) })).toEqual({ ok: true, on: true })
+    expect(fx.calls.listed(fx.call("t1", {}))).toEqual({ ok: true, on: false })
+    expect(await fx.calls.open(fx.call("t1", { branch: "x" }))).toEqual({
+      ok: false,
+      reason: offRefusal,
+    })
+    expect(await fx.calls.open(fx.call("t2", { branch: "tour-x" }))).toMatchObject({
+      ok: true,
+      branch: "tour-x",
+    })
   })
 
   it("answer a call without the terminal's own token with nothing more", async ({ fx }) => {

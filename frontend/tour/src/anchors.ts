@@ -1,3 +1,4 @@
+import { tourFile } from "./signals"
 import type { TourTarget } from "./steps"
 
 const area = (): Element | null => document.querySelector("[data-workspace-area]")
@@ -20,23 +21,26 @@ const first = (root: ParentNode | null | undefined, selector: string): HTMLEleme
   return found ? [found] : []
 }
 
-// What the targets are read against: the tour's lead, the terminal the coach names, and the
-// Inbox row of the team's question waiting now.
+// What the targets are read against: the tour's lead, the terminal the coach names, the Inbox row
+// of the team's question waiting now, and the window that shows the merged preview of the tour's
+// file.
 export type TargetsOf = {
   readonly lead: string
   readonly terminalId: string
   readonly askingRow: string | null
+  readonly previewWindow: string | null
 }
 
 /**
  * The elements a target names now, as drawn: none where the view hides them. `lead` is the
  * tour's lead terminal and `terminal` the one the coach names (the lead's where it names none);
- * `team` every other window of the tour; `newest-message` the latest conversation in the lead's
- * Messages; `asking-row` the Inbox row of the team's question; `answers` the answers of the
- * request sheet open now; `shown` what the lead shows in its side pane.
+ * `team` every other window of the tour; `new-terminal` the sidebar's New terminal button;
+ * `asking-row` the Inbox row of the team's question; `answers` the answers of the request sheet
+ * open now; `file-row` the tour's file in the Files panel; `preview` the window that shows its
+ * merged preview.
  */
 export const targetElements = (target: TourTarget, where: TargetsOf): HTMLElement[] => {
-  const { lead, terminalId, askingRow } = where
+  const { lead, terminalId, askingRow, previewWindow } = where
   switch (target) {
     case "lead":
     case "terminal": {
@@ -47,16 +51,20 @@ export const targetElements = (target: TourTarget, where: TargetsOf): HTMLElemen
       return [...(area()?.querySelectorAll<HTMLElement>(windowSelector) ?? [])].filter(
         (element) => element.dataset.terminal !== lead && drawn(element),
       )
-    case "newest-message":
-      return first(terminalElement(lead), '[data-tour="messages"] .message-row')
+    case "new-terminal":
+      return first(document, "[data-terminals-create]")
     case "asking-row":
       return askingRow
         ? first(document, `[data-tour="inbox-card"][data-inbox-row="${CSS.escape(askingRow)}"]`)
         : []
     case "answers":
       return first(document, '[role="dialog"] [role="group"]:has(button)')
-    case "shown":
-      return first(terminalElement(lead), '[data-tour="side-pane"]')
+    case "file-row":
+      return first(document, `[role="treeitem"][data-path="${CSS.escape(tourFile)}"]`)
+    case "preview": {
+      const element = previewWindow ? terminalElement(previewWindow) : null
+      return element && drawn(element) ? [element] : []
+    }
   }
 }
 

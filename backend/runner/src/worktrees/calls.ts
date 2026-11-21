@@ -21,8 +21,11 @@ export type WorktreeCallsHost = Pick<
 > & {
   /** The service; none where the runner keeps no ownership (some tests). */
   readonly worktrees: () => Worktrees | undefined
-  /** Whether the person turned agent worktrees on (Preferences, Experimental). */
-  readonly enabled: () => boolean
+  /**
+   * Whether agent worktrees are on for the terminal: the person turned them on (Preferences,
+   * Experimental), or it is one of the tour's (`Wiring.enabled`).
+   */
+  readonly enabled: (terminalId: string) => boolean
   /** The project a session belongs to. */
   readonly projectOf: (sessionId: string) => string
 }
@@ -30,9 +33,16 @@ export type WorktreeCallsHost = Pick<
 /** The service the runner hands its terminals, with whether the person has worktrees on. */
 export type WorktreesWiring = {
   readonly service: Worktrees
-  readonly enabled: () => boolean
-  /** Whether an agent process started at that time can use worktrees (`RootFolder.ready`). */
-  readonly ready: (startedAt: number | undefined, relists: boolean) => boolean
+  /**
+   * Whether agent worktrees are on: the person's setting, or for a terminal of the tour's
+   * (`terminalId`), always, so the tour works the same whatever the person chose.
+   */
+  readonly enabled: (terminalId?: string) => boolean
+  /**
+   * Whether an agent process started at that time can use worktrees (`RootFolder.ready`); a
+   * tour terminal's (`terminalId`) needs only the folder.
+   */
+  readonly ready: (startedAt: number | undefined, relists: boolean, terminalId?: string) => boolean
   /** A branch's pull request, where a forge the person switched on found one (`Forges`). */
   readonly pullRequest?: (commonDir: string, branch: string) => PullRequest | undefined
 }
@@ -53,7 +63,7 @@ export const worktreeHost = (
   projectOf: (sessionId: string) => string,
 ): Pick<WorktreeCallsHost, "worktrees" | "enabled" | "projectOf"> => ({
   worktrees: () => wiring?.service,
-  enabled: () => wiring?.enabled() ?? false,
+  enabled: (terminalId) => wiring?.enabled(terminalId) ?? false,
   projectOf,
 })
 
@@ -202,7 +212,7 @@ export class WorktreeCalls {
     | Failure {
     const record = callerOf(this.host.records(), call)
     if (!record) return unanswered
-    if (!this.host.enabled()) return refused(offRefusal)
+    if (!this.host.enabled(call.terminalId)) return refused(offRefusal)
     const service = this.host.worktrees()
     if (!service) return refused("Novadeck keeps no worktrees here.")
     return { record, service, projectId: this.host.projectOf(record.summary.sessionId) }
@@ -216,7 +226,7 @@ export class WorktreeCalls {
   /** Whether the tools are offered: the caller is one of Novadeck's terminals, and the setting is on. */
   listed(call: Call): { readonly ok: boolean; readonly on?: boolean; readonly reason?: string } {
     if (!callerOf(this.host.records(), call)) return unansweredCalls.worktrees
-    return { ok: true, on: this.host.enabled() }
+    return { ok: true, on: this.host.enabled(call.terminalId) }
   }
 
   async open(call: Call): Promise<WorktreeAnswer> {
@@ -373,7 +383,8 @@ export class WorktreeCalls {
           if (outcome === "gone") return tell(call.terminalId, worktreeNotice.gone(path))
           if (outcome === "withdrawn") return tell(call.terminalId, worktreeNotice.vanished(path))
           // The setting may have gone off while the person decided: nothing moves then.
-          if (!this.host.enabled()) return tell(call.terminalId, worktreeNotice.off(path))
+          if (!this.host.enabled(call.terminalId))
+            return tell(call.terminalId, worktreeNotice.off(path))
           if (!(await service.transfer(path, ownerId, call.terminalId)))
             return tell(call.terminalId, worktreeNotice.moved(path))
           tell(call.terminalId, worktreeNotice.taken(path, branch))

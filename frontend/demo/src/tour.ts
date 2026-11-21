@@ -1,13 +1,23 @@
+import type { ProjectFiles } from "@novadeck/core/files"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { InboxAnswer } from "@novadeck/core/inbox"
-import { emptyCompanions, type ItemContent } from "@novadeck/core/items"
+import {
+  emptyCompanions,
+  itemIdOf,
+  type Companions,
+  type Item,
+  type ItemContent,
+} from "@novadeck/core/items"
 import type { AgentConnection, Backend, Tour } from "@novadeck/core/port"
 import { createStore, type Store } from "@novadeck/core/store"
-import type { Workspace } from "@novadeck/core/types"
+import type { CompanionWindowMeta, Workspace } from "@novadeck/core/types"
+import type { WorkPreview } from "@novadeck/core/works"
 
 import type { DemoTurns } from "./agents/turns"
+import { listEntries } from "./files"
 import { isDemoInbox, type DemoInbox } from "./inbox"
 import { createDemoMessages, isDemoMessages, type DemoMessages } from "./messages"
+import { isDemoWorks, type DemoWorks } from "./works"
 import { terminalOf } from "./workspace"
 
 // Where the demo's tour runs, as the runner's runs in `~/.novadeck/tour`.
@@ -37,7 +47,8 @@ export type TourAgentPlan = {
 
 // What a lead needs of the backend to play the story's rest (see `tour/story.ts`): the
 // workspace as it is now, a new terminal of the demo's numbering, the agents' messages and the
-// Inbox where the demo has them, and a way to show a card beside the lead.
+// Inbox where the demo has them, the works the fixers' worktrees make, and a way to say which
+// way the person had whole amounts shown.
 export type TourStage = {
   readonly workspace: () => Workspace | undefined
   readonly newTerminal: Backend["newTerminal"]
@@ -47,8 +58,10 @@ export type TourStage = {
   readonly answeredWith: (id: string) => InboxAnswer | undefined
   // Answers a row as the person would in the Inbox.
   readonly answerRow: (id: string, answer: InboxAnswer) => void
-  // Makes what a shown item holds follow-able, before its item is upserted.
-  readonly hold: (itemId: string, content: ItemContent) => void
+  // The demo's works, where it has them: the fixers' worktrees and their changes to split.js.
+  readonly works: DemoWorks | undefined
+  // The option the person picked for whole amounts, which the merged preview of split.js shows.
+  readonly picked: (option: number) => void
 }
 
 export type DemoTour = Tour & {
@@ -83,9 +96,11 @@ export type DemoTour = Tour & {
   readonly goQuietTeam: (quiet?: boolean) => void
   // The agents Novadeck is connected to, in the order it lists them.
   readonly connected: () => readonly AgentName[]
-  // Answers the tagline ask by its option, as the person would: nothing while none waits.
-  readonly answerTagline: (option?: number) => void
-  readonly tagline: (listener: (option: number) => void) => () => void
+  // Answers the second fixer's ask by its option, as the person would: nothing while none waits.
+  readonly answerMoney: (option?: number) => void
+  readonly money: (listener: (option: number) => void) => () => void
+  // Hears the person's new terminal handed to the tour (`tour.fixer`).
+  readonly onFixer: (listener: (terminalId: string) => void) => () => void
   // The lead's agent stops, its process exited, as one that can't go on does.
   readonly stop: () => void
   readonly stopped: (listener: () => void) => () => void
@@ -117,6 +132,7 @@ export const demoTour = (
   let screenMs: number | undefined
   let story = true
   // The story's events, which its lead hears: an option the person picked, or the stop.
+  const fixers = new Set<(terminalId: string) => void>()
   const events = new Set<(event: number | "stop" | "answer") => void>()
   const hear = (listener: (event: number | "stop" | "answer") => void) => {
     events.add(listener)
@@ -153,8 +169,12 @@ export const demoTour = (
         .getSnapshot()
         .filter((each) => each.connected)
         .map((each) => each.agent),
-    answerTagline: (option = 0) => events.forEach((each) => each(option)),
-    tagline: (listener) => hear((event) => typeof event === "number" && listener(event)),
+    answerMoney: (option = 0) => events.forEach((each) => each(option)),
+    money: (listener) => hear((event) => typeof event === "number" && listener(event)),
+    onFixer: (listener) => {
+      fixers.add(listener)
+      return () => void fixers.delete(listener)
+    },
     stop: () => events.forEach((each) => each("stop")),
     stopped: (listener) => hear((event) => event === "stop" && listener()),
     configure: (options) => {
@@ -193,6 +213,12 @@ export const demoTour = (
       nudged.update((ids) => [...ids, terminalId])
       return Promise.resolve()
     },
+    // The terminal is the run's second fixer: the story's lead takes it (and ignores one that
+    // isn't a shell of the tour's, or a second).
+    fixer: (terminalId) => {
+      fixers.forEach((each) => each(terminalId))
+      return Promise.resolve()
+    },
   }
   tours.add(tour)
   return tour
@@ -227,8 +253,8 @@ export const withTourAgent = (backend: Backend, turns: DemoTurns): Backend => {
     answers.set(id, answer)
     inbox?.answer(id, answer)
   }
-  const held = new Map<string, ItemContent>()
-  const companions = backend.companions ?? emptyCompanions()
+  const works = isDemoWorks(backend.works) ? backend.works : undefined
+  let money = 0
   const stage: TourStage = {
     workspace: () => latest,
     newTerminal: (request) => backend.newTerminal(request),
@@ -236,22 +262,134 @@ export const withTourAgent = (backend: Backend, turns: DemoTurns): Backend => {
     inbox,
     answeredWith: (id) => answers.get(id),
     answerRow,
-    hold: (itemId, content) => void held.set(itemId, content),
+    works,
+    picked: (option) => {
+      money = option
+    },
+  }
+  // Whether a project is the tour's, by its folder.
+  const isTour = (projectId: string): boolean =>
+    latest?.projects.find(({ id }) => id === projectId)?.directory === demoTourFolder
+  // The tour's repo in the Files panel, beside whatever files the demo has: the tour's project
+  // lists its own files, the changes laid over them by the works.
+  const baseFiles: ProjectFiles = backend.files ?? {
+    state: createStore({ projects: {} }),
+    list: (_projectId, folder) => Promise.resolve(listEntries(["README.md"], folder)),
+  }
+  const files: ProjectFiles = {
+    ...baseFiles,
+    list: async (projectId, folder) => {
+      if (!isTour(projectId)) return baseFiles.list(projectId, folder)
+      const { tourEntries } = await import("./tour/split")
+      return listEntries(tourEntries, folder)
+    },
+  }
+  // Where the demo's panes can't open a file in the project's window (the plain demo's), the tour's
+  // repo opens in one as the runner would make it: pointed at the file, the window made under
+  // the id asked, which `follow` then reads from what the story kept.
+  const base = backend.companions ?? emptyCompanions()
+  const heldContent = new Map<string, ItemContent>()
+  const projectWindows = new Map<string, { itemId: string; windowId: string }>()
+  let opened = 0
+  const companions: Companions = base.openInProject
+    ? base
+    : {
+        ...base,
+        follow: (target, itemId, options, on) => {
+          const content = heldContent.get(String(itemId))
+          if (!content) return base.follow(target, itemId, options, on)
+          on(content)
+          return () => {}
+        },
+        openInProject: async (target, path, windowId) => {
+          const { splitFile, splitMain } = await import("./tour/split")
+          const folder = latest?.projects.find(({ id }) => id === target.projectId)?.directory
+          const full = /^[/~]/.test(path) || !folder ? path : `${folder}/${path}`
+          const key = `${target.projectId}/${target.workspaceSessionId}`
+          const known = projectWindows.get(key)
+          const id = known?.itemId ?? `tour-file-${(opened += 1)}`
+          const window = known?.windowId ?? windowId
+          projectWindows.set(key, { itemId: id, windowId: window })
+          const name = path.split("/").pop() ?? path
+          const lines = path === splitFile ? splitMain.trimEnd().split("\n") : [`# ${path}`]
+          heldContent.set(id, {
+            state: "ready",
+            stamp: "1",
+            content: {
+              kind: "file",
+              path: full,
+              firstLine: 1,
+              lines,
+              from: 1,
+              to: lines.length,
+              total: lines.length,
+              truncated: false,
+              clamped: false,
+            },
+          })
+          const item: Item = {
+            id: itemIdOf(id),
+            holder: { windowId: window },
+            kind: "file",
+            name,
+            detail: path,
+            path: full,
+            url: null,
+            lines: null,
+            secret: false,
+            by: "person",
+            from: null,
+            version: 1,
+            openAsked: true,
+            shownAt: Date.now(),
+            plan: null,
+          }
+          const meta: CompanionWindowMeta = {
+            id: window,
+            home: "project",
+            itemId: item.id,
+            name,
+            titleSource: { kind: "default" },
+          }
+          sink?.dispatch([
+            { type: "item/upsert", target, item },
+            { type: "window/upsert", target, window: meta },
+          ])
+          return { item, window: meta }
+        },
+      }
+  // split.js as both fixers' works merge it, where the demo has works.
+  const previewed: NonNullable<Backend["works"]> | undefined = backend.works && {
+    ...backend.works,
+    preview: async (projectId, path): Promise<WorkPreview> => {
+      if (!isTour(projectId)) return backend.works!.preview(projectId, path)
+      const { splitFile, splitMain, tipBranch, tipHunk, moneyHunk } = await import("./tour/split")
+      if (path !== splitFile) return { main: null, works: [], renames: [] }
+      const changing = (works?.worksOf(projectId) ?? []).flatMap((work) => {
+        const file = work.files.find((each) => each.path === splitFile)
+        if (!file) return []
+        return [
+          {
+            root: work.root,
+            terminalId: work.terminalId,
+            branch: work.branch ?? null,
+            status: "modified" as const,
+            changedAt: file.changedAt,
+            hunks: [work.branch === tipBranch ? tipHunk : moneyHunk(money)],
+          },
+        ]
+      })
+      return { main: splitMain, works: changing, renames: [] }
+    },
   }
   return {
     ...backend,
     tour,
     messages,
+    files,
+    companions,
+    ...(previewed && { works: previewed }),
     ...(inbox && backend.inbox ? { inbox: { ...backend.inbox, answer: answerRow } } : {}),
-    companions: {
-      ...companions,
-      follow: (target, itemId, options, on) => {
-        const content = held.get(itemId)
-        if (!content) return companions.follow(target, itemId, options, on)
-        on(content)
-        return () => {}
-      },
-    },
     commit: (workspace, actions) => {
       latest = workspace
       backend.commit(workspace, actions)

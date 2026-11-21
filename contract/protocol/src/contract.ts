@@ -1009,6 +1009,12 @@ export const contract = {
     // with its brief from the step it is on, where it has gone quiet. A terminal elsewhere, or
     // whose agent hasn't shown yet, is a CONFLICT.
     nudge: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
+    // Takes a terminal the person opened in the tour's project, a shell with no agent in it, as
+    // the tour's second fixer: starts the run's agent there on the tour's model with the tour's
+    // write flags, led by the tour's lead, and rings it its brief once it shows (as `brief`
+    // does). A terminal outside the tour's folder, one that already runs something, or a run
+    // that already has its second fixer is a CONFLICT.
+    fixer: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
   },
 }
 

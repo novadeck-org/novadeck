@@ -839,8 +839,8 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
   // would report one: `&tourScreen=startup|sign-in|hooks` holds it at that screen until it's
   // answered (`&tourScreenMs=<n>` answers after n ms), `&tourAgent=quiet` has it never describe
   // itself until nudged, `&tourAgent=permission` has it ask the person's permission first, and `&tourPatienceMs=<n>` is how long the UI waits before nudging. The
-  // lead then opens its team and plays the story on: `&tourStory=off` stops it after it names
-  // itself, and `&tourTeam=quiet` has it open its team only once nudged again.
+  // lead then opens its first fixer and plays the story on: `&tourStory=off` stops it after it
+  // names itself, and `&tourTeam=quiet` has it open its fixer only once nudged again.
   if (isDemoTour(backend.tour)) {
     const screen = params.get("tourScreen")
     if (tourScreens.includes(screen as TourScreen)) backend.tour.holdAt(screen as TourScreen)

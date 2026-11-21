@@ -25,7 +25,7 @@ const facts = (agent: AgentName) =>
     },
     {
       icon: FolderLock,
-      text: "Works in a sandbox folder, ~/.novadeck/tour, made fresh each time.",
+      text: "Works in a sandbox repo, ~/.novadeck/tour, made fresh each time.",
     },
     { icon: CircleStop, text: "Close the tour's terminal to stop it at any time." },
   ] as const
@@ -117,7 +117,7 @@ const TourConsentBody = ({
       <DialogDescription className="modal-description m-0 text-body leading-[1.6]">
         {agent === null
           ? "The tour runs one of your agents. Install and connect Claude Code, Codex or Antigravity in Preferences first."
-          : "Watch your own agent work in Novadeck: it opens a team of two, a teammate asks you one question, and the lead shows you what they made."}
+          : "Watch your own agent work in Novadeck on a tiny repo with two bugs: it puts a fixer on one, you start a second, one of them asks you a question, and you see both fixes merged."}
       </DialogDescription>
       {agent !== null && agents.length > 1 && (
         <SegmentGroup

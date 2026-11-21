@@ -385,6 +385,9 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
         hooksFolder: join(dirname(options.database), "no-hooks"),
       }),
   })
+  // The person's setting, except that the tour's terminals have worktrees whatever it says.
+  const worktreesOn = (terminalId?: string): boolean =>
+    store.settings.runner().worktrees || (terminalId !== undefined && tour.isTours(terminalId))
   const rootFolder = new RootFolder({
     enabled: () => store.settings.runner().worktrees,
     ...(options.worktreesRoot !== undefined && { path: options.worktreesRoot }),
@@ -396,8 +399,9 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     projects: () => store.projects().map(({ id }) => id),
     worktrees: {
       service: worktrees,
-      enabled: () => store.settings.runner().worktrees,
-      ready: (startedAt, relists) => rootFolder.ready(startedAt, relists),
+      enabled: (terminalId) => worktreesOn(terminalId),
+      ready: (startedAt, relists, terminalId) =>
+        rootFolder.ready(startedAt, relists, terminalId !== undefined && tour.isTours(terminalId)),
       // Read only by MCP calls, which come once the forges below are made.
       pullRequest: (commonDir, branch) => forges.pullRequest(commonDir, branch),
     },
@@ -447,6 +451,16 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     notice: (terminalId, text) => terminals.messaging.notice(terminalId, text, { always: true }),
     cwdOf: (terminalId) => terminals.get(terminalId).cwd,
     leadOf: (terminalId) => terminals.messaging.leadOf(terminalId)?.terminalId,
+    handleOf: (terminalId) => terminals.get(terminalId).handle,
+    isFreshShell: (terminalId) => {
+      const shell = terminals.get(terminalId)
+      return shell.started && !shell.busy && !shell.agentRan && shell.command === null
+    },
+    adopt: (terminalId, leadId) => terminals.adopt(terminalId, leadId),
+    expect: (terminalId, agent) => terminals.messaging.expect(terminalId, agent),
+    type: (terminalId, line, ownerId) =>
+      terminals.write({ terminalId, data: `${line}\r` }, ownerId),
+    worktreesFolder: () => rootFolder.make(),
   })
   // Not awaited: the runner starts at once, and a failure only leaves rows for the next start.
   void worktrees
@@ -478,7 +492,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   keepWorktreeChanges({
     onMade: (listener) => worktrees.onMade(listener),
     onChanged: (listener) => worktrees.onChanged(listener),
-    enabled: () => store.settings.runner().worktrees,
+    enabled: (terminalId) => worktreesOn(terminalId),
     owner: (root) => worktrees.all().find((row) => row.path === root)?.terminalId,
     place: (terminalId) => terminals.place(terminalId),
     show: (place, root) => items.showChangesUnlessShown(place, root),

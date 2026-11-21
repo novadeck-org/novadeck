@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process"
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -11,13 +12,13 @@ import {
   maxDeliveryBytes,
   novadeckSender,
   tourBriefMark,
+  tourFixerMark,
   type Message,
 } from "../messaging/messages.js"
 import { deliveredBytes } from "../messaging/sending.js"
 import { describe, expect, it } from "../test.js"
-import { nudgeLine, tourBrief } from "./brief.js"
+import { firstFixerTask, nudgeLine, secondFixerBrief, tourBrief } from "./brief.js"
 import { tourFolder, tourMarker } from "./folder.js"
-import { stripFont } from "./strip-font.js"
 import { Tour, withinFolder, type TourHost } from "./tour.js"
 
 // Where a harness lives, for the model lists the tour picks from: Novadeck's own lists ignore it.
@@ -42,11 +43,20 @@ const tourIn = (
     cwds?: Readonly<Record<string, string>>
     // The terminal leading each led terminal.
     leads?: Readonly<Record<string, string>>
+    // The terminals that are plain shells at their prompt.
+    shells?: readonly string[]
+    // The terminals typing into which fails, as a closed terminal's.
+    failing?: readonly string[]
   } = {},
 ) => {
   const projects = options.projects ?? []
   const rung = options.notices ?? []
   const removed: string[] = []
+  // What the tour did to the terminals: the lines typed, the leads set, the agents expected.
+  const typed: [string, string, string][] = []
+  const adopted: [string, string][] = []
+  const expected: [string, AgentName][] = []
+  let folders = 0
   const host: TourHost = {
     home,
     connected: (agent) => Promise.resolve((options.connected ?? ["claude"]).includes(agent)),
@@ -71,6 +81,15 @@ const tourIn = (
     },
     cwdOf: (terminalId) => options.cwds?.[terminalId] ?? tourFolder(home),
     leadOf: (terminalId) => options.leads?.[terminalId],
+    handleOf: (terminalId) => `h-${terminalId}`,
+    isFreshShell: (terminalId) => (options.shells ?? []).includes(terminalId),
+    adopt: (terminalId, leadId) => void adopted.push([terminalId, leadId]),
+    expect: (terminalId, agent) => void expected.push([terminalId, agent]),
+    type: (terminalId, line, ownerId) => {
+      if (options.failing?.includes(terminalId)) throw new DomainError("TERMINAL_EXITED", "closed")
+      typed.push([terminalId, line, ownerId])
+    },
+    worktreesFolder: () => void folders++,
   }
   const tour = new Tour(host)
   // The lead's brief as the tour rings it now, composed of the run last readied.
@@ -78,7 +97,15 @@ const tourIn = (
     tour.brief("lead")
     return rung.at(-1)![1]
   }
-  return { tour, removed, brief }
+  return {
+    tour,
+    removed,
+    brief,
+    typed,
+    adopted,
+    expected,
+    folders: () => folders,
+  }
 }
 
 const project = (id: string, cwd: string): Project => ({ id, name: id, cwd, pinned: false })
@@ -98,11 +125,13 @@ describe("readying the tour", () => {
     expect(prepared).toMatchObject({ directory, brief: "doorbell", model: "haiku", removed: [] })
     expect(prepared.command).toMatch(/^claude --model haiku /)
     expect((await readdir(directory)).toSorted()).toEqual(
-      [".claude", "AGENTS.md", "CLAUDE.md", stripFont.file, tourMarker].toSorted(),
+      [".claude", ".git", "AGENTS.md", "CLAUDE.md", "README.md", "split.js", tourMarker].toSorted(),
     )
     expect(await readFile(join(directory, "CLAUDE.md"), "utf8")).toBe("@AGENTS.md\n")
-    // The strip's lettering, a woff2 file (its signature), beside where the strip goes.
-    expect((await readFile(join(directory, stripFont.file))).subarray(0, 4).toString()).toBe("wOF2")
+    // Both bugs are in one file, so the merged preview shows both fixes.
+    const source = await readFile(join(directory, "split.js"), "utf8")
+    expect(source).toContain("(total + total * tip) / people")
+    expect(source).toContain("amount.toFixed(1)")
     expect(JSON.parse(await readFile(join(directory, ".claude", "settings.json"), "utf8"))).toEqual(
       {
         permissions: { defaultMode: "acceptEdits" },
@@ -211,7 +240,7 @@ describe("readying the tour", () => {
   })
 })
 
-// The arguments the brief gives `open_agent` for each of its two teammates, in order.
+// The arguments the brief gives `open_agent` for its fixer.
 const opened = (text: string): string[] =>
   [...text.matchAll(/Call `open_agent` with (agent "[^\n]*?)(?:, and as|\n)/g)].map(
     ([, each]) => each!,
@@ -219,24 +248,62 @@ const opened = (text: string): string[] =>
 
 const luna: Model = { id: "gpt-e2e-luna", efforts: ["low", "medium"] }
 
-describe("the brief's facts", () => {
-  it("has a lead's own harness open both teammates on its cheapest model", async ({
+describe("the sandbox repo", () => {
+  it("is a git repo on main with one commit by the tour, the marker kept out of it", async ({
     resources,
   }) => {
+    const home = await scratchHome(resources)
+    const { tour } = tourIn(home)
+    await tour.prepare("claude")
+    const directory = tourFolder(home)
+    const gitIn = (...args: string[]) =>
+      execFileSync("git", ["-C", directory, ...args], {
+        encoding: "utf8",
+      }).trim()
+    expect(gitIn("branch", "--show-current")).toBe("main")
+    expect(gitIn("rev-list", "--count", "HEAD")).toBe("1")
+    expect(gitIn("log", "--format=%an <%ae>")).toBe("Novadeck tour <tour@novadeck.invalid>")
+    expect(gitIn("status", "--porcelain")).toBe("")
+    expect(gitIn("ls-files").split("\n").toSorted()).toEqual(
+      [".claude/settings.json", "AGENTS.md", "CLAUDE.md", "README.md", "split.js"].toSorted(),
+    )
+  })
+
+  it("is made afresh for each run, one commit again", async ({ resources }) => {
+    const home = await scratchHome(resources)
+    const { tour } = tourIn(home)
+    await tour.prepare("claude")
+    const directory = tourFolder(home)
+    await writeFile(join(directory, "split.js"), "changed\n")
+    await tour.prepare("claude")
+    expect(await readFile(join(directory, "split.js"), "utf8")).toContain("share")
+    expect(
+      execFileSync("git", ["-C", directory, "rev-list", "--count", "HEAD"], {
+        encoding: "utf8",
+      }).trim(),
+    ).toBe("1")
+  })
+
+  it("makes the folder agents' worktrees live in", async ({ resources }) => {
+    const home = await scratchHome(resources)
+    const { tour, folders } = tourIn(home)
+    await tour.prepare("claude")
+    expect(folders()).toBe(1)
+  })
+})
+
+describe("the brief's facts", () => {
+  it("has a lead's own harness open its fixer on its cheapest model", async ({ resources }) => {
     const home = await scratchHome(resources)
     const { tour, brief } = tourIn(home)
     await tour.prepare("claude")
     const text = brief()
-    expect(text).toContain("comic strip of this tour for the person, with two teammates")
-    expect(text).toContain("tour-strip.html")
-    expect(text).toContain('<b class="c">You press start</b>')
-    expect(opened(text)).toEqual([
-      'agent "claude", model "haiku", effort "low"',
-      'agent "claude", model "haiku", effort "low"',
-    ])
+    expect(text).toContain("bill splitter with two bugs")
+    expect(text).toContain('branch "fix-tip"')
+    expect(opened(text)).toEqual(['agent "claude", model "haiku", effort "low"'])
   })
 
-  it("puts the designer on a second connected harness where one lists its cheapest model", async ({
+  it("puts the fixer on another connected harness where one lists its cheapest model", async ({
     resources,
   }) => {
     const home = await scratchHome(resources)
@@ -246,15 +313,9 @@ describe("the brief's facts", () => {
     })
     await tour.prepare("agy")
     // Claude Code comes first of the others.
-    expect(opened(brief())).toEqual([
-      'agent "agy", model "gemini-3.8-flash-low", effort "low"',
-      'agent "claude", model "haiku", effort "low"',
-    ])
+    expect(opened(brief())).toEqual(['agent "claude", model "haiku", effort "low"'])
     await tour.prepare("claude")
-    expect(opened(brief())).toEqual([
-      'agent "claude", model "haiku", effort "low"',
-      'agent "codex", model "gpt-e2e-luna", effort "low"',
-    ])
+    expect(opened(brief())).toEqual(['agent "codex", model "gpt-e2e-luna", effort "low"'])
   })
 
   it("takes Codex's luna from its catalog, and keeps the lead's harness where the other can't be told", async ({
@@ -266,17 +327,11 @@ describe("the brief's facts", () => {
       lists: { codex: [luna] },
     })
     await tour.prepare("codex")
-    expect(opened(brief())).toEqual([
-      'agent "codex", model "gpt-e2e-luna", effort "low"',
-      'agent "claude", model "haiku", effort "low"',
-    ])
+    expect(opened(brief())).toEqual(['agent "claude", model "haiku", effort "low"'])
     // A connected harness that lists no models, as Codex before it has signed in.
     const alone = tourIn(home, { connected: ["claude", "codex"], lists: { codex: [] } })
     await alone.tour.prepare("claude")
-    expect(opened(alone.brief())).toEqual([
-      'agent "claude", model "haiku", effort "low"',
-      'agent "claude", model "haiku", effort "low"',
-    ])
+    expect(opened(alone.brief())).toEqual(['agent "claude", model "haiku", effort "low"'])
   })
 
   it("leaves out an effort a model takes none of", async ({ resources }) => {
@@ -286,10 +341,7 @@ describe("the brief's facts", () => {
       lists: { codex: [{ id: "gpt-e2e-luna", efforts: [] }] },
     })
     await tour.prepare("codex")
-    expect(opened(brief())).toEqual([
-      'agent "codex", model "gpt-e2e-luna"',
-      'agent "codex", model "gpt-e2e-luna"',
-    ])
+    expect(opened(brief())).toEqual(['agent "codex", model "gpt-e2e-luna"'])
   })
 
   it("never names the person, and tells its agents not to", async ({ resources }) => {
@@ -300,6 +352,24 @@ describe("the brief's facts", () => {
     expect(text).toContain("Never use the person's name, even if you know it")
     expect(text).not.toMatch(/\bNAME\b/)
   })
+})
+
+// A notice as the doorbell delivers it, to count its bytes against one delivery.
+const noticeOf = (text: string): Message => ({
+  id: "m1",
+  projectId: "p1",
+  thread: "t-notice-m1",
+  hop: 1,
+  from: novadeckSender,
+  to: { terminalId: "t1", handle: "moth", agent: "claude", sessionId: null },
+  text,
+  sentAt: 0,
+  state: "queued",
+  deliveredAt: null,
+  notified: true,
+  stopped: false,
+  fromLead: false,
+  toLead: false,
 })
 
 describe("ringing the tour's brief", () => {
@@ -314,35 +384,20 @@ describe("ringing the tour's brief", () => {
     expect(id).toBe("t1")
     expect(text.startsWith(tourBriefMark)).toBe(true)
     expect(text).toContain("## Steps")
-    expect(text).toContain("comic strip of this tour for the person,")
-    // The HTML template keeps its quotes and angle brackets, and the whole of it is there.
-    expect(text).toContain('<!doctype html><html><head><meta charset="utf-8">')
-    expect(text).toContain("</div></body></html>")
+    // The fixer's task goes in whole, with what the doorbell frames.
+    expect(text).toContain('Call `open_worktree` with branch "fix-tip"')
     // Delivered whole: wrapped as Novadeck's notice, in every harness, it fits one delivery,
     // which a harness takes no more than (a brief past it is rung but never handed over).
-    const notice: Message = {
-      id: "m1",
-      projectId: "p1",
-      thread: "t-notice-m1",
-      hop: 1,
-      from: novadeckSender,
-      to: { terminalId: "t1", handle: "moth", agent: "claude", sessionId: null },
-      text,
-      sentAt: 0,
-      state: "queued",
-      deliveredAt: null,
-      notified: true,
-      stopped: false,
-      fromLead: false,
-      toLead: false,
-    }
-    expect(deliveredBytes(notice)).toBeLessThanOrEqual(maxDeliveryBytes)
-    // And so it does on the longest harness and model names, as \`agy\`'s.
+    expect(deliveredBytes(noticeOf(text))).toBeLessThanOrEqual(maxDeliveryBytes)
+    // And so it does on the longest harness and model names, as `agy`'s.
     const longest = tourBrief({
-      copywriter: { agent: "agy", model: "gemini-3-flash-lite-preview", effort: "medium" },
-      designer: { agent: "codex", model: "gpt-5.4-codex-mini-preview", effort: "medium" },
+      fixer: {
+        agent: "agy",
+        model: "gemini-3-flash-lite-preview",
+        effort: "medium",
+      },
     })
-    expect(deliveredBytes({ ...notice, text: longest })).toBeLessThanOrEqual(maxDeliveryBytes)
+    expect(deliveredBytes(noticeOf(longest))).toBeLessThanOrEqual(maxDeliveryBytes)
   })
 
   it("is refused before a run is readied", () => {
@@ -364,6 +419,135 @@ describe("ringing the tour's brief", () => {
     await tour.prepare("claude")
     expect(() => tour.brief("mine")).toThrow(/isn't one of the tour's/)
     expect(notices).toEqual([])
+  })
+})
+
+describe("the second fixer's brief", () => {
+  it("fits one delivery, with a long handle for its lead", () => {
+    const text = secondFixerBrief("@a-twenty-char-name-x")
+    expect(text.startsWith(tourFixerMark)).toBe(true)
+    expect(deliveredBytes(noticeOf(text))).toBeLessThanOrEqual(maxDeliveryBytes)
+  })
+
+  it("is the one the lead's brief quotes for the first, which is no notice", () => {
+    expect(tourBrief({ fixer: { agent: "claude", model: "haiku" } })).toContain(
+      "> You are Tip fixer, a teammate in Novadeck's tour.",
+    )
+  })
+
+  it("asks the person which whole amounts show, then fixes money in its own worktree", () => {
+    const text = secondFixerBrief("@moth")
+    expect(text).toContain('branch "fix-money"')
+    expect(text).toContain("Whole amounts: $12.00 or $12?")
+    expect(text).toContain('"recommend":0')
+    expect(text).toContain('dismissed the question, use "$12.00"')
+    expect(text).toContain('`to` "@moth"')
+    expect(text).toMatch(/Run no\s+shell command and never call `open_agent`/)
+  })
+
+  it("has the first fixer fix the tip in its own worktree by absolute path", () => {
+    expect(firstFixerTask).toContain('branch "fix-tip"')
+    expect(firstFixerTask).toContain("(total + total * tip / 100) / people")
+    expect(firstFixerTask).toContain("by its absolute path")
+    expect(firstFixerTask).toContain("Fixed bug 1.")
+  })
+})
+
+describe("taking the person's terminal as the second fixer", () => {
+  const ready = async (
+    resources: { defer: (cleanup: () => Promise<void>) => void },
+    options: Parameters<typeof tourIn>[1] = {},
+  ) => {
+    const home = await scratchHome(resources)
+    const notices: [string, string][] = []
+    const made = tourIn(home, {
+      notices,
+      shown: ["lead", "mine", "next"],
+      shells: ["mine"],
+      ...options,
+      cwds: {
+        lead: tourFolder(home),
+        mine: tourFolder(home),
+        next: tourFolder(home),
+        ...options.cwds,
+      },
+    })
+    await made.tour.prepare("claude")
+    return { ...made, notices, home }
+  }
+
+  it("types the launch line, makes the lead its lead, and rings it the brief", async ({
+    resources,
+  }) => {
+    const { tour, brief, typed, adopted, expected, notices } = await ready(resources)
+    brief()
+    tour.fixer("mine", "window")
+    expect(typed).toHaveLength(1)
+    expect(typed[0]).toEqual([
+      "mine",
+      expect.stringMatching(/^claude --model haiku .*--permission-mode acceptEdits/),
+      "window",
+    ])
+    expect(adopted).toEqual([["mine", "lead"]])
+    expect(expected).toEqual([["mine", "claude"]])
+    const [id, text] = notices.at(-1)!
+    expect(id).toBe("mine")
+    expect(text).toBe(secondFixerBrief("@h-lead"))
+  })
+
+  it("is for a run once", async ({ resources }) => {
+    const { tour, brief, typed } = await ready(resources, {
+      shells: ["mine", "again"],
+    })
+    brief()
+    tour.fixer("mine", "window")
+    expect(() => tour.fixer("again", "window")).toThrow(/started already/)
+    expect(typed).toHaveLength(1)
+  })
+
+  it("waits for the lead to have started, and for a run", async ({ resources }) => {
+    const { tour } = await ready(resources)
+    expect(() => tour.fixer("mine", "window")).toThrow(/lead hasn't started/)
+    const none = tourIn("/nowhere").tour
+    expect(() => none.fixer("mine", "window")).toThrow(/hasn't been readied/)
+  })
+
+  it("refuses a terminal elsewhere, one with an agent or a lead, and the lead itself, changing nothing", async ({
+    resources,
+  }) => {
+    const { tour, brief, typed, adopted } = await ready(resources, {
+      shells: ["mine", "away"],
+      cwds: { away: "/h/code" },
+      leads: { led: "lead" },
+    })
+    brief()
+    expect(() => tour.fixer("away", "window")).toThrow(/isn't one of the tour's/)
+    expect(() => tour.fixer("led", "window")).toThrow(/lead or a teammate/)
+    expect(() => tour.fixer("lead", "window")).toThrow(/lead or a teammate/)
+    expect(() => tour.fixer("busy", "window")).toThrow(DomainError)
+    expect(typed).toEqual([])
+    expect(adopted).toEqual([])
+  })
+
+  it("refuses a terminal that isn't a plain shell at its prompt", async ({ resources }) => {
+    const { tour, brief, typed } = await ready(resources, { shells: [] })
+    brief()
+    expect(() => tour.fixer("mine", "window")).toThrow(/plain shell/)
+    expect(typed).toEqual([])
+  })
+
+  it("gives the run back where typing fails, so the person's next terminal can be taken", async ({
+    resources,
+  }) => {
+    const { tour, brief, typed, adopted } = await ready(resources, {
+      shells: ["mine", "next"],
+      failing: ["mine"],
+    })
+    brief()
+    expect(() => tour.fixer("mine", "window")).toThrow(/closed/)
+    expect(adopted).toEqual([])
+    tour.fixer("next", "window")
+    expect(typed.map(([id]) => id)).toEqual(["next"])
   })
 })
 
@@ -403,17 +587,14 @@ describe("the brief's wording", () => {
     expect(nudgeLine).toContain("Don't redo a step.")
   })
 
-  it("leaves the tagline to the person, and has the copywriter cope with a dismissal or its own words", async ({
-    resources,
-  }) => {
+  it("leaves the choice to the person, and says the second fixer joins", async ({ resources }) => {
     const home = await scratchHome(resources)
     const { tour, brief } = tourIn(home)
     await tour.prepare("claude")
     const text = brief()
-    expect(text).toContain("Never answer your teammates' questions to the person yourself")
-    expect(text).toMatch(/body "The lead is making a\s+>\s+comic strip of the tour for you/)
-    expect(text).toContain("dismissed the question")
-    expect(text).toContain("their words as the tagline")
+    expect(text).toContain("Never answer a fixer's question to the person yourself")
+    expect(text).toMatch(/Never open a second\s+fixer yourself/)
+    expect(text).toContain("both bugs are fixed, each in its own worktree")
   })
 })
 
@@ -428,13 +609,13 @@ describe("what the folder's own instructions say", () => {
       const text = await readFile(join(folder, name), "utf8")
       expect(text).not.toMatch(/open_agent|lead agent|Steps|describe/)
     }
-    expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
-      "If you were given a task, do only that task.",
-    )
+    const note = await readFile(join(folder, "AGENTS.md"), "utf8")
+    expect(note.replaceAll(/\s+/g, " ")).toContain("If you were given a task, do only that task.")
+    expect(note).toContain("run no shell command")
     expect(nudgeLine).toContain("tour brief Novadeck sent you")
   })
 
-  it("has the brief tell the lead to run no shell, and each teammate never to open agents", async ({
+  it("has the brief tell the lead to run no shell and never edit, and each fixer never to open agents", async ({
     resources,
   }) => {
     const home = await scratchHome(resources)
@@ -442,16 +623,11 @@ describe("what the folder's own instructions say", () => {
     await tour.prepare("claude")
     const text = brief()
     expect(text).toContain("Run no shell command at all")
-    expect(text.match(/Never write files or call\s+(?:> )?`open_agent`/g)?.length).toBe(2)
-    expect(text).not.toContain("Ignore the lead's steps")
+    expect(text).toContain("Never edit a file yourself")
+    expect(text).toContain("never call `open_agent`")
+    expect(text.match(/if\s+they're\s+deferred, load them first/g)?.length).toBe(2)
     expect(text).toContain("don't explain,")
-    // Each teammate acts on its lead's messages, and loads Novadeck's tools where its harness
-    // defers them, as Claude Code does.
-    expect(text.match(/act on its messages/g)?.length).toBe(2)
-    expect(text.match(/if they're deferred, load them first/g)?.length).toBe(3)
-    expect(text).toContain("Never answer your teammates' questions to the person yourself")
-    expect(text).toMatch(/body "The lead is making a\s+>\s+comic strip of the tour for you/)
-    expect(text).toContain("dismissed the question")
+    expect(secondFixerBrief("@moth")).toContain("if they're deferred, load them first")
   })
 })
 
@@ -461,13 +637,33 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     expect(tour.openPolicy("mate").refusal).toMatch(/only the tour's lead opens agents/)
   })
 
-  it("leaves the lead, a led terminal elsewhere, and an unled one alone", () => {
+  it("starts the lead's agents with the tour's write flags, for each harness", () => {
+    const { tour } = tourIn("/h")
+    const policy = tour.openPolicy("lead")
+    expect(policy.refusal).toBeUndefined()
+    expect(policy.flags?.("claude")).toEqual(["--permission-mode", "acceptEdits"])
+    expect(policy.flags?.("codex")).toEqual([
+      "--sandbox",
+      "workspace-write",
+      "--ask-for-approval",
+      "on-request",
+    ])
+    expect(policy.flags?.("agy")).toEqual(["--mode", "accept-edits"])
+  })
+
+  it("leaves a led terminal elsewhere, and a terminal the runner doesn't have, alone", () => {
     const { tour } = tourIn("/h", {
       leads: { mate: "lead", away: "lead" },
       cwds: { away: "/h/code" },
     })
-    expect(tour.openPolicy("lead")).toEqual({})
     expect(tour.openPolicy("away")).toEqual({})
-    expect(tour.openPolicy("unled")).toEqual({})
+  })
+})
+
+describe("which terminals are the tour's", () => {
+  it("are those in its folder, and none the runner doesn't have", () => {
+    const { tour } = tourIn("/h", { cwds: { away: "/h/code" } })
+    expect(tour.isTours("lead")).toBe(true)
+    expect(tour.isTours("away")).toBe(false)
   })
 })

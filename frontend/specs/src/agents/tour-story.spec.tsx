@@ -3,8 +3,9 @@ import { page, type Locator } from "vitest/browser"
 
 import { switchTourOn, takeTourFromHelp } from "../support/help"
 import { closePreferences, openPreferencesOn, preferencesDialog } from "../support/keyboard"
-import { workspaceSwitcher } from "../support/sessions"
-import { openWorkspace, terminalTabNames, view } from "../support/workspace"
+import { switchProject, workspaceSwitcher } from "../support/sessions"
+import { newTerminalButton } from "../support/terminals"
+import { openWorkspace, sidebarPanel, terminalTabNames, view } from "../support/workspace"
 import { describe, expect, it } from "../test"
 
 const consent = (): Locator => page.getByRole("dialog", { name: "Take the tour" })
@@ -39,6 +40,11 @@ const coachSays = (words: string, timeout = 15_000): Promise<void> =>
 // connected first in Preferences' Agents.
 const startTour = async (): Promise<void> => {
   await openWorkspace("/?channel=experimental")
+  await beginTour()
+}
+
+// The same, in the workspace already open.
+const beginTour = async (): Promise<void> => {
   await openPreferencesOn("Agents")
   for (const name of ["Claude Code", "Codex"]) {
     const agent = preferencesDialog().getByRole("switch", { name })
@@ -57,35 +63,66 @@ const startTour = async (): Promise<void> => {
 beforeEach(switchTourOn)
 
 describe("The tour's story", () => {
-  it("plays from the agent's start to its strip, the person's answer and all", async () => {
+  it("shows the Worktrees panel in the tour's project even with Agent worktrees off, and only there", async () => {
+    await openWorkspace("/?channel=experimental")
+    await openPreferencesOn("Experimental")
+    const worktrees = preferencesDialog().getByRole("switch", { name: "Agent worktrees" })
+    if ((await worktrees.element().getAttribute("aria-checked")) === "true") await worktrees.click()
+    await expect.element(worktrees).toHaveAttribute("aria-checked", "false")
+    await closePreferences()
+    expect(sidebarPanel("Worktrees").query()).toBeNull()
+    await beginTour()
+    // The first fixer opens its worktree: the panel is there to show it.
+    await coachSays("Your turn. Open a terminal.", 20_000)
+    await sidebarPanel("Worktrees").click()
+    await expect.element(page.getByText("fix-tip").first()).toBeVisible()
+    // Another project has none, as the setting says.
+    await switchProject("storefront")
+    await expect.poll(() => sidebarPanel("Worktrees").query()).toBeNull()
+  })
+
+  it("plays from the agent's start to both fixes merged, the person's terminal and answer included", async () => {
     await startTour()
     // It opens in Canvas, on the person's own agent.
-    await coachSays("Your own agent. In a sandbox.")
+    await coachSays("Your own agent. In a sandbox repo.")
     await expect.element(view("Canvas")).toBeChecked()
 
-    // The lead opens a team, which names itself.
-    await coachSays("It hired two more.")
+    // The lead opens a fixer for bug 1, which names itself.
+    await coachSays("It put a fixer on bug 1.")
     await expect
       .poll(terminalTabNames, { timeout: 15_000 })
-      .toEqual(expect.arrayContaining(["Tour lead", "Copywriter", "Designer"]))
+      .toEqual(expect.arrayContaining(["Tour lead", "Tip fixer"]))
 
-    // They talk, as the lead's Messages show.
-    await coachSays("They talk to each other.")
+    // The person opens a terminal: the tour starts their agent in it, as the second fixer.
+    await coachSays("Your turn. Open a terminal.", 20_000)
+    await expect.poll(() => coach().query()?.textContent ?? "").toContain("takes bug 2")
+    await expect.element(page.getByText(/^Act 2, The team\./)).toBeInTheDocument()
+    await newTerminalButton().click()
 
-    // A teammate asks the person, who answers in the Inbox; the tour waits on them.
+    // It asks the person in the Inbox, who answers; the tour waits on them.
     await coachSays("Your call.")
     await expect.element(page.getByText(/^Act 3, Your call\./)).toBeInTheDocument()
-    await inboxRow(/Which tagline for the comic strip/).click()
-    const sheet = page.getByRole("dialog", { name: "Copywriter" })
+    await inboxRow(/Whole amounts/).click()
+    const sheet = page.getByRole("dialog", { name: "Money fixer" })
     // Pressed once the card stands still: a click just after it moved is held back.
-    const pick = sheet.getByRole("button", { name: /Every agent, one calm workspace/ })
+    const pick = sheet.getByRole("button", { name: /Always two decimals/ })
     await standsStill(pick)
     await pick.click()
 
-    // The lead shows the strip the team made, a page in its pane, and the tour holds on it a while.
-    await coachSays("Made for you.")
-    await expect.element(page.getByText("tour-strip.html").first()).toBeVisible()
+    // Both fix their bug, each in its own worktree.
+    await coachSays("Now they fix it. Each in its own worktree.")
+    await sidebarPanel("Terminals").click()
+    await expect
+      .poll(terminalTabNames, { timeout: 15_000 })
+      .toEqual(expect.arrayContaining(["Tour lead", "Tip fixer", "Money fixer"]))
+
+    // The Files panel opens with the file in it, which the person opens: both fixes, merged.
+    await coachSays("Both fixes, merged. Open the file.", 20_000)
     await expect.element(page.getByText(/^Act 4, The result\./)).toBeInTheDocument()
+    await page.getByRole("treeitem", { name: /^split\.js,/ }).click()
+    await coachSays("Two agents. One file. Merged live.")
+    await expect.element(page.getByText(/\/ 100\) \/ people/).first()).toBeVisible()
+    await expect.element(page.getByText(/toFixed\(2\)/).first()).toBeVisible()
 
     // It ends on a card that sends the person to their own project.
     await expect.element(closing(), { timeout: 15_000 }).toBeVisible()

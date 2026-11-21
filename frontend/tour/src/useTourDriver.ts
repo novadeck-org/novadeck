@@ -1,11 +1,17 @@
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
-import { messagesKey } from "@novadeck/core/items/companion-bar"
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 
 import { beginRun, coachNow, nextTick, stepRun, type TourEvent, type TourRun } from "./driver"
 import { noTeam, sameSignals, tourSignals, type TourSignals } from "./signals"
 import type { TourStarted } from "./start"
-import { closingMoves, tourSteps, type Coach, type TourAct, type TourMove } from "./steps"
+import {
+  closingMoves,
+  stepsOf,
+  type Coach,
+  type TourAct,
+  type TourMove,
+  type TourStep,
+} from "./steps"
 import type { TourHost } from "./tour-host"
 import { useSelected } from "./use-selected"
 
@@ -36,10 +42,18 @@ const isRun = (value: unknown): value is TourRun => {
   )
 }
 
-export const readTourRun = (): TourRun | null => {
+// The step a stored run was at is kept by its id beside its index, so a run kept by a version
+// whose steps differed (one with no id, or whose id isn't at that index now) is dropped, not
+// followed at some other step.
+const stepIdOf = (steps: readonly TourStep[], index: number): string => steps[index]?.id ?? "end"
+
+export const readTourRun = (steps: readonly TourStep[]): TourRun | null => {
   try {
     const stored: unknown = JSON.parse(sessionStorage.getItem(storageKey) ?? "null")
     if (!isRun(stored)) return null
+    const { stepId } = stored as unknown as { readonly stepId?: unknown }
+    if (stored.step < 0 || stored.step > steps.length || stepId !== stepIdOf(steps, stored.step))
+      return null
     // A run kept from before steps held on their result has no `doneAt`.
     return { ...stored, doneAt: typeof stored.doneAt === "number" ? stored.doneAt : null }
   } catch {
@@ -47,11 +61,15 @@ export const readTourRun = (): TourRun | null => {
   }
 }
 
-const writeTourRun = (run: TourRun | null): void => {
+const writeTourRun = (run: TourRun | null, steps: readonly TourStep[]): void => {
   try {
     // A question seen isn't kept: after a reload the Inbox lists it anew, and until it has, its
     // absence would read as answered.
-    if (run) sessionStorage.setItem(storageKey, JSON.stringify({ ...run, asked: false }))
+    if (run)
+      sessionStorage.setItem(
+        storageKey,
+        JSON.stringify({ ...run, asked: false, stepId: stepIdOf(steps, run.step) }),
+      )
     else sessionStorage.removeItem(storageKey)
   } catch {
     // Without storage, a run isn't followed again after a reload.
@@ -100,6 +118,8 @@ export type TourDriver = {
     readonly act: TourAct
     // The Inbox row of the team's question waiting now.
     readonly askingRow: string | null
+    // The window that shows the merged preview of the tour's file.
+    readonly previewWindow: string | null
     readonly away: boolean
   } | null
   // The tour just finished its story, for its closing card: its lead, project and agent.
@@ -121,8 +141,15 @@ export type TourDriver = {
  * first line, or a nudge, through the backend. It never takes the person's view back: a step's
  * moves are made once, and only while the tour's project is on screen.
  */
-export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourDriver => {
+export const useTourDriver = ({
+  backend,
+  workspace,
+  commands,
+  previews: previewStore,
+}: TourHost): TourDriver => {
   const { tour } = backend
+  // The story it plays: without a way to start the person's fixer it has no step for it.
+  const steps = useMemo(() => stepsOf(tour?.fixer !== undefined), [tour?.fixer])
   // What else its signals read: the agents' messages and the Inbox, where the backend has them.
   const messages = useSyncExternalStore(backend.messages?.state.subscribe ?? noState, () =>
     backend.messages?.state.getSnapshot(),
@@ -130,6 +157,8 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
   const inbox = useSyncExternalStore(backend.inbox?.state.subscribe ?? noState, () =>
     backend.inbox?.state.getSnapshot(),
   )
+  // The files the person has open merged, in the app's sessions.
+  const previews = useSyncExternalStore(previewStore.subscribe, previewStore.getSnapshot)
   const [closing, setClosingNow] = useState<TourDriver["closing"]>(readClosing)
   // Kept as the run is, so a reload still ends on it.
   const setClosing = useCallback((next: TourDriver["closing"]): void => {
@@ -139,7 +168,7 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
   // A run followed again after a reload waits afresh: the time the page was away isn't the
   // agent's, and the Inbox lists a question anew only a moment later.
   const [run, setRun] = useState<TourRun | null>(() => {
-    const stored = readTourRun()
+    const stored = readTourRun(steps)
     return stored && { ...stored, waitingSince: Date.now() }
   })
   // The run as the last event left it, which the next one moves on from, so a burst of events
@@ -152,14 +181,15 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     retry.current = { tries: 0 }
   }, [])
   // The same, for what runs later: a retry reads them as they are by then.
-  const sources = useRef({ messages, inbox })
+  const sources = useRef({ messages, inbox, previews })
   useEffect(() => {
-    sources.current = { messages, inbox }
-  }, [messages, inbox])
+    sources.current = { messages, inbox, previews }
+  }, [messages, inbox, previews])
   const patienceMs = tour?.patienceMs ?? defaultPatienceMs
   const signals = useSelected(
     workspace,
-    (state) => (run ? tourSignals(state, run.terminalId, { messages, inbox }) : noSignals),
+    (state) =>
+      run ? tourSignals(state, run.terminalId, { messages, inbox, previews }) : noSignals,
     sameSignals,
   )
 
@@ -167,8 +197,7 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     (terminalId: string, moves: readonly TourMove[]): void => {
       for (const move of moves)
         if (move.kind === "view") commands.changeView(move.view)
-        else if (move.kind === "reveal") commands.reveal(terminalId)
-        else if (move.kind === "messages") commands.openBarTab(terminalId, messagesKey)
+        else if (move.kind === "reveal") commands.reveal(terminalId, move.panel)
         // A frame later: the view just changed, and Canvas hears a framing only once it's there.
         else if (move.kind === "fit-all")
           requestAnimationFrame(() => requestAnimationFrame(() => commands.frameAll()))
@@ -183,9 +212,9 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     function dispatch(event: TourEvent): void {
       const before = current.current
       if (!before) return
-      const outcome = stepRun(before, tourSteps, event, patienceMs)
+      const outcome = stepRun(before, steps, event, patienceMs)
       current.current = outcome.run
-      writeTourRun(outcome.run)
+      writeTourRun(outcome.run, steps)
       setRun(outcome.run)
       if (!outcome.run) dropRetry()
       // Its story done: the closing card, in the project it ran in.
@@ -237,7 +266,7 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
             console.error("Novadeck couldn't nudge the tour's agent:", error),
           )
     },
-    [tour, patienceMs, make, workspace, dropRetry, setClosing],
+    [tour, steps, patienceMs, make, workspace, dropRetry, setClosing],
   )
 
   // A retry left waiting goes with the page.
@@ -249,7 +278,7 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
   }, [signals, dispatch])
 
   // And so does the end of a wait.
-  const tickAt = run ? nextTick(run, tourSteps, signals, patienceMs) : null
+  const tickAt = run ? nextTick(run, steps, signals, patienceMs) : null
   useEffect(() => {
     if (tickAt === null) return
     const timer = setTimeout(
@@ -269,17 +298,16 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
         Date.now(),
       )
       current.current = next
-      writeTourRun(next)
+      writeTourRun(next, steps)
       setRun(next)
     },
-    [dropRetry, setClosing],
+    [dropRetry, setClosing, steps],
   )
 
   // While a step frames the team, each window the team gains is framed with the rest, a moment
   // after it lands: Canvas sets its camera afresh as a window comes, and drops a framing asked
   // before it settles. Only a new window: coming back to the tour, the person's own framing stays.
-  const framing =
-    run && tourSteps[run.step]?.frameTeam && signals.onScreen ? signals.team.count : null
+  const framing = run && steps[run.step]?.frameTeam && signals.onScreen ? signals.team.count : null
   const framingFor = run?.terminalId
   // The most windows framed so far, for the run it was for: another run starts from none.
   const framed = useRef({ terminalId: framingFor, count: 0 })
@@ -307,6 +335,44 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     commands.reveal(held)
   }, [held, commands])
 
+  // The shell the person opens in the tour's project at its prompt (the `yours` step) is handed to
+  // the backend once, to start the person's agent there as the second fixer; a refusal is asked
+  // again a little later, as the brief's is, unless it is a conflict, which stands.
+  const fixer = tour?.fixer
+  const fresh = run && steps[run.step]?.id === "yours" ? signals.fresh : null
+  const fixing = useRef<{
+    terminalId: string
+    // Asked at least once, and whether it stands (answered, or a conflict): no more are asked.
+    asked: boolean
+    settled: boolean
+    tries: number
+    timer?: ReturnType<typeof setTimeout>
+  }>({ terminalId: "", asked: false, settled: false, tries: 0 })
+  useEffect(() => {
+    if (!fresh || !fixer) return
+    if (fixing.current.terminalId !== fresh)
+      fixing.current = { terminalId: fresh, asked: false, settled: false, tries: 0 }
+    const state = fixing.current
+    const attempt = (): void => {
+      state.asked = true
+      fixer(fresh).then(
+        () => {
+          state.settled = true
+        },
+        (error: unknown) => {
+          console.error("Novadeck couldn't start the tour's second fixer:", error)
+          if ((error as { readonly code?: unknown } | null)?.code === "CONFLICT")
+            state.settled = true
+          if (state.settled || state.tries >= briefTries) return
+          state.tries += 1
+          state.timer = setTimeout(attempt, briefRetryMs)
+        },
+      )
+    }
+    if (!state.asked) attempt()
+    return () => clearTimeout(state.timer)
+  }, [fresh, fixer])
+
   const projectOf = useSelected(
     workspace,
     (state) =>
@@ -325,12 +391,13 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
       run && {
         terminalId: run.terminalId,
         agent: run.agent,
-        coach: coachNow(run, tourSteps, signals),
-        act: tourSteps[Math.min(run.step, tourSteps.length - 1)]!.act,
+        coach: coachNow(run, steps, signals),
+        act: steps[Math.min(run.step, steps.length - 1)]!.act,
         askingRow: signals.askingRow,
+        previewWindow: signals.preview?.windowId ?? null,
         away: !signals.onScreen,
       },
-    [run, signals],
+    [run, steps, signals],
   )
 
   return useMemo(

@@ -99,8 +99,8 @@ describe("who works as the demo opens", () => {
   })
 
   it("has no files in the demos whose storefront runs no agents", () => {
-    expect(plainDemo("plain").files).toBeUndefined()
-    expect(plainDemo("welcome").files).toBeUndefined()
+    expect(isDemoFiles(plainDemo("plain").files)).toBe(false)
+    expect(isDemoFiles(plainDemo("welcome").files)).toBe(false)
     for (const variant of ["agents", "messages", "inbox"] as const)
       expect(isDemoFiles(plainDemo(variant).files)).toBe(true)
   })

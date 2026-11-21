@@ -1,6 +1,6 @@
 import type { InboxRow, InboxState } from "@novadeck/core/inbox"
 import type { AgentMessage, MessagesState } from "@novadeck/core/messages"
-import { itemFixture, terminalFixture, workspaceFixture } from "@novadeck/core/testing"
+import { terminalFixture, workspaceFixture, workspaceWithWindow } from "@novadeck/core/testing"
 import type { TerminalMetadata } from "@novadeck/core/types"
 
 import { leadState, noTeam, tourSignals } from "./signals"
@@ -131,18 +131,21 @@ describe("The tour's story signals", () => {
     expect(tourSignals(teamWorkspace(), "01").team).toEqual({ count: 2, named: 1 })
   })
 
-  it("count each message the teammates sent the team once, and none from outside it", () => {
+  it("count each teammate that sent the lead a message once, and none from outside the team", () => {
     const messages = messagesOf([
-      message("m1", "02", "03"),
-      message("m2", "03", "01"),
-      message("m3", "04", "01"),
+      message("m1", "02", "01"),
+      message("m2", "02", "01"),
+      message("m3", "03", "02"),
+      message("m4", "04", "01"),
     ])
-    expect(tourSignals(teamWorkspace(), "01", { messages }).talks).toBe(2)
+    expect(tourSignals(teamWorkspace(), "01", { messages }).reporters).toBe(1)
+    const both = messagesOf([message("m1", "02", "01"), message("m2", "03", "01")])
+    expect(tourSignals(teamWorkspace(), "01", { messages: both }).reporters).toBe(2)
   })
 
   it("leave out the lead's own messages to its teammates, as their tasks", () => {
     const messages = messagesOf([message("t1", "01", "02"), message("t2", "01", "03")])
-    expect(tourSignals(teamWorkspace(), "01", { messages }).talks).toBe(0)
+    expect(tourSignals(teamWorkspace(), "01", { messages }).reporters).toBe(0)
   })
 
   it("see the person's answer delivered to a teammate, through a reload", () => {
@@ -265,26 +268,44 @@ describe("The tour's story signals", () => {
     expect(tourSignals(teamWorkspace(), "01", { inbox: elsewhere }).answered).toBe(false)
   })
 
-  it("see the lead's own shown card, an image, not a teammate's", () => {
+  it("see the shell the person opened, which no agent holds, not the lead or a teammate", () => {
+    // 04 is on its own, a shell with nothing running.
+    expect(tourSignals(teamWorkspace(), "01").fresh).toBe("04")
     const workspace = teamWorkspace()
-    const state = workspace.projects[0]!.history[0]!.state
-    Object.assign(state, { items: [itemFixture("card", "01", { kind: "image" })] })
-    expect(tourSignals(workspace, "01").shown).toBe(true)
+    const roster = workspace.projects[0]!.history[0]!.state.roster
+    Object.assign(roster, {
+      terminals: roster.terminals.map((each) =>
+        each.id === "04" ? { ...each, ledBy: "01" } : each,
+      ),
+    })
+    expect(tourSignals(workspace, "01").fresh).toBeNull()
   })
 
-  it("see the lead's own shown page or file, not a teammate's", () => {
-    const workspace = teamWorkspace()
-    const state = workspace.projects[0]!.history[0]!.state
-    Object.assign(state, { items: [itemFixture("card", "02", { kind: "page" })] })
-    expect(tourSignals(workspace, "01").shown).toBe(false)
-    Object.assign(state, { items: [itemFixture("card", "01", { kind: "page" })] })
-    expect(tourSignals(workspace, "01").shown).toBe(true)
+  it("see no fresh shell in one an agent runs in, or ran in", () => {
+    for (const parts of [
+      { state: "running", agent: { working: false } },
+      { agentRan: true },
+      { state: "starting" },
+    ]) {
+      const workspace = teamWorkspace()
+      const roster = workspace.projects[0]!.history[0]!.state.roster
+      Object.assign(roster, {
+        terminals: roster.terminals.map((each) =>
+          each.id === "04" ? { ...each, ...parts } : each,
+        ),
+      })
+      expect(tourSignals(workspace, "01").fresh).toBeNull()
+    }
   })
 
-  it("see the lead's own shown 3D model", () => {
-    const workspace = teamWorkspace()
-    const state = workspace.projects[0]!.history[0]!.state
-    Object.assign(state, { items: [itemFixture("card", "01", { kind: "model" })] })
-    expect(tourSignals(workspace, "01").shown).toBe(true)
+  it("see the merged preview of split.js open, by the window that shows it", () => {
+    const workspace = workspaceWithWindow()
+    const previews = [{ projectId: "project", itemId: "hero", path: "src/split.js" }]
+    expect(tourSignals(workspace, "01", { previews }).preview).toEqual({ windowId: "w1" })
+    expect(tourSignals(workspace, "01").preview).toBeNull()
+    const other = [{ projectId: "project", itemId: "hero", path: "README.md" }]
+    expect(tourSignals(workspace, "01", { previews: other }).preview).toBeNull()
+    const elsewhere = [{ projectId: "another", itemId: "hero", path: "split.js" }]
+    expect(tourSignals(workspace, "01", { previews: elsewhere }).preview).toBeNull()
   })
 })

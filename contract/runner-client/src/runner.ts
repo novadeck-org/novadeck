@@ -820,6 +820,8 @@ export type Runner = {
     brief(terminalId: string): Promise<void>
     /** Rings the tour's agent in the terminal to carry on with its brief (`tour.nudge`). */
     nudge(terminalId: string): Promise<void>
+    /** Takes the terminal the person opened as the tour's second fixer (`tour.fixer`). */
+    fixer(terminalId: string): Promise<void>
   }
   /** Disconnects. Attached terminals finish; their shells keep running on the runner. */
   close(): Promise<void>
@@ -1102,6 +1104,7 @@ export const connectRunner = async (
       prepare: (agent) => call((client) => client.tour.prepare({ agent })),
       brief: (terminalId) => call((client) => client.tour.brief({ terminalId })),
       nudge: (terminalId) => call((client) => client.tour.nudge({ terminalId })),
+      fixer: (terminalId) => call((client) => client.tour.fixer({ terminalId })),
     },
     close: () => Promise.resolve(connection.close()),
   }

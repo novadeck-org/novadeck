@@ -1,6 +1,6 @@
 import { beginRun, coachNow, nextTick, stepRun, type TourRun } from "./driver"
 import { noTeam, type LeadState, type TourSignals } from "./signals"
-import { screenCoach, startStep, tourSteps, type TourStep } from "./steps"
+import { screenCoach, startStep, stepsOf, tourSteps, type TourStep } from "./steps"
 import { context, describe, expect, it } from "./test"
 
 const patience = 1_000
@@ -235,23 +235,35 @@ describe("The tour's story", () => {
       patience,
     )
 
+  const stepNo = (id: string): number => tourSteps.findIndex((step) => step.id === id)
+
   it("opens in Canvas on its lead, and frames the team as it comes", () => {
     expect(tourSteps[0]!.enter).toEqual([{ kind: "view", view: "canvas" }, { kind: "reveal" }])
-    expect(feed({ ...atStep("team"), entered: false }, {}).moves).toEqual([{ kind: "fit-all" }])
-    expect(tourSteps.filter(({ frameTeam }) => frameTeam).map(({ id }) => id)).toEqual([
-      "team",
-      "talk",
-    ])
+    expect(feed({ ...atStep("hire"), entered: false }, {}).moves).toEqual([{ kind: "fit-all" }])
+    expect(tourSteps.filter(({ frameTeam }) => frameTeam).map(({ id }) => id)).toEqual(["hire"])
   })
 
   it("plays four acts, in order", () => {
     expect(tourSteps.map(({ id, act }) => [id, act])).toEqual([
       ["start", 1],
-      ["team", 2],
-      ["talk", 2],
+      ["hire", 2],
+      ["yours", 2],
       ["ask", 3],
       ["make", 3],
-      ["show", 4],
+      ["result", 4],
+      ["merged", 4],
+    ])
+  })
+
+  it("leaves out the person's own step where the backend can't start the second fixer", () => {
+    expect(stepsOf(true)).toBe(tourSteps)
+    expect(stepsOf(false).map(({ id }) => id)).toEqual([
+      "start",
+      "hire",
+      "ask",
+      "make",
+      "result",
+      "merged",
     ])
   })
 
@@ -268,33 +280,46 @@ describe("The tour's story", () => {
     return { done: done.run, during: later(2_000), after: later(3_001) }
   }
 
-  it("waits for both teammates to be there and named, then stays a moment", () => {
-    expect(feed(atStep("team"), { team: { count: 2, named: 1 } }).run?.step).toBe(1)
-    const { done, during, after } = heldThen("team", { team: { count: 2, named: 2 } })
-    expect(done).toMatchObject({ step: 1, doneAt: 1 })
-    expect(during?.step).toBe(1)
-    expect(after?.step).toBe(2)
+  it("waits for the fixer to be there and named, then stays a moment", () => {
+    expect(feed(atStep("hire"), { team: { count: 1, named: 0 } }).run?.step).toBe(stepNo("hire"))
+    const { done, during, after } = heldThen("hire", { team: { count: 1, named: 1 } })
+    expect(done).toMatchObject({ step: stepNo("hire"), doneAt: 1 })
+    expect(during?.step).toBe(stepNo("hire"))
+    expect(after?.step).toBe(stepNo("yours"))
   })
 
-  it("waits for the team to talk, then stays a moment", () => {
-    expect(feed(atStep("talk"), { talks: 0 }).run?.step).toBe(2)
-    const { done, during, after } = heldThen("talk", { talks: 1 })
-    expect(done).toMatchObject({ step: 2, doneAt: 1 })
-    expect(during?.step).toBe(2)
-    expect(after?.step).toBe(3)
+  it("waits on the person to open a terminal, as long as they take", () => {
+    const run = { ...atStep("yours"), waitingSince: 0 }
+    const one = signals(quiet, true, { team: { count: 1, named: 1 } })
+    expect(
+      stepRun(run, tourSteps, { type: "tick", signals: one, now: patience * 10 }, patience),
+    ).toMatchObject({ run: { step: stepNo("yours") }, nudge: false })
+    expect(nextTick(run, tourSteps, one, patience)).toBeNull()
+    expect(feed(run, { team: { count: 2, named: 1 } }).run?.step).toBe(stepNo("ask"))
+  })
+
+  it("brings the Terminals panel, then the Files panel, as those steps begin", () => {
+    expect(feed({ ...atStep("yours"), entered: false }, {}).moves).toEqual([
+      { kind: "reveal", panel: "terminals" },
+      { kind: "fit-all" },
+    ])
+    expect(feed({ ...atStep("result"), entered: false }, {}).moves).toEqual([
+      { kind: "reveal", panel: "files" },
+      { kind: "fit-all" },
+    ])
   })
 
   it("takes a question gone from the Inbox, once seen, as the person's answer", () => {
     const asking = feed(atStep("ask"), { asking: true })
-    expect(asking.run).toMatchObject({ step: 3, asked: true })
+    expect(asking.run).toMatchObject({ step: stepNo("ask"), asked: true })
     const answered = feed(asking.run!, { asking: false })
-    expect(answered.run?.step).toBe(4)
+    expect(answered.run?.step).toBe(stepNo("make"))
   })
 
   it("counts a question the person answered before its step came", () => {
-    const early = feed(atStep("talk"), { asking: true })
-    const passed = feed({ ...early.run!, step: 3, entered: true }, { asking: false })
-    expect(passed.run?.step).toBe(4)
+    const early = feed(atStep("yours"), { asking: true, team: { count: 1, named: 1 } })
+    const passed = feed({ ...early.run!, step: stepNo("ask"), entered: true }, { asking: false })
+    expect(passed.run?.step).toBe(stepNo("make"))
   })
 
   it("nudges no one while the person has a question to answer", () => {
@@ -307,13 +332,30 @@ describe("The tour's story", () => {
     expect(nextTick(run, tourSteps, signals(quiet), patience)).toBe(patience)
   })
 
-  it("waits, once answered, for the lead to show what it made", () => {
-    expect(feed(atStep("make"), { shown: false }).run?.step).toBe(4)
-    expect(feed(atStep("make"), { shown: true }).run?.step).toBe(5)
+  it("waits, once answered, for both fixers to have reported, then stays a moment", () => {
+    const team = { count: 2, named: 2 }
+    expect(feed(atStep("make"), { team, reporters: 1 }).run?.doneAt).toBeNull()
+    expect(feed(atStep("make"), { team, reporters: 2 }).run).toMatchObject({
+      step: stepNo("make"),
+      doneAt: 1,
+    })
+    // With one fixer only, its report is enough.
+    const alone = { team: { count: 1, named: 1 } }
+    expect(feed(atStep("make"), { ...alone, reporters: 1 }).run?.doneAt).toBe(1)
+    expect(feed(atStep("make"), { ...alone, reporters: 0 }).run?.doneAt).toBeNull()
+    expect(heldThen("make", { team, reporters: 2 }).after?.step).toBe(stepNo("result"))
   })
 
-  it("holds on the lead's card once shown", () => {
-    expect(feed(atStep("show"), { shown: true }).run).toMatchObject({ step: 5, doneAt: 1 })
+  it("waits on the person to open the file, then looks at its preview", () => {
+    expect(feed(atStep("result"), {}).run?.step).toBe(stepNo("result"))
+    expect(feed(atStep("result"), { preview: { windowId: "w1" } }).run?.step).toBe(stepNo("merged"))
+  })
+
+  it("holds on the preview once it's open", () => {
+    expect(feed(atStep("merged"), { preview: { windowId: "w1" } }).run).toMatchObject({
+      step: stepNo("merged"),
+      doneAt: 1,
+    })
   })
 })
 
@@ -389,17 +431,21 @@ describe("The tour, with an agent asking the person's permission", () => {
 
 describe("The tour's last act", () => {
   const quiet: LeadState = { kind: "agent", working: false, named: true, answered: true }
-  const atShow: TourRun = {
+  const atMerged: TourRun = {
     ...beginRun({ terminalId: "t1", agent: "claude", brief: "launch" }, 0),
-    step: tourSteps.findIndex(({ id }) => id === "show"),
+    step: tourSteps.findIndex(({ id }) => id === "merged"),
   }
-  const shown = signals(quiet, true, { shown: true })
+  const shown = signals(quiet, true, { preview: { windowId: "w1" } })
 
-  it("holds on the result a while, its moves made, before the story ends", () => {
-    const held = stepRun(atShow, tourSteps, { type: "signals", signals: shown, now: 100 }, patience)
+  it("holds on the merged preview a while, then the story ends", () => {
+    const held = stepRun(
+      atMerged,
+      tourSteps,
+      { type: "signals", signals: shown, now: 100 },
+      patience,
+    )
     expect(held.run).toMatchObject({ doneAt: 100, entered: true })
-    expect(held.moves).toEqual([{ kind: "fit-all" }])
-    expect(coachNow(held.run!, tourSteps, shown)?.line).toBe("Made for you.")
+    expect(coachNow(held.run!, tourSteps, shown)?.line).toBe("Two agents. One file. Merged live.")
     expect(nextTick(held.run!, tourSteps, shown, patience)).toBe(6_100)
     const still = stepRun(
       held.run!,

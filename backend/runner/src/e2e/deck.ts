@@ -176,6 +176,14 @@ export type Deck = {
   readonly seen: ReturnType<typeof wire>["seen"]
   /** The runner's tour, as `tour.prepare` and `tour.brief` answer. */
   readonly tour: ReturnType<typeof wire>["tour"]
+  /** The id the deck's window controls its terminals by, which `tour.fixer` types on behalf of. */
+  readonly owner: string
+  /** The project's works, as `works.preview` reads them. */
+  readonly works: ReturnType<typeof wire>["works"]
+  /** The git worktrees agents opened, as the runner keeps them. */
+  readonly worktrees: ReturnType<typeof wire>["worktrees"]
+  /** Opens a plain shell in the project and session of `beside`, as the person's New terminal does. */
+  readonly openBeside: (beside: Pick<DeckTerminal, "id">, cwd?: string) => Promise<DeckTerminal>
   /**
    * Makes a project at `cwd`, as a client's `projects.create` does, with a session, and opens
    * a terminal there that runs `command` at its shell's first prompt.
@@ -610,6 +618,8 @@ type Runner = {
   readonly items: ReturnType<typeof wire>["items"]
   readonly uploads: ReturnType<typeof wire>["uploads"]
   readonly tour: ReturnType<typeof wire>["tour"]
+  readonly works: ReturnType<typeof wire>["works"]
+  readonly worktrees: ReturnType<typeof wire>["worktrees"]
   readonly seen: ReturnType<typeof wire>["seen"]
   /** The terminals a window uses, which run at the app's priority; see `inUse`. */
   readonly activity: ReturnType<typeof wire>["activity"]
@@ -681,7 +691,19 @@ const now = async <T>(stream: (signal: AbortSignal) => AsyncGenerator<T>): Promi
 export const createDeck = async (options: DeckOptions): Promise<Deck> => {
   const shellFolder = join(options.data, "shell")
   const start = async (): Promise<Runner> => {
-    const { store, shellFiles, agents, terminals, items, uploads, tour, seen, activity } = wire({
+    const {
+      store,
+      shellFiles,
+      agents,
+      terminals,
+      items,
+      uploads,
+      tour,
+      works,
+      worktrees,
+      seen,
+      activity,
+    } = wire({
       database: join(options.data, "workspace.sqlite"),
       uploads: join(options.data, "uploads"),
       shell: shellFolder,
@@ -722,6 +744,8 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       items,
       uploads,
       tour,
+      works,
+      worktrees,
       seen,
       activity,
       closing: new AbortController(),
@@ -1067,6 +1091,17 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
     sessionId: session.id,
     get tour() {
       return runner.tour
+    },
+    owner,
+    get works() {
+      return runner.works
+    },
+    get worktrees() {
+      return runner.worktrees
+    },
+    openBeside: async ({ id }, cwd) => {
+      const { sessionId, cwd: at } = runner.terminals.get(id)
+      return openInUse(runner, { id: randomUUID(), sessionId, cwd: cwd ?? at })
     },
     openAt: async (cwd, command) => {
       const made = await runner.store.createProject({ id: randomUUID(), name: "Tour", cwd })

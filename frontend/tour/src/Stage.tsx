@@ -190,8 +190,14 @@ const marksOf = (
   coach: Coach | null,
   lead: string,
   askingRow: string | null,
+  previewWindow: string | null,
 ): { readonly look: HTMLElement[]; readonly click: HTMLElement[] } => {
-  const where: TargetsOf = { lead, terminalId: coach?.terminalId ?? lead, askingRow }
+  const where: TargetsOf = {
+    lead,
+    terminalId: coach?.terminalId ?? lead,
+    askingRow,
+    previewWindow,
+  }
   return {
     look: coach?.look ? targetElements(coach.look, where) : [],
     click: coach?.click ? firstTarget(coach.click, where) : [],
@@ -239,6 +245,7 @@ const useMarks = (
   coach: Coach | null,
   lead: string,
   askingRow: string | null,
+  previewWindow: string | null,
   looking: boolean,
 ): Scene => {
   const [read, setRead] = useState<{ readonly coach: Coach | null; readonly scene: Scene }>({
@@ -250,7 +257,7 @@ const useMarks = (
     const looked = new Set<HTMLElement>()
     const clicked = new Set<HTMLElement>()
     const tick = (): void => {
-      const marks = marksOf(coach, lead, askingRow)
+      const marks = marksOf(coach, lead, askingRow, previewWindow)
       remark(lookMark, looked, marks.look)
       remark(clickMark, clicked, marks.click)
       const next = lookAt(marks.look[0] ?? marks.click[0])
@@ -268,7 +275,7 @@ const useMarks = (
       remark(lookMark, looked, [])
       remark(clickMark, clicked, [])
     }
-  }, [coach, lead, askingRow, looking])
+  }, [coach, lead, askingRow, previewWindow, looking])
   return looking && read.coach === coach ? read.scene : noScene
 }
 
@@ -295,7 +302,7 @@ const nameOf = (agent: AgentName): string => harnesses.find(({ id }) => id === a
 // The small line under an act's name on its wipe.
 const actLabel = (act: TourAct, agent: AgentName): string =>
   act === 1
-    ? `${nameOf(agent)} · your account · a sandbox folder`
+    ? `${nameOf(agent)} · your account · a sandbox repo`
     : act === 2
       ? "Teammates your agent opens"
       : act === 3
@@ -337,6 +344,7 @@ export const TourStage = ({
   agent,
   act,
   askingRow,
+  previewWindow,
   away,
   onEnd,
   onBack,
@@ -347,12 +355,14 @@ export const TourStage = ({
   readonly act: TourAct
   // The Inbox row of the team's question waiting now, which the stage marks to press.
   readonly askingRow: string | null
+  // The window that shows the merged preview of the tour's file, which the stage looks at.
+  readonly previewWindow: string | null
   // The tour's project isn't the one on screen.
   readonly away: boolean
   readonly onEnd: () => void
   readonly onBack: () => void
 }): React.JSX.Element => {
-  const scene = useMarks(coach, terminalId, askingRow, !away)
+  const scene = useMarks(coach, terminalId, askingRow, previewWindow, !away)
   const slot = useFooterSlot(!away)
   const wiping = useWipe(act)
   // What else the caption box keeps clear of, kept while the same, so its placing isn't redone

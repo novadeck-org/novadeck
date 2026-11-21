@@ -16,8 +16,8 @@ export type ChangesShownHost = {
   readonly onMade: (listener: (made: Made) => void) => () => void
   /** Calls the listener each time one changes hands or stops being tracked; returns what stops it. */
   readonly onChanged: (listener: (change: WorktreeChange) => void) => () => void
-  /** Whether the person has agent worktrees on (Preferences, Experimental). */
-  readonly enabled: () => boolean
+  /** Whether agent worktrees are on for the terminal (the person's setting, or the tour's own). */
+  readonly enabled: (terminalId: string) => boolean
   /** The terminal that owns the tracked worktree at `root`, if one does. */
   readonly owner: (root: string) => string | null | undefined
   readonly place: (terminalId: string) => TerminalPlace | undefined
@@ -38,8 +38,8 @@ export type ChangesShownHost = {
  */
 export const keepWorktreeChanges = (host: ChangesShownHost): (() => void) => {
   const showOn = (terminalId: string | null | undefined, root: string): void => {
-    if (!host.enabled()) return
-    const place = terminalId ? host.place(terminalId) : undefined
+    if (!terminalId || !host.enabled(terminalId)) return
+    const place = host.place(terminalId)
     if (!place) return
     void host
       .show(place, root)

@@ -14,7 +14,14 @@ const run: TourRun = {
 }
 
 const tourAnswering = (prepare: () => Promise<TourRun>): Runner["tour"] =>
-  ({ prepare, brief: () => Promise.resolve() }) as unknown as Runner["tour"]
+  ({
+    prepare,
+    brief: () => Promise.resolve(),
+    fixer: (terminalId: string) => (fixed.push(terminalId), Promise.resolve()),
+  }) as unknown as Runner["tour"]
+
+// The terminals the runner was asked to take as the second fixer.
+const fixed: string[] = []
 
 const track = <T>(work: Promise<T>): Promise<T> => work
 
@@ -37,6 +44,15 @@ describe("The runner's tour", () => {
     const refused = await tour.prepare("codex").catch((error: unknown) => error)
     expect(refused).toBeInstanceOf(TourNeedsAgent)
     expect(refused).toMatchObject({ agent: "codex", message: "Codex hasn't listed its models." })
+  })
+
+  it("takes the person's terminal as the second fixer, as the runner's call", async () => {
+    const tour = runnerTour(
+      tourAnswering(() => Promise.resolve(run)),
+      track,
+    )
+    await expect(tour.fixer?.("t7")).resolves.toBeUndefined()
+    expect(fixed).toEqual(["t7"])
   })
 
   it("passes any other refusal on as it came", async () => {

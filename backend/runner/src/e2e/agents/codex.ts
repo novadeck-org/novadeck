@@ -59,7 +59,14 @@ export const catalog = JSON.stringify({
   ],
 })
 
-const config = (sandbox: Sandbox, url: string, trusted: boolean, catalogFile: string): string =>
+const config = (
+  sandbox: Sandbox,
+  url: string,
+  trusted: boolean,
+  catalogFile: string,
+  // Folders trusted whatever `trusted` says: the tour's, a git repository Codex asks about.
+  also: readonly string[] = [],
+): string =>
   `# Codex against Novadeck's fake model, for end-to-end tests.
 model = "fake-model"
 model_catalog_json = ${JSON.stringify(catalogFile)}
@@ -93,7 +100,9 @@ name = "Novadeck e2e"
 base_url = ${JSON.stringify(`${url}/v1`)}
 env_key = "${key}"
 wire_api = "responses"
-${trusted ? `\n[projects.${JSON.stringify(sandbox.project)}]\ntrust_level = "trusted"\n` : ""}`
+${[...(trusted ? [sandbox.project] : []), ...also]
+  .map((path) => `\n[projects.${JSON.stringify(path)}]\ntrust_level = "trusted"\n`)
+  .join("")}`
 
 /**
  * Codex against the fake model: its own home in the sandbox, with a model provider of
@@ -260,7 +269,13 @@ export const codex: AgentSetup = {
     await writeFile(catalogFile, catalog)
     await writeFile(
       join(home, "config.toml"),
-      config(sandbox, model.url, seed?.folderTrusted !== false, catalogFile),
+      config(
+        sandbox,
+        model.url,
+        seed?.folderTrusted !== false,
+        catalogFile,
+        (seed?.trustedInHome ?? []).map((one) => join(sandbox.home, one)),
+      ),
     )
     if (seed?.promptHook !== undefined)
       await writeFile(

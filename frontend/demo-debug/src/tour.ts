@@ -47,13 +47,18 @@ export const tourGroups = (tour: DemoTour): readonly DemoActionGroup[] => [
         run: () => tour.askPermission(),
       },
       {
-        label: "Tour story: answer the tagline ask (A)",
-        hint: "While the copywriter's ask waits in the Inbox (Which tagline for the comic strip?), answers it with option A as the person would: the row goes, the copywriter tells the lead, and the lead shows the comic strip",
-        run: () => tour.answerTagline(0),
+        label: "Tour story: answer the money ask (A)",
+        hint: "While the second fixer's ask waits in the Inbox (Whole amounts: $12.00 or $12?), answers it with option A, $12.00, as the person would: the row goes, the fixer edits money() in its worktree and tells the lead, and the lead says both bugs are fixed",
+        run: () => tour.answerMoney(0),
       },
       {
-        label: "Tour story: teammates stay quiet until nudged",
-        hint: "The next tour lead names itself, then waits for the tour's nudge before opening its Copywriter and Designer teammates",
+        label: "Tour story: answer the money ask (B)",
+        hint: "The same ask answered with option B, $12: the merged preview of split.js shows money() dropping .00 from whole amounts",
+        run: () => tour.answerMoney(1),
+      },
+      {
+        label: "Tour story: the lead's fixer stays quiet until nudged",
+        hint: "The next tour lead names itself, then waits for the tour's nudge before opening its first fixer",
         run: () => tour.goQuietTeam(),
       },
       {

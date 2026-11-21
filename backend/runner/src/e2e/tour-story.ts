@@ -1,3 +1,4 @@
+import { readFileSync, writeFileSync } from "node:fs"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
@@ -5,8 +6,8 @@ import { samePath } from "@novadeck/harness-core/paths"
 import type { AgentName } from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
-import { tourBriefMark } from "../messaging/messages.js"
-import { card } from "../tour/brief.js"
+import { tourBriefMark, tourFixerMark } from "../messaging/messages.js"
+import { sandboxFile } from "../tour/brief.js"
 import { tourWrites } from "../tour/launch.js"
 import { worktreesRoot } from "../worktrees/root.js"
 import type { AgentSetup } from "./agents/agent.js"
@@ -25,13 +26,15 @@ import {
   through,
 } from "./scenarios.js"
 
-// Novadeck's tour story (docs/tour.md): the lead opens a copywriter and a designer with
-// `open_agent`, who describe themselves and send each other and the lead their parts; the
-// copywriter asks the person which tagline in the Inbox; the lead writes tour-strip.html and
-// shows it. The fake model plays all three, each by the brief it was given: the lead
-// follows the brief Novadeck sends it, and each teammate its `message`. What a rule keys on is
-// told by the conversation (a teammate's holds its brief as a delivered message), so one
-// script serves the three terminals.
+// Novadeck's tour story (docs/tour.md): the lead opens a fixer for bug 1 with `open_agent`; the
+// fixer describes itself, opens a worktree and fixes it there. The person opens a terminal, and
+// `tour.fixer` starts their agent in it as the second fixer, led by the lead: it describes
+// itself, opens a worktree, asks the person in the Inbox, and fixes bug 2 there by the answer.
+// Both tell the lead, which says so. The fake model plays all three, each by the brief it was
+// given: the lead follows the brief Novadeck sends it, a fixer its task. It has no tool call
+// for writing a file in every harness, so its rules make the edit themselves, in the fixer's
+// worktree, where the fixer's model would. What a rule keys on is told by the conversation, so
+// one script serves the three terminals.
 
 /** The tour's folder, as the sandbox's home holds it. */
 export const folder = join(".novadeck", "tour")
@@ -42,44 +45,19 @@ export const luna = "gpt-e2e-luna"
 /** A git name in the sandbox's config, which the brief never calls the person by. */
 export const gitName = "Ada Lovelace"
 
-export const taglines = { A: "Hello, bright day.", B: "Your day starts here." } as const
-const copyLine = "Two taglines. Boss picks."
-// The brief's template with sample values put in, as the lead is told to.
-const filled = (): string =>
-  card.template
-    .join("\n")
-    .replaceAll("PAPER", "#fff4e6")
-    .replaceAll("INK", "#212529")
-    .replaceAll("ACCENT", "#3b5bdb")
-    .replace("LOOK LINE", "Ink on cream. Final.")
-    .replace("COPY LINE", copyLine)
-    .replace("TAGLINE", taglines.B)
+/** The fixes, as the fixers' models would write them. */
+const fixes = {
+  tip: ["(total + total * tip)", "(total + total * tip / 100)"],
+  // The person picks "$12", the second option.
+  money: ["amount.toFixed(1)", "Number.isInteger(amount) ? String(amount) : amount.toFixed(2)"],
+} as const
 
-// Elements that close themselves in HTML.
-const voidElements = new Set(["br", "meta"])
-
-/**
- * A small well-formedness check of the strip's page: past its doctype, tags balance (but for
- * those that close themselves), each attribute is quoted, no stray `<` or `&`, and no
- * placeholder left in.
- */
-export const wellFormed = (html: string): boolean => {
-  const page = html.replace(/^<!doctype html>/i, "")
-  const stack: string[] = []
-  for (const [, close, name, attributes = "", empty] of page.matchAll(
-    /<(\/?)([A-Za-z][\w:-]*)((?:\s+[\w:-]+="[^"<&]*")*)\s*(\/?)>/g,
-  )) {
-    if (close) {
-      if (stack.pop() !== name) return false
-    } else if (!empty && !voidElements.has(name!.toLowerCase())) stack.push(name!)
-    void attributes
-  }
-  if (/\b(PAPER|INK|ACCENT|LOOK LINE|COPY LINE|TAGLINE)\b/.test(page)) return false
-  const text = page.replace(/<[^>]*>/g, "")
-  return stack.length === 0 && !/[<>]|&(?!(amp|lt|gt|quot|apos);)/.test(text)
+const fix = (path: string, [from, to]: readonly [string, string]): void => {
+  const file = join(path, sandboxFile)
+  const source = readFileSync(file, "utf8")
+  if (!source.includes(from)) throw new Error(`${file} has no "${from}" to fix`)
+  writeFileSync(file, source.replace(from, to))
 }
-
-const look = "Look: background #fff4e6; text #212529; accent #3b5bdb; line Ink on cream. Final."
 
 /** What the sandbox needs before the tour is readied: Codex's model catalog, and a git name. */
 export const seedTour = async (run: E2E, agents: readonly AgentName[]): Promise<void> => {
@@ -131,7 +109,7 @@ export const begin = async (
   )
 }
 
-/** One `open_agent` call as the brief gives it: its arguments, and the message to pass. */
+/** The `open_agent` call as the brief gives it: its arguments, and the message to pass. */
 export type Opening = {
   readonly agent: AgentName
   readonly model: string
@@ -139,7 +117,7 @@ export type Opening = {
   readonly message: string
 }
 
-/** The two `open_agent` calls the brief asks of its lead, read from its text. */
+/** The `open_agent` call the brief asks of its lead, read from its text. */
 export const openings = (brief: string): Opening[] =>
   [
     ...brief.matchAll(
@@ -156,49 +134,46 @@ export const openings = (brief: string): Opening[] =>
       .trim(),
   }))
 
-/** What the runner refuses a teammate's `open_agent` with. */
-const refusal = "only the tour's lead opens agents"
+/** Whether the call is the agent's next look after its `open_worktree` opened one. */
+const worktreeOpened = (call: Call): boolean => /You own it\./.test(result(call) ?? "")
 
 const text = (words: string): Reply => ({ text: words })
 
-// An opening's arguments for `open_agent`, with `message` for its message.
-const open = ({ agent, model, effort }: Opening, message: string) => ({
-  agent,
-  model,
-  ...(effort !== undefined && { effort }),
-  message,
-})
-
-// The `ask` the copywriter's brief gives, as its arguments, and no others: the subject, the
-// body and the shape, with the taglines the script has put in the placeholders.
+// The `ask` a fixer's brief gives, as its arguments, and no others: the subject, the body and
+// the shape.
 const asking = (message: string): Record<string, unknown> => {
   const flat = message.replace(/\s+/g, " ")
-  const found = /Call `ask` with subject "([^"]+)", body "([^"]+)" and shape (\{.*\})\./.exec(flat)
-  if (!found) throw new Error("The copywriter's brief has no ask")
-  const shape = found[3]!.replace("<tagline A>", taglines.A).replace("<tagline B>", taglines.B)
-  return { subject: found[1], body: found[2], shape: JSON.parse(shape) as unknown }
+  const found =
+    /Call `ask` with subject "([^"]+)", body "([^"]+)" and shape (\{.*?\})\.\s+4\./.exec(flat)
+  if (!found) throw new Error("The fixer's brief has no ask")
+  return {
+    subject: found[1],
+    body: found[2],
+    shape: JSON.parse(found[3]!) as unknown,
+  }
 }
 
 // The messages an agent was sent by other agents: Novadeck's own notices, as the lead's brief
-// (which quotes each teammate's), are no teammate's task.
+// (which quotes its fixer's task), are no teammate's task.
 const fromAgents = (call: Call) => received(call).filter((one) => one.from !== "novadeck")
-
-const briefed = (call: Call, who: string): boolean =>
-  fromAgents(call).some((one) => one.text.includes(`You are the ${who} in Novadeck's tour`))
 
 /** The lead's brief as Novadeck's notice delivered it, in the call that carries it. */
 const scriptIn = (call: Call): string | undefined =>
   received(call).find((one) => one.from === "novadeck" && one.text.startsWith(tourBriefMark))?.text
 
-type Role = "copywriter" | "designer" | "lead"
+/** The second fixer's brief as Novadeck's notice delivered it. */
+const fixerBriefIn = (call: Call): string | undefined =>
+  received(call).find((one) => one.from === "novadeck" && one.text.startsWith(tourFixerMark))?.text
 
-/** What a teammate's conversation was briefed with: its role and its lead's handle. */
-type Briefing = { readonly role: Role; readonly lead?: string }
+type Role = "fixer1" | "fixer2" | "lead"
+
+/** What a fixer's conversation was briefed with: its role and its lead's handle. */
+type Briefing = { readonly role: Role; readonly lead?: string | undefined }
 
 // A conversation by the doorbell's first notice to it, whose id no other's shares (a harness's
 // first user turn can be its own preamble, the same in every session, as Antigravity's is), else
 // by its first user turn: the harness may stop carrying a delivered brief in later calls
-// (Antigravity does), so what a teammate was briefed with is kept by it.
+// (Antigravity does), so what a fixer was briefed with is kept by it.
 const known = (call: Call): string => {
   const users = call.turns.filter((turn) => turn.role === "user").map((turn) => turn.text)
   // The doorbell's ring id, as its tag types it (or the bracket line it typed before).
@@ -210,22 +185,24 @@ const known = (call: Call): string => {
 }
 
 /**
- * Who a call is for, and what it was briefed with: a teammate, by the brief it holds as a
- * message (or held when its conversation began), or else the lead.
+ * Who a call is for, and what it was briefed with: the first fixer, by the task it holds as its
+ * lead's message (or held when its conversation began); the second, by Novadeck's brief to it;
+ * or else the lead.
  */
 const briefing = (call: Call, kept: Map<string, Briefing>): Briefing => {
-  for (const role of ["copywriter", "designer"] as const) {
-    const brief = fromAgents(call).find((one) =>
-      one.text.includes(`You are the ${role} in Novadeck's tour`),
-    )
-    // A copy of the brief with no sender (as Antigravity quotes it back in a tool's error)
-    // never takes the place of the lead it was first seen from.
-    if (brief && (brief.from || !kept.has(known(call))))
-      kept.set(known(call), {
-        role,
-        lead: brief.from,
-      } as Briefing)
-  }
+  const task = fromAgents(call).find((one) =>
+    one.text.includes("You are Tip fixer, a teammate in Novadeck's tour. Your lead is the agent"),
+  )
+  // A copy of the task with no sender (as Antigravity quotes it back in a tool's error) never
+  // takes the place of the lead it was first seen from.
+  if (task && (task.from || !kept.has(known(call))))
+    kept.set(known(call), { role: "fixer1", lead: task.from })
+  const brief = fixerBriefIn(call)
+  if (brief && !kept.has(known(call)))
+    kept.set(known(call), {
+      role: "fixer2",
+      lead: /(@\w+) leads you/.exec(brief)?.[1],
+    })
   return kept.get(known(call)) ?? { role: "lead" }
 }
 
@@ -240,10 +217,12 @@ const opensMade = (call: Call): number =>
 const handleOpened = (call: Call): string | undefined =>
   /Opened a new terminal, @(\w+)/.exec(result(call) ?? "")?.[1]
 
+/** The words a fixer sends its lead when it is done. */
+const reports = { tip: "Fixed bug 1.", money: "Fixed bug 2." } as const
+
 /**
- * The rules of the whole story. `lead` is the lead's setup, `brief` its lead.md. A tool's
- * name is found among those any call of the run offered, as the first call of an agent goes
- * out before its MCP tools load.
+ * The rules of the whole story. A tool's name is found among those any call of the run
+ * offered, as the first call of an agent goes out before its MCP tools load.
  */
 export const storyRules = (run: E2E): { rules: Rule[]; script: () => string } => {
   // The lead's brief, kept from the first call that carries it: a harness may drop an old
@@ -252,11 +231,13 @@ export const storyRules = (run: E2E): { rules: Rule[]; script: () => string } =>
   const scripted = (from: Call): void => {
     script ??= scriptIn(from)
   }
-  const mates = (): readonly [Opening, Opening] => {
-    const [writer, designer] = openings(script ?? "")
-    if (!writer || !designer) throw new Error("The lead's brief has no two open_agent calls")
-    return [writer, designer]
+  const fixer = (): Opening => {
+    const [opening] = openings(script ?? "")
+    if (!opening) throw new Error("The lead's brief has no open_agent call")
+    return opening
   }
+  // The second fixer's brief, kept as the lead's is.
+  let fixerBrief: string | undefined
   const kept = new Map<string, Briefing>()
   const heard = new Map<string, Set<string>>()
   const roleOf = (call: Call): Role => briefing(call, kept).role
@@ -266,7 +247,12 @@ export const storyRules = (run: E2E): { rules: Rule[]; script: () => string } =>
     const found = named(from, name)
     return found ? { calls: [{ name: found, input }] } : undefined
   }
-
+  // The worktree a fixer opened, by its branch: where its model would write.
+  const worktree = (branch: string): string => {
+    const row = run.deck.worktrees.all().find((each) => each.branch === branch)
+    if (!row) throw new Error(`No worktree on ${branch}`)
+    return row.path
+  }
   const rules = [
     // The lead, by the brief's steps.
     own((one) => {
@@ -280,76 +266,76 @@ export const storyRules = (run: E2E): { rules: Rule[]; script: () => string } =>
       if (started)
         return call(one, "describe", { title: "Tour lead", summary: "Leads Novadeck's tour" })
       if (result(one)?.includes("Described this terminal") && opensMade(one) === 0) {
-        const [writer] = mates()
-        const opening = call(one, "open_agent", open(writer, writer.message))
+        const { agent, model, effort, message } = fixer()
+        const opening = call(one, "open_agent", {
+          agent,
+          model,
+          ...(effort !== undefined && { effort }),
+          message,
+        })
         return opening && { ...opening, text: "The tour has begun." }
       }
-      const handle = handleOpened(one)
-      if (handle && opensMade(one) === 1) {
-        const [, designer] = mates()
-        return call(one, "open_agent", open(designer, designer.message))
-      }
-      if (handle && opensMade(one) === 2) return text("The team is working.")
+      if (handleOpened(one) && opensMade(one) === 1)
+        return text("A fixer is on bug 1. You start the second one.")
       return undefined
     }),
     own((one) => {
       if (roleOf(one) !== "lead" || !fresh(one) || deliveries(one).length === 0) return undefined
-      if (opensMade(one) < 2) return undefined
+      if (opensMade(one) < 1) return undefined
       // What the lead was told so far, kept: a harness may stop carrying an old delivery.
       const told = heard.get(known(one)) ?? new Set<string>()
       heard.set(known(one), told)
       for (const each of received(one))
-        for (const part of ["Look:", "Tagline:"]) if (each.text.startsWith(part)) told.add(part)
-      const both = told.has("Look:") && told.has("Tagline:")
-      return both ? call(one, "show", { file: { path: card.file }, open: true }) : text("Noted.")
+        for (const part of Object.values(reports)) if (each.text.startsWith(part)) told.add(part)
+      return told.size === 2
+        ? text("Both bugs are fixed, each in its own worktree.")
+        : text("Noted.")
     }),
-    own((one) =>
-      roleOf(one) === "lead" && (result(one) ?? "").includes(card.file)
-        ? text("The strip is ready.")
-        : undefined,
-    ),
-    // The copywriter.
+    // The first fixer, on bug 1.
     own((one) => {
-      if (roleOf(one) !== "copywriter") return undefined
-      if (
-        fresh(one) &&
-        briefed(one, "copywriter") &&
-        !one.turns.some((t) => t.role === "assistant")
-      )
-        return call(one, "describe", { title: "Copywriter", summary: "Writes the strip's words" })
+      if (roleOf(one) !== "fixer1") return undefined
+      if (fresh(one) && !one.turns.some((t) => t.role === "assistant"))
+        return call(one, "describe", {
+          title: "Tip fixer",
+          summary: "Fixes bug 1",
+        })
+      const { lead } = briefing(one, kept)
       // As a model that follows the lead's script instead would: it tries to open an agent.
       if (result(one)?.includes("Described this terminal"))
-        return call(one, "open_agent", { agent: mates()[0].agent, message: "Help me." })
-      if ((result(one) ?? "").includes(refusal)) return call(one, "ask", asking(mates()[0].message))
-      if (/is in the user's Inbox/.test(result(one) ?? "")) return text("Asked you to choose.")
-      const { lead } = briefing(one, kept)
-      if (lead && sent(one, lead)) return text("Sent it to the lead.")
-      const answer = deliveries(one).find((each) => each.from === "you")
-      if (fresh(one) && answer && lead) {
-        const picked = /<quoted-option>([AB])<\/quoted-option>/.exec(answer.text)?.[1] as
-          | "A"
-          | "B"
-          | undefined
-        return call(one, "send", {
-          to: lead,
-          text: `Tagline: ${taglines[picked ?? "A"]} Line: ${copyLine}`,
-        })
+        return call(one, "open_worktree", { branch: "fix-tip" })
+      if (worktreeOpened(one)) {
+        fix(worktree("fix-tip"), fixes.tip)
+        return lead ? call(one, "send", { to: lead, text: reports.tip }) : undefined
       }
-      if (fresh(one) && deliveries(one).some((each) => each.text.startsWith("Look:")))
-        return text("Noted the look.")
+      if (lead && sent(one, lead)) return text("Sent it.")
       return undefined
     }),
-    // The designer.
+    // The second fixer, on bug 2: asks first.
     own((one) => {
-      if (roleOf(one) !== "designer") return undefined
-      if (fresh(one) && !one.turns.some((t) => t.role === "assistant"))
-        return call(one, "describe", { title: "Designer", summary: "Picks the strip's look" })
-      const { lead } = briefing(one, kept)
+      if (roleOf(one) !== "fixer2") return undefined
+      fixerBrief ??= fixerBriefIn(one)
+      if (
+        fresh(one) &&
+        fixerBrief !== undefined &&
+        !one.turns.some((t) => t.role === "assistant") &&
+        deliveries(one).some((each) => each.text.startsWith(tourFixerMark))
+      )
+        return call(one, "describe", {
+          title: "Money fixer",
+          summary: "Fixes bug 2",
+        })
       if (result(one)?.includes("Described this terminal"))
-        return call(one, "open_agent", { agent: mates()[1].agent, message: "Help me." })
-      if ((result(one) ?? "").includes(refusal) && lead)
-        return call(one, "send", { to: lead, text: look })
-      if (lead && sent(one, lead)) return text("Sent the look.")
+        return call(one, "open_worktree", { branch: "fix-money" })
+      if (worktreeOpened(one) && fixerBrief !== undefined)
+        return call(one, "ask", asking(fixerBrief))
+      if (/is in the user's Inbox/.test(result(one) ?? "")) return text("Asked you to choose.")
+      const { lead } = briefing(one, kept)
+      if (lead && sent(one, lead)) return text("Sent it.")
+      const answer = deliveries(one).find((each) => each.from === "you")
+      if (fresh(one) && answer && lead) {
+        fix(worktree("fix-money"), fixes.money)
+        return call(one, "send", { to: lead, text: reports.money })
+      }
       return undefined
     }),
   ]
@@ -378,19 +364,22 @@ const flags = (agent: AgentName, { model, effort }: Opening): string =>
 
 /**
  * Runs the story with `lead` leading, on a deck whose harnesses include every agent the brief
- * names, and checks what it did: each teammate started by its lead on the model and effort the
- * brief names, described itself, its messages delivered, the copywriter's ask in the Inbox and
- * its answer delivered, and the page shown on the lead's bar, opened, every one of them in the
- * tour's folder. Returns the openings. With `worktreesFolder`, the folder of agents' worktrees
- * is there before the lead starts, as on every computer Novadeck has run agents on, and each
- * harness's shim passes it on as `--add-dir`.
+ * names, and checks what it did: the first fixer started by its lead on the model and effort the
+ * brief names with the tour's write flags, the person's terminal taken as the second fixer by
+ * `tour.fixer`, led by the lead, started on the tour's model and flags and given its brief,
+ * both describing themselves, each in a worktree of its own (tracked and its changes shown, with
+ * the person's setting off), the second fixer's ask in the Inbox and its answer delivered, both
+ * fixes in one preview of `split.js`, and the lead saying both are done, every agent in the
+ * tour's folder. Returns the first fixer's opening. With `worktreesFolder`, the folder of
+ * agents' worktrees is there before the lead starts, as on every computer Novadeck has run
+ * agents on, and each harness's shim passes it on as `--add-dir`.
  */
 export const tell = async (
   run: E2E,
   setup: AgentSetup,
   agents: readonly AgentName[],
   { worktreesFolder = false }: { readonly worktreesFolder?: boolean } = {},
-): Promise<readonly [Opening, Opening]> => {
+): Promise<Opening> => {
   await seedTour(run, agents)
   if (worktreesFolder) await mkdir(worktreesRoot(run.sandbox.home), { recursive: true })
   const prepared = await run.deck.tour.prepare(setup.agent)
@@ -399,10 +388,6 @@ export const tell = async (
     // eslint-disable-next-line no-await-in-loop -- Two small files.
     expect(await readFile(join(prepared.directory, name), "utf8")).not.toMatch(/open_agent|Steps/)
   expect(prepared.command).not.toContain("Novadeck tour")
-  // The lead's own write, which the fake model has no tool call for in every harness.
-  const strip = filled()
-  expect(wellFormed(strip)).toBe(true)
-  await writeFile(join(prepared.directory, card.file), strip)
   const story = storyRules(run)
   run.model.use(...story.rules)
   const requests = run.deck.answerRequests()
@@ -411,87 +396,109 @@ export const tell = async (
   const lead = await run.deck.openAt(prepared.directory, prepared.command)
   await begin(run, lead, setup, prepared.brief === "doorbell")
   const first = await requests.next()
-  const second = await requests.next()
-  const mates = { copywriter: first, designer: second }
   // What the lead was sent: the whole script, as Novadeck's notice, naming the person.
   const instructions = story.script()
-  expect(instructions).toContain("comic strip of this tour for the person,")
+  expect(instructions).toContain("bill splitter with two bugs")
   expect(instructions).not.toContain("Ada")
-  expect(instructions).toContain("</div></body></html>")
-  const [writer, designer] = openings(instructions)
-  expect(writer).toBeDefined()
-  expect(designer).toBeDefined()
+  const [opening] = openings(instructions)
+  expect(opening).toBeDefined()
 
-  // Started by the lead, on the brief's model and effort, in the harness the brief names.
-  for (const [mate, opening] of [
-    [mates.copywriter, writer!],
-    [mates.designer, designer!],
-  ] as const) {
-    expect(run.deck.store.terminal(mate.id)?.ledBy).toBe(lead.id)
-    // In the tour's folder, the lead's, never another its harness was given to write in.
-    inTour(mate, prepared.directory)
-    // Its command line only on Linux, as the runner reads no foreground process's argv on
-    // Windows or macOS; everywhere, the harness it runs is checked below.
-    if (process.platform === "linux") {
-      // eslint-disable-next-line no-await-in-loop -- Two, one after the other.
-      const argv = await poll(
-        () => {
-          const words = mate.summary().process?.argv?.join(" ")
-          return words?.includes(flags(opening.agent, opening)) ? words : undefined
-        },
-        `${mate.handle} to start on ${flags(opening.agent, opening)} (now ${mate.summary().process?.argv?.join(" ")})`,
-        45_000,
-      )
-      expect(argv.startsWith(opening.agent) || argv.includes(opening.agent)).toBe(true)
-    }
+  // Started by the lead, on the brief's model and effort, in the harness the brief names, with
+  // the tour's write flags for that harness, in the tour's folder, the lead's.
+  expect(run.deck.store.terminal(first.id)?.ledBy).toBe(lead.id)
+  inTour(first, prepared.directory)
+  // Its command line only on Linux, as the runner reads no foreground process's argv on
+  // Windows or macOS; everywhere, the harness it runs is checked below.
+  if (process.platform === "linux") {
+    const argv = await poll(
+      () => {
+        const words = first.summary().process?.argv?.join(" ")
+        return words?.includes(flags(opening!.agent, opening!)) ? words : undefined
+      },
+      `${first.handle} to start on ${flags(opening!.agent, opening!)} (now ${first.summary().process?.argv?.join(" ")})`,
+      45_000,
+    )
+    expect(argv.startsWith(opening!.agent) || argv.includes(opening!.agent)).toBe(true)
+    expect(argv).toContain(tourWrites[opening!.agent].join(" "))
   }
-  // Each describes itself, as its brief says.
-  await Promise.all([
-    mates.copywriter.poll(
-      () => (mates.copywriter.summary().title === "Copywriter" ? true : undefined),
-      "its title",
-      60_000,
-    ),
-    mates.designer.poll(
-      () => (mates.designer.summary().title === "Designer" ? true : undefined),
-      "its title",
-      60_000,
-    ),
-  ])
-  for (const [mate, title, opening] of [
-    [mates.copywriter, "Copywriter", writer!],
-    [mates.designer, "Designer", designer!],
-  ] as const)
-    expect(mate.summary()).toMatchObject({
-      title,
-      titleSource: { kind: "agent", by: mate.handle },
-      agent: opening.agent,
-    })
-
-  // The designer's look reaches the lead.
-  await mates.designer.reached(holds(mates.designer.handle, lead.handle, "delivered"), {
-    timeoutMs: 90_000,
+  // It describes itself, as its task says.
+  await first.poll(
+    () => (first.summary().title === "Tip fixer" ? true : undefined),
+    "its title",
+    60_000,
+  )
+  expect(first.summary()).toMatchObject({
+    title: "Tip fixer",
+    titleSource: { kind: "agent", by: first.handle },
+    agent: opening!.agent,
   })
+  // In a worktree of its own, whatever the person's setting says: tracked, its changes shown.
+  const tip = await first.poll(
+    () => run.deck.worktrees.all().find((each) => each.branch === "fix-tip"),
+    "its worktree",
+    90_000,
+  )
+  expect(tip.terminalId).toBe(first.id)
+  await first.poll(
+    () => run.deck.items.bar(first.id).find((each) => each.kind === "changes"),
+    "its changes shown",
+    30_000,
+  )
 
-  // The copywriter's ask is in the Inbox, with both taglines as its options.
-  const ask = await mates.copywriter.poll(
+  // The person opens a terminal; the tour starts their agent in it, led by the lead.
+  const mine = await run.deck.openBeside(lead, prepared.directory)
+  run.deck.tour.fixer(mine.id, run.deck.owner)
+  expect(run.deck.store.terminal(mine.id)?.ledBy).toBe(lead.id)
+  await expect(
+    Promise.resolve().then(() => run.deck.tour.fixer(mine.id, run.deck.owner)),
+  ).rejects.toMatchObject({ code: "CONFLICT" })
+  if (process.platform === "linux") {
+    const argv = await poll(
+      () => {
+        const words = mine.summary().process?.argv?.join(" ")
+        return words?.includes(tourWrites[setup.agent].join(" ")) ? words : undefined
+      },
+      `${mine.handle} to start with the tour's flags (now ${mine.summary().process?.argv?.join(" ")})`,
+      45_000,
+    )
+    expect(argv).toContain(setup.agent)
+  }
+  await mine.poll(
+    () => (mine.summary().title === "Money fixer" ? true : undefined),
+    "its title",
+    90_000,
+  )
+  expect(mine.summary()).toMatchObject({
+    titleSource: { kind: "agent", by: mine.handle },
+    agent: setup.agent,
+    ledBy: lead.id,
+  })
+  inTour(mine, prepared.directory)
+  const money = await mine.poll(
+    () => run.deck.worktrees.all().find((each) => each.branch === "fix-money"),
+    "its worktree",
+    90_000,
+  )
+  expect(money.terminalId).toBe(mine.id)
+
+  // Its ask is in the Inbox, with both ways as its options.
+  const ask = await mine.poll(
     () =>
       run.deck.terminals
         .inboxEntries()
-        .find((each) => each.content.kind === "ask" && each.terminalId === mates.copywriter.id),
+        .find((each) => each.content.kind === "ask" && each.terminalId === mine.id),
     "its ask in the Inbox",
     90_000,
   )
   expect(ask.content).toMatchObject({
     kind: "ask",
     ask: {
-      subject: "Which tagline for the comic strip?",
-      body: "The lead is making a comic strip of the tour for you. Which tagline should be its punchline?",
+      subject: "Whole amounts: $12.00 or $12?",
       shape: {
         type: "options",
         options: [
-          { label: "A", summary: taglines.A },
-          { label: "B", summary: taglines.B },
+          { label: "$12.00", summary: "Always two decimals" },
+          { label: "$12", summary: "Drop .00 for whole amounts" },
         ],
       },
     },
@@ -499,64 +506,67 @@ export const tell = async (
   const before = run.model.mark()
   run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 1, text: "" })
 
-  // The answer reaches the copywriter, who sends the chosen tagline to the lead.
+  // The answer reaches the fixer, who fixes bug 2 and tells the lead.
   const answered = await run.model.waitFor(
     (one) => !one.side && deliveries(one).some((each) => each.from === "you"),
     { after: before, timeoutMs: 90_000 },
   )
   expect(deliveries(answered).find((each) => each.from === "you")?.text).toContain(
-    "<quoted-option>B</quoted-option>",
+    "<quoted-option>$12</quoted-option>",
   )
-  await mates.copywriter.reached(holds(mates.copywriter.handle, lead.handle, "delivered"), {
+  await first.reached(holds(first.handle, lead.handle, "delivered"), {
     timeoutMs: 90_000,
   })
-  const told = messages(lead).filter((each) => each.from === mates.copywriter.handle)
-  expect(told.map((each) => each.text)).toEqual([expect.stringContaining(taglines.B)])
-  const looks = messages(lead).filter((each) => each.from === mates.designer.handle)
-  expect(looks.map((each) => each.text)).toEqual([look])
-
-  // The lead shows the strip it wrote, opened: a page.
-  await lead.until("The strip is ready.", 90_000)
-  await through(lead, ["settled"])
-  const shown = run.deck.items.bar(lead.id).filter((each) => each.name === card.file)
-  expect(shown).toMatchObject([
-    {
-      kind: "file",
-      name: card.file,
-      by: "agent",
-      openAsked: true,
-      from: { terminalId: lead.id, handle: lead.handle },
-    },
-  ])
-  expect(shown[0]?.path?.endsWith(card.file)).toBe(true)
-  // The pane gets the page whole, which it draws as a page.
-  const content = await run.deck.items.load(shown[0]!.id, false)
-  expect(content).toMatchObject({
-    state: "ready",
-    content: {
-      kind: "file",
-      truncated: false,
-      lines: expect.arrayContaining([expect.stringContaining('<p class="t">')]),
-    },
+  await mine.reached(holds(mine.handle, lead.handle, "delivered"), {
+    timeoutMs: 90_000,
   })
-  // Each teammate tried to open an agent and was refused, so the team stayed at two.
-  const refused = run.model.calls.filter(
-    (one) => !one.side && (result(one) ?? "").includes(refusal),
+  expect(
+    messages(lead)
+      .filter((each) => each.from === first.handle || each.from === mine.handle)
+      .map((each) => [each.from, each.text]),
+  ).toEqual(
+    expect.arrayContaining([
+      [first.handle, reports.tip],
+      [mine.handle, reports.money],
+    ]),
   )
-  expect(refused.length).toBeGreaterThanOrEqual(2)
+  // The lead says so, once both have reported.
+  await lead.until("Both bugs are fixed, each in its own worktree.", 90_000)
+  await through(lead, ["settled"])
+
+  // Both fixes, in one file: what the Files panel previews, main's copy with each work's hunks.
+  const projectId = run.deck.store.session(run.deck.terminals.get(lead.id).sessionId).projectId
+  const preview = await poll(
+    async () => {
+      const found = await run.deck.works.preview(projectId, sandboxFile)
+      return found.works.length === 2 && found.works.every((each) => each.hunks.length > 0)
+        ? found
+        : undefined
+    },
+    "both works' hunks in the preview",
+    60_000,
+  )
+  expect(preview.main).toContain("amount.toFixed(1)")
+  expect(preview.works.map((each) => each.branch).toSorted()).toEqual(["fix-money", "fix-tip"])
+  expect(JSON.stringify(preview.works.find((each) => each.branch === "fix-tip")!.hunks)).toContain(
+    "tip / 100",
+  )
+  expect(
+    JSON.stringify(preview.works.find((each) => each.branch === "fix-money")!.hunks),
+  ).toContain("Number.isInteger")
+  // The team stayed at two: no fixer opened another agent.
   await expect(requests.next(2000)).rejects.toThrow()
-  expect(tourWrites[setup.agent].length).toBeGreaterThan(0)
   expect(run.model.calls.length).toBeGreaterThan(calls)
   // The lead's own folder, as its harness reported it all along, is still the tour's.
   inTour(lead, prepared.directory)
-  return [writer!, designer!]
+  return opening!
 }
 
 /**
- * Runs the story far enough to see the designer's terminal held at its harness's folder-trust
+ * Runs the story far enough to see the first fixer's terminal held at its harness's folder-trust
  * question: the lead's harness has it trusted or never asks (so run `lead` on Codex), the
- * designer's is `trusted: false` in the seed. Checks the runner reads that question as the
- * startup screen the tour's coach points at, and that the designer stays there, saying nothing,
+ * fixer's is `trusted: false` in the seed. Checks the runner reads that question as the
+ * startup screen the tour's coach points at, and that the fixer stays there, saying nothing,
  * until the person answers it, which is theirs to do.
  */
 export const holdAtTrust = async (
@@ -571,22 +581,26 @@ export const holdAtTrust = async (
   const requests = run.deck.answerRequests()
   const lead = await run.deck.openAt(prepared.directory, prepared.command)
   await begin(run, lead, setup, prepared.brief === "doorbell")
-  await requests.next()
-  const second = await requests.next()
-  const [, designer] = openings(story.script())
-  const held = await second.poll(
-    () => second.summary().startup ?? undefined,
+  const first = await requests.next()
+  const [fixer] = openings(story.script())
+  const held = await first.poll(
+    () => first.summary().startup ?? undefined,
     "its startup screen",
     90_000,
   )
-  expect(held).toEqual({ agent: designer!.agent, screen: "startup" })
+  expect(held).toEqual({ agent: fixer!.agent, screen: "startup" })
   const before = run.model.mark()
   await new Promise((resolve) => setTimeout(resolve, 8000))
   // Still at the question: no agent bound, nothing described, no model call of its own.
-  expect(second.summary().startup).toEqual({ agent: designer!.agent, screen: "startup" })
-  expect(second.summary().title).not.toBe("Designer")
-  expect(run.model.calls.slice(before).some((one) => !one.side && briefed(one, "designer"))).toBe(
-    false,
-  )
-  return designer!.agent
+  expect(first.summary().startup).toEqual({
+    agent: fixer!.agent,
+    screen: "startup",
+  })
+  expect(first.summary().title).not.toBe("Tip fixer")
+  expect(
+    run.model.calls
+      .slice(before)
+      .some((one) => !one.side && fromAgents(one).some((each) => each.text.includes("Tip fixer"))),
+  ).toBe(false)
+  return fixer!.agent
 }

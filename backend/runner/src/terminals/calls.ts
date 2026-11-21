@@ -214,7 +214,8 @@ export class Calls {
       ...(request.model !== undefined && { model: request.model }),
       ...(request.effort !== undefined && { effort: request.effort }),
     }
-    const policy = request.agent !== undefined ? this.host.openPolicy(call.terminalId) : {}
+    const policy: OpenPolicy =
+      request.agent !== undefined ? this.host.openPolicy(call.terminalId) : {}
     if (request.agent !== undefined) {
       if (policy.refusal) return refused(policy.refusal)
       const unfit = await this.unfitChoice(request.agent, choice)
@@ -298,7 +299,13 @@ export class Calls {
           ? { command: request.command, prompted: true }
           : resuming?.ok
             ? { command: commandLine(resuming.argv), prompted: true }
-            : await this.taskCommand(request.agent, cwd, choice, request.message !== undefined)
+            : await this.taskCommand(
+                request.agent,
+                cwd,
+                choice,
+                request.message !== undefined,
+                policy.flags?.(request.agent),
+              )
     } catch (error) {
       if (!(error instanceof RangeError)) throw error
       return refused("The agent's start line holds a character no shell quotes safely.")
@@ -502,13 +509,14 @@ export class Calls {
    * it may not take one (Antigravity, whose prompt would start a turn before Novadeck's
    * tools load, or behind its trust dialog), when the task arrives once its prompt shows,
    * rung as any message is. Without a task, it just starts at its prompt, with the model
-   * and effort chosen.
+   * and effort chosen. `flags` are the policy's, for this launch only, right after them.
    */
   private async taskCommand(
     agent: AgentName,
     cwd: string,
     choice: { readonly model?: string; readonly effort?: Effort },
     withTask: boolean,
+    flags: readonly string[] = [],
   ): Promise<{ readonly command: string; readonly prompted: boolean; readonly nonce?: string }> {
     const { launch } = harnesses[agent]
     const install = withTask ? await this.host.install(agent).catch(() => undefined) : undefined
@@ -518,7 +526,7 @@ export class Calls {
       : undefined
     const [program = "", ...rest] = prompted ?? launch.start
     // Right after the program, so before any flag of a prompt's that takes the line.
-    const command = commandLine([program, ...launch.choose(choice), ...rest])
+    const command = commandLine([program, ...launch.choose(choice), ...flags, ...rest])
     return { command, prompted: prompted !== undefined, ...(withTask && { nonce }) }
   }
 

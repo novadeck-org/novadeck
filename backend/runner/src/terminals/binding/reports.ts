@@ -83,8 +83,8 @@ export type ReportsHost = {
   /** The agent worktrees wiring, read live at each turn's start; none where there are none. */
   readonly worktrees: () =>
     | {
-        enabled: () => boolean
-        ready: (startedAt: number | undefined, relists: boolean) => boolean
+        enabled: (terminalId?: string) => boolean
+        ready: (startedAt: number | undefined, relists: boolean, terminalId?: string) => boolean
         readonly service: { readonly root: string }
       }
     | undefined
@@ -520,10 +520,11 @@ export class Reports {
     // restarts; one whose start the relay couldn't read is taken to be such.
     const worktrees = record.root
       ? worktreesDue(
-          wiring?.enabled() ?? false,
+          wiring?.enabled(record.summary.id) ?? false,
           toldOf(record.agents, record.root).worktrees,
           lasting,
-          wiring?.ready(report.processStart, messaging.toolsAtTurnStart) ?? false,
+          wiring?.ready(report.processStart, messaging.toolsAtTurnStart, record.summary.id) ??
+            false,
         )
       : null
     const taken = atTurnStart(record.nudges, {
