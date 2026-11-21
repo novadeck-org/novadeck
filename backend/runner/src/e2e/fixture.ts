@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process"
 import { rmSync } from "node:fs"
 import { join } from "node:path"
 
@@ -26,6 +27,15 @@ import { startTrace, tracesAll, tracing } from "./trace.js"
 export { describe, expect } from "../test.js"
 
 // Why the suite can't run here (see `unsupported`), or undefined where it can.
+const diagPs = (label: string) => {
+  try {
+    const out = execFileSync("ps", ["-axww", "-o", "pid,ppid,pgid,stat,lstart,command"], { encoding: "utf8", env: { ...process.env, LC_ALL: "C" } })
+    const rows = out.split("\n").filter((line, at) => at === 0 || /claude|novadeck-relay|bg-pty|bg-spare/.test(line))
+    console.info(`DIAG ps ${label}:\n${rows.map((r) => r.slice(0, 600)).join("\n")}`)
+  } catch (error) {
+    console.info(`DIAG ps ${label} failed: ${String(error)}`)
+  }
+}
 const refusal = unsupported(process.platform)
 
 /**
@@ -188,7 +198,7 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[], handles?: DeckOption
       const background = await checked(
         "Claude Code's background service",
         () =>
-          endClaudeService(
+          (diagPs("before service end"), endClaudeService)(
             harnesses.claude.home({
               env,
               home: sandbox.home,
@@ -203,6 +213,9 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[], handles?: DeckOption
         console.info(
           `Claude Code's background service, ended as the sandbox's logout would (by design): ${background.join(", ")}`,
         )
+      diagPs("after service end")
+      await new Promise((r) => setTimeout(r, 1500))
+      diagPs("1.5s later, before leftovers")
       const leftovers = await checked("leftover processes", () => reap(sandbox), [])
       const changes = await checked("the developer's harness home", changed, [])
       const appeared = await checked(loginStore, () => harnessLogins(setups), [])

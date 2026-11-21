@@ -1,0 +1,39 @@
+# Scratch: runs inbox.e2e.ts for Claude Code on macOS alone, to find which commit leaves
+# processes behind the agents-view test. Deleted with its trace/* branch.
+name: Trace agents view
+on:
+  push:
+    branches: ["trace/**"]
+permissions:
+  contents: read
+jobs:
+  inbox:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      NOVADECK_E2E_CACHE: ${{ github.workspace }}/.e2e-cache
+      NOVADECK_E2E_TRACES: ${{ github.workspace }}/e2e-traces
+      NOVADECK_E2E_AGENTS: claude
+      NOVADECK_E2E_HARNESS: pinned
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/e2e-harness-cache/restore
+        with:
+          cache: ${{ env.NOVADECK_E2E_CACHE }}
+          harness: claude
+      - run: pnpm --filter @novadeck/protocol... --filter @novadeck/relay build
+      - run: node scripts/e2e/install/main.ts
+      - run: |
+          defaults write com.apple.universalaccess reduceMotion -bool false
+      - name: Run inbox.e2e.ts
+        run: pnpm --filter @novadeck/runner test:e2e src/e2e/inbox.e2e.ts -t "agents view"
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: traces
+          path: e2e-traces
+          if-no-files-found: ignore
