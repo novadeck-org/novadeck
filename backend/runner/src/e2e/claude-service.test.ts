@@ -5,7 +5,7 @@ import { join } from "node:path"
 import type { Member } from "@novadeck/terminal/pty"
 import { describe, expect, it, onTestFinished, vi } from "vitest"
 
-import { endClaudeService, filetimeMs, isSession } from "./claude-service.js"
+import { endClaudeService, filetimeMs, isSession, settled } from "./claude-service.js"
 
 const relay = () => ({
   read: vi.fn<(root: number | Member) => Promise<readonly Member[] | undefined>>(),
@@ -21,6 +21,27 @@ describe("the sandbox's Claude Code background service", () => {
     expect(isSession("claude --settings x")).toBe(false)
     expect(isSession("/usr/bin/claude bg-pty-host")).toBe(false)
     expect(isSession("claude bg-pty-hostile")).toBe(false)
+  })
+
+  it("waits for what runs under the service to stop changing before it ends it", async () => {
+    const rows = (...pids: number[]) => pids.map((pid) => ({ pid }))
+    // A session still starting adds its agent and that agent's tool after the first sample.
+    const samples = [
+      rows(10),
+      rows(10, 11),
+      rows(10, 11, 12),
+      rows(10, 11, 12),
+      rows(10, 11, 12, 13),
+    ]
+    let taken = 0
+    const sample = () => Promise.resolve(samples[taken++])
+    expect(await settled(sample, 1, 10)).toEqual(rows(10, 11, 12))
+    expect(taken).toBe(4)
+    // Never more than it is told to take.
+    taken = 0
+    const growing = () => Promise.resolve(rows(...Array.from({ length: ++taken }, (_, at) => at)))
+    expect((await settled(growing, 1, 3))?.length).toBe(3)
+    expect(await settled(() => Promise.resolve(undefined), 1, 3)).toBeUndefined()
   })
 
   it("reads a Windows FILETIME start to the millisecond", () => {
