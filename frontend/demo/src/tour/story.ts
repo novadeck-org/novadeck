@@ -21,7 +21,7 @@ export const tourStoryMs = { open: 300, bind: 300, work: 300, talk: 300, show: 4
 export const copywriterName = "Copywriter"
 export const designerName = "Designer"
 
-export const taglineSubject = "Which tagline for the welcome card?"
+export const taglineSubject = "Which tagline for the comic strip?"
 
 // The two taglines the copywriter offers, as the ask's options A and B.
 export const taglines = [
@@ -29,18 +29,15 @@ export const taglines = [
   { label: "B", line: "Your agents, finally on the same page." },
 ] as const
 
-// What the teammates say to each other, in order, before the ask.
+// What the team says before the ask, as the brief has it: the designer sends its look to the
+// lead, and only to the lead. The copywriter tells the lead only the person's pick, once made.
 export const tourTalk = {
-  designerToCopywriter:
-    "Look: background #f6f1e7; text #2d2a24; accent #0f766e; fonts Georgia for the heading, Arial for the rest. What line goes under the heading?",
-  copywriterToLead:
-    "I have two taglines for the welcome card. I'm asking the person which one to use.",
   designerToLead:
-    "The card's look is set: background #f6f1e7, text #2d2a24, accent #0f766e, Georgia and Arial. It waits on the tagline.",
+    "Look: background #fff6dc; text #140b1f; accent #ffe24a; line Ink on cream. Final.",
 } as const
 
 export const taglineMessage = (label: string, line: string): string =>
-  `The person picked ${label}: "${line}". Use it on the card.`
+  `The person picked ${label}: "${line}". Use it as the strip's punchline.`
 
 const target = ({ projectId, workspaceSessionId }: TerminalKey) => ({
   projectId,
@@ -108,7 +105,7 @@ export const taglineAsk = (
   seen: false,
   ask: {
     subject: taglineSubject,
-    body: "The lead asked for a welcome card. Which line should it carry under the headline?",
+    body: "The lead is making a comic strip of the tour for you. Which tagline should be its punchline?",
     details: null,
     hardToUndo: null,
     shape: {
@@ -149,61 +146,72 @@ const escaped = (text: string): string =>
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
 
-const paragraph = [
-  "Your agents work in terminals you can see side by side.",
-  "Ask one for something, and it brings in teammates,",
-  "asks you when it needs a decision, and shows you what it made.",
+// The strip as the lead writes it from its brief's template: three panels of the run, the
+// designer's look (paper, ink and accent), its line and the copywriter's, and the chosen
+// tagline as the punchline. One file, its look inline, lettered in the comic font the runner
+// puts beside it; the demo has no files beside it, so it letters in the fallback.
+export const stripPage = (line: string): readonly string[] => [
+  '<!doctype html><html><head><meta charset="utf-8"><style>',
+  ":root{--p:#fff6dc;--i:#140b1f;--a:#ffe24a}",
+  "@font-face{font-family:S;src:url(strip.woff2)}",
+  "body{margin:0;background:var(--i);font-family:S,Impact,sans-serif;letter-spacing:.04em}",
+  ".s{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.3fr);gap:10px;padding:10px;min-height:100vh;box-sizing:border-box}",
+  ".p{padding:0 14px 20px;background:var(--p);color:var(--i)}",
+  ".c,.b,.t{text-transform:uppercase}",
+  ".c{display:inline-block;margin:0 0 30px -14px;padding:5px 12px;background:var(--i);color:var(--p)}",
+  ".b{display:inline-block;padding:6px 10px;background:#fff;color:#111;border:2px solid;box-shadow:3px 3px 0}",
+  ".t{font-size:40px;line-height:1;overflow-wrap:anywhere}",
+  '</style></head><body><div class="s">',
+  '<div class="p"><b class="c">You press start</b><p class="b">your agent:<br>On it. Hiring two.</p></div>',
+  '<div class="p"><b class="c">Two hires, two opinions</b><p class="b">designer:<br>Ink on cream. Final.</p><p class="b">copywriter:<br>Two taglines. Boss picks.</p></div>',
+  `<div class="p" style="background:var(--a)"><b class="c">Your pick</b><p class="t">${escaped(line)}</p><p>Made by your team, in Novadeck.</p></div>`,
+  "</div></body></html>",
 ]
 
-// The welcome card as an image: the designer's look (background, text and accent colours,
-// Georgia and Arial), a heading, the chosen tagline and a short paragraph, on an 800 by 450 canvas.
-export const cardSvg = (line: string): string =>
-  `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450">` +
-  `<rect width="800" height="450" rx="24" fill="#f6f1e7"/>` +
-  `<text x="400" y="140" text-anchor="middle" font-family="Georgia, serif" font-size="40" fill="#2d2a24">Welcome, friend</text>` +
-  `<text x="400" y="200" text-anchor="middle" font-family="Georgia, serif" font-size="22" font-style="italic" fill="#0f766e">${escaped(line)}</text>` +
-  paragraph
-    .map(
-      (text, index) =>
-        `<text x="400" y="${270 + index * 28}" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#2d2a24">${escaped(text)}</text>`,
-    )
-    .join("") +
-  `</svg>`
-
-// What the lead shows: welcome.svg as an image on its bar, asked to open, from the lead's
-// terminal (as the runner's `show` of an image file makes, `by: "agent"`).
-export const welcomeCard = (
+// What the lead shows: tour-strip.html as a file on its bar, which the pane draws as a page,
+// asked to open, from the lead's terminal (as the runner's `show` of a file makes, `by: "agent"`).
+export const tourStrip = (
   key: TerminalKey,
   handle: string,
   line: string,
   now: number,
-): { readonly item: Item; readonly content: ItemContent } => ({
-  item: {
-    id: itemIdOf(`tour-card-${key.terminalId}`),
-    holder: { terminalId: key.terminalId },
-    kind: "image",
-    name: "welcome.svg",
-    detail: "welcome.svg",
-    path: "~/.novadeck/tour/welcome.svg",
-    url: null,
-    lines: null,
-    secret: false,
-    by: "agent",
-    from: { terminalId: key.terminalId, handle },
-    version: 1,
-    openAsked: true,
-    shownAt: now,
-    plan: null,
-  },
-  content: {
-    state: "ready",
-    stamp: "1",
-    content: {
-      kind: "image",
-      src: `data:image/svg+xml,${encodeURIComponent(cardSvg(line))}`,
+): { readonly item: Item; readonly content: ItemContent } => {
+  const lines = stripPage(line)
+  return {
+    item: {
+      id: itemIdOf(`tour-card-${key.terminalId}`),
+      holder: { terminalId: key.terminalId },
+      kind: "file",
+      name: "tour-strip.html",
+      detail: "tour-strip.html",
+      path: `${demoTourFolder}/tour-strip.html`,
+      url: null,
+      lines: null,
+      secret: false,
+      by: "agent",
+      from: { terminalId: key.terminalId, handle },
+      version: 1,
+      openAsked: true,
+      shownAt: now,
+      plan: null,
     },
-  },
-})
+    content: {
+      state: "ready",
+      stamp: "1",
+      content: {
+        kind: "file",
+        path: `${demoTourFolder}/tour-strip.html`,
+        firstLine: 1,
+        lines,
+        from: 1,
+        to: lines.length,
+        total: lines.length,
+        truncated: false,
+        clamped: false,
+      },
+    },
+  }
+}
 
 type Story = {
   readonly key: TerminalKey
@@ -305,7 +313,7 @@ export const playTourStory = ({
   const present = (line: string) => {
     const found = lead()
     if (!found) return
-    const card = welcomeCard(key, handleOf(found, harness), line, Date.now())
+    const card = tourStrip(key, handleOf(found, harness), line, Date.now())
     stage.hold(card.item.id, card.content)
     dispatch([{ type: "item/upsert", target: sessionTarget, item: card.item }])
     later(tourStoryMs.show, finish)
@@ -365,16 +373,12 @@ export const playTourStory = ({
   const talk = () => {
     const [copywriter, designer] = mates
     if (!copywriter || !designer) return
-    say(designer, copywriter, tourTalk.designerToCopywriter)
-    later(tourStoryMs.talk, () => say(copywriter, "lead", tourTalk.copywriterToLead))
-    later(tourStoryMs.talk * 2, () => {
-      say(designer, "lead", tourTalk.designerToLead)
-      turns.as(designer.harness).finish(designer.key, current(designer.key), "completed", {
-        after: tourStoryMs.talk,
-        reply: "The card's look is ready.",
-      })
+    say(designer, "lead", tourTalk.designerToLead)
+    turns.as(designer.harness).finish(designer.key, current(designer.key), "completed", {
+      after: tourStoryMs.talk,
+      reply: "Sent the look.",
     })
-    later(tourStoryMs.talk * 3, () => asked(copywriter))
+    later(tourStoryMs.talk, () => asked(copywriter))
   }
 
   const begin = () => {

@@ -1986,16 +1986,13 @@ one from an earlier runner.
   (`--permission-mode acceptEdits`, Codex's `--sandbox workspace-write --ask-for-approval
   on-request`, `--mode accept-edits`), with no prompt on it, and nothing written to the agent's
   own settings. `brief` is always `doorbell`: the lead's script reaches it by `tour.brief`.
-  The script is composed for each run: it calls the person by the first word of their global
-  git name (`git config --global user.name`, read by the runner with a short timeout, never
-  over a network), else their OS account's first name capitalized, else "you", and the name
-  goes on from there: into the script, the teammates' briefs (which Novadeck keeps and shows in
-  Messages), the card, and each agent's model provider through the person's own account. It has
+  The script is composed for each run, and never names the person: it calls them "you", and
+  tells every agent never to use their name, even one it knows. It has
   the lead open two teammates with `open_agent`, a copywriter on the lead's own agent and a
   designer on the first other connected agent whose cheapest model is listed (else the lead's),
   each on that agent's cheapest model at its lowest effort, as above; teammates get no write
-  flags, and only the lead writes the card, `welcome.svg` (an SVG image the side pane shows as
-  an image). A terminal in the folder that has a lead is a teammate, and its `open_agent` is
+  flags, and only the lead writes the strip, `tour-strip.html` (a page the side pane draws as one,
+  lettered in `strip.woff2`, the Bangers font the folder starts with beside its instructions). A terminal in the folder that has a lead is a teammate, and its `open_agent` is
   refused (`Tour.openPolicy`, through the Terminals option `openPolicy`), so a teammate that
   follows the script anyway can't nest a team. `removed` names the projects it removed. A
   folder there that is no folder, or that holds files without the marker, is the person's and

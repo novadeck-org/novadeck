@@ -27,7 +27,7 @@ import {
 
 // Novadeck's tour story (docs/tour.md): the lead opens a copywriter and a designer with
 // `open_agent`, who describe themselves and send each other and the lead their parts; the
-// copywriter asks the person which tagline in the Inbox; the lead writes welcome.svg and
+// copywriter asks the person which tagline in the Inbox; the lead writes tour-strip.html and
 // shows it. The fake model plays all three, each by the brief it was given: the lead
 // follows the brief Novadeck sends it, and each teammate its `message`. What a rule keys on is
 // told by the conversation (a teammate's holds its brief as a delivered message), so one
@@ -39,41 +39,47 @@ export const folder = join(".novadeck", "tour")
 /** The model Codex's cache lists in these runs, a "luna" as the tour's cheapest pick. */
 export const luna = "gpt-e2e-luna"
 
-/** The person's name in the sandbox's git config, which the brief calls them by. */
+/** A git name in the sandbox's config, which the brief never calls the person by. */
 export const gitName = "Ada Lovelace"
 
-export const taglines = { A: "Hello, bright Ada.", B: "Your day starts here, Ada." } as const
-const paragraph = "A calm card for Ada. It says hello."
+export const taglines = { A: "Hello, bright day.", B: "Your day starts here." } as const
+const copyLine = "Two taglines. Boss picks."
 // The brief's template with sample values put in, as the lead is told to.
 const filled = (): string =>
   card.template
     .join("\n")
-    .replaceAll("BACKGROUND", "#fff4e6")
-    .replaceAll("TEXT", "#212529")
+    .replaceAll("PAPER", "#fff4e6")
+    .replaceAll("INK", "#212529")
     .replaceAll("ACCENT", "#3b5bdb")
-    .replaceAll("FONTS", "Georgia, serif")
-    .replace("NAME", "Ada")
+    .replace("LOOK LINE", "Ink on cream. Final.")
+    .replace("COPY LINE", copyLine)
     .replace("TAGLINE", taglines.B)
-    .replace("PARAGRAPH LINE 1", "A calm card for Ada.")
-    .replace("PARAGRAPH LINE 2", "It says hello.")
-    .replace("PARAGRAPH LINE 3", "")
 
-/** A small well-formedness check: tags balance, each attribute is quoted, no stray `<` or `&`. */
-export const wellFormed = (xml: string): boolean => {
+// Elements that close themselves in HTML.
+const voidElements = new Set(["br", "meta"])
+
+/**
+ * A small well-formedness check of the strip's page: past its doctype, tags balance (but for
+ * those that close themselves), each attribute is quoted, no stray `<` or `&`, and no
+ * placeholder left in.
+ */
+export const wellFormed = (html: string): boolean => {
+  const page = html.replace(/^<!doctype html>/i, "")
   const stack: string[] = []
-  for (const [, close, name, attributes = "", empty] of xml.matchAll(
+  for (const [, close, name, attributes = "", empty] of page.matchAll(
     /<(\/?)([A-Za-z][\w:-]*)((?:\s+[\w:-]+="[^"<&]*")*)\s*(\/?)>/g,
   )) {
     if (close) {
       if (stack.pop() !== name) return false
-    } else if (!empty) stack.push(name!)
+    } else if (!empty && !voidElements.has(name!.toLowerCase())) stack.push(name!)
     void attributes
   }
-  const text = xml.replace(/<[^>]*>/g, "")
+  if (/\b(PAPER|INK|ACCENT|LOOK LINE|COPY LINE|TAGLINE)\b/.test(page)) return false
+  const text = page.replace(/<[^>]*>/g, "")
   return stack.length === 0 && !/[<>]|&(?!(amp|lt|gt|quot|apos);)/.test(text)
 }
 
-const look = "Look: background #fff4e6; text #212529; accent #3b5bdb; fonts Georgia, serif"
+const look = "Look: background #fff4e6; text #212529; accent #3b5bdb; line Ink on cream. Final."
 
 /** What the sandbox needs before the tour is readied: Codex's model catalog, and a git name. */
 export const seedTour = async (run: E2E, agents: readonly AgentName[]): Promise<void> => {
@@ -186,13 +192,22 @@ const scriptIn = (call: Call): string | undefined =>
 
 type Role = "copywriter" | "designer" | "lead"
 
-/** What a teammate's conversation was briefed with: its role, its lead's handle, its mate's. */
-type Briefing = { readonly role: Role; readonly lead?: string; readonly mate?: string }
+/** What a teammate's conversation was briefed with: its role and its lead's handle. */
+type Briefing = { readonly role: Role; readonly lead?: string }
 
-// A conversation by its first user turn, which no other's shares: the harness may stop
-// carrying a delivered brief in later calls (Antigravity does), so what a teammate was briefed
-// with is kept by it.
-const known = (call: Call): string => call.turns.find((turn) => turn.role === "user")?.text ?? ""
+// A conversation by the doorbell's first notice to it, whose id no other's shares (a harness's
+// first user turn can be its own preamble, the same in every session, as Antigravity's is), else
+// by its first user turn: the harness may stop carrying a delivered brief in later calls
+// (Antigravity does), so what a teammate was briefed with is kept by it.
+const known = (call: Call): string => {
+  const users = call.turns.filter((turn) => turn.role === "user").map((turn) => turn.text)
+  // The doorbell's ring id, as its tag types it (or the bracket line it typed before).
+  const rung = users
+    .map((turn) => /ring=["']([A-Za-z0-9]+)["']|agent messages waiting, (\w+)\]/.exec(turn))
+    .map((found) => found?.[1] ?? found?.[2])
+    .find(Boolean)
+  return rung ?? users[0] ?? ""
+}
 
 /**
  * Who a call is for, and what it was briefed with: a teammate, by the brief it holds as a
@@ -203,11 +218,12 @@ const briefing = (call: Call, kept: Map<string, Briefing>): Briefing => {
     const brief = fromAgents(call).find((one) =>
       one.text.includes(`You are the ${role} in Novadeck's tour`),
     )
-    if (brief)
+    // A copy of the brief with no sender (as Antigravity quotes it back in a tool's error)
+    // never takes the place of the lead it was first seen from.
+    if (brief && (brief.from || !kept.has(known(call))))
       kept.set(known(call), {
         role,
         lead: brief.from,
-        ...(role === "designer" && { mate: /`to` @(\w+)/.exec(brief.text)?.[1] }),
       } as Briefing)
   }
   return kept.get(known(call)) ?? { role: "lead" }
@@ -271,11 +287,7 @@ export const storyRules = (run: E2E): { rules: Rule[]; script: () => string } =>
       const handle = handleOpened(one)
       if (handle && opensMade(one) === 1) {
         const [, designer] = mates()
-        return call(
-          one,
-          "open_agent",
-          open(designer, designer.message.replaceAll("COPYWRITER", `@${handle}`)),
-        )
+        return call(one, "open_agent", open(designer, designer.message))
       }
       if (handle && opensMade(one) === 2) return text("The team is working.")
       return undefined
@@ -293,7 +305,7 @@ export const storyRules = (run: E2E): { rules: Rule[]; script: () => string } =>
     }),
     own((one) =>
       roleOf(one) === "lead" && (result(one) ?? "").includes(card.file)
-        ? text("The card is ready.")
+        ? text("The strip is ready.")
         : undefined,
     ),
     // The copywriter.
@@ -304,7 +316,7 @@ export const storyRules = (run: E2E): { rules: Rule[]; script: () => string } =>
         briefed(one, "copywriter") &&
         !one.turns.some((t) => t.role === "assistant")
       )
-        return call(one, "describe", { title: "Copywriter", summary: "Writes the card's words" })
+        return call(one, "describe", { title: "Copywriter", summary: "Writes the strip's words" })
       // As a model that follows the lead's script instead would: it tries to open an agent.
       if (result(one)?.includes("Described this terminal"))
         return call(one, "open_agent", { agent: mates()[0].agent, message: "Help me." })
@@ -320,7 +332,7 @@ export const storyRules = (run: E2E): { rules: Rule[]; script: () => string } =>
           | undefined
         return call(one, "send", {
           to: lead,
-          text: `Tagline: ${taglines[picked ?? "A"]} Paragraph: ${paragraph}`,
+          text: `Tagline: ${taglines[picked ?? "A"]} Line: ${copyLine}`,
         })
       }
       if (fresh(one) && deliveries(one).some((each) => each.text.startsWith("Look:")))
@@ -331,13 +343,12 @@ export const storyRules = (run: E2E): { rules: Rule[]; script: () => string } =>
     own((one) => {
       if (roleOf(one) !== "designer") return undefined
       if (fresh(one) && !one.turns.some((t) => t.role === "assistant"))
-        return call(one, "describe", { title: "Designer", summary: "Picks the card's look" })
-      const { lead, mate } = briefing(one, kept)
+        return call(one, "describe", { title: "Designer", summary: "Picks the strip's look" })
+      const { lead } = briefing(one, kept)
       if (result(one)?.includes("Described this terminal"))
         return call(one, "open_agent", { agent: mates()[1].agent, message: "Help me." })
-      if ((result(one) ?? "").includes(refusal) && mate)
-        return call(one, "send", { to: mate, text: look })
-      if (lead && mate && sent(one, mate)) return call(one, "send", { to: lead, text: look })
+      if ((result(one) ?? "").includes(refusal) && lead)
+        return call(one, "send", { to: lead, text: look })
       if (lead && sent(one, lead)) return text("Sent the look.")
       return undefined
     }),
@@ -389,9 +400,9 @@ export const tell = async (
     expect(await readFile(join(prepared.directory, name), "utf8")).not.toMatch(/open_agent|Steps/)
   expect(prepared.command).not.toContain("Novadeck tour")
   // The lead's own write, which the fake model has no tool call for in every harness.
-  const svg = filled()
-  expect(wellFormed(svg)).toBe(true)
-  await writeFile(join(prepared.directory, card.file), svg)
+  const strip = filled()
+  expect(wellFormed(strip)).toBe(true)
+  await writeFile(join(prepared.directory, card.file), strip)
   const story = storyRules(run)
   run.model.use(...story.rules)
   const requests = run.deck.answerRequests()
@@ -404,8 +415,9 @@ export const tell = async (
   const mates = { copywriter: first, designer: second }
   // What the lead was sent: the whole script, as Novadeck's notice, naming the person.
   const instructions = story.script()
-  expect(instructions).toContain("welcome card for Ada,")
-  expect(instructions).toContain("</svg>")
+  expect(instructions).toContain("comic strip of this tour for the person,")
+  expect(instructions).not.toContain("Ada")
+  expect(instructions).toContain("</div></body></html>")
   const [writer, designer] = openings(instructions)
   expect(writer).toBeDefined()
   expect(designer).toBeDefined()
@@ -456,10 +468,7 @@ export const tell = async (
       agent: opening.agent,
     })
 
-  // The designer's look reaches the copywriter and the lead.
-  await mates.designer.reached(holds(mates.designer.handle, mates.copywriter.handle, "delivered"), {
-    timeoutMs: 90_000,
-  })
+  // The designer's look reaches the lead.
   await mates.designer.reached(holds(mates.designer.handle, lead.handle, "delivered"), {
     timeoutMs: 90_000,
   })
@@ -476,8 +485,8 @@ export const tell = async (
   expect(ask.content).toMatchObject({
     kind: "ask",
     ask: {
-      subject: "Which tagline for the welcome card?",
-      body: "The lead is making a welcome card for Ada. Which tagline should it carry?",
+      subject: "Which tagline for the comic strip?",
+      body: "The lead is making a comic strip of the tour for you. Which tagline should be its punchline?",
       shape: {
         type: "options",
         options: [
@@ -506,13 +515,13 @@ export const tell = async (
   const looks = messages(lead).filter((each) => each.from === mates.designer.handle)
   expect(looks.map((each) => each.text)).toEqual([look])
 
-  // The lead shows the card it wrote, opened.
-  await lead.until("The card is ready.", 90_000)
+  // The lead shows the strip it wrote, opened: a page.
+  await lead.until("The strip is ready.", 90_000)
   await through(lead, ["settled"])
   const shown = run.deck.items.bar(lead.id).filter((each) => each.name === card.file)
   expect(shown).toMatchObject([
     {
-      kind: "image",
+      kind: "file",
       name: card.file,
       by: "agent",
       openAsked: true,
@@ -520,11 +529,15 @@ export const tell = async (
     },
   ])
   expect(shown[0]?.path?.endsWith(card.file)).toBe(true)
-  // The pane gets the image's own bytes, as a data URL.
+  // The pane gets the page whole, which it draws as a page.
   const content = await run.deck.items.load(shown[0]!.id, false)
   expect(content).toMatchObject({
     state: "ready",
-    content: { kind: "image", src: expect.stringMatching(/^data:image\/svg\+xml;base64,/) },
+    content: {
+      kind: "file",
+      truncated: false,
+      lines: expect.arrayContaining([expect.stringContaining('<p class="t">')]),
+    },
   })
   // Each teammate tried to open an agent and was refused, so the team stayed at two.
   const refused = run.model.calls.filter(

@@ -8,7 +8,6 @@ import { agentLabel } from "../messaging/messages.js"
 import { briefFiles, nudgeLine, tourBrief, type BriefFacts, type Teammate } from "./brief.js"
 import { checkTourFolder, resetTourFolder, tourFolder } from "./folder.js"
 import { tourChoice, tourLaunch } from "./launch.js"
-import { pickName } from "./name.js"
 
 /** What the tour needs of the runner. */
 export type TourHost = {
@@ -26,10 +25,6 @@ export type TourHost = {
   readonly cwdOf: (terminalId: string) => string
   /** The terminal that leads this one, if one does. */
   readonly leadOf: (terminalId: string) => string | undefined
-  /** The person's global git name, if git has one; never read over a network. */
-  readonly gitName: () => Promise<string | undefined>
-  /** The OS account's name, if the system says it. */
-  readonly account: () => string | undefined
 }
 
 // The order a second harness is looked for in, for the designer of a mixed team.
@@ -51,8 +46,8 @@ export class Tour {
   /**
    * Readies a run of the tour with `agent`: removes any project open at its folder, closing
    * its terminals, so nothing runs there; then empties the folder and writes the brief there;
-   * then builds the agent's launch line, on its cheapest model. The brief names the person
-   * (`pickName`) and the two teammates the lead opens, each on its harness's cheapest model: the
+   * then builds the agent's launch line, on its cheapest model. The brief never names the
+   * person; it names the two teammates the lead opens, each on its harness's cheapest model: the
    * copywriter on `agent`'s, the designer on another connected harness's where one lists its
    * cheapest, else on `agent`'s too. An agent Novadeck isn't
    * connected to is a `CONFLICT`, as its tools would be missing; so is a folder that isn't
@@ -104,16 +99,10 @@ export class Tour {
           }),
       ),
     )
-    const [designer, name] = await Promise.all([
-      this.designerFor(agent, models),
-      this.host
-        .gitName()
-        .catch(() => undefined)
-        .then((git) => pickName(git, this.host.account())),
-    ])
+    const designer = await this.designerFor(agent, models)
     const copywriter = teammate(agent, models)!
     await resetTourFolder(directory, briefFiles)
-    this.facts = { name, copywriter, designer }
+    this.facts = { copywriter, designer }
     const launch = tourLaunch(agent, { models })
     return { ...launch, directory, removed }
   }

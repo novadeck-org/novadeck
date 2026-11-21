@@ -778,10 +778,10 @@ App:
   Antigravity starts working only once the UI rang `brief`. Then the story
   (`frontend/demo/src/tour/story.ts`, as a runner would report it): the lead opens two
   teammates (terminals with `ledBy` = the lead), "Copywriter" and "Designer", the designer on
-  another connected harness where there is one; they message one another and the lead (the
-  demo's messages); the copywriter asks the Inbox "Which tagline for the welcome card?" (options
-  A and B) and waits for the person; once answered it tells the lead, who shows a "Welcome card"
-  page (`by: "agent"`, asked to open) and finishes its turn. "Tour story: answer the tagline ask
+  another connected harness where there is one; the designer sends the lead its look (the
+  demo's messages); the copywriter asks the Inbox "Which tagline for the comic strip?" (options
+  A and B) and waits for the person; once answered it tells the lead, who shows its comic strip,
+  `tour-strip.html`, which the pane draws as a page (`by: "agent"`, asked to open) and finishes its turn. "Tour story: answer the tagline ask
   (A)" answers it as the person would; "Tour story: teammates stay quiet until nudged" has the
   next lead wait for `Tour.nudge` before opening its team; "Tour agent: stop" exits the lead's
   process (the UI's "Your agent stopped."). "Tour agent: hold at folder trust" / "sign-in" /

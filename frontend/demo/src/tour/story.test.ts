@@ -16,7 +16,7 @@ import {
   teamHarnesses,
   teammateCommand,
   tourStoryMs,
-  welcomeCard,
+  tourStrip,
 } from "./story"
 
 const key = { projectId: "p", workspaceSessionId: "s", terminalId: "t" }
@@ -54,22 +54,23 @@ describe("the story's pieces", () => {
     expect(chosenTagline(undefined)).toBe(taglines[0])
   })
 
-  it("shows the card as an agent's welcome.svg image, asked to open, from the lead", () => {
-    const { item, content } = welcomeCard(key, "moth", "Fish & <chips>", 9)
+  it("shows the strip as an agent's tour-strip.html, a page asked to open, from the lead", () => {
+    const { item, content } = tourStrip(key, "moth", "Fish & <chips>", 9)
     expect(item).toMatchObject({
-      kind: "image",
-      name: "welcome.svg",
+      kind: "file",
+      name: "tour-strip.html",
       by: "agent",
       openAsked: true,
       holder: { terminalId: "t" },
       from: { terminalId: "t", handle: "moth" },
     })
-    expect(content).toMatchObject({ state: "ready", content: { kind: "image" } })
-    const src =
-      content.state === "ready" && content.content.kind === "image" ? content.content.src : ""
-    const svg = decodeURIComponent(src.replace("data:image/svg+xml,", ""))
-    expect(svg).toContain("Welcome, friend")
-    expect(svg).toContain("Fish &amp; &lt;chips&gt;")
+    expect(content).toMatchObject({ state: "ready", content: { kind: "file", truncated: false } })
+    const page =
+      content.state === "ready" && content.content.kind === "file"
+        ? content.content.lines.join("\n")
+        : ""
+    expect(page).toContain('<p class="t">Fish &amp; &lt;chips&gt;</p>')
+    expect(page.startsWith("<!doctype html>")).toBe(true)
   })
 })
 
@@ -109,7 +110,7 @@ describe("the story in the demo", () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
 
-  it("opens two named teammates, talks, asks, and shows the card once answered", async () => {
+  it("opens two named teammates, talks, asks, and shows the strip once answered", async () => {
     const { backend, tour, session, at, lead } = await open()
     // The lead names itself; its turn stays open for the story.
     await at(tourPhaseTotal())
@@ -119,15 +120,15 @@ describe("the story in the demo", () => {
     const leader = session().state.roster.terminals.find((each) => each.id === lead)!
     expect(leader.state === "running" && leader.agent?.lastTurn).toBeFalsy()
 
-    // The talk: three messages between agents, each with terminal ids.
-    await at(tourStoryMs.talk * 3 + 3000)
+    // The talk: the designer's look to the lead, between agents, with terminal ids.
+    await at(tourStoryMs.talk + 3000)
     const copywriter = named[0]!
     const state = backend.messages!.state.getSnapshot()
     const messages = Object.values(state.terminals).flatMap((each) =>
       each.threads.flatMap((thread) => thread.messages),
     )
     const distinct = new Map(messages.map((message) => [message.id, message]))
-    expect(distinct.size).toBe(3)
+    expect(distinct.size).toBe(1)
     for (const message of distinct.values())
       expect(message).toMatchObject({ from: { kind: "agent" }, to: { kind: "agent" } })
 
@@ -136,7 +137,7 @@ describe("the story in the demo", () => {
     const rows = backend.inbox!.state.getSnapshot().items.filter((row) => row.kind === "ask")
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ source: { terminalId: copywriter.id }, stopped: false })
-    expect(session().state.items.some((item) => item.kind === "image")).toBe(false)
+    expect(session().state.items.some((item) => item.name === "tour-strip.html")).toBe(false)
 
     tour.answerTagline(1)
     await at(5000)
@@ -144,7 +145,7 @@ describe("the story in the demo", () => {
     expect(
       backend.inbox!.state.getSnapshot().items.filter((row) => row.kind === "ask" && !row.settled),
     ).toHaveLength(0)
-    const shown = session().state.items.find((item) => item.kind === "image")
+    const shown = session().state.items.find((item) => item.name === "tour-strip.html")
     expect(shown).toMatchObject({ by: "agent", openAsked: true, from: { terminalId: lead } })
     const content = await new Promise<unknown>((resolve) => {
       backend.companions!.follow(
@@ -154,7 +155,7 @@ describe("the story in the demo", () => {
         resolve,
       )
     })
-    expect(JSON.stringify(content)).toContain(encodeURIComponent(taglines[1].line))
+    expect(JSON.stringify(content)).toContain(`<p class=\\"t\\">${taglines[1].line}</p>`)
     await at(2000)
     const done = session().state.roster.terminals.find((each) => each.id === lead)!
     expect(done.state === "running" && done.agent?.lastTurn?.outcome).toBe("completed")
