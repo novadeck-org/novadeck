@@ -3,16 +3,13 @@
 /* The tour's print, loaded with what draws it (the stage and the closing card), so the app's
    first load carries neither it nor its font.
    While it runs, the tour draws over the workspace in a look of its own, apart from the app's
-   themes, so it reads as an event and not as more of the app: Nyx's caption box from the skits
-   (runner-skits video/src/kit/Captions.tsx: yellow, an ink rule and shadow, Bangers caps), and
-   the website's print for the rest (novadeck-website src/styles/global.css: the cyan and magenta
-   plates set off register, ink on them). Every colour is set here, on `.tour-print`, and none is
+   themes, so it reads as an event and not as more of the app: night-panel caption boxes in
+   Bangers caps, and the website's print for the rest (novadeck-website src/styles/global.css:
+   its cyan and magenta, ink on them). Every colour is set here, on `.tour-print`, and none is
    a theme token, so no theme's or scheme's colour reaches it. */
 .tour-print {
   /* A theme's glow on the page's text (Phosphor's) stays off the print. */
   text-shadow: none;
-  --tour-yellow: #ffe24a;
-  /* The caption box: its ink, its face running lavender to ice, and the glitch's pink and cyan. */
   /* The caption box: its night face, neon outline and pastel letters, the split's cyan, and the
      hazard strip's yellow. */
   --tour-night: #140c1e;
@@ -20,7 +17,6 @@
   --tour-neon-cyan: #5ff2ff;
   --tour-pastel: #fff0a8;
   --tour-hazard: #ffe24a;
-  --tour-ink: #140b1f;
   --tour-paper: #e8e9ed;
   --tour-cyan: oklch(0.785 0.128 186);
   --tour-magenta: oklch(0.66 0.226 341);
@@ -30,10 +26,6 @@
   --tour-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
 }
 
-/* The marks the stage puts on the page's own elements while a step points at them, drawn here
-   over whatever look the element has (so `!important`), and moving with it as it moves:
-   where to look, a thin magenta line; what to press, the caption box's yellow, breathing
-   slowly. Inset, so a parent that clips its children doesn't cut them. */
 /* What the tour marks: a line a set gap out from the element (the stage places it, in the
    element or the nearest box past whatever would cut that gap off), drawn over all the element
    holds, with a soft glow inward. Magenta where to look; yellow, slowly breathing, what to press. */
@@ -45,6 +37,8 @@
 }
 .tour-mark {
   position: absolute !important;
+  /* Whole however its host fades (a receding Canvas window's parts do). */
+  opacity: 1 !important;
   box-sizing: border-box !important;
   z-index: 2147483647 !important;
   border-radius: 6px;
@@ -86,7 +80,8 @@
    outline the box itself, its face and dots inset in it. */
 .tour-caption {
   filter: drop-shadow(0 10px 14px rgb(0 0 0 / 0.45));
-  /* It glides to each new place (as the camera reframes, or the step moves on), not jumps. */
+  /* It glides to each new place as the camera reframes or windows come, not jumps; a new step's
+     box comes in its own place. */
   transition:
     left 320ms cubic-bezier(0.2, 0.8, 0.2, 1),
     top 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -95,6 +90,9 @@
    panel pops in as it does. */
 .tour-caption:not([data-shown]) {
   opacity: 0;
+}
+.tour-caption:not([data-shown]) * {
+  pointer-events: none !important;
 }
 .tour-caption:not([data-shown]) .tour-caption-panel {
   animation: none;

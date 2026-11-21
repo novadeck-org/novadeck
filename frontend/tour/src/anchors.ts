@@ -2,6 +2,12 @@ import type { TourTarget } from "./steps"
 
 const area = (): Element | null => document.querySelector("[data-workspace-area]")
 
+/**
+ * A window as a view draws it, by the `data-terminal` mark naming its terminal; not an element
+ * that only says it is a terminal's (`data-terminal="true"`, as Agent Chat's error line).
+ */
+export const windowSelector = '[data-terminal]:not([data-terminal="true"])'
+
 // A terminal as the workspace draws it, by the `data-terminal` mark every view puts on it.
 const terminalElement = (id: string): HTMLElement | null =>
   area()?.querySelector<HTMLElement>(`[data-terminal="${CSS.escape(id)}"]`) ?? null
@@ -38,7 +44,7 @@ export const targetElements = (target: TourTarget, where: TargetsOf): HTMLElemen
       return element && drawn(element) ? [element] : []
     }
     case "team":
-      return [...(area()?.querySelectorAll<HTMLElement>("[data-terminal]") ?? [])].filter(
+      return [...(area()?.querySelectorAll<HTMLElement>(windowSelector) ?? [])].filter(
         (element) => element.dataset.terminal !== lead && drawn(element),
       )
     case "newest-message":

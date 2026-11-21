@@ -1,8 +1,8 @@
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 
-import { firstTarget, targetElements, type TargetsOf } from "./anchors"
+import { firstTarget, targetElements, windowSelector, type TargetsOf } from "./anchors"
 import { placeBox, sameBox, type Box } from "./place"
 import { tourActs, type Coach, type TourAct } from "./steps"
 
@@ -79,7 +79,7 @@ const roomIn = (box: DOMRect, edge: DOMRect): number =>
 // Inbox's list). Never past a view's own frame, which pans what's in it.
 const mayPass = (around: HTMLElement, element: HTMLElement): boolean =>
   around === element ||
-  around.closest("[data-terminal]") !== null ||
+  around.closest(windowSelector) !== null ||
   element.closest("[data-workspace-area]") === null
 
 const hostOf = (element: HTMLElement, box: DOMRect): HTMLElement => {
@@ -92,7 +92,8 @@ const hostOf = (element: HTMLElement, box: DOMRect): HTMLElement => {
       // An element it cuts off partway stays cut off with it.
       if (room < 0) break
       if (room < gap) {
-        if (!parent || !mayPass(around, element)) break
+        // Never the page's body: a mark goes no further than the app's own parts.
+        if (!parent || parent === document.body || !mayPass(around, element)) break
         place = parent
       }
     }
@@ -123,8 +124,10 @@ const gapsIn = (
   return [local(top), local(right), local(bottom), local(left)]
 }
 
-// Each marked element's marks, by kind, wherever they're hosted.
-const drawnMarks = new WeakMap<HTMLElement, Map<string, HTMLElement>>()
+// Each marked element's marks, by kind, with the host each was put in (which a view redrawing it
+// may have taken it out of).
+type Drawn = { readonly line: HTMLElement; readonly place: HTMLElement }
+const drawnMarks = new WeakMap<HTMLElement, Map<string, Drawn>>()
 
 // Takes the host's attributes off once it holds no mark.
 const release = (place: HTMLElement | null): void => {
@@ -139,22 +142,21 @@ const drawMark = (element: HTMLElement, mark: string): void => {
   const kind = kindOf(mark)
   const box = element.getBoundingClientRect()
   const place = hostOf(element, box)
-  const marks = drawnMarks.get(element) ?? new Map<string, HTMLElement>()
+  const marks = drawnMarks.get(element) ?? new Map<string, Drawn>()
   drawnMarks.set(element, marks)
-  let line = marks.get(kind)
-  if (line && line.parentElement !== place) {
-    const was = line.parentElement
-    line.remove()
-    release(was)
-    line = undefined
+  const was = marks.get(kind)
+  let line = was?.line
+  if (was && was.place !== place) {
+    was.line.remove()
+    release(was.place)
   }
   if (!line) {
     line = document.createElement("span")
     line.className = "tour-mark"
     line.dataset.tourMark = kind
     line.setAttribute("aria-hidden", "true")
-    marks.set(kind, line)
   }
+  marks.set(kind, { line, place })
   if (!place.hasAttribute(host)) {
     place.setAttribute(host, "")
     if (getComputedStyle(place).position === "static") place.setAttribute(anchor, "")
@@ -176,12 +178,11 @@ const drawMark = (element: HTMLElement, mark: string): void => {
 const unmark = (element: HTMLElement, mark: string): void => {
   element.removeAttribute(mark)
   const marks = drawnMarks.get(element)
-  const line = marks?.get(kindOf(mark))
-  if (!line) return
-  const was = line.parentElement
-  line.remove()
+  const made = marks?.get(kindOf(mark))
+  if (!made) return
+  made.line.remove()
   marks?.delete(kindOf(mark))
-  release(was)
+  release(made.place)
 }
 
 // What a coach marks now: where to look, and the first of its targets to press that's drawn.
@@ -216,18 +217,23 @@ const remark = (mark: string, before: Set<HTMLElement>, next: readonly HTMLEleme
 const lookAt = (subject: HTMLElement | undefined): Scene => {
   const area = document.querySelector("[data-workspace-area]")
   // A part of a window (a message, its side pane) is named beside the window itself.
-  const holder = subject?.closest("[data-terminal]") ?? subject ?? null
+  const holder = subject?.closest(windowSelector) ?? subject ?? null
   return {
     subject: boxOf(holder),
     area: boxOf(area),
-    windows: [...(area?.querySelectorAll("[data-terminal]") ?? [])].map(boxOf).filter(drawn),
+    windows: [...(area?.querySelectorAll(windowSelector) ?? [])].map(boxOf).filter(drawn),
   }
 }
 
+// How often the stage marks again and reads the scene: a mark lies in its element or near it, so
+// it moves with it between times however the person pans; only a view redrawing what it marks,
+// or the element moving within its host, waits this long.
+const markMs = 120
+
 /**
- * Marks what the step points at on the page itself, every frame while the tour shows (as views
- * redraw what it marks), so the marks move with their elements however the person pans; and
- * reads the scene the caption box is placed in. Taken off as the tour goes.
+ * Marks what the step points at on the page itself, every `markMs` while the tour shows (as views
+ * redraw what it marks), and reads the scene the caption box is placed in, for the coach it was
+ * read for: until the new coach's is read, the scene is none. Taken off as the tour goes.
  */
 const useMarks = (
   coach: Coach | null,
@@ -235,28 +241,35 @@ const useMarks = (
   askingRow: string | null,
   looking: boolean,
 ): Scene => {
-  const [scene, setScene] = useState<Scene>(noScene)
+  const [read, setRead] = useState<{ readonly coach: Coach | null; readonly scene: Scene }>({
+    coach: null,
+    scene: noScene,
+  })
   useEffect(() => {
     if (!looking) return
     const looked = new Set<HTMLElement>()
     const clicked = new Set<HTMLElement>()
-    let frame = 0
     const tick = (): void => {
       const marks = marksOf(coach, lead, askingRow)
       remark(lookMark, looked, marks.look)
       remark(clickMark, clicked, marks.click)
       const next = lookAt(marks.look[0] ?? marks.click[0])
-      setScene((current) => (sameScene(current, next) ? current : next))
-      frame = requestAnimationFrame(tick)
+      setRead((current) =>
+        current.coach === coach && sameScene(current.scene, next)
+          ? current
+          : { coach, scene: next },
+      )
     }
-    frame = requestAnimationFrame(tick)
+    const frame = requestAnimationFrame(tick)
+    const timer = setInterval(tick, markMs)
     return () => {
       cancelAnimationFrame(frame)
+      clearInterval(timer)
       remark(lookMark, looked, [])
       remark(clickMark, clicked, [])
     }
   }, [coach, lead, askingRow, looking])
-  return looking ? scene : noScene
+  return looking && read.coach === coach ? read.scene : noScene
 }
 
 // The footer's middle, where the stage's controls go beside whatever else stands there (as the
@@ -342,6 +355,12 @@ export const TourStage = ({
   const scene = useMarks(coach, terminalId, askingRow, !away)
   const slot = useFooterSlot(!away)
   const wiping = useWipe(act)
+  // What else the caption box keeps clear of, kept while the same, so its placing isn't redone
+  // on every render.
+  const clear = useMemo(
+    () => (slot || !scene.area ? noBoxes : footlessControls(scene.area)),
+    [slot, scene.area],
+  )
   if (away)
     return (
       <section aria-label="Tour" className="tour-print tour-away">
@@ -364,7 +383,7 @@ export const TourStage = ({
           scene={scene}
           area={area}
           tilt={act % 2 === 0 ? "right" : "left"}
-          clear={slot ? [] : footlessControls(area)}
+          clear={clear}
         />
       )}
       {/* What the person hears: one region for the whole run, its act and words. */}
@@ -406,6 +425,7 @@ const Controls = ({ onEnd }: { readonly onEnd: () => void }): React.JSX.Element 
 
 // Where the controls stand at the workspace's foot, which the caption box keeps clear of.
 const controlsWidth = 110
+const noBoxes: readonly Box[] = []
 const footlessControls = (area: Box): readonly Box[] => [
   {
     left: area.left + (area.width - controlsWidth) / 2,
