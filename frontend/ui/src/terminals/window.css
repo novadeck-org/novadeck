@@ -21,7 +21,8 @@
    over everything the window holds (z-index 300, above the taskbar's 60, the chat's 10,
    the dictation strip's 11 and a plan's menus' 201), which lets clicks through. Its
    `::before` is a second layer at that level, empty and free for a theme (the glass
-   lies over it). An ended window's hatch is drawn in the glass, above the rest.
+   lies over it). An ended window's hatch is drawn in the glass, above the rest but its pane
+   (z-index 301), which shows what it shows as itself.
 
    Tokens, each optional (its fallback in brackets):
    --window-bg (paper), --window-fg (ink), --window-border-color (line),
@@ -393,6 +394,11 @@
       )
     ),
     var(--window-glass-image, none);
+}
+/* What its pane shows (a page, a picture, a PDF) hasn't ended with it, so the pane rises over
+   the hatch (and the glass with it) and shows as itself; the window keeps its hatch around it. */
+.terminal-window[data-terminal-phase="ended"] .pane-split-reader {
+  z-index: 301;
 }
 /* The phase line is a border, like the header's hairline beneath it, so both snap to
    the same device pixel at any display scale or Canvas zoom. */
