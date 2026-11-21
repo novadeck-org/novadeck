@@ -16,7 +16,9 @@ import type { Inbox } from "../../messaging/inbox.js"
 import { byteLength, maxDeliveryBytes, type Held } from "../../messaging/messages.js"
 import type { Messaging } from "../../messaging/messaging.js"
 import type { Person } from "../../messaging/withdrawals.js"
+import type { GateCall } from "../../shell/hook.js"
 import type { HookAnswer } from "../../shell/reports.js"
+import type { Shipping } from "../../shipping/service.js"
 import { sameToken } from "../callers.js"
 import { promptIn } from "../commands.js"
 import type { Companion } from "../companion.js"
@@ -80,6 +82,8 @@ export type ReportsHost = {
   readonly trees: () => ProcessTrees
   /** The platform harnesses run their hooks on. */
   readonly platform: () => NodeJS.Platform
+  /** The shipping gate, where the runner offers it. */
+  readonly shipping: () => Shipping | undefined
   /** The agent worktrees wiring, read live at each turn's start; none where there are none. */
   readonly worktrees: () =>
     | {
@@ -130,10 +134,25 @@ export class Reports {
   }
 
   /** A Stop or prompt-time hook's ask: its report, then what it prints (see `Messaging.ask`). */
-  queueAsk(report: Report, deadline: number): Promise<HookAnswer> {
+  async queueAsk(report: Report, deadline: number, gate?: GateCall): Promise<HookAnswer> {
     const silent = {
       leaseId: null,
       stdout: silentFor(harnesses[report.agent].messaging, report.event),
+    }
+    // A shell command the shipping gate reads, answered first: where it has an opinion that
+    // is the hook's answer, and the report below is skipped.
+    if (gate) {
+      const record = this.host.records().get(report.terminalId)
+      const shipping = this.host.shipping()
+      if (record && !record.terminal.exiting && sameToken(record.token, report.token) && shipping) {
+        const stdout = await shipping.answer(report.terminalId, report.agent, gate)
+        if (stdout !== undefined) return { leaseId: null, stdout }
+      }
+      // An event that is only the gate's has no ask of its own: it reports as any hook does.
+      if (!askOf(report.agent, report.event)) {
+        this.queueReport(report)
+        return silent
+      }
     }
     return this.queue(report.terminalId, () => this.report(report, deadline), silent)
   }
@@ -366,6 +385,7 @@ export class Reports {
     }
     if (deadline === undefined) {
       this.host.messaging().observe(report.terminalId, told, person)
+      this.quoted(record, told)
       this.host.bindings().escaped(record)
       this.judgeFirst(record)
       return silent
@@ -378,6 +398,7 @@ export class Reports {
       person,
       payload: report.payload,
     })
+    this.quoted(record, told)
     if (stopAsk) {
       this.continued(record, told, answer)
       this.host.bindings().publishAgent(record, moved)
@@ -410,6 +431,24 @@ export class Reports {
       startedAt: Date.now(),
       version,
     })
+  }
+
+  /**
+   * The person's own prompt starting a root turn goes into the shipping gate's ring of what
+   * they typed (see `Quotes`): only what delivery judges their own submission, never a doorbell
+   * or a delivery, nor the command-line prompt an agent was opened with.
+   */
+  quoted(record: Record, events: readonly HarnessEvent[]): void {
+    const shipping = this.host.shipping()
+    if (!shipping?.enabled()) return
+    const start = events.find(
+      (event): event is Extract<HarnessEvent, { type: "turn-started" }> =>
+        event.type === "turn-started" && event.cause === "prompt" && rootedIn(record.root, event),
+    )
+    if (!start) return
+    const text = this.host.messaging().personPrompt(record.summary.id)
+    if (text === undefined || this.byCommand(record, text)) return
+    shipping.quotes.record(record.summary.id, start.sessionId, text)
   }
 
   /** A Stop Novadeck continued, lapsed as delivery took it, ends the agent's turn too. */

@@ -22,6 +22,40 @@ type RelayHook = {
   readonly report: Omit<Report, "terminalId" | "token">
   /** An ask's deadline, in epoch milliseconds; absent for a report. */
   readonly deadline?: number
+  /** What the shipping gate reads of a shell tool's hook, from the payload before it is pruned. */
+  readonly gate?: GateCall
+}
+
+/**
+ * A shell command an agent is about to run, as its PreToolUse or PermissionRequest hook says,
+ * whole: the shipping gate reads the raw command, never the pruned report (see
+ * architecture/grants.md, review point 4).
+ */
+export type GateCall = {
+  readonly event: "PreToolUse" | "PermissionRequest"
+  readonly command: string
+  readonly cwd: string
+  /** Claude Code's permission mode. */
+  readonly mode?: string
+  /** Codex's rollout, where it names it. */
+  readonly transcript?: string
+}
+
+// The most of a command the gate takes; a longer one is refused by the reader's own limit.
+const maxGateCommand = 1_000_000
+
+/** The command a shell tool's hook is about to run: its string, or a shell's `-c` script. */
+const commandOf = (input: unknown): string | undefined => {
+  if (!object(input)) return undefined
+  const { command } = input
+  if (typeof command === "string") return command.length <= maxGateCommand ? command : undefined
+  if (!Array.isArray(command) || !command.every((word) => typeof word === "string"))
+    return undefined
+  const words = command as string[]
+  // `["bash", "-lc", "<script>"]`: the script is the command.
+  if (words.length === 3 && /(^|\/)(?:ba|z|da)?sh$/.test(words[0]!) && /^-[a-z]*c$/.test(words[1]!))
+    return words[2]
+  return words.join(" ")
 }
 
 /**
@@ -259,6 +293,8 @@ const instanceOf = (agent: AgentName, env: Fields, ancestors: Ancestor[]): strin
 export const relayHook = (
   value: Fields,
   platform: NodeJS.Platform = process.platform,
+  // Whether the shipping gate answers `agent`'s `event` now: only while it is on.
+  gating: (agent: AgentName, event: string) => boolean = () => false,
 ): RelayHook | undefined => {
   const agent = agentName.safeParse(value.agent)
   const { seq, payload: sent } = value
@@ -320,7 +356,25 @@ export const relayHook = (
     typeof deadline === "number" && Number.isFinite(deadline)
       ? Math.min(deadline, seq + askMs)
       : seq + askMs
-  return askOf(agent.data, event)
-    ? { report: sized, deadline: Math.round(relayGivesUp) - printMs }
+  const gated = gating(agent.data, event)
+  const command = gated ? commandOf(payload.tool_input) : undefined
+  const gate: GateCall | undefined =
+    command === undefined || (event !== "PreToolUse" && event !== "PermissionRequest")
+      ? undefined
+      : {
+          event,
+          command,
+          cwd: typeof payload.cwd === "string" ? payload.cwd : "",
+          ...(typeof payload.permission_mode === "string" && { mode: payload.permission_mode }),
+          ...(typeof payload.transcript_path === "string" && {
+            transcript: payload.transcript_path,
+          }),
+        }
+  return askOf(agent.data, event) || gate
+    ? {
+        report: sized,
+        deadline: Math.round(relayGivesUp) - printMs,
+        ...(gate && { gate }),
+      }
     : { report: sized }
 }

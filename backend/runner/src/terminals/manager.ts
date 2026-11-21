@@ -40,6 +40,7 @@ import { Messaging } from "../messaging/messaging.js"
 import type { AgentsAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.js"
 import { stripInherited } from "../shell/inherited.js"
 import { type Ack, type Call } from "../shell/reports.js"
+import type { Shipping } from "../shipping/service.js"
 import type { HintFacts } from "../voice/hint.js"
 import { ownedWorktrees, worktreeHost, type WorktreesWiring } from "../worktrees/calls.js"
 import { Approvals } from "./approvals.js"
@@ -239,6 +240,7 @@ export class Terminals {
       | "pty"
       | "hibernateAfterMinutes"
       | "agentMode"
+      | "shipping"
       | "hibernation"
     >
   > & {
@@ -249,6 +251,7 @@ export class Terminals {
     projectFolder: ((sessionId: string) => string | undefined) | undefined
     projectOf: ((sessionId: string) => string | undefined) | undefined
     worktrees: WorktreesWiring | undefined
+    shipping: Shipping | undefined
     shims: () => Promise<readonly AgentName[]>
     connected: (agent: AgentName) => Promise<boolean>
     install: (agent: AgentName) => Promise<Install | undefined>
@@ -317,6 +320,7 @@ export class Terminals {
       projectFolder: options.projectFolder,
       projectOf: options.projectOf,
       worktrees: options.worktrees,
+      shipping: options.shipping,
       openMs: positive(options.openMs, 6_000),
       install: options.install ?? (() => Promise.resolve(undefined)),
       models: options.models ?? (() => Promise.resolve([])),
@@ -353,7 +357,8 @@ export class Terminals {
       scopes: this.pty.scopes,
       handlers: {
         report: (report) => this.reporting.queueReport(report),
-        ask: (report, deadline) => this.reporting.queueAsk(report, deadline),
+        ask: (report, deadline, gate) => this.reporting.queueAsk(report, deadline, gate),
+        gating: (agent, event) => options.shipping?.gating(agent, event) ?? false,
         ack: (ack) => this.acknowledge(ack),
         call: (call) => this.calls.call(call),
         tools: (from, session, listed) => {
@@ -497,6 +502,7 @@ export class Terminals {
       trees: () => this.trees,
       platform: () => this.options.platform,
       worktrees: () => this.options.worktrees,
+      shipping: () => this.options.shipping,
     })
     this.companion = new Companion(this.options.items, {
       records: () => this.records,
@@ -1419,6 +1425,7 @@ export class Terminals {
     this.sleepers.forget(terminalId)
     this.inbox.reconcile(terminalId)
     this.typing.forget(terminalId)
+    this.options.shipping?.closed(terminalId)
     this.bindings.forgetCaptures(terminalId)
     this.murmur?.gone(terminalId)
     if (claims) {

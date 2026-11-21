@@ -20,6 +20,7 @@ import { logs } from "./log.js"
 import { Murmur } from "./murmur/service.js"
 import { apiError, createRouter } from "./router.js"
 import { codexConfig, installShellFiles } from "./shell/install.js"
+import { Shipping } from "./shipping/service.js"
 import { ActiveTerminals } from "./terminals/active.js"
 import { ClientWindows } from "./terminals/client-windows.js"
 import { Terminals, type TerminalOptions } from "./terminals/index.js"
@@ -390,7 +391,13 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     ...(options.worktreesRoot !== undefined && { path: options.worktreesRoot }),
   })
   rootFolder.ensure()
+  // The shipping gate (Experimental): read live, so the switch counts at once.
+  const shipping = new Shipping({
+    enabled: () => store.settings.runner().shippingGate,
+    owned: { ofTerminal: (id) => worktrees.ownedRows(id), all: () => worktrees.all() },
+  })
   const terminals = new Terminals({
+    shipping,
     records: store,
     closed: store,
     projects: () => store.projects().map(({ id }) => id),
