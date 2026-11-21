@@ -191,17 +191,18 @@ const known = (call: Call): string => {
  */
 const briefing = (call: Call, kept: Map<string, Briefing>): Briefing => {
   const task = fromAgents(call).find((one) =>
-    one.text.includes("You are Tip fixer, a teammate in Novadeck's tour. Your lead is the agent"),
+    one.text.includes("You are Tip fixer, a teammate in Novadeck's tour."),
   )
   // A copy of the task with no sender (as Antigravity quotes it back in a tool's error) never
-  // takes the place of the lead it was first seen from.
+  // takes the place of the lead it was first seen from. The lead is named in the task: its
+  // handle, the one address `send` takes, never the id the message came `from`.
   if (task && (task.from || !kept.has(known(call))))
-    kept.set(known(call), { role: "fixer1", lead: task.from })
+    kept.set(known(call), { role: "fixer1", lead: /(@[\w-]+) leads you/.exec(task.text)?.[1] })
   const brief = fixerBriefIn(call)
   if (brief && !kept.has(known(call)))
     kept.set(known(call), {
       role: "fixer2",
-      lead: /(@\w+) leads you/.exec(brief)?.[1],
+      lead: /(@[\w-]+) leads you/.exec(brief)?.[1],
     })
   return kept.get(known(call)) ?? { role: "lead" }
 }
@@ -447,7 +448,7 @@ export const tell = async (
 
   // The person opens a terminal; the tour starts their agent in it, led by the lead.
   const mine = await run.deck.openBeside(lead, prepared.directory)
-  run.deck.tour.fixer(mine.id, run.deck.owner)
+  await run.deck.tour.fixer(mine.id, run.deck.owner)
   expect(run.deck.store.terminal(mine.id)?.ledBy).toBe(lead.id)
   await expect(
     Promise.resolve().then(() => run.deck.tour.fixer(mine.id, run.deck.owner)),

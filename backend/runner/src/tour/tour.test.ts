@@ -83,7 +83,11 @@ const tourIn = (
     leadOf: (terminalId) => options.leads?.[terminalId],
     handleOf: (terminalId) => `h-${terminalId}`,
     isFreshShell: (terminalId) => (options.shells ?? []).includes(terminalId),
-    adopt: (terminalId, leadId) => void adopted.push([terminalId, leadId]),
+    adopt: (terminalId, leadId, before) => {
+      before()
+      adopted.push([terminalId, leadId])
+      return Promise.resolve()
+    },
     expect: (terminalId, agent) => void expected.push([terminalId, agent]),
     type: (terminalId, line, ownerId) => {
       if (options.failing?.includes(terminalId)) throw new DomainError("TERMINAL_EXITED", "closed")
@@ -391,6 +395,7 @@ describe("ringing the tour's brief", () => {
     expect(deliveredBytes(noticeOf(text))).toBeLessThanOrEqual(maxDeliveryBytes)
     // And so it does on the longest harness and model names, as `agy`'s.
     const longest = tourBrief({
+      lead: "@a-twenty-char-name-x",
       fixer: {
         agent: "agy",
         model: "gemini-3-flash-lite-preview",
@@ -430,7 +435,7 @@ describe("the second fixer's brief", () => {
   })
 
   it("is the one the lead's brief quotes for the first, which is no notice", () => {
-    expect(tourBrief({ fixer: { agent: "claude", model: "haiku" } })).toContain(
+    expect(tourBrief({ lead: "@fox", fixer: { agent: "claude", model: "haiku" } })).toContain(
       "> You are Tip fixer, a teammate in Novadeck's tour.",
     )
   })
@@ -446,10 +451,13 @@ describe("the second fixer's brief", () => {
   })
 
   it("has the first fixer fix the tip in its own worktree by absolute path", () => {
-    expect(firstFixerTask).toContain('branch "fix-tip"')
-    expect(firstFixerTask).toContain("(total + total * tip / 100) / people")
-    expect(firstFixerTask).toContain("by its absolute path")
-    expect(firstFixerTask).toContain("Fixed bug 1.")
+    const task = firstFixerTask("@fox")
+    expect(task).toContain('branch "fix-tip"')
+    expect(task).toContain("(total + total * tip / 100) / people")
+    expect(task).toContain("by its absolute path")
+    expect(task).toContain("Fixed bug 1.")
+    // It answers to the lead's handle, never a terminal id.
+    expect(task).toContain('`to` "@fox"')
   })
 })
 
@@ -481,7 +489,7 @@ describe("taking the person's terminal as the second fixer", () => {
   }) => {
     const { tour, brief, typed, adopted, expected, notices } = await ready(resources)
     brief()
-    tour.fixer("mine", "window")
+    await tour.fixer("mine", "window")
     expect(typed).toHaveLength(1)
     expect(typed[0]).toEqual([
       "mine",
@@ -500,16 +508,16 @@ describe("taking the person's terminal as the second fixer", () => {
       shells: ["mine", "again"],
     })
     brief()
-    tour.fixer("mine", "window")
-    expect(() => tour.fixer("again", "window")).toThrow(/started already/)
+    await tour.fixer("mine", "window")
+    await expect(tour.fixer("again", "window")).rejects.toThrow(/started already/)
     expect(typed).toHaveLength(1)
   })
 
   it("waits for the lead to have started, and for a run", async ({ resources }) => {
     const { tour } = await ready(resources)
-    expect(() => tour.fixer("mine", "window")).toThrow(/lead hasn't started/)
+    await expect(tour.fixer("mine", "window")).rejects.toThrow(/lead hasn't started/)
     const none = tourIn("/nowhere").tour
-    expect(() => none.fixer("mine", "window")).toThrow(/hasn't been readied/)
+    await expect(none.fixer("mine", "window")).rejects.toThrow(/hasn't been readied/)
   })
 
   it("refuses a terminal elsewhere, one with an agent or a lead, and the lead itself, changing nothing", async ({
@@ -521,10 +529,10 @@ describe("taking the person's terminal as the second fixer", () => {
       leads: { led: "lead" },
     })
     brief()
-    expect(() => tour.fixer("away", "window")).toThrow(/isn't one of the tour's/)
-    expect(() => tour.fixer("led", "window")).toThrow(/lead or a teammate/)
-    expect(() => tour.fixer("lead", "window")).toThrow(/lead or a teammate/)
-    expect(() => tour.fixer("busy", "window")).toThrow(DomainError)
+    await expect(tour.fixer("away", "window")).rejects.toThrow(/isn't one of the tour's/)
+    await expect(tour.fixer("led", "window")).rejects.toThrow(/lead or a teammate/)
+    await expect(tour.fixer("lead", "window")).rejects.toThrow(/lead or a teammate/)
+    await expect(tour.fixer("busy", "window")).rejects.toThrow(DomainError)
     expect(typed).toEqual([])
     expect(adopted).toEqual([])
   })
@@ -532,7 +540,7 @@ describe("taking the person's terminal as the second fixer", () => {
   it("refuses a terminal that isn't a plain shell at its prompt", async ({ resources }) => {
     const { tour, brief, typed } = await ready(resources, { shells: [] })
     brief()
-    expect(() => tour.fixer("mine", "window")).toThrow(/plain shell/)
+    await expect(tour.fixer("mine", "window")).rejects.toThrow(/plain shell/)
     expect(typed).toEqual([])
   })
 
@@ -544,9 +552,9 @@ describe("taking the person's terminal as the second fixer", () => {
       failing: ["mine"],
     })
     brief()
-    expect(() => tour.fixer("mine", "window")).toThrow(/closed/)
+    await expect(tour.fixer("mine", "window")).rejects.toThrow(/closed/)
     expect(adopted).toEqual([])
-    tour.fixer("next", "window")
+    await tour.fixer("next", "window")
     expect(typed.map(([id]) => id)).toEqual(["next"])
   })
 })
@@ -641,14 +649,22 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     const { tour } = tourIn("/h")
     const policy = tour.openPolicy("lead")
     expect(policy.refusal).toBeUndefined()
-    expect(policy.flags?.("claude")).toEqual(["--permission-mode", "acceptEdits"])
-    expect(policy.flags?.("codex")).toEqual([
+    const at = "/h/.novadeck/tour"
+    expect(policy.flags?.("claude", at)).toEqual(["--permission-mode", "acceptEdits"])
+    expect(policy.flags?.("codex", at)).toEqual([
       "--sandbox",
       "workspace-write",
       "--ask-for-approval",
       "on-request",
     ])
-    expect(policy.flags?.("agy")).toEqual(["--mode", "accept-edits"])
+    expect(policy.flags?.("agy", at)).toEqual(["--mode", "accept-edits"])
+  })
+
+  it("gives the lead's agents no write flags where they start outside the tour's folder", () => {
+    const { tour } = tourIn("/h")
+    const policy = tour.openPolicy("lead")
+    expect(policy.flags?.("claude", "/h/code")).toEqual([])
+    expect(policy.flags?.("codex", "/h/.novadeck/tour/sub")).not.toEqual([])
   })
 
   it("leaves a led terminal elsewhere, and a terminal the runner doesn't have, alone", () => {

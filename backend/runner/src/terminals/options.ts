@@ -27,7 +27,8 @@ import type { TranscriptSealer } from "./sealing.js"
  */
 export type OpenPolicy = {
   readonly refusal?: string
-  readonly flags?: (agent: AgentName) => readonly string[]
+  /** The flags for the agent opened in `cwd`, the folder the call resolved. */
+  readonly flags?: (agent: AgentName, cwd: string) => readonly string[]
 }
 
 export type TerminalOptions = {

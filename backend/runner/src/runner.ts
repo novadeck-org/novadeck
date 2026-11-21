@@ -456,7 +456,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       const shell = terminals.get(terminalId)
       return shell.started && !shell.busy && !shell.agentRan && shell.command === null
     },
-    adopt: (terminalId, leadId) => terminals.adopt(terminalId, leadId),
+    adopt: (terminalId, leadId, before) => terminals.adopt(terminalId, leadId, before),
     expect: (terminalId, agent) => terminals.messaging.expect(terminalId, agent),
     type: (terminalId, line, ownerId) =>
       terminals.write({ terminalId, data: `${line}\r` }, ownerId),

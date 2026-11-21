@@ -14,7 +14,7 @@ export type { TourPreview } from "./signals"
  * it over once, at the tour's provider; the tour reaches nothing else of it.
  */
 export type TourHost = {
-  readonly backend: Pick<Backend, "tour" | "agents" | "messages" | "inbox">
+  readonly backend: Pick<Backend, "tour" | "agents" | "messages" | "inbox" | "works">
   readonly workspace: Store<Workspace>
   readonly commands: TourCommands
   // The files the person has open as the merged preview of the agents' work, as the app keeps

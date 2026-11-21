@@ -53,13 +53,21 @@ export type BriefFacts = {
   readonly fixer: Teammate
 }
 
+/** What is known of the lead once its terminal is: its handle, as agents address it (@fox). */
+export type LeadFacts = BriefFacts & { readonly lead: string }
+
 // The arguments `open_agent` takes for a teammate, as the brief gives them.
 const openArguments = ({ agent, model, effort }: Teammate): string =>
   `agent "${agent}", model "${model}"${effort !== undefined ? `, effort "${effort}"` : ""}`
 
-/** The first fixer's task, the message its lead sends it: bug 1, in a worktree of its own. */
-export const firstFixerTask = `You are Tip fixer, a teammate in Novadeck's tour. Your lead is the agent that sent you this
-message (its \`from\`). Your tools include Novadeck's \`describe\`, \`open_worktree\` and \`send\`:
+/**
+ * The first fixer's task, the message its lead sends it: bug 1, in a worktree of its own.
+ * `lead` is the lead's handle, the one address \`send\` takes (never a terminal id).
+ */
+export const firstFixerTask = (
+  lead: string,
+): string => `You are Tip fixer, a teammate in Novadeck's tour. ${lead} leads you. Your tools
+include Novadeck's \`describe\`, \`open_worktree\` and \`send\`:
 if they're deferred, load them first. Run no shell command and never call \`open_agent\`. Be
 quick: do each step at once, with no prose before a tool call.
 1. Call \`describe\` with title "Tip fixer" and summary "Fixes bug 1".
@@ -67,7 +75,7 @@ quick: do each step at once, with no prose before a tool call.
 3. In ${sandboxFile} in that worktree, by its absolute path (never the copy in your own folder),
    change \`share\` so it divides the tip by 100: (total + total * tip / 100) / people. Change
    nothing else.
-4. Call \`send\` with \`to\` your lead's handle and \`text\` "Fixed bug 1."
+4. Call \`send\` with \`to\` "${lead}" (its handle, never an id) and \`text\` "Fixed bug 1."
 5. Say in one short sentence at most that you sent it, and stop.`
 
 /**
@@ -94,7 +102,7 @@ at once, with no prose before a tool call.
    worktree, by its absolute path (never the copy in your own folder), change \`money\` to show
    it: "$12.00" is \`"$" + amount.toFixed(2)\`; "$12" drops the decimals of a whole amount. Change
    nothing else.
-6. Call \`send\` with \`to\` "${lead}" and \`text\` "Fixed bug 2."
+6. Call \`send\` with \`to\` "${lead}" (its handle, never an id) and \`text\` "Fixed bug 2."
 7. Say in one short sentence at most that you sent it, and stop.
 Only the person's answer moves you on to step 5.`
 
@@ -113,7 +121,8 @@ only that task.
 /** The lead's script for a run, with the first fixer's model. */
 export const tourBrief = ({
   fixer,
-}: BriefFacts): string => `${tourBriefMark} The person just started the tour to see how Novadeck
+  lead,
+}: LeadFacts): string => `${tourBriefMark} The person just started the tour to see how Novadeck
 works with agents. This is your task now: you are the lead agent, in a sandbox repo Novadeck
 made for the tour. Its ${sandboxFile} is a bill splitter with two bugs, listed in README.md.
 
@@ -140,7 +149,7 @@ person starts one for bug 2.
 2. Greet the person in one sentence: you are their own agent, in a sandbox repo with two bugs.
 3. Call \`open_agent\` with ${openArguments(fixer)}, and as \`message\` exactly this text:
 
-${indent(firstFixerTask)}
+${indent(firstFixerTask(lead))}
 
    The result names the new terminal's handle, like @fox. It is fixer 1, on bug 1.
 4. Say in one sentence that a fixer is on bug 1, and that the person starts a second fixer for

@@ -1670,8 +1670,8 @@ export class Terminals {
   }
 
   /** The tour's second fixer joins its lead's team unasked (see `adoptTeammate`). */
-  adopt(terminalId: string, leadId: string): void {
-    adoptTeammate(this.calls.host, terminalId, leadId)
+  adopt(terminalId: string, leadId: string, before?: () => void): Promise<void> {
+    return adoptTeammate(this.calls.host, terminalId, leadId, before)
   }
 
   /** The person moves a terminal and its team to another session (see `Moves.move`). */

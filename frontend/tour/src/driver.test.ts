@@ -295,7 +295,9 @@ describe("The tour's story", () => {
       stepRun(run, tourSteps, { type: "tick", signals: one, now: patience * 10 }, patience),
     ).toMatchObject({ run: { step: stepNo("yours") }, nudge: false })
     expect(nextTick(run, tourSteps, one, patience)).toBeNull()
-    expect(feed(run, { team: { count: 2, named: 1 } }).run?.step).toBe(stepNo("ask"))
+    // Two teammates are not it: the person's own terminal has to have joined.
+    expect(feed(run, { team: { count: 2, named: 1 } }).run?.step).toBe(stepNo("yours"))
+    expect(feed(run, { team: { count: 1, named: 1 }, adopted: true }).run?.step).toBe(stepNo("ask"))
   })
 
   it("brings the Terminals panel, then the Files panel, as those steps begin", () => {
@@ -334,16 +336,16 @@ describe("The tour's story", () => {
 
   it("waits, once answered, for both fixers to have reported, then stays a moment", () => {
     const team = { count: 2, named: 2 }
-    expect(feed(atStep("make"), { team, reporters: 1 }).run?.doneAt).toBeNull()
-    expect(feed(atStep("make"), { team, reporters: 2 }).run).toMatchObject({
+    expect(feed(atStep("make"), { team, fixed: 1 }).run?.doneAt).toBeNull()
+    expect(feed(atStep("make"), { team, fixed: 2 }).run).toMatchObject({
       step: stepNo("make"),
       doneAt: 1,
     })
     // With one fixer only, its report is enough.
     const alone = { team: { count: 1, named: 1 } }
-    expect(feed(atStep("make"), { ...alone, reporters: 1 }).run?.doneAt).toBe(1)
-    expect(feed(atStep("make"), { ...alone, reporters: 0 }).run?.doneAt).toBeNull()
-    expect(heldThen("make", { team, reporters: 2 }).after?.step).toBe(stepNo("result"))
+    expect(feed(atStep("make"), { ...alone, fixed: 1 }).run?.doneAt).toBe(1)
+    expect(feed(atStep("make"), { ...alone, fixed: 0 }).run?.doneAt).toBeNull()
+    expect(heldThen("make", { team, fixed: 2 }).after?.step).toBe(stepNo("result"))
   })
 
   it("waits on the person to open the file, then looks at its preview", () => {

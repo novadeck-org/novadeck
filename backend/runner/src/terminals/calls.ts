@@ -304,7 +304,7 @@ export class Calls {
                 cwd,
                 choice,
                 request.message !== undefined,
-                policy.flags?.(request.agent),
+                policy.flags?.(request.agent, cwd),
               )
     } catch (error) {
       if (!(error instanceof RangeError)) throw error

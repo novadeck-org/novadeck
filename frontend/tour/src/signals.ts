@@ -1,6 +1,7 @@
 import { inboxType, type InboxState, type SettledHow } from "@novadeck/core/inbox"
 import type { MessagesState } from "@novadeck/core/messages"
 import type { TerminalMetadata, Workspace, WorkspaceProject } from "@novadeck/core/types"
+import type { Work } from "@novadeck/core/works"
 
 // Where the tour's lead stands, as its terminal shows it:
 // - `gone`: its terminal closed, which ends the tour.
@@ -51,11 +52,16 @@ export type TourSignals = {
   // its harness's own permission dialog, or a message held for them: an unsettled Inbox row of
   // type Unblock, whichever harness raised it. Null while none does.
   readonly permission: { readonly terminalId: string } | null
-  // How many distinct teammates have sent the lead a message (their report that they're done).
-  readonly reporters: number
-  // The shell the person opened in the tour's project that no agent holds yet: not the lead, no
-  // team's, nothing running in it; null while none is. The tour's second fixer starts there.
-  readonly fresh: string | null
+  // How many distinct teammates have made their fix: their work changes the tour's file, or
+  // they told the lead "Fixed bug" (not any message: a teammate's question to the lead isn't one).
+  readonly fixed: number
+  // Whether the person's own terminal has joined the team as the second fixer: a teammate the
+  // person opened, which the lead didn't.
+  readonly adopted: boolean
+  // The shells the person opened in the tour's project that no agent holds yet, newest first: not
+  // the lead, no team's, none an agent opened, nothing running in them. The tour's second fixer
+  // starts in one of them.
+  readonly fresh: readonly string[]
   // The merged preview of the tour's file (`split.js`) while it is open in the tour's project:
   // the window that shows it; null while it isn't.
   readonly preview: { readonly windowId: string } | null
@@ -77,6 +83,8 @@ export type TourSources = {
   readonly messages?: MessagesState | undefined
   readonly inbox?: InboxState | undefined
   readonly previews?: readonly TourPreview[] | undefined
+  // Every work the backend tracks, where it has them.
+  readonly works?: readonly Work[] | undefined
 }
 
 export const noTeam: Pick<
@@ -87,7 +95,8 @@ export const noTeam: Pick<
   | "answered"
   | "teamScreen"
   | "permission"
-  | "reporters"
+  | "fixed"
+  | "adopted"
   | "fresh"
   | "preview"
 > = {
@@ -97,8 +106,9 @@ export const noTeam: Pick<
   answered: false,
   teamScreen: null,
   permission: null,
-  reporters: 0,
-  fresh: null,
+  fixed: 0,
+  adopted: false,
+  fresh: [],
   preview: null,
 }
 
@@ -129,22 +139,38 @@ const everyMessage = (messages: MessagesState | undefined) => {
   return [...seen.values()]
 }
 
-// How many distinct teammates sent the lead a message.
+// What a teammate says to the lead once its fix is made (both fixers' briefs ask for it).
+const fixedWord = /\bfixed bug\b/i
+
+// The teammates that told the lead their fix is made.
 const reportersOf = (
   messages: MessagesState | undefined,
   teammates: ReadonlySet<string>,
   lead: string,
-): number =>
+): ReadonlySet<string> =>
   new Set(
-    everyMessage(messages).flatMap(({ from, to }) =>
+    everyMessage(messages).flatMap(({ from, to, text }) =>
       from.kind === "agent" &&
       to.kind === "agent" &&
       to.terminalId === lead &&
-      teammates.has(from.terminalId)
+      teammates.has(from.terminalId) &&
+      fixedWord.test(text)
         ? [from.terminalId]
         : [],
     ),
-  ).size
+  )
+
+// The teammates whose work changes the tour's file, or has merged: their fix has landed.
+const landedOf = (works: readonly Work[] | undefined, teammates: ReadonlySet<string>) =>
+  new Set(
+    (works ?? []).flatMap(({ terminalId, files, merged }) =>
+      terminalId !== null &&
+      teammates.has(terminalId) &&
+      (merged || files.some(({ path }) => path.split("/").pop() === tourFile))
+        ? [terminalId]
+        : [],
+    ),
+  )
 
 // The team's questions in the Inbox: its asks, or a harness's own question tool's (a request
 // the Inbox lists as a question), whichever a teammate used.
@@ -187,31 +213,42 @@ const permissionOf = (
   return row ? { terminalId: row.source.terminalId } : null
 }
 
-// The first shell of the project nobody has taken: not the lead, not led by anyone, no agent in it
-// and none run there. In the tour's project the person opens one at the tour's prompt.
-const freshShell = (history: WorkspaceProject["history"], lead: string): string | null => {
-  for (const { state } of history)
-    for (const each of state.roster.terminals)
-      if (
+// The shells of the project nobody has taken, newest first: not the lead, not led by anyone, not
+// opened by an agent (`open_terminal`: the person's alone is theirs to give), no agent in them and
+// none run there. In the tour's project the person opens one at the tour's prompt.
+const freshShells = (history: WorkspaceProject["history"], lead: string): readonly string[] =>
+  history
+    .flatMap(({ state }) => state.roster.terminals)
+    .filter(
+      (each) =>
         each.id !== lead &&
         !each.ledBy &&
+        !each.openedBy &&
         !each.agentRan &&
-        (each.state === "idle" || (each.state === "running" && !each.agent))
-      )
-        return each.id
-  return null
-}
+        (each.state === "idle" || (each.state === "running" && !each.agent)),
+    )
+    .map(({ id }) => id)
+    .toReversed()
 
-// The window that shows the tour's file merged, while its preview is open in the project.
+const shows = (path: string | null): boolean => path?.split("/").pop() === tourFile
+
+// The window that shows the tour's file, while it is open in the project: its merged preview, or
+// else the file itself as a plain window, so a backend that opens it so still ends the story.
 const previewOf = (
   project: WorkspaceProject,
   previews: readonly TourPreview[] | undefined,
 ): TourSignals["preview"] => {
-  for (const preview of previews ?? []) {
-    if (preview.projectId !== project.id || preview.path.split("/").pop() !== tourFile) continue
-    for (const { state } of project.history) {
+  for (const { state } of project.history) {
+    const merged = (previews ?? []).filter(
+      (preview) => preview.projectId === project.id && shows(preview.path),
+    )
+    for (const preview of merged) {
       const window = state.roster.windows.find((each) => each.itemId === preview.itemId)
       if (window) return { windowId: window.id }
+    }
+    for (const window of state.roster.windows) {
+      const item = state.items.find((each) => each.id === window.itemId)
+      if (item?.kind === "file" && shows(item.path)) return { windowId: window.id }
     }
   }
   return null
@@ -234,6 +271,10 @@ export const tourSignals = (
       )
       const mates = new Set(teammates.map(({ id }) => id))
       const team = new Set([terminalId, ...mates])
+      const fixed = new Set([
+        ...reportersOf(sources.messages, mates, terminalId),
+        ...landedOf(sources.works, mates),
+      ])
       const held = teammates
         .map((mate) => ({ mate, lead: leadState(mate) }))
         .find(({ lead }) => lead.kind === "screen")
@@ -259,8 +300,9 @@ export const tourSignals = (
               }
             : null,
         permission: permissionOf(sources.inbox, team),
-        reporters: reportersOf(sources.messages, mates, terminalId),
-        fresh: freshShell(project.history, terminalId),
+        fixed: fixed.size,
+        adopted: teammates.some(({ openedBy }) => !openedBy),
+        fresh: freshShells(project.history, terminalId),
         preview: previewOf(project, sources.previews),
       }
     }
@@ -275,8 +317,9 @@ export const sameSignals = (a: TourSignals, b: TourSignals): boolean =>
   a.teamScreen?.terminalId === b.teamScreen?.terminalId &&
   a.teamScreen?.screen === b.teamScreen?.screen &&
   a.permission?.terminalId === b.permission?.terminalId &&
-  a.reporters === b.reporters &&
-  a.fresh === b.fresh &&
+  a.fixed === b.fixed &&
+  a.adopted === b.adopted &&
+  a.fresh.join() === b.fresh.join() &&
   a.preview?.windowId === b.preview?.windowId &&
   a.team.count === b.team.count &&
   a.team.named === b.team.named &&

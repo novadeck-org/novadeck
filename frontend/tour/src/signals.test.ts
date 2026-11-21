@@ -2,6 +2,7 @@ import type { InboxRow, InboxState } from "@novadeck/core/inbox"
 import type { AgentMessage, MessagesState } from "@novadeck/core/messages"
 import { terminalFixture, workspaceFixture, workspaceWithWindow } from "@novadeck/core/testing"
 import type { TerminalMetadata } from "@novadeck/core/types"
+import type { Work } from "@novadeck/core/works"
 
 import { leadState, noTeam, tourSignals } from "./signals"
 import { describe, expect, it } from "./test"
@@ -131,21 +132,66 @@ describe("The tour's story signals", () => {
     expect(tourSignals(teamWorkspace(), "01").team).toEqual({ count: 2, named: 1 })
   })
 
-  it("count each teammate that sent the lead a message once, and none from outside the team", () => {
+  it("count each teammate that told the lead its fix, once, and none from outside the team", () => {
+    const said = (id: string, from: string, to: string, text: string) => ({
+      ...message(id, from, to),
+      text,
+    })
     const messages = messagesOf([
-      message("m1", "02", "01"),
-      message("m2", "02", "01"),
-      message("m3", "03", "02"),
-      message("m4", "04", "01"),
+      said("m1", "02", "01", "Fixed bug 1."),
+      said("m2", "02", "01", "Fixed bug 1."),
+      said("m3", "03", "02", "Fixed bug 2."),
+      said("m4", "04", "01", "Fixed bug 2."),
     ])
-    expect(tourSignals(teamWorkspace(), "01", { messages }).reporters).toBe(1)
-    const both = messagesOf([message("m1", "02", "01"), message("m2", "03", "01")])
-    expect(tourSignals(teamWorkspace(), "01", { messages: both }).reporters).toBe(2)
+    expect(tourSignals(teamWorkspace(), "01", { messages }).fixed).toBe(1)
+    const both = messagesOf([
+      said("m1", "02", "01", "Fixed bug 1."),
+      said("m2", "03", "01", "Fixed bug 2."),
+    ])
+    expect(tourSignals(teamWorkspace(), "01", { messages: both }).fixed).toBe(2)
   })
 
-  it("leave out the lead's own messages to its teammates, as their tasks", () => {
-    const messages = messagesOf([message("t1", "01", "02"), message("t2", "01", "03")])
-    expect(tourSignals(teamWorkspace(), "01", { messages }).reporters).toBe(0)
+  it("don't take a teammate's question to the lead for its fix", () => {
+    const asking = { ...message("q1", "02", "01"), text: "Which one do you mean?" }
+    const messages = messagesOf([asking, { ...asking, id: "q2", from: agentParty("03") }])
+    expect(tourSignals(teamWorkspace(), "01", { messages }).fixed).toBe(0)
+  })
+
+  it("count the teammates whose works change the tour's file, each once", () => {
+    const work = (terminalId: string | null, path: string, merged = false) =>
+      ({ terminalId, merged, files: [{ path }] }) as unknown as Work
+    const works = [
+      work("02", "split.js"),
+      work("02", "split.js"),
+      work("03", "README.md"),
+      work("04", "split.js"),
+      work(null, "split.js"),
+    ]
+    expect(tourSignals(teamWorkspace(), "01", { works }).fixed).toBe(1)
+    const both = [...works, work("03", "src/split.js")]
+    expect(tourSignals(teamWorkspace(), "01", { works: both }).fixed).toBe(2)
+    // A work already merged is a fix landed, though it lists no files.
+    expect(tourSignals(teamWorkspace(), "01", { works: [work("03", "x", true)] }).fixed).toBe(1)
+  })
+
+  it("count a teammate once when its work and its message both say it", () => {
+    const works = [
+      { terminalId: "02", merged: false, files: [{ path: "split.js" }] },
+    ] as unknown as Work[]
+    const messages = messagesOf([{ ...message("m1", "02", "01"), text: "Fixed bug 1." }])
+    expect(tourSignals(teamWorkspace(), "01", { works, messages }).fixed).toBe(1)
+  })
+
+  it("say the person's terminal joined once a teammate it opened is led, not one the lead opened", () => {
+    expect(tourSignals(teamWorkspace(), "01").adopted).toBe(true)
+    const workspace = teamWorkspace()
+    const roster = workspace.projects[0]!.history[0]!.state.roster
+    Object.assign(roster, {
+      terminals: roster.terminals.map((each) =>
+        each.ledBy === "01" ? { ...each, openedBy: "01" } : each,
+      ),
+    })
+    expect(tourSignals(workspace, "01").adopted).toBe(false)
   })
 
   it("see the person's answer delivered to a teammate, through a reload", () => {
@@ -270,7 +316,7 @@ describe("The tour's story signals", () => {
 
   it("see the shell the person opened, which no agent holds, not the lead or a teammate", () => {
     // 04 is on its own, a shell with nothing running.
-    expect(tourSignals(teamWorkspace(), "01").fresh).toBe("04")
+    expect(tourSignals(teamWorkspace(), "01").fresh).toEqual(["04"])
     const workspace = teamWorkspace()
     const roster = workspace.projects[0]!.history[0]!.state.roster
     Object.assign(roster, {
@@ -278,7 +324,27 @@ describe("The tour's story signals", () => {
         each.id === "04" ? { ...each, ledBy: "01" } : each,
       ),
     })
-    expect(tourSignals(workspace, "01").fresh).toBeNull()
+    expect(tourSignals(workspace, "01").fresh).toEqual([])
+  })
+
+  it("list every such shell, the newest first, so a refused one doesn't hold the step", () => {
+    const workspace = teamWorkspace()
+    const roster = workspace.projects[0]!.history[0]!.state.roster
+    Object.assign(roster, {
+      terminals: [...roster.terminals, terminal({ id: "05", state: "idle" })],
+    })
+    expect(tourSignals(workspace, "01").fresh).toEqual(["05", "04"])
+  })
+
+  it("leave out a shell an agent opened, which isn't the person's to give", () => {
+    const workspace = teamWorkspace()
+    const roster = workspace.projects[0]!.history[0]!.state.roster
+    Object.assign(roster, {
+      terminals: roster.terminals.map((each) =>
+        each.id === "04" ? { ...each, openedBy: "01" } : each,
+      ),
+    })
+    expect(tourSignals(workspace, "01").fresh).toEqual([])
   })
 
   it("see no fresh shell in one an agent runs in, or ran in", () => {
@@ -294,7 +360,7 @@ describe("The tour's story signals", () => {
           each.id === "04" ? { ...each, ...parts } : each,
         ),
       })
-      expect(tourSignals(workspace, "01").fresh).toBeNull()
+      expect(tourSignals(workspace, "01").fresh).toEqual([])
     }
   })
 
@@ -307,5 +373,16 @@ describe("The tour's story signals", () => {
     expect(tourSignals(workspace, "01", { previews: other }).preview).toBeNull()
     const elsewhere = [{ projectId: "another", itemId: "hero", path: "split.js" }]
     expect(tourSignals(workspace, "01", { previews: elsewhere }).preview).toBeNull()
+  })
+
+  it("see split.js open as a plain file window too, where no preview was made", () => {
+    const workspace = workspaceWithWindow()
+    const state = workspace.projects[0]!.history[0]!.state
+    const items = (path: string) =>
+      Object.assign(state, { items: state.items.map((each) => ({ ...each, path })) })
+    items("/project/split.js")
+    expect(tourSignals(workspace, "01").preview).toEqual({ windowId: "w1" })
+    items("/project/README.md")
+    expect(tourSignals(workspace, "01").preview).toBeNull()
   })
 })

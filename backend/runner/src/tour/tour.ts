@@ -41,9 +41,11 @@ export type TourHost = {
   readonly isFreshShell: (terminalId: string) => boolean
   /**
    * Makes the terminal `leadId`'s teammate, as `join` does once approved, and tells the lead:
-   * no approval is asked, as the person asked for it by opening the terminal.
+   * no approval is asked, as the person asked for it by opening the terminal. It waits for the
+   * shell's first prompt first, then calls `before`, which may throw to refuse, and only then
+   * adopts.
    */
-  readonly adopt: (terminalId: string, leadId: string) => void
+  readonly adopt: (terminalId: string, leadId: string, before: () => void) => Promise<void>
   /** Expects `agent` in the terminal, so a notice rung to it waits for its first session. */
   readonly expect: (terminalId: string, agent: AgentName) => void
   /** Types a command line into the terminal's shell for the client `ownerId` that controls it. */
@@ -171,7 +173,10 @@ export class Tour {
    */
   brief(terminalId: string): void {
     if (!this.facts || !this.run) throw new DomainError("CONFLICT", "The tour hasn't been readied.")
-    this.ring(terminalId, tourBrief(this.facts))
+    this.ring(
+      terminalId,
+      tourBrief({ ...this.facts, lead: mention(this.host.handleOf(terminalId)) }),
+    )
     this.run.lead = terminalId
   }
 
@@ -184,34 +189,42 @@ export class Tour {
    * already, a lead that hasn't started or is gone, or a run that has its second fixer is a
    * `CONFLICT`, and nothing changes.
    */
-  fixer(terminalId: string, ownerId: string): void {
+  async fixer(terminalId: string, ownerId: string): Promise<void> {
     const { run } = this
     if (!run) throw new DomainError("CONFLICT", "The tour hasn't been readied.")
     if (run.lead === undefined) throw new DomainError("CONFLICT", "The tour's lead hasn't started.")
     if (run.fixer !== undefined)
       throw new DomainError("CONFLICT", "The tour's second fixer has started already.")
-    const cwd = this.host.cwdOf(terminalId)
-    if (!withinFolder(cwd, tourFolder(this.host.home), this.host.platform))
-      throw new DomainError("CONFLICT", "The terminal isn't one of the tour's.")
-    if (terminalId === run.lead || this.host.leadOf(terminalId) !== undefined)
-      throw new DomainError("CONFLICT", "The terminal is the lead or a teammate already.")
-    if (!this.host.isFreshShell(terminalId))
-      throw new DomainError("CONFLICT", "The terminal isn't a plain shell at its prompt.")
-    try {
-      this.host.cwdOf(run.lead)
-    } catch {
-      throw new DomainError("CONFLICT", "The tour's lead is gone.")
-    }
     const lead = run.lead
-    // Claimed first, so a second call meanwhile is refused; given back where the typing fails.
+    const check = (): void => {
+      if (
+        !withinFolder(this.host.cwdOf(terminalId), tourFolder(this.host.home), this.host.platform)
+      )
+        throw new DomainError("CONFLICT", "The terminal isn't one of the tour's.")
+      if (terminalId === lead || this.host.leadOf(terminalId) !== undefined)
+        throw new DomainError("CONFLICT", "The terminal is the lead or a teammate already.")
+      if (!this.host.isFreshShell(terminalId))
+        throw new DomainError("CONFLICT", "The terminal isn't a plain shell at its prompt.")
+      try {
+        this.host.cwdOf(lead)
+      } catch {
+        throw new DomainError("CONFLICT", "The tour's lead is gone.")
+      }
+    }
+    check()
+    // Claimed first, so a second call meanwhile is refused; given back where a step fails.
     run.fixer = terminalId
     try {
-      this.host.type(terminalId, run.launch.command, ownerId)
+      // Once its shell has shown its first prompt, so what is typed isn't read by a profile
+      // still loading; checked again then, as the person may have used the shell meanwhile.
+      await this.host.adopt(terminalId, lead, () => {
+        check()
+        this.host.type(terminalId, run.launch.command, ownerId)
+      })
     } catch (error) {
       run.fixer = undefined
       throw error
     }
-    this.host.adopt(terminalId, lead)
     this.host.expect(terminalId, run.agent)
     this.ring(terminalId, secondFixerBrief(mention(this.host.handleOf(lead))))
   }
@@ -238,9 +251,15 @@ export class Tour {
       return {}
     }
     if (!withinFolder(cwd, tourFolder(this.host.home), this.host.platform)) return {}
-    // The lead's fixers write in the folder unasked, for that launch only (`tourWrites`).
+    // The lead's fixers write in the folder unasked, for that launch only (`tourWrites`), and
+    // only where they start in it: one it opens elsewhere gets none.
     return this.host.leadOf(terminalId) === undefined
-      ? { flags: (agent) => tourWrites[agent] }
+      ? {
+          flags: (agent, at) =>
+            withinFolder(at, tourFolder(this.host.home), this.host.platform)
+              ? tourWrites[agent]
+              : [],
+        }
       : {
           refusal:
             "You're a teammate in Novadeck's tour: only the tour's lead opens agents. Do only the task in your lead's message.",

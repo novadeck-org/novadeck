@@ -53,7 +53,7 @@ export const openedTeammate = (
 ): BackendAction => ({
   type: "terminal/add",
   target: target(key),
-  terminal: { ...terminal, ledBy: lead },
+  terminal: { ...terminal, ledBy: lead, openedBy: lead },
 })
 
 // A terminal the person opened, taken by the tour as the lead's second fixer: led by it from now.

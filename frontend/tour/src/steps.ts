@@ -108,8 +108,8 @@ export const hireStep: TourStep = {
 
 // Still act 2: the person's own doing. The sidebar's Terminals panel shows its New terminal
 // button, which the tour marks; the terminal they open gets their agent, which the driver asks
-// the backend for (`tour.fixer`), led by the lead, for the second bug. Done once it has joined
-// the team. It waits on the person as long as they take. A backend without `tour.fixer` has no
+// the backend for (`tour.fixer`), led by the lead, for the second bug. Done once that terminal
+// has joined the team (a teammate the person opened), whatever happens to the lead's own fixer. It waits on the person as long as they take. A backend without `tour.fixer` has no
 // such step (`stepsOf`).
 export const yoursStep: TourStep = {
   id: "yours",
@@ -120,7 +120,7 @@ export const yoursStep: TourStep = {
     line: "Your turn. Open a terminal.",
     note: "Your agent starts in it and takes bug 2.",
   },
-  done: ({ team }) => team.count >= 2,
+  done: ({ adopted }) => adopted,
   wait: "patient",
 }
 
@@ -140,21 +140,22 @@ export const askStep: TourStep = {
 }
 
 // Still act 3: with the answer in, the fixers make their fixes, each in its own worktree, and
-// report to the lead; the tour looks at the team meanwhile. Done once each of them has (it stays
-// a moment then, as they may report in seconds, for its line to be read). With no second fixer
-// (a backend without `tour.fixer`) the one reports alone.
+// the tour looks at the team meanwhile. Done once each has made its fix (its work changes the
+// file, or it told the lead so), and it stays a moment then, as they may do it in seconds, for its
+// line to be read. With no second fixer (a backend without `tour.fixer`) the one fixes alone.
 export const makeStep: TourStep = {
   id: "make",
   act: 3,
   enter: [{ kind: "fit-all" }],
   holdMs: lineMs,
   coach: { look: "team", line: "Now they fix it. Each in its own worktree." },
-  done: ({ reporters, team }) => reporters >= 1 && reporters >= Math.min(2, team.count),
+  done: ({ fixed, team }) => fixed >= 1 && fixed >= Math.min(2, team.count),
   wait: "nudge",
 }
 
 // Act 4: the Files panel opens, with the tour's file in it, which the person opens: it shows
-// the file as both fixes merge it, in a window of its own. The result's wipe opens the act.
+// the file as both fixes merge it, in a window of its own. The result's wipe opens the act. Done
+// once the file is open in any form, so a backend that opens it as a plain file ends the story too.
 export const resultStep: TourStep = {
   id: "result",
   act: 4,

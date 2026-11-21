@@ -103,6 +103,9 @@ const writeClosing = (closing: TourDriver["closing"]): void => {
   }
 }
 
+const noShells: readonly string[] = []
+const noRefused: ReadonlySet<string> = new Set()
+
 const noSignals: TourSignals = { lead: { kind: "gone" }, onScreen: false, ...noTeam }
 const noState = (): (() => void) => () => {}
 
@@ -157,6 +160,13 @@ export const useTourDriver = ({
   const inbox = useSyncExternalStore(backend.inbox?.state.subscribe ?? noState, () =>
     backend.inbox?.state.getSnapshot(),
   )
+  // The works the backend tracks, which say when a fixer's fix has landed: followed while a run
+  // is (below), as the Worktrees panel would.
+  const worksState = backend.works?.state
+  const works = useSyncExternalStore(
+    worksState?.subscribe ?? noState,
+    () => worksState?.getSnapshot().works,
+  )
   // The files the person has open merged, in the app's sessions.
   const previews = useSyncExternalStore(previewStore.subscribe, previewStore.getSnapshot)
   const [closing, setClosingNow] = useState<TourDriver["closing"]>(readClosing)
@@ -171,6 +181,8 @@ export const useTourDriver = ({
     const stored = readTourRun(steps)
     return stored && { ...stored, waitingSince: Date.now() }
   })
+  const following = run !== null
+  useEffect(() => (following ? backend.works?.watch() : undefined), [following, backend.works])
   // The run as the last event left it, which the next one moves on from, so a burst of events
   // in one frame each builds on the one before.
   const current = useRef(run)
@@ -181,15 +193,15 @@ export const useTourDriver = ({
     retry.current = { tries: 0 }
   }, [])
   // The same, for what runs later: a retry reads them as they are by then.
-  const sources = useRef({ messages, inbox, previews })
+  const sources = useRef({ messages, inbox, previews, works })
   useEffect(() => {
-    sources.current = { messages, inbox, previews }
-  }, [messages, inbox, previews])
+    sources.current = { messages, inbox, previews, works }
+  }, [messages, inbox, previews, works])
   const patienceMs = tour?.patienceMs ?? defaultPatienceMs
   const signals = useSelected(
     workspace,
     (state) =>
-      run ? tourSignals(state, run.terminalId, { messages, inbox, previews }) : noSignals,
+      run ? tourSignals(state, run.terminalId, { messages, inbox, previews, works }) : noSignals,
     sameSignals,
   )
 
@@ -337,33 +349,42 @@ export const useTourDriver = ({
 
   // The shell the person opens in the tour's project at its prompt (the `yours` step) is handed to
   // the backend once, to start the person's agent there as the second fixer; a refusal is asked
-  // again a little later, as the brief's is, unless it is a conflict, which stands.
+  // again a little later, as the brief's is, unless it is a conflict, which stands. A shell the
+  // backend refused for good, or never took, is left: the next one the person opened is the
+  // candidate, so one refused terminal never holds the step; the newest is asked first, and a
+  // call made while another is under way is refused by the backend as a second fixer.
   const fixer = tour?.fixer
-  const fresh = run && steps[run.step]?.id === "yours" ? signals.fresh : null
+  const shells = run && steps[run.step]?.id === "yours" ? signals.fresh : noShells
+  const [refused, setRefused] = useState<ReadonlySet<string>>(noRefused)
   const fixing = useRef<{
     terminalId: string
-    // Asked at least once, and whether it stands (answered, or a conflict): no more are asked.
     asked: boolean
+    // Asked at least once, and whether it stands (answered, or a conflict): no more are asked.
     settled: boolean
     tries: number
     timer?: ReturnType<typeof setTimeout>
   }>({ terminalId: "", asked: false, settled: false, tries: 0 })
+  const candidate = shells.find((id) => !refused.has(id))
   useEffect(() => {
-    if (!fresh || !fixer) return
-    if (fixing.current.terminalId !== fresh)
-      fixing.current = { terminalId: fresh, asked: false, settled: false, tries: 0 }
+    if (!candidate || !fixer) return
+    if (fixing.current.terminalId !== candidate)
+      fixing.current = { terminalId: candidate, asked: false, settled: false, tries: 0 }
     const state = fixing.current
+    const leave = (): void => {
+      state.settled = true
+      setRefused((now) => new Set(now).add(candidate))
+    }
     const attempt = (): void => {
       state.asked = true
-      fixer(fresh).then(
+      fixer(candidate).then(
         () => {
           state.settled = true
         },
         (error: unknown) => {
           console.error("Novadeck couldn't start the tour's second fixer:", error)
-          if ((error as { readonly code?: unknown } | null)?.code === "CONFLICT")
-            state.settled = true
-          if (state.settled || state.tries >= briefTries) return
+          if ((error as { readonly code?: unknown } | null)?.code === "CONFLICT") return leave()
+          if (state.settled) return
+          if (state.tries >= briefTries) return leave()
           state.tries += 1
           state.timer = setTimeout(attempt, briefRetryMs)
         },
@@ -371,7 +392,7 @@ export const useTourDriver = ({
     }
     if (!state.asked) attempt()
     return () => clearTimeout(state.timer)
-  }, [fresh, fixer])
+  }, [candidate, fixer])
 
   const projectOf = useSelected(
     workspace,
