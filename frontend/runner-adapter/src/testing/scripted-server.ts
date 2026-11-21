@@ -378,6 +378,7 @@ export const scriptedRunner = ({
         hibernateAfterMinutes: 60,
         agentModes: false,
         agentMode: "herd",
+        shippingGate: false,
         worktrees: false,
       })),
       set: api.settings.set.handler(() => {}),

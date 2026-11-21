@@ -28,6 +28,7 @@ export const runnerSwitches = (
     hibernateAfterMinutes,
     agentModes: modesOffered,
     agentMode: howAgentsWork,
+    shippingGate: gated,
     worktrees: allowed,
   }: Pick<
     RunnerBackendOptions,
@@ -39,17 +40,26 @@ export const runnerSwitches = (
     | "hibernateAfterMinutes"
     | "agentModes"
     | "agentMode"
+    | "shippingGate"
     | "worktrees"
   >,
   track: <T>(work: Promise<T>) => Promise<T>,
 ): Pick<
   Backend,
-  "transcripts" | "hibernation" | "agentModes" | "agentMode" | "worktrees" | "agents" | "forges"
+  | "transcripts"
+  | "hibernation"
+  | "agentModes"
+  | "agentMode"
+  | "shippingGate"
+  | "worktrees"
+  | "agents"
+  | "forges"
 > => {
   const transcripts = createStore(kept ?? true)
   const hibernateAfter = createStore(hibernateAfterMinutes ?? null)
   const agentModes = createStore(modesOffered ?? false)
   const agentMode = createStore<AgentMode>(howAgentsWork ?? "herd")
+  const shippingGate = createStore(gated ?? false)
   const worktrees = createStore(allowed ?? false)
   const agents = createStore<readonly AgentConnection[]>(
     (integrations ?? []).map((agent) => ({ ...agent, busy: false })),
@@ -178,6 +188,21 @@ export const runnerSwitches = (
               // Unsaved, the switch shows what the runner still does.
               void track(runner.settings.set({ agentModes: enabled })).catch(() =>
                 agentModes.update(() => before),
+              )
+            },
+          },
+        }
+      : {}),
+    ...(gated !== undefined
+      ? {
+          shippingGate: {
+            enabled: shippingGate,
+            set: (enabled) => {
+              const before = shippingGate.getSnapshot()
+              shippingGate.update(() => enabled)
+              // Unsaved, the switch shows what the runner still does.
+              void track(runner.settings.set({ shippingGate: enabled })).catch(() =>
+                shippingGate.update(() => before),
               )
             },
           },

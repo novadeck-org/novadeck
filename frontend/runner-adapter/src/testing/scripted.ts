@@ -355,6 +355,7 @@ export const scripted = ({
     hibernateAfterMinutes: 60,
     agentModes: false,
     agentMode: "herd",
+    shippingGate: false,
     worktrees: false,
     ...(forges ? { forges } : {}),
     agents: [

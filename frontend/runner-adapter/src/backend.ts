@@ -198,6 +198,9 @@ export type RunnerBackendOptions = {
   readonly agentModes?: boolean
   // How agents work with each other, as the runner said at startup; not offered when absent.
   readonly agentMode?: AgentMode
+  // Whether the shipping gate is on (an Experimental switch), as the runner said at startup;
+  // not offered when absent.
+  readonly shippingGate?: boolean
   // Whether the runner lets agents open worktrees, as it said at startup; not offered when
   // absent.
   readonly worktrees?: boolean

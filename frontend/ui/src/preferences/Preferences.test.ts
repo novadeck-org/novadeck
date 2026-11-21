@@ -447,6 +447,19 @@ describe("the Experimental tab", () => {
     )
   })
 
+  it("holds the shipping gate switch, which writes the backend's setting", async () => {
+    const changes: boolean[] = []
+    await show({
+      tab: "experimental",
+      experimental: experimental(true),
+      shippingGate: { enabled: false, onChange: (enabled) => changes.push(enabled) },
+    })
+    const gate = document.querySelector('[role="switch"][aria-labelledby="shipping-gate-label"]')
+    expect(gate?.getAttribute("aria-checked")).toBe("false")
+    ;(gate as HTMLElement).click()
+    expect(changes).toEqual([true])
+  })
+
   const worktreesSwitch = (): HTMLElement | null =>
     document.querySelector('[role="switch"][aria-labelledby="agent-worktrees-label"]')
 

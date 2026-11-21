@@ -427,6 +427,12 @@ export const switchOffAgentModes = (agentModes: Backend["agentModes"]): void => 
   if (agentModes?.enabled.getSnapshot()) agentModes.set(false)
 }
 
+// Turns the shipping gate off where it is on, as the Experimental switch going off does: the
+// runner then stops gating and leaves what the harnesses do as it was.
+export const switchOffShippingGate = (shippingGate: Backend["shippingGate"]): void => {
+  if (shippingGate?.enabled.getSnapshot()) shippingGate.set(false)
+}
+
 // Switches every forge integration off where it is on, as the Experimental switch going off does,
 // for the same reason.
 // A forge being switched (on, as far as anyone knows) goes off too: its switch lands after.
@@ -436,15 +442,20 @@ export const switchOffForges = (forges: Backend["forges"]): void => {
 }
 
 // The Experimental features a backend keeps as settings, which all go off with the switch.
-export type ExperimentalFeatures = Pick<Backend, "worktrees" | "forges" | "agentModes">
+export type ExperimentalFeatures = Pick<
+  Backend,
+  "worktrees" | "forges" | "agentModes" | "shippingGate"
+>
 
 export const switchOffExperimental = ({
   worktrees,
   forges,
   agentModes,
+  shippingGate,
 }: ExperimentalFeatures): void => {
   switchOffWorktrees(worktrees)
   switchOffAgentModes(agentModes)
+  switchOffShippingGate(shippingGate)
   switchOffForges(forges)
 }
 

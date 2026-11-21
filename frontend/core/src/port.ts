@@ -358,6 +358,13 @@ export type BackendFields = {
     readonly enabled: Store<boolean>
     readonly set: (enabled: boolean) => void
   }
+  // Optional. Whether the shipping gate is on, an Experimental switch the runner keeps: while
+  // on, Claude Code's and Codex's commands that ship work need a permit. Absent where the
+  // backend has none.
+  readonly shippingGate?: {
+    readonly enabled: Store<boolean>
+    readonly set: (enabled: boolean) => void
+  }
   // Optional. How agents work with each other, which decides the version of Novadeck's tool
   // texts they get: Herd settles things between agents whose work meets, Solo keeps each to its
   // own work. Absent where the backend has no such setting.

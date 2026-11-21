@@ -132,6 +132,17 @@ const useAgentModes = (
   return agentModes && { enabled, onChange: agentModes.set }
 }
 
+// Whether the shipping gate is on, for Preferences; undefined where the backend has none.
+const useShippingGate = (
+  shippingGate: Backend["shippingGate"],
+): { readonly enabled: boolean; readonly onChange: (enabled: boolean) => void } | undefined => {
+  const enabled = useSyncExternalStore(
+    shippingGate?.enabled.subscribe ?? always,
+    () => shippingGate?.enabled.getSnapshot() ?? false,
+  )
+  return shippingGate && { enabled, onChange: shippingGate.set }
+}
+
 // Whether agents get worktrees, for Preferences; undefined where the backend has none.
 const useWorktrees = (
   worktrees: Backend["worktrees"],
@@ -357,6 +368,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const hibernation = useHibernation(backend.hibernation)
   const agentModes = useAgentModes(backend.agentModes)
   const agentMode = useAgentMode(backend.agentMode)
+  const shippingGate = useShippingGate(backend.shippingGate)
   const worktrees = useWorktrees(backend.worktrees)
   const agents = useAgents(backend.agents, backend.projectWindows?.extra === true)
   const installs = useInstalls(backend.agents)
@@ -614,6 +626,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           {...(hibernation ? { hibernation } : {})}
           {...(agentModes ? { agentModes } : {})}
           {...(agentMode ? { agentMode } : {})}
+          {...(shippingGate ? { shippingGate } : {})}
           {...(worktrees ? { worktrees } : {})}
           tour={tour !== undefined}
           windows={backend.projectWindows !== undefined}
