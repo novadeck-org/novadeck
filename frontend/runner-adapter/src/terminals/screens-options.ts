@@ -100,6 +100,9 @@ export const screensOptions = (
     resized: (key, size) => runtime.resized(key, size),
     stage: (key, stage) => runtime.screen(key, stage),
     lost: (key, error) => runtime.lost(key, error),
+    waiting: (key, error) => {
+      if (hasCode(error, "CONTROL_IN_USE")) runtime.elsewhere?.(key)
+    },
     attached: (key, stream) => runtime.attached(key, attachments.get(stream)!),
   },
 })

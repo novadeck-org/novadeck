@@ -33,12 +33,16 @@ export const flagGraceMs = 3_000
 // shows, and whether the person has project windows on, are told to the app as they change.
 // Returns the stop.
 export const watchProjectWindows = (
-  backend: Pick<Backend, "projectWindows" | "showingProject" | "limitSaves">,
+  backend: Pick<Backend, "projectWindows" | "showingProject" | "limitSaves" | "settleSaves">,
   workspace: Store<Workspace>,
   ui: UiStore,
 ): (() => void) => {
   const { projectWindows: windows } = backend
   if (!windows) return () => {}
+  // Another window about to read the project this one shows has it send what it changed first.
+  const stopFlush = windows.onFlush(async () => {
+    await backend.settleSaves?.()
+  })
   const stopState = windows.onState((state) =>
     ui.update((current) =>
       current.windows.voice === state.voice &&
@@ -66,7 +70,7 @@ export const watchProjectWindows = (
     const scope = id !== undefined && projectWindowsOn(ui.getSnapshot(), windows) ? id : null
     if (scope === scoped) return
     scoped = scope
-    backend.showingProject?.(scope)
+    backend.showingProject?.(scope, ui.getSnapshot().windows.elsewhere.length > 0)
     backend.limitSaves?.(scope)
   }
   // Whether the Experimental switch has had time to be read: it comes from the app a moment
@@ -94,6 +98,7 @@ export const watchProjectWindows = (
   return () => {
     clearTimeout(settling)
     stopState()
+    stopFlush()
     stopWorkspace()
     stopUi()
   }

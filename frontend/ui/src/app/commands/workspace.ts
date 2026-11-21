@@ -47,9 +47,8 @@ import { createFileCommands, type FileCommands } from "./files"
 import { createLayoutCommands, type LayoutCommands } from "./layout"
 import { createMoveCommands, type MoveCommands } from "./moves"
 import {
-  createProjectWindowCommands,
   arrivalWaitMs,
-  swapSettleMs,
+  createProjectWindowCommands,
   type ProjectWindowCommands,
 } from "./project-windows"
 import { createRecentCommands, type RecentCommands } from "./recent"
@@ -285,19 +284,31 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     ])
   }
 
+  // Counts the moves to a project, so the latest wins over one whose reading is still under way.
+  let latestMove = 0
   // The person's pick: the project another window shows trades places with this window's. The
   // app is told first, while it still knows what this window shows.
   const switchProject = (next: Project): void => {
     if (next.id === workspace.getSnapshot().activeProjectId) return
-    const swapping = windows.shownElsewhere(next.id)
-    windows.swapWith(next.id)
+    const pick = ++latestMove
     // With project windows on, a project is read from the runner as it is shown: another
-    // window may have changed it since this one loaded it. A project the other window was
-    // showing is read once it has sent what it changed there.
-    if (!ctx.syncProject || !windows.windowsOn()) return switchHere(next)
-    const read = (): void => void windows.readProject(next.id).then(() => switchHere(next))
-    if (swapping) effects.after(swapSettleMs, read)
-    else read()
+    // window may have changed it since this one loaded it. One the other window shows is read
+    // once both windows have sent what they changed (the swap's handshake), and the latest
+    // pick wins however long its reading took.
+    if (!ctx.syncProject || !windows.windowsOn()) {
+      if (!windows.shownElsewhere(next.id)) return switchHere(next)
+      // Nothing to read, but the app is told while this window still shows what it leaves.
+      void windows.swapWith(next.id).then((swapped) => {
+        if (swapped && pick === latestMove) switchHere(next)
+      })
+      return
+    }
+    void (async () => {
+      // The app brought the other window forward instead: this one stays where it is.
+      if (!(await windows.swapWith(next.id))) return
+      await windows.readProject(next.id)
+      if (pick === latestMove) switchHere(next)
+    })()
   }
 
   // Rows being restored, by the terminal made for each, from the click until the runner says
@@ -374,7 +385,9 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
   // Where another window sent this one. The project is read from the runner first, as it may
   // have changed there, or be one this window never heard of.
   const showProjectHere = async ({ projectId, terminalId }: ProjectWindowTarget): Promise<void> => {
+    const move = ++latestMove
     if (ctx.syncProject) await windows.readProject(projectId)
+    if (move !== latestMove) return
     const snapshot = workspace.getSnapshot()
     const project = snapshot.projects.find((each) => each.id === projectId)
     if (!project) return

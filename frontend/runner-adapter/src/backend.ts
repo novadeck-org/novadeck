@@ -118,6 +118,12 @@ export type RunnerApi = Pick<
   // Not every runner has them (an older one doesn't): none are offered without.
   Partial<Pick<Runner, "forges" | "tour">>
 
+// What a terminal says while another window controls it and this one waits its turn.
+const openElsewhere: TerminalStatus = { state: "failed", message: "Open in another window" }
+
+// How long settling a window's saves and creates waits at most.
+const settleLimitMs = 3_000
+
 // The tour as the runner readies it, each call held as work the backend waits for.
 export const runnerTour = (
   tour: Runner["tour"],
@@ -267,6 +273,8 @@ type RunnerEntry = {
   closed: boolean
   // The surface's attachment while one is mounted.
   attachment: AttachedTerminal | undefined
+  // It has waited for another window to let go of it, and says so (`SurfaceRuntime.elsewhere`).
+  elsewhere?: boolean
   // What the adapter last reported, so each change reaches the store once.
   status: TerminalStatus
   process: string
@@ -312,6 +320,9 @@ export type SurfaceRuntime = {
   // on): a terminal another window still controls, as it lets go of the project, is waited for
   // rather than failed. Absent, or false, a terminal another window controls is failed.
   readonly sharing?: () => boolean
+  // The terminal has waited some seconds for another window to let go of it: the surface shows
+  // that it is open in another window, and attaches once it is, its normal status returning.
+  readonly elsewhere?: (key: TerminalKey) => void
 }
 
 export type RunnerBackend = {
@@ -1613,6 +1624,22 @@ export const runnerBackend = (
     },
   })
 
+  // Sends what changed and resolves once the runner has all of it and every create this window
+  // started has landed, within a few seconds, as before another window reads a project: a read
+  // over a terminal still being created would drop it from the layout.
+  const settleSaves = async (): Promise<void> => {
+    const landed = (async () => {
+      await saves.settle()
+      // eslint-disable-next-line no-await-in-loop -- Work started meanwhile is waited for too.
+      while (pending.size) await Promise.allSettled(pending)
+    })()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    await Promise.race([
+      landed,
+      new Promise<void>((resolve) => (timer = setTimeout(resolve, settleLimitMs))),
+    ])
+    clearTimeout(timer)
+  }
   // The project whose sessions this window may save, null for any (see `limitSaves`).
   let saveScope: string | null = null
   // Every changed session is sent after a quiet spell, or at once on pagehide.
@@ -1705,6 +1732,8 @@ export const runnerBackend = (
   // and sessions is brought up to date, and the project is handed back as a seed, for the page to
   // put in place (`project/sync`). Undefined for a project the runner no longer has.
   const syncProject: NonNullable<Backend["syncProject"]> = async (projectId) => {
+    // What this window has yet to send or create is not read over.
+    await settleSaves()
     const project = (await runner.projects.list()).find((each) => each.id === projectId)
     if (!project || halted) return undefined
     const entry = await listProject(runner, project, newId, now)
@@ -1739,9 +1768,22 @@ export const runnerBackend = (
       const entry = registry.get(key)?.entry
       if (entry) entry.size = size
     },
+    elsewhere: (key) => {
+      const entry = registry.get(key)?.entry
+      if (!entry || entry.closed || entry.elsewhere) return
+      entry.elsewhere = true
+      dispatch(statusAction(entry, openElsewhere))
+    },
     attached: (key, attachment) => {
       const entry = registry.get(key)?.entry
       if (entry) entry.attachment = attachment
+      // It was open in another window until now: its own status comes back.
+      if (entry?.elsewhere) {
+        entry.elsewhere = false
+        const summary = runnerSummaries.get(key.terminalId)
+        const back = summary && terminalActivity(summary, quickExitMs).status
+        if (back && back !== "clean") dispatch(statusAction(entry, back))
+      }
       return () => {
         if (entry?.attachment === attachment) entry.attachment = undefined
       }
@@ -2070,11 +2112,17 @@ export const runnerBackend = (
     murmur: murmur.murmur,
     typeInto: screens.typeInto,
     activeTerminal: inUse.report,
-    showingProject: (projectId) => {
-      // A project this window stops showing is let go of at once: its screens detach, so the
-      // window that shows it now can control its terminals, rather than the screens parking and
-      // keeping control for seconds or minutes.
-      if (projectId !== null && shownProject !== null && shownProject !== projectId)
+    settleSaves,
+    showingProject: (projectId, others) => {
+      // A project this window stops showing is let go of at once where another window may take
+      // it over: its screens detach, so that window can control its terminals, rather than the
+      // screens parking and keeping control for seconds or minutes. Alone, they stay warm.
+      if (
+        others === true &&
+        projectId !== null &&
+        shownProject !== null &&
+        shownProject !== projectId
+      )
         screens.release((key) => key.projectId === shownProject)
       shownProject = projectId
       showing.report(projectId)

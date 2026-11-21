@@ -492,7 +492,12 @@ export type BackendFields = {
   // agent asks of the person reaches the window that shows the project of the terminal that
   // asked. Told again, with no change, only where the link to the runner came back. Called only
   // while project windows are on. Absent where terminals run no programs, as in the demo.
-  readonly showingProject?: (projectId: string | null) => void
+  // `others` says another window exists, which may take over the project this one leaves: its
+  // screens are let go of at once then, else kept for when this window shows it again.
+  readonly showingProject?: (projectId: string | null, others?: boolean) => void
+  // Optional. Resolves once every save of this window's changes has landed on the runner, as
+  // before another window reads the project this one showed.
+  readonly settleSaves?: () => Promise<void>
   // Optional. Limits what this window saves to the sessions of one project (null: any), as
   // with project windows on, where another window saves the others' and this window's copies
   // of them may be stale. Whatever this window changed before is sent first.

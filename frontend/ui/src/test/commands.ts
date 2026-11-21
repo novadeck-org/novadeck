@@ -51,6 +51,8 @@ export type CommandsOptions = {
   readonly windows?: CommandContext["windows"]
   // Reads a project from the runner again, when the backend can.
   readonly syncProject?: CommandContext["syncProject"]
+  // Resolves once the window's saves have landed, when the backend can say.
+  readonly settleSaves?: CommandContext["settleSaves"]
 }
 
 // Real stores, navigator, commands and store subscriptions over a fixture workspace, with effects that
@@ -89,6 +91,7 @@ export const openCommands = ({
   moveTerminal,
   windows,
   syncProject,
+  settleSaves,
 }: CommandsOptions = {}) => {
   const [pathname = "", query = ""] = url.split("?")
   const resolved = resolveRoute(
@@ -197,6 +200,7 @@ export const openCommands = ({
     moveTerminal,
     windows,
     syncProject,
+    settleSaves,
   }
   const commands = createWorkspaceCommands(context)
   // The subscriptions the provider attaches; nothing persists to storage here.

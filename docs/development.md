@@ -1444,24 +1444,22 @@ the UI store's `windows`); the page decides at once what an action does:
   `#/projects/<id>/sessions/_/_`, so the page takes the project's own session and view), or brings
   forward the window that shows it. The app opens only on a project a page has told it knows
   (`showProjectWindow`'s `known`) and at most 16 windows. There is no other way to open one.
-- **Swap.** Picking, in the switcher, a pin or its shortcut, a project another window shows tells the app
-  first (`swapProjectWindow`), then switches this window: the other window goes to this window's former
-  project (`onProjectWindowNavigate`). Either window first reads the project from the runner
-  (`Backend.syncProject`, then the core's `project/sync`), so it shows what the other window saved, not
-  its old copy; a window picking a project the other was showing waits a moment (`swapSettleMs`) for that
-  window to send what it changed there. A project the window never heard of, made in another window
-  after it loaded, is learned the same way: no page reload.
-- **Terminals.** The runner lets one client control a terminal (`CONTROL_IN_USE` for the next), and a window's
-  screens used to keep control for seconds (parked) or minutes (retained) after it stopped showing their
-  project, so the window that took the project on found its terminals "Failed to start · Another window controls
-  it". Now a window that stops showing a project lets go of its screens at once (`TerminalScreens.release`, from
-  `Backend.showingProject`), and where windows share terminals by project an attach refused for that reason
-  is asked for again every 300 ms until the other window has let go (`SurfaceRuntime.sharing`), so no timing luck
-  is involved. Restart on such a terminal is harmless: the runner restarts only an exited terminal and refuses
-  `create` over a live id with `CONFLICT`, which the adapter takes as "still there" and attaches again.
-- **Saves.** With project windows on a window saves only the sessions of the project it shows
-  (`Backend.limitSaves`, which sends what it changed before the limit moves), the others' copies here
-  being stale until it takes them on, so two windows never overwrite each other's layouts.
+- **Swap.** Picking, in the switcher, a pin or its shortcut, a project another window shows is a handshake,
+  with no fixed waits: this window sends its saves (`Backend.settleSaves`, within `swapFlushMs`), then asks the
+  app to swap (`swapProjectWindow`, which resolves how it went), and the app has the other window send its own
+  (`onProjectWindowFlush`, answered by the page once its saves landed, `flushWaitMs` at most so a dead window
+  holds nothing up) before it sends that window to this window's former project and answers. Only then does this
+  window read the project from the runner (`Backend.syncProject`, then the core's `project/sync`) and switch, so
+  both windows start from what the other saved. A window that hadn't said what it shows can't give the other
+  anything: the app brings the other forward and this window stays (`forwarded`). The latest pick wins when
+  readings finish out of order. A project this window shows is never read over: its copy is the live one. A
+  read waits for this window's saves and creates to land (`Backend.settleSaves`), and one that can't be read or
+  built is logged and the window carries on with what it has. A project the window never heard of, made in
+  another window after it loaded, is learned the same way: no page reload.
+- **Saves.** With project windows on a window saves only changes to the sessions of the project it shows
+  (`Backend.limitSaves`, which sends what it changed before the limit moves; a change noted while allowed
+  is retried until it lands however the limit moves), the others' copies here being stale until it takes
+  them on, so two windows never overwrite each other's layouts.
 - **Routing.** What is about a project goes to its window, which comes forward and goes there
   (`handOffToProjectWindow`): `reveal` (an Inbox row's "Go to terminal", a message link, a toast),
   an Inbox row's sheet (`InboxProvider`'s `routeAway`), and a notification's click. A notification's click
@@ -1490,6 +1488,9 @@ the UI store's `windows`); the page decides at once what an action does:
   `windows.json` of the data folder (`window/saved-windows.ts`) and reopens them at the next launch; a
   window closed while others remain leaves the list, a quit keeps the windows open at its start, and
   the last window closing keeps the list as it stood before. Off, launch is as it was.
+- **Known limit.** "The window used last" (what a request with no window for its project goes to) moves
+  with the runner's `showing` and `active` reports, not with focus: a background window that reconnects
+  and reports becomes the last used, and a client that never reports (a `dev:web` tab) is never chosen.
 - **Title.** The document's title names the project while project windows are on, which the window shows.
 
 Preferences are one `localStorage` shared by the windows, which follow each other's changes through

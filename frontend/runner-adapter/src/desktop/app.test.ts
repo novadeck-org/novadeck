@@ -251,7 +251,14 @@ describe("the desktop app's project windows", () => {
       showProjectWindow: (id: unknown, known: unknown) => void calls.push(["show", id, known]),
       useProjectWindows: (on: unknown) => void calls.push(["use", on]),
       openProjectWindow: (id: unknown) => void calls.push(["open", id]),
-      swapProjectWindow: (id: unknown) => void calls.push(["swap", id]),
+      swapProjectWindow: async (id: unknown) => {
+        calls.push(["swap", id])
+        return id === "p3" ? "swapped" : "nonsense"
+      },
+      onProjectWindowFlush: (listener: () => Promise<void>) => {
+        void listener().then(() => calls.push(["flushed"]))
+        return () => {}
+      },
       handOffToProjectWindow: (target: unknown) => void calls.push(["handOff", target]),
       onProjectWindowNavigate: (listener: (target: unknown) => void) => {
         listener({ projectId: "p2", terminalId: "t" })
@@ -261,7 +268,7 @@ describe("the desktop app's project windows", () => {
       extraWindow: true,
     }) as unknown as DesktopApp
 
-  it("passes the app's states and places to the page as they are valid, and the page's asks with ids", () => {
+  it("passes the app's states and places to the page as they are valid, and the page's asks with ids", async () => {
     const calls: unknown[][] = []
     const windows = desktopProjectWindows(bridge(calls))!
     const states: unknown[] = []
@@ -272,9 +279,13 @@ describe("the desktop app's project windows", () => {
     windows.show(null, [])
     windows.use(true)
     windows.open("p2")
-    windows.swap("")
+    await expect(windows.swap("")).resolves.toBe("alone")
+    await expect(windows.swap("p3")).resolves.toBe("swapped")
+    await expect(windows.swap("p4")).resolves.toBe("alone")
+    windows.onFlush(async () => {})
     windows.handOff({ projectId: "p3", rowId: "r" })
     stop()
+    await new Promise((resolve) => setTimeout(resolve, 0))
     expect(states).toEqual([{ elsewhere: ["p1"], voice: false }])
     expect(places).toEqual([{ projectId: "p2", terminalId: "t" }])
     expect(calls).toEqual([
@@ -283,8 +294,11 @@ describe("the desktop app's project windows", () => {
       ["show", null, []],
       ["use", true],
       ["open", "p2"],
+      ["swap", "p3"],
+      ["swap", "p4"],
       ["handOff", { projectId: "p3", rowId: "r" }],
       ["stop"],
+      ["flushed"],
     ])
     expect(windows.extra).toBe(true)
   })

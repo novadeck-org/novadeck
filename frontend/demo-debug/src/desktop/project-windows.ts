@@ -51,12 +51,15 @@ export const createDemoProjectWindows = ({
       if (!state.elsewhere.includes(projectId))
         set({ ...state, elsewhere: [...state.elsewhere, projectId] })
     },
-    swap: (projectId) => {
+    swap: async (projectId) => {
       // The page asks before it switches, so `shown` is still the project it leaves.
-      if (!state.elsewhere.includes(projectId)) return
+      if (!state.elsewhere.includes(projectId)) return "alone"
       const left = state.elsewhere.filter((id) => id !== projectId)
       set({ ...state, elsewhere: shown === null ? left : [...left, shown] })
+      return "swapped"
     },
+    // No other window to ask: nothing to flush.
+    onFlush: () => () => {},
     handOff: (target) => {
       handed.push(target)
     },

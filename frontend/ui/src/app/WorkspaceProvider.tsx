@@ -120,6 +120,7 @@ const createServices = (
     history: backend.history,
     windows: backend.projectWindows,
     syncProject: backend.syncProject,
+    settleSaves: backend.settleSaves,
     itemStore,
     canvas,
     effects: domEffects,

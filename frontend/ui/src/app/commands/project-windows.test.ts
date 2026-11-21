@@ -1,4 +1,8 @@
-import type { ProjectWindows, ProjectWindowTarget } from "@novadeck/core/desktop/project-windows"
+import type {
+  ProjectWindows,
+  ProjectWindowSwap,
+  ProjectWindowTarget,
+} from "@novadeck/core/desktop/project-windows"
 import type { TerminalRequest } from "@novadeck/core/port"
 import type { ProjectSeed } from "@novadeck/core/seed"
 import { createTerminalState } from "@novadeck/core/state"
@@ -9,7 +13,7 @@ import { afterEach, vi } from "vitest"
 import { context, describe, expect, it } from "../../test"
 import { openCommands } from "../../test/commands"
 import type { CommandContext } from "./context"
-import { swapSettleMs } from "./project-windows"
+import { swapFlushMs } from "./project-windows"
 
 afterEach(() => void vi.useRealTimers())
 
@@ -41,14 +45,18 @@ const twoProjects = (): Workspace => {
 }
 
 // What the page asks of the app's windows, recorded.
-const recorded = () => {
+const recorded = (swapped: () => Promise<ProjectWindowSwap> = async () => "swapped") => {
   const asked: [string, ...unknown[]][] = []
   const windows: ProjectWindows = {
     onState: () => () => {},
     show: () => {},
     use: () => {},
     open: (id) => void asked.push(["open", id]),
-    swap: (id) => void asked.push(["swap", id]),
+    swap: (id) => {
+      asked.push(["swap", id])
+      return swapped()
+    },
+    onFlush: () => () => {},
     handOff: (target) => void asked.push(["handOff", target]),
     onNavigate: () => () => {},
     extra: false,
@@ -57,12 +65,21 @@ const recorded = () => {
 }
 
 // An app with project windows on, whose other windows show `elsewhere`.
-const opened = (elsewhere: string[], on = true, syncProject?: CommandContext["syncProject"]) => {
-  const { windows, asked } = recorded()
+const opened = (
+  elsewhere: string[],
+  on = true,
+  syncProject?: CommandContext["syncProject"],
+  more: {
+    swapped?: () => Promise<ProjectWindowSwap>
+    settleSaves?: CommandContext["settleSaves"]
+  } = {},
+) => {
+  const { windows, asked } = recorded(more.swapped)
   const app = openCommands({
     workspace: twoProjects(),
     windows,
     ...(syncProject && { syncProject }),
+    ...(more.settleSaves && { settleSaves: more.settleSaves }),
   })
   app.ui.update((state) => ({
     ...state,
@@ -78,10 +95,10 @@ const project = (app: ReturnType<typeof openCommands>, id: string) =>
 
 describe("project windows", () => {
   context("when the person picks a project another window shows", () => {
-    it("swaps the two windows' projects: the app is told, and this window shows the pick", () => {
+    it("swaps the two windows' projects: the app is told, and this window shows the pick", async () => {
       const { app, asked } = opened(["other"])
       app.commands.switchProject(project(app, "other"))
-      expect(asked).toEqual([["swap", "other"]])
+      await vi.waitFor(() => expect(asked).toEqual([["swap", "other"]]))
       expect(app.workspace.getSnapshot().activeProjectId).toBe("other")
     })
 
@@ -223,24 +240,106 @@ describe("project windows", () => {
       ],
     })
 
-    it("reads it from the runner before it shows it, which a swap does after the other window sent its changes", async () => {
-      vi.useFakeTimers()
-      const read: string[] = []
-      const { app, asked } = opened(["other"], true, async (id) => {
-        read.push(id)
-        return reread()
-      })
+    it("sends its own saves, then swaps, and reads the project only once the swap has answered", async () => {
+      const order: string[] = []
+      let answer!: (result: ProjectWindowSwap) => void
+      const { app } = opened(
+        ["other"],
+        true,
+        async (id) => {
+          order.push(`read ${id}`)
+          return reread()
+        },
+        {
+          swapped: () => {
+            order.push("swap")
+            return new Promise((resolve) => (answer = resolve))
+          },
+          settleSaves: async () => void order.push("settle"),
+        },
+      )
       app.commands.switchProject(project(app, "other"))
-      // The app is told at once; the project waits for what the other window changes.
-      expect(asked).toEqual([["swap", "other"]])
-      expect(read).toEqual([])
+      await vi.waitFor(() => expect(order).toEqual(["settle", "swap"]))
+      // The other window is still sending its edits: nothing read, nothing switched.
       expect(app.workspace.getSnapshot().activeProjectId).toBe("project")
-      await vi.advanceTimersByTimeAsync(swapSettleMs)
-      expect(read).toEqual(["other"])
-      expect(app.workspace.getSnapshot().activeProjectId).toBe("other")
+      answer("swapped")
+      await vi.waitFor(() => expect(app.workspace.getSnapshot().activeProjectId).toBe("other"))
+      expect(order).toEqual(["settle", "swap", "read other"])
       expect(
         project(app, "other").history[0]!.state.roster.terminals.map((each) => each.id),
       ).toEqual(["09"])
+    })
+
+    it("gives up waiting for its own saves after a while, so a stuck save holds no pick up", async () => {
+      vi.useFakeTimers()
+      const { app, asked } = opened(["other"], true, async () => reread(), {
+        settleSaves: () => new Promise(() => {}),
+      })
+      app.commands.switchProject(project(app, "other"))
+      await vi.advanceTimersByTimeAsync(swapFlushMs - 1)
+      expect(asked).toEqual([])
+      await vi.advanceTimersByTimeAsync(2)
+      expect(asked).toEqual([["swap", "other"]])
+    })
+
+    it("stays where it is when the app brought the other window forward instead", async () => {
+      const read: string[] = []
+      const { app, asked } = opened(
+        ["other"],
+        true,
+        async (id) => {
+          read.push(id)
+          return reread()
+        },
+        { swapped: async () => "forwarded" },
+      )
+      app.commands.switchProject(project(app, "other"))
+      await vi.waitFor(() => expect(asked).toEqual([["swap", "other"]]))
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(read).toEqual([])
+      expect(app.workspace.getSnapshot().activeProjectId).toBe("project")
+    })
+
+    it("ends on the latest pick when an earlier pick's reading finishes last", async () => {
+      const releases = new Map<string, () => void>()
+      const { app } = opened([], true, (id) => {
+        return new Promise((resolve) =>
+          releases.set(id, () => resolve({ ...reread(), id, name: id })),
+        )
+      })
+      app.commands.switchProject({ id: "first", name: "First", directory: "~/first" })
+      app.commands.switchProject({ id: "second", name: "Second", directory: "~/second" })
+      await vi.waitFor(() => expect(releases.size).toBe(2))
+      releases.get("second")!()
+      await vi.waitFor(() => expect(app.workspace.getSnapshot().activeProjectId).toBe("second"))
+      releases.get("first")!()
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(app.workspace.getSnapshot().activeProjectId).toBe("second")
+    })
+
+    it("carries on with the copy it has when the project can't be built, and logs it", async () => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => {})
+      const { app } = opened([], true, async () => ({
+        id: "other",
+        name: "Other",
+        directory: "~/other",
+        sessions: [],
+      }))
+      app.commands.switchProject(project(app, "other"))
+      await vi.waitFor(() => expect(app.workspace.getSnapshot().activeProjectId).toBe("other"))
+      expect(log).toHaveBeenCalled()
+      log.mockRestore()
+    })
+
+    it("never reads the project it shows over its live copy", async () => {
+      const read: string[] = []
+      const { app } = opened([], true, async (id) => {
+        read.push(id)
+        return reread()
+      })
+      await app.commands.readProject("project")
+      await app.commands.showProjectHere({ projectId: "project" })
+      expect(read).toEqual([])
     })
 
     it("reads a project nobody shows at once", async () => {
@@ -250,7 +349,7 @@ describe("project windows", () => {
         return reread()
       })
       app.commands.switchProject(project(app, "other"))
-      expect(read).toEqual(["other"])
+      await vi.waitFor(() => expect(read).toEqual(["other"]))
       await vi.waitFor(() => expect(app.workspace.getSnapshot().activeProjectId).toBe("other"))
     })
 

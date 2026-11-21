@@ -20,6 +20,7 @@ afterEach(() => void vi.useRealTimers())
 const appWindows = () => {
   const told: string[] = []
   const states = new Set<(state: ProjectWindowsState) => void>()
+  const flushing = new Set<() => Promise<void>>()
   const windows: ProjectWindows = {
     onState: (listener) => {
       states.add(listener)
@@ -28,7 +29,11 @@ const appWindows = () => {
     show: (id, known) => void told.push(`show ${id} of ${known.join(",")}`),
     use: (on) => void told.push(`use ${on}`),
     open: () => {},
-    swap: () => {},
+    swap: async () => "alone",
+    onFlush: (listener) => {
+      flushing.add(listener)
+      return () => void flushing.delete(listener)
+    },
     handOff: () => {},
     onNavigate: () => () => {},
     extra: false,
@@ -38,8 +43,13 @@ const appWindows = () => {
     projectWindows: windows,
     showingProject: (id: string | null) => void told.push(`showing ${id}`),
     limitSaves: (id: string | null) => void told.push(`limit ${id}`),
+    settleSaves: async () => void told.push("settled"),
+  }
+  const flushOf = (_backend: unknown) => async () => {
+    await Promise.all([...flushing].map((listener) => listener()))
   }
   return {
+    flushOf,
     windows,
     backend,
     told,
@@ -131,6 +141,29 @@ describe("following the app's windows", () => {
     const stop = watchProjectWindows(backend, app.workspace, app.ui)
     vi.advanceTimersByTime(flagGraceMs)
     expect(told).toEqual(["show project of project", "use false"])
+    stop()
+  })
+
+  it("sends this window's saves when the app asks, and says whether another window exists when it leaves a project", async () => {
+    const { backend, told, say, flushOf } = appWindows()
+    const app = openCommands()
+    app.ui.update((state) => ({
+      ...state,
+      flags: { IS_EXPERIMENTAL: true },
+      preferences: { ...state.preferences, projectWindows: true },
+    }))
+    const shown: [string | null, boolean | undefined][] = []
+    const watched = {
+      ...backend,
+      showingProject: (id: string | null, others?: boolean) => void shown.push([id, others]),
+    }
+    const stop = watchProjectWindows(watched, app.workspace, app.ui)
+    // The app asks: the page's saves settle before it answers.
+    await flushOf(backend)()
+    expect(told).toContain("settled")
+    say({ elsewhere: ["other"], voice: true })
+    app.ui.update((state) => ({ ...state }))
+    expect(shown[0]).toEqual(["project", false])
     stop()
   })
 

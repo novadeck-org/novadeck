@@ -25,7 +25,11 @@ const renamed = (workspace: Workspace, name: string): Workspace => ({
 
 // Saves over a runner that records each call and answers as `answer` says, and whose sessions
 // exist as `ready` says.
-const open = (answer: () => Promise<void> = async () => {}, ready = async () => true) => {
+const open = (
+  answer: () => Promise<void> = async () => {},
+  ready = async () => true,
+  allowed?: (sessionId: string) => boolean,
+) => {
   const sent: string[] = []
   const visits: (number | null)[] = []
   let latest: Workspace | undefined
@@ -41,6 +45,7 @@ const open = (answer: () => Promise<void> = async () => {}, ready = async () => 
     halted: () => false,
     delay: 800,
     saved: [],
+    ...(allowed && { allowed }),
   })
   const commit = (workspace: Workspace): void => {
     latest = workspace
@@ -51,6 +56,42 @@ const open = (answer: () => Promise<void> = async () => {}, ready = async () => 
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
+
+describe("session saves limited to the sessions a window may save", () => {
+  it("leaves out a change to a session it may not save, as it is noted", async () => {
+    const app = open(undefined, undefined, () => false)
+    const first = workspaceFixture()
+    app.commit(first)
+    app.commit(renamed(first, "Renamed"))
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(app.sent).toEqual([])
+  })
+
+  it("keeps trying a change noted while it was allowed until it lands, though the limit has moved", async () => {
+    let may = true
+    let failing = true
+    const app = open(
+      async () => {
+        if (failing) throw new WireError("DISCONNECTED")
+      },
+      undefined,
+      () => may,
+    )
+    const first = workspaceFixture()
+    app.commit(first)
+    app.commit(renamed(first, "Renamed"))
+    app.saves.flush()
+    await vi.advanceTimersByTimeAsync(10)
+    expect(app.sent).toHaveLength(1)
+    // The window moves on to another project, then the link comes back.
+    may = false
+    failing = false
+    app.saves.schedule()
+    app.saves.flush()
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(app.sent.length).toBeGreaterThan(1)
+  })
+})
 
 describe("session saves", () => {
   context("when the workspace first arrives", () => {

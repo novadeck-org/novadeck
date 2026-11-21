@@ -74,6 +74,8 @@ export type CommandContext = {
   // Reads a project from the runner again, where the backend can, for a window that takes a
   // project on from another window.
   readonly syncProject?: Backend["syncProject"] | undefined
+  // Resolves once this window's saves have landed on the runner.
+  readonly settleSaves?: Backend["settleSaves"] | undefined
   // The desktop app's other windows, where it opens them (see `project-windows.ts`).
   readonly windows?: ProjectWindows | undefined
   readonly canvas: { readonly current: CanvasHandle | null }

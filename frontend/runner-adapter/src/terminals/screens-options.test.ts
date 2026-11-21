@@ -123,6 +123,18 @@ describe("the runner's terminal screens' options", () => {
     expect(classify(new Error("boom"))).toBe("fatal")
   })
 
+  it("tell the surface its terminal is open in another window, for that refusal alone", () => {
+    const { runtime } = runtimeOf({} as AttachedTerminal)
+    const told: string[] = []
+    const options = screensOptions(
+      { ...runtime, elsewhere: (waiting) => void told.push(waiting.terminalId) },
+      { theme: noTheme },
+    )
+    options.on?.waiting?.(key, new WireError("CONTROL_IN_USE"))
+    options.on?.waiting?.(key, new WireError("RESOURCE_LIMIT"))
+    expect(told).toEqual(["t"])
+  })
+
   it("wait for a terminal another window controls where windows share the terminals by project", () => {
     const { runtime } = runtimeOf({} as AttachedTerminal)
     const { classify } = screensOptions({ ...runtime, sharing: () => true }, { theme: noTheme })

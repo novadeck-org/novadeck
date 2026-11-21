@@ -24,6 +24,12 @@ export type ProjectWindowTarget = {
 // Before the app has said anything: the person's window is alone and has the voice.
 export const aloneInWindows: ProjectWindowsState = { elsewhere: [], voice: true }
 
+// How a swap went: `swapped` when the other window took this window's project (this one
+// switches), `alone` when no other window showed the project (this one switches), `forwarded`
+// when this window hadn't said what it shows, so the other window came forward instead (this one
+// stays where it is).
+export type ProjectWindowSwap = "swapped" | "forwarded" | "alone"
+
 // Another window to the page, where the backend can open them. `onState`'s listener hears the
 // state at once and on each change, and returns the stop.
 export type ProjectWindows = {
@@ -35,9 +41,12 @@ export type ProjectWindows = {
   readonly use: (on: boolean) => void
   // Opens a project in a new window, or brings forward the window that shows it.
   readonly open: (projectId: string) => void
-  // Swaps this window's project, which the page has already changed, with the other
-  // window's that shows `projectId`.
-  readonly swap: (projectId: string) => void
+  // Swaps this window's project with the other window's that shows `projectId`, once this page
+  // has sent its saves: the other window sends its own before this resolves, so the page may
+  // read `projectId` then.
+  readonly swap: (projectId: string) => Promise<ProjectWindowSwap>
+  // Hears the app ask this window to send its saves, which `listener`'s promise answers.
+  readonly onFlush: (listener: () => Promise<void>) => () => void
   // Brings forward the window that shows the target's project, and tells it to go there; this
   // window is told when no other shows the project.
   readonly handOff: (target: ProjectWindowTarget) => void

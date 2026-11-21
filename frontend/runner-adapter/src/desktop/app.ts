@@ -20,6 +20,7 @@ import {
   isWindowControlsSide,
   parsePortableState,
   parseProjectWindowShown,
+  projectWindowSwapOf,
   parseProjectWindowsState,
   parseProjectWindowTarget,
   windowIdOf,
@@ -125,9 +126,11 @@ export const desktopProjectWindows = (app: DesktopApp | undefined): ProjectWindo
   const use = app?.useProjectWindows
   const open = app?.openProjectWindow
   const swap = app?.swapProjectWindow
+  const flush = app?.onProjectWindowFlush
   const handOff = app?.handOffToProjectWindow
   const navigate = app?.onProjectWindowNavigate
-  if (!listen || !show || !use || !open || !swap || !handOff || !navigate) return undefined
+  if (!listen || !show || !use || !open || !swap || !handOff || !navigate || !flush)
+    return undefined
   return {
     onState: (listener) =>
       listen((state) => {
@@ -142,9 +145,9 @@ export const desktopProjectWindows = (app: DesktopApp | undefined): ProjectWindo
     open: (projectId) => {
       if (windowIdOf(projectId) !== undefined) open(projectId)
     },
-    swap: (projectId) => {
-      if (windowIdOf(projectId) !== undefined) swap(projectId)
-    },
+    swap: async (projectId) =>
+      windowIdOf(projectId) === undefined ? "alone" : projectWindowSwapOf(await swap(projectId)),
+    onFlush: (listener) => flush(listener),
     handOff: (target) => {
       const checked = parseProjectWindowTarget(target)
       if (checked) handOff(checked)
