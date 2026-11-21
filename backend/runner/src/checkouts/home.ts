@@ -56,6 +56,27 @@ export const parseKeys = (out: string): ReadonlyMap<string, BranchKeys> => {
   return found
 }
 
+/**
+ * Each checkout's repository, by its common dir, with what its `.git` was when git was asked: a
+ * folder made again (a worktree closed, another opened at its path) has a new `.git`, and is
+ * asked again. A folder that isn't a checkout's top has no `.git`, and is asked each time.
+ */
+const commons = new Map<string, { readonly stamp: string; readonly common: string }>()
+const keptCommons = 1024
+
+/** The repository's common dir of a folder, asked of git once while its checkout stands. */
+const commonOf = async (folder: string): Promise<string | undefined> => {
+  const info = await stat(join(folder, ".git")).catch(() => undefined)
+  const stamp = info ? `${info.ino}:${info.birthtimeMs}:${info.mtimeMs}` : undefined
+  const known = commons.get(folder)
+  if (stamp !== undefined && known?.stamp === stamp) return known.common
+  const common = await commonDir(folder)
+  if (common === undefined || stamp === undefined) return common
+  if (commons.size >= keptCommons) commons.delete(commons.keys().next().value!)
+  commons.set(folder, { stamp, common })
+  return common
+}
+
 /** Each repository's keys as last read, by its common dir, with the config file's stamp. */
 const read = new Map<
   string,
@@ -73,7 +94,7 @@ const stampOf = async (common: string): Promise<string | undefined> => {
  * file; empty where it has none, or git couldn't read them (which is tried again next time).
  */
 export const keysOf = async (folder: string): Promise<ReadonlyMap<string, BranchKeys>> => {
-  const common = await commonDir(folder)
+  const common = await commonOf(folder)
   if (common === undefined) return new Map()
   const stamp = await stampOf(common)
   const known = read.get(common)
@@ -131,7 +152,7 @@ export const writeKeys = async (
     if (!run.ok && !(value === null && run.kind === "exit" && run.status === 5)) ok = false
   }
   // Read again next time, whatever the file's times say (a coarse clock may not move them).
-  const common = await commonDir(folder)
+  const common = await commonOf(folder)
   if (common !== undefined) read.delete(common)
   return ok
 }

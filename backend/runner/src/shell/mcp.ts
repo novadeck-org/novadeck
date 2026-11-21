@@ -1661,6 +1661,8 @@ type Worktree = {
   readonly instructions?: readonly string[]
   /** open_worktree and take_worktree: the branch its work belongs on. */
   readonly home?: string
+  /** take_worktree: home was given but stays as it was. */
+  readonly homeKept?: true
   readonly already?: true
   readonly asked?: true
   readonly owner?: string
@@ -1805,7 +1807,7 @@ const takeWorktree: Tool<Worktree> = {
   call: "takeWorktree",
   request: (args) => picked(args, ["path", "home"]),
   said: (answer) =>
-    answer.asked
+    (answer.asked
       ? "Asked the user to let you take the worktree " +
         answer.path +
         " (branch " +
@@ -1829,7 +1831,10 @@ const takeWorktree: Tool<Worktree> = {
           ")" +
           (answer.from ? ", which " + mention(answer.from) + " owned and is told" : "") +
           ". Work there with absolute paths and git -C, never cd and then git, and read its " +
-          "instruction files (AGENTS.md, CLAUDE.md, GEMINI.md) if it has them.",
+          "instruction files (AGENTS.md, CLAUDE.md, GEMINI.md) if it has them.") +
+    (answer.homeKept
+      ? " Its home stays as it was: home is set only on a worktree that is yours."
+      : ""),
   failed: "Novadeck couldn't take the worktree.",
 }
 
@@ -1875,7 +1880,9 @@ const closeWorktree: Tool<Worktree> = {
       : "") +
     (answer.keptHead ? "Commits only its HEAD reached are kept on " + answer.keptHead + ". " : "") +
     (answer.branchDeleted
-      ? "Its branch " + answer.branch + " is deleted, as its home holds all of it."
+      ? "Its branch " +
+        answer.branch +
+        " is deleted, as its home or the main branch holds all of it."
       : "Its branch " + answer.branch + " stays."),
   failed: "Novadeck couldn't close the worktree.",
 }

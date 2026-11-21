@@ -168,6 +168,8 @@ export type WorktreeAnswer =
       readonly instructions?: readonly string[]
       /** open_worktree and take_worktree: the branch its work belongs on. */
       readonly home?: string
+      /** take_worktree: home was given but stays as it was (the worktree isn't yours yet). */
+      readonly homeKept?: true
       /** take_worktree: it was yours already. */
       readonly already?: true
       /** take_worktree: the person was asked; the worktree isn't yours yet. */
@@ -269,10 +271,26 @@ export class WorktreeCalls {
       home: read1.request.home,
     })
     if (!taken.ok) return taken
-    if ("approval" in taken)
-      return this.host.agentMode() === "swarm"
-        ? this.takeNow(call, record, service, taken.approval)
-        : this.ask(call, record, service, taken.approval)
+    if ("approval" in taken) {
+      const { home } = read1.request
+      if (this.host.agentMode() !== "swarm") {
+        const asked = this.ask(call, record, service, taken.approval)
+        return asked.ok && home !== undefined ? { ...asked, homeKept: true } : asked
+      }
+      const now = await this.takeNow(call, record, service, taken.approval)
+      if (!now.ok || home === undefined) return now
+      // Its own now: taken again with home, which sets it as for one's own.
+      const homed = await service.take({
+        projectId,
+        terminalId: call.terminalId,
+        cwd: record.summary.cwd,
+        path: taken.approval.path,
+        home,
+      })
+      return homed.ok && !("approval" in homed)
+        ? { ...now, ...(homed.home !== undefined && { home: homed.home }) }
+        : { ...now, homeKept: true }
+    }
     return {
       ok: true,
       path: taken.path,

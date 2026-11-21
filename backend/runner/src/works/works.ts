@@ -893,13 +893,20 @@ export class Works {
       env: snapshot.env,
     })
     const nothing = async (): Promise<Read | "keep"> => {
-      // Merged into any holder: home, home's remote one or the repository's main.
-      for (const holder of [main, ...others]) {
-        // eslint-disable-next-line no-await-in-loop -- Mostly one holder; the first that says so.
-        const merged = await mergedWork(root, holder, snapshot.head, start)
-        // Git failing is not an answer: what was told stands, and the next pass reads it again.
-        if (merged === undefined) return "keep"
-        if (merged) return quiet(true)
+      const merged = await mergedWork(root, main, snapshot.head, start)
+      // Git failing is not an answer: what was told stands, and the next pass reads it again.
+      if (merged === undefined) return "keep"
+      if (merged) return quiet(true)
+      // Another holder counts only where merging into it changes nothing too: a worktree that
+      // just caught up with home has commits main lacks, which are home's, not its own.
+      for (const holder of others) {
+        // eslint-disable-next-line no-await-in-loop -- Few holders, the first that holds it.
+        const into = await mergeTrees(root, holder.commit, commit, snapshot.env)
+        if (into.state !== "clean" || into.tree !== holder.tree) continue
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        const there = await mergedWork(root, holder, snapshot.head, start)
+        if (there === undefined) return "keep"
+        if (there) return quiet(true)
       }
       return quiet(false)
     }

@@ -2,7 +2,6 @@ import { existsSync } from "node:fs"
 import { mkdir, realpath } from "node:fs/promises"
 import { join, resolve, sep } from "node:path"
 
-import { git } from "../checkouts/git.js"
 import { currentBranch, keysOfBranch, writeKeys } from "../checkouts/home.js"
 import { behindMain, mainBranch } from "../checkouts/repository.js"
 import { logs } from "../log.js"
@@ -160,20 +159,18 @@ const mainName = async (folder: string): Promise<string | undefined> =>
   (await mainBranch(folder))?.name.replace(/^origin\//, "")
 
 /**
- * The local branch a `from` names, by its short name: `x` for `x` or `origin/x`; undefined for
- * a commit, a tag, another remote's branch or `origin/HEAD`.
+ * The branch a `from` spells, by its short name: `x` for `x`, `origin/x`, `refs/heads/x` or
+ * `refs/remotes/origin/x`, where that branch is there; undefined for anything else (a commit, a
+ * tag, `HEAD`, `@{-1}`, another remote's branch), which never makes a home: what a checkout
+ * happens to be on isn't where work belongs.
  */
 const branchNamed = async (folder: string, from: string): Promise<string | undefined> => {
-  const run = await git(folder, ["rev-parse", "--verify", "-q", "--symbolic-full-name", from], {
-    cap: 4096,
-  })
-  const ref = run.ok ? run.out.trim() : ""
-  const name = ref.startsWith("refs/heads/")
-    ? ref.slice("refs/heads/".length)
-    : ref.startsWith("refs/remotes/origin/")
-      ? ref.slice("refs/remotes/origin/".length)
-      : undefined
-  return name === "HEAD" ? undefined : name
+  const name = from.replace(/^(?:refs\/heads\/|refs\/remotes\/origin\/|origin\/)/, "")
+  if (name === "" || name === "HEAD" || !(await validBranch(folder, name))) return undefined
+  const there =
+    (await branchTip(folder, name)) !== undefined ||
+    (await commitAt(folder, `refs/remotes/origin/${name}`)) !== undefined
+  return there ? name : undefined
 }
 
 /**

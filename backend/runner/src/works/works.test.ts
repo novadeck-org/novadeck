@@ -563,6 +563,31 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
     expect(landed.get(agent.root)).toMatchObject({ files: [], merged: true, home: "JIRA-123" })
   })
 
+  it("doesn't read a worktree that only caught up with its home as merged into main", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    main.git("branch", "JIRA-123")
+    const agent = fixture.worktree("caught-up")
+    agent.git("config", "branch.caught-up.novadeckHome", "JIRA-123")
+    agent.git("config", "branch.caught-up.novadeckBase", agent.git("rev-parse", "HEAD").trim())
+    // Another agent's work lands on home; this one only takes it in, with nothing of its own.
+    main.git("checkout", "--quiet", "JIRA-123")
+    main.write("other.txt", "other\n")
+    main.git("add", "-A")
+    main.git("commit", "--quiet", "-m", "another agent's work")
+    main.git("checkout", "--quiet", "main")
+    agent.git("merge", "--quiet", "--ff-only", "JIRA-123")
+    const { works } = open(() => [{ terminalId: terminal(1), root: agent.root }])
+    resources.defer(() => works.close())
+    expect((await current(works)).get(agent.root)).toMatchObject({
+      files: [],
+      merged: false,
+      home: "JIRA-123",
+    })
+  })
+
   it("falls back to master when there is no main", async ({ fixture, resources }) => {
     const { main } = fixture
     main.git("branch", "-m", "main", "master")

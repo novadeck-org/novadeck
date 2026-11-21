@@ -291,6 +291,26 @@ describe("worktree calls", () => {
     ])
   })
 
+  it("take sets home once the worktree is the caller's, and says it stays while the user is asked", async ({
+    fx,
+  }) => {
+    git(fx.repo, "branch", "JIRA-123")
+    const opened = await fx.calls.open(fx.call("t1", { branch: "homed" }))
+    if (!opened.ok) throw new Error(opened.reason)
+    const { path } = opened
+    expect(await fx.calls.take(fx.call("t2", { path, home: "JIRA-123" }))).toMatchObject({
+      asked: true,
+      homeKept: true,
+    })
+    fx.state.mode = "swarm"
+    expect(await fx.calls.take(fx.call("t2", { path, home: "JIRA-123" }))).toMatchObject({
+      ok: true,
+      from: "moth",
+      home: "JIRA-123",
+    })
+    expect(git(fx.repo, "config", "--get", "branch.homed.novadeckHome")).toBe("JIRA-123")
+  })
+
   it("take tells a sleeping owner, so it hears of the loss when it wakes", async ({ fx }) => {
     const opened = await fx.calls.open(fx.call("t1", { branch: "zz" }))
     if (!opened.ok) throw new Error(opened.reason)

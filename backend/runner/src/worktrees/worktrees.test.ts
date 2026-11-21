@@ -1389,6 +1389,18 @@ describe("a worktree's home", () => {
     expect(c.home).toBe("main")
   })
 
+  it("is never the branch the checkout happens to be on, as from HEAD names it", async ({
+    fx: f,
+  }) => {
+    git(f.repo, "checkout", "--quiet", "-b", "person-feature")
+    for (const from of ["HEAD", "@", "person-feature~0"]) {
+      // eslint-disable-next-line no-await-in-loop -- One open at a time, in one repository.
+      const opened = await open(f, `from-${from.replaceAll(/\W/g, "")}`, { from })
+      if (!opened.ok) throw new Error(opened.reason)
+      expect(opened.home).toBe("main")
+    }
+  })
+
   it("refuses its own branch, and a branch that isn't here or on origin", async ({ fx: f }) => {
     expect(await open(f, "self", { home: "self" })).toMatchObject({
       ok: false,
