@@ -523,6 +523,19 @@ export type BackendFields = {
   // own document, it stays focused while focus is inside a frame of the page, as a page
   // in the companion pane. Absent where nothing surrounds the page, as in a browser.
   readonly windowFocus?: (listener: (focused: boolean) => void) => () => void
+  // Optional. The window's own controls where they sit over the page's top, its header standing
+  // in for a title bar, at its `side`: macOS's close, minimise and zoom buttons at the start,
+  // Windows' caption buttons at the end, which run from the page's top and can't hide: `place`
+  // centres them on a line `middle` CSS pixels below the page's top, or hides them (null);
+  // `onInset`'s listener hears the room they take from the page's edge on `side`, in CSS pixels,
+  // in answer to each `place` and again on each change, 0 while they don't show (full screen,
+  // or hidden); it returns the stop. Absent where the window has a title bar of its own
+  // above the page, or nothing surrounds the page, as in a browser.
+  readonly windowControls?: {
+    readonly side: "start" | "end"
+    readonly place: (middle: number | null) => void
+    readonly onInset: (listener: (inset: number) => void) => () => void
+  }
   // Optional. `listener` hears whether a screen reader or other assistive technology runs,
   // as the system tells the app: at once with the current state, and again on each change;
   // returns the stop. Absent where nothing can tell, as in a browser.
@@ -632,6 +645,9 @@ export type PaneRect = {
 export type WindowAppearance = {
   readonly scheme: "system" | "light" | "dark"
   readonly ground: string
+  // The header's ink, as `#rrggbb`, which the window's own controls draw in where they sit
+  // over the page (Windows' caption buttons).
+  readonly ink?: string
 }
 
 // A desktop notification about a terminal, by its id: a title and a body, one line each.

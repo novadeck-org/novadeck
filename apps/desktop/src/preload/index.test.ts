@@ -1,7 +1,6 @@
 import type { EventEmitter } from "node:events"
 
 import { runnerPortMessage, type DesktopApp } from "@novadeck/protocol/bridge"
-import { pageLoupeChannel, pageLoupeMessage } from "@novadeck/viewers/browser/loupe"
 import { pageSignInChannel, pageSignInMessage } from "@novadeck/viewers/browser/sign-in"
 import { pageRequestChannel, pageRequestMessage } from "@novadeck/viewers/browser/trouble"
 import { afterEach, beforeEach, vi } from "vitest"
@@ -28,8 +27,6 @@ import {
   pagePictureChannel,
   panePictureChannel,
   pagePhoneChannel,
-  pageLoupeHoldChannel,
-  pageLoupeLookChannel,
   pageZoomChannel,
   portableChannel,
   portableStateChannel,
@@ -47,6 +44,8 @@ import {
   updateOfferChannel,
   updateRequestChannel,
   versionChannel,
+  windowControlsChannel,
+  windowControlsPlaceChannel,
   windowFocusChannel,
   windowFocusRequestChannel,
 } from "../bridge.js"
@@ -193,60 +192,6 @@ describe("a page view's sign-in windows", () => {
   })
 })
 
-describe("the loupe over a page view", () => {
-  const told = (...args: unknown[]) => {
-    const posted = vi.fn<(message: unknown, origin: string) => void>()
-    vi.stubGlobal("window", { postMessage: posted })
-    try {
-      electron.renderer.emit(pageLoupeChannel, {}, ...args)
-    } finally {
-      vi.unstubAllGlobals()
-    }
-    return posted
-  }
-  const notice = { shown: true, toggled: false, x: 4, y: 5 }
-
-  it("reaches the page as a window message naming its view, where the pointer is and whether it shows", () => {
-    expect(told(7, notice)).toHaveBeenCalledExactlyOnceWith(
-      { type: pageLoupeMessage, contentsId: 7, ...notice },
-      "*",
-    )
-  })
-
-  it("is dropped when the word is malformed", () => {
-    expect(told("7", notice)).not.toHaveBeenCalled()
-    expect(told(7, { ...notice, x: "4" })).not.toHaveBeenCalled()
-    expect(told(7, undefined)).not.toHaveBeenCalled()
-  })
-
-  it("is asked for a picture by view id and part, and only a JPEG comes back", async () => {
-    electron.answer = "data:image/jpeg;base64,AAAA"
-    const rect = { x: 1, y: 2, width: 30, height: 40, extra: "dropped" }
-    expect(await electron.exposed.pageLoupe?.(7, rect)).toBe("data:image/jpeg;base64,AAAA")
-    expect(electron.messages.at(-1)).toEqual([
-      pageLoupeLookChannel,
-      7,
-      { x: 1, y: 2, width: 30, height: 40 },
-    ])
-    const answers = ["data:text/html,x", "data:image/png;base64,AA", 5, undefined]
-    const pictures = answers.map((answer) => {
-      electron.answer = answer
-      return electron.exposed.pageLoupe?.(7, rect)
-    })
-    expect(await Promise.all(pictures)).toEqual(answers.map(() => undefined))
-  })
-
-  it("is held by view id, and did only when the main process says so", async () => {
-    electron.answer = true
-    expect(await electron.exposed.pageLoupeHold?.(7, true)).toBe(true)
-    expect(electron.messages.at(-1)).toEqual([pageLoupeHoldChannel, 7, true, false])
-    await electron.exposed.pageLoupeHold?.(7, false, true)
-    expect(electron.messages.at(-1)).toEqual([pageLoupeHoldChannel, 7, false, true])
-    electron.answer = "true"
-    expect(await electron.exposed.pageLoupeHold?.(7, true)).toBe(false)
-  })
-})
-
 describe("a request a page view failed", () => {
   const told = (...args: unknown[]) => {
     const posted = vi.fn<(message: unknown, origin: string) => void>()
@@ -300,14 +245,17 @@ describe("a request a page view failed", () => {
 })
 
 describe("the page's appearance", () => {
-  it("goes to the main process as its scheme and ground only", () => {
+  it("goes to the main process as its scheme, ground and ink only", () => {
     const appearance = {
       scheme: "dark",
       ground: "#0f1114",
+      ink: "#e6e8eb",
       extra: "dropped",
     } as const
     electron.exposed.showAppearance(appearance)
-    expect(electron.messages).toEqual([[appearanceChannel, { scheme: "dark", ground: "#0f1114" }]])
+    expect(electron.messages).toEqual([
+      [appearanceChannel, { scheme: "dark", ground: "#0f1114", ink: "#e6e8eb" }],
+    ])
   })
 })
 
@@ -1006,5 +954,122 @@ describe("feedback", () => {
     electron.answer = about
     expect(await electron.exposed.feedbackAbout!()).toEqual(about)
     expect(electron.sent).toEqual([feedbackAboutChannel])
+  })
+})
+
+// Loads the preload again as it loads on `platform`.
+const loadOn = async (platform: NodeJS.Platform): Promise<void> => {
+  const actual = Object.getOwnPropertyDescriptor(process, "platform")!
+  Object.defineProperty(process, "platform", { value: platform })
+  try {
+    vi.resetModules()
+    electron.renderer.removeAllListeners()
+    await import("./index")
+  } finally {
+    Object.defineProperty(process, "platform", actual)
+  }
+}
+
+describe("the window's own controls", () => {
+  it("are none of the page's on Linux, whose window keeps the system's title bar", async () => {
+    await loadOn("linux")
+    expect(electron.exposed.windowControlsSide).toBeUndefined()
+    expect(electron.exposed.onWindowControls).toBeUndefined()
+    expect(electron.exposed.placeWindowControls).toBeUndefined()
+  })
+
+  context("on Windows", () => {
+    it("sit at the end of the page's top", async () => {
+      await loadOn("win32")
+      expect(electron.exposed.windowControlsSide).toBe("end")
+    })
+
+    // The page's window as the preload measures it: 1000 wide, its overlay's title bar area
+    // ending `room` short of its right edge, or no overlay.
+    const stubPage = (overlay: boolean, room = 160): void => {
+      const geometry = Object.assign(new EventTarget(), {
+        visible: true,
+        getTitlebarAreaRect: () => ({ x: 0, width: 1000 - room }),
+      })
+      vi.stubGlobal("window", {
+        innerWidth: 1000,
+        navigator: overlay ? { windowControlsOverlay: geometry } : {},
+      })
+    }
+
+    it("pass the app's room on, measured by the page where it can", async () => {
+      await loadOn("win32")
+      stubPage(true)
+      try {
+        const insets: number[] = []
+        const stop = electron.exposed.onWindowControls!((inset) => insets.push(inset))
+        electron.renderer.emit(windowControlsChannel, {}, 138)
+        electron.renderer.emit(windowControlsChannel, {}, 0)
+        stop()
+        electron.renderer.emit(windowControlsChannel, {}, 138)
+        expect(insets).toEqual([160, 0])
+      } finally {
+        vi.unstubAllGlobals()
+      }
+    })
+
+    it("keep the app's own room where the page measures less, so the header never runs under them", async () => {
+      await loadOn("win32")
+      stubPage(true, 110)
+      try {
+        const insets: number[] = []
+        const stop = electron.exposed.onWindowControls!((inset) => insets.push(inset))
+        electron.renderer.emit(windowControlsChannel, {}, 138)
+        stop()
+        expect(insets).toEqual([138])
+      } finally {
+        vi.unstubAllGlobals()
+      }
+    })
+
+    it("pass the app's own room on where the page can't measure", async () => {
+      await loadOn("win32")
+      stubPage(false)
+      try {
+        const insets: number[] = []
+        const stop = electron.exposed.onWindowControls!((inset) => insets.push(inset))
+        electron.renderer.emit(windowControlsChannel, {}, 138)
+        stop()
+        expect(insets).toEqual([138])
+      } finally {
+        vi.unstubAllGlobals()
+      }
+    })
+  })
+
+  context("on macOS", () => {
+    it("sit at the start of the page's top", async () => {
+      await loadOn("darwin")
+      expect(electron.exposed.windowControlsSide).toBe("start")
+    })
+
+    it("pass the page's placing on, a number or none and nothing else", async () => {
+      await loadOn("darwin")
+      electron.exposed.placeWindowControls?.(32)
+      electron.exposed.placeWindowControls?.(null)
+      electron.exposed.placeWindowControls?.(Number.NaN)
+      electron.exposed.placeWindowControls?.("32" as never)
+      expect(electron.messages).toEqual([
+        [windowControlsPlaceChannel, 32],
+        [windowControlsPlaceChannel, null],
+      ])
+    })
+
+    it("pass the app's room on to the page, a finite number only, until it stops", async () => {
+      await loadOn("darwin")
+      const insets: number[] = []
+      const stop = electron.exposed.onWindowControls!((inset) => insets.push(inset))
+      electron.renderer.emit(windowControlsChannel, {}, 74)
+      electron.renderer.emit(windowControlsChannel, {}, "74")
+      electron.renderer.emit(windowControlsChannel, {}, Number.POSITIVE_INFINITY)
+      stop()
+      electron.renderer.emit(windowControlsChannel, {}, 0)
+      expect(insets).toEqual([74])
+    })
   })
 })

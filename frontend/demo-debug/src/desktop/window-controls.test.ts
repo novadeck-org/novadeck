@@ -1,0 +1,74 @@
+import { afterEach } from "vitest"
+
+import { context, describe, expect, it } from "../test"
+import { clearDemoWindowControls, createDemoWindowControls } from "./window-controls"
+
+const lights = (): HTMLElement[] => [
+  ...document.querySelectorAll<HTMLElement>("[data-demo-window-controls]"),
+]
+
+afterEach(() => {
+  clearDemoWindowControls()
+})
+
+describe("demo window controls", () => {
+  it("say the page is the title bar, its controls at the start", () => {
+    const controls = createDemoWindowControls("inset")
+    expect(controls.side).toBe("start")
+    expect(document.documentElement.dataset.windowControls).toBe("start")
+  })
+
+  it("show the buttons on the line the page asks for, and hide them when it asks", () => {
+    const controls = createDemoWindowControls("inset")
+    const insets: number[] = []
+    controls.onInset((inset) => insets.push(inset))
+    controls.place(32)
+    expect(lights()[0]?.style.display).toBe("flex")
+    expect(lights()[0]?.style.top).toBe("26px")
+    controls.place(null)
+    expect(lights()[0]?.style.display).toBe("none")
+    expect(insets).toEqual([70, 0])
+  })
+
+  context("when StrictMode makes the boot's backend twice", () => {
+    it("show the buttons of the one the page places, and only those", () => {
+      const placed = createDemoWindowControls("inset")
+      createDemoWindowControls("inset")
+      placed.place(32)
+      expect(lights()).toHaveLength(1)
+      expect(lights()[0]?.style.display).toBe("flex")
+    })
+  })
+
+  it("keep no buttons over the page in full screen", () => {
+    const controls = createDemoWindowControls("fullScreen")
+    const insets: number[] = []
+    controls.onInset((inset) => insets.push(inset))
+    controls.place(32)
+    expect(lights()[0]?.style.display).toBe("none")
+    expect(insets).toEqual([0])
+  })
+
+  context("as Windows' caption buttons", () => {
+    const caption = (): HTMLElement | undefined =>
+      document.querySelector<HTMLElement>('[data-demo-window-controls="caption"]') ?? undefined
+
+    it("say the page is the title bar, its controls at the end", () => {
+      const controls = createDemoWindowControls("caption")
+      expect(controls.side).toBe("end")
+      expect(document.documentElement.dataset.windowControls).toBe("end")
+    })
+
+    it("run from the page's top to twice the line it asks for, and never hide", () => {
+      const controls = createDemoWindowControls("caption")
+      const insets: number[] = []
+      controls.onInset((inset) => insets.push(inset))
+      controls.place(24)
+      expect(caption()?.style.display).toBe("flex")
+      expect(caption()?.style.height).toBe("48px")
+      controls.place(null)
+      expect(caption()?.style.display).toBe("flex")
+      expect(insets).toEqual([138, 138])
+    })
+  })
+})

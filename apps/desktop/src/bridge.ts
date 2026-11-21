@@ -1,3 +1,5 @@
+import type { WindowControlsSide } from "@novadeck/protocol/bridge"
+
 export const apiUrlArgumentPrefix = "--novadeck-api-url="
 export const databaseArgumentPrefix = "--novadeck-database="
 /** The relay agents start for Novadeck's MCP server and hooks, as the app ships it. */
@@ -104,6 +106,27 @@ export const screenReaderRequestChannel = "novadeck:screen-reader-request"
  */
 export const tellsScreenReader = (platform: string): boolean =>
   platform === "darwin" || platform === "win32" || platform === "linux"
+
+/**
+ * The edge of the page's top the app's window puts its own controls over, the page's header
+ * standing in for a title bar: the start on macOS, the end on Windows. Undefined where the
+ * window keeps the system's title bar, as on Linux.
+ */
+export const windowControlsSide = (platform: string): WindowControlsSide | undefined =>
+  platform === "darwin" ? "start" : platform === "win32" ? "end" : undefined
+
+/**
+ * Main-to-renderer report of the room the window's controls take from the page's edge on their
+ * side, in CSS pixels, 0 while they don't show; see main/window/controls.ts. Sent on each change
+ * and in answer to each `windowControlsPlaceChannel` request.
+ */
+export const windowControlsChannel = "novadeck:window-controls"
+
+/**
+ * Renderer-to-main request to centre the window's controls on a line that many CSS pixels
+ * below the page's top, or to hide them (null).
+ */
+export const windowControlsPlaceChannel = "novadeck:window-controls-place"
 
 /** Main-to-renderer report of the terminal id of a notification the person clicked. */
 export const noticeClickChannel = "novadeck:notice-click"
@@ -226,19 +249,6 @@ export const pagePhoneChannel = "novadeck:page-phone"
  * its web contents id; answers whether it did. See the viewers' `zoomPage`.
  */
 export const pageZoomChannel = "novadeck:page-zoom"
-
-/**
- * Renderer-to-main request for a picture of part of a live page's view, `{ x, y, width, height }`
- * in its pixels, for the loupe to magnify; answers a JPEG `data:` address, or nothing. See the
- * viewers' `loupePage`.
- */
-export const pageLoupeLookChannel = "novadeck:page-loupe-look"
-
-/**
- * Renderer-to-main request to turn the tool's loupe on or off over a live page's view, or tell it the viewer is out of sight, by its
- * web contents id; answers whether it did. See the viewers' `holdLoupe`.
- */
-export const pageLoupeHoldChannel = "novadeck:page-loupe-hold"
 
 /**
  * Renderer-to-main report of an error the page didn't catch, `{ kind, name, message, stack }`,

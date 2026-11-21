@@ -16,6 +16,7 @@ import {
   updateChannels,
   updateVersionPattern,
   type DesktopApp,
+  isWindowControlsSide,
   parsePortableState,
   parseUpdateOffer,
   parseWhatsNew,
@@ -108,6 +109,25 @@ export const desktopWindowFocus = (app: DesktopApp | undefined): Backend["window
     listen((focused) => {
       if (typeof focused === "boolean") listener(focused)
     })
+}
+
+// The app's own window controls where they sit over the page (macOS, at its start): a known
+// side, and only a finite number crosses either way.
+export const desktopWindowControls = (app: DesktopApp | undefined): Backend["windowControls"] => {
+  const side = app?.windowControlsSide
+  const listen = app?.onWindowControls
+  const place = app?.placeWindowControls
+  if (!isWindowControlsSide(side) || !listen || !place) return undefined
+  return {
+    side,
+    place: (middle) => {
+      if (middle === null || Number.isFinite(middle)) place(middle)
+    },
+    onInset: (listener) =>
+      listen((inset) => {
+        if (typeof inset === "number" && Number.isFinite(inset)) listener(inset)
+      }),
+  }
 }
 
 // The app's report of whether a screen reader runs, where it has one: only a boolean crosses.
@@ -343,12 +363,11 @@ export const desktopOptions = (
   const pageLook = app?.lookAtPage
   const pagePhone = app?.pagePhone
   const pageZoom = app?.pageZoom
-  const pageLoupe = app?.pageLoupe
-  const pageLoupeHold = app?.pageLoupeHold
   const panePicture = app?.panePicture
   const notices = desktopNotices(app)
   const badge = desktopBadge(app)
   const windowFocus = desktopWindowFocus(app)
+  const windowControls = desktopWindowControls(app)
   const screenReader = desktopScreenReader(app)
   const updates = desktopUpdates(app)
   const whatsNew = desktopWhatsNew(app)
@@ -365,6 +384,7 @@ export const desktopOptions = (
     ...(notices ? { notices } : {}),
     ...(badge ? { badge } : {}),
     ...(windowFocus ? { windowFocus } : {}),
+    ...(windowControls ? { windowControls } : {}),
     ...(screenReader ? { screenReader } : {}),
     ...(updates ? { updates } : {}),
     ...(whatsNew ? { whatsNew } : {}),
@@ -381,14 +401,6 @@ export const desktopOptions = (
     ...(pageLook ? { pageLook: (request) => pageLook(request) } : {}),
     ...(pagePhone ? { pagePhone: (page, phone) => pagePhone(page, phone) } : {}),
     ...(pageZoom ? { pageZoom: (page, factor) => pageZoom(page, factor) } : {}),
-    ...(pageLoupe && pageLoupeHold
-      ? {
-          pageLoupe: {
-            look: (page, rect) => pageLoupe(page, rect),
-            hold: (page, on, away) => pageLoupeHold(page, on, away),
-          },
-        }
-      : {}),
     ...(panePicture ? { panePicture: (rect) => panePicture(rect) } : {}),
   }
 }

@@ -116,7 +116,7 @@ const TourConsentBody = ({
       <DialogTitle className="modal-title m-0 text-heading font-medium">{tourHeading}</DialogTitle>
       <DialogDescription className="modal-description m-0 text-body leading-[1.6]">
         {agent === null
-          ? "The tour runs one of your agents. Connect Claude Code, Codex or Antigravity in Preferences first."
+          ? "The tour runs one of your agents. Install and connect Claude Code, Codex or Antigravity in Preferences first."
           : "Watch your own agent work in Novadeck: it opens a team of two, a teammate asks you one question, and the lead shows you what they made."}
       </DialogDescription>
       {agent !== null && agents.length > 1 && (

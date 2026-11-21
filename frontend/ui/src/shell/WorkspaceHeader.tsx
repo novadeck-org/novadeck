@@ -13,13 +13,21 @@ import type { ProjectArrangement } from "../projects/project-arrangement"
 import type { ProjectStatus } from "../projects/project-status"
 import { WorkspaceSwitcher } from "../projects/WorkspaceSwitcher"
 
-const iconOnlyQuery = "(max-width: 701px)"
+// The side of the header the window's own controls sit at, where the desktop app puts them there
+// (the root's `data-window-controls`, set by its entry before the first paint).
+const controlsSide = (): string | undefined =>
+  typeof document === "undefined" ? undefined : document.documentElement.dataset.windowControls
+
+// The view switch gives up its words below 701px, or where Windows' caption buttons hold the
+// header's end, below 840px, as the `narrow-header` variant (styles.css) does.
+const iconOnlyQuery = (): string =>
+  controlsSide() === "end" ? "(max-width: 840px)" : "(max-width: 701px)"
 const subscribe = (notify: () => void): (() => void) => {
-  const media = window.matchMedia(iconOnlyQuery)
+  const media = window.matchMedia(iconOnlyQuery())
   media.addEventListener("change", notify)
   return () => media.removeEventListener("change", notify)
 }
-const isIconOnly = (): boolean => window.matchMedia(iconOnlyQuery).matches
+const isIconOnly = (): boolean => window.matchMedia(iconOnlyQuery()).matches
 
 export const WorkspaceHeader = ({
   hidden = false,
@@ -70,6 +78,12 @@ export const WorkspaceHeader = ({
   onZen: () => void
 }): React.JSX.Element => {
   const iconOnly = useSyncExternalStore(subscribe, isIconOnly)
+  // Where the window's own controls sit in the header, its actions may give up their words for
+  // the room, so Search always says itself in a tooltip. On macOS, whose apps leave their icon to
+  // the Dock and the menu bar, the mark gives way to the window's buttons; the view switch's
+  // first view is home there.
+  const side = controlsSide()
+  const controlled = side !== undefined
   const searchShortcut = shortcutBindings().find.display.join(" ")
   // With one view left there's nothing to switch to: the switch goes, and Zen joins the
   // actions on the right.
@@ -91,12 +105,14 @@ export const WorkspaceHeader = ({
       hidden={hidden}
       inert={hidden}
       aria-hidden={hidden}
-      className="app-header max-[1001px]:gap-3 max-[701px]:h-15 max-[701px]:px-3 max-[701px]:gap-2 max-[335px]:px-1 h-16 shrink-0 items-center gap-6 px-4 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]"
+      className="app-header max-[1001px]:gap-3 max-[701px]:h-15 max-[701px]:px-3 max-[701px]:gap-2 max-[335px]:px-1 h-[var(--app-header-height,4rem)] shrink-0 items-center gap-6 px-4 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]"
     >
       <div className="header-workspace max-[701px]:gap-2 flex min-w-0 items-center gap-4">
-        <Link to={homeTo} className="brand flex shrink-0 items-center" aria-label="Novadeck home">
-          <NovaMark size={28} className="brand-symbol" />
-        </Link>
+        {side !== "start" && (
+          <Link to={homeTo} className="brand flex shrink-0 items-center" aria-label="Novadeck home">
+            <NovaMark size={28} className="brand-symbol" />
+          </Link>
+        )}
         <WorkspaceSwitcher
           projects={projects}
           current={project}
@@ -122,8 +138,8 @@ export const WorkspaceHeader = ({
             <SegmentGroup
               label="Workspace layout"
               tooltips={iconOnly}
-              className="view-switch max-[701px]:gap-0 flex shrink-0 gap-1"
-              itemClassName="flex h-8 min-w-22 items-center justify-center gap-2 px-3 text-control max-[701px]:min-w-0 max-[701px]:w-8 max-[701px]:px-2 max-[701px]:gap-0 max-[701px]:text-caption [&>span]:max-[701px]:hidden"
+              className="view-switch narrow-header:gap-0 flex shrink-0 gap-1"
+              itemClassName="flex h-8 min-w-22 items-center justify-center gap-2 px-3 text-control narrow-header:min-w-0 narrow-header:w-8 narrow-header:px-2 narrow-header:gap-0 narrow-header:text-caption [&>span]:narrow-header:hidden"
               items={viewModes
                 .filter((id) => enabledViews.includes(id))
                 .map((id) => {
@@ -141,24 +157,31 @@ export const WorkspaceHeader = ({
                 if (mode) onViewChange(mode)
               }}
             />
-            <div className="absolute left-[calc(100%+0.5rem)] flex items-center gap-2 max-[701px]:left-[calc(100%+0.25rem)] max-[701px]:gap-1">
+            <div className="absolute left-[calc(100%+0.5rem)] flex items-center gap-2 narrow-header:left-[calc(100%+0.25rem)] narrow-header:gap-1">
               <div className="separator h-4 w-px" aria-hidden="true" />
               {zen}
             </div>
           </>
         )}
       </div>
-      <div className="header-actions max-[1001px]:ml-0 max-[701px]:shrink-0 max-[701px]:gap-0 flex items-center justify-self-end gap-2">
+      {/* The actions measure the room their column leaves them, less the Zen button's reach into
+          it and, where they sit at the end (Windows), the window's own controls': the shortcut
+          goes first, then Search's word. */}
+      <div
+        className={`header-actions @container/actions max-[1001px]:ml-0 max-[701px]:shrink-0 max-[701px]:gap-0 flex items-center justify-end justify-self-stretch gap-2 ${switchable ? "ps-9 max-[701px]:ps-0" : ""}`}
+      >
         {!switchable && zen}
-        <Tooltip content={`Search · ${searchShortcut}`} disabled={!iconOnly}>
+        <Tooltip content={`Search · ${searchShortcut}`} disabled={!iconOnly && !controlled}>
           <button
-            className="icon-button header-search w-auto gap-2 px-2.5 text-control max-[701px]:w-8 max-[701px]:gap-0 max-[701px]:px-0"
+            className="icon-button header-search w-auto gap-2 px-2.5 text-control max-[701px]:w-8 max-[701px]:gap-0 max-[701px]:px-0 @max-[130px]/actions:w-8 @max-[130px]/actions:gap-0 @max-[130px]/actions:px-0"
             aria-label="Find a terminal"
             onClick={onSearch}
           >
             <Search size={14} />
-            <span className="max-[701px]:hidden">Search</span>
-            <kbd className="hint mb-[-2px] ml-3 max-[701px]:hidden">{searchShortcut}</kbd>
+            <span className="max-[701px]:hidden @max-[130px]/actions:hidden">Search</span>
+            <kbd className="hint mb-[-2px] ml-3 max-[701px]:hidden @max-[214px]/actions:hidden">
+              {searchShortcut}
+            </kbd>
           </button>
         </Tooltip>
         <Tooltip content={`Preferences · ${shortcutBindings().preferences.display.join(" ")}`}>

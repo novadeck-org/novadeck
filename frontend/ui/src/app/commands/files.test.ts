@@ -96,6 +96,16 @@ describe("files commands", () => {
       expect(app.ui.getSnapshot().filePreviews).toEqual({})
     })
 
+    it("keeps the preview going when asked to keep it and the window already previews the file", async () => {
+      const app = open(reply)
+      await app.commands.openProjectFile("README.md", { preview: true })
+      const [first] = Object.values(app.ui.getSnapshot().filePreviews)
+
+      await app.commands.openProjectFile("README.md", { preview: true, keep: true })
+
+      expect(Object.values(app.ui.getSnapshot().filePreviews)[0]).toBe(first)
+    })
+
     it("opens an agent's copy instead where main lacks the file", async () => {
       let refuse = true
       const app = open((_target, path) => {

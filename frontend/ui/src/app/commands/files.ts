@@ -17,9 +17,15 @@ export type FileCommands = {
   // merged) each time; without, as it is in main.
   // A file main lacks (an agent added it) opens at `copy` instead, an absolute path of an agent's
   // own copy, which `openInProject` takes wherever it is.
+  // With `keep`, a preview of the file the window already previews goes on as it was rather than
+  // starting over, as when the person clicks its row again.
   readonly openProjectFile: (
     path: string,
-    options?: { readonly preview?: boolean; readonly copy?: string | undefined },
+    options?: {
+      readonly preview?: boolean
+      readonly copy?: string | undefined
+      readonly keep?: boolean
+    },
   ) => Promise<void>
 }
 
@@ -88,19 +94,22 @@ export const createFileCommands = (
     // Whether the window previews the file or shows main's copy, kept by the session.
     const context = `${target.projectId}/${target.workspaceSessionId}`
     ui.update((now) => {
-      const { [context]: _was, ...rest } = now.filePreviews
+      const { [context]: was, ...rest } = now.filePreviews
+      const same = options?.keep && was?.path === path && was.itemId === item.id
       return {
         ...now,
         filePreviews: options?.preview
           ? {
               ...rest,
-              [context]: {
-                itemId: item.id,
-                projectId: target.projectId,
-                path,
-                backed,
-                opened: effects.newId(),
-              },
+              [context]: same
+                ? was
+                : {
+                    itemId: item.id,
+                    projectId: target.projectId,
+                    path,
+                    backed,
+                    opened: effects.newId(),
+                  },
             }
           : rest,
       }

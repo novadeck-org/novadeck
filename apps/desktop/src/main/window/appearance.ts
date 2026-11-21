@@ -7,27 +7,37 @@ import { appearanceChannel } from "../../bridge.js"
 
 /**
  * How the page looks, as the window follows it: the scheme for `nativeTheme.themeSource`
- * (`system` while the page follows the system) and the ground the window shows before
- * the page paints.
+ * (`system` while the page follows the system), the ground the window shows before the page
+ * paints and, where the page sends it, its header's ink, which Windows' caption buttons draw in.
  */
 export type WindowAppearance = {
   readonly scheme: "system" | "light" | "dark"
   readonly ground: string
+  readonly ink?: string
 }
 
 const schemes: ReadonlySet<string> = new Set(["system", "light", "dark"])
-const groundPattern = /^#[0-9a-f]{6}$/
+const colorPattern = /^#[0-9a-f]{6}$/
+
+// An opaque `#rrggbb` colour, lowercased, or undefined.
+const colorOf = (value: unknown): string | undefined =>
+  typeof value === "string" && colorPattern.test(value.toLowerCase())
+    ? value.toLowerCase()
+    : undefined
 
 /**
  * The page's report when it is one, or undefined. The page is not trusted with more: a
- * known scheme and an opaque `#rrggbb` colour pass, and nothing else of the value does.
+ * known scheme and opaque `#rrggbb` colours pass (an ink that isn't one is left out), and
+ * nothing else of the value does.
  */
 export const windowAppearanceOf = (value: unknown): WindowAppearance | undefined => {
   if (typeof value !== "object" || value === null) return undefined
-  const { scheme, ground } = value as Record<string, unknown>
+  const { scheme, ground: groundValue, ink: inkValue } = value as Record<string, unknown>
   if (typeof scheme !== "string" || !schemes.has(scheme)) return undefined
-  if (typeof ground !== "string" || !groundPattern.test(ground.toLowerCase())) return undefined
-  return { scheme: scheme as WindowAppearance["scheme"], ground: ground.toLowerCase() }
+  const ground = colorOf(groundValue)
+  if (!ground) return undefined
+  const ink = colorOf(inkValue)
+  return { scheme: scheme as WindowAppearance["scheme"], ground, ...(ink ? { ink } : {}) }
 }
 
 type Files = {
@@ -41,7 +51,7 @@ type Files = {
 type NativeTheme = { themeSource: WindowAppearance["scheme"] }
 
 const same = (one: WindowAppearance | undefined, other: WindowAppearance): boolean =>
-  one?.scheme === other.scheme && one.ground === other.ground
+  one?.scheme === other.scheme && one.ground === other.ground && one.ink === other.ink
 
 /**
  * The last appearance the page reported, kept in `file` so the next launch opens its

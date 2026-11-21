@@ -38,7 +38,7 @@ export type TourOffer = {
  * stays open with its reason. Absent (`undefined`) where the backend has no tour.
  */
 export const useTour = (
-  backend: Pick<Backend, "tour">,
+  backend: Pick<Backend, "tour" | "agents">,
   connections: readonly AgentConnection[],
   // A run started, for the tour's driver to follow.
   onStarted: (agent: AgentName, started: TourStarted) => void,
@@ -46,6 +46,7 @@ export const useTour = (
   const { commands } = useWorkspaceServices()
   const [offered, setConsent] = useState<TourConsent | null>(null)
   const { tour } = backend
+  const refresh = backend.agents?.refresh
   // As the connections stand now: an agent that disconnects while it is offered is no longer
   // offered, and the one it was offered on is taken once it connects.
   const consent = useMemo(
@@ -53,10 +54,14 @@ export const useTour = (
     [offered, connections],
   )
   const offer = useCallback(
-    // One already starting stays as it is.
-    (preferred?: AgentName) =>
-      setConsent((current) => (current?.starting ? current : offerTour(connections, preferred))),
-    [connections],
+    (preferred?: AgentName) => {
+      // One already starting stays as it is.
+      setConsent((current) => (current?.starting ? current : offerTour(connections, preferred)))
+      // A program installed or removed since the agents were last looked at shows or goes, as
+      // the consent follows the connections while it is open.
+      void refresh?.()
+    },
+    [connections, refresh],
   )
   const start = useCallback(() => {
     if (!tour || !consent?.agent || consent.starting) return

@@ -1,5 +1,6 @@
 import type { ItemId } from "@novadeck/core/items"
 import type { WorkspaceTarget } from "@novadeck/core/types"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import {
   ChevronRight,
   File,
@@ -20,7 +21,8 @@ import type { TreeFile, TreeRow } from "./tree"
 // The files the selected layers changed, as the Files panel draws its tree: a row each, in
 // folders with guides, its name coloured by how it changed and its lines on the right. A file
 // the person opened is gray, until it changes. One click unfolds what the file changed under
-// its row, one file at a time; a double click, or Enter, opens it.
+// its row, one file at a time, with a way into its diff at the end; a double click, Enter, or
+// the row's own arrow, where the pointer is or the file is unfolded, opens it.
 
 const indent = 12
 
@@ -85,11 +87,15 @@ export const FileTree = ({
   stamp: string
   layers: readonly string[]
 }): React.JSX.Element => {
-  // Arrow keys move between the rows, as in a tree.
+  // Arrow keys move between the rows, as in a tree; from an unfolded file's "Open diff", as from
+  // its row.
   const move = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
     const items = [...event.currentTarget.querySelectorAll<HTMLElement>('[role="treeitem"]')]
-    const at = items.indexOf(document.activeElement as HTMLElement)
+    const from = document.activeElement
+      ?.closest(".changes-item")
+      ?.querySelector('[role="treeitem"]')
+    const at = items.indexOf((from ?? document.activeElement) as HTMLElement)
     const next = items[at + (event.key === "ArrowDown" ? 1 : -1)]
     if (!next) return
     event.preventDefault()
@@ -161,7 +167,7 @@ export const FileTree = ({
                 style={{ paddingLeft: 6 + indent * row.depth }}
                 aria-level={row.depth + 1}
                 aria-expanded={open}
-                title={`${file.path}\nClick to unfold · double-click opens it`}
+                title={`${file.path}\nClick to unfold · double-click opens its diff`}
                 // A double click opens, so its first click does not also fold the file away again.
                 onClick={(event) => event.detail <= 1 && onUnfold(file.path)}
                 onDoubleClick={() => onOpen(file.path)}
@@ -183,6 +189,18 @@ export const FileTree = ({
                 reindented={file.reindented}
                 className="changes-pm changes-file-pm"
               />
+              <Tooltip content="Open diff">
+                {/* A pointer's shortcut to what Enter and a double click do. */}
+                <button
+                  type="button"
+                  className="icon-button changes-file-open"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  onClick={() => onOpen(file.path)}
+                >
+                  <ChevronRight size={14} strokeWidth={1.75} />
+                </button>
+              </Tooltip>
             </div>
             <Branches
               itemStore={itemStore}
@@ -192,6 +210,7 @@ export const FileTree = ({
               file={file}
               open={open}
               layers={layers}
+              onOpen={() => onOpen(file.path)}
             />
           </div>
         )

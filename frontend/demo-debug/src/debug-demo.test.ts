@@ -59,6 +59,8 @@ const launch = (): DemoLaunch => ({
   setSandbox: () => {},
   screenReader: undefined,
   setScreenReader: () => {},
+  windowControls: undefined,
+  setWindowControls: () => {},
   portable: undefined,
   setPortable: () => {},
   bootInstalled: () => {},

@@ -41,6 +41,7 @@ import {
   runnerPortChannel,
   versionChannel,
   tellsScreenReader,
+  windowControlsSide,
 } from "../bridge.js"
 import { openProcessLog, saltFileIn, type LogSetup } from "../logging.js"
 import { dataFolderName, logsFolder } from "./data-folder.js"
@@ -107,6 +108,12 @@ import {
   watchAppPage,
 } from "./window/app-window.js"
 import { keepAppearance, registerAppearanceIpc } from "./window/appearance.js"
+import {
+  keepCaption,
+  keepControls,
+  registerControlsIpc,
+  type WindowControls,
+} from "./window/controls.js"
 import { registerWindowFocusIpc } from "./window/focus.js"
 import { linuxMenu, macMenu, windowsMenu } from "./window/menu.js"
 import { registerPanePictureIpc } from "./window/pane-pictures.js"
@@ -253,13 +260,20 @@ const currentDirectory = dirname(fileURLToPath(import.meta.url))
 // The page's last appearance, which new windows open on so a dark theme never flashes
 // white.
 const appearance = keepAppearance(join(app.getPath("userData"), "appearance.json"))
+// Each window's own controls where they sit in its page's header, on macOS and Windows.
+const windowControls = new WeakMap<BrowserWindow, WindowControls>()
 // The scale the person chose in Preferences, which every window shows, the next launch's
 // first paint too.
 const scale = keepScale(
   join(app.getPath("userData"), "scale.json"),
   () => appPages(appWindows()),
-  // Electron gives the views a page hosts its zoom whenever the page's changes.
-  (page) => rezoomPages(page, webContents.getAllWebContents()),
+  (page) => {
+    // Electron gives the views a page hosts its zoom whenever the page's changes.
+    rezoomPages(page, webContents.getAllWebContents())
+    // The window's controls stay on the header's middle, which the zoom moved.
+    const window = BrowserWindow.fromWebContents(page)
+    if (window) windowControls.get(window)?.apply()
+  },
 )
 // What the app remembers about updating: the channel, a failed install, how long this copy
 // is behind.
@@ -346,6 +360,7 @@ const createWindow = (origin: string): BrowserWindow => {
   const apiUrl = new URL("/api/", origin).href
   const window = openAppWindow({
     ground: appearance.current()?.ground ?? "#ffffff",
+    ink: appearance.current()?.ink,
     zoomFactor: scale.current(),
     preloadArguments: [
       `${apiUrlArgumentPrefix}${apiUrl}`,
@@ -355,6 +370,9 @@ const createWindow = (origin: string): BrowserWindow => {
   })
   // Its page opens at the scale, and takes it again whenever it loads.
   window.webContents.on("dom-ready", () => scale.apply(window.webContents))
+  const side = windowControlsSide(process.platform)
+  if (side)
+    windowControls.set(window, side === "start" ? keepControls(window) : keepCaption(window))
   // Closing the last window quits, which ends the shells, except on macOS; either way
   // the page saves first.
   saveBeforeClose(
@@ -471,6 +489,8 @@ const launch = async (): Promise<void> => {
     show: (window, next) => {
       nativeTheme.themeSource = next.scheme
       window.setBackgroundColor(next.ground)
+      // Windows' caption buttons draw in the page's ink.
+      if (next.ink) windowControls.get(window)?.paint(next.ink)
       void appearance.save(next)
     },
   })
@@ -549,6 +569,13 @@ const launch = async (): Promise<void> => {
   })
   // The page asks for its window's focus when it starts listening, as when it loads again.
   registerWindowFocusIpc(ipcMain, { window: appWindow, request: tellWindowFocus })
+  // The page sets the window's controls on its header's middle, or hides them, as in Zen
+  // (macOS and Windows; on Linux the window keeps the system's title bar and nothing listens).
+  if (windowControlsSide(process.platform))
+    registerControlsIpc(ipcMain, (event) => {
+      const window = appWindow(event)
+      return window && windowControls.get(window)
+    })
   registerScaleIpc(
     ipcMain,
     (event) => appWindow(event) !== undefined,

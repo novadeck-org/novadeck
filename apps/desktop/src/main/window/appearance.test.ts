@@ -15,6 +15,18 @@ import {
 } from "./appearance"
 
 describe("an appearance report from the page", () => {
+  it("passes the header's ink when it is an opaque hex colour, and leaves out one that isn't", () => {
+    expect(windowAppearanceOf({ scheme: "dark", ground: "#0f1114", ink: "#E6E8EB" })).toEqual({
+      scheme: "dark",
+      ground: "#0f1114",
+      ink: "#e6e8eb",
+    })
+    expect(windowAppearanceOf({ scheme: "dark", ground: "#0f1114", ink: "red" })).toEqual({
+      scheme: "dark",
+      ground: "#0f1114",
+    })
+  })
+
   it("passes with a known scheme and an opaque hex ground", () => {
     for (const scheme of ["system", "light", "dark"] as const)
       expect(windowAppearanceOf({ scheme, ground: "#0F1114" })).toEqual({

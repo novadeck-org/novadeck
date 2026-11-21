@@ -689,6 +689,18 @@
         "#984 run 43917530454 job 133483751858 (Windows), retried and passed",
         "#1031 run 44356893742 job 134987644349 (Windows), failed twice, passed on its third attempt"
       ]
+    },
+    {
+      "id": "e2e-codex-hooks-review-escape",
+      "jobs": ["^Codex \\((?:Linux|macOS)(, [12][/-]2)?\\)$"],
+      "test": "src/e2e/controls.e2e.ts > Codex, its hooks untrusted > binds no session, yet sends, told replies can't reach it, and can't be sent to",
+      "signature": "timed out discarding buffered terminal input",
+      "status": "fixed",
+      "cause": "The test's Escape, not Codex at random: Codex's hooks review draws, then discards pending input for up to a second (discard_pending_terminal_input in tui/src/tui/input_boundary.rs, the same in 0.170.0 and 0.171.0). A lone ESC read in that second is an unfinished sequence it waits out, so the start fails with \"timed out discarding buffered terminal input\" and Codex exits to the shell. The test pressed Escape as soon as the review showed, so a busy runner put it in that second. Seen only at 0.171.0, once on macOS and once on Linux, both in the pin bump's runs; none in the 80 E2E runs before. Fixed in the pin bump's PR: the test leaves the review with `3` (\"Continue without trusting\"), which that second only discards, and presses again while the review still shows.",
+      "seen": [
+        "fix/e2e-pins-latest-1120 run 44772308093 attempt 1 job 136420294467 (macOS, 1/2), retried and passed",
+        "#1145 run 44781571633 (Linux, 2/2), retried and passed"
+      ]
     }
   ]
 }

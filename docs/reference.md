@@ -747,6 +747,9 @@ closes while it shows leaves its list, the highlight moving to the one below it.
 This also works outside Zen; double-click or double-tap the name still renames it.
 Terminal names stay visible; header actions appear on hover or keyboard focus on desktop
 and stay visible on touch devices. Search and terminal shortcuts remain available.
+On macOS, where the window's close, minimise and zoom buttons sit in the top bar, Zen hides them
+too; move the pointer to the window's top-left corner to bring them back. On Windows the window's
+buttons stay in the top-right corner in Zen.
 
 Zen preserves the active terminal and Canvas camera on entry. Exit Zen restores the
 previous sidebar visibility and panel. Explicit sidebar shortcuts or Browse sessions

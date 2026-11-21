@@ -17,7 +17,6 @@ import {
   type UninstallPlan,
   type UninstallResult,
 } from "@novadeck/protocol/bridge"
-import { pageLoupeChannel, pageLoupeMessage, parsePageLoupe } from "@novadeck/viewers/browser/loupe"
 import {
   pageSignInChannel,
   pageSignInMessage,
@@ -58,8 +57,6 @@ import {
   pageLookChannel,
   pagePictureChannel,
   pagePhoneChannel,
-  pageLoupeHoldChannel,
-  pageLoupeLookChannel,
   pageZoomChannel,
   panePictureChannel,
   portableChannel,
@@ -82,7 +79,14 @@ import {
   screenReaderChannel,
   screenReaderRequestChannel,
   tellsScreenReader,
+  windowControlsSide,
+  windowControlsChannel,
+  windowControlsPlaceChannel,
 } from "../bridge.js"
+import { captionView, relayCaptionRoom } from "./caption-room.js"
+
+// The edge of the page's top the window's own controls sit over, if they sit over it.
+const controlsSide = windowControlsSide(process.platform)
 
 const argument = process.argv.find((value) => value.startsWith(apiUrlArgumentPrefix))
 
@@ -132,15 +136,6 @@ ipcRenderer.on(pageRequestChannel, (_event, contentsId: unknown, failure: unknow
 ipcRenderer.on(pageSignInChannel, (_event, contentsId: unknown, open: unknown) => {
   const notice = parsePageSignIn({ contentsId, open })
   if (notice) window.postMessage({ type: pageSignInMessage, ...notice }, "*")
-})
-
-// Where the loupe over a page in a view is, as the main process tells of it (it sees the
-// pointer, the wheel and the keys the view takes): to the app's page as a window message,
-// for that page's viewer.
-ipcRenderer.on(pageLoupeChannel, (_event, contentsId: unknown, notice: unknown) => {
-  const fields = typeof notice === "object" && notice !== null ? notice : {}
-  const parsed = parsePageLoupe({ ...fields, contentsId })
-  if (parsed) window.postMessage({ type: pageLoupeMessage, ...parsed }, "*")
 })
 
 // Control and format characters, which include the marks that reorder text, and the line
@@ -242,11 +237,12 @@ const bridge = {
     const path: unknown = await ipcRenderer.invoke(directoryPickerChannel)
     return typeof path === "string" ? path : null
   },
-  // Only the two fields cross; the main process checks them.
+  // Only the three fields cross; the main process checks them.
   showAppearance: (appearance) => {
     ipcRenderer.send(appearanceChannel, {
       scheme: appearance?.scheme,
       ground: appearance?.ground,
+      ink: appearance?.ink,
     })
   },
   // Only a number crosses; the main process clamps it.
@@ -315,6 +311,33 @@ const bridge = {
           return () => {
             ipcRenderer.removeListener(screenReaderChannel, relay)
           }
+        },
+      }
+    : {}),
+  // Only where the window's controls sit over the page (macOS at its start, Windows at its end).
+  // Only a finite number comes back; the main process answers each placing with the room the
+  // controls take, as the page places them first thing when it starts listening, or loaded
+  // again. Windows' room is the page's own measure where it has one (./caption-room.ts).
+  ...(controlsSide
+    ? {
+        windowControlsSide: controlsSide,
+        onWindowControls: (listener: (inset: number) => void) => {
+          const caption =
+            controlsSide === "end" ? relayCaptionRoom(captionView(window), listener) : undefined
+          const relay = (_event: unknown, inset: unknown): void => {
+            if (typeof inset !== "number" || !Number.isFinite(inset)) return
+            if (caption) caption.report(inset)
+            else listener(inset)
+          }
+          ipcRenderer.on(windowControlsChannel, relay)
+          return () => {
+            caption?.stop()
+            ipcRenderer.removeListener(windowControlsChannel, relay)
+          }
+        },
+        placeWindowControls: (middle: number | null) => {
+          if (middle === null || (typeof middle === "number" && Number.isFinite(middle)))
+            ipcRenderer.send(windowControlsPlaceChannel, middle)
         },
       }
     : {}),
@@ -469,20 +492,6 @@ const bridge = {
     (await ipcRenderer.invoke(pagePhoneChannel, page, phone)) === true,
   pageZoom: async (page, factor) =>
     (await ipcRenderer.invoke(pageZoomChannel, page, factor)) === true,
-  // Only a JPEG picture comes back; the main process checks the page is one of this page's.
-  pageLoupe: async (page, rect) => {
-    const picture: unknown = await ipcRenderer.invoke(pageLoupeLookChannel, page, {
-      x: rect.x,
-      y: rect.y,
-      width: rect.width,
-      height: rect.height,
-    })
-    return typeof picture === "string" && picture.startsWith("data:image/jpeg;base64,")
-      ? picture
-      : undefined
-  },
-  pageLoupeHold: async (page, on, away) =>
-    (await ipcRenderer.invoke(pageLoupeHoldChannel, page, on, away === true)) === true,
   pathForFile: (file) => {
     try {
       return webUtils.getPathForFile(file)

@@ -1,5 +1,6 @@
 import type { ItemId } from "@novadeck/core/items"
 import type { WorkspaceTarget } from "@novadeck/core/types"
+import { ChevronRight } from "lucide-react"
 import { useMemo } from "react"
 
 import type { ItemStore } from "../../store/item-store"
@@ -12,7 +13,7 @@ import { useFileDiff, type FileDiffState } from "./use-file-diff"
 
 // What a file changed, as the terminal tab lists its subagents: a branch (├ └) for each change,
 // what it sits in and its lines, unfolded under the file's row by the tab's own fold. Read when
-// the file is first unfolded, and kept to fold away again.
+// the file is first unfolded, and kept to fold away again. Under them, the way into its diff.
 
 const most = 8
 
@@ -51,6 +52,7 @@ export const Branches = ({
   file,
   open,
   layers,
+  onOpen,
 }: {
   itemStore: ItemStore
   target: WorkspaceTarget
@@ -59,6 +61,8 @@ export const Branches = ({
   file: TreeFile
   open: boolean
   layers: readonly string[]
+  // Opens the file's diff, as its row's double click does.
+  onOpen: () => void
 }): React.JSX.Element => {
   // Read when unfolded, and kept (see ./diff-cache.ts) to fold away with what it showed.
   const read = useFileDiff(itemStore, target, itemId, stamp, open ? file.path : null, layers)
@@ -116,6 +120,10 @@ export const Branches = ({
               )}
             </span>
           ))}
+          <button type="button" className="changes-peek-open" onClick={onOpen}>
+            Open diff
+            <ChevronRight size={12} strokeWidth={1.75} aria-hidden="true" />
+          </button>
         </span>
       </span>
     </span>

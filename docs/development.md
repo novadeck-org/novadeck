@@ -595,7 +595,7 @@ Agents:
   stands only while its lead has work too (else its workers are solo chips), and an agent in
   two teams sits in the first squad that names it. The `agents`, `inbox` and try demos have no
   team, so their strips are solo chips.
-- **File preview:** in the `agents`, `messages` and `inbox` variants, double-click
+- **File preview:** in the `agents`, `messages` and `inbox` variants, click
   `src/checkout/Checkout.tsx` in the Files panel (or click it under a selected row of the Worktrees
   panel) to open the project window as the file would be once the agents' work merges onto main:
   Moth's and Crow's changes carried onto main's copy (`frontend/demo/src/preview.ts`), each under a
@@ -803,6 +803,15 @@ App:
   Preferences > Appearance's Screen reader support on Automatic: the terminal in focus keeps a
   reader's text only while one runs. "As in a browser" boots back to a page nothing tells, which
   offers On and Off alone.
+- **Window controls:** boot as the macOS desktop app, whose window sets its close, minimise and
+  zoom buttons into the header (drawn in the page as stand-ins): the header is 52px, its mark gives
+  way to them and its start keeps clear of them, and in Zen they hide and come back while the
+  pointer is in the top-left corner, the Focus window's header moving aside for them, and in Grid
+  and Canvas a plate in the dock's look holding them. "macOS, full screen" boots with them gone to
+  the menu bar, the header starting at its edge. "Windows, in the header" boots as the Windows app,
+  its caption buttons at the 48px header's end, as tall as it; in Zen they stay, on the Focus
+  window's header past a rule, or on a plate in the top-right corner. "Own title bar" boots back to
+  a window with its own, as on Linux and in a browser.
 - **Agent worktrees:** the page's update channel starts stable, which turns the
   setting off, so the rail has no Worktrees toggle, as in a stable build. "On, with Worktrees" boots on
   the experimental channel with the setting on, for the Worktrees panel and the Worktrees group's

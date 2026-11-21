@@ -190,7 +190,6 @@ export const TreeRow = ({
   pulse,
   shownTimes,
   onActivate,
-  onOpenFile,
   onOpenFolder,
   onFocus,
   onLight,
@@ -207,8 +206,8 @@ export const TreeRow = ({
   tabStop: boolean
   pulse: number | undefined
   shownTimes: number
+  // A click: opens a file, folds a folder.
   onActivate: (row: FilesRow) => void
-  onOpenFile: (row: FilesRow) => void
   // Opens a folder row in the pane; absent where the backend can't.
   onOpenFolder: ((row: FilesRow) => void) | undefined
   onFocus: (path: string) => void
@@ -254,8 +253,8 @@ export const TreeRow = ({
         aria-expanded={branch ? open : undefined}
         aria-selected={node.folder ? undefined : selected}
         aria-label={rowLabel(row, everyone)}
-        onClick={() => onActivate(row)}
-        onDoubleClick={() => onOpenFile(row)}
+        // A double click's second click doesn't open the file again.
+        onClick={(event) => (node.folder || event.detail <= 1) && onActivate(row)}
       >
         <span className="files-twisty" aria-hidden="true">
           {branch && <ChevronRight size={12} strokeWidth={1.5} data-open={open} />}
