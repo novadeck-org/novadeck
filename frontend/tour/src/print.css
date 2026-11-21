@@ -27,7 +27,6 @@
   --tour-on-plate: #0b0d10;
   --tour-label: oklch(0.805 0.123 186);
   --tour-letter: "Bangers", Impact, "Arial Narrow", sans-serif;
-  --tour-plate: "Archivo Variable", "Archivo", sans-serif;
   --tour-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
 }
 
@@ -235,9 +234,9 @@
   background: color-mix(in srgb, var(--tour-neon) 18%, var(--tour-night));
 }
 
-/* An act's wipe: an ink sheet with a slanted edge slides in from the right in hard steps, the
-   act's cyan plate and name stamp down, and it slides off while the act already plays under it.
-   It takes no pointer. */
+/* A cut's wipe: an ink sheet with a slanted edge slides in from the right in hard steps, the
+   act's name stamps down, and it slides off while the act already plays under it. It takes no
+   pointer. */
 .tour-wipe {
   position: fixed;
   inset: 0 -40px 0 18%;
@@ -252,20 +251,6 @@
   clip-path: polygon(70px 0, 100% 0, 100% 100%, 0 100%);
   pointer-events: none;
   animation: tour-wipe 1300ms both;
-}
-.tour-wipe-plate {
-  display: grid;
-  place-items: center;
-  width: clamp(96px, 11vw, 150px);
-  aspect-ratio: 1;
-  background: var(--tour-cyan);
-  color: var(--tour-on-plate);
-  box-shadow: 12px 12px 0 var(--tour-magenta);
-  font-family: var(--tour-plate);
-  font-size: clamp(64px, 7.5vw, 104px);
-  font-weight: 900;
-  letter-spacing: -0.03em;
-  animation: tour-stamp 200ms steps(4, end) 400ms both;
 }
 .tour-wipe-name {
   display: flex;
@@ -385,7 +370,6 @@
     animation: none !important;
   }
   .tour-caption-panel,
-  .tour-wipe-plate,
   .tour-wipe-name {
     animation: none;
   }

@@ -10,9 +10,13 @@ import "./print.css"
 
 // How often the stage looks for the footer's middle, which comes and goes with Zen.
 const lookMs = 120
-// How long an act's wipe stays: it slides in, stamps its plate and name, and slides off while
-// the act's first moves already play under it.
+// How long an act's wipe stays: it slides in, stamps its name, and slides off while the act's
+// first moves already play under it.
 const wipeMs = 1_300
+// The acts a wipe opens, the tour's two cuts: its start, as the person's agent takes the stage,
+// and the result, as what the team made comes out. The acts between follow on with their
+// captions alone.
+const cuts: ReadonlySet<TourAct> = new Set<TourAct>([1, 4])
 
 const boxOf = (element: Element | null): Box | null => {
   if (!element) return null
@@ -285,14 +289,17 @@ const actLabel = (act: TourAct, agent: AgentName): string =>
         ? "A question for you"
         : "What they made"
 
-/** An act's wipe, while it is new: shown once per act, over the page but taking no pointer. */
+/**
+ * A cut's wipe, while its act is new: shown once as each act of `cuts` comes, over the page but
+ * taking no pointer.
+ */
 const useWipe = (act: TourAct): TourAct | null => {
-  const [wiping, setWiping] = useState<TourAct | null>(act)
+  const [wiping, setWiping] = useState<TourAct | null>(cuts.has(act) ? act : null)
   // A new act wipes in as it comes, set while rendering rather than a frame later.
   const [seen, setSeen] = useState(act)
   if (seen !== act) {
     setSeen(act)
-    setWiping(act)
+    if (cuts.has(act)) setWiping(act)
   }
   useEffect(() => {
     if (wiping === null) return
@@ -377,7 +384,6 @@ export const TourStage = ({
         ))}
       {wiping !== null && (
         <div aria-hidden="true" className="tour-wipe">
-          <b className="tour-wipe-plate">{wiping}</b>
           <span className="tour-wipe-name">
             <span className="tour-wipe-say">{tourActs[wiping - 1]}</span>
             <span className="tour-wipe-label">{actLabel(wiping, agent)}</span>
@@ -389,7 +395,7 @@ export const TourStage = ({
 }
 
 // The stage's control, End tour: in the footer's middle, or, with the footer hidden (as in Zen),
-// at the workspace's foot. Which act is on, each act's wipe says, and the live region.
+// at the workspace's foot. Which act is on, the live region says.
 const Controls = ({ onEnd }: { readonly onEnd: () => void }): React.JSX.Element => (
   <span className="tour-print tour-controls">
     <button type="button" className="tour-button" onClick={onEnd}>

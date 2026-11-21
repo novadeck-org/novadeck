@@ -794,8 +794,8 @@ App:
   `&tourStory=off` (stop after the lead names itself), `&tourTeam=quiet`,
   `&tourPatienceMs=<n>` (the UI's wait before nudging).
   As the agent goes, the tour's driver (`frontend/tour/src/driver.ts`, `useTourDriver.ts`)
-  plays four acts in Canvas, each opened by a wipe (an ink sheet with the act's number and
-  name), and its stage (`Stage.tsx`, in its own print look, `print.css`) marks the page's own
+  plays four acts in Canvas, the first and the last opened by a wipe (an ink sheet with the
+  act's name), the cuts at its start and its result, and its stage (`Stage.tsx`, in its own print look, `print.css`) marks the page's own
   elements, `data-tour-look` where to look (a magenta line) and `data-tour-click` what to
   press (a slowly breathing yellow one), each drawn by a mark a little way out from the element
   (where what clips it leaves room), over all it holds, and letters one caption box beside them in space no window takes: "Your own agent. In
