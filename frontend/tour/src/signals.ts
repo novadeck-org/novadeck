@@ -37,6 +37,8 @@ export type TourSignals = {
   // Whether a teammate's question waits in the Inbox now, asked through Novadeck or its
   // harness's own question tool.
   readonly asking: boolean
+  // The Inbox row of that question, for the stage to mark; null while none waits.
+  readonly askingRow: string | null
   // Whether the person answered or dismissed a teammate's question: their answer is in the
   // teammate's messages, and its row stays in the Inbox, settled, both through a reload.
   readonly answered: boolean
@@ -65,11 +67,12 @@ export type TourSources = {
 
 export const noTeam: Pick<
   TourSignals,
-  "team" | "talks" | "asking" | "answered" | "teamScreen" | "permission" | "shown"
+  "team" | "talks" | "asking" | "askingRow" | "answered" | "teamScreen" | "permission" | "shown"
 > = {
   team: { count: 0, named: 0 },
   talks: 0,
   asking: false,
+  askingRow: null,
   answered: false,
   teamScreen: null,
   permission: null,
@@ -144,9 +147,9 @@ const answeredOf = (
     ({ inbox: kind, to }) => kind === "answer" && to.kind === "agent" && team.has(to.terminalId),
   ) || questionsOf(inbox, team).some((row) => row.settled && byThePerson.has(row.settled.how))
 
-// Whether a question from the team waits in the Inbox, not one already settled.
-const askingOf = (inbox: InboxState | undefined, team: ReadonlySet<string>): boolean =>
-  questionsOf(inbox, team).some((row) => !row.settled)
+// The Inbox row of a question from the team that waits there, not one already settled.
+const askingRowOf = (inbox: InboxState | undefined, team: ReadonlySet<string>): string | null =>
+  questionsOf(inbox, team).find((row) => !row.settled)?.id ?? null
 
 // The first of the team's agents waiting on the person's yes: an unsettled Unblock row.
 const permissionOf = (
@@ -190,7 +193,8 @@ export const tourSignals = (
         talks: talksOf(sources.messages, mates, team),
         // The teammates' questions only: one of the lead's own, as for something it lacks, isn't
         // the story's question.
-        asking: askingOf(sources.inbox, mates),
+        asking: askingRowOf(sources.inbox, mates) !== null,
+        askingRow: askingRowOf(sources.inbox, mates),
         answered: answeredOf(sources.messages, sources.inbox, mates),
         teamScreen:
           held && held.lead.kind === "screen"
@@ -225,6 +229,7 @@ export const sameSignals = (a: TourSignals, b: TourSignals): boolean =>
   a.onScreen === b.onScreen &&
   a.talks === b.talks &&
   a.asking === b.asking &&
+  a.askingRow === b.askingRow &&
   a.answered === b.answered &&
   a.teamScreen?.terminalId === b.teamScreen?.terminalId &&
   a.teamScreen?.screen === b.teamScreen?.screen &&

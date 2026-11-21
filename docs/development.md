@@ -795,8 +795,9 @@ App:
   `&tourPatienceMs=<n>` (the UI's wait before nudging).
   As the agent goes, the tour's driver (`frontend/tour/src/driver.ts`, `useTourDriver.ts`)
   plays four acts in Canvas, each opened by a wipe (an ink sheet with the act's number and
-  name), and its stage (`Stage.tsx`, in its own print look, `print.css`) rings what the step
-  points at and letters one caption box beside it in space no window takes: "Your own agent. In
+  name), and its stage (`Stage.tsx`, in its own print look, `print.css`) marks the page's own
+  elements, `data-tour-look` where to look (a magenta outline) and `data-tour-click` what to
+  press (a blinking yellow one), and letters one caption box beside them in space no window takes: "Your own agent. In
   a sandbox.", or, while a startup screen holds, "It wants an answer first." with that screen's
   words under it, or "It's asking your permission." while the lead or a teammate has an Unblock
   row waiting in the Inbox (any harness's own dialog, or a held message). The act plates and End

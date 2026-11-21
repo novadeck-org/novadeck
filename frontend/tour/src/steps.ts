@@ -3,28 +3,30 @@ import type { ViewMode } from "@novadeck/core/types"
 
 import type { LeadState, TourSignals } from "./signals"
 
-// The places the tour points at, each a `data-tour` mark in the page (one name may mark a few
-// elements; the stage takes the first shown). `terminal` is the lead's own terminal.
-export type TourAnchor =
+// What the tour marks on the page (`anchors.ts`): the lead's window, the terminal the coach
+// names, the teammates' windows, the newest conversation in the lead's Messages, the Inbox row
+// waiting on the person, the answers of the request sheet open now, and what the lead shows in
+// its side pane.
+export type TourTarget =
+  | "lead"
   | "terminal"
-  | "tabs"
-  | "terminals"
-  | "messages"
-  | "inbox"
-  | "inbox-card"
-  | "views"
-  | "side-pane"
+  | "team"
+  | "newest-message"
+  | "asking-row"
+  | "answers"
+  | "shown"
 
 // The tour's four acts, each opened by a wipe with its number and name. A step belongs to one.
 export const tourActs = ["Your agent", "The team", "Your call", "The result"] as const
 export type TourAct = 1 | 2 | 3 | 4
 
-// What the tour says at a step: the line its caption box letters, beside what it points at
-// (none: the box takes the lowest free corner), and for a moment the person has to act on, a
-// note of what to do, under the box.
+// What the tour says at a step: the line its caption box letters, beside what it marks, and for
+// a moment the person has to act on, a note of what to do, under the box. It marks where to
+// look (`look`) apart from what to press (`click`, the first of its targets drawn now).
 export type Coach = {
-  readonly anchor: TourAnchor | null
-  // The terminal its `terminal` anchor means where not the lead's own, as a teammate's.
+  readonly look?: TourTarget
+  readonly click?: readonly TourTarget[]
+  // The terminal its `terminal` target means where not the lead's own, as a teammate's.
   readonly terminalId?: string
   readonly line: string
   readonly note?: string
@@ -75,7 +77,7 @@ export const startStep: TourStep = {
   id: "start",
   act: 1,
   enter: [{ kind: "view", view: "canvas" }, { kind: "reveal" }],
-  coach: { anchor: "terminal", line: "Your own agent. In a sandbox." },
+  coach: { look: "lead", line: "Your own agent. In a sandbox." },
   // It describes itself, as its brief asks; or, where a cheap model skips that, its first turn
   // ends.
   done: ({ lead }) => lead.kind === "agent" && (lead.named || lead.answered),
@@ -89,7 +91,7 @@ export const teamStep: TourStep = {
   act: 2,
   enter: [{ kind: "fit-all" }],
   frameTeam: true,
-  coach: { anchor: "terminal", line: "It hired two more." },
+  coach: { look: "team", line: "It hired two more." },
   done: ({ team }) => team.count >= 2 && team.named >= 2,
   wait: "nudge",
 }
@@ -100,7 +102,7 @@ export const talkStep: TourStep = {
   act: 2,
   enter: [{ kind: "fit-all" }, { kind: "messages" }],
   frameTeam: true,
-  coach: { anchor: "messages", line: "They talk to each other." },
+  coach: { look: "newest-message", line: "They talk to each other." },
   done: ({ talks }) => talks >= 2,
   wait: "nudge",
 }
@@ -111,7 +113,7 @@ export const askStep: TourStep = {
   id: "ask",
   act: 3,
   enter: [{ kind: "inbox" }],
-  coach: { anchor: "inbox-card", line: "Your call. They wait on you." },
+  coach: { click: ["answers", "asking-row"], line: "Your call. They wait on you." },
   done: ({ asking, answered }, { asked }) => answered || (asked && !asking),
   wait: ({ asked }) => (asked ? "patient" : "nudge"),
 }
@@ -125,7 +127,7 @@ export const showStep: TourStep = {
   act: 4,
   enter: [{ kind: "fit-all" }],
   holdMs: 6_000,
-  coach: { anchor: "side-pane", line: "Made for you." },
+  coach: { look: "shown", line: "Made for you." },
   done: ({ shown }) => shown,
   wait: "nudge",
 }
@@ -142,7 +144,7 @@ export const screenCoach = (
   screen: Extract<LeadState, { kind: "screen" }>["screen"],
   agent: AgentName,
 ): Coach => ({
-  anchor: "terminal",
+  click: ["terminal"],
   line: "It wants an answer first.",
   note:
     screen === "sign-in"
@@ -157,7 +159,7 @@ export const screenCoach = (
 // What the tour says while an agent of the team asks the person's permission: it isn't part of
 // the story, and the tour waits until they answer.
 export const permissionCoach = (terminalId: string): Coach => ({
-  anchor: "terminal",
+  click: ["terminal"],
   terminalId,
   line: "It's asking your permission.",
   note: "It wants to do something in the tour's folder. Answer it here, in its terminal, and the tour goes on.",
@@ -165,7 +167,7 @@ export const permissionCoach = (terminalId: string): Coach => ({
 
 // What the tour says once the lead's agent has stopped: its terminal is still there to read.
 export const endedCoach: Coach = {
-  anchor: "terminal",
+  click: ["lead"],
   line: "Your agent stopped.",
   note: "Its terminal shows why. Start it again there and the tour goes on, or end the tour.",
 }

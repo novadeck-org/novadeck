@@ -2,14 +2,13 @@ import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 
-import { anchorElement } from "./anchors"
+import { firstTarget, targetElements, type TargetsOf } from "./anchors"
 import { placeBox, sameBox, type Box } from "./place"
 import { tourActs, type Coach, type TourAct } from "./steps"
 
 import "./print.css"
 
-// How often the stage looks where its subject, the workspace and its windows are now: views move
-// and resize them, and Canvas's camera moves them without a resize to hear.
+// How often the stage looks for the footer's middle, which comes and goes with Zen.
 const lookMs = 120
 // How long an act's wipe stays: it slides in, stamps its plate and name, and slides off while
 // the act's first moves already play under it.
@@ -24,36 +23,97 @@ const boxOf = (element: Element | null): Box | null => {
 const sameBoxes = (a: readonly Box[], b: readonly Box[]): boolean =>
   a.length === b.length && a.every((box, index) => sameBox(box, b[index] ?? null))
 
-// What the stage reads off the page: what its step points at (and the window holding it, which
-// the caption box stands beside), the workspace, and every window drawn in it.
+// What the stage reads off the page: the window holding what its step marks, which the caption
+// box stands beside, the workspace, and every window drawn in it.
 type Scene = {
-  readonly anchor: Box | null
   readonly subject: Box | null
   readonly area: Box | null
   readonly windows: readonly Box[]
 }
 
-const noScene: Scene = { anchor: null, subject: null, area: null, windows: [] }
+const noScene: Scene = { subject: null, area: null, windows: [] }
 
 const sameScene = (a: Scene, b: Scene): boolean =>
-  sameBox(a.anchor, b.anchor) &&
-  sameBox(a.subject, b.subject) &&
-  sameBox(a.area, b.area) &&
-  sameBoxes(a.windows, b.windows)
+  sameBox(a.subject, b.subject) && sameBox(a.area, b.area) && sameBoxes(a.windows, b.windows)
 
 const drawn = (box: Box | null): box is Box => box !== null && box.width > 0 && box.height > 0
 
-const lookAt = (coach: Coach | null, terminalId: string): Scene => {
-  const area = document.querySelector("[data-workspace-area]")
-  const element = coach?.anchor ? anchorElement(coach.anchor, coach.terminalId ?? terminalId) : null
-  // A part of a window (its Messages, its side pane) is named beside the window itself.
-  const holder = element?.closest("[data-terminal]") ?? element
+// The attributes the stage puts on what its step marks, which print.css draws: where to look,
+// and what to press.
+const lookMark = "data-tour-look"
+const clickMark = "data-tour-click"
+
+// What a coach marks now: where to look, and the first of its targets to press that's drawn.
+const marksOf = (
+  coach: Coach | null,
+  lead: string,
+  askingRow: string | null,
+): { readonly look: HTMLElement[]; readonly click: HTMLElement[] } => {
+  const where: TargetsOf = { lead, terminalId: coach?.terminalId ?? lead, askingRow }
   return {
-    anchor: boxOf(element),
+    look: coach?.look ? targetElements(coach.look, where) : [],
+    click: coach?.click ? firstTarget(coach.click, where) : [],
+  }
+}
+
+// Puts `mark` on `next` and takes it off whatever had it before and doesn't now.
+const remark = (mark: string, before: Set<HTMLElement>, next: readonly HTMLElement[]): void => {
+  for (const element of before)
+    if (!next.includes(element)) {
+      element.removeAttribute(mark)
+      before.delete(element)
+    }
+  for (const element of next)
+    if (!before.has(element)) {
+      element.setAttribute(mark, "")
+      before.add(element)
+    }
+}
+
+const lookAt = (subject: HTMLElement | undefined): Scene => {
+  const area = document.querySelector("[data-workspace-area]")
+  // A part of a window (a message, its side pane) is named beside the window itself.
+  const holder = subject?.closest("[data-terminal]") ?? subject ?? null
+  return {
     subject: boxOf(holder),
     area: boxOf(area),
     windows: [...(area?.querySelectorAll("[data-terminal]") ?? [])].map(boxOf).filter(drawn),
   }
+}
+
+/**
+ * Marks what the step points at on the page itself, every frame while the tour shows (as views
+ * redraw what it marks), so the marks move with their elements however the person pans; and
+ * reads the scene the caption box is placed in. Taken off as the tour goes.
+ */
+const useMarks = (
+  coach: Coach | null,
+  lead: string,
+  askingRow: string | null,
+  looking: boolean,
+): Scene => {
+  const [scene, setScene] = useState<Scene>(noScene)
+  useEffect(() => {
+    if (!looking) return
+    const looked = new Set<HTMLElement>()
+    const clicked = new Set<HTMLElement>()
+    let frame = 0
+    const tick = (): void => {
+      const marks = marksOf(coach, lead, askingRow)
+      remark(lookMark, looked, marks.look)
+      remark(clickMark, clicked, marks.click)
+      const next = lookAt(marks.look[0] ?? marks.click[0])
+      setScene((current) => (sameScene(current, next) ? current : next))
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(frame)
+      remark(lookMark, looked, [])
+      remark(clickMark, clicked, [])
+    }
+  }, [coach, lead, askingRow, looking])
+  return looking ? scene : noScene
 }
 
 // The footer's middle, where the stage's controls go beside whatever else stands there (as the
@@ -72,25 +132,6 @@ const useFooterSlot = (looking: boolean): HTMLElement | null => {
     return () => clearInterval(timer)
   }, [looking])
   return looking ? slot : null
-}
-
-/** The scene as the page draws it now, looked at every so often while the tour shows. */
-const useScene = (coach: Coach | null, terminalId: string, looking: boolean): Scene => {
-  const [scene, setScene] = useState<Scene>(noScene)
-  useEffect(() => {
-    if (!looking) return
-    const look = (): void => {
-      const next = lookAt(coach, terminalId)
-      setScene((current) => (sameScene(current, next) ? current : next))
-    }
-    const first = requestAnimationFrame(look)
-    const timer = setInterval(look, lookMs)
-    return () => {
-      cancelAnimationFrame(first)
-      clearInterval(timer)
-    }
-  }, [coach, terminalId, looking])
-  return looking ? scene : noScene
 }
 
 const nameOf = (agent: AgentName): string => harnesses.find(({ id }) => id === agent)?.name ?? agent
@@ -124,7 +165,8 @@ const useWipe = (act: TourAct): TourAct | null => {
 
 /**
  * The tour as it shows over the workspace, in a print look of its own: each act opened by a
- * wipe, a ring around what its step points at, and one lettered caption box beside it in space
+ * wipe, marks on what its step points at (where to look, and what to press: `print.css`), and
+ * one lettered caption box beside it in space
  * no window takes, with the act plates and End tour in the middle of the app's footer, which no
  * window takes either (or, with the footer hidden, at the workspace's foot). It is no dialog:
  * it takes no focus and covers nothing but its box, plates and button, so the person's keys and
@@ -136,6 +178,7 @@ export const TourStage = ({
   terminalId,
   agent,
   act,
+  askingRow,
   away,
   onEnd,
   onBack,
@@ -144,12 +187,14 @@ export const TourStage = ({
   readonly terminalId: string
   readonly agent: AgentName
   readonly act: TourAct
+  // The Inbox row of the team's question waiting now, which the stage marks to press.
+  readonly askingRow: string | null
   // The tour's project isn't the one on screen.
   readonly away: boolean
   readonly onEnd: () => void
   readonly onBack: () => void
 }): React.JSX.Element => {
-  const scene = useScene(coach, terminalId, !away)
+  const scene = useMarks(coach, terminalId, askingRow, !away)
   const slot = useFooterSlot(!away)
   const wiping = useWipe(act)
   if (away)
@@ -167,18 +212,6 @@ export const TourStage = ({
   const { area } = scene
   return (
     <div className="tour-print">
-      {scene.anchor && (
-        <div
-          aria-hidden="true"
-          className="tour-ring"
-          style={{
-            left: scene.anchor.left,
-            top: scene.anchor.top,
-            width: scene.anchor.width,
-            height: scene.anchor.height,
-          }}
-        />
-      )}
       {coach && area && (
         <CaptionBox
           key={coach.line}

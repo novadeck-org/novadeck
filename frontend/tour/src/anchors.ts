@@ -1,39 +1,64 @@
-import type { TourAnchor } from "./steps"
+import type { TourTarget } from "./steps"
+
+const area = (): Element | null => document.querySelector("[data-workspace-area]")
 
 // A terminal as the workspace draws it, by the `data-terminal` mark every view puts on it.
 const terminalElement = (id: string): HTMLElement | null =>
-  document
-    .querySelector("[data-workspace-area]")
-    ?.querySelector<HTMLElement>(`[data-terminal="${CSS.escape(id)}"]`) ?? null
-
-// Where each of the tour's anchors is in the page: its `data-tour` mark, then a stable hook of
-// the element's own where the mark is drawn by a shared part (a sidebar panel, a rail toggle).
-const selectors: Readonly<Record<Exclude<TourAnchor, "terminal">, readonly string[]>> = {
-  tabs: ['[data-tour="tabs"]'],
-  terminals: ['[data-tour="terminals"]', "#terminals-panel"],
-  messages: ['[data-tour="messages"]'],
-  inbox: ['[data-tour="inbox"]', "#inbox-toggle", "#mobile-inbox-toggle"],
-  "inbox-card": ['[data-tour="inbox-card"]'],
-  views: ['[data-tour="views"]'],
-  "side-pane": ['[data-tour="side-pane"]'],
-}
+  area()?.querySelector<HTMLElement>(`[data-terminal="${CSS.escape(id)}"]`) ?? null
 
 // Whether an element is drawn at all: one hidden, or in a closed panel, has no box.
 const drawn = (element: Element): boolean => element.getClientRects().length > 0
 
+const first = (root: ParentNode | null | undefined, selector: string): HTMLElement[] => {
+  const found = [...(root?.querySelectorAll<HTMLElement>(selector) ?? [])].find(drawn)
+  return found ? [found] : []
+}
+
+// What the targets are read against: the tour's lead, the terminal the coach names, and the
+// Inbox row of the team's question waiting now.
+export type TargetsOf = {
+  readonly lead: string
+  readonly terminalId: string
+  readonly askingRow: string | null
+}
+
 /**
- * The element an anchor points at now, the first drawn of its marks; within the lead's own
- * terminal where it has one there (its side pane, its Messages), else anywhere. Null where none
- * is drawn, as in a view that hides it: the coach then floats in a corner.
+ * The elements a target names now, as drawn: none where the view hides them. `lead` is the
+ * tour's lead terminal and `terminal` the one the coach names (the lead's where it names none);
+ * `team` every other window of the tour; `newest-message` the latest conversation in the lead's
+ * Messages; `asking-row` the Inbox row of the team's question; `answers` the answers of the
+ * request sheet open now; `shown` what the lead shows in its side pane.
  */
-export const anchorElement = (anchor: TourAnchor, terminalId: string): HTMLElement | null => {
-  const terminal = terminalElement(terminalId)
-  if (anchor === "terminal") return terminal && drawn(terminal) ? terminal : null
-  for (const selector of selectors[anchor]) {
-    const within = terminal?.querySelector<HTMLElement>(selector)
-    if (within && drawn(within)) return within
-    const found = [...document.querySelectorAll<HTMLElement>(selector)].find(drawn)
-    if (found) return found
+export const targetElements = (target: TourTarget, where: TargetsOf): HTMLElement[] => {
+  const { lead, terminalId, askingRow } = where
+  switch (target) {
+    case "lead":
+    case "terminal": {
+      const element = terminalElement(target === "lead" ? lead : terminalId)
+      return element && drawn(element) ? [element] : []
+    }
+    case "team":
+      return [...(area()?.querySelectorAll<HTMLElement>("[data-terminal]") ?? [])].filter(
+        (element) => element.dataset.terminal !== lead && drawn(element),
+      )
+    case "newest-message":
+      return first(terminalElement(lead), '[data-tour="messages"] .message-row')
+    case "asking-row":
+      return askingRow
+        ? first(document, `[data-tour="inbox-card"][data-inbox-row="${CSS.escape(askingRow)}"]`)
+        : []
+    case "answers":
+      return first(document, '[role="dialog"] [role="group"]:has(button)')
+    case "shown":
+      return first(terminalElement(lead), '[data-tour="side-pane"]')
   }
-  return null
+}
+
+/** The first of `targets` that names something drawn now, with its elements. */
+export const firstTarget = (targets: readonly TourTarget[], where: TargetsOf): HTMLElement[] => {
+  for (const target of targets) {
+    const elements = targetElements(target, where)
+    if (elements.length > 0) return elements
+  }
+  return []
 }

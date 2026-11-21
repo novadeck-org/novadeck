@@ -25,7 +25,7 @@ const asked: TourStep = {
   id: "asked",
   act: 3,
   enter: [{ kind: "inbox" }],
-  coach: { anchor: "inbox", line: "Your call." },
+  coach: { click: ["asking-row"], line: "Your call." },
   done: () => false,
   wait: "patient",
 }
@@ -303,7 +303,7 @@ describe("The tour, with a teammate at a screen of its own", () => {
     expect(coachNow(run, tourSteps, held)).toMatchObject({
       line: "A teammate wants an answer first.",
       terminalId: "t3",
-      anchor: "terminal",
+      click: ["terminal"],
     })
   })
 
@@ -332,7 +332,7 @@ describe("The tour, with an agent asking the person's permission", () => {
     expect(coachNow(run, tourSteps, wanted)).toMatchObject({
       line: "It's asking your permission.",
       terminalId: "t3",
-      anchor: "terminal",
+      click: ["terminal"],
     })
     expect(coachNow(run, tourSteps, wanted)?.note).toContain("in its terminal")
   })

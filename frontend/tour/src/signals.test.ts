@@ -178,8 +178,15 @@ describe("The tour's story signals", () => {
     const asking = { items: [askRow("02")] } as unknown as InboxState
     const elsewhere = { items: [askRow("04")] } as unknown as InboxState
     const unblock = { items: [askRow("02", "action")] } as unknown as InboxState
-    expect(tourSignals(teamWorkspace(), "01", { inbox: asking }).asking).toBe(true)
-    expect(tourSignals(teamWorkspace(), "01", { inbox: elsewhere }).asking).toBe(false)
+    expect(tourSignals(teamWorkspace(), "01", { inbox: asking })).toMatchObject({
+      asking: true,
+      // Its own row, which the stage marks to press: never another project's question.
+      askingRow: "ask-02",
+    })
+    expect(tourSignals(teamWorkspace(), "01", { inbox: elsewhere })).toMatchObject({
+      asking: false,
+      askingRow: null,
+    })
     expect(tourSignals(teamWorkspace(), "01", { inbox: unblock }).asking).toBe(false)
   })
 

@@ -98,6 +98,8 @@ export type TourDriver = {
     readonly coach: Coach | null
     // The act its step belongs to, which a wipe opens.
     readonly act: TourAct
+    // The Inbox row of the team's question waiting now.
+    readonly askingRow: string | null
     readonly away: boolean
   } | null
   // The tour just finished its story, for its closing card: its lead, project and agent.
@@ -325,6 +327,7 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
         agent: run.agent,
         coach: coachNow(run, tourSteps, signals),
         act: tourSteps[Math.min(run.step, tourSteps.length - 1)]!.act,
+        askingRow: signals.askingRow,
         away: !signals.onScreen,
       },
     [run, signals],

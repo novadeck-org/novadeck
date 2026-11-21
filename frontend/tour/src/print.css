@@ -23,18 +23,32 @@
   --tour-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
 }
 
-/* The ring: a magenta plate round what the step points at, ink outside it. It takes no
-   pointer, so everything under it still works. */
-.tour-ring {
-  position: fixed;
-  z-index: 39;
-  pointer-events: none;
-  border: 4px solid var(--tour-magenta);
-  border-radius: 10px;
-  outline: 3px solid var(--tour-on-plate);
-  translate: -7px -7px;
-  padding: 3px;
-  box-sizing: content-box;
+/* The marks the stage puts on the page's own elements while a step points at them, drawn here
+   over whatever look the element has (so `!important`), and moving with it as it moves:
+   where to look, a magenta plate with its glow; what to press, the caption box's yellow,
+   blinking against its ink. Inset, so a parent that clips its children doesn't cut them. */
+[data-tour-look] {
+  outline: 3px solid oklch(0.66 0.226 341) !important;
+  outline-offset: -3px !important;
+  box-shadow:
+    inset 0 0 0 5px rgb(11 13 16 / 0.55),
+    0 0 28px 6px oklch(0.66 0.226 341 / 0.5) !important;
+}
+[data-tour-click] {
+  outline-style: solid !important;
+  outline-width: 3px !important;
+  outline-offset: -3px !important;
+  outline-color: #ffe24a;
+  box-shadow:
+    inset 0 0 0 6px #140b1f,
+    0 0 0 3px #ffe24a,
+    0 0 22px 4px rgb(255 226 74 / 0.45) !important;
+  animation: tour-click 1s steps(1, end) infinite !important;
+}
+@keyframes tour-click {
+  50% {
+    outline-color: #140b1f;
+  }
 }
 
 /* The caption box: one short line, lettered, tilted a little, popping in over three frames. */
@@ -308,6 +322,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  [data-tour-click] {
+    animation: none !important;
+  }
   .tour-caption-line,
   .tour-wipe-plate,
   .tour-wipe-name {
