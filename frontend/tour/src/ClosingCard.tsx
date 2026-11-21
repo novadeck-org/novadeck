@@ -29,9 +29,11 @@ export const TourClosingCard = ({
   <>
     <div aria-hidden="true" className="tour-print tour-dim" />
     <section aria-label="Tour finished" className="tour-print tour-closing">
-      <h3 className="tour-caption-line tour-closing-line">
-        That's your deck. Now try it on real code.
-      </h3>
+      <div className="tour-caption-panel">
+        <h3 className="tour-caption-line tour-closing-line">
+          That's your deck. Now try it on real code.
+        </h3>
+      </div>
       <p className="tour-caption-note">
         That was a sandbox. Open your own project and {nameOf(agent)} starts there with you. Close
         Novadeck any time: your terminals and sessions come back.

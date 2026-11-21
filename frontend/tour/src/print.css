@@ -12,10 +12,12 @@
   /* A theme's glow on the page's text (Phosphor's) stays off the print. */
   text-shadow: none;
   --tour-yellow: #ffe24a;
-  /* The caption box's plastic: a pastel yellow brick, its darker edge, and its highlight. */
-  --tour-brick: #fff0a8;
-  --tour-brick-edge: #e8c766;
-  --tour-brick-ink: #15101c;
+  /* The caption box: its ink, its face running lavender to ice, and the glitch's pink and cyan. */
+  --tour-panel-ink: #15101c;
+  --tour-panel-from: #c9b8ff;
+  --tour-panel-to: #9ff0ff;
+  --tour-glitch-pink: #ff5fc8;
+  --tour-glitch-cyan: #5ff2ff;
   --tour-ink: #140b1f;
   --tour-paper: #e8e9ed;
   --tour-cyan: oklch(0.785 0.128 186);
@@ -64,23 +66,54 @@
   max-width: min(560px, calc(100vw - 32px));
   pointer-events: none;
 }
-/* The caption box: a pastel panel, square, inked with an uneven black outline (thicker on some
-   sides than others, its corners a little off true, as drawn by hand), a highlight on its face,
-   halftone dots fading in from its sides as in a comic, and its line lettered on it; it pops in
-   with a little bounce. The ink is the box itself, cut to its shape; the face and the dots sit
-   inside it, each inset by a different amount. */
+/* The caption box, a glitched comic panel: square, inked with an uneven black outline (thicker on
+   some sides than others, its corners a little off true, as drawn by hand) around a face running
+   lavender to ice, scanline shading off its sides, its line lettered with a pink and cyan split,
+   offset in pink, with glitch bars sticking out of it; it pops in with a little bounce. The panel
+   carries the tilt, the offset and the bars; the line inside is cut to its shape, its ink the
+   box itself, its face and shading inset in it by different amounts. */
 .tour-caption {
   filter: drop-shadow(0 10px 14px rgb(0 0 0 / 0.4));
+}
+.tour-caption-panel {
+  position: relative;
+  width: max-content;
+  max-width: 100%;
+  filter: drop-shadow(5px 5px 0 var(--tour-glitch-pink));
+  rotate: -1deg;
+  animation: tour-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.tour-caption-panel[data-tilt="right"] {
+  rotate: 1deg;
+}
+/* The glitch bars: a pink one off the left side, a cyan and a short pink one off the right. */
+.tour-caption-panel::before,
+.tour-caption-panel::after {
+  content: "";
+  position: absolute;
+  height: 5px;
+  pointer-events: none;
+}
+.tour-caption-panel::before {
+  left: -14px;
+  top: 30%;
+  width: 34px;
+  background: var(--tour-glitch-pink);
+}
+.tour-caption-panel::after {
+  right: -18px;
+  top: 62%;
+  width: 46px;
+  background: var(--tour-glitch-cyan);
+  box-shadow: 28px 7px 0 var(--tour-glitch-pink);
 }
 .tour-caption-line {
   position: relative;
   isolation: isolate;
   margin: 0;
-  width: max-content;
-  max-width: 100%;
   padding: 0.36em 1.25em 0.3em;
-  background: var(--tour-brick-ink);
-  color: var(--tour-brick-ink);
+  background: var(--tour-panel-ink);
+  color: var(--tour-panel-ink);
   clip-path: polygon(0.4% 4%, 99.3% 0, 100% 95%, 1.2% 100%);
   font-family: var(--tour-letter);
   font-size: clamp(24px, 2.4vw, 36px);
@@ -90,13 +123,11 @@
   text-align: center;
   text-transform: uppercase;
   text-wrap: balance;
-  rotate: -1deg;
-  animation: tour-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  text-shadow:
+    2px 0 0 rgb(255 47 176 / 0.75),
+    -2px 0 0 rgb(40 200 255 / 0.75);
 }
-.tour-caption-line[data-tilt="right"] {
-  rotate: 1deg;
-}
-/* The pastel face, inside the ink: wider ink at the bottom and left than at the top and right. */
+/* The face, inside the ink: wider ink at the bottom and left than at the top and right. */
 .tour-caption-line::before,
 .tour-caption-line::after {
   content: "";
@@ -108,17 +139,23 @@
 }
 .tour-caption-line::before {
   background:
-    linear-gradient(to bottom, rgb(255 255 255 / 0.55), transparent 42%),
-    linear-gradient(to top, var(--tour-brick-edge) 0 5px, transparent 5px), var(--tour-brick);
+    linear-gradient(to bottom, rgb(255 255 255 / 0.5), transparent 42%),
+    linear-gradient(to right, var(--tour-panel-from), var(--tour-panel-to));
 }
-/* Halftone, in the ink's own black: solid where it meets the outline at the panel's sides, its
-   dots shrinking towards the middle until they're gone, as printed comic panels shade. A soft
-   dot per cell, lightened by distance from the sides, then cut hard (`contrast`) into dots
-   whose size follows that distance, and multiplied onto the face. */
+/* Scanline shading, in the ink's own black: solid where it meets the outline at the panel's
+   sides, its lines thinning towards the middle until they're gone, as a printed screentone
+   shades. Soft lines, lightened by distance from the sides, then cut hard (`contrast`) into
+   lines whose weight follows that distance, and multiplied onto the face. */
 .tour-caption-line::after {
   background:
-    radial-gradient(circle, #000 0, #9a9a9a 72%) 0 0 / 5px 5px,
-    linear-gradient(to right, #000 0, #fff 2.4em, #fff calc(100% - 2.4em), #000 100%);
+    repeating-linear-gradient(to bottom, #000 0, #a0a0a0 2px, #000 4px),
+    linear-gradient(
+      to right,
+      #000 0,
+      #fff min(2.4em, 72px),
+      #fff calc(100% - min(2.4em, 72px)),
+      #000 100%
+    );
   background-blend-mode: screen;
   filter: contrast(40);
   mix-blend-mode: multiply;
@@ -204,17 +241,17 @@
 }
 .tour-button-go {
   background:
-    linear-gradient(to bottom, rgb(255 255 255 / 0.5), transparent 50%), var(--tour-brick);
-  color: var(--tour-brick-ink);
-  border-color: var(--tour-brick-ink);
-  border-radius: 10px;
-  box-shadow:
-    0 3px 0 var(--tour-brick-edge),
-    0 3px 0 2px var(--tour-brick-ink);
+    linear-gradient(to bottom, rgb(255 255 255 / 0.5), transparent 50%),
+    linear-gradient(to right, var(--tour-panel-from), var(--tour-panel-to));
+  color: var(--tour-panel-ink);
+  border-color: var(--tour-panel-ink);
+  border-width: 3px 2px 4px 3px;
+  box-shadow: 4px 4px 0 var(--tour-glitch-pink);
 }
 .tour-button-go:hover {
   background:
-    linear-gradient(to bottom, rgb(255 255 255 / 0.7), transparent 50%), var(--tour-brick);
+    linear-gradient(to bottom, rgb(255 255 255 / 0.7), transparent 50%),
+    linear-gradient(to right, var(--tour-panel-from), var(--tour-panel-to));
 }
 
 /* An act's wipe: an ink sheet with a slanted edge slides in from the right in hard steps, the
@@ -366,7 +403,7 @@
   [data-tour-click] {
     animation: none !important;
   }
-  .tour-caption-line,
+  .tour-caption-panel,
   .tour-wipe-plate,
   .tour-wipe-name {
     animation: none;

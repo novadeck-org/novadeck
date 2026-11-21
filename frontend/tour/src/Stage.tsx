@@ -325,9 +325,9 @@ const CaptionBox = ({
       className="tour-caption"
       style={place ? { left: place.left, top: place.top } : { visibility: "hidden" }}
     >
-      <p className="tour-caption-line" data-tilt={tilt}>
-        {coach.line}
-      </p>
+      <div className="tour-caption-panel" data-tilt={tilt}>
+        <p className="tour-caption-line">{coach.line}</p>
+      </div>
       {coach.note && <p className="tour-caption-note">{coach.note}</p>}
     </section>
   )
