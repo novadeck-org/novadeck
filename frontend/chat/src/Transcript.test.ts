@@ -695,6 +695,18 @@ context("Novadeck's own notices", () => {
     )
   })
 
+  it("tells an event notice a hook or a Stop's continuation delivered as its line too", () => {
+    const container = show([{ kind: "notice", id: "h1", at: 1_000, text: worktrees, event: true }])
+    const line = container.querySelector('[data-notice="h1"]')!
+    expect(line.hasAttribute("data-event")).toBe(true)
+    expect(line.querySelector(".chat-notice-said")?.textContent).toBe(
+      "You notice a worktree change hands.",
+    )
+    act(() => key(container, "h1").click())
+    const body = line.querySelector(".chat-notice-body")!
+    expect(key(container, "h1").getAttribute("aria-controls")).toBe(body.id)
+  })
+
   it("keeps a standing notice's facts as its line, in the same quiet style, opening in place", () => {
     const container = show([standing("s1", worktrees)])
     const line = container.querySelector('[data-notice="s1"]')!

@@ -773,10 +773,14 @@
 .chat-notice + .chat-notice {
   margin-top: calc(var(--_lh) * 0.1);
 }
+/* Novadeck's mark stands where a prompt's mark does: centred on that mark's middle and on the
+   first line, as tall as it, so it follows the density's mark size. */
 .chat-notice-mark {
   position: absolute;
-  top: calc((var(--_lh) - 12px) / 2);
-  left: -2ch;
+  top: calc((var(--_lh) - var(--_mark-height)) / 2);
+  left: calc(-2ch + (var(--_mark-width) - var(--_mark-height)) / 2);
+  width: var(--_mark-height);
+  height: var(--_mark-height);
   --nova-mark-fg: var(--_muted);
   --nova-mark-core-fg: var(--_muted);
 }
@@ -804,6 +808,7 @@
 }
 .chat-notice-head > .chat-fact {
   position: static;
+  font-size: inherit;
 }
 .chat-notice-said {
   flex: 0 1 auto;

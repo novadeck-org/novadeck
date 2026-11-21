@@ -255,6 +255,7 @@ const NoticeLine = ({
   readonly event: boolean
 }): React.JSX.Element => {
   const [open, setOpen] = useState(false)
+  const bodyId = useId()
   const { kind } = readNotice(text)
   const said = mentionAt(mention, written)
   const whole = (
@@ -277,6 +278,7 @@ const NoticeLine = ({
           type="button"
           className="chat-notice-key nodrag nopan"
           aria-expanded={open}
+          aria-controls={event && open ? bodyId : undefined}
           onClick={() => setOpen((value) => !value)}
         >
           <span className="chat-notice-said" data-open={(!event && open) || undefined}>
@@ -287,7 +289,7 @@ const NoticeLine = ({
         <TimeFact at={at} hover />
       </div>
       {event && open && (
-        <p className="chat-notice-body">
+        <p className="chat-notice-body" id={bodyId}>
           <MentionedText text={shownControls(noticeBody(text))} mention={said} />
         </p>
       )}
@@ -554,7 +556,7 @@ const BlockView = memo(
             at={block.at}
             written={block.at}
             mention={mention}
-            event={false}
+            event={block.event === true}
           />
         )
       case "gap":

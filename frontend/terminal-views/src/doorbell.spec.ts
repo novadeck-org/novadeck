@@ -296,6 +296,24 @@ describe.each(["dom", "webgl"] as const)(
         expect(
           contrastOf(channelsOf(getComputedStyle(words).color), ground),
         ).toBeGreaterThanOrEqual(4.5)
+        // Selected, the badge keeps the selection's colour over its tint, as the rest of the row does.
+        view.terminal.options.theme = {
+          ...view.terminal.options.theme,
+          selectionBackground: "#3a5f9a",
+        }
+        view.terminal.selectAll()
+        await frame()
+        await frame()
+        const chosen = element.querySelector<HTMLElement>("[data-novadeck-doorbell]")!
+        expect(chosen.style.backgroundImage).toContain("linear-gradient")
+        const chosenBadge = [...chosen.querySelectorAll<HTMLElement>("span")].filter(
+          (span) => getComputedStyle(span).backgroundColor !== "rgba(0, 0, 0, 0)",
+        )
+        expect(chosenBadge.length).toBe(10)
+        for (const span of chosenBadge)
+          expect(span.style.backgroundImage).toContain("linear-gradient")
+        view.terminal.clearSelection()
+        await frame()
       },
     )
   },

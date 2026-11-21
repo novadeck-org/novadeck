@@ -2054,8 +2054,9 @@ Standing notices ride on the prompt, a blank line apart; event notices are sent 
 message from `novadeck`. The doorbell lines (`harnesses/core/src/prompts.ts`) and the tour's
 step lines are no notices and keep their own forms, as do tool results and refusals.
 
-**What the person sees.** Never a notice's facts where an event notice rings; the agent's text
-never changes. `noticeSeen` in `@novadeck/protocol/notices` is the one map from a notice's kind
+**What the person sees.** An event notice (one the runner delivered as a message from `novadeck`,
+with a ring, a prompt or tool call's hook, or a Stop's continuation) is never shown by its facts;
+the agent's text never changes. `noticeSeen` in `@novadeck/protocol/notices` is the one map from a notice's kind
 to the line the person reads, shared by the chat and the terminal overlay: `Restart` "You notice
 Novadeck restarted.", `Terminals` "You notice terminals open and close.", `Team` "You notice the
 team shift.", `Worktrees` "You notice a worktree change hands.", `Inbox` "You notice an ask leave
@@ -2067,7 +2068,7 @@ legacy prefix), reads "You notice something." (`readNotice` there strips the hea
 facts from the `→` actions.)
 
 Agent Chat shows each notice as a quiet bell line, as the doorbell's own line is: Novadeck's mark
-(the `NovaMark` of the toasts, 12px, muted) in the gutter where a prompt's mark sits, the words
+(the `NovaMark` of the toasts, muted, as tall as a prompt's mark and centred on it) in the gutter, the words
 in the muted ink and regular weight, a dashed rule to the edge, and the time. An event notice's
 words are its family's line; a click opens the notice itself under it (facts, detail lines, each
 `→` action on its own line) and closes it again. A standing notice's words are still its facts
@@ -2076,7 +2077,9 @@ Two paths bring them there. An event notice, delivered as a message from `novade
 kept like any delivered message and listed beside the threads as `TerminalMessages.notices`
 (the latest 200, with `deliveredAt`; never in a thread, so the Messages pane leaves them
 out); the chat attaches each to the ring whose window its `deliveredAt` falls in, as it does
-the ring's messages. A standing notice (or a hook's line) is no message: each harness records
+the ring's messages, and shows one no ring claims where it was delivered. A hook's record of a
+notice the runner delivered (the same words within the ring slack) is that event too, so the
+Inbox's "took your asks out" reads by its line though it rides a prompt's hook. A standing notice (or a hook's line) is no message: each harness records
 what the prompt's hook printed (Claude Code's `hook_additional_context` attachment, Codex's
 developer message, Antigravity's `EPHEMERAL_MESSAGE` step), and the decoders read it as one
 `notice` item per notice, splitting off any `<novadeck-messages>` delivery the same text holds

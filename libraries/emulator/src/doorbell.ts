@@ -560,7 +560,15 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
     }
     for (const run of piece.runs ?? []) {
       const color = run.badge ? badgeOf(ink, bg).text : colourOf(run.tone, bg, ink)
-      const tint = run.badge ? `background:${badgeOf(ink, bg).tint};` : ""
+      // The badge's tint, under the selection's colour where the row is selected: the row's own
+      // selection gradient sits on the element, which the badge's spans would cover.
+      const tint = run.badge
+        ? `background:${
+            selected && t.selectionBackground
+              ? `linear-gradient(${t.selectionBackground}, ${t.selectionBackground}), `
+              : ""
+          }${badgeOf(ink, bg).tint};`
+        : ""
       const slant = run.italic ? "font-style:italic;" : ""
       for (const char of run.text) {
         const span = document.createElement("span")

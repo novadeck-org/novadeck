@@ -79,13 +79,15 @@ export type ChatBlock =
       readonly replies: boolean
       readonly notices: readonly DeliveredNotice[]
     }
-  // One of Novadeck's own notices that rode on the prompt's hook, as the harness's record holds it:
-  // its text, `Novadeck · <Kind>` header and all.
+  // One of Novadeck's own notices outside a ring, its text `Novadeck · <Kind>` header and all: a
+  // standing one that rode on the prompt's hook, as the harness's record holds it, or an event the
+  // runner delivered (`event`) with a prompt or tool call's hook or a Stop's continuation.
   | {
       readonly kind: "notice"
       readonly id: string
       readonly at: number | null
       readonly text: string
+      readonly event?: true
     }
   // A compaction: the summary the agent goes on from.
   | {
@@ -305,7 +307,7 @@ export const groupItems = (
     while (pending.length > 0 && pending[0]!.deliveredAt < before) {
       const { id, text, deliveredAt } = pending.shift()!
       open.run = null
-      blocks.push({ kind: "notice", id, at: deliveredAt, text })
+      blocks.push({ kind: "notice", id, at: deliveredAt, text, event: true })
     }
   }
   let mode: string | undefined
@@ -418,7 +420,21 @@ export const groupItems = (
         blocks.push({ kind: "note", id: item.id, text: "plan approved" })
       else if (note.type === "notice") {
         turnNotices.add(item.text)
-        blocks.push({ kind: "notice", id: item.id, at: item.at, text: item.text })
+        // The record of a notice the runner delivered as an event (the same words, at the same time)
+        // is that event: the hook printed it, so the record holds it as it holds a standing one.
+        const event = notices.some(
+          ({ text, deliveredAt }) =>
+            text === item.text &&
+            item.at !== null &&
+            Math.abs(item.at - deliveredAt) <= ringSlackMs,
+        )
+        blocks.push({
+          kind: "notice",
+          id: item.id,
+          at: item.at,
+          text: item.text,
+          ...(event ? { event: true as const } : {}),
+        })
       }
       continue
     }
@@ -539,7 +555,8 @@ export const sameBlock = (a: ChatBlock, b: ChatBlock): boolean => {
       b.kind === "notice" &&
       a.id === b.id &&
       a.text === b.text &&
-      a.at === b.at
+      a.at === b.at &&
+      a.event === b.event
     )
   if (a.kind === "gap" || b.kind === "gap")
     return a.kind === "gap" && b.kind === "gap" && a.id === b.id

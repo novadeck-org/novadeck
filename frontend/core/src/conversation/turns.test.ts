@@ -878,4 +878,28 @@ describe("the notices Novadeck delivered outside a ring", () => {
     )
     expect(shown(blocks)).toEqual(["user", "notice@1000", "notice@1200"])
   })
+
+  // The chat tells an event notice by its family's line, wherever it came: with a ring, a prompt or
+  // tool call's hook, or a Stop's continuation. Only a standing notice keeps its facts.
+  it("are events, whether the runner's record or the hook's says them; a standing notice is none", () => {
+    const delivered = "Novadeck · Inbox\nThe user wrote to you, so Novadeck took your open ask out."
+    const standing = "Novadeck · Describe\nNo summary yet."
+    const blocks = groupItems(
+      [
+        prompt(1_000),
+        item({ role: "note", note: { type: "notice" }, text: delivered, at: 1_100 }),
+        item({ role: "note", note: { type: "notice" }, text: standing, at: 1_100 }),
+      ],
+      [],
+      [notice(1_000, delivered), notice(9_000)],
+    )
+    const notices = blocks.flatMap((block) =>
+      block.kind === "notice" ? [[block.text.split("\n")[0], block.event ?? false]] : [],
+    )
+    expect(notices).toEqual([
+      ["Novadeck · Inbox", true],
+      ["Novadeck · Describe", false],
+      ["Novadeck · Worktrees", true],
+    ])
+  })
 })
