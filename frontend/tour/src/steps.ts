@@ -30,6 +30,10 @@ export type Coach = {
   readonly terminalId?: string
   readonly line: string
   readonly note?: string
+  // Whether its box may lie over windows. A box keeps clear of every window where any free
+  // space fits it; one whose step turns the person's eyes away from the windows (to the Inbox,
+  // a question's sheet) goes beside what it marks instead, over them if need be.
+  readonly overWindows?: boolean
 }
 
 // What the tour moves as a step begins, never again: the view, the lead's terminal brought into
@@ -122,7 +126,11 @@ export const askStep: TourStep = {
   id: "ask",
   act: 3,
   enter: [{ kind: "inbox" }],
-  coach: { click: ["answers", "asking-row"], line: "Your call. They wait on you." },
+  coach: {
+    click: ["answers", "asking-row"],
+    line: "Your call. They wait on you.",
+    overWindows: true,
+  },
   done: ({ asking, answered }, { asked }) => answered || (asked && !asking),
   wait: ({ asked }) => (asked ? "patient" : "nudge"),
 }

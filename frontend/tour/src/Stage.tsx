@@ -457,7 +457,8 @@ const CaptionBox = ({
     if (!element) return
     const placeNow = (): void => {
       const { width, height } = element.getBoundingClientRect()
-      const placed = placeBox(scene.subject, { width, height }, area, [...scene.windows, ...clear])
+      const keepClear = coach.overWindows ? clear : [...scene.windows, ...clear]
+      const placed = placeBox(scene.subject, { width, height }, area, keepClear)
       setPlace((current) =>
         current && current.left === placed.left && current.top === placed.top ? current : placed,
       )
@@ -466,7 +467,7 @@ const CaptionBox = ({
     const sized = new ResizeObserver(placeNow)
     sized.observe(element)
     return () => sized.disconnect()
-  }, [scene, area, clear])
+  }, [scene, area, clear, coach.overWindows])
   return (
     <section
       ref={box}
