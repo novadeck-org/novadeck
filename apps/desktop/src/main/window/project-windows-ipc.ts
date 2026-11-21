@@ -1,10 +1,11 @@
 import {
   parseProjectWindowShown,
   parseProjectWindowTarget,
+  type ProjectWindowSwap,
   windowIdOf,
   type ProjectWindowTarget,
 } from "@novadeck/protocol/bridge"
-import type { IpcMainEvent } from "electron"
+import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 
 import {
   projectWindowHandOffChannel,
@@ -17,6 +18,7 @@ import {
 
 type ProjectWindowsIpc = {
   on(channel: string, listener: (event: IpcMainEvent, value: unknown) => void): unknown
+  handle(channel: string, listener: (event: IpcMainInvokeEvent, value: unknown) => unknown): unknown
 }
 
 /**
@@ -35,7 +37,7 @@ export const registerProjectWindowsIpc = <Window>(
     swap,
     handOff,
   }: {
-    readonly window: (event: IpcMainEvent) => Window | undefined
+    readonly window: (event: IpcMainEvent | IpcMainInvokeEvent) => Window | undefined
     /** The page starts listening, and wants the current state. */
     readonly ask: (window: Window) => void
     /** The window's page shows this project now, or none. */
@@ -43,7 +45,8 @@ export const registerProjectWindowsIpc = <Window>(
     /** The person turned project windows on or off. */
     readonly use: (on: boolean) => void
     readonly open: (window: Window, projectId: string) => void
-    readonly swap: (window: Window, projectId: string) => void
+    /** Resolves how the swap went (see `ProjectWindowSwap`). */
+    readonly swap: (window: Window, projectId: string) => Promise<ProjectWindowSwap>
     readonly handOff: (window: Window, target: ProjectWindowTarget) => void
   },
 ): void => {
@@ -65,9 +68,11 @@ export const registerProjectWindowsIpc = <Window>(
     const id = windowIdOf(value)
     if (id !== undefined) open(target, id)
   })
-  from(projectWindowSwapChannel, (target, value) => {
+  // A swap answers once the other window has sent its edits, so the asking page may read.
+  ipc.handle(projectWindowSwapChannel, async (event, value) => {
+    const target = window(event)
     const id = windowIdOf(value)
-    if (id !== undefined) swap(target, id)
+    return target !== undefined && id !== undefined ? swap(target, id) : "alone"
   })
   from(projectWindowHandOffChannel, (target, value) => {
     const place = parseProjectWindowTarget(value)

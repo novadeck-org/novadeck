@@ -125,11 +125,15 @@ export type DesktopBridge = {
   openProjectWindow?(projectId: string): void
   /**
    * Swaps this window's project with another window's: the window that shows `projectId` shows
-   * what this window showed until now, and this window, which the page has already switched,
-   * shows `projectId`. Does nothing when no other window shows it. Absent from apps that came
-   * before it.
+   * what this window showed until now, and this window shows `projectId`. The page has sent
+   * what it changed in its own project first, and the app has the other window do the same
+   * before it answers, so the page may read `projectId` as soon as the answer comes: `swapped`
+   * when it did (the page switches), `forwarded` when this window hadn't said what it shows,
+   * so nothing could be given the other and that window came forward instead (the page stays
+   * where it is), `alone` when no other window shows it (the page just switches). Absent from
+   * apps that came before it.
    */
-  swapProjectWindow?(projectId: string): void
+  swapProjectWindow?(projectId: string): Promise<ProjectWindowSwap>
   /**
    * Brings forward the window that shows `target.projectId`, and tells it to go to the project and
    * its terminal. When no other window shows the project, this window is told instead. Absent
@@ -142,6 +146,13 @@ export type DesktopBridge = {
    * function that stops listening. Absent from apps that came before it.
    */
   onProjectWindowNavigate?(listener: (target: ProjectWindowTarget) => void): () => void
+  /**
+   * Calls `listener` when the app asks this window to send what it changed in the project it
+   * shows (its saves) to the runner, as another window is about to read it: the app waits for
+   * the listener's promise, a short while at most. Returns a function that stops listening.
+   * Absent from apps that came before it.
+   */
+  onProjectWindowFlush?(listener: () => Promise<void>): () => void
   /**
    * Calls `listener` with whether a screen reader or other assistive technology is running,
    * as the system tells Chromium: at once with the current state, and again on each change.
@@ -801,6 +812,13 @@ export type ProjectWindowTarget = {
    */
   readonly quiet?: true
 }
+
+/** How a swap went: see `DesktopBridge.swapProjectWindow`. */
+export type ProjectWindowSwap = "swapped" | "forwarded" | "alone"
+
+/** A `ProjectWindowSwap` when `value` is one; otherwise `alone`, which asks nothing of the page. */
+export const projectWindowSwapOf = (value: unknown): ProjectWindowSwap =>
+  value === "swapped" || value === "forwarded" ? value : "alone"
 
 /** What a window tells the app of its project, and the projects its page knows. */
 export type ProjectWindowShown = {

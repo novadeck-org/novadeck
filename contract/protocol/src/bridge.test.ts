@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   desktopBadgeOf,
   parseProjectWindowShown,
+  projectWindowSwapOf,
   parseProjectWindowsState,
   parseProjectWindowTarget,
   parseUpdateOffer,
@@ -182,5 +183,15 @@ describe("what the app says of its other windows", () => {
     ["an id that is not text", { elsewhere: [3], voice: true }],
   ])("is nothing for %s", (_name, value) => {
     expect(parseProjectWindowsState(value)).toBeUndefined()
+  })
+})
+
+describe("how a swap went", () => {
+  it("is one of the three answers, and `alone` for anything else", () => {
+    expect(projectWindowSwapOf("swapped")).toBe("swapped")
+    expect(projectWindowSwapOf("forwarded")).toBe("forwarded")
+    expect(projectWindowSwapOf("alone")).toBe("alone")
+    expect(projectWindowSwapOf(undefined)).toBe("alone")
+    expect(projectWindowSwapOf({ swapped: true })).toBe("alone")
   })
 })

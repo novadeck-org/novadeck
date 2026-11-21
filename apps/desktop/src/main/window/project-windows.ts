@@ -13,6 +13,8 @@ export type ProjectWindowsOutput<Window> = {
   readonly forward: (window: Window) => void
   /** Tells a window's page what its siblings show, and whether it has the voice. */
   readonly tell: (window: Window, state: ProjectWindowsState) => void
+  /** Has a window's page send what it changed in its project to the runner; resolves once it has, or has gone. */
+  readonly flush: (window: Window) => Promise<void>
   /** Tells a window's page to go to a place in a project. */
   readonly navigate: (window: Window, target: ProjectWindowTarget) => void
   /** The voice moved: `from` rang, raised notifications and counted, and `to` does now. */
@@ -114,22 +116,30 @@ export const createProjectWindows = <Window>(output: ProjectWindowsOutput<Window
       changed()
     },
     /**
-     * `from`'s page switched to `projectId`: the window that showed it shows what `from`
-     * showed, and goes there. With no other window on it, `from` simply shows it.
+     * `from`'s page picks `projectId` (it has sent what it changed in its own project): the
+     * window that shows it sends what it changed there, then shows what `from` showed, and goes
+     * there; resolves once it is sent there, so `from` may read the project. `swapped` then; with
+     * no other window on it, `alone`, and `from` simply shows it; and `forwarded` when `from`
+     * hadn't said what it shows, so there is nothing to give the other: it comes forward instead,
+     * the person's pick, and `from` stays where it is.
      */
-    swap: (from: Window, projectId: string): void => {
+    swap: async (from: Window, projectId: string): Promise<"swapped" | "forwarded" | "alone"> => {
       const former = shown.get(from)
       const other = windowOf(projectId, from)
-      shown.set(from, projectId)
-      if (other !== undefined && former !== undefined && former !== projectId) {
-        shown.set(other, former)
-        output.navigate(other, { projectId: former })
-      } else if (other !== undefined && former === undefined) {
-        // This window hadn't said what it showed, so there is nothing to give the other: it
-        // comes forward, the person's pick, rather than being sent anywhere.
+      if (other !== undefined && former === undefined) {
         output.forward(other)
+        return "forwarded"
       }
+      shown.set(from, projectId)
+      if (other === undefined || former === undefined || former === projectId) {
+        changed()
+        return "alone"
+      }
+      shown.set(other, former)
       changed()
+      await output.flush(other)
+      output.navigate(other, { projectId: former })
+      return "swapped"
     },
     /**
      * Brings forward the window that shows the target's project and tells it to go there,

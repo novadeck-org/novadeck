@@ -310,6 +310,12 @@ export const projectWindowHandOffChannel = "novadeck:project-window-hand-off"
 /** Main-to-renderer order to go to a place in a project, `{ projectId, terminalId?, rowId? }`. */
 export const projectWindowNavigateChannel = "novadeck:project-window-navigate"
 
+/** Main-to-renderer ask to send the page's saves to the runner, with an id to answer with. */
+export const projectWindowFlushChannel = "novadeck:project-window-flush"
+
+/** Renderer-to-main answer that the saves asked for landed, with the ask's id. */
+export const projectWindowFlushedChannel = "novadeck:project-window-flushed"
+
 /**
  * Given to the page's preload in a window that is not the app's first: the value is `1`;
  * absent in the first window.

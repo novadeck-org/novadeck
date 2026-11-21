@@ -1,4 +1,4 @@
-import type { IpcMainEvent } from "electron"
+import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 
 import {
   projectWindowHandOffChannel,
@@ -13,33 +13,42 @@ import { registerProjectWindowsIpc } from "./project-windows-ipc"
 
 const registered = (own: boolean) => {
   const listeners = new Map<string, (event: IpcMainEvent, value: unknown) => void>()
+  const handlers = new Map<string, (event: IpcMainInvokeEvent, value: unknown) => unknown>()
   const calls: unknown[][] = []
   registerProjectWindowsIpc(
-    { on: (channel, listener) => void listeners.set(channel, listener) },
+    {
+      on: (channel, listener) => void listeners.set(channel, listener),
+      handle: (channel, listener) => void handlers.set(channel, listener),
+    },
     {
       window: () => (own ? "window" : undefined),
       ask: (window) => void calls.push(["ask", window]),
       show: (window, id, known) => void calls.push(["show", window, id, known]),
       use: (on) => void calls.push(["use", on]),
       open: (window, id) => void calls.push(["open", window, id]),
-      swap: (window, id) => void calls.push(["swap", window, id]),
+      swap: async (window, id) => {
+        calls.push(["swap", window, id])
+        return "swapped"
+      },
       handOff: (window, target) => void calls.push(["handOff", window, target]),
     },
   )
   const send = (channel: string, value?: unknown): void =>
     listeners.get(channel)?.({} as IpcMainEvent, value)
-  return { send, calls }
+  const invoke = (channel: string, value?: unknown) =>
+    handlers.get(channel)?.({} as IpcMainInvokeEvent, value)
+  return { send, invoke, calls }
 }
 
 describe("the pages' project window requests", () => {
-  it("reach the app for the window they came from", () => {
-    const { send, calls } = registered(true)
+  it("reach the app for the window they came from", async () => {
+    const { send, invoke, calls } = registered(true)
     send(projectWindowsRequestChannel)
     send(projectWindowShowChannel, { projectId: "p1", known: ["p1", "p2"] })
     send(projectWindowShowChannel, { projectId: null, known: [] })
     send(projectWindowsUseChannel, true)
     send(projectWindowOpenChannel, "p2")
-    send(projectWindowSwapChannel, "p3")
+    await expect(invoke(projectWindowSwapChannel, "p3")).resolves.toBe("swapped")
     send(projectWindowHandOffChannel, { projectId: "p4", terminalId: "t" })
     expect(calls).toEqual([
       ["ask", "window"],
@@ -52,20 +61,21 @@ describe("the pages' project window requests", () => {
     ])
   })
 
-  it("are dropped from any other sender", () => {
-    const { send, calls } = registered(false)
+  it("are dropped from any other sender", async () => {
+    const { send, invoke, calls } = registered(false)
     send(projectWindowsRequestChannel)
     send(projectWindowOpenChannel, "p2")
+    await expect(invoke(projectWindowSwapChannel, "p3")).resolves.toBe("alone")
     expect(calls).toEqual([])
   })
 
-  it("are dropped when what they carry is not what the contract allows", () => {
-    const { send, calls } = registered(true)
+  it("are dropped when what they carry is not what the contract allows", async () => {
+    const { send, invoke, calls } = registered(true)
     send(projectWindowShowChannel, 7)
     send(projectWindowShowChannel, { projectId: "", known: [] })
     send(projectWindowsUseChannel, "yes")
     send(projectWindowOpenChannel, "")
-    send(projectWindowSwapChannel, { id: "p" })
+    await expect(invoke(projectWindowSwapChannel, { id: "p" })).resolves.toBe("alone")
     send(projectWindowHandOffChannel, { terminalId: "t" })
     expect(calls).toEqual([])
   })

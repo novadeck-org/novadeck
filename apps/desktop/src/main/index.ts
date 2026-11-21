@@ -40,6 +40,8 @@ import {
   feedbackArgumentPrefix,
   noticeClickChannel,
   portableStateChannel,
+  projectWindowFlushChannel,
+  projectWindowFlushedChannel,
   projectWindowNavigateChannel,
   projectWindowsChannel,
   runnerPortChannel,
@@ -118,6 +120,7 @@ import {
   registerControlsIpc,
   type WindowControls,
 } from "./window/controls.js"
+import { createFlushes } from "./window/flushes.js"
 import { registerWindowFocusIpc } from "./window/focus.js"
 import { linuxMenu, macMenu, windowsMenu } from "./window/menu.js"
 import { registerPanePictureIpc } from "./window/pane-pictures.js"
@@ -422,11 +425,25 @@ const projectWindows = createProjectWindows<BrowserWindow>({
     if (window.isDestroyed() || !isAppPage(window.webContents.getURL())) return
     window.webContents.send(projectWindowsChannel, state)
   },
+  flush: (window) => flushes.ask(window),
   navigate: (window, target) => {
     if (window.isDestroyed() || !isAppPage(window.webContents.getURL())) return
     window.webContents.send(projectWindowNavigateChannel, target)
   },
   voiceMoved: (from, to) => voiceBook.moved(from, to),
+})
+// Asks a window's page to send its saves to the runner before another window reads its project.
+const flushes = createFlushes<BrowserWindow>({
+  send: (window, id) => {
+    if (window.isDestroyed() || !isAppPage(window.webContents.getURL())) return false
+    window.webContents.send(projectWindowFlushChannel, id)
+    return true
+  },
+  later: (done, ms) => {
+    const timer = setTimeout(done, ms)
+    return () => clearTimeout(timer)
+  },
+  nextId: () => randomUUID(),
 })
 // The address the app's own server answers on, once it does.
 const appOrigin = (): string => {
@@ -702,6 +719,9 @@ const launch = async (): Promise<void> => {
   })
   // The pages' project windows: what each shows, opening one for a project, swapping two
   // windows' projects, and handing a place in a project to its window.
+  ipcMain.on(projectWindowFlushedChannel, (event, id: unknown) => {
+    if (appWindow(event) !== undefined && typeof id === "string") flushes.answered(id)
+  })
   registerProjectWindowsIpc(ipcMain, {
     window: appWindow,
     ask: (window) => projectWindows.tell(window),
@@ -711,9 +731,10 @@ const launch = async (): Promise<void> => {
     },
     use: (on) => void savedWindows.use(on).then(rememberWindows),
     open: (window, projectId) => projectWindows.open(window, projectId),
-    swap: (window, projectId) => {
-      projectWindows.swap(window, projectId)
+    swap: async (window, projectId) => {
+      const result = await projectWindows.swap(window, projectId)
       rememberWindowsSoon()
+      return result
     },
     handOff: (window, target) => projectWindows.handOff(window, target),
   })

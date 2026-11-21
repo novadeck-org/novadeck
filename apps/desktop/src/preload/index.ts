@@ -2,6 +2,7 @@ import {
   desktopBadgeOf,
   parsePortableState,
   parseProjectWindowShown,
+  projectWindowSwapOf,
   parseProjectWindowsState,
   parseProjectWindowTarget,
   windowIdOf,
@@ -81,6 +82,8 @@ import {
   whatsNewChannel,
   windowFocusChannel,
   windowFocusRequestChannel,
+  projectWindowFlushChannel,
+  projectWindowFlushedChannel,
   projectWindowHandOffChannel,
   projectWindowNavigateChannel,
   projectWindowOpenChannel,
@@ -336,8 +339,25 @@ const bridge = {
   openProjectWindow: (projectId) => {
     if (windowIdOf(projectId) !== undefined) ipcRenderer.send(projectWindowOpenChannel, projectId)
   },
-  swapProjectWindow: (projectId) => {
-    if (windowIdOf(projectId) !== undefined) ipcRenderer.send(projectWindowSwapChannel, projectId)
+  // Only one of the three answers comes back.
+  swapProjectWindow: async (projectId) => {
+    if (windowIdOf(projectId) === undefined) return "alone"
+    return projectWindowSwapOf(await ipcRenderer.invoke(projectWindowSwapChannel, projectId))
+  },
+  // The app's ask for the page's saves is answered once the listener's promise settles, however
+  // it ends.
+  onProjectWindowFlush: (listener) => {
+    const relay = (_event: unknown, id: unknown): void => {
+      if (typeof id !== "string") return
+      void Promise.resolve()
+        .then(() => listener())
+        .catch(() => {})
+        .finally(() => ipcRenderer.send(projectWindowFlushedChannel, id))
+    }
+    ipcRenderer.on(projectWindowFlushChannel, relay)
+    return () => {
+      ipcRenderer.removeListener(projectWindowFlushChannel, relay)
+    }
   },
   // Only the three fields cross; the main process checks them again.
   handOffToProjectWindow: (target) => {
