@@ -1,17 +1,28 @@
 import { execFileSync } from "node:child_process"
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
-import { devNull, tmpdir } from "node:os"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { timing } from "../checkouts/git.js"
 import { describe, expect, it as base } from "../test.js"
 import { landedByReflog } from "./landed.js"
 
+// An empty global config of the tests' own: Windows git can't open the null device as one.
+const config = join(
+  realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-landed-config-"))),
+  "gitconfig",
+)
+writeFileSync(config, "[core]\n\tautocrlf = false\n")
+
 const git = (root: string, ...args: string[]) =>
   execFileSync(
     "git",
     ["-c", "user.name=T", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", ...args],
-    { cwd: root, encoding: "utf8", env: { ...process.env, GIT_CONFIG_GLOBAL: devNull } },
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, GIT_CONFIG_GLOBAL: config, GIT_CONFIG_NOSYSTEM: "1" },
+    },
   ).trim()
 
 const commit = (root: string, file: string) => {
