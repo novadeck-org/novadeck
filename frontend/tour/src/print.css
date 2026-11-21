@@ -87,6 +87,14 @@
 .tour-caption {
   filter: drop-shadow(0 10px 14px rgb(0 0 0 / 0.45));
 }
+/* Held back until the stage shows it, a moment after what its step marks (`data-shown`); its
+   panel pops in as it does. */
+.tour-caption:not([data-shown]) {
+  opacity: 0;
+}
+.tour-caption:not([data-shown]) .tour-caption-panel {
+  animation: none;
+}
 .tour-caption-panel {
   --_cut: 18px;
   position: relative;

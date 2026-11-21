@@ -798,7 +798,7 @@ App:
   act's name), the cuts at its start and its result, and its stage (`Stage.tsx`, in its own print look, `print.css`) marks the page's own
   elements, `data-tour-look` where to look (a magenta line) and `data-tour-click` what to
   press (a slowly breathing yellow one), each drawn by a mark a little way out from the element
-  (where what clips it leaves room), over all it holds, and letters one caption box beside them in space no window takes: "Your own agent. In
+  (where what clips it leaves room), over all it holds, and, a second after a mark shows, letters one caption box beside them in space no window takes: "Your own agent. In
   a sandbox.", or, while a startup screen holds, "It wants an answer first." with that screen's
   words under it, or "It's asking your permission." while the lead or a teammate has an Unblock
   row waiting in the Inbox (any harness's own dialog, or a held message). End tour sits in the

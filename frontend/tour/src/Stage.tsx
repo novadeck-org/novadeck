@@ -417,6 +417,11 @@ const footlessControls = (area: Box): readonly Box[] => [
 
 // The step's caption box: its line lettered in Nyx's box from the skits, and a note under it for
 // a moment the person has to act on; placed by its own size beside what it names.
+// How long a caption box holds back once what its step marks shows, so the mark comes first and
+// the box after it; and how long it waits at most for a mark that never shows.
+const holdMs = 1_000
+const holdAtMostMs = 3_000
+
 const CaptionBox = ({
   coach,
   scene,
@@ -433,6 +438,16 @@ const CaptionBox = ({
   readonly clear: readonly Box[]
 }): React.JSX.Element => {
   const box = useRef<HTMLElement>(null)
+  // Shown a moment after what the step marks is on the page (at once where it marks nothing),
+  // and from then on.
+  const marks = coach.look !== undefined || (coach.click?.length ?? 0) > 0
+  const pointed = !marks || scene.subject !== null
+  const [shown, setShown] = useState(false)
+  useEffect(() => {
+    if (shown) return
+    const timer = setTimeout(() => setShown(true), pointed ? holdMs : holdAtMostMs)
+    return () => clearTimeout(timer)
+  }, [pointed, shown])
   const [place, setPlace] = useState<{ readonly left: number; readonly top: number } | null>(null)
   useLayoutEffect(() => {
     const element = box.current
@@ -454,6 +469,7 @@ const CaptionBox = ({
       ref={box}
       aria-label="Tour step"
       className="tour-caption"
+      data-shown={shown || undefined}
       style={place ? { left: place.left, top: place.top } : { visibility: "hidden" }}
     >
       <div className="tour-caption-panel" data-tilt={tilt}>
