@@ -18,6 +18,17 @@ describe("the sandbox's Claude Code background service", () => {
       true,
     )
     expect(isSession("claude bg-spare --bg-spare /tmp/cc/spare/a.claim.sock")).toBe(true)
+    // As macOS's ps shows a pty host before it takes its title, or once the service is gone.
+    expect(
+      isSession(
+        "/Users/r/.e2e-cache/claude-2.1.329/node_modules/@anthropic-ai/claude-code/bin/claude.exe --bg-pty-host /tmp/cc-daemon-501/a/pty/b.sock 40 14 -- claude.exe --session-id s --resume t",
+      ),
+    ).toBe(true)
+    expect(isSession("claude.exe --bg-spare /tmp/cc/spare/a.claim.sock")).toBe(true)
+    // The service itself, and an agent a pty host runs, aren't sessions.
+    expect(isSession("/x/bin/claude.exe daemon run --origin transient")).toBe(false)
+    expect(isSession("/x/bin/claude.exe --session-id s --fork-session --resume t")).toBe(false)
+    expect(isSession("/x/bin/claude.exe --bg-pty-hostile")).toBe(false)
     expect(isSession("claude --settings x")).toBe(false)
     expect(isSession("/usr/bin/claude bg-pty-host")).toBe(false)
     expect(isSession("claude bg-pty-hostile")).toBe(false)

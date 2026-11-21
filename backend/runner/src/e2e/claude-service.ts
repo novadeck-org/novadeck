@@ -61,9 +61,15 @@ export const settled = async <T extends { readonly pid: number }>(
   return last
 }
 
-/** One of the service's background sessions, by its command line. */
+/**
+ * One of the service's background sessions, by its command line: the title a session gives
+ * itself (`claude bg-pty-host`), or, on macOS, the command it was started with
+ * (`…/claude.exe --bg-pty-host`), which `ps` shows for a pty host still starting, or again once
+ * the service is gone (seen with Claude Code 2.1.329). Missing that one left the conversation the
+ * agents view moved into the service running, with its MCP relay.
+ */
 export const isSession = (command: string): boolean =>
-  /^claude bg-(?:pty-host|spare)(?:\s|$)/.test(command.trim())
+  /^(?:claude bg-|(?:\S*\/)?claude(?:\.exe)? --bg-)(?:pty-host|spare)(?:\s|$)/.test(command.trim())
 
 const commandLine = async (pid: number): Promise<string> => {
   if (process.platform === "linux")
