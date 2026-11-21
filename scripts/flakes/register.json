@@ -701,6 +701,15 @@
         "fix/e2e-pins-latest-1120 run 44772308093 attempt 1 job 136420294467 (macOS, 1/2), retried and passed",
         "#1145 run 44781571633 (Linux, 2/2), retried and passed"
       ]
+    },
+    {
+      "id": "runner-doorbell-keys-during-ring",
+      "jobs": ["^Test \\((?:macOS|Linux|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/shell/integration-doorbell.test.ts > the doorbell in bash terminals > holds what the person types during the ring, and gives it to the TUI after",
+      "signature": "AssertionError: expected \\d+ to be greater than \\d+",
+      "status": "known",
+      "cause": "Not reproduced yet. The person's keys (\"xyz\" at 65) reached the TUI before the ring's last \\r (at 78), so on a busy runner they went in before the doorbell's Enter, into its line, which is what the hold during a ring is meant to stop. It could be a real race in the hold rather than in the test.",
+      "seen": ["#1152 run 44827540904 attempt 1 job 136603855817 (Linux, 3/3)"]
     }
   ]
 }
