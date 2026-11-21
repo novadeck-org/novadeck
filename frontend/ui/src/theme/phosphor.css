@@ -387,6 +387,24 @@
   );
 }
 
+/* An ended window's pane rises over the glass (window.css), so the rim rises over the pane, and
+   while the person navigates the workspace the pane lies under the glass again, where the ring
+   is drawn. */
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .terminal-window[data-terminal-phase="ended"]::before {
+  z-index: 302;
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  [data-navigate="true"]
+  :is(
+    .terminal-focused,
+    .grid-terminal.selected .terminal-window,
+    .canvas-node.selected .terminal-window
+  )[data-terminal-phase="ended"]
+  .pane-split-reader {
+  z-index: 1;
+}
+
 /* Outlines a window draws for itself fall outside its clip, and one drawn inside it
    lies under the window's own content, its header and chat included. In the tube they
    are drawn on the glass instead, which lies over everything the window holds: the ring
