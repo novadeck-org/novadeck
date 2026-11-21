@@ -1,11 +1,12 @@
 import { sameBlock, turnsWorked, type ChatBlock } from "@novadeck/core/conversation/turns"
 import type { MessageParty } from "@novadeck/core/messages"
-import { noticeBody, noticeOneLine, readNotice } from "@novadeck/core/notices"
+import { noticeBody, noticeOneLine, noticeSeen, readNotice } from "@novadeck/core/notices"
 import { counted } from "@novadeck/core/units"
 import { shownControls } from "@novadeck/requests/shown-controls"
 import { Markdown } from "@novadeck/toolkit/Markdown"
 import { MentionedText } from "@novadeck/toolkit/Mentioned"
 import { mentionAt, type Mention } from "@novadeck/toolkit/mentions"
+import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { memo, useId, useMemo, useState } from "react"
 
 import { withBubbles, type SentBubble } from "./bubbles"
@@ -232,15 +233,18 @@ const SubagentLine = ({
 }
 
 // One of Novadeck's own notices, whether it came in a ring's delivery or rode on the prompt's hook:
-// a dim line of its own first words, its `Novadeck · <Kind>` header off (the person reads the
-// facts, not the header), which opens in place to the whole, each `→` action on its line. As a
-// subagent's report is, not as someone's message is: nobody said it, so no author and no face.
+// a quiet bell line with Novadeck's mark in the gutter, a dashed rule to the edge as the
+// doorbell's own line has, and a click opens it. An event notice (a ring's) says its family's
+// line, what the person is told of it, and opens to the notice itself, facts and `→` actions, under
+// it; a standing one (it rode on a prompt's hook) says its facts, which it opens to whole in place.
+// Its `Novadeck · <Kind>` header is never shown. Nobody said it, so no author and no face.
 const NoticeLine = ({
   id,
   text,
   at,
   written,
   mention,
+  event,
 }: {
   readonly id: string
   readonly text: string
@@ -248,31 +252,45 @@ const NoticeLine = ({
   readonly at: number | null
   readonly written: number | null
   readonly mention: Mention | undefined
+  readonly event: boolean
 }): React.JSX.Element => {
   const [open, setOpen] = useState(false)
   const { kind } = readNotice(text)
   const said = mentionAt(mention, written)
+  const whole = (
+    <MentionedText
+      text={shownControls(open ? noticeBody(text) : noticeOneLine(text))}
+      mention={said}
+    />
+  )
   return (
     <div
-      className="chat-subagent chat-notice"
+      className="chat-notice"
       data-notice={id}
+      data-event={event || undefined}
       role="group"
       aria-label={kind ? `Novadeck notice, ${kind}` : "Novadeck notice"}
     >
-      <button
-        type="button"
-        className="chat-subagent-summary chat-notice-key nodrag nopan"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <span className="chat-notice-said" data-open={open || undefined}>
-          <MentionedText
-            text={shownControls(open ? noticeBody(text) : noticeOneLine(text))}
-            mention={said}
-          />
-        </span>
-      </button>
-      <TimeFact at={at} hover />
+      <NovaMark size={12} className="chat-notice-mark" />
+      <div className="chat-notice-head">
+        <button
+          type="button"
+          className="chat-notice-key nodrag nopan"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <span className="chat-notice-said" data-open={(!event && open) || undefined}>
+            {event ? noticeSeen(text) : whole}
+          </span>
+          <span className="chat-notice-rule" aria-hidden />
+        </button>
+        <TimeFact at={at} hover />
+      </div>
+      {event && open && (
+        <p className="chat-notice-body">
+          <MentionedText text={shownControls(noticeBody(text))} mention={said} />
+        </p>
+      )}
     </div>
   )
 }
@@ -509,6 +527,7 @@ const BlockView = memo(
                 // Each says when it was delivered, as a line of its own.
                 at={notice.deliveredAt}
                 mention={mention}
+                event
               />
             ))}
           </article>
@@ -535,6 +554,7 @@ const BlockView = memo(
             at={block.at}
             written={block.at}
             mention={mention}
+            event={false}
           />
         )
       case "gap":

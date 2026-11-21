@@ -4,6 +4,7 @@ export {
   noticeBody,
   noticeOneLine,
   noticePrefix,
+  noticeSeen,
   readNotice,
   splitHookText,
   type ReadNotice,

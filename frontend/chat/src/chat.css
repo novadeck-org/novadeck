@@ -761,20 +761,59 @@
 .chat-subagent-summary[aria-expanded="true"] .chat-subagent-said {
   display: none;
 }
-/* One of Novadeck's own notices: a subagent's dim line with no name, its first words to the edge,
-   the handles in them keeping their hue, a step dimmer. Open, the line is the whole notice, each
-   `→` action on its own line, and a click on it closes it. */
+/* One of Novadeck's own notices: a quiet bell line, as the doorbell's own line is (`.chat-ring >
+   .chat-note`) but in the muted ink and the regular weight, Novadeck's mark in the gutter where a
+   prompt's mark sits, a dashed rule to the edge, and its time where it shows one. An event
+   notice's line is its family's; opened, the notice itself is under it, each `→` action on its
+   line. A standing notice's line is its facts, which open in place; a click on it closes it. */
 .chat-notice {
+  position: relative;
   margin-top: calc(var(--_lh) * 0.4);
 }
 .chat-notice + .chat-notice {
   margin-top: calc(var(--_lh) * 0.1);
 }
+.chat-notice-mark {
+  position: absolute;
+  top: calc((var(--_lh) - 12px) / 2);
+  left: -2ch;
+  --nova-mark-fg: var(--_muted);
+  --nova-mark-core-fg: var(--_muted);
+}
+.chat-notice-head {
+  display: flex;
+  align-items: center;
+  gap: 1ch;
+  min-width: 0;
+}
+.chat-notice-key {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 1ch;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: none;
+  color: var(--_muted);
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.chat-notice-head > .chat-fact {
+  position: static;
+}
 .chat-notice-said {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
-  color: var(--_muted);
   text-overflow: ellipsis;
+}
+.chat-notice-rule {
+  flex: 1;
+  border-top: 1px dashed var(--color-line-strong);
 }
 .chat-notice-said .markdown-mention {
   opacity: 0.75;
@@ -785,13 +824,24 @@
   overflow-wrap: anywhere;
   user-select: text;
 }
+.chat-notice-key:has(> [data-open]) {
+  align-items: flex-start;
+  overflow: visible;
+}
+.chat-notice-key:has(> [data-open]) > .chat-notice-rule {
+  display: none;
+}
+.chat-notice-body {
+  margin: calc(var(--_lh) / 6) 0 0;
+  color: var(--_muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
 @media (hover: hover) {
-  .chat-notice-key:hover .chat-notice-said {
+  .chat-notice-key:hover {
     color: var(--_ink);
   }
-}
-.chat-notice-key[aria-expanded="true"] {
-  overflow: visible;
 }
 .chat-tools-list {
   display: flex;

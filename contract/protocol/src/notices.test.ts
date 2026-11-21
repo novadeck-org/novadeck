@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { noticeBody, noticeOneLine, readNotice, splitHookText } from "./notices.js"
+import { noticeBody, noticeOneLine, noticeSeen, readNotice, splitHookText } from "./notices.js"
 
 const worktrees = [
   "Novadeck · Worktrees",
@@ -85,5 +85,37 @@ describe("splitHookText", () => {
 
   it("leads the Stop's phrase off a text with no delivery, too", () => {
     expect(splitHookText(`Stop hook says: ${host}`)).toEqual({ notices: [host], delivery: false })
+  })
+})
+
+describe("noticeSeen", () => {
+  const of = (kind: string): string => noticeSeen(`Novadeck · ${kind}\nSomething happened.`)
+
+  it("says one line for each family", () => {
+    expect(of("Restart")).toBe("You notice Novadeck restarted.")
+    expect(of("Terminals")).toBe("You notice terminals open and close.")
+    expect(of("Team")).toBe("You notice the team shift.")
+    expect(of("Worktrees")).toBe("You notice a worktree change hands.")
+    expect(of("Inbox")).toBe("You notice an ask leave the Inbox.")
+    expect(of("Resources")).toBe("You notice shared resources are busy.")
+    expect(of("Show")).toBe("You notice problems in something shown.")
+  })
+
+  it("maps the kinds earlier builds wrote to their family", () => {
+    expect(of("Host load")).toBe(of("Resources"))
+    expect(of("CI queue")).toBe(of("Resources"))
+    expect(of("Page")).toBe(of("Show"))
+    expect(of("Lead")).toBe(of("Team"))
+    expect(of("Move")).toBe(of("Team"))
+    expect(of("Close")).toBe(of("Terminals"))
+    expect(of("Run")).toBe(of("Terminals"))
+  })
+
+  it("says something for an unknown kind, no header or the legacy prefix", () => {
+    expect(of("Weather")).toBe("You notice something.")
+    expect(noticeSeen("It rained.")).toBe("You notice something.")
+    expect(noticeSeen("Novadeck: automatic notice, not from the user: It rained.")).toBe(
+      "You notice something.",
+    )
   })
 })

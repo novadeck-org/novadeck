@@ -8,8 +8,8 @@
  *       <optional detail line, indented two spaces>
  *     → <what to do, one line per action>
  *
- * The person sees a notice's own words, never its header: `readNotice` strips it, and
- * splits the facts from the `→` actions.
+ * `readNotice` strips the header and splits the facts from the `→` actions. What the person
+ * sees of an event notice (one a doorbell ring brought) is `noticeSeen`'s line, never its facts.
  */
 
 /** What starts every notice's first line, up to its kind. */
@@ -65,6 +65,36 @@ export const noticeOneLine = (text: string): string => {
 export const noticeBody = (text: string): string => {
   const { facts, actions } = readNotice(text)
   return [...facts, ...actions.map((action) => `${arrow}${action}`)].join("\n")
+}
+
+// What the person is told of an event notice, by the family of its kind: a short line in a
+// game log's voice. The kinds earlier builds wrote (Host load, CI queue, Page, Lead, Move, Close,
+// Run) are in transcripts a resumed session holds, and map to their family's line.
+const seen: Readonly<Record<string, string>> = {
+  Restart: "You notice Novadeck restarted.",
+  Terminals: "You notice terminals open and close.",
+  Team: "You notice the team shift.",
+  Worktrees: "You notice a worktree change hands.",
+  Inbox: "You notice an ask leave the Inbox.",
+  Resources: "You notice shared resources are busy.",
+  Show: "You notice problems in something shown.",
+}
+const seenOldKinds: Readonly<Record<string, string>> = {
+  "Host load": "Resources",
+  "CI queue": "Resources",
+  Page: "Show",
+  Lead: "Team",
+  Move: "Team",
+  Close: "Terminals",
+  Run: "Terminals",
+}
+const seenUnknown = "You notice something."
+
+/** The one line the person sees of an event notice: its family's, "You notice something." for no known kind. */
+export const noticeSeen = (text: string): string => {
+  const { kind } = readNotice(text)
+  if (kind === null) return seenUnknown
+  return seen[seenOldKinds[kind] ?? kind] ?? seenUnknown
 }
 
 const headerLine = /^(?:Novadeck · |Novadeck: automatic notice, not from the user: )/m

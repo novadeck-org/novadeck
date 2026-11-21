@@ -14,4 +14,4 @@ export type {
   DoorbellStats,
   RingEntry,
 } from "./doorbell.js"
-export type { HueOf, RingPart, Run, Tone } from "./doorbell-layout.js"
+export type { RingPart, Run, Tone } from "./doorbell-layout.js"

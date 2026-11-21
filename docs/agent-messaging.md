@@ -2054,10 +2054,24 @@ Standing notices ride on the prompt, a blank line apart; event notices are sent 
 message from `novadeck`. The doorbell lines (`harnesses/core/src/prompts.ts`) and the tour's
 step lines are no notices and keep their own forms, as do tool results and refusals.
 
-**What the person sees.** Agent Chat shows each notice as a quiet, collapsed line of its own
-first words, its header off (the person reads the facts; `readNotice` in
-`@novadeck/protocol/notices` is the one rule that strips it and splits the facts from the `→`
-actions, read by the chat and any terminal overlay), which opens in place to the whole.
+**What the person sees.** Never a notice's facts where an event notice rings; the agent's text
+never changes. `noticeSeen` in `@novadeck/protocol/notices` is the one map from a notice's kind
+to the line the person reads, shared by the chat and the terminal overlay: `Restart` "You notice
+Novadeck restarted.", `Terminals` "You notice terminals open and close.", `Team` "You notice the
+team shift.", `Worktrees` "You notice a worktree change hands.", `Inbox` "You notice an ask leave
+the Inbox.", `Resources` "You notice shared resources are busy.", `Show` "You notice problems in
+something shown." The kinds earlier builds wrote map to their family (`Host load` and `CI queue` to
+Resources, `Page` to Show, `Lead` and `Move` to Team, `Close` and `Run` to Terminals), as a
+resumed session's old transcript holds them; a notice of no known kind, or with no header (the
+legacy prefix), reads "You notice something." (`readNotice` there strips the header and splits the
+facts from the `→` actions.)
+
+Agent Chat shows each notice as a quiet bell line, as the doorbell's own line is: Novadeck's mark
+(the `NovaMark` of the toasts, 12px, muted) in the gutter where a prompt's mark sits, the words
+in the muted ink and regular weight, a dashed rule to the edge, and the time. An event notice's
+words are its family's line; a click opens the notice itself under it (facts, detail lines, each
+`→` action on its own line) and closes it again. A standing notice's words are still its facts
+(no line of its own yet), which a click opens in place to the whole.
 Two paths bring them there. An event notice, delivered as a message from `novadeck`, is
 kept like any delivered message and listed beside the threads as `TerminalMessages.notices`
 (the latest 200, with `deliveredAt`; never in a thread, so the Messages pane leaves them
@@ -2503,9 +2517,12 @@ that row (never another row). The harness's own screen is untouched, and copying
 - **What it says.** `@newtz: first words of the message…`: the handle in its agent's hue (the
   Messages pane's, `hueOf`, from the theme's tokens), the words in the terminal's ink, and the
   `:`, `·`, `…` and `+N more` dim. Messages share the row equally (each at least about 30
-  cells), the ones that don't fit becoming `+N more`. Novadeck's notices are dim, their facts and
-  `→` actions on one line, `Novadeck · <Kind>` header off (`noticeOneLine`, one rule with the chat), a
-  handle in one keeping its hue, dimmed; a ring of notices alone is dim throughout. The person's Inbox
+  cells), the ones that don't fit becoming `+N more`. Novadeck's notices that follow one another are
+  one share: a `novadeck` badge (the ink at 20% over the row's ground, its text at 85%), then their
+  family lines (`noticeSeen`, one rule with the chat; never the facts) dim and italic, joined by a
+  dim `·`, with no `@handle` hues. Short of cells the lines are cut with a dim `…`, and the badge
+  only where the row is narrower than it. A group is placed in delivery order between the other
+  parts, set off by the dim `  ·  `. The person's Inbox
   reply is `you: …` in their hue. A ring whose content isn't known says a dim `doorbell`.
 - **Where the content comes from.** The runner keeps what each ring said, by its nonce
   (`RingNotes`, `messaging/ring-notes.ts`): the doorbell makes its line (`DoorbellHost.noted`) and

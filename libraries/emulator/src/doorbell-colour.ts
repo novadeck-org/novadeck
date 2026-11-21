@@ -75,3 +75,9 @@ export const dimmed = (colour: string, ground: string, share = 0.55, floor = 3):
   }
   return toHex(out)
 }
+
+/** The badge that leads a notice: the ink at 20% over the ground behind the ink at 85% (both brought to read). */
+export const badgeOf = (ink: string, ground: string): { tint: string; text: string } => {
+  const text = legible(ink, ground)
+  return { tint: dimmed(text, ground, 0.2, 1), text: dimmed(text, ground, 0.85, 1) }
+}

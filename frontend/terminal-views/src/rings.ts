@@ -1,5 +1,5 @@
 import type { DeliveryContent, RingContent, RingNote } from "@novadeck/core/messages"
-import { noticeOneLine } from "@novadeck/core/notices"
+import { noticeSeen } from "@novadeck/core/notices"
 import type { ThemeSource } from "@novadeck/core/port"
 import {
   attachDoorbell,
@@ -8,13 +8,11 @@ import {
   type View,
 } from "@novadeck/emulator/browser"
 
-// What the owner knows of a terminal's rings: what each said, and the handles of the agents the
-// session has (a notice's `@handle` takes an agent's hue only where an agent has it).
+// What the owner knows of a terminal's rings: what each said.
 export type RingFeed = {
   readonly get: () => {
     readonly rings: readonly RingContent[]
     readonly deliveries: readonly DeliveryContent[]
-    readonly handles: ReadonlySet<string>
     // Whether an agent runs in the terminal, whose TUI may draw on the alternate screen.
     readonly agent: boolean
   }
@@ -104,13 +102,13 @@ export const hueColours = (
   return out
 }
 
-// A message as the overlay draws it. A notice is its facts and its actions on one line, its
-// `Novadeck · <Kind>` header off, by the one rule the chat reads notices by.
+// A message as the overlay draws it. A notice is the one line the person is told of it, by the
+// rule the chat tells event notices by (`noticeSeen`); its facts stay with the agent.
 const partOf = (note: RingNote, hueOf: (handle: string) => number): RingPart =>
   note.kind === "agent"
     ? { kind: "agent", handle: note.handle, hue: hueOf(note.handle), text: note.text }
     : note.kind === "notice"
-      ? { kind: "notice", text: noticeOneLine(note.text) }
+      ? { kind: "notice", text: noticeSeen(note.text) }
       : { kind: "person", text: note.text }
 
 /**
@@ -155,12 +153,10 @@ export const ringRows = (
     const scope = terminal.element?.isConnected ? terminal.element : document.body
     return hueColours(theme.tokens(scope, tokens))
   }
-  let handles: ReadonlySet<string> = new Set()
   const hueOf = (handle: string): number => theme.hueOf?.(handle) ?? 1
   let agent = false
   const doorbell = attachDoorbell(terminal, {
     alternate: () => agent,
-    hueOf: (handle) => (handles.has(handle) ? hueOf(handle) : null),
     hueColour: (hue) => (colours ??= read()).get(hue),
   })
   let known = new Set<string>()
@@ -178,12 +174,10 @@ export const ringRows = (
       now.rings.at(-1)?.nonce,
       now.deliveries.length,
       now.deliveries.at(-1)?.at,
-      [...now.handles].toSorted().join(" "),
       now.agent,
     ].join("|")
     if (sign === stamp) return
     stamp = sign
-    handles = now.handles
     const agentChanged = agent !== now.agent
     agent = now.agent
     const content = contentOf(now.rings, now.deliveries, hueOf)

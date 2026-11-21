@@ -363,7 +363,7 @@ describe("the doorbell rows' feed", () => {
     ...more,
   })
 
-  it("reads the terminal's rings and deliveries, and the handles of every terminal's agent", () => {
+  it("reads the terminal's rings and deliveries, and whether an agent runs there", () => {
     const rings = [
       { seq: 1, nonce: "n7Q2xk", at: 1, parts: [{ kind: "notice" as const, text: "x" }] },
     ]
@@ -378,7 +378,6 @@ describe("the doorbell rows' feed", () => {
     expect(feed.get()).toEqual({
       rings,
       deliveries: [],
-      handles: new Set(["fox", "moth"]),
       agent: true,
     })
     expect(ringFeed(store, "u").get().rings).toEqual([])

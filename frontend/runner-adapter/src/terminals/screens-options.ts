@@ -58,7 +58,7 @@ export const pasteNotice = (failure: PasteFailure): string =>
 const none: readonly never[] = []
 
 // What a terminal's screen draws its doorbell rows from: the rings and deliveries the runner
-// lists with the terminal's messages, and the handles of the session's agents.
+// lists with the terminal's messages.
 export const ringFeed = (messages: Store<MessagesState>, terminalId: string): RingFeed => ({
   get: () => {
     const { terminals } = messages.getSnapshot()
@@ -66,7 +66,6 @@ export const ringFeed = (messages: Store<MessagesState>, terminalId: string): Ri
     return {
       rings: mine?.rings ?? none,
       deliveries: mine?.deliveries ?? none,
-      handles: new Set(Object.values(terminals).map((each) => each.handle)),
       agent: mine?.agent === true,
     }
   },

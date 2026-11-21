@@ -113,6 +113,8 @@ const replay = async (options: {
   readonly cols: string
   readonly name: "ring" | "recall" | "turn-end" | "ring2" | "start" | "reply"
   readonly renderer: "dom" | "webgl"
+  // What the ring or delivery says instead of the recording's own message.
+  readonly told?: readonly RingPart[]
 }) => {
   const { harness, cols, name, renderer } = options
   const chunks = chunksOf(harness, cols, name)
@@ -126,7 +128,7 @@ const replay = async (options: {
   })
   const drawing = renderer === "webgl" ? loadWebgl(view.terminal) : undefined
   view.terminal.resize(Number(cols), 40)
-  const doorbell = attachDoorbell(view.terminal, { hueOf: () => null, alternate: () => true })
+  const doorbell = attachDoorbell(view.terminal, { alternate: () => true })
   opened.push(() => {
     doorbell.dispose()
     drawing?.dispose()
@@ -143,10 +145,10 @@ const replay = async (options: {
         ]
       : name === "reply"
         ? [{ kind: "person", text: "Picked Push: Yes, push it & then tidy <b>up</b> [soon] @x $y" }]
-        : [...parts]
+        : [...(options.told ?? parts)]
   const content: DoorbellContent = {
     rings: new Map(name !== "turn-end" && nonce ? [[nonce, { parts: told }]] : []),
-    deliveries: name === "turn-end" ? [{ ids, parts }] : [],
+    deliveries: name === "turn-end" ? [{ ids, parts: options.told ?? parts }] : [],
   }
   doorbell.setContent(content)
   // A ring's content is told as the runner types it: the whole recording is "recent".
@@ -227,7 +229,6 @@ describe.each(["dom", "webgl"] as const)(
         const drawing = renderer === "webgl" ? loadWebgl(view.terminal) : undefined
         view.terminal.resize(100, 12)
         const doorbell = attachDoorbell(view.terminal, {
-          hueOf: (handle) => (handle === "hushz" ? 4 : null),
           hueColour: (hue) => (hue === 1 ? "#7a45b8" : undefined),
         })
         opened.push(() => {
@@ -243,8 +244,8 @@ describe.each(["dom", "webgl"] as const)(
               {
                 parts: [
                   agent("newtz", "Start on the parser tests", 1),
-                  agent("hushz", "The review is done", 2),
-                  { kind: "notice", text: "@hushz is idle. → Ask it." },
+                  { kind: "notice", text: "You notice the team shift." },
+                  { kind: "notice", text: "You notice shared resources are busy." },
                 ],
               },
             ],
@@ -254,7 +255,7 @@ describe.each(["dom", "webgl"] as const)(
         // Claude Code's history row: white text on #3a3a3a (palette 237).
         await writeTo(
           view.terminal,
-          `\x1b[48;5;237m\x1b[38;5;231m❯ <novadeck-doorbell from="newtz hushz" ring="n7Q2xk"/>\x1b[K\x1b[0m\r\nout\r\n`,
+          `\x1b[48;5;237m\x1b[38;5;231m❯ <novadeck-doorbell from="newtz hushz pikez egretz" ring="n7Q2xk"/>\x1b[K\x1b[0m\r\nout\r\n`,
         )
         doorbell.arm()
         await frame()
@@ -273,6 +274,23 @@ describe.each(["dom", "webgl"] as const)(
             contrastOf(channelsOf(getComputedStyle(span).color), ground),
             `${span.textContent} on the band`,
           ).toBeGreaterThanOrEqual(2.9)
+        // The badge is a tint of the ink over the band, and the notices' lines lean.
+        const badge = [...row.querySelectorAll<HTMLElement>("span")].filter(
+          (span) => getComputedStyle(span).backgroundColor !== "rgba(0, 0, 0, 0)",
+        )
+        expect(badge.map((span) => span.textContent).join("")).toBe(" novadeck ")
+        expect(
+          badge.every(
+            (span) =>
+              luminance(channelsOf(getComputedStyle(span).backgroundColor)) > luminance(ground),
+          ),
+        ).toBe(true)
+        const leaning = [...row.querySelectorAll<HTMLElement>("span")].filter(
+          (span) => getComputedStyle(span).fontStyle === "italic",
+        )
+        expect(leaning.map((span) => span.textContent).join("")).toContain(
+          "You notice the team shift.",
+        )
         // The words are the tag's own white, not the scheme's dark ink.
         const words = spans.find((span) => span.textContent === "S")!
         expect(
@@ -325,6 +343,40 @@ for (const [renderer, available] of renderers)
             expect(result.most).toBe(result.finalDrawn)
           })
         }
+
+      // Novadeck's own notices: a badge and the family lines, alone and beside an agent's message.
+      const lines: readonly RingPart[] = [
+        { kind: "notice", text: "You notice the team shift." },
+        { kind: "notice", text: "You notice a worktree change hands." },
+      ]
+      for (const harness of harnesses) {
+        it(`draws a ring of notices alone: ${harness} at 120 columns`, async () => {
+          const result = await replay({ harness, cols: "120", name: "ring", renderer, told: lines })
+          expect(result.bad).toEqual([])
+          expect(result.mismatched).toBe(0)
+          expect(result.most).toBeGreaterThanOrEqual(1)
+        })
+
+        it(`draws a ring of a message and notices: ${harness} at 80 columns`, async () => {
+          const told = [agent("moth", task, 1), ...lines]
+          const result = await replay({ harness, cols: "80", name: "ring", renderer, told })
+          expect(result.bad).toEqual([])
+          expect(result.mismatched).toBe(0)
+          expect(result.most).toBeGreaterThanOrEqual(1)
+        })
+
+        it(`draws a notice in the turn-end block: ${harness} at 120 columns`, async () => {
+          const result = await replay({
+            harness,
+            cols: "120",
+            name: "turn-end",
+            renderer,
+            told: lines,
+          })
+          expect(result.bad).toEqual([])
+          expect(result.mismatched).toBe(0)
+        })
+      }
 
       // The task's start prompt (a command-line prompt, its tag quoted with '; Antigravity takes
       // its task as a ring instead) and the person's Inbox reply, as the harnesses draw them.

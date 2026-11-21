@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { contrast, dimmed, legible, parseHex } from "./doorbell-colour.js"
+import { badgeOf, contrast, dimmed, legible, parseHex } from "./doorbell-colour.js"
 
 const ratio = (a: string, b: string): number => contrast(parseHex(a)!, parseHex(b)!)
 
@@ -34,5 +34,12 @@ describe("the colours the overlay draws in", () => {
   it("leaves what is no #rrggbb to the browser", () => {
     expect(legible("rebeccapurple", "#000000")).toBe("rebeccapurple")
     expect(dimmed("var(--x)", "#000000")).toContain("color-mix")
+  })
+
+  it("tints a badge from the ink over the ground, its text a step stronger than the tint", () => {
+    const { tint, text } = badgeOf("#ffffff", "#3a3a3a")
+    expect(tint).toBe(dimmed("#ffffff", "#3a3a3a", 0.2, 1))
+    expect(ratio(text, tint)).toBeGreaterThan(3)
+    expect(ratio(tint, "#3a3a3a")).toBeGreaterThan(1)
   })
 })

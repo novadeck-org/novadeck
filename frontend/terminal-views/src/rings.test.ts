@@ -87,9 +87,9 @@ describe("what the overlay is told of rings and deliveries", () => {
     expect(byNonce.get("n7Q2xk")?.more).toBe(2)
   })
 
-  it("reads a notice by the notices rule: its header off, its actions flattened after its facts", () => {
+  it("tells a notice as its family's line, never its facts", () => {
     const { parts } = contentOf(rings, deliveries, hueOf).rings.get("n7Q2xk")!
-    expect(parts[1]).toEqual({ kind: "notice", text: "@newtz gave you a worktree. → Work there." })
+    expect(parts[1]).toEqual({ kind: "notice", text: "You notice a worktree change hands." })
   })
 
   it("gives each delivery with the ids of all its messages, apart from the others that share some", () => {
@@ -98,7 +98,10 @@ describe("what the overlay is told of rings and deliveries", () => {
       ["m-1", "m-2"],
       ["m-1", "m-2", "m-3"],
     ])
-    expect(told[0]?.parts[1]).toEqual({ kind: "notice", text: "One waits." })
+    expect(told[0]?.parts[1]).toEqual({
+      kind: "notice",
+      text: "You notice an ask leave the Inbox.",
+    })
     expect(told[1]?.more).toBe(1)
   })
 })
@@ -128,7 +131,7 @@ describe("a terminal's ring rows", () => {
     let deliveries: DeliveryContent[] = []
     const listeners = new Set<() => void>()
     const feed: RingFeed = {
-      get: () => ({ rings, deliveries, handles: new Set(["newtz"]), agent: true }),
+      get: () => ({ rings, deliveries, agent: true }),
       subscribe: (listener) => {
         listeners.add(listener)
         return () => void listeners.delete(listener)

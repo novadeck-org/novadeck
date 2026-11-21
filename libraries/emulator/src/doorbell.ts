@@ -8,15 +8,8 @@ import type {
   Terminal,
 } from "@xterm/xterm"
 
-import { dimmed, legible } from "./doorbell-colour.js"
-import {
-  layoutBlock,
-  layoutRing,
-  type HueOf,
-  type RingPart,
-  type Run,
-  type Tone,
-} from "./doorbell-layout.js"
+import { badgeOf, dimmed, legible } from "./doorbell-colour.js"
+import { layoutBlock, layoutRing, type RingPart, type Run, type Tone } from "./doorbell-layout.js"
 import { cells } from "./width.js"
 
 // Draws a doorbell's ring row, and a hook's turn-end delivery block, over the cells the harness
@@ -189,8 +182,6 @@ export type RingEntry = { readonly parts: readonly RingPart[]; readonly more?: n
 export type DeliveryEntry = RingEntry & { readonly ids: readonly string[] }
 
 export type DoorbellOptions = {
-  /** The hue (1 to 8, `hueOf`) of a handle a notice names, null for one that has none. */
-  readonly hueOf: HueOf
   /**
    * The colour of an agent's hue (1 to 8) or the person's ("you"), where the theme gives one
    * apart from its ANSI colours, as Messages' `--avatar-hue-N-fg` does; read each time it draws.
@@ -568,11 +559,13 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
       element.append(spacer)
     }
     for (const run of piece.runs ?? []) {
-      const color = colourOf(run.tone, bg, ink)
+      const color = run.badge ? badgeOf(ink, bg).text : colourOf(run.tone, bg, ink)
+      const tint = run.badge ? `background:${badgeOf(ink, bg).tint};` : ""
+      const slant = run.italic ? "font-style:italic;" : ""
       for (const char of run.text) {
         const span = document.createElement("span")
         span.textContent = char
-        span.style.cssText = `display:inline-block;width:${cells(char) * size.w}px;color:${color};${run.bold ? `font-weight:${terminal.options.fontWeightBold ?? "bold"};` : ""}`
+        span.style.cssText = `display:inline-block;width:${cells(char) * size.w}px;color:${color};${tint}${slant}${run.bold ? `font-weight:${terminal.options.fontWeightBold ?? "bold"};` : ""}`
         element.append(span)
       }
     }
@@ -611,8 +604,8 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
     const widest = Math.min(...hit.rows.map((row, index) => row.width - pads[index]!))
     const lines =
       hit.kind === "block"
-        ? layoutBlock(hit.parts, widest, hit.rows.length, options.hueOf, { extra: hit.more })
-        : [layoutRing(hit.parts, hit.rows[0]!.width, options.hueOf, hit.more)]
+        ? layoutBlock(hit.parts, widest, hit.rows.length, { extra: hit.more })
+        : [layoutRing(hit.parts, hit.rows[0]!.width, hit.more)]
     const pieces: Piece[] = []
     hit.rows.forEach((row, index) => {
       const marker = terminal.registerMarker(row.y - base)

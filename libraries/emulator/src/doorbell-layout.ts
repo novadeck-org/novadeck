@@ -7,7 +7,7 @@ import { cells } from "./width.js"
 export type RingPart =
   | { readonly kind: "agent"; readonly handle: string; readonly hue: number; readonly text: string }
   | { readonly kind: "person"; readonly text: string }
-  // Novadeck's own notice, as its facts and actions on one line (the caller took its header off).
+  // Novadeck's own notice, as the one line the person is told of it (`noticeSeen`).
   | { readonly kind: "notice"; readonly text: string }
 
 /** `hue` 1 to 8 is an agent's (`hueOf`), "you" the person's. */
@@ -16,10 +16,17 @@ export type Tone =
   | { readonly dim: true }
   | { readonly hue: number | "you"; readonly dim?: boolean }
 
-export type Run = { readonly text: string; readonly tone: Tone; readonly bold?: boolean }
-
-/** How the view colours a handle named inside a notice: its hue, or null when it knows none. */
-export type HueOf = (handle: string) => number | null
+/**
+ * `badge` draws the run on a tint of the ink, as the "novadeck" label that leads a notice's
+ * lines; `italic` is a notice's line.
+ */
+export type Run = {
+  readonly text: string
+  readonly tone: Tone
+  readonly bold?: boolean
+  readonly italic?: boolean
+  readonly badge?: boolean
+}
 
 const ink: Tone = { ink: true }
 const dim: Tone = { dim: true }
@@ -45,40 +52,50 @@ export const cut = (text: string, max: number): string => {
   return out + ellipsis
 }
 
-// A notice's text as runs, each `@handle` in its hue (dimmed), the rest dim.
-const noticeRuns = (text: string, hueOf: HueOf): Run[] => {
-  const out: Run[] = []
-  let last = 0
-  for (const found of text.matchAll(/@([A-Za-z][\w-]*)/g)) {
-    const hue = hueOf(found[1]!)
-    if (hue === null) continue
-    if (found.index > last) out.push({ text: text.slice(last, found.index), tone: dim })
-    out.push({ text: found[0], tone: { hue, dim: true }, bold: true })
-    last = found.index + found[0].length
+const badgeText = " novadeck "
+const badgeWidth = cells(badgeText)
+const lineJoin = " · "
+
+// What one share of the row holds: a message, or the notices that follow one another, which
+// draw as one badge and their lines.
+type Unit =
+  | { readonly kind: "message"; readonly part: Exclude<RingPart, { kind: "notice" }> }
+  | { readonly kind: "notices"; readonly lines: readonly string[] }
+
+const unitsOf = (parts: readonly RingPart[]): Unit[] => {
+  const out: Unit[] = []
+  for (const part of parts) {
+    const last = out.at(-1)
+    if (part.kind !== "notice") out.push({ kind: "message", part })
+    else if (last?.kind === "notices")
+      out[out.length - 1] = { ...last, lines: [...last.lines, part.text] }
+    else out.push({ kind: "notices", lines: [part.text] })
   }
-  if (last < text.length) out.push({ text: text.slice(last), tone: dim })
   return out
 }
 
-// The runs a part's text takes, cut to `max` cells; `whole` marks a ring with only notices.
-const partRuns = (part: RingPart, max: number, hueOf: HueOf, whole: boolean): Run[] => {
-  const head: Run[] =
+// The runs a unit takes, cut to `max` cells.
+const unitRuns = (unit: Unit, max: number): Run[] => {
+  if (unit.kind === "notices") {
+    // The lines are cut before the badge is; the badge only where the row is narrower than it.
+    if (max <= badgeWidth) return [{ text: badgeText.slice(0, max), tone: ink, badge: true }]
+    const lines = cut(unit.lines.map(flatten).join(lineJoin), max - badgeWidth - 1)
+    return [
+      { text: badgeText, tone: ink, badge: true },
+      { text: " ", tone: dim },
+      ...(lines ? [{ text: lines, tone: dim, italic: true }] : []),
+    ]
+  }
+  const { part } = unit
+  const head: Run[] = [
     part.kind === "agent"
-      ? [
-          { text: `@${part.handle}`, tone: { hue: part.hue, dim: whole }, bold: true },
-          { text: ": ", tone: dim },
-        ]
-      : part.kind === "person"
-        ? [
-            { text: "you", tone: { hue: "you" }, bold: true },
-            { text: ": ", tone: dim },
-          ]
-        : []
+      ? { text: `@${part.handle}`, tone: { hue: part.hue }, bold: true }
+      : { text: "you", tone: { hue: "you" }, bold: true },
+    { text: ": ", tone: dim },
+  ]
   const used = head.reduce((sum, run) => sum + cells(run.text), 0)
   const body = flatten(part.text)
-  const room = Math.max(0, max - used)
-  const shown = cut(body, room)
-  if (part.kind === "notice") return noticeRuns(shown, hueOf)
+  const shown = cut(body, Math.max(0, max - used))
   const cutAt = shown.endsWith(ellipsis) && shown !== body
   const text = cutAt ? shown.slice(0, -1) : shown
   return [
@@ -88,8 +105,8 @@ const partRuns = (part: RingPart, max: number, hueOf: HueOf, whole: boolean): Ru
   ]
 }
 
-const natural = (part: RingPart, hueOf: HueOf, whole: boolean): number =>
-  partRuns(part, Infinity, hueOf, whole).reduce((sum, run) => sum + cells(run.text), 0)
+const natural = (unit: Unit): number =>
+  unitRuns(unit, Infinity).reduce((sum, run) => sum + cells(run.text), 0)
 
 // Equal shares of `total` cells for the wanted lengths: a short message hands what it
 // doesn't need to the longer ones.
@@ -118,39 +135,32 @@ const moreText = (count: number): string => `${gap}+${count} more`
 /**
  * One row of `width` cells for the parts. With none known it says "doorbell". Messages share
  * the row equally, each at least `leastShare` cells; the ones that don't fit become "+N more".
- * A ring of notices alone is all dim. `extra` is how many messages the ring held beyond `parts`,
+ * Notices that follow one another are one share: a "novadeck" badge, then their lines in italic dim.
+ * `extra` is how many messages the ring held beyond `parts`,
  * which the "+N more" counts too.
  */
-export const layoutRing = (
-  parts: readonly RingPart[],
-  width: number,
-  hueOf: HueOf,
-  extra = 0,
-): Run[] => {
+export const layoutRing = (parts: readonly RingPart[], width: number, extra = 0): Run[] => {
   if (parts.length === 0) return [{ text: cut("doorbell", width), tone: dim }]
-  const whole = parts.every((part) => part.kind === "notice")
+  const units = unitsOf(parts)
   const gapWidth = cells(gap)
-  const total = parts.length + extra
+  const total = units.length + extra
   const fits = (count: number): boolean =>
     count * leastShare +
       (count - 1) * gapWidth +
       (count < total ? cells(moreText(total - count)) : 0) <=
     width
   let shown = Math.min(
-    parts.length,
+    units.length,
     Math.max(1, Math.floor((width + gapWidth) / (leastShare + gapWidth))),
   )
   while (shown > 1 && !fits(shown)) shown -= 1
   const more = total - shown
   const room = width - (shown - 1) * gapWidth - (more > 0 ? cells(moreText(more)) : 0)
-  const taken = shares(
-    parts.slice(0, shown).map((part) => natural(part, hueOf, whole)),
-    Math.max(room, 0),
-  )
+  const taken = shares(units.slice(0, shown).map(natural), Math.max(room, 0))
   const out: Run[] = []
-  parts.slice(0, shown).forEach((part, index) => {
+  units.slice(0, shown).forEach((unit, index) => {
     if (index > 0) out.push({ text: gap, tone: dim })
-    out.push(...partRuns(part, taken[index]!, hueOf, whole))
+    out.push(...unitRuns(unit, taken[index]!))
   })
   if (more > 0) out.push({ text: moreText(more), tone: dim })
   return out
@@ -165,11 +175,10 @@ export const layoutBlock = (
   parts: readonly RingPart[],
   width: number,
   rows: number,
-  hueOf: HueOf,
   options: { readonly rules?: boolean; readonly extra?: number } = {},
 ): Run[][] => {
   const rules = options.rules !== false
-  const lines: Run[][] = parts.map((part) => layoutRing([part], width, hueOf))
+  const lines: Run[][] = parts.map((part) => layoutRing([part], width))
   if ((options.extra ?? 0) > 0)
     lines.push([{ text: cut(`+${options.extra} more`, width), tone: dim }])
   if (rules) lines.push([{ text: cut("rules for the agent", width), tone: dim }])

@@ -29,7 +29,7 @@ character-width rule every emulator shares, and helpers that need only an emulat
   and a hook's turn-end `<novadeck-messages>` block over the cells a harness drew them in, with xterm's public
   decorations (a marker per row, an opaque element of fixed-width glyphs painted as the row's cells are), no
   patch. `setContent` tells it what each nonce, and each delivered message id, says (`RingPart`s, laid out by
-  `layoutRing` and `layoutBlock`: `@handle: words`, equal shares, `+N more`, dim notices); only those are drawn.
+  `layoutRing` and `layoutBlock`: `@handle: words`, equal shares, `+N more`, notices as a `novadeck` badge and italic dim lines); only those are drawn.
   `arm()` looks at the viewport for a ring that just arrived and then at every write for a minute, `rescan()`
   through the whole buffer (after a restore), `refresh()` repaints (theme, font, scale: the cell comes from
   `.xterm-screen`'s size, so a scaled ancestor follows). Each write checks the covered cells and drops a

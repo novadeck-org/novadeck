@@ -48,7 +48,6 @@ const open = (cols = 100, known: DoorbellContent = rings("n7Q2xk"), alternate?: 
   })
   view.terminal.resize(cols, 10)
   const doorbell: Doorbell = attachDoorbell(view.terminal, {
-    hueOf: () => null,
     ...(alternate && { alternate }),
   })
   closers.push(() => {
@@ -382,7 +381,6 @@ describe("dropping what a redraw changed", () => {
     })
     view.terminal.resize(100, 10)
     const doorbell = attachDoorbell(view.terminal, {
-      hueOf: () => null,
       recentMs: 1_000,
       now: () => at,
     })

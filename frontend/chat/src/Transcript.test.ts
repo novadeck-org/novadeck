@@ -652,33 +652,68 @@ context("Novadeck's own notices", () => {
   const key = (container: HTMLElement, id: string) =>
     container.querySelector<HTMLButtonElement>(`[data-notice="${id}"] button`)!
 
-  it("shows a notice as a dim collapsed line of its own first words, its header off", () => {
+  it("tells an event notice as its family's line with Novadeck's mark, never its facts", () => {
     const container = show([ring([worktrees])])
     const line = container.querySelector('[data-notice="n0"]')!
     expect(line.querySelector(".chat-notice-said")?.textContent).toBe(
-      "@thorn gave you its worktree on fix/x. /home/me/work → Work there with absolute paths. → Don't close it.",
+      "You notice a worktree change hands.",
     )
+    expect(container.textContent).not.toContain("gave you its worktree")
     expect(container.textContent).not.toContain("Novadeck ·")
     expect(line.getAttribute("aria-label")).toBe("Novadeck notice, Worktrees")
+    expect(line.querySelector("svg.nova-mark")).not.toBeNull()
+    expect(line.querySelector(".chat-notice-rule")).not.toBeNull()
     expect(key(container, "n0").getAttribute("aria-expanded")).toBe("false")
-    // It is styled as a subagent's line is.
-    expect(line.classList.contains("chat-subagent")).toBe(true)
+    expect(line.querySelector(".chat-notice-body")).toBeNull()
   })
 
-  it("opens in place to the whole notice, facts then each action on its line, with no kind heading", () => {
+  it("opens an event notice to the notice itself under its line, each action on its line, and closes it", () => {
     const container = show([ring([worktrees])])
     act(() => key(container, "n0").click())
     expect(key(container, "n0").getAttribute("aria-expanded")).toBe("true")
     expect(container.querySelector(".chat-notice-said")?.textContent).toBe(
+      "You notice a worktree change hands.",
+    )
+    expect(container.querySelector(".chat-notice-body")?.textContent).toBe(
       "@thorn gave you its worktree on fix/x.\n  /home/me/work\n→ Work there with absolute paths.\n→ Don't close it.",
     )
     expect(container.textContent).not.toContain("Worktrees")
     act(() => key(container, "n0").click())
     expect(key(container, "n0").getAttribute("aria-expanded")).toBe("false")
+    expect(container.querySelector(".chat-notice-body")).toBeNull()
   })
 
-  it("keeps the handles in it in their hue, as the chat's other words do", () => {
-    const container = show([ring([worktrees])], undefined, looks)
+  it("tells an event notice of a kind an earlier build wrote, or of none, by the same rule", () => {
+    const container = show([
+      ring(["Novadeck · Host load\nCPU at 90%.", "Something that is no notice."]),
+    ])
+    expect(container.querySelector('[data-notice="n0"] .chat-notice-said')?.textContent).toBe(
+      "You notice shared resources are busy.",
+    )
+    expect(container.querySelector('[data-notice="n1"] .chat-notice-said')?.textContent).toBe(
+      "You notice something.",
+    )
+  })
+
+  it("keeps a standing notice's facts as its line, in the same quiet style, opening in place", () => {
+    const container = show([standing("s1", worktrees)])
+    const line = container.querySelector('[data-notice="s1"]')!
+    expect(line.hasAttribute("data-event")).toBe(false)
+    expect(line.querySelector(".chat-notice-said")?.textContent).toBe(
+      "@thorn gave you its worktree on fix/x. /home/me/work → Work there with absolute paths. → Don't close it.",
+    )
+    expect(line.querySelector("svg.nova-mark")).not.toBeNull()
+    act(() => key(container, "s1").click())
+    expect(line.querySelector(".chat-notice-said")?.textContent).toBe(
+      "@thorn gave you its worktree on fix/x.\n  /home/me/work\n→ Work there with absolute paths.\n→ Don't close it.",
+    )
+    expect(line.querySelector(".chat-notice-body")).toBeNull()
+    act(() => key(container, "s1").click())
+    expect(key(container, "s1").getAttribute("aria-expanded")).toBe("false")
+  })
+
+  it("keeps the handles in a standing notice's facts in their hue, as the chat's other words do", () => {
+    const container = show([standing("s1", worktrees)], undefined, looks)
     expect(
       [...container.querySelectorAll(".chat-notice-said .markdown-mention")].map((each) => [
         each.textContent,
