@@ -134,6 +134,20 @@ export const relayConfig = {
   fallbacks: silentAnswers,
 }
 
+/**
+ * `relay.json` while the shipping gate is on: the events it answers wait the long limit too
+ * (4 s, as a Stop does), as the runner answers them by a deadline of its own. Off, the file is
+ * `relayConfig` as it always was.
+ */
+export const gatedRelayConfig = {
+  ...relayConfig,
+  asks: {
+    ...relayConfig.asks,
+    claude: [...relayConfig.asks.claude!, "PreToolUse"],
+    codex: [...relayConfig.asks.codex!, "PreToolUse", "PermissionRequest"],
+  },
+}
+
 const relayArguments = (paths: ShellPaths) =>
   ({
     hook: ["hook", "--config", paths.relayConfig],
@@ -269,7 +283,10 @@ export const shellFiles = (
     ...given,
   }
   const common = [
-    file(paths.relayConfig, `${JSON.stringify(relayConfig, null, 2)}\n`),
+    file(
+      paths.relayConfig,
+      `${JSON.stringify(machine.shippingGate === true ? gatedRelayConfig : relayConfig, null, 2)}\n`,
+    ),
     ...shellScripts(paths, header),
     ...agents.flatMap((agent) =>
       harnesses[agent]

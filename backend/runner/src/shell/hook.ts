@@ -1,3 +1,5 @@
+import { isAbsolute, resolve } from "node:path"
+
 import { hookShellSlackMs, dialectPrograms } from "@novadeck/harness-core/hook-command"
 import type { Report } from "@novadeck/harness-core/report"
 import { agentName, dialogTextLimits, type AgentName } from "@novadeck/protocol"
@@ -56,6 +58,19 @@ const commandOf = (input: unknown): string | undefined => {
   if (words.length === 3 && /(^|\/)(?:ba|z|da)?sh$/.test(words[0]!) && /^-[a-z]*c$/.test(words[1]!))
     return words[2]
   return words.join(" ")
+}
+
+/**
+ * The folder a shell tool's command runs in: its `workdir` where the tool takes one (Codex's
+ * shell tools do), else the session's `cwd`. Undefined where it isn't a whole path, so the gate
+ * has no opinion rather than reading the runner's own folder.
+ */
+const folderOf = (payload: Fields, input: unknown): string | undefined => {
+  const cwd = typeof payload.cwd === "string" && isAbsolute(payload.cwd) ? payload.cwd : undefined
+  const workdir = object(input) && typeof input.workdir === "string" ? input.workdir : ""
+  if (workdir === "") return cwd
+  if (isAbsolute(workdir)) return workdir
+  return cwd === undefined ? undefined : resolve(cwd, workdir)
 }
 
 /**
@@ -358,13 +373,16 @@ export const relayHook = (
       : seq + askMs
   const gated = gating(agent.data, event)
   const command = gated ? commandOf(payload.tool_input) : undefined
+  const folder = folderOf(payload, payload.tool_input)
   const gate: GateCall | undefined =
-    command === undefined || (event !== "PreToolUse" && event !== "PermissionRequest")
+    command === undefined ||
+    folder === undefined ||
+    (event !== "PreToolUse" && event !== "PermissionRequest")
       ? undefined
       : {
           event,
           command,
-          cwd: typeof payload.cwd === "string" ? payload.cwd : "",
+          cwd: folder,
           ...(typeof payload.permission_mode === "string" && { mode: payload.permission_mode }),
           ...(typeof payload.transcript_path === "string" && {
             transcript: payload.transcript_path,

@@ -16,6 +16,8 @@ export type Declared = {
   readonly target?: string
   readonly said?: string
   readonly folder?: string
+  /** The remote a push goes to, when the agent names one; else the branch's upstream remote, else origin. */
+  readonly remote?: string
 }
 
 /** What `gh pr view` said of a PR, when it could. */
@@ -28,7 +30,11 @@ export type DeclareDeps = {
   readonly cards: Cards
   /** A PR's base and head, from `gh` in `folder`; undefined where gh can't say. */
   readonly pull: (folder: string, repo: string, number: number) => Promise<PullRequest>
-  /** Tells the agent in the terminal something, as a Novadeck notice. */
+  /** Whether `name` is a branch or remote name git accepts (`git check-ref-format`). */
+  readonly valid: (folder: string, name: string) => Promise<boolean>
+  /** The repository's default branch, from `origin/HEAD` or else `gh repo view`; undefined where neither says. */
+  readonly defaultBranch: (folder: string, repo: string) => Promise<string | undefined>
+  /** The agent running in the terminal, if one is bound. */
   readonly agentOf: (terminalId: string) => "claude" | "codex" | "agy" | undefined
 }
 
@@ -65,6 +71,24 @@ export const ghPull = (folder: string, repo: string, number: number): Promise<Pu
     )
   })
 
+/** The repository's default branch as `gh` knows it, read with no change. */
+export const ghDefault = (folder: string, repo: string): Promise<string | undefined> =>
+  new Promise((resolve) => {
+    execFile(
+      "gh",
+      ["repo", "view", repo, "--json", "defaultBranchRef", "--jq", ".defaultBranchRef.name"],
+      {
+        cwd: folder,
+        timeout: 6_000,
+        env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" },
+      },
+      (error, out) => resolve(error ? undefined : out.trim() || undefined),
+    )
+  })
+
+// The most of a quote a permit and its record keep.
+const quoteCut = 300
+
 const escalation =
   " If the sandbox blocks the command, run it again asking for escalation; Novadeck approves it."
 
@@ -84,6 +108,11 @@ export const declare = async (
   let title: string
   const detail: string[] = [`Repository: ${repo}`]
   let singleUse = false
+  // A name from the agent counts only once git accepts it as one.
+  const checked = async (name: string, what: string): Promise<string | undefined> =>
+    (await deps.valid(folder, name))
+      ? undefined
+      : `${JSON.stringify(name)} isn't a ${what} name git accepts.`
   switch (input.action) {
     case "merge_pr": {
       const number = Number(/^#?(\d+)$/.exec(target)?.[1] ?? /\/pull\/(\d+)\/?$/.exec(target)?.[1])
@@ -94,30 +123,52 @@ export const declare = async (
       const branch = await lookups.branch(folder)
       if (pull !== undefined && branch !== undefined && branch === pull.head)
         keys.push(permitKey.prMergeBranch(repo, branch))
-      title = pull ? `Merge PR #${number} into ${pull.base}?` : `Merge PR #${number}?`
-      if (pull) detail.push(`PR #${number}: ${pull.head} into ${pull.base} (read from GitHub)`)
+      // GitHub's own words for the base count as much as an agent's: only a name git accepts is shown.
+      const base =
+        pull !== undefined && (await deps.valid(folder, pull.base)) ? pull.base : undefined
+      title = base ? `Merge PR #${number} into ${base}?` : `Merge PR #${number}?`
+      if (pull && base) detail.push(`PR #${number} merges into ${base} (read from GitHub)`)
       else detail.push(`GitHub didn't say which branch PR #${number} targets.`)
       break
     }
     case "open_pr": {
-      const base = target === "" ? "@default" : target
+      const bad = target === "" ? undefined : await checked(target, "branch")
+      if (bad) return { ok: false, reason: bad }
+      const fallback = await deps.defaultBranch(folder, repo)
+      if (target === "" && fallback === undefined)
+        return {
+          ok: false,
+          reason: `Novadeck can't tell ${repo}'s default branch: name the base in target.`,
+        }
+      const base = target === "" ? fallback! : target
+      // A command with no --base goes to the default branch, which the hook never looks up.
       keys = [permitKey.prCreate(repo, base)]
-      title = base === "@default" ? "Open a PR into the default branch?" : `Open a PR into ${base}?`
+      if (base === fallback) keys.push(permitKey.prCreate(repo, "@default"))
+      title = `Open a PR into ${base}?`
+      if (target === "") detail.push(`${base} is the repository's default branch.`)
       break
     }
     case "push":
     case "force_push": {
-      const branch = target || (await lookups.branch(folder))
+      const current = await lookups.branch(folder)
+      const branch = target || current
       if (!branch)
         return { ok: false, reason: `${input.action} needs target: the branch pushed to.` }
+      const up = current === undefined ? undefined : await lookups.upstream(folder, current)
+      const remote = input.remote?.trim() || up?.remote || "origin"
+      const bad = (await checked(branch, "branch")) ?? (await checked(remote, "remote"))
+      if (bad) return { ok: false, reason: bad }
       singleUse = input.action === "force_push"
-      keys = [permitKey.push(repo, "origin", branch, singleUse)]
-      title = `${singleUse ? "Force-push" : "Push"} to origin/${branch}?`
+      keys = [permitKey.push(repo, remote, branch, singleUse)]
+      title = `${singleUse ? "Force-push" : "Push"} to ${remote}/${branch}?`
+      detail.push(`Remote: ${remote}`)
       break
     }
     case "land": {
       const branch = target || (await lookups.branch(folder))
       if (!branch) return { ok: false, reason: "land needs target: the branch landed on." }
+      const bad = await checked(branch, "branch")
+      if (bad) return { ok: false, reason: bad }
       keys = [permitKey.land(repo, branch)]
       title = `Land work on ${branch}?`
       break
@@ -137,13 +188,15 @@ export const declare = async (
     }
   // The user's own words typed in this terminal.
   const said = input.said?.trim()
-  if (said && deps.quotes.said(terminalId, said)) {
+  // What of the user's own typing the quote is, as they wrote it: what the permit goes by.
+  const matched = said ? deps.quotes.said(terminalId, said)?.slice(0, quoteCut) : undefined
+  if (matched !== undefined) {
     for (const key of keys)
-      deps.permits.give(terminalId, key, singleUse, { type: "quote", quote: said })
+      deps.permits.give(terminalId, key, singleUse, { type: "quote", quote: matched })
     return {
       ok: true,
       state: "permitted",
-      text: `The user's words "${said}" are in what they typed in this terminal, so Novadeck permits it (${sentence}) for ten minutes. Run the command on its own.${how}`,
+      text: `The user's words "${matched}" are in what they typed in this terminal, so Novadeck permits it (${sentence}) for ten minutes. Run the command on its own.${how}`,
     }
   }
   const asked = deps.cards.ask(terminalId, keys, singleUse, title, detail.join("\n"))

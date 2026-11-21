@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop -- Each case is read in turn. */
 import { describe, expect, it } from "vitest"
 
 import { heldOptions, heldRef } from "../harnesses/detail.js"
@@ -5,7 +6,7 @@ import { Cards } from "./cards.js"
 import { declare, type DeclareDeps } from "./declare.js"
 import { answeredCard } from "./held.js"
 import { Permits, Quotes } from "./permits.js"
-import type { Lookups } from "./reader.js"
+import { readCommand, type Lookups } from "./reader.js"
 import { Shipping } from "./service.js"
 
 const lookups: Lookups = {
@@ -15,16 +16,18 @@ const lookups: Lookups = {
   own: async () => false,
 }
 
-const deps = (agent: "claude" | "codex" = "claude") => {
+const deps = (agent: "claude" | "codex" = "claude", via: Lookups = lookups) => {
   const permits = new Permits()
   const quotes = new Quotes()
   const cards = new Cards()
   const all: DeclareDeps = {
-    lookups: () => lookups,
+    lookups: () => via,
     permits,
     quotes,
     cards,
     pull: async () => ({ base: "main", head: "feat/x" }),
+    valid: async (_folder, name) => !/[\s~^:?*[\\]|\.\.|^-/.test(name),
+    defaultBranch: async () => "trunk",
     agentOf: () => agent,
   }
   return { permits, quotes, cards, all }
@@ -83,6 +86,77 @@ describe("request_permit", () => {
     expect(answer.ok && answer.text).toContain("escalation")
   })
 
+  it("declares the keys the hook will read, with the remote it resolves", async () => {
+    const { all, permits, quotes } = deps("claude", {
+      ...lookups,
+      branch: async () => "feat/x",
+      upstream: async () => ({ remote: "fork", branch: "feat/x" }),
+      own: async () => false,
+    })
+    quotes.record("t", "s", "push it to main, and open a PR")
+    const asRead = async (command: string) => {
+      const read = await readCommand(command, "/w", {
+        ...lookups,
+        upstream: async () => ({ remote: "fork", branch: "feat/x" }),
+        own: async () => false,
+      })
+      return read.kind === "ships" ? read.actions.map((each) => each.key) : []
+    }
+    // No remote named: the branch's upstream remote, as the reader resolves it, not `origin`.
+    await declare(all, "t", "/w", { action: "push", said: "push it to main" })
+    for (const key of await asRead("git push")) expect(permits.covering("t", key)).toBeDefined()
+    expect(permits.covering("t", "push:r/app:origin/feat/x")).toBeUndefined()
+    // A remote the agent names is the one the permit is for.
+    await declare(all, "t", "/w", {
+      action: "push",
+      target: "main",
+      remote: "origin",
+      said: "push it to main",
+    })
+    expect(permits.covering("t", "push:r/app:origin/main")).toBeDefined()
+    // A PR with no --base goes to the default branch, which is resolved here and never in the hook.
+    await declare(all, "t", "/w", { action: "open_pr", said: "open a PR" })
+    for (const key of await asRead("gh pr create --fill"))
+      expect(permits.covering("t", key)).toBeDefined()
+    expect(permits.covering("t", "pr-create:r/app:trunk")).toBeDefined()
+  })
+
+  it("draws the card only from names git accepts", async () => {
+    const { all, cards } = deps()
+    for (const target of ["main; rm -rf /", "bad name", "-x", "a..b"]) {
+      expect(await declare(all, "t", "/w", { action: "land", target })).toMatchObject({ ok: false })
+      expect(await declare(all, "t", "/w", { action: "push", target })).toMatchObject({ ok: false })
+      expect(await declare(all, "t", "/w", { action: "open_pr", target })).toMatchObject({
+        ok: false,
+      })
+    }
+    expect(
+      await declare(all, "t", "/w", { action: "push", target: "main", remote: "o rigin" }),
+    ).toMatchObject({ ok: false })
+    expect(cards.of("t")).toHaveLength(0)
+    await declare(all, "t", "/w", { action: "push", target: "main", remote: "fork" })
+    expect(cards.of("t")[0]!.title).toBe("Push to fork/main?")
+  })
+
+  it("gives no permit for one word or part of a word, and shows the words it went by", async () => {
+    const { all, quotes, permits, cards } = deps()
+    quotes.record("t", "s", "Please MERGE   it now")
+    expect(
+      await declare(all, "t", "/w", { action: "merge_pr", target: "5", said: "merge" }),
+    ).toMatchObject({ state: "asked" })
+    expect(cards.of("t")).toHaveLength(1)
+    const answer = await declare(all, "t", "/w", {
+      action: "merge_pr",
+      target: "6",
+      said: "merge it",
+    })
+    expect(answer.ok && answer.text).toContain('"MERGE   it"')
+    expect(permits.covering("t", "pr-merge:r/app#6")?.source).toEqual({
+      type: "quote",
+      quote: "MERGE   it",
+    })
+  })
+
   it("refuses what it can't resolve", async () => {
     const { all } = deps()
     expect(await declare(all, "t", "/w", { action: "merge_pr" })).toMatchObject({ ok: false })
@@ -114,10 +188,11 @@ describe("the shipping service's cards", () => {
       dialog: `permit-${card.id}`,
       option: heldOptions.allow,
     } as const
-    await answeredCard(shipping, record, request, answer)
+    await answeredCard(shipping, record, request, answer, "window-1")
     expect(shipping.permits.covering("t", "land:r/app:main")?.source).toEqual({
       type: "answer",
       card: card.id,
+      client: "window-1",
     })
     expect(told).toHaveLength(1)
     expect(told[0]).toContain("Novadeck · Shipping")

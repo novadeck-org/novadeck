@@ -1682,21 +1682,33 @@ The design is `architecture/grants.md`. Agents ship with their own `git` and `gh
 only gates them (`backend/runner/src/shipping/`).
 
 - **What ships.** `gh pr create`, `gh pr merge`, `gh pr edit --base X` (a PR into X), and a push
-  or ref move (merge, pull, rebase, cherry-pick, reset, `branch -f`, `update-ref`, `checkout -B`)
-  whose target is not the agent's own branch: the branch checked out in a worktree its terminal
-  owns, pushed to the same name, and not any worktree's home. Tags, `--all`, `--mirror`, deletes,
-  refspec globs and mutating `gh api` calls can't be read and are refused. The reader
+  or ref move (merge, pull, fetch into a branch, rebase, cherry-pick, reset, `branch -f`/`-m`/`-c`,
+  `update-ref`, `checkout -B`, `switch -C`) whose target is not the agent's own branch: the branch
+  checked out in a worktree its terminal owns in this repository (matched by its git common
+  dir), pushed to the same name, and not any worktree's home. Tags, `--all`, `--mirror`,
+  deletes, refspec globs, `gh release create` and mutating `gh api` calls (any non-GET
+  `-X`/`--method`, attached or spaced, or a field or input) can't be read and are refused. The reader
   (`reader.ts`, on the shell reader `words.ts`) reads the raw command, never the pruned report.
 - **Exact allows only.** A command is allowed only when every segment is a shipping action a
   live permit covers, plus `cd X` or `git -C X`. A tail (`&& …`, `;`, a pipe, `&`), an expansion,
   a wrapper (`bash -c`, `eval`, `env`), `git -c …`, env prefixes, `--receive-pack`/`--exec`, a
   custom merge strategy and `gh pr merge --admin` are refused, with the reason in the deny.
+  So is a redirect into a file (only `2>&1`, `>/dev/null`, `2>/dev/null` and input pass), and any
+  flag a `gh pr` verb's table doesn't list: each verb has its own (`-r` is `--rebase` in `merge`,
+  `--reviewer` in `create`), attached values (`-Rowner/repo`, `-Bmain`, `--base=x`) are read, and a
+  PR's URL must name the repository the command resolves. `gh pr edit --base X` counts as opening
+  a PR into X, and once it runs the merge permits given for that PR are void.
 - **Permits** (`permits.ts`) last ten minutes per (terminal, action, target, repository), in
   memory (a restart fails closed); a force push's is single use. They come from the user's own
-  words, quoted in `request_permit`'s `said` and found word for word in the ring of the last
+  words, quoted in `request_permit`'s `said` (two whole words at least, found at word boundaries,
+  case and spacing aside; the permit notice and the record show the words they matched) in the ring of the last
   three prompts the person typed into that terminal's root session, none older than an hour (a
-  `/clear` starts a new ring; doorbells, deliveries and a command-line prompt never enter it), or
-  from the user's answer to an action card.
+  `/clear` starts a new ring; doorbells, deliveries and a command-line prompt never enter it; an
+  Inbox reply's own words enter from the runner's record of the answer, never from an option's
+  label), or from the user's answer to an action card. Every permit is logged (`shipping.permit`):
+  who, what, target, the quote or the card and the client that answered, and when.
+  A permitted push or merge still runs the repository's own git hooks (`pre-push` and the like),
+  as it would without Novadeck: the gate allows the command, it doesn't skip what the command runs.
 - **The card** is a request Novadeck holds on the agent's behalf (`cards.ts`): it joins the
   agent's `requests` in `agents.detail` with a `choices` dialog (Allow, Deny) and `detached`, so
   the chat and the Inbox draw it with the shared request card, and the person's Send is never
@@ -1707,11 +1719,18 @@ only gates them (`backend/runner/src/shipping/`).
   passes (nothing of the person's is written), allow or deny. Codex: PreToolUse widened to the
   shell tools, and PermissionRequest. A Codex permitted command in a restricted sandbox is denied
   once with "run it again asking for escalation; Novadeck approves it", remembered five minutes,
-  and the PermissionRequest allows the escalation. The hook stays silent in Claude's bypass mode,
+  and the PermissionRequest allows the escalation. An answer's effects (a single-use permit
+  used, the escalation remembered) happen only once the relay acknowledges it printed the answer
+  (a lease, as messages have), and an answer not ready by the hook's own deadline is no answer,
+  so the harness decides. A Codex command's `workdir` is the folder it runs in; a payload with no
+  whole folder gets no opinion. The hook stays silent in Claude's bypass mode,
   in Codex's `never` with `danger-full-access`, and where the person's own allow rule covers
   every segment (read from Claude's settings files and Codex's rules, never written).
-- **With the switch off** nothing changes: no hook is registered, `relay.json` and every plugin
-  file are byte for byte as before. Switching it writes the files again and applies at the next
+- **With the switch off** nothing changes: no hook is registered, and `relay.json` and every
+  plugin file are byte for byte as before (on, `relay.json` also lists the gate's events among
+  `asks`, so they wait the 4 s limit a Stop does). A session started while it was on and kept
+  running once it is off sends its shell tools' PreToolUse still; the runner ignores those, as it
+  ignores any PreToolUse but Codex's three question tools. Switching it writes the files again and applies at the next
   agent launch (Codex asks the person to review its hooks once).
 
 ### Hook answers

@@ -41,6 +41,7 @@ describe("a hook the shipping gate answers", () => {
         hook("codex", "PermissionRequest", {
           tool_name: "Bash",
           tool_input: { command },
+          cwd: "/w",
           transcript_path: "/r.jsonl",
         }),
         undefined,
@@ -50,5 +51,27 @@ describe("a hook the shipping gate answers", () => {
     expect(read(["bash", "-lc", "gh pr merge 1"])).toBe("gh pr merge 1")
     expect(read(["git", "push"])).toBe("git push")
     expect(read(7)).toBeUndefined()
+  })
+
+  it("runs a Codex command in its `workdir` where the tool names one, and has no opinion without a whole folder", () => {
+    const folder = (input: object, cwd?: string) =>
+      relayHook(
+        hook("codex", "PreToolUse", {
+          tool_name: "Bash",
+          tool_input: { command: "git push", ...input },
+          ...(cwd !== undefined && { cwd }),
+        }),
+        undefined,
+        on,
+      )?.gate?.cwd
+    expect(folder({ workdir: "/other/repo" }, "/w")).toBe("/other/repo")
+    expect(folder({ workdir: "sub" }, "/w")).toBe("/w/sub")
+    expect(folder({ workdir: "" }, "/w")).toBe("/w")
+    expect(folder({}, "/w")).toBe("/w")
+    // An empty or missing session folder is not the runner's own.
+    expect(folder({}, "")).toBeUndefined()
+    expect(folder({})).toBeUndefined()
+    expect(folder({ workdir: "sub" })).toBeUndefined()
+    expect(folder({ workdir: "/abs" })).toBe("/abs")
   })
 })

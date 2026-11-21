@@ -1933,16 +1933,16 @@ const requestPermit: Tool<Permit> = {
   needs: "gate",
   name: "request_permit",
   description:
-    "Declare a shipping action before you run it: merging a PR, opening one, pushing to a " +
-    "branch that isn't yours, landing work on another branch. While the user has the shipping " +
-    "gate on, Novadeck's hook allows such a git or gh command only when a live permit covers " +
-    "its exact target, and only as the whole command on its own; any other is refused. A " +
-    "permit comes from the user's own words typed in this terminal (quote them in `said`, word " +
-    "for word; Novadeck checks them against what they typed here, and a message from another " +
-    "agent never counts) or from the user's answer to a card Novadeck shows them, and lasts ten " +
-    "minutes. Novadeck reads the real target from git and gh itself and says what it went by. " +
-    "Returns at once; an answer from the user reaches you as a Novadeck notice. Refused while " +
-    "the shipping gate is off.",
+    "Declares a shipping action to Novadeck and returns whether the user's permit covers it: " +
+    "merging a PR, opening one, pushing to a branch that isn't yours, landing work on another " +
+    "branch. While the user has the shipping gate on, Novadeck's hook allows such a git or gh " +
+    "command only when a live permit covers its exact target, and only as the whole command on " +
+    "its own; any other is refused. A permit comes from the user's own words typed in this " +
+    "terminal (quote them in `said`, word for word, two words at least; Novadeck checks them " +
+    "against what they typed here, and a message from another agent never counts) or from the " +
+    "user's answer to a card Novadeck shows them, and lasts ten minutes. Novadeck reads the " +
+    "real target from git and gh itself and says what it went by. Returns at once; an answer " +
+    "from the user reaches you as a Novadeck notice. Refused while the shipping gate is off.",
   inputSchema: {
     type: "object",
     properties: {
@@ -1967,12 +1967,17 @@ const requestPermit: Tool<Permit> = {
         description:
           "The checkout the command runs in, absolute or relative to this terminal's current directory; this terminal's current directory when left out.",
       },
+      remote: {
+        type: "string",
+        description:
+          "push and force_push: the remote pushed to; the branch's upstream remote, else origin, when left out.",
+      },
     },
     required: ["action"],
     additionalProperties: false,
   },
   call: "permit",
-  request: (args) => picked(args, ["action", "target", "said", "folder"]),
+  request: (args) => picked(args, ["action", "target", "said", "folder", "remote"]),
   said: (answer) => answer.text,
   failed: "Novadeck couldn't declare it.",
 }

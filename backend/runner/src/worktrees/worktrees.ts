@@ -155,7 +155,7 @@ export const folderName = (text: string): string =>
 const freshMainMs = 5000
 
 /** The repository's main as a local branch's name: `main` for `origin/main`. */
-const mainName = async (folder: string): Promise<string | undefined> =>
+export const mainName = async (folder: string): Promise<string | undefined> =>
   (await mainBranch(folder))?.name.replace(/^origin\//, "")
 
 /**

@@ -24,6 +24,11 @@ export type Action = {
   readonly key: string
   /** A force push (or reset-like landing): its permit is single use. */
   readonly singleUse: boolean
+  /**
+   * Permit keys that end when the command runs: `gh pr edit --base X` changes where a PR
+   * merges, so the merge permits given for it as it was are void.
+   */
+  readonly voids?: readonly string[]
 }
 
 /** What a command is, as far as shipping goes. */
@@ -102,6 +107,13 @@ const maxCommand = 262_144
 
 const ref = (name: string): string => name.replace(/^refs\/heads\//, "")
 
+// The redirects an allowed command may carry: output thrown away or joined, and input.
+const harmless = (redirect: string): boolean =>
+  redirect === "2>&1" ||
+  redirect === ">/dev/null" ||
+  redirect === "2>/dev/null" ||
+  redirect.startsWith("<")
+
 type Cursor = { cwd: string; readable: boolean }
 
 /** Reads `command`, run in `cwd`, for what it ships. */
@@ -143,8 +155,10 @@ const readLine = async (
       refuse("it ships inside a substitution or a subshell, which can't be read")
   }
   let first = true
+  let redirected = false
   for (const simple of parsed.commands) {
     const program = simple.words[0] === undefined ? "" : base(simple.words[0])
+    if (!simple.redirects.every(harmless)) redirected = true
     const here = await readSimple(simple, program, cursor, lookups)
     if (here.kind === "cd") {
       first = false
@@ -163,6 +177,7 @@ const readLine = async (
     first = false
   }
   if (!ships) return { kind: "none" }
+  if (redirected) refusal ??= "it redirects into a file, which a permit doesn't cover"
   if (/(?:^|[^&])&\s*$/.test(line)) refusal ??= "it is run in the background"
   if (others && refusal === undefined && actions.length > 0)
     refusal = "it mixes a shipping command with other commands: run it on its own"
@@ -218,6 +233,56 @@ const withAssigns = (simple: Simple): string | undefined => {
   return odd.length > 0 ? "it sets environment variables for the command" : undefined
 }
 
+// Options that take a value in their own word, for the verbs whose positional words matter.
+const pullValued = new Set([
+  "-s",
+  "--strategy",
+  "-X",
+  "--strategy-option",
+  "--depth",
+  "--deepen",
+  "--shallow-since",
+  "--shallow-exclude",
+  "-j",
+  "--jobs",
+  "-o",
+  "--server-option",
+  "--negotiation-tip",
+  "--refmap",
+])
+const valued: { readonly [verb: string]: ReadonlySet<string> } = {
+  rebase: new Set(["--onto", "-s", "--strategy", "-X", "--strategy-option", "--whitespace", "-C"]),
+  pull: pullValued,
+  fetch: pullValued,
+}
+
+// What `git branch` takes when it moves or copies a branch; any other option is unknown.
+const branchOptions = new Set([
+  "--force",
+  "--move",
+  "--copy",
+  "--quiet",
+  "--no-track",
+  "--track",
+  "--create-reflog",
+  "--no-create-reflog",
+])
+
+/** The words of `rest` that are positional: no options, nor the values of `names`. */
+const positionals = (rest: readonly string[], names: ReadonlySet<string> = new Set()): string[] => {
+  const out: string[] = []
+  for (let i = 0; i < rest.length; i += 1) {
+    const word = rest[i]!
+    if (word === "--") {
+      out.push(...rest.slice(i + 1))
+      break
+    }
+    if (names.has(word)) i += 1
+    else if (!word.startsWith("-")) out.push(word)
+  }
+  return out
+}
+
 const readGit = async (simple: Simple, cursor: Cursor, lookups: Lookups): Promise<Simply> => {
   const { words } = simple
   let cwd = cursor.cwd
@@ -255,6 +320,7 @@ const readGit = async (simple: Simple, cursor: Cursor, lookups: Lookups): Promis
     "push",
     "merge",
     "pull",
+    "fetch",
     "rebase",
     "cherry-pick",
     "reset",
@@ -264,36 +330,35 @@ const readGit = async (simple: Simple, cursor: Cursor, lookups: Lookups): Promis
     "update-ref",
   ]
   if (!verbs.includes(sub)) return { kind: "none" }
-  const flag = (...names: string[]) => rest.some((word) => names.includes(word))
-  // A subcommand that doesn't move anything.
-  if (
-    sub === "branch" &&
-    !flag(
-      "-f",
-      "--force",
-      "-M",
-      "--move",
-      "-C",
-      "--copy",
-      "-D",
-      "-d",
-      "--delete",
-      "--set-upstream-to",
-      "-u",
+  // Options as written before any `--`: whole (`--force`, `--force=x`) or as one of a cluster of
+  // short ones (`-fB`).
+  const options = rest.includes("--") ? rest.slice(0, rest.indexOf("--")) : rest
+  const long = (...names: string[]) =>
+    options.some((word) => names.some((name) => word === name || word.startsWith(`${name}=`)))
+  const short = (letters: string) =>
+    options.some(
+      (word) => /^-[^-]/.test(word) && [...letters].some((c) => word.slice(1).includes(c)),
     )
-  )
+  const flag = (...names: string[]) => rest.some((word) => names.includes(word))
+  const branching = short("fmMcC") || long("--force", "--move", "--copy")
+  // A subcommand that doesn't move anything.
+  if (sub === "branch" && (short("dD") || long("--delete", "--set-upstream-to") || short("u")))
     return { kind: "none" }
-  if (sub === "branch" && flag("-D", "-d", "--delete", "--set-upstream-to", "-u"))
-    return { kind: "none" }
-  if ((sub === "checkout" || sub === "switch") && !flag("-B", "-C", "--force-create"))
-    return { kind: "none" }
+  if (sub === "branch" && !branching) return { kind: "none" }
+  if (sub === "checkout" && !short("B")) return { kind: "none" }
+  if (sub === "switch" && !(short("C") || long("--force-create"))) return { kind: "none" }
   if (
     ["merge", "rebase", "cherry-pick", "pull"].includes(sub) &&
     flag("--abort", "--quit", "--continue", "--skip")
   )
     return { kind: "none" }
-  if (sub === "merge" && flag("--no-commit")) return { kind: "none" }
-  if (sub === "reset" && !flag("--hard", "--soft", "--keep", "--merge")) return { kind: "none" }
+  // A reset that names nothing to move to, or only paths, leaves the branch where it is.
+  if (
+    sub === "reset" &&
+    !long("--hard", "--soft", "--keep", "--merge", "--mixed") &&
+    (rest.includes("--") || positionals(rest).length === 0)
+  )
+    return { kind: "none" }
   // The shipping is read; from here, anything that can't be allowed says why.
   const odd = withAssigns(simple)
   if (odd !== undefined) return unreadable(odd)
@@ -306,29 +371,72 @@ const readGit = async (simple: Simple, cursor: Cursor, lookups: Lookups): Promis
         word.startsWith("--exec") ||
         word.startsWith("--receive-pack") ||
         word.startsWith("--upload-pack"),
-    )
+    ) ||
+    (sub === "rebase" && short("x"))
   )
     return unreadable("it names a program to run (--exec, --receive-pack)")
   const repo = await lookups.repo(cwd)
   if (repo === undefined) return unreadable("Novadeck can't tell which repository it is in")
   if (sub === "push") return await readPush(rest, cwd, repo, lookups)
   if (sub === "update-ref") {
-    const name = rest.find((word) => !word.startsWith("-"))
+    // Its message (`-m <why>`) is no ref; any other option changes what it does.
+    const refs: string[] = []
+    for (let i = 0; i < rest.length; i += 1) {
+      const word = rest[i]!
+      if (word === "-m") i += 1
+      else if (word === "--no-deref" || word === "--create-reflog") continue
+      else if (word.startsWith("-"))
+        return unreadable(`\`git update-ref ${word}\` moves refs in ways Novadeck can't read`)
+      else refs.push(word)
+    }
+    const name = refs[0]
     if (name === undefined || !name.startsWith("refs/heads/"))
       return unreadable("it moves a ref that isn't a branch")
-    return await moved(cwd, repo, ref(name), lookups)
+    return await moved(cwd, repo, [ref(name)], lookups)
   }
-  if (sub === "branch" || sub === "checkout" || sub === "switch") {
-    // `branch -f <name> [start]`, `checkout -B <name> [start]`.
-    const positional = rest.filter((word) => !word.startsWith("-"))
-    const index =
-      sub === "branch"
-        ? 0
-        : rest.findIndex((word) => word === "-B" || word === "-C" || word === "--force-create") + 1
-    const name = sub === "branch" ? positional[index] : rest[index]
-    if (name === undefined) return unreadable("Novadeck can't tell which branch it moves")
-    return await moved(cwd, repo, name, lookups)
+  if (sub === "branch") {
+    // `branch -f <name> [start]`, `-m [old] <new>` and `-c [old] <new>`: the names it writes.
+    if (
+      options.some((word) =>
+        word.startsWith("--")
+          ? !branchOptions.has(word.split("=")[0]!)
+          : word.startsWith("-") &&
+            !word
+              .slice(1)
+              .split("")
+              .every((c) => "fmMcCqt".includes(c)),
+      )
+    )
+      return unreadable("it gives `git branch` an option Novadeck doesn't know")
+    const names = positionals(rest)
+    const current = await lookups.branch(cwd)
+    const moves = short("mM") || long("--move")
+    const copies = short("cC") || long("--copy")
+    if (names.length === 0 || names.length > 2)
+      return unreadable("Novadeck can't tell which branch it moves")
+    const old = names.length === 2 ? names[0]! : current
+    const fresh = names.length === 2 ? names[1]! : names[0]!
+    if (moves || copies) {
+      if (old === undefined) return unreadable("Novadeck can't tell which branch it moves")
+      // A move also takes `old` away; a copy only writes `fresh`.
+      return await moved(cwd, repo, moves ? [old, fresh] : [fresh], lookups)
+    }
+    return await moved(cwd, repo, [names[0]!], lookups)
   }
+  if (sub === "checkout" || sub === "switch") {
+    // `checkout -B <name> [start]` or `-fB <name>`, `switch -C <name> [start]`.
+    const letter = sub === "checkout" ? "B" : "C"
+    const index = rest.findIndex((word) => /^-[^-]/.test(word) && word.slice(1).includes(letter))
+    const cluster = index < 0 ? undefined : rest[index]
+    const name =
+      cluster === undefined
+        ? rest[rest.findIndex((word) => word === "--force-create") + 1]
+        : cluster.slice(cluster.indexOf(letter) + 1) || rest[index + 1]
+    if (name === undefined || name.startsWith("-"))
+      return unreadable("Novadeck can't tell which branch it moves")
+    return await moved(cwd, repo, [name], lookups)
+  }
+  const targets: string[] = []
   if (sub === "merge" || sub === "pull") {
     for (let i = 0; i < rest.length; i += 1) {
       const word = rest[i]!
@@ -344,24 +452,50 @@ const readGit = async (simple: Simple, cursor: Cursor, lookups: Lookups): Promis
         return unreadable("it names a custom merge strategy, which runs a program")
     }
   }
-  const branch = await lookups.branch(cwd)
-  if (branch === undefined) return { kind: "none" }
-  return await moved(cwd, repo, branch, lookups)
+  if (sub === "pull" || sub === "fetch") {
+    // `<remote> a:b` writes the local branch b, whichever branch is checked out.
+    for (const spec of positionals(rest, valued[sub]).slice(1)) {
+      if (!spec.includes(":")) continue
+      const [, destination = "", ...extra] = (spec.startsWith("+") ? spec.slice(1) : spec).split(
+        ":",
+      )
+      if (extra.length > 0 || /[*?[]/.test(spec))
+        return unreadable("a refspec holds a pattern Novadeck can't read")
+      if (destination === "" || destination.startsWith("refs/remotes/")) continue
+      if (destination.startsWith("refs/") && !destination.startsWith("refs/heads/"))
+        return unreadable("it writes a ref that isn't a branch")
+      targets.push(ref(destination))
+    }
+    if (sub === "fetch")
+      return targets.length === 0 ? { kind: "none" } : await moved(cwd, repo, targets, lookups)
+  }
+  if (sub === "rebase") {
+    // `rebase <upstream> <branch>` switches to <branch> first and moves it.
+    const named = positionals(rest, valued.rebase)
+    if (named.length > 2) return unreadable("Novadeck can't tell which branch it rebases")
+    if (named[1] !== undefined) targets.push(ref(named[1]))
+  }
+  if (targets.length === 0 || sub !== "rebase") {
+    const branch = await lookups.branch(cwd)
+    if (branch === undefined && targets.length === 0) return { kind: "none" }
+    if (branch !== undefined) targets.push(branch)
+  }
+  return await moved(cwd, repo, targets, lookups)
 }
 
-/** A ref move of `branch`: nothing when it is the agent's own, else a landing on it. */
+/** A ref move of `branches`: nothing for the agent's own, else a landing on each of the others. */
 const moved = async (
   cwd: string,
   repo: string,
-  branch: string,
+  branches: readonly string[],
   lookups: Lookups,
-): Promise<Simply> =>
-  (await lookups.own(cwd, branch))
-    ? { kind: "none" }
-    : {
-        kind: "ships",
-        actions: [{ kind: "land", key: permitKey.land(repo, branch), singleUse: false }],
-      }
+): Promise<Simply> => {
+  const actions: Action[] = []
+  for (const branch of new Set(branches))
+    if (!(await lookups.own(cwd, branch)))
+      actions.push({ kind: "land", key: permitKey.land(repo, branch), singleUse: false })
+  return actions.length === 0 ? { kind: "none" } : { kind: "ships", actions }
+}
 
 const readPush = async (
   rest: readonly string[],
@@ -370,6 +504,7 @@ const readPush = async (
   lookups: Lookups,
 ): Promise<Simply> => {
   let force = false
+  let named: string | undefined
   const positional: string[] = []
   for (let i = 0; i < rest.length; i += 1) {
     const word = rest[i]!
@@ -388,7 +523,11 @@ const readPush = async (
       word === "--force-if-includes"
     )
       force = true
-    else if (word === "-o" || word === "--push-option" || word === "--repo") i += 1
+    else if (word === "--repo" || word.startsWith("--repo=")) {
+      // The remote it names stands for the one a first word would, which is then a refspec.
+      named = word === "--repo" ? rest[i + 1] : word.slice(7)
+      if (word === "--repo") i += 1
+    } else if (word === "-o" || word === "--push-option") i += 1
     else if (
       word.startsWith("-") &&
       !word.startsWith("--") &&
@@ -399,8 +538,8 @@ const readPush = async (
     else if (!word.startsWith("-")) positional.push(word)
   }
   const current = await lookups.branch(cwd)
-  let remote = positional[0]
-  const specs = positional.slice(1)
+  let remote = named ?? positional[0]
+  const specs = named === undefined ? positional.slice(1) : positional
   if (remote === undefined) {
     const up = current === undefined ? undefined : await lookups.upstream(cwd, current)
     remote = up?.remote ?? "origin"
@@ -438,104 +577,242 @@ const readPush = async (
   return actions.length === 0 ? { kind: "none" } : { kind: "ships", actions }
 }
 
-const readGh = async (simple: Simple, cursor: Cursor, lookups: Lookups): Promise<Simply> => {
-  const words = simple.words.slice(1)
-  let repoFlag: string | undefined = simple.assigns
-    .find((each) => each.startsWith("GH_REPO="))
-    ?.slice(8)
+// The flags of each `gh pr` verb the reader acts on, as [short, long, takes a value]: a flag that
+// isn't here is unknown, and a command with one is never allowed. The tables are per verb because
+// a letter means different things in each (`-r` is `--rebase` in `merge`, `--reviewer` in `create`).
+type Flag = readonly [short: string | undefined, long: string, value: boolean]
+const helpFlag: Flag = ["h", "--help", false]
+const repoFlag: Flag = ["R", "--repo", true]
+const bodyFlags: readonly Flag[] = [
+  ["b", "--body", true],
+  ["F", "--body-file", true],
+]
+const prFlags: { readonly [verb: string]: readonly Flag[] } = {
+  create: [
+    helpFlag,
+    repoFlag,
+    ...bodyFlags,
+    ["d", "--draft", false],
+    ["f", "--fill", false],
+    [undefined, "--fill-first", false],
+    [undefined, "--fill-verbose", false],
+    [undefined, "--no-maintainer-edit", false],
+    ["w", "--web", false],
+    [undefined, "--dry-run", false],
+    ["e", "--editor", false],
+    ["a", "--assignee", true],
+    ["B", "--base", true],
+    ["H", "--head", true],
+    ["l", "--label", true],
+    ["m", "--milestone", true],
+    ["p", "--project", true],
+    ["r", "--reviewer", true],
+    ["T", "--template", true],
+    ["t", "--title", true],
+    [undefined, "--recover", true],
+  ],
+  merge: [
+    helpFlag,
+    repoFlag,
+    ...bodyFlags,
+    [undefined, "--admin", false],
+    [undefined, "--auto", false],
+    [undefined, "--disable-auto", false],
+    ["d", "--delete-branch", false],
+    ["m", "--merge", false],
+    ["r", "--rebase", false],
+    ["s", "--squash", false],
+    ["t", "--subject", true],
+    ["A", "--author-email", true],
+    [undefined, "--match-head-commit", true],
+  ],
+  edit: [
+    helpFlag,
+    repoFlag,
+    ...bodyFlags,
+    ["B", "--base", true],
+    ["m", "--milestone", true],
+    ["t", "--title", true],
+    [undefined, "--remove-milestone", false],
+    [undefined, "--add-assignee", true],
+    [undefined, "--add-label", true],
+    [undefined, "--add-project", true],
+    [undefined, "--add-reviewer", true],
+    [undefined, "--remove-assignee", true],
+    [undefined, "--remove-label", true],
+    [undefined, "--remove-project", true],
+    [undefined, "--remove-reviewer", true],
+  ],
+}
+
+type Flags = {
+  readonly positional: readonly string[]
+  /** Each flag seen, by its long name: its value, or "" for one that takes none. */
+  readonly seen: ReadonlyMap<string, string>
+  /** The first flag the verb doesn't have, as written. */
+  readonly unknown?: string
+}
+
+/** `words` as the flags `table` lists read them: spaced, attached (`-Bmain`, `--base=x`) or clustered (`-dm`). */
+const parseFlags = (words: readonly string[], table: readonly Flag[]): Flags => {
   const positional: string[] = []
-  let admin = false
-  let target: string | undefined
+  const seen = new Map<string, string>()
+  let unknown: string | undefined
   for (let i = 0; i < words.length; i += 1) {
     const word = words[i]!
-    if (word === "-R" || word === "--repo") {
-      repoFlag = words[i + 1]
-      i += 1
-    } else if (word.startsWith("--repo=")) repoFlag = word.slice(7)
-    else if (word === "-B" || word === "--base") {
-      target = words[i + 1]
-      i += 1
-    } else if (word.startsWith("--base=")) target = word.slice(7)
-    else if (word === "--admin") admin = true
-    else if (word.startsWith("-")) {
-      // Flags with values that would otherwise read as positional.
-      if (
-        [
-          "-t",
-          "--title",
-          "-b",
-          "--body",
-          "-F",
-          "--body-file",
-          "-H",
-          "--head",
-          "-a",
-          "--assignee",
-          "-l",
-          "--label",
-          "-r",
-          "--reviewer",
-          "-m",
-          "--milestone",
-          "--match-head-commit",
-          "--subject",
-          "-A",
-          "--author-email",
-          "-p",
-          "--project",
-        ].includes(word)
-      )
-        i += 1
+    if (word === "--") {
+      positional.push(...words.slice(i + 1))
+      break
+    }
+    if (word.startsWith("--")) {
+      const [name = "", ...value] = word.split("=")
+      const flag = table.find((each) => each[1] === name)
+      if (flag === undefined) unknown ??= word
+      else if (!flag[2]) seen.set(name, "")
+      else seen.set(name, value.length > 0 ? value.join("=") : (words[++i] ?? ""))
+    } else if (word.startsWith("-") && word.length > 1) {
+      for (let at = 1; at < word.length; at += 1) {
+        const flag = table.find((each) => each[0] === word[at])
+        if (flag === undefined) {
+          unknown ??= word
+          break
+        }
+        if (!flag[2]) seen.set(flag[1], "")
+        else {
+          seen.set(flag[1], word.slice(at + 1).replace(/^=/, "") || (words[++i] ?? ""))
+          break
+        }
+      }
     } else positional.push(word)
   }
-  const [area, verb, subject] = positional
-  if (area === "api") {
-    const method = words.findIndex((word) => word === "-X" || word === "--method")
-    const given = method >= 0 ? words[method + 1]?.toUpperCase() : undefined
-    const writes =
-      (given !== undefined && given !== "GET") ||
-      words.some((word) => /^(-f|-F|--field|--raw-field|--input)/.test(word))
-    return writes
+  return { positional, seen, ...(unknown !== undefined && { unknown }) }
+}
+
+/** `owner/repo` of what `gh` takes for a repository: `[HOST/]OWNER/REPO`. */
+const repoNamed = (text: string | undefined): string | undefined => {
+  const parts = text?.split("/")
+  return parts !== undefined && parts.length >= 2 && parts.length <= 3 && parts.every(Boolean)
+    ? parts.slice(-2).join("/")
+    : undefined
+}
+
+// A flag of `gh api` that makes it a write: a method, or a field or input.
+const apiWrites = (words: readonly string[]): boolean => {
+  for (let i = 0; i < words.length; i += 1) {
+    const word = words[i]!
+    if (word === "--") break
+    let method: string | undefined
+    if (word === "--method") method = words[i + 1]
+    else if (word.startsWith("--method=")) method = word.slice(9)
+    else if (/^-[A-Za-z]*X/.test(word)) method = word.slice(word.indexOf("X") + 1) || words[i + 1]
+    else if (/^(-f|-F|--field|--raw-field|--input)/.test(word)) return true
+    if (method !== undefined && method.replace(/^=/, "").toUpperCase() !== "GET") return true
+  }
+  return false
+}
+
+const readGh = async (simple: Simple, cursor: Cursor, lookups: Lookups): Promise<Simply> => {
+  const words = simple.words.slice(1)
+  const area = words[0]
+  if (area === "api")
+    return apiWrites(words.slice(1))
       ? unreadable("a mutating `gh api` call ships something Novadeck can't read")
       : { kind: "none" }
+  if (area === "release" && words[1] === "create")
+    return unreadable("it creates a release, and with it a tag, which Novadeck can't read")
+  if (area !== "pr") return { kind: "none" }
+  // `gh pr -R owner/repo merge 12`: the repository flag may come before the verb.
+  let before: string | undefined
+  let at = 1
+  for (; at < words.length && words[at]!.startsWith("-"); at += 1) {
+    const word = words[at]!
+    if (word === "-R" || word === "--repo") {
+      before = words[at + 1]
+      at += 1
+    } else if (word.startsWith("--repo=")) before = word.slice(7)
+    else if (/^-R./.test(word)) before = word.slice(2).replace(/^=/, "")
+    else
+      return words.some((each) => ["create", "merge", "edit"].includes(each))
+        ? unreadable(`it puts ${word} before the verb of \`gh pr\`, which Novadeck can't read`)
+        : { kind: "none" }
   }
-  if (area !== "pr" || (verb !== "create" && verb !== "merge" && verb !== "edit"))
+  const verb = words[at]
+  if (verb === undefined || !["create", "merge", "edit"].includes(verb)) return { kind: "none" }
+  const parsed = parseFlags(words.slice(at + 1), prFlags[verb]!)
+  const target = parsed.seen.get("--base")
+  if (verb === "edit" && target === undefined && parsed.unknown === undefined)
     return { kind: "none" }
-  if (verb === "edit" && target === undefined) return { kind: "none" }
   const odd = withAssigns(simple)
   if (odd !== undefined) return unreadable(odd)
   if (simple.dynamic) return unreadable("it holds an expansion, whose value Novadeck can't read")
   if (!cursor.readable) return unreadable("it follows a `cd` Novadeck can't read")
-  const repo = repoFlag ?? (await lookups.repo(cursor.cwd))
-  if (repo === undefined) return unreadable("Novadeck can't tell which repository it is in")
+  if (parsed.unknown !== undefined)
+    return unreadable(`\`gh pr ${verb}\` has an option Novadeck doesn't know (${parsed.unknown})`)
+  const named =
+    parsed.seen.get("--repo") ??
+    before ??
+    simple.assigns.find((each) => each.startsWith("GH_REPO="))?.slice(8)
+  let repo = named === undefined ? await lookups.repo(cursor.cwd) : repoNamed(named)
+  if (repo === undefined)
+    return unreadable(
+      named === undefined
+        ? "Novadeck can't tell which repository it is in"
+        : "it names a repository Novadeck can't read",
+    )
+  const [subject, ...more] = parsed.positional
+  if (verb === "create") {
+    if (subject !== undefined || more.length > 0)
+      return unreadable("`gh pr create` takes no argument Novadeck knows")
+    return {
+      kind: "ships",
+      actions: [
+        {
+          kind: "pr-create",
+          key: permitKey.prCreate(repo, target ?? "@default"),
+          singleUse: false,
+        },
+      ],
+    }
+  }
+  if (more.length > 0) return unreadable(`\`gh pr ${verb}\` names more than one PR`)
+  // A PR's URL names its repository, which must be the one the command resolves.
+  const url =
+    subject === undefined
+      ? undefined
+      : /^https?:\/\/[^/]+\/([^/]+\/[^/]+)\/pull\/(\d+)\/?$/.exec(subject)
+  if (url !== null && url !== undefined) {
+    if (url[1]!.toLowerCase() !== repo.toLowerCase())
+      return unreadable(
+        `the PR's URL names ${url[1]}, not the repository the command is in (${repo})`,
+      )
+    repo = url[1]!
+  }
+  const number = subject === undefined ? undefined : (/^#?(\d+)$/.exec(subject)?.[1] ?? url?.[2])
+  const branch = number === undefined ? (subject ?? (await lookups.branch(cursor.cwd))) : undefined
+  if (number === undefined && branch === undefined)
+    return unreadable(`Novadeck can't tell which PR \`gh pr ${verb}\` names`)
+  const merge =
+    number === undefined
+      ? permitKey.prMergeBranch(repo, branch!)
+      : permitKey.prMerge(repo, Number(number))
   if (verb === "merge") {
-    if (admin)
+    if (parsed.seen.has("--admin"))
       return unreadable(
         "`--admin` bypasses the PR's checks: only a grant that names it covers it, and no grant exists yet",
       )
-    const number =
-      subject === undefined
-        ? undefined
-        : (/^#?(\d+)$/.exec(subject)?.[1] ?? /\/pull\/(\d+)\/?$/.exec(subject)?.[1])
-    if (number !== undefined)
-      return {
-        kind: "ships",
-        actions: [
-          { kind: "pr-merge", key: permitKey.prMerge(repo, Number(number)), singleUse: false },
-        ],
-      }
-    const branch = subject ?? (await lookups.branch(cursor.cwd))
-    if (branch === undefined) return unreadable("Novadeck can't tell which PR it merges")
-    return {
-      kind: "ships",
-      actions: [{ kind: "pr-merge", key: permitKey.prMergeBranch(repo, branch), singleUse: false }],
-    }
+    return { kind: "ships", actions: [{ kind: "pr-merge", key: merge, singleUse: false }] }
   }
-  // `pr create` and `pr edit --base X` both open a PR into X.
+  // `pr edit --base X` opens the PR into X, as far as shipping goes, and the merge permits given
+  // for it before are void: they were for where it merged then.
   return {
     kind: "ships",
     actions: [
-      { kind: "pr-create", key: permitKey.prCreate(repo, target ?? "@default"), singleUse: false },
+      {
+        kind: "pr-create",
+        key: permitKey.prCreate(repo, target ?? "@default"),
+        singleUse: false,
+        voids: [merge],
+      },
     ],
   }
 }

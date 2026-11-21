@@ -1106,9 +1106,18 @@ export class Terminals {
    * person would with its keys (see `Answers`). No message of the person's, nor a doorbell
    * ring, comes between the answer and the words that follow it.
    */
-  answer(input: { terminalId: string; request: string; answer: RequestAnswer }): Promise<void> {
+  answer(
+    input: { terminalId: string; request: string; answer: RequestAnswer },
+    client?: string,
+  ): Promise<void> {
     const { terminalId, request, answer } = input
-    const held = answeredCard(this.options.shipping, this.records.get(terminalId), request, answer)
+    const held = answeredCard(
+      this.options.shipping,
+      this.records.get(terminalId),
+      request,
+      answer,
+      client,
+    )
     return held ?? this.typing.answer(terminalId, request, answer)
   }
 
@@ -1587,6 +1596,7 @@ export class Terminals {
   /** A hook printed what a lease delivered. */
   private acknowledge(ack: Ack): void {
     this.peers.acknowledge(ack)
+    this.options.shipping?.acknowledged(ack.terminalId, ack.leaseId)
   }
 
   inboxEntries(): InboxEntry[] {
@@ -1596,7 +1606,8 @@ export class Terminals {
     return this.inbox.watch(signal)
   }
   answerAsk(id: string, answer: AskAnswer): void {
-    this.inbox.answer(id, answer)
+    const { terminalId, text } = this.inbox.answer(id, answer)
+    this.reporting.quotedReply(terminalId, text)
   }
   readTells(ids: readonly string[]): void {
     this.inbox.read(ids)

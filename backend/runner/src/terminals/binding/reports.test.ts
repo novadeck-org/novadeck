@@ -374,3 +374,143 @@ describe("the worktrees notice at a root turn's start", () => {
     expect(await t.turn()).toBe(worktreesOnNotice)
   })
 })
+
+describe("the shipping gate's answer to a shell command", () => {
+  const hook = (event: string, agent: "claude" | "codex" = "claude", token = "tok") => ({
+    terminalId: "T",
+    token,
+    agent,
+    event,
+    seq: 1,
+    instance: null,
+    env: { cursor: false },
+    payload: { tool_name: "Bash", tool_input: { command: "gh pr merge 5" } },
+  })
+  const call = { event: "PreToolUse", command: "gh pr merge 5", cwd: "/w" } as const
+  const setup = (answer: unknown, enabled = true) => {
+    const shipping = {
+      enabled: () => enabled,
+      answer: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => answer),
+    }
+    // A host that fails any use but the records and the gate: a gated report touches nothing else.
+    const host = new Proxy(
+      {
+        records: () => new Map([["T", { token: "tok", terminal: { exiting: false } }]]),
+        shipping: () => shipping,
+      },
+      { get: (known, name) => (name in known ? known[name as "records"] : () => expect.fail()) },
+    ) as unknown as ReportsHost
+    const reports = new Reports(host)
+    const queued = vi.spyOn(reports, "queueReport").mockImplementation(() => {})
+    return { reports, shipping, queued }
+  }
+
+  it("is the hook's answer, with its lease, and the report is skipped", async () => {
+    const given = { stdout: '{"deny":true}\n', leaseId: "lease-1" }
+    const { reports, shipping, queued } = setup(given)
+    expect(await reports.queueAsk(hook("PreToolUse"), 5_000, call)).toEqual(given)
+    // Raced against the hook's own deadline.
+    expect(shipping.answer).toHaveBeenCalledWith("T", "claude", call, 5_000)
+    expect(queued).not.toHaveBeenCalled()
+  })
+
+  it("is no answer where the gate has no opinion: the event is reported as any hook is", async () => {
+    const { reports, queued } = setup(undefined)
+    expect(await reports.queueAsk(hook("PreToolUse", "codex"), 5_000, call)).toEqual({
+      leaseId: null,
+      stdout: "",
+    })
+    expect(queued).toHaveBeenCalledOnce()
+  })
+
+  it("asks the gate nothing of a terminal that isn't the caller's", async () => {
+    const { reports, shipping, queued } = setup({ stdout: "x", leaseId: null })
+    const answer = await reports.queueAsk(hook("PreToolUse", "claude", "other"), 5_000, call)
+    expect(answer).toEqual({ leaseId: null, stdout: "" })
+    expect(shipping.answer).not.toHaveBeenCalled()
+    expect(queued).toHaveBeenCalledOnce()
+  })
+
+  for (const agent of ["claude", "codex"] as const)
+    it(`ignores ${agent}'s shell PreToolUse once the gate is off, as before it existed`, async () => {
+      const { reports } = setup(undefined, false)
+      // The host fails any use beyond the gate's: nothing is bound, learned or scheduled.
+      expect(await reports.report(hook("PreToolUse", agent))).toEqual({ leaseId: null, stdout: "" })
+    })
+})
+
+describe("what the shipping gate takes as the person's words", () => {
+  const events = (sessionId = "root", cause = "prompt"): HarnessEvent[] => [
+    {
+      type: "turn-started",
+      agent: "claude",
+      sessionId,
+      instance: "1",
+      startedAt: 1,
+      cause,
+    } as HarnessEvent,
+  ]
+  const setup = (typed: string | undefined, over: object = {}, enabled = true) => {
+    const rings: [string, string, string][] = []
+    const reports = new Reports({
+      shipping: () => ({
+        enabled: () => enabled,
+        quotes: { record: (...ring: [string, string, string]) => rings.push(ring) },
+      }),
+      messaging: () => ({ personPrompt: () => typed }),
+      records: () => new Map([["T", { bound: { binding: { sessionId: "root" } } }]]),
+    } as unknown as ReportsHost)
+    const record = {
+      summary: { id: "T" },
+      root: { agent: "claude", sessionId: "root", instance: "1", source: "status-line" },
+      work: undefined,
+      openerCommand: null,
+      ...over,
+    } as unknown as Record
+    return { reports, record, rings }
+  }
+
+  it("is a root turn the person began, with their own words", () => {
+    const { reports, record, rings } = setup("merge it please")
+    reports.quoted(record, events())
+    expect(rings).toEqual([["T", "root", "merge it please"]])
+  })
+
+  it("is never a doorbell's or a delivery's turn, which the delivery doesn't call the person's", () => {
+    const { reports, record, rings } = setup(undefined)
+    reports.quoted(record, events())
+    expect(rings).toEqual([])
+  })
+
+  it("is never the command-line prompt an agent was opened with", () => {
+    const { reports, record, rings } = setup("merge it", {
+      work: { first: true, firstByPerson: undefined, opened: true },
+      openerCommand: "claude 'merge it'",
+    })
+    reports.quoted(record, events())
+    expect(rings).toEqual([])
+  })
+
+  it("is never a nested session's, nor a turn that isn't a prompt, nor anything while the gate is off", () => {
+    const { reports, record, rings } = setup("merge it")
+    reports.quoted(record, events("nested"))
+    reports.quoted(record, events("root", "continuation"))
+    expect(rings).toEqual([])
+    const off = setup("merge it", {}, false)
+    off.reports.quoted(off.record, events())
+    expect(off.rings).toEqual([])
+  })
+
+  it("takes an Inbox reply from the person's own record of it, never from an option label", () => {
+    const { reports, rings } = setup(undefined)
+    reports.quotedReply("T", "yes, merge it now")
+    expect(rings).toEqual([["T", "root", "yes, merge it now"]])
+    // A choice with no words of their own says nothing: its label is the agent's.
+    reports.quotedReply("T", "")
+    expect(rings).toHaveLength(1)
+    // Nothing while the gate is off, nor for a terminal with no session.
+    const off = setup(undefined, {}, false)
+    off.reports.quotedReply("T", "merge it now")
+    expect(off.rings).toEqual([])
+  })
+})

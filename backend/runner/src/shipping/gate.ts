@@ -14,6 +14,16 @@ import type { Permit, Permits } from "./permits.js"
 import { readCommand, type Action, type Lookups } from "./reader.js"
 import { covered, type AllowRule } from "./rules.js"
 
+/**
+ * What the hook prints for a command, and what to do once it is printed: a permit used up or a
+ * Codex escalation remembered happens only when the answer was delivered in time (`commit`),
+ * so an answer that came too late changes nothing.
+ */
+export type Decision = {
+  readonly stdout: string
+  readonly commit?: () => void
+}
+
 export type GateInput = {
   readonly agent: "claude" | "codex"
   readonly event: "PreToolUse" | "PermissionRequest"
@@ -41,6 +51,10 @@ export type GateDeps = {
   readonly turn: (transcript: string | undefined) => Promise<Turn | undefined>
   readonly now?: () => number
 }
+
+/** What gave a permit, in words. */
+export const describeSource = (source: Permit["source"]): string =>
+  source.type === "quote" ? `the user said "${source.quote}"` : "the user allowed it on a card"
 
 /** How long Novadeck remembers that it asked a Codex agent to escalate a command. */
 export const escalationMs = 5 * 60_000
@@ -123,9 +137,9 @@ export class Gate {
 
   /**
    * What the hook prints for `input`: undefined for no opinion, so the harness decides as it
-   * does without Novadeck, else a JSON line.
+   * does without Novadeck, else a JSON line and what to do once it is printed.
    */
-  async decide(input: GateInput): Promise<string | undefined> {
+  async decide(input: GateInput): Promise<Decision | undefined> {
     // Claude Code's bypass mode, where it asks nothing: Novadeck adds no gate.
     if (input.agent === "claude" && input.mode === "bypassPermissions") return undefined
     const reading = await readCommand(input.command, input.cwd, this.deps.lookups(input.terminalId))
@@ -135,11 +149,13 @@ export class Gate {
     // Where the person's own rule allows the command, the harness had no gate there either.
     if (covered(await this.deps.rules(input.agent, input.cwd), input.command)) return undefined
     if (reading.refusal !== undefined)
-      return printed(
-        input.event,
-        "deny",
-        `Novadeck: this command can't be allowed, because ${reading.refusal}. Run each shipping command on its own, spelled out.`,
-      )
+      return {
+        stdout: printed(
+          input.event,
+          "deny",
+          `Novadeck: this command can't be allowed, because ${reading.refusal}. Run each shipping command on its own, spelled out.`,
+        ),
+      }
     const permits: Permit[] = []
     const missing: string[] = []
     for (const action of reading.actions) {
@@ -147,39 +163,47 @@ export class Gate {
       if (permit) permits.push(permit)
       else missing.push(action.key)
     }
-    if (missing.length > 0) return printed(input.event, "deny", declare(missing))
-    return this.allowed(input, permits, turn)
+    if (missing.length > 0) return { stdout: printed(input.event, "deny", declare(missing)) }
+    return this.allowed(input, permits, reading.actions, turn)
   }
 
   private allowed(
     input: GateInput,
     permits: readonly Permit[],
+    actions: readonly Action[],
     turn: Turn | undefined,
-  ): string | undefined {
+  ): Decision {
+    // Once delivered: single-use permits end, and a PR whose base the command changes loses
+    // the merge permits it was given for where it merged before.
     const used = () => {
       for (const permit of permits) this.deps.permits.used(permit)
+      for (const action of actions)
+        for (const key of action.voids ?? []) this.deps.permits.revoke(key)
     }
-    const note = `Novadeck permit: ${permits.map((permit) => describeKey(permit.key)).join("; ")}`
-    if (input.agent === "claude") {
-      used()
-      return printed(input.event, "allow", note)
-    }
+    const note = `Novadeck permit: ${permits
+      .map((permit) => `${describeKey(permit.key)} (${describeSource(permit.source)})`)
+      .join("; ")}`
+    if (input.agent === "claude")
+      return { stdout: printed(input.event, "allow", note), commit: used }
     // Codex: a PreToolUse allow doesn't lift its sandbox, so a permitted command that the
     // sandbox may block is sent back once to run again asking to escalate, and the escalation
     // is what a PermissionRequest allows, once.
-    if (input.event === "PermissionRequest") {
-      used()
-      return printed("PermissionRequest", "allow", note)
-    }
-    if (!restricted(turn)) {
-      used()
-      return undefined
-    }
+    if (input.event === "PermissionRequest")
+      return { stdout: printed("PermissionRequest", "allow", note), commit: used }
+    // No opinion is printed, so the sandbox's own decision stands: the permit is used here.
+    if (!restricted(turn)) return { stdout: "", commit: used }
     const key = this.remember(input)
     const until = this.escalated.get(key)
-    if (until !== undefined && until > this.now()) return undefined
-    this.escalated.set(key, this.now() + escalationMs)
-    return printed("PreToolUse", "deny", escalate)
+    if (until !== undefined && until > this.now()) return { stdout: "" }
+    return {
+      stdout: printed("PreToolUse", "deny", escalate),
+      commit: () => {
+        // What is remembered is only what was asked of the agent, and the map is kept short.
+        const now = this.now()
+        for (const [each, over] of this.escalated) if (over <= now) this.escalated.delete(each)
+        this.escalated.set(key, now + escalationMs)
+      },
+    }
   }
 }
 

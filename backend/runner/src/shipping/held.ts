@@ -15,6 +15,8 @@ export const answeredCard = (
   record: Pick<Record, "bound" | "summary"> | undefined,
   request: string,
   answer: RequestAnswer,
+  /** The client session that answered, which the permit's record names. */
+  client?: string,
 ): Promise<void> | undefined => {
   const binding = record?.bound?.binding
   if (!shipping || !record || !binding) return undefined
@@ -25,6 +27,6 @@ export const answeredCard = (
     throw new DomainError("DIALOG_CHANGED", "That is not the card's own dialog.")
   if (answer.option !== heldOptions.allow && answer.option !== heldOptions.deny)
     throw new DomainError("ANSWER_FAILED", "Choose Allow or Deny.")
-  shipping.answered(card, answer.option === heldOptions.allow)
+  shipping.answered(card, answer.option === heldOptions.allow, client)
   return Promise.resolve()
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { Permits, permitMs, Quotes, ringMs } from "./permits.js"
+import { Permits, permitMs, Quotes, quotedIn, ringMs } from "./permits.js"
 
 describe("permits", () => {
   it("cover one terminal's target for ten minutes", () => {
@@ -24,6 +24,17 @@ describe("permits", () => {
     expect(permits.covering("a", "y")).toBeUndefined()
   })
 
+  it("end every terminal's permit for a target that changed", () => {
+    const permits = new Permits()
+    permits.give("a", "pr-merge:r#5", false, { type: "quote", quote: "q" })
+    permits.give("b", "pr-merge:r#5", false, { type: "quote", quote: "q" })
+    permits.give("a", "pr-merge:r#6", false, { type: "quote", quote: "q" })
+    permits.revoke("pr-merge:r#5")
+    expect(permits.covering("a", "pr-merge:r#5")).toBeUndefined()
+    expect(permits.covering("b", "pr-merge:r#5")).toBeUndefined()
+    expect(permits.covering("a", "pr-merge:r#6")).toBeDefined()
+  })
+
   it("tell listeners, so a card another source answered is withdrawn", () => {
     const permits = new Permits()
     const seen: string[] = []
@@ -34,14 +45,28 @@ describe("permits", () => {
 })
 
 describe("the quote ring", () => {
-  it("finds the person's words, word for word", () => {
+  it("finds the person's words, word for word, and says what they wrote", () => {
     const quotes = new Quotes()
-    quotes.record("a", "s1", "Please  merge it when green")
-    expect(quotes.said("a", "merge it")).toBe(true)
-    expect(quotes.said("a", "Merge IT when green")).toBe(true)
-    expect(quotes.said("a", "merge them all")).toBe(false)
-    expect(quotes.said("b", "merge it")).toBe(false)
-    expect(quotes.said("a", "it")).toBe(false)
+    quotes.record("a", "s1", "Please  merge it, when green")
+    expect(quotes.said("a", "merge it")).toBe("merge it")
+    expect(quotes.said("a", "Merge IT when green")).toBe("merge it, when green")
+    expect(quotes.said("a", "merge them all")).toBeUndefined()
+    expect(quotes.said("b", "merge it")).toBeUndefined()
+    expect(quotes.said("a", "it")).toBeUndefined()
+  })
+
+  it("wants two whole words in a row, found at word boundaries", () => {
+    expect(quotedIn("go ahead and merge it please", "merge it")).toBe("merge it")
+    // One word, however long, could be found in any prompt.
+    expect(quotedIn("go ahead and merge it please", "merge")).toBeUndefined()
+    expect(quotedIn("go ahead and merge it please", "")).toBeUndefined()
+    // A part of a word is no word; neither is words out of order or apart.
+    expect(quotedIn("they emerge items", "merge it")).toBeUndefined()
+    expect(quotedIn("merge itself", "merge it")).toBeUndefined()
+    expect(quotedIn("it merge", "merge it")).toBeUndefined()
+    expect(quotedIn("merge the PR and it", "merge it")).toBeUndefined()
+    expect(quotedIn("MERGE\n\tIT now", "merge   it")).toBe("MERGE\n\tIT")
+    expect(quotedIn("merge #1170, then stop", "merge 1170")).toBe("merge #1170")
   })
 
   it("keeps three prompts, none older than an hour, and starts over with a new session", () => {

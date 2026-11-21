@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { relayConfig, shellFiles, shellPaths } from "./scripts.js"
+import { gatedRelayConfig, relayConfig, shellFiles, shellPaths } from "./scripts.js"
 
 const paths = shellPaths("/home/u/.novadeck/shell", "linux")
 const files = (machine: object = {}) =>
@@ -33,11 +33,11 @@ describe("the shipping gate's files", () => {
     expect(Object.keys(claude.hooks)).not.toContain("PreToolUse")
   })
 
-  it("add Claude's per-launch PreToolUse for Bash and Codex's wider matcher, and change nothing else", () => {
+  it("add Claude's per-launch PreToolUse for Bash and Codex's wider matcher, and the relay's limit, and change nothing else", () => {
     const off = files()
     const on = files({ shippingGate: true })
     const changed = [...on]
-      .filter(([path, content]) => off.get(path) !== content)
+      .filter(([path, content]) => off.get(path) !== content && !path.endsWith("/relay.json"))
       .map(([path]) => path)
     expect(changed.map((path) => path.split("/plugins/")[1]).toSorted()).toEqual([
       "claude/statusline.json",
@@ -53,6 +53,11 @@ describe("the shipping gate's files", () => {
       hooks: { PreToolUse: { matcher: string }[] }
     }
     expect(codex.hooks.PreToolUse[0]!.matcher).toContain("|Bash|")
-    expect(at(on, "relay.json")).toBe(at(off, "relay.json"))
+    // The relay gives the gate's events the long limit, only while the gate is on.
+    expect(JSON.parse(at(on, "relay.json"))).toEqual(gatedRelayConfig)
+    expect(gatedRelayConfig.asks.claude).toContain("PreToolUse")
+    expect(gatedRelayConfig.asks.codex).toEqual(
+      expect.arrayContaining(["PreToolUse", "PermissionRequest"]),
+    )
   })
 })

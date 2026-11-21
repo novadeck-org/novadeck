@@ -10,7 +10,7 @@ export const permitMs = 10 * 60_000
 /** What gave a permit. */
 export type Source =
   | { readonly type: "quote"; readonly quote: string }
-  | { readonly type: "answer"; readonly card: string }
+  | { readonly type: "answer"; readonly card: string; readonly client?: string }
 
 export type Permit = {
   readonly terminalId: string
@@ -56,6 +56,11 @@ export class Permits {
     if (permit.singleUse) this.held.delete(this.id(permit.terminalId, permit.key))
   }
 
+  /** Ends every terminal's permit for `key`: the target it was given for has changed. */
+  revoke(key: string): void {
+    for (const [id, permit] of this.held) if (permit.key === key) this.held.delete(id)
+  }
+
   /** Ends every permit of a terminal, as it closes. */
   forget(terminalId: string): void {
     for (const [id, permit] of this.held) if (permit.terminalId === terminalId) this.held.delete(id)
@@ -72,10 +77,31 @@ export class Permits {
 export const ringPrompts = 3
 export const ringMs = 60 * 60_000
 
-const words = (text: string): string => text.replaceAll(/\s+/g, " ").trim().toLowerCase()
+/** The fewest words a quote may have: one or two letters could be found in any prompt. */
+export const quoteWords = 2
 
-/** The shortest quote that counts: a few letters could be found in any prompt. */
-const shortest = 4
+// A word is a run of letters or digits; punctuation and spacing between words don't count.
+const wordsOf = (text: string): { word: string; start: number; end: number }[] =>
+  [...text.matchAll(/[\p{L}\p{N}]+/gu)].map((match) => ({
+    word: match[0].toLowerCase(),
+    start: match.index,
+    end: match.index + match[0].length,
+  }))
+
+/**
+ * What of `prompt` `quote` is, if it is in it: at least `quoteWords` whole words, in a row, in
+ * the same order, found at word boundaries with case and spacing aside. The prompt's own
+ * wording of them (its slice, as the person wrote it) comes back, never the agent's.
+ */
+export const quotedIn = (prompt: string, quote: string): string | undefined => {
+  const wanted = wordsOf(quote).map((each) => each.word)
+  if (wanted.length < quoteWords) return undefined
+  const have = wordsOf(prompt)
+  for (let at = 0; at + wanted.length <= have.length; at += 1)
+    if (wanted.every((word, index) => have[at + index]!.word === word))
+      return prompt.slice(have[at]!.start, have[at + wanted.length - 1]!.end)
+  return undefined
+}
 
 /**
  * What the person typed into each terminal's agent: the last few prompts, none older than an
@@ -110,13 +136,16 @@ export class Quotes {
   }
 
   /**
-   * Whether `said`, word for word (whitespace and case aside), is in a prompt the person typed
-   * into this terminal. Novadeck checks that they said it; the agent judges what it means.
+   * What the person typed that `said` quotes, word for word (see `quotedIn`), in the prompts of
+   * this terminal; undefined where they didn't say it. Novadeck checks that they said it; the
+   * agent judges what it means.
    */
-  said(terminalId: string, said: string): boolean {
-    const quote = words(said)
-    if (quote.length < shortest) return false
-    return this.prompts(terminalId).some((prompt) => words(prompt).includes(quote))
+  said(terminalId: string, said: string): string | undefined {
+    for (const prompt of this.prompts(terminalId).toReversed()) {
+      const found = quotedIn(prompt, said)
+      if (found !== undefined) return found
+    }
+    return undefined
   }
 
   forget(terminalId: string): void {

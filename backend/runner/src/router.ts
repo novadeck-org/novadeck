@@ -307,7 +307,9 @@ export const createRouter = (options: {
       takeBox: api.agents.takeBox.handler(({ input }) => terminals.takeBox(input.terminalId)),
       putBox: api.agents.putBox.handler(({ input }) => terminals.putBox(input)),
       clearBox: api.agents.clearBox.handler(({ input }) => terminals.clearBox(input)),
-      answer: api.agents.answer.handler(({ input }) => terminals.answer(input)),
+      answer: api.agents.answer.handler(({ input, context }) =>
+        terminals.answer(input, context.session.id),
+      ),
       saveDialog: api.agents.saveDialog.handler(({ input }) => terminals.saveDialog(input)),
       interrupt: api.agents.interrupt.handler(({ input }) => terminals.interrupt(input)),
       set: api.agents.set.handler(async ({ input }) => {
