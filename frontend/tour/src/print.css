@@ -12,6 +12,10 @@
   /* A theme's glow on the page's text (Phosphor's) stays off the print. */
   text-shadow: none;
   --tour-yellow: #ffe24a;
+  /* The caption box's plastic: a pastel yellow brick, its darker edge, and its highlight. */
+  --tour-brick: #fff0a8;
+  --tour-brick-edge: #e8c766;
+  --tour-brick-ink: #3a2c4a;
   --tour-ink: #140b1f;
   --tour-paper: #e8e9ed;
   --tour-cyan: oklch(0.785 0.128 186);
@@ -60,37 +64,75 @@
   max-width: min(560px, calc(100vw - 32px));
   pointer-events: none;
 }
+/* The caption box: a pastel plastic brick, rounded, with studs on top, a thicker edge under it
+   and a highlight on its face, halftone dots fading in from its sides as in a comic, and its
+   line lettered on it; it pops in with a little bounce. */
 .tour-caption-line {
-  margin: 0;
+  position: relative;
+  margin: 10px 0 0;
   width: max-content;
   max-width: 100%;
-  padding: 0.18em 0.6em 0.1em;
-  background: var(--tour-yellow);
-  color: var(--tour-ink);
-  border: 3px solid var(--tour-ink);
-  box-shadow: 5px 5px 0 var(--tour-ink);
+  padding: 0.28em 0.85em 0.2em;
+  background:
+    linear-gradient(to bottom, rgb(255 255 255 / 0.55), transparent 45%), var(--tour-brick);
+  color: var(--tour-brick-ink);
+  border: 3px solid var(--tour-brick-ink);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.8),
+    inset 0 -3px 0 rgb(0 0 0 / 0.06),
+    0 5px 0 var(--tour-brick-edge),
+    0 5px 0 3px var(--tour-brick-ink),
+    0 12px 22px rgb(0 0 0 / 0.35);
   font-family: var(--tour-letter);
-  font-size: clamp(26px, 2.6vw, 40px);
+  font-size: clamp(24px, 2.4vw, 36px);
   font-weight: 400;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   line-height: 1.05;
   text-align: center;
   text-transform: uppercase;
   text-wrap: balance;
-  rotate: -1.5deg;
-  animation: tour-pop 100ms steps(3, end);
+  rotate: -1deg;
+  animation: tour-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .tour-caption-line[data-tilt="right"] {
-  rotate: 1.5deg;
+  rotate: 1deg;
+}
+/* Halftone dots, strongest at the box's sides and gone by its middle. */
+.tour-caption-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle, rgb(58 44 74 / 0.22) 1.3px, transparent 1.8px) 0 0 / 7px 7px;
+  mask-image: linear-gradient(to right, black 0, transparent 26%, transparent 74%, black 100%);
+  pointer-events: none;
+}
+/* The brick's studs, along its top. */
+.tour-caption-line::before {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 18px;
+  width: 70px;
+  height: 12px;
+  background:
+    radial-gradient(circle at 50% 35%, rgb(255 255 255 / 0.85) 0 2px, transparent 3px) 0 0 / 24px
+      12px,
+    radial-gradient(ellipse 9px 6px at 50% 50%, var(--tour-brick) 0 99%, transparent 100%) 0 0 /
+      24px 12px;
+  filter: drop-shadow(0 0 0 var(--tour-brick-ink)) drop-shadow(0 -1px 0 var(--tour-brick-ink))
+    drop-shadow(1px 0 0 var(--tour-brick-ink)) drop-shadow(-1px 0 0 var(--tour-brick-ink));
 }
 /* What the person has to do, where a moment asks it of them: ink on paper, under the box. */
 .tour-caption-note {
-  margin: 0;
+  margin: 4px 0 0;
   max-width: 44ch;
-  padding: 6px 10px;
+  padding: 7px 12px;
   background: var(--tour-on-plate);
   color: var(--tour-paper);
-  border: 2px solid var(--tour-paper);
+  border: 2px solid rgb(232 233 237 / 0.7);
+  border-radius: 10px;
   font-family: var(--tour-mono);
   font-size: 12.5px;
   line-height: 1.5;
@@ -98,7 +140,8 @@
 }
 @keyframes tour-pop {
   from {
-    scale: 0.86;
+    scale: 0.7;
+    opacity: 0;
   }
 }
 
@@ -162,13 +205,18 @@
   outline-offset: 2px;
 }
 .tour-button-go {
-  background: var(--tour-yellow);
-  color: var(--tour-ink);
-  border-color: var(--tour-ink);
-  box-shadow: 4px 4px 0 var(--tour-ink);
+  background:
+    linear-gradient(to bottom, rgb(255 255 255 / 0.5), transparent 50%), var(--tour-brick);
+  color: var(--tour-brick-ink);
+  border-color: var(--tour-brick-ink);
+  border-radius: 10px;
+  box-shadow:
+    0 3px 0 var(--tour-brick-edge),
+    0 3px 0 2px var(--tour-brick-ink);
 }
 .tour-button-go:hover {
-  background: color-mix(in srgb, white 18%, var(--tour-yellow));
+  background:
+    linear-gradient(to bottom, rgb(255 255 255 / 0.7), transparent 50%), var(--tour-brick);
 }
 
 /* An act's wipe: an ink sheet with a slanted edge slides in from the right in hard steps, the
