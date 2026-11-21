@@ -163,11 +163,14 @@ const lineOf = (block: Element): { line: string; rows: number } => {
     )
     return { line: `tools: ${folded}${rows.join("; ")}`, rows: rows.length }
   }
-  // One of Novadeck's own notices, as it opens: its words, the header off, each action behind its arrow.
+  // One of Novadeck's own notices, as it opens: its line (an event's family line, a standing one's
+  // words), then what opened under it, the header off, each action behind its arrow.
   if (block.matches(".chat-notice")) {
-    const line = block.querySelector<HTMLElement>(".chat-subagent-summary")!
-    if (line.getAttribute("aria-expanded") === "false") click(line)
-    return { line: `notice: ${textOf(line)}`, rows: 0 }
+    const key = block.querySelector<HTMLElement>(".chat-notice-key")!
+    if (key.getAttribute("aria-expanded") === "false") click(key)
+    const said = textOf(block.querySelector<HTMLElement>(".chat-notice-said")!)
+    const body = block.querySelector<HTMLElement>(".chat-notice-body")
+    return { line: `notice: ${said}${body ? ` | ${textOf(body)}` : ""}`, rows: 0 }
   }
   // A subagent's report: its name, whether it runs or failed, and the whole of what it said.
   if (block.matches(".chat-subagent")) {
