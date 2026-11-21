@@ -17,6 +17,7 @@ const callsFile = "backend/runner/src/terminals/calls.ts"
 const leadsFile = "backend/runner/src/terminals/leads.ts"
 const teamsFile = "backend/runner/src/terminals/teams.ts"
 const worktreeCallsFile = "backend/runner/src/worktrees/calls.ts"
+const shippingFile = "backend/runner/src/shipping/service.ts"
 const feedbackFile = "backend/runner/src/messaging/feedback.ts"
 const peersFile = "backend/runner/src/terminals/peers-host.ts"
 const contractFile = "harnesses/core/src/harness.ts"
@@ -42,6 +43,7 @@ const handlers: Record<string, { readonly file: string; readonly method: string 
   take_worktree: { file: worktreeCallsFile, method: "take" },
   close_worktree: { file: worktreeCallsFile, method: "close" },
   give_worktree: { file: worktreeCallsFile, method: "give" },
+  request_permit: { file: shippingFile, method: "declare" },
   lead: { file: leadsFile, method: "lead" },
   release: { file: leadsFile, method: "release" },
   join: { file: teamsFile, method: "join" },
