@@ -18,7 +18,7 @@ import { dialogs } from "./dialogs.js"
 import { codexHome } from "./home.js"
 import { fallbacks, installer } from "./install.js"
 import { readModels } from "./models.js"
-import { connect, connected, disconnect, files, hook, hookDialect } from "./plugin.js"
+import { connect, connected, disconnect, files, hook, hookDialect, installed } from "./plugin.js"
 import { followRollout, followSubagent, rolloutPlans } from "./rollout.js"
 import { conversational, shapes } from "./shapes.js"
 import { cmdShim, posixShim } from "./shim.js"
@@ -211,6 +211,7 @@ export const codex = {
   hookDialect,
   hook,
   files,
+  installed,
   // Interactive Codex runs its sessions, and their hooks, in a shared background server
   // that knows nothing of the terminal it was started from; see `./shim.ts`.
   shims: (platform, machine = {}) =>

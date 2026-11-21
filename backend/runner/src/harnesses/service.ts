@@ -469,13 +469,15 @@ export const createHarnesses = (
      * at the next start. Resolves to the agents it installed into; one that fails is
      * logged, and the rest go on.
      */
-    refresh: async (): Promise<AgentName[]> => {
+    refresh: async (gated = false): Promise<AgentName[]> => {
       const install = await installs()
       if (!install) return []
       const refreshed: AgentName[] = []
       for (const agent of agents) {
         const { installed } = harnesses[agent]
-        if (!installed) continue
+        // A copy that differs only with the shipping gate is looked at only while it is on, or
+        // once it was switched (`gated`).
+        if (!installed || (installed.gated === true && !gated)) continue
         const where = install(agent)
         try {
           // eslint-disable-next-line no-await-in-loop -- One agent at a time, as `set` runs them.

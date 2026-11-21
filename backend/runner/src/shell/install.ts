@@ -73,6 +73,8 @@ export type InstallOptions = {
   readonly prints?: typeof cmdPrints
   /** Where agents' worktrees live, for the shims to pass on (`~/.novadeck/worktrees` by default). */
   readonly worktrees?: string
+  /** Whether the Experimental shipping gate is on, which Claude's and Codex's plugin files carry. */
+  readonly gate?: boolean
   /** The person's Codex config, whose own writable roots go with the worktrees' (`codexConfig()`). */
   readonly codexConfig?: string
   /** For tests: the platform to write the files for, and how a path is shortened. */
@@ -98,6 +100,7 @@ export const installShellFiles = async (
     fresh = false,
     prints: printing = cmdPrints,
     worktrees,
+    gate = false,
     codexConfig: codexConfigPath = codexConfig(),
     platform = process.platform,
     short = shortName,
@@ -156,6 +159,8 @@ export const installShellFiles = async (
     cmdPrints: prints !== undefined,
     codexRoots,
     ...(worktrees !== undefined && { worktreesRoot: worktrees }),
+    // Only while on: with it off every file is written as it always was.
+    ...(gate && { shippingGate: true }),
     ...(cmdShimDir !== undefined && { cmdShimDir }),
     ...(pwshShimDir !== undefined && { pwshShimDir }),
   })

@@ -149,6 +149,8 @@ export const createRouter = (options: {
   seen?: Pick<SeenTerminals, "report">
   /** The runner settings were saved. */
   settingsSaved?: () => void
+  /** The shipping gate was switched on or off by a settings change. */
+  shippingSwitched?: () => void
   /** Novadeck's tour; without it, starting one is a CONFLICT. */
   tour?: Tour
 }) => {
@@ -477,6 +479,7 @@ export const createRouter = (options: {
         if (options.closing()) throw new DomainError("CLOSING")
         store.settings.saveRunner(input)
         options.settingsSaved?.()
+        if (input.shippingGate !== undefined) options.shippingSwitched?.()
         if (input.transcripts !== undefined) terminals.keepTranscripts(input.transcripts)
       }),
     },

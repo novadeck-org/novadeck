@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import type { Harness } from "@novadeck/harness-core/harness"
+import type { Harness, Machine } from "@novadeck/harness-core/harness"
 import { hookSeconds, hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
 import { json, manifest, marketplace } from "@novadeck/harness-core/plugin"
 
@@ -113,10 +113,11 @@ export const files: Harness["files"] = (platform, launchers, machine = {}) => [
     }),
   },
   // The settings Novadeck's shim adds: its hook as the status line, which passes on the
-  // person's own (see the runner's shell/hook.ts).
+  // person's own (see the runner's shell/hook.ts), and, while the shipping gate is on, its
+  // PreToolUse hook for shell commands, per launch so nothing of the person's is written.
   {
     path: "statusline.json",
-    content: json({ statusLine: statusLine(platform) }),
+    content: json({ statusLine: statusLine(platform), ...gateHooks(platform, machine) }),
   },
   // The same with the folder where agents' worktrees live as one of the session's own, which
   // the shim passes instead while that folder exists. As a setting, not `--add-dir`: from
@@ -131,11 +132,34 @@ export const files: Harness["files"] = (platform, launchers, machine = {}) => [
           path: worktreesSettings,
           content: json({
             statusLine: statusLine(platform),
+            ...gateHooks(platform, machine),
             permissions: { additionalDirectories: [machine.worktreesRoot] },
           }),
         },
       ]),
 ]
+
+/** The shipping gate's hook: PreToolUse for Bash, in the per-launch settings, only while it is on. */
+const gateHooks = (platform: NodeJS.Platform, machine: Machine) =>
+  machine.shippingGate === true
+    ? {
+        hooks: {
+          PreToolUse: [
+            {
+              matcher: "Bash",
+              hooks: [
+                {
+                  type: "command",
+                  command: hook(platform, "PreToolUse"),
+                  timeout: hookSeconds(platform),
+                  ...(platform === "win32" && { shell: "powershell" }),
+                },
+              ],
+            },
+          ],
+        },
+      }
+    : {}
 
 /** The status line Novadeck's shim sets: its hook, which passes on the person's own. */
 const statusLine = (platform: NodeJS.Platform) => ({
