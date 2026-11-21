@@ -33,9 +33,9 @@
    over whatever look the element has (so `!important`), and moving with it as it moves:
    where to look, a thin magenta line; what to press, the caption box's yellow, breathing
    slowly. Inset, so a parent that clips its children doesn't cut them. */
-/* What the tour marks: a line a little way out from the element, where there's room (the stage
-   sets how far on each side, as the mark's inset), drawn over all the element holds, with a soft
-   glow inward. Magenta where to look; yellow, slowly breathing, what to press. */
+/* What the tour marks: a line a set gap out from the element (the stage places it, in the
+   element or the nearest box past whatever would cut that gap off), drawn over all the element
+   holds, with a soft glow inward. Magenta where to look; yellow, slowly breathing, what to press. */
 [data-tour-host] {
   isolation: isolate !important;
 }
@@ -44,6 +44,7 @@
 }
 .tour-mark {
   position: absolute !important;
+  box-sizing: border-box !important;
   z-index: 2147483647 !important;
   border-radius: 6px;
   pointer-events: none !important;

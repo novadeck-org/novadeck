@@ -39,17 +39,19 @@ const sameScene = (a: Scene, b: Scene): boolean =>
 const drawn = (box: Box | null): box is Box => box !== null && box.width > 0 && box.height > 0
 
 // The attributes the stage puts on what its step marks: where to look, and what to press. Each
-// marked element gets a mark of its kind, which print.css draws a little way out from it, over
-// all it holds, so none of its parts paints over the mark. The mark goes in its host: the element
-// itself, or, where the element cuts off what goes past its edges (as a window does) and its
-// parent is the same box, that parent. A host that isn't positioned is made so
+// marked element gets a mark of its kind, which print.css draws a set gap out from it, over all
+// it holds, so none of its parts paints over the mark. The mark goes in its host: the element
+// itself, or, where something cuts off what goes past the element's edges too close to it for
+// the gap (the element itself, as a window does, or a list or window it's in), the nearest box
+// past that. Inside the workspace a host is never past the element's window, so a mark moves
+// with its window as the view pans. A host that isn't positioned is made so
 // (`data-tour-anchor`), to hold it.
 const lookMark = "data-tour-look"
 const clickMark = "data-tour-click"
 const host = "data-tour-host"
 const anchor = "data-tour-anchor"
 
-// How far out from what it marks a mark stands, where there's room.
+// How far out from what it marks a mark stands, wherever the page leaves room.
 const markGap = 6
 
 const kindOf = (mark: string): string => (mark === lookMark ? "look" : "click")
@@ -59,24 +61,54 @@ const clips = (element: Element): boolean => {
   return overflowX !== "visible" || overflowY !== "visible"
 }
 
-const hostOf = (element: HTMLElement): HTMLElement => {
-  const parent = element.parentElement
-  return parent && clips(element) && sameBox(boxOf(parent), boxOf(element)) ? parent : element
+// The least room `box` has on any side within `edge`.
+const roomIn = (box: DOMRect, edge: DOMRect): number =>
+  Math.min(
+    box.top - edge.top,
+    edge.right - box.right,
+    edge.bottom - box.bottom,
+    box.left - edge.left,
+  )
+
+// Whether a mark may be hosted past `around`, which cuts off what overflows it: past the element
+// itself, a window or anything in one; and past anything at all outside the workspace (as the
+// Inbox's list). Never past a view's own frame, which pans what's in it.
+const mayPass = (around: HTMLElement, element: HTMLElement): boolean =>
+  around === element ||
+  around.closest("[data-terminal]") !== null ||
+  element.closest("[data-workspace-area]") === null
+
+const hostOf = (element: HTMLElement, box: DOMRect): HTMLElement => {
+  const gap = markGap * (element.offsetWidth > 0 ? box.width / element.offsetWidth : 1)
+  let place = element
+  for (let around: HTMLElement | null = element; around && around !== document.body;) {
+    const parent: HTMLElement | null = around.parentElement
+    if (clips(around)) {
+      const room = around === element ? 0 : roomIn(box, around.getBoundingClientRect())
+      // An element it cuts off partway stays cut off with it.
+      if (room < 0) break
+      if (room < gap) {
+        if (!parent || !mayPass(around, element)) break
+        place = parent
+      }
+    }
+    around = parent
+  }
+  return place
 }
 
-// The mark of `mark`'s kind in `place`, if there is one.
-const markIn = (place: HTMLElement, mark: string): HTMLElement | null =>
-  place.querySelector<HTMLElement>(`:scope > [data-tour-mark="${kindOf(mark)}"]`)
-
-// How far out the mark can stand on each side, within whatever around its host cuts off what
-// overflows it, in the host's own pixels (as Canvas scales it).
-const gapsOf = (place: HTMLElement): readonly [number, number, number, number] => {
-  const box = place.getBoundingClientRect()
-  const scale = place.offsetWidth > 0 ? box.width / place.offsetWidth : 1
+// The gap the mark can have on each side within whatever cuts off what overflows its host, in
+// the host's own pixels (as Canvas scales it).
+const gapsIn = (
+  place: HTMLElement,
+  element: HTMLElement,
+  box: DOMRect,
+  scale: number,
+): readonly [number, number, number, number] => {
   const most = markGap * scale
   let [top, right, bottom, left] = [most, most, most, most]
-  for (let around = place.parentElement; around; around = around.parentElement) {
-    if (!clips(around)) continue
+  for (let around: HTMLElement | null = place; around; around = around.parentElement) {
+    if (around === element || !clips(around)) continue
     const edge = around.getBoundingClientRect()
     top = Math.min(top, box.top - edge.top)
     right = Math.min(right, edge.right - box.right)
@@ -87,38 +119,65 @@ const gapsOf = (place: HTMLElement): readonly [number, number, number, number] =
   return [local(top), local(right), local(bottom), local(left)]
 }
 
+// Each marked element's marks, by kind, wherever they're hosted.
+const drawnMarks = new WeakMap<HTMLElement, Map<string, HTMLElement>>()
+
+// Takes the host's attributes off once it holds no mark.
+const release = (place: HTMLElement | null): void => {
+  if (!place || place.querySelector(":scope > .tour-mark")) return
+  place.removeAttribute(host)
+  place.removeAttribute(anchor)
+}
+
 // The mark of `mark`'s kind for `element`, put in its host if it isn't there (as when a view
-// redrew it), and kept as far out as there's room.
+// redrew it or the host changed), and kept over the element with its gap.
 const drawMark = (element: HTMLElement, mark: string): void => {
-  const place = hostOf(element)
+  const kind = kindOf(mark)
+  const box = element.getBoundingClientRect()
+  const place = hostOf(element, box)
+  const marks = drawnMarks.get(element) ?? new Map<string, HTMLElement>()
+  drawnMarks.set(element, marks)
+  let line = marks.get(kind)
+  if (line && line.parentElement !== place) {
+    const was = line.parentElement
+    line.remove()
+    release(was)
+    line = undefined
+  }
+  if (!line) {
+    line = document.createElement("span")
+    line.className = "tour-mark"
+    line.dataset.tourMark = kind
+    line.setAttribute("aria-hidden", "true")
+    marks.set(kind, line)
+  }
   if (!place.hasAttribute(host)) {
     place.setAttribute(host, "")
     if (getComputedStyle(place).position === "static") place.setAttribute(anchor, "")
   }
-  let line = markIn(place, mark)
-  if (!line) {
-    line = document.createElement("span")
-    line.className = "tour-mark"
-    line.dataset.tourMark = kindOf(mark)
-    line.setAttribute("aria-hidden", "true")
-    place.append(line)
+  if (line.parentElement !== place) place.append(line)
+  const edge = place.getBoundingClientRect()
+  const scale = place.offsetWidth > 0 ? edge.width / place.offsetWidth : 1
+  const [top, right, bottom, left] = gapsIn(place, element, box, scale)
+  const at = {
+    left: `${(box.left - edge.left) / scale - place.clientLeft + place.scrollLeft - left}px`,
+    top: `${(box.top - edge.top) / scale - place.clientTop + place.scrollTop - top}px`,
+    width: `${box.width / scale + left + right}px`,
+    height: `${box.height / scale + top + bottom}px`,
   }
-  const inset = gapsOf(place)
-    .map((gap) => `${-gap}px`)
-    .join(" ")
-  if (line.style.inset !== inset) line.style.inset = inset
+  for (const [side, value] of Object.entries(at))
+    if (line.style.getPropertyValue(side) !== value) line.style.setProperty(side, value)
 }
 
 const unmark = (element: HTMLElement, mark: string): void => {
   element.removeAttribute(mark)
-  for (const place of [element, element.parentElement]) {
-    if (!place) continue
-    markIn(place, mark)?.remove()
-    if (!place.querySelector(":scope > [data-tour-mark]")) {
-      place.removeAttribute(host)
-      place.removeAttribute(anchor)
-    }
-  }
+  const marks = drawnMarks.get(element)
+  const line = marks?.get(kindOf(mark))
+  if (!line) return
+  const was = line.parentElement
+  line.remove()
+  marks?.delete(kindOf(mark))
+  release(was)
 }
 
 // What a coach marks now: where to look, and the first of its targets to press that's drawn.
