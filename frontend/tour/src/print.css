@@ -1,0 +1,321 @@
+@import "@fontsource/bangers/400.css";
+
+/* The tour's print, loaded with what draws it (the stage and the closing card), so the app's
+   first load carries neither it nor its font.
+   While it runs, the tour draws over the workspace in a look of its own, apart from the app's
+   themes, so it reads as an event and not as more of the app: Nyx's caption box from the skits
+   (runner-skits video/src/kit/Captions.tsx: yellow, an ink rule and shadow, Bangers caps), and
+   the website's print for the rest (novadeck-website src/styles/global.css: the cyan and magenta
+   plates set off register, ink on them). Every colour is set here, on `.tour-print`, and none is
+   a theme token, so a theme or a scheme never reaches it. */
+.tour-print {
+  --tour-yellow: #ffe24a;
+  --tour-ink: #140b1f;
+  --tour-paper: #e8e9ed;
+  --tour-cyan: oklch(0.785 0.128 186);
+  --tour-magenta: oklch(0.66 0.226 341);
+  --tour-on-plate: #0b0d10;
+  --tour-label: oklch(0.805 0.123 186);
+  --tour-letter: "Bangers", Impact, "Arial Narrow", sans-serif;
+  --tour-plate: "Archivo Variable", "Archivo", sans-serif;
+  --tour-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* The ring: a magenta plate round what the step points at, ink outside it. It takes no
+   pointer, so everything under it still works. */
+.tour-ring {
+  position: fixed;
+  z-index: 39;
+  pointer-events: none;
+  border: 4px solid var(--tour-magenta);
+  border-radius: 10px;
+  outline: 3px solid var(--tour-on-plate);
+  translate: -7px -7px;
+  padding: 3px;
+  box-sizing: content-box;
+}
+
+/* The caption box: one short line, lettered, tilted a little, popping in over three frames. */
+.tour-caption {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  /* Its own width, whatever its place: one taken from the room left of it would rewrap the line
+     as it moves, and move it again. */
+  width: max-content;
+  max-width: min(560px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.tour-caption-line {
+  margin: 0;
+  width: max-content;
+  max-width: 100%;
+  padding: 0.18em 0.6em 0.1em;
+  background: var(--tour-yellow);
+  color: var(--tour-ink);
+  border: 3px solid var(--tour-ink);
+  box-shadow: 5px 5px 0 var(--tour-ink);
+  font-family: var(--tour-letter);
+  font-size: clamp(26px, 2.6vw, 40px);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  line-height: 1.05;
+  text-align: center;
+  text-transform: uppercase;
+  text-wrap: balance;
+  rotate: -1.5deg;
+  animation: tour-pop 100ms steps(3, end);
+}
+/* What the person has to do, where a moment asks it of them: ink on paper, under the box. */
+.tour-caption-note {
+  margin: 0;
+  max-width: 44ch;
+  padding: 6px 10px;
+  background: var(--tour-on-plate);
+  color: var(--tour-paper);
+  border: 2px solid var(--tour-paper);
+  font-family: var(--tour-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  pointer-events: auto;
+}
+@keyframes tour-pop {
+  from {
+    scale: 0.86;
+  }
+}
+
+/* The stage's controls, centred on where they stand: the four act plates, the one on now inked
+   in, and End tour. */
+.tour-controls {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  translate: -50% -50%;
+}
+.tour-acts {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+.tour-acts li {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  background: var(--tour-on-plate);
+  color: var(--tour-paper);
+  border: 2px solid var(--tour-paper);
+  font-family: var(--tour-plate);
+  font-size: 12px;
+  font-weight: 900;
+}
+.tour-acts li[aria-current] {
+  background: var(--tour-cyan);
+  color: var(--tour-on-plate);
+  border-color: var(--tour-on-plate);
+  box-shadow: 2px 2px 0 var(--tour-magenta);
+}
+
+/* The tour's buttons: ink tags, the one to go on filled with the box's yellow. */
+.tour-button {
+  min-height: 22px;
+  padding: 1px 10px;
+  background: var(--tour-on-plate);
+  color: var(--tour-paper);
+  border: 2px solid var(--tour-paper);
+  font-family: var(--tour-mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+.tour-button:hover {
+  background: color-mix(in srgb, var(--tour-paper) 14%, var(--tour-on-plate));
+}
+.tour-button:focus-visible,
+.tour-quiet:focus-visible {
+  outline: 3px solid var(--tour-cyan);
+  outline-offset: 2px;
+}
+.tour-button-go {
+  background: var(--tour-yellow);
+  color: var(--tour-ink);
+  border-color: var(--tour-ink);
+  box-shadow: 4px 4px 0 var(--tour-ink);
+}
+.tour-button-go:hover {
+  background: color-mix(in srgb, white 18%, var(--tour-yellow));
+}
+
+/* An act's wipe: an ink sheet with a slanted edge slides in from the right in hard steps, the
+   act's cyan plate and name stamp down, and it slides off while the act already plays under it.
+   It takes no pointer. */
+.tour-wipe {
+  position: fixed;
+  inset: 0 -40px 0 18%;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding-left: 14%;
+  background:
+    radial-gradient(circle, rgb(232 233 237 / 0.07) 1.2px, transparent 1.6px) 0 0 / 9px 9px,
+    var(--tour-on-plate);
+  clip-path: polygon(70px 0, 100% 0, 100% 100%, 0 100%);
+  pointer-events: none;
+  animation: tour-wipe 1300ms both;
+}
+.tour-wipe-plate {
+  display: grid;
+  place-items: center;
+  width: clamp(96px, 11vw, 150px);
+  aspect-ratio: 1;
+  background: var(--tour-cyan);
+  color: var(--tour-on-plate);
+  box-shadow: 12px 12px 0 var(--tour-magenta);
+  font-family: var(--tour-plate);
+  font-size: clamp(64px, 7.5vw, 104px);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  animation: tour-stamp 200ms steps(4, end) 400ms both;
+}
+.tour-wipe-name {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: tour-stamp 200ms steps(4, end) 550ms both;
+}
+.tour-wipe-say {
+  color: var(--tour-paper);
+  font-family: var(--tour-letter);
+  font-size: clamp(56px, 7vw, 96px);
+  letter-spacing: 0.03em;
+  line-height: 0.9;
+  text-transform: uppercase;
+}
+.tour-wipe-label {
+  color: var(--tour-label);
+  font-family: var(--tour-mono);
+  font-size: 15px;
+}
+@keyframes tour-wipe {
+  0% {
+    translate: 110% 0;
+  }
+  28%,
+  80% {
+    translate: 0 0;
+  }
+  100% {
+    translate: 115% 0;
+  }
+}
+@keyframes tour-stamp {
+  0% {
+    translate: 0 -60%;
+  }
+  33% {
+    translate: 0 -20%;
+  }
+  66% {
+    translate: 0 4%;
+  }
+  100% {
+    translate: 0 0;
+  }
+}
+
+/* The bar that stands in for the tour while the person is in another project. */
+.tour-away {
+  position: fixed;
+  bottom: 44px;
+  left: 50%;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  translate: -50% 0;
+  padding: 6px 6px 6px 12px;
+  background: var(--tour-on-plate);
+  color: var(--tour-paper);
+  border: 2px solid var(--tour-paper);
+  box-shadow: 5px 5px 0 var(--tour-magenta);
+  font-family: var(--tour-mono);
+  font-size: 12.5px;
+}
+
+/* The closing card: the tour's last line, over the page as the story ends, the board dimmed
+   behind it (taking no pointer). */
+.tour-dim {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  background: rgb(3 4 6 / 0.55);
+  pointer-events: none;
+}
+.tour-closing {
+  position: fixed;
+  bottom: 56px;
+  left: 50%;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: min(620px, calc(100vw - 32px));
+  translate: -50% 0;
+}
+.tour-closing-line {
+  font-size: clamp(32px, 3.6vw, 52px);
+}
+.tour-closing .tour-caption-note {
+  max-width: 56ch;
+  text-align: center;
+}
+.tour-closing-buttons {
+  display: flex;
+  gap: 12px;
+}
+.tour-closing-buttons .tour-button {
+  min-height: 30px;
+  padding: 3px 12px;
+}
+.tour-quiet {
+  padding: 2px 6px;
+  background: none;
+  border: none;
+  color: var(--tour-paper);
+  font-family: var(--tour-mono);
+  font-size: 12px;
+  text-decoration: underline;
+  opacity: 0.8;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-caption-line,
+  .tour-wipe-plate,
+  .tour-wipe-name {
+    animation: none;
+  }
+  .tour-wipe {
+    animation: tour-fade 1300ms both;
+  }
+  @keyframes tour-fade {
+    0%,
+    100% {
+      opacity: 0;
+    }
+    10%,
+    85% {
+      opacity: 1;
+    }
+  }
+}

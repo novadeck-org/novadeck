@@ -784,7 +784,7 @@ App:
   page (`by: "agent"`, asked to open) and finishes its turn. "Tour story: answer the tagline ask
   (A)" answers it as the person would; "Tour story: teammates stay quiet until nudged" has the
   next lead wait for `Tour.nudge` before opening its team; "Tour agent: stop" exits the lead's
-  process (the UI's "Your agent stopped"). "Tour agent: hold at folder trust" / "sign-in" /
+  process (the UI's "Your agent stopped."). "Tour agent: hold at folder trust" / "sign-in" /
   "hooks" hold the next one at that startup screen until "Answer the startup screen"; "Tour
   agent: quiet until nudged" has the next one sit idle at its prompt, no turn begun, until
   `Tour.nudge`, then work and name itself; "Tour agent: ask permission first" has the next one
@@ -794,11 +794,14 @@ App:
   `&tourStory=off` (stop after the lead names itself), `&tourTeam=quiet`,
   `&tourPatienceMs=<n>` (the UI's wait before nudging).
   As the agent goes, the tour's driver (`frontend/tour/src/driver.ts`, `useTourDriver.ts`)
-  draws a ring around what its step points at and a coach card beside it: "Your agent is
-  starting", or, while a startup screen holds, "Your agent is asking you something first" in
-  that screen's words, or "Your agent is asking your permission" while the lead or a teammate has
-  an Unblock row waiting in the Inbox (any harness's own dialog, or a held message). Pause, Skip step and End tour steer it; while paused, or while another
-  project is on screen, a small bar stands in for it.
+  plays four acts in Canvas, each opened by a wipe (an ink sheet with the act's number and
+  name), and its stage (`Stage.tsx`, in its own print look, `print.css`) rings what the step
+  points at and letters one caption box beside it in space no window takes: "Your own agent. In
+  a sandbox.", or, while a startup screen holds, "It wants an answer first." with that screen's
+  words under it, or "It's asking your permission." while the lead or a teammate has an Unblock
+  row waiting in the Inbox (any harness's own dialog, or a held message). The act plates and End
+  tour sit in the footer; while another project is on screen, a small bar stands in for it. Once
+  the card is shown, act 4 holds on it a few seconds before the closing card.
 - **Boot failures:** each fails the first attempt as the runner would, so a transient one
   retries on its own and the others wait for Retry (an incompatible runner, or a workspace
   a newer Novadeck has used, only for Quit). Each hint carries the error code, so the search

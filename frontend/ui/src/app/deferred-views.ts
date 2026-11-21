@@ -37,3 +37,23 @@ export const Preferences = lazy(() =>
 export const TerminalSearch = lazy(() =>
   import("../search/TerminalSearch").then((module) => ({ default: module.TerminalSearch })),
 )
+
+// The tour's stage and closing card, with their print look and its font, which only a run of the
+// tour draws. A chunk that fails to load leaves the tour without them, said to the log, rather
+// than taking the app down.
+const tourPart = <P extends object>(load: () => Promise<ComponentType<P>>) =>
+  lazy(() =>
+    load().then(
+      (component) => ({ default: component }),
+      (error: unknown) => {
+        window.reportError(error)
+        return { default: () => null }
+      },
+    ),
+  )
+export const TourStage = tourPart(() =>
+  import("@novadeck/tour/Stage").then((module) => module.TourStage),
+)
+export const TourClosingCard = tourPart(() =>
+  import("@novadeck/tour/ClosingCard").then((module) => module.TourClosingCard),
+)

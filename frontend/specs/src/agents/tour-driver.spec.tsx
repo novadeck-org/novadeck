@@ -57,34 +57,34 @@ beforeEach(switchTourOn)
 describe("The tour's driver", () => {
   it("points at the agent as it starts, and moves on once it has taken its brief", async () => {
     await startTour()
-    await coachSays("Your agent is starting")
-    await coachSays("Tour · 1 of 7")
+    await coachSays("Your own agent. In a sandbox.")
+    await expect.element(page.getByRole("list", { name: "Act 1 of 4: Your agent" })).toBeVisible()
     // The agent describes itself as the tour's lead: its step is done.
     await expect.poll(terminalTabNames, leadNamed).toContain("Tour lead")
-    await coachSays("Your agent opens a team")
+    await coachSays("It hired two more.")
   })
 
   it("leaves the keyboard's focus where it was", async () => {
     await startTour()
-    await coachSays("Your agent is starting")
+    await coachSays("Your own agent. In a sandbox.")
     expect(coach().element().contains(document.activeElement)).toBe(false)
   })
 
   it("leaves the workspace's shortcuts, and Escape, to the person", async () => {
     await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=60000`)
-    await coachSays("Your agent is starting")
+    await coachSays("Your own agent. In a sandbox.")
     await pressShortcut("find")
     await expect.element(findDialog()).toBeVisible()
     await press("{Escape}")
     await expect.element(findDialog()).not.toBeInTheDocument()
     // The coach stays, as nothing it asked for was dismissed.
-    await coachSays("Your agent is starting")
+    await coachSays("Your own agent. In a sandbox.")
   })
 
   context("while the agent asks the person something of its own first", () => {
     it("says so, with its screen's own words, and goes on once it's answered", async () => {
       await startTour(`${offered}&tourScreen=sign-in&tourScreenMs=1500`)
-      await coachSays("Your agent is asking you something first")
+      await coachSays("It wants an answer first.")
       await coachSays("sign in")
       await expect.poll(terminalTabNames, leadNamed).toContain("Tour lead")
     })
@@ -103,11 +103,11 @@ describe("The tour's driver", () => {
   context("while the agent asks the person's permission", () => {
     it("points at its terminal, and goes on once the person has answered", async () => {
       await startTour(`${offered}&tourAgent=permission&tourPatienceMs=500`)
-      await coachSays("Your agent is asking your permission")
+      await coachSays("It's asking your permission.")
       await coachSays("Answer it here, in its terminal")
-      // The person's wait isn't the agent's silence: no nudge or skip comes meanwhile.
+      // The person's wait isn't the agent's silence: no nudge or move on comes meanwhile.
       await new Promise((resolve) => setTimeout(resolve, 1500))
-      await coachSays("Your agent is asking your permission")
+      await coachSays("It's asking your permission.")
       expect(terminalTabNames()).not.toContain("Tour lead")
 
       // The terminal on screen holds its own agent's rows out of the Inbox, so the person looks
@@ -127,37 +127,24 @@ describe("The tour's driver", () => {
         .click()
 
       await bar().getByRole("button", { name: "Back to the tour" }).click()
-      await coachSays("Your agent opens a team")
+      await coachSays("It hired two more.")
+      // The Inbox the person answered in is still open: the terminals are listed in their panel.
+      await sidebarPanel("Terminals").click()
       await expect.poll(terminalTabNames, leadNamed).toContain("Tour lead")
     })
   })
 
   it("nudges an agent gone quiet, which then goes on", async () => {
     await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=600`)
-    await coachSays("Your agent is starting")
+    await coachSays("Your own agent. In a sandbox.")
     // Quiet, it never names itself unless nudged.
     await expect.poll(terminalTabNames, leadNamed).toContain("Tour lead")
   })
 
-  context("as the person steers it", () => {
-    it("pauses, standing aside in a small bar, and resumes", async () => {
-      await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=60000`)
-      await coach().getByRole("button", { name: "Pause" }).click()
-      await expect.element(coach()).not.toBeInTheDocument()
-      await barSays("Tour paused.")
-      await bar().getByRole("button", { name: "Resume" }).click()
-      await coachSays("Your agent is starting")
-    })
-
-    it("skips a step, on to the next", async () => {
-      await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=60000`)
-      await coach().getByRole("button", { name: "Skip step" }).click()
-      await coachSays("Tour · 2 of 7")
-    })
-
+  context("as the person leaves it", () => {
     it("ends, leaving its terminal as it is", async () => {
       await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=60000`)
-      await coach().getByRole("button", { name: "End tour" }).click()
+      await page.getByRole("button", { name: "End tour" }).click()
       await expect.element(coach()).not.toBeInTheDocument()
       expect(bar().query()).toBeNull()
       expect(terminalTabNames()).toHaveLength(1)
@@ -165,20 +152,20 @@ describe("The tour's driver", () => {
 
     it("gives way while the person is in another project, and takes them back", async () => {
       await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=60000`)
-      await coachSays("Your agent is starting")
+      await coachSays("Your own agent. In a sandbox.")
       await switchProject("storefront")
       await expect.element(coach()).not.toBeInTheDocument()
       await barSays("The tour goes on in its project.")
       await bar().getByRole("button", { name: "Back to the tour" }).click()
       await expect.poll(() => workspaceSwitcher().element().textContent ?? "").toContain("Tour")
       await expectSelected(terminalTabNames()[0]!)
-      await coachSays("Your agent is starting")
+      await coachSays("Your own agent. In a sandbox.")
     })
   })
 
   it("ends when its lead's terminal closes", async () => {
     await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=60000`)
-    await coachSays("Your agent is starting")
+    await coachSays("Your own agent. In a sandbox.")
     await tabAction(`Close ${terminalTabNames()[0]}`).click()
     // A running agent asks first.
     if (closeConfirmation().query()) await confirmClose()

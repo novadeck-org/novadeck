@@ -1,4 +1,4 @@
-import { awaitsNext, beginRun, coachNow, nextTick, stepRun, type TourRun } from "./driver"
+import { beginRun, coachNow, nextTick, stepRun, type TourRun } from "./driver"
 import { noTeam, type LeadState, type TourSignals } from "./signals"
 import { screenCoach, startStep, tourSteps, type TourStep } from "./steps"
 import { context, describe, expect, it } from "./test"
@@ -23,8 +23,9 @@ const starting = signals({ kind: "starting" })
 // Two steps: the start, then one waiting on the person.
 const asked: TourStep = {
   id: "asked",
+  act: 3,
   enter: [{ kind: "inbox" }],
-  coach: { anchor: "inbox", title: "A teammate asks you", body: "Answer it." },
+  coach: { anchor: "inbox", line: "Your call." },
   done: () => false,
   wait: "patient",
 }
@@ -57,16 +58,11 @@ describe("The tour's driver", () => {
       expect(seen[1]!.moves).toEqual([])
     })
 
-    it("waits to make them while the tour's project isn't on screen, or it is paused", () => {
+    it("waits to make them while the tour's project isn't on screen", () => {
       const away = play(begin(), [
         { type: "signals", signals: signals({ kind: "starting" }, false), now: 1 },
       ])
       expect(away.seen[0]!.moves).toEqual([])
-      const paused = play(begin(), [
-        { type: "pause" },
-        { type: "signals", signals: starting, now: 1 },
-      ])
-      expect(paused.seen[1]!.moves).toEqual([])
     })
   })
 
@@ -134,10 +130,9 @@ describe("The tour's driver", () => {
       expect(seen.some(({ nudge }) => nudge)).toBe(false)
     })
 
-    it("says when its wait ends, and nothing while paused or at a screen", () => {
+    it("says when its wait ends, and nothing at a screen", () => {
       const run = { ...begin(), waitingSince: 50 }
       expect(nextTick(run, steps, agent(), patience)).toBe(1_050)
-      expect(nextTick({ ...run, paused: true }, steps, agent(), patience)).toBeNull()
       expect(
         nextTick(run, steps, signals({ kind: "screen", screen: "hooks" }), patience),
       ).toBeNull()
@@ -158,33 +153,7 @@ describe("The tour's driver", () => {
     })
   })
 
-  context("as the person steers it", () => {
-    it("pauses and resumes, starting its wait over", () => {
-      const { run } = play(begin(), [{ type: "pause" }, { type: "resume", now: 77 }])
-      expect(run).toMatchObject({ paused: false, waitingSince: 77 })
-    })
-
-    it("rings a doorbell's first line even past a skipped last step, then ends", () => {
-      const lastOnly = [startStep]
-      const at = beginRun({ terminalId: "t1", agent: "agy", brief: "doorbell" }, 0)
-      const skipped = stepRun(at, lastOnly, { type: "skip", now: 1 }, patience)
-      expect(skipped.run).not.toBeNull()
-      const rung = stepRun(
-        skipped.run!,
-        lastOnly,
-        { type: "signals", signals: agent(), now: 2 },
-        patience,
-      )
-      expect(rung).toMatchObject({ brief: true, run: { briefed: true } })
-      const after = stepRun(
-        rung.run!,
-        lastOnly,
-        { type: "signals", signals: agent(), now: 3 },
-        patience,
-      )
-      expect(after).toMatchObject({ run: null, end: "done" })
-    })
-
+  context("as it ends", () => {
     it("keeps a run whose last step ends as its first line rings, to ring it again if refused", () => {
       const lastOnly = [startStep]
       const at = beginRun({ terminalId: "t1", agent: "agy", brief: "doorbell" }, 0)
@@ -204,15 +173,6 @@ describe("The tour's driver", () => {
         patience,
       )
       expect(again.brief).toBe(true)
-    })
-
-    it("skips a step, and ends after the last", () => {
-      const { run, seen } = play(begin(), [
-        { type: "skip", now: 1 },
-        { type: "skip", now: 2 },
-      ])
-      expect(run).toBeNull()
-      expect(seen.at(-1)!.end).toBe("done")
     })
 
     it("ends when the person ends it", () => {
@@ -242,20 +202,19 @@ describe("The tour's driver", () => {
     })
 
     it("says each screen's own words", () => {
-      expect(screenCoach("sign-in", "claude").body).toMatch(/sign in/)
-      expect(screenCoach("startup", "agy").body).toMatch(/trust the tour's folder/)
+      expect(screenCoach("sign-in", "claude").note).toMatch(/sign in/)
+      expect(screenCoach("startup", "agy").note).toMatch(/trust the tour's folder/)
     })
 
     it("says what each harness's hooks being off asks of the person", () => {
-      expect(screenCoach("hooks", "codex").body).toMatch(/Trust all and continue/)
-      expect(screenCoach("hooks", "claude").body).toMatch(/its settings/)
-      expect(screenCoach("hooks", "agy").body).not.toMatch(/\/hooks/)
+      expect(screenCoach("hooks", "codex").note).toMatch(/Trust all and continue/)
+      expect(screenCoach("hooks", "claude").note).toMatch(/its settings/)
+      expect(screenCoach("hooks", "agy").note).not.toMatch(/\/hooks/)
     })
 
-    it("says what its step says otherwise, and nothing while paused", () => {
+    it("says what its step says otherwise", () => {
       expect(coachNow(begin(), steps, agent())).toBe(startStep.coach)
-      expect(coachNow({ ...begin(), paused: true }, steps, agent())).toBeNull()
-      expect(coachNow(begin(), steps, signals({ kind: "ended" }))?.title).toBe("Your agent stopped")
+      expect(coachNow(begin(), steps, signals({ kind: "ended" }))?.line).toBe("Your agent stopped.")
     })
   })
 })
@@ -275,6 +234,25 @@ describe("The tour's story", () => {
       { type: "signals", signals: signals(quiet, true, story), now: 1 },
       patience,
     )
+
+  it("opens in Canvas on its lead, and frames the team as it comes", () => {
+    expect(tourSteps[0]!.enter).toEqual([{ kind: "view", view: "canvas" }, { kind: "reveal" }])
+    expect(feed({ ...atStep("team"), entered: false }, {}).moves).toEqual([{ kind: "fit-all" }])
+    expect(tourSteps.filter(({ frameTeam }) => frameTeam).map(({ id }) => id)).toEqual([
+      "team",
+      "talk",
+    ])
+  })
+
+  it("plays four acts, in order", () => {
+    expect(tourSteps.map(({ id, act }) => [id, act])).toEqual([
+      ["start", 1],
+      ["team", 2],
+      ["talk", 2],
+      ["ask", 3],
+      ["show", 4],
+    ])
+  })
 
   it("waits for both teammates to be there and named", () => {
     expect(feed(atStep("team"), { team: { count: 2, named: 1 } }).run?.step).toBe(1)
@@ -309,30 +287,8 @@ describe("The tour's story", () => {
     expect(nextTick(run, tourSteps, signals(quiet), patience)).toBe(patience)
   })
 
-  it("moves on once the lead shows its card", () => {
-    expect(feed(atStep("show"), { shown: true }).run?.step).toBe(5)
-  })
-
-  it("frames every window as Canvas comes", () => {
-    const outcome = feed({ ...atStep("canvas"), entered: false }, {})
-    expect(outcome.moves).toEqual([{ kind: "view", view: "canvas" }, { kind: "fit-all" }])
-  })
-
-  it("shows the views until the person's Next, and ends after the last", () => {
-    const grid = atStep("grid")
-    expect(awaitsNext(grid, tourSteps)).toBe(true)
-    expect(nextTick(grid, tourSteps, signals(quiet), patience)).toBeNull()
-    const canvas = stepRun(grid, tourSteps, { type: "next", now: 2 }, patience).run!
-    expect(canvas.step).toBe(6)
-    expect(stepRun(canvas, tourSteps, { type: "next", now: 3 }, patience)).toMatchObject({
-      run: null,
-      end: "done",
-    })
-  })
-
-  it("takes no Next on a step that waits on the agent", () => {
-    const team = atStep("team")
-    expect(stepRun(team, tourSteps, { type: "next", now: 1 }, patience).run).toBe(team)
+  it("holds on the lead's card once shown", () => {
+    expect(feed(atStep("show"), { shown: true }).run).toMatchObject({ step: 4, doneAt: 1 })
   })
 })
 
@@ -345,7 +301,7 @@ describe("The tour, with a teammate at a screen of its own", () => {
 
   it("points at that teammate, in its harness's words", () => {
     expect(coachNow(run, tourSteps, held)).toMatchObject({
-      title: "A teammate is asking you something first",
+      line: "A teammate wants an answer first.",
       terminalId: "t3",
       anchor: "terminal",
     })
@@ -374,19 +330,18 @@ describe("The tour, with an agent asking the person's permission", () => {
 
   it("points at that agent's terminal, in a person's words", () => {
     expect(coachNow(run, tourSteps, wanted)).toMatchObject({
-      title: "Your agent is asking your permission",
+      line: "It's asking your permission.",
       terminalId: "t3",
       anchor: "terminal",
     })
-    expect(coachNow(run, tourSteps, wanted)?.body).toContain("in its terminal")
+    expect(coachNow(run, tourSteps, wanted)?.note).toContain("in its terminal")
   })
 
-  it("lets a screen of the agent's own come first, and says nothing while paused", () => {
+  it("lets a screen of the agent's own come first", () => {
     const screen = signals({ kind: "screen", screen: "startup" }, true, {
       permission: { terminalId: "t3" },
     })
-    expect(coachNow(run, tourSteps, screen)?.title).toBe("Your agent is asking you something first")
-    expect(coachNow({ ...run, paused: true }, tourSteps, wanted)).toBeNull()
+    expect(coachNow(run, tourSteps, screen)?.line).toBe("It wants an answer first.")
   })
 
   it("counts no wait while it asks: no nudge, and none right after", () => {
@@ -404,5 +359,36 @@ describe("The tour, with an agent asking the person's permission", () => {
 
   it("goes back to the step's own coach once it is answered", () => {
     expect(coachNow(run, tourSteps, signals(quiet))).toBe(tourSteps[1]!.coach)
+  })
+})
+
+describe("The tour's last act", () => {
+  const quiet: LeadState = { kind: "agent", working: false, named: true, answered: true }
+  const atShow: TourRun = {
+    ...beginRun({ terminalId: "t1", agent: "claude", brief: "launch" }, 0),
+    step: tourSteps.findIndex(({ id }) => id === "show"),
+  }
+  const shown = signals(quiet, true, { shown: true })
+
+  it("holds on the result a while, its moves made, before the story ends", () => {
+    const held = stepRun(atShow, tourSteps, { type: "signals", signals: shown, now: 100 }, patience)
+    expect(held.run).toMatchObject({ doneAt: 100, entered: true })
+    expect(held.moves).toEqual([{ kind: "reveal" }])
+    expect(coachNow(held.run!, tourSteps, shown)?.line).toBe("Made for you.")
+    expect(nextTick(held.run!, tourSteps, shown, patience)).toBe(6_100)
+    const still = stepRun(
+      held.run!,
+      tourSteps,
+      { type: "tick", signals: shown, now: 3_000 },
+      patience,
+    )
+    expect(still.run).toMatchObject({ doneAt: 100 })
+    const over = stepRun(
+      held.run!,
+      tourSteps,
+      { type: "tick", signals: shown, now: 6_100 },
+      patience,
+    )
+    expect(over).toMatchObject({ run: null, end: "done" })
   })
 })

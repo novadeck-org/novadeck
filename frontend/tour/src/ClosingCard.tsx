@@ -1,11 +1,14 @@
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 
+import "./print.css"
+
 const nameOf = (agent: AgentName): string => harnesses.find(({ id }) => id === agent)?.name ?? agent
 
 /**
- * Where the tour ends: it was a sandbox, and the person's own project is next, opened with
- * their agent. It also offers to remove the Tour project, and says that what they open comes
- * back after Novadeck closes. Like the coach, it takes no focus and covers nothing but itself.
+ * Where the tour ends: it was a sandbox, and the person's own project is next, opened with their
+ * agent. Its last line in the tour's caption box, Open your project the one button filled, and,
+ * quieter, removing the Tour project. Like the stage, it takes no focus and covers nothing but
+ * itself.
  */
 export const TourClosingCard = ({
   agent,
@@ -23,35 +26,31 @@ export const TourClosingCard = ({
   readonly onRemove: () => void
   readonly onClose: () => void
 }): React.JSX.Element => (
-  <section
-    aria-label="Tour finished"
-    className="floating tour-closing flex w-[min(400px,calc(100vw-32px))] flex-col gap-2 p-5"
-  >
-    <h3 className="m-0 text-heading font-medium">That was the tour</h3>
-    <p className="modal-description m-0 text-body leading-[1.55]">
-      It ran in a sandbox. Now open your own project, and {nameOf(agent)} starts there with you.
-    </p>
-    <p className="tour-step m-0 text-caption leading-[1.5]">
-      Close Novadeck any time: your terminals and sessions come back.
-    </p>
-    <div className="mt-2 flex flex-wrap justify-end gap-1.5">
-      <button type="button" className="button ghost min-h-8 px-2.5 text-control" onClick={onClose}>
-        Close
-      </button>
+  <>
+    <div aria-hidden="true" className="tour-print tour-dim" />
+    <section aria-label="Tour finished" className="tour-print tour-closing">
+      <h3 className="tour-caption-line tour-closing-line">
+        That's your deck. Now try it on real code.
+      </h3>
+      <p className="tour-caption-note">
+        That was a sandbox. Open your own project and {nameOf(agent)} starts there with you. Close
+        Novadeck any time: your terminals and sessions come back.
+      </p>
+      <div className="tour-closing-buttons">
+        <button type="button" className="tour-button" onClick={onClose}>
+          Close
+        </button>
+        {onOpen && (
+          <button type="button" className="tour-button tour-button-go" onClick={onOpen}>
+            Open your project
+          </button>
+        )}
+      </div>
       {canRemove && (
-        <button
-          type="button"
-          className="button ghost min-h-8 px-2.5 text-control"
-          onClick={onRemove}
-        >
+        <button type="button" className="tour-quiet" onClick={onRemove}>
           Remove the Tour project
         </button>
       )}
-      {onOpen && (
-        <button type="button" className="button primary min-h-8 px-3 text-control" onClick={onOpen}>
-          Open your project
-        </button>
-      )}
-    </div>
-  </section>
+    </section>
+  </>
 )

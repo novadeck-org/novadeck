@@ -7,8 +7,8 @@
   "type": "module",
   "exports": {
     "./ClosingCard": "./src/ClosingCard.tsx",
+    "./Stage": "./src/Stage.tsx",
     "./tour-host": "./src/tour-host.ts",
-    "./Spotlight": "./src/Spotlight.tsx",
     "./TourConsent": "./src/TourConsent.tsx",
     "./TourProvider": "./src/TourProvider.tsx",
     "./tour.css": "./src/tour.css"
@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@fontsource/bangers": "5.3.0",
     "@novadeck/core": "workspace:*",
     "@novadeck/toolkit": "workspace:*",
     "lucide-react": "^1.71.0",

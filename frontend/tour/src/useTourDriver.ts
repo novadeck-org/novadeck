@@ -2,18 +2,10 @@ import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import { messagesKey } from "@novadeck/core/items/companion-bar"
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 
-import {
-  awaitsNext,
-  beginRun,
-  coachNow,
-  nextTick,
-  stepRun,
-  type TourEvent,
-  type TourRun,
-} from "./driver"
+import { beginRun, coachNow, nextTick, stepRun, type TourEvent, type TourRun } from "./driver"
 import { noTeam, sameSignals, tourSignals, type TourSignals } from "./signals"
 import type { TourStarted } from "./start"
-import { tourSteps, type Coach, type TourMove } from "./steps"
+import { closingMoves, tourSteps, type Coach, type TourAct, type TourMove } from "./steps"
 import type { TourHost } from "./tour-host"
 import { useSelected } from "./use-selected"
 
@@ -24,6 +16,8 @@ const defaultPatienceMs = 90_000
 // asked again forever.
 const briefRetryMs = 2_000
 const briefTries = 5
+// How long after a window lands the tour frames the team again, for Canvas to settle first.
+const frameSettleMs = 400
 
 // Where a run is kept, in this window's session storage: a reload while the tour runs follows
 // it again, as its terminal survives the reload.
@@ -38,16 +32,16 @@ const isRun = (value: unknown): value is TourRun => {
     (run.brief === "launch" || run.brief === "doorbell") &&
     typeof run.step === "number" &&
     typeof run.waitingSince === "number" &&
-    ["nudged", "briefed", "paused", "asked", "entered"].every(
-      (key) => typeof run[key] === "boolean",
-    )
+    ["nudged", "briefed", "asked", "entered"].every((key) => typeof run[key] === "boolean")
   )
 }
 
 export const readTourRun = (): TourRun | null => {
   try {
     const stored: unknown = JSON.parse(sessionStorage.getItem(storageKey) ?? "null")
-    return isRun(stored) ? stored : null
+    if (!isRun(stored)) return null
+    // A run kept from before steps held on their result has no `doneAt`.
+    return { ...stored, doneAt: typeof stored.doneAt === "number" ? stored.doneAt : null }
   } catch {
     return null
   }
@@ -100,13 +94,11 @@ export type TourDriver = {
   // The run followed now, with what it shows; null while none runs.
   readonly shown: {
     readonly terminalId: string
+    readonly agent: AgentName
     readonly coach: Coach | null
-    readonly step: number
-    readonly steps: number
-    readonly paused: boolean
+    // The act its step belongs to, which a wipe opens.
+    readonly act: TourAct
     readonly away: boolean
-    // The step waits on the person's Next.
-    readonly next: boolean
   } | null
   // The tour just finished its story, for its closing card: its lead, project and agent.
   readonly closing: {
@@ -114,10 +106,6 @@ export type TourDriver = {
     readonly projectId: string | null
     readonly agent: AgentName
   } | null
-  readonly pause: () => void
-  readonly resume: () => void
-  readonly skip: () => void
-  readonly next: () => void
   readonly end: () => void
   // Puts the closing card away.
   readonly close: () => void
@@ -178,7 +166,6 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
       for (const move of moves)
         if (move.kind === "view") commands.changeView(move.view)
         else if (move.kind === "reveal") commands.reveal(terminalId)
-        else if (move.kind === "sidebar") commands.reveal(terminalId, move.panel)
         else if (move.kind === "messages") commands.openBarTab(terminalId, messagesKey)
         // A frame later: the view just changed, and Canvas hears a framing only once it's there.
         else if (move.kind === "fit-all")
@@ -215,7 +202,8 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
         })
       }
       const { terminalId } = before
-      make(terminalId, outcome.moves)
+      // Its story done, every window framed for the closing card.
+      make(terminalId, outcome.end === "done" ? closingMoves : outcome.moves)
       // Only for the run it was for: one ended or begun anew since lets it go.
       const again = (): void => {
         if (current.current?.terminalId !== terminalId) return
@@ -285,11 +273,22 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     [dropRetry, setClosing],
   )
 
+  // While a step frames the team, each window the team gains is framed with the rest, a moment
+  // after it lands: Canvas sets its camera afresh as a window comes, and drops a framing asked
+  // before it settles.
+  const framing =
+    run && tourSteps[run.step]?.frameTeam && signals.onScreen ? signals.team.count : null
+  useEffect(() => {
+    if (framing === null) return
+    const timer = setTimeout(() => commands.frameAll(), frameSettleMs)
+    return () => clearTimeout(timer)
+  }, [framing, commands])
+
   // A teammate held at its own agent's screen (a mixed team's folder trust), or an agent asking
   // the person's permission, waits on them in its terminal, which isn't on screen: brought there
   // once per hold, for the coach to point at.
   const held =
-    run && !run.paused && signals.onScreen
+    run && signals.onScreen
       ? (signals.teamScreen?.terminalId ?? signals.permission?.terminalId)
       : undefined
   const revealed = useRef<string | null>(null)
@@ -299,18 +298,6 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     revealed.current = held
     commands.reveal(held)
   }, [held, commands])
-
-  // Moves the run on by its signals as they are now, as a step begun by the person's own doing
-  // makes its moves at once.
-  const followNow = useCallback((): void => {
-    const terminalId = current.current?.terminalId
-    if (!terminalId) return
-    dispatch({
-      type: "signals",
-      signals: tourSignals(workspace.getSnapshot(), terminalId, { messages, inbox }),
-      now: Date.now(),
-    })
-  }, [dispatch, workspace, messages, inbox])
 
   const projectOf = useSelected(
     workspace,
@@ -329,12 +316,10 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     () =>
       run && {
         terminalId: run.terminalId,
+        agent: run.agent,
         coach: coachNow(run, tourSteps, signals),
-        step: run.step,
-        steps: tourSteps.length,
-        paused: run.paused,
+        act: tourSteps[Math.min(run.step, tourSteps.length - 1)]!.act,
         away: !signals.onScreen,
-        next: awaitsNext(run, tourSteps),
       },
     [run, signals],
   )
@@ -343,21 +328,6 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     () => ({
       begin,
       shown,
-      pause: () => dispatch({ type: "pause" }),
-      // Resumed, it makes the moves a step begun while paused held back.
-      resume: () => {
-        dispatch({ type: "resume", now: Date.now() })
-        followNow()
-      },
-      // Each begins the next step with the signals as they are, its moves made at once.
-      skip: () => {
-        dispatch({ type: "skip", now: Date.now() })
-        followNow()
-      },
-      next: () => {
-        dispatch({ type: "next", now: Date.now() })
-        followNow()
-      },
       closing,
       close: () => setClosing(null),
       end: () => dispatch({ type: "end" }),
@@ -365,6 +335,6 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
         if (run && projectOf) commands.revealTerminal(run.terminalId, projectOf)
       },
     }),
-    [begin, shown, dispatch, run, projectOf, commands, closing, followNow, setClosing],
+    [begin, shown, dispatch, run, projectOf, commands, closing, setClosing],
   )
 }

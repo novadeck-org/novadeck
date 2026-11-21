@@ -59,19 +59,22 @@ beforeEach(switchTourOn)
 describe("The tour's story", () => {
   it("plays from the agent's start to its card, the person's answer and all", async () => {
     await startTour()
-    await coachSays("Your agent is starting")
+    // It opens in Canvas, on the person's own agent.
+    await coachSays("Your own agent. In a sandbox.")
+    await expect.element(view("Canvas")).toBeChecked()
 
-    // The lead opens a team, which names itself in the terminal list.
-    await coachSays("Your agent opens a team")
+    // The lead opens a team, which names itself.
+    await coachSays("It hired two more.")
     await expect
       .poll(terminalTabNames, { timeout: 15_000 })
       .toEqual(expect.arrayContaining(["Tour lead", "Copywriter", "Designer"]))
 
     // They talk, as the lead's Messages show.
-    await coachSays("The team talks")
+    await coachSays("They talk to each other.")
 
     // A teammate asks the person, who answers in the Inbox; the tour waits on them.
-    await coachSays("A teammate asks you")
+    await coachSays("Your call.")
+    await expect.element(page.getByRole("list", { name: "Act 3 of 4: Your call" })).toBeVisible()
     await inboxRow(/Which tagline for the welcome card/).click()
     const sheet = page.getByRole("dialog", { name: "Copywriter" })
     // Pressed once the card stands still: a click just after it moved is held back.
@@ -79,21 +82,14 @@ describe("The tour's story", () => {
     await standsStill(pick)
     await pick.click()
 
-    // The lead shows the card the team made.
-    await coachSays("Your agent shows you the result")
-
-    // Zoom out: Grid, then Canvas, each moved on by the person.
-    await coachSays("All your agents at once")
-    await expect.element(view("Grid")).toBeChecked()
-    await coach().getByRole("button", { name: "Next" }).click()
-    await coachSays("Room to spread out")
-    await expect.element(view("Canvas")).toBeChecked()
-    await coach().getByRole("button", { name: "Next" }).click()
+    // The lead shows the card the team made, and the tour holds on it a while.
+    await coachSays("Made for you.")
+    await expect.element(page.getByRole("list", { name: "Act 4 of 4: The result" })).toBeVisible()
 
     // It ends on a card that sends the person to their own project.
+    await expect.element(closing(), { timeout: 15_000 }).toBeVisible()
     await expect.element(coach()).not.toBeInTheDocument()
-    await expect.element(closing()).toBeVisible()
-    await expect.poll(() => closing().query()?.textContent ?? "").toContain("It ran in a sandbox")
+    await expect.poll(() => closing().query()?.textContent ?? "").toContain("That was a sandbox")
     // The demo has no folder picker to open a project with, so the card offers none.
     expect(closing().getByRole("button", { name: "Open your project" }).query()).toBeNull()
 
