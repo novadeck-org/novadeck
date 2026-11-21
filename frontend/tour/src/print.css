@@ -13,11 +13,13 @@
   text-shadow: none;
   --tour-yellow: #ffe24a;
   /* The caption box: its ink, its face running lavender to ice, and the glitch's pink and cyan. */
-  --tour-panel-ink: #15101c;
-  --tour-panel-from: #c9b8ff;
-  --tour-panel-to: #9ff0ff;
-  --tour-glitch-pink: #ff5fc8;
-  --tour-glitch-cyan: #5ff2ff;
+  /* The caption box: its night face, neon outline and pastel letters, the split's cyan, and the
+     hazard strip's yellow. */
+  --tour-night: #140c1e;
+  --tour-neon: #ff8ad8;
+  --tour-neon-cyan: #5ff2ff;
+  --tour-pastel: #fff0a8;
+  --tour-hazard: #ffe24a;
   --tour-ink: #140b1f;
   --tour-paper: #e8e9ed;
   --tour-cyan: oklch(0.785 0.128 186);
@@ -78,55 +80,55 @@
   max-width: min(560px, calc(100vw - 32px));
   pointer-events: none;
 }
-/* The caption box, a glitched comic panel: square, inked with an uneven black outline (thicker on
-   some sides than others, its corners a little off true, as drawn by hand) around a face running
-   lavender to ice, scanline shading off its sides, its line lettered with a pink and cyan split,
-   offset in pink, with glitch bars sticking out of it; it pops in with a little bounce. The panel
-   carries the tilt, the offset and the bars; the line inside is cut to its shape, its ink the
-   box itself, its face and shading inset in it by different amounts. */
+/* The caption box, a night panel: a dark face with two corners cut off, inside a neon-pink
+   outline whose halftone dots come off its sides and fade out before the lettering, its line in
+   pastel yellow with a pink and cyan split, and a hazard strip under it; it pops in with a little
+   bounce. The panel carries the tilt and the strip; the line inside is cut to its shape, its
+   outline the box itself, its face and dots inset in it. */
 .tour-caption {
-  filter: drop-shadow(0 10px 14px rgb(0 0 0 / 0.4));
+  filter: drop-shadow(0 10px 14px rgb(0 0 0 / 0.45));
 }
 .tour-caption-panel {
+  --_cut: 18px;
   position: relative;
   width: max-content;
   max-width: 100%;
-  filter: drop-shadow(5px 5px 0 var(--tour-glitch-pink));
   rotate: -1deg;
   animation: tour-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .tour-caption-panel[data-tilt="right"] {
   rotate: 1deg;
 }
-/* The glitch bars: a pink one off the left side, a cyan and a short pink one off the right. */
-.tour-caption-panel::before,
+/* The hazard strip, under the panel's right end. */
 .tour-caption-panel::after {
   content: "";
   position: absolute;
-  height: 5px;
+  right: 30px;
+  bottom: -10px;
+  width: 90px;
+  height: 6px;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--tour-hazard) 0 6px,
+    var(--tour-night) 6px 12px
+  );
   pointer-events: none;
-}
-.tour-caption-panel::before {
-  left: -14px;
-  top: 30%;
-  width: 34px;
-  background: var(--tour-glitch-pink);
-}
-.tour-caption-panel::after {
-  right: -18px;
-  top: 62%;
-  width: 46px;
-  background: var(--tour-glitch-cyan);
-  box-shadow: 28px 7px 0 var(--tour-glitch-pink);
 }
 .tour-caption-line {
   position: relative;
   isolation: isolate;
   margin: 0;
-  padding: 0.36em 1.25em 0.3em;
-  background: var(--tour-panel-ink);
-  color: var(--tour-panel-ink);
-  clip-path: polygon(0.4% 4%, 99.3% 0, 100% 95%, 1.2% 100%);
+  padding: 0.36em 1.3em 0.3em;
+  background: var(--tour-neon);
+  color: var(--tour-pastel);
+  clip-path: polygon(
+    0 0,
+    calc(100% - var(--_cut)) 0,
+    100% var(--_cut),
+    100% 100%,
+    var(--_cut) 100%,
+    0 calc(100% - var(--_cut))
+  );
   font-family: var(--tour-letter);
   font-size: clamp(24px, 2.4vw, 36px);
   font-weight: 400;
@@ -136,41 +138,39 @@
   text-transform: uppercase;
   text-wrap: balance;
   text-shadow:
-    2px 0 0 rgb(255 47 176 / 0.75),
-    -2px 0 0 rgb(40 200 255 / 0.75);
+    2px 0 0 var(--tour-neon),
+    -2px 0 0 var(--tour-neon-cyan);
 }
-/* The face, inside the ink: wider ink at the bottom and left than at the top and right. */
+/* The face, inside the outline: 2px of it shows, 3px at the bottom. */
 .tour-caption-line::before,
 .tour-caption-line::after {
   content: "";
   position: absolute;
-  inset: 4px 3px 6px 5px;
+  inset: 2px 2px 3px;
   z-index: -1;
-  clip-path: polygon(0 1.5%, 100% 0, 99.4% 100%, 0.6% 97%);
+  clip-path: polygon(
+    0 0,
+    calc(100% - var(--_cut) + 1px) 0,
+    100% calc(var(--_cut) - 1px),
+    100% 100%,
+    calc(var(--_cut) - 1px) 100%,
+    0 calc(100% - var(--_cut) + 1px)
+  );
   pointer-events: none;
 }
 .tour-caption-line::before {
-  background:
-    linear-gradient(to bottom, rgb(255 255 255 / 0.5), transparent 42%),
-    linear-gradient(to right, var(--tour-panel-from), var(--tour-panel-to));
+  background: var(--tour-night);
 }
-/* Scanline shading, in the ink's own black: solid where it meets the outline at the panel's
-   sides, its lines thinning towards the middle until they're gone, as a printed screentone
-   shades. Soft lines, lightened by distance from the sides, then cut hard (`contrast`) into
-   lines whose weight follows that distance, and multiplied onto the face. */
+/* Halftone in the outline's pink, come off the panel's sides and gone before the lettering. */
 .tour-caption-line::after {
-  background:
-    repeating-linear-gradient(to bottom, #000 0, #a0a0a0 2px, #000 4px),
-    linear-gradient(
-      to right,
-      #000 0,
-      #fff min(2.4em, 72px),
-      #fff calc(100% - min(2.4em, 72px)),
-      #000 100%
-    );
-  background-blend-mode: screen;
-  filter: contrast(40);
-  mix-blend-mode: multiply;
+  background: radial-gradient(circle, var(--tour-neon) 0 1.6px, transparent 2.2px) 0 0 / 8px 8px;
+  mask-image: linear-gradient(
+    to right,
+    #000 0,
+    transparent min(2.4em, 72px),
+    transparent calc(100% - min(2.4em, 72px)),
+    #000 100%
+  );
 }
 /* What the person has to do, where a moment asks it of them: ink on paper, under the box. */
 .tour-caption-note {
@@ -226,18 +226,13 @@
   outline-offset: 2px;
 }
 .tour-button-go {
-  background:
-    linear-gradient(to bottom, rgb(255 255 255 / 0.5), transparent 50%),
-    linear-gradient(to right, var(--tour-panel-from), var(--tour-panel-to));
-  color: var(--tour-panel-ink);
-  border-color: var(--tour-panel-ink);
-  border-width: 3px 2px 4px 3px;
-  box-shadow: 4px 4px 0 var(--tour-glitch-pink);
+  background: var(--tour-night);
+  color: var(--tour-pastel);
+  border-color: var(--tour-neon);
+  box-shadow: 4px 4px 0 var(--tour-neon-cyan);
 }
 .tour-button-go:hover {
-  background:
-    linear-gradient(to bottom, rgb(255 255 255 / 0.7), transparent 50%),
-    linear-gradient(to right, var(--tour-panel-from), var(--tour-panel-to));
+  background: color-mix(in srgb, var(--tour-neon) 18%, var(--tour-night));
 }
 
 /* An act's wipe: an ink sheet with a slanted edge slides in from the right in hard steps, the
