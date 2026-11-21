@@ -5,10 +5,12 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { PlanSource } from "@novadeck/harness-core/events"
 import {
+  isHtmlPath,
   companionLimits,
   onThisMachine,
   pageKey,
   modelLimits,
+  pageLimits,
   pdfLimits,
   titleFrom,
   videoLimits,
@@ -56,8 +58,10 @@ import {
   modelStamp,
   partsOf,
   planTitle,
+  pageStamps,
   pointAt,
   probe,
+  readPageFile,
   readPart,
   type PlanText,
   type Pointed,
@@ -384,6 +388,12 @@ export class CompanionItems {
    * is read from what was listed; only for a model that isn't held, as a revealed one isn't kept.
    */
   private readonly modelFiles = new Map<string, ModelLoad>()
+  /**
+   * The files each web page item's pane has read from beside the page, by their real paths, as
+   * the client found them in the page: their stamps join the page's own, so one written again
+   * is a change of the item. Held for the page it was read for, and few.
+   */
+  private readonly pageFiles = new Map<string, { page: string; paths: Set<string> }>()
   /** Agents' looks at pages, on their way to the client. */
   private readonly looks = new PageLooks()
   private readonly lookMs: number
@@ -1063,7 +1073,7 @@ export class CompanionItems {
         // eslint-disable-next-line no-await-in-loop -- Each look follows the one before.
         const stamp = probing
           ? // eslint-disable-next-line no-await-in-loop -- As above.
-            `${await probe(item, live)}${item.kind === "model" ? await this.besideStamps(item, reveal) : ""}`
+            `${await probe(item, live)}${item.kind === "model" ? await this.besideStamps(item, reveal) : ""}${await this.pageStamp(item)}`
           : String(Date.now())
         const now = probing ? `${item.version}|${item.path}|${lines}|${stamp}` : stamp
         if (now !== probed) {
@@ -1845,6 +1855,17 @@ export class CompanionItems {
       if (item.kind !== "folder") throw new DomainError("NOT_FOUND", "That item isn't a folder")
       return readFolderPart(item, { ...input, path: input.path }, this.environment())
     }
+    // A file beside a web page, by its name from the page's folder.
+    if (
+      input.file !== undefined &&
+      item.kind === "file" &&
+      item.path !== null &&
+      isHtmlPath(item.path)
+    ) {
+      const { part, path } = await readPageFile(item, input.file, input.offset, this.environment())
+      if (path !== undefined) this.pageRead(item, path)
+      return part
+    }
     const largest = partsOf[item.kind]
     if (largest === undefined) throw new DomainError("NOT_FOUND", "That item isn't read in parts")
     const reveal = input.reveal !== undefined && input.reveal === item.path
@@ -1881,6 +1902,22 @@ export class CompanionItems {
     if (model.content.state !== "ready") return undefined
     this.modelFiles.set(modelKey(item.id, reveal), model)
     return model.files.get(name)
+  }
+
+  /** Notes that a web page's pane read `path` from beside it, so its changes are the page's. */
+  private pageRead(item: ItemRecord, path: string): void {
+    if (item.path === null) return
+    const known = this.pageFiles.get(item.id)
+    const held = known?.page === item.path ? known : { page: item.path, paths: new Set<string>() }
+    this.pageFiles.set(item.id, held)
+    if (held.paths.size < pageLimits.files) held.paths.add(path)
+  }
+
+  /** The stamps of the files a web page's pane read from beside it, as they are now. */
+  private async pageStamp(item: ItemRecord): Promise<string> {
+    const held = this.pageFiles.get(item.id)
+    if (item.kind !== "file" || held?.page !== item.path || held.paths.size === 0) return ""
+    return `|${(await pageStamps(held.paths)).join(",")}`
   }
 
   /** The stamps of the files beside a model as its last read listed them, as they are now. */
@@ -1951,7 +1988,19 @@ export class CompanionItems {
       })
     if (item.kind === "folder")
       return loadFolder(item, "", this.environment()).then(({ content }) => content)
-    return loadFile(item, reveal, this.environment())
+    return this.readFile(item, reveal)
+  }
+
+  /**
+   * A file as it reads now. A web page's stamp carries those of the files its pane drew it with
+   * (a digest of them, as a stamp is short), so a stylesheet saved beside it reads as a change.
+   */
+  private async readFile(item: ItemRecord, reveal: boolean): Promise<ItemContent> {
+    const content = await loadFile(item, reveal, this.environment())
+    const beside = content.state === "ready" ? await this.pageStamp(item) : ""
+    return beside === "" || content.state !== "ready"
+      ? content
+      : { ...content, stamp: `${content.stamp}|${hashOf(beside)}` }
   }
 
   private changed(item: ItemRecord): void {
@@ -1962,6 +2011,7 @@ export class CompanionItems {
     this.cues.delete(item.id)
     this.modelFiles.delete(modelKey(item.id, false))
     this.modelFiles.delete(modelKey(item.id, true))
+    this.pageFiles.delete(item.id)
     this.folderNames.delete(item.id)
     this.folderReads.delete(item.id)
     this.sink?.gone(item)

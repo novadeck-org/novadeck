@@ -8,6 +8,9 @@ import type { PlanSource } from "@novadeck/harness-core/events"
 import {
   companionLimits,
   isDataPath,
+  isHtmlPath,
+  isPageFile,
+  pageLimits,
   type AgentName,
   type ItemContent,
   type PlanSaveResult,
@@ -691,6 +694,50 @@ export const loadModel = async (
   reveal: boolean,
   env?: NodeJS.ProcessEnv,
 ): Promise<ItemContent> => (await discoverModel(item, reveal, env)).content
+
+/**
+ * A part of a file beside a web page, by its name from the page's folder (`/` between names,
+ * as the page's own addresses give it, already decoded): the files a page draws with
+ * (`isPageFile`), from the page's folder or under it, `..` and symlinks out of it refused,
+ * never one that may hold secrets (whatever the person revealed). `path` is the file's real
+ * path once it is found, which the page's live stamp follows. Read against the stamp it has
+ * now, as the client has none to give: a page's assets are read whole and again when any
+ * changes, so no part of one is told changed.
+ */
+export const readPageFile = async (
+  page: Pick<ItemRecord, "path">,
+  name: string,
+  offset: number,
+  env?: NodeJS.ProcessEnv,
+): Promise<{ readonly part: FilePart; readonly path?: string }> => {
+  const gone = { part: { state: "unavailable", reason: "missing" } } as const
+  if (page.path === null || !isHtmlPath(page.path) || !isPageFile(name)) return gone
+  let folder: string
+  try {
+    folder = dirname(await realpath(page.path))
+  } catch {
+    return gone
+  }
+  const found = await beside(folder, "", name, false, env)
+  if ("refusal" in found) {
+    const { refusal } = found
+    return refusal === "secret" || refusal === "not-a-file" || refusal === "unreadable"
+      ? { part: { state: "unavailable", reason: refusal } }
+      : gone
+  }
+  const part = await readPart(
+    { path: found.path, secret: false },
+    { stamp: stampOf(found.stats), offset },
+    false,
+    pageLimits.file,
+    env,
+  )
+  return { part, path: found.path }
+}
+
+/** The stamps of the files a page drew with, as they are now, in order: none for one gone. */
+export const pageStamps = (paths: Iterable<string>): Promise<string[]> =>
+  Promise.all([...paths].map((path) => stat(path).then(stampOf, () => "")))
 
 /**
  * A model and the files it names, each checked as the client will ask for it, by the name

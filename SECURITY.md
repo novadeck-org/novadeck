@@ -141,7 +141,7 @@ which in a dialog of the window the page is in; a cancelled or failed question c
 it. On macOS the app doesn't turn on Touch ID passkeys yet, so the person's own synced
 passkeys don't show there; a security key or a phone still can.
 
-## PDF and 3D Model Previews
+## PDF, 3D Model and Web Page Previews
 
 A PDF an agent shows is parsed and drawn by pdf.js, and a 3D model (GLB/glTF, STL, OBJ with its
 materials, PLY, 3MF) by three.js, each in a frame of its own (`libraries/viewers/src/frame`, used
@@ -207,6 +207,23 @@ under `pnpm dev:web` it can load another page of the development server, which r
 frame's policy until then. Within the PDF's frame, only the pages are drawn, on canvases, with no
 annotation, text or form layer; pdf.js's scripting sandbox is never loaded, so a script a PDF
 carries never runs; and XFA is off.
+
+A web page an agent shows (an `.html` file) is drawn in the same frame (`libraries/viewers/src/html.ts`,
+`html/frame-viewer.ts`), under the same policy and walls. The viewer reads the stylesheets, pictures and fonts the page
+names (and those the stylesheets name) through the runner, by names from the page's folder
+(`companions.part` with `file`): only a file of a style, picture or font type, inside the page's
+folder (`..` and symlinks out of it refused, an address of its own, a root or a scheme never read),
+never one that may hold secrets, at most 64 files and 32 MiB, and the runner reads nothing else
+for a page. The frame builds the page from them with its DOM parser, which loads and runs nothing:
+stylesheets become `<style>` elements, pictures and fonts data addresses, and scripts, frames,
+plugins, `<base>` and refreshes are taken out. The result is drawn in a child frame of its own with
+an empty `sandbox` attribute (no script, form, popup or navigation), which inherits the frame's
+policy: no script at all (the page's inline scripts are blocked, and its own removed), no
+network (an address the page names that wasn't handed over loads nothing), no frame in the page.
+So a page's script never runs, however the page is written, and it can reach neither the app, the
+runner, its storage nor the network. It's drawn under the pointer as it is, without the glass the
+PDF and 3D viewers have: the page's own frame takes presses, scrolls and selection, and can't
+take the focus itself, as it runs no script.
 
 A flaw in pdf.js or three.js reaches only its frame: the bytes of the PDF or model it shows (and
 the files beside a model), the keys the person types while it has the focus, and what it may tell

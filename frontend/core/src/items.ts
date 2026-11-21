@@ -575,7 +575,9 @@ export type Companions = {
   // is as `stamp` names it (see `FilePart`). One
   // that may hold secrets is `secret` unless `reveal` is the path the item points at, as in
   // `follow`. With `file`, a model's, it is that file beside it, one its content lists, as its
-  // own stamp names it, never shown when it may hold secrets. Rejects where the item is gone or
+  // own stamp names it, never shown when it may hold secrets; for an HTML file's (a web page's) item
+  // it is a file beside the page by its name from the page's folder (a style, picture or font),
+  // read as it is now. Rejects where the item is gone or
   // of a kind not read in parts. Absent where the backend can't: a video, a recording, a PDF or
   // a model then says it can't be shown here.
   readonly part?: (

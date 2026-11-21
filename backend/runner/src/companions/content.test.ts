@@ -47,6 +47,7 @@ import {
   pointAt,
   readPlanFile,
   readTextPlan,
+  readPageFile,
   readPart,
   savePlan as savePlanIn,
 } from "./content.js"
@@ -1269,6 +1270,102 @@ describe("a part of a model", () => {
     await expect(
       readPart({ ...modelAt(path) }, { stamp, offset: 0 }, false, partsOf.model!),
     ).resolves.toEqual({ state: "part", data: Buffer.from("solid part").toString("base64") })
+  })
+})
+
+describe("a file beside a web page", () => {
+  const page = (directory: string) => ({ path: join(directory, "strip", "page.html") })
+  const read = async (directory: string, name: string, offset = 0) => {
+    const { part } = await readPageFile(page(directory), name, offset)
+    return part
+  }
+  const text = (part: Awaited<ReturnType<typeof read>>) =>
+    part.state === "part" ? Buffer.from(part.data, "base64").toString("utf8") : part
+
+  it("is read from the page's folder or under it, by the name the page writes", async ({
+    directory,
+  }) => {
+    mkdirSync(join(directory, "strip", "fonts"), { recursive: true })
+    writeFileSync(join(directory, "strip", "page.html"), "<html></html>")
+    writeFileSync(join(directory, "strip", "strip.css"), "body { margin: 0 }")
+    writeFileSync(join(directory, "strip", "fonts", "a.woff2"), "font")
+    expect(text(await read(directory, "strip.css"))).toBe("body { margin: 0 }")
+    expect(text(await read(directory, "fonts/a.woff2"))).toBe("font")
+    // From an offset, as a long file is read in parts.
+    expect(text(await read(directory, "strip.css", 5))).toBe("{ margin: 0 }")
+  })
+
+  it("is read through a link that stays in the folder, and refused through one that leaves", async ({
+    directory,
+  }) => {
+    mkdirSync(join(directory, "strip"))
+    writeFileSync(join(directory, "strip", "page.html"), "<html></html>")
+    writeFileSync(join(directory, "strip", "real.css"), "a {}")
+    writeFileSync(join(directory, "outside.css"), "b {}")
+    symlinkSync(join(directory, "strip", "real.css"), join(directory, "strip", "near.css"))
+    symlinkSync(join(directory, "outside.css"), join(directory, "strip", "far.css"))
+    expect(text(await read(directory, "near.css"))).toBe("a {}")
+    expect(await read(directory, "far.css")).toEqual({ state: "unavailable", reason: "missing" })
+  })
+
+  it("is never one outside the page's folder", async ({ directory }) => {
+    mkdirSync(join(directory, "strip"))
+    writeFileSync(join(directory, "strip", "page.html"), "<html></html>")
+    writeFileSync(join(directory, "secret.css"), "x {}")
+    for (const name of ["../secret.css", "a/../../secret.css", "..\\secret.css", "/etc/hosts.css"])
+      // eslint-disable-next-line no-await-in-loop -- One name after another.
+      expect(await read(directory, name), name).toEqual({
+        state: "unavailable",
+        reason: "missing",
+      })
+  })
+
+  it("is only a style, a picture or a font, never a file that may hold secrets", async ({
+    directory,
+  }) => {
+    mkdirSync(join(directory, "strip", ".aws"), { recursive: true })
+    writeFileSync(join(directory, "strip", "page.html"), "<html></html>")
+    writeFileSync(join(directory, "strip", "notes.txt"), "private")
+    writeFileSync(join(directory, "strip", "page.js"), "run()")
+    writeFileSync(join(directory, "strip", ".aws", "a.png"), png)
+    writeFileSync(join(directory, "strip", ".env.css"), "x {}")
+    expect(await read(directory, "notes.txt")).toEqual({ state: "unavailable", reason: "missing" })
+    expect(await read(directory, "page.js")).toEqual({ state: "unavailable", reason: "missing" })
+    expect(await read(directory, ".aws/a.png")).toEqual({ state: "unavailable", reason: "secret" })
+    expect(await read(directory, ".env.css")).toEqual({ state: "unavailable", reason: "secret" })
+  })
+
+  it("is only read for a web page", async ({ directory }) => {
+    mkdirSync(join(directory, "strip"))
+    writeFileSync(join(directory, "strip", "notes.md"), "# notes")
+    writeFileSync(join(directory, "strip", "strip.css"), "a {}")
+    const notes = { path: join(directory, "strip", "notes.md") }
+    expect((await readPageFile(notes, "strip.css", 0)).part).toEqual({
+      state: "unavailable",
+      reason: "missing",
+    })
+    expect((await readPageFile({ path: null }, "strip.css", 0)).part).toEqual({
+      state: "unavailable",
+      reason: "missing",
+    })
+  })
+
+  it("says it is missing, or not a file, as a part does", async ({ directory }) => {
+    mkdirSync(join(directory, "strip", "folder.css"), { recursive: true })
+    writeFileSync(join(directory, "strip", "page.html"), "<html></html>")
+    expect(await read(directory, "gone.css")).toEqual({ state: "unavailable", reason: "missing" })
+    expect(await read(directory, "folder.css")).toEqual({
+      state: "unavailable",
+      reason: "not-a-file",
+    })
+  })
+
+  it("tells the real path it read, which the page's live stamp follows", async ({ directory }) => {
+    mkdirSync(join(directory, "strip"))
+    writeFileSync(join(directory, "strip", "page.html"), "<html></html>")
+    writeFileSync(join(directory, "strip", "strip.css"), "a {}")
+    const { path } = await readPageFile(page(directory), "./strip.css", 0)
+    expect(path).toBe(join(directory, "strip", "strip.css"))
   })
 })
 

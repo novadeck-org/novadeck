@@ -342,8 +342,21 @@ inside a quoted record, so the table starts at the first line from which the row
 there; a quote never closed in a file shown whole, or open longer in a part, reads as text
 from its record on, as a TSV's inch mark. Each
 column's decimal mark is the one all its numbers read with (a comma first in a semicolon file),
-and digits led by a zero (IDs, postcodes) are text. A
-file with a preview opens on it, with a Show source tool in the pane's row (Ctrl+Shift+V, ⌘⇧V
+and digits led by a zero (IDs, postcodes) are text.
+An HTML file (`.html`, `.htm`) is drawn as the web page it is (`previews/html.tsx`, `HtmlViewer.tsx`;
+its frame and viewer load only when one shows). The runner reads it whole like a data file (up
+to 2 MiB; one cut short shows its source, saying so), and the viewer reads the stylesheets,
+pictures and fonts it names, and what those name in turn (`@import`, `url()`), by their names
+from the page's folder, through `companions.part` with `file` (a page's own: any style, picture
+or font in the page's folder or under it, `..` and links out of it refused, never one that may
+hold secrets; at most 64 files, 16 MiB each and 32 MiB all told). The page is then built from them
+(`libraries/viewers/src/html/page.ts`: stylesheets as `<style>`, pictures and fonts as data
+addresses, scripts, frames, plugins, `<base>` and refreshes taken out) and drawn in the viewers'
+sandboxed frame (see SECURITY.md), so nothing in the page runs and nothing it names beyond those
+files is fetched. A file the page was drawn with is part of the item's content: the runner adds
+the stamps of the files the pane read to the page's own, so saving a stylesheet beside it, as well
+as the page, draws it again; a page that comes out the same as the one drawn is left alone. A file
+with a preview opens on it, with a Show source tool in the pane's row (Ctrl+Shift+V, ⌘⇧V
 on a Mac, from anywhere in the file) that switches it to the bare file in the code viewer and
 back. A preview's own tools join the row before it (`usePreviewTools`); one that can't read its
 file says so in its body, the switch still there. The choice is the item's, for the file it

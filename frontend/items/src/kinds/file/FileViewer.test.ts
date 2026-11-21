@@ -1,8 +1,9 @@
-import type { Companions, FileContent, ItemContent } from "@novadeck/core/items"
+import type { Companions, FileContent, FilePart, ItemContent } from "@novadeck/core/items"
 import { workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
+import type { HtmlContent } from "@novadeck/viewers/html"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
@@ -11,6 +12,34 @@ import { registry } from "../../registry"
 import { createItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
 import { FileThumb } from "./FileViewer"
+
+// jsdom draws no frame: the page viewer is a stand-in that notes what it's given, as the real
+// one's pages and files are tested where a browser draws them (libraries/viewers/src/html.test.ts).
+const pages = vi.hoisted(() => ({ mounted: 0, given: [] as HtmlContent[] }))
+// Waits for what the page's reads and draws come to, inside the act React asks for.
+const settled = (check: () => void) =>
+  vi.waitFor(async () => {
+    await act(async () => void (await new Promise((done) => setTimeout(done, 10))))
+    check()
+  })
+vi.mock("@novadeck/viewers/html", async (original) => ({
+  ...(await original<typeof import("@novadeck/viewers/html")>()),
+  mountHtml: (element: HTMLElement, { content }: { content: HtmlContent }) => {
+    pages.mounted += 1
+    pages.given.push(content)
+    const marker = element.ownerDocument.createElement("div")
+    marker.className = "html-stand-in"
+    element.append(marker)
+    return {
+      update: (next: HtmlContent) => pages.given.push(next),
+      state: () => ({}),
+      restore: () => {},
+      jumpTo: () => {},
+      focus: () => {},
+      destroy: () => marker.remove(),
+    }
+  },
+}))
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
@@ -31,7 +60,11 @@ const fileContent = (path: string, lines: readonly string[]): FileContent => ({
 
 // The file kind's pane body for item `id`, showing `content`: alone, or, `inRow`, under the
 // pane's row, where its tools are drawn.
-const show = async (id: string, content: FileContent, { inRow = false } = {}) => {
+const show = async (
+  id: string,
+  content: FileContent,
+  { inRow = false, part }: { inRow?: boolean; part?: Companions["part"] } = {},
+) => {
   const item = itemFixture(id, "01", { kind: "file", name: content.path, path: content.path })
   const loaded: ItemContent = { state: "ready", stamp: "1", content }
   // Hands the item the file as it is now, as the runner does once it changes.
@@ -44,6 +77,7 @@ const show = async (id: string, content: FileContent, { inRow = false } = {}) =>
     },
     save: () => new Promise(() => {}),
     trouble: () => {},
+    ...(part ? { part } : {}),
   }
   const workspace = createWorkspaceStore(
     workspaceReducer(workspaceFixture(), { type: "item/upsert", target, item }),
@@ -68,6 +102,89 @@ const show = async (id: string, content: FileContent, { inRow = false } = {}) =>
 }
 
 const readme = fileContent("docs/README.md", ["# Readme", "", "## Install", "Run it."])
+
+const strip = fileContent("strip/index.html", [
+  "<!doctype html>",
+  '<link rel="stylesheet" href="strip.css">',
+  "<p>Three panels</p>",
+])
+
+describe("an HTML file", () => {
+  it("is drawn as a page first, with a switch to its source in the row", async () => {
+    const { container, switcher } = await show("strip-1", strip, { inRow: true })
+    const file = container.querySelector(".artifact-file")!
+    expect(file.getAttribute("data-file-preview")).toBe("html")
+    expect(file.getAttribute("data-view")).toBe("preview")
+    expect(container.querySelector(".html-pane")).not.toBeNull()
+    expect(container.querySelector(".code-viewer")).toBeNull()
+    expect(switcher()?.getAttribute("aria-pressed")).toBe("false")
+  })
+
+  it("shows its text in the code viewer, numbered, once switched to its source", async () => {
+    const { container, switcher } = await show("strip-2", strip, { inRow: true })
+    act(() => switcher()!.click())
+    expect(container.querySelector(".artifact-file")?.getAttribute("data-view")).toBe("source")
+    expect(container.querySelector(".html-pane")).toBeNull()
+    expect(container.querySelector(".code-viewer")?.textContent).toContain("<p>Three panels</p>")
+  })
+
+  it("is drawn with the files beside it that it names, read from its folder by name", async () => {
+    pages.given.length = 0
+    const asked: string[] = []
+    const part: NonNullable<Companions["part"]> = async (_target, _id, asking) => {
+      asked.push(`${asking.file}@${asking.offset}`)
+      const bytes = new TextEncoder().encode("body { margin: 0 }") as Uint8Array<ArrayBuffer>
+      return asking.file === "strip.css" && asking.offset === 0
+        ? { state: "part", bytes }
+        : asking.file === "strip.css"
+          ? { state: "part", bytes: new Uint8Array(0) }
+          : ({ state: "unavailable", reason: "missing" } satisfies FilePart)
+    }
+    const { container } = await show("strip-4", strip, { part })
+    await settled(() => expect(container.querySelector(".html-stand-in")).not.toBeNull())
+    expect(asked).toEqual(["strip.css@0", "strip.css@18"])
+    const [given] = pages.given
+    expect(given!.html).toContain("<p>Three panels</p>")
+    expect(given!.files.map((file) => file.name)).toEqual(["strip.css"])
+    expect(new TextDecoder().decode(given!.files[0]!.bytes)).toBe("body { margin: 0 }")
+  })
+
+  it("is drawn again only when the page or a file it names comes out different", async () => {
+    pages.given.length = 0
+    const before = pages.mounted
+    let stylesheet = "a {}"
+    const part: NonNullable<Companions["part"]> = async (_target, _id, asking) => ({
+      state: "part",
+      bytes:
+        asking.offset === 0
+          ? (new TextEncoder().encode(stylesheet) as Uint8Array<ArrayBuffer>)
+          : new Uint8Array(0),
+    })
+    const { container, load } = await show("strip-5", strip, { part })
+    await settled(() => expect(container.querySelector(".html-stand-in")).not.toBeNull())
+    expect(pages.given).toHaveLength(1)
+    // Written, but the same: nothing is drawn again.
+    load({ ...strip })
+    await act(async () => void (await new Promise((done) => setTimeout(done, 50))))
+    expect(pages.given).toHaveLength(1)
+    // A stylesheet written differently, or the page itself, is.
+    stylesheet = "b {}"
+    load({ ...strip })
+    await settled(() => expect(pages.given).toHaveLength(2))
+    load({ ...strip, lines: [...strip.lines, "<p>More</p>"] })
+    await settled(() => expect(pages.given).toHaveLength(3))
+    expect(pages.mounted - before).toBe(1)
+  })
+
+  it("goes to its source, saying why, when it is too long to be drawn whole", async () => {
+    const { container } = await show("strip-3", { ...strip, truncated: true, total: null })
+    expect(container.querySelector(".artifact-file")?.getAttribute("data-view")).toBe("source")
+    expect(container.querySelector(".html-pane")).toBeNull()
+    expect(container.querySelector(".artifact-source-note")?.textContent).toBe(
+      "This page is too long to draw, so its source is shown.",
+    )
+  })
+})
 
 describe("a file with a preview", () => {
   it("shows its preview first, with a switch to its source in the row", async () => {

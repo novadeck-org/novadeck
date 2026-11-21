@@ -58,6 +58,20 @@
   outline-offset: calc(var(--focus-ring-width) * -1);
 }
 
+/* An HTML file drawn as a page (`.html-pane`, holding `.artifact-html`, which holds
+   @novadeck/viewers/html.css): a column that fills the pane, the page on white as pages
+   assume, blank and aria-busy while its files are read. */
+.html-pane,
+.artifact-html {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.artifact-html {
+  --html-notice-fg: var(--artifact-unavailable-fg, var(--color-muted));
+}
+
 /* While an artifact loads, or when it couldn't. */
 .artifact-status {
   display: grid;

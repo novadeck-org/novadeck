@@ -1,5 +1,6 @@
 import { resolve } from "node:path"
 
+import { frameBundles } from "@novadeck/build-kit/frame-bundles"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { playwright } from "@vitest/browser-playwright"
@@ -138,8 +139,9 @@ const behaviour = (name: string, include: string[], platform: Platform | undefin
   }) satisfies TestProjectInlineConfiguration
 
 const config = defineConfig({
-  // The specs render the whole app with its stylesheet, so they build it as the apps do.
-  plugins: [tailwindcss(), react()],
+  // The specs render the whole app with its stylesheet, so they build it as the apps do, the
+  // viewers' frame code (`?frame`) included.
+  plugins: [tailwindcss(), react(), frameBundles()],
   // The UI's public files are the page's: the voice worklet is loaded from the document's base.
   publicDir: resolve(import.meta.dirname, "../ui/public"),
   test: {

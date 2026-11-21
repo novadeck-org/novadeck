@@ -492,6 +492,18 @@ Agents:
   shows the report under a new stamp, as if its file was rewritten, read in 512-byte parts 0.3 s
   apart: the old one stays on screen under a Loading chip for about 2 s, then the new one swaps
   in on the page you were on.
+- **Web page:** only in the `showcase` variant, on the selected terminal's bar. The pages are
+  files in code (`frontend/demo/src/showcase/html-samples.ts`), drawn by the pane's page viewer
+  with the files beside them read by name, as the runner reads them: "Show a web page" is
+  `strip.html`, a three-panel comic strip on a cream ground, styled by `strip.css` and drawn with
+  three SVGs beside it (two as `<img>`, one as a CSS background), with a Show source switch in the
+  pane's row; "Show a web page that loads slowly" reads its files 0.7 s apart, the pane blank and
+  busy till they are in; "Show a web page whose files are missing" draws plain, with no styles and
+  no pictures; "Show a web page with no styles" is a bare heading on white; "Show a web page too
+  long to draw" opens on its source under "This page is too long to draw, so its source is shown.";
+  "Rewrite the page's stylesheet" writes `strip.css` again with another ground (a new stamp each
+  time), and the pane draws the strip again on it; "Stop the page viewer" sends the open page's
+  frame to another page, and the pane says "The page viewer stopped.".
 - **3D model:** only in the `showcase` variant, on the selected terminal's bar. The models are
   bytes made in code (`frontend/demo/src/showcase/model.ts`), drawn by the pane's 3D viewer:
   "Show an STL bracket" is an L-bracket as a CAD loop writes it, 60 × 40 × 40 mm; "Show an
@@ -729,7 +741,7 @@ App:
   terminals attaching over about 3 s; "Welcome dialog" opens the first-run dialog for
   connecting agents again (no reboot); "App error" makes a view throw as it draws, for the
   crash screen that stands in for the app, whose Reload boots the demo again; "Views fail to
-  load" fails every pane view whose code loads lazily (Markdown, plan, data, folder, 3D model,
+  load" fails every pane view whose code loads lazily (Markdown, plan, data, web page, folder, 3D model,
   PDF), as a chunk that couldn't be fetched: each one open, or opened next, says "Couldn't load
   this view" in its pane, with a Retry that loads it, and the rest of the app carries on.
 - **Agent Chat offer:** where the backend reads conversations (the showcase and agents demos). "Offer Agent Chat" turns Agent Chat off in the saved preferences, clears

@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@ark-ui/react": "^5.40.0",
+    "@novadeck/build-kit": "workspace:*",
     "@novadeck/core": "workspace:*",
     "@novadeck/demo": "workspace:*",
     "@novadeck/demo-debug": "workspace:*",

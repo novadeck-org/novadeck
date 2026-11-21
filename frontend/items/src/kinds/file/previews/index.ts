@@ -3,6 +3,7 @@ import type { LucideIcon } from "lucide-react"
 import type { ComponentType } from "react"
 
 import { data } from "./data"
+import { html } from "./html"
 import { markdown } from "./markdown"
 import { table } from "./table"
 
@@ -23,7 +24,16 @@ export type PreviewProps = {
   // Shows the file's source instead, as when it doesn't read as its type, with a note why
   // above it and the line it stops at pointed at.
   readonly toSource: ToSource
+  // Reads a file beside the one shown, whole, by its name from its folder (a page's stylesheet
+  // or picture): undefined where it can't be read, or once the signal stops it. Absent where the
+  // backend can't.
+  readonly beside?: ReadBeside | undefined
 }
+
+export type ReadBeside = (
+  name: string,
+  signal: AbortSignal,
+) => Promise<Uint8Array<ArrayBuffer> | undefined>
 
 export type ToSource = (why?: { readonly note: string; readonly line?: number }) => void
 
@@ -42,7 +52,7 @@ export type FilePreview = {
 }
 
 // First match wins.
-export const previews: readonly FilePreview[] = [markdown, table, data]
+export const previews: readonly FilePreview[] = [markdown, table, data, html]
 
 // The preview of the file at `path`, if its type has one.
 export const previewFor = (path: string): FilePreview | undefined =>

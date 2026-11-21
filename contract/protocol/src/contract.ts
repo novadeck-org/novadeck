@@ -696,6 +696,11 @@ export const contract = {
     // image up to `folderLimits.thumbnail` bytes, for a thumbnail; a video, a recording, a PDF or
     // a 3D model as an item of its kind is), with the stamp its listing gave: never one outside
     // the folder, through a link too, nor a secret one (`secret`), nor one in a secret folder.
+    // With `file`, an HTML file's (a web page's), it is a file beside the page, by its name from the
+    // page's folder (`/` between names, decoded): a style, picture or font of the page's folder or
+    // under it, never one outside it (`..`, a link out), nor one that may hold secrets, which
+    // is `missing`; read with the stamp it has now, so no part of it is `changed`, and the `stamp`
+    // given is not read.
     part: procedure
       .input(
         z.strictObject({

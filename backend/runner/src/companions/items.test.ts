@@ -1675,6 +1675,66 @@ describe("an item's content", () => {
     }
   })
 
+  it("shows a web page as a file, and reads the files it draws with from beside it", async ({
+    fixture,
+  }) => {
+    const folder = fixture.directory
+    writeFileSync(join(folder, "strip.css"), "body { margin: 0 }")
+    writeFileSync(join(folder, "notes.txt"), "private")
+    writeFileSync(
+      join(folder, "strip.html"),
+      `<link rel="stylesheet" href="strip.css">${`<p>${"x".repeat(5000)}</p>`}\n`,
+    )
+    const shown = await fixture.items.show(fixture.terminal("moth"), {
+      file: { path: "strip.html" },
+    })
+    expect(shown).toMatchObject({ ok: true, kind: "file", name: "strip.html" })
+    const itemId = shown.ok ? shown.id : ""
+    const loaded = await fixture.items.load(itemId, false)
+    // Whole, its long line uncut, as a page is read to be drawn.
+    expect(itemContent.parse(loaded)).toEqual(loaded)
+    expect(loaded).toMatchObject({ state: "ready", content: { kind: "file", truncated: false } })
+    await expect(
+      fixture.items.part({ itemId, stamp: "", offset: 0, file: "strip.css" }),
+    ).resolves.toEqual({
+      state: "part",
+      data: Buffer.from("body { margin: 0 }").toString("base64"),
+    })
+    await expect(
+      fixture.items.part({ itemId, stamp: "", offset: 0, file: "notes.txt" }),
+    ).resolves.toEqual({ state: "unavailable", reason: "missing" })
+    await expect(
+      fixture.items.part({ itemId, stamp: "", offset: 0, file: "../strip.css" }),
+    ).resolves.toEqual({ state: "unavailable", reason: "missing" })
+  })
+
+  it("reads a web page again when only a file it was drawn with is written again", async ({
+    fixture,
+  }) => {
+    const folder = fixture.directory
+    writeFileSync(join(folder, "strip.css"), "body { margin: 0 }")
+    writeFileSync(join(folder, "strip.html"), '<link rel="stylesheet" href="strip.css">\n')
+    const shown = await fixture.items.show(fixture.terminal("moth"), {
+      file: { path: "strip.html" },
+    })
+    const itemId = shown.ok ? shown.id : ""
+    const stream = fixture.items.content(itemId, undefined)
+    const stampOf = (content: ItemContent | undefined) =>
+      content?.state === "ready" ? content.stamp : undefined
+    const first = stampOf(await next(stream))
+    // The pane draws the page, and reads the stylesheet it names: a change from then on.
+    await fixture.items.part({ itemId, stamp: "", offset: 0, file: "strip.css" })
+    const drawn = stampOf(await next(stream))
+    expect(drawn).not.toBe(first)
+    expect(drawn!.length).toBeLessThanOrEqual(128)
+    writeFileSync(join(folder, "strip.css"), "body { margin: 8px }")
+    const second = stampOf(await next(stream))
+    expect(second).not.toBe(drawn)
+    const ending = stream.next()
+    fixture.items.close(itemId)
+    await expect(ending).resolves.toEqual({ done: true, value: undefined })
+  })
+
   it("lists a model past what the pane takes by its name, and says so", async ({ fixture }) => {
     const path = join(fixture.directory, "huge.stl")
     const handle = openSync(path, "w")

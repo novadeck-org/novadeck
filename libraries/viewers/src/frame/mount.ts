@@ -47,6 +47,12 @@ export type FrameOptions<Message extends { readonly type: string }> = {
   readonly drag?: boolean
   /** The frame hears when it's out of view, and back. */
   readonly visibility?: boolean
+  /**
+   * No glass: a page the frame draws in a frame of its own, which scrolls, selects and follows
+   * its links under the pointer as it is, and can't take the focus itself (it runs no script).
+   * The frame has the focus a press gives it, and keeps it till the person leaves.
+   */
+  readonly through?: boolean
 }
 
 // The pane's actions a frame may ask for: a burst past this is a frame misbehaving. How long a
@@ -73,7 +79,8 @@ export const mountFrame = <Message extends { readonly type: string }>(
   iframe.title = label
   iframe.className = `${name}-frame`
   // Reached through the glass, never by Tab straight into the frame.
-  iframe.tabIndex = -1
+  const through = options.through === true
+  iframe.tabIndex = through ? 0 : -1
   // Over the frame while it hasn't the focus, so only the person gives it the focus: a press on
   // it, or Tab to it, lets the frame have it. A scroll or pinch over it goes to the frame.
   const glass = document.createElement("div")
@@ -85,7 +92,7 @@ export const mountFrame = <Message extends { readonly type: string }>(
   notice.className = `${name}-host-notice`
   notice.setAttribute("role", "alert")
   notice.hidden = true
-  host.append(iframe, glass, notice)
+  host.append(...(through ? [iframe, notice] : [iframe, glass, notice]))
   element.append(host)
 
   let opened: OpenFrame | undefined
@@ -205,7 +212,7 @@ export const mountFrame = <Message extends { readonly type: string }>(
   // The frame has the focus it wasn't given: back where it was. A frame the person used may take
   // it with no event on the iframe here, so each focus that leaves something here is checked too.
   const putBack = (): void => {
-    if (given || stopped || document.activeElement !== iframe) return
+    if (given || through || stopped || document.activeElement !== iframe) return
     const back = before as HTMLElement | null
     if (back?.isConnected && back !== document.body) back.focus({ preventScroll: true })
     else iframe.blur()

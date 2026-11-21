@@ -26,7 +26,10 @@ import { demoTurns } from "@novadeck/demo/agents/turns"
 import { isDemoInbox } from "@novadeck/demo/inbox"
 import { demoInboxRowsAll } from "@novadeck/demo/inbox/fixtures"
 import { demoResolved, demoResolvedRows } from "@novadeck/demo/inbox/resolved"
+import { demoTerminalId } from "@novadeck/demo/samples"
+import type { SampleArtifact } from "@novadeck/demo/showcase/artifacts"
 import { createShowcaseDemo } from "@novadeck/demo/showcase/demo"
+import { isShowcase } from "@novadeck/demo/showcase/simulation"
 import { createDemo } from "@novadeck/demo/variants"
 import { babciaCuesOf, type BabciaCues } from "@novadeck/demo/videos/babcia"
 import { visitorDemo } from "@novadeck/demo/visitor/index"
@@ -450,6 +453,21 @@ const started: {
   readonly seed: Backend["seed"]
   readonly backend: Backend
 }[] = []
+
+/**
+ * The showcase's Build Studio agent shows `sample` in its pane, as its `show` would (the debug
+ * panel's way of showing a sample): it opens at once.
+ */
+export const buildStudioShows = (sample: SampleArtifact): void => {
+  const session = { projectId: "studio", workspaceSessionId: "initial" }
+  for (const { backend } of started)
+    if (backend.companions && isShowcase(backend.companions))
+      backend.companions.present(
+        { ...session, terminalId: demoTerminalId(session, 1) },
+        "moth",
+        sample,
+      )
+}
 
 /** The backend reports that the terminal named `name` now works for the one named `lead`, in
  * the session that has both: it joins that lead's team, or forms one with it. */

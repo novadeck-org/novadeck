@@ -118,6 +118,7 @@
 @import "@novadeck/viewers/image.css" layer(components);
 @import "@novadeck/viewers/pdf.css" layer(components);
 @import "@novadeck/viewers/model.css" layer(components);
+@import "@novadeck/viewers/html.css" layer(components);
 @import "@novadeck/viewers/browser.css" layer(components);
 @import "@novadeck/viewers/markdown.css" layer(components);
 @import "@novadeck/viewers/tree.css" layer(components);

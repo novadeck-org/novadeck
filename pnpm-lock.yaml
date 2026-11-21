@@ -845,6 +845,9 @@ importers:
       '@ark-ui/react':
         specifier: ^5.40.0
         version: 5.40.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@novadeck/build-kit':
+        specifier: workspace:*
+        version: link:../../tools/build-kit
       '@novadeck/core':
         specifier: workspace:*
         version: link:../core

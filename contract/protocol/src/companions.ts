@@ -43,12 +43,36 @@ export const videoLimits = { bytes: 512 * 1024 * 1024 } as const
  */
 export const pdfLimits = { bytes: 128 * 1024 * 1024 } as const
 
-// The files whose preview reads them as a whole, as a tree or a table, by extension.
-const dataExtensions = new Set(["json", "jsonl", "ndjson", "yaml", "yml", "csv", "tsv"])
+// The files whose preview reads them as a whole, as a tree, a table or a page, by extension.
+const dataExtensions = new Set([
+  "json",
+  "jsonl",
+  "ndjson",
+  "yaml",
+  "yml",
+  "csv",
+  "tsv",
+  "html",
+  "htm",
+])
 
 /** Whether a file is read as data: whole, up to `companionLimits.data`, not by its lines. */
 export const isDataPath = (path: string): boolean =>
   dataExtensions.has(/\.([^./\\]+)$/.exec(path)?.[1]?.toLowerCase() ?? "")
+
+/** Whether a file is a web page the pane draws, by extension: `.html` or `.htm`. */
+export const isHtmlPath = (path: string): boolean => /\.html?$/i.test(path)
+
+/**
+ * The files beside a web page that the pane reads for it (`companions.part` with `file`): the
+ * most of one, how many, and all told, in bytes. Only what a page draws with
+ * (`isPageFile`), and only from the page's own folder or under it.
+ */
+export const pageLimits = { file: 16 * 1024 * 1024, files: 64, bytes: 32 * 1024 * 1024 } as const
+
+/** Whether a file beside a page is of a type the page draws with: styles, pictures or fonts. */
+export const isPageFile = (name: string): boolean =>
+  /\.(css|png|jpe?g|gif|webp|avif|svg|ico|bmp|woff2?|ttf|otf)$/i.test(name)
 
 /**
  * A 3D model the pane previews: the most it takes, its file and the files beside it it names

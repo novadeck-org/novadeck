@@ -1,0 +1,32 @@
+/* The web page viewer: its frame (`.html-frame`, an iframe of its own origin that draws the page,
+   see html.ts) filling `.html-host`, and `.html-host-notice` when the frame stopped. The frame
+   takes the pointer as it is, so the page scrolls, selects and follows its links.
+
+   Hooks: aria-busy on the host while a page loads.
+
+   Tokens, each optional (its fallback in brackets):
+   --html-ground (white): behind the page, which pages assume.
+   --html-notice-fg (the system's text): what says the viewer stopped. */
+.html-host {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.html-frame {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: var(--html-ground, #fff);
+}
+.html-host-notice {
+  margin: auto;
+  padding: 24px;
+  color: var(--html-notice-fg, inherit);
+  text-align: center;
+}
+.html-host-notice[hidden] {
+  display: none;
+}

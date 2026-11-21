@@ -31,6 +31,17 @@
       "default": "./dist/image.js"
     },
     "./image.css": "./src/image.css",
+    "./html": {
+      "development": "./src/html.ts",
+      "types": "./dist/html.d.ts",
+      "default": "./dist/html.js"
+    },
+    "./html.css": "./src/html.css",
+    "./html-frame": {
+      "development": "./src/html/frame-entry.ts",
+      "types": "./dist/html/frame-entry.d.ts",
+      "default": "./dist/html/frame-entry.js"
+    },
     "./markdown": {
       "development": "./src/markdown.ts",
       "types": "./dist/markdown.d.ts",

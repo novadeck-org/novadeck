@@ -1,12 +1,21 @@
 import type { Item, FileContent } from "@novadeck/core/items"
 import { mountCode, type CodeContent } from "@novadeck/viewers/code"
 import { CodeXml } from "lucide-react"
-import { useCallback, useMemo, useReducer, useRef, useState, type KeyboardEvent } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react"
 
 import type { ArtifactBodyProps } from "../../ArtifactViewer"
 import { PaneTools, type PaneTool } from "../../pane-row"
+import { readBeside } from "../../parts/beside"
 import { useViewerSlot } from "../../ViewerSlot"
-import { previewFor, type FilePreview, type ToSource } from "./previews"
+import { previewFor, type FilePreview, type ReadBeside, type ToSource } from "./previews"
 import { PreviewToolsSetter } from "./previews/tools"
 import { useFileView } from "./view-choice"
 
@@ -115,10 +124,12 @@ const PreviewedFile = ({
   item,
   content,
   preview,
+  beside,
 }: {
   item: Item
   content: FileContent
   preview: FilePreview
+  beside: ReadBeside | undefined
 }): React.JSX.Element => {
   const [view, choose] = useFileView(item.id, content.path)
   const [tools, setTools] = useState<readonly PaneTool[]>([])
@@ -186,18 +197,55 @@ const PreviewedFile = ({
         </>
       ) : (
         <PreviewToolsSetter value={setPreviewTools}>
-          <Preview id={item.id} name={item.name} content={content} toSource={toSource} />
+          <Preview
+            id={item.id}
+            name={item.name}
+            content={content}
+            toSource={toSource}
+            beside={beside}
+          />
         </PreviewToolsSetter>
       )}
     </div>
   )
 }
 
+// The files beside the one shown, as its backend reads them (`part` by `file`): never the ones
+// that may hold secrets, whatever the person revealed. Where the shown file is read for is kept
+// as it is when a read asks.
+const useBeside = (
+  id: Item["id"],
+  part: ArtifactBodyProps<"file">["itemStore"]["part"],
+  target: ArtifactBodyProps<"file">["target"],
+): ReadBeside | undefined => {
+  const where = useRef(target)
+  useEffect(() => {
+    where.current = target
+  })
+  return useMemo(
+    () =>
+      part &&
+      ((name, signal) =>
+        readBeside({
+          read: (offset) =>
+            part(where.current, id, { stamp: "", offset, reveal: undefined, file: name }),
+          signal,
+        })),
+    [id, part],
+  )
+}
+
 // A file: one with a preview shows it, with a switch to its source; anything else as code.
-export const FileViewer = ({ item, content }: ArtifactBodyProps<"file">): React.JSX.Element => {
+export const FileViewer = ({
+  item,
+  content,
+  itemStore,
+  target,
+}: ArtifactBodyProps<"file">): React.JSX.Element => {
   const preview = previewFor(content.path)
+  const beside = useBeside(item.id, itemStore.part, target)
   return preview ? (
-    <PreviewedFile item={item} content={content} preview={preview} />
+    <PreviewedFile item={item} content={content} preview={preview} beside={beside} />
   ) : (
     <CodeViewer id={item.id} content={content} />
   )
