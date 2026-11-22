@@ -23,7 +23,9 @@ beforeEach(() => {
   sh(repo, "remote", "add", "origin", "https://github.com/r/app.git")
   sh(repo, "commit", "-q", "--allow-empty", "-m", "first")
 })
-afterEach(() => rmSync(dir, { recursive: true, force: true }))
+// A test whose answer lost the race to the deadline can leave its git lookup running in the
+// folder, and Windows refuses to remove a folder a process is in until it ends.
+afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }))
 
 const service = (rows: readonly WorktreeRecord[] = []) =>
   new Shipping({
