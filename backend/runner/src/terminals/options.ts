@@ -1,4 +1,4 @@
-import type { Install, Model } from "@novadeck/harness-core/harness"
+import type { Effort, Install, Model } from "@novadeck/harness-core/harness"
 import type { AgentMode, AgentName } from "@novadeck/protocol"
 import type { ProcessTrees, PtyOptions } from "@novadeck/terminal/pty"
 import type { InterruptOptions, PromptOptions } from "@novadeck/tui-input"
@@ -30,6 +30,13 @@ export type OpenPolicy = {
   readonly refusal?: string
   /** The flags for the agent opened in `cwd`, the folder the call resolved. */
   readonly flags?: (agent: AgentName, cwd: string) => readonly string[]
+  /**
+   * The model, and its effort, an agent the call names no model for starts on (the tour's
+   * teammates' cheapest model): the person's own default when none.
+   */
+  readonly choice?: (
+    agent: AgentName,
+  ) => { readonly model: string; readonly effort?: Effort } | undefined
 }
 
 export type TerminalOptions = {

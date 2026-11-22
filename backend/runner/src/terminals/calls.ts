@@ -213,12 +213,19 @@ export class Calls {
     const read = readOpenRequest(call.request)
     if (!read.ok) return read
     const { request } = read
-    const choice = {
-      ...(request.model !== undefined && { model: request.model }),
-      ...(request.effort !== undefined && { effort: request.effort }),
-    }
     const policy: OpenPolicy =
       request.agent !== undefined ? this.host.openPolicy(call.terminalId) : {}
+    // A call that names no model starts on the one its policy gives, if any, with that effort.
+    const given =
+      request.agent !== undefined && request.model === undefined
+        ? policy.choice?.(request.agent)
+        : undefined
+    const choice = given
+      ? { model: given.model, ...(given.effort !== undefined && { effort: given.effort }) }
+      : {
+          ...(request.model !== undefined && { model: request.model }),
+          ...(request.effort !== undefined && { effort: request.effort }),
+        }
     if (request.agent !== undefined) {
       if (policy.refusal) return refused(policy.refusal)
       const unfit = await this.unfitChoice(request.agent, choice)

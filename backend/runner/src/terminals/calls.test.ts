@@ -72,6 +72,7 @@ describe("the open call", () => {
     let plain = 0
     let barred: string | undefined
     let flagged: readonly string[] | undefined
+    let given: { model: string; effort?: "low" | "max" } | undefined
     const opened = {
       summary: { id: "t2", handle: "fox", title: "claude", ledBy: "t1" },
       terminal: { exiting: false },
@@ -97,6 +98,7 @@ describe("the open call", () => {
       openPolicy: () => ({
         ...(barred !== undefined && { refusal: barred }),
         ...(flagged !== undefined && { flags: () => flagged! }),
+        ...(given !== undefined && { choice: () => given }),
       }),
       claims: () => claims,
       launcher: () => ({
@@ -178,6 +180,7 @@ describe("the open call", () => {
       opened,
       bar: (reason: string) => (barred = reason),
       flag: (flags: readonly string[]) => (flagged = flags),
+      give: (choice: { model: string; effort?: "low" | "max" }) => (given = choice),
       mode: (next: AgentMode) => (mode = next),
       open: (request: object) =>
         run.open({
@@ -275,6 +278,20 @@ describe("the open call", () => {
     expect(run.asked[0]!.command).toBe(
       "claude --model opus --effort low --permission-mode acceptEdits",
     )
+  })
+
+  it("starts an agent the call names no model for on the one the runner's policy gives", async () => {
+    const run = setup()
+    run.give({ model: "opus", effort: "low" })
+    await run.open({ agent: "claude" })
+    expect(run.asked[0]!.command).toBe("claude --model opus --effort low")
+  })
+
+  it("keeps the model the call names over the one the runner's policy gives", async () => {
+    const run = setup()
+    run.give({ model: "haiku" })
+    await run.open({ agent: "claude", model: "opus", effort: "max" })
+    expect(run.asked[0]!.command).toBe("claude --model opus --effort max")
   })
 
   it("starts an agent with a brief as its prompt's doorbell, and leads it by default", async () => {
