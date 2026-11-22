@@ -123,6 +123,41 @@ describe("the screen an agent says it is at before its first session", () => {
   })
 })
 
+describe("Antigravity's mode, as its status line says it, for the shipping gate", () => {
+  it("is taken from the bound process's own status line, never a nested one's", async () => {
+    const statusLine = vi.fn<(terminalId: string, payload: unknown) => void>()
+    const record = {
+      token: "tok",
+      terminal: { exiting: false },
+      bound: null,
+    } as unknown as Record
+    const reports = new Reports({
+      records: () => new Map([["T", record]]),
+      bindings: () => ({}),
+      shipping: () => ({ statusLine }),
+    } as unknown as ReportsHost)
+    const say = (instance: string, cycle_mode: string) =>
+      reports.report({
+        terminalId: "T",
+        token: "tok",
+        agent: "agy",
+        event: "StatusLine",
+        seq: 1,
+        instance,
+        env: { cursor: false },
+        payload: { cycle_mode, conversation_id: "" },
+      })
+    // Nothing bound yet: the first status line says.
+    await say("9", "accept-edits")
+    expect(statusLine).toHaveBeenCalledTimes(1)
+    ;(record as { bound: unknown }).bound = { binding: { instance: "9" } }
+    await say("8", "auto").catch(() => {})
+    expect(statusLine).toHaveBeenCalledTimes(1)
+    await say("9", "plan").catch(() => {})
+    expect(statusLine).toHaveBeenCalledTimes(2)
+  })
+})
+
 describe("the bound session's transcript, named by a later hook", () => {
   const hook = (agent: "claude" | "codex", sessionId: string) => ({
     terminalId: "T",
