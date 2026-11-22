@@ -19,6 +19,7 @@
  */
 import type { RequestAnswer, RequestDialog } from "@novadeck/protocol"
 
+import { DomainError } from "../errors.js"
 import { requestRef } from "../harnesses/detail.js"
 import { logs } from "../log.js"
 import type { Record } from "../terminals/record.js"
@@ -45,6 +46,8 @@ export type PermitAnswersHost = {
         }[]
       }
     | undefined
+  /** The screen's rows now, where it can be read. */
+  readonly screen: (terminalId: string) => Promise<readonly string[] | undefined>
   /** The request's dialog as it shows now, null where none does. */
   readonly dialog: (terminalId: string, ref: string) => RequestDialog | null
   /** Answers the request through its dialog, as the person would. */
@@ -53,6 +56,27 @@ export type PermitAnswersHost = {
 
 /** The option whose words are exactly Antigravity's run-once one. */
 const runOnce = /^Yes, run command$/
+
+// The errors of an answer that pressed no key.
+const pressedNothing: ReadonlySet<string> = new Set(["CONFLICT", "DIALOG_CHANGED", "NOT_FOUND"])
+
+const squash = (text: string): string => text.replaceAll(/\s+/g, "")
+
+/**
+ * Whether the screen shows `command` whole: the rows between its heading and its question hold
+ * all of it, whitespace aside, and nothing else (no row saying lines hid, no `...` where a long
+ * one was cut), which a dialog too tall or too wide for its command ends with.
+ */
+export const shownWhole = (rows: readonly string[], command: string): boolean => {
+  const lines = rows.map((row) => row.trimEnd())
+  const ask = lines.findLastIndex((row) => row.trim() === "Run this command?")
+  const start = lines.findLastIndex(
+    (row, index) => index < ask && row.trim() === "Requesting permission for:",
+  )
+  if (ask < 0 || start < 0) return false
+  const shown = lines.slice(start + 1, ask).join("\n")
+  return squash(command) !== "" && squash(shown) === squash(command)
+}
 
 export class PermitAnswers {
   constructor(private readonly host: PermitAnswersHost) {}
@@ -84,7 +108,10 @@ export class PermitAnswers {
       const options = dialog.options.filter(({ label }) => runOnce.test(label))
       if (options.length !== 1) continue
       // eslint-disable-next-line no-await-in-loop -- One request after another.
+      const rows = await this.host.screen(terminalId)
+      // eslint-disable-next-line no-await-in-loop -- As above.
       const auto = await shipping.autoAnswer(terminalId, "agy", {
+        whole: rows !== undefined && shownWhole(rows, dialog.detail),
         detail: dialog.detail,
         requestId: request.requestId,
         call: commandOf(request.input),
@@ -99,8 +126,10 @@ export class PermitAnswers {
           option: options[0]!.id,
         })
       } catch (error) {
-        // Not typed: the permit goes back, and the person answers.
-        auto.release()
+        // Where nothing was pressed (the dialog changed or wasn't there) the permit goes back and
+        // the person answers; where keys went and the answer then failed, it is used.
+        if (error instanceof DomainError && pressedNothing.has(error.code)) auto.release()
+        else auto.done()
         log.warn("shipping.auto-answer-failed", "Novadeck's answer to a confirmation failed", {
           data: {
             terminalId,
@@ -140,6 +169,7 @@ export const permitAnswersHost = (deps: {
   readonly record: (terminalId: string) => Pick<Record, "bound" | "summary"> | undefined
   readonly dialog: PermitAnswersHost["dialog"]
   readonly answer: PermitAnswersHost["answer"]
+  readonly screen: PermitAnswersHost["screen"]
 }): PermitAnswersHost => ({
   shipping: deps.shipping,
   pending: (terminalId) => {
@@ -163,6 +193,7 @@ export const permitAnswersHost = (deps: {
   },
   dialog: deps.dialog,
   answer: deps.answer,
+  screen: deps.screen,
 })
 
 /** The answerer for the runner's terminals, over their typing (the dialogs read and the answers driver). */
@@ -172,6 +203,9 @@ export const permitAnswersOf = (deps: {
   readonly typing: () => {
     readonly dialogs: { readonly shown: PermitAnswersHost["dialog"] }
     readonly answer: PermitAnswersHost["answer"]
+    readonly screenOf: (
+      terminalId: string,
+    ) => Promise<{ readonly rows: readonly string[] } | undefined>
   }
 }): PermitAnswers =>
   new PermitAnswers(
@@ -180,5 +214,6 @@ export const permitAnswersOf = (deps: {
       record: deps.record,
       dialog: (terminalId, ref) => deps.typing().dialogs.shown(terminalId, ref),
       answer: (terminalId, ref, answer) => deps.typing().answer(terminalId, ref, answer),
+      screen: async (terminalId) => (await deps.typing().screenOf(terminalId))?.rows,
     }),
   )

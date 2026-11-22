@@ -141,6 +141,9 @@ export const relayConfig = {
  */
 export const gatedRelayConfig = {
   ...relayConfig,
+  // The shim's rules for Antigravity are in force (see `shippingRules`): the relay refuses their
+  // shapes, never asks, where the runner gives no answer.
+  gate: true,
   asks: {
     ...relayConfig.asks,
     claude: [...relayConfig.asks.claude!, "PreToolUse"],

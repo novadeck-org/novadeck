@@ -47,7 +47,7 @@ pub fn epoch_ms() -> Option<f64> {
 
 const USAGE: &str = "usage: novadeck-relay mcp <server-version> <protocol-version>...
        novadeck-relay hook [--config <relay.json>] [--<option> <value>]... <agent> [event]
-       novadeck-relay allow <settings.json> <rule> <file>
+       novadeck-relay allow <settings.json> <rule> <file> [<extra rule>... -- <agent's arguments>...]
        novadeck-relay --version
        novadeck-relay environment                    (Windows)
        novadeck-relay tree <pid>[:<started-ms>]...   (Windows)
@@ -92,8 +92,22 @@ fn main() -> ExitCode {
         }
         // A shim's: writes the person's allow rules with Novadeck's added to `file`, or fails,
         // and the shim passes no settings.
-        Some((mode, [settings, rule, file])) if mode == "allow" => {
-            if allow::write(Path::new(settings), rule, Path::new(file)) {
+        Some((mode, [settings, rule, file, more @ ..])) if mode == "allow" => {
+            // Extra rules, then `--` and the launch's own arguments: where one of them skips every
+            // permission, the extras (the shipping gate's) aren't written.
+            let (extra, launch) = more.split_at(
+                more.iter()
+                    .position(|each| each == "--")
+                    .unwrap_or(more.len()),
+            );
+            let skipping = launch
+                .iter()
+                .any(|each| each == "--dangerously-skip-permissions");
+            let mut rules = vec![rule.as_str()];
+            if !skipping {
+                rules.extend(extra.iter().map(String::as_str));
+            }
+            if allow::write_with(Path::new(settings), &rules, Path::new(file)) {
                 ExitCode::SUCCESS
             } else {
                 ExitCode::FAILURE

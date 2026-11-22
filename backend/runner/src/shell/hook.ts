@@ -47,6 +47,8 @@ export type GateCall = {
   readonly instance?: string
   /** Antigravity's step for the call, which names the request of its confirmation. */
   readonly step?: number
+  /** The conversation the call is of: a subagent's has its own, with steps of its own. */
+  readonly conversation?: string
 }
 
 // The most of a command the gate takes; a longer one is refused by the reader's own limit.
@@ -415,6 +417,9 @@ export const relayHook = (
           ...(agent.data === "agy" &&
             typeof payload.stepIdx === "number" &&
             Number.isSafeInteger(payload.stepIdx) && { step: payload.stepIdx }),
+          ...(agent.data === "agy" &&
+            typeof payload.conversationId === "string" &&
+            payload.conversationId.length <= 128 && { conversation: payload.conversationId }),
         }
   return askOf(agent.data, event) || gate
     ? {

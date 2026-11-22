@@ -1726,41 +1726,57 @@ only gates them (`backend/runner/src/shipping/`).
   whole folder gets no opinion. The hook stays silent in Claude's bypass mode,
   in Codex's `never` with `danger-full-access`, and where the person's own allow rule covers
   every segment (read from Claude's settings files and Codex's rules, never written).
-- **Antigravity** (`shipping/auto.ts`). Its hook can deny but not allow, and a static
-  `permissions.allow` rule would run unasked whatever it matches, since a hook's `ask` is
-  silence against one (probed 1.5.14: bare and with a reason, with an exact `command(git push)`
-  rule, in accept-edits, the push ran with no dialog; the first probe's "ask shows the dialog"
-  used glob rules, which never match). So the shim writes no rule. Its PreToolUse answers
-  `{"decision":"deny","reason":…}` for a command no permit covers (the same text as the others'),
-  and is silent for any other, so its own confirmation shows as it always did. Where a live permit
-  covers the very command, Novadeck presses that confirmation's run-once option ("Yes, run
-  command", never "always allow" or "Persist to settings.json") through the driver that answers a
-  request from the chat or the Inbox. It does so only for the call the hook vetted: the hook, silent
-  because a permit covers the command, notes (for 30 s) the call's step, which names the
-  confirmation's request (`confirmation:run_command:<step>`), and the raw command whole. The
-  press needs that request, an input that is the same command (one the report path pruned never
-  matches), a permit that still covers it, a dialog that shows it unwrapped or cut short with
-  the mark agy ends a long command with (`⋯ (N lines hidden)`, or `...`), the only such note
-  waiting, a dialog asked after the note, and no later call's hook asked since (a denied call
-  never reaches the report path that tells a request which call it is about, so the note's call
-  must be the latest the gate saw). That makes a long `gh pr create --body …` answerable. The
-  permit is taken before the keys are typed and given back if they fail, so two dialogs never
-  use one single-use permit. A subagent's matching command is answered under the terminal's
-  permit, as the gate allows it for Claude Code. Each auto-answer is logged
-  (`shipping.auto-answer`), and a dialog is decided once, as it first reads.
-  The gate applies in every mode (default, `auto`, `accept-edits`, `plan`): `auto` still prompts
-  before irreversible actions, as Claude Code's auto mode does. It is silent only where Antigravity
-  was told to skip every permission (its launch's `--dangerously-skip-permissions`, or a status
-  line mode of `bypass`), and a mode nobody told is gated: a deny is safe, and agy's dialog
-  decides a permitted command. The mode is the status line's `cycle_mode` (`""` is its Default
-  mode; it follows a Shift+Tab, and only the process that said it counts, so a restart in the
-  same terminal starts afresh), else the launch's `--mode`. With the runner down the relay
-  prints Antigravity's `ask` (whatever its configuration says), so the dialog waits for the person.
-  Only a `run_command` hook takes the 4 s ask limit; every other tool's keeps the 2 s of a report.
-  The person's own `command(...)` allow rules (read from `~/.gemini/antigravity-cli/settings.json`,
-  never written) leave a command to them, as the others'. On Windows where cmd prints before
-  hooks no PreToolUse is registered: the gate doesn't cover Antigravity there (no refusal, no
-  `request_permit`, no approval text), and the person gets its own dialog, as before the gate.
+- **Antigravity** (`shipping/auto.ts`, `shipping/shapes.ts`, the relay's `hook.rs`). Its hook can
+  deny but not allow, and a hook's `ask` is silence against an allow rule (probed 1.5.14: with an
+  exact `command(git push)` rule, in accept-edits, a bare `ask` and one with a reason both ran the
+  push with no dialog; the first probe's "ask shows the dialog" used glob rules, which never
+  match). So the hook answers `{"decision":"deny","reason":…}` for a command no permit covers (the
+  same text as the others'), and is silent for any other. Three parts handle a permitted command:
+  - **Rules for two commands.** While the gate is on (and not where cmd prints, nor for a launch
+    with `--dangerously-skip-permissions`) the shim passes `command(gh pr create)` and
+    `command(gh pr merge)` (`shippingRules`, `harnesses/agy/src/shim.ts`) with the person's own
+    allow list in its per-launch `--settings`. The reader always reads these as shipping, so the
+    hook's deny (unpermitted, or a tail: "run it on its own") or silence (permitted) decides every
+    case exactly, and a permitted one, even with a long `--body`, runs with no dialog. A rule
+    for any other verb would run what the reader reads as not shipping (an own-branch push,
+    `git reset`) unasked, so there is none. Probed the same day: the hook fires for a subagent's
+    commands too (docs/harness-coverage.md).
+  - **Where the runner doesn't answer, these two are refused.** The relay's fallback is
+    `{"decision":"ask"}` for every other agy PreToolUse (whatever its configuration says), but for
+    a command of those shapes, read coarsely per segment, or one it can't read (a payload cut
+    before its command, none read), it prints a deny, while `relay.json` says `"gate": true`
+    or can't be read. The runner does the same when its read failed or was late
+    (`shipsByRule`). The relay's list and the shim's are pinned equal, and both readings are
+    tested against `backend/relay/src/rule-cases.json`.
+  - **Any other permitted command: its own confirmation, answered for the call the hook vetted.**
+    The hook, silent because a permit covers it (not where the person's own rule covers it, which
+    shows no dialog), notes for 30 s the call's conversation and step (the step names the
+    confirmation's request, `confirmation:run_command:<step>`) and its raw command. Novadeck
+    presses "Yes, run command" (never "always allow" or "Persist"), through the driver that answers
+    a request from the chat or the Inbox, only when all of these hold: the screen's rows show the
+    command whole (`shownWhole`: nothing cut, no `⋯ (N lines hidden)`, no `...`), the dialog's detail
+    and the request's input equal the noted command exactly, the request is the noted call's and
+    was asked after the note, exactly one note is live, no other `run_command` hook of any actor
+    that wasn't denied was seen within 30 s of it (before or after: a subagent's, a parallel
+    call's, whose dialog or request call could be the noted one's), and a permit still covers
+    it. A dialog that cuts its command is never answered, whatever else matches, because the
+    request's call is the conversation's latest PreToolUse (the status line names none) and the
+    adapter reads a cut dialog as that call's whole command. The permit is taken before the keys
+    and given back only where nothing was pressed (CONFLICT, DIALOG_CHANGED), never a standing
+    permit nor one a revoke ended; after keys went it counts as used. A dialog is decided once,
+    as it first reads; each auto-answer is logged (`shipping.auto-answer`).
+    The gate applies in every mode (default, `auto`, `accept-edits`, `plan`): `auto` still prompts
+    before irreversible actions, as Claude Code's auto mode does. It is silent only where Antigravity
+    was told to skip every permission (its launch's `--dangerously-skip-permissions`, or a status
+    line mode of `bypass`), and a mode nobody told is gated. The mode is the status line's
+    `cycle_mode` (`""` is its Default mode; only the process that said it counts, and with no
+    process known none does), else the launch's `--mode`. With the runner down the relay prints
+    `ask` (the dialog waits for the person) except for the two rule shapes. Only a `run_command`
+    hook takes the 4 s ask limit. The person's own `command(...)` allow rules (read from
+    `~/.gemini/antigravity-cli/settings.json`, never written) leave a command to them. Where
+    Windows' cmd prints before hooks no PreToolUse is registered, no rule is written, and the gate
+    doesn't cover Antigravity there (no refusal, no `request_permit`, no approval text); the person
+    gets its own dialog, as before the gate.
 - **With the switch off** nothing changes: no hook is registered, and `relay.json` and every
   plugin file are byte for byte as before (on, `relay.json` also lists the gate's events among
   `asks`, so they wait the 4 s limit a Stop does). A session started while it was on and kept

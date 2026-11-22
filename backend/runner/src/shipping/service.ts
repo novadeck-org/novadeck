@@ -3,7 +3,7 @@
  * ring of what the person typed, the decision, and the switch that turns it on. Everything is
  * in memory per terminal, so a restart fails closed.
  */
-import { randomUUID } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import { open } from "node:fs/promises"
 
 import type { AgentName } from "@novadeck/protocol"
@@ -14,11 +14,20 @@ import type { GateCall } from "../shell/hook.js"
 import type { Record } from "../terminals/record.js"
 import { Cards, type Card } from "./cards.js"
 import { declare, ghDefault, ghPull, type Declared, type DeclareAnswer } from "./declare.js"
-import { agyBypassMode, describeKey, describeSource, Gate, type Turn } from "./gate.js"
+import {
+  agyBypassMode,
+  describeKey,
+  describeSource,
+  Gate,
+  printedAgy,
+  type Decision,
+  type Turn,
+} from "./gate.js"
 import { agyPreToolUse } from "./hooks.js"
 import { defaultOf, gitLookups, validName, type Owned } from "./lookups.js"
 import { Permits, Quotes } from "./permits.js"
 import { agyRules, claudeRules, codexRules } from "./rules.js"
+import { shipsByRule } from "./shapes.js"
 
 /** What the gate needs of the rest of the runner. */
 export type ShippingHost = {
@@ -112,45 +121,26 @@ const within = async <T>(work: Promise<T>, ms: number): Promise<T | undefined> =
  */
 type Pending = {
   readonly requestId: string
-  readonly step: number
+  /** The call, as its hook named it: its conversation's step and its command. */
+  readonly key: string
   readonly command: string
   readonly cwd: string
   readonly at: number
   readonly until: number
 }
 
+const failedText =
+  "Novadeck: it couldn't decide this command, which ships work, in time, so it isn't allowed now. Run it again in a moment, on its own."
+
+/** A call as its hook named it: the conversation's step and a hash of its command. */
+const callKey = (call: GateCall): string =>
+  `${call.conversation ?? ""}:${call.step ?? ""}:${createHash("sha256").update(call.command).digest("hex")}`
+
 /** How long a permitted command waits for its confirmation: the dialog follows its hook at once. */
 export const pendingMs = 30_000
 // The dialog's request is stamped by a status line's hook, which may start a little before the
 // runner's own clock reads the PreToolUse's answer.
 const askedSlackMs = 200
-
-/** Text without its whitespace, as Antigravity's dialog wraps and indents it. */
-const squashed = (text: string): string => text.replaceAll(/\s+/g, "")
-
-const sameCommand = (a: string, b: string): boolean => squashed(a) === squashed(b)
-
-/**
- * Whether what Antigravity's confirmation shows is `command`: all of it, or its start where the
- * dialog was too tall for it and ended with a row saying how many lines it hides (`⋯ (3 lines
- * hidden)`) or with `...` on its last row (probed 1.4.12 and 1.5.2, as harnesses/agy's
- * permission dialog reads them). The start must be a part of it, not all.
- */
-export const shows = (detail: string, command: string): boolean => {
-  const whole = squashed(command)
-  if (whole === "") return false
-  if (squashed(detail) === whole) return true
-  const rows = detail.split("\n")
-  const last = rows.at(-1)!.trim()
-  const start = /^⋯ \(\d+ lines? hidden\)$/.test(last)
-    ? rows.slice(0, -1).join("\n")
-    : last.endsWith("...")
-      ? detail.replace(/\.\.\.\s*$/, "")
-      : undefined
-  if (start === undefined) return false
-  const shown = squashed(start)
-  return shown !== "" && shown.length < whole.length && whole.startsWith(shown)
-}
 
 export class Shipping {
   readonly permits = new Permits()
@@ -340,7 +330,9 @@ export class Shipping {
   ): string {
     if (launch?.includes("--dangerously-skip-permissions")) return agyBypassMode
     const live = this.modes.get(terminalId)
-    const told = live !== undefined && live.instance === instance ? live.mode : null
+    // With no process known, an earlier status line may be another process's: it says nothing.
+    const told =
+      live !== undefined && instance !== null && live.instance === instance ? live.mode : null
     const mode = told ?? launchMode(launch) ?? ""
     return skipping.has(mode) ? agyBypassMode : mode
   }
@@ -348,10 +340,12 @@ export class Shipping {
   // The permitted commands Antigravity's hook let through, by terminal: each is the very command
   // its confirmation will ask about, checked as covered when the hook saw it.
   private readonly pending = new Map<string, Pending[]>()
-  // The step of the latest run_command each terminal's hook asked the gate about, decided either
-  // way: a call whose hook was denied never reaches the report path that tells the confirmation's
-  // request which call it is about, so a recorded call that isn't the latest isn't answered for.
-  private readonly lastStep = new Map<string, number>()
+  // Every Antigravity run_command hook the gate was asked about, by terminal, of any actor (its
+  // subagents' hooks fire too, with steps of their own), decided either way, for `pendingMs`
+  // and a little more: the confirmation of a call is told apart from another's only where no
+  // other call was in flight around it. A call the hook denied runs nothing and shows no dialog,
+  // so it is no such call (`denied`).
+  private readonly hooked = new Map<string, { at: number; key: string; denied: boolean }[]>()
   // The confirmations looked at, by terminal and request: each is decided once.
   private readonly looked = new Set<string>()
 
@@ -368,14 +362,19 @@ export class Shipping {
 
   /**
    * What to type into Antigravity's own confirmation of a command, as the person would: the run
-   * once option, only for the very call the hook vetted a moment before. The hook, silent
-   * because a permit covers the command, recorded the call's step and its raw command whole; the
-   * confirmation's request must be that call (`requestId`), its input the same command (so one
-   * the report path pruned never matches), a permit must still cover it, and the dialog must
-   * show it: unwrapped, or cut short with the mark Antigravity ends a long command with. It must be
-   * the only such call waiting, asked after the hook recorded it. The permit is taken before
-   * anything is typed (`release` gives it back if the keys failed), so two dialogs never both use
-   * a single-use one. Undefined (the person answers) in any doubt.
+   * once option, only for the very call the hook vetted a moment before, and never for a dialog
+   * that cuts its command. The hook, silent because a permit covers the command, noted the call's
+   * step and its raw command whole. The press needs all of these:
+   * - the dialog shows the command whole (`whole`: the screen's rows, read by the caller, hold all
+   *   of it and no mark of a cut), and its detail and the request's input both equal the note's
+   *   command exactly;
+   * - the request is the note's call (`requestId`), asked after the note;
+   * - exactly one note is live for the terminal, and no other run_command hook, of any actor, was
+   *   seen within `pendingMs` of it, before or after;
+   * - a permit still covers the command.
+   * The permit is taken before anything is typed (`release` gives it back where nothing was
+   * pressed; `done` says the keys went), so two dialogs never both use a single-use one.
+   * Undefined (the person answers) in any doubt.
    */
   async autoAnswer(
     terminalId: string,
@@ -385,29 +384,33 @@ export class Shipping {
       readonly requestId: string
       readonly call: string | undefined
       readonly askedAt: number
+      readonly whole: boolean
     },
   ): Promise<
     | {
         readonly note: string
         /** The keys were typed. */
         readonly done: () => void
-        /** They weren't: the permit goes back. */
+        /** Nothing was pressed: the permit goes back. */
         readonly release: () => void
       }
     | undefined
   > {
-    if (!this.covers(agent) || agent !== "agy") return undefined
+    if (!this.covers(agent) || agent !== "agy" || !dialog.whole) return undefined
     const now = Date.now()
     const live = (this.pending.get(terminalId) ?? []).filter((each) => each.until > now)
     this.pending.set(terminalId, live)
     // Exactly one waits; two could be either's dialog.
     const [entry] = live
     if (live.length !== 1 || entry === undefined) return undefined
-    if (dialog.requestId !== entry.requestId || this.lastStep.get(terminalId) !== entry.step)
-      return undefined
+    if (dialog.requestId !== entry.requestId) return undefined
     if (dialog.askedAt < entry.at - askedSlackMs) return undefined
-    if (dialog.call === undefined || !sameCommand(dialog.call, entry.command)) return undefined
-    if (!shows(dialog.detail, entry.command)) return undefined
+    if (dialog.detail !== entry.command || dialog.call !== entry.command) return undefined
+    // Any other call's hook near it: its dialog, or the request's call, may be that one's.
+    const near = (this.hooked.get(terminalId) ?? []).some(
+      (each) => each.key !== entry.key && !each.denied && Math.abs(each.at - entry.at) <= pendingMs,
+    )
+    if (near) return undefined
     try {
       const covered = await this.gate.covered(terminalId, entry.command, entry.cwd)
       if (!covered) return undefined
@@ -444,27 +447,41 @@ export class Shipping {
   ): Promise<GateAnswer | undefined> {
     if (!this.gating(agent, call.event)) return undefined
     if (agent !== "claude" && agent !== "codex" && agent !== "agy") return undefined
-    if (agent === "agy" && call.step !== undefined) this.lastStep.set(terminalId, call.step)
-    let decision
+    const saw = agent === "agy" ? this.sawHook(terminalId, call) : undefined
+    let decision: Decision | undefined
+    let failed = false
     try {
-      decision = await within(
-        this.gate.decide({
-          agent,
-          event: call.event,
-          terminalId,
-          command: call.command,
-          cwd: call.cwd,
-          ...(agent === "agy"
-            ? { mode: this.agyMode(terminalId, call.launch, call.instance ?? null) }
-            : call.mode !== undefined && { mode: call.mode }),
-          ...(call.transcript !== undefined && { transcript: call.transcript }),
-        }),
+      // `decide` has no opinion as undefined, and late is no answer: told apart by the wrapper.
+      const decided = await within(
+        this.gate
+          .decide({
+            agent,
+            event: call.event,
+            terminalId,
+            command: call.command,
+            cwd: call.cwd,
+            ...(agent === "agy"
+              ? { mode: this.agyMode(terminalId, call.launch, call.instance ?? null) }
+              : call.mode !== undefined && { mode: call.mode }),
+            ...(call.transcript !== undefined && { transcript: call.transcript }),
+          })
+          .then((got) => ({ got })),
         until - Date.now(),
       )
+      if (decided === undefined) failed = true
+      else decision = decided.got
     } catch {
-      return undefined
+      failed = true
     }
-    if (agent === "agy" && decision === undefined)
+    // Antigravity's rules run the commands of their shapes unasked where the hook says "ask", which
+    // it does for a hook that failed or was late: those are refused, never left to a rule.
+    if (agent === "agy" && failed && shipsByRule(call.command)) {
+      if (saw) saw.denied = true
+      return { stdout: printedAgy(failedText), leaseId: null }
+    }
+    // A deny runs nothing and shows no dialog.
+    if (saw && decision !== undefined && decision.stdout !== "") saw.denied = true
+    if (agent === "agy" && decision?.permitted)
       await this.recordPending(terminalId, call, call.instance ?? null)
     if (decision === undefined) return undefined
     const { stdout, commit } = decision
@@ -474,6 +491,16 @@ export class Shipping {
     const leaseId = randomUUID()
     this.leases.set(leaseId, { terminalId, commit, expires: until + ackSlackMs })
     return { stdout, leaseId }
+  }
+
+  /** Remembers that this call's hook was asked about, whoever's it is. */
+  private sawHook(terminalId: string, call: GateCall): { denied: boolean } {
+    const now = Date.now()
+    const seen = (this.hooked.get(terminalId) ?? []).filter((each) => each.at > now - 2 * pendingMs)
+    const hook = { at: now, key: callKey(call), denied: false }
+    seen.push(hook)
+    this.hooked.set(terminalId, seen)
+    return hook
   }
 
   /**
@@ -489,13 +516,15 @@ export class Shipping {
   ): Promise<void> {
     try {
       if (call.step === undefined) return
+      // The shim's rules run these with no dialog: nothing is to be answered, so nothing is noted.
+      if (shipsByRule(call.command)) return
       if (this.agyMode(terminalId, call.launch, instance) === agyBypassMode) return
       if (!(await this.gate.covered(terminalId, call.command, call.cwd))) return
       const now = Date.now()
       const live = (this.pending.get(terminalId) ?? []).filter((each) => each.until > now)
       live.push({
         requestId: `confirmation:run_command:${call.step}`,
-        step: call.step,
+        key: callKey(call),
         command: call.command,
         cwd: call.cwd,
         at: now,
@@ -522,7 +551,7 @@ export class Shipping {
     this.cards.forget(terminalId)
     this.modes.delete(terminalId)
     this.pending.delete(terminalId)
-    this.lastStep.delete(terminalId)
+    this.hooked.delete(terminalId)
     for (const key of this.looked) if (key.startsWith(`${terminalId}\n`)) this.looked.delete(key)
   }
 }

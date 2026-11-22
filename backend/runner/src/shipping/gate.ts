@@ -22,6 +22,8 @@ import { covered, type AllowRule } from "./rules.js"
 export type Decision = {
   readonly stdout: string
   readonly commit?: () => void
+  /** Antigravity's hook stays silent because a permit covers the command: its confirmation follows. */
+  readonly permitted?: true
 }
 
 export type GateInput = {
@@ -144,8 +146,8 @@ export type Covered = {
   readonly used: () => void
   /**
    * Takes the single-use permits now, before the command is let run, so no other answer can
-   * use them too; `restore` gives them back where it wasn't, and `voided` ends the merge permits
-   * the command voids, once it was.
+   * use them too; `restore` gives them back where it wasn't (never a standing permit, nor one a
+   * revoke ended meanwhile), and `voided` ends the merge permits the command voids, once it was.
    */
   readonly take: () => void
   readonly restore: () => void
@@ -199,7 +201,7 @@ export class Gate {
     if (missing.length > 0) return refuse(declare(missing))
     // Antigravity's hook has no allow: it stays silent, its own confirmation shows, and the
     // runner answers that one (`Shipping.autoAnswer`) only for this very command.
-    if (input.agent === "agy") return undefined
+    if (input.agent === "agy") return { stdout: "", permitted: true }
     return this.allowed(input, permits, reading.actions, turn)
   }
 
@@ -218,6 +220,7 @@ export class Gate {
       if (!permit) return undefined
       permits.push(permit)
     }
+    let restores: (() => void)[] = []
     const voided = () => {
       for (const action of reading.actions)
         for (const key of action.voids ?? []) this.deps.permits.revoke(key)
@@ -230,10 +233,10 @@ export class Gate {
         voided()
       },
       take: () => {
-        for (const permit of permits) this.deps.permits.used(permit)
+        restores = permits.flatMap((permit) => this.deps.permits.take(permit) ?? [])
       },
       restore: () => {
-        for (const permit of permits) this.deps.permits.restore(permit)
+        for (const restore of restores) restore()
       },
       voided,
     }

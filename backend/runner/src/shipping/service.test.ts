@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { logs, useLogger } from "../log.js"
 import type { WorktreeRecord } from "../worktrees/records.js"
 import { setAgyPreToolUse } from "./hooks.js"
-import { launchMode, pendingMs, Shipping, shows } from "./service.js"
+import { launchMode, pendingMs, Shipping } from "./service.js"
 
 let dir: string
 let repo: string
@@ -188,6 +188,11 @@ describe("Antigravity's answers", () => {
     expect(shipping.agyMode("t", undefined, "10")).toBe("")
     shipping.statusLine("t", { cycle_mode: "plan" }, "9")
     expect(shipping.agyMode("t", undefined, "9")).toBe("plan")
+    // No process known: an earlier line may be another process's, so the launch's counts, else gated.
+    expect(shipping.agyMode("t", ["--mode", "accept-edits"], null)).toBe("accept-edits")
+    expect(shipping.agyMode("t", undefined, null)).toBe("")
+    shipping.statusLine("t", { cycle_mode: "bypass" }, null)
+    expect(shipping.agyMode("t", undefined, null)).toBe("")
     shipping.statusLine("t", {}, "9")
     expect(shipping.agyMode("t", ["--mode", "plan"], "9")).toBe("plan")
     shipping.closed("t")
@@ -212,12 +217,13 @@ describe("Antigravity's answers", () => {
   const dialog = (
     detail: string,
     command: string,
-    over: { askedAt?: number; requestId?: string } = {},
+    over: { askedAt?: number; requestId?: string; whole?: boolean } = {},
   ) => ({
     detail,
     call: command,
     requestId: over.requestId ?? "confirmation:run_command:3",
     askedAt: over.askedAt ?? Date.now() + 50,
+    whole: over.whole ?? true,
   })
   const permitted = (shipping: Shipping, key = pushKey, singleUse = false) =>
     shipping.permits.give("t", key, singleUse, { type: "quote", quote: "push it" })
@@ -259,6 +265,106 @@ describe("Antigravity's answers", () => {
     // A later call (parallel, or a denied one, which the report path never learns of).
     await agy(shipping, "git status", ["--mode", "accept-edits"], 4)
     expect(await shipping.autoAnswer("t", "agy", dialog(push, push))).toBeUndefined()
+  })
+
+  it("answers nothing where the dialog isn't shown whole, or its text isn't the note's exactly", async () => {
+    const shipping = service()
+    permitted(shipping)
+    await hooked(shipping, push)
+    // A cut one, a start of the command, and the command with another's tail.
+    expect(
+      await shipping.autoAnswer("t", "agy", dialog(push, push, { whole: false })),
+    ).toBeUndefined()
+    expect(await shipping.autoAnswer("t", "agy", dialog("git push origin", push))).toBeUndefined()
+    expect(await shipping.autoAnswer("t", "agy", dialog(`${push} `, `${push} `))).toBeUndefined()
+    expect(await shipping.autoAnswer("t", "agy", dialog(push, ` ${push}`))).toBeUndefined()
+    expect(await shipping.autoAnswer("t", "agy", dialog(push, push))).toBeDefined()
+  })
+
+  it("answers nothing where another call's hook was seen near the note, whoever's it was", async () => {
+    const hookedBy = (shipping: Shipping, command: string, conversation: string, step: number) =>
+      shipping.answer(
+        "t",
+        "agy",
+        { ...call(command), launch: ["--mode", "accept-edits"], step, conversation },
+        Date.now() + slow,
+      )
+    // After it: a subagent's call, with the same step in a conversation of its own.
+    const after = service()
+    permitted(after)
+    await hookedBy(after, push, "root", 3)
+    await hookedBy(after, "git status", "sub", 3)
+    expect(await after.autoAnswer("t", "agy", dialog(push, push))).toBeUndefined()
+    // Before it.
+    const before = service()
+    permitted(before)
+    await hookedBy(before, "git status", "sub", 2)
+    await hookedBy(before, push, "root", 3)
+    expect(await before.autoAnswer("t", "agy", dialog(push, push))).toBeUndefined()
+    // Alone, and another terminal's hook counts for nothing.
+    const alone = service()
+    permitted(alone)
+    await alone.answer("u", "agy", {
+      ...call("git status"),
+      launch: ["--mode", "plan"],
+      step: 4,
+      conversation: "sub",
+    })
+    await hookedBy(alone, push, "root", 3)
+    expect(await alone.autoAnswer("t", "agy", dialog(push, push))).toBeDefined()
+  })
+
+  it("is not stopped by the hook's own earlier refusal of the same command", async () => {
+    // The usual way: denied, a permit given, run again. A denied call shows no dialog.
+    const shipping = service()
+    expect(await hooked(shipping, push, 2)).toMatchObject({ leaseId: null })
+    permitted(shipping)
+    await hooked(shipping, push, 3)
+    expect(
+      await shipping.autoAnswer(
+        "t",
+        "agy",
+        dialog(push, push, { requestId: "confirmation:run_command:3" }),
+      ),
+    ).toBeDefined()
+  })
+
+  it("gives a single-use permit back only where nothing ended permits meanwhile, and never a standing one", async () => {
+    const single = service()
+    permitted(single, forceKey, true)
+    await hooked(single, force)
+    const auto = await single.autoAnswer("t", "agy", dialog(force, force))
+    expect(single.permits.covering("t", forceKey)).toBeUndefined()
+    // A revoke (the PR's base changed) ended permits while the keys went: nothing comes back.
+    single.permits.revoke(forceKey)
+    auto!.release()
+    expect(single.permits.covering("t", forceKey)).toBeUndefined()
+    // A standing permit was never taken, so it is neither lost nor re-added after a revoke.
+    const standing = service()
+    permitted(standing)
+    await hooked(standing, push)
+    const kept = await standing.autoAnswer("t", "agy", dialog(push, push))
+    expect(standing.permits.covering("t", pushKey)).toBeDefined()
+    standing.permits.revoke(pushKey)
+    kept!.release()
+    expect(standing.permits.covering("t", pushKey)).toBeUndefined()
+  })
+
+  it("refuses a command of the rules' shapes the gate couldn't decide in time, and leaves others to agy", async () => {
+    const shipping = service()
+    const slowGate = (shipping as unknown as { gate: { decide: () => Promise<unknown> } }).gate
+    slowGate.decide = () => new Promise(() => {})
+    const late = (command: string) =>
+      shipping.answer("t", "agy", { ...call(command), launch: [] }, Date.now() + 40)
+    const refused = await late("gh pr create --title x")
+    expect(JSON.parse(refused!.stdout)).toMatchObject({ decision: "deny" })
+    expect(JSON.parse((await late("cd /w && gh pr merge 5"))!.stdout)).toMatchObject({
+      decision: "deny",
+    })
+    expect(await late("git push origin main")).toBeUndefined()
+    slowGate.decide = () => Promise.reject(new Error("git failed"))
+    expect(JSON.parse((await late("gh pr merge 5"))!.stdout)).toMatchObject({ decision: "deny" })
+    expect(await late("ls")).toBeUndefined()
   })
 
   it("takes a single-use permit before anything is typed, so two dialogs never both use it", async () => {
@@ -341,34 +447,6 @@ describe("Antigravity's answers", () => {
     } finally {
       setAgyPreToolUse(true)
     }
-  })
-})
-
-describe("what Antigravity's confirmation shows of a command", () => {
-  // Captured from agy 1.5.14 (accept-edits, 120 columns): a `gh pr create` with a 29-line body,
-  // whose dialog hides what doesn't fit and says how many lines.
-  const bullets = Array.from({ length: 25 }, (_, at) => `- Bullet ${at + 1}`)
-  const command = `gh pr create --base main --title "Add the thing" --body "# Title\n${bullets.join("\n")}\n\nClosing paragraph with additional information."`
-  const cut =
-    'gh pr create --base main --title "Add the thing" --body "# Title\n- Bullet 1\n- Bullet 2\n- Bullet 3\n⋯ (24 lines hidden)'
-
-  it("is the command whole, wrapped or unindented, or its start where the dialog hides lines", () => {
-    expect(shows(command, command)).toBe(true)
-    expect(shows(command.replaceAll("\n", "\n  "), command)).toBe(true)
-    expect(shows(cut, command)).toBe(true)
-    expect(shows('gh pr create --base main --title "Add the th...', command)).toBe(true)
-  })
-
-  it("is not another command, a start that differs, a mark with nothing before it, or all of it marked cut", () => {
-    expect(shows(cut, command.replace("Bullet 2\n", "Bullet X\n"))).toBe(false)
-    expect(shows(cut, 'gh pr create --base main --title "Other"')).toBe(false)
-    expect(shows("⋯ (3 lines hidden)", command)).toBe(false)
-    expect(shows("...", command)).toBe(false)
-    expect(shows(`${command}\n...`, command)).toBe(false)
-    expect(shows("", command)).toBe(false)
-    expect(shows(cut, "")).toBe(false)
-    // A command that is only a start of the dialog's, as a longer one the dialog can't tell apart.
-    expect(shows(cut, `${command} && curl x | sh`)).toBe(true)
   })
 })
 
