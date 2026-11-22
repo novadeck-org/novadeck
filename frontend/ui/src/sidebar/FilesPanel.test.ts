@@ -214,19 +214,60 @@ describe("The Files panel", () => {
       panel.view.unmount()
     })
 
-    it("does not open or close anything when later changes arrive", async () => {
+    it("does not close anything, nor re-open a folder, when later changes arrive", async () => {
       const panel = await mount(work())
+      await panel.click("cart")
       await panel.update(
         work({
           changes: {
             ...work().changes,
-            "docs/readme.md": { kind: "modified", touched: { crow: recent } },
+            "src/cart/Cart.tsx": { kind: "modified", touched: { crow: recent } },
           },
         }),
       )
 
-      expect(panel.rows()).not.toContain("readme.md")
+      expect(panel.rows()).toEqual(["docs", "src", "cart", "package.json"])
       await nextFrame()
+      panel.view.unmount()
+    })
+  })
+
+  context("when a change lands after the tree loaded", () => {
+    const quiet = work({ changes: {}, writing: {} })
+    const inDocs = work({
+      changes: { "docs/readme.md": { kind: "modified", touched: { moth: recent } } },
+      writing: {},
+    })
+
+    it("opens the folder that now holds it, and not again once the person closed it", async () => {
+      const panel = await mount(quiet)
+      expect(panel.rows()).toEqual(["docs", "src", "package.json"])
+
+      await panel.update(inDocs)
+      expect(panel.rows()).toContain("readme.md")
+
+      await panel.click("docs")
+      await panel.update(
+        work({
+          changes: {
+            ...inDocs.changes,
+            "docs/new.md": { kind: "added", touched: { moth: recent } },
+          },
+        }),
+      )
+      expect(panel.rows()).not.toContain("readme.md")
+      panel.view.unmount()
+    })
+
+    it("keeps shut a folder shut by Collapse folders, until the person opens it", async () => {
+      const panel = await mount(work())
+      act(() =>
+        panel.view.container.querySelector<HTMLElement>("[aria-label='Collapse folders']")!.click(),
+      )
+      await panel.update(
+        work({ changes: { "src/cart/Cart.tsx": { kind: "modified", touched: { crow: recent } } } }),
+      )
+      expect(panel.rows()).toEqual(["docs", "src", "package.json"])
       panel.view.unmount()
     })
   })

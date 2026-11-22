@@ -216,6 +216,39 @@ export const initialOpen = (tree: readonly FilesNode[]): ReadonlySet<string> => 
   return open
 }
 
+// More folders than this coming to hold changes in one update (a codemod, a mass rename, a fresh
+// checkout) open none, so a flood doesn't throw the person's tree around.
+export const autoOpenLimit = 8
+
+// The folders that open by themselves as `after` replaces `before`: each one that held no change
+// (nor a write in progress) and now does, with the closed folders above it, as `initialOpen`
+// would have opened them had the change been there at load. A folder that already held changes
+// isn't touched, nor is an ignored one, nor one in `closed` (what the person closed by hand) or
+// inside one.
+export const openedByChange = (
+  before: readonly FilesNode[],
+  after: readonly FilesNode[],
+  closed: ReadonlySet<string>,
+): ReadonlySet<string> => {
+  const held = (node: FilesNode): boolean => node.changed || node.writing.length > 0
+  const heldBefore = new Set<string>()
+  const collect = (node: FilesNode): void => {
+    if (!node.folder) return
+    if (held(node)) heldBefore.add(node.path)
+    node.children.forEach(collect)
+  }
+  before.forEach(collect)
+  const opened = new Set<string>()
+  const visit = (node: FilesNode, above: readonly string[]): void => {
+    if (!node.folder || node.ignored) return
+    if (held(node) && !heldBefore.has(node.path) && !above.some((path) => closed.has(path)))
+      for (const path of [...above, node.path]) if (!closed.has(path)) opened.add(path)
+    node.children.forEach((child) => visit(child, [...above, node.path]))
+  }
+  after.forEach((node) => visit(node, []))
+  return opened.size > autoOpenLimit ? new Set() : opened
+}
+
 // The lines on screen, top to bottom: a folder's children follow it while it is open, then a
 // note of what its listing lacks; `rootTruncated` ends the root's with one too. With agents in
 // `only`, the tree holds just their work: the files they touched or are writing and the folders

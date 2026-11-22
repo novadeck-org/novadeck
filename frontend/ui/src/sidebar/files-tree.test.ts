@@ -5,7 +5,9 @@ import { folderListings } from "../test/files"
 import {
   buildTree,
   expandable,
+  autoOpenLimit,
   keepListings,
+  openedByChange,
   sameRead,
   visibleLines,
   chipsOf,
@@ -288,6 +290,72 @@ describe("The Files tree", () => {
 
     it("opens nothing where there are no changes", () => {
       expect(initialOpen(buildTree(folderListings(["a/b.ts"])))).toEqual(new Set())
+    })
+  })
+
+  context("when a change lands after the tree loaded", () => {
+    const listing = folderListings(
+      ["src/a.ts", "src/deep/b.ts", "docs/readme.md", "dist/x.js"],
+      ["dist"],
+    )
+    const at = (changes: FilesProject["changes"], writing: FilesProject["writing"] = {}) =>
+      buildTree(listing, project({ changes, writing }))
+    const change = { kind: "modified", touched: { moth: 1 } } as const
+    const quiet = at({})
+    const none = new Set<string>()
+
+    it("opens a folder that comes to hold a change, with the folders above it", () => {
+      const after = at({ "src/deep/b.ts": change })
+      expect([...openedByChange(quiet, after, none)].toSorted()).toEqual(["src", "src/deep"])
+    })
+
+    it("opens a folder an agent is writing in before any change is recorded", () => {
+      const after = at({}, { moth: "docs/readme.md" })
+      expect([...openedByChange(quiet, after, none)]).toEqual(["docs"])
+    })
+
+    it("leaves a folder alone that already held changes", () => {
+      const before = at({ "src/a.ts": change })
+      const after = at({ "src/a.ts": change, "src/b.ts": change })
+      expect(openedByChange(before, after, none)).toEqual(new Set())
+    })
+
+    it("opens only the new folder below one that already held changes", () => {
+      const before = at({ "src/a.ts": change })
+      const after = at({ "src/a.ts": change, "src/deep/b.ts": change })
+      expect([...openedByChange(before, after, none)].toSorted()).toEqual(["src", "src/deep"])
+    })
+
+    it("keeps shut a folder the person closed, whatever lands in it", () => {
+      const after = at({ "src/deep/b.ts": change })
+      expect(openedByChange(quiet, after, new Set(["src"]))).toEqual(new Set())
+      expect(openedByChange(quiet, at({ "src/a.ts": change }), new Set(["src"]))).toEqual(new Set())
+    })
+
+    it("opens nothing inside a folder the person closed, though the folder itself is shut", () => {
+      const after = at({ "src/deep/b.ts": change })
+      expect(openedByChange(quiet, after, new Set(["src/deep"]))).toEqual(new Set(["src"]))
+      expect(openedByChange(quiet, after, new Set(["src"])).has("src/deep")).toBe(false)
+    })
+
+    it("opens all of a burst of up to the limit, and none of a bigger one", () => {
+      const burst = (count: number) => {
+        const names = Array.from({ length: count }, (_, i) => `d${i}/f.ts`)
+        const wide = folderListings(names)
+        const changes = Object.fromEntries(names.map((name) => [name, change]))
+        return openedByChange(
+          buildTree(wide, project()),
+          buildTree(wide, project({ changes })),
+          new Set(),
+        )
+      }
+      expect(burst(autoOpenLimit).size).toBe(autoOpenLimit)
+      expect(burst(autoOpenLimit + 1).size).toBe(0)
+    })
+
+    it("never opens an ignored folder", () => {
+      const after = at({ "dist/x.js": change })
+      expect(openedByChange(quiet, after, none)).toEqual(new Set())
     })
   })
 

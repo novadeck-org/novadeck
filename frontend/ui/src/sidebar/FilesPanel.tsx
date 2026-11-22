@@ -21,6 +21,7 @@ import {
   expandable,
   foldChips,
   initialOpen,
+  openedByChange,
   isNote,
   keepListings,
   marksOf,
@@ -121,6 +122,18 @@ const FilesPanelView = ({
   const [openFolders, setOpenFolders] = useState<ReadonlySet<string> | null>(null)
   if (openFolders === null && typeof listings.get("") === "object")
     setOpenFolders(initialOpen(tree))
+  // The folders the person closed, which stay closed whatever lands in them; opening one by hand
+  // clears it. A folder that comes to hold a change after the first opening opens by itself.
+  const [closedFolders, setClosedFolders] = useState<ReadonlySet<string>>(noFolders)
+  const [seenTree, setSeenTree] = useState(tree)
+  if (seenTree !== tree) {
+    setSeenTree(tree)
+    if (openFolders !== null) {
+      const opening = openedByChange(seenTree, tree, closedFolders)
+      if ([...opening].some((path) => !openFolders.has(path)))
+        setOpenFolders(new Set([...openFolders, ...opening]))
+    }
+  }
   const open = openFolders ?? noFolders
   // A root that lists nothing is empty, whatever an agent is said to have changed in it.
   const rootEmpty =
@@ -295,7 +308,11 @@ const FilesPanelView = ({
       // left open inside it, which show again with it.
       read(path)
       for (const inner of open) if (inner.startsWith(`${path}/`)) read(inner)
-    } else next.delete(path)
+      setClosedFolders((closed) => new Set([...closed].filter((other) => other !== path)))
+    } else {
+      next.delete(path)
+      setClosedFolders((closed) => new Set(closed).add(path))
+    }
     setOpenFolders(next)
   }
   // A file that can't be opened may be gone: its folder is read again.
@@ -410,7 +427,10 @@ const FilesPanelView = ({
             className="icon-button dim quiet size-7"
             type="button"
             aria-label="Collapse folders"
-            onClick={() => setOpenFolders(new Set())}
+            onClick={() => {
+              setClosedFolders((closed) => new Set([...closed, ...open]))
+              setOpenFolders(new Set())
+            }}
           >
             <ChevronsDownUp size={14} strokeWidth={1.6} />
           </button>
