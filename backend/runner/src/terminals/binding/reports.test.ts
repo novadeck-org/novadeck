@@ -537,7 +537,7 @@ describe("what the shipping gate takes as the person's words", () => {
         enabled: () => enabled,
         quotes: { record: (...ring: [string, string, string]) => rings.push(ring) },
       }),
-      messaging: () => ({ personPrompt: () => typed }),
+      messaging: () => ({ personSaid: () => typed }),
       records: () => new Map([["T", { bound: { binding: { sessionId: "root" } } }]]),
     } as unknown as ReportsHost)
     const record = {
