@@ -90,8 +90,9 @@ export type ChatBlock =
       readonly replies: boolean
       readonly notices: readonly DeliveredNotice[]
     }
-  // Novadeck's own notices outside a ring, delivered together (within `ringSlackMs` of each
-  // other, nothing between them), oldest first: one line in the chat.
+  // Novadeck's own notices outside a ring, delivered together (recorded at the same moment, as
+  // one hook prints them, with nothing between them), oldest first: one line in the chat. Its id
+  // is its moment's, so a notice that joins it, or one that takes the place of another, keeps it.
   | {
       readonly kind: "notice"
       readonly id: string
@@ -312,20 +313,20 @@ export const groupItems = (
   let turnNotices = new Set<string>()
   // Notices delivered outside any ring, each shown once its time has come among the items.
   const pending = unclaimedNotices(items, notices)
-  // A notice joins the line of the notices just before it where they came together: nothing
-  // between them, and within `ringSlackMs`, as one hook prints them.
+  // A notice joins the line of the notices just before it where they came together: recorded at
+  // the same moment, as one hook's are on every harness, with nothing between them.
   const pushNotice = (at: number | null, notice: ChatNotice): void => {
     const last = blocks.at(-1)
-    if (
-      last?.kind === "notice" &&
-      at !== null &&
-      last.at !== null &&
-      Math.abs(at - last.at) <= ringSlackMs
-    ) {
+    if (last?.kind === "notice" && at !== null && last.at === at) {
       blocks[blocks.length - 1] = { ...last, notices: [...last.notices, notice] }
       return
     }
-    blocks.push({ kind: "notice", id: notice.id, at, notices: [notice] })
+    blocks.push({
+      kind: "notice",
+      id: at === null ? notice.id : `notices@${at}`,
+      at,
+      notices: [notice],
+    })
   }
   const flushNotices = (before: number): void => {
     while (pending.length > 0 && pending[0]!.deliveredAt < before) {

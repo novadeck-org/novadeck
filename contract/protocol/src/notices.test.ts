@@ -161,4 +161,10 @@ describe("noticesSeen", () => {
     )
     expect(noticesSeen([standing("Worktrees")])).toBe("You notice worktrees are on.")
   })
+
+  it("says a hook's line on the prompt's messages as Novadeck checking, never as setting up", () => {
+    expect(noticesSeen([standing("Messages"), standing("Describe")])).toBe(
+      "You notice Novadeck check for messages. · You notice the terminal wants a title.",
+    )
+  })
 })

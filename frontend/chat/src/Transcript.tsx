@@ -291,13 +291,15 @@ const NoticeLine = ({
           {notices.map(({ id, text, written }) => {
             const { kind } = readNotice(text)
             return (
-              <p key={id}>
-                {several && kind && <span className="chat-notice-kind">{kind}</span>}
-                <MentionedText
-                  text={shownControls(noticeBody(text))}
-                  mention={mentionAt(mention, written)}
-                />
-              </p>
+              <div key={id} className="chat-notice-one">
+                {several && kind && <p className="chat-notice-kind">{kind}</p>}
+                <p>
+                  <MentionedText
+                    text={shownControls(noticeBody(text))}
+                    mention={mentionAt(mention, written)}
+                  />
+                </p>
+              </div>
             )
           })}
         </div>

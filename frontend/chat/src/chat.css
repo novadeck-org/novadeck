@@ -831,15 +831,14 @@
   overflow-wrap: anywhere;
   user-select: text;
 }
-.chat-notice-body > p {
+.chat-notice-one > p {
   margin: 0;
 }
-.chat-notice-body > p + p {
+.chat-notice-one + .chat-notice-one {
   margin-top: calc(var(--_lh) / 3);
 }
 /* A notice's kind heads its words where several are open together. */
 .chat-notice-kind {
-  display: block;
   color: var(--_ink);
 }
 @media (hover: hover) {

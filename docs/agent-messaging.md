@@ -2099,11 +2099,11 @@ under `Show`) instead of adding a kind.
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Describe`      | The standing ask for a title and a summary (and the drift check); `terminals/nudges.ts`.                                                                                                                    |
 | `Show`          | What the agent shows the person: the standing notice of the bar beside the terminal (`nudges.ts`); a shown page that had problems (`terminals/troubles.ts`).                                                |
-| `Inbox`         | The standing notice of the Inbox; the asks withdrawn or dismissed (`messaging/inbox.ts`); the hook's line on a reply doorbell.                                                                              |
+| `Inbox`         | The standing notice of the Inbox; the asks withdrawn or dismissed (`messaging/inbox.ts`).                                                                                                                   |
 | `Worktrees`     | The setting on, off and early (`nudges.ts`); a worktree changing owner (`worktrees/calls.ts`).                                                                                                              |
 | `Restart`       | A turn or a wait cut short by a restart (`terminals/interrupted.ts`).                                                                                                                                       |
 | `Resources`     | Something agents share running short, and who holds it: CPU strain (`terminals/host-load.ts`); a queued check and who holds the runners (`terminals/queue-notices.ts`).                                     |
-| `Messages`      | A message held long (`messaging/holds.ts`); the hook's lines on a doorbell with nothing waiting (`messaging/hook-answers.ts`); the heading of a delivery's rules.                                           |
+| `Messages`      | A message held long (`messaging/holds.ts`); the hook's lines on a doorbell or a reply line whose messages wait or came already (`messaging/hook-answers.ts`); the heading of a delivery's rules.            |
 | `Terminals`     | The outcome of a request to close a terminal (`terminals/closes.ts`) or to run a command in a new one (`terminals/runs.ts`).                                                                                |
 | `Team`          | Who leads whom and who sees whom: a lead beginning or ending (`terminals/leads.ts`); a team joined, left or handed over (`terminals/teams.ts`); a terminal moved to another session (`terminals/moves.ts`). |
 | `Inbox answers` | The heading of the delivery rules for the person's Inbox responses.                                                                                                                                         |
@@ -2124,7 +2124,9 @@ resources are busy.", `Show` "You notice problems in something shown.", `Shippin
 answer reach the agent.", `Messages` "You notice a message still on its way.", `Describe` "You
 notice the terminal wants a title." A standing notice says what it is about: `Show` "You notice the
 bar beside the terminal.", `Inbox` "You notice the Inbox keeps a copy.", `Describe` "You notice the
-terminal wants a title.", `Worktrees` "You notice worktrees are on.", else its family's line. The
+terminal wants a title.", `Worktrees` "You notice worktrees are on.", else its family's line; a
+hook's own line on how the prompt's messages came (`Messages`, as "No agent messages are waiting
+any more.") reads "You notice Novadeck check for messages." The
 kinds earlier builds wrote map to their family (`Host load` and `CI queue` to Resources, `Page` to
 Show, `Lead` and `Move` to Team, `Close` and `Run` to Terminals), as a resumed session's old
 transcript holds them. A message from Novadeck with no header is a brief it hands the agent, such as
@@ -2132,10 +2134,12 @@ the tour's, and reads "You notice Novadeck hand over a task."; one of no known k
 legacy prefix, reads "You notice something." (`readNotice` there strips the header and splits the
 facts from the `→` actions.)
 
-Notices delivered together are one line (`noticesSeen`): a ring's, and those outside a ring that
-came within the ring slack of each other with nothing between them, as one hook prints them. The
-line says each one's line once, in order, joined by `·`; where more than one is standing, as a
-session's first prompt carries them, those read once as "You notice Novadeck set the agent up."
+Notices delivered together are one line (`noticesSeen`): a ring's, and those outside a ring
+recorded at the same moment with nothing between them, as one hook prints them (each harness's
+decoder dates a hook's notices alike). The line says each one's line once, in order, joined by
+`·`; where more than one is a standing notice of how Novadeck works (the bar, the Inbox, the title,
+worktrees), as a session's first prompt carries them, those read once as "You notice Novadeck set
+the agent up."
 
 Agent Chat shows that line as a quiet bell line, as the doorbell's own line is: Novadeck's mark
 (the `NovaMark` of the toasts, muted, as tall as a prompt's mark and centred on it) in the gutter, the words

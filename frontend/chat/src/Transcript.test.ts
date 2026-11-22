@@ -779,7 +779,7 @@ context("Novadeck's own notices", () => {
     ).toEqual(["prompt", "s1"])
     expect(said(container, "s1")).toBe("You notice Novadeck set the agent up.")
     act(() => key(container, "s1").click())
-    expect(container.querySelectorAll(".chat-notice-body > p")).toHaveLength(4)
+    expect(container.querySelectorAll(".chat-notice-body > .chat-notice-one")).toHaveLength(4)
   })
 
   it("says an event among standing notices after Novadeck setting the agent up", () => {

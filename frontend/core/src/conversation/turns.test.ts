@@ -769,7 +769,7 @@ describe("the notices that rode on a prompt's hook", () => {
     const blocks = groupItems([
       prompt(1_000),
       standing(describing, 1_001),
-      standing("Novadeck · Show\nShow it.", 1_002),
+      standing("Novadeck · Show\nShow it.", 1_001),
     ])
     expect(blocks.map(({ kind }) => kind)).toEqual(["user", "notice"])
     expect(blocks[1]).toMatchObject({
@@ -882,8 +882,35 @@ describe("the notices Novadeck delivered outside a ring", () => {
       [],
       [notice(1_000, words), notice(1_000)],
     )
-    // The runner's other notice and the standing one came together: one line.
-    expect(shown(blocks)).toEqual(["user", "notice@1000(2)"])
+    expect(shown(blocks)).toEqual(["user", "notice@1000(1)", "notice@1200(1)"])
+  })
+
+  it("keep a turn's late event apart from the next prompt's notices, and two hooks' apart", () => {
+    const note = (text: string, at: number) =>
+      item({ role: "note", note: { type: "notice" }, text, at })
+    const blocks = groupItems(
+      [
+        prompt(0),
+        { ...call("Bash", "a"), at: 10_000 },
+        { ...call("Bash", "b"), at: 11_400 },
+        item({ role: "assistant", text: "Done.", at: 14_000 }),
+        prompt(20_000),
+        note("Novadeck · Describe\nNo summary yet.", 20_600),
+      ],
+      [],
+      [notice(10_050), notice(11_450), notice(19_000)],
+    )
+    expect(shown(blocks)).toEqual([
+      "user",
+      "tools",
+      "notice@10050(1)",
+      "notice@11450(1)",
+      "assistant",
+      "user",
+      // Delivered as the prompt was written, it shows under it, but on a line of its own.
+      "notice@19000(1)",
+      "notice@20600(1)",
+    ])
   })
 
   it("join the notices delivered together into one line, and leave those apart on lines of their own", () => {
