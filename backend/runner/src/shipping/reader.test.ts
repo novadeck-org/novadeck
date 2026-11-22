@@ -278,6 +278,30 @@ describe("what a command ships", () => {
       expect(await keys(command, "/w"), command).toBe("none")
   })
 
+  it("refuses a command that goes by the branch checked out after one in it switched", async () => {
+    const why = "it switches branch first, so Novadeck can't tell where this lands"
+    for (const command of [
+      "git checkout main && git merge feat/x",
+      "git switch main && git pull",
+      "git checkout main; git rebase feat/x",
+      "git checkout main && git reset --hard origin/main",
+      "git switch main && git cherry-pick abc",
+      "git checkout main && git push",
+      "git checkout main && git push origin main",
+      "git checkout -b other && git merge feat/x",
+    ])
+      expect(await keys(command, "/w"), command).toMatch(why)
+    // Run on their own, each is read as usual; a switch alone, and a command naming its refs, are fine.
+    expect(await keys("git merge feat/x", "/main")).toEqual(["land:r/app:main"])
+    expect(await keys("git checkout main && git status", "/w")).toBe("none")
+    // A folder named rather than switched to is read as ever.
+    expect(await keys("cd /main && git merge feat/x", "/w")).toEqual(["land:r/app:main"])
+    // The single-command forms that move a branch while switching are read by what they move.
+    expect(await keys("git checkout -B main origin/main", "/w")).toEqual(["land:r/app:main"])
+    expect(await keys("git switch -C main origin/main", "/w")).toEqual(["land:r/app:main"])
+    expect(await keys("git pull origin a:main", "/w")).toEqual(["land:r/app:main"])
+  })
+
   it("refuses what it can't read of these", async () => {
     for (const command of [
       "git fetch . 'refs/heads/*:refs/heads/*'",

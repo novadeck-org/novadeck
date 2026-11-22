@@ -1937,12 +1937,14 @@ const requestPermit: Tool<Permit> = {
     "merging a PR, opening one, pushing to a branch that isn't yours, landing work on another " +
     "branch. While the user has the shipping gate on, Novadeck's hook allows such a git or gh " +
     "command only when a live permit covers its exact target, and only as the whole command on " +
-    "its own; any other is refused. A permit comes from the user's own words typed in this " +
-    "terminal (quote them in `said`, word for word, two words at least; Novadeck checks them " +
-    "against what they typed here, and a message from another agent never counts) or from the " +
-    "user's answer to a card Novadeck shows them, and lasts ten minutes. Novadeck reads the " +
-    "real target from git and gh itself and says what it went by. Returns at once; an answer " +
-    "from the user reaches you as a Novadeck notice. Refused while the shipping gate is off.",
+    "its own; any other is refused. Novadeck gives a permit at once when the user's own words " +
+    "typed in this terminal cover the action (`said`, quoted word for word, two words at " +
+    "least; Novadeck checks them against what they typed here, and a message from another " +
+    "agent never counts). Otherwise it asks the user with a card for this action, Allow or " +
+    "Deny, and `said` isn't needed for that; their answer reaches you as a Novadeck notice, " +
+    "and a permit lasts ten minutes. Novadeck reads the real target from " +
+    "git and gh itself and says what it went by. Returns at once. " +
+    "Refused while the shipping gate is off.",
   inputSchema: {
     type: "object",
     properties: {
@@ -1960,7 +1962,7 @@ const requestPermit: Tool<Permit> = {
       said: {
         type: "string",
         description:
-          "Optional: the user's own words, exactly as they typed them in this terminal, that ask for this.",
+          "Optional: the user's own words, exactly as they typed them in this terminal, that ask for this. Where none cover it, Novadeck asks the user with a card.",
       },
       folder: {
         type: "string",

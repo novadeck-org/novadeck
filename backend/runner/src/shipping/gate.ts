@@ -91,7 +91,7 @@ export const describeKey = (key: string): string => {
 }
 
 const declare = (keys: readonly string[]): string =>
-  `Novadeck: this ships work (${keys.map(describeKey).join("; ")}) and no permit covers it. Declare it first with request_permit; it gives a permit when the user's own words in this terminal or their answer covers it. Then run the command again.`
+  `Novadeck: this ships work (${keys.map(describeKey).join("; ")}) and no permit covers it. request_permit gives a permit when the user's own words typed in this terminal cover it, and otherwise asks the user with a card for this action; their answer reaches you as a Novadeck notice, and the command can be run again after it.`
 
 const escalate =
   "Novadeck: a permit covers this command, and the sandbox may block it. Run it again asking for escalation; Novadeck approves it."

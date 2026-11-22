@@ -114,7 +114,12 @@ const harmless = (redirect: string): boolean =>
   redirect === "2>/dev/null" ||
   redirect.startsWith("<")
 
-type Cursor = { cwd: string; readable: boolean }
+type Cursor = {
+  cwd: string
+  readable: boolean
+  /** A `checkout` or `switch` ran earlier in the command: the branch checked out is no longer the one Novadeck can look up. */
+  switched: boolean
+}
 
 /** Reads `command`, run in `cwd`, for what it ships. */
 export const readCommand = async (
@@ -144,7 +149,7 @@ const readLine = async (
     ships = true
     refusal ??= why
   }
-  const cursor: Cursor = { cwd: start, readable: true }
+  const cursor: Cursor = { cwd: start, readable: true, switched: false }
   for (const inner of parsed.inner) {
     if (depth >= 4) {
       if (shippingText.test(inner)) refuse("it nests commands too deeply to read")
@@ -220,8 +225,25 @@ const readSimple = async (
       : { kind: "none" }
   }
   if (program !== "git" && program !== "gh") return { kind: "none" }
-  if (program === "git") return await readGit(simple, cursor, lookups)
-  return await readGh(simple, cursor, lookups)
+  // After a switch of branch in the same command, the checked-out branch is no longer the one
+  // looked up: a segment that goes by it can't be read exactly.
+  let current = false
+  const after: Lookups = cursor.switched
+    ? {
+        ...lookups,
+        branch: (folder) => {
+          current = true
+          return lookups.branch(folder)
+        },
+      }
+    : lookups
+  const read =
+    program === "git" ? await readGit(simple, cursor, after) : await readGh(simple, cursor, after)
+  return current
+    ? unreadable(
+        "it switches branch first, so Novadeck can't tell where this lands: run the switch and this command as separate commands",
+      )
+    : read
 }
 
 const unreadable = (why: string): Simply => ({ kind: "ships", actions: [], refusal: why })
@@ -330,6 +352,8 @@ const readGit = async (simple: Simple, cursor: Cursor, lookups: Lookups): Promis
     "update-ref",
   ]
   if (!verbs.includes(sub)) return { kind: "none" }
+  // Whatever it does after, the branch checked out may now be another.
+  if (sub === "checkout" || sub === "switch") cursor.switched = true
   // Options as written before any `--`: whole (`--force`, `--force=x`) or as one of a cluster of
   // short ones (`-fB`).
   const options = rest.includes("--") ? rest.slice(0, rest.indexOf("--")) : rest

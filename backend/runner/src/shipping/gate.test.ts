@@ -59,6 +59,8 @@ describe("the shipping gate", () => {
     const out = decision(await deliver(gate, input("gh pr merge 1170")))
     expect(out?.permissionDecision).toBe("deny")
     expect(out?.permissionDecisionReason).toContain("request_permit")
+    // It says what the tool does, as a fact: a card for the user where their words are not there.
+    expect(out?.permissionDecisionReason).toContain("asks the user with a card for this action")
     expect(out?.permissionDecisionReason).toContain("merge PR #1170 in r/app")
   })
 
