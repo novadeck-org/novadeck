@@ -63,6 +63,25 @@ const followed = (
   return { works, stream, made, stop, readOnce, release, ids, shown, watches: () => watches }
 }
 
+// A backend that starts more than once: each `watch` and `made` call gets the next stream.
+const restarting = () => {
+  const streams = [channel<WorkWatchItem>(), channel<WorkWatchItem>()] as const
+  const mades = [channel<WorkMade>(), channel<WorkMade>()] as const
+  let watches = 0
+  let madeCalls = 0
+  const runner = createRunnerWorks({
+    watch: () => streams[watches++ === 0 ? 0 : 1].iterator,
+    made: () => mades[madeCalls++ === 0 ? 0 : 1].iterator,
+    look: async () => {},
+    show: async () => ({ itemId: "x" }),
+    close: async () => ({ closed: true as const, branchDeleted: false }),
+    preview: async () => ({ main: null, works: [], renames: [] }),
+    fetch: async () => {},
+  })
+  const state = () => runner.works.state.getSnapshot()
+  return { ...runner, streams, mades, state, watches: () => watches }
+}
+
 describe("Works, as the runner reports them", () => {
   it("shows the works once the first sequence is synced", async () => {
     const { stream, ids } = followed()
@@ -242,6 +261,7 @@ describe("Works, as the runner reports them", () => {
     })
     readOnce()
     stop()
+    expect(first.returned()).toBe(1)
     // The panel mounts, and watches, while the backend is between its runs.
     const release = works.watch()
     expect(watches).toBe(1)
@@ -256,6 +276,7 @@ describe("Works, as the runner reports them", () => {
     )
     release()
     await vi.waitFor(() => expect(second.returned()).toBe(1))
+    expect(first.returned()).toBe(1)
   })
 
   it("stops following when told to", async () => {
@@ -270,6 +291,66 @@ describe("Works, as the runner reports them", () => {
 })
 
 describe("reading the works once, as the backend starts", () => {
+  it("ignores what a stream that was let go still says, and follows anew at the next start", async () => {
+    const { works, readOnce, stop, streams, state, watches } = restarting()
+    const release = works.watch()
+    streams[0].push({ type: "reset" })
+    streams[0].push({ type: "changed", work: work(1) })
+    streams[0].push({ type: "synced" })
+    await vi.waitFor(() => expect(state().works).toEqual([work(1)]))
+    stop()
+    const stale = state()
+    let published = 0
+    works.state.subscribe(() => (published += 1))
+    streams[0].push({ type: "reset" })
+    streams[0].push({ type: "changed", work: work(2) })
+    streams[0].push({ type: "synced" })
+    await new Promise((resolve) => setTimeout(resolve, worksBatchMs + 20))
+    expect(state()).toBe(stale)
+    expect(published).toBe(0)
+    readOnce()
+    readOnce()
+    expect(watches()).toBe(2)
+    release()
+  })
+
+  it("begins the first read again when the backend stops before it is synced", async () => {
+    const { readOnce, stop, streams, state, watches } = restarting()
+    readOnce()
+    stop()
+    expect(streams[0].returned()).toBe(1)
+    readOnce()
+    readOnce()
+    expect(watches()).toBe(2)
+    streams[1].push({ type: "reset" })
+    streams[1].push({ type: "changed", work: work(1) })
+    streams[1].push({ type: "synced" })
+    await vi.waitFor(() => expect(streams[1].returned()).toBe(1))
+    expect(state()).toEqual({ works: [work(1)], synced: false, reported: true })
+  })
+
+  it("reads once more at a start after the first read had finished, and replaces the old rows", async () => {
+    const { readOnce, stop, streams, state, watches } = restarting()
+    readOnce()
+    streams[0].push({ type: "reset" })
+    streams[0].push({ type: "changed", work: work(1) })
+    streams[0].push({ type: "synced" })
+    await vi.waitFor(() => expect(streams[0].returned()).toBe(1))
+    stop()
+    // What was reported stays shown while nothing follows.
+    expect(state()).toEqual({ works: [work(1)], synced: false, reported: true })
+    readOnce()
+    readOnce()
+    expect(watches()).toBe(2)
+    streams[1].push({ type: "reset" })
+    streams[1].push({ type: "changed", work: work(2) })
+    await new Promise((resolve) => setTimeout(resolve, worksBatchMs + 20))
+    expect(state().works).toEqual([work(1)])
+    streams[1].push({ type: "synced" })
+    await vi.waitFor(() => expect(streams[1].returned()).toBe(1))
+    expect(state()).toEqual({ works: [work(2)], synced: false, reported: true })
+  })
+
   const unwatched = () => {
     const stream = channel<WorkWatchItem>()
     let watches = 0
@@ -310,8 +391,8 @@ describe("reading the works once, as the backend starts", () => {
     await vi.waitFor(() => expect(stream.returned()).toBe(1))
   })
 
-  it("reads them no more once they were reported", async () => {
-    const { readOnce, stream, state, watches, stop } = unwatched()
+  it("reads them no more once they were reported, unless the backend stopped in between", async () => {
+    const { readOnce, stream, state, watches } = unwatched()
     readOnce()
     readOnce()
     expect(watches()).toBe(1)
@@ -319,8 +400,6 @@ describe("reading the works once, as the backend starts", () => {
     stream.push({ type: "synced" })
     await vi.waitFor(() => expect(state().reported).toBe(true))
     readOnce()
-    expect(watches()).toBe(1)
-    stop()
     expect(watches()).toBe(1)
   })
 
@@ -478,6 +557,18 @@ describe("Worktrees made, as the runner reports them", () => {
     readOnce()
     readOnce()
     expect(mades).toBe(1)
+  })
+
+  it("counts no event of a stream that was let go, and those of the new one", async () => {
+    const { works, readOnce, stop, mades } = restarting()
+    readOnce()
+    stop()
+    readOnce()
+    mades[0].push(newOne(1))
+    mades[1].push(newOne(2))
+    await vi.waitFor(() => expect(count(works)).toBe(1))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(count(works)).toBe(1)
   })
 
   it("lets go of the stream with the backend", () => {

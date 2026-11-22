@@ -39,7 +39,9 @@ export const createRunnerWorks = (
   const state = createStore<WorksState>({ works: [], synced: false, reported: false })
   // The worktrees made since the backend started, counted by project for as long as it lives:
   // the stream carries one small event per worktree and the runner reads no git for it. Followed
-  // from `readOnce`, so a backend made and never started (StrictMode's throwaway) holds none.
+  // from `readOnce`, so a backend made and never started (StrictMode's throwaway) holds no made
+  // stream. The works are another matter: a `watch` before the first start follows them, as
+  // nothing has stopped yet.
   const made = createStore<WorksMade>(new Map())
   let madeStream: AsyncIterableIterator<unknown, undefined> | undefined
   const followMade = (): void => {
@@ -47,6 +49,8 @@ export const createRunnerWorks = (
     const next = calls.made()
     madeStream = next
     void consume(next, ({ projectId }) => {
+      // An event from a stream that was let go counts for nothing.
+      if (madeStream !== next) return
       made.update((counts) => madeOne(counts, projectId))
     })
   }
@@ -184,12 +188,15 @@ export const createRunnerWorks = (
   }
   const readOnce = (): void => {
     followMade()
+    // A start after a stop reads once more, whatever was reported before: the works may have
+    // changed while nothing followed. What was reported stays shown until the new report replaces it.
+    const again = stopped
     if (stopped) {
       // Started again: what the watchers still hold is followed afresh.
       stopped = false
       if (watchers > 0) follow()
     }
-    if (reported || readDone) return
+    if (readDone || (reported && !again)) return
     readDone = works.watch()
   }
   return { works, readOnce, stop }
