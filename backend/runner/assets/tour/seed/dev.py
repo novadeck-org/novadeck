@@ -1,15 +1,17 @@
 """The game's dev server: python3 dev.py [port]
 
 It serves this folder, with the work of every git worktree of this repo laid over it: a file
-that a worktree changed (or added) is served from that worktree, the newest change first. So
-the page shows everyone's work at once, before any of it is merged. The page reloads by itself
-when a file changes. (dev.mjs is the same server for Node.)
+that a worktree changed (or added) since it parted from this folder is served from that
+worktree, the newest change first. So the page shows everyone's work at once, before any of it
+is merged. The page reloads by itself when a file changes. (dev.mjs is the same server for
+Node.)
 """
 
 import os
 import re
 import subprocess
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlsplit
 
@@ -82,20 +84,65 @@ def parts_of(route):
     return parts or ["index.html"]
 
 
+def git(folder, *args):
+    """Runs git in a folder: what it prints, or None where it fails (no git, no repo, no commit)."""
+    try:
+        ran = subprocess.run(["git", *args], cwd=folder, capture_output=True)
+    except OSError:
+        return None
+    return ran.stdout.decode("utf-8", "surrogateescape") if ran.returncode == 0 else None
+
+
+def changed_since(folder, base):
+    """The files a folder changed since `base`: those that differ from that commit, and those
+    git doesn't track yet. As git names them, from the top of the project, with "/" between
+    parts."""
+    printed = (git(folder, "diff", "--name-only", "-z", base) or "") + (
+        git(folder, "ls-files", "--others", "--exclude-standard", "-z") or ""
+    )
+    return {name for name in printed.split("\0") if name}
+
+
+def changes():
+    """What each worktree changed since it parted from this folder (`theirs`), and what this
+    folder changed since then (`ours`). They parted at the last commit both have; where they
+    share none, a worktree's changes are those since its own last commit. A worktree's file
+    that nobody touched there is not its work, however far this folder has moved on since."""
+    head = (git(HOME, "rev-parse", "HEAD") or "").strip()
+    listed = []
+    for folder in worktrees():
+        base = (head and (git(folder, "merge-base", "HEAD", head) or "").strip()) or "HEAD"
+        listed.append((folder, changed_since(folder, base), changed_since(HOME, base)))
+    return listed
+
+
+KEPT = {}
+
+
+def current():
+    """The changes as of now: read again when a file changed anywhere, and every two seconds
+    for what changes no file (a commit, a merge)."""
+    now = version()
+    if KEPT.get("version") != now or time.monotonic() - KEPT.get("at", 0.0) > 2:
+        KEPT.update(version=now, at=time.monotonic(), listed=changes())
+    return KEPT["listed"]
+
+
 def pick(path):
-    """The file to serve for a path: a worktree's copy where it differs from this folder's
-    (the newest such copy), else this folder's own."""
+    """The file to serve for a path: the copy of a worktree that changed it (the newest such
+    copy, this folder's own among them where it changed the file too), else this folder's own."""
     own = os.path.join(HOME, path)
-    base = read(own)
-    changed = []
-    if path.split(os.sep)[0] != "vendor":
-        for folder in worktrees():
-            file = os.path.join(folder, path)
-            copy = read(file)
-            if copy is not None and copy != base:
-                changed.append(file)
-    changed.sort(key=changed_at, reverse=True)
-    return changed[0] if changed else (own if base is not None else None)
+    has = os.path.isfile(own)
+    if path.split(os.sep)[0] == "vendor":
+        return own if has else None
+    name = "/".join(path.split(os.sep))
+    changed = [each for each in current() if name in each[1]]
+    copies = [os.path.join(folder, path) for folder, _, _ in changed]
+    copies = [file for file in copies if os.path.isfile(file)]
+    if has and (not copies or any(name in ours for _, _, ours in changed)):
+        copies.append(own)
+    copies.sort(key=changed_at, reverse=True)
+    return copies[0] if copies else None
 
 
 def version():

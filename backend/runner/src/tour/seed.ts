@@ -123,7 +123,7 @@ export const seedFiles = async (
     // otherwise be in every worktree and every search.
     all[".gitignore"] ??= Buffer.from("vendor/\n")
     // The same for its `.gitattributes`: without it git on Windows checks a worktree's text out
-    // with CRLF, and the seed's dev server takes every such file for a changed one.
+    // with CRLF, no longer byte for byte the files committed.
     all[".gitattributes"] ??= Buffer.from("* text=auto eol=lf\n")
     return all
   } catch (error) {
