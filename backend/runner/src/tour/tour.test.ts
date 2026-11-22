@@ -926,6 +926,28 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     expect(policy.choice?.("claude", "/h/code")).toBeUndefined()
   })
 
+  it("starts an opencode teammate the lead names no model for on one of opencode's free models", async ({
+    resources,
+  }) => {
+    const home = await scratchHome(resources)
+    const models = [
+      { id: "anthropic/claude-sonnet", efforts: [] },
+      { id: "opencode/e2e-free", efforts: [] },
+    ]
+    const { tour, brief } = tourIn(home, {
+      shown: ["lead", "mine", "next"],
+      models,
+      connected: ["opencode"],
+    })
+    await tour.prepare("opencode")
+    brief()
+    const policy = tour.openPolicy("lead")
+    const at = tourFolder(home)
+    expect(policy.choice?.("opencode", at)).toEqual({ model: "opencode/e2e-free" })
+    expect(policy.choice?.("claude", at)).toBeUndefined()
+    expect(policy.choice?.("opencode", "/h/code")).toBeUndefined()
+  })
+
   it("gives the lead's agents no write flags where they start outside the tour's folder", async ({
     resources,
   }) => {

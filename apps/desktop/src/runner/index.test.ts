@@ -161,6 +161,7 @@ describe("compiled desktop runner", () => {
           "agy",
           "claude",
           "codex",
+          "opencode",
         ])
         // With its own copy of the relay the main process gave it, which agents start.
         expect(await readFile(join(directory, "shell", relayName))).toEqual(

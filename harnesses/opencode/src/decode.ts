@@ -99,7 +99,7 @@ const decodeReport = ({ event, seq, instance, payload }: Report): readonly Harne
     case "SessionLeft":
       return actor === null ? [{ type: "session-left", ...base }] : []
     case "UserPromptSubmit": {
-      // The plugin's own prompt, a Stop's delivery, continues the turn `Continued` told of.
+      // The plugin's own prompt, a Stop's delivery, continues the turn the runner continued.
       if (actor !== null || payload.continuation === true) return []
       const prompt = typeof payload.prompt === "string" ? payload.prompt : ""
       const agent = text(payload.agent)
@@ -112,8 +112,8 @@ const decodeReport = ({ event, seq, instance, payload }: Report): readonly Harne
         ...modelOf(base, payload.model, payload.variant),
       ]
     }
-    // The runner continued the turn as it leased the Stop its delivery: that the plugin started
-    // the turn tells nothing more. That it couldn't start one gives the turn back up.
+    // The runner continued the turn as it leased the Stop its delivery. That the plugin couldn't
+    // start one gives the turn back up.
     case "Lapsed":
       return actor === null ? [{ type: "turn-lapsed", ...base }] : []
     case "Stop": {

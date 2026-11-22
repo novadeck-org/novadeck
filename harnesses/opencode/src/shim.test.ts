@@ -5,15 +5,7 @@ import { join } from "node:path"
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import {
-  commands,
-  configPlugin,
-  hooksTrusted,
-  kept,
-  makeCmdShim,
-  posixShim,
-  valued,
-} from "./shim.js"
+import { commands, configFile, hooksTrusted, kept, makeCmdShim, posixShim, valued } from "./shim.js"
 
 const posixOnly = process.platform === "win32" ? describe.skip : describe
 
@@ -31,10 +23,10 @@ const setup = (folder = root, { plugin = true, reexport = true } = {}) => {
   mkdirSync(join(shell, "bin"), { recursive: true })
   mkdirSync(join(folder, "real"), { recursive: true })
   if (plugin) {
-    mkdirSync(join(plugins, "config", "plugins"), { recursive: true })
+    mkdirSync(plugins, { recursive: true })
     writeFileSync(join(plugins, "novadeck.mjs"), "export const NovadeckPlugin = async () => ({})\n")
     writeFileSync(join(plugins, "tui.json"), '{"plugin":["./novadeck-tui.mjs"]}\n')
-    if (reexport) writeFileSync(join(plugins, configPlugin), 'export * from "../../novadeck.mjs"\n')
+    if (reexport) writeFileSync(join(plugins, configFile), '{"plugin":["./novadeck.mjs"]}\n')
   }
   const shim = join(shell, "bin", "opencode")
   writeFileSync(shim, posixShim())
@@ -43,7 +35,7 @@ const setup = (folder = root, { plugin = true, reexport = true } = {}) => {
   writeFileSync(
     real,
     `#!/bin/sh
-for v in NOVADECK_OPENCODE_CONFIG OPENCODE_TUI_CONFIG OPENCODE_CONFIG_CONTENT OPENCODE_CONFIG_DIR NOVADECK_OPENCODE_SESSION NOVADECK_OPENCODE_CONTINUE NOVADECK_OPENCODE_FORK; do
+for v in NOVADECK_OPENCODE_CONFIG OPENCODE_TUI_CONFIG OPENCODE_CONFIG_CONTENT OPENCODE_CONFIG OPENCODE_CONFIG_DIR NOVADECK_OPENCODE_SESSION NOVADECK_OPENCODE_CONTINUE NOVADECK_OPENCODE_FORK; do
   eval "printf 'ENV %s=%s\\n' $v \\"\\\${$v-<unset>}\\""
 done
 printf 'ARG %s\\n' "$@"
@@ -123,39 +115,45 @@ posixOnly("the POSIX shim", () => {
     ])
   })
 
-  it("keeps a person's own OPENCODE_CONFIG_CONTENT, and loads the plugin from a config folder", () => {
+  it("keeps a person's own OPENCODE_CONFIG_CONTENT, and names a file of Novadeck's in OPENCODE_CONFIG", () => {
     const place = setup()
     const own = '{"model":"p/m"}'
     const ran = run(place, [], { ...inNovadeck, OPENCODE_CONFIG_CONTENT: own })
     expect(ran.env.OPENCODE_CONFIG_CONTENT).toBe(own)
-    expect(ran.env.OPENCODE_CONFIG_DIR).toBe(join(place.plugins, "config"))
+    expect(ran.env.OPENCODE_CONFIG).toBe(join(place.plugins, configFile))
+    // Never the config folder, which opencode would take for the person's global one.
+    expect(ran.env.OPENCODE_CONFIG_DIR).toBe("<unset>")
   })
 
-  it("keeps their own OPENCODE_CONFIG_DIR too, and then loads nothing", () => {
+  it("keeps their own OPENCODE_CONFIG too, and then loads nothing", () => {
     const place = setup()
     const ran = run(place, [], {
       ...inNovadeck,
       OPENCODE_CONFIG_CONTENT: "{}",
-      OPENCODE_CONFIG_DIR: "/theirs",
+      OPENCODE_CONFIG: "/theirs.json",
     })
-    expect(ran.env).toMatchObject({ OPENCODE_CONFIG_CONTENT: "{}", OPENCODE_CONFIG_DIR: "/theirs" })
+    expect(ran.env).toMatchObject({
+      OPENCODE_CONFIG_CONTENT: "{}",
+      OPENCODE_CONFIG: "/theirs.json",
+      OPENCODE_CONFIG_DIR: "<unset>",
+    })
   })
 
   it("loads nothing where the plugin's file isn't there", () => {
     const ran = run(setup(root, { plugin: false }), [], inNovadeck)
     expect(ran.env).toMatchObject({
       OPENCODE_CONFIG_CONTENT: "<unset>",
-      OPENCODE_CONFIG_DIR: "<unset>",
+      OPENCODE_CONFIG: "<unset>",
     })
   })
 
-  it("uses the config folder where the plugin's path couldn't sit in JSON", () => {
+  it("names Novadeck's config file where the plugin's path couldn't sit in JSON", () => {
     const folder = join(root, 'q"uote')
     mkdirSync(folder)
     const place = setup(folder)
     const ran = run(place, [], inNovadeck)
     expect(ran.env.OPENCODE_CONFIG_CONTENT).toBe("<unset>")
-    expect(ran.env.OPENCODE_CONFIG_DIR).toBe(join(place.plugins, "config"))
+    expect(ran.env.OPENCODE_CONFIG).toBe(join(place.plugins, configFile))
   })
 
   it("tells the plugin the session, in each way the command line names one", () => {
@@ -299,8 +297,9 @@ describe("the Windows shim", () => {
       'set "OPENCODE_CONFIG_CONTENT={"plugin":["%novadeck_slash%/novadeck.mjs"]}"',
     )
     expect(shim).toContain("if defined OPENCODE_CONFIG_CONTENT goto dir")
-    expect(shim).toContain("if defined OPENCODE_CONFIG_DIR goto config")
-    expect(shim).toContain('set "OPENCODE_CONFIG_DIR=%novadeck_plugin%\\config"')
+    expect(shim).toContain("if defined OPENCODE_CONFIG goto config")
+    expect(shim).toContain('set "OPENCODE_CONFIG=%novadeck_plugin%\\opencode.json"')
+    expect(shim).not.toContain("OPENCODE_CONFIG_DIR")
   })
 
   it("walks the words as the other shims do, with the session's flags", () => {
@@ -348,7 +347,7 @@ describe("whether Novadeck's plugin can load", () => {
     expect(await hooksTrusted(where({ OPENCODE_PURE: "1" }, plugins), root)).toBe(false)
     expect(
       await hooksTrusted(
-        where({ OPENCODE_CONFIG_CONTENT: "{}", OPENCODE_CONFIG_DIR: "/x" }, plugins),
+        where({ OPENCODE_CONFIG_CONTENT: "{}", OPENCODE_CONFIG: "/x.json" }, plugins),
         root,
       ),
     ).toBe(false)

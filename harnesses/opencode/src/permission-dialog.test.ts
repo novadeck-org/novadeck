@@ -77,6 +77,13 @@ describe("opencode's permission dialog for a command", () => {
     expect(refusals).toContain("permission.selection.1")
     const unlit = { ...screens.permBash!, lit: screens.permBash!.rows.map(() => "") }
     expect(dialogs.read(rows, bash("echo approved"), unlit)).toBeUndefined()
+    // A theme that lights all three buttons alike says nothing of which is selected.
+    const all = screens.permBash!.lit!.map((row) =>
+      row.includes("Allow once") ? "  ┃   Allow once   Allow always   Reject" : row,
+    )
+    expect(
+      dialogs.read(rows, bash("echo approved"), { ...screens.permBash!, lit: all }),
+    ).toBeUndefined()
     const two = screens.permBash!.lit!.map((row) => row.replace("Allow once", "Allow once  Reject"))
     expect(
       dialogs.read(rows, bash("echo approved"), { ...screens.permBash!, lit: two }),

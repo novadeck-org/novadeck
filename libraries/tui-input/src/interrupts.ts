@@ -11,7 +11,7 @@ import {
   type BoxProfile,
   type InputBox,
 } from "./box/box.js"
-import { pause } from "./box/keys.js"
+import { pause } from "./box/pause.js"
 import { hasImages, imageCount, sameText, withoutImages } from "./box/text.js"
 import type { InputEntry, InputHold } from "./queue.js"
 
@@ -141,7 +141,7 @@ export class Interrupts {
     this.restoreCalmMs = options.restoreCalmMs ?? 500
     this.settleMs = options.settleMs ?? 1_000
     this.queuedTurnMs = options.queuedTurnMs ?? 3_000
-    this.armedMs = options.armedMs ?? 2_000
+    this.armedMs = options.armedMs ?? 800
   }
 
   /**
@@ -212,9 +212,18 @@ export class Interrupts {
         ? entry?.hold({ inputMs: budget, sizeMs: budget })
         : undefined
     try {
-      host.type(terminalId, "\x1b")
-      escaped()
-      if (profile?.armed) await this.secondEscape(terminalId, profile.armed)
+      if (profile?.armed) {
+        // The first Escape only arms the interrupt, so it is written without the host's account
+        // of a stop (`type` makes the runner count one); the second, typed once the screen says
+        // it is armed, is the stop. Where none arms (it closed a menu, the turn ended), no stop
+        // was made and none is counted.
+        host.write(terminalId, "\x1b")
+        if (!(await this.secondEscape(terminalId, profile))) return none
+        escaped()
+      } else {
+        host.type(terminalId, "\x1b")
+        escaped()
+      }
       if (!profile || !emptyBefore) return none
       if (prompt === undefined && !queued) return none
       let box = await this.settled(terminalId, profile)
@@ -452,27 +461,27 @@ export class Interrupts {
   }
 
   /**
-   * The second Escape of a program whose first only arms the interrupt, written once the screen
-   * says it is armed (`BoxProfile.armed`) and the turn still works; none if that doesn't come
-   * within `armedMs`, as a turn that ended meanwhile needs none.
+   * The second Escape of a program whose first only arms the interrupt (`BoxProfile.armed`):
+   * typed once the screen says it is armed, and true; false where it doesn't, because the turn's
+   * row (`BoxProfile.working`) is gone (the turn ended, or the Escape closed a view), or
+   * `armedMs` passed.
    */
-  private async secondEscape(
-    terminalId: string,
-    armed: NonNullable<BoxProfile["armed"]>,
-  ): Promise<void> {
+  private async secondEscape(terminalId: string, profile: BoxProfile): Promise<boolean> {
     const { host } = this
     const until = Date.now() + this.armedMs
     while (host.alive(terminalId) && Date.now() < until) {
       // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
       const now = await host.screen(terminalId)
-      if (now && armed(now)) {
+      if (now && profile.armed!(now)) {
         host.admit(terminalId)
         host.type(terminalId, "\x1b")
-        return
+        return true
       }
+      if (now && profile.working?.(now) === false) return false
       // eslint-disable-next-line no-await-in-loop -- As above.
       await sleep(pollMs)
     }
+    return false
   }
 
   /**

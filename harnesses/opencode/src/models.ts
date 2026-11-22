@@ -56,9 +56,10 @@ const merge = (into: Fields, from: Fields): Fields => {
 
 /**
  * The person's configuration that says which providers and models they have, in the order
- * opencode merges it, later over earlier (config/config.ts:272-274 and 482-489, 1.19.6): the files
- * of its config folder, the file `OPENCODE_CONFIG` names, the folder `OPENCODE_CONFIG_DIR` names, and
- * `OPENCODE_CONFIG_CONTENT`. A project's own `opencode.json` is not read: there is no project here.
+ * opencode merges it, later over earlier (config/config.ts:412-417 and 482-489, 1.19.6): the files
+ * of its global config folder, which `OPENCODE_CONFIG_DIR` names where it is set (core/src/global.ts:64),
+ * the file `OPENCODE_CONFIG` names, and `OPENCODE_CONFIG_CONTENT`. A project's own `opencode.json`
+ * is not read: there is no project here.
  */
 const configOf = async (install: Pick<Install, "env" | "home" | "platform">): Promise<Fields> => {
   const rules = rulesOf(install)
@@ -68,10 +69,10 @@ const configOf = async (install: Pick<Install, "env" | "home" | "platform">): Pr
     OPENCODE_CONFIG_DIR: folder,
     OPENCODE_CONFIG_CONTENT: content,
   } = install.env
+  const global = folder ?? config
   const paths = [
-    ...["config.json", "opencode.json", "opencode.jsonc"].map((name) => rules.join(config, name)),
+    ...["config.json", "opencode.json", "opencode.jsonc"].map((name) => rules.join(global, name)),
     ...(file ? [file] : []),
-    ...(folder ? ["opencode.json", "opencode.jsonc"].map((name) => rules.join(folder, name)) : []),
   ]
   const read = await Promise.all(paths.map(readJson))
   const all = read.reduce<Fields>((into, one) => merge(into, one ?? {}), {})

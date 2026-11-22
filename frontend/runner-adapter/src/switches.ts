@@ -14,6 +14,16 @@ const knownAgents = <T extends { readonly agent: string }>(
   list.filter(
     (each): each is T & { readonly agent: AgentConnection["agent"] } => each.agent !== newer,
   )
+// A reason the runner gives for an agent's limit that this UI doesn't know (`newer`): nothing it
+// could tell the person, so none.
+const knownLimit = <T extends { readonly limited?: string | undefined }>(
+  each: T,
+): Omit<T, "limited"> & { readonly limited?: Exclude<T["limited"], typeof newer> } => {
+  const { limited, ...rest } = each
+  return limited === undefined || limited === newer
+    ? rest
+    : { ...rest, limited: limited as Exclude<T["limited"], typeof newer> }
+}
 const knownForges = <T extends { readonly forge: string }>(
   list: readonly T[],
 ): (T & { readonly forge: ForgeName })[] =>
@@ -76,7 +86,7 @@ export const runnerSwitches = (
   const shippingGate = createStore(gated ?? false)
   const worktrees = createStore(allowed ?? false)
   const agents = createStore<readonly AgentConnection[]>(
-    knownAgents(integrations ?? []).map((agent) => ({ ...agent, busy: false })),
+    knownAgents(integrations ?? []).map((agent) => ({ ...knownLimit(agent), busy: false })),
   )
   const forges = createStore<readonly ForgeConnection[]>(
     knownForges(forgeStates ?? []).map((forge) => ({ ...forge, busy: false })),
@@ -136,7 +146,7 @@ export const runnerSwitches = (
       busy: true,
     }))
     void track(runner.agents.set(agent, connected)).then(
-      (result) => updateAgent(agent, () => ({ ...result, agent, busy: false })),
+      (result) => updateAgent(agent, () => ({ ...knownLimit(result), agent, busy: false })),
       (error: unknown) =>
         updateAgent(agent, ({ available, connected: was }) => ({
           agent,
@@ -154,7 +164,7 @@ export const runnerSwitches = (
           knownAgents(list).map((found) => {
             const shown = current.find((item) => item.agent === found.agent)
             // A change under way reports its own result.
-            return shown?.busy ? shown : { ...found, busy: false }
+            return shown?.busy ? shown : { ...knownLimit(found), busy: false }
           }),
         )
       },

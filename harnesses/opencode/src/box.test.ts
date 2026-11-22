@@ -5,7 +5,7 @@ import { join } from "node:path"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import { leftoverOf } from "@novadeck/tui-input/box"
+import { hidesText, leftoverOf, tailOf } from "@novadeck/tui-input/box"
 import { describe, expect, it } from "vitest"
 
 import { box, shellCommandOf, shellFooter } from "./box.js"
@@ -135,6 +135,28 @@ describe("opencode's pasted text", () => {
     expect(box.collapsed(box.read(screen("paste2"))!)).toBe(false)
     expect(box.collapses("a\nb")).toBe(false)
     expect(box.collapses("z".repeat(150))).toBe(false)
+  })
+
+  it("counts what collapses on the trimmed text, as it does", () => {
+    expect(box.collapses("a\nb\n")).toBe(false)
+    expect(box.collapses("\n\na\nb\n\n")).toBe(false)
+    expect(box.collapses("a\r\nb\r\nc")).toBe(true)
+    expect(box.collapses(`${"z".repeat(150)}\n\n`)).toBe(false)
+  })
+
+  it("reads a long paste shown whole, with its summary turned off, as the tail of a box that fills its viewport", () => {
+    const shown = box.read(screen("noSummaryLong"))!
+    expect(shown.text.split("\n")).toHaveLength(box.viewport!(40))
+    expect(shown.text.endsWith("Line 40 of a paste")).toBe(true)
+    expect(hidesText(box, shown, 40)).toBe(true)
+    expect(
+      tailOf(
+        box,
+        shown,
+        40,
+        Array.from({ length: 40 }, (_, i) => `Line ${i + 1} of a paste`).join("\n"),
+      ),
+    ).toBe(shown.text)
   })
 
   it("knows what collapses before it is pasted", () => {
@@ -277,6 +299,13 @@ describe("opencode's interrupt", () => {
     expect(box.armed?.(screen("sessEmpty"))).toBe(false)
   })
 
+  it("says a turn runs by its status row, armed or not, at either size, and none at idle", () => {
+    for (const name of ["busy", "busy60", "busyEsc1", "queued"])
+      expect(box.working?.(screen(name)), name).toBe(true)
+    for (const name of ["sessEmpty", "sessEmpty60", "homeEmpty", "sessSlash"])
+      expect(box.working?.(screen(name)), name).toBe(false)
+  })
+
   it("drops a shell command typed while a turn runs", () => {
     expect(box.shell.midTurn).toBe("drops")
   })
@@ -284,11 +313,54 @@ describe("opencode's interrupt", () => {
 
 describe("opencode's sent prompt", () => {
   it("is taken once its first line stands in the history with the assistant's row after it", () => {
-    expect(box.echoed?.(screen("sessEmpty"), "SLOW one")).toBe(true)
-    expect(box.echoed?.(screen("sessEmpty"), "SLOW one\nand more")).toBe(true)
-    expect(box.echoed?.(screen("sessEmpty"), "Another")).toBe(false)
-    // Typed in the box, not yet sent: not the history.
-    expect(box.echoed?.(screen("sessDraft"), "hi")).toBe(false)
+    const home = screen("homeEmpty")
+    expect(box.echoed?.(screen("sessEmpty"), "SLOW one", home)).toBe(true)
+    expect(box.echoed?.(screen("sessEmpty"), "SLOW one\nand more", home)).toBe(true)
+    // Typed in the box, not yet sent: nothing new in the history.
+    expect(box.echoed?.(screen("sessDraft"), "hi", screen("sessDraft"))).toBe(false)
+  })
+
+  it("is not taken for an earlier prompt with the same words, until one more stands there", () => {
+    const sent = screen("sessEmpty")
+    expect(box.echoed?.(sent, "SLOW one", sent)).toBe(false)
+    // The same prompt a second time: another row of it, with the assistant's row after.
+    const rows = [...sent.rows]
+    const at = rows.findIndex((row) => row.includes("┃  SLOW one"))
+    const again = {
+      ...sent,
+      rows: [
+        ...rows.slice(0, at + 3),
+        "  ┃",
+        "  ┃  SLOW one",
+        "  ┃",
+        "     ▣  Build · Fake Sonnet",
+        ...rows.slice(at + 3).slice(4),
+      ],
+    }
+    expect(box.echoed?.(again, "SLOW one", sent)).toBe(true)
+  })
+
+  it("is taken on any new prompt row where its first line shows otherwise, on a narrow screen", () => {
+    const sent = screen("sessEmpty60")
+    const rows = [...sent.rows]
+    const at = rows.findIndex((row) => row.includes("┃  SLOW one"))
+    const longer = {
+      ...sent,
+      rows: [
+        ...rows.slice(0, at + 3),
+        "  ┃",
+        "  ┃  a prompt that wrapped before",
+        "  ┃",
+        "     ▣  Build",
+        ...rows.slice(at + 3).slice(4),
+      ],
+    }
+    expect(box.echoed?.(longer, "a prompt that wrapped before its thirtieth character", sent)).toBe(
+      true,
+    )
+    expect(box.echoed?.(sent, "a prompt that wrapped before its thirtieth character", sent)).toBe(
+      false,
+    )
   })
 
   it("is taken as queued once its badge stands under it", () => {

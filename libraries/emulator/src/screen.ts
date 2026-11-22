@@ -176,6 +176,37 @@ const lastCellFilled = (line: IBufferLine, columns: number, cell: IBufferCell): 
   return last.getChars().trim() !== ""
 }
 
+// A cell's background as a number: -1 for the default, else its mode and colour together.
+const backgroundOf = (cell: IBufferCell): number =>
+  cell.isBgDefault() ? -1 : cell.getBgColorMode() * 0x1000000 + cell.getBgColor()
+
+/**
+ * A row's text with only the cells whose background stands out from the one most of its cells
+ * have, the rest blanked (`ScreenText.lit`).
+ */
+const litRow = (line: IBufferLine, columns: number, cell: IBufferCell): string => {
+  const cells: { bg: number; width: number; chars: string }[] = []
+  const counts = new Map<number, number>()
+  for (let column = 0; column < columns; column += 1) {
+    const at = line.getCell(column, cell)
+    if (!at || at.getWidth() === 0) continue
+    const bg = backgroundOf(at)
+    counts.set(bg, (counts.get(bg) ?? 0) + 1)
+    cells.push({ bg, width: Math.max(at.getWidth(), 1), chars: at.getChars() || " " })
+  }
+  let common = -1
+  let most = 0
+  for (const [bg, count] of counts)
+    if (count > most) {
+      common = bg
+      most = count
+    }
+  return cells
+    .map(({ bg, width, chars }) => (bg !== -1 && bg !== common ? chars : " ".repeat(width)))
+    .join("")
+    .trimEnd()
+}
+
 /** The screen's visible rows as text, with its dim cells blanked, its cursor, and its paste mode. */
 export const readScreen = (screen: Screen): ScreenText => {
   const buffer = screen.buffer.active
@@ -183,7 +214,7 @@ export const readScreen = (screen: Screen): ScreenText => {
   const wrapped: boolean[] = []
   const continues: boolean[] = []
   const bright: string[] = []
-  const lit: string[] = []
+  const standsOut: string[] = []
   const cell = buffer.getNullCell()
   for (let row = 0; row < screen.rows; row += 1) {
     const line = buffer.getLine(buffer.viewportY + row)
@@ -193,43 +224,28 @@ export const readScreen = (screen: Screen): ScreenText => {
     wrapped.push(line?.isWrapped ?? false)
     continues.push(line ? lastCellFilled(line, screen.cols, cell) : false)
     let bold = ""
-    let marked = ""
-    if (line) {
-      const cells: { key: string; width: number; chars: string; dim: boolean }[] = []
-      const counts = new Map<string, number>()
+    // Whether every cell has the one background: nearly every row of a program that sets none,
+    // for which nothing stands out and no second look is made.
+    let first: number | undefined
+    let uniform = true
+    if (line)
       for (let column = 0; column < screen.cols; column += 1) {
         const at = line.getCell(column, cell)
         if (!at || at.getWidth() === 0) continue
-        const key = at.isBgDefault() ? "" : `${at.getBgColorMode()}:${at.getBgColor()}`
-        counts.set(key, (counts.get(key) ?? 0) + 1)
-        cells.push({
-          key,
-          width: Math.max(at.getWidth(), 1),
-          chars: at.getChars() || " ",
-          dim: at.isDim() !== 0,
-        })
+        bold += at.isDim() ? " ".repeat(Math.max(at.getWidth(), 1)) : at.getChars() || " "
+        const bg = backgroundOf(at)
+        if (first === undefined) first = bg
+        else if (bg !== first) uniform = false
       }
-      let common = ""
-      let most = 0
-      for (const [key, count] of counts)
-        if (count > most) {
-          common = key
-          most = count
-        }
-      for (const each of cells) {
-        bold += each.dim ? " ".repeat(each.width) : each.chars
-        marked += each.key !== "" && each.key !== common ? each.chars : " ".repeat(each.width)
-      }
-    }
     bright.push(bold.trimEnd())
-    lit.push(marked.trimEnd())
+    standsOut.push(line && !uniform ? litRow(line, screen.cols, cell) : "")
   }
   return {
     rows,
     wrapped,
     continues,
     bright,
-    lit,
+    lit: standsOut,
     columns: screen.cols,
     cursor: { row: buffer.cursorY, column: buffer.cursorX },
     bracketedPaste: screen.modes.bracketedPasteMode,

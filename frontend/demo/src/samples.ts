@@ -486,7 +486,7 @@ export const mockReply = (command: string, terminal: TerminalMetadata): string =
     return "application/   node_modules/   package.json   pnpm-lock.yaml   README.md"
   if (program === "git")
     return "This is a simulated shell, so git only answers `git status`. In the real app it is your own."
-  if (program === "claude" || program === "codex" || program === "agy")
+  if (program === "claude" || program === "codex" || program === "agy" || program === "opencode")
     return "Agents are simulated here. Open a terminal that is running one and answer what it asks."
   if (quiet.has(program)) return ""
   if (noted.has(program)) return simulated

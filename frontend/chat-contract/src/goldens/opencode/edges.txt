@@ -1,6 +1,6 @@
 # transcript
 user: SLOW one
+note: Interrupted
 user: BASH it
 assistant: slow done
 user: FAIL now
-compaction: compacted the conversation → nothing to open

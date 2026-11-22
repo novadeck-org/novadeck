@@ -117,9 +117,9 @@ export type BoxProfile = {
    * Whether the screen shows a prompt just sent as taken: its first line echoed in the history,
    * and what the program draws once it has (opencode's assistant row, or its queued badge). A
    * program that drops what is typed for a moment after its Enter, while it takes the prompt, is
-   * given none before this says so; the wait is bounded. Omitted where keys are never lost so.
+   * given none before this says so; the wait is bounded. `before` is the screen the paste started\n   * from, so an earlier prompt with the same words is not taken for this one. Omitted where keys are never lost so.
    */
-  readonly echoed?: (screen: ScreenText, text: string) => boolean
+  readonly echoed?: (screen: ScreenText, text: string, before?: ScreenText) => boolean
   /**
    * Whether a text pasted after a draft is preceded by its blank line as a paste of its own: a
    * program that drops the line breaks leading a paste it collapses to a placeholder
@@ -190,10 +190,16 @@ export type BoxProfile = {
   /**
    * Whether the screen shows the interrupt armed: for a program whose first Escape only arms
    * it, saying so ("esc again to interrupt"), and whose second, while that shows, stops the
-   * turn. The interrupt writes the second once this says so, and none where it never does
-   * (the turn ended meanwhile). Omitted where one Escape stops a turn.
+   * turn. The first Escape is written alone, counting no stop; the second goes once this says so, and
+   * none where it never does (the turn ended, or the Escape closed a menu). Omitted where one Escape stops a turn.
    */
   readonly armed?: (screen: ScreenText) => boolean
+  /**
+   * Whether the screen shows a turn running that Escape would stop, as the program's own status
+   * row says: where `armed` is set, an interrupt whose first Escape arms nothing (the turn's row
+   * is gone) stops waiting for it at once. Omitted where `armed` is.
+   */
+  readonly working?: (screen: ScreenText) => boolean
   /**
    * Whether the screen shows messages queued behind the running turn, which the program
    * holds until the turn ends (or steers the turn with).

@@ -47,8 +47,9 @@ const unrecorded: Readonly<Record<AgentName, readonly string[]>> = {
   // `list` and `multiedit` are in its tools' table, but 1.19.6 offered neither to the fake model in
   // any agent or model it was probed with (build and plan, an Anthropic-named and a GPT-named
   // model, with OPENCODE_EXPERIMENTAL and OPENCODE_ENABLE_EXA set), so no record of them
-  // exists (checked 2026-11-22).
-  opencode: ["list", "multiedit"],
+  // exists (checked 2026-11-22). Nor does one of `todoread`, which no recorded turn called: it
+  // has a row as its `todowrite` does.
+  opencode: ["list", "multiedit", "todoread"],
 }
 
 const source = (harness: AgentName | "core", path: string): string =>

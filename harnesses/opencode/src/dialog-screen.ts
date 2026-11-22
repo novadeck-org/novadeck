@@ -4,7 +4,8 @@ import type { KeyStep } from "@novadeck/harness-core/dialogs"
 // What opencode's dialogs share (probed 2026-11-22, 1.19.6; fixtures/dialogs.probe.json): both are
 // a block of rows in the box's place, each led by a `┃` gutter in one column, with a bare `┃`
 // row above and below, no closing edge, and no frame. Which choice is selected shows only in
-// colour, never in the rows, so nothing here reads it.
+// colour, never in the rows: only a permission dialog's reader looks at it, through
+// `ScreenText.lit` (see there), and refuses where the colours don't say it.
 
 export const squash = (text: string): string => text.replaceAll(/\s+/g, "")
 

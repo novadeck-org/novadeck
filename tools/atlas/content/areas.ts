@@ -248,8 +248,7 @@ export const notes: Record<string, Note> = {
     docs: ["docs/harness-coverage.md"],
   },
   "harnesses/opencode": {
-    purpose:
-      "The opencode harness: the plugin Novadeck loads into it per launch, which runs Novadeck's hook command for its events and writes its transcripts; its shim, dialogs and input box.",
+    purpose: "The opencode harness, the same shape as harnesses/claude.",
     entries: [{ file: "harnesses/opencode/src/index.ts", text: "export const opencode" }],
     docs: ["docs/harness-coverage.md"],
   },

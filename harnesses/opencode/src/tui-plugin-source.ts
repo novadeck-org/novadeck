@@ -8,8 +8,8 @@
  * `{ name: "home" }` or `{ name: "session", params: { sessionID } }`, probed on 1.19.6 with
  * the route read every 100 ms), so this one reports `SessionLeft` for the session the route
  * left when it goes home. It does nothing at start, where the route is home with nothing left.
- * A child session's view goes to its parent's or back, never home first, and the runner ends a
- * binding only for the session it names.
+ * It reports each session shown since the route was last home, a subagent's view among them, and
+ * the runner ends a binding only for the session it names.
  */
 
 /** What one rendering holds. */
@@ -25,14 +25,25 @@ export const tuiPluginSource = (config: TuiPluginConfig): string =>
   `// Novadeck's TUI plugin for opencode. Written by Novadeck into its own data directory and
 // overwritten on each start; opencode loads it only in Novadeck's terminals, for one launch.
 import { spawn } from "node:child_process"
+import { mkdirSync, writeFileSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 
 const config = ${JSON.stringify(config)}
 ${body}`
 
 const body = String.raw`
+// Where it marks a session left, for the server plugin, which runs in another thread of the same
+// process: it binds that session again when the person goes back to it (plugin-source.ts, bind).
+const left = join(dirname(fileURLToPath(import.meta.url)), "left")
+
 // Runs the hook command with the session left on its input; nothing outside Novadeck's terminals.
 const report = (id) => {
   if (!process.env.NOVADECK_HOOK) return
+  try {
+    mkdirSync(left, { recursive: true })
+    writeFileSync(join(left, id), "")
+  } catch {}
   try {
     const child = spawn(config.hook, { shell: true, stdio: ["pipe", "ignore", "ignore"], windowsHide: true })
     const timer = setTimeout(() => {
@@ -51,16 +62,19 @@ export default {
   id: "novadeck",
   tui: async (api) => {
     try {
-      let session = null
+      // Every session shown since the route was last home: a subagent's view (Ctrl-X Down) is
+      // a session route of its own, so going home from there leaves its root too, which the
+      // runner tells apart, as it ends only the binding of the session it names.
+      let shown = new Set()
       const look = () => {
         try {
           const route = api.route.current
           if (route?.name === "session" && typeof route.params?.sessionID === "string") {
-            session = route.params.sessionID
-          } else if (route?.name === "home" && session !== null) {
-            const left = session
-            session = null
-            report(left)
+            shown.add(route.params.sessionID)
+          } else if (route?.name === "home" && shown.size > 0) {
+            const gone = [...shown]
+            shown = new Set()
+            for (const id of gone) report(id)
           }
         } catch {}
       }

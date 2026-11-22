@@ -1,6 +1,6 @@
 /**
  * The JavaScript of Novadeck's opencode plugin, as the shim has opencode load it per launch
- * (`OPENCODE_CONFIG_CONTENT`'s `plugin`, or a `plugins` folder in `OPENCODE_CONFIG_DIR`):
+ * (`OPENCODE_CONFIG_CONTENT`'s `plugin`, or a configuration file of Novadeck's in `OPENCODE_CONFIG`):
  * opencode keeps no hook commands of its own, only plugins, which run in its process and hear
  * its events. This one runs Novadeck's hook command for each event Novadeck reads, as the
  * other harnesses run theirs, so the relay and the runner see the same reports; writes the
@@ -33,7 +33,7 @@ export const pluginSource = (config: PluginConfig): string =>
   `// Novadeck's plugin for opencode. Written by Novadeck into its own data directory and
 // overwritten on each start; opencode loads it only in Novadeck's terminals, for one launch.
 import { spawn } from "node:child_process"
-import { appendFileSync, existsSync, mkdirSync } from "node:fs"
+import { appendFileSync, existsSync, mkdirSync, rmSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -43,6 +43,8 @@ ${body}`
 // The plugin's code, the same on every platform.
 const body = String.raw`
 const sessions = join(dirname(fileURLToPath(import.meta.url)), "sessions")
+// Sessions the person left for its home, as Novadeck's TUI plugin marks them (tui-plugin-source.ts).
+const leftFolder = join(dirname(fileURLToPath(import.meta.url)), "left")
 
 // Whether version a is older than b, by their numbers.
 const older = (a, b) => {
@@ -138,7 +140,7 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
     version = health?.data?.version
   } catch {}
   if (typeof version === "string" && (older(version, config.minimum) || !older(version, config.unknownFrom))) {
-    report("Outdated", { version, minimum: config.minimum, unknown_from: config.unknownFrom })
+    // Nothing to report: the runner reads the version itself (limited.ts) and says so.
     return {}
   }
   try {
@@ -155,7 +157,13 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
   // A subagent's type, as the task call that starts it names it, by the parent session.
   const kinds = new Map()
   // Sessions whose next prompt is the plugin's own, a Stop's delivery.
-  const continuing = new Set()
+  // The text of the prompt each session's Stop delivery started its next turn with, which tells
+  // that prompt apart from the person's, as it comes back through chat.message.
+  const continuing = new Map()
+  // What each root session's last prompt of the person's went with: the turn a Stop's delivery
+  // starts goes on in it, as opencode would otherwise take its default agent (session/prompt.ts,
+  // createUserMessage) and leave a person on its plan agent building.
+  const chosen = new Map()
   // Sessions working since they last went idle.
   const busy = new Set()
   // The tool of each call, by its id, as a question names only the call that asks it.
@@ -293,7 +301,16 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
 
   // Tells Novadeck the root session that runs here, once for each it switches to.
   const bind = async (id, source) => {
-    if (bound.root === id && source !== "compact") return
+    // A session the person left for opencode's home (/new), as the TUI plugin marks it, is bound
+    // again when they go back to it: the runner ended its binding then.
+    const mark = join(leftFolder, String(id))
+    const back = bound.root === id && existsSync(mark)
+    if (back) {
+      try {
+        rmSync(mark, { force: true })
+      } catch {}
+    }
+    if (bound.root === id && source !== "compact" && !back) return
     const first = bound.root === null
     bound.root = id
     await backfill(id)
@@ -435,8 +452,6 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
             return
           case "session.status":
             if (props.status?.type === "busy" && props.sessionID) busy.add(props.sessionID)
-            if (props.status?.type === "retry")
-              report("Retry", { session_id: props.sessionID, attempt: props.status.attempt, message: cut(props.status.message, 2000), next: props.status.next })
             return
           case "session.compacted": {
             const id = props.sessionID
@@ -523,10 +538,18 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
             write(id, { type: "stopped", at: Date.now(), error: turn.error?.name ?? null, rejected: turn.rejected })
             const text = delivery(answer)
             if (!text) return
-            continuing.add(id)
+            continuing.set(id, text)
             try {
-              await client.session.promptAsync({ path: { id }, body: { parts: [{ type: "text", text, synthetic: true }] } })
-              report("Continued", { session_id: id })
+              const { agent, model, variant } = chosen.get(id) ?? {}
+              await client.session.promptAsync({
+                path: { id },
+                body: {
+                  ...(agent && { agent }),
+                  ...(model && { model }),
+                  ...(variant && { variant }),
+                  parts: [{ type: "text", text, synthetic: true }],
+                },
+              })
             } catch {
               continuing.delete(id)
               report("Lapsed", { session_id: id })
@@ -543,8 +566,13 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
         const id = input.sessionID
         if (await parentOf(id)) return
         await bind(id)
-        const own = continuing.delete(id)
-        if (!own && input.agent) turnOf(id).agent = input.agent
+        const pending = continuing.get(id)
+        const own =
+          pending !== undefined &&
+          (output.parts ?? []).some((part) => part.type === "text" && part.synthetic === true && part.text === pending)
+        if (own) continuing.delete(id)
+        else chosen.set(id, { agent: input.agent, model: input.model, variant: input.variant })
+        if (input.agent) turnOf(id).agent = input.agent
         const prompt = (output.parts ?? [])
           .filter((part) => part.type === "text" && !part.synthetic)
           .map((part) => part.text)

@@ -5,11 +5,12 @@ import type { BoxProfile } from "./box/box.js"
 import { Interrupts, type InterruptHost } from "./interrupts.js"
 import { screen as screenOf } from "./testing/screens.js"
 
-// A program whose first Escape only arms the interrupt (opencode: `esc again to interrupt`).
-const terminal = (arms: boolean, works = true) => {
+// A program whose first Escape only arms the interrupt (opencode: `esc again to interrupt`). `row`
+// is what its status row says as each Escape comes: after the first, `armed` or what `then` says.
+const terminal = (then: "arms" | "nothing" | "ends") => {
   const written: string[] = []
-  let armed = false
-  let working = works
+  const typed: string[] = []
+  let row = "esc interrupt"
   const profile: BoxProfile = {
     read: () => undefined,
     stands: () => false,
@@ -21,42 +22,51 @@ const terminal = (arms: boolean, works = true) => {
     collapses: () => false,
     room: (rows) => rows,
     armed: (screen) => screen.rows.includes("esc again to interrupt"),
+    working: (screen) => screen.rows.some((each) => /esc (?:again to )?interrupt/.test(each)),
   }
   const host: InterruptHost = {
     admit: () => undefined,
-    working: () => working,
+    working: () => true,
     alive: () => true,
     profile: () => profile,
     prompt: () => "do it",
-    screen: async (): Promise<ScreenText> =>
-      screenOf({ rows: [armed ? "esc again to interrupt" : "esc interrupt"] }),
+    screen: async (): Promise<ScreenText> => screenOf({ rows: [row] }),
+    // The runner counts a stop for what is typed, never for what is only written.
     type: (_id, data) => {
-      written.push(data)
-      // The host counts a typed Escape as the stop at once, as the runner's activity does.
-      if (data === "\x1b" && !armed && arms) {
-        armed = true
-        working = false
-      } else if (data === "\x1b") working = false
+      typed.push(data)
+      row = ""
       return true
     },
-    write: () => true,
+    write: (_id, data) => {
+      written.push(data)
+      row = then === "arms" ? "esc again to interrupt" : then === "ends" ? "" : "esc interrupt"
+      return true
+    },
   } as InterruptHost
-  return { host, written }
+  return { host, written, typed }
 }
 
 describe("an interrupt of a program whose first Escape arms it", () => {
-  it("writes a second Escape once the screen says it is armed", async () => {
-    const { host, written } = terminal(true)
+  it("writes the first Escape alone and types the second, which is the stop, once armed", async () => {
+    const { host, written, typed } = terminal("arms")
     await new Interrupts(host, { settleMs: 0, armedMs: 500 }).interrupt("t")
-    expect(written).toEqual(["\x1b", "\x1b"])
+    expect(written).toEqual(["\x1b"])
+    expect(typed).toEqual(["\x1b"])
   })
 
-  it("writes no second where the screen never says so, and none to a turn that ended", async () => {
-    const never = terminal(false)
-    await new Interrupts(never.host, { settleMs: 0, armedMs: 100 }).interrupt("t")
-    expect(never.written).toEqual(["\x1b"])
-    const idle = terminal(true, false)
-    await new Interrupts(idle.host, { settleMs: 0, armedMs: 100 }).interrupt("t")
-    expect(idle.written).toEqual([])
+  it("counts no stop where nothing armed, and does not hold for it once the turn's row is gone", async () => {
+    const closed = terminal("ends")
+    const began = Date.now()
+    await new Interrupts(closed.host, { settleMs: 0, armedMs: 5_000 }).interrupt("t")
+    expect(closed.written).toEqual(["\x1b"])
+    expect(closed.typed).toEqual([])
+    expect(Date.now() - began).toBeLessThan(1_000)
+  })
+
+  it("waits no longer than armedMs where the turn's row stays and nothing arms", async () => {
+    const stuck = terminal("nothing")
+    await new Interrupts(stuck.host, { settleMs: 0, armedMs: 150 }).interrupt("t")
+    expect(stuck.written).toEqual(["\x1b"])
+    expect(stuck.typed).toEqual([])
   })
 })

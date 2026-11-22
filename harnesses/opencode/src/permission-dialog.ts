@@ -15,8 +15,11 @@ import { blockOf, squash, timeoutMs } from "./dialog-screen.js"
  * `→ Edit notes.txt`, `⚙ Call tool <name>`), what it asks about, then the choices
  * `Allow once   Allow always   Reject` with `ctrl+f fullscreen  ⇆ select  enter confirm` (on a
  * narrow screen that hint has a row of its own). Left and Right move the selection, wrapping, and
- * Enter takes it; a fresh dialog has Allow once selected, which only its colour says, so no
- * key here can check where it stands. Allow always asks again, `△ Always allow`, listing the
+ * Enter takes it; a fresh dialog has Allow once selected. Which is selected shows only in colour
+ * (its background differs from the other two's), read from `ScreenText.lit`: where a theme lights
+ * all three buttons alike (probed from its source, `lucent-orng`; not on the real TUI), the
+ * selection can't be told, and the dialog is not read: the cursor, which follows a move late and
+ * is parked away from the row at first, tells nothing either (probed 1.19.6). Allow always asks again, `△ Always allow`, listing the
  * patterns `- echo *` with `Confirm   Cancel`, and Enter confirms. Reject needs no second step
  * and stops the turn (the model made no further call). Escape rejects too, so it is never sent
  * to a screen that might not be showing a dialog.
@@ -74,8 +77,8 @@ type Shown = {
 const labels = ["Allow once", "Allow always", "Reject"]
 
 // The selected choice: the one text on its row whose cells have a background of their own
-// (`ScreenText.lit`), the selected one's against its siblings' (probed 2026-11-22, 1.19.6, the
-// colours themselves theme-dependent). None or several lit leaves it unknown.
+// (`ScreenText.lit`), the selected one's against the rest of the row's (probed 2026-11-22, 1.19.6,
+// the default theme; the colours are the theme's). None lit, or all three, leaves it unknown.
 const selection = (screen: ScreenText | undefined, row: number): number | undefined => {
   // Its gutter is lit too, as the dialog is on a background of its own.
   const lit = screen?.lit?.[row]?.replace(/^\s*┃/, "").trim()

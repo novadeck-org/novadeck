@@ -1885,6 +1885,41 @@
         "28": "                               ● Tip Run opencode serve for headless API access to OpenCode",
         "37": "  ~/project                                                                                                     1.19.6"
       }
+    },
+    "noSummaryLong": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 25,
+        "column": 44
+      },
+      "rows": {
+        "6": "                                                                          ▄",
+        "7": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "8": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "9": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "12": "                       ┃",
+        "13": "                       ┃  Line 28 of a paste",
+        "14": "                       ┃  Line 29 of a paste",
+        "15": "                       ┃  Line 30 of a paste",
+        "16": "                       ┃  Line 31 of a paste",
+        "17": "                       ┃  Line 32 of a paste",
+        "18": "                       ┃  Line 33 of a paste",
+        "19": "                       ┃  Line 34 of a paste",
+        "20": "                       ┃  Line 35 of a paste",
+        "21": "                       ┃  Line 36 of a paste",
+        "22": "                       ┃  Line 37 of a paste",
+        "23": "                       ┃  Line 38 of a paste",
+        "24": "                       ┃  Line 39 of a paste",
+        "25": "                       ┃  Line 40 of a paste",
+        "26": "                       ┃",
+        "27": "                       ┃  Build · Fake Sonnet Fake",
+        "28": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "29": "                                                                       tab agents  ctrl+p commands",
+        "33": "                                     ● Tip Use /rename to rename the current session",
+        "37": "   ~/project",
+        "38": "  screens/sandbox/proj"
+      }
     }
   }
 }

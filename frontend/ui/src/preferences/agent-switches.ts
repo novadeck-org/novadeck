@@ -37,7 +37,7 @@ const limitNotes: Readonly<Record<NonNullable<AgentSwitch["limited"]>, string>> 
   outdated:
     "This version is too old for Novadeck, so it runs without sessions resuming, messages or the chat. Update it (opencode upgrade) to turn them on.",
   unsupported:
-    "Novadeck works with opencode 1 so far, so this version runs without sessions resuming, messages or the chat. opencode 1.18 or later turns them on.",
+    "Novadeck works with opencode 1 so far, so opencode 2 runs without sessions resuming, messages or the chat. Installing opencode 1 (1.18 or later) instead turns them on.",
 }
 
 export const agentLimit = ({ connected, busy, limited }: AgentSwitch): string | undefined =>

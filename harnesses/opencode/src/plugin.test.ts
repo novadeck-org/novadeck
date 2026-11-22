@@ -31,7 +31,7 @@ type Report = { readonly event: string; readonly payload: Record<string, any> }
 type Hooks = Record<string, (...args: any[]) => Promise<void>>
 
 let dir: string
-let prompted: { id: string; parts: unknown[] }[]
+let prompted: { id: string; parts: unknown[]; [field: string]: unknown }[]
 let sessions: Record<string, { parentID?: string }>
 let versionOf: string
 // Each call the plugin made to opencode's interface API (`client.tui`), the one way, beside the
@@ -48,7 +48,7 @@ const client = () => ({
     list: async () => ({ data: [] }),
     messages: async () => ({ data: [] }),
     promptAsync: async ({ path, body }: { path: { id: string }; body: { parts: unknown[] } }) => {
-      prompted.push({ id: path.id, parts: body.parts })
+      prompted.push({ id: path.id, ...body })
       return { data: undefined }
     },
   },
@@ -143,16 +143,19 @@ describe("Novadeck's opencode plugin", () => {
     expect(await module.NovadeckPlugin({ client: client(), directory: "/p" })).toEqual({})
   })
 
-  it("does nothing in an opencode 2, which it doesn't know yet, but says so", async () => {
+  // The runner reads the version itself, and Preferences says what it lacks (limited.ts).
+  it("does nothing in an opencode 2, which it doesn't know yet, not even a report", async () => {
     versionOf = "2.3.2"
     expect(await start()).toEqual({})
-    expect((await settled(1)).map(({ event }) => event)).toEqual(["Outdated"])
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(reports()).toEqual([])
   })
 
-  it("does nothing in an opencode older than it works with, but say so", async () => {
+  it("does nothing in an opencode older than it works with, not even a report", async () => {
     versionOf = "1.2.10"
     expect(await start()).toEqual({})
-    expect((await settled(1)).map(({ event }) => event)).toEqual(["Outdated"])
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(reports()).toEqual([])
   })
 
   it("adds Novadeck's MCP server and its tools allowed, beside the person's own rules", async () => {
@@ -274,14 +277,45 @@ describe("Novadeck's opencode plugin", () => {
     await hooks["chat.message"]!({ sessionID: "ses_a" }, output)
     // A second idle with no turn between, as an Escape gives, reports nothing.
     await emit(hooks, "session.idle", { sessionID: "ses_a" })
-    const told = await settled(4)
-    expect(told.map(({ event }) => event)).toEqual([
-      "SessionStart",
-      "Stop",
-      "Continued",
-      "UserPromptSubmit",
+    const told = await settled(3)
+    expect(told.map(({ event }) => event)).toEqual(["SessionStart", "Stop", "UserPromptSubmit"])
+    expect(told[2]!.payload.continuation).toBe(true)
+  })
+
+  it("goes on in the agent, model and variant of the person's last prompt", async () => {
+    const hooks = await start()
+    const model = { providerID: "fake", modelID: "m" }
+    await hooks["chat.message"]!(
+      { sessionID: "ses_a", agent: "plan", model, variant: "high" },
+      { message: { id: "msg_1", sessionID: "ses_a" }, parts: [{ type: "text", text: "Plan it" }] },
+    )
+    await emit(hooks, "session.status", { sessionID: "ses_a", status: { type: "busy" } })
+    await answer("Stop", "<novadeck-messages>later</novadeck-messages>")
+    await emit(hooks, "session.idle", { sessionID: "ses_a" })
+    await settled(3)
+    // Its plan agent, not opencode's default build agent, which may change files.
+    expect(prompted).toMatchObject([{ id: "ses_a", agent: "plan", model, variant: "high" }])
+  })
+
+  it("takes a prompt of the person's that comes as its delivery starts the turn as theirs", async () => {
+    const hooks = await start()
+    await emit(hooks, "session.created", { info: { id: "ses_a" } })
+    await emit(hooks, "session.status", { sessionID: "ses_a", status: { type: "busy" } })
+    await answer("Stop", "<novadeck-messages>later</novadeck-messages>")
+    await emit(hooks, "session.idle", { sessionID: "ses_a" })
+    await hooks["chat.message"]!(
+      { sessionID: "ses_a" },
+      { message: { id: "msg_2", sessionID: "ses_a" }, parts: [{ type: "text", text: "Mine" }] },
+    )
+    await hooks["chat.message"]!(
+      { sessionID: "ses_a" },
+      { message: { id: "msg_3", sessionID: "ses_a" }, parts: [prompted[0]!.parts[0]] },
+    )
+    const told = (await settled(4)).filter(({ event }) => event === "UserPromptSubmit")
+    expect(told.map(({ payload }) => [payload.prompt, payload.continuation])).toEqual([
+      ["Mine", false],
+      ["", true],
     ])
-    expect(told[3]!.payload.continuation).toBe(true)
   })
 
   // The runner gives a Stop's messages over a draft of the person's, as for every harness: the
@@ -491,6 +525,24 @@ describe("Novadeck's opencode plugin", () => {
     })
   })
 
+  it("binds a session again that the person left for its home and went back to", async () => {
+    const hooks = await start()
+    const prompt = async (id: string) =>
+      hooks["chat.message"]!(
+        { sessionID: "ses_a" },
+        { message: { id, sessionID: "ses_a" }, parts: [{ type: "text", text: "hi" }] },
+      )
+    await prompt("msg_1")
+    await prompt("msg_2")
+    // The TUI plugin's mark of a /new, which the runner ended the binding at.
+    await mkdir(join(dir, "left"), { recursive: true })
+    await writeFile(join(dir, "left", "ses_a"), "")
+    await prompt("msg_3")
+    const starts = (await settled(5)).filter(({ event }) => event === "SessionStart")
+    expect(starts.map(({ payload }) => payload.source)).toEqual(["startup", "switch"])
+    expect(existsSync(join(dir, "left", "ses_a"))).toBe(false)
+  })
+
   it("binds no session it was given that opencode doesn't have, which it exits at", async () => {
     const hooks = await start({ NOVADECK_OPENCODE_SESSION: "ses_gone" })
     // A prompt's report shows the reports so far are through: none was a SessionStart.
@@ -504,15 +556,16 @@ describe("Novadeck's opencode plugin", () => {
 })
 
 describe("the plugin's files", () => {
-  it("load the same module from Novadeck's configuration folder", () => {
+  it("name the same module in the configuration file OPENCODE_CONFIG may name", () => {
     const written = files("linux", { mcp: { command: "/r", args: ["mcp"] } })
     expect(written.map(({ path }) => path)).toEqual([
       "novadeck.mjs",
       "novadeck-tui.mjs",
       "tui.json",
-      "config/plugins/novadeck.js",
+      "opencode.json",
     ])
-    expect(written[3]!.content).toContain('from "../../novadeck.mjs"')
+    // A path opencode resolves against the file's own folder (config/plugin.ts:42, 1.19.6).
+    expect(JSON.parse(written[3]!.content)).toEqual({ plugin: ["./novadeck.mjs"] })
   })
 
   it("name the interface's plugin in the tui.json the shim hands opencode", () => {
@@ -578,5 +631,11 @@ describe("the interface's plugin", () => {
 
   it("says nothing for a move between sessions, a child's view too", async () => {
     expect(await run([session("ses_a"), session("ses_child"), session("ses_a")])).toEqual([])
+  })
+
+  it("leaves the root too where the person goes home from a subagent's view, and marks each", async () => {
+    const told = await run([session("ses_a"), session("ses_child"), { name: "home" }])
+    expect(told.map(({ session_id }) => session_id).toSorted()).toEqual(["ses_a", "ses_child"])
+    expect(existsSync(join(dir, "left", "ses_a"))).toBe(true)
   })
 })

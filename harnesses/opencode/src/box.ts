@@ -37,9 +37,11 @@ const menuRow = (row: string | undefined): boolean => /^ *┃ \S.*┃ *$/.test(r
  * (probed 2026-11-22, 1.19.6): the cursor at the text's start says it is the placeholder, not
  * a draft that says the same words. On a narrow screen it wraps over rows, read joined by spaces
  * (probed 2026-11-22, 1.19.6, 52 columns: `Ask anything… "What is the tech stack of` and
- * `this project?"`).
+ * `this project?"`), and for a frame after the first draws only its first row (a read of the e2e
+ * run's 52 columns: `Ask anything… "What is the` alone, the cursor at home), so only its opening
+ * is matched.
  */
-const placeholder = /^(?:Ask anything|Run a command)… ".*"$/s
+const placeholder = /^(?:Ask anything|Run a command)… "/
 
 type Frame = {
   /** The column its gutter is in. */
@@ -208,22 +210,43 @@ export const box: BoxProfile = {
   overlay,
   // Keys typed in the first moments after Enter are lost (probed 2026-11-22, 1.19.6, in the e2e
   // sandbox: 14 keys typed as its prompt hook began never showed, those 311 ms on did): the prompt
-  // is taken once its first line stands in the history with the assistant's row, or its QUEUED
-  // badge, after it.
-  echoed: (screen, text) => {
-    const found = frameOf(screen.rows)
+  // is taken once its history shows one more row of its first line than before the paste (a
+  // prompt sent twice has two), or, where that line wraps or is cut short on a narrow screen, one
+  // more row of any prompt, with the assistant's row or the QUEUED badge after it.
+  echoed: (screen, text, before) => {
     const first = text.split("\n")[0]!.trim().slice(0, 30)
     if (first === "") return true
-    const above = found ? screen.rows.slice(0, found.top) : screen.rows
-    const at = above.findLastIndex((row) => row.trim().startsWith(`${gutter}  ${first}`))
-    return at >= 0 && above.slice(at + 1).some((row) => /▣ |^ *┃\s+QUEUED\s*$/.test(row))
+    const prompts = (drawn: ScreenText | undefined) => {
+      const rows = drawn?.rows ?? []
+      const found = drawn ? frameOf(rows) : undefined
+      const above = found ? rows.slice(0, found.top) : rows
+      const sent = above.flatMap((row, at) => (/^ *┃  \S/.test(row) ? [at] : []))
+      const echoes = sent.filter((at) => above[at]!.trim().startsWith(`${gutter}  ${first}`))
+      const taken = (at: number | undefined) =>
+        at !== undefined && above.slice(at + 1).some((row) => /▣ |^ *┃\s+QUEUED\s*$/.test(row))
+      return { sent: sent.length, echoes: echoes.length, taken: taken(sent.at(-1)) }
+    }
+    const now = prompts(screen)
+    const was = prompts(before)
+    return (now.echoes > was.echoes || now.sent > was.sent) && now.taken
   },
   // A first Escape arms the interrupt, the row under the box saying `esc again to interrupt`
   // for about 5 s, and only a second stops the turn (probed 2026-11-22, 1.19.6, `busyEsc1` of
   // fixtures/input-box.probe.json; the arm lapsed after 5 s with no second Escape).
   armed: (screen) => screen.rows.some((row) => /^ *[■⬝]+ +esc again to interrupt\b/.test(row)),
+  // Its status row says a turn runs (`■■⬝⬝  esc interrupt`), or runs and is armed.
+  working: (screen) =>
+    screen.rows.some((row) => /^ *[■⬝]+ +esc (?:again to )?interrupt\b/.test(row)),
   queued: (screen) => screen.rows.some((row) => /^ *┃\s+QUEUED\s*$/.test(row)),
-  collapses: (text) => text.split("\n").length >= 3 || text.length > 150,
+  // Counted as it counts, on the text trimmed and its breaks normalised, `a\nb\n` is two lines
+  // and shows whole. A person may turn the summary off (the palette's saved toggle, or
+  // `experimental.disable_paste_summary`): the text then shows whole, and a tall one only as its
+  // tail in the box's viewport, which the checks that expect a placeholder read as a box that
+  // `showsTail` (probed 2026-11-22, 1.19.6: 40 lines showed the last 13 of a 40-row screen).
+  collapses: (text) => {
+    const trimmed = text.replaceAll(/\r\n?/g, "\n").trim()
+    return trimmed.split("\n").length >= 3 || trimmed.length > 150
+  },
   // It shows at most a third of the screen's rows of its text, the tail of a taller one, without
   // a mark (probed 2026-11-22, 1.19.6: 4, 6, 8, 10, 13, 16 rows on 12, 20, 24, 30, 40, 50; 17 rows
   // showed 6, so a third rounded down is the least it shows).

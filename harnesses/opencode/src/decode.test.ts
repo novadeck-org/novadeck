@@ -51,7 +51,6 @@ describe("opencode's reports, as Novadeck's plugin made them (probed 2026-11-22,
       (payload) => payload.continuation === true,
     )
     expect(decoded("UserPromptSubmit", continuation!)).toEqual([])
-    expect(decoded("Continued", { session_id: root })).toEqual([])
     expect(decoded("Lapsed", { session_id: root })).toEqual([
       expect.objectContaining({ type: "turn-lapsed", sessionId: root }),
     ])

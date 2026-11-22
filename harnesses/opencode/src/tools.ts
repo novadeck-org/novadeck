@@ -67,6 +67,9 @@ const known = (name: string, fields: Fields | undefined): ToolRun | undefined =>
       }
     case "todowrite":
       return { kind: "plan", title: "Updated the plan", detail: "" }
+    // Its read of that list, which takes no arguments.
+    case "todoread":
+      return { kind: "read", title: "Read the plan", detail: "" }
     // A call of a tool it wasn't offered: opencode records it as `invalid`, with the tool the
     // model named and why it couldn't run (probed 2026-11-22, 1.19.6).
     case "invalid":

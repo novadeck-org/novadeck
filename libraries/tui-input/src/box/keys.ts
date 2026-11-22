@@ -5,6 +5,7 @@ import type { ScreenText } from "@novadeck/emulator/headless"
 import type { BoxProfile, InputBox } from "./box.js"
 import { hidesText } from "./box.js"
 import { cursorAtEnd, toEnd } from "./leftover.js"
+import { pause } from "./pause.js"
 import { sameText } from "./text.js"
 
 /** What pressing keys in a box needs of its terminal. */
@@ -21,13 +22,6 @@ export type BoxKeysHost = {
 
 /** How long keys may take to show, and how often the screen is looked at, in milliseconds. */
 export type BoxKeysTiming = { readonly pollMs: number; readonly keysMs: number }
-
-/**
- * Marks, in keys a profile gives, where the next must wait for the program to have taken the ones
- * before it, a few polls: a Backspace that leaves a shell mode is lost on opencode when it arrives
- * in the same read as the Ctrl-U that emptied the box (probed 2026-11-22, 1.19.6, in the e2e sandbox).
- */
-export const pause = "\0"
 
 /**
  * Writes the keys once and gives the screen `reached` holds of on two reads running, within

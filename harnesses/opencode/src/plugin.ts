@@ -5,7 +5,7 @@ import type { Harness } from "@novadeck/harness-core/harness"
 import { hookCommand, hookSeconds, type Dialect } from "@novadeck/harness-core/hook-command"
 
 import { pluginSource } from "./plugin-source.js"
-import { configPlugin, pluginFile, tuiConfig, tuiPluginFile } from "./shim.js"
+import { configFile, pluginFile, tuiConfig, tuiPluginFile } from "./shim.js"
 import { tuiPluginSource } from "./tui-plugin-source.js"
 import { minimum, unknownFrom } from "./version.js"
 
@@ -18,7 +18,6 @@ export const events = [
   "SessionStart",
   "UserPromptSubmit",
   "Stop",
-  "Continued",
   "Lapsed",
   "PreToolUse",
   "PostToolUse",
@@ -28,8 +27,6 @@ export const events = [
   "PermissionReplied",
   "QuestionRequest",
   "QuestionReplied",
-  "Retry",
-  "Outdated",
   "SessionLeft",
 ] as const
 
@@ -84,10 +81,6 @@ export const files: Harness["files"] = (platform, launchers, machine = {}) => [
     }),
   },
   { path: tuiConfig, content: `{"plugin":["./${tuiPluginFile}"]}\n` },
-  // opencode loads a configuration folder's `plugins/*.{js,ts}` alone, never `.mjs`
-  // (config/plugin.ts, probed 2026-11-22, 1.19.6).
-  {
-    path: configPlugin,
-    content: `// Novadeck's plugin for opencode, loaded from its configuration folder.\nexport { NovadeckPlugin } from "../../${pluginFile}"\n`,
-  },
+  // The configuration file the shim names where the person set OPENCODE_CONFIG_CONTENT.
+  { path: configFile, content: `{"plugin":["./${pluginFile}"]}\n` },
 ]

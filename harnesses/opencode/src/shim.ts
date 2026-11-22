@@ -13,12 +13,11 @@ export const tuiPluginFile = "novadeck-tui.mjs"
 export const tuiConfig = "tui.json"
 
 /**
- * The plugin as opencode's `OPENCODE_CONFIG_DIR` finds it, relative to the plugin's folder.
- * opencode auto-loads only `{plugin,plugins}/*.{ts,js}` of a config folder, never `.mjs`
- * (config/plugin.ts:21, 1.19.6; probed 2026-11-22: a `.mjs` there did not load, a `.js` did), so
- * the file there is a `.js` that re-exports the real one.
+ * A configuration file naming the plugin, relative to the plugin's folder, for `OPENCODE_CONFIG`:
+ * opencode merges that file over the person's global configuration, and resolves a plugin path in
+ * it against the file's folder (config/config.ts:415, config/plugin.ts:42, 1.19.6).
  */
-export const configPlugin = "config/plugins/novadeck.js"
+export const configFile = "opencode.json"
 
 // opencode's commands other than the TUI (`opencode --help`, 1.19.6, with the hidden `generate` and
 // `console`, packages/opencode/src/index.ts:76-100, cli/cmd/account.ts:238), and its options that
@@ -91,9 +90,10 @@ const pluginFolder = "plugins/opencode"
 // 1. `OPENCODE_CONFIG_CONTENT`, a config of its own that opencode merges over the person's
 //    (config/config.ts:482), naming the plugin by its absolute path. A path is a plugin spec
 //    (plugin/shared.ts:171), and one with a space loaded (probed 2026-11-22, 1.19.6).
-// 2. Where the person set that one, `OPENCODE_CONFIG_DIR`, whose `plugins` folder opencode scans
-//    (config/config.ts:432-480): the folder Novadeck made for it, `configPlugin`. Opencode also
-//    tries to install its plugin package into that folder, in the background.
+// 2. Where the person set that one, `OPENCODE_CONFIG`, a file of Novadeck's (`configFile`) that
+//    opencode merges over theirs as well (config/config.ts:415). Never `OPENCODE_CONFIG_DIR`,
+//    which opencode takes as the global configuration folder itself (core/src/global.ts:64), so
+//    the person's own would no longer load.
 // 3. Where they set both, none: the plugin can't load (`hooksTrusted` says so).
 // A path that couldn't sit in JSON (a quote, a backslash, a line break) gets 2 as well.
 export const posixShim = (root?: string): string => {
@@ -216,8 +216,8 @@ if [ -n "$novadeck_plugin" ]; then
   else
     novadeck_config=dir
   fi
-  if [ "$novadeck_config" = dir ] && [ -z "\${OPENCODE_CONFIG_DIR:-}" ] && [ -f "$novadeck_plugin/${configPlugin}" ]; then
-    export OPENCODE_CONFIG_DIR=$novadeck_plugin/config
+  if [ "$novadeck_config" = dir ] && [ -z "\${OPENCODE_CONFIG:-}" ] && [ -f "$novadeck_plugin/${configFile}" ]; then
+    export OPENCODE_CONFIG=$novadeck_plugin/${configFile}
   fi
 fi
 # Its interface's plugin, which tells a session left for home (/new): a tui.json for this launch,
@@ -316,8 +316,8 @@ if defined OPENCODE_CONFIG_CONTENT goto dir
 set "OPENCODE_CONFIG_CONTENT={"plugin":["%novadeck_slash%/${pluginFile}"]}"
 goto config
 :dir
-if defined OPENCODE_CONFIG_DIR goto config
-if exist "%novadeck_plugin%\\${configPlugin.replaceAll("/", "\\")}" set "OPENCODE_CONFIG_DIR=%novadeck_plugin%\\config"
+if defined OPENCODE_CONFIG goto config
+if exist "%novadeck_plugin%\\${configFile}" set "OPENCODE_CONFIG=%novadeck_plugin%\\${configFile}"
 rem The variant is the agents' own in the configuration the plugin merges over the loaded one,
 rem where one isn't set already, and only from a model and a variant of plain characters.
 :config
@@ -363,13 +363,13 @@ exit /b
  * Whether Novadeck's plugin can load for a session started in this terminal: not where the
  * person runs opencode with `--pure` through its variable (`OPENCODE_PURE`, index.ts:62, no
  * external plugins), nor where they set both of the variables the shim would use
- * (`OPENCODE_CONFIG_CONTENT` and `OPENCODE_CONFIG_DIR`), nor where the plugin file isn't there.
+ * (`OPENCODE_CONFIG_CONTENT` and `OPENCODE_CONFIG`), nor where the plugin file isn't there.
  * It reads `where.env` alone and runs no command.
  */
 export const hooksTrusted: NonNullable<Harness["hooksTrusted"]> = async (where) => {
   const { env } = where
   if (env.OPENCODE_PURE && env.OPENCODE_PURE !== "0" && env.OPENCODE_PURE !== "false") return false
-  if (env.OPENCODE_CONFIG_CONTENT && env.OPENCODE_CONFIG_DIR) return false
+  if (env.OPENCODE_CONFIG_CONTENT && env.OPENCODE_CONFIG) return false
   const { access } = await import("node:fs/promises")
   return access(join(where.plugin, pluginFile)).then(
     () => true,
