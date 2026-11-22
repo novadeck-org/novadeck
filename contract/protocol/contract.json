@@ -1,5 +1,5 @@
 {
-  "revision": 5,
+  "revision": 6,
   "oldestClient": 3,
   "oldestRunner": 2,
   "errors": {
@@ -32,6 +32,7 @@
       "required": ["reason"],
       "additionalProperties": false
     },
+    "CONTROL_BUSY": null,
     "CONTROL_IN_USE": null,
     "CONTROL_REQUIRED": null,
     "DIALOG_CHANGED": null,
@@ -2538,6 +2539,38 @@
         "additionalProperties": false
       },
       "output": {"x-optional":true}
+    },
+    "terminals.take": {
+      "since": 6,
+      "input": {
+        "type": "object",
+        "properties": {
+          "terminalId": {"type":"string","format":"uuid"},
+          "ifIdleMs": {"type":"integer","minimum":0,"maximum":60000}
+        },
+        "required": ["terminalId"],
+        "additionalProperties": false
+      },
+      "output": {"x-optional":true}
+    },
+    "terminals.controls": {
+      "since": 6,
+      "input": {"x-optional":true},
+      "yields": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {"type":"string","const":"control"},
+              "terminalId": {"type":"string","format":"uuid"},
+              "holder": {"type":"string","enum":["you","other","none"]}
+            },
+            "required": ["type","terminalId","holder"],
+            "additionalProperties": false
+          }
+        ],
+        "x-open": {"since":6,"unknown":"drop"}
+      }
     },
     "terminals.active": {
       "input": {

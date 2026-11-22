@@ -324,6 +324,23 @@ export const terminalAttached = z.strictObject({
   mode: z.enum(["control", "observe"]),
 })
 
+/**
+ * Who controls a terminal this client is attached to, as `terminals.controls` tells it: this
+ * client (`you`), another (`other`), or none (`none`), as each attachment starts and again as
+ * it changes. A client that doesn't know a kind drops it.
+ */
+export const terminalControl = openUnion(
+  "type",
+  [
+    z.strictObject({
+      type: z.literal("control"),
+      terminalId: id,
+      holder: z.enum(["you", "other", "none"]),
+    }),
+  ],
+  { since: 6, unknown: "drop" },
+)
+
 export type TerminalExit = z.infer<typeof exit>
 export type ForegroundProcess = z.infer<typeof foregroundProcess>
 export type TerminalSummary = z.infer<typeof terminalSummary>
@@ -336,6 +353,7 @@ export type Approval = z.infer<typeof approval>
 export type ApprovalAnswer = z.infer<typeof approvalAnswer>
 export type TerminalEvent = z.infer<typeof terminalEvent>
 export type TerminalAttached = z.infer<typeof terminalAttached>
+export type TerminalControl = z.infer<typeof terminalControl>
 
 // What `terminals.busy` answers: the terminals whose shell holds work a restart would end, and
 // those the runner could not read, which a client must not take for idle.
