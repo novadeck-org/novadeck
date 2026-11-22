@@ -211,7 +211,7 @@ export const contract = {
     // `base` the revision its patch was made on, which `watch` passes on. A patch that leaves
     // no JSON object, or a state past `maxClientStateLength`, is CONFLICT and changes nothing.
     change: procedure
-      .meta({ since: 3 })
+      .meta({ since: 4 })
       .input(
         z.strictObject({
           sessionId: id,
@@ -224,7 +224,7 @@ export const contract = {
       .output(z.strictObject({ revision: z.number().int().nonnegative() })),
     // Every session's changes, as `sessionChange` says, for a client sharing them with others.
     // Ends with the connection.
-    watch: procedure.meta({ since: 3 }).input(z.void()).output(eventIterator(sessionChange)),
+    watch: procedure.meta({ since: 4 }).input(z.void()).output(eventIterator(sessionChange)),
   },
   terminals: {
     // Every terminal of the session, running or saved to restore, oldest first.

@@ -13,7 +13,7 @@ import { deviceView, keepDeviceView, viewKeys, viewOf, type DeviceView } from ".
 // A session's state shared with the other clients of its runner: what this one changes goes as
 // a patch a record at a time (patch.ts), and what another changes arrives on the runner's feed
 // (`sessions.watch`), with this client's own changes not yet in it laid over it, so neither
-// loses the other's. A runner from before revision 3 of the contract has neither: saves replace
+// loses the other's. A runner from before revision 4 of the contract has neither: saves replace
 // the state, as before, and nothing arrives.
 //
 // For each session this keeps what the runner was last seen to hold (`confirmed`: from a

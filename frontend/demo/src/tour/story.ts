@@ -41,8 +41,10 @@ export const tourStoryMs = {
   talk: 300,
   show: 400,
   // How long after its team is opened the lead asks to run the server: the team step's line has
-  // its moment first (it holds 3 s once both teammates are named).
-  serve: 3_800,
+  // its moment first. The tour comes to that step only once its first line has been read (shown
+  // a second or so after the lead named itself, then held 3 s), and shows the team's line a
+  // second after that, which it holds 3 s.
+  serve: 7_800,
 } as const
 
 export const sculptorName = "Sculptor"

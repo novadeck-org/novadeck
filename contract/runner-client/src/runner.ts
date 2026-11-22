@@ -225,7 +225,7 @@ export type Runner = {
      * Changes the session's `state` by `patch`, applied to its JSON as the runner holds it,
      * and `visitedAt` where given; resolves its new revision. `writer` names this client and
      * `base` the revision the patch was made on, which `watch` passes on. A runner from before
-     * revision 3 has neither (`supports("sessions.change")`).
+     * revision 4 has neither (`supports("sessions.change")`).
      */
     change(input: {
       readonly sessionId: string

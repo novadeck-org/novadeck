@@ -1,4 +1,5 @@
 export { createRunner, type RunnerOptions } from "./runner.js"
+export { endOnSignals, superviseRunner, type HostPart, type Lifecycle } from "./lifecycle.js"
 export { useLogger } from "./log.js"
 export { logDoorbell } from "./messaging/doorbell-log.js"
 export { finishGraceMs } from "./terminals/turn-ends.js"

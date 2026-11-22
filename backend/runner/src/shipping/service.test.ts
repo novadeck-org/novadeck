@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { logs, useLogger } from "../log.js"
 import type { WorktreeRecord } from "../worktrees/records.js"
-import { Shipping } from "./service.js"
+import { setAgyPreToolUse } from "./hooks.js"
+import { launchMode, pendingMs, Shipping } from "./service.js"
 
 let dir: string
 let repo: string
@@ -42,10 +43,10 @@ const force = "git push -f origin main"
 const forceKey = "push-force:r/app:origin/main"
 
 describe("which harnesses the gate covers", () => {
-  it("covers Claude Code and Codex while on, and never Antigravity", () => {
+  it("covers Claude Code, Codex and Antigravity while on", () => {
     expect(service().covers("claude")).toBe(true)
     expect(service().covers("codex")).toBe(true)
-    expect(service().covers("agy")).toBe(false)
+    expect(service().covers("agy")).toBe(true)
     const off = new Shipping({
       enabled: () => false,
       owned: { ofTerminal: () => [], all: () => [] },
@@ -118,14 +119,334 @@ describe("what the gate's answer does once printed", () => {
     expect(Date.now() - started).toBeLessThan(250)
   })
 
-  it("answers nothing while it is off, or for Antigravity", async () => {
+  it("answers nothing while it is off", async () => {
     const off = new Shipping({
       enabled: () => false,
       owned: { ofTerminal: () => [], all: () => [] },
       notify: () => true,
     })
     expect(await off.answer("t", "claude", call(force))).toBeUndefined()
-    expect(await service().answer("t", "agy", call(force))).toBeUndefined()
+    expect(await off.answer("t", "agy", call(force))).toBeUndefined()
+  })
+})
+
+describe("Antigravity's answers", () => {
+  const push = "git push origin main"
+  const pushKey = "push:r/app:origin/main"
+  // Real git runs in these, and a Windows runner is slow at it.
+  const slow = 15_000
+  const agy = (shipping: Shipping, command: string, launch?: string[], step?: number) =>
+    shipping.answer(
+      "t",
+      "agy",
+      { ...call(command), ...(launch && { launch }), ...(step !== undefined && { step }) },
+      Date.now() + slow,
+    )
+  const denies = (answer: Awaited<ReturnType<typeof agy>>) => JSON.parse(answer!.stdout)
+
+  it("denies an unpermitted shipping command in every mode but a bypass, with request_permit's text", async () => {
+    const launches = [
+      ["--mode", "accept-edits"],
+      ["--mode=plan"],
+      ["-mode", "plan"],
+      ["--mode", "auto"],
+      ["--mode", "default"],
+      [],
+    ]
+    const answers = await Promise.all(launches.map((launch) => agy(service(), push, launch)))
+    for (const answer of answers) {
+      expect(denies(answer)).toMatchObject({ decision: "deny" })
+      expect(denies(answer).reason).toContain("request_permit")
+      expect(answer?.leaseId).toBeNull()
+    }
+  })
+
+  it("has no opinion where it was told to skip every permission", async () => {
+    const shipping = service()
+    expect(await agy(shipping, push, ["--dangerously-skip-permissions"])).toBeUndefined()
+    expect(await agy(shipping, push, ["--mode", "bypass"])).toBeUndefined()
+    shipping.statusLine("t", { cycle_mode: "bypass" }, "9")
+    expect(shipping.agyMode("t", [], "9")).toBe("bypass")
+  })
+
+  it("stays silent for a permitted command, which its own confirmation then asks about", async () => {
+    const shipping = service()
+    shipping.permits.give("t", pushKey, false, { type: "quote", quote: "push it" })
+    expect(await agy(shipping, push, ["--mode", "accept-edits"])).toBeUndefined()
+    // Nothing was used up: the permit is taken when the confirmation is answered.
+    expect(shipping.permits.covering("t", pushKey)).toBeDefined()
+  })
+
+  it("has no opinion of any other command, and reads the mode from the status line over the launch's", async () => {
+    const shipping = service()
+    expect(await agy(shipping, "git status", ["--mode", "accept-edits"])).toBeUndefined()
+    // Its Default mode says `""`, which the gate treats as gated; a restarted process's older
+    // line says nothing of the next.
+    shipping.statusLine("t", { cycle_mode: "" }, "9")
+    expect(shipping.agyMode("t", ["--mode", "accept-edits"], "9")).toBe("")
+    expect(shipping.agyMode("t", ["--mode", "accept-edits"], "10")).toBe("accept-edits")
+    expect(shipping.agyMode("t", undefined, "10")).toBe("")
+    shipping.statusLine("t", { cycle_mode: "plan" }, "9")
+    expect(shipping.agyMode("t", undefined, "9")).toBe("plan")
+    // No process known: an earlier line may be another process's, so the launch's counts, else gated.
+    expect(shipping.agyMode("t", ["--mode", "accept-edits"], null)).toBe("accept-edits")
+    expect(shipping.agyMode("t", undefined, null)).toBe("")
+    shipping.statusLine("t", { cycle_mode: "bypass" }, null)
+    expect(shipping.agyMode("t", undefined, null)).toBe("")
+    shipping.statusLine("t", {}, "9")
+    expect(shipping.agyMode("t", ["--mode", "plan"], "9")).toBe("plan")
+    shipping.closed("t")
+    expect(shipping.agyMode("t", undefined, "9")).toBe("")
+  })
+
+  it("reads the launch's mode as agy reads its flags", () => {
+    expect(launchMode(["--mode", "plan", "x"])).toBe("plan")
+    expect(launchMode(["-mode=accept-edits"])).toBe("accept-edits")
+    expect(launchMode(["--mode", "plan", "--mode", "auto"])).toBe("auto")
+    expect(launchMode(["--model", "x"])).toBeUndefined()
+    expect(launchMode(undefined)).toBeUndefined()
+  })
+
+  // The hook sees a permitted command; its confirmation then shows it as the dialog draws it.
+  const hooked = async (
+    shipping: Shipping,
+    command: string,
+    step = 3,
+    launch = ["--mode", "accept-edits"],
+  ) => agy(shipping, command, launch, step)
+  const dialog = (
+    detail: string,
+    command: string,
+    over: { askedAt?: number; requestId?: string; whole?: boolean } = {},
+  ) => ({
+    detail,
+    call: command,
+    requestId: over.requestId ?? "confirmation:run_command:3",
+    askedAt: over.askedAt ?? Date.now() + 50,
+    whole: over.whole ?? true,
+  })
+  const permitted = (shipping: Shipping, key = pushKey, singleUse = false) =>
+    shipping.permits.give("t", key, singleUse, { type: "quote", quote: "push it" })
+
+  it("answers its confirmation only for the call the hook vetted, which a permit covers", async () => {
+    const shipping = service()
+    permitted(shipping)
+    // Nothing recorded yet: the person answers.
+    expect(await shipping.autoAnswer("t", "agy", dialog(push, push))).toBeUndefined()
+    expect(await hooked(shipping, push)).toBeUndefined()
+    // Another terminal's, another harness's, another call's request, another command, a dialog
+    // that was up before the hook recorded it.
+    expect(await shipping.autoAnswer("u", "agy", dialog(push, push))).toBeUndefined()
+    expect(await shipping.autoAnswer("t", "claude", dialog(push, push))).toBeUndefined()
+    expect(
+      await shipping.autoAnswer(
+        "t",
+        "agy",
+        dialog(push, push, { requestId: "confirmation:run_command:4" }),
+      ),
+    ).toBeUndefined()
+    expect(
+      await shipping.autoAnswer("t", "agy", dialog(push, "git push origin dev")),
+    ).toBeUndefined()
+    expect(await shipping.autoAnswer("t", "agy", dialog("git push", push))).toBeUndefined()
+    expect(
+      await shipping.autoAnswer("t", "agy", dialog(push, push, { askedAt: Date.now() - 5_000 })),
+    ).toBeUndefined()
+    const auto = await shipping.autoAnswer("t", "agy", dialog(push, push))
+    expect(auto?.note).toContain("push to origin/main in r/app")
+    // The entry answers one dialog.
+    expect(await shipping.autoAnswer("t", "agy", dialog(push, push))).toBeUndefined()
+  })
+
+  it("gives no answer once another call's hook was asked after it", async () => {
+    const shipping = service()
+    permitted(shipping)
+    await hooked(shipping, push, 3)
+    // A later call (parallel, or a denied one, which the report path never learns of).
+    await agy(shipping, "git status", ["--mode", "accept-edits"], 4)
+    expect(await shipping.autoAnswer("t", "agy", dialog(push, push))).toBeUndefined()
+  })
+
+  it("answers nothing where the dialog isn't shown whole, or its text isn't the note's exactly", async () => {
+    const shipping = service()
+    permitted(shipping)
+    await hooked(shipping, push)
+    // A cut one, a start of the command, and the command with another's tail.
+    expect(
+      await shipping.autoAnswer("t", "agy", dialog(push, push, { whole: false })),
+    ).toBeUndefined()
+    expect(await shipping.autoAnswer("t", "agy", dialog("git push origin", push))).toBeUndefined()
+    expect(await shipping.autoAnswer("t", "agy", dialog(`${push} `, `${push} `))).toBeUndefined()
+    expect(await shipping.autoAnswer("t", "agy", dialog(push, ` ${push}`))).toBeUndefined()
+    expect(await shipping.autoAnswer("t", "agy", dialog(push, push))).toBeDefined()
+  })
+
+  it("answers nothing where another call's hook was seen near the note, whoever's it was", async () => {
+    const hookedBy = (shipping: Shipping, command: string, conversation: string, step: number) =>
+      shipping.answer(
+        "t",
+        "agy",
+        { ...call(command), launch: ["--mode", "accept-edits"], step, conversation },
+        Date.now() + slow,
+      )
+    // After it: a subagent's call, with the same step in a conversation of its own.
+    const after = service()
+    permitted(after)
+    await hookedBy(after, push, "root", 3)
+    await hookedBy(after, "git status", "sub", 3)
+    expect(await after.autoAnswer("t", "agy", dialog(push, push))).toBeUndefined()
+    // Before it.
+    const before = service()
+    permitted(before)
+    await hookedBy(before, "git status", "sub", 2)
+    await hookedBy(before, push, "root", 3)
+    expect(await before.autoAnswer("t", "agy", dialog(push, push))).toBeUndefined()
+    // Alone, and another terminal's hook counts for nothing.
+    const alone = service()
+    permitted(alone)
+    await alone.answer("u", "agy", {
+      ...call("git status"),
+      launch: ["--mode", "plan"],
+      step: 4,
+      conversation: "sub",
+    })
+    await hookedBy(alone, push, "root", 3)
+    expect(await alone.autoAnswer("t", "agy", dialog(push, push))).toBeDefined()
+  })
+
+  it("is not stopped by the hook's own earlier refusal of the same command", async () => {
+    // The usual way: denied, a permit given, run again. A denied call shows no dialog.
+    const shipping = service()
+    expect(await hooked(shipping, push, 2)).toMatchObject({ leaseId: null })
+    permitted(shipping)
+    await hooked(shipping, push, 3)
+    expect(
+      await shipping.autoAnswer(
+        "t",
+        "agy",
+        dialog(push, push, { requestId: "confirmation:run_command:3" }),
+      ),
+    ).toBeDefined()
+  })
+
+  it("gives a single-use permit back only where nothing ended permits meanwhile, and never a standing one", async () => {
+    const single = service()
+    permitted(single, forceKey, true)
+    await hooked(single, force)
+    const auto = await single.autoAnswer("t", "agy", dialog(force, force))
+    expect(single.permits.covering("t", forceKey)).toBeUndefined()
+    // A revoke (the PR's base changed) ended permits while the keys went: nothing comes back.
+    single.permits.revoke(forceKey)
+    auto!.release()
+    expect(single.permits.covering("t", forceKey)).toBeUndefined()
+    // A standing permit was never taken, so it is neither lost nor re-added after a revoke.
+    const standing = service()
+    permitted(standing)
+    await hooked(standing, push)
+    const kept = await standing.autoAnswer("t", "agy", dialog(push, push))
+    expect(standing.permits.covering("t", pushKey)).toBeDefined()
+    standing.permits.revoke(pushKey)
+    kept!.release()
+    expect(standing.permits.covering("t", pushKey)).toBeUndefined()
+  })
+
+  it("refuses a command of the rules' shapes the gate couldn't decide in time, and leaves others to agy", async () => {
+    const shipping = service()
+    const slowGate = (shipping as unknown as { gate: { decide: () => Promise<unknown> } }).gate
+    slowGate.decide = () => new Promise(() => {})
+    const late = (command: string) =>
+      shipping.answer("t", "agy", { ...call(command), launch: [] }, Date.now() + 40)
+    const refused = await late("gh pr create --title x")
+    expect(JSON.parse(refused!.stdout)).toMatchObject({ decision: "deny" })
+    expect(JSON.parse((await late("cd /w && gh pr merge 5"))!.stdout)).toMatchObject({
+      decision: "deny",
+    })
+    expect(await late("git push origin main")).toBeUndefined()
+    slowGate.decide = () => Promise.reject(new Error("git failed"))
+    expect(JSON.parse((await late("gh pr merge 5"))!.stdout)).toMatchObject({ decision: "deny" })
+    expect(await late("ls")).toBeUndefined()
+  })
+
+  it("takes a single-use permit before anything is typed, so two dialogs never both use it", async () => {
+    const shipping = service()
+    permitted(shipping, forceKey, true)
+    await hooked(shipping, force)
+    const [first, second] = await Promise.all([
+      shipping.autoAnswer("t", "agy", dialog(force, force)),
+      shipping.autoAnswer("t", "agy", dialog(force, force)),
+    ])
+    expect([first, second].filter((each) => each !== undefined)).toHaveLength(1)
+    expect(shipping.permits.covering("t", forceKey)).toBeUndefined()
+    // The keys failed: it goes back.
+    ;(first ?? second)!.release()
+    expect(shipping.permits.covering("t", forceKey)).toBeDefined()
+  })
+
+  it("records nothing for a command no permit covers, a tail, a bypass, a call with no step", async () => {
+    const shipping = service()
+    expect(await hooked(shipping, push)).toMatchObject({ leaseId: null })
+    expect(await shipping.autoAnswer("t", "agy", dialog(push, push))).toBeUndefined()
+    permitted(shipping)
+    await hooked(shipping, `${push} && touch x`)
+    await hooked(shipping, "git status")
+    await agy(shipping, push, ["--mode", "accept-edits"])
+    expect(await shipping.autoAnswer("t", "agy", dialog(push, push))).toBeUndefined()
+    await hooked(shipping, push, 3, ["--dangerously-skip-permissions"])
+    expect(await shipping.autoAnswer("t", "agy", dialog(push, push))).toBeUndefined()
+  })
+
+  it("answers for none where two permitted commands wait, or the entry lapsed", async () => {
+    const shipping = service()
+    permitted(shipping)
+    shipping.permits.give("t", "push:r/app:origin/dev", false, { type: "quote", quote: "push it" })
+    await hooked(shipping, push, 3)
+    await hooked(shipping, "git push origin dev", 4)
+    expect(await shipping.autoAnswer("t", "agy", dialog(push, push))).toBeUndefined()
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.now() })
+    try {
+      const other = service()
+      permitted(other)
+      await hooked(other, push)
+      vi.setSystemTime(Date.now() + pendingMs + 1_000)
+      expect(
+        await other.autoAnswer("t", "agy", dialog(push, push, { askedAt: Date.now() })),
+      ).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("forgets what it noted and looked at when the terminal closes", async () => {
+    const shipping = service()
+    permitted(shipping)
+    await hooked(shipping, push)
+    expect(shipping.firstLook("t", "r1", ["r1"])).toBe(true)
+    expect(shipping.firstLook("t", "r1", ["r1"])).toBe(false)
+    shipping.closed("t")
+    expect(shipping.firstLook("t", "r1", ["r1"])).toBe(true)
+    permitted(shipping)
+    expect(await shipping.autoAnswer("t", "agy", dialog(push, push))).toBeUndefined()
+  })
+
+  it("ends what the command voids only once the keys were typed", async () => {
+    const shipping = service()
+    permitted(shipping, forceKey, true)
+    await hooked(shipping, force)
+    const auto = await shipping.autoAnswer("t", "agy", dialog(force, force))
+    expect(auto).toBeDefined()
+    expect(shipping.permits.covering("t", forceKey)).toBeUndefined()
+    auto!.done()
+  })
+
+  it("covers Antigravity only where its PreToolUse hook is registered", () => {
+    expect(service().covers("agy")).toBe(true)
+    setAgyPreToolUse(false)
+    try {
+      expect(service().covers("agy")).toBe(false)
+      expect(service().covers("claude")).toBe(true)
+    } finally {
+      setAgyPreToolUse(true)
+    }
   })
 })
 

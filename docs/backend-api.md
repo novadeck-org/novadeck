@@ -89,6 +89,38 @@ an in-memory database when no path is supplied. `@novadeck/runner/http` stays fr
 of native terminal code, so the Electron main process can serve the status endpoint
 without it.
 
+### Running a standalone runner
+
+The CLI and the desktop app's runner share one lifecycle (`backend/runner/src/lifecycle.ts`);
+only where the transcript key comes from and the desktop's watch on its main process differ.
+
+- **Data folder.** Everything the runner keeps lives beside `NOVADECK_DATABASE`
+  (`~/.local/share/novadeck/` by default): `workspace.sqlite`, `shell/`, `uploads/`,
+  `dialogs/`, `voice/`, `murmur/` and `transcript.key`. Keep the folder on a volume that
+  outlives the container or host.
+- **Transcript key.** Saved transcripts are sealed with a 32-byte key kept as base64 in
+  `transcript.key` beside the database, or in the file `NOVADECK_TRANSCRIPT_KEY_FILE` names
+  (standard or URL-safe, padded or not).
+  The runner makes it at 0600 where it is missing. A file that holds no key, or can't be
+  read, is never replaced: transcripts are then not kept, and the log says why. A key file
+  other users can read is still used, with a warning. The key keeps transcripts out of the
+  database file alone and away from the machine's other users. It does not protect them from
+  root, the runner's own user, or a copy of the whole folder. To keep the key encrypted at
+  rest, make one (`openssl rand -base64 32`) and point the setting at a systemd credential
+  (`LoadCredentialEncrypted=transcript.key:…` with
+  `NOVADECK_TRANSCRIPT_KEY_FILE=%d/transcript.key`) or a Docker secret
+  (`/run/secrets/transcript.key`). A lost key loses the saved transcripts, nothing else.
+  The desktop app keeps its key behind the system's keychain instead.
+- **Stopping.** SIGTERM, SIGINT and SIGHUP (on Windows Ctrl+C, Ctrl+Break and the console
+  closing; Windows has no SIGTERM, and a forced end can't be caught) save every terminal's
+  restore state at once, then end the shells and exit, as quitting the desktop app does.
+  Terminals and agents come back on the next start. Ending takes at most 8 s, inside
+  Docker's default 10 s; a second signal a second or more after the first exits at once. Node ends on a hangup
+  even under `nohup`; run it under systemd, Docker or tmux to outlive a closed terminal.
+  Under systemd use `KillMode=mixed`, so only the runner hears the stop and its shells end
+  after it has saved, and keep `TimeoutStopSec` above 8 s. In Docker, run it with `--init` (or tini) and the
+  exec form, so `docker stop` reaches it and an init reaps what agents leave behind.
+
 For a VPS, terminate TLS at a trusted reverse proxy and forward WebSocket upgrades.
 Agents run beside the runner on the server, and their relays reach it over a private
 local socket, so a UI elsewhere needs nothing more than the WebSocket.
@@ -241,7 +273,7 @@ report `null` until the first save. A state holds at most `maxClientStateLength`
 `CLOSING`, so shells ending on the way out cannot overwrite the last state; it
 saves nothing of its terminals either, after one last save while they still run.
 
-Several clients can show one session, and from revision 3 they share its state without
+Several clients can show one session, and from revision 4 they share its state without
 losing each other's changes. Every write to a session (a save, a change, a rename, an
 arrangement) raises its `revision`, which sessions list (absent from a runner from before
 it). `sessions.change({ sessionId, writer, base, patch, visitedAt? })` changes the state in
@@ -262,9 +294,9 @@ every project when the snapshot names a session it doesn't hold or leaves out on
 so nothing written between its listing and its watch is missed. `projects.watch()` gives
 the projects as `projects.list` does, `{ type: "projects", projects }`, first and again after
 each project is made, renamed, arranged or removed, the latest list only where a reader falls
-behind. Both changes are open unions: a client drops a kind it doesn't know. All three
-procedures are `since: 3`: a client asks `runner.supports` first, and saves whole without a
-feed where the runner has none.
+behind. Both changes are open unions: a client drops a kind it doesn't know. The two session
+procedures are `since: 4` and `projects.watch` is `since: 3`: a client asks `runner.supports`
+first, and saves whole without a feed where the runner has none.
 
 The UI (`frontend/runner-adapter/src/sessions`) changes and merges a state a record at a
 time: a terminal's canvas geometry, its hidden mark, its Grid span or its companion bar,

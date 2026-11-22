@@ -913,6 +913,19 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     expect(policy.flags?.("agy", at)).toEqual(["--mode", "accept-edits"])
   })
 
+  it("starts a teammate the lead names no model for on the run's teammate model, on its harness only", async ({
+    resources,
+  }) => {
+    const { tour, brief, home } = await readied(resources)
+    brief()
+    const policy = tour.openPolicy("lead")
+    const at = tourFolder(home)
+    expect(policy.choice?.("claude", at)).toEqual({ model: "haiku", effort: "low" })
+    expect(policy.choice?.("codex", at)).toBeUndefined()
+    // One it opens outside the tour's folder keeps the person's own default.
+    expect(policy.choice?.("claude", "/h/code")).toBeUndefined()
+  })
+
   it("gives the lead's agents no write flags where they start outside the tour's folder", async ({
     resources,
   }) => {

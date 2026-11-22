@@ -72,6 +72,7 @@ describe("the open call", () => {
     let plain = 0
     let barred: string | undefined
     let flagged: readonly string[] | undefined
+    let given: { model: string; effort?: "low" | "max" } | undefined
     const opened = {
       summary: { id: "t2", handle: "fox", title: "claude", ledBy: "t1" },
       terminal: { exiting: false },
@@ -97,6 +98,7 @@ describe("the open call", () => {
       openPolicy: () => ({
         ...(barred !== undefined && { refusal: barred }),
         ...(flagged !== undefined && { flags: () => flagged! }),
+        ...(given !== undefined && { choice: () => given }),
       }),
       claims: () => claims,
       launcher: () => ({
@@ -178,6 +180,7 @@ describe("the open call", () => {
       opened,
       bar: (reason: string) => (barred = reason),
       flag: (flags: readonly string[]) => (flagged = flags),
+      give: (choice: { model: string; effort?: "low" | "max" }) => (given = choice),
       mode: (next: AgentMode) => (mode = next),
       open: (request: object) =>
         run.open({
@@ -277,6 +280,36 @@ describe("the open call", () => {
     )
   })
 
+  it("starts an agent the call names no model for on the one the runner's policy gives", async () => {
+    const run = setup()
+    run.give({ model: "opus", effort: "low" })
+    await run.open({ agent: "claude" })
+    expect(run.asked[0]!.command).toBe("claude --model opus --effort low")
+  })
+
+  it("still refuses an effort with no model, whatever the runner's policy gives", async () => {
+    const run = setup()
+    run.give({ model: "opus", effort: "low" })
+    expect(await run.open({ agent: "claude", effort: "max" })).toEqual({
+      ok: false,
+      reason: "Give a model with effort: Claude Code's efforts depend on the model.",
+    })
+  })
+
+  it("starts on the runner's policy model with no effort where it gives none", async () => {
+    const run = setup()
+    run.give({ model: "opus" })
+    await run.open({ agent: "claude" })
+    expect(run.asked[0]!.command).toBe("claude --model opus")
+  })
+
+  it("keeps the model the call names over the one the runner's policy gives", async () => {
+    const run = setup()
+    run.give({ model: "haiku" })
+    await run.open({ agent: "claude", model: "opus", effort: "max" })
+    expect(run.asked[0]!.command).toBe("claude --model opus --effort max")
+  })
+
   it("starts an agent with a brief as its prompt's doorbell, and leads it by default", async () => {
     const run = setup()
     const answer = await run.open({ agent: "claude", message: "Review a.ts." })
@@ -359,6 +392,13 @@ describe("the open call", () => {
     // The brief goes as a message after: the resumed session isn't started with a prompt.
     expect(run.sent).toEqual([{ to: "fox", text: "Carry on." }])
     expect(run.opened.startedWith).toBeUndefined()
+  })
+
+  it("resumes a session on its own model, not the one the runner's policy gives", async () => {
+    const run = setup()
+    run.give({ model: "opus", effort: "low" })
+    await run.open({ agent: "claude", resume: "s-1" })
+    expect(run.asked[0]!.command).toBe("claude --resume s-1")
   })
 
   it("resumes with the flags the session was launched with, from a saved row or a live one", async () => {
@@ -585,7 +625,7 @@ describe("the mode call", () => {
     const host = {
       records: () => new Map([["t1", { terminal: { exiting: false }, token, summary: { agent } }]]),
       agentMode: () => "herd",
-      shipping: () => ({ covers: (name: string) => enabled && name !== "agy" }),
+      shipping: () => ({ covers: () => enabled }),
     } as unknown as CallsHost
     return new Calls(1000, host).call({ type: "mode", terminalId: "t1", token, request: {} })
   }
@@ -594,7 +634,7 @@ describe("the mode call", () => {
     expect(await answer("claude", true)).toEqual({ ok: true, mode: "herd", gated: true })
     expect(await answer("codex", true)).toEqual({ ok: true, mode: "herd", gated: true })
     expect(await answer("claude", false)).toEqual({ ok: true, mode: "herd", gated: false })
-    expect(await answer("agy", true)).toEqual({ ok: true, mode: "herd", gated: false })
+    expect(await answer("agy", true)).toEqual({ ok: true, mode: "herd", gated: true })
     expect(await answer(null, true)).toEqual({ ok: true, mode: "herd", gated: false })
   })
 })

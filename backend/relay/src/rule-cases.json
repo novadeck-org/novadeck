@@ -1,0 +1,21 @@
+{
+  "note": "Commands and whether the relay and the runner read them as a shape of the shim's shipping rules (harnesses/agy/src/shim.ts `shippingRules`). Coarse on purpose: more is read as shipping than the rules allow, never less. Both sides test against this file.",
+  "cases": [
+    { "command": "gh pr create --title x --body y", "ships": true },
+    { "command": "gh pr merge 5", "ships": true },
+    { "command": "cd /w && gh pr create --base main", "ships": true },
+    { "command": "gh pr create --body \"a; b\" && touch x", "ships": true },
+    { "command": "gh -R o/r pr merge 7 --squash", "ships": true },
+    { "command": "GH_REPO=o/r gh pr create", "ships": true },
+    { "command": "/usr/bin/gh pr create", "ships": true },
+    { "command": "git status\ngh pr merge 1", "ships": true },
+    { "command": "echo hi | gh pr create -F -", "ships": true },
+    { "command": "gh pr view 5", "ships": false },
+    { "command": "gh pr list", "ships": false },
+    { "command": "gh issue create", "ships": false },
+    { "command": "git push origin main", "ships": false },
+    { "command": "echo gh pr create", "ships": false },
+    { "command": "ls", "ships": false },
+    { "command": "", "ships": false }
+  ]
+}

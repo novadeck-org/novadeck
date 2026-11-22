@@ -1,6 +1,12 @@
 import { dirname, join } from "node:path"
 
-import { createRunner, logDoorbell, useLogger } from "@novadeck/runner"
+import {
+  createRunner,
+  endOnSignals,
+  logDoorbell,
+  superviseRunner,
+  useLogger,
+} from "@novadeck/runner"
 import { servePort } from "@novadeck/wire/server"
 import type { MessagePortMain } from "electron"
 
@@ -124,6 +130,16 @@ const runner = createRunner({
   transcriptKey,
 })
 
+// How it ends is a standalone runner's too: the main process's close, or a signal of the
+// system's straight to this process (as a Linux logout's SIGTERM), saves every terminal, then
+// ends the shells and exits. The watch on the main process stops with it.
+const lifecycle = superviseRunner({
+  runner,
+  exit: (code) => process.exit(code),
+  parts: [{ stop: () => clearInterval(checks) }],
+})
+endOnSignals(lifecycle)
+
 // The main process times the runner's start up to here: it can serve.
 log?.info("runner.ready", "The runner is ready.", {
   data: { ms: Math.round(performance.now()) },
@@ -138,11 +154,8 @@ process.parentPort.on(
     // Only the first settles it; the main process sends one per start.
     if (data.type === "transcriptKey")
       giveTranscriptKey(data.key === null ? null : Buffer.from(data.key, "base64"))
-    if (data.type === "persist") runner.persist()
+    if (data.type === "persist") lifecycle.persist()
     if (data.type === "beat") mainWatch?.beat()
-    if (data.type === "close") {
-      clearInterval(checks)
-      void runner.close().finally(() => process.exit(0))
-    }
+    if (data.type === "close") void lifecycle.end("host")
   },
 )
