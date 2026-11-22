@@ -517,7 +517,12 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
       )}
       {driver.shown && (
         <Suspense fallback={null}>
-          <TourStage {...driver.shown} onEnd={driver.end} onBack={driver.back} />
+          <TourStage
+            {...driver.shown}
+            onCaption={driver.captioned}
+            onEnd={driver.end}
+            onBack={driver.back}
+          />
         </Suspense>
       )}
       {driver.closing && (

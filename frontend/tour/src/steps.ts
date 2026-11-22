@@ -81,8 +81,8 @@ export type TourStep = {
   // Whether the step begins the artist: its terminal is opened, once per run, in the tour's
   // project.
   readonly opensArtist?: boolean
-  // How long the step stays once done, for the person to look at what it shows, before the
-  // run moves on.
+  // How long the step's caption stays on screen once done, for the person to look at what it
+  // shows, before the run moves on: counted from when the caption is shown.
   readonly holdMs?: number
   readonly coach: Coach
   readonly done: (signals: TourSignals, memory: TourMemory) => boolean
@@ -97,8 +97,8 @@ export const waitOf = (step: TourStep, memory: TourMemory, signals: TourSignals)
 export const nudgeOf = (step: TourStep, signals: TourSignals): TourRole =>
   typeof step.nudges === "function" ? step.nudges(signals) : (step.nudges ?? "lead")
 
-// How long a step that's done in moments stays, so its caption box, which shows a second after
-// what the step marks, is on screen long enough to read.
+// How long a step that's done in moments keeps its caption box on screen, counted from when the
+// box shows, so it is there long enough to read.
 const lineMs = 3_000
 
 // Act 1: in Canvas, a terminal opens and the person's own agent starts there, with its brief,
@@ -107,6 +107,9 @@ export const startStep: TourStep = {
   id: "start",
   act: 1,
   enter: [{ kind: "view", view: "canvas" }, { kind: "reveal" }],
+  // A lead that names itself at once is done before its caption shows: it waits for the line to
+  // show (at most `captionWaitMs`) and goes on with it, so the first beat is never skipped.
+  holdMs: 0,
   coach: { look: "lead", line: "That's your agent. It runs this job." },
   // It describes itself, as its brief asks; or, where a cheap model skips that, its first turn
   // ends.
@@ -151,7 +154,7 @@ export const pageStep: TourStep = {
   act: 2,
   enter: [{ kind: "reveal" }],
   open: { role: "lead", tab: "page" },
-  holdMs: 6_000,
+  holdMs: 5_000,
   coach: { look: "lead-pane", tab: "page", line: "The game. Live. Lights are out." },
   done: ({ shown }) => shown.page !== null,
   wait: "nudge",
@@ -164,7 +167,7 @@ export const shapeStep: TourStep = {
   act: 2,
   enter: [{ kind: "reveal", role: "sculptor" }],
   open: { role: "sculptor", tab: "model" },
-  holdMs: 8_000,
+  holdMs: 5_000,
   coach: { look: "sculptor-pane", tab: "model", line: "Your hero. A ball and a box. …Seriously." },
   done: ({ shown }) => shown.model !== null,
   wait: "nudge",
@@ -221,7 +224,7 @@ export const diffStep: TourStep = {
   act: 3,
   enter: [{ kind: "reveal", role: "fixer" }],
   open: { role: "fixer", tab: "changes" },
-  holdMs: 6_000,
+  holdMs: 5_000,
   coach: {
     look: "fixer-pane",
     tab: "changes",

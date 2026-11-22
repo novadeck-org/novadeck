@@ -1,6 +1,7 @@
 import {
   beginRun,
   coachNow,
+  captionWaitMs,
   declineMs,
   nextTick,
   stepRun,
@@ -100,9 +101,14 @@ describe("The tour's driver", () => {
 
   context("while it waits on the agent", () => {
     it("moves on once the step's signal comes, beginning the next at once", () => {
-      const { run, seen } = play(begin(), [{ type: "signals", signals: agent(true), now: 1 }])
+      // It holds first, for its caption (which never shows here): then the next step begins.
+      const { run, seen } = play(begin(), [
+        { type: "signals", signals: agent(true), now: 1 },
+        { type: "tick", signals: agent(true), now: 1 + captionWaitMs },
+      ])
+      expect(seen[0]!.run).toMatchObject({ step: 0, doneAt: 1 })
       expect(run).toMatchObject({ step: 1, nudged: false, entered: true })
-      expect(seen[0]!.moves).toEqual([{ kind: "inbox" }])
+      expect(seen[1]!.moves).toEqual([{ kind: "inbox" }])
     })
 
     it("nudges the agent once after its patience, then moves on after as long again", () => {
@@ -128,7 +134,10 @@ describe("The tour's driver", () => {
 
     it("moves on once the agent's first turn ends, where it skipped describing itself", () => {
       const answered = signals({ kind: "agent", working: false, named: false, answered: true })
-      const { run } = play(begin(), [{ type: "signals", signals: answered, now: 1 }])
+      const { run } = play(begin(), [
+        { type: "signals", signals: answered, now: 1 },
+        { type: "tick", signals: answered, now: 1 + captionWaitMs },
+      ])
       expect(run?.step).toBe(1)
     })
 
@@ -319,7 +328,7 @@ describe("The tour's story", () => {
       run = outcome.run
       // A step done holds a while: the clock moves past it.
       if (run && typeof run.doneAt === "number") {
-        now += 30_000
+        now += 60_000
         outcome = tick(run, world(state), now)
         run = outcome.run
       }
@@ -382,25 +391,95 @@ describe("The tour's story", () => {
     const held = feed(atStep("files"), all, 100)
     expect(held.run).toMatchObject({ step: 6, doneAt: 100 })
     expect(tick(held.run!, all, 1_000).run?.step).toBe(6)
-    const next = tick(held.run!, all, 5_100)
+    // Its caption never shows here, so its hold counts from the wait for it (`captionWaitMs`).
+    expect(tick(held.run!, all, 5_100).run?.step).toBe(6)
+    const next = tick(held.run!, all, 100 + captionWaitMs + 5_000)
     expect(idAt(next.run!)).toBe("model")
     // And the next step begins at once, its moves made with those signals.
     expect(next.moves).toEqual([{ kind: "reveal", terminalId: "t2" }])
     expect(next.tab).toEqual({ terminalId: "t2", key: "model" })
   })
 
+  context("a held step's caption", () => {
+    const all = world(everything)
+    const caption = (run: TourRun, line: string, now: number) =>
+      stepRun(run, stepsFor(run), { type: "caption", line, signals: all, now }, patience)
+    const line = "The game. Live. Lights are out."
+    // The page step, done at 100 with no caption yet.
+    const done = () => feed(atStep("page"), all, 100).run!
+
+    it("holds its full time from when the caption shows, however late", () => {
+      const shown = caption(done(), line, 3_000).run!
+      expect(shown).toMatchObject({ doneAt: 100, captionAt: 3_000 })
+      expect(nextTick(shown, tourSteps, all, patience)).toBe(8_000)
+      expect(idAt(tick(shown, all, 7_999).run!)).toBe("page")
+      expect(idAt(tick(shown, all, 8_000).run!)).toBe("shape")
+    })
+
+    it("waits for the caption, up to the cap, then holds from there", () => {
+      const waiting = done()
+      expect(nextTick(waiting, tourSteps, all, patience)).toBe(100 + captionWaitMs + 5_000)
+      expect(idAt(tick(waiting, all, 100 + captionWaitMs + 4_999).run!)).toBe("page")
+      expect(idAt(tick(waiting, all, 100 + captionWaitMs + 5_000).run!)).toBe("shape")
+    })
+
+    it("holds from when it was done where the caption showed before that", () => {
+      const early = stepRun(
+        atStep("page"),
+        tourSteps,
+        { type: "caption", line, signals: world(), now: 50 },
+        patience,
+      ).run!
+      expect(early.captionAt).toBe(50)
+      const held = feed(early, all, 100).run!
+      expect(nextTick(held, tourSteps, all, patience)).toBe(5_100)
+    })
+
+    it("ignores a box for any other line, or a step that holds none", () => {
+      expect(caption(done(), "A teammate wants an answer first.", 3_000).run!.captionAt).toBeNull()
+      const run = atStep("run")
+      expect(caption(run, stepsFor(run)[run.step]!.coach.line, 3_000).run!.captionAt).toBeNull()
+    })
+
+    it("counts its hold from the done step as before for a step with no line", () => {
+      const quietStep: TourStep = { ...tourSteps[1]!, coach: { line: "" }, holdMs: 3_000 }
+      const run = { ...at(), step: 0, doneAt: 100, entered: true }
+      expect(nextTick(run, [quietStep], all, patience)).toBe(3_100)
+    })
+
+    it("starts over, as does its done time, while the project is away", () => {
+      const shown = caption(done(), line, 3_000).run!
+      const away = feed(shown, signals(quiet, false, { roles: cast }), 4_000).run!
+      expect(away).toMatchObject({ doneAt: 4_000, captionAt: null })
+    })
+
+    it("is waited for again after a reload, never stuck and never skipped", () => {
+      const shown = caption(done(), line, 3_000).run!
+      sessionStorage.setItem("novadeck.tour", JSON.stringify({ ...shown, stepId: "page" }))
+      const reloaded = readTourRun(true)!
+      expect(reloaded.captionAt).toBeNull()
+      // The reload makes it done as of now (useTourDriver); the box shows again a moment later.
+      const again = { ...reloaded, doneAt: 20_000 }
+      expect(nextTick(again, tourSteps, all, patience)).toBe(20_000 + captionWaitMs + 5_000)
+      const reshown = caption(again, line, 21_500).run!
+      expect(nextTick(reshown, tourSteps, all, patience)).toBe(26_500)
+      expect(idAt(tick(reshown, all, 26_500).run!)).toBe("shape")
+    })
+  })
+
   it("holds each step a while, as its line is read, before it moves on", () => {
     const holds = Object.fromEntries(tourSteps.map(({ id, holdMs }) => [id, holdMs]))
     expect(holds).toMatchObject({
+      start: 0,
       team: 3_000,
-      page: 6_000,
+      page: 5_000,
       files: 5_000,
       model: 5_000,
-      diff: 6_000,
+      diff: 5_000,
       outsider: 3_000,
       talk: 6_000,
       cover: 4_000,
-      shape: 8_000,
+      shape: 5_000,
       play: 25_000,
     })
   })
@@ -687,9 +766,11 @@ describe("The tour's story", () => {
         look: "lead-pane",
         line: "Four agents. One game. Go play.",
       })
-      expect(nextTick(held.run!, tourSteps, world(), patience)).toBe(25_100)
+      // Its caption never shows here: its 25 seconds count after the wait for it.
+      const ends = 100 + captionWaitMs + 25_000
+      expect(nextTick(held.run!, tourSteps, world(), patience)).toBe(ends)
       expect(tick(held.run!, world(), 6_000).run).toMatchObject({ doneAt: 100 })
-      expect(tick(held.run!, world(), 25_100)).toMatchObject({ run: null, end: "done" })
+      expect(tick(held.run!, world(), ends)).toMatchObject({ run: null, end: "done" })
     })
 
     it("looks at the sculptor's model instead where there is no page", () => {
@@ -707,6 +788,7 @@ describe("The tour's story", () => {
   context("with no page to run", () => {
     it("goes from the team to the ask, and plays the whole story to its end", () => {
       const { after, end } = through(false, [
+        {},
         named,
         showing({ model: item("model") }),
         { asking: true },
@@ -719,6 +801,7 @@ describe("The tour's story", () => {
         {},
       ])
       expect(after).toEqual([
+        "team",
         "shape",
         "ask",
         "ask",

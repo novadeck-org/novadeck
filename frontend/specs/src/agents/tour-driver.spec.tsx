@@ -58,7 +58,8 @@ describe("The tour's driver", () => {
     await startTour()
     await coachSays("That's your agent. It runs this job.")
     await expect.element(page.getByText(/^Act 1, Your agent\./)).toBeInTheDocument()
-    // The agent describes itself as the tour's lead: its step is done.
+    // The agent describes itself as the tour's lead: its step is done, and goes on once its
+    // caption has shown, however soon the agent named itself.
     await expect.poll(terminalTabNames, leadNamed).toContain("Game lead")
     // Its next step is the team's: the demo's lead opens none here, so nothing is marked yet and
     // no caption shows, but the act has begun.

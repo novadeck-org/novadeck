@@ -42,6 +42,10 @@ export type TourRun = {
   // When the step on now was done, where it holds a while before the run moves on (`holdMs`);
   // null while it isn't.
   readonly doneAt: number | null
+  // When the caption of the step on now was first shown on screen, null while it isn't: a held
+  // step holds from then, so its line is read for the full `holdMs` however long the camera, the
+  // tab and the caption's own delay took. Not kept through a reload: the caption shows again.
+  readonly captionAt: number | null
   // The terminal the tour opened for the artist, once it has: kept, so a reload follows it
   // again and never opens a second.
   readonly artist: string | null
@@ -76,6 +80,12 @@ export const stepsFor = (run: TourRun, hasArtist: boolean): readonly TourStep[] 
 export type TourEvent =
   | { readonly type: "signals"; readonly signals: TourSignals; readonly now: number }
   | { readonly type: "tick"; readonly signals: TourSignals; readonly now: number }
+  | {
+      readonly type: "caption"
+      readonly line: string
+      readonly signals: TourSignals
+      readonly now: number
+    }
   | { readonly type: "end" }
   | { readonly type: "brief-failed" }
   | { readonly type: "artist-opened"; readonly terminalId: string }
@@ -125,6 +135,7 @@ export const beginRun = (
   entered: false,
   tabbed: false,
   doneAt: null,
+  captionAt: null,
   artist: null,
   artistBriefed: false,
   declined: false,
@@ -156,12 +167,27 @@ const nextStep = (run: TourRun, steps: readonly TourStep[], now: number): TourOu
     entered: false,
     tabbed: false,
     doneAt: null,
+    captionAt: null,
   })
 }
 
+// How long a done step waits for its caption to show before its hold counts anyway, so a caption
+// that can't show (the machine is slow, the mark never resolves) never stalls the story.
+export const captionWaitMs = 8_000
+
+// When a done step's hold ends: `holdMs` after its caption was shown (or after the wait for it
+// ran out), never before it was done. A step with no line to read holds from when it was done.
+const holdEnd = (run: TourRun, step: TourStep): number | null => {
+  if (step.holdMs === undefined || typeof run.doneAt !== "number") return null
+  if (step.coach.line === "") return run.doneAt + step.holdMs
+  return Math.max(run.doneAt, run.captionAt ?? run.doneAt + captionWaitMs) + step.holdMs
+}
+
 // Whether a done step still holds, for the person to look at what it shows.
-const holding = (run: TourRun, step: TourStep, now: number): boolean =>
-  step.holdMs !== undefined && (typeof run.doneAt !== "number" || now - run.doneAt < step.holdMs)
+const holding = (run: TourRun, step: TourStep, now: number): boolean => {
+  const end = holdEnd(run, step)
+  return step.holdMs !== undefined && (end === null || now < end)
+}
 
 // The agent a step waits on, as the signals show it: the artist's for a step on the artist, a
 // teammate's for one on the sculptor or the fixer (the lead's while it isn't found or up), the
@@ -277,6 +303,26 @@ export const stepRun = (
       const hadArtist = steps.some(({ id }) => id === "outsider")
       return still(reshape(next, steps, hadArtist, steps[run.step]?.id, event.now).run)
     }
+    // The step's own caption box came on screen: a held step's hold counts from the first time.
+    // A box for any other line (the agent's own screen, a teammate's question) isn't its.
+    case "caption": {
+      const step = steps[run.step]
+      if (
+        !step ||
+        step.holdMs === undefined ||
+        step.coach.line !== event.line ||
+        run.captionAt !== null
+      )
+        return still(run)
+      const adjusted = adjust(
+        { ...run, captionAt: event.now },
+        steps,
+        event.signals,
+        event.now,
+        patienceMs,
+      )
+      return follow(adjusted.run, adjusted.steps, event.signals, event.now, patienceMs)
+    }
     case "signals":
     case "tick": {
       const adjusted = adjust(run, steps, event.signals, event.now, patienceMs)
@@ -349,6 +395,7 @@ const reshape = (
       entered: false,
       tabbed: false,
       doneAt: null,
+      captionAt: null,
     },
     steps: played,
   }
@@ -389,6 +436,8 @@ const follow = (
       const held = {
         ...begun.run,
         doneAt: typeof briefed.doneAt === "number" && signals.onScreen ? briefed.doneAt : now,
+        // Away, its caption isn't on screen: it is waited for again.
+        captionAt: signals.onScreen ? briefed.captionAt : null,
       }
       return { ...begun, run: held, brief, nudge: null, artist: begun.artist ?? rung }
     }
@@ -431,8 +480,8 @@ export const nextTick = (
 ): number | null => {
   const step = steps[run.step]
   const times: number[] = []
-  if (step?.holdMs !== undefined && typeof run.doneAt === "number")
-    times.push(run.doneAt + step.holdMs)
+  const end = step && holdEnd(run, step)
+  if (typeof end === "number") times.push(end)
   else if (step && waitOf(step, run, signals) === "nudge" && counting(step, signals))
     times.push(run.waitingSince + patienceMs)
   // The decline of the lead's run, and the artist's agent that never came up.
