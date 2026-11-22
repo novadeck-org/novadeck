@@ -1701,15 +1701,20 @@ const openWorktree: Tool<Worktree> = {
   name: "open_worktree",
   description:
     "Make a git worktree for your work in Novadeck, on a branch you name, in a folder " +
-    "Novadeck picks and tracks, and own it: change files there, not in the user's checkout. " +
+    "Novadeck picks and tracks, and own it: unless the user said otherwise, your changes go " +
+    "there, not in the user's checkout. Git moves a branch that is checked out in one folder " +
+    "only from that folder, so merging into a branch checked out elsewhere (the user's " +
+    "checkout, or another worktree, such as a lead's) is done in the folder that has it. " +
     "It checks out the branch if it exists here; otherwise it makes it from from (when left " +
     "out: origin's branch of that name, tracking it, if origin has one; else the remote's main " +
     "if this checkout is on a main that is behind it, else this checkout's HEAD). Name the branch as the repository's conventions and instructions say. " +
     "repo is a folder in the repository when your terminal isn't in it; give the same " +
     "group to the worktrees of several repositories for one piece of work, and they share " +
     "a folder. Its home, the branch its work belongs on, is home when given, else the branch " +
-    "from names, else the repository's main: Novadeck measures its work, and whether it is " +
-    "merged, against its home and the main branch, and the answer says it. " +
+    "from names, else the branch it starts from when that is a branch (this checkout's, when " +
+    "from is left out and the checkout is on one), else the repository's main: Novadeck " +
+    "measures its work, and whether it is merged, against its home and the main branch, and " +
+    "the answer says it. take_worktree with home changes the home of a worktree you own. " +
     "The answer lists the worktree's instruction files (AGENTS.md, CLAUDE.md, " +
     "GEMINI.md): your harness doesn't load them from here, so read them. Work there with " +
     "absolute paths and git -C, never cd and then git. Refused while the user has agent " +
@@ -1742,7 +1747,8 @@ const openWorktree: Tool<Worktree> = {
         description:
           "The branch the worktree's work belongs on, here or on origin (as x or origin/x), " +
           "such as a feature branch several worktrees start from; when left out, the branch " +
-          "from names, else the repository's main.",
+          "from names, else the branch it starts from when that is a branch, else the " +
+          "repository's main.",
       },
     },
     required: ["branch"],
@@ -1784,7 +1790,8 @@ const takeWorktree: Tool<Worktree> = {
         "Novadeck asks them and this answers at once; the outcome comes as a message from " +
         "Novadeck once your turn ends, and its owner is told if they agree. ") +
     "Use " +
-    "it to carry on work from a session that is stuck or gone. Refused while the user has " +
+    "it to carry on work from a session that is stuck or gone, or, with home, to set or " +
+    "change the home of a worktree you own already. Refused while the user has " +
     "agent worktrees off.",
   inputSchema: {
     type: "object",
@@ -1797,8 +1804,9 @@ const takeWorktree: Tool<Worktree> = {
       home: {
         type: "string",
         description:
-          "Sets the worktree's home, the branch its work belongs on (here or on origin), when " +
-          "it is yours by this call, your own included; when left out, its home stays.",
+          "Sets the worktree's home, the branch its work belongs on (here or on origin): at " +
+          "any time on one you own, and on one that becomes yours by this call; when left " +
+          "out, its home stays.",
       },
     },
     required: ["path"],

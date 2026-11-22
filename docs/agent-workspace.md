@@ -962,7 +962,10 @@ with every safety check again at that time:
     with a deleted one, and plain `git config` reads them in any harness. Only the runner writes
     them, as an agent's sandbox may hold `.git` read-only. Home is the `home` an agent gives
     (`open_worktree` or `take_worktree`, a branch here or `origin/<b>`), else the branch `from`
-    names, else the repository's main, for which no key is written: no key means exactly the
+    names, else the branch it starts from when that is a branch (left out, `from` is the
+    checkout's `HEAD`, so an agent in a lead's worktree on `feat-x` opens worktrees homed on `feat-x`; a
+    detached `HEAD`, a tag or commit, origin's branch of its name or an existing branch gives none),
+    else the repository's main, for which no key is written: no key means exactly the
     measure before homes (`mainBranch`). A worktree with a home is measured against it (its
     remote-tracking branch where that holds local home, else local home) by the Worktrees
     panel (`Work.home`, `base`), the changes item and `close_worktree`, and its work counts as
@@ -1016,6 +1019,9 @@ with every safety check again at that time:
     Deny). The call answers `asked` at once; both agents hear the outcome as a notice, and
     ownership moves only if it hasn't changed meanwhile. The nudge about the old owner
     arrives with the later step that nudges agents.
+    On a worktree the caller owns already, `home` sets or changes its home at any time (the
+    answer says `already`); a folder in no git repository is refused with the fact that its files
+    are changed in place, as `open_worktree` does.
   - **`give_worktree({ path, to })`** hands the owner's worktree to a terminal of its
     project and session by handle, which is told. **`close_worktree({ path, force? })`** is the
     owner's: refused while the worktree has uncommitted or untracked files or commits the main

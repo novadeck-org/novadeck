@@ -17,6 +17,7 @@ import {
   worktreesDigests,
   worktreesDue,
   worktreesEarlyNotice,
+  worktreesGitlessNotice,
   worktreesOffNotice,
   worktreesOnNotice,
   type Facts,
@@ -399,27 +400,62 @@ describe("a nudge", () => {
 })
 
 describe("the worktrees notice", () => {
-  it("is worded as Novadeck's notice, a line per rule, with what an agent needs to work in a worktree", () => {
-    expect(worktreesOnNotice).toMatch(/^Novadeck · Worktrees\nAgent worktrees are on\.\n→ /)
+  it("states that worktrees are the default and the user's words decide otherwise, with the facts an agent works with", () => {
+    expect(worktreesOnNotice).toMatch(
+      /^Novadeck · Worktrees\nAgent worktrees are on: this terminal's changes go in a worktree, not in its checkout, unless the user's own words say otherwise/,
+    )
     for (const words of [
       "open_worktree",
       "take_worktree",
       "one for each repository you change",
-      "Name branches as the repository's own instructions say",
-      "absolute paths into the worktree",
-      "git -C <worktree>",
-      "git -C <worktree> for git rather than cd",
-      "read the ones open_worktree lists",
-      "give the worktree to whoever continues the work",
-      "close_worktree is for work that's merged or abandoned",
+      "unless the user's own words say otherwise (told to work in place, or in a given folder, you do)",
+      "→ Before you change a file, open a worktree with open_worktree",
+      "A worktree's home is the branch its work belongs on",
+      "Novadeck shows it merged once home holds its work",
+      "→ Name branches as the repository's own instructions say",
+      "absolute paths and git -C <worktree> for git rather than cd",
+      "open_worktree lists them",
+      "give_worktree hands a worktree to whoever continues the work",
     ])
       expect(worktreesOnNotice).toContain(words)
-    // Some sandboxes (Codex's workspace-write) can't commit, so it promises nothing of it.
-    expect(worktreesOnNotice).not.toMatch(/commit/i)
+    // It states and offers, never orders, and prescribes no way to land the work: some
+    // sandboxes (Codex's workspace-write) can't commit, and merges and pull requests are the
+    // person's to ask for.
+    expect(worktreesOnNotice).not.toMatch(/commit|merge into|pull request|\bPR\b/i)
+    expect(worktreesOnNotice).not.toMatch(/\b(must|never)\b/i)
     expect(worktreesOffNotice).toBe(
       "Novadeck · Worktrees\nAgent worktrees are off now. Worktrees you already have stay as they are.\n→ Work in your terminal's own checkout.",
     )
     expect(worktreesDigests.on).not.toBe(worktreesDigests.off)
+  })
+
+  it("says, for a folder in no git repository, that there is none, so files are changed in place", () => {
+    expect(worktreesGitlessNotice).toBe(
+      "Novadeck · Worktrees\nAgent worktrees are on, but this terminal's folder isn't in a git repository, so there's no worktree to make of it: files here are changed in place. For a repository elsewhere, open_worktree takes a folder in it as repo.",
+    )
+    expect(worktreesGitlessNotice).not.toContain("→")
+    expect(
+      noticesAt(
+        { companion: false, summarize: false, pages: [], worktrees: "gitless" },
+        { summary: "s", title: "t" },
+      ),
+    ).toBe(worktreesGitlessNotice)
+    expect(new Set(Object.values(worktreesDigests)).size).toBe(4)
+  })
+
+  it("is the gitless notice while the folder is in no repository, and the on notice again once it is in one", () => {
+    const { on, gitless, off } = worktreesDigests
+    expect(worktreesDue(true, undefined, true, true, false)).toBe("gitless")
+    expect(worktreesDue(true, gitless, true, true, false)).toBeNull()
+    // A cd into a repository, and out of it, is told as it changes (and each turn where injections last one call).
+    expect(worktreesDue(true, gitless, true, true, true)).toBe("on")
+    expect(worktreesDue(true, on, true, true, false)).toBe("gitless")
+    expect(worktreesDue(true, gitless, false, true, false)).toBe("gitless")
+    // A session that can't use worktrees yet hears the early notice whatever its folder is.
+    expect(worktreesDue(true, undefined, true, false, false)).toBe("early")
+    // Off: only a session told they were on hears so; one told of no worktree here has nothing to take back.
+    expect(worktreesDue(false, gitless, true, true, false)).toBeNull()
+    expect(worktreesDue(false, off, true, true, false)).toBeNull()
   })
 
   it("is due once for a session that holds it, when it begins or forgot, and when the setting flips", () => {
@@ -446,7 +482,9 @@ describe("the worktrees notice", () => {
     expect(worktreesEarlyNotice).toContain(
       "before the worktrees folder was there or before they were turned on",
     )
-    expect(worktreesEarlyNotice).toContain("→ Keep working in your terminal's own checkout")
+    expect(worktreesEarlyNotice).toContain(
+      "Until it restarts, its changes go in the terminal's own checkout",
+    )
     expect(worktreesEarlyNotice).toContain(
       "Restarting the agent (exit and resume it, or start a new one)",
     )

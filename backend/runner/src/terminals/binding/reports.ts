@@ -85,6 +85,8 @@ export type ReportsHost = {
     | {
         enabled: () => boolean
         ready: (startedAt: number | undefined, relists: boolean) => boolean
+        /** Whether a folder is in a git repository (`inRepository`): a few stats, no git. */
+        readonly inRepository?: (folder: string) => Promise<boolean>
         readonly service: { readonly root: string }
       }
     | undefined
@@ -518,12 +520,18 @@ export class Reports {
     // An agent whose process started before the worktrees folder was there, or (where its
     // harness keeps the tool list) before the setting went on, can't use them until it
     // restarts; one whose start the relay couldn't read is taken to be such.
+    const enabled = wiring?.enabled() ?? false
+    // The terminal's folder as its reports last said it, which a `cd` changes: told again by
+    // the notice's digest.
+    const inRepository =
+      record.root && enabled ? ((await wiring?.inRepository?.(record.summary.cwd)) ?? true) : true
     const worktrees = record.root
       ? worktreesDue(
-          wiring?.enabled() ?? false,
+          enabled,
           toldOf(record.agents, record.root).worktrees,
           lasting,
           wiring?.ready(report.processStart, messaging.toolsAtTurnStart) ?? false,
+          inRepository,
         )
       : null
     const taken = atTurnStart(record.nudges, {

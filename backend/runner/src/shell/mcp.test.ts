@@ -43,7 +43,11 @@ afterAll(async () => {
 type Answer = {
   readonly id?: number
   readonly result?: {
-    readonly tools?: readonly { readonly name: string; readonly inputSchema?: unknown }[]
+    readonly tools?: readonly {
+      readonly name: string
+      readonly description?: string
+      readonly inputSchema?: unknown
+    }[]
     readonly [key: string]: unknown
   }
   readonly error?: { readonly code: number }
@@ -548,6 +552,25 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       // A runner that can't say counts as off.
       answersBy.worktrees = { ok: false, reason: "Novadeck couldn't tell." }
       expect((await names()).some((name) => name.endsWith("_worktree"))).toBe(false)
+    })
+
+    it("states what git does with a checked-out branch, forbids no integration, and keeps the default", async () => {
+      answersBy.worktrees = { ok: true, on: true }
+      const [, tools] = await session(terminal(), [initialize, list])
+      const text = (name: string) =>
+        tools?.result?.tools?.find((tool) => tool.name === name)?.description ?? ""
+      const open = text("open_worktree")
+      // The default stays, with the user's words above it; git's rule is told as a fact.
+      expect(open).toContain("unless the user said otherwise, your changes go there")
+      expect(open).toContain(
+        "Git moves a branch that is checked out in one folder only from that folder",
+      )
+      expect(open).toContain("done in the folder that has it")
+      // Home: the start's branch, and the one way to change it later.
+      expect(open).toContain("else the branch it starts from when that is a branch")
+      expect(open).toContain("take_worktree with home changes the home of a worktree you own")
+      const take = text("take_worktree")
+      expect(take).toContain("set or change the home of a worktree you own already")
     })
 
     it("still sends a call to a tool a harness cached, so the runner can refuse it", async () => {

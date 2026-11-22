@@ -384,25 +384,48 @@ export const inboxNotice = noticeText("Inbox", {
 
 /**
  * What a session is told of agent worktrees (see docs/agent-messaging.md,
- * "Nudges") while the runner setting `worktrees` is on: to work in a worktree it opens
- * or takes with Novadeck's tools, not in its terminal's checkout. It says nothing of
- * committing: some sandboxes (Codex's workspace-write) can't. It names absolute paths and
- * `git -C` for no harness-specific reason; the instruction files are named because none is
- * loaded from there.
+ * "Nudges") while the runner setting `worktrees` is on: that its changes go in a worktree it
+ * opens or takes with Novadeck's tools, not in its terminal's checkout, and that the person's
+ * own words decide otherwise (told to work in place, or in a folder, it does). That is the
+ * default stated plainly (a first version that said "by default" and offered the tools made
+ * Claude edit in place in a plain fix, 0 of 1 against 1 of 1 for "Before you change any
+ * file", so the default is said, and the person's words are the one way out); the rest is
+ * facts and tools, and it prescribes nothing about the work itself. It says nothing of committing, merging or pull requests: some
+ * sandboxes (Codex's workspace-write) can't commit, and what to do with the work is the
+ * person's to say. It names absolute paths and `git -C` for no harness-specific reason; the
+ * instruction files are named because none is loaded from there.
  */
 export const worktreesOnNotice = noticeText("Worktrees", {
-  facts: "Agent worktrees are on.",
+  facts:
+    "Agent worktrees are on: this terminal's changes go in a worktree, not in its checkout, " +
+    "unless the user's own words say otherwise (told to work in place, or in a given folder, " +
+    "you do). A worktree's home is the branch its work belongs on: the branch it started " +
+    "from, or the one you give as home; Novadeck shows it merged once home holds its work.",
   actions: [
-    "Before you change any file, open a worktree with Novadeck's open_worktree tool, or take " +
-      "an existing one with take_worktree, and work there; one for each repository you " +
-      "change, or more if that helps.",
+    "Before you change a file, open a worktree with open_worktree, or take an existing one " +
+      "with take_worktree; one for each repository you change.",
     "Name branches as the repository's own instructions say.",
-    "Use absolute paths into the worktree and git -C <worktree> for git rather than cd.",
+    "In a worktree, use absolute paths and git -C <worktree> for git rather than cd.",
     "The worktree's instruction files (AGENTS.md, CLAUDE.md and the like) aren't loaded from " +
-      "there, so read the ones open_worktree lists.",
-    "When you're done, give the worktree to whoever continues the work with give_worktree, or " +
-      "leave it for the person; close_worktree is for work that's merged or abandoned.",
+      "there; open_worktree lists them.",
+    "give_worktree hands a worktree to whoever continues the work; close_worktree removes one " +
+      "that's merged or abandoned.",
   ],
+})
+
+/**
+ * What a session whose terminal's folder is in no git repository hears while the setting is
+ * on, instead of the on notice. It says the fact and leaves the rest to the tools: a worktree
+ * is a repository's, so there's none to open here and a refusal loop is no use. It is said
+ * rather than left out because the session still sees the worktree tools, a terminal's folder
+ * changes (a `cd` into a repository is told as the on notice, by its digest), and a project may
+ * mix repositories with plain folders: `repo` reaches a repository elsewhere.
+ */
+export const worktreesGitlessNotice = noticeText("Worktrees", {
+  facts:
+    "Agent worktrees are on, but this terminal's folder isn't in a git repository, so there's " +
+    "no worktree to make of it: files here are changed in place. For a repository elsewhere, " +
+    "open_worktree takes a folder in it as repo.",
 })
 
 /** What a session that was told of worktrees hears when the setting goes off. */
@@ -420,23 +443,25 @@ export const worktreesEarlyNotice = noticeText("Worktrees", {
   facts:
     "Agent worktrees are on, but this session started before they could be used (its process " +
     "began before the worktrees folder was there or before they were turned on, so it can't " +
-    "write in them or has no worktree tools).",
+    "write in them or has no worktree tools). Until it restarts, its changes go in the " +
+    "terminal's own checkout.",
   actions: [
-    "Keep working in your terminal's own checkout.",
     "Restarting the agent (exit and resume it, or start a new one) lets it use worktrees; " +
       "/clear doesn't.",
   ],
 })
 
 /**
- * Which worktrees notice is due: the setting is on (`on`), or on for a session that
- * can't use them yet (`early`), or went off after the session heard it on (`off`).
+ * Which worktrees notice is due: the setting is on (`on`), or on while the terminal's folder
+ * is in no git repository (`gitless`), or on for a session that can't use them yet (`early`),
+ * or went off after the session heard it on (`off`).
  */
-export type Worktrees = "on" | "early" | "off"
+export type Worktrees = "on" | "gitless" | "early" | "off"
 
 /** The digest of each worktrees notice as worded now, kept in `told.worktrees` once told. */
 export const worktreesDigests: { readonly [state in Worktrees]: string } = {
   on: digestOf(worktreesOnNotice),
+  gitless: digestOf(worktreesGitlessNotice),
   early: digestOf(worktreesEarlyNotice),
   off: digestOf(worktreesOffNotice),
 }
@@ -449,16 +474,19 @@ export const worktreesDigests: { readonly [state in Worktrees]: string } = {
  * across a runner restart too. One that doesn't hold it (Antigravity's) is told at each
  * turn. Off, only a session that was told it is on hears so, once. A session whose agent
  * process started before the folder did (`ready` false) hears the early notice in the
- * same way instead, and the on notice once its process restarts.
+ * same way instead, and the on notice once its process restarts. One whose terminal's folder
+ * is in no git repository (`inRepository` false) hears the gitless one in the on notice's
+ * place, and the on notice when its folder is in one.
  */
 export const worktreesDue = (
   enabled: boolean,
   told: string | undefined,
   lasting: boolean,
   ready = true,
+  inRepository = true,
 ): Worktrees | null => {
   if (!enabled) return told === worktreesDigests.on ? "off" : null
-  const state = ready ? "on" : "early"
+  const state = !ready ? "early" : inRepository ? "on" : "gitless"
   return !lasting || told !== worktreesDigests[state] ? state : null
 }
 
@@ -475,6 +503,7 @@ export const noticesAt = (
     ...(took.companion ? [companionNotice, inboxNotice] : []),
     ...(took.summarize ? [nudgeText(current)] : []),
     ...(took.worktrees === "on" ? [worktreesOnNotice] : []),
+    ...(took.worktrees === "gitless" ? [worktreesGitlessNotice] : []),
     ...(took.worktrees === "early" ? [worktreesEarlyNotice] : []),
     ...(took.worktrees === "off" ? [worktreesOffNotice] : []),
     ...took.pages.map(pageNotice),

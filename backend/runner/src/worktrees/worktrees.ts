@@ -161,8 +161,8 @@ const mainName = async (folder: string): Promise<string | undefined> =>
 /**
  * The branch a `from` spells, by its short name: `x` for `x`, `origin/x`, `refs/heads/x` or
  * `refs/remotes/origin/x`, where that branch is there; undefined for anything else (a commit, a
- * tag, `HEAD`, `@{-1}`, another remote's branch), which never makes a home: what a checkout
- * happens to be on isn't where work belongs.
+ * tag, `HEAD`, `@{-1}`, another remote's branch), which names no home by itself (`HEAD` is
+ * read as the checkout's branch by `chosenHome`).
  */
 const branchNamed = async (folder: string, from: string): Promise<string | undefined> => {
   const name = from.replace(/^(?:refs\/heads\/|refs\/remotes\/origin\/|origin\/)/, "")
@@ -435,8 +435,6 @@ export class Worktrees {
       return refused(
         `${input.branch} exists already, so it is checked out as it is: leave from out.`,
       )
-    const home = await this.chosenHome(repository.home, input.branch, input.home, input.from)
-    if (!home.ok) return home
     // Left out, it starts from origin's branch of that name where origin has it (or couldn't say),
     // else from main when the checkout sits on a stale local main, else from HEAD. Read again
     // here, as a fetch may have moved it.
@@ -444,9 +442,23 @@ export class Worktrees {
       tip === undefined && input.from === undefined && origin !== undefined && origin !== "gone"
         ? await commitAt(repository.home, originRef(input.branch))
         : undefined
-    const start = input.from ?? remote ?? (await behindMain(folder))?.commit ?? "HEAD"
+    const behind =
+      input.from === undefined && remote === undefined ? await behindMain(folder) : undefined
+    const start = input.from ?? remote ?? behind?.commit ?? "HEAD"
     const base = tip ?? (await commitAt(folder, start))
     if (base === undefined) return refused(`${start} isn't a commit in ${repository.name}.`)
+    // Where it starts from the checkout's own HEAD, that HEAD's branch is where the work builds
+    // on (as in a lead's worktree, for the agents it opens); a detached HEAD has none.
+    const startedOn =
+      tip === undefined && start === "HEAD" ? await currentBranch(folder) : undefined
+    const home = await this.chosenHome(
+      repository.home,
+      input.branch,
+      input.home,
+      input.from,
+      startedOn,
+    )
+    if (!home.ok) return home
     await mkdir(join(wanted, ".."), { recursive: true })
     const real = join(await realpath(join(wanted, "..")), repository.name)
     // The row first: a crash between the two leaves a row whose folder never appeared, which
@@ -517,7 +529,10 @@ export class Worktrees {
 
   /**
    * The home a worktree is given: `home` where named (a branch here, or origin's as `origin/x`
-   * or `x`), else the branch `from` names, else none (it stays the repository's main). `write`
+   * or `x`), else the branch `from` names, else the branch it starts from (`startedOn`: the
+   * checkout's own branch, where it started from that checkout's HEAD, `from: HEAD` too), else none (it stays the
+   * repository's main: a detached HEAD, a tag or commit, origin's branch of its name, an
+   * existing branch). `write`
    * is what the branch's key holds: nothing where home is the repository's main, which is
    * measured by as ever without a key.
    */
@@ -526,13 +541,14 @@ export class Worktrees {
     branch: string,
     home: string | undefined,
     from: string | undefined,
+    startedOn?: string,
   ): Promise<{ readonly ok: true; readonly write?: string } | Failure> {
     const named =
       home !== undefined
         ? home.replace(/^(?:refs\/heads\/|refs\/remotes\/origin\/|origin\/)/, "")
-        : from !== undefined
+        : from !== undefined && from !== "HEAD"
           ? await branchNamed(folder, from)
-          : undefined
+          : startedOn
     if (named === undefined) return { ok: true }
     if (named === branch) return refused("A worktree's home is another branch than its own.")
     const there =
@@ -616,7 +632,7 @@ export class Worktrees {
       }
     }
     const found = await repositoryAt(top)
-    if (!found.ok) return refused(`${top} isn't a git worktree.`)
+    if (!found.ok) return found
     const { repository } = found
     if (!(await this.ofProject(input.projectId, input.cwd, repository)))
       return refused(

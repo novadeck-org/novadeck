@@ -10,6 +10,7 @@ import {
   noNudges,
   sessionBegan,
   worktreesEarlyNotice,
+  worktreesGitlessNotice,
   worktreesOffNotice,
   worktreesOnNotice,
 } from "../nudges.js"
@@ -180,7 +181,7 @@ describe("the worktrees notice at a root turn's start", () => {
     } as unknown as Record
     // The runner's folder and clock, as `runner.ts` wires them: the setting saved calls `ensure`.
     const clock = { now: 0 }
-    const state = { on: false }
+    const state = { on: false, repo: true }
     const root = new RootFolder({
       enabled: () => state.on,
       path: "/w",
@@ -204,6 +205,7 @@ describe("the worktrees notice at a root turn's start", () => {
       worktrees: () => ({
         enabled: () => state.on,
         ready: (startedAt: number | undefined, relists: boolean) => root.ready(startedAt, relists),
+        inRepository: () => Promise.resolve(state.repo),
       }),
       save: saved,
       peers: () => ({ facts: () => Promise.resolve(undefined) }),
@@ -241,7 +243,7 @@ describe("the worktrees notice at a root turn's start", () => {
       record.agents = { [agent]: { sessionId: "s", seq: 1 } } as never
       record.nudges = fired(record.nudges, "compaction")
     }
-    return { record, setting, clock, turn, restart, compact }
+    return { record, setting, state, clock, turn, restart, compact }
   }
 
   for (const agent of harnessNames) {
@@ -291,6 +293,24 @@ describe("the worktrees notice at a root turn's start", () => {
         expect(await t.turn()).toBe("")
       },
     )
+
+    it(`tells ${agent} there is no repository here, instead of the on notice, and the on notice when its folder is in one`, async () => {
+      const t = terminal(agent)
+      t.state.repo = false
+      t.setting.on = true
+      expect(await t.turn()).toBe(worktreesGitlessNotice)
+      expect(await t.turn()).toBe(lasting ? "" : worktreesGitlessNotice)
+      // A cd into a repository: told the on notice, once where it holds it.
+      t.state.repo = true
+      expect(await t.turn()).toBe(worktreesOnNotice)
+      expect(await t.turn()).toBe(lasting ? "" : worktreesOnNotice)
+      // And out of it again.
+      t.state.repo = false
+      expect(await t.turn()).toBe(worktreesGitlessNotice)
+      // Off: it was told no worktree, so there is nothing to take back.
+      t.setting.on = false
+      expect(await t.turn()).toBe("")
+    })
 
     it(`tells ${agent} again after a compaction${lasting ? "" : " (it is told at every turn)"}`, async () => {
       const t = terminal(agent)

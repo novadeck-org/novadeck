@@ -3078,17 +3078,31 @@ again on each call.
 
 - **Agent worktrees.** While the runner setting `worktrees` is on (read live at each turn's
   start, so a flip counts at the next turn), every root session of every harness is told
-  to work in Novadeck's worktrees (`worktreesOnNotice`): before changing a file, open one
-  with `open_worktree` or take one with `take_worktree`, one for each repository it
-  changes, or more; name branches as the repository's own instructions say; use absolute
-  paths into the worktree and `git -C <worktree>` for git, never `cd` and then git (Claude
-  Code refuses it, and no shell's folder stays outside the one it started in); read the
-  instruction files `open_worktree` lists, which aren't loaded from there; and, when done,
-  give the worktree to whoever continues or leave it for the person, closing only work
-  that's merged or abandoned. It says nothing of committing, as some sandboxes (Codex's
-  workspace-write) can't. It is independent of `describe`, and not a `Nudges` trigger:
-  `worktreesDue` decides it from the setting and `told.worktrees`, the digest of the
-  notice last told (`worktreesDigests`).
+  that worktrees are the default (`worktreesOnNotice`): its changes go in a worktree it opens
+  with `open_worktree` or takes with `take_worktree`, one for each repository it changes, not
+  in its terminal's checkout, and what the user asked decides otherwise (told to work in
+  place, or in a given folder, it does). It states facts and offers tools and orders
+  nothing: a worktree's home is the branch its work belongs on (the branch it started from,
+  or the `home` it gives), and Novadeck shows it merged once home holds its work. Its action
+  lines are conveniences: name branches as the repository's own instructions say; use
+  absolute paths into the worktree and `git -C <worktree>` for git, never `cd` and then git
+  (Claude Code refuses it, and no shell's folder stays outside the one it started in); the
+  instruction files `open_worktree` lists aren't loaded from there; `give_worktree` hands a
+  worktree to whoever continues, `close_worktree` removes merged or abandoned work. It says
+  nothing of committing, merging or pull requests, as some sandboxes (Codex's
+  workspace-write) can't commit and what to do with the work is the user's to say. It is
+  independent of `describe`, and not a `Nudges` trigger: `worktreesDue` decides it from the
+  setting and `told.worktrees`, the digest of the notice last told (`worktreesDigests`).
+  - **A terminal's folder in no git repository** (`worktreesGitlessNotice`, instead of the on
+    notice): a worktree is a repository's, so it says there is none to make here, that files
+    here are changed in place, and that `open_worktree`'s `repo` takes a folder in a
+    repository elsewhere, which keeps a project of repositories and plain folders readable. It
+    is said rather than left out because the session still sees the worktree tools, and its
+    digest is what tells a `cd` into a repository (told the on notice) or out of one (told
+    this). The folder is the terminal's `cwd` as its reports last said it; whether it is in a
+    repository is read at each turn's start from the files alone (`inRepository`: a `.git`
+    in the folder or a parent, no git run). `open_worktree` and `take_worktree` refuse such a
+    folder with the same fact.
   - **Claude Code and Codex** hold what the prompt's hook printed, so the notice comes once:
     when a session begins or resumes without it, after a compaction (which clears `told`),
     and when the setting flips on or the wording changes. A resumed session of the same

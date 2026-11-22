@@ -18,7 +18,7 @@ import { describe, expect, it as base } from "../test.js"
 import { withOrigin } from "../testing/origin.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import { fetchTimeoutMs, MainFetcher } from "./fetching.js"
-import { finishRemoval, nestedRepositories } from "./repo.js"
+import { finishRemoval, inRepository, nestedRepositories } from "./repo.js"
 import { Worktrees, folderName } from "./worktrees.js"
 
 const git = (cwd: string, ...args: string[]) =>
@@ -1363,6 +1363,52 @@ const keyOf = (folder: string, branch: string, key: string): string => {
   }
 }
 
+describe("a folder that is in no git repository", () => {
+  it("is refused by open and take with the fact, that its files are changed in place", async ({
+    fx: f,
+  }) => {
+    const plain = join(f.other, "notes")
+    mkdirSync(plain)
+    const opened = await f.worktrees.open({
+      projectId: f.project,
+      terminalId: "t1",
+      cwd: plain,
+      branch: "feat",
+    })
+    expect(opened).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("isn't in a git repository"),
+    })
+    expect(opened.ok ? "" : opened.reason).toContain("changed in place")
+    const taken = await f.worktrees.take({
+      projectId: f.project,
+      terminalId: "t1",
+      cwd: plain,
+      path: plain,
+    })
+    expect(taken).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("isn't in a git repository"),
+    })
+    expect(taken.ok ? "" : taken.reason).toContain("changed in place")
+  })
+
+  it("is told apart from a repository's folder by its .git, in it or a parent", async ({
+    fx: f,
+  }) => {
+    const plain = join(f.other, "notes")
+    mkdirSync(join(plain, "deeper"), { recursive: true })
+    expect(await inRepository(plain)).toBe(false)
+    expect(await inRepository(f.repo)).toBe(true)
+    const lead = await open(f, "feat-x")
+    if (!lead.ok) throw new Error(lead.reason)
+    // A linked worktree has a .git file.
+    expect(await inRepository(lead.path)).toBe(true)
+    mkdirSync(join(f.repo, "sub"))
+    expect(await inRepository(join(f.repo, "sub"))).toBe(true)
+  })
+})
+
 describe("a worktree's home", () => {
   it("is main for a worktree opened from main, said and never written", async ({ fx: f }) => {
     const a = await open(f, "plain")
@@ -1389,16 +1435,83 @@ describe("a worktree's home", () => {
     expect(c.home).toBe("main")
   })
 
-  it("is never the branch the checkout happens to be on, as from HEAD names it", async ({
+  it("is the branch the new branch starts from when from is left out, as in a lead's worktree", async ({
+    fx: f,
+  }) => {
+    const lead = await open(f, "feat-x")
+    if (!lead.ok) throw new Error(lead.reason)
+    // A teammate opened from inside the lead's worktree: it starts from feat-x's HEAD.
+    writeFileSync(join(lead.path, "lead.txt"), "lead\n")
+    git(lead.path, "add", "-A")
+    git(lead.path, "commit", "--quiet", "-m", "lead")
+    const mate = await f.worktrees.open({
+      projectId: f.project,
+      terminalId: "t2",
+      cwd: lead.path,
+      branch: "mate-1",
+    })
+    if (!mate.ok) throw new Error(mate.reason)
+    expect(mate.base).toBe(git(lead.path, "rev-parse", "HEAD"))
+    expect(mate.home).toBe("feat-x")
+    expect(keyOf(f.repo, "mate-1", "novadeckHome")).toBe("feat-x")
+    // Said by the open's own answer, and a home that can be changed later by its owner.
+    expect(
+      await f.worktrees.take({
+        projectId: f.project,
+        terminalId: "t2",
+        cwd: mate.path,
+        path: mate.path,
+        home: "main",
+      }),
+    ).toMatchObject({ ok: true, already: true, home: "main" })
+    expect(keyOf(f.repo, "mate-1", "novadeckHome")).toBe("")
+  })
+
+  it("is the checkout's branch when that is where it starts from, as from HEAD says too", async ({
     fx: f,
   }) => {
     git(f.repo, "checkout", "--quiet", "-b", "person-feature")
-    for (const from of ["HEAD", "@", "person-feature~0"]) {
+    for (const [name, extra] of [
+      ["left-out", {}],
+      ["from-head", { from: "HEAD" }],
+    ] as const) {
       // eslint-disable-next-line no-await-in-loop -- One open at a time, in one repository.
+      const opened = await open(f, name, extra)
+      if (!opened.ok) throw new Error(opened.reason)
+      expect(opened.home).toBe("person-feature")
+    }
+    // A commit spelled as a revision of it is no branch.
+    for (const from of ["@", "person-feature~0"]) {
+      // eslint-disable-next-line no-await-in-loop -- As above.
       const opened = await open(f, `from-${from.replaceAll(/\W/g, "")}`, { from })
       if (!opened.ok) throw new Error(opened.reason)
       expect(opened.home).toBe("main")
     }
+  })
+
+  it("is main where the start has no branch: a detached HEAD, or main itself", async ({
+    fx: f,
+  }) => {
+    const plain = await open(f, "from-main")
+    if (!plain.ok) throw new Error(plain.reason)
+    expect(plain.home).toBe("main")
+    git(f.repo, "checkout", "--quiet", "--detach")
+    const opened = await open(f, "from-detached")
+    if (!opened.ok) throw new Error(opened.reason)
+    expect(opened.home).toBe("main")
+    expect(keyOf(f.repo, "from-detached", "novadeckHome")).toBe("")
+  })
+
+  it("is main for an existing branch checked out, and for a given tag", async ({ fx: f }) => {
+    git(f.repo, "branch", "existing")
+    git(f.repo, "tag", "v1")
+    git(f.repo, "checkout", "--quiet", "-b", "person-feature")
+    const existing = await open(f, "existing")
+    if (!existing.ok) throw new Error(existing.reason)
+    expect(existing.home).toBe("main")
+    const tagged = await open(f, "from-tag", { from: "v1" })
+    if (!tagged.ok) throw new Error(tagged.reason)
+    expect(tagged.home).toBe("main")
   })
 
   it("refuses its own branch, and a branch that isn't here or on origin", async ({ fx: f }) => {

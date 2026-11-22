@@ -57,6 +57,28 @@ export const homeOf = (common: string): string =>
   basename(common) === ".git" ? dirname(common) : common
 
 /**
+ * Whether a folder is in a git checkout, found by its `.git` (a folder, or the file a linked
+ * worktree has) in it or a parent, with no git run: cheap enough for each turn's start. A bare
+ * repository has none, and `repositoryAt` doesn't take one either.
+ */
+export const inRepository = async (folder: string): Promise<boolean> => {
+  const at = resolve(folder)
+  if (
+    await stat(join(at, ".git")).then(
+      () => true,
+      () => false,
+    )
+  )
+    return true
+  const up = dirname(at)
+  return up !== at && inRepository(up)
+}
+
+/** What a folder in no repository is told, by `open_worktree` and `take_worktree` alike. */
+export const gitlessReason = (folder: string): string =>
+  `${folder} isn't in a git repository, so there's no worktree to make of it: files there are changed in place.`
+
+/**
  * The repository a folder is in, or why it is in none. A folder inside any checkout of it
  * (the main one or a linked worktree) names the same repository.
  */
@@ -68,8 +90,7 @@ export const repositoryAt = async (
 > => {
   const top = line(await git(folder, ["rev-parse", "--show-toplevel"], small))
   const common = await commonDir(folder)
-  if (top === undefined || common === undefined)
-    return { ok: false, reason: `${folder} isn't in a git repository.` }
+  if (top === undefined || common === undefined) return { ok: false, reason: gitlessReason(folder) }
   const home = homeOf(common)
   return {
     ok: true,
