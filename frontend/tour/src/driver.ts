@@ -304,14 +304,17 @@ export const stepRun = (
       return still(reshape(next, steps, hadArtist, steps[run.step]?.id, event.now).run)
     }
     // The step's own caption box came on screen: a held step's hold counts from the first time.
-    // A box for any other line (the agent's own screen, a teammate's question) isn't its.
+    // A box for any other line (the agent's own screen, a teammate's question) isn't its, and
+    // one that comes once the wait for it ran out is too late: the hold already counts from
+    // then, so a step never lasts past `captionWaitMs` and `holdMs` after it was done.
     case "caption": {
       const step = steps[run.step]
       if (
         !step ||
         step.holdMs === undefined ||
         step.coach.line !== event.line ||
-        run.captionAt !== null
+        run.captionAt !== null ||
+        (typeof run.doneAt === "number" && event.now >= run.doneAt + captionWaitMs)
       )
         return still(run)
       const adjusted = adjust(

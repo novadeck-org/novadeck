@@ -107,9 +107,9 @@ export const startStep: TourStep = {
   id: "start",
   act: 1,
   enter: [{ kind: "view", view: "canvas" }, { kind: "reveal" }],
-  // A lead that names itself at once is done before its caption shows: it waits for the line to
-  // show (at most `captionWaitMs`) and goes on with it, so the first beat is never skipped.
-  holdMs: 0,
+  // A lead that names itself at once is done before its caption shows: it holds, so the first
+  // beat is read.
+  holdMs: lineMs,
   coach: { look: "lead", line: "That's your agent. It runs this job." },
   // It describes itself, as its brief asks; or, where a cheap model skips that, its first turn
   // ends.

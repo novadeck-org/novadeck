@@ -11,7 +11,7 @@ import {
 } from "../support/keyboard"
 import { switchProject, workspaceSwitcher } from "../support/sessions"
 import { closeConfirmation, confirmClose, tabAction } from "../support/terminals"
-import { coach, consent, expectLookAt, windowNamed } from "../support/tour"
+import { coach, coachSays, consent, expectLookAt, windowNamed } from "../support/tour"
 import {
   expectSelected,
   openWorkspace,
@@ -30,10 +30,6 @@ const bar = (): Locator => page.getByRole("region", { name: "Tour", exact: true 
 const barSays = (words: string): Promise<void> =>
   expect.poll(() => bar().query()?.textContent ?? "").toContain(words)
 
-// Waits for the coach to say `words`, among the rest of what it says.
-const coachSays = (words: string): Promise<void> =>
-  expect.poll(() => coach().query()?.textContent ?? "").toContain(words)
-
 // Starts the tour from the footer's Help menu with Claude Code, connected first in Preferences' Agents.
 const startTour = async (address = offered): Promise<void> => {
   await openWorkspace(address)
@@ -47,7 +43,8 @@ const startTour = async (address = offered): Promise<void> => {
   await expect.element(consent()).not.toBeInTheDocument()
 }
 
-// The tour's lead names itself once its agent has taken the brief.
+// The tour's lead names itself once its agent has taken the brief, and its first step goes on
+// after its caption has shown and been held.
 const leadNamed = { timeout: 10_000 }
 
 // The footer offers the tour only with its own switch on, in Preferences → Experimental.
@@ -58,12 +55,12 @@ describe("The tour's driver", () => {
     await startTour()
     await coachSays("That's your agent. It runs this job.")
     await expect.element(page.getByText(/^Act 1, Your agent\./)).toBeInTheDocument()
-    // The agent describes itself as the tour's lead: its step is done, and goes on once its
-    // caption has shown, however soon the agent named itself.
+    // The agent describes itself as the tour's lead: its step is done, and holds until its
+    // caption has been on screen 3 s, however soon the agent named itself.
     await expect.poll(terminalTabNames, leadNamed).toContain("Game lead")
     // Its next step is the team's: the demo's lead opens none here, so nothing is marked yet and
     // no caption shows, but the act has begun.
-    await expect.element(page.getByText(/^Act 2, The team\./)).toBeInTheDocument()
+    await expect.element(page.getByText(/^Act 2, The team\./), leadNamed).toBeInTheDocument()
   })
 
   it("marks the agent's window to look at while it starts, in the page's own element", async () => {
@@ -168,7 +165,7 @@ describe("The tour's driver", () => {
         .click()
 
       await bar().getByRole("button", { name: "Back to the tour" }).click()
-      await expect.element(page.getByText(/^Act 2, The team\./)).toBeInTheDocument()
+      await expect.element(page.getByText(/^Act 2, The team\./), leadNamed).toBeInTheDocument()
       // The Inbox the person answered in is still open: the terminals are listed in their panel.
       await sidebarPanel("Terminals").click()
       await expect.poll(terminalTabNames, leadNamed).toContain("Game lead")

@@ -104,7 +104,7 @@ describe("The tour's driver", () => {
       // It holds first, for its caption (which never shows here): then the next step begins.
       const { run, seen } = play(begin(), [
         { type: "signals", signals: agent(true), now: 1 },
-        { type: "tick", signals: agent(true), now: 1 + captionWaitMs },
+        { type: "tick", signals: agent(true), now: 1 + captionWaitMs + 3_000 },
       ])
       expect(seen[0]!.run).toMatchObject({ step: 0, doneAt: 1 })
       expect(run).toMatchObject({ step: 1, nudged: false, entered: true })
@@ -136,7 +136,7 @@ describe("The tour's driver", () => {
       const answered = signals({ kind: "agent", working: false, named: false, answered: true })
       const { run } = play(begin(), [
         { type: "signals", signals: answered, now: 1 },
-        { type: "tick", signals: answered, now: 1 + captionWaitMs },
+        { type: "tick", signals: answered, now: 1 + captionWaitMs + 3_000 },
       ])
       expect(run?.step).toBe(1)
     })
@@ -423,6 +423,19 @@ describe("The tour's story", () => {
       expect(idAt(tick(waiting, all, 100 + captionWaitMs + 5_000).run!)).toBe("shape")
     })
 
+    it("ignores a caption that comes after the wait for it ran out", () => {
+      const last = { ...atStep("play"), doneAt: 100, entered: true }
+      const ends = 100 + captionWaitMs + 25_000
+      expect(nextTick(last, tourSteps, all, patience)).toBe(ends)
+      const late = caption(last, "Four agents. One game. Go play.", 100 + captionWaitMs - 1)
+      // One just inside the wait counts; one at its end, or after, doesn't move the end out.
+      expect(late.run!.captionAt).toBe(100 + captionWaitMs - 1)
+      const over = caption(last, "Four agents. One game. Go play.", 100 + captionWaitMs)
+      expect(over.run!.captionAt).toBeNull()
+      expect(nextTick(over.run!, tourSteps, all, patience)).toBe(ends)
+      expect(tick(over.run!, all, ends)).toMatchObject({ run: null, end: "done" })
+    })
+
     it("holds from when it was done where the caption showed before that", () => {
       const early = stepRun(
         atStep("page"),
@@ -470,7 +483,7 @@ describe("The tour's story", () => {
   it("holds each step a while, as its line is read, before it moves on", () => {
     const holds = Object.fromEntries(tourSteps.map(({ id, holdMs }) => [id, holdMs]))
     expect(holds).toMatchObject({
-      start: 0,
+      start: 3_000,
       team: 3_000,
       page: 5_000,
       files: 5_000,
