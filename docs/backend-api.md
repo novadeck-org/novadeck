@@ -623,7 +623,7 @@ user's); what tells them apart is who may add and revoke devices.
   **`devices.list()`**, to any connection, gives the devices not revoked, oldest first, each with `createdAt`,
   `lastSeenAt` (its last handshake or session end) and whether it is `connected` now.
   **`devices.revoke({ id })`**: the owner may revoke any device, a device only itself.
-  All three are new in revision 3 (`since: 3`).
+  All three are new in revision 6 (`since: 6`).
 - **Revoking** ends the device's sessions at once: their calls are refused, and their sockets
   close a moment later (`revokeGraceMs`), so a device that revoked itself is answered first. The client's reconnection is refused `UNAUTHORIZED` with `{ reason: "revoked" }`, as
   is every later handshake that proves the revoked credential, since its row stays; one that

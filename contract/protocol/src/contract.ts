@@ -1031,16 +1031,16 @@ export const contract = {
     // once, as the runner keeps only its hash. The owner's only (FORBIDDEN to a device);
     // `maxDevices` not revoked at once, a CONFLICT.
     mint: procedure
-      .meta({ since: 3 })
+      .meta({ since: 6 })
       .input(z.strictObject({ name: deviceName }))
       .output(mintedDevice),
     // The devices not revoked, oldest first.
-    list: procedure.meta({ since: 3 }).input(z.void()).output(z.array(device)),
+    list: procedure.meta({ since: 6 }).input(z.void()).output(z.array(device)),
     // Revokes a device's credential: its sessions end at once, and its next handshake is
     // UNAUTHORIZED with `{ reason: "revoked" }`. The owner may revoke any device, a device
     // only itself (FORBIDDEN otherwise); one not listed is NOT_FOUND.
     revoke: procedure
-      .meta({ since: 3 })
+      .meta({ since: 6 })
       .input(z.strictObject({ id: deviceId }))
       .output(z.void()),
   },

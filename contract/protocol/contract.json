@@ -1,5 +1,5 @@
 {
-  "revision": 5,
+  "revision": 6,
   "oldestClient": 3,
   "oldestRunner": 2,
   "errors": {
@@ -8551,7 +8551,7 @@
       "output": {"x-optional":true}
     },
     "devices.mint": {
-      "since": 3,
+      "since": 6,
       "input": {
         "type": "object",
         "properties": {
@@ -8592,7 +8592,7 @@
       }
     },
     "devices.list": {
-      "since": 3,
+      "since": 6,
       "input": {"x-optional":true},
       "output": {
         "type": "array",
@@ -8616,7 +8616,7 @@
       }
     },
     "devices.revoke": {
-      "since": 3,
+      "since": 6,
       "input": {
         "type": "object",
         "properties": {"id":{"type":"string","pattern":"^[A-Za-z0-9_-]{22}$"}},
