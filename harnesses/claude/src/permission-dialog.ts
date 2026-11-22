@@ -30,10 +30,18 @@ import { diffIs } from "./diffs.js"
 const permissionTitle = /^ (Do you want to .+\?)$/
 const permissionOption = /^ (❯| ) (\d+)\. (.+)$/
 const permissionContinuation = /^ {6,}\S/
-// While background agents run (a subagent's own request is one) the footer adds how to stop
-// them (` · ctrl+x ctrl+k twice to stop background agents`, 2.1.329, 2026-11-22 tour run).
-const permissionFooter =
-  /^ Esc to cancel · Tab to amend(?: · ctrl\+x ctrl\+k twice to stop background agents)?$/
+// The footer, and what it adds while background agents run (a subagent's own request is one):
+// how to stop them (2.1.329, 2026-11-22 tour run), cut off with `…` where the row is too
+// narrow for all of it (72 and 60 columns, 2026-11-23 probes). Enough of the hint has to show
+// to tell it is this one.
+const footerBase = " Esc to cancel · Tab to amend"
+const footerHint = " · ctrl+x ctrl+k twice to stop background agents"
+const footerIs = (row: string): boolean => {
+  if (!row.startsWith(footerBase)) return false
+  const more = row.slice(footerBase.length)
+  if (more === "" || more === footerHint) return true
+  return more.length >= 5 && more.endsWith("…") && footerHint.startsWith(more.slice(0, -1))
+}
 // From 2.1.328 a dialog taller than the screen says under its options how many of its rows
 // scrolled away above them (` ↑ 145 more lines`, fixtures/tall.probe.json); what shows of it is
 // read as before.
@@ -73,6 +81,8 @@ const samePath = (path: string, shown: string, cwd: string | null): boolean => {
 // label alone: what the dialog asks is read from its body, whoever asks.
 const whose = / · from the \S.* agent$/
 const labelOf = (row: string): string => row.replace(whose, "")
+// How far above a block its dialog's top rule is looked for.
+const headerReach = 8
 
 // An MCP server's or tool's name as the dialog's title and the tool's own name compare:
 // letters and digits, in lower case.
@@ -86,10 +96,17 @@ const nameKey = (text: string): string => text.toLowerCase().replace(/[^a-z0-9]/
 const shows = (rows: readonly string[], title: number, facts: RequestFacts): string | undefined => {
   const input = fieldsOf(facts.input)
   if (!input) return refuse("permission.shows.1")
-  // The three rows above a block, where its header is: each as its label, without whose
-  // request it is.
-  const header = (open: number): string[] =>
-    rows.slice(Math.max(0, open - 3), open).map((each) => labelOf(each.trim()))
+  // Where a block's header is: the row under the dialog's top rule, as its label, without
+  // whose request it is. A subagent's command has a tip under its label that wraps in a narrow
+  // pane, above a description that may wrap too, so the label can be five rows above the block
+  // (72 and 60 columns, 2026-11-23 probes). Where the top rule isn't in reach, as when it has
+  // scrolled away, the three rows above the block, as before.
+  const header = (open: number): string[] => {
+    const from = Math.max(0, open - headerReach)
+    const top = rows.slice(from, open).findLastIndex((each) => rule.test(each))
+    const above = top < 0 ? rows.slice(Math.max(0, open - 3), open) : [rows[from + top + 1] ?? ""]
+    return above.map((each) => labelOf(each.trim()))
+  }
   switch (facts.tool) {
     case "Bash": {
       const command = nonBlank(input.command)
@@ -208,7 +225,7 @@ export const permission = (
   const read = numbered(rows, at + 1, permissionOption, permissionContinuation)
   if (!read) return refuse("permission.permission.3")
   const rest = scrolledAway.test(read.rest[0] ?? "") ? read.rest.slice(1) : read.rest
-  if (rest.length > 1 || (rest.length === 1 && !permissionFooter.test(rest[0]!))) {
+  if (rest.length > 1 || (rest.length === 1 && !footerIs(rest[0]!))) {
     return refuse("permission.permission.4")
   }
   const detail = shows(rows, at, facts)
