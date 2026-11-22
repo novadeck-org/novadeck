@@ -1440,8 +1440,9 @@ describe("a folder that is in no git repository", () => {
     fx: f,
   }) => {
     const link = join(f.other, "link")
-    symlinkSync(join(f.repo, "sub-link-target"), link)
+    // The target first, and a junction: Windows makes a file link of a folder that isn't there yet.
     mkdirSync(join(f.repo, "sub-link-target"))
+    symlinkSync(join(f.repo, "sub-link-target"), link, "junction")
     expect(await inRepository(link)).toBe(true)
     expect(await inRepository("")).toBeUndefined()
     expect(await inRepository(join(f.other, "missing"))).toBeUndefined()
