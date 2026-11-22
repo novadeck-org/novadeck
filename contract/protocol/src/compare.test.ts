@@ -2,7 +2,7 @@ import { eventIterator, oc } from "@orpc/contract"
 import { describe as context, describe, expect, it } from "vitest"
 import { z } from "zod"
 
-import { compareContracts, judgeContract, type Finding } from "./compare.js"
+import { compareContracts, judgeContract, judgeReleases, type Finding } from "./compare.js"
 import { compatibility, type Compatibility } from "./compatibility.js"
 import { contract } from "./contract.js"
 import { snapshotContract, type ContractSnapshot } from "./snapshot.js"
@@ -227,6 +227,45 @@ describe("compareContracts", () => {
     })
   })
 
+  context("in a union told apart by its keys alone", () => {
+    const answers = (...options: z.ZodType[]) => ({
+      requests: {
+        answer: call.input(z.union(options as [z.ZodType, z.ZodType])).output(z.void()),
+      },
+    })
+
+    // An older runner can't tell which option failed only on the new key, so drops nothing.
+    it("leaves older runners behind for a key added to an option", () => {
+      const before = answers(
+        z.strictObject({ id: z.uuid() }),
+        z.strictObject({ id: z.uuid(), reason: z.string() }),
+      )
+      const after = answers(
+        z.strictObject({ id: z.uuid() }),
+        z.strictObject({ id: z.uuid(), reason: z.string(), extra: z.string().optional() }),
+      )
+      const found = compareContracts(snap(before), snap(after, window(3))).findings.map(
+        (finding) => finding.behind,
+      )
+      expect(found).toContain("runner")
+    })
+
+    it("leaves older runners behind for a field another option reads another way", () => {
+      const before = answers(
+        z.strictObject({ id: z.uuid(), n: z.number() }),
+        z.strictObject({ id: z.uuid() }),
+      )
+      const after = answers(
+        z.strictObject({ id: z.uuid(), n: z.string() }),
+        z.strictObject({ id: z.uuid() }),
+      )
+      const found = compareContracts(snap(before), snap(after, window(3))).findings.map(
+        (finding) => finding.behind,
+      )
+      expect(found).toEqual(expect.arrayContaining(["ui", "runner"]))
+    })
+  })
+
   context("with error data", () => {
     const withConflict = (data: z.ZodType | undefined) => {
       const errors = oc.errors({ CONFLICT: { status: 409, ...(data && { data }) } })
@@ -334,5 +373,51 @@ describe("judgeContract", () => {
     expect(judgeContract(snap(base), snap(gated, window(3, 2, 2))).problems).toEqual([
       "sessions.drop is marked since: 5, past the revision (3).",
     ])
+  })
+})
+
+describe("judgeReleases", () => {
+  // An optional field gone in one release and back with another type in the next: each step
+  // passes against the release before, and the first release's peers, still in the window, break.
+  const step = (field: z.ZodType | undefined) => ({
+    sessions: {
+      save: call
+        .input(z.strictObject({ id: z.uuid(), ...(field && { note: field.optional() }) }))
+        .output(z.strictObject({ ...(field && { note: field.optional() }) })),
+    },
+  })
+  const two = snap(step(z.string()), window(2))
+  const three = snap(step(undefined), window(3, 2, 2))
+  const four = snap(step(z.number()), window(4, 2, 2))
+
+  it("passes each step against the release before", () => {
+    expect(judgeContract(two, three).problems).toEqual([])
+    expect(judgeContract(three, four).problems).toEqual([])
+  })
+
+  it("fails it against an older release still in the window", () => {
+    const verdict = judgeReleases(
+      [
+        { ref: "v1.3.0", contract: three },
+        { ref: "v1.2.0", contract: two },
+      ],
+      four,
+    )
+    expect(verdict.older.map(({ ref }) => ref)).toEqual(["v1.2.0"])
+    expect(verdict.problems).toHaveLength(2)
+    expect(verdict.problems[0]).toMatch(/UIs of revision 2 \(v1.2.0\) behind/)
+  })
+
+  it("passes once the window has moved past that release", () => {
+    const moved = { ...four, oldestClient: 3, oldestRunner: 3 }
+    expect(
+      judgeReleases(
+        [
+          { ref: "v1.3.0", contract: three },
+          { ref: "v1.2.0", contract: two },
+        ],
+        moved,
+      ).problems,
+    ).toEqual([])
   })
 })

@@ -2,9 +2,14 @@ import { execFile } from "node:child_process"
 import { readFile } from "node:fs/promises"
 import { promisify } from "node:util"
 
-import { judgeContract, type Finding, type Verdict } from "../../contract/protocol/src/compare.ts"
+import {
+  judgeReleases,
+  type Finding,
+  type Release,
+  type WindowVerdict,
+} from "../../contract/protocol/src/compare.ts"
 import type { ContractSnapshot } from "../../contract/protocol/src/snapshot.ts"
-import { newestRelease } from "../release-notes/sources.ts"
+import { markerPrefix } from "../release-notes/sources.ts"
 
 const run = promisify(execFile)
 
@@ -15,8 +20,11 @@ const usage = "Usage: main.ts [--base <ref>]"
 
 /** What the check reads from outside, behind functions so tests run without a repository. */
 export type Sources = {
-  /** The ref of the newest release reachable from HEAD, or `undefined` before there is one. */
-  readonly newest: () => Promise<string | undefined>
+  /**
+   * The refs of the releases reachable from HEAD, newest first: a `vX.Y.Z` tag, or the
+   * `release-base/vX.Y.Z` marker that stands in for one history was rewritten away from.
+   */
+  readonly releases: () => Promise<readonly string[]>
   /** `contract.json` as `ref` has it, or `undefined` when it has none. */
   readonly released: (ref: string) => Promise<string | undefined>
   /** `contract.json` as the working tree has it. */
@@ -25,7 +33,20 @@ export type Sources = {
 
 /** Git and the working tree in `cwd` (the current directory when `undefined`). */
 export const gitSources = (cwd?: string): Sources => ({
-  newest: async () => (await newestRelease(cwd))?.ref,
+  releases: async () => {
+    const { stdout } = await run(
+      "git",
+      ["tag", "--merged", "HEAD", "--list", "v*.*.*", `${markerPrefix}v*.*.*`],
+      { cwd, maxBuffer: 16 * 1024 * 1024 },
+    )
+    const versioned = stdout.split("\n").flatMap((ref) => {
+      const parts = /^v(\d+)\.(\d+)\.(\d+)$/.exec(ref.replace(markerPrefix, ""))
+      return parts ? [{ ref, parts: parts.slice(1).map(Number) }] : []
+    })
+    return versioned
+      .toSorted((a, b) => b.parts.reduce((diff, part, at) => diff || part - a.parts[at]!, 0))
+      .map(({ ref }) => ref)
+  },
   released: async (ref) => {
     try {
       const { stdout } = await run("git", ["show", `${ref}:${contractPath}`], {
@@ -50,16 +71,17 @@ const listed = (findings: readonly Finding[]): string[] =>
 
 /** The verdict as the check prints it: what changed for each side, then what's wrong. */
 export const report = (
-  ref: string,
-  before: ContractSnapshot,
+  releases: readonly Release[],
   after: ContractSnapshot,
-  { findings, gated, problems }: Verdict,
+  { findings, gated, problems, older }: WindowVerdict,
 ): string => {
+  const [newest] = releases
   const ui = findings.filter((finding) => finding.behind === "ui")
   const runner = findings.filter((finding) => finding.behind === "runner")
-  const was = before.revision
+  const was = newest?.contract.revision ?? 0
+  const others = releases.length - 1
   return [
-    `Contract compared with ${ref}, at revision ${was}.`,
+    `Contract compared with ${newest?.ref}, at revision ${was}${others > 0 ? `, and ${others} older release(s) still in the window` : ""}.`,
     `This build: revision ${after.revision}; it serves UIs from ${after.oldestClient} and works with runners from ${after.oldestRunner}.`,
     ...(ui.length > 0
       ? [`Leaves UIs of revision ${was} behind (oldestClient):`, ...listed(ui)]
@@ -68,17 +90,47 @@ export const report = (
       ? [`Leaves runners of revision ${was} behind (oldestRunner):`, ...listed(runner)]
       : []),
     ...(gated.length > 0 ? [`New, for UIs to ask for (since): ${gated.join(", ")}`] : []),
+    ...older.flatMap(({ ref, revision, findings: left }) => [
+      `Leaves peers of ${ref} (revision ${revision}) behind:`,
+      ...listed(left),
+    ]),
     ...(problems.length > 0
       ? ["", "Failed:", ...problems.map((problem) => `  - ${problem}`)]
       : ["", findings.length > 0 ? "Passed: each change moved its side's edge." : "Passed."]),
   ].join("\n")
 }
 
+// Releases read at most, newest first: far more than a window spans.
+const mostReleases = 400
+
+/**
+ * The releases to compare with, newest first: each still in `after`'s window, one per
+ * revision (a release whose contract didn't change kept its revision), down to the first
+ * without a contract.json.
+ */
+const inWindow = async (
+  refs: readonly string[],
+  after: ContractSnapshot,
+  sources: Sources,
+): Promise<Release[]> => {
+  const oldest = Math.min(after.oldestClient, after.oldestRunner)
+  const releases: Release[] = []
+  for (const ref of refs.slice(0, mostReleases)) {
+    // eslint-disable-next-line no-await-in-loop -- Newest first, until the window ends.
+    const text = await sources.released(ref)
+    if (text === undefined) break
+    const contract = JSON.parse(text) as ContractSnapshot
+    if (releases.length > 0 && contract.revision < oldest) break
+    if (releases.at(-1)?.contract.revision !== contract.revision) releases.push({ ref, contract })
+  }
+  return releases
+}
+
 /**
  * `node scripts/compatibility/main.ts [--base <ref>]`: compares `contract.json` with the newest
- * release's (or `ref`'s), and fails when the window doesn't fit what changed since
- * (`judgeContract`). Before any release holds a contract.json, there's nothing to compare.
- * Resolves the exit code.
+ * release's, and with each older one still in the window (or with `ref`'s alone), and fails
+ * when the window doesn't fit what changed (`judgeReleases`). Before any release holds a
+ * contract.json, there's nothing to compare. Resolves the exit code.
  */
 export const main = async (
   args: readonly string[] = process.argv.slice(2),
@@ -86,20 +138,20 @@ export const main = async (
   log: (line: string) => void = console.log,
 ): Promise<number> => {
   if (args.length !== 0 && (args.length !== 2 || args[0] !== "--base")) throw new Error(usage)
-  const ref = args[1] ?? (await sources.newest())
-  if (ref === undefined) {
+  const refs = args[1] === undefined ? await sources.releases() : [args[1]]
+  const [newest] = refs
+  if (newest === undefined) {
     log("No release yet: there is no contract to compare with.")
     return 0
   }
-  const released = await sources.released(ref)
-  if (released === undefined) {
-    log(`${ref} has no ${contractPath}: the first release that has one is the baseline.`)
+  const after = JSON.parse(await sources.current()) as ContractSnapshot
+  const releases = await inWindow(refs, after, sources)
+  if (releases.length === 0) {
+    log(`${newest} has no ${contractPath}: the first release that has one is the baseline.`)
     return 0
   }
-  const before = JSON.parse(released) as ContractSnapshot
-  const after = JSON.parse(await sources.current()) as ContractSnapshot
-  const verdict = judgeContract(before, after)
-  log(report(ref, before, after, verdict))
+  const verdict = judgeReleases(releases, after)
+  log(report(releases, after, verdict))
   return verdict.problems.length > 0 ? 1 : 0
 }
 

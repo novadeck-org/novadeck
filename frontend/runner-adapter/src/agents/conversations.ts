@@ -37,6 +37,7 @@ import {
   type TranscriptItem,
 } from "@novadeck/protocol"
 import { hasCode } from "@novadeck/runner-client"
+import { readTolerantly } from "@novadeck/wire"
 
 // The runner's conversations: each terminal's agent as `agents.detail` follows it, and
 // the root agent's transcript as `agents.transcript` streams it. Reading a terminal
@@ -275,7 +276,7 @@ const said = (error: unknown): string | undefined =>
 
 // Why the runner says a CONFLICT is one, where it says and this client knows the reason.
 const conflictReasonOf = (error: { readonly data: unknown }) =>
-  conflictReason.safeParse(error.data).data?.reason
+  readTolerantly(conflictReason, error.data)?.reason
 
 // The words a prompt took out of the agent's box before it failed, where it says.
 // A conflict's data has its own `reason`, so only `returned` is read, whatever else is there.
@@ -298,7 +299,7 @@ const failure = (
   // The agent never showed an image in its box: it came back out, with the words.
   if (
     hasCode(error, "PROMPT_FAILED") &&
-    promptFailure.safeParse((error as { data?: unknown }).data).data?.reason === "image-not-shown"
+    readTolerantly(promptFailure, (error as { data?: unknown }).data)?.reason === "image-not-shown"
   )
     return withReturned(
       new Error("The agent didn't take the image. It is back in the box."),

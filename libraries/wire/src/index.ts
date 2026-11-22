@@ -15,3 +15,4 @@ export {
   type WireErrorCode,
 } from "./errors.js"
 export { wireContract, type WireContract } from "./handshake.js"
+export { readTolerantly } from "./read.js"

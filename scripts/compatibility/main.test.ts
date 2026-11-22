@@ -19,7 +19,7 @@ const without = (path: string, window: Partial<ContractSnapshot> = {}): string =
 }
 
 const sources = (released: string | undefined, current: string, newest = "v1.0.0"): Sources => ({
-  newest: () => Promise.resolve(newest),
+  releases: () => Promise.resolve([newest]),
   released: () => Promise.resolve(released),
   current: () => Promise.resolve(current),
 })
@@ -65,6 +65,27 @@ describe("main", () => {
     }
     await check(["--base", "v0.9.0"], given)
     expect(asked).toEqual(["v0.9.0"])
+  })
+
+  it("compares with each older release still in the window, one per revision", async () => {
+    // v1.2.0 took the field away; v1.1.0, still in the window, had it.
+    const r3 = without("projects.rename", { revision: contract.revision + 1 })
+    const now = { ...(JSON.parse(r3) as ContractSnapshot), revision: contract.revision + 2 }
+    const read: string[] = []
+    const given: Sources = {
+      releases: () => Promise.resolve(["v1.3.0", "v1.2.0", "v1.1.0", "v1.0.0"]),
+      released: (ref) => {
+        read.push(ref)
+        const held: Record<string, string> = { "v1.3.0": r3, "v1.2.0": r3, "v1.1.0": written }
+        return Promise.resolve(held[ref])
+      },
+      current: () => Promise.resolve(JSON.stringify(now)),
+    }
+    const { code, out } = await check([], given)
+    expect(read).toEqual(["v1.3.0", "v1.2.0", "v1.1.0", "v1.0.0"])
+    expect(code).toBe(1)
+    expect(out).toContain("and 1 older release(s) still in the window")
+    expect(out).toContain(`Leaves peers of v1.1.0 (revision ${contract.revision}) behind:`)
   })
 
   it("passes, saying so, before any release has a contract", async () => {

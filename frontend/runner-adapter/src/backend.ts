@@ -49,6 +49,7 @@ import {
 } from "@novadeck/runner-client"
 import { createTerminalMount } from "@novadeck/terminal-views/mount"
 import { createTerminalScreens } from "@novadeck/terminal/view"
+import { readTolerantly } from "@novadeck/wire"
 import type { WireStatus } from "@novadeck/wire/client"
 
 import { createRunnerMurmur } from "./addons/murmur"
@@ -2234,10 +2235,8 @@ export const runnerBackend = (
     // unavailable, never "nothing busy".
     busyTerminals: (only) =>
       runner.terminals.busy(only).then(
-        (answer) => {
-          const read = busyShells.safeParse(answer)
-          return read.success ? read.data : undefined
-        },
+        // Keys a newer runner added are dropped, not taken for another shape.
+        (answer) => readTolerantly(busyShells, answer),
         () => undefined,
       ),
     connection,

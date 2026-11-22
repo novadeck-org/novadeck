@@ -590,20 +590,27 @@ every revision but its own, without data. So the client always knows which side 
 `incompatibility(error)` from `@novadeck/wire` says `client` or `server`, and the app's boot
 screen says to update this app (or, in a browser, to reload the page, which loads the runner's
 newer one) or to update Novadeck where the runner runs. A runner replaced while connected is
-met at the next reconnection's handshake, which is fatal there.
+met at the next reconnection's handshake, which is fatal there when it's outside the window;
+inside it, the runner's new epoch says it was replaced, and a UI asks `runner.supports(path)`
+again. A UI from before windows, refused by a newer runner, can only say the runner is from a
+different Novadeck version: its words shipped with it.
 
 What each side tolerates:
 
 - **The runner drops input keys it doesn't know**, at the wire boundary only
   (`dropUnknownKeys`, `@novadeck/wire/server`): it parses each input with the contract's
-  strict schema, and when the only issues are unknown keys, it removes them where zod found
-  them and parses once more. Undeclared data never reaches a handler, and every declared
-  field is checked as strictly as before. The contract's schemas stay strict, as the runner
-  also parses agents' tool arguments with them. Each dropped key is logged once per procedure
-  (`rpc.dropped`).
+  strict schema, and when the only issues are keys that no part of the schema names there (no
+  option of a union either), it removes them where zod found them and parses once more.
+  Undeclared data never reaches a handler, every declared field is checked as strictly as
+  before, and a key one of a union's options names is never dropped, which could switch the
+  option that reads the input. The contract's schemas stay strict, as the runner also parses
+  agents' tool arguments with them. Each dropped key is logged once per procedure
+  (`rpc.dropped`), once its input passed.
 - **The UI never validates what it reads**, so a newer runner's extra fields pass it by
   unread. What can trip it is what its types say: a field gone or now optional, another type,
-  or a value of an enum or a union's variant it doesn't know.
+  or a value of an enum or a union's variant it doesn't know. Where it parses an answer or an
+  error's data at all, it does so with `readTolerantly` (`@novadeck/wire`), which drops the
+  keys a newer runner added; never with a schema's own `safeParse`.
 - **Strict stays** for the runner's own outputs (checked against the contract, so
   `contract.json` is what it sends), every declared field's values, unions told apart only by
   their keys, and agents' tool arguments.
@@ -626,10 +633,13 @@ is declared: the handshake then refuses that release's peers, with the message a
 each procedure's input and output (or stream items) as JSON Schema, with each error's data. The
 protocol's `snapshot.test.ts` keeps it current (`pnpm --filter @novadeck/protocol test -u`
 writes it again), and a pull request shows a contract change as a change to it.
-`node scripts/compatibility/main.ts` compares it with the newest release's (Quality's Contract job,
-and the release workflow before it publishes): it fails when the contract changed and
-`revision` didn't rise past the release's, when a change leaves that release's UIs or runners
-behind and that side's edge didn't move past its revision, or when an edge falls back. It
+`node scripts/compatibility/main.ts` compares it with the newest release's, and with each older
+release's still in the window, one per revision (Quality's Contract job, and the release
+workflow before it publishes): what passes against one release needn't against an older one,
+as an optional field gone and back with another type passes each step. It fails when the
+contract changed and `revision` didn't rise past the newest release's, when a change leaves
+the UIs or runners of a release in the window behind and that side's edge didn't move past
+its revision, or when an edge falls back. It
 compares as each side reads: an input as the runner validates it, with its bounds; an answer
 as the UI reads it, by its fields, types and values only. It knows the keywords zod writes and
 reports anything else as a break; refinements (`.refine`) are beyond JSON Schema, so it can't

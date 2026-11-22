@@ -21,6 +21,7 @@ import {
   type PageTrouble as RunnerTrouble,
 } from "@novadeck/protocol"
 import { hasCode, type Runner } from "@novadeck/runner-client"
+import { readTolerantly } from "@novadeck/wire"
 
 import { fitsRunner } from "../fits"
 
@@ -208,8 +209,8 @@ export const createRunnerCompanions = (
     if (!fitsRunner(text, companionLimits.plan)) throw new PlanUnwritableError("too-large")
     const result = await runner.save({ itemId, text, basedOn }).catch((error: unknown) => {
       // A plan that can't be written says why; any other failure may pass.
-      const why = hasCode(error, "PLAN_UNWRITABLE") && planUnwritable.safeParse(error.data)
-      throw why && why.success ? new PlanUnwritableError(why.data.reason) : error
+      const why = hasCode(error, "PLAN_UNWRITABLE") && readTolerantly(planUnwritable, error.data)
+      throw why ? new PlanUnwritableError(why.reason) : error
     })
     if (result.saved) return result
     const { stamp, ...plan } = result.current

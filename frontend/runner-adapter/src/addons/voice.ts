@@ -9,6 +9,7 @@ import {
   type VoiceUnavailable,
 } from "@novadeck/protocol"
 import { hasCode, type Runner } from "@novadeck/runner-client"
+import { readTolerantly } from "@novadeck/wire"
 
 import { reasonOf } from "../errors"
 
@@ -64,13 +65,13 @@ const clipFailure = (error: unknown): Error => {
   if (hasCode(error, "VOICE_UNAVAILABLE")) {
     // A runner that sends no reason, or one this client doesn't know, still says why in
     // words; a bare code says nothing.
-    const why = voiceUnavailable.safeParse(error.data)
+    const why = readTolerantly(voiceUnavailable, error.data)
     // A missing engine's own message says more, such as that the disk is full.
-    if (why.success)
+    if (why)
       return new Error(
-        why.data.reason === "missing" && reasonOf(error) !== "VOICE_UNAVAILABLE"
+        why.reason === "missing" && reasonOf(error) !== "VOICE_UNAVAILABLE"
           ? reasonOf(error)
-          : unavailable[why.data.reason],
+          : unavailable[why.reason],
       )
     return new Error(reasonOf(error) !== "VOICE_UNAVAILABLE" ? reasonOf(error) : unavailable.off)
   }

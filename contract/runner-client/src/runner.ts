@@ -118,7 +118,8 @@ export type Runner = {
    * Whether the runner has the procedure at `path`: one the contract marks `since` a revision
    * newer than the runner's isn't there, and calling it rejects with `UNSUPPORTED` without
    * asking. A UI asks before it offers what such a procedure does. While reconnecting, it
-   * answers for the runner it last reached, which the next handshake may replace.
+   * answers for the runner it last reached; a runner replaced since shows as a new epoch in
+   * `status`, and the UI asks again.
    */
   supports(path: ProcedurePath): boolean
   /**

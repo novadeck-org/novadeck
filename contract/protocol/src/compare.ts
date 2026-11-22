@@ -184,6 +184,10 @@ const covers = (
   reader: Reader,
 ): ((wide: Schema, narrow: Schema, at: string) => Problem[]) => {
   const bounds = reader === "validates"
+  // Inside a union told apart by keys alone, a runner refuses a key an option doesn't name:
+  // zod can't say which option failed only on it, so nothing drops it. Counted while the walk
+  // is in one, as unions nest.
+  let keyed = 0
   // The pairs being compared on the way here: a recursive schema that meets one again is
   // assumed to hold there, as the rest of the walk decides.
   const open = new Map<Schema, Set<Schema>>()
@@ -293,7 +297,18 @@ const covers = (
           return [...optional, ...problem(`adds the ${JSON.stringify(value)} variant of "${key}"`)]
         return [...optional, ...check({ ...rest, ...match }, bare, at)]
       }
-      const tries = options.map((option) => check({ ...rest, ...option }, bare, at))
+      // A nullable value's union reads its value as its one option would.
+      const nullable =
+        options.length === 2 && options.some((option) => same(option, { type: "null" }))
+      const strict = reader === "validates" && !nullable
+      if (strict) keyed += 1
+      const tries = (() => {
+        try {
+          return options.map((option) => check({ ...rest, ...option }, bare, at))
+        } finally {
+          if (strict) keyed -= 1
+        }
+      })()
       if (tries.some((found) => found.length === 0)) return optional
       const closest = tries.toSorted((a, b) => a.length - b.length)[0] ?? []
       return [...optional, ...problem("matches none of the options it had"), ...closest]
@@ -423,8 +438,11 @@ const covers = (
         if (!isSchema(inner)) continue
         const known = wideProperties[key]
         if (isSchema(known)) problems.push(...check(known, inner, `${at}/${key}`))
-        // A key the wider side doesn't name is dropped or ignored there, unless it's a record.
+        // A key the wider side doesn't name is dropped or ignored there, unless it's a record,
+        // or the runner reads it in a union told apart by keys.
         else if (wideRest !== undefined) problems.push(...check(wideRest, inner, `${at}/${key}`))
+        else if (keyed > 0 && wide.additionalProperties === false)
+          say("is a key a union told apart by its keys refuses", `${at}/${key}`)
       }
       if (narrowRest !== undefined) {
         if (Object.keys(wideProperties).length > 0 && wideRest === undefined)
@@ -562,4 +580,56 @@ export const judgeContract = (before: ContractSnapshot, after: ContractSnapshot)
       problems.push(`${path} is marked since: ${since}, past the revision (${after.revision}).`)
   }
   return { findings, gated, problems }
+}
+
+/** A release's contract, as `contract.json` holds it there, by the ref it was read from. */
+export type Release = { readonly ref: string; readonly contract: ContractSnapshot }
+
+/** A judgment against each release still in the window, the newest's as `judgeContract` gives. */
+export type WindowVerdict = Verdict & {
+  /** What `after` leaves behind of each older release still in its window, where anything. */
+  readonly older: readonly {
+    readonly ref: string
+    readonly revision: number
+    readonly findings: readonly Finding[]
+  }[]
+}
+
+/**
+ * `judgeContract` against the newest of `releases` (newest first), and against each older one
+ * whose UIs or runners `after`'s window still takes. What holds against one release needn't
+ * hold against an older one: an optional field gone and back with another type passes each
+ * step, and breaks a peer of the first.
+ */
+export const judgeReleases = (
+  releases: readonly Release[],
+  after: ContractSnapshot,
+): WindowVerdict => {
+  const [newest, ...rest] = releases
+  if (newest === undefined) return { findings: [], gated: [], problems: [], older: [] }
+  const verdict = judgeContract(newest.contract, after)
+  const problems = [...verdict.problems]
+  const older: { ref: string; revision: number; findings: readonly Finding[] }[] = []
+  const sides = [
+    ["ui", "oldestClient", "UIs"],
+    ["runner", "oldestRunner", "runners"],
+  ] as const
+  for (const { ref, contract } of rest) {
+    const { revision } = contract
+    const open = sides.filter(([, edge]) => revision >= after[edge])
+    if (open.length === 0) continue
+    const findings = compareContracts(contract, after).findings.filter((finding) =>
+      open.some(([behind]) => behind === finding.behind),
+    )
+    if (findings.length === 0) continue
+    older.push({ ref, revision, findings })
+    for (const [behind, edge, peer] of open) {
+      const left = findings.filter((finding) => finding.behind === behind).length
+      if (left > 0)
+        problems.push(
+          `${left} change(s) leave ${peer} of revision ${revision} (${ref}) behind, which ${edge} ${after[edge]} still takes: make them additive, or raise ${edge} to ${revision + 1}.`,
+        )
+    }
+  }
+  return { ...verdict, problems, older }
 }
