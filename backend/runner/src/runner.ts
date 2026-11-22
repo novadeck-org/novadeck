@@ -729,7 +729,6 @@ const startRunner = (options: RunnerOptions): Runner => {
       log.info("client.closed", "A client's session ended.", {
         data: { session: session.id, device: session.device?.id ?? null },
       })
-      if (!closing) devices.ended(session)
       activity.release(session.id)
       clients.release(session.id)
       seen.release(session.id)
@@ -737,6 +736,16 @@ const startRunner = (options: RunnerOptions): Runner => {
       works.release(session.id)
       voice.release(session.id)
       murmur.release(session.id)
+      // Last, and never failing the rest: a store that can't write (a full disk) only misses
+      // when the device was last seen.
+      if (!closing)
+        try {
+          devices.ended(session)
+        } catch (error) {
+          log.warn("device.unseen", "Novadeck could not note when a device was last seen.", {
+            err: error,
+          })
+        }
     },
   })
   devices.serve(sessions)

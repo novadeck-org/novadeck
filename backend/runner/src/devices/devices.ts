@@ -60,7 +60,15 @@ export class Devices {
       })
       return { refused: reason }
     }
-    this.records.seen(record.id, now)
+    try {
+      this.records.seen(record.id, now)
+    } catch (error) {
+      // A store that can't write (a full disk) misses when it was last seen, not the device.
+      this.log.warn("device.unseen", "Novadeck could not note when a device was last seen.", {
+        data: { device: record.id },
+        err: error,
+      })
+    }
     return { device: { id: record.id, name: record.name } }
   }
 

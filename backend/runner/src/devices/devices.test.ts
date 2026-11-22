@@ -179,6 +179,18 @@ describe("the runner's devices", () => {
     expect(devices.verify(credential.token)).toEqual({ refused: "expired" })
   })
 
+  it("lets a device in even when the store can't note when it was seen", () => {
+    const { store } = setUp()
+    const failing = Object.assign(Object.create(store.devices) as typeof store.devices, {
+      seen: () => {
+        throw new Error("database or disk is full")
+      },
+    })
+    const devices = new Devices(failing, { now: () => 1_000, log: keptLog().log })
+    const { device, credential } = devices.mint("Phone", ownerSession)
+    expect(devices.verify(credential)).toEqual({ device: { id: device.id, name: "Phone" } })
+  })
+
   it("logs devices by their id and name, never a credential or its secret", () => {
     const { devices, lines } = setUp()
     const { device, credential } = devices.mint("Phone", ownerSession)

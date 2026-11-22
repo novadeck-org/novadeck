@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest"
 import { wireContract } from "./handshake.js"
 import {
   createSessions,
+  revokeGraceMs,
   type Session,
   type SessionContext,
   type SessionsOptions,
@@ -512,9 +513,12 @@ describe("createSessions", () => {
 
     sessions.revoke("d1")
     expect(closed.mock.calls.map(([session]) => session)).toEqual([laptop.session, again.session])
+    expect(sessions.connected("d1")).toBe(false)
+    // Their transports end a moment later, once a device that revoked itself is answered.
+    expect(laptop.terminate).not.toHaveBeenCalled()
+    await new Promise((resolve) => setTimeout(resolve, revokeGraceMs + 20))
     expect(laptop.terminate).toHaveBeenCalledOnce()
     expect(again.terminate).toHaveBeenCalledOnce()
-    expect(sessions.connected("d1")).toBe(false)
     await expect(read).resolves.toEqual({ done: true, value: undefined })
     await expect(laptop.client.echo("hi")).rejects.toMatchObject({ code: "UNAUTHORIZED" })
     // The other device and the owner go on.

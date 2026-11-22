@@ -571,16 +571,20 @@ user's); what tells them apart is who may add and revoke devices.
 - **`devices.mint({ name })`** answers `{ device, credential }`, the credential once: the
   runner can't show it again. The owner's only (`FORBIDDEN` to a device, which, unlike
   `UNAUTHORIZED`, leaves its connection up); 64 devices at once, then `CONFLICT`.
-  **`devices.list()`** gives the devices not revoked, oldest first, each with `createdAt`,
+  **`devices.list()`**, to any connection, gives the devices not revoked, oldest first, each with `createdAt`,
   `lastSeenAt` (its last handshake or session end) and whether it is `connected` now.
   **`devices.revoke({ id })`**: the owner may revoke any device, a device only itself.
   All three are new in revision 3 (`since: 3`).
-- **Revoking** ends the device's sessions at once: their calls are refused, their sockets
-  close. The client's reconnection is refused `UNAUTHORIZED` with `{ reason: "revoked" }`, as
+- **Revoking** ends the device's sessions at once: their calls are refused, and their sockets
+  close a moment later (`revokeGraceMs`), so a device that revoked itself is answered first. The client's reconnection is refused `UNAUTHORIZED` with `{ reason: "revoked" }`, as
   is every later handshake that proves the revoked credential, since its row stays; one that
   doesn't prove it is told nothing more than a wrong token is. The UI's splash then says the
   device was signed out of the runner, and that its owner can let it in again, with a new
   credential.
+- **What it doesn't contain:** a device has the runner account's shells, so one that turned
+  hostile could have read the owner's token from the runner's environment. Revoking ends its
+  credential, not what it did; rotate `NOVADECK_TOKEN` too if a device may be compromised
+  (SECURITY.md, "Terminal Runner").
 - **Logs** name a device by its id (`client.connected`, `client.closed`, `device.minted`,
   `device.revoked`, `device.refused`), never by its credential; a refused credential is
   logged only for an id the runner has.

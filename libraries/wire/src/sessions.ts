@@ -104,9 +104,10 @@ export type Sessions = {
   /** Ends a session, once: the app is told it closed. */
   close(session: Session): void
   /**
-   * Ends every session of the device at once, as when its credential is revoked: each is
-   * closed, so whatever it calls is refused, and its transport ended, so its client finds out
-   * at the handshake that follows.
+   * Ends every session of the device, as when its credential is revoked: each is closed at
+   * once, so whatever it calls is refused, and its transport ended `revokeGraceMs` later, once
+   * the answer to the call that revoked it is out, so its client finds out at the handshake
+   * that follows.
    */
   revoke(deviceId: string): void
   /** Whether a session of the device is open now. */
@@ -114,6 +115,10 @@ export type Sessions = {
   /** Tells the app's `failed` of a failure, such as one a transport met outside any call. */
   failed(path: readonly string[], error: unknown): void
 }
+
+// How long a revoked session's transport stays after the session closes, for the answer to
+// the call that revoked it, when that was its own, to go out first.
+export const revokeGraceMs = 250
 
 // Refusals a session may have before it proves itself: the app's client sends one handshake,
 // and a peer that goes on is cut off rather than heard out until its deadline.
@@ -317,10 +322,14 @@ export const createSessions = (
     revoke(deviceId) {
       // Closing one takes it out of `live`: the device's are found first.
       const revoked = [...live].filter((session) => session.device?.id === deviceId)
-      for (const session of revoked) {
-        close(session)
-        session.transport.terminate()
-      }
+      // Closed at once, so none of their calls is served from here; ended a moment later, so
+      // a device that revoked itself is answered first.
+      for (const session of revoked) close(session)
+      if (revoked.length === 0) return
+      const ending = setTimeout(() => {
+        for (const session of revoked) session.transport.terminate()
+      }, revokeGraceMs)
+      ending.unref()
     },
     connected(deviceId) {
       for (const session of live) if (session.device?.id === deviceId) return true

@@ -345,10 +345,18 @@ describe("devices with credentials of their own", () => {
       (error: { code?: string; data?: unknown }) =>
         error.code === "UNAUTHORIZED" && error.data === undefined,
     )
-    // The other device and the owner go on.
+    // The other device goes on.
     await expect(second.client.projects.list()).resolves.toEqual([])
+    // A device may sign itself out: it is answered, then its connection ends.
+    const own = once(second.socket, "close")
+    await expect(second.client.devices.revoke({ id: phone.device.id })).resolves.toBeUndefined()
+    await own
+    // The owner goes on, and can let a device in again with a new credential.
+    const tablet = await owner.client.devices.mint({ name: "Tablet" })
+    const third = await asDevice(tablet.credential)
+    await expect(third.client.projects.list()).resolves.toEqual([])
     await expect(owner.client.devices.list()).resolves.toEqual([
-      expect.objectContaining({ id: phone.device.id, connected: true }),
+      expect.objectContaining({ id: tablet.device.id, connected: true }),
     ])
   })
 })
