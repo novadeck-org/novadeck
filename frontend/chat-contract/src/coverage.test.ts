@@ -44,6 +44,11 @@ const unrecorded: Readonly<Record<AgentName, readonly string[]>> = {
   ],
   // run_workflow (1.5.9) has its row from its schema alone.
   agy: ["list_resources", "read_resource", "run_workflow"],
+  // `list` and `multiedit` are in its tools' table, but 1.19.6 offered neither to the fake model in
+  // any agent or model it was probed with (build and plan, an Anthropic-named and a GPT-named
+  // model, with OPENCODE_EXPERIMENTAL and OPENCODE_ENABLE_EXA set), so no record of them
+  // exists (checked 2026-11-22).
+  opencode: ["list", "multiedit"],
 }
 
 const source = (harness: AgentName | "core", path: string): string =>
@@ -86,6 +91,8 @@ const keyOf: Readonly<Record<AgentName, (tool: string) => string>> = {
         "codex_tui.",
       ),
   agy: (tool) => tool.replace(/^mcp_novadeck_novadeck_/, "novadeck:").toLowerCase(),
+  // An MCP server's tool goes by `<server>_<tool>`.
+  opencode: (tool) => tool.replace(/^novadeck_/, "novadeck:").toLowerCase(),
 }
 
 // The names each harness's recorded fixtures and vocabulary conversations call.
@@ -101,7 +108,9 @@ const named = (harness: AgentName): Set<string> => {
 
 describe("the tools the conversations name", () => {
   it("reads every case of each describe and of novadeckTool", () => {
-    for (const harness of agentNames) expect(known(harness).length, harness).toBeGreaterThan(20)
+    // opencode has fewer tools than the others have names.
+    for (const harness of agentNames)
+      expect(known(harness).length, harness).toBeGreaterThan(harness === "opencode" ? 10 : 20)
     expect(novadeckTools).toEqual(expect.arrayContaining(["send", "done", "feedback", "look"]))
   })
 

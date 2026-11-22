@@ -24,6 +24,11 @@ const launches: Readonly<Record<AgentName, Omit<TourRun, "directory" | "removed"
     brief: "doorbell",
     model: "gemini-3.8-flash-low",
   },
+  opencode: {
+    command: "opencode --model opencode/deepseek-v4.1-flash-free --agent build",
+    brief: "doorbell",
+    model: "opencode/deepseek-v4.1-flash-free",
+  },
 }
 
 export const demoRun = (agent: AgentName): Omit<TourRun, "directory" | "removed" | "page"> =>

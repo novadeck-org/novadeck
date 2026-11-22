@@ -813,6 +813,7 @@ export class Typing {
         const record = this.host.live(terminalId)
         return record === undefined || record.bound !== null
       },
+      working: (terminalId) => this.host.live(terminalId)?.bound?.activity.state === "working",
       ringing: (terminalId) => this.host.messaging().ringing(terminalId),
       screen: (terminalId) => this.screenOf(terminalId),
       type: (terminalId, data) => this.typed(terminalId, data),

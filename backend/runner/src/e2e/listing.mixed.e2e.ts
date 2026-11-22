@@ -6,6 +6,7 @@ import type { AgentName } from "@novadeck/protocol"
 import { agy } from "./agents/agy.js"
 import { claude } from "./agents/claude.js"
 import { codex } from "./agents/codex.js"
+import { opencode } from "./agents/opencode.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, text, tool, type Call, type Reply } from "./model/script.js"
@@ -38,8 +39,8 @@ const nested = (call: Call): boolean =>
 /**
  * Each teammate: the harness, the title its lead gives it, the checkout it moves on to, and
  * the shell call that runs a nested run of itself there, in that harness's own way of
- * naming a command's folder: Claude Code's and Antigravity's leading `cd`, Codex's
- * `workdir`.
+ * naming a command's folder: Claude Code's and Antigravity's leading `cd`, Codex's and
+ * opencode's `workdir`.
  */
 const team = [
   {
@@ -96,6 +97,23 @@ const team = [
       ],
     }),
   },
+  {
+    agent: "opencode",
+    title: "web",
+    // Its bash tool takes the folder to run in as `workdir`.
+    move: (project: string): Reply => ({
+      calls: [
+        {
+          name: "bash",
+          input: {
+            command: opencode.shell!.nested(asking),
+            description: "Run a command",
+            workdir: join(project, "wt", "web"),
+          },
+        },
+      ],
+    }),
+  },
 ] as const satisfies readonly {
   agent: AgentName
   title: string
@@ -106,7 +124,7 @@ const team = [
  * The plain terminals the lead opens beside its team, as for dev servers; the person opens
  * one more, as agents open at most five terminals a minute.
  */
-const shells = ["dev server", "logs"]
+const shells = ["dev server"]
 
 /**
  * How many commands each teammate runs in its new checkout: more than half the places a
@@ -130,7 +148,7 @@ const afterOpen = (call: Call): boolean => {
 
 describe.skipIf(!supported)("a lead's team of every harness", () => {
   // Antigravity's rule on Windows allows only a command it names whole: its move's.
-  const it = e2e.seeded({ commands: [agyMove] }, claude, codex, agy)
+  const it = e2e.seeded({ commands: [agyMove] }, claude, codex, agy, opencode)
 
   it("lists a team past five terminals a line each, each teammate where it works now", async ({
     e2e: run,

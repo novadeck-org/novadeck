@@ -465,6 +465,20 @@ const records: Readonly<
       tool_calls: [{ name, args: input }],
     },
   ],
+  // The plugin writes a call whole, its input an object (opencode's parts hold it so); the old
+  // table read the text, which a text input (JSON or not) stands for here.
+  opencode: (name, input) => [
+    {
+      type: "part",
+      role: "assistant",
+      part: {
+        type: "tool",
+        tool: name,
+        callID: "call_1",
+        state: { status: "completed", input, output: "" },
+      },
+    },
+  ],
 }
 
 // A way a harness writes a call: each harness's own above, and Codex's others below.
@@ -575,6 +589,9 @@ const emits: Readonly<Record<AgentName, ReadonlySet<string>>> = {
     "read_url_content",
     "search_web",
   ]),
+  // Only the names whose calls its table describes as the old one did: its other tools read
+  // their input's own keys (`filePath`, `patchText`, `oldString`), which the old table didn't.
+  opencode: new Set(["websearch", "task"]),
 }
 
 // The Novadeck MCP spellings: Claude Code's plugin, Codex's namespace (joined by its

@@ -68,6 +68,16 @@ export const harnesses = [
     // It runs the command, but keeps no record of it: the output shows only in the terminal.
     recordsShell: false,
   },
+  {
+    id: "opencode",
+    menus: { leading: ["/"], words: ["@"] },
+    name: "opencode",
+    shortName: "opencode",
+    nodeScript: undefined,
+    inheritedEnv: [],
+    logins: [],
+    recordsShell: true,
+  },
 ] as const satisfies readonly {
   readonly menus: { readonly leading: readonly string[]; readonly words: readonly string[] }
   readonly id: string

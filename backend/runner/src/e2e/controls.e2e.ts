@@ -33,6 +33,7 @@ import {
   through,
   turn,
   unrung,
+  allowLabel,
 } from "./scenarios.js"
 
 // The person's controls over a running agent, and seeds that leave something untrusted,
@@ -199,28 +200,30 @@ const limitRefusal = (agent: AgentName): Refusal =>
 const writing = (agent: AgentName, path: string): Reply =>
   agent === "claude"
     ? { calls: [{ name: "Write", input: { file_path: path, content: "x\n" } }] }
-    : agent === "codex"
-      ? {
-          // The fake model's Codex is offered no apply_patch tool of its own (0.159.3), but
-          // runs the program through its shell, which Codex takes as the same patch.
-          calls: [
-            {
-              name: "exec_command",
-              input: {
-                cmd: `apply_patch <<'EOF'\n*** Begin Patch\n*** Add File: ${path}\n+x\n*** End Patch\nEOF`,
-                yield_time_ms: 5000,
+    : agent === "opencode"
+      ? { calls: [{ name: "write", input: { filePath: path, content: "x\n" } }] }
+      : agent === "codex"
+        ? {
+            // The fake model's Codex is offered no apply_patch tool of its own (0.159.3), but
+            // runs the program through its shell, which Codex takes as the same patch.
+            calls: [
+              {
+                name: "exec_command",
+                input: {
+                  cmd: `apply_patch <<'EOF'\n*** Begin Patch\n*** Add File: ${path}\n+x\n*** End Patch\nEOF`,
+                  yield_time_ms: 5000,
+                },
               },
-            },
-          ],
-        }
-      : {
-          calls: [
-            {
-              name: "write_file",
-              input: { Path: path, Overwrite: true, Content: "x\n" },
-            },
-          ],
-        }
+            ],
+          }
+        : {
+            calls: [
+              {
+                name: "write_file",
+                input: { Path: path, Overwrite: true, Content: "x\n" },
+              },
+            ],
+          }
 
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
@@ -782,7 +785,7 @@ for (const setup of setups) {
           const request = (await t1.detail()).requests.find((each) => !each.answered)
           const { dialog } = request ?? {}
           const yes = dialog?.type === "choices" ? dialog.options[0] : undefined
-          if (request && dialog?.type === "choices" && yes && yes.label.startsWith("Yes"))
+          if (request && dialog?.type === "choices" && yes && allowLabel(setup).test(yes.label))
             await t1.answer(request.ref, { dialog: dialog.id, type: "choice", option: yes.id })
           return t1.summary().activity?.lastTurn?.outcome === "completed" ? true : undefined
         },

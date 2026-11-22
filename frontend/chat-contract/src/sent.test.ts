@@ -6,6 +6,7 @@ import type { ChatSend } from "@novadeck/chat/sends"
 import type { ChatPrompt } from "@novadeck/core/conversation"
 import { agentNames, type AgentName } from "@novadeck/protocol/harnesses"
 
+import { recordedScenarios } from "./fixtures"
 import { chatItemsOf, renderChat } from "./pipeline"
 import { describe, expect, it } from "./test"
 
@@ -16,6 +17,27 @@ import { describe, expect, it } from "./test"
 
 const time = (second: number) => `2026-11-03T17:00:${String(second).padStart(2, "0")}.000Z`
 const at = (second: number) => Date.parse(time(second))
+
+// opencode's: two recorded prompts and the answer to the first (src/recorded/opencode-words.json,
+// said to the fake model as the others' words), their times set where the others' are.
+const opencodeRecorded = (): readonly string[] => {
+  const words = recordedScenarios("opencode-words.json")
+  const lines = [...words["check-the-folder"]!, ...words["open-the-first"]!.slice(0, 1)]
+  const stamps = [1, 5, 9].map(at)
+  let prompt = 0
+  return lines.map((line) => {
+    const record = structuredClone(line) as {
+      type: string
+      info?: { time?: { created?: number } }
+      part?: { type?: string; time?: { start: number; end: number } }
+    }
+    if (record.type === "prompt" && record.info?.time)
+      record.info.time.created = stamps[prompt++ * 2]!
+    if (record.part?.type === "text" && record.part.time)
+      record.part.time = { start: stamps[1]!, end: stamps[1]! }
+    return JSON.stringify(record)
+  })
+}
 
 // The person asks, the agent answers, and the person asks again: the record's own items.
 const recorded: Readonly<Record<AgentName, readonly string[]>> = {
@@ -65,6 +87,7 @@ const recorded: Readonly<Record<AgentName, readonly string[]>> = {
       created_at: time(9),
     },
   ].map((step) => JSON.stringify(step)),
+  opencode: opencodeRecorded(),
 }
 
 const receipt = (

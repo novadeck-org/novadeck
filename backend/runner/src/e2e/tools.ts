@@ -125,6 +125,27 @@ const lists: { readonly [agent in AgentName]: Classes } = {
       "write_file",
     ],
   },
+  // Recorded from opencode 1.19.6 (the pin, 2026-11-22).
+  opencode: {
+    asking: ["question"],
+    other: [
+      "apply_patch",
+      "bash",
+      "edit",
+      "glob",
+      "grep",
+      "list",
+      "multiedit",
+      "read",
+      "skill",
+      "task",
+      "todoread",
+      "todowrite",
+      "webfetch",
+      "websearch",
+      "write",
+    ],
+  },
 }
 
 // How each harness names a tool of Novadeck's own MCP server (`send`, `ask`, ...).
@@ -132,6 +153,7 @@ const novadeck: { readonly [agent in AgentName]: RegExp } = {
   claude: /^mcp__plugin_novadeck_novadeck__/,
   codex: /^mcp__(?:plugin_)?novadeck/,
   agy: /^mcp_novadeck_novadeck_/,
+  opencode: /^novadeck_/,
 }
 
 /** The tools classified for a harness, asking or not. */

@@ -21,6 +21,8 @@ const layouts: { readonly [agent: string]: RegExp } = {
   claude: /(?:^|\/)projects\/[^/]+\/<id>\.jsonl$/,
   codex: /(?:^|\/)sessions\/\d{4}\/\d{2}\/\d{2}\/rollout-[^/]*-<id>\.jsonl(?:\.zst)?$/,
   agy: /(?:^|\/)conversations\/<id>\.db$/,
+  // One SQLite database holds every conversation, none a file of its own.
+  opencode: /(?:^|\/)opencode\/opencode\.db$/,
 }
 
 const resumeCapMs = 30_000
@@ -158,15 +160,18 @@ for (const setup of setups) {
       expect(await settle(missing, never)).not.toBe("worked")
       if (setup.agent === "agy") expect(await settle(missing, never)).toBe("failed")
 
-      // A conversation whose file is gone: the check says so, and a resume does not work.
-      const lost = await make()
-      const store = /(?:^|\/)(?:projects|sessions|conversations)\//
-      for (const path of walk(run.sandbox.home))
-        if (store.test(path) && path.includes(lost))
-          rmSync(join(run.sandbox.home, path), { recursive: true, force: true })
-      expect(await harness.conversation(install, lost)).toBe("gone")
-      const gone = await open(resume(lost))
-      expect(await settle(gone, lost)).not.toBe("worked")
+      // A conversation whose file is gone: the check says so, and a resume does not work. Not
+      // for opencode, whose conversations are rows of one database, with no file to remove.
+      if (setup.agent !== "opencode") {
+        const lost = await make()
+        const store = /(?:^|\/)(?:projects|sessions|conversations)\//
+        for (const path of walk(run.sandbox.home))
+          if (store.test(path) && path.includes(lost))
+            rmSync(join(run.sandbox.home, path), { recursive: true, force: true })
+        expect(await harness.conversation(install, lost)).toBe("gone")
+        const gone = await open(resume(lost))
+        expect(await settle(gone, lost)).not.toBe("worked")
+      }
 
       await Promise.all(
         [...opened].map((terminalId) => run.deck.terminals.close({ terminalId }).catch(() => {})),

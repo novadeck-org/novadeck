@@ -29,7 +29,7 @@ const resumed = {
 }
 
 // The line that makes each agent exit, as its harness lists it.
-const exits = { claude: "/exit", codex: "/quit", agy: "/exit" }
+const exits = { claude: "/exit", codex: "/quit", agy: "/exit", opencode: "/exit" }
 
 const sample = 100
 

@@ -134,6 +134,13 @@ export type Harness = {
   readonly connect: (install: Install) => readonly Command[]
   readonly disconnect: readonly Command[]
   /**
+   * For a harness Novadeck connects with no command of its own, as opencode, whose plugin
+   * its shim loads per launch and which keeps no list of plugins Novadeck may write to: a
+   * file of Novadeck's own, in its plugin directory, that connecting writes and
+   * disconnecting removes, before and after its (empty) commands. `connected` reads it.
+   */
+  readonly marker?: (install: Install) => string
+  /**
    * The shell it runs its hook commands in on `platform` (see `hook-command.ts`), or the
    * command for `event`, as Claude Code's status line, where that runs in another.
    */
@@ -488,6 +495,14 @@ export type MessagingProfile = {
    * Omitted where the prompt hook runs with the prompt that goes to the model.
    */
   readonly promptHookOnQueueing?: true
+  /**
+   * Whether a Stop's delivery starts a turn of its own rather than continuing the one that
+   * ended, as opencode's plugin prompts it (opencode takes no answer that keeps a turn going):
+   * that turn goes only where the person left the box known empty, as a ring would, so it
+   * never runs over a draft of theirs or a view their keys opened; otherwise the messages
+   * wait for the doorbell, which rings once the screen shows the box empty.
+   */
+  readonly stopStartsTurn?: true
   /**
    * Which session its messages are for: the one bound (`binding`), or, where its hooks
    * name subagents' sessions alike, the one its status line names (`status-line`).

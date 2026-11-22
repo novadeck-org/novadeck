@@ -6,7 +6,7 @@ import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, type Call, type Reply } from "./model/script.js"
 import { allowClaude, openCodex } from "./outcomes.js"
-import { own, start } from "./scenarios.js"
+import { lacking, own, start } from "./scenarios.js"
 
 // The background shells an agent leaves running, the same for every harness (see
 // messaging.e2e.ts for the rule on parity): the agent starts three in turn and ends its turn
@@ -95,8 +95,10 @@ const shellsOf = (t: DeckTerminal) => t.summary().activity?.shells ?? []
 for (const setup of setups) {
   describe.skipIf(!supported)(`${setup.name}'s background shells`, () => {
     const it = e2e(setup)
-    it(
-      "tells each shell it left running, and how each ended",
+    // A harness with no background command has no shell to leave running.
+    const missing = lacking(setup, "background.command")
+    ;(missing === undefined ? it : it.skip)(
+      `tells each shell it left running, and how each ended${missing === undefined ? "" : ` (skipped: ${missing})`}`,
       { timeout: 240_000 },
       async ({ e2e: run }) => {
         if (setup.agent === "claude") allowClaude(run)

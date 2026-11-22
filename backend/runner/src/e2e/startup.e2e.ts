@@ -121,6 +121,9 @@ const hooksOff: { readonly [agent in AgentName]: (run: E2E) => Promise<void> } =
         novadeck: { enabled: false },
       }
     }),
+  // The setup's seed turns its plugin off for the launch (OPENCODE_PURE), the one way a
+  // person's launch can leave it unloaded without a file of theirs.
+  opencode: async () => {},
 }
 
 for (const setup of setups) {
@@ -298,4 +301,7 @@ const signedOut: {
       expect(t.summary().startup).toEqual({ agent: "agy", screen: "sign-in" })
     })
   },
+  // No screen of its own holds it before its prompt, signed in or not: a missing or refused
+  // key shows only as its first turn's error (probed 2026-11-22, 1.19.6).
+  opencode: () => {},
 }

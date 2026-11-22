@@ -273,6 +273,16 @@ const shardsOn: ReadonlyMap<string, ReadonlyMap<string, number>> = new Map([
     ]),
   ],
   [
+    // Planned as Antigravity's, the harness it is likeliest to run as long as, until its own
+    // runs are recorded (`durations.ts`).
+    "opencode",
+    new Map([
+      [systems.linux, 3],
+      [systems.windows, 2],
+      [systems.macos, 2],
+    ]),
+  ],
+  [
     "agy",
     new Map([
       [systems.linux, 3],

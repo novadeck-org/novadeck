@@ -17,6 +17,7 @@ const packaged = [
   "harnesses/claude",
   "harnesses/codex",
   "harnesses/core",
+  "harnesses/opencode",
   "libraries/sandbox",
   "libraries/terminal",
   "libraries/wire",

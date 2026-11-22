@@ -133,6 +133,8 @@ export type PromptHost = {
    * session its first prompt starts (see `admit`).
    */
   readonly bound: (terminalId: string) => boolean
+  /** Whether the program's turn works, where the host knows it. */
+  readonly working?: (terminalId: string) => boolean
   /** The nonce of the line being delivered there, if any. */
   readonly ringing: (terminalId: string) => string | undefined
   /** The screen once it has drawn all pending output; undefined once the terminal is gone. */
@@ -455,6 +457,12 @@ export class Prompts {
       throw new PromptRefusal(
         "unrunnable",
         "The shell mode runs only a command's first line, and these lines can't be joined to run as written.",
+      )
+    // A program that drops a shell command given mid-turn never runs it: it isn't sent.
+    if (shell && profile.shell.midTurn === "drops" && this.host.working?.(terminalId) === true)
+      throw new PromptRefusal(
+        "refused",
+        "This program drops a shell command given while its turn works. Send it once the turn has ended.",
       )
     const typed = given || text
     // The first prompt of a program shown before its session binds starts that session, as a

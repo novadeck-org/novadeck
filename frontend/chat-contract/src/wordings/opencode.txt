@@ -1,0 +1,27 @@
+# permission
+  on permBash: its screen
+  on permBash60: its screen
+  on permBashAlwaysSelected: its screen
+  on permBashCut: its screen
+  on permBashCutFull: its screen
+  on permBashFull: its screen
+  on permBashRejectSelected: its screen
+  on permBashWrapped: its screen
+  on permEdit: its screen
+  on permEdit60: its screen
+  on permExternal: its screen
+  on permGlob: its screen
+  on permGrep: its screen
+  on permMcp: its screen
+  on permMcpArgs: its screen
+  on permPalette: its screen
+  on permRead: its screen
+  on permSubParent: its screen
+  on permSubParent60: its screen
+  on permTask: its screen
+  on permWebfetch: its screen
+  on permWrite: its screen
+  on permWriteCut: its screen
+  Allow once → yes
+  Allow always → standing
+  Reject [prompt] → words

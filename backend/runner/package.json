@@ -29,6 +29,7 @@
     "@novadeck/harness-agy": "workspace:*",
     "@novadeck/harness-claude": "workspace:*",
     "@novadeck/harness-codex": "workspace:*",
+    "@novadeck/harness-opencode": "workspace:*",
     "@novadeck/harness-core": "workspace:*",
     "@novadeck/log": "workspace:*",
     "@novadeck/murmur": "workspace:*",

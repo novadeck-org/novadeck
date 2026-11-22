@@ -1,0 +1,10 @@
+# long-run
+user: Check it all
+tools: [4 tool calls · ran, read ×2, searched] ran [run] · ls → 6 lines: long.txt; read [read] · …/person/project/sample.txt | Call: read: 1 line: /home/person/project/sample.txt → 12 lines: <path>/home/person/project/sample.txt</path>; read [read] · …/project/src/auth.ts | Call: read: 1 line: /home/person/project/src/auth.ts → 9 lines: <path>/home/person/project/src/auth.ts</path>; searched [search] · TODO → 1 line: No files found
+assistant: OK.
+user: And the tests
+tools: [open: 4 tool calls · ran, read, searched, found files] running [run] · echo built …(running) → running; read [read] · …/project/src/legacy.ts …(running) | Call: read: 1 line: /home/person/project/src/legacy.ts → running; searched [search] · FIXME …(running) → running; found files [search] · **/*.ts …(running) → running
+
+# short-run
+user: Run it
+tools: read [read] · …/person/project/sample.txt …(running) | Call: read: 1 line: /home/person/project/sample.txt → running; running [run] · echo done …(running) → running

@@ -2,7 +2,7 @@ import { copyFileSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
-import type { AgentDetail, RequestAnswer } from "@novadeck/protocol"
+import type { AgentDetail, AgentName, RequestAnswer } from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
 import type { Question } from "./agents/agent.js"
@@ -13,6 +13,7 @@ import { asked, text, type Rule } from "./model/script.js"
 import type { FakeModel } from "./model/server.js"
 import { picture } from "./pictures.js"
 import {
+  allowLabel,
   answers,
   deliveries,
   delivered,
@@ -24,6 +25,7 @@ import {
   sent,
   start,
   through,
+  refuseLabel,
   withoutSandbox,
 } from "./scenarios.js"
 
@@ -150,11 +152,7 @@ const tallScript = [
 const noted: Rule = own((call) => (result(call) !== undefined ? { text: "Noted." } : undefined))
 
 /** The dialog stub a scenario puts in a harness's place: it reads nothing. */
-const stubbed = <T>(
-  agent: "claude" | "codex" | "agy",
-  dialogs: unknown,
-  body: () => Promise<T>,
-) => {
+const stubbed = <T>(agent: AgentName, dialogs: unknown, body: () => Promise<T>) => {
   const harness = harnesses[agent] as { dialogs?: unknown }
   const before = harness.dialogs
   harness.dialogs = dialogs
@@ -179,7 +177,7 @@ for (const setup of setups) {
 
         await t1.prompt("Make the file")
         const request = await dialogOf(t1, "choices")
-        const yes = option(choices(request), /^Yes/, false)
+        const yes = option(choices(request), allowLabel(setup), false)
         await t1.answer(request.ref, { dialog: idOf(request), type: "choice", option: yes.id })
 
         await t1.until("Noted.")
@@ -198,7 +196,7 @@ for (const setup of setups) {
 
         await t1.prompt("Make the file")
         const request = await dialogOf(t1, "choices")
-        const no = option(choices(request), /^No/)
+        const no = option(choices(request), refuseLabel(setup))
         await t1.answer(request.ref, { dialog: idOf(request), type: "choice", option: no.id })
 
         await t1.until(approval!.denied)
@@ -223,7 +221,7 @@ for (const setup of setups) {
 
         await t1.prompt("Make the file")
         const request = await dialogOf(t1, "choices")
-        const yes = option(choices(request), /^Yes/, false)
+        const yes = option(choices(request), allowLabel(setup), false)
         await t1.answer(request.ref, { dialog: idOf(request), type: "choice", option: yes.id })
         await t1.until("Noted.")
         // The answer's own keys left no draft: its turn ends Settled, not Drafting.
@@ -255,7 +253,7 @@ for (const setup of setups) {
 
         await t1.prompt("Make the file")
         const request = await dialogOf(t1, "choices")
-        const no = option(choices(request), /^No/)
+        const no = option(choices(request), refuseLabel(setup))
         // Codex's no is its Escape, which ends the turn with no Stop: Unknown, until the
         // screen shows its box empty.
         await t1.answer(request.ref, { dialog: idOf(request), type: "choice", option: no.id })
@@ -283,7 +281,7 @@ for (const setup of setups) {
         await t1.prompt("Make the file")
         const request = await dialogOf(t1, "choices")
         expect(choices(request).detail).toBe(tallScript)
-        const yes = option(choices(request), /^Yes/, false)
+        const yes = option(choices(request), allowLabel(setup), false)
         await t1.answer(request.ref, { dialog: idOf(request), type: "choice", option: yes.id })
 
         await t1.until("Noted.")
@@ -302,7 +300,7 @@ for (const setup of setups) {
 
         await t1.prompt("Make the file")
         const request = await dialogOf(t1, "choices")
-        const no = option(choices(request), /^No/)
+        const no = option(choices(request), refuseLabel(setup))
         await t1.answer(request.ref, { dialog: idOf(request), type: "choice", option: no.id })
 
         await t1.until(approval!.denied)
@@ -324,7 +322,7 @@ for (const setup of setups) {
         const request = await dialogOf(t1, "choices")
         const dialog = choices(request)
         const telling = dialog.options.find(
-          (each) => each.label.startsWith("No") && each.text !== null,
+          (each) => refuseLabel(setup).test(each.label) && each.text !== null,
         )
         if (!telling) return skip(`${setup.name}'s permission dialog has no no that takes words`)
         const words = "Use a different file name"
@@ -354,7 +352,7 @@ for (const setup of setups) {
 
         await t1.prompt("Make the file")
         const request = await dialogOf(t1, "choices")
-        const yes = option(choices(request), /^Yes/, false)
+        const yes = option(choices(request), allowLabel(setup), false)
         // The person types in both while it goes on: the keys before its hold reach the
         // dialog, which takes none of them, and those during it are dropped.
         const typing = { on: true }
@@ -1003,7 +1001,7 @@ for (const setup of setups) {
         await t1.prompt("Run it twice")
 
         const first = await dialogOf(t1, "choices")
-        const yes = option(choices(first), /^Yes/, false)
+        const yes = option(choices(first), allowLabel(setup), false)
         await t1.answer(first.ref, { dialog: idOf(first), type: "choice", option: yes.id })
 
         // The second one's dialog shows, for a request of its own or, where the harness
@@ -1018,7 +1016,7 @@ for (const setup of setups) {
           "the second request to show its dialog",
           60_000,
         )
-        const again = option(choices(second), /^Yes/, false)
+        const again = option(choices(second), allowLabel(setup), false)
         await t1.answer(second.ref, { dialog: idOf(second), type: "choice", option: again.id })
 
         await t1.until("Both ran.")

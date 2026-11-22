@@ -84,6 +84,20 @@ pin today's rendering, not recordings; see `src/vocabulary/README.md` for what t
 are what protects a move of the chat's vocabulary (each harness's `describe`, `inputBeyondLine`,
 the tool kinds, the fold).
 
+opencode has no hand-written vocabulary: its transcript is the JSONL Novadeck's plugin writes
+(`harnesses/opencode/src/plugin-source.ts`), and every conversation here is a recording of it.
+`src/recorded/` keeps the ones this package made (opencode 1.19.6 in a pty on the e2e fake model,
+Novadeck's real plugin loaded, paths made generic), one scenario to a prompt: `opencode-outcomes`
+(each case of a tool's outcome), `opencode-tools` (the other tools, Novadeck's through a stand-in
+MCP server that answers fixed texts, a subagent and its own session, a question, pasted images, the
+plan agent, three turns the live test cuts while their calls run), `opencode-attached` (a prompt with an `@file`),
+and `opencode-words` (the prompts the sent and turn-start tests share with the other harnesses). The
+harness's own `session.probe.json` and `edges.probe.json` sit beside them. What the fake model can't
+make has no record: a reasoning part, and the tools `list` and `multiedit`, which 1.19.6 offered no
+agent or model it was probed with (`coverage.test.ts`).
+
+Where opencode draws less than the others, the tests say so: it has no plan dialog of its own (`wordings.test.ts`); its experimental plan mode asks its plan review through the question dialog, which `harnesses/opencode/src/question-dialog.test.ts` covers.
+
 ## Changing a golden
 
 A golden changes only with a reviewed diff. Run the package's tests without `CI` and with

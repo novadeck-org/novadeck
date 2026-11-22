@@ -21,7 +21,10 @@ afterEach(() => {
 })
 
 const show = (connected: { claude: boolean; codex: boolean; agy: boolean }): void => {
-  mounted.push(render(createElement(WelcomePreview, { connected })))
+  // The preview has no card of opencode's: its terminals are the three agents' and a shell's.
+  mounted.push(
+    render(createElement(WelcomePreview, { connected: { ...connected, opencode: false } })),
+  )
 }
 
 const terminal = (name: string): Element | undefined =>
@@ -51,7 +54,7 @@ describe("the welcome dialog's preview", () => {
 })
 
 describe("the chat view, in the welcome dialog's preview", () => {
-  const connected = { claude: true, codex: true, agy: false }
+  const connected = { claude: true, codex: true, agy: false, opencode: false }
   const caption = (): string =>
     document.querySelector(".welcome-caption")?.textContent?.trim() ?? ""
 

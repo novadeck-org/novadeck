@@ -38,6 +38,7 @@ export const roots: Root[] = [
   { token: "harnesses/claude", dir: "harnesses/claude", node: "runner" },
   { token: "harnesses/codex", dir: "harnesses/codex", node: "runner" },
   { token: "harnesses/agy", dir: "harnesses/agy", node: "runner" },
+  { token: "harnesses/opencode", dir: "harnesses/opencode", node: "runner" },
   {
     token: "apps/desktop",
     dir: "apps/desktop",
@@ -244,6 +245,12 @@ export const notes: Record<string, Note> = {
   "harnesses/agy": {
     purpose: "The Antigravity harness, the same shape as harnesses/claude.",
     entries: [{ file: "harnesses/agy/src/index.ts", text: "export const agy" }],
+    docs: ["docs/harness-coverage.md"],
+  },
+  "harnesses/opencode": {
+    purpose:
+      "The opencode harness: the plugin Novadeck loads into it per launch, which runs Novadeck's hook command for its events and writes its transcripts; its shim, dialogs and input box.",
+    entries: [{ file: "harnesses/opencode/src/index.ts", text: "export const opencode" }],
     docs: ["docs/harness-coverage.md"],
   },
   "apps/desktop": {

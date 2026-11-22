@@ -342,6 +342,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           { id: "flash-high", efforts: ["high"] },
           { id: "sonnet", efforts: [] },
         ],
+        opencode: [{ id: "opencode/big-pickle", efforts: [] }],
       } as const
       const manager = shell.manager({
         env: {
@@ -441,6 +442,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         claude: [{ id: "opus", efforts: ["low", "max"] }],
         codex: [{ id: "gpt-a", efforts: ["low", "high"] }],
         agy: [{ id: "flash-high", efforts: ["high"] }],
+        opencode: [{ id: "anthropic/claude-sonnet-4-5", efforts: ["high", "max"] }],
       } as const
       const manager = shell.manager({
         env: {
@@ -648,6 +650,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
               claude: [{ id: "opus", efforts: [] }],
               codex: [{ id: "gpt-a", efforts: [] }],
               agy: [],
+              opencode: [],
             }[name],
           ),
       })

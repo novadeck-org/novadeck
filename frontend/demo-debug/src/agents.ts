@@ -29,6 +29,8 @@ export const createDemoAgents = (): {
   readonly openWelcomeBare: () => void
   readonly failNext: () => void
   readonly limitAntigravity: () => void
+  readonly outdateOpencode: () => void
+  readonly unsupportOpencode: () => void
 } => {
   const state = createStore(sampleAgents)
   const welcome = createStore(false)
@@ -79,6 +81,24 @@ export const createDemoAgents = (): {
         connected: true,
         busy: false,
         limited: "own-status-line",
+      })),
+    // As with an opencode older than Novadeck's plugin works with.
+    outdateOpencode: () =>
+      change("opencode", (item) => ({
+        ...withoutError(item),
+        available: true,
+        connected: true,
+        busy: false,
+        limited: "outdated",
+      })),
+    // As with an opencode 2, which Novadeck doesn't know yet.
+    unsupportOpencode: () =>
+      change("opencode", (item) => ({
+        ...withoutError(item),
+        available: true,
+        connected: true,
+        busy: false,
+        limited: "unsupported",
       })),
   }
 }

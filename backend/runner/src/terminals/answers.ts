@@ -508,7 +508,7 @@ export class Answers {
         // Through a twin's hook, or where its identical dialog shows again at once (the
         // harness folds twin calls into one request), it waits still, for the dialog that
         // shows next, which is as much its to answer.
-        const next = adapter.read(taken.rows, facts)
+        const next = adapter.read(taken.rows, facts, taken.screen)
         const again = next !== undefined && identifiedRead(next)?.id === identifiedRead(read)?.id
         if (!taken.viaTwin && !again) this.host.done(terminalId, ref)
       }
@@ -650,13 +650,13 @@ export class Answers {
   }
 
   /** Whether the screen held the same on two reads a moment apart; its rows if so. */
-  private async still(terminalId: string): Promise<readonly string[] | undefined> {
+  private async still(terminalId: string): Promise<ScreenText | undefined> {
     const first = await this.host.screen(terminalId)
     if (!first) throw new DomainError("TERMINAL_NOT_FOUND")
     await sleep(this.stillMs)
     const second = await this.host.screen(terminalId)
     if (!second) throw new DomainError("TERMINAL_NOT_FOUND")
-    return first.rows.join("\n") === second.rows.join("\n") ? second.rows : undefined
+    return first.rows.join("\n") === second.rows.join("\n") ? second : undefined
   }
 
   /**
@@ -679,13 +679,13 @@ export class Answers {
       // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
       const settled = await this.still(terminalId)
       if (settled) {
-        rows = settled
+        rows = settled.rows
         // The requests' facts as they are now: a turn may end while the screen settles, and
         // the request may go, answered in the terminal.
         const current = this.host.request(terminalId, ref)
         if (!current) throw new DomainError("NOT_FOUND", "The agent has no such request.")
         const { facts, others: peers } = current
-        const read = adapter.read(rows, facts)
+        const read = adapter.read(rows, facts, settled)
         // A read held out of view names no dialog on screen, so it is no read where another
         // request waits too, whose it could be as well.
         const named =
@@ -699,7 +699,7 @@ export class Answers {
           const shared = peers.some((other) => {
             // An answered one is gone from the screen; one raw for good may not be.
             if (this.host.answered(terminalId, other.ref)) return false
-            const theirs = adapter.read(rows, other.facts)
+            const theirs = adapter.read(rows, other.facts, settled)
             return (
               theirs !== undefined &&
               theirs.reveal === undefined &&
@@ -794,7 +794,7 @@ export class Answers {
       // The screen right before the first key reads as the dialog the answer names, by the
       // request's facts as they are now: its turn may have ended since the dialog was read.
       if (!pressed) {
-        const now = check.adapter.read(screen.rows, current.facts)
+        const now = check.adapter.read(screen.rows, current.facts, screen)
         if ((now && identifiedRead(now)?.id) !== check.id)
           throw new DomainError(
             "DIALOG_CHANGED",
@@ -831,7 +831,7 @@ export class Answers {
       const screen = await this.screen(terminalId, pressed > 0)
       const current = this.host.request(terminalId, ref)
       if (!current) return screen.rows
-      if (!adapter.read(screen.rows, current.facts)) {
+      if (!adapter.read(screen.rows, current.facts, screen)) {
         if (pressed === 0)
           throw new DomainError("CONFLICT", "The request's dialog isn't on the agent's screen.")
         return screen.rows
@@ -910,7 +910,11 @@ export class Answers {
     others: readonly Other[],
     before: readonly string[],
     pressedAt: number,
-  ): Promise<{ readonly rows: readonly string[]; readonly viaTwin: boolean }> {
+  ): Promise<{
+    readonly rows: readonly string[]
+    readonly screen: ScreenText
+    readonly viaTwin: boolean
+  }> {
     const until = Date.now() + this.answeredMs
     let last: string | undefined
     for (;;) {
@@ -922,7 +926,7 @@ export class Answers {
       if (steady) {
         // Answered as its adapter reads it, before anything asks the host: an answer
         // confirmed must not turn into the terminal's exit seen in the same poll.
-        if (read.answered(screen.rows)) return { rows: screen.rows, viaTwin: false }
+        if (read.answered(screen.rows)) return { rows: screen.rows, screen, viaTwin: false }
         // Or the dialog is no longer the request's, and another pending request's shows at
         // once, as queued permissions do. The requests are read now, not as they were when
         // the answer began: the next dialog's hook comes with its dialog (Codex's patch
@@ -930,10 +934,10 @@ export class Answers {
         // were pressed. A request that came into being only after the keys counts when it
         // was asked since the first of them, never one that came by for its own reasons.
         const current = this.host.request(terminalId, ref)
-        if (!current) return { rows: screen.rows, viaTwin: false }
+        if (!current) return { rows: screen.rows, screen, viaTwin: false }
         const started = new Set(others.map(({ ref: each }) => each))
         const shows = (facts: Other["facts"]) => {
-          const found = adapter.read(screen.rows, facts)
+          const found = adapter.read(screen.rows, facts, screen)
           return found !== undefined && found.reveal === undefined
         }
         const next = () =>
@@ -944,7 +948,7 @@ export class Answers {
               !this.host.closed(terminalId, other.ref) &&
               shows(other.facts),
           )
-        if (next()) return { rows: screen.rows, viaTwin: false }
+        if (next()) return { rows: screen.rows, screen, viaTwin: false }
         // A twin's hook said it was answered: the dialog was approved all the same, and what
         // shows now may be the next of them, which is this request's to answer, not done.
         // The screen must have moved on from the dialog read before the keys, as a twin's
@@ -953,7 +957,7 @@ export class Answers {
           now !== before.join("\n") &&
           others.some((other) => twin(self, other) && !this.host.request(terminalId, other.ref))
         )
-          return { rows: screen.rows, viaTwin: true }
+          return { rows: screen.rows, screen, viaTwin: true }
       }
       if (Date.now() >= until) throw new Failed("The dialog did not go as the answer should.", true)
       // eslint-disable-next-line no-await-in-loop -- As above.

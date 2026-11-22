@@ -7,7 +7,7 @@ export type AgentSwitch = {
   readonly connected: boolean
   readonly busy: boolean
   readonly error?: string
-  readonly limited?: "own-status-line" | undefined
+  readonly limited?: "own-status-line" | "outdated" | "unsupported" | undefined
   // The command that installs it, while it is not `available`.
   readonly installer?: string | undefined
 }
@@ -34,6 +34,10 @@ export const agentNote = ({
 const limitNotes: Readonly<Record<NonNullable<AgentSwitch["limited"]>, string>> = {
   "own-status-line":
     "It runs your own status line, which keeps Novadeck's out on Windows, so messages can't wake it until you've sent it a prompt. Removing your status line from its settings lifts this.",
+  outdated:
+    "This version is too old for Novadeck, so it runs without sessions resuming, messages or the chat. Update it (opencode upgrade) to turn them on.",
+  unsupported:
+    "Novadeck works with opencode 1 so far, so this version runs without sessions resuming, messages or the chat. opencode 1.18 or later turns them on.",
 }
 
 export const agentLimit = ({ connected, busy, limited }: AgentSwitch): string | undefined =>

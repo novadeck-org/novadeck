@@ -13,6 +13,7 @@ import { box as agyBox } from "@novadeck/harness-agy/box"
 import { box as claudeBox } from "@novadeck/harness-claude/box"
 import { box as codexBox } from "@novadeck/harness-codex/box"
 import { screenRecord } from "@novadeck/harness-core/testing/probes"
+import { box as opencodeBox } from "@novadeck/harness-opencode/box"
 
 import { setups } from "../agents/index.js"
 import { describe, e2e, supported } from "../fixture.js"
@@ -20,7 +21,7 @@ import { asked, gate } from "../model/script.js"
 import { start } from "../scenarios.js"
 import { sleep, probing } from "./support.js"
 
-const profiles = { claude: claudeBox, codex: codexBox, agy: agyBox }
+const profiles = { claude: claudeBox, codex: codexBox, agy: agyBox, opencode: opencodeBox }
 const ESC = "\x1b"
 
 type Step = readonly [label: string, keys: string]

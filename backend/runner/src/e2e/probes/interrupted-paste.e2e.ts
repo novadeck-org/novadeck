@@ -14,6 +14,7 @@ import { box as agyBox } from "@novadeck/harness-agy/box"
 import { box as claudeBox } from "@novadeck/harness-claude/box"
 import { box as codexBox } from "@novadeck/harness-codex/box"
 import { screenRecord } from "@novadeck/harness-core/testing/probes"
+import { box as opencodeBox } from "@novadeck/harness-opencode/box"
 import { collapsible } from "@novadeck/tui-input"
 
 import { setups } from "../agents/index.js"
@@ -22,7 +23,7 @@ import { asked, gate } from "../model/script.js"
 import { start } from "../scenarios.js"
 import { sleep, probing } from "./support.js"
 
-const profiles = { claude: claudeBox, codex: codexBox, agy: agyBox }
+const profiles = { claude: claudeBox, codex: codexBox, agy: agyBox, opencode: opencodeBox }
 
 const lines = (n: number) =>
   ["Hold on", ...Array.from({ length: n - 1 }, (_, i) => `line ${i + 2} of the prompt`)].join("\n")

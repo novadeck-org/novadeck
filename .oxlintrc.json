@@ -76,7 +76,7 @@
       }
     },
     {
-      "files": ["harnesses/agy/**"],
+      "files": ["harnesses/agy/**", "harnesses/opencode/**"],
       "rules": {
         "no-restricted-imports": [
           "error",

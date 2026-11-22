@@ -11,6 +11,7 @@ import { createScreen, readScreen } from "@novadeck/emulator/headless"
 import { box as agyBox } from "@novadeck/harness-agy/box"
 import { box as claudeBox } from "@novadeck/harness-claude/box"
 import { box as codexBox } from "@novadeck/harness-codex/box"
+import { box as opencodeBox } from "@novadeck/harness-opencode/box"
 import { compact } from "@novadeck/tui-input/box"
 
 import { setups } from "../agents/index.js"
@@ -18,7 +19,7 @@ import { describe, e2e, supported } from "../fixture.js"
 import { start } from "../scenarios.js"
 import { sleep, paste, probing } from "./support.js"
 
-const profiles = { claude: claudeBox, codex: codexBox, agy: agyBox }
+const profiles = { claude: claudeBox, codex: codexBox, agy: agyBox, opencode: opencodeBox }
 
 for (const setup of setups) {
   describe.skipIf(!supported || !probing)(`probe: collapse of ${setup.name}`, () => {

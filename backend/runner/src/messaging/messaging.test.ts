@@ -792,6 +792,33 @@ describe("delivery through hooks", () => {
     expect(prompt("B", codex).leaseId).toEqual(expect.any(String))
   })
 
+  it("starts opencode's next turn with a Stop's messages only over a box the person left empty", () => {
+    const { messaging, send, prompt, stop, follow } = create()
+    const opencode = binding("opencode", "ses_oc", "5")
+    follow("B", opencode)
+    prompt("B", opencode)
+    sent(send("A", "fox", "hello"))
+    const answer = stop("B", opencode)
+    expect(answer.leaseId).toEqual(expect.any(String))
+    expect(JSON.parse(answer.stdout!)).toEqual({ deliver: expect.stringContaining("hello") })
+    messaging.acknowledge("B", answer.leaseId!)
+    // The turn that delivery started ends with nothing new: it rings nothing more.
+    prompt("B", opencode, "harness")
+    expect(stop("B", opencode)).toEqual({ leaseId: null, stdout: "{}\n" })
+  })
+
+  it("leaves opencode's messages for the doorbell where the person typed a draft as its turn ran", () => {
+    const { messaging, send, prompt, stop, follow } = create()
+    const opencode = binding("opencode", "ses_oc", "5")
+    follow("B", opencode)
+    prompt("B", opencode)
+    messaging.keys("B", ["content"], false)
+    sent(send("A", "fox", "hello"))
+    // A turn of its own over their draft would run behind their words: none starts.
+    expect(stop("B", opencode)).toEqual({ leaseId: null, stdout: "{}\n" })
+    expect(messages(messaging, "B")[0]).toMatchObject({ state: "queued" })
+  })
+
   it("still continues a Stop after an answer to a request during the turn", () => {
     const { messaging, send, prompt, stop, codex } = create()
     prompt("B", codex)

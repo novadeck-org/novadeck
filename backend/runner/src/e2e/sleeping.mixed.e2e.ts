@@ -1,6 +1,7 @@
 import { agy } from "./agents/agy.js"
 import { claude } from "./agents/claude.js"
 import { codex } from "./agents/codex.js"
+import { opencode } from "./agents/opencode.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import {
   delivered,
@@ -19,7 +20,7 @@ import {
 // itself once a message wants it.
 
 /** Each harness leads the next one, which sleeps. */
-const order = [claude, codex, agy]
+const order = [claude, codex, agy, opencode]
 const pairs = order.map((lead, index) => ({ lead, worker: order[(index + 1) % order.length]! }))
 
 describe.skipIf(!supported)(order.map((setup) => setup.name).join(" → "), () => {

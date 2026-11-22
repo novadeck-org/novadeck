@@ -24,8 +24,15 @@ const has = (setup: AgentSetup, trait: Trait): boolean => {
   if (trait === "multiSelect") return setup.asking?.multiSelect === true
   if (trait === "plan") return setup.planning !== undefined
   if (trait === "forms") return setup.forms !== undefined
+  if (trait === "pluginCopy") return setup.absent?.pluginCopy === undefined
   return setup[trait] !== undefined
 }
+
+/** The label of the chat's option that allows its permission dialog's tool this once. */
+export const allowLabel = (setup: AgentSetup): RegExp => setup.approval?.yes ?? /^Yes/
+
+/** The label of the chat's option that refuses it. */
+export const refuseLabel = (setup: AgentSetup): RegExp => setup.approval?.no ?? /^No/
 
 /**
  * Why the setup can't run a scenario that needs `traits`, as its skipped test says, or

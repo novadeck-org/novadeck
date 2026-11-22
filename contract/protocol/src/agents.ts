@@ -340,8 +340,11 @@ export const agentIntegration = z.strictObject({
   connected: z.boolean(),
   // What keeps a connected agent's messaging from working whole, where something does:
   // `own-status-line`, Antigravity on Windows running the person's own status line, which
-  // keeps Novadeck's out, so it is never seen Ready at its first prompt.
-  limited: z.enum(["own-status-line"]).optional(),
+  // keeps Novadeck's out, so it is never seen Ready at its first prompt; `outdated`, an agent
+  // older than the release Novadeck's plugin works with (opencode's), which loads nothing of
+  // Novadeck's until it is updated; `unsupported`, a release newer than Novadeck knows
+  // (opencode 2), which loads nothing of Novadeck's either.
+  limited: z.enum(["own-status-line", "outdated", "unsupported"]).optional(),
   // The command that installs the agent here, as a terminal runs it at its first prompt, for
   // an agent that is not `available`: what the person sees before choosing to run it. Absent
   // from a runner from before it, and once the agent is installed.

@@ -155,9 +155,10 @@ export type BoxProfile = {
     readonly leave?: (box: InputBox) => string
     /**
      * What a shell command does when Enter comes while a turn works: `queues` it until the
-     * turn ends, or `runs` it at once. Queued where omitted.
+     * turn ends, `runs` it at once, or `drops` it, the box emptied and the command never run.
+     * Queued where omitted. A command Novadeck sends is not sent mid-turn to a program that drops it.
      */
-    readonly midTurn?: "queues" | "runs"
+    readonly midTurn?: "queues" | "runs" | "drops"
   }
   /**
    * Whether the screen shows, just above the box, the program's word that whoever types
@@ -172,6 +173,13 @@ export type BoxProfile = {
    * Enter act in it.
    */
   readonly overlay: (screen: ScreenText) => boolean
+  /**
+   * Whether the screen shows the interrupt armed: for a program whose first Escape only arms
+   * it, saying so ("esc again to interrupt"), and whose second, while that shows, stops the
+   * turn. The interrupt writes the second once this says so, and none where it never does
+   * (the turn ended meanwhile). Omitted where one Escape stops a turn.
+   */
+  readonly armed?: (screen: ScreenText) => boolean
   /**
    * Whether the screen shows messages queued behind the running turn, which the program
    * holds until the turn ends (or steers the turn with).

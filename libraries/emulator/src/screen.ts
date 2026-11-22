@@ -121,6 +121,13 @@ export type ScreenText = {
    * (a box's placeholder suggestion, a hint) is not what a user typed.
    */
   readonly bright: readonly string[]
+  /**
+   * Each row's text with only the cells that have a background of their own: set, and unlike
+   * the background most of the row's cells have; the rest blanked, same columns. A TUI marks
+   * its selected choice so, in colour alone (opencode's permission dialog). Empty where
+   * nothing on the row stands out.
+   */
+  readonly lit?: readonly string[]
   /** Where the cursor is, in rows and columns of the visible screen. */
   readonly cursor: { readonly row: number; readonly column: number }
 }
@@ -141,6 +148,7 @@ export const readScreen = (screen: Screen): ScreenText => {
   const wrapped: boolean[] = []
   const continues: boolean[] = []
   const bright: string[] = []
+  const lit: string[] = []
   const cell = buffer.getNullCell()
   for (let row = 0; row < screen.rows; row += 1) {
     const line = buffer.getLine(buffer.viewportY + row)
@@ -149,20 +157,44 @@ export const readScreen = (screen: Screen): ScreenText => {
     rows.push(line?.translateToString(!next?.isWrapped) ?? "")
     wrapped.push(line?.isWrapped ?? false)
     continues.push(line ? lastCellFilled(line, screen.cols, cell) : false)
-    let lit = ""
-    if (line)
+    let bold = ""
+    let marked = ""
+    if (line) {
+      const cells: { key: string; width: number; chars: string; dim: boolean }[] = []
+      const counts = new Map<string, number>()
       for (let column = 0; column < screen.cols; column += 1) {
         const at = line.getCell(column, cell)
         if (!at || at.getWidth() === 0) continue
-        lit += at.isDim() ? " ".repeat(Math.max(at.getWidth(), 1)) : at.getChars() || " "
+        const key = at.isBgDefault() ? "" : `${at.getBgColorMode()}:${at.getBgColor()}`
+        counts.set(key, (counts.get(key) ?? 0) + 1)
+        cells.push({
+          key,
+          width: Math.max(at.getWidth(), 1),
+          chars: at.getChars() || " ",
+          dim: at.isDim() !== 0,
+        })
       }
-    bright.push(lit.trimEnd())
+      let common = ""
+      let most = 0
+      for (const [key, count] of counts)
+        if (count > most) {
+          common = key
+          most = count
+        }
+      for (const each of cells) {
+        bold += each.dim ? " ".repeat(each.width) : each.chars
+        marked += each.key !== "" && each.key !== common ? each.chars : " ".repeat(each.width)
+      }
+    }
+    bright.push(bold.trimEnd())
+    lit.push(marked.trimEnd())
   }
   return {
     rows,
     wrapped,
     continues,
     bright,
+    lit,
     columns: screen.cols,
     cursor: { row: buffer.cursorY, column: buffer.cursorX },
     bracketedPaste: screen.modes.bracketedPasteMode,

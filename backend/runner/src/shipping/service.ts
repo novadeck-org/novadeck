@@ -272,7 +272,7 @@ export class Shipping {
     return this.records.get(terminalId)?.summary.cwd
   }
 
-  private agentOf(terminalId: string): "claude" | "codex" | "agy" | undefined {
+  private agentOf(terminalId: string): AgentName | undefined {
     return this.records.get(terminalId)?.bound?.binding.agent
   }
 
@@ -282,9 +282,10 @@ export class Shipping {
   }
 
   /**
-   * Whether the gate is on and covers `agent`'s harness: all three, but for Antigravity where it
-   * has no PreToolUse hook (Windows, where cmd prints before hooks): nothing is refused there, so
-   * nobody is told of permits, and agy's own dialog is the only one asked.
+   * Whether the gate is on and covers `agent`'s harness: Claude Code, Codex and Antigravity, but
+   * Antigravity not where it has no PreToolUse hook (Windows, where cmd prints before hooks):
+   * nothing is refused there, so nobody is told of permits, and agy's own dialog is the only one
+   * asked. opencode isn't gated yet.
    */
   covers(agent: AgentName): boolean {
     if (!this.host.enabled()) return false

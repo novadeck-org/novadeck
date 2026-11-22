@@ -31,6 +31,8 @@ export type InterruptOptions = {
    * turn the program starts with them, which the second Escape stops.
    */
   readonly queuedTurnMs?: number
+  /** How long it waits for a first Escape to show the interrupt armed (`BoxProfile.armed`). */
+  readonly armedMs?: number
 }
 
 /** What interrupts need of the terminal and its owner, by terminal. */
@@ -128,6 +130,7 @@ export class Interrupts {
   private readonly restoreCalmMs: number
   private readonly settleMs: number
   private readonly queuedTurnMs: number
+  private readonly armedMs: number
 
   constructor(
     private readonly host: InterruptHost,
@@ -137,6 +140,7 @@ export class Interrupts {
     this.restoreCalmMs = options.restoreCalmMs ?? 500
     this.settleMs = options.settleMs ?? 1_000
     this.queuedTurnMs = options.queuedTurnMs ?? 3_000
+    this.armedMs = options.armedMs ?? 2_000
   }
 
   /**
@@ -209,6 +213,7 @@ export class Interrupts {
     try {
       host.type(terminalId, "\x1b")
       escaped()
+      if (profile?.armed) await this.secondEscape(terminalId, profile.armed)
       if (!profile || !emptyBefore) return none
       if (prompt === undefined && !queued) return none
       let box = await this.settled(terminalId, profile)
@@ -443,6 +448,30 @@ export class Interrupts {
     }
     host.admit(terminalId)
     return now
+  }
+
+  /**
+   * The second Escape of a program whose first only arms the interrupt, written once the screen
+   * says it is armed (`BoxProfile.armed`) and the turn still works; none if that doesn't come
+   * within `armedMs`, as a turn that ended meanwhile needs none.
+   */
+  private async secondEscape(
+    terminalId: string,
+    armed: NonNullable<BoxProfile["armed"]>,
+  ): Promise<void> {
+    const { host } = this
+    const until = Date.now() + this.armedMs
+    while (host.alive(terminalId) && host.working(terminalId) && Date.now() < until) {
+      // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
+      const now = await host.screen(terminalId)
+      if (now && armed(now)) {
+        host.admit(terminalId)
+        host.type(terminalId, "\x1b")
+        return
+      }
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await sleep(pollMs)
+    }
   }
 
   /**

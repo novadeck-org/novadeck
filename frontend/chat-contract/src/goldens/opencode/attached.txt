@@ -1,0 +1,3 @@
+# file-attached
+user: Look at @sample.txt ONE-PICTURE what is in it
+assistant: It is a red rectangle.

@@ -119,7 +119,7 @@ for (const setup of setups) {
       const shiftTab = "\x1b[Z"
       const write = (data: string) => run.deck.terminals.write({ terminalId: t1.id, data }, "e2e")
       // Its plan mode, or Claude Code's accept-edits, the first Shift+Tab takes it to.
-      if (setup.agent === "codex") await setup.planning!.enter!(t1)
+      if (setup.agent === "codex" || setup.agent === "opencode") await setup.planning!.enter!(t1)
       else {
         write(shiftTab)
         await sleep(1000)
@@ -129,7 +129,9 @@ for (const setup of setups) {
         }
       }
       await t1.submit("After the change")
-      const said = { claude: "acceptEdits", codex: "plan", agy: "plan" }[setup.agent]
+      const said = { claude: "acceptEdits", codex: "plan", agy: "plan", opencode: "plan" }[
+        setup.agent
+      ]
       await t1.poll(
         async () =>
           (await t1.transcript()).some(({ note }) => note?.type === "mode" && note.mode === said) ||

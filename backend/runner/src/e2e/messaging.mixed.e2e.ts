@@ -2,6 +2,7 @@ import { handleWords } from "../terminals/handles.js"
 import { agy } from "./agents/agy.js"
 import { claude } from "./agents/claude.js"
 import { codex } from "./agents/codex.js"
+import { opencode } from "./agents/opencode.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { gate } from "./model/script.js"
 import {
@@ -22,7 +23,7 @@ import {
 // a check of which harness this is.
 
 /** The ring's order: the first terminal sends to the second, each to the next, and the last back to t1. */
-const order = [claude, codex, agy]
+const order = [claude, codex, agy, opencode]
 const handle = (index: number) => handleWords[index]!
 const after = (index: number) => (index + 1) % order.length
 const passed = (index: number) => `Ring from ${handle(index)}.`

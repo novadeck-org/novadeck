@@ -131,6 +131,20 @@ describe("a screen read as text", () => {
     screen.dispose()
   })
 
+  it("keeps in the lit rows only the cells whose background stands out from the row's", async () => {
+    const screen = createScreen({ cols: 24, rows: 3, scrollback: 0 })
+    // A panel of one background, one choice on another, and a row with none of its own.
+    await written(
+      screen,
+      "\u001b[48;2;30;30;30m  once  \u001b[48;2;245;167;66m always \u001b[48;2;30;30;30m  reject   \u001b[0m\r\nplain",
+    )
+    const text = readScreen(screen)
+    expect(text.rows[0]).toBe("  once   always   reject")
+    expect(text.lit?.[0]).toBe("         always")
+    expect(text.lit?.[1]).toBe("")
+    screen.dispose()
+  })
+
   it("marks a row the terminal wrapped as continuing the one before", async () => {
     const screen = createScreen({ cols: 5, rows: 3, scrollback: 0 })
     await written(screen, "abcdefg")

@@ -56,9 +56,16 @@ for (const setup of setups) {
         value
           .replaceAll(run.sandbox.root, "/home/user")
           .replaceAll(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, "<id>")
-      const stores = { claude: ".claude/projects", codex: ".codex/sessions", agy: ".gemini" }
-      // Antigravity's files name no version, so none is kept.
-      const files = setup.agent === "agy" ? [] : jsonl(join(run.sandbox.home, stores[setup.agent]))
+      const stores = {
+        claude: ".claude/projects",
+        codex: ".codex/sessions",
+        agy: ".gemini",
+      }
+      // Antigravity's files name no version, so none is kept; opencode's are in SQLite.
+      const files =
+        setup.agent === "agy" || setup.agent === "opencode"
+          ? []
+          : jsonl(join(run.sandbox.home, stores[setup.agent]))
       const lines = files.flatMap((file) =>
         readFileSync(file, "utf8")
           .split("\n")

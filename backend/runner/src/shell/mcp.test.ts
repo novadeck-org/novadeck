@@ -498,6 +498,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
         ],
         codex: [{ id: "gpt-5", efforts: ["medium"] }],
         agy: [{ id: "opus", efforts: [] }],
+        opencode: [{ id: "opencode/big-pickle", efforts: [] }],
       },
     }
     const properties = async () => {
@@ -511,11 +512,14 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       request: {},
     })
     expect(listed.required).toEqual(["agent"])
-    expect(listed.properties.model.enum).toEqual(["opus", "sonnet", "gpt-5"])
+    expect(listed.properties.model.enum).toEqual(["opus", "sonnet", "gpt-5", "opencode/big-pickle"])
     expect(listed.properties.model.description).toContain(
       "claude (Claude Code): opus (low, high), sonnet (no effort)",
     )
     expect(listed.properties.model.description).toContain("codex (Codex): gpt-5 (medium)")
+    expect(listed.properties.model.description).toContain(
+      "opencode (opencode): opencode/big-pickle (no effort)",
+    )
     expect(listed.properties.model.description).toContain("leave it out")
     expect(listed.properties.model.description).not.toContain("can't take a model now")
     expect(listed.properties.effort.enum).toEqual(["low", "medium", "high", "xhigh", "max"])
@@ -525,7 +529,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       expect(none.properties.model.enum).toBeUndefined()
       expect(none.properties.model.description).toContain("leave it out")
     }
-    await withoutModels({ ok: true, models: { claude: [], codex: [], agy: [] } })
+    await withoutModels({ ok: true, models: { claude: [], codex: [], agy: [], opencode: [] } })
     await withoutModels({ ok: false })
     answer = { ok: true, models: { claude: [{ id: "opus", efforts: [] }], codex: [], agy: [] } }
     expect((await properties()).properties.model.description).toContain(

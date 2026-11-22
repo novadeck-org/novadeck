@@ -604,6 +604,8 @@ export const createDemoStates = (
     openWelcomeBare,
     failNext: failAgents,
     limitAntigravity,
+    outdateOpencode,
+    unsupportOpencode,
   } = createDemoAgents()
   const { notices, Notices } = createDemoNotices()
   const updateControls = createDemoUpdates(undefined, pageUpdateChannel)
@@ -1114,6 +1116,16 @@ export const createDemoStates = (
           label: "Antigravity limited",
           hint: "Connected, with a warning in Preferences",
           run: limitAntigravity,
+        },
+        {
+          label: "opencode outdated",
+          hint: "Connected, with an update note in Preferences",
+          run: outdateOpencode,
+        },
+        {
+          label: "opencode 2",
+          hint: "Connected, with a note that only opencode 1 works yet",
+          run: unsupportOpencode,
         },
       ],
     },
