@@ -1,5 +1,5 @@
 {
-  "revision": 4,
+  "revision": 5,
   "oldestClient": 3,
   "oldestRunner": 2,
   "errors": {
@@ -202,7 +202,7 @@
       "output": {"x-optional":true}
     },
     "projects.watch": {
-      "since": 3,
+      "since": 5,
       "input": {"x-optional":true},
       "yields": {
         "oneOf": [
@@ -230,7 +230,7 @@
             "additionalProperties": false
           }
         ],
-        "x-open": {"since":3,"unknown":"drop"}
+        "x-open": {"since":5,"unknown":"drop"}
       }
     },
     "projects.folder": {
@@ -565,7 +565,7 @@
             "additionalProperties": false
           }
         ],
-        "x-open": {"since":3,"unknown":"drop"}
+        "x-open": {"since":5,"unknown":"drop"}
       }
     },
     "terminals.list": {

@@ -15,7 +15,7 @@ export type ProjectArrangement = {
  * did to them: a project it made is read and joins this client's list, one it removed goes,
  * one it renamed takes the name, and how the projects are arranged is told (`arranged`) for
  * the page to take. All of it is laid in here and never sent back. A runner from before
- * revision 3 has no such feed: nothing is followed.
+ * revision 5 has no such feed: nothing is followed.
  */
 export const followProjects = (options: {
   readonly runner: Pick<Runner, "projects" | "supports">

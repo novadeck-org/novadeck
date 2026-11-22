@@ -295,7 +295,7 @@ so nothing written between its listing and its watch is missed. `projects.watch(
 the projects as `projects.list` does, `{ type: "projects", projects }`, first and again after
 each project is made, renamed, arranged or removed, the latest list only where a reader falls
 behind. Both changes are open unions: a client drops a kind it doesn't know. The two session
-procedures are `since: 4` and `projects.watch` is `since: 3`: a client asks `runner.supports`
+procedures are `since: 4` and `projects.watch` is `since: 5`: a client asks `runner.supports`
 first, and saves whole without a feed where the runner has none.
 
 The UI (`frontend/runner-adapter/src/sessions`) changes and merges a state a record at a

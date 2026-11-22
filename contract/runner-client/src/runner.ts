@@ -153,7 +153,7 @@ export type Runner = {
     /**
      * The projects as they change, the whole list in the person's order with each one's pin,
      * first and after each change, as `ProjectsChange` says. Opened again after each
-     * reconnection, starting with the list again. A runner from before revision 3 has none
+     * reconnection, starting with the list again. A runner from before revision 5 has none
      * (`supports("projects.watch")`).
      */
     watch(): AsyncIterableIterator<ProjectsChange, undefined>

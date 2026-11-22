@@ -114,7 +114,7 @@ export const sessionChange = openUnion(
     }),
     z.strictObject({ type: z.literal("removed"), sessionId: id }),
   ],
-  { since: 3, unknown: "drop" },
+  { since: 5, unknown: "drop" },
 )
 
 /**
@@ -126,7 +126,7 @@ export const sessionChange = openUnion(
 export const projectsChange = openUnion(
   "type",
   [z.strictObject({ type: z.literal("projects"), projects: z.array(project).max(10_000) })],
-  { since: 3, unknown: "drop" },
+  { since: 5, unknown: "drop" },
 )
 
 export type Project = z.infer<typeof project>
