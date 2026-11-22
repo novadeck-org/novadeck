@@ -1,4 +1,6 @@
 /* eslint-disable no-await-in-loop -- Each case is read in turn. */
+import { resolve } from "node:path"
+
 import { describe, expect, it } from "vitest"
 
 import { heldOptions, heldRef } from "../harnesses/detail.js"
@@ -49,6 +51,21 @@ describe("request_permit", () => {
     })
     // The branch form covers a bare `gh pr merge` from the PR's own branch.
     expect(permits.covering("t", "pr-merge:r/app@feat/x")).toBeDefined()
+  })
+
+  it("reads a relative folder from the terminal's directory, never the runner's own", async () => {
+    const asked: string[] = []
+    const { all } = deps("claude", {
+      ...lookups,
+      repo: async (folder) => {
+        asked.push(folder)
+        return "r/app"
+      },
+    })
+    await declare(all, "t", "/w", { action: "push", folder: ".", target: "main" })
+    await declare(all, "t", "/w", { action: "push", folder: "sub", target: "main" })
+    await declare(all, "t", "/w", { action: "push", target: "main" })
+    expect(asked.slice(0, 3)).toEqual([resolve("/w", "."), resolve("/w", "sub"), "/w"])
   })
 
   it("never counts a teammate's quote: the words weren't typed in its terminal", async () => {

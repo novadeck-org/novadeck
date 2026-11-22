@@ -5,6 +5,7 @@
  * a permit already live, or a card for the user. The answer says what Novadeck went by.
  */
 import { execFile } from "node:child_process"
+import { resolve as resolvePath } from "node:path"
 
 import type { Cards } from "./cards.js"
 import { describeKey } from "./gate.js"
@@ -98,7 +99,9 @@ export const declare = async (
   cwd: string,
   input: Declared,
 ): Promise<DeclareAnswer> => {
-  const folder = input.folder?.trim() || cwd
+  // As the tool says, relative to the terminal's current directory: never the runner's own.
+  const named = input.folder?.trim()
+  const folder = named ? resolvePath(cwd, named) : cwd
   const lookups = deps.lookups(terminalId)
   const repo = await lookups.repo(folder)
   if (repo === undefined)
