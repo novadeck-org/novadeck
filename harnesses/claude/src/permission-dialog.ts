@@ -67,6 +67,13 @@ const samePath = (path: string, shown: string, cwd: string | null): boolean => {
   return path === shown || path.endsWith(`/${shown}`)
 }
 
+// A subagent's request says whose it is after its header's label (`Bash command · from the
+// general-purpose agent`, and the same on `Create file`, `Read file` and `Fetch`: 2.1.329,
+// 2026-11-23 probes; `Tool use` by the same rule, not yet seen). A header is compared by its
+// label alone: what the dialog asks is read from its body, whoever asks.
+const whose = / · from the \S.* agent$/
+const labelOf = (row: string): string => row.replace(whose, "")
+
 // An MCP server's or tool's name as the dialog's title and the tool's own name compare:
 // letters and digits, in lower case.
 const nameKey = (text: string): string => text.toLowerCase().replace(/[^a-z0-9]/g, "")
@@ -79,9 +86,10 @@ const nameKey = (text: string): string => text.toLowerCase().replace(/[^a-z0-9]/
 const shows = (rows: readonly string[], title: number, facts: RequestFacts): string | undefined => {
   const input = fieldsOf(facts.input)
   if (!input) return refuse("permission.shows.1")
-  // The three rows above a block, where its header is.
+  // The three rows above a block, where its header is: each as its label, without whose
+  // request it is.
   const header = (open: number): string[] =>
-    rows.slice(Math.max(0, open - 3), open).map((each) => each.trim())
+    rows.slice(Math.max(0, open - 3), open).map((each) => labelOf(each.trim()))
   switch (facts.tool) {
     case "Bash": {
       const command = nonBlank(input.command)
@@ -99,16 +107,8 @@ const shows = (rows: readonly string[], title: number, facts: RequestFacts): str
       }
       // Its header is on screen unless the command only just fits.
       const cutHeader = shown.open < 3 && !rows.slice(0, shown.open).some((row) => rule.test(row))
-      // A subagent's request says whose it is on the header's row (`Bash command · from the
-      // general-purpose agent`, 2.1.329), with a tip row under it.
-      if (
-        !cutHeader &&
-        !header(shown.open).some(
-          (row) => row === "Bash command" || row.startsWith("Bash command · from "),
-        )
-      ) {
+      if (!cutHeader && !header(shown.open).includes("Bash command"))
         return refuse("permission.shows.4")
-      }
       // Nothing but the command between its rules; the detail is the request's own command,
       // as it will run, not the screen's wrapped rows.
       return wraps(quoted(shown.body), command) ? command : refuse("permission.shows.5")
@@ -153,7 +153,7 @@ const shows = (rows: readonly string[], title: number, facts: RequestFacts): str
       const over = asked[1] === "overwrite"
       // The header and the question's verb agree with the tool, the question names the
       // subtitle's file, and the subtitle resolves to the request's.
-      const label = rows[open - 2]?.trim()
+      const label = labelOf(rows[open - 2]?.trim() ?? "")
       const expected = facts.tool === "Edit" ? "Edit file" : over ? "Overwrite file" : "Create file"
       if (label !== expected || (facts.tool === "Edit") !== (asked[1] === "make this edit to")) {
         return refuse("permission.shows.15")
@@ -171,7 +171,7 @@ const shows = (rows: readonly string[], title: number, facts: RequestFacts): str
       if (!mcp) return refuse("permission.shows.19")
       const at = rows.findIndex((each, index) => index < title && each.endsWith("(MCP)"))
       const named = /^ (.+?) — (.+?) Tool: \(MCP\)$/.exec(rows[at] ?? "")
-      if (!named || at < 1 || rows[at - 1]!.trim() !== "Tool use")
+      if (!named || at < 1 || labelOf(rows[at - 1]!.trim()) !== "Tool use")
         return refuse("permission.shows.20")
       if (nameKey(named[1]!) !== nameKey(mcp[1]!) || nameKey(named[2]!) !== nameKey(mcp[2]!)) {
         return refuse("permission.shows.21")

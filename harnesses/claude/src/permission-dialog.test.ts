@@ -1638,3 +1638,121 @@ describe("Claude Code's permission dialog for a subagent's short command", () =>
     expect(dialogs.read(fetched, facts)).toBeUndefined()
   })
 })
+
+// The real screens of a subagent's Write, Read and WebFetch requests (2.1.329, 2026-11-23,
+// footer-tools probe): each header names the agent after its label, and the footer says how to
+// stop background agents. Every one read as raw before.
+describe("Claude Code's permission dialogs for a subagent's other tools", () => {
+  const top = "─".repeat(120)
+  const rule = "╌".repeat(120)
+  const footer = " Esc to cancel · Tab to amend · ctrl+x ctrl+k twice to stop background agents"
+  const cwd = "/tmp/claude-1000/tour-real/footer-tools/game"
+
+  it("reads a file it wants to create", () => {
+    const rows = [
+      top,
+      " Create file · from the general-purpose agent",
+      " ../../../footer-probe/note.txt",
+      rule,
+      "  1 hello",
+      rule,
+      " Do you want to create note.txt?",
+      " ❯ 1. Yes",
+      "   2. Yes, and always allow access to /tmp/claude-1000/footer-probe for this session (shift+tab)",
+      "   3. No",
+      "",
+      footer,
+    ]
+    const facts: RequestFacts = {
+      kind: "permission",
+      tool: "Write",
+      // The probe's own file had no line break at its end, which the reader declines for any
+      // new file (see `contentLines`); with one, the same screen is read.
+      input: { file_path: "/tmp/claude-1000/footer-probe/note.txt", content: "hello\n" },
+      cwd,
+    }
+    expect(need(dialogs.read(rows, facts)).dialog).toMatchObject({
+      type: "choices",
+      title: "Do you want to create note.txt?",
+    })
+    // The label still has to be the tool's own.
+    expect(dialogs.read(swap(rows, "Create file", "Edit file"), facts)).toBeUndefined()
+  })
+
+  it("reads a file it wants to read", () => {
+    const rows = [
+      top,
+      " Read file · from the general-purpose agent",
+      rule,
+      " Read(/etc/hostname)",
+      rule,
+      " Do you want to proceed?",
+      " ❯ 1. Yes",
+      "   2. Yes, allow reading from /etc during this session",
+      "   3. No",
+      "",
+      footer,
+    ]
+    const facts: RequestFacts = {
+      kind: "permission",
+      tool: "Read",
+      input: { file_path: "/etc/hostname" },
+      cwd,
+    }
+    expect(need(dialogs.read(rows, facts)).dialog).toMatchObject({
+      type: "choices",
+      detail: "Read(/etc/hostname)",
+    })
+    expect(dialogs.read(swap(rows, "Read file", "Open file"), facts)).toBeUndefined()
+  })
+
+  it("reads a page it wants to fetch", () => {
+    const rows = [
+      top,
+      " Fetch · from the general-purpose agent",
+      " Claude wants to fetch content from example.com",
+      rule,
+      " url: https://example.com/",
+      " prompt: What is the title of this page? Reply with the title only.",
+      rule,
+      " Do you want to allow Claude to fetch this content?",
+      " ❯ 1. Yes",
+      "   2. Yes, and don't ask again for example.com",
+      "   3. No, and tell Claude what to do differently (esc)",
+    ]
+    const facts: RequestFacts = {
+      kind: "permission",
+      tool: "WebFetch",
+      input: {
+        url: "https://example.com/",
+        prompt: "What is the title of this page? Reply with the title only.",
+      },
+      cwd,
+    }
+    expect(need(dialogs.read(rows, facts)).dialog).toMatchObject({ type: "choices" })
+  })
+
+  it("takes no other words after a label for whose request it is", () => {
+    const rows = [
+      top,
+      " Read file · for the general-purpose agent",
+      rule,
+      " Read(/etc/hostname)",
+      rule,
+      " Do you want to proceed?",
+      " ❯ 1. Yes",
+      "   2. Yes, allow reading from /etc during this session",
+      "   3. No",
+      "",
+      footer,
+    ]
+    expect(
+      dialogs.read(rows, {
+        kind: "permission",
+        tool: "Read",
+        input: { file_path: "/etc/hostname" },
+        cwd,
+      }),
+    ).toBeUndefined()
+  })
+})
