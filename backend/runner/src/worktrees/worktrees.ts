@@ -530,11 +530,10 @@ export class Worktrees {
   /**
    * The home a worktree is given: `home` where named (a branch here, or origin's as `origin/x`
    * or `x`), else the branch `from` names, else the branch it starts from (`startedOn`: the
-   * checkout's own branch, where it started from that checkout's HEAD, `from: HEAD` too), else none (it stays the
-   * repository's main: a detached HEAD, a tag or commit, origin's branch of its name, an
-   * existing branch). `write`
-   * is what the branch's key holds: nothing where home is the repository's main, which is
-   * measured by as ever without a key.
+   * checkout's own branch, where it started from that checkout's HEAD, which `from: HEAD` is
+   * too), else none: it stays the repository's main (a detached HEAD, a tag or commit, origin's
+   * branch of its name, an existing branch). `write` is what the branch's key holds: nothing
+   * where home is the repository's main, which is measured by as ever without a key.
    */
   private async chosenHome(
     folder: string,
