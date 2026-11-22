@@ -1,4 +1,4 @@
-import { workspaceReducer, type WorkspaceAction } from "@novadeck/core/state"
+import { createTerminalState, workspaceReducer, type WorkspaceAction } from "@novadeck/core/state"
 import { terminalFixture, workspaceFixture } from "@novadeck/core/testing"
 import type { Workspace } from "@novadeck/core/types"
 import type { SessionChange, SessionPatch } from "@novadeck/protocol"
@@ -97,7 +97,24 @@ const sharedWindow = async ({
     latest: () => workspace,
     dispatch: (actions) => commit(actions as WorkspaceAction[]),
     track: (work) => work,
-    arrive: () => {},
+    // As the backend does: listed unopened, unless held already.
+    arrive: (session) => {
+      const project = workspace.projects.find(({ id }) => id === session.projectId)
+      if (!project || project.history.some(({ id }) => id === session.id)) return false
+      commit([
+        {
+          type: "session/arrived",
+          projectId: project.id,
+          session: {
+            id: session.id,
+            name: session.name,
+            visitedAt: null,
+            state: createTerminalState([], "grid", "grid"),
+          },
+        },
+      ])
+      return true
+    },
   })
   const saves = createSessionSaves({
     save: sharing.save,
@@ -112,7 +129,10 @@ const sharedWindow = async ({
     workspace = actions.reduce(workspaceReducer, workspace)
     dispatched.push(...actions)
     saves.note(workspace)
-    sharing.seen(false, [])
+    sharing.seen(
+      false,
+      actions.flatMap((action) => (action.type === "project/sync" ? [action.project.id] : [])),
+    )
   }
   sharing.listed([held()])
   saves.note(workspace)
@@ -167,6 +187,17 @@ const sharedWindow = async ({
     server,
     dispatched,
     opens,
+    // Another client's session as the runner feeds it.
+    feedsSession: async (made: { id: string; projectId: string; name: string }) => {
+      feed.push({
+        type: "changed",
+        session: { ...made, state: null, visitedAt: null, revision: 0 },
+        writer: null,
+        base: null,
+      })
+      await new Promise((done) => setTimeout(done, 0))
+    },
+    workspace: () => workspace,
     // The runner's feed ends with `error`, as once the runner closed.
     feedEnds: (error: unknown) => feed.fail(error),
     // The feed opens again with the runner's revisions, as after the link came back.
@@ -383,5 +414,36 @@ describe("a session shared while changes cross", () => {
     } finally {
       vi.unstubAllGlobals()
     }
+  })
+
+  // A project read is taken; another client makes a session in it; the read is put in place,
+  // without that session, after its feed was heard.
+  context("when a project read taken just before a session was made is put in place", () => {
+    const ids = (window: Awaited<ReturnType<typeof sharedWindow>>, projectId = "project") =>
+      window
+        .workspace()
+        .projects.find(({ id }) => id === projectId)
+        ?.history.map(({ id }) => id)
+
+    it("lists that session again", async () => {
+      const window = await sharedWindow()
+      const read = window.workspace().projects[0]!
+      await window.feedsSession({ id: "made", projectId: "project", name: "Made there" })
+      expect(ids(window)).toEqual(["made", "initial"])
+      window.commit([{ type: "project/sync", project: read }])
+      await new Promise((done) => setTimeout(done, 0))
+      expect(ids(window)).toEqual(["made", "initial"])
+      window.stop()
+    })
+
+    it("lists one made in a project this client didn't know yet", async () => {
+      const window = await sharedWindow()
+      await window.feedsSession({ id: "made", projectId: "elsewhere", name: "Made there" })
+      const read = { ...window.workspace().projects[0]!, id: "elsewhere" }
+      window.commit([{ type: "project/sync", project: read }])
+      await new Promise((done) => setTimeout(done, 0))
+      expect(ids(window, "elsewhere")).toEqual(["made", "initial"])
+      window.stop()
+    })
   })
 })

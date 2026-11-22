@@ -1693,10 +1693,10 @@ export const runnerBackend = (
   // A session another client made in a project this window holds: listed here, unopened, as
   // the runner has it, and never created again; its terminals the runner already told of
   // join it, as those of a session this window knew do.
-  const arrive = (session: RunnerSession): void => {
+  const arrive = (session: RunnerSession): boolean => {
     const project = latest?.projects.find(({ id }) => id === session.projectId)
-    if (!project || removedSessions.has(session.id)) return
-    if (project.history.some(({ id }) => id === session.id)) return
+    if (!project || removedSessions.has(session.id)) return false
+    if (project.history.some(({ id }) => id === session.id)) return false
     asked.add(session.id)
     sessions.set(session.id, created)
     const listed: RunnerListing = [
@@ -1707,12 +1707,13 @@ export const runnerBackend = (
     ]
     const seeded = runnerSeed(listed, quickExitMs).projects[0]
     const made = seeded && projectFromSeed(seeded, seedDefaults()).history[0]
-    if (!made) return
+    if (!made) return false
     dispatch([{ type: "session/arrived", projectId: project.id, session: made }])
     queueMicrotask(() => {
       for (const summary of runnerSummaries.values())
         if (summary.sessionId === session.id) adopt(summary)
     })
+    return true
   }
   // Who hears how the runner has the projects arranged, as another client arranges them.
   const arrangedListeners = new Set<(arrangement: ProjectArrangement) => void>()

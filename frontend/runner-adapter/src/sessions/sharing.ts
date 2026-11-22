@@ -120,8 +120,9 @@ export const createSessionSharing = (options: {
   readonly latest: () => Workspace | undefined
   readonly dispatch: (actions: readonly BackendAction[]) => void
   readonly track: <T>(work: Promise<T>) => Promise<T>
-  // Lists here, unopened, a session another client made in a project this one holds.
-  readonly arrive: (session: WorkspaceSession) => void
+  // Lists here, unopened, a session another client made in a project this one holds; whether
+  // it did (not for one this client removed itself, or holds already).
+  readonly arrive: (session: WorkspaceSession) => boolean
   readonly now?: () => number
 }): SessionSharing => {
   const { runner } = options
@@ -143,6 +144,18 @@ export const createSessionSharing = (options: {
   const fresh = new Map<string, number>()
   // Sessions another client made, on their way into this one's list.
   const arriving = new Set<string>()
+  // Each session as the runner last told of it, by the feed or a listing, until it's gone:
+  // what a project read taken before it was made leaves out is laid in again from this.
+  const remembered = new Map<string, WorkspaceSession>()
+  // Lists a session another client made, unless it's here already.
+  const arriveHere = (session: WorkspaceSession): void => {
+    if (session.revision === undefined || located(options.latest(), session.id)) return
+    arriving.add(session.id)
+    fresh.set(session.id, session.revision)
+    if (options.arrive(session)) return
+    arriving.delete(session.id)
+    fresh.delete(session.id)
+  }
   let stream: AsyncIterableIterator<SessionChange, undefined> | undefined
 
   // What this client's patches it doesn't show yet make of `state`.
@@ -310,15 +323,12 @@ export const createSessionSharing = (options: {
     if (session.revision === undefined) return
     const next = { state: session.state, visitedAt: session.visitedAt, revision: session.revision }
     const newer = confirm(session.id, next)
+    if (newer || !remembered.has(session.id)) remembered.set(session.id, session)
     const here = located(options.latest(), session.id)
     // Made by another client in a project this one holds: listed here, laid in as read.
     if (!here) {
       const project = options.latest()?.projects.some(({ id }) => id === session.projectId)
-      if (project && !arriving.has(session.id)) {
-        arriving.add(session.id)
-        fresh.set(session.id, session.revision)
-        options.arrive(session)
-      }
+      if (project && !arriving.has(session.id)) arriveHere(session)
       return
     }
     if (!newer) return
@@ -336,6 +346,7 @@ export const createSessionSharing = (options: {
   }
 
   const forgotten = (sessionId: string): void => {
+    remembered.delete(sessionId)
     confirmed.delete(sessionId)
     sent.delete(sessionId)
     looked.delete(sessionId)
@@ -441,6 +452,7 @@ export const createSessionSharing = (options: {
         if (revision !== undefined) {
           confirm(id, { state, visitedAt, revision })
           fresh.set(id, revision)
+          remembered.set(id, session)
         }
         // What's read is what this client shows now: nothing of it is its own change.
         if (state !== null) states.push([id, { state, visitedAt, revision }])
@@ -468,6 +480,14 @@ export const createSessionSharing = (options: {
           found.set(sessionId, undefined)
       }
       later(found)
+      // A project put back as read may leave out a session made since the read was taken, its
+      // feed already heard: laid in again, once this commit is done.
+      const missing = [...remembered.values()].filter(({ id, projectId }) => {
+        if (!synced.includes(projectId)) return false
+        const project = workspace?.projects.find((each) => each.id === projectId)
+        return project !== undefined && !project.history.some((session) => session.id === id)
+      })
+      if (missing.length) queueMicrotask(() => missing.forEach(arriveHere))
     },
     follow: () => {
       if (stream || !has("sessions.watch")) return
