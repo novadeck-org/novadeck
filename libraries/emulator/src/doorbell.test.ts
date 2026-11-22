@@ -402,6 +402,64 @@ describe("dropping what a redraw changed", () => {
     await writeTo(view.terminal, "later\r\n")
     expect(doorbell.stats.scans).toBe(scans + 1)
   })
+
+  // Claude Code's fullscreen mode: its history on the alternate screen, scrolled by the TUI itself.
+  const fullscreen = (agent: boolean) => {
+    let at = 0
+    const element = document.createElement("div")
+    document.body.append(element)
+    const view = createView(element, {
+      fontSize: 13,
+      fontFamily: "Test Mono",
+      theme: {},
+      scrollback: 100,
+    })
+    view.terminal.resize(100, 10)
+    const doorbell = attachDoorbell(view.terminal, {
+      recentMs: 1_000,
+      now: () => at,
+      alternate: () => agent,
+    })
+    closers.push(() => {
+      doorbell.dispose()
+      view.dispose()
+    })
+    doorbell.setContent(rings("n7Q2xk"))
+    // The TUI redraws its whole screen from row `top` of its history.
+    const history = [
+      "earlier",
+      `❯ ${tag}`,
+      "● the reply",
+      ...Array.from({ length: 20 }, (_, i) => `line ${i}`),
+    ]
+    const show = (top: number) =>
+      writeTo(view.terminal, `\x1b[?1049h\x1b[H\x1b[2J${history.slice(top, top + 10).join("\r\n")}`)
+    return { doorbell, show, later: (ms: number) => (at += ms) }
+  }
+
+  it("draws a ring's row again where an agent's fullscreen TUI scrolls it back, long after", async () => {
+    const { doorbell, show, later } = fullscreen(true)
+    await show(0)
+    doorbell.rescan()
+    expect(doorbell.drawn()).toBe(1)
+    // Scrolled down past it: its row now holds other words, and the drawing goes.
+    await show(5)
+    expect(doorbell.drawn()).toBe(0)
+    later(60_000)
+    // Scrolled back up a minute later, with no ring arrived since.
+    await show(1)
+    expect(doorbell.drawn()).toBe(1)
+    expect(covered(doorbell)[0]).toBe(tag)
+  })
+
+  it("leaves a pager's or an editor's alternate screen unscanned, however it scrolls", async () => {
+    const { doorbell, show, later } = fullscreen(false)
+    await show(0)
+    later(60_000)
+    await show(1)
+    expect(doorbell.stats.scans).toBe(0)
+    expect(doorbell.drawn()).toBe(0)
+  })
 })
 
 describe("restoring a screen", () => {

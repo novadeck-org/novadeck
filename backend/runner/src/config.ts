@@ -63,6 +63,9 @@ export const readConfig = (environment: NodeJS.ProcessEnv = process.env): Server
       join(homedir(), ".local", "share", "novadeck", "workspace.sqlite"),
   )
   const relay = environment.NOVADECK_RELAY?.trim()
+  // The transcript key: a file beside the database unless another is named, as a systemd
+  // credential or a Docker secret.
+  const keyFile = environment.NOVADECK_TRANSCRIPT_KEY_FILE?.trim()
   // The engine voice input downloads: the one built here unless another is named.
   const engine = environment.NOVADECK_VOICE_ENGINE?.trim()
   const source = environment.NOVADECK_VOICE_SOURCE?.trim()
@@ -79,6 +82,7 @@ export const readConfig = (environment: NodeJS.ProcessEnv = process.env): Server
       shell: join(dirname(database), "shell"),
       uploads: join(dirname(database), "uploads"),
       dialogs: join(dirname(database), "dialogs"),
+      transcriptKeyFile: keyFile ? resolve(keyFile) : join(dirname(database), "transcript.key"),
       voice: {
         engine: engine ? resolve(engine) : engineManifest,
         // A URL as given, or a folder.
