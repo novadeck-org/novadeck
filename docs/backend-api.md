@@ -273,7 +273,7 @@ report `null` until the first save. A state holds at most `maxClientStateLength`
 `CLOSING`, so shells ending on the way out cannot overwrite the last state; it
 saves nothing of its terminals either, after one last save while they still run.
 
-Several clients can show one session, and from revision 3 they share its state without
+Several clients can show one session, and from revision 4 they share its state without
 losing each other's changes. Every write to a session (a save, a change, a rename, an
 arrangement) raises its `revision`, which sessions list (absent from a runner from before
 it). `sessions.change({ sessionId, writer, base, patch, visitedAt? })` changes the state in
@@ -289,7 +289,7 @@ revisions }`, every session's revision by id, and then reports each write as `{ 
 every write but a change, a creation included), latest only where a reader falls behind, and each removal as
 `{ type: "removed", sessionId }`. A client re-lists a project whose session the snapshot
 says is newer than what it holds, so nothing written between its listing and its watch is
-missed. Both are `since: 3`: a client asks `runner.supports` first, and saves whole without
+missed. Both are `since: 4`: a client asks `runner.supports` first, and saves whole without
 a feed where the runner has neither.
 
 The UI (`frontend/runner-adapter/src/sessions`) changes and merges a state a record at a

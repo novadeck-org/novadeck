@@ -7,7 +7,7 @@ import { reportCaught } from "../streams"
 import { encodeSession } from "./state"
 
 // What a save holds: the state and the visit are sent together, and a visit alone is a change.
-// `revision` is the runner's for that state, where it keeps them (from revision 3 of the
+// `revision` is the runner's for that state, where it keeps them (from revision 4 of the
 // contract), so a newer one another client wrote replaces this.
 export type SavedState = {
   readonly state: string
