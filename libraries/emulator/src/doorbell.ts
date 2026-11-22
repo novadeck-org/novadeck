@@ -95,6 +95,9 @@ const borders = "│┃║|"
 // screen, which is no ring.
 const beforeTag = /^[\s❯›>│┃║|▌▐]*$/
 const afterTag = /^[\s│┃║|]*$/
+// What a delivery block's first row may hold before it: Claude Code's "⎿  Stop hook says:" (or
+// "feedback:"), Codex's "└", a border and blanks.
+const beforeBlock = /^[\s│┃║|⎿└]*(?:Stop hook (?:says|feedback):\s*)?$/
 // The most rows below a tag the person's own multi-line box may hold, to the cursor.
 const maxBoxRows = 12
 
@@ -118,11 +121,15 @@ const mapRow = (line: IBufferLine, cols: number): { text: string; col: number[] 
 }
 
 // Whether the row could start a ring's tag or a delivery block: what is cheap to ask of its text.
+// What is before it must be what a harness puts there (`beforeTag`, `beforeBlock`), so a tag quoted
+// in output, as a search of this code prints it, costs no more than any other row.
 const couldStart = (text: string): boolean => {
   for (let at = text.indexOf("<"); at >= 0; at = text.indexOf("<", at + 1)) {
+    const before = text.slice(0, at)
     const rest = strip(text.slice(at).replace(/[\s│┃║|]+$/, ""))
-    if (startsRing(rest) || tagOf(rest) !== undefined) return true
-    if (rest.startsWith(blockOpen) || blockOpen.startsWith(rest)) return true
+    if (beforeTag.test(before) && (startsRing(rest) || tagOf(rest) !== undefined)) return true
+    if (beforeBlock.test(before) && (rest.startsWith(blockOpen) || blockOpen.startsWith(rest)))
+      return true
   }
   return false
 }

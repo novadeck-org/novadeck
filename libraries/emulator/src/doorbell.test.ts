@@ -434,8 +434,7 @@ describe("restoring a screen", () => {
 
   it("draws the newest rings of a long session, past many older ones", async () => {
     const nonces = Array.from({ length: 30 }, (_, index) => `ring${index}`)
-    const { terminal, doorbell, write } = open(100, rings(...nonces))
-    terminal.options.scrollback = 1000
+    const { doorbell, write } = open(100, rings(...nonces))
     await write(nonces.map((nonce) => `${tag.replace("n7Q2xk", nonce)}\r\nout\r\n`).join(""))
     doorbell.rescan()
     const rows = doorbell.audit().map((entry) => entry.pieces[0]!.row)
