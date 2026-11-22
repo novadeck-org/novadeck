@@ -25,9 +25,9 @@ export const compatibility: Compatibility = {
   // 5: clients follow the projects and sessions others make, arrange and remove
   //    (`projects.watch`, and `sessions.watch`'s `arranged`).
   // 6: opencode, an agent the UI may name in an input (a resume, Preferences, the tour), which
-  // runners at 2 refuse; and an agent's `limited` gains reasons (outdated, unsupported), read
-  // tolerantly from here, which UIs before it don't.
+  // runners before it refuse; and an agent's `limited` gains reasons (outdated, unsupported),
+  // read tolerantly from here, which UIs before it don't.
   revision: 6,
   oldestClient: 6,
-  oldestRunner: 3,
+  oldestRunner: 6,
 }

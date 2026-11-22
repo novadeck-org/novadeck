@@ -1,7 +1,7 @@
 {
   "revision": 6,
   "oldestClient": 6,
-  "oldestRunner": 3,
+  "oldestRunner": 6,
   "errors": {
     "AGENT_SETUP_FAILED": null,
     "ALREADY_ATTACHED": null,
