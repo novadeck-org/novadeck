@@ -8,6 +8,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
@@ -18,7 +19,7 @@ import { describe, expect, it as base } from "../test.js"
 import { withOrigin } from "../testing/origin.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import { fetchTimeoutMs, MainFetcher } from "./fetching.js"
-import { finishRemoval, inRepository, nestedRepositories } from "./repo.js"
+import { finishRemoval, inRepository, nestedRepositories, repositoryKnown } from "./repo.js"
 import { Worktrees, folderName } from "./worktrees.js"
 
 const git = (cwd: string, ...args: string[]) =>
@@ -1393,6 +1394,33 @@ describe("a folder that is in no git repository", () => {
     expect(taken.ok ? "" : taken.reason).toContain("changed in place")
   })
 
+  it("says git's own words, with no advice, for an error that is no missing repository", async ({
+    fx: f,
+  }) => {
+    const broken = join(f.other, "broken")
+    mkdirSync(broken)
+    writeFileSync(join(broken, ".git"), "gitdir: /nowhere/at/all\n")
+    const opened = await f.worktrees.open({
+      projectId: f.project,
+      terminalId: "t1",
+      cwd: broken,
+      branch: "feat",
+    })
+    expect(opened).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("git couldn't read"),
+    })
+    expect(opened.ok ? "" : opened.reason).not.toContain("changed in place")
+    const typo = await f.worktrees.open({
+      projectId: f.project,
+      terminalId: "t1",
+      cwd: f.repo,
+      repo: join(f.other, "no-such-folder"),
+      branch: "feat",
+    })
+    expect(typo.ok ? "" : typo.reason).not.toContain("changed in place")
+  })
+
   it("is told apart from a repository's folder by its .git, in it or a parent", async ({
     fx: f,
   }) => {
@@ -1406,6 +1434,35 @@ describe("a folder that is in no git repository", () => {
     expect(await inRepository(lead.path)).toBe(true)
     mkdirSync(join(f.repo, "sub"))
     expect(await inRepository(join(f.repo, "sub"))).toBe(true)
+  })
+
+  it("follows a symlink into a repository, and can't tell for no folder, a missing one or a bare repository", async ({
+    fx: f,
+  }) => {
+    const link = join(f.other, "link")
+    symlinkSync(join(f.repo, "sub-link-target"), link)
+    mkdirSync(join(f.repo, "sub-link-target"))
+    expect(await inRepository(link)).toBe(true)
+    expect(await inRepository("")).toBeUndefined()
+    expect(await inRepository(join(f.other, "missing"))).toBeUndefined()
+    const bare = join(f.other, "bare.git")
+    git(f.other, "init", "--quiet", "--bare", bare)
+    expect(await inRepository(bare)).toBeUndefined()
+    // An empty .git folder is none, as git goes on looking above it.
+    const empty = join(f.other, "empty")
+    mkdirSync(join(empty, ".git"), { recursive: true })
+    expect(await inRepository(empty)).toBe(false)
+  })
+
+  it("keeps an answer a few seconds, and a turn that waits on nothing gets only what is kept", async ({
+    fx: f,
+  }) => {
+    const folder = join(f.other, "kept-folder")
+    mkdirSync(folder)
+    // Not kept yet, and not waited for.
+    expect(await repositoryKnown(folder, false)).toBeUndefined()
+    expect(await repositoryKnown(folder, true)).toBe(false)
+    expect(await repositoryKnown(folder, false)).toBe(false)
   })
 })
 

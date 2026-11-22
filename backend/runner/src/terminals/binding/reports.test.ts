@@ -173,7 +173,7 @@ describe("the worktrees notice at a root turn's start", () => {
     makes = true,
   ) => {
     const record = {
-      summary: { id: "T" },
+      summary: { id: "T", cwd: "/projects/root" },
       root: { agent, sessionId: "s", instance: "1", source: "status-line" },
       agents: { [agent]: { sessionId: "s", seq: 1 } },
       naming: { summary: "work", own: { title: "Work" } },
@@ -181,7 +181,9 @@ describe("the worktrees notice at a root turn's start", () => {
     } as unknown as Record
     // The runner's folder and clock, as `runner.ts` wires them: the setting saved calls `ensure`.
     const clock = { now: 0 }
-    const state = { on: false, repo: true }
+    const state = { on: false, repo: true as boolean | undefined }
+    // The folders and waits the host was asked about.
+    const asked: { folder: string; wait: boolean }[] = []
     const root = new RootFolder({
       enabled: () => state.on,
       path: "/w",
@@ -205,7 +207,10 @@ describe("the worktrees notice at a root turn's start", () => {
       worktrees: () => ({
         enabled: () => state.on,
         ready: (startedAt: number | undefined, relists: boolean) => root.ready(startedAt, relists),
-        inRepository: () => Promise.resolve(state.repo),
+        inRepository: (folder: string, wait: boolean) => {
+          asked.push({ folder, wait })
+          return Promise.resolve(state.repo)
+        },
       }),
       save: saved,
       peers: () => ({ facts: () => Promise.resolve(undefined) }),
@@ -243,7 +248,7 @@ describe("the worktrees notice at a root turn's start", () => {
       record.agents = { [agent]: { sessionId: "s", seq: 1 } } as never
       record.nudges = fired(record.nudges, "compaction")
     }
-    return { record, setting, state, clock, turn, restart, compact }
+    return { record, setting, state, asked, clock, turn, restart, compact }
   }
 
   for (const agent of harnessNames) {
@@ -294,21 +299,31 @@ describe("the worktrees notice at a root turn's start", () => {
       },
     )
 
-    it(`tells ${agent} there is no repository here, instead of the on notice, and the on notice when its folder is in one`, async () => {
+    it(`tells ${agent} there is no repository here, the on notice whole with that fact, and the on notice when its folder is in one`, async () => {
       const t = terminal(agent)
       t.state.repo = false
       t.setting.on = true
       expect(await t.turn()).toBe(worktreesGitlessNotice)
       expect(await t.turn()).toBe(lasting ? "" : worktreesGitlessNotice)
-      // A cd into a repository: told the on notice, once where it holds it.
+      // The folder its reports last said is what is asked about, and a turn that delivers
+      // nothing may wait for the answer.
+      expect(t.asked.at(-1)).toEqual({ folder: "/projects/root", wait: true })
+      // Its reported folder moves into a repository: told the on notice, once where it holds it.
+      t.record.summary = { ...t.record.summary, cwd: "/projects/root/source/api" }
       t.state.repo = true
       expect(await t.turn()).toBe(worktreesOnNotice)
+      expect(t.asked.at(-1)?.folder).toBe("/projects/root/source/api")
       expect(await t.turn()).toBe(lasting ? "" : worktreesOnNotice)
       // And out of it again.
+      t.record.summary = { ...t.record.summary, cwd: "/projects/root" }
       t.state.repo = false
       expect(await t.turn()).toBe(worktreesGitlessNotice)
-      // Off: it was told no worktree, so there is nothing to take back.
+      // A folder that can't be told keeps what it was told.
+      t.state.repo = undefined
+      expect(await t.turn()).toBe(lasting ? "" : worktreesGitlessNotice)
+      // Off: the gitless notice offered the tools too, so it is taken back.
       t.setting.on = false
+      expect(await t.turn()).toBe(worktreesOffNotice)
       expect(await t.turn()).toBe("")
     })
 

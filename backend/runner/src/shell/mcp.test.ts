@@ -567,7 +567,9 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       )
       expect(open).toContain("done in the folder that has it")
       // Home: the start's branch, and the one way to change it later.
-      expect(open).toContain("else the branch it starts from when that is a branch")
+      expect(open).toContain(
+        "else the checked-out branch when the new branch starts from this folder's HEAD",
+      )
       expect(open).toContain("take_worktree with home changes the home of a worktree you own")
       const take = text("take_worktree")
       expect(take).toContain("set or change the home of a worktree you own already")

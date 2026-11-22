@@ -1711,8 +1711,8 @@ const openWorktree: Tool<Worktree> = {
     "repo is a folder in the repository when your terminal isn't in it; give the same " +
     "group to the worktrees of several repositories for one piece of work, and they share " +
     "a folder. Its home, the branch its work belongs on, is home when given, else the branch " +
-    "from names, else the branch it starts from when that is a branch (this checkout's, when " +
-    "from is left out and the checkout is on one), else the repository's main: Novadeck " +
+    "from names, else the checked-out branch when the new branch starts from this folder's " +
+    "HEAD (from left out or HEAD), else the repository's main: Novadeck " +
     "measures its work, and whether it is merged, against its home and the main branch, and " +
     "the answer says it. take_worktree with home changes the home of a worktree you own. " +
     "The answer lists the worktree's instruction files (AGENTS.md, CLAUDE.md, " +
@@ -1747,8 +1747,8 @@ const openWorktree: Tool<Worktree> = {
         description:
           "The branch the worktree's work belongs on, here or on origin (as x or origin/x), " +
           "such as a feature branch several worktrees start from; when left out, the branch " +
-          "from names, else the branch it starts from when that is a branch, else the " +
-          "repository's main.",
+          "from names, else the checked-out branch when the new branch starts from this " +
+          "folder's HEAD, else the repository's main.",
       },
     },
     required: ["branch"],

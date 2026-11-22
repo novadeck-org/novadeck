@@ -3083,7 +3083,8 @@ again on each call.
   in its terminal's checkout, and what the user asked decides otherwise (told to work in
   place, or in a given folder, it does). That default is said plainly, with the user's
   words as the one way out (a first wording that only offered the tools made Claude edit in
-  place in a plain fix, 0 of 1 against 4 of 4 for the plain default); the rest is facts: a
+  place in a plain fix, 0 of 1 runs, where the old wording and the plain default each had a
+  worktree opened in 4 of 4: two Claude and two Codex runs); the rest is facts: a
   worktree's home is the branch its work belongs on (the branch it started from, or the
   `home` it gives), and Novadeck shows it merged once home holds its work. Its action
   lines are conveniences: name branches as the repository's own instructions say; use
@@ -3096,15 +3097,21 @@ again on each call.
   independent of `describe`, and not a `Nudges` trigger: `worktreesDue` decides it from the
   setting and `told.worktrees`, the digest of the notice last told (`worktreesDigests`).
   - **A terminal's folder in no git repository** (`worktreesGitlessNotice`, instead of the on
-    notice): a worktree is a repository's, so it says there is none to make here, that files
-    here are changed in place, and that `open_worktree`'s `repo` takes a folder in a
-    repository elsewhere, which keeps a project of repositories and plain folders readable. It
-    is said rather than left out because the session still sees the worktree tools, and its
-    digest is what tells a `cd` into a repository (told the on notice) or out of one (told
-    this). The folder is the terminal's `cwd` as its reports last said it; whether it is in a
-    repository is read at each turn's start from the files alone (`inRepository`: a `.git`
-    in the folder or a parent, no git run). `open_worktree` and `take_worktree` refuse such a
-    folder with the same fact.
+    notice): the on notice whole, with the fact that files outside any repository are changed in
+    place while a repository's files still go in a worktree (`open_worktree`'s `repo` takes a
+    folder in one). It serves a folder of repositories, such as a project's root with the
+    repositories below it, and a project mixing repositories with plain folders. It is said
+    rather than left out because the session still sees the worktree tools. The folder is the
+    terminal's `cwd` as its reports last said it, so only a harness that reports a moved
+    folder is told the notice its new folder needs, by its digest; one that doesn't keeps the
+    notice of the folder it started in. Whether it is in a repository is read from the files
+    alone (`inRepository`: a `.git` file, or folder with a `HEAD`, in the real path's folder or
+    a parent; a bare repository, no folder or one that is gone is unknown), kept ten seconds
+    per folder and waited for 250 ms at most; a turn that delivers something never waits, using
+    only what is kept. Unknown keeps the gitless notice for a session told it, else the on
+    notice. Told off, a session told either notice hears the off notice. `open_worktree` and
+    `take_worktree` say "changed in place" for a folder git says is in no repository, and git's
+    own words for any other error.
   - **Claude Code and Codex** hold what the prompt's hook printed, so the notice comes once:
     when a session begins or resumes without it, after a compaction (which clears `told`),
     and when the setting flips on or the wording changes. A resumed session of the same

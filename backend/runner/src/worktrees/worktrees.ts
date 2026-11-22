@@ -17,6 +17,7 @@ import {
   forgetEntry,
   hasSubmodules,
   heldByAny,
+  headOf,
   homeOf,
   keepStrayHead,
   keepWork,
@@ -445,12 +446,13 @@ export class Worktrees {
     const behind =
       input.from === undefined && remote === undefined ? await behindMain(folder) : undefined
     const start = input.from ?? remote ?? behind?.commit ?? "HEAD"
-    const base = tip ?? (await commitAt(folder, start))
+    // From the folder's own HEAD, its commit and branch are read in one git call, so they can't
+    // disagree: that branch is where the work builds on (as in a lead's worktree, for the agents
+    // it opens); a detached HEAD has none.
+    const head = tip === undefined && start === "HEAD" ? await headOf(folder) : undefined
+    const base = tip ?? head?.commit ?? (await commitAt(folder, start))
     if (base === undefined) return refused(`${start} isn't a commit in ${repository.name}.`)
-    // Where it starts from the checkout's own HEAD, that HEAD's branch is where the work builds
-    // on (as in a lead's worktree, for the agents it opens); a detached HEAD has none.
-    const startedOn =
-      tip === undefined && start === "HEAD" ? await currentBranch(folder) : undefined
+    const startedOn = head?.branch
     const home = await this.chosenHome(
       repository.home,
       input.branch,

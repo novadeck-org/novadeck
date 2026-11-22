@@ -33,8 +33,8 @@ export type WorktreesWiring = {
   readonly enabled: () => boolean
   /** Whether an agent process started at that time can use worktrees (`RootFolder.ready`). */
   readonly ready: (startedAt: number | undefined, relists: boolean) => boolean
-  /** Whether a folder is in a git repository, from the files alone (`inRepository`). */
-  readonly inRepository?: (folder: string) => Promise<boolean>
+  /** Whether a folder is in a git repository, from the files alone (`repositoryKnown`). */
+  readonly inRepository?: (folder: string, wait: boolean) => Promise<boolean | undefined>
   /** A branch's pull request, where a forge the person switched on found one (`Forges`). */
   readonly pullRequest?: (commonDir: string, branch: string) => PullRequest | undefined
 }

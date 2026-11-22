@@ -56,26 +56,91 @@ export type Repository = {
 export const homeOf = (common: string): string =>
   basename(common) === ".git" ? dirname(common) : common
 
-/**
- * Whether a folder is in a git checkout, found by its `.git` (a folder, or the file a linked
- * worktree has) in it or a parent, with no git run: cheap enough for each turn's start. A bare
- * repository has none, and `repositoryAt` doesn't take one either.
- */
-export const inRepository = async (folder: string): Promise<boolean> => {
-  const at = resolve(folder)
-  if (
-    await stat(join(at, ".git")).then(
-      () => true,
-      () => false,
-    )
+/** Whether a path is there; false for any error. */
+const present = (path: string): Promise<boolean> =>
+  stat(path).then(
+    () => true,
+    () => false,
   )
-    return true
-  const up = dirname(at)
-  return up !== at && inRepository(up)
+
+/**
+ * Whether a folder is in a git checkout, found by its `.git` in it or a parent (a folder with a
+ * `HEAD`, or the file a linked worktree has), with no git run; the folder's real path is walked,
+ * so a symlink into a repository reads as one. Undefined where it can't be told: no folder, one
+ * that isn't there, or a bare repository (git has a repository there but no worktree to make).
+ * An empty `.git` folder is none, as git itself goes on looking above it.
+ */
+export const inRepository = async (folder: string): Promise<boolean | undefined> => {
+  if (folder === "") return undefined
+  const start = await realpath(folder).catch(() => undefined)
+  if (start === undefined) return undefined
+  for (let at = start; ; at = dirname(at)) {
+    const dot = join(at, ".git")
+    // eslint-disable-next-line no-await-in-loop -- A level is looked at only if the one below had no repository.
+    const info = await stat(dot).catch(() => undefined)
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    if (info?.isFile() || (info?.isDirectory() && (await present(join(dot, "HEAD"))))) return true
+    if (
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      (await present(join(at, "HEAD"))) &&
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      (await present(join(at, "objects"))) &&
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      (await present(join(at, "refs")))
+    )
+      return undefined
+    if (dirname(at) === at) return false
+  }
 }
 
-/** What a folder in no repository is told, by `open_worktree` and `take_worktree` alike. */
-export const gitlessReason = (folder: string): string =>
+/** How long a folder's answer is kept, and how long a turn's start waits for one. */
+const repositoryKeptMs = 10_000
+const repositoryWaitMs = 250
+const kept = new Map<string, { readonly at: number; readonly value: boolean | undefined }>()
+const keptFolders = 256
+
+/**
+ * `inRepository`, kept for a few seconds per folder and given a short wait: undefined where it
+ * isn't known. With `wait` false (a turn that delivers something, which never waits on this) a
+ * folder not kept is looked at in the background and answers undefined now.
+ */
+export const repositoryKnown = async (
+  folder: string,
+  wait: boolean,
+  now = Date.now(),
+): Promise<boolean | undefined> => {
+  const known = kept.get(folder)
+  if (known && now - known.at < repositoryKeptMs) return known.value
+  const looked = inRepository(folder).then(
+    (value) => {
+      if (kept.size >= keptFolders) kept.delete(kept.keys().next().value!)
+      kept.set(folder, { at: Date.now(), value })
+      return value
+    },
+    () => undefined,
+  )
+  if (!wait) return known?.value
+  return Promise.race([
+    looked,
+    new Promise<undefined>((done) => setTimeout(done, repositoryWaitMs, undefined).unref()),
+  ])
+}
+
+/** The commit HEAD is at and the branch it is on (none when detached), read in one git call. */
+export const headOf = async (
+  folder: string,
+): Promise<{ readonly commit: string; readonly branch?: string } | undefined> => {
+  const run = await git(folder, ["rev-parse", "HEAD", "--symbolic-full-name", "HEAD"], patient)
+  if (!run.ok) return undefined
+  const [commit, ref] = run.out.trim().split("\n")
+  if (!commit) return undefined
+  return ref?.startsWith("refs/heads/")
+    ? { commit, branch: ref.slice("refs/heads/".length) }
+    : { commit }
+}
+
+/** What a folder git says is in no repository is told, by `open_worktree` and `take_worktree`. */
+const gitless = (folder: string): string =>
   `${folder} isn't in a git repository, so there's no worktree to make of it: files there are changed in place.`
 
 /**
@@ -88,9 +153,22 @@ export const repositoryAt = async (
   | { readonly ok: true; readonly repository: Repository }
   | { readonly ok: false; readonly reason: string }
 > => {
-  const top = line(await git(folder, ["rev-parse", "--show-toplevel"], small))
+  const toplevel = await git(folder, ["rev-parse", "--show-toplevel"], small)
+  const top = line(toplevel)
   const common = await commonDir(folder)
-  if (top === undefined || common === undefined) return { ok: false, reason: gitlessReason(folder) }
+  if (top === undefined || common === undefined) {
+    // In place only where git says there is no repository; any other failure is git's own words.
+    if (
+      !toplevel.ok &&
+      toplevel.kind === "exit" &&
+      /not a git repository \(or any of the parent directories\)/i.test(toplevel.said)
+    )
+      return { ok: false, reason: gitless(folder) }
+    return {
+      ok: false,
+      reason: `git couldn't read ${folder} as a repository: ${toplevel.ok ? "it printed no top folder" : said(toplevel)}.`,
+    }
+  }
   const home = homeOf(common)
   return {
     ok: true,

@@ -962,9 +962,10 @@ with every safety check again at that time:
     with a deleted one, and plain `git config` reads them in any harness. Only the runner writes
     them, as an agent's sandbox may hold `.git` read-only. Home is the `home` an agent gives
     (`open_worktree` or `take_worktree`, a branch here or `origin/<b>`), else the branch `from`
-    names, else the branch it starts from when that is a branch (left out, `from` is the
-    checkout's `HEAD`, so an agent in a lead's worktree on `feat-x` opens worktrees homed on `feat-x`; a
-    detached `HEAD`, a tag or commit, origin's branch of its name or an existing branch gives none),
+    names, else the checked-out branch when the new branch starts from the folder's `HEAD` (`from` left
+    out or `HEAD`; commit and branch read in one git call, a lead's worktree on `feat-x` homes its
+    teammates' worktrees on `feat-x`; a detached `HEAD`, a tag or commit, origin's branch of its
+    name or an existing branch gives none),
     else the repository's main, for which no key is written: no key means exactly the
     measure before homes (`mainBranch`). A worktree with a home is measured against it (its
     remote-tracking branch where that holds local home, else local home) by the Worktrees

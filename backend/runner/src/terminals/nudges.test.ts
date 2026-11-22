@@ -429,11 +429,21 @@ describe("the worktrees notice", () => {
     expect(worktreesDigests.on).not.toBe(worktreesDigests.off)
   })
 
-  it("says, for a folder in no git repository, that there is none, so files are changed in place", () => {
-    expect(worktreesGitlessNotice).toBe(
-      "Novadeck · Worktrees\nAgent worktrees are on, but this terminal's folder isn't in a git repository, so there's no worktree to make of it: files here are changed in place. For a repository elsewhere, open_worktree takes a folder in it as repo.",
+  it("is the on notice whole, with the fact that files outside any repository are changed in place", () => {
+    expect(worktreesGitlessNotice).toContain(
+      "This terminal's folder isn't in a git repository, so files outside any repository are changed in place; open_worktree's repo takes a folder in a repository.",
     )
-    expect(worktreesGitlessNotice).not.toContain("→")
+    // Everything the on notice offers stays: the default, the user's words, home, every action.
+    const lines = (text: string) => text.split("\n").filter((each) => each.startsWith("→ "))
+    expect(lines(worktreesGitlessNotice)).toEqual(lines(worktreesOnNotice))
+    expect(lines(worktreesGitlessNotice).join("\n")).toContain("one for each repository you change")
+    expect(worktreesGitlessNotice).toContain("git -C <worktree>")
+    expect(worktreesGitlessNotice).toContain("instruction files")
+    expect(worktreesGitlessNotice).toContain("unless the user's own words say otherwise")
+    expect(worktreesGitlessNotice).toContain(
+      "for a repository's files, this terminal's changes go in a worktree, not in its checkout",
+    )
+    expect(worktreesGitlessNotice).not.toMatch(/commit|pull request|\bPR\b/i)
     expect(
       noticesAt(
         { companion: false, summarize: false, pages: [], worktrees: "gitless" },
@@ -443,18 +453,30 @@ describe("the worktrees notice", () => {
     expect(new Set(Object.values(worktreesDigests)).size).toBe(4)
   })
 
+  it("words home as the code decides it, briefly", () => {
+    expect(worktreesOnNotice).toContain(
+      "the one you give as home or name in from, else the checked-out branch when it starts from this folder's HEAD, else main",
+    )
+    expect(worktreesOnNotice).not.toContain("the branch it started from")
+  })
+
   it("is the gitless notice while the folder is in no repository, and the on notice again once it is in one", () => {
     const { on, gitless, off } = worktreesDigests
     expect(worktreesDue(true, undefined, true, true, false)).toBe("gitless")
     expect(worktreesDue(true, gitless, true, true, false)).toBeNull()
-    // A cd into a repository, and out of it, is told as it changes (and each turn where injections last one call).
+    // A moved folder is told as it changes (and each turn where injections last one call).
     expect(worktreesDue(true, gitless, true, true, true)).toBe("on")
     expect(worktreesDue(true, on, true, true, false)).toBe("gitless")
     expect(worktreesDue(true, gitless, false, true, false)).toBe("gitless")
+    // A folder that can't be told keeps what the session was told, else the on notice.
+    expect(worktreesDue(true, gitless, true, true, undefined)).toBeNull()
+    expect(worktreesDue(true, on, true, true, undefined)).toBeNull()
+    expect(worktreesDue(true, undefined, true, true, undefined)).toBe("on")
     // A session that can't use worktrees yet hears the early notice whatever its folder is.
     expect(worktreesDue(true, undefined, true, false, false)).toBe("early")
-    // Off: only a session told they were on hears so; one told of no worktree here has nothing to take back.
-    expect(worktreesDue(false, gitless, true, true, false)).toBeNull()
+    // Off: a session told either notice offered the tools, so it hears so once.
+    expect(worktreesDue(false, gitless, true, true, false)).toBe("off")
+    expect(worktreesDue(false, on, true, true, true)).toBe("off")
     expect(worktreesDue(false, off, true, true, false)).toBeNull()
   })
 
