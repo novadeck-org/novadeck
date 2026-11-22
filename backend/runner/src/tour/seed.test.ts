@@ -63,7 +63,7 @@ describe("the seed project's files", () => {
       Object.keys(files)
         .filter((name) => !name.startsWith("vendor/"))
         .toSorted(),
-    ).toEqual([".gitignore", "src/a.js"])
+    ).toEqual([".gitattributes", ".gitignore", "src/a.js"])
   })
 
   it("come from the folders the desktop app names, in the layout of the packages", async ({
@@ -97,6 +97,7 @@ describe("the seed project's files", () => {
     const files = await seedFiles(assets)
     expect(Object.keys(files).toSorted()).toEqual(
       [
+        ".gitattributes",
         ".gitignore",
         "src/a.js",
         "vendor/phaser/phaser.min.js",
@@ -115,6 +116,8 @@ describe("the seed project's files", () => {
     expect(real.seed).toContain("assets")
     // A copy without the seed's dotfile still keeps the libraries out of the repo.
     expect(Buffer.from(files[".gitignore"]!).toString()).toBe("vendor/\n")
+    // Nor does it lose the line endings' rule, which the dev server's overlay relies on.
+    expect(Buffer.from(files[".gitattributes"]!).toString()).toBe("* text=auto eol=lf\n")
   })
 
   it("fail with a sentence for the person where a file can't be read", async () => {

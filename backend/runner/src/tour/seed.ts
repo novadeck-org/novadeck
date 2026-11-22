@@ -122,6 +122,9 @@ export const seedFiles = async (
     // packager that leaves dotfiles out) gets the line back, as the libraries' size would
     // otherwise be in every worktree and every search.
     all[".gitignore"] ??= Buffer.from("vendor/\n")
+    // The same for its `.gitattributes`: without it git on Windows checks a worktree's text out
+    // with CRLF, and the seed's dev server takes every such file for a changed one.
+    all[".gitattributes"] ??= Buffer.from("* text=auto eol=lf\n")
     return all
   } catch (error) {
     throw new DomainError(

@@ -14,9 +14,10 @@ export const closing = (): Locator => page.getByRole("region", { name: "Tour fin
 /**
  * Waits for the caption box to say `words`, among the rest of what it says. Read from the page
  * itself: a modal dialog (the approval) hides the rest of the app from the role queries, and the
- * box stays on screen beside it.
+ * box stays on screen beside it. The wait is long: a caption waits for what its step marks, and a
+ * pane's first item loads its viewer first (the 3D one took over 20 s on a Windows runner).
  */
-export const coachSays = (words: string, timeout = 20_000): Promise<void> =>
+export const coachSays = (words: string, timeout = 40_000): Promise<void> =>
   expect
     .poll(() => document.querySelector('section[aria-label="Tour step"]')?.textContent ?? "", {
       timeout,
