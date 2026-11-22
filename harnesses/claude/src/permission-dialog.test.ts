@@ -1557,3 +1557,44 @@ describe("Claude Code's dialog for a command taller than the screen", () => {
     expect(dialogs.read(drawn, facts(command))).toBeUndefined()
   })
 })
+
+// 2.1.329, 2026-11-22 (tour run, Haiku, acceptEdits): a subagent's Bash heredoc taller than the
+// screen, a warning row under its command's closing rule, and a footer that also says how to stop
+// background agents. The footer row made the dialog read as raw.
+describe("Claude Code's permission dialog from a subagent, with a warning", () => {
+  const command = Array.from({ length: 12 }, (_, n) => `echo "line ${n + 1} of the script"`).join(
+    "\n",
+  )
+  const rule = "╌".repeat(100)
+  const drawn = (footer: string): string[] => [
+    ...command.split("\n").map((line) => ` │ ${line}`),
+    rule,
+    " Contains brace with quote character (expansion obfuscation)",
+    "",
+    " Do you want to proceed?",
+    " ❯ 1. Yes",
+    "   2. Yes, and switch to auto mode · auto mode handles these prompts for you",
+    "   3. No",
+    " ↑ 92 more lines",
+    footer,
+  ]
+  const facts: RequestFacts = { kind: "permission", tool: "Bash", input: { command }, cwd: null }
+
+  it.each([
+    " Esc to cancel · Tab to amend",
+    " Esc to cancel · Tab to amend · ctrl+x ctrl+k twice to stop background agents",
+  ])("reads it as choices with the command as detail (footer %s)", (footer) => {
+    const found = need(dialogs.read(drawn(footer), facts))
+    expect(found.dialog).toMatchObject({
+      type: "choices",
+      title: "Do you want to proceed?",
+      detail: command,
+    })
+  })
+
+  it("still refuses a footer it does not know", () => {
+    expect(
+      dialogs.read(drawn(" Esc to cancel · Tab to amend · something new"), facts),
+    ).toBeUndefined()
+  })
+})

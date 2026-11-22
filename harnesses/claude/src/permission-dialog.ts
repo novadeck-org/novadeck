@@ -30,7 +30,10 @@ import { diffIs } from "./diffs.js"
 const permissionTitle = /^ (Do you want to .+\?)$/
 const permissionOption = /^ (❯| ) (\d+)\. (.+)$/
 const permissionContinuation = /^ {6,}\S/
-const permissionFooter = /^ Esc to cancel · Tab to amend$/
+// While background agents run (a subagent's own request is one) the footer adds how to stop
+// them (` · ctrl+x ctrl+k twice to stop background agents`, 2.1.329, 2026-11-22 tour run).
+const permissionFooter =
+  /^ Esc to cancel · Tab to amend(?: · ctrl\+x ctrl\+k twice to stop background agents)?$/
 // From 2.1.328 a dialog taller than the screen says under its options how many of its rows
 // scrolled away above them (` ↑ 145 more lines`, fixtures/tall.probe.json); what shows of it is
 // read as before.
