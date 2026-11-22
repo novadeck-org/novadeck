@@ -41,6 +41,14 @@ export type GateCall = {
   readonly mode?: string
   /** Codex's rollout, where it names it. */
   readonly transcript?: string
+  /** The words the agent was started with, where the relay read them: Antigravity's `--mode`. */
+  readonly launch?: readonly string[]
+  /** The agent process that ran the hook, as the report names it. */
+  readonly instance?: string
+  /** Antigravity's step for the call, which names the request of its confirmation. */
+  readonly step?: number
+  /** The conversation the call is of: a subagent's has its own, with steps of its own. */
+  readonly conversation?: string
 }
 
 // The most of a command the gate takes; a longer one is refused by the reader's own limit.
@@ -58,6 +66,18 @@ const commandOf = (input: unknown): string | undefined => {
   if (words.length === 3 && /(^|\/)(?:ba|z|da)?sh$/.test(words[0]!) && /^-[a-z]*c$/.test(words[1]!))
     return words[2]
   return words.join(" ")
+}
+
+/**
+ * Antigravity's shell command: its `run_command` call's `CommandLine`, in the `toolCall` its
+ * hook names, and the folder it runs in (`Cwd` where the call gives one, else the session's).
+ */
+const agyCall = (payload: Fields): { command: string; cwd: string | undefined } | undefined => {
+  const call = payload.toolCall
+  if (!object(call) || call.name !== "run_command" || !object(call.args)) return undefined
+  const command = commandOf({ command: call.args.CommandLine })
+  if (command === undefined) return undefined
+  return { command, cwd: folderOf(payload, { workdir: call.args.Cwd }) }
 }
 
 /**
@@ -372,8 +392,13 @@ export const relayHook = (
       ? Math.min(deadline, seq + askMs)
       : seq + askMs
   const gated = gating(agent.data, event)
-  const command = gated ? commandOf(payload.tool_input) : undefined
-  const folder = folderOf(payload, payload.tool_input)
+  const agyRun = gated && agent.data === "agy" ? agyCall(payload) : undefined
+  const command = gated
+    ? agent.data === "agy"
+      ? agyRun?.command
+      : commandOf(payload.tool_input)
+    : undefined
+  const folder = agent.data === "agy" ? agyRun?.cwd : folderOf(payload, payload.tool_input)
   const gate: GateCall | undefined =
     command === undefined ||
     folder === undefined ||
@@ -387,6 +412,14 @@ export const relayHook = (
           ...(typeof payload.transcript_path === "string" && {
             transcript: payload.transcript_path,
           }),
+          ...(launch !== undefined && { launch }),
+          ...(instance !== null && { instance }),
+          ...(agent.data === "agy" &&
+            typeof payload.stepIdx === "number" &&
+            Number.isSafeInteger(payload.stepIdx) && { step: payload.stepIdx }),
+          ...(agent.data === "agy" &&
+            typeof payload.conversationId === "string" &&
+            payload.conversationId.length <= 128 && { conversation: payload.conversationId }),
         }
   return askOf(agent.data, event) || gate
     ? {

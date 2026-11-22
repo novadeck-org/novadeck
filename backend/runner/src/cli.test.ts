@@ -134,7 +134,7 @@ describe("built runner CLI", () => {
   }, 30_000)
 
   it.skipIf(process.platform === "win32")(
-    "POSIX SIGTERM shutdown exits cleanly and terminates the owned shell",
+    "POSIX SIGTERM saves every terminal, ends the owned shell, and the next start restores it with its transcript",
     async ({ resources }) => {
       const directory = await directoryFixture(resources)
       const cli = await launchCli(directory, resources)
@@ -162,9 +162,29 @@ describe("built runner CLI", () => {
       const pid = Number(/OWNED_SHELL_PID=(\d+)/.exec(text)?.[1])
       expect(pid).toBeGreaterThan(0)
       expect(() => process.kill(pid, 0)).not.toThrow()
+      // The client stays connected through the stop, as a browser left open would.
       expect(await cli.stop()).toEqual({ code: 0, signal: null })
       expect(() => process.kill(pid, 0)).toThrow(expect.objectContaining({ code: "ESRCH" }))
+      expect(cli.output()).toContain("Novadeck runner stopping (SIGTERM): saving terminals.")
+      // The transcript was sealed with a key the runner made beside the database, for its owner alone.
+      expect((await stat(join(directory, "transcript.key"))).mode & 0o777).toBe(0o600)
+
+      const restarted = await launchCli(directory, resources)
+      const again = await restarted.connect(token)
+      await expect(again.terminals.list({ sessionId: session.id })).resolves.toEqual([
+        expect.objectContaining({ id: created.id }),
+      ])
+      // Its shell starts again as a viewer opens it, with what it showed before replayed first.
+      await again.terminals.create({
+        id: created.id,
+        sessionId: session.id,
+        cols: 80,
+        rows: 24,
+        restore: true,
+      })
+      const restored = reader(await again.terminals.attach(created.id), resources)
+      await restored.untilOutput(/OWNED_SHELL_PID=\d+/)
     },
-    20_000,
+    30_000,
   )
 })

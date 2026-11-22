@@ -33,6 +33,7 @@ const nothing = (): void => {}
 // The driver while no run is followed, or before the machinery has loaded: it shows nothing.
 const idle = (begin: TourDriver["begin"]): TourDriver => ({
   begin,
+  captioned: nothing,
   shown: null,
   closing: null,
   retryKeep: nothing,

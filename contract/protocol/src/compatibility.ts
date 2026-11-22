@@ -21,7 +21,8 @@ export type Compatibility = {
  */
 export const compatibility: Compatibility = {
   // 3: UIs read open schemas tolerantly (open.ts), which UIs at 2 don't.
-  revision: 3,
+  // 4: sessions keep a revision, and clients share them (`sessions.change`, `sessions.watch`).
+  revision: 4,
   oldestClient: 3,
   oldestRunner: 2,
 }

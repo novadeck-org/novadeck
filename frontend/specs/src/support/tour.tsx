@@ -12,16 +12,19 @@ export const coach = (): Locator => page.getByRole("region", { name: "Tour step"
 export const closing = (): Locator => page.getByRole("region", { name: "Tour finished" })
 
 /**
- * Waits for the caption box to say `words`, among the rest of what it says. Read from the page
- * itself: a modal dialog (the approval) hides the rest of the app from the role queries, and the
- * box stays on screen beside it. The wait is long: a caption waits for what its step marks, and a
+ * Waits for the caption box to say `words`, among the rest of what it says, once it is shown
+ * (`data-shown`: the box is in the page a second before that, and not yet seen). Read from the
+ * page itself: a modal dialog (the approval) hides the rest of the app from the role queries, and
+ * the box stays on screen beside it. The wait is long: a caption waits for what its step marks, and a
  * pane's first item loads its viewer first (the 3D one took over 20 s on a Windows runner).
  */
 export const coachSays = (words: string, timeout = 40_000): Promise<void> =>
   expect
-    .poll(() => document.querySelector('section[aria-label="Tour step"]')?.textContent ?? "", {
-      timeout,
-    })
+    .poll(
+      () =>
+        document.querySelector('section[aria-label="Tour step"][data-shown]')?.textContent ?? "",
+      { timeout },
+    )
     .toContain(words)
 
 /** What the tour points to look at now, as drawn. */

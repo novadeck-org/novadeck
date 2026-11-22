@@ -73,7 +73,13 @@ export const readTourRun = (hasArtist: boolean): TourRun | null => {
     if (stored.step < 0 || stored.step > steps.length || stepId !== stepIdOf(steps, stored.step))
       return null
     // What was only seen waiting isn't kept: after a reload it is seen anew.
-    return { ...stored, approvalSeen: false, approvalGoneAt: null, startingSince: null }
+    return {
+      ...stored,
+      captionAt: null,
+      approvalSeen: false,
+      approvalGoneAt: null,
+      startingSince: null,
+    }
   } catch {
     return null
   }
@@ -127,6 +133,8 @@ const noState = (): (() => void) => () => {}
 export type TourDriver = {
   // Follows a run the person just started.
   readonly begin: (agent: AgentName, started: TourStarted) => void
+  // The step's caption box came on screen, with its line: a held step holds from then.
+  readonly captioned: (line: string) => void
   // The run followed now, with what it shows; null while none runs.
   readonly shown: {
     readonly terminalId: string
@@ -196,10 +204,12 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     setClosingNow(next)
   }, [])
   // A run followed again after a reload waits afresh: the time the page was away isn't the
-  // agent's, and the Inbox lists a question anew only a moment later.
+  // agent's, and the Inbox lists a question anew only a moment later. A step done holds again
+  // from now, once its caption shows again.
   const [run, setRun] = useState<TourRun | null>(() => {
     const stored = readTourRun(hasArtist)
-    return stored && { ...stored, waitingSince: Date.now() }
+    const now = Date.now()
+    return stored && { ...stored, waitingSince: now, doneAt: stored.doneAt === null ? null : now }
   })
   const steps = run ? stepsFor(run, hasArtist) : stepsOf(true, hasArtist)
   const following = run !== null
@@ -380,6 +390,24 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     return () => clearTimeout(timer)
   }, [tickAt, signals, dispatch])
 
+  // The step's caption box showed: the run is told, with the signals as they are now.
+  const captioned = useCallback(
+    (line: string): void => {
+      const now = current.current
+      if (!now) return
+      dispatch({
+        type: "caption",
+        line,
+        signals: tourSignals(workspace.getSnapshot(), now.terminalId, {
+          ...sources.current,
+          artist: now.artist,
+        }),
+        now: Date.now(),
+      })
+    },
+    [dispatch, workspace],
+  )
+
   const begin = useCallback(
     (agent: AgentName, started: TourStarted): void => {
       dropRetry()
@@ -465,6 +493,7 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
   return useMemo(
     () => ({
       begin,
+      captioned,
       shown,
       closing: closing && { ...closing, keepError },
       retryKeep: keep,
@@ -474,6 +503,18 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
         if (run && projectOf) commands.revealTerminal(run.terminalId, projectOf)
       },
     }),
-    [begin, shown, dispatch, run, projectOf, commands, closing, keepError, keep, setClosing],
+    [
+      begin,
+      captioned,
+      shown,
+      dispatch,
+      run,
+      projectOf,
+      commands,
+      closing,
+      keepError,
+      keep,
+      setClosing,
+    ],
   )
 }

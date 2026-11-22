@@ -1,5 +1,5 @@
 {
-  "revision": 3,
+  "revision": 4,
   "oldestClient": 3,
   "oldestRunner": 2,
   "errors": {
@@ -400,7 +400,7 @@
       "output": {"x-optional":true}
     },
     "sessions.change": {
-      "since": 3,
+      "since": 4,
       "input": {
         "type": "object",
         "properties": {
@@ -471,7 +471,7 @@
       }
     },
     "sessions.watch": {
-      "since": 3,
+      "since": 4,
       "input": {"x-optional":true},
       "yields": {
         "oneOf": [
