@@ -1,7 +1,7 @@
 import type { ForgeConnection, ForgeName } from "@novadeck/core/forges"
 import type { AgentConnection, AgentMode, Backend } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
-import { newer } from "@novadeck/protocol"
+import { newer, type RunnerSettingsState } from "@novadeck/protocol"
 import type { Runner } from "@novadeck/runner-client"
 
 import type { RunnerBackendOptions } from "./backend"
@@ -68,7 +68,14 @@ export const runnerSwitches = (
   | "worktrees"
   | "agents"
   | "forges"
-> => {
+> & {
+  /**
+   * Shows the settings as another client changed them (`settings.watch`), each switch the
+   * runner said something of at startup; a change of this client's own under way shows its
+   * own until the runner's answer, as before.
+   */
+  readonly take: (settings: RunnerSettingsState) => void
+} => {
   const transcripts = createStore(kept ?? true)
   const hibernateAfter = createStore(hibernateAfterMinutes ?? null)
   const agentModes = createStore(modesOffered ?? false)
@@ -160,7 +167,37 @@ export const runnerSwitches = (
       },
       () => {},
     )
+  // Switches changed here whose answer hasn't come: what another client says of them waits.
+  const pending = new Set<string>()
+  const pendingWhile = <T>(name: string, work: Promise<T>): Promise<T> => {
+    pending.add(name)
+    return work.finally(() => pending.delete(name))
+  }
+  const takes = <T>(
+    name: string,
+    offered: unknown,
+    store: { update: (next: () => T) => void },
+    value: T,
+  ) => {
+    if (offered !== undefined && !pending.has(name)) store.update(() => value)
+  }
+  const take = (settings: RunnerSettingsState): void => {
+    takes("transcripts", kept, transcripts, settings.transcripts)
+    takes(
+      "hibernateAfterMinutes",
+      hibernateAfterMinutes,
+      hibernateAfter,
+      settings.hibernateAfterMinutes,
+    )
+    takes("agentModes", modesOffered, agentModes, settings.agentModes)
+    takes("agentMode", howAgentsWork, agentMode, settings.agentMode)
+    takes("shippingGate", gated, shippingGate, settings.shippingGate)
+    takes("worktrees", allowed, worktrees, settings.worktrees)
+    // Welcomed on another device: the first-run choice is made.
+    if (welcomed !== undefined && settings.welcomed) welcome.update(() => false)
+  }
   return {
+    take,
     ...(kept !== undefined
       ? {
           transcripts: {
@@ -170,9 +207,9 @@ export const runnerSwitches = (
               const before = transcripts.getSnapshot()
               transcripts.update(() => enabled)
               // Unsaved, the switch shows what the runner still does.
-              void track(runner.settings.set({ transcripts: enabled })).catch(() =>
-                transcripts.update(() => before),
-              )
+              void track(
+                pendingWhile("transcripts", runner.settings.set({ transcripts: enabled })),
+              ).catch(() => transcripts.update(() => before))
             },
           },
         }
@@ -185,9 +222,12 @@ export const runnerSwitches = (
               const before = hibernateAfter.getSnapshot()
               hibernateAfter.update(() => minutes)
               // Unsaved, the choice shows what the runner still does.
-              void track(runner.settings.set({ hibernateAfterMinutes: minutes })).catch(() =>
-                hibernateAfter.update(() => before),
-              )
+              void track(
+                pendingWhile(
+                  "hibernateAfterMinutes",
+                  runner.settings.set({ hibernateAfterMinutes: minutes }),
+                ),
+              ).catch(() => hibernateAfter.update(() => before))
             },
           },
         }
@@ -200,9 +240,9 @@ export const runnerSwitches = (
               const before = agentModes.getSnapshot()
               agentModes.update(() => enabled)
               // Unsaved, the switch shows what the runner still does.
-              void track(runner.settings.set({ agentModes: enabled })).catch(() =>
-                agentModes.update(() => before),
-              )
+              void track(
+                pendingWhile("agentModes", runner.settings.set({ agentModes: enabled })),
+              ).catch(() => agentModes.update(() => before))
             },
           },
         }
@@ -215,9 +255,9 @@ export const runnerSwitches = (
               const before = shippingGate.getSnapshot()
               shippingGate.update(() => enabled)
               // Unsaved, the switch shows what the runner still does.
-              void track(runner.settings.set({ shippingGate: enabled })).catch(() =>
-                shippingGate.update(() => before),
-              )
+              void track(
+                pendingWhile("shippingGate", runner.settings.set({ shippingGate: enabled })),
+              ).catch(() => shippingGate.update(() => before))
             },
           },
         }
@@ -230,8 +270,8 @@ export const runnerSwitches = (
               const before = agentMode.getSnapshot()
               agentMode.update(() => mode)
               // Unsaved, the choice shows what the runner still does.
-              void track(runner.settings.set({ agentMode: mode })).catch(() =>
-                agentMode.update(() => before),
+              void track(pendingWhile("agentMode", runner.settings.set({ agentMode: mode }))).catch(
+                () => agentMode.update(() => before),
               )
             },
           },
@@ -245,9 +285,9 @@ export const runnerSwitches = (
               const before = worktrees.getSnapshot()
               worktrees.update(() => enabled)
               // Unsaved, the switch shows what the runner still does.
-              void track(runner.settings.set({ worktrees: enabled })).catch(() =>
-                worktrees.update(() => before),
-              )
+              void track(
+                pendingWhile("worktrees", runner.settings.set({ worktrees: enabled })),
+              ).catch(() => worktrees.update(() => before))
             },
           },
         }

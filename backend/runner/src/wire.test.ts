@@ -8,6 +8,7 @@ import { DatabaseSync } from "node:sqlite"
 import { createScreen } from "@novadeck/emulator/headless"
 import {
   compatibility,
+  maxPreferences,
   type contract,
   type TerminalEvent,
   type WireClient,
@@ -438,6 +439,58 @@ describe("workspace metadata API", () => {
       }),
     ])
     await changes.return?.(undefined)
+  })
+
+  it("keeps the person's preferences, key by key, and tells every client of each change", async ({
+    resources,
+  }) => {
+    const app = await fixture(resources)
+    const a = await app.connect()
+    const b = await app.connect()
+    const changes = await b.client.preferences.watch()
+    expect((await changes.next()).value).toEqual({ values: {}, revision: 0, writer: null })
+    await expect(
+      a.client.preferences.set({ key: "appearance", value: '{"theme":"dusk"}', writer: "a" }),
+    ).resolves.toEqual({ revision: 1 })
+    expect((await changes.next()).value).toEqual({
+      values: { appearance: '{"theme":"dusk"}' },
+      revision: 1,
+      writer: "a",
+    })
+    // Each key on its own: B's change of another keeps A's.
+    await b.client.preferences.set({ key: "chat-view", value: "true", writer: "b" })
+    await a.client.preferences.set({ key: "appearance", value: null, writer: "a" })
+    await expect(a.client.preferences.get()).resolves.toEqual({
+      values: { "chat-view": "true" },
+      revision: 3,
+      writer: null,
+    })
+    // What a key or a value may be, and how many keys.
+    await expect(
+      a.client.preferences.set({ key: "Bad key", value: "1", writer: "a" }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" })
+    for (let index = 1; index < maxPreferences; index += 1)
+      // eslint-disable-next-line no-await-in-loop -- One key after another, to the limit.
+      await a.client.preferences.set({ key: `key-${index}`, value: "1", writer: "a" })
+    await expect(
+      a.client.preferences.set({ key: "one-more", value: "1", writer: "a" }),
+    ).rejects.toMatchObject({ code: "CONFLICT" })
+    // A key kept already still changes at the limit.
+    await expect(
+      a.client.preferences.set({ key: "chat-view", value: "false", writer: "a" }),
+    ).resolves.toMatchObject({ revision: expect.any(Number) })
+    await changes.return?.(undefined)
+  })
+
+  it("tells every client of a change to the runner's settings", async ({ resources }) => {
+    const app = await fixture(resources)
+    const a = await app.connect()
+    const b = await app.connect()
+    const settings = await b.client.settings.watch()
+    expect((await settings.next()).value).toMatchObject({ agentMode: "herd", agentModes: false })
+    await a.client.settings.set({ agentModes: true, agentMode: "solo" })
+    expect((await settings.next()).value).toMatchObject({ agentMode: "solo", agentModes: true })
+    await settings.return?.(undefined)
   })
 
   it("lists a project's folders, and refuses what is not one of them", async ({ resources }) => {

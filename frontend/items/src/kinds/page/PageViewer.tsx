@@ -1,6 +1,7 @@
 import { pageTroublesPerCall, type PageContent } from "@novadeck/core/items"
 import { pageSights } from "@novadeck/core/items/page-sights"
 import { pagesPartition } from "@novadeck/core/items/pages"
+import { registerPerson, storedPerson } from "@novadeck/core/person"
 import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
 import { useShown } from "@novadeck/toolkit/shown"
 import {
@@ -29,24 +30,22 @@ const sameOrigin = (a: string, b: string): boolean => {
   }
 }
 
-// The one-time line that says a phone can be zoomed: seen once, kept across launches in
-// local storage, which may be unavailable (a private window), where it shows each launch.
-const zoomHintKey = "novadeck.page-zoom-hint"
+// The one-time line that says a phone can be zoomed: seen once on any device the person uses
+// (core's person.ts), kept in local storage, which may be unavailable (a private window), where
+// it shows each launch.
+const zoomHintStored = storedPerson("page-zoom-hint", "novadeck.page-zoom-hint")
+const zoomHintItem = {
+  ...zoomHintStored,
+  // Only a sighting is kept or taken.
+  read: () => (zoomHintStored.read() === "1" ? "1" : undefined),
+  write: (text: string | null) => {
+    if (text === "1") zoomHintStored.write(text)
+  },
+}
+registerPerson(zoomHintItem)
 const zoomHint = {
-  seen: (): boolean => {
-    try {
-      return localStorage.getItem(zoomHintKey) === "1"
-    } catch {
-      return false
-    }
-  },
-  see: (): void => {
-    try {
-      localStorage.setItem(zoomHintKey, "1")
-    } catch {
-      /* It shows again next launch. */
-    }
-  },
+  seen: (): boolean => zoomHintItem.read() === "1",
+  see: (): void => zoomHintStored.save("1"),
 }
 
 // How long troubles are gathered before they are told, so a page that logs a burst of them

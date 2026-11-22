@@ -298,6 +298,13 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       get: () => runner.settings.get(),
       set: (settings) =>
         note(`settings ${JSON.stringify(settings)}`, () => runner.settings.set(settings)),
+      watch: () => runner.settings.watch(),
+    },
+    preferences: {
+      get: () => runner.preferences.get(),
+      set: (key, value, writer) =>
+        note(`preference ${key}`, () => runner.preferences.set(key, value, writer)),
+      watch: () => runner.preferences.watch(),
     },
   }
 }

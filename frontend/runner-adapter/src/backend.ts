@@ -64,6 +64,7 @@ import { createRunnerItems } from "./companions/items"
 import { answerLook, type Looks } from "./companions/looks"
 import { createRunnerFiles } from "./files"
 import { createRunnerHistory } from "./history"
+import { runnerPreferences } from "./person"
 import { listProject } from "./sessions/listing"
 import { createSessionSaves } from "./sessions/saves"
 import {
@@ -120,7 +121,7 @@ export type RunnerApi = Pick<
   | "works"
 > &
   // Not every runner has them (an older one doesn't): none are offered without.
-  Partial<Pick<Runner, "forges" | "tour">>
+  Partial<Pick<Runner, "forges" | "tour" | "preferences">>
 
 // What a terminal says while another window controls it and this one waits its turn.
 const openElsewhere: TerminalStatus = { state: "failed", message: "Open in another window" }
@@ -1530,12 +1531,36 @@ export const runnerBackend = (
   // The person's order of the Inbox's entries and their snoozes: shown at once, kept by the
   // runner (`fitted`).
   const inboxOrder = options.inboxOrder && createStore(options.inboxOrder)
+  // Both follow another device's as the runner tells (`settings.watch`); a change of this
+  // one's own under way stands until it is sent.
+  let takeSnoozes: ((keys: readonly string[]) => void) | undefined
+  let ordering = 0
+  let snoozing = 0
   const snoozable = (shown: Inbox): Inbox =>
     options.inboxSnoozed
-      ? withSnoozes(shown, options.inboxSnoozed, (ids) => {
-          void track(runner.settings.set({ inboxSnoozed: fitted(ids) })).catch(() => {})
-        })
+      ? withSnoozes(
+          shown,
+          options.inboxSnoozed,
+          (ids) => {
+            snoozing += 1
+            void track(runner.settings.set({ inboxSnoozed: fitted(ids) }))
+              .catch(() => {})
+              .finally(() => (snoozing -= 1))
+          },
+          (take) => (takeSnoozes = take),
+        )
       : shown
+  const takeInbox = (settings: {
+    readonly inboxOrder: readonly string[]
+    readonly inboxSnoozed: readonly string[]
+  }): void => {
+    if (inboxOrder && ordering === 0) {
+      const order = inboxOrder.getSnapshot()
+      if (order.join("\n") !== settings.inboxOrder.join("\n"))
+        inboxOrder.update(() => settings.inboxOrder)
+    }
+    if (snoozing === 0) takeSnoozes?.(settings.inboxSnoozed)
+  }
   // The voice input addon, followed from `start` like the messages.
   const voice = createRunnerVoice(runner.voice, track)
   // Murmur, followed the same way.
@@ -1667,6 +1692,31 @@ export const runnerBackend = (
           ],
     ),
   )
+  // The runner's settings and the person's preferences as another client changes them, where
+  // the runner tells (`settings.watch`, `preferences.watch`).
+  const has = (path: "settings.watch" | "preferences.get"): boolean =>
+    typeof (runner as Partial<typeof runner>).supports === "function" && runner.supports(path)
+  const { take: takeSettings, ...switches } = runnerSwitches(runner, options, track)
+  let settingsStream: AsyncIterableIterator<unknown> | undefined
+  const followSettings = (): void => {
+    if (settingsStream || !has("settings.watch")) return
+    const changes = runner.settings.watch()
+    settingsStream = changes
+    void consume(changes, (settings) => {
+      if (settingsStream !== changes) return
+      takeSettings(settings)
+      takeInbox(settings)
+    })
+  }
+  const stopSettings = (): void => {
+    const ended = settingsStream
+    settingsStream = undefined
+    void ended?.return?.()?.catch(() => {})
+  }
+  const person =
+    runner.preferences && has("preferences.get")
+      ? runnerPreferences(runner as Pick<Runner, "preferences">, track)
+      : undefined
   // Sessions shared with the runner's other clients: this one's changes as patches, theirs as
   // they arrive (sessions/sharing.ts).
   const sharing = createSessionSharing({
@@ -2087,6 +2137,8 @@ export const runnerBackend = (
     works.readOnce()
     inbox.follow()
     sharing.follow()
+    followSettings()
+    person?.follow()
     window.addEventListener("pagehide", flush)
     // The app waits for these saves, removals and closes before a close or quit can end
     // the shells, so they name what still runs.
@@ -2112,6 +2164,8 @@ export const runnerBackend = (
       history.stop()
       works.stop()
       sharing.stop()
+      stopSettings()
+      person?.stop()
       // The last changes are saved; nothing retries after this.
       flush()
       halted = true
@@ -2181,7 +2235,10 @@ export const runnerBackend = (
             arrange: (keys) => {
               const kept = trimmed(keys, new Set(inbox.state.getSnapshot().items.map(entryKey)))
               inboxOrder.update(() => kept)
-              void track(runner.settings.set({ inboxOrder: fitted(kept) })).catch(() => {})
+              ordering += 1
+              void track(runner.settings.set({ inboxOrder: fitted(kept) }))
+                .catch(() => {})
+                .finally(() => (ordering -= 1))
             },
           }
         : inbox,
@@ -2265,7 +2322,8 @@ export const runnerBackend = (
     connection,
     crashLoop: { crashes: crashLooping, retry: retryAfterCrashLoop },
     boot: boot.store,
-    ...runnerSwitches(runner, options, track),
+    ...switches,
+    ...(person && { preferences: person.preferences }),
     ...(runner.tour && { tour: runnerTour(runner.tour, track) }),
     ...(options.pickDirectory ? { pickDirectory: options.pickDirectory } : {}),
     ...(options.showAppearance ? { showAppearance: options.showAppearance } : {}),

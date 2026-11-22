@@ -333,6 +333,9 @@ export type BackendFields = {
   // Optional. How the link to the far side is doing, for the footer. Updates may begin
   // only once `start` runs.
   readonly connection?: Store<BackendConnectionState>
+  // Optional. The person's own settings, which the far side keeps for every device they use
+  // (person.ts). Without it they stay on this device.
+  readonly preferences?: PersonPreferences
   // Optional. Where the far side can keep crashing: the backend then stops restarting
   // terminals until the person asks it to try again.
   readonly crashLoop?: {
@@ -728,6 +731,19 @@ export type AgentConnection = {
   // While it is not `available`: the command that installs it where the backend runs, as a
   // terminal would run it for the person.
   readonly installer?: string | undefined
+}
+
+// The person's own settings as the far side keeps them: text by key, the last change winning
+// key by key.
+export type PersonPreferences = {
+  // Changes this device made, as person.ts saves them; null forgets one.
+  readonly set: (key: string, value: string | null) => void
+  // Every setting the far side keeps, at once if it has said, else once it does (`first`);
+  // then each another client changed, as they arrive, a forgotten one as null. Returns what
+  // stops it.
+  readonly subscribe: (
+    listener: (values: Readonly<Record<string, string | null>>, first: boolean) => void,
+  ) => () => void
 }
 
 // "unavailable" means the backend gave up reconnecting.
