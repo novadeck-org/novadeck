@@ -137,4 +137,60 @@ describe("a delivery block's layout", () => {
     expect(rows).toHaveLength(3)
     expect(text(rows[2]!)).toBe("+2 more")
   })
+
+  // The harness's text of a delivery, its rules included, takes rows the overlay can't give back.
+  const long =
+    "The tour spec flake fix is pushed: PR #1181 (fix/tour-caption-hold), CI running now, I merge it when green. Until then a retry on that test is the known flake, not your change."
+
+  it("wraps a long message over the rows the delivery takes, under its sender", () => {
+    const rows = layoutBlock([agent("newtz", long)], 60, 10)
+    expect(rows.map(text)).toEqual([
+      "@newtz: The tour spec flake fix is pushed: PR #1181",
+      "        (fix/tour-caption-hold), CI running now, I merge it",
+      "        when green. Until then a retry on that test is the",
+      "        known flake, not your change.",
+      "rules for the agent",
+    ])
+    expect(rows.every((row) => width(row) <= 60)).toBe(true)
+    // The indent is blank, the words in ink.
+    expect(rows[1]![0]).toEqual({ text: "        ", tone: { dim: true } })
+    expect(rows[1]![1]!.tone).toEqual({ ink: true })
+  })
+
+  it("shares the rows between messages, a short one handing back what it doesn't need", () => {
+    const rows = layoutBlock(
+      [agent("newtz", "ok"), agent("hushz", long), agent("pikez", long)],
+      60,
+      6,
+    )
+    expect(rows.map(text)).toEqual([
+      "@newtz: ok",
+      "@hushz: The tour spec flake fix is pushed: PR #1181",
+      "        (fix/tour-caption-hold), CI running now, I merge it…",
+      "@pikez: The tour spec flake fix is pushed: PR #1181",
+      "        (fix/tour-caption-hold), CI running now, I merge it…",
+      "rules for the agent",
+    ])
+    expect(rows[2]!.at(-1)).toEqual({ text: "…", tone: { dim: true } })
+  })
+
+  it("starts a narrow row's wrapped words at its edge, and draws a notice on its one row", () => {
+    const rows = layoutBlock([notice("You notice the team shift."), agent("newtz", long)], 26, 5)
+    expect(text(rows[0]!)).toBe(" novadeck  You notice the…")
+    expect(text(rows[1]!).startsWith("@newtz: ")).toBe(true)
+    // Beside the 8 cells of "@newtz: " are fewer than 20 left: the words start at the edge.
+    expect(text(rows[2]!).startsWith(" ")).toBe(false)
+    expect(rows.every((row) => width(row) <= 26)).toBe(true)
+    expect(text(rows.at(-1)!)).toBe("rules for the agent")
+  })
+
+  it("breaks a word wider than the row where the row ends", () => {
+    const rows = layoutBlock([agent("newtz", "x".repeat(100))], 40, 6, { rules: false })
+    expect(rows.map(text)).toEqual([
+      `@newtz: ${"x".repeat(32)}`,
+      `        ${"x".repeat(32)}`,
+      `        ${"x".repeat(32)}`,
+      `        ${"x".repeat(4)}`,
+    ])
+  })
 })
