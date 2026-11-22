@@ -18,27 +18,27 @@ export const babciaGroups = (cues: BabciaCues | undefined): readonly DemoActionG
             },
             {
               label: "1a · Permission only",
-              hint: "Order form asks to run pnpm test: an Unblock row",
+              hint: "Order form asks to run pnpm test: an Unblock entry",
               run: () => cues.permission(),
             },
             {
               label: "1b · Plan only",
-              hint: "Accessibility's plan waits for approval: an Unblock row",
+              hint: "Accessibility's plan waits for approval: an Unblock entry",
               run: () => cues.plan(),
             },
             {
               label: "1c · Question only",
-              hint: "Menu page asks how to list the soups, one option marked (Recommended): an Ask row",
+              hint: "Menu page asks how to list the soups, one option marked (Recommended): an Ask entry",
               run: () => cues.question(),
             },
             {
               label: "1d · Rude ask, then a polite one",
-              hint: "Deploy preview asks Yes or No whether it can force-push to main: an Ask row. Answered No, its turn goes on and a second later it asks, politely, whether it could open a pull request instead; answered Yes, it works on",
+              hint: "Deploy preview asks Yes or No whether it can force-push to main: an Ask entry. Answered No, its turn goes on and a second later it asks, politely, whether it could open a pull request instead; answered Yes, it works on",
               run: () => cues.manners(),
             },
             {
               label: "2 · Failed turn",
-              hint: "Prices table's turn ends in an API error (stream disconnected), as Codex records one: its line goes red, with a Trouble row that reads it",
+              hint: "Prices table's turn ends in an API error (stream disconnected), as Codex records one: its line goes red, with a Trouble entry that reads it",
               run: () => cues.fail(),
             },
             {
@@ -48,7 +48,7 @@ export const babciaGroups = (cues: BabciaCues | undefined): readonly DemoActionG
             },
             {
               label: "4 · Helper asks its lead's question",
-              hint: "Orders endpoint asks which API the site calls: a free-text Ask row. Run 3 first. Once the person's answer has reached it, it writes to Site API, which wakes, works and answers",
+              hint: "Orders endpoint asks which API the site calls: a free-text Ask entry. Run 3 first. Once the person's answer has reached it, it writes to Site API, which wakes, works and answers",
               run: () => cues.helperAsks(),
             },
             {

@@ -1,4 +1,4 @@
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { InboxEntry } from "@novadeck/core/inbox"
 import { emptyCompanions, type Companions, type Item, type ItemContent } from "@novadeck/core/items"
 import { createWorkspaceStore, type WorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
@@ -12,7 +12,7 @@ import { PlanTextProvider, usePlanAnswered, usePlanText } from "./plan-text"
 const target = { projectId: "project", workspaceSessionId: "initial" }
 const asked = 1_000_000
 
-const approval = (agent: InboxRow["source"]["agent"] = "claude"): InboxRow => ({
+const approval = (agent: InboxEntry["source"]["agent"] = "claude"): InboxEntry => ({
   id: "request:r",
   source: { ...target, terminalId: "01", handle: "moth", agent, title: "T", projectName: "P" },
   at: asked,
@@ -65,14 +65,14 @@ const following = () => {
   return { companions, follows, report }
 }
 
-// What `usePlanText` says of `row`, rendered over `workspace`, as it changes.
+// What `usePlanText` says of `entry`, rendered over `workspace`, as it changes.
 const show = (
   workspace: WorkspaceStore,
   companions: Companions | undefined,
-  row: InboxRow,
+  entry: InboxEntry,
 ): { readonly text: () => string | null | undefined; readonly unmount: () => void } => {
   const Probe = (): React.JSX.Element => {
-    const text = usePlanText(row)
+    const text = usePlanText(entry)
     return createElement(
       "output",
       { "data-state": text === undefined ? "loading" : text === null ? "none" : "text" },
@@ -122,23 +122,23 @@ describe("the plan text a plan approval's sheet shows", () => {
     const workspace = createWorkspaceStore(workspaceFixture())
     upsert(workspace, planItem(1, asked - 60_000))
     const { companions, report } = following()
-    const first: InboxRow = { ...approval("agy"), id: "request:first" }
-    const second: InboxRow = { ...approval("agy"), id: "request:second", at: asked + 1000 }
+    const first: InboxEntry = { ...approval("agy"), id: "request:first" }
+    const second: InboxEntry = { ...approval("agy"), id: "request:second", at: asked + 1000 }
     // One sheet at a time, as the Inbox shows them, under one provider; `answer` sends it.
     const sheet: { answer?: () => void } = {}
-    const Sheet = ({ row }: { readonly row: InboxRow }): React.JSX.Element => {
-      const text = usePlanText(row)
+    const Sheet = ({ entry }: { readonly entry: InboxEntry }): React.JSX.Element => {
+      const text = usePlanText(entry)
       const answered = usePlanAnswered()
       useEffect(() => {
-        sheet.answer = () => answered(row)
-      }, [answered, row])
+        sheet.answer = () => answered(entry)
+      }, [answered, entry])
       return createElement("output", null, text === undefined ? "loading" : String(text))
     }
-    const shown = (row: InboxRow): React.JSX.Element =>
+    const shown = (entry: InboxEntry): React.JSX.Element =>
       createElement(
         PlanTextProvider,
         { workspace, companions },
-        createElement(Sheet, { key: row.id, row }),
+        createElement(Sheet, { key: entry.id, entry }),
       )
     const rendered = render(shown(first))
     report(ready("# Round one"))
@@ -155,17 +155,17 @@ describe("the plan text a plan approval's sheet shows", () => {
     upsert(workspace, planItem(1, asked - 2000))
     const { companions, report } = following()
     // Codex's screen-read dialog comes back under a new id when it's read again.
-    const first: InboxRow = { ...approval("codex"), id: "request:screen-1" }
-    const again: InboxRow = { ...approval("codex"), id: "request:screen-2", at: asked + 3000 }
-    const Sheet = ({ row }: { readonly row: InboxRow }): React.JSX.Element => {
-      const text = usePlanText(row)
+    const first: InboxEntry = { ...approval("codex"), id: "request:screen-1" }
+    const again: InboxEntry = { ...approval("codex"), id: "request:screen-2", at: asked + 3000 }
+    const Sheet = ({ entry }: { readonly entry: InboxEntry }): React.JSX.Element => {
+      const text = usePlanText(entry)
       return createElement("output", null, text === undefined ? "loading" : String(text))
     }
-    const shown = (row: InboxRow): React.JSX.Element =>
+    const shown = (entry: InboxEntry): React.JSX.Element =>
       createElement(
         PlanTextProvider,
         { workspace, companions },
-        createElement(Sheet, { key: row.id, row }),
+        createElement(Sheet, { key: entry.id, entry }),
       )
     const rendered = render(shown(first))
     report(ready("# The plan"))
@@ -248,15 +248,15 @@ describe("the plan text a plan approval's sheet shows", () => {
     plain.unmount()
   })
 
-  it("is null for a row that is no plan approval, which follows nothing", () => {
+  it("is null for an entry that is no plan approval, which follows nothing", () => {
     const workspace = createWorkspaceStore(workspaceFixture())
     upsert(workspace, planItem(1, asked))
     const { companions, follows } = following()
-    const update: InboxRow = {
+    const update: InboxEntry = {
       ...approval(),
       kind: "update",
       update: { type: "done", subject: "Done", body: "" },
-    } as InboxRow
+    } as InboxEntry
     const sheet = show(workspace, companions, update)
     expect(sheet.text()).toBeNull()
     expect(follows).toEqual([])

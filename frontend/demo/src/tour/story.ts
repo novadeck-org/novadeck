@@ -1,5 +1,5 @@
 import type { AgentName } from "@novadeck/core/harnesses"
-import type { InboxAnswer, InboxRow } from "@novadeck/core/inbox"
+import type { InboxAnswer, InboxEntry } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
 import type { TerminalMetadata } from "@novadeck/core/types"
 
@@ -109,7 +109,7 @@ export const namedAs = (key: TerminalKey, name: string, by: string): BackendActi
   titleSource: { kind: "agent", by },
 })
 
-// The sculptor's ask, as the runner's `ask` makes its row: three options, from its terminal, the
+// The sculptor's ask, as the runner's `ask` makes its entry: three options, from its terminal, the
 // agent working on meanwhile.
 export const heroAsk = (
   key: TerminalKey,
@@ -117,7 +117,7 @@ export const heroAsk = (
   harness: AgentName,
   projectName: string,
   at: number,
-): InboxRow => ({
+): InboxEntry => ({
   id: `tour-ask-${key.terminalId}`,
   kind: "ask",
   source: {
@@ -325,7 +325,7 @@ export const playTourStory = ({
     const writer = current(mate.key)
     if (!lead() || !writer) return
     const project = stage.workspace()?.projects.find(({ id }) => id === key.projectId)
-    const row = heroAsk(mate.key, writer, mate.harness, project?.name ?? "", Date.now())
+    const entry = heroAsk(mate.key, writer, mate.harness, project?.name ?? "", Date.now())
     let seen = false
     let ended = false
     const end = () => {
@@ -335,7 +335,7 @@ export const playTourStory = ({
       stops.delete(stop)
       stopAnswer()
       stops.delete(stopAnswer)
-      const chosen = chosenHero(stage.answeredWith(row.id))
+      const chosen = chosenHero(stage.answeredWith(entry.id))
       hero = chosen
       stage.chose(chosen)
       say(mate, heroTold(chosen))
@@ -346,20 +346,20 @@ export const playTourStory = ({
     }
     const check = () => {
       const state = stage.inbox?.state.getSnapshot()
-      const held = state?.items.find(({ id }) => id === row.id)
+      const held = state?.items.find(({ id }) => id === entry.id)
       if (held && !held.settled) {
         seen = true
         return
       }
-      // Answered, which takes the row away, or dismissed or withdrawn, which settles it.
+      // Answered, which takes the entry away, or dismissed or withdrawn, which settles it.
       if (seen || held?.settled) end()
     }
     const stop = stage.inbox?.state.subscribe(check) ?? (() => {})
-    const stopAnswer = tour.hero((answer) => stage.answerRow(row.id, pickHero(answer)))
+    const stopAnswer = tour.hero((answer) => stage.answerEntry(entry.id, pickHero(answer)))
     stops.add(stop)
     stops.add(stopAnswer)
     if (!stage.inbox) return later(tourStoryMs.talk, end)
-    stage.inbox.add(row)
+    stage.inbox.add(entry)
     check()
   }
 

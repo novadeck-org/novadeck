@@ -18,6 +18,10 @@ the app shows it; keep the list short.
 - **Agent Chat**: an agent's terminal shown as a chat instead of its screen.
 - **Sidebar**: the panels down the window's side: Terminals, Inbox, Sessions, Worktrees,
   Files and History.
-- **Inbox**: where agents' questions, permissions, plans and done reports wait for you.
+- **Inbox**: the sidebar panel where your agents' entries wait for you.
+- **Inbox entry**: one thing an agent brought you: a question, a permission, a plan, a done
+  report or a shipping request. It shows as a row in the Inbox, opens in a sheet to answer in
+  place, and the agent's chat shows the same entry.
+- **Inbox sheet**: the popup a row opens, where you read the whole entry and answer it in place.
 - **Handle**: a terminal's word, such as `@moth`, that agents use to message it.
 - **Team**: agents one **lead** started and works with; each of them is a **teammate**.

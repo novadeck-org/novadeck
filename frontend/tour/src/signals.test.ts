@@ -1,4 +1,4 @@
-import type { InboxRow, InboxState } from "@novadeck/core/inbox"
+import type { InboxEntry, InboxState } from "@novadeck/core/inbox"
 import type { AgentMessage, MessagesState } from "@novadeck/core/messages"
 import type { Approval } from "@novadeck/core/port"
 import { itemFixture, terminalFixture, workspaceFixture } from "@novadeck/core/testing"
@@ -148,7 +148,7 @@ const messagesOf = (list: readonly AgentMessage[]): MessagesState =>
     },
   }) as unknown as MessagesState
 
-const askRow = (terminalId: string, shape: "options" | "action" = "options"): InboxRow =>
+const askRow = (terminalId: string, shape: "options" | "action" = "options"): InboxEntry =>
   ({
     id: `ask-${terminalId}`,
     kind: "ask",
@@ -157,7 +157,7 @@ const askRow = (terminalId: string, shape: "options" | "action" = "options"): In
     at: 0,
     stopped: false,
     seen: false,
-  }) as unknown as InboxRow
+  }) as unknown as InboxEntry
 
 describe("The tour's story signals", () => {
   it("count the lead's teammates, and those that named themselves", () => {
@@ -199,7 +199,7 @@ describe("The tour's story signals", () => {
     const unblock = { items: [askRow("02", "action")] } as unknown as InboxState
     expect(tourSignals(teamWorkspace(), "01", { inbox: asking })).toMatchObject({
       asking: true,
-      // Its own row, which the stage marks to press: never another project's question.
+      // Its own entry, which the stage marks to press: never another project's question.
       askingRow: "ask-02",
     })
     expect(tourSignals(teamWorkspace(), "01", { inbox: elsewhere })).toMatchObject({
@@ -210,12 +210,12 @@ describe("The tour's story signals", () => {
   })
 
   it("see an agent of the team waiting on the person's yes, from a dialog or a held message", () => {
-    const row = (kind: string, extra: object, id = "02") =>
-      ({ ...askRow(id), kind, ...extra }) as unknown as InboxRow
-    const state = (...items: InboxRow[]) => ({ items }) as unknown as InboxState
-    const permission = row("request", { request: { kind: "permission" } })
-    const held = row("held", {})
-    const lead = row("request", { request: { kind: "permission" } }, "01")
+    const entry = (kind: string, extra: object, id = "02") =>
+      ({ ...askRow(id), kind, ...extra }) as unknown as InboxEntry
+    const state = (...items: InboxEntry[]) => ({ items }) as unknown as InboxState
+    const permission = entry("request", { request: { kind: "permission" } })
+    const held = entry("held", {})
+    const lead = entry("request", { request: { kind: "permission" } }, "01")
     expect(tourSignals(teamWorkspace(), "01", { inbox: state(permission) }).permission).toEqual({
       terminalId: "02",
     })
@@ -227,20 +227,20 @@ describe("The tour's story signals", () => {
     })
   })
 
-  it("see no permission wait for a question, a settled row or a terminal outside the team", () => {
-    const row = (extra: object, id = "02") =>
+  it("see no permission wait for a question, a settled entry or a terminal outside the team", () => {
+    const entry = (extra: object, id = "02") =>
       ({
         ...askRow(id),
         kind: "request",
         request: { kind: "permission" },
         ...extra,
-      }) as unknown as InboxRow
-    const state = (...items: InboxRow[]) => ({ items }) as unknown as InboxState
-    const none = (...items: InboxRow[]) =>
+      }) as unknown as InboxEntry
+    const state = (...items: InboxEntry[]) => ({ items }) as unknown as InboxState
+    const none = (...items: InboxEntry[]) =>
       tourSignals(teamWorkspace(), "01", { inbox: state(...items) }).permission
-    expect(none(row({ request: { kind: "question" } }))).toBeNull()
-    expect(none(row({ settled: { how: "answered" } }))).toBeNull()
-    expect(none(row({}, "04"))).toBeNull()
+    expect(none(entry({ request: { kind: "question" } }))).toBeNull()
+    expect(none(entry({ settled: { how: "answered" } }))).toBeNull()
+    expect(none(entry({}, "04"))).toBeNull()
   })
 
   it("leave out a question of the lead's own, and an answer to it", () => {
@@ -257,18 +257,18 @@ describe("The tour's story signals", () => {
       ...askRow("02"),
       kind: "request",
       request: { kind: "question" },
-    } as unknown as InboxRow
+    } as unknown as InboxEntry
     const permission = {
       ...askRow("02"),
       kind: "request",
       request: { kind: "permission" },
-    } as unknown as InboxRow
-    const ask = (row: InboxRow) => ({ items: [row] }) as unknown as InboxState
+    } as unknown as InboxEntry
+    const ask = (entry: InboxEntry) => ({ items: [entry] }) as unknown as InboxState
     expect(tourSignals(teamWorkspace(), "01", { inbox: ask(question) }).asking).toBe(true)
     expect(tourSignals(teamWorkspace(), "01", { inbox: ask(permission) }).asking).toBe(false)
   })
 
-  it("see a question the person answered or dismissed as dealt with, from its settled row", () => {
+  it("see a question the person answered or dismissed as dealt with, from its settled entry", () => {
     const settled = (how: string) =>
       ({ items: [{ ...askRow("02"), settled: { how, at: 1 } }] }) as unknown as InboxState
     for (const how of ["answered", "dismissed", "terminal"]) {
@@ -466,7 +466,7 @@ describe("The tour's signals of the game story", () => {
       ...askRow("04"),
       kind: "request",
       request: { kind: "permission" },
-    } as unknown as InboxRow
+    } as unknown as InboxEntry
     const inbox = { items: [permission] } as unknown as InboxState
     expect(tourSignals(teamWorkspace(), "01", { inbox, artist: "04" }).permission).toEqual({
       terminalId: "04",

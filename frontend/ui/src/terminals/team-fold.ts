@@ -29,7 +29,7 @@ export const toggleFolded = (folded: FoldedTeams, context: string, lead: string)
 
 // Whether a terminal's tab folds away: one under a folded lead, at any depth (a fold covers the
 // teams its teammates lead too), unless the person is on it, or on one below it, which shows in
-// its place with the leads between (as when an Inbox row took them there) and folds away again
+// its place with the leads between (as when an Inbox entry took them there) and folds away again
 // once they move on. `above` is the leads above it, nearest first; `kept` says the person is on
 // it or below it.
 export const foldsAway = (

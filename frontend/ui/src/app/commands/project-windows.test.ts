@@ -134,16 +134,16 @@ describe("project windows", () => {
       expect(app.workspace.getSnapshot().activeProjectId).toBe("other")
     })
 
-    it("hands over a terminal with the Inbox row for it", () => {
+    it("hands over a terminal with the Inbox entry for it", () => {
       const { app, asked } = opened([])
       expect(app.commands.handOffTerminal("07", "row-1")).toBe(true)
       expect(asked).toEqual([["handOff", { projectId: "other", terminalId: "07", rowId: "row-1" }]])
     })
 
-    it("hands over a row only when another window shows its project", () => {
+    it("hands over an entry only when another window shows its project", () => {
       const { app, asked } = opened(["other"])
-      expect(app.commands.handOffRow({ id: "row-1", terminalId: "07" })).toBe(true)
-      expect(app.commands.handOffRow({ id: "row-2", terminalId: "01" })).toBe(false)
+      expect(app.commands.handOffEntry({ id: "row-1", terminalId: "07" })).toBe(true)
+      expect(app.commands.handOffEntry({ id: "row-2", terminalId: "01" })).toBe(false)
       expect(asked).toEqual([["handOff", { projectId: "other", terminalId: "07", rowId: "row-1" }]])
     })
   })

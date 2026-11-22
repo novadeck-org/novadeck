@@ -1,10 +1,10 @@
-import type { InboxRow, SettledHow } from "@novadeck/core/inbox"
+import type { InboxEntry, SettledHow } from "@novadeck/core/inbox"
 
-import { demoEntries, demoInboxIds, demoInboxRowsAll } from "./fixtures"
+import { demoEntries, demoInboxIds, demoInboxEntriesAll } from "./fixtures"
 
 const minute = 60_000
 
-// The rows the debug panel adds already resolved, one for each way a row ends, as the Inbox
+// The entries the debug panel adds already resolved, one for each way an entry ends, as the Inbox
 // keeps them as history: the fixture each is made from, how it ended, with what words, and how
 // long ago it was added and how long it took to end.
 type Ended = {
@@ -64,11 +64,11 @@ export const demoResolved = {
 // The id a fixture has once it is resolved.
 export const demoResolvedId = (from: string): string => `resolved:${from}`
 
-// The resolved rows of a group, as they stand at `now`: the newest ended last in the group.
-export const demoResolvedRows = (now: number, ended: readonly Ended[]): InboxRow[] => {
-  const all = [...demoInboxRowsAll(now), ...demoEntries(now)]
-  return ended.flatMap((each): InboxRow[] => {
-    const found = all.find((row) => row.id === each.from)
+// The resolved entries of a group, as they stand at `now`: the newest ended last in the group.
+export const demoResolvedEntries = (now: number, ended: readonly Ended[]): InboxEntry[] => {
+  const all = [...demoInboxEntriesAll(now), ...demoEntries(now)]
+  return ended.flatMap((each): InboxEntry[] => {
+    const found = all.find((entry) => entry.id === each.from)
     if (!found) return []
     const at = now - each.added * minute
     return [

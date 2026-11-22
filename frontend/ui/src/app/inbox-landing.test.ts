@@ -2,7 +2,7 @@ import {
   emptyInbox,
   type Inbox,
   type InboxAnswer,
-  type InboxRow,
+  type InboxEntry,
   type InboxState,
 } from "@novadeck/core/inbox"
 import { inboxMarks } from "@novadeck/core/inbox/marks"
@@ -19,7 +19,7 @@ import { createUiStore, initialUi } from "./ui-store"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
 
-const source = (terminalId: string): InboxRow["source"] => ({
+const source = (terminalId: string): InboxEntry["source"] => ({
   ...target,
   terminalId,
   handle: "moth",
@@ -28,7 +28,7 @@ const source = (terminalId: string): InboxRow["source"] => ({
   projectName: "Project",
 })
 
-const ask = (id: string, terminalId: string): InboxRow => ({
+const ask = (id: string, terminalId: string): InboxEntry => ({
   id,
   source: source(terminalId),
   at: 1,
@@ -38,7 +38,7 @@ const ask = (id: string, terminalId: string): InboxRow => ({
   ask: { subject: "Which?", body: "", details: null, hardToUndo: null, shape: { type: "text" } },
 })
 
-const done = (id: string, terminalId: string): InboxRow => ({
+const done = (id: string, terminalId: string): InboxEntry => ({
   id,
   source: source(terminalId),
   at: 1,
@@ -109,7 +109,7 @@ const setup = (initiallyWide = true) => {
     stop,
     restart: start,
     answers,
-    set: (items: InboxRow[]) => void state.update((current) => ({ ...current, items })),
+    set: (items: InboxEntry[]) => void state.update((current) => ({ ...current, items })),
     resize: (next: boolean) => {
       wide = next
       widthListeners.forEach((notify) => notify())
@@ -131,17 +131,17 @@ const setup = (initiallyWide = true) => {
         status: { state: "running", agent },
       }),
     focus: (pageFocused: boolean) => void ui.update((current) => ({ ...current, pageFocused })),
-    ids: () => inbox.state.getSnapshot().items.map((row) => row.id),
+    ids: () => inbox.state.getSnapshot().items.map((entry) => entry.id),
   }
 }
 
-// Whether the landed row `id` landed quietly.
+// Whether the landed entry `id` landed quietly.
 const quietly = (inbox: ReturnType<typeof setup>["inbox"], id: string): boolean =>
-  inbox.landedQuietly(inbox.state.getSnapshot().items.find((row) => row.id === id)!)
+  inbox.landedQuietly(inbox.state.getSnapshot().items.find((entry) => entry.id === id)!)
 
 describe("the landing rule", () => {
-  context("a row of the terminal being viewed", () => {
-    it("lands at once, quietly, beside one of another terminal that lands as any row does", () => {
+  context("an entry of the terminal being viewed", () => {
+    it("lands at once, quietly, beside one of another terminal that lands as any entry does", () => {
       const { set, inbox, ids, stop } = setup()
       set([ask("a", "01"), ask("b", "02")])
       expect(ids()).toEqual(["a", "b"])
@@ -160,7 +160,7 @@ describe("the landing rule", () => {
       stop()
     })
 
-    it("lands as any row does while the page hasn't their focus", () => {
+    it("lands as any entry does while the page hasn't their focus", () => {
       const { set, focus, inbox, stop } = setup()
       focus(false)
       set([ask("a", "01")])
@@ -186,7 +186,7 @@ describe("the landing rule", () => {
       stop()
     })
 
-    it("lands a newer row under the same id as another: quietly only if still viewed", () => {
+    it("lands a newer entry under the same id as another: quietly only if still viewed", () => {
       const { set, select, inbox, ids, stop } = setup()
       set([ask("a", "01")])
       set([{ ...ask("a", "01"), at: 2 }])
@@ -212,7 +212,7 @@ describe("the landing rule", () => {
       select("02")
       vi.advanceTimersByTime(60_000)
       expect(answers).toEqual([])
-      expect(inbox.state.getSnapshot().items.every((row) => !row.settled)).toBe(true)
+      expect(inbox.state.getSnapshot().items.every((entry) => !entry.settled)).toBe(true)
       stop()
     })
 
@@ -226,7 +226,7 @@ describe("the landing rule", () => {
     })
   })
 
-  context("what rings for the rows that land", () => {
+  context("what rings for the entries that land", () => {
     beforeEach(() => void vi.useFakeTimers())
     afterEach(() => void vi.useRealTimers())
 
@@ -235,7 +235,7 @@ describe("the landing rule", () => {
       const rung: string[] = []
       const unfollow = followNeeds(made.inbox, {
         graceMs: 100,
-        ring: (row) => rung.push(row.id) > 0,
+        ring: (entry) => rung.push(entry.id) > 0,
         leave: () => {},
       })
       return { ...made, rung, unfollow }
@@ -274,12 +274,12 @@ describe("the landing rule", () => {
     const asked = (id = "a", terminal = "01") => {
       const made = setup()
       made.agent(terminal, { working: true })
-      const row = { ...ask(id, terminal), at: Date.now() }
-      made.set([row])
-      return { ...made, row }
+      const entry = { ...ask(id, terminal), at: Date.now() }
+      made.set([entry])
+      return { ...made, entry }
     }
     const counted = (made: ReturnType<typeof setup>): string[] =>
-      needing(made.inbox.state.getSnapshot().items).map((row) => row.id)
+      needing(made.inbox.state.getSnapshot().items).map((entry) => entry.id)
 
     it("shows in the list but counts nowhere: not on the bell, not on the terminal's marks", () => {
       const made = asked()
@@ -302,9 +302,9 @@ describe("the landing rule", () => {
 
     it("is held on by words from before the ask: a text before its tool call is no answer", () => {
       const made = asked()
-      made.agent("01", { working: true, wordsAt: made.row.at })
+      made.agent("01", { working: true, wordsAt: made.entry.at })
       expect(counted(made)).toEqual([])
-      made.agent("01", { working: true, wordsAt: made.row.at - 5 })
+      made.agent("01", { working: true, wordsAt: made.entry.at - 5 })
       expect(counted(made)).toEqual([])
       made.stop()
     })
@@ -329,9 +329,9 @@ describe("the landing rule", () => {
 
     it("counts, quietly, once the turn ended though background subagents keep it working", () => {
       const made = asked()
-      made.agent("01", { working: true, lastTurn: { outcome: "completed", at: made.row.at - 1 } })
+      made.agent("01", { working: true, lastTurn: { outcome: "completed", at: made.entry.at - 1 } })
       expect(counted(made)).toEqual([])
-      made.agent("01", { working: true, lastTurn: { outcome: "completed", at: made.row.at + 1 } })
+      made.agent("01", { working: true, lastTurn: { outcome: "completed", at: made.entry.at + 1 } })
       expect(counted(made)).toEqual(["a"])
       expect(quietly(made.inbox, "a")).toBe(true)
       made.stop()
@@ -350,7 +350,7 @@ describe("the landing rule", () => {
       made.stop()
     })
 
-    it("lands as a row that landed elsewhere when the person looks away", () => {
+    it("lands as an entry that landed elsewhere when the person looks away", () => {
       const made = asked()
       made.select("02")
       expect(counted(made)).toEqual(["a"])
@@ -372,7 +372,7 @@ describe("the landing rule", () => {
         const rung: string[] = []
         const unfollow = followNeeds(made.inbox, {
           graceMs: 100,
-          ring: (row) => rung.push(row.id) > 0,
+          ring: (entry) => rung.push(entry.id) > 0,
           leave: () => {},
         })
         release(made)
@@ -444,7 +444,7 @@ describe("the landing rule", () => {
       made.stop()
     })
 
-    it("a row that is no ask: an update lands as it does", () => {
+    it("an entry that is no ask: an update lands as it does", () => {
       const made = setup()
       made.agent("01", { working: true })
       made.set([{ ...done("d", "01"), at: Date.now() }])
@@ -474,7 +474,7 @@ describe("the landing rule", () => {
   })
 
   context("on a phone, while the Inbox list covers the screen", () => {
-    it("lands it as any row: no terminal counts as viewed", () => {
+    it("lands it as any entry: no terminal counts as viewed", () => {
       const { set, showList, inbox, stop } = setup(false)
       showList()
       set([ask("a", "01")])
@@ -547,7 +547,7 @@ describe("deciding the hold on an ask", () => {
       expect(decideHold({ ...facts, holding: true, ...end })).toBe(false)
   })
 
-  it("holds no row that isn't an ask, or that landed already", () => {
+  it("holds no entry that isn't an ask, or that landed already", () => {
     expect(decideHold({ ...facts, ask: false })).toBe(false)
     expect(decideHold({ ...facts, landed: true })).toBe(false)
   })

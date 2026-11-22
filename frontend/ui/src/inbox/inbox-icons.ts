@@ -1,4 +1,4 @@
-import type { InboxRow, InboxType } from "@novadeck/core/inbox"
+import type { InboxEntry, InboxType } from "@novadeck/core/inbox"
 import {
   ClipboardList,
   Flag,
@@ -17,10 +17,10 @@ import {
 
 import { actionOf } from "./inbox-text"
 
-// One icon per kind of row, tinted by what the row wants of the person (inbox.css); a row that
+// One icon per kind of entry, tinted by what the entry wants of the person (inbox.css); an entry that
 // is resolved keeps its icon, in gray.
 
-// The kinds of row that have an icon of their own.
+// The kinds of entry that have an icon of their own.
 export type IconKey =
   | "permission"
   | "plan"
@@ -50,45 +50,45 @@ export const icons: Readonly<Record<IconKey, LucideIcon>> = {
   told: MessageSquareText,
 }
 
-// The kind of a row, for its icon: a harness's dialog by what it asks (a permission, a plan, a
+// The kind of an entry, for its icon: a harness's dialog by what it asks (a permission, a plan, a
 // question), an agent's ask by its shape (options, an action to do, words), what Novadeck holds
 // or noticed, and what an agent reported.
-export const iconKey = (row: InboxRow): IconKey => {
-  switch (row.kind) {
+export const iconKey = (entry: InboxEntry): IconKey => {
+  switch (entry.kind) {
     case "request":
-      if (row.request.kind === "question") return "question"
-      return actionOf(row.request) === "plan" ? "plan" : "permission"
+      if (entry.request.kind === "question") return "question"
+      return actionOf(entry.request) === "plan" ? "plan" : "permission"
     case "held":
       return "held"
     case "ask":
-      if (row.ask.shape.type === "options") return "options"
-      return row.ask.shape.type === "action" ? "action" : "question"
+      if (entry.ask.shape.type === "options") return "options"
+      return entry.ask.shape.type === "action" ? "action" : "question"
     case "trouble":
-      return row.trouble.type
+      return entry.trouble.type
     case "update":
-      return row.update.type
+      return entry.update.type
   }
 }
 
-// The icon of a row, which it keeps once it is resolved, in gray.
-export const iconOf = (row: InboxRow): LucideIcon => icons[iconKey(row)]
+// The icon of an entry, which it keeps once it is resolved, in gray.
+export const iconOf = (entry: InboxEntry): LucideIcon => icons[iconKey(entry)]
 
-// What a row's colour says of it: it waits on the person (`attention`), it is a note of
+// What an entry's colour says of it: it waits on the person (`attention`), it is a note of
 // Novadeck's about messages or a limit, it failed (`danger`), an agent finished (`success`), an
 // agent told them something (`ink`), or it is resolved (`muted`).
 export type Tint = "attention" | "note" | "danger" | "success" | "ink" | "muted"
 
-export const tintOf = (row: InboxRow): Tint => {
-  if (row.settled) return "muted"
-  switch (row.kind) {
+export const tintOf = (entry: InboxEntry): Tint => {
+  if (entry.settled) return "muted"
+  switch (entry.kind) {
     case "request":
     case "held":
     case "ask":
       return "attention"
     case "trouble":
-      return row.trouble.type === "limit" || row.trouble.type === "waits" ? "note" : "danger"
+      return entry.trouble.type === "limit" || entry.trouble.type === "waits" ? "note" : "danger"
     case "update":
-      return row.update.type === "done" ? "success" : "ink"
+      return entry.update.type === "done" ? "success" : "ink"
   }
 }
 

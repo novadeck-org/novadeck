@@ -212,7 +212,7 @@ export {
   maxInboxHistoryRows,
   maxInboxOrder,
   maxInboxResolved,
-  maxInboxRowIdLength,
+  maxInboxEntryIdLength,
   runnerSettings,
   type RunnerSettings,
   type RunnerSettingsState,

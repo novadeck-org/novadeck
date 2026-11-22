@@ -434,7 +434,7 @@ export type BackendFields = {
   // Optional. The Inbox: what the agents in every project wait on the person for, one
   // row per agent terminal, answered in place, behind the bell. The runner's and the
   // demo's build it from the app's workspace (`bind`) and their own facts (see core's
-  // `inbox/rows`). Absent where the backend has none: the Inbox then lists nothing.
+  // `inbox/entries`). Absent where the backend has none: the Inbox then lists nothing.
   readonly inbox?: Inbox
   // Optional. Keeps how the person arranged the switcher: the projects' ids in their order,
   // and the pinned ones. The seed carries it back at the next load (`ProjectSeed.pinned`,

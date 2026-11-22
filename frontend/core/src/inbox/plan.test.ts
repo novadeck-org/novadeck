@@ -1,5 +1,5 @@
 import type { AgentName } from "../harnesses"
-import type { InboxRow } from "../inbox"
+import type { InboxEntry } from "../inbox"
 import { itemIdOf, type Item } from "../items"
 import { context, describe, expect, it } from "../test"
 import { workspaceFixture } from "../testing"
@@ -11,7 +11,7 @@ const asked = 1_000_000
 const approval = (
   agent: AgentName,
   { subagent = false, at = asked }: { subagent?: boolean; at?: number } = {},
-): InboxRow => ({
+): InboxEntry => ({
   id: "request:r",
   source: {
     projectId: "p",
@@ -141,13 +141,13 @@ describe("the plan a plan approval asks about", () => {
     expect(planItemOf([earlier], approval("codex"), asked + planWaitMs)).toEqual({ state: "none" })
   })
 
-  it("is none for a row that is no plan approval", () => {
-    const row = approval("claude")
-    const permission: InboxRow = {
-      ...row,
+  it("is none for an entry that is no plan approval", () => {
+    const entry = approval("claude")
+    const permission: InboxEntry = {
+      ...entry,
       kind: "request",
-      request: { ...(row.kind === "request" && row.request), kind: "permission", tool: "Bash" },
-    } as InboxRow
+      request: { ...(entry.kind === "request" && entry.request), kind: "permission", tool: "Bash" },
+    } as InboxEntry
     expect(planItemOf([plan("claude", asked)], permission, asked)).toEqual({ state: "none" })
   })
 
@@ -212,7 +212,7 @@ describe("the plan a plan approval asks about", () => {
   })
 })
 
-describe("the items of an Inbox row's session", () => {
+describe("the items of an Inbox entry's session", () => {
   it("are those its terminal's session holds", () => {
     const workspace = workspaceFixture()
     const project = workspace.projects[0]!

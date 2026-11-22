@@ -1,4 +1,4 @@
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { InboxEntry } from "@novadeck/core/inbox"
 import { planItemOf, planKey, planTextOf, sessionItems } from "@novadeck/core/inbox/plan"
 import type { Companions, Item, ItemContent } from "@novadeck/core/items"
 import type { WorkspaceStore } from "@novadeck/core/store"
@@ -22,11 +22,11 @@ import {
 type PlanSource = {
   readonly workspace: WorkspaceStore
   readonly companions: Companions
-  // The plan version each approval's sheet shows (Inbox row id to `planKey`).
+  // The plan version each approval's sheet shows (Inbox entry id to `planKey`).
   readonly showing: Map<string, string>
-  // The versions an approval was answered with (`planKey` to the Inbox row's id): one the
+  // The versions an approval was answered with (`planKey` to the Inbox entry's id): one the
   // person approved or sent back is never a later approval's. A version only shown counts for
-  // nothing, as a dialog read again (a redraw) comes back as a new row asking the same.
+  // nothing, as a dialog read again (a redraw) comes back as a new entry asking the same.
   readonly answered: Map<string, string>
 }
 
@@ -61,10 +61,10 @@ export const PlanTextProvider = ({
 const noWorkspace: WorkspaceStore["subscribe"] = () => () => {}
 const noItems: readonly Item[] = []
 
-// The plan of a plan approval row: undefined while it loads, null where there is none.
-export const usePlanText = (row: InboxRow): string | null | undefined => {
+// The plan of a plan approval entry: undefined while it loads, null where there is none.
+export const usePlanText = (entry: InboxEntry): string | null | undefined => {
   const source = useContext(PlanContext)
-  const { projectId, workspaceSessionId } = row.source
+  const { projectId, workspaceSessionId } = entry.source
   const items = useSyncExternalStore(
     source?.workspace.subscribe ?? noWorkspace,
     useCallback(
@@ -80,10 +80,10 @@ export const usePlanText = (row: InboxRow): string | null | undefined => {
   const pick = useMemo(() => {
     const answered = source?.answered
     const used = new Set(
-      answered ? [...answered].filter(([, by]) => by !== row.id).map(([key]) => key) : [],
+      answered ? [...answered].filter(([, by]) => by !== entry.id).map(([key]) => key) : [],
     )
-    return planItemOf(items, row, now, used)
-  }, [source, items, row, now])
+    return planItemOf(items, entry, now, used)
+  }, [source, items, entry, now])
   const until = pick.state === "waiting" ? pick.until : undefined
   useEffect(() => {
     if (until === undefined) return
@@ -96,8 +96,8 @@ export const usePlanText = (row: InboxRow): string | null | undefined => {
   const key = found && planKey(found)
   // Which version this approval's sheet shows, for `usePlanAnswered` to record.
   useEffect(() => {
-    if (key && source) source.showing.set(row.id, key)
-  }, [key, source, row.id])
+    if (key && source) source.showing.set(entry.id, key)
+  }, [key, source, entry.id])
   const [loaded, setLoaded] = useState<{ key: string; content: ItemContent }>()
   const companions = source?.companions
   const foundId = found?.id
@@ -119,12 +119,12 @@ export const usePlanText = (row: InboxRow): string | null | undefined => {
 // Records that a plan approval was answered with the plan its sheet shows, so that version
 // is never a later approval's plan (a round the person sent back, still on the bar while the
 // agent rewrites it). The sheet calls it as it sends the answer.
-export const usePlanAnswered = (): ((row: InboxRow) => void) => {
+export const usePlanAnswered = (): ((entry: InboxEntry) => void) => {
   const source = useContext(PlanContext)
   return useCallback(
-    (row: InboxRow) => {
-      const key = source?.showing.get(row.id)
-      if (key && source && !source.answered.has(key)) source.answered.set(key, row.id)
+    (entry: InboxEntry) => {
+      const key = source?.showing.get(entry.id)
+      if (key && source && !source.answered.has(key)) source.answered.set(key, entry.id)
     },
     [source],
   )

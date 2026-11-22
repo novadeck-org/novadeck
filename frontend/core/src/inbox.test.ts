@@ -1,7 +1,7 @@
 import type { ChatRequest } from "./conversation"
 import {
   inboxType,
-  entryRow,
+  inboxEntryOf,
   nextLimitReset,
   ordered,
   terminalDone,
@@ -10,13 +10,13 @@ import {
   emptyInbox,
   noInbox,
   type InboxContent,
-  type InboxRow,
+  type InboxEntry,
   type InboxState,
 } from "./inbox"
 import { createStore } from "./store"
 import { describe, expect, it } from "./test"
 
-const source: InboxRow["source"] = {
+const source: InboxEntry["source"] = {
   projectId: "p",
   workspaceSessionId: "s",
   terminalId: "t",
@@ -58,7 +58,7 @@ const ask: InboxContent = {
 const failed: InboxContent = { kind: "trouble", trouble: { type: "failed", error: null } }
 const told: InboxContent = { kind: "update", update: { type: "told", subject: "s", body: "b" } }
 
-const row = (id: string, content: InboxContent, stopped: boolean, at = 0): InboxRow => ({
+const entry = (id: string, content: InboxContent, stopped: boolean, at = 0): InboxEntry => ({
   ...content,
   id,
   source,
@@ -102,12 +102,12 @@ describe("inboxType", () => {
 describe("what a terminal needs and has done", () => {
   const at = { projectId: "p", workspaceSessionId: "s", terminalId: "t" }
   const elsewhere = { ...source, terminalId: "other" }
-  const there = (id: string, content: InboxContent, seen = false): InboxRow => ({
-    ...row(id, content, true),
+  const there = (id: string, content: InboxContent, seen = false): InboxEntry => ({
+    ...entry(id, content, true),
     seen,
   })
-  const away = (id: string, content: InboxContent): InboxRow => ({
-    ...row(id, content, true),
+  const away = (id: string, content: InboxContent): InboxEntry => ({
+    ...entry(id, content, true),
     source: elsewhere,
   })
   const limitAt = (resetsAt: number, autoResume: boolean | null): InboxContent => ({
@@ -126,7 +126,7 @@ describe("what a terminal needs and has done", () => {
     expect(terminalNeed([there("a", ask), there("b", held)], at, 0)).toBe("unblock")
   })
 
-  it("needs nothing for trouble or updates, nor for another terminal's rows", () => {
+  it("needs nothing for trouble or updates, nor for another terminal's entries", () => {
     expect(terminalNeed([there("a", failed), there("b", told)], at, 0)).toBe(undefined)
     expect(terminalNeed([away("a", held)], at, 0)).toBe(undefined)
   })
@@ -139,10 +139,10 @@ describe("what a terminal needs and has done", () => {
   })
 
   it("finds the next limit still to reset, for the marks that change then", () => {
-    const rows = [there("a", limitAt(300, false)), there("b", limitAt(100, false))]
-    expect(nextLimitReset(rows, 50)).toBe(100)
-    expect(nextLimitReset(rows, 100)).toBe(300)
-    expect(nextLimitReset(rows, 300)).toBeUndefined()
+    const entries = [there("a", limitAt(300, false)), there("b", limitAt(100, false))]
+    expect(nextLimitReset(entries, 50)).toBe(100)
+    expect(nextLimitReset(entries, 100)).toBe(300)
+    expect(nextLimitReset(entries, 300)).toBeUndefined()
     expect(nextLimitReset([there("c", done)], 0)).toBeUndefined()
   })
 
@@ -155,37 +155,37 @@ describe("what a terminal needs and has done", () => {
 })
 
 describe("ordered", () => {
-  const settled = (id: string, at: number, resolvedAt: number): InboxRow => ({
-    ...row(id, ask, true, at),
+  const settled = (id: string, at: number, resolvedAt: number): InboxEntry => ({
+    ...entry(id, ask, true, at),
     settled: { how: "dismissed", at: resolvedAt },
   })
 
-  it("puts the row added last first, whatever it asks", () => {
-    const rows = [
-      row("update", told, false, 1),
-      row("late", held, true, 20),
-      row("trouble", failed, true, 30),
-      row("early", ask, true, 10),
+  it("puts the entry added last first, whatever it asks", () => {
+    const entries = [
+      entry("update", told, false, 1),
+      entry("late", held, true, 20),
+      entry("trouble", failed, true, 30),
+      entry("early", ask, true, 10),
     ]
-    expect(ordered(rows).map((each) => each.id)).toEqual(["trouble", "late", "early", "update"])
+    expect(ordered(entries).map((each) => each.id)).toEqual(["trouble", "late", "early", "update"])
   })
 
-  it("mixes open and resolved rows by when each was added", () => {
-    const rows = [
+  it("mixes open and resolved entries by when each was added", () => {
+    const entries = [
       settled("s1", 100, 500),
-      row("open", ask, true, 200),
+      entry("open", ask, true, 200),
       settled("s2", 300, 400),
-      row("older", failed, true, 50),
+      entry("older", failed, true, 50),
     ]
-    expect(ordered(rows).map((each) => each.id)).toEqual(["s2", "open", "s1", "older"])
+    expect(ordered(entries).map((each) => each.id)).toEqual(["s2", "open", "s1", "older"])
   })
 
-  it("lists only the ten resolved rows that resolved last, and every open one", () => {
+  it("lists only the ten resolved entries that resolved last, and every open one", () => {
     const resolved = Array.from({ length: 12 }, (_, index) =>
       settled(`s${index}`, 1000 + index, 2000 + index),
     )
-    const rows = [...resolved, row("a", ask, true, 1), row("b", failed, true, 2)]
-    const listed = ordered(rows).map((each) => each.id)
+    const entries = [...resolved, entry("a", ask, true, 1), entry("b", failed, true, 2)]
+    const listed = ordered(entries).map((each) => each.id)
     expect(listed).toHaveLength(12)
     expect(listed).toContain("a")
     expect(listed).toContain("b")
@@ -195,30 +195,30 @@ describe("ordered", () => {
   })
 
   it("leaves its input as it was", () => {
-    const rows = [row("a", failed, true, 1), row("b", told, false, 2)]
-    ordered(rows)
-    expect(rows.map((each) => each.id)).toEqual(["a", "b"])
+    const entries = [entry("a", failed, true, 1), entry("b", told, false, 2)]
+    ordered(entries)
+    expect(entries.map((each) => each.id)).toEqual(["a", "b"])
   })
 })
 
-describe("entryRow", () => {
-  const entry = "8f1c2a3b-0d4e-4f5a-9b6c-7d8e9f0a1b2c"
+describe("inboxEntryOf", () => {
+  const messageId = "8f1c2a3b-0d4e-4f5a-9b6c-7d8e9f0a1b2c"
 
-  it("finds the row an entry came from, as the runner names the entry", () => {
-    const rows = [row("other", told, false), row(entry, ask, true)]
-    expect(entryRow(rows, { id: `m-${entry.replaceAll("-", "")}` })?.id).toBe(entry)
-    expect(entryRow(rows, { id: entry })?.id).toBe(entry)
+  it("finds the Inbox entry a message came from, as the runner names the message", () => {
+    const entries = [entry("other", told, false), entry(messageId, ask, true)]
+    expect(inboxEntryOf(entries, { id: `m-${messageId.replaceAll("-", "")}` })?.id).toBe(messageId)
+    expect(inboxEntryOf(entries, { id: messageId })?.id).toBe(messageId)
   })
 
-  it("finds nothing for an entry with no row, not another row of its terminal", () => {
-    expect(entryRow([row("other", held, true)], { id: "m-gone" })).toBeUndefined()
+  it("finds nothing for a message with no Inbox entry, not another entry of its terminal", () => {
+    expect(inboxEntryOf([entry("other", held, true)], { id: "m-gone" })).toBeUndefined()
   })
 })
 
 describe("withSnoozes", () => {
-  const rows = [row("a", held, true), row("b", held, true, 1)]
+  const entries = [entry("a", held, true), entry("b", held, true, 1)]
   const make = (initial: readonly string[] = []) => {
-    const state = createStore<InboxState>({ ...emptyInbox, items: rows })
+    const state = createStore<InboxState>({ ...emptyInbox, items: entries })
     const saved: (readonly string[])[] = []
     const inbox = withSnoozes({ ...noInbox, state }, initial, (keys) => saved.push(keys))
     return { state, saved, inbox }
@@ -226,7 +226,7 @@ describe("withSnoozes", () => {
   const snoozedIds = (state: InboxState) =>
     state.items.filter((each) => each.snoozed).map((each) => each.id)
 
-  it("marks the rows snoozed before, and nothing else", () => {
+  it("marks the entries snoozed before, and nothing else", () => {
     const { inbox } = make(["b@1", "gone@3"])
     expect(snoozedIds(inbox.state.getSnapshot())).toEqual(["b"])
     // The same listing reads as the same state.
@@ -248,35 +248,35 @@ describe("withSnoozes", () => {
     stop()
   })
 
-  it("keeps a snooze while its row is away, and keeps the snoozed row the same", () => {
+  it("keeps a snooze while its entry is away, and keeps the snoozed entry the same", () => {
     const { inbox, state } = make(["a@0"])
     const before = inbox.state.getSnapshot().items[0]
-    state.update((current) => ({ ...current, items: [...rows, row("c", held, true, 2)] }))
+    state.update((current) => ({ ...current, items: [...entries, entry("c", held, true, 2)] }))
     expect(inbox.state.getSnapshot().items[0]).toBe(before)
-    state.update((current) => ({ ...current, items: [rows[1]!] }))
+    state.update((current) => ({ ...current, items: [entries[1]!] }))
     expect(snoozedIds(inbox.state.getSnapshot())).toEqual([])
-    state.update((current) => ({ ...current, items: rows }))
+    state.update((current) => ({ ...current, items: entries }))
     expect(snoozedIds(inbox.state.getSnapshot())).toEqual(["a"])
   })
 
-  it("leaves unsnoozed a newer row under the same id, as a thread held again", () => {
+  it("leaves unsnoozed a newer entry under the same id, as a thread held again", () => {
     const { inbox, state } = make(["a@0"])
-    state.update((current) => ({ ...current, items: [row("a", held, true, 9)] }))
+    state.update((current) => ({ ...current, items: [entry("a", held, true, 9)] }))
     expect(snoozedIds(inbox.state.getSnapshot())).toEqual([])
   })
 
-  it("leaves unsnoozed a row that has settled", () => {
+  it("leaves unsnoozed an entry that has settled", () => {
     const { inbox, state } = make(["a@0"])
     state.update((current) => ({
       ...current,
-      items: [{ ...rows[0]!, settled: { how: "dismissed", at: 5 } }],
+      items: [{ ...entries[0]!, settled: { how: "dismissed", at: 5 } }],
     }))
     expect(snoozedIds(inbox.state.getSnapshot())).toEqual([])
   })
 
   it("is left out of a terminal's marks", () => {
-    const snoozed = { ...row("a", held, true), snoozed: true as const }
-    expect(terminalNeed([row("a", held, true)], source, 0)).toBe("unblock")
+    const snoozed = { ...entry("a", held, true), snoozed: true as const }
+    expect(terminalNeed([entry("a", held, true)], source, 0)).toBe("unblock")
     expect(terminalNeed([snoozed], source, 0)).toBeUndefined()
   })
 })

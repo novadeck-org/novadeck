@@ -1,9 +1,9 @@
-import { inboxType, type InboxRow, type InboxType } from "@novadeck/core/inbox"
+import { inboxType, type InboxEntry, type InboxType } from "@novadeck/core/inbox"
 
 import { tintOf, type Tint } from "./inbox-icons"
 import { actionOf, fromNovadeck, labelOf, subjectOf, waitLabel } from "./inbox-text"
 
-// What a toast says of an Inbox row, in the Inbox's own words: pure, so the toast's
+// What a toast says of an Inbox entry, in the Inbox's own words: pure, so the toast's
 // markup is only a layout of it.
 export type ToastText = {
   readonly type: InboxType
@@ -21,24 +21,26 @@ export type ToastText = {
   readonly project: string
 }
 
-export const toastText = (row: InboxRow, now: number): ToastText => {
-  const novadeck = fromNovadeck(row)
-  const label = labelOf(row)
+export const toastText = (entry: InboxEntry, now: number): ToastText => {
+  const novadeck = fromNovadeck(entry)
+  const label = labelOf(entry)
   const command =
-    row.kind === "request" && row.request.kind !== "question" && actionOf(row.request) === "run"
-      ? row.request.subject
+    entry.kind === "request" &&
+    entry.request.kind !== "question" &&
+    actionOf(entry.request) === "run"
+      ? entry.request.subject
       : null
   return {
-    type: inboxType(row),
-    tint: tintOf(row),
-    handle: novadeck ? undefined : row.source.handle || undefined,
+    type: inboxType(entry),
+    tint: tintOf(entry),
+    handle: novadeck ? undefined : entry.source.handle || undefined,
     novadeck,
     // Novadeck's own lines name it, as its sheets' bylines do ("Novadeck noticed").
     said: novadeck ? label : label.charAt(0).toLowerCase() + label.slice(1),
     command,
-    subject: subjectOf(row).replaceAll("`", ""),
-    age: waitLabel(row.at, now),
-    title: row.source.title,
-    project: row.source.projectName,
+    subject: subjectOf(entry).replaceAll("`", ""),
+    age: waitLabel(entry.at, now),
+    title: entry.source.title,
+    project: entry.source.projectName,
   }
 }

@@ -46,7 +46,7 @@ export type PreferencesValue = {
   // The theme and the scheme chosen for it; the theme is a plain id the app may not know.
   // See docs/theming.md.
   appearance: { readonly theme: string; readonly scheme: SchemePreference }
-  // Whether the desktop app notifies the person when an agent needs them (an Inbox row that
+  // Whether the desktop app notifies the person when an agent needs them (an Inbox entry that
   // waits on them) while Novadeck is in the background.
   notifyNeeds: boolean
   // Whether it notifies them when an agent finishes while Novadeck is in the background.
@@ -126,7 +126,7 @@ export type AgentStatus = {
   // What holds it for the person before Novadeck can reach it: one of its own screens, as a
   // folder-trust screen (`startup`); its sign-in screen, or its prompt saying it isn't signed
   // in (`sign-in`); Novadeck's hooks not on for it, untrusted or off in the person's settings
-  // (`hooks`). No request stands behind it, so no Inbox row does either.
+  // (`hooks`). No request stands behind it, so no Inbox entry does either.
   readonly startup?: "startup" | "sign-in" | "hooks"
   // A command the person runs in the agent's shell mode (`!sleep 15`) that still runs: what
   // they typed and when they ran it. It busies the terminal but is no turn: `working` and

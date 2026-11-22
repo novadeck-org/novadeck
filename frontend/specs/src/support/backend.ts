@@ -1,7 +1,7 @@
 import type { ChatItem, Conversation, Conversations } from "@novadeck/core/conversation"
 import type { PortableInstall } from "@novadeck/core/desktop/portable"
 import type { SandboxState } from "@novadeck/core/desktop/sandbox"
-import type { InboxRow, InboxSource } from "@novadeck/core/inbox"
+import type { InboxEntry, InboxSource } from "@novadeck/core/inbox"
 import type { Approval, Approvals, Backend, BackendSink, Notice } from "@novadeck/core/port"
 import { createStore, type Store } from "@novadeck/core/store"
 import { createDemoBackend } from "@novadeck/demo"
@@ -28,8 +28,8 @@ import { createDemoUpdates } from "@novadeck/demo-debug/desktop/updates"
 import { addressParams } from "@novadeck/demo/address"
 import { demoTurns } from "@novadeck/demo/agents/turns"
 import { isDemoInbox } from "@novadeck/demo/inbox"
-import { demoInboxRowsAll } from "@novadeck/demo/inbox/fixtures"
-import { demoResolved, demoResolvedRows } from "@novadeck/demo/inbox/resolved"
+import { demoInboxEntriesAll } from "@novadeck/demo/inbox/fixtures"
+import { demoResolved, demoResolvedEntries } from "@novadeck/demo/inbox/resolved"
 import { demoTerminalId } from "@novadeck/demo/samples"
 import type { SampleArtifact } from "@novadeck/demo/showcase/artifacts"
 import { createShowcaseDemo } from "@novadeck/demo/showcase/demo"
@@ -340,17 +340,17 @@ const asDesktop = (
   }
 }
 
-// The demo's Inbox rows (by fixture id) join every window's Inbox now, in the order given,
+// The demo's Inbox entries (by fixture id) join every window's Inbox now, in the order given,
 // waiting from now, as `change` makes them.
 const arriving = (
   ids: readonly string[],
-  change: (row: InboxRow) => InboxRow = (row) => row,
+  change: (entry: InboxEntry) => InboxEntry = (entry) => entry,
 ): void => {
   const now = Date.now()
   for (const each of desktops) {
     if (!isDemoInbox(each.inbox)) continue
     for (const id of ids) {
-      const found = demoInboxRowsAll(now).find((row) => row.id === id)
+      const found = demoInboxEntriesAll(now).find((entry) => entry.id === id)
       if (!found) throw new Error(`No Inbox fixture ${id}`)
       each.inbox.add(change({ ...found, at: now }))
     }
@@ -364,35 +364,36 @@ export const desktopWindow = {
     desktops.forEach((each) => each.focusListeners.forEach((listener) => listener(focused))),
   /** The OS notifications the page has shown, by title. */
   notices: (): string[] => desktops.flatMap((each) => each.shown.map((notice) => notice.title)),
-  /** The demo's Inbox rows (by fixture id) join it now, in the order given, waiting from now. */
+  /** The demo's Inbox entries (by fixture id) join it now, in the order given, waiting from now. */
   arrive: (...ids: readonly string[]): void => arriving(ids),
-  /** A resolved row of every way a row ends (the debug panel's 17) joins it now. */
+  /** A resolved entry of every way an entry ends (the debug panel's 17) joins it now. */
   arriveResolved: (): void => {
     const now = Date.now()
     for (const each of desktops)
       if (isDemoInbox(each.inbox))
         for (const group of Object.values(demoResolved))
-          for (const row of demoResolvedRows(now, group)) each.inbox.add(row)
+          for (const entry of demoResolvedEntries(now, group)) each.inbox.add(entry)
   },
-  /** A demo Inbox row (by fixture id) joins it now as `agent`'s, for a harness the demo's own
-   * rows don't come from. */
+  /** A demo Inbox entry (by fixture id) joins it now as `agent`'s, for a harness the demo's own
+   * entries don't come from. */
   arriveAs: (id: string, agent: InboxSource["agent"]): void =>
-    arriving([id], (row) => ({ ...row, source: { ...row.source, agent } })),
-  /** The ids of the rows the page's backend Inbox holds, whether or not it lists them (the
+    arriving([id], (entry) => ({ ...entry, source: { ...entry.source, agent } })),
+  /** The ids of the entries the page's backend Inbox holds, whether or not it lists them (the
    * first window is the page's: StrictMode's second is dropped and never answered). */
-  rowIds: (): string[] => desktops[0]?.inbox?.state.getSnapshot().items.map((row) => row.id) ?? [],
-  // The ids of the rows that are still open: those that resolved stay, as history.
-  openRowIds: (): string[] =>
+  entryIds: (): string[] =>
+    desktops[0]?.inbox?.state.getSnapshot().items.map((entry) => entry.id) ?? [],
+  // The ids of the entries that are still open: those that resolved stay, as history.
+  openEntryIds: (): string[] =>
     desktops[0]?.inbox?.state
       .getSnapshot()
-      .items.filter((row) => !row.settled)
-      .map((row) => row.id) ?? [],
-  /** The ids of the rows the page's backend Inbox holds resolved, as history. */
+      .items.filter((entry) => !entry.settled)
+      .map((entry) => entry.id) ?? [],
+  /** The ids of the entries the page's backend Inbox holds resolved, as history. */
   settledIds: (): string[] =>
     desktops[0]?.inbox?.state
       .getSnapshot()
-      .items.filter((row) => row.settled)
-      .map((row) => row.id) ?? [],
+      .items.filter((entry) => entry.settled)
+      .map((entry) => entry.id) ?? [],
   /** An ask is settled as withdrawn by its agent, and stays listed. */
   withdraw: (id: string): void =>
     desktops.forEach((each) =>

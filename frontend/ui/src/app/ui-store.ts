@@ -103,7 +103,7 @@ export type UiState = {
   // is the window the person used last, the only one that rings (`watchProjectWindows`);
   // never persisted.
   readonly windows: ProjectWindowsState
-  // How many new Inbox rows that need the person the bell has rung for in this run
+  // How many new Inbox entries that need the person the bell has rung for in this run
   // (`watchBellRings`): its dot rings with each; never persisted.
   readonly bellRings: number
   // How many times a terminal of the open project landed in History in this run

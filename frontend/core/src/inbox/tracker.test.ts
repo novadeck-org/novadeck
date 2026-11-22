@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { emptyInbox, type InboxRow } from "../inbox"
+import { emptyInbox, type InboxEntry } from "../inbox"
 import { context, describe, expect, it } from "../test"
 import type { TerminalMetadata } from "../types"
 import {
   answerFailure,
-  answerRow,
+  answerEntry,
   createInboxTracker,
   keepInbox,
   type InboxActions,
@@ -21,8 +21,8 @@ const source = {
   projectName: "App",
 } as const
 
-// Failed trouble derived from a limited end: no stored row stands behind it.
-const trouble: InboxRow = {
+// Failed trouble derived from a limited end: no stored entry stands behind it.
+const trouble: InboxEntry = {
   id: "limit:01:1",
   source,
   at: 1,
@@ -32,7 +32,7 @@ const trouble: InboxRow = {
   trouble: { type: "failed", error: "boom" },
 }
 
-const request: InboxRow = {
+const request: InboxEntry = {
   id: "request:r1",
   source,
   at: 1,
@@ -52,7 +52,7 @@ const request: InboxRow = {
   },
 }
 
-const held: InboxRow = {
+const held: InboxEntry = {
   id: "held:th1",
   source,
   at: 1,
@@ -69,7 +69,7 @@ const held: InboxRow = {
   },
 }
 
-const reported: InboxRow = {
+const reported: InboxEntry = {
   id: "update:01:100",
   source,
   at: 1,
@@ -110,7 +110,7 @@ afterEach(() => {
 
 describe("The Inbox's answer tracker", () => {
   describe("what it shows", () => {
-    it("marks the rows the person saw, until they go", () => {
+    it("marks the entries the person saw, until they go", () => {
       const { tracker, changed } = setup()
       tracker.see(trouble.id)
       tracker.see(trouble.id)
@@ -128,7 +128,7 @@ describe("The Inbox's answer tracker", () => {
       expect(tracker.view([answered]).answering).toEqual({ [request.id]: true })
     })
 
-    it("shows nothing on its way for a row that is resolved, whatever it was before", () => {
+    it("shows nothing on its way for an entry that is resolved, whatever it was before", () => {
       const { tracker } = setup()
       const resolved = {
         ...request,
@@ -141,7 +141,7 @@ describe("The Inbox's answer tracker", () => {
   })
 
   describe("an answer", () => {
-    it("shows answering from the call until its row goes", async () => {
+    it("shows answering from the call until its entry goes", async () => {
       const { tracker, changed } = setup()
       const answer = pending()
       tracker.call(trouble.id, answer.work)
@@ -155,7 +155,7 @@ describe("The Inbox's answer tracker", () => {
       expect(tracker.view([trouble]).answering).toEqual({})
     })
 
-    it("fails with the reason, and gives the row back to be answered again", async () => {
+    it("fails with the reason, and gives the entry back to be answered again", async () => {
       const { tracker } = setup()
       const onError = vi.fn<() => void>()
       const answer = pending()
@@ -172,7 +172,7 @@ describe("The Inbox's answer tracker", () => {
       expect(tracker.view([trouble]).failed).toEqual({})
     })
 
-    it("keeps a failure after its row has gone, until the row is answered again", async () => {
+    it("keeps a failure after its entry has gone, until the entry is answered again", async () => {
       const { tracker } = setup()
       tracker.fail(trouble.id, "No.")
 
@@ -180,7 +180,7 @@ describe("The Inbox's answer tracker", () => {
       expect(tracker.view([trouble]).failed).toEqual({ [trouble.id]: "No." })
     })
 
-    it("gives the buttons back after the settle time when it settles and the row stands", async () => {
+    it("gives the buttons back after the settle time when it settles and the entry stands", async () => {
       const { tracker, changed } = setup()
       const answer = pending()
       tracker.call(trouble.id, answer.work, { settles: true })
@@ -267,7 +267,7 @@ describe("The Inbox's answer tracker", () => {
   })
 
   describe("a failure", () => {
-    it("takes the row out of answering", () => {
+    it("takes the entry out of answering", () => {
       const { tracker, changed } = setup()
       tracker.submit([trouble.id])
       expect(tracker.view([trouble]).answering).toEqual({ [trouble.id]: true })
@@ -363,7 +363,7 @@ describe("The Inbox's answer tracker", () => {
   })
 })
 
-describe("Answering a row", () => {
+describe("Answering an entry", () => {
   const actions = (terminal?: TerminalMetadata) =>
     ({
       request: vi.fn<InboxActions["request"]>(() => Promise.resolve()),
@@ -392,7 +392,7 @@ describe("Answering a row", () => {
     it("is answered through the agent's conversation, showing answering", async () => {
       const { tracker } = setup()
       const done = actions()
-      answerRow(tracker, request, { kind: "request", answer: chosen }, done)
+      answerEntry(tracker, request, { kind: "request", answer: chosen }, done)
 
       expect(done.request).toHaveBeenCalledWith(key, request, chosen)
       expect(tracker.view([request]).answering).toEqual({ [request.id]: true })
@@ -403,8 +403,8 @@ describe("Answering a row", () => {
     it("is released or stopped by its thread", () => {
       const { tracker } = setup()
       const done = actions()
-      answerRow(tracker, held, { kind: "held", action: "release" }, done)
-      answerRow(tracker, held, { kind: "held", action: "stop" }, done)
+      answerEntry(tracker, held, { kind: "held", action: "release" }, done)
+      answerEntry(tracker, held, { kind: "held", action: "stop" }, done)
 
       expect(done.release).toHaveBeenCalledWith("th1")
       expect(done.stop).toHaveBeenCalledWith("th1")
@@ -413,7 +413,7 @@ describe("Answering a row", () => {
     it("forgets its earlier failure", () => {
       const { tracker } = setup()
       tracker.note(held.id, "No.")
-      answerRow(tracker, held, { kind: "held", action: "release" }, actions())
+      answerEntry(tracker, held, { kind: "held", action: "release" }, actions())
 
       expect(tracker.view([held]).failed).toEqual({})
     })
@@ -423,7 +423,7 @@ describe("Answering a row", () => {
     it("is read by its id", () => {
       const { tracker } = setup()
       const done = actions()
-      answerRow(tracker, reported, { kind: "update", action: "read" }, done)
+      answerEntry(tracker, reported, { kind: "update", action: "read" }, done)
 
       expect(done.read).toHaveBeenCalledWith([reported.id])
     })
@@ -433,9 +433,9 @@ describe("Answering a row", () => {
     it("continues by sending continue, and stops by interrupting", async () => {
       const { tracker } = setup()
       const done = actions()
-      answerRow(tracker, trouble, { kind: "trouble", action: { type: "continue" } }, done)
+      answerEntry(tracker, trouble, { kind: "trouble", action: { type: "continue" } }, done)
       await flush()
-      answerRow(tracker, trouble, { kind: "trouble", action: { type: "stop" } }, done)
+      answerEntry(tracker, trouble, { kind: "trouble", action: { type: "stop" } }, done)
 
       expect(done.send).toHaveBeenCalledWith(key, "continue", { automatic: true })
       expect(done.interrupt).toHaveBeenCalledWith(key)
@@ -444,7 +444,12 @@ describe("Answering a row", () => {
     it("nudges a working agent after interrupting it", async () => {
       const { tracker } = setup()
       const done = actions(agent(true))
-      answerRow(tracker, trouble, { kind: "trouble", action: { type: "nudge", text: "go" } }, done)
+      answerEntry(
+        tracker,
+        trouble,
+        { kind: "trouble", action: { type: "nudge", text: "go" } },
+        done,
+      )
       await flush()
 
       expect(done.interrupt).toHaveBeenCalledWith(key)
@@ -457,7 +462,12 @@ describe("Answering a row", () => {
     it("nudges an agent at rest without interrupting it", async () => {
       const { tracker } = setup()
       const done = actions(agent(false))
-      answerRow(tracker, trouble, { kind: "trouble", action: { type: "nudge", text: "go" } }, done)
+      answerEntry(
+        tracker,
+        trouble,
+        { kind: "trouble", action: { type: "nudge", text: "go" } },
+        done,
+      )
       await flush()
 
       expect(done.interrupt).not.toHaveBeenCalled()
@@ -467,7 +477,7 @@ describe("Answering a row", () => {
     it("sends the person's own nudge as theirs, not automatic", async () => {
       const { tracker } = setup()
       const done = actions(agent(false))
-      answerRow(
+      answerEntry(
         tracker,
         trouble,
         { kind: "trouble", action: { type: "nudge", text: "try the cache", own: true } },
@@ -479,7 +489,7 @@ describe("Answering a row", () => {
     })
 
     describe("a stored failed turn", () => {
-      const row = (stopped: boolean): InboxRow => ({
+      const entry = (stopped: boolean): InboxEntry => ({
         ...trouble,
         id: "row-1",
         stopped,
@@ -490,7 +500,7 @@ describe("Answering a row", () => {
       it("is nudged while it is current and the agent rests, then read without waiting", async () => {
         const { tracker } = setup()
         const done = actions(agent(false))
-        answerRow(tracker, row(true), nudge, done)
+        answerEntry(tracker, entry(true), nudge, done)
         await flush()
 
         expect(done.send).toHaveBeenCalledWith(key, "fix", { automatic: true })
@@ -501,18 +511,18 @@ describe("Answering a row", () => {
       it("offers no nudge while the agent works, and interrupts nothing", async () => {
         const { tracker } = setup()
         const done = actions(agent(true))
-        answerRow(tracker, row(true), nudge, done)
+        answerEntry(tracker, entry(true), nudge, done)
         await flush()
 
         expect(done.interrupt).not.toHaveBeenCalled()
         expect(done.send).not.toHaveBeenCalled()
-        expect(tracker.view([row(true)]).failed).toHaveProperty("row-1")
+        expect(tracker.view([entry(true)]).failed).toHaveProperty("row-1")
       })
 
       it("offers no nudge once it is no longer current", async () => {
         const { tracker } = setup()
         const done = actions(agent(false))
-        answerRow(tracker, row(false), nudge, done)
+        answerEntry(tracker, entry(false), nudge, done)
         await flush()
 
         expect(done.send).not.toHaveBeenCalled()
@@ -520,9 +530,9 @@ describe("Answering a row", () => {
       })
     })
 
-    it("gives the buttons back after the settle time if the row stands", async () => {
+    it("gives the buttons back after the settle time if the entry stands", async () => {
       const { tracker } = setup()
-      answerRow(tracker, trouble, { kind: "trouble", action: { type: "stop" } }, actions())
+      answerEntry(tracker, trouble, { kind: "trouble", action: { type: "stop" } }, actions())
       await vi.advanceTimersByTimeAsync(settleMs)
 
       expect(tracker.view([trouble]).answering).toEqual({})
@@ -531,7 +541,7 @@ describe("Answering a row", () => {
     it("leaves auto-resume to the backend", () => {
       const { tracker, changed } = setup()
       const done = actions()
-      answerRow(
+      answerEntry(
         tracker,
         trouble,
         { kind: "trouble", action: { type: "auto-resume", on: true } },
@@ -542,10 +552,10 @@ describe("Answering a row", () => {
     })
   })
 
-  it("fails an answer meant for another kind of row", () => {
+  it("fails an answer meant for another kind of entry", () => {
     const { tracker } = setup()
     const done = actions()
-    answerRow(tracker, trouble, { kind: "update", action: "read" }, done)
+    answerEntry(tracker, trouble, { kind: "update", action: "read" }, done)
 
     expect(done.read).not.toHaveBeenCalled()
     expect(tracker.view([trouble]).failed).toEqual({

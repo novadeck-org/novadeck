@@ -89,10 +89,10 @@ export type TourStage = {
   readonly newTerminal: Backend["newTerminal"]
   readonly messages: DemoMessages | undefined
   readonly inbox: DemoInbox | undefined
-  // What the person last answered a row of the Inbox, as the story's ask needs to read it.
+  // What the person last answered an entry of the Inbox, as the story's ask needs to read it.
   readonly answeredWith: (id: string) => InboxAnswer | undefined
-  // Answers a row as the person would in the Inbox.
-  readonly answerRow: (id: string, answer: InboxAnswer) => void
+  // Answers an entry as the person would in the Inbox.
+  readonly answerEntry: (id: string, answer: InboxAnswer) => void
   // The demo's works, where it has them: the agents' worktrees and their changes.
   readonly works: DemoWorks | undefined
   // What the agents write in the tour's project, as the Files panel shows it, by the writer's
@@ -424,7 +424,7 @@ export const withTourAgent = (
   const messages = backend.messages ?? createDemoMessages([], false, exists)
   const inbox = isDemoInbox(backend.inbox) ? backend.inbox : undefined
   const answers = new Map<string, InboxAnswer>()
-  const answerRow = (id: string, answer: InboxAnswer): void => {
+  const answerEntry = (id: string, answer: InboxAnswer): void => {
     answers.set(id, answer)
     inbox?.answer(id, answer)
   }
@@ -473,7 +473,7 @@ export const withTourAgent = (
         messages: isDemoMessages(messages) ? messages : undefined,
         inbox,
         answers,
-        answerRow,
+        answerEntry,
         works,
         feed,
         lead: () => lead?.key,
@@ -678,7 +678,7 @@ export const withTourAgent = (
     companions,
     ...(own && { approvals: own.approvals }),
     ...(previewed && { works: previewed }),
-    ...(inbox && backend.inbox ? { inbox: { ...backend.inbox, answer: answerRow } } : {}),
+    ...(inbox && backend.inbox ? { inbox: { ...backend.inbox, answer: answerEntry } } : {}),
     commit: (workspace, actions) => {
       latest = workspace
       backend.commit(workspace, actions)

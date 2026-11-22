@@ -1,4 +1,4 @@
-import { emptyInbox, type InboxRow, type InboxState } from "@novadeck/core/inbox"
+import { emptyInbox, type InboxEntry, type InboxState } from "@novadeck/core/inbox"
 import type { Notice } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
 import { appearance } from "@novadeck/core/testing"
@@ -18,7 +18,7 @@ import { createUiStore, initialUi } from "./ui-store"
 // A ding that sounds nothing: the board under test is about its notices.
 const testDing = createDing({ sound: () => ({ on: false, volume: 0, name: "felt" }) })
 
-const source: InboxRow["source"] = {
+const source: InboxEntry["source"] = {
   projectId: "p",
   workspaceSessionId: "s",
   terminalId: "t1",
@@ -28,7 +28,12 @@ const source: InboxRow["source"] = {
   projectName: "Project",
 }
 
-const request = (id: string, tool: string, subject: string | null, at = Date.now()): InboxRow => ({
+const request = (
+  id: string,
+  tool: string,
+  subject: string | null,
+  at = Date.now(),
+): InboxEntry => ({
   id,
   source,
   at,
@@ -48,7 +53,7 @@ const request = (id: string, tool: string, subject: string | null, at = Date.now
   },
 })
 
-const ask = (id: string, at = Date.now()): InboxRow => ({
+const ask = (id: string, at = Date.now()): InboxEntry => ({
   id,
   source,
   at,
@@ -64,7 +69,7 @@ const ask = (id: string, at = Date.now()): InboxRow => ({
   },
 })
 
-const update = (id: string, at = Date.now()): InboxRow => ({
+const update = (id: string, at = Date.now()): InboxEntry => ({
   id,
   source,
   at,
@@ -113,7 +118,7 @@ const backgrounded = (notifyNeeds = true) => {
 const setup = (
   options: {
     notifyNeeds?: boolean
-    items?: InboxRow[]
+    items?: InboxEntry[]
     graceMs?: number
     drawn?: boolean
   } = {},
@@ -144,7 +149,7 @@ const setup = (
       },
     }),
   })
-  const set = (next: InboxRow[]) => inbox.update((state) => ({ ...state, items: next }))
+  const set = (next: InboxEntry[]) => inbox.update((state) => ({ ...state, items: next }))
   const focus = (pageFocused: boolean) => ui.update((state) => ({ ...state, pageFocused }))
   return { set, focus, shown, closed, badges, images, board, stop }
 }
@@ -156,7 +161,7 @@ beforeEach(() => {
 afterEach(() => void vi.useRealTimers())
 
 describe("pings for what needs the person", () => {
-  context("when a new row needs them while Novadeck is in the background", () => {
+  context("when a new entry needs them while Novadeck is in the background", () => {
     it("sends one notification once the grace has passed", () => {
       const { set, shown, stop } = setup()
       set([request("a", "Bash", "pnpm test")])
@@ -174,7 +179,7 @@ describe("pings for what needs the person", () => {
       stop()
     })
 
-    it("sends none for a row that is answered or withdrawn within the grace", () => {
+    it("sends none for an entry that is answered or withdrawn within the grace", () => {
       const { set, shown, stop } = setup()
       set([request("a", "Bash", "ls")])
       vi.advanceTimersByTime(1000)
@@ -223,7 +228,7 @@ describe("pings for what needs the person", () => {
       stop()
     })
 
-    it("sends one for each row, once, however often the Inbox changes meanwhile", () => {
+    it("sends one for each entry, once, however often the Inbox changes meanwhile", () => {
       const { set, shown, stop } = setup()
       const first = ask("a")
       set([first])
@@ -248,7 +253,7 @@ describe("pings for what needs the person", () => {
   })
 
   context("when it starts", () => {
-    it("takes the rows already there as seen, and any that began well before it", () => {
+    it("takes the entries already there as seen, and any that began well before it", () => {
       const there = ask("a")
       const { set, shown, stop } = setup({ items: [there] })
       vi.advanceTimersByTime(5000)
@@ -265,7 +270,7 @@ describe("pings for what needs the person", () => {
   })
 
   context("when it started just after a request was asked", () => {
-    it("pings for the request once its row shows", () => {
+    it("pings for the request once its entry shows", () => {
       const { set, shown, stop } = setup()
       set([request("a", "Bash", "ls", 8000)])
       vi.advanceTimersByTime(2000)
@@ -274,15 +279,15 @@ describe("pings for what needs the person", () => {
     })
   })
 
-  context("when a row leaves before it pinged and comes back", () => {
+  context("when an entry leaves before it pinged and comes back", () => {
     it("waits out its whole grace again", () => {
       const { set, shown, stop } = setup()
-      const row = ask("a")
-      set([row])
+      const entry = ask("a")
+      set([entry])
       vi.advanceTimersByTime(1000)
       set([])
       vi.advanceTimersByTime(500)
-      set([row])
+      set([entry])
       vi.advanceTimersByTime(1999)
       expect(shown).toEqual([])
       vi.advanceTimersByTime(1)
@@ -291,7 +296,7 @@ describe("pings for what needs the person", () => {
     })
   })
 
-  context("when a row that pinged leaves the Inbox", () => {
+  context("when an entry that pinged leaves the Inbox", () => {
     it("takes its notification back once it has stayed gone for the grace", () => {
       const { set, shown, closed, stop } = setup()
       set([ask("a")])
@@ -307,12 +312,12 @@ describe("pings for what needs the person", () => {
 
     it("keeps it for one that drops out of a recompute and comes back", () => {
       const { set, shown, closed, stop } = setup()
-      const row = ask("a")
-      set([row])
+      const entry = ask("a")
+      set([entry])
       vi.advanceTimersByTime(2000)
       set([])
       vi.advanceTimersByTime(500)
-      set([row])
+      set([entry])
       vi.advanceTimersByTime(5000)
       expect(closed).toEqual([])
       expect(shown).toHaveLength(1)
@@ -321,13 +326,13 @@ describe("pings for what needs the person", () => {
 
     it("pings again for one that comes back after its notification went", () => {
       const { set, shown, closed, stop } = setup()
-      const row = ask("a")
-      set([row])
+      const entry = ask("a")
+      set([entry])
       vi.advanceTimersByTime(2000)
       set([])
       vi.advanceTimersByTime(2000)
       expect(closed).toEqual(["t1"])
-      set([row])
+      set([entry])
       vi.advanceTimersByTime(2000)
       expect(shown).toHaveLength(2)
       stop()
@@ -349,7 +354,7 @@ describe("pings for what needs the person", () => {
       stop()
     })
 
-    it("treats a newer row under the same id as another", () => {
+    it("treats a newer entry under the same id as another", () => {
       const { set, shown, closed, stop } = setup()
       set([ask("a", 10_000)])
       vi.advanceTimersByTime(2000)
@@ -375,17 +380,17 @@ describe("pings for what needs the person", () => {
 })
 
 describe("the bell's rings, which its dot rings with", () => {
-  const follow = (items: InboxRow[] = []) => {
+  const follow = (items: InboxEntry[] = []) => {
     const inbox = createStore<InboxState>({ ...emptyInbox, items })
     const ui = backgrounded()
-    // Focused, as the toast's case: the bell rings whichever doorbell takes the row.
+    // Focused, as the toast's case: the bell rings whichever doorbell takes the entry.
     ui.update((state) => ({ ...state, pageFocused: true }))
     const stop = watchBellRings({ state: inbox }, ui, { graceMs: 2000 })
-    const set = (next: InboxRow[]) => inbox.update((state) => ({ ...state, items: next }))
+    const set = (next: InboxEntry[]) => inbox.update((state) => ({ ...state, items: next }))
     return { set, rings: () => ui.getSnapshot().bellRings, stop }
   }
 
-  it("counts each new row that needs the person, once its grace has passed", () => {
+  it("counts each new entry that needs the person, once its grace has passed", () => {
     const { set, rings, stop } = follow()
     const first = ask("a")
     set([first])
@@ -409,13 +414,13 @@ describe("the bell's rings, which its dot rings with", () => {
     stop()
   })
 
-  it("counts a new row that began before one already waiting", () => {
+  it("counts a new entry that began before one already waiting", () => {
     const { set, rings, stop } = follow()
     vi.setSystemTime(300_000)
     const first = ask("a")
     set([first])
     vi.advanceTimersByTime(2000)
-    // Messages held long become a row minutes after they began waiting.
+    // Messages held long become an entry minutes after they began waiting.
     set([first, ask("held", 120_000)])
     vi.advanceTimersByTime(2000)
     expect(rings()).toBe(2)
@@ -423,8 +428,8 @@ describe("the bell's rings, which its dot rings with", () => {
   })
 })
 
-describe("what a notification says of a row", () => {
-  it("leads with who it is from, in the row's own words, and gives its subject as the body", () => {
+describe("what a notification says of an entry", () => {
+  it("leads with who it is from, in the entry's own words, and gives its subject as the body", () => {
     expect(needNotice(ask("a"))).toEqual({
       id: "t1",
       title: "@moth asks you: Checkout",
@@ -441,7 +446,7 @@ describe("what a notification says of a row", () => {
   })
 
   it("is Novadeck's own for what Novadeck noticed, and plain where the terminal has no handle", () => {
-    const failed: InboxRow = {
+    const failed: InboxEntry = {
       id: "f",
       source,
       at: 0,
@@ -583,13 +588,13 @@ describe("the board of notifications", () => {
     expect(closed).toEqual(["t"])
   })
 
-  it("remembers the row of a terminal's latest notice, one board per backend", () => {
+  it("remembers the entry of a terminal's latest notice, one board per backend", () => {
     const notices = { show: () => {}, close: () => {}, onClick: () => () => {} }
     noticeBoard(notices, testDing)!.show("a", { id: "t", title: "", body: "" }, "first")
     noticeBoard(notices, testDing)!.show("b", { id: "t", title: "", body: "" }, "second")
-    expect(noticeBoard(notices, testDing)!.rowIdOf("t")).toBe("second")
+    expect(noticeBoard(notices, testDing)!.entryIdOf("t")).toBe("second")
     noticeBoard(notices, testDing)!.close("b", "t")
-    expect(noticeBoard(notices, testDing)!.rowIdOf("t")).toBeUndefined()
+    expect(noticeBoard(notices, testDing)!.entryIdOf("t")).toBeUndefined()
   })
 
   it("is none where there are no notifications", () => {
@@ -613,28 +618,28 @@ describe("a click on a terminal's notification", () => {
     }
   }
 
-  it("skips a settled row, which has no sheet to open", () => {
+  it("skips a settled entry, which has no sheet to open", () => {
     const { calls, ...handlers } = to()
     const settled = { ...ask("s"), settled: { how: "dismissed" as const, at: 2 } }
     clickNotice("t1", [settled, ask("a")], handlers)
     expect(calls).toEqual(["inbox", "open a once"])
   })
 
-  it("opens that terminal's row in the Inbox when one stands", () => {
+  it("opens that terminal's entry in the Inbox when one stands", () => {
     const { calls, ...handlers } = to()
     clickNotice("t1", [update("u"), ask("a")], handlers)
     expect(calls).toEqual(["inbox", "open u once"])
   })
 
-  it("opens the row the notice was about, among the terminal's several", () => {
+  it("opens the entry the notice was about, among the terminal's several", () => {
     const { calls, ...handlers } = to()
     clickNotice("t1", [update("u"), ask("a"), update("v")], handlers, "v")
     expect(calls).toEqual(["inbox", "open v once"])
   })
 
-  it("opens the terminal's done report for a notice that names no row", () => {
+  it("opens the terminal's done report for a notice that names no entry", () => {
     const { calls, ...handlers } = to()
-    const finish: InboxRow = {
+    const finish: InboxEntry = {
       ...update("f"),
       kind: "update",
       update: { type: "done", subject: "Done", body: "" },
@@ -643,13 +648,13 @@ describe("a click on a terminal's notification", () => {
     expect(calls).toEqual(["inbox", "open f once"])
   })
 
-  it("falls back to the terminal's first row when the notice's row has left", () => {
+  it("falls back to the terminal's first entry when the notice's entry has left", () => {
     const { calls, ...handlers } = to()
     clickNotice("t1", [ask("a"), update("u")], handlers, "gone")
     expect(calls).toEqual(["inbox", "open a once"])
   })
 
-  it("opens the row for itself alone, putting the sidebar back once it is answered", () => {
+  it("opens the entry for itself alone, putting the sidebar back once it is answered", () => {
     const { calls, ...handlers } = to()
     let after: (() => void) | undefined
     clickNotice("t1", [ask("a")], { ...handlers, open: (_id, given) => void (after = given) })

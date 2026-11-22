@@ -129,7 +129,7 @@ export const SidebarRail = ({
   sidebarBack?: SidebarStep | null
   zen: boolean
   badge: InboxBadge | undefined
-  // How many new Inbox rows the bell has rung for, which its dot rings with.
+  // How many new Inbox entries the bell has rung for, which its dot rings with.
   bellRings: number
   // How many times a closed terminal landed in History, which its toggle's dot flares for,
   // and, in words, the one that landed last, which its tooltip names for a while.
@@ -249,7 +249,7 @@ const RailToggle = ({
   back: SidebarPanel | null
   // What the Inbox holds, on its toggle.
   badge: InboxBadge | undefined
-  // How many new Inbox rows the bell has rung for, which its dot rings with.
+  // How many new Inbox entries the bell has rung for, which its dot rings with.
   bellRings: number
   // On the History toggle, how many closed terminals landed there and the last one, in words.
   drops: { count: number; last: string | undefined } | undefined

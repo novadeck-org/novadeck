@@ -1,5 +1,5 @@
 import { createTelemetryStore, dropTerminal, setUsage } from "@novadeck/core/agents/telemetry"
-import { rowKey, withSnoozes, type Inbox } from "@novadeck/core/inbox"
+import { entryKey, withSnoozes, type Inbox } from "@novadeck/core/inbox"
 import type {
   Backend,
   BackendAction,
@@ -30,7 +30,7 @@ import {
   maxInboxHistoryLength,
   maxInboxOrder,
   maxInboxHistoryRows,
-  maxInboxRowIdLength,
+  maxInboxEntryIdLength,
   type AgentName,
   type AgentIntegration,
   type ForgeIntegration,
@@ -213,13 +213,13 @@ export type RunnerBackendOptions = {
   // (an older runner has none).
   readonly forges?: readonly ForgeIntegration[]
   readonly welcomed?: boolean
-  // The order the person dragged the Inbox's rows into, as the runner said at startup; the
+  // The order the person dragged the Inbox's entries into, as the runner said at startup; the
   // rows keep the Inbox's own order, and can't be dragged, when absent.
   readonly inboxOrder?: readonly string[]
-  // The Inbox's rows the person snoozed, as the runner said at startup; none can be snoozed
+  // The Inbox's entries the person snoozed, as the runner said at startup; none can be snoozed
   // when absent.
   readonly inboxSnoozed?: readonly string[]
-  // The Inbox's rows that ended and the runner can't tell of, as the runner kept them; none
+  // The Inbox's entries that ended and the runner can't tell of, as the runner kept them; none
   // when absent.
   readonly inboxHistory?: readonly string[]
   // The page's theme, which its terminals draw in; tests pass `noTheme`.
@@ -386,10 +386,10 @@ const trimmed = (keys: readonly string[], listed: ReadonlySet<string>): string[]
   return keys.filter((key) => listed.has(key) || away.has(key))
 }
 
-// Inbox rows as the runner keeps them: as many as it takes, from the top (the rows below
+// Inbox entries as the runner keeps them: as many as it takes, from the top (the rows below
 // keep the Inbox's own order), each of an id it can take.
 const fitted = (ids: readonly string[]): string[] =>
-  ids.filter((id) => id.length > 0 && id.length <= maxInboxRowIdLength).slice(0, maxInboxOrder)
+  ids.filter((id) => id.length > 0 && id.length <= maxInboxEntryIdLength).slice(0, maxInboxOrder)
 
 // A backend over a connected runner and what it listed at startup. Creating it starts
 // nothing: I/O begins with the first commit that changes the workspace, or `start`.
@@ -1508,7 +1508,7 @@ export const runnerBackend = (
       },
     },
   )
-  // The chat answers a dialog too: the Inbox row it resolves says what with.
+  // The chat answers a dialog too: the Inbox entry it resolves says what with.
   const answeringChat: typeof conversations = {
     ...conversations,
     answer: (key, requestId, answer) => {
@@ -1520,7 +1520,7 @@ export const runnerBackend = (
       return conversations.answer(key, requestId, answer)
     },
   }
-  // The person's order of the Inbox's rows and their snoozes: shown at once, kept by the
+  // The person's order of the Inbox's entries and their snoozes: shown at once, kept by the
   // runner (`fitted`).
   const inboxOrder = options.inboxOrder && createStore(options.inboxOrder)
   const snoozable = (shown: Inbox): Inbox =>
@@ -2155,7 +2155,7 @@ export const runnerBackend = (
             ...inbox,
             order: inboxOrder,
             arrange: (keys) => {
-              const kept = trimmed(keys, new Set(inbox.state.getSnapshot().items.map(rowKey)))
+              const kept = trimmed(keys, new Set(inbox.state.getSnapshot().items.map(entryKey)))
               inboxOrder.update(() => kept)
               void track(runner.settings.set({ inboxOrder: fitted(kept) })).catch(() => {})
             },

@@ -1,5 +1,5 @@
 import type { AgentName } from "../harnesses"
-import type { InboxRow } from "../inbox"
+import type { InboxEntry } from "../inbox"
 import type { Item, ItemContent } from "../items"
 import type { Workspace, WorkspaceTarget } from "../types"
 import { minute, second } from "../units"
@@ -27,7 +27,7 @@ const planLeadMs: Readonly<Record<AgentName, number>> = {
 export const planWaitMs = 5 * second
 
 // The plan item a plan approval asks about: found, still to come (until `until`), or none,
-// for a row that is no plan approval or whose plan never came.
+// for an entry that is no plan approval or whose plan never came.
 export type PlanPick =
   | { readonly state: "found"; readonly item: Item }
   | { readonly state: "waiting"; readonly until: number }
@@ -37,30 +37,30 @@ const none: PlanPick = { state: "none" }
 
 const noItems: readonly Item[] = []
 
-// The items of the session an Inbox row's terminal is in: the session's own list, the same
+// The items of the session an Inbox entry's terminal is in: the session's own list, the same
 // while it doesn't change, so a component can subscribe to it.
 export const sessionItems = (workspace: Workspace, target: WorkspaceTarget): readonly Item[] =>
   workspace.projects
     .find((project) => project.id === target.projectId)
     ?.history.find((session) => session.id === target.workspaceSessionId)?.state.items ?? noItems
 
-// The plan `row` asks the person to approve, among its session's items: the asking actor's
+// The plan `entry` asks the person to approve, among its session's items: the asking actor's
 // (the root's, or a subagent's), on its terminal's bar or undocked from it, shown no longer
 // before the dialog than its harness shows one, the latest of them. Hidden from the bar it
 // is still there. `now` says whether one may yet come.
 export const planItemOf = (
   items: readonly Item[],
-  row: InboxRow,
+  entry: InboxEntry,
   now: number,
   // Plan versions (`planKey`) another plan approval was answered with: one is never a later
   // round's plan, so a sent-back round's text isn't shown for the next while the new version
   // is on its way.
   used: ReadonlySet<string> = new Set(),
 ): PlanPick => {
-  if (row.kind !== "request" || row.request.kind !== "plan") return none
-  const { terminalId, agent } = row.source
-  const role = row.request.subagent ? "subagent" : "root"
-  const since = row.at - planLeadMs[agent]
+  if (entry.kind !== "request" || entry.request.kind !== "plan") return none
+  const { terminalId, agent } = entry.source
+  const role = entry.request.subagent ? "subagent" : "root"
+  const since = entry.at - planLeadMs[agent]
   const found = items
     .filter(
       (item) =>
@@ -76,7 +76,7 @@ export const planItemOf = (
       undefined,
     )
   if (found && !used.has(planKey(found))) return { state: "found", item: found }
-  const until = row.at + planWaitMs
+  const until = entry.at + planWaitMs
   return now < until ? { state: "waiting", until } : none
 }
 

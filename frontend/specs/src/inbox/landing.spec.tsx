@@ -90,7 +90,7 @@ describe("The landing rule", () => {
       desktopWindow.arrive(demoInboxIds.done)
       // Looking at its terminal reads nothing, however long.
       await expectStaysAbsent(
-        { shown: () => !desktopWindow.openRowIds().includes(demoInboxIds.done), name: "a read" },
+        { shown: () => !desktopWindow.openEntryIds().includes(demoInboxIds.done), name: "a read" },
         { ms: 2_500 },
       )
 
@@ -98,14 +98,14 @@ describe("The landing rule", () => {
       await sidebarPanel("Inbox").click()
       await expect.element(inboxRow("Search index rebuilt")).toBeVisible()
       await expectStaysAbsent(
-        { shown: () => !desktopWindow.openRowIds().includes(demoInboxIds.done), name: "a read" },
+        { shown: () => !desktopWindow.openEntryIds().includes(demoInboxIds.done), name: "a read" },
         { ms: 2_500 },
       )
       await expect.element(inboxRow("Search index rebuilt")).not.toHaveAccessibleName(/read$/)
 
       // Leaving the list reads what they saw there: back in it, the row is history.
       await sidebarPanel("Terminals").click()
-      await expect.poll(() => desktopWindow.openRowIds()).not.toContain(demoInboxIds.done)
+      await expect.poll(() => desktopWindow.openEntryIds()).not.toContain(demoInboxIds.done)
       await sidebarPanel("Inbox").click()
       await expect.element(inboxRow("Search index rebuilt")).toHaveAccessibleName(/read$/)
       await expect.element(bell()).not.toBeInTheDocument()
@@ -124,7 +124,7 @@ describe("The landing rule", () => {
       terminals.click()
 
       await expectStaysAbsent(
-        { shown: () => !desktopWindow.openRowIds().includes(demoInboxIds.done), name: "a read" },
+        { shown: () => !desktopWindow.openEntryIds().includes(demoInboxIds.done), name: "a read" },
         { ms: 2_500 },
       )
     })

@@ -1,4 +1,4 @@
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { InboxEntry } from "@novadeck/core/inbox"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { createToasts, shownToasts, ToastRegion } from "@novadeck/toolkit/Toast"
@@ -13,9 +13,9 @@ import { toastText, type ToastText } from "./toast-text"
 
 // What shows the Inbox's toasts: one per terminal.
 export type ToastBoard = {
-  // Shows the row's toast, replacing (in place, moved to the front) any its terminal shows.
-  readonly show: (row: InboxRow) => void
-  // Takes the terminal's toast away if it still shows that row.
+  // Shows the entry's toast, replacing (in place, moved to the front) any its terminal shows.
+  readonly show: (entry: InboxEntry) => void
+  // Takes the terminal's toast away if it still shows that entry.
   readonly close: (terminalId: string, itemId: string) => void
 }
 
@@ -35,9 +35,9 @@ export type ShowWaiting = {
 
 // What shows the toasts of what waits to open.
 export type ShowBoard = {
-  // Shows the row's toast, replacing its older one.
+  // Shows the entry's toast, replacing its older one.
   readonly show: (waiting: ShowWaiting) => void
-  // Takes the row's toast away, if it still shows.
+  // Takes the entry's toast away, if it still shows.
   readonly close: (itemId: string) => void
 }
 
@@ -57,9 +57,9 @@ export type MoveBoard = {
   readonly close: () => void
 }
 
-// A toast is an Inbox row's, an agent's wish to show something, or a move the person made.
+// A toast is an Inbox entry's, an agent's wish to show something, or a move the person made.
 type Toast =
-  | { readonly kind: "inbox"; readonly row: InboxRow }
+  | { readonly kind: "inbox"; readonly entry: InboxEntry }
   | { readonly kind: "show"; readonly waiting: ShowWaiting }
   | { readonly kind: "moved"; readonly moved: MovedToast }
 
@@ -68,7 +68,7 @@ type Toast =
 export const moreWords = (count: number, inbox: number): string =>
   inbox > 0 ? `${inbox} more in the Inbox` : `${count} more`
 
-// The key of a row's toast, apart from the terminals' keys of the Inbox's.
+// The key of an entry's toast, apart from the terminals' keys of the Inbox's.
 const showKey = (itemId: string): string => `show:${itemId}`
 const movedKey = "moved"
 
@@ -140,16 +140,16 @@ const ToastCard = ({
   </div>
 )
 
-// An Inbox row's toast, in the Inbox's own words.
+// An Inbox entry's toast, in the Inbox's own words.
 const InboxToast = ({
-  row,
+  entry,
   now,
 }: {
-  readonly row: InboxRow
+  readonly entry: InboxEntry
   readonly now: number
 }): React.JSX.Element => {
-  const text = toastText(row, now)
-  return <ToastCard text={text} Icon={iconOf(row)} />
+  const text = toastText(entry, now)
+  return <ToastCard text={text} Icon={iconOf(entry)} />
 }
 
 // What a toast says of what an agent wants to show on a terminal the person isn't on, in
@@ -167,12 +167,12 @@ const showText = (waiting: ShowWaiting, now: number): ToastText => ({
   project: waiting.projectName,
 })
 
-// The toasts of the Inbox's rows that need the person while the app has their focus: it
+// The toasts of the Inbox's entries that need the person while the app has their focus: it
 // follows the Inbox by `follow` (the app's `watchInboxToasts`), which decides what rings and
 // when on the board it's given, and draws them as a stack over the header's right end. A
-// click on one shows the Inbox on its row, for that row alone: once it is answered the sidebar
+// click on one shows the Inbox on its entry, for that entry alone: once it is answered the sidebar
 // goes back to what it showed (`peekInbox`). The pill that counts the rest shows the Inbox.
-// Closing a toast or letting it run out leaves its row in the Inbox.
+// Closing a toast or letting it run out leaves its entry in the Inbox.
 export const InboxToasts = ({
   follow,
   followShows,
@@ -188,7 +188,7 @@ export const InboxToasts = ({
   // Tells of the person's moves on the board until the returned stop.
   readonly followMoves: (board: MoveBoard) => () => void
   readonly showInbox: () => void
-  // Shows the Inbox for one row; returns what puts the sidebar back, unless it showed already.
+  // Shows the Inbox for one entry; returns what puts the sidebar back, unless it showed already.
   readonly peekInbox: () => (() => void) | undefined
   // Brings the terminal into view, selected, which opens what waits on it.
   readonly showTerminal: (terminalId: string) => void
@@ -196,12 +196,12 @@ export const InboxToasts = ({
   const { open, now } = useInboxContext()
   const toasts = useMemo(() => createToasts<Toast>(), [])
   useEffect(() => {
-    // The row each terminal's toast shows.
+    // The entry each terminal's toast shows.
     const shown = new Map<string, string>()
     const board: ToastBoard = {
-      show: (row) => {
-        shown.set(row.source.terminalId, row.id)
-        toasts.show(row.source.terminalId, { kind: "inbox", row })
+      show: (entry) => {
+        shown.set(entry.source.terminalId, entry.id)
+        toasts.show(entry.source.terminalId, { kind: "inbox", entry })
       },
       close: (terminalId, itemId) => {
         if (shown.get(terminalId) !== itemId) return
@@ -234,7 +234,7 @@ export const InboxToasts = ({
       onSelect={(toast, { keyboard }) => {
         if (toast.kind === "show") return showTerminal(toast.waiting.terminalId)
         if (toast.kind === "moved") return toast.moved.failed ? undefined : toast.moved.go()
-        open(toast.row.id, { once: true, after: peekInbox() })
+        open(toast.entry.id, { once: true, after: peekInbox() })
         // From the keyboard, on to the sheet that opens, as from a row.
         if (keyboard) focusSheetSoon()
       }}
@@ -254,7 +254,7 @@ export const InboxToasts = ({
         ) : toast.kind === "show" ? (
           <ToastCard text={showText(toast.waiting, now)} Icon={Eye} />
         ) : (
-          <InboxToast row={toast.row} now={now} />
+          <InboxToast entry={toast.entry} now={now} />
         )
       }
     </ToastRegion>

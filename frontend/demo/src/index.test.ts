@@ -9,7 +9,7 @@ import { afterEach, vi } from "vitest"
 import { demoTurns } from "./agents/turns"
 import { demoHandle } from "./handles"
 import { isDemoInbox } from "./inbox"
-import { demoInboxIds, demoInboxRowsAll, demoPlanStates } from "./inbox/fixtures"
+import { demoInboxIds, demoInboxEntriesAll, demoPlanStates } from "./inbox/fixtures"
 import { createDemoBackend, demoBackend, withMessages } from "./index"
 import { createMockTerminal, defaultName } from "./samples"
 import { createDemoEngine } from "./terminals/engine"
@@ -201,7 +201,7 @@ describe("demo backend", () => {
       })
       const { inbox } = backend
       if (!isDemoInbox(inbox)) throw new Error("The Inbox demo has the demo's Inbox")
-      const row = demoInboxRowsAll(1_000).find(({ id }) => id === demoInboxIds.plan)!
+      const row = demoInboxEntriesAll(1_000).find(({ id }) => id === demoInboxIds.plan)!
       inbox.add(row)
       stop()
       const shown = reported.filter((action) => action.type === "item/upsert")
@@ -230,7 +230,7 @@ describe("demo backend", () => {
       })
       const { inbox } = backend
       if (!isDemoInbox(inbox)) throw new Error("The Inbox demo has the demo's Inbox")
-      const row = demoInboxRowsAll(1_000).find(({ id: each }) => each === demoInboxIds.plan)!
+      const row = demoInboxEntriesAll(1_000).find(({ id: each }) => each === demoInboxIds.plan)!
       inbox.add({ ...row, id })
       stop()
       return {

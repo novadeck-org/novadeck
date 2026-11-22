@@ -365,7 +365,7 @@ export class Inbox {
   private readonly entries = new Map<string, StoredEntry>()
   /**
    * What the agent sessions reported and how their turns ended, which the person's reading
-   * of the Inbox's rows and the day's passing leave: see `ReportLog`.
+   * of the Inbox's entries and the day's passing leave: see `ReportLog`.
    */
   private readonly log: ReportLog
   /** When the log was last swept for rows nothing holds any more. */

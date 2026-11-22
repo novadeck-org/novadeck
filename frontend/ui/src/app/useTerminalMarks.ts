@@ -1,4 +1,4 @@
-import { nextLimitReset, noInbox, type Inbox, type InboxRow } from "@novadeck/core/inbox"
+import { nextLimitReset, noInbox, type Inbox, type InboxEntry } from "@novadeck/core/inbox"
 import { inboxMarks } from "@novadeck/core/inbox/marks"
 import type { InboxMarks } from "@novadeck/core/terminals/ending"
 import type { TerminalKey } from "@novadeck/core/types"
@@ -18,15 +18,15 @@ export const useMoveOn = (at: number | undefined, setNow: (now: number) => void)
   }, [at, setNow])
 }
 
-// The time the limits among `rows` are judged by, moved on once the next one resets (which
+// The time the limits among `entries` are judged by, moved on once the next one resets (which
 // makes its terminal an Unblock) though nothing else changes.
-export const useLimitClock = (rows: readonly InboxRow[]): number => {
+export const useLimitClock = (entries: readonly InboxEntry[]): number => {
   const [now, setNow] = useState(() => Date.now())
-  useMoveOn(nextLimitReset(rows, now), setNow)
+  useMoveOn(nextLimitReset(entries, now), setNow)
   return now
 }
 
-const none: readonly InboxRow[] = []
+const none: readonly InboxEntry[] = []
 
 // Follows an Inbox (the landed one) for one terminal: it re-renders only when that terminal's own items
 // change, and again when one of its limits resets (which makes it an Unblock).

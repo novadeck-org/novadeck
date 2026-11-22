@@ -20,7 +20,7 @@ const told = (entryId: string): InboxEntry => ({
 
 describe("a backend stopped and started again", () => {
   context("as React's StrictMode runs the app's effects twice in development", () => {
-    it("still shows the Inbox's rows", async () => {
+    it("still shows the Inbox's entries", async () => {
       const app = scripted({ shown: [{ id: id(1), lastProcess: "" }] })
       const inbox = app.backend.inbox!
       const workspace = createStore(app.workspace())

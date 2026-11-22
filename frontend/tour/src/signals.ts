@@ -70,7 +70,7 @@ export type TourSignals = {
   // The Inbox row of that question, for the stage to mark; null while none waits.
   readonly askingRow: string | null
   // Whether the person answered or dismissed a teammate's question: their answer is in the
-  // teammate's messages, and its row stays in the Inbox, settled, both through a reload.
+  // teammate's messages, and its entry stays in the Inbox, settled, both through a reload.
   readonly answered: boolean
   // A teammate or the artist holding at a screen of its own agent's, as its harness's folder
   // trust, for the person to answer in its terminal; null while none does.
@@ -85,7 +85,7 @@ export type TourSignals = {
   readonly teamLeft: { readonly terminalId: string } | null
   // An agent of the story (the lead, a teammate or the artist) waiting on the person's yes to
   // something, as its harness's own permission dialog, or a message held for them: an unsettled
-  // Inbox row of type Unblock, whichever harness raised it. Null while none does.
+  // Inbox entry of type Unblock, whichever harness raised it. Null while none does.
   readonly permission: { readonly terminalId: string } | null
   // Whether a teammate's work changes the hero's model, and whether another's changes the score.
   readonly changed: { readonly hero: boolean; readonly score: boolean }
@@ -233,7 +233,9 @@ const wrote = (messages: MessagesState | undefined, from: string, to: string): b
 // The team's questions in the Inbox: its asks, or a harness's own question tool's (a request
 // the Inbox lists as a question), whichever a teammate used.
 const questionsOf = (inbox: InboxState | undefined, team: ReadonlySet<string>) =>
-  (inbox?.items ?? []).filter((row) => inboxType(row) === "ask" && team.has(row.source.terminalId))
+  (inbox?.items ?? []).filter(
+    (entry) => inboxType(entry) === "ask" && team.has(entry.source.terminalId),
+  )
 
 // How a question ends by the person's own doing: answered, in the Inbox or the terminal, or
 // dismissed. Not one its agent's session took away (`ended`, `away`).
@@ -246,7 +248,7 @@ const byThePerson: ReadonlySet<SettledHow> = new Set([
 ])
 
 // Whether the person dealt with one of the team's questions: an Inbox answer delivered to it,
-// which stays in its messages; or its row, settled by them, which the Inbox keeps as history.
+// which stays in its messages; or its entry, settled by them, which the Inbox keeps as history.
 const answeredOf = (
   messages: MessagesState | undefined,
   inbox: InboxState | undefined,
@@ -254,21 +256,21 @@ const answeredOf = (
 ): boolean =>
   everyMessage(messages).some(
     ({ inbox: kind, to }) => kind === "answer" && to.kind === "agent" && team.has(to.terminalId),
-  ) || questionsOf(inbox, team).some((row) => row.settled && byThePerson.has(row.settled.how))
+  ) || questionsOf(inbox, team).some((entry) => entry.settled && byThePerson.has(entry.settled.how))
 
-// The Inbox row of a question from the team that waits there, not one already settled.
+// The Inbox entry of a question from the team that waits there, not one already settled.
 const askingRowOf = (inbox: InboxState | undefined, team: ReadonlySet<string>): string | null =>
-  questionsOf(inbox, team).find((row) => !row.settled)?.id ?? null
+  questionsOf(inbox, team).find((entry) => !entry.settled)?.id ?? null
 
-// The first of the team's agents waiting on the person's yes: an unsettled Unblock row.
+// The first of the team's agents waiting on the person's yes: an unsettled Unblock entry.
 const permissionOf = (
   inbox: InboxState | undefined,
   team: ReadonlySet<string>,
 ): TourSignals["permission"] => {
-  const row = (inbox?.items ?? []).find(
+  const entry = (inbox?.items ?? []).find(
     (each) => !each.settled && inboxType(each) === "unblock" && team.has(each.source.terminalId),
   )
-  return row ? { terminalId: row.source.terminalId } : null
+  return entry ? { terminalId: entry.source.terminalId } : null
 }
 
 // The tab at the top of a terminal's open pane, by what it is.
@@ -329,7 +331,7 @@ export const tourSignals = (
         ({ id }) =>
           changes(sources.works, id, heroFile) ||
           shownOn(items, id, "model") !== null ||
-          questions.some((row) => row.source.terminalId === id),
+          questions.some((entry) => entry.source.terminalId === id),
       )?.id
       const fixer = teammates.find(
         ({ id }) =>

@@ -35,7 +35,7 @@ export type StageEnv = {
   readonly messages: DemoMessages | undefined
   readonly inbox: DemoInbox | undefined
   readonly answers: ReadonlyMap<string, InboxAnswer>
-  readonly answerRow: (id: string, answer: InboxAnswer) => void
+  readonly answerEntry: (id: string, answer: InboxAnswer) => void
   readonly works: DemoWorks | undefined
   readonly feed: MutableStore<FilesState> | undefined
   // The run's lead, where there is one.
@@ -119,7 +119,7 @@ export const createStage = (env: StageEnv): TourStage => {
     messages: env.messages,
     inbox: env.inbox,
     answeredWith: (id) => env.answers.get(id),
-    answerRow: env.answerRow,
+    answerEntry: env.answerEntry,
     works: env.works,
     files: {
       write: (handle, path, kind) => {

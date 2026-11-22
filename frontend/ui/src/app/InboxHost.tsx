@@ -1,4 +1,4 @@
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { InboxEntry } from "@novadeck/core/inbox"
 import { useCallback, useEffect, useMemo, type ReactNode } from "react"
 
 import { AgentContextProvider } from "../inbox/agent-context"
@@ -11,7 +11,7 @@ import { anyAgentWorking } from "../projects/project-status"
 import { useDesktop } from "../shell/desktop"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { dingOf } from "./ding"
-import { clickNotice, noticeBoard, rowOfNotice } from "./inbox-pings"
+import { clickNotice, noticeBoard, entryOfNotice } from "./inbox-pings"
 import { watchInboxToasts } from "./inbox-toasts"
 import { watchMoveToasts } from "./move-toasts"
 import { currentState, modalOpen } from "./selectors"
@@ -28,21 +28,22 @@ const NoticeClicks = (): null => {
   useEffect(
     () =>
       backend.notices?.onClick((terminalId) => {
-        // The backend's rows, as the Inbox may hold the row back.
-        const rows = backend.inbox?.state.getSnapshot().items ?? []
-        const rowId = noticeBoard(backend.notices, dingOf(backend, ui))?.rowIdOf(terminalId)
+        // The backend's entries, as the Inbox may hold the entry back.
+        const entries = backend.inbox?.state.getSnapshot().items ?? []
+        const entryId = noticeBoard(backend.notices, dingOf(backend, ui))?.entryIdOf(terminalId)
         // With project windows on, what is about a project goes to its window, which comes
         // forward and does what a click does there; this window when it shows none.
-        if (handOffTerminal(terminalId, rowOfNotice(terminalId, rows, rowId)?.id)) return
+        if (handOffTerminal(terminalId, entryOfNotice(terminalId, entries, entryId)?.id)) return
         clickNotice(
           terminalId,
-          rows,
+          entries,
           {
-            open: (id, after) => opener?.((each) => each.find((row) => row.id === id), { after }),
+            open: (id, after) =>
+              opener?.((each) => each.find((entry) => entry.id === id), { after }),
             peekInbox,
             reveal,
           },
-          rowId,
+          entryId,
         )
       }),
     [backend, ui, opener, peekInbox, reveal, handOffTerminal],
@@ -51,7 +52,7 @@ const NoticeClicks = (): null => {
 }
 
 // Hears where another window sends this one: to a project, a terminal of it, or an Inbox
-// row's sheet. A project this window hasn't heard of, one made in another window after this
+// entry's sheet. A project this window hasn't heard of, one made in another window after this
 // one loaded, is read from the runner first (`readProject`).
 const HandedPlaces = (): null => {
   const { backend, commands } = useWorkspaceServices()
@@ -60,13 +61,13 @@ const HandedPlaces = (): null => {
   useEffect(
     () =>
       backend.projectWindows?.onNavigate((target) => {
-        const row =
+        const entry =
           target.rowId === undefined
             ? undefined
             : backend.inbox?.state.getSnapshot().items.find((each) => each.id === target.rowId)
-        if (!row || !opener) return void showProjectHere(target)
+        if (!entry || !opener) return void showProjectHere(target)
         opener(
-          (rows) => rows.find((each) => each.id === row.id),
+          (entries) => entries.find((each) => each.id === entry.id),
           { after: peekInbox() },
           { here: true },
         )
@@ -77,7 +78,7 @@ const HandedPlaces = (): null => {
 }
 
 // Gives the app below it the backend's Inbox: its list, and the sheets that open beside
-// it, which read the context of a row's agent from the backend's conversations and
+// it, which read the context of an entry's agent from the backend's conversations and
 // messages. The list is a sidebar panel (`shell/WorkspaceSidebar.tsx`); on a phone it and
 // a sheet take the screen in turn, so the sidebar's drawer is shut while a sheet is open.
 export const InboxHost = ({
@@ -93,14 +94,14 @@ export const InboxHost = ({
   const { inbox } = landing
   // Whether an agent is at work in any project, for the empty Inbox to say.
   const working = useWorkspaceState((state) => anyAgentWorking(state.projects))
-  // Whether the person looks at the page, for an update's row in sight to count as seen.
+  // Whether the person looks at the page, for an update's entry in sight to count as seen.
   const looking = useUiState((state) => state.pageFocused && !modalOpen(state))
   const { hideSidebar, reveal, select, showInbox, peekInbox } = commands
   const phone = useMemo(
     () => (desktop ? undefined : { hideList: hideSidebar, showList: showInbox }),
     [desktop, hideSidebar, showInbox],
   )
-  // Only a backend that shows notices has a ping to take a row held as the person leaves.
+  // Only a backend that shows notices has a ping to take an entry held as the person leaves.
   const pings = backend.notices !== undefined
   const follow = useCallback(
     (board: ToastBoard) =>
@@ -117,7 +118,7 @@ export const InboxHost = ({
     (board: MoveBoard) => watchMoveToasts(ui, board, commands),
     [ui, commands],
   )
-  // Brings the terminal a row waits on into view, as its sidebar row does where the session
+  // Brings the terminal an entry waits on into view, as its sidebar row does where the session
   // is on screen, else as a click on a notification about it does.
   const showTerminal = useCallback(
     (terminalId: string) => {
@@ -133,13 +134,13 @@ export const InboxHost = ({
     },
     [workspace, select, reveal],
   )
-  // A row about a project another window shows opens its sheet there.
-  const { handOffRow } = commands
+  // An entry about a project another window shows opens its sheet there.
+  const { handOffEntry } = commands
   const routeAway = useCallback(
-    (row: InboxRow) => handOffRow({ id: row.id, terminalId: row.source.terminalId }),
-    [handOffRow],
+    (entry: InboxEntry) => handOffEntry({ id: entry.id, terminalId: entry.source.terminalId }),
+    [handOffEntry],
   )
-  // Going to an Inbox row's terminal from the Inbox's list turns the sidebar to the terminals.
+  // Going to an Inbox entry's terminal from the Inbox's list turns the sidebar to the terminals.
   const revealItem = useCallback(
     (terminalId: string) => reveal(terminalId, active ? "terminals" : undefined),
     [reveal, active],

@@ -2,7 +2,7 @@ import {
   emptyInbox,
   type Inbox,
   type InboxFinish,
-  type InboxRow,
+  type InboxEntry,
   type InboxTurn,
   type InboxState,
 } from "@novadeck/core/inbox"
@@ -17,7 +17,7 @@ import { goneKept, remember, watchUnreadTurns, type FinishNotify } from "./unrea
 const target = { projectId: "project", workspaceSessionId: "initial" }
 const base = Date.now()
 
-const row = (
+const storedTurn = (
   id: string,
   at: number,
   outcome: InboxTurn["outcome"] = "completed",
@@ -37,17 +37,17 @@ const row = (
 })
 
 // A workspace whose terminal 01 is selected and 02 runs a resting agent, and an Inbox whose
-// stored rows the test sets and whose reads drop them as the adapter does.
+// stored turns the test sets and whose reads drop them as the adapter does.
 let wide = true
 
 const setup = ({
-  rows,
+  stored,
   notifyFinished = true,
   notifyNeeds = true,
   pageFocused: focused = true,
   reads = true,
 }: {
-  rows?: readonly InboxTurn[] | undefined
+  stored?: readonly InboxTurn[] | undefined
   notifyFinished?: boolean
   notifyNeeds?: boolean
   pageFocused?: boolean
@@ -87,7 +87,7 @@ const setup = ({
     },
   })
   const ui = createUiStore({ ...initial, pageFocused: focused })
-  const store = createStore<readonly InboxTurn[] | undefined>(rows)
+  const store = createStore<readonly InboxTurn[] | undefined>(stored)
   const turns = {
     ...store,
     set: (next: readonly InboxTurn[] | undefined) => void store.update(() => next),
@@ -96,7 +96,7 @@ const setup = ({
   const inboxState = createStore<InboxState>(emptyInbox)
   const entries = {
     ...inboxState,
-    set: (items: readonly InboxRow[]) =>
+    set: (items: readonly InboxEntry[]) =>
       void inboxState.update((current) => ({ ...current, items })),
   }
   const inbox: Pick<Inbox, "turns" | "readFinishes" | "state"> = {
@@ -167,7 +167,7 @@ const setup = ({
 const done = { "project/initial": { "02": "unread" } }
 
 // A done report of terminal 02, as the Inbox lists it.
-const entry = (id: string, at: number, seen = false): InboxRow => ({
+const entry = (id: string, at: number, seen = false): InboxEntry => ({
   id,
   source: {
     projectId: "project",
@@ -188,17 +188,17 @@ const failed = { "project/initial": { "02": "failed" } }
 
 describe("unread turns", () => {
   context("the marks", () => {
-    it("mirror each terminal's newest row's outcome", () => {
-      const app = setup({ rows: [row("a", 10, "failed"), row("b", 20)] })
+    it("mirror each terminal's newest turn's outcome", () => {
+      const app = setup({ stored: [storedTurn("a", 10, "failed"), storedTurn("b", 20)] })
       const stop = app.watch()
       expect(app.unread()).toEqual(done)
-      app.turns.set([row("a", 10), row("b", 20, "failed")])
+      app.turns.set([storedTurn("a", 10), storedTurn("b", 20, "failed")])
       expect(app.unread()).toEqual(failed)
       stop()
     })
 
-    it("survive the agent's next turn, and go with the row", () => {
-      const app = setup({ rows: [row("a", 10)] })
+    it("survive the agent's next turn, and go with the turn", () => {
+      const app = setup({ stored: [storedTurn("a", 10)] })
       const stop = app.watch()
       app.status("02", { working: true })
       expect(app.unread()).toEqual(done)
@@ -208,7 +208,7 @@ describe("unread turns", () => {
     })
 
     it("stay while the terminal's agent sleeps, whether its reply completed or failed", () => {
-      const completed = setup({ rows: [row("a", 10)] })
+      const completed = setup({ stored: [storedTurn("a", 10)] })
       const stop = completed.watch()
       completed.workspace.dispatch({
         type: "terminal/status",
@@ -218,7 +218,7 @@ describe("unread turns", () => {
       })
       expect(completed.unread()).toEqual(done)
       stop()
-      const errored = setup({ rows: [row("a", 10, "failed")] })
+      const errored = setup({ stored: [storedTurn("a", 10, "failed")] })
       const stopErrored = errored.watch()
       errored.workspace.dispatch({
         type: "terminal/status",
@@ -230,8 +230,8 @@ describe("unread turns", () => {
       stopErrored()
     })
 
-    it("also say the rows hidden under a running lead", () => {
-      const app = setup({ rows: [row("a", 10)] })
+    it("also say the turns hidden under a running lead", () => {
+      const app = setup({ stored: [storedTurn("a", 10)] })
       app.workspace.dispatch({ type: "terminal/update", target, terminalId: "01", handle: "moth" })
       app.workspace.dispatch({ type: "terminal/update", target, terminalId: "02", ledBy: "01" })
       app.status("01", { working: true })
@@ -240,8 +240,8 @@ describe("unread turns", () => {
       stop()
     })
 
-    it("leave out a worker's finished rows while its lead's agent runs, and show them once it stops", () => {
-      const app = setup({ rows: [row("a", 10), row("f", 20, "failed")] })
+    it("leave out a worker's finished turns while its lead's agent runs, and show them once it stops", () => {
+      const app = setup({ stored: [storedTurn("a", 10), storedTurn("f", 20, "failed")] })
       app.workspace.dispatch({ type: "terminal/update", target, terminalId: "01", handle: "moth" })
       app.workspace.dispatch({ type: "terminal/update", target, terminalId: "02", ledBy: "01" })
       app.workspace.dispatch({
@@ -251,7 +251,7 @@ describe("unread turns", () => {
         process: "claude",
       })
       app.status("01", { working: true })
-      app.turns.set([row("a", 10)])
+      app.turns.set([storedTurn("a", 10)])
       const stop = app.watch()
       expect(app.unread()).toEqual({})
       app.workspace.dispatch({ type: "terminal/process", target, terminalId: "01", process: "zsh" })
@@ -259,18 +259,18 @@ describe("unread turns", () => {
       stop()
     })
 
-    it("are none before the backend lists its rows, and again once it stops", () => {
+    it("are none before the backend lists its turns, and again once it stops", () => {
       const app = setup()
       const stop = app.watch()
       expect(app.unread()).toEqual({})
-      app.turns.set([row("a", 10)])
+      app.turns.set([storedTurn("a", 10)])
       expect(app.unread()).toEqual(done)
       app.turns.set(undefined)
       expect(app.unread()).toEqual({})
       stop()
     })
 
-    it("do nothing for a backend that stores no rows", () => {
+    it("do nothing for a backend that stores no turns", () => {
       const app = setup()
       const stop = watchUnreadTurns({ state: createStore(emptyInbox) }, app.workspace, app.ui)
       expect(app.unread()).toEqual({})
@@ -279,8 +279,8 @@ describe("unread turns", () => {
   })
 
   context("looking", () => {
-    it("reads the rows of the terminal the person selects", () => {
-      const app = setup({ rows: [row("a", 10), row("b", 20, "failed")] })
+    it("reads the turns of the terminal the person selects", () => {
+      const app = setup({ stored: [storedTurn("a", 10), storedTurn("b", 20, "failed")] })
       const stop = app.watch()
       expect(app.readCalls).toEqual([])
       app.select("02")
@@ -292,7 +292,7 @@ describe("unread turns", () => {
     it("reads nothing on a phone while the Inbox list covers the screen", () => {
       wide = false
       try {
-        const app = setup({ rows: [row("a", 10)] })
+        const app = setup({ stored: [storedTurn("a", 10)] })
         app.ui.update((current) => ({
           ...current,
           location: { ...current.location, route: { ...current.location.route, panel: "inbox" } },
@@ -307,27 +307,27 @@ describe("unread turns", () => {
       }
     })
 
-    it("reads a row that lands while the person views its terminal", () => {
-      const app = setup({ rows: [] })
+    it("reads a turn that lands while the person views its terminal", () => {
+      const app = setup({ stored: [] })
       app.select("02")
       const stop = app.watch()
-      app.turns.set([row("a", 10)])
+      app.turns.set([storedTurn("a", 10)])
       expect(app.readCalls).toHaveLength(1)
       expect(app.turns.getSnapshot()).toEqual([])
       stop()
     })
 
-    it("reads the selected terminal's stored rows on a focused launch", () => {
-      const app = setup({ rows: [row("a", 10), row("b", 12, "completed", "01")] })
+    it("reads the selected terminal's stored turns on a focused launch", () => {
+      const app = setup({ stored: [storedTurn("a", 10), storedTurn("b", 12, "completed", "01")] })
       app.select("02")
       const stop = app.watch()
       expect(app.readCalls).toEqual([[{ context: "project/initial", terminalId: "02" }]])
-      expect(app.turns.getSnapshot()).toEqual([row("b", 12, "completed", "01")])
+      expect(app.turns.getSnapshot()).toEqual([storedTurn("b", 12, "completed", "01")])
       stop()
     })
 
     it("waits for the page's focus, then reads", () => {
-      const app = setup({ rows: [row("a", 10)], pageFocused: false })
+      const app = setup({ stored: [storedTurn("a", 10)], pageFocused: false })
       app.select("02")
       const stop = app.watch()
       expect(app.readCalls).toEqual([])
@@ -338,8 +338,8 @@ describe("unread turns", () => {
       stop()
     })
 
-    it("asks once for a row while the backend still lists it", () => {
-      const app = setup({ rows: [row("a", 10)], reads: false })
+    it("asks once for a turn while the backend still lists it", () => {
+      const app = setup({ stored: [storedTurn("a", 10)], reads: false })
       app.select("02")
       const stop = app.watch()
       app.focus(false)
@@ -351,20 +351,24 @@ describe("unread turns", () => {
   })
 
   context("the notices", () => {
-    it("are none for the reports and rows stored when it starts, nor for any after the backend lost them", () => {
-      const app = setup({ rows: [row("a", 10, "failed")], pageFocused: false, notifyNeeds: false })
+    it("are none for the reports and turns stored when it starts, nor for any after the backend lost them", () => {
+      const app = setup({
+        stored: [storedTurn("a", 10, "failed")],
+        pageFocused: false,
+        notifyNeeds: false,
+      })
       app.entries.set([entry("l1", 10)])
       const stop = app.watch()
       expect(app.notices).toEqual([])
       app.turns.set(undefined)
       app.entries.set([entry("l1", 10), entry("l2", 20)])
-      app.turns.set([row("a", 10, "failed"), row("b", 20, "failed")])
+      app.turns.set([storedTurn("a", 10, "failed"), storedTurn("b", 20, "failed")])
       expect(app.notices).toEqual([])
       stop()
     })
 
     it("fire for a new done report, with its subject, while the page isn't focused", () => {
-      const app = setup({ rows: [], pageFocused: false })
+      const app = setup({ stored: [], pageFocused: false })
       const stop = app.watch()
       app.entries.set([entry("l1", 10)])
       expect(app.notices).toEqual([
@@ -375,21 +379,21 @@ describe("unread turns", () => {
     })
 
     it("are none for a bare completed turn, which is no finish", () => {
-      const app = setup({ rows: [], pageFocused: false })
+      const app = setup({ stored: [], pageFocused: false })
       const stop = app.watch()
-      app.turns.set([row("a", 10)])
+      app.turns.set([storedTurn("a", 10)])
       expect(app.notices).toEqual([])
       expect(app.unread()).toEqual(done)
       stop()
     })
 
     it("are none while the page has the person's focus, or when they turned them off", () => {
-      const focused = setup({ rows: [] })
+      const focused = setup({ stored: [] })
       const stopFocused = focused.watch()
       focused.entries.set([entry("l1", 10)])
       expect(focused.notices).toEqual([])
       stopFocused()
-      const off = setup({ rows: [], pageFocused: false, notifyFinished: false })
+      const off = setup({ stored: [], pageFocused: false, notifyFinished: false })
       const stopOff = off.watch()
       off.entries.set([entry("l1", 10)])
       expect(off.notices).toEqual([])
@@ -397,7 +401,7 @@ describe("unread turns", () => {
     })
 
     it("are none for a report from well before this started", () => {
-      const app = setup({ rows: [], pageFocused: false })
+      const app = setup({ stored: [], pageFocused: false })
       const stop = app.watch()
       app.entries.set([entry("old", -60_000)])
       expect(app.notices).toEqual([])
@@ -405,7 +409,7 @@ describe("unread turns", () => {
     })
 
     it("are none for a report that comes back after a failed read", () => {
-      const app = setup({ rows: [], pageFocused: false })
+      const app = setup({ stored: [], pageFocused: false })
       const stop = app.watch()
       app.entries.set([entry("l1", 10)])
       expect(app.notices).toHaveLength(1)
@@ -417,7 +421,7 @@ describe("unread turns", () => {
     })
 
     it("are one for a terminal, its newest report's", () => {
-      const app = setup({ rows: [], pageFocused: false })
+      const app = setup({ stored: [], pageFocused: false })
       const stop = app.watch()
       app.entries.set([entry("a", 10), entry("b", 20)])
       expect(app.notices).toHaveLength(1)
@@ -425,15 +429,15 @@ describe("unread turns", () => {
       stop()
     })
 
-    it("leave a failed row to the Inbox's trouble, unless the person turned that off", () => {
-      const app = setup({ rows: [], pageFocused: false })
+    it("leave a failed turn to the Inbox's trouble, unless the person turned that off", () => {
+      const app = setup({ stored: [], pageFocused: false })
       const stop = app.watch()
-      app.turns.set([row("a", 10, "failed")])
+      app.turns.set([storedTurn("a", 10, "failed")])
       expect(app.notices).toEqual([])
       stop()
-      const quiet = setup({ rows: [], pageFocused: false, notifyNeeds: false })
+      const quiet = setup({ stored: [], pageFocused: false, notifyNeeds: false })
       const stopQuiet = quiet.watch()
-      quiet.turns.set([row("a", 10, "failed")])
+      quiet.turns.set([storedTurn("a", 10, "failed")])
       expect(quiet.notices).toEqual([
         { id: "02", title: "@fox stopped with an error: Checkout", body: "All green." },
       ])
@@ -442,7 +446,7 @@ describe("unread turns", () => {
     })
 
     it("are a worker's too, while its lead's agent runs", () => {
-      const app = setup({ rows: [], pageFocused: false })
+      const app = setup({ stored: [], pageFocused: false })
       app.workspace.dispatch({ type: "terminal/update", target, terminalId: "01", handle: "moth" })
       app.workspace.dispatch({ type: "terminal/update", target, terminalId: "02", ledBy: "01" })
       app.workspace.dispatch({
@@ -460,7 +464,7 @@ describe("unread turns", () => {
     })
 
     it("close once the terminal has no unseen report: the person views it", () => {
-      const app = setup({ rows: [], pageFocused: false })
+      const app = setup({ stored: [], pageFocused: false })
       const stop = app.watch()
       app.entries.set([entry("l1", 10)])
       expect(app.cleared).toEqual([])
@@ -471,7 +475,7 @@ describe("unread turns", () => {
     })
 
     it("close once the report is seen elsewhere, and not before the last of two is", () => {
-      const app = setup({ rows: [], pageFocused: false })
+      const app = setup({ stored: [], pageFocused: false })
       const stop = app.watch()
       app.entries.set([entry("a", 10), entry("b", 20)])
       app.entries.set([entry("a", 10, true), entry("b", 20)])
@@ -481,10 +485,10 @@ describe("unread turns", () => {
       stop()
     })
 
-    it("close a failed row's once it is read", () => {
-      const app = setup({ rows: [], pageFocused: false, notifyNeeds: false })
+    it("close a failed turn's once it is read", () => {
+      const app = setup({ stored: [], pageFocused: false, notifyNeeds: false })
       const stop = app.watch()
-      app.turns.set([row("a", 10, "failed")])
+      app.turns.set([storedTurn("a", 10, "failed")])
       expect(app.cleared).toEqual([])
       app.turns.set([])
       expect(app.cleared).toEqual(["02"])
@@ -505,24 +509,24 @@ describe("unread turns", () => {
       expect(held.has("t-88-99")).toBe(false)
     })
 
-    it("still tell nothing of a row that leaves the listing and comes back", () => {
-      const app = setup({ rows: [], pageFocused: false, notifyNeeds: false })
+    it("still tell nothing of a turn that leaves the listing and comes back", () => {
+      const app = setup({ stored: [], pageFocused: false, notifyNeeds: false })
       const stop = app.watch()
-      app.turns.set([row("f", 10, "failed")])
+      app.turns.set([storedTurn("f", 10, "failed")])
       expect(app.notices).toHaveLength(1)
       app.turns.set([])
       app.focus(false)
-      app.turns.set([row("f", 10, "failed")])
+      app.turns.set([storedTurn("f", 10, "failed")])
       expect(app.notices).toHaveLength(1)
       stop()
     })
   })
 
   it("stops following when stopped", () => {
-    const app = setup({ rows: [], pageFocused: false })
+    const app = setup({ stored: [], pageFocused: false })
     const stop = app.watch()
     stop()
-    app.turns.set([row("a", 10)])
+    app.turns.set([storedTurn("a", 10)])
     expect(app.unread()).toEqual({})
     expect(app.notices).toEqual([])
   })

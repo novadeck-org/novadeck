@@ -324,7 +324,7 @@ describe("terminal need mark", () => {
     expect(needText(running(), undefined)).toBeUndefined()
   })
 
-  it("keeps the kind of the dialog when its Inbox row arrives with a subject", () => {
+  it("keeps the kind of the dialog when its Inbox entry arrives with a subject", () => {
     // The dialog alone, as it shows for its first moments.
     expect(needText(running("permission"), undefined)).toBe("Needs permission")
     // The same dialog once its row exists, still a permission, now with its subject.

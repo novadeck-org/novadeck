@@ -3,17 +3,17 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from "react"
 // An update (a `done` report or a `tell`) is read by a visit to the Inbox's list: its row is
 // seen once it has been in sight for a moment while the window has the person's focus, and
 // read when the person then leaves the list (its panel closes or gives way to another, the
-// window loses their focus, or a dialog covers it). So a row never turns resolved under their
+// window loses their focus, or a dialog covers it). So an entry never turns resolved under their
 // eyes: it is new for as long as they look, and history when they come back. A glance while
-// scrolling past sees nothing, and neither does looking at the row's terminal.
+// scrolling past sees nothing, and neither does looking at the entry's terminal.
 
-// How long an update's row must stay in sight to count as seen.
+// How long an update's entry must stay in sight to count as seen.
 export const sightDwellMs = 1000
 
 // How much of the row must be in sight: half of it, so a row cut off at the list's edge isn't.
 export const sightFraction = 0.5
 
-// What the row's sight and the window's focus come to: `seen` once both have held for
+// What the entry's sight and the window's focus come to: `seen` once both have held for
 // `dwellMs` without a break. Each break starts the wait again; `stop` ends it unseen.
 export type SightReader = {
   readonly sight: (inSight: boolean) => void
@@ -64,10 +64,10 @@ export const createSightReader = ({
   }
 }
 
-// Tells `seen` once the row `element` shows has been in sight for the dwell, while `unread`
+// Tells `seen` once the entry `element` shows has been in sight for the dwell, while `unread`
 // and while the person `looking` at the page: it has their focus and no dialog covers it, as
 // the app's own focus says (`ui.pageFocused`, which counts the desktop app's frames as the
-// page). Where the browser has no observer nothing is seen: the row is opened to be read.
+// page). Where the browser has no observer nothing is seen: the entry is opened to be read.
 export const useSight = (
   element: Element | null,
   unread: boolean,
@@ -106,7 +106,7 @@ export const useSight = (
 }
 
 // One visit to the Inbox's list, from when the person starts looking at it (`visiting`) to
-// when they stop: returns what notes a row seen in it, by its key, and tells `read` the keys
+// when they stop: returns what notes an entry seen in it, by its key, and tells `read` the keys
 // seen as the visit ends, or as the list is taken down. A visit that saw nothing reads
 // nothing, and one the window closes on (a quit, a reload) reads nothing either: what was
 // seen in it is new again at the next start.

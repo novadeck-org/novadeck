@@ -1,10 +1,10 @@
 import type { ChatAnswer, ChatDialogOption, ChatRequest } from "@novadeck/core/conversation"
-import type { InboxRow, Trouble } from "@novadeck/core/inbox"
+import type { InboxEntry, Trouble } from "@novadeck/core/inbox"
 
 import { context, describe, expect, it } from "../test"
-import { menuOf, requestReceipt, type MenuRow, type OwnRow } from "./console-menu"
+import { menuOf, requestReceipt, type MenuRow, type OwnEntry } from "./console-menu"
 
-const source: InboxRow["source"] = {
+const source: InboxEntry["source"] = {
   projectId: "p",
   workspaceSessionId: "s",
   terminalId: "t",
@@ -203,12 +203,12 @@ describe("A request's receipt", () => {
 
 describe("A sheet's menu of its own", () => {
   context("for an agent's ask", () => {
-    const asked = (shape: Extract<InboxRow, { kind: "ask" }>["ask"]["shape"], hard?: string) =>
+    const asked = (shape: Extract<InboxEntry, { kind: "ask" }>["ask"]["shape"], hard?: string) =>
       ({
         ...base,
         kind: "ask",
         ask: { subject: "s", body: "", details: null, hardToUndo: hard ?? null, shape },
-      }) satisfies OwnRow
+      }) satisfies OwnEntry
 
     it("numbers its options, tags its pick, and always takes the person's own words", () => {
       const { rows, hard } = menuOf(
@@ -255,7 +255,7 @@ describe("A sheet's menu of its own", () => {
   })
 
   context("for trouble", () => {
-    const troubled = (trouble: Trouble, stopped = true): OwnRow => ({
+    const troubled = (trouble: Trouble, stopped = true): OwnEntry => ({
       ...base,
       stopped,
       kind: "trouble",
@@ -309,14 +309,14 @@ describe("A sheet's menu of its own", () => {
     })
   })
 
-  context("on every row", () => {
+  context("on every entry", () => {
     it("ends on the way to its terminal, and offers it only once", () => {
-      const update: OwnRow = {
+      const update: OwnEntry = {
         ...base,
         kind: "update",
         update: { type: "done", subject: "s", body: "" },
       }
-      const held: OwnRow = {
+      const held: OwnEntry = {
         ...base,
         kind: "held",
         held: {
@@ -328,8 +328,8 @@ describe("A sheet's menu of its own", () => {
           heldFor: "loop",
         },
       }
-      for (const inboxRow of [update, held]) {
-        const menuRows = menuOf(inboxRow, 0).rows
+      for (const inboxEntry of [update, held]) {
+        const menuRows = menuOf(inboxEntry, 0).rows
         expect(menuRows.at(-1)).toEqual({ type: "reveal", label: "Go to terminal", effect: null })
         expect(menuRows.filter((menuRow) => menuRow.type === "reveal")).toHaveLength(1)
       }

@@ -1,6 +1,6 @@
 import type { ChatDialog } from "@novadeck/core/conversation"
 import type { InboxBinding } from "@novadeck/core/inbox"
-import { dialogMs, type Asked, type WrittenEntry } from "@novadeck/core/inbox/rows"
+import { dialogMs, type Asked, type WrittenEntry } from "@novadeck/core/inbox/entries"
 import {
   noMessages,
   type AgentMessage,
@@ -123,7 +123,7 @@ const messagesOf = (...threads: MessageThread[]): MessagesState => ({
 })
 
 // The finished turns the tests state, by session context then terminal: each stands for the
-// stored row of that terminal's current end, as the runner lists it.
+// stored entry of that terminal's current end, as the runner lists it.
 type Marks = Readonly<Record<string, Readonly<Record<string, "done" | "failed">>>>
 const done: Marks = { "p/s": { "01": "done" } }
 const failed: Marks = { "p/s": { "01": "failed" } }
@@ -193,11 +193,11 @@ const setup = (
 ) => {
   const details: ReturnType<typeof channel<AgentDetail>>[] = []
   const feed = channel<InboxEntry[]>()
-  // What the runner lists: the asks and tells a test pushes, and the turn rows its marks
+  // What the runner lists: the asks and tells a test pushes, and the turn entries its marks
   // stand for, which reading removes.
   let others: InboxEntry[] = []
-  let rows: InboxEntry[] = []
-  const publish = () => feed.push([...others, ...rows])
+  let turnEntries: InboxEntry[] = []
+  const publish = () => feed.push([...others, ...turnEntries])
   const entries = {
     stream: feed.iterator,
     returned: feed.returned,
@@ -214,8 +214,8 @@ const setup = (
       dismiss: vi.fn<InboxStreams["inbox"]["dismiss"]>(async () => {}),
       read: vi.fn<InboxStreams["inbox"]["read"]>(async (ids) => {
         const gone = ({ id, content }: InboxEntry) => content.kind === "turn" && ids.includes(id)
-        if (!rows.some(gone) && !others.some(gone)) return
-        rows = rows.filter((each) => !gone(each))
+        if (!turnEntries.some(gone) && !others.some(gone)) return
+        turnEntries = turnEntries.filter((each) => !gone(each))
         others = others.filter((each) => !gone(each))
         publish()
       }),
@@ -233,9 +233,9 @@ const setup = (
   }
   const workspaceStore = createStore(workspace)
   const messagesStore = createStore(messages)
-  // The runner now lists these marks' rows.
+  // The runner now lists these marks' entries.
   const marks = (next: Marks): void => {
-    rows = turnEntriesOf(workspaceStore.getSnapshot(), next)
+    turnEntries = turnEntriesOf(workspaceStore.getSnapshot(), next)
     publish()
   }
   // The messages track a release or a stop in the messages state, as the runner backend's do.
@@ -250,7 +250,7 @@ const setup = (
   const binding: InboxBinding = { workspace: workspaceStore }
   if (Object.keys(unread).length > 0) marks(unread)
   const stop = inbox.bind(binding)
-  // The rows that are still open; the resolved ones stay listed beside them, as history.
+  // The entries that are still open; the resolved ones stay listed beside them, as history.
   const ids = () =>
     inbox.state
       .getSnapshot()
@@ -470,8 +470,8 @@ describe("The runner's Inbox", () => {
       return set
     }
 
-    it("keeps a dialog answered here as a resolved row, with the person's answer, and saves it", async () => {
-      const saveHistory = vi.fn<(rows: readonly string[]) => void>()
+    it("keeps a dialog answered here as a resolved entry, with the person's answer, and saves it", async () => {
+      const saveHistory = vi.fn<(saved: readonly string[]) => void>()
       const { inbox, workspaceStore } = await withRequest({ saveHistory })
       inbox.answer("request:r1", {
         kind: "request",
@@ -499,7 +499,7 @@ describe("The runner's Inbox", () => {
     })
 
     it("brings back what the runner kept, and drops what it can't read", async () => {
-      const saveHistory = vi.fn<(rows: readonly string[]) => void>()
+      const saveHistory = vi.fn<(saved: readonly string[]) => void>()
       const first = await withRequest({ saveHistory })
       first.workspaceStore.update(() => workspaceOf(agentTerminal(1)))
       await settle()
@@ -514,8 +514,8 @@ describe("The runner's Inbox", () => {
       ])
     })
 
-    it("makes no row of an ask its agent withdrew, and saves none", async () => {
-      const saveHistory = vi.fn<(rows: readonly string[]) => void>()
+    it("makes no entry of an ask its agent withdrew, and saves none", async () => {
+      const saveHistory = vi.fn<(saved: readonly string[]) => void>()
       const { entries, inbox } = setup(workspaceOf(agentTerminal(1)), {}, noMessages, {
         saveHistory,
       })
@@ -525,10 +525,10 @@ describe("The runner's Inbox", () => {
       entries.push([])
       await settle()
       expect(inbox.state.getSnapshot().items).toEqual([])
-      expect(saveHistory.mock.calls.every(([rows]) => rows.length === 0)).toBe(true)
+      expect(saveHistory.mock.calls.every(([saved]) => saved.length === 0)).toBe(true)
     })
 
-    it("takes no row to have ended while the connection is down, nor until the streams list again", async () => {
+    it("takes no entry to have ended while the connection is down, nor until the streams list again", async () => {
       const status = channel<{ state: string }>()
       const { entries, inbox, details, workspaceStore } = setup(
         workspaceOf(agentTerminal(1, attention)),
@@ -553,17 +553,17 @@ describe("The runner's Inbox", () => {
       await settle()
       details[0]!.push(detailOf(asked("r1", 9000)))
       await settle()
-      expect(inbox.state.getSnapshot().items.map((row) => row.settled)).toEqual([undefined])
+      expect(inbox.state.getSnapshot().items.map((entry) => entry.settled)).toEqual([undefined])
     })
 
-    it("does not take a row to have ended while the runner's entries are out", async () => {
+    it("does not take an entry to have ended while the runner's entries are out", async () => {
       const { entries, inbox } = setup(workspaceOf(agentTerminal(1)))
       entries.push([entry()])
       await settle()
       expect(inbox.state.getSnapshot().items).toHaveLength(1)
       entries.end()
       await settle()
-      // Its row is gone with its listing, not resolved.
+      // Its entry is gone with its listing, not resolved.
       expect(inbox.state.getSnapshot().items).toEqual([])
     })
   })
@@ -697,7 +697,7 @@ describe("The runner's Inbox", () => {
       expect(inbox.state.getSnapshot().answering).toEqual({})
     })
 
-    it("resolves a failed turn that is no longer the agent's current end, and reads its stored row", async () => {
+    it("resolves a failed turn that is no longer the agent's current end, and reads its stored entry", async () => {
       const ws = workspaceOf(
         agentTerminal(1, {
           working: false,
@@ -719,10 +719,10 @@ describe("The runner's Inbox", () => {
           .items.map(({ id }) => id)
           .toSorted(),
       ).toEqual(["old-row", "trouble:01:200"])
-      const rows = inbox.state.getSnapshot().items
+      const shown = inbox.state.getSnapshot().items
       // The current one waits; the old one ended when its agent went on.
-      expect(rows.find(({ id }) => id === "trouble:01:200")?.settled).toBeUndefined()
-      expect(rows.find(({ id }) => id === "old-row")?.settled).toMatchObject({ how: "worked" })
+      expect(shown.find(({ id }) => id === "trouble:01:200")?.settled).toBeUndefined()
+      expect(shown.find(({ id }) => id === "old-row")?.settled).toMatchObject({ how: "worked" })
       expect(streams.inbox.read.mock.calls.map(([batch]) => batch)).toEqual([["old-row"]])
     })
 
@@ -795,7 +795,7 @@ describe("The runner's Inbox", () => {
       expect(streams.send).toHaveBeenCalledWith(key, "Fix it.", { automatic: true })
     })
 
-    it("reads the failed row once its nudge was sent, with nothing left answering", async () => {
+    it("reads the failed entry once its nudge was sent, with nothing left answering", async () => {
       const { inbox, streams, ids } = setup(
         workspaceOf(
           agentTerminal(1, { working: false, lastTurn: turn({ outcome: "failed", error: "x" }) }),
@@ -811,7 +811,7 @@ describe("The runner's Inbox", () => {
       expect(inbox.state.getSnapshot().answering).toEqual({})
     })
 
-    it("nudges no failed row while its agent works, and interrupts nothing", async () => {
+    it("nudges no failed entry while its agent works, and interrupts nothing", async () => {
       const working = agentTerminal(1, {
         working: true,
         lastTurn: turn({ outcome: "failed", error: "x" }),
@@ -1409,7 +1409,7 @@ describe("Dismissing an ask", () => {
   })
 })
 
-describe("Turn rows", () => {
+describe("Turn entries", () => {
   const ws = () =>
     workspaceOf(
       agentTerminal(1, { working: false, lastTurn: turn({ reply: "a" }) }),
@@ -1467,7 +1467,7 @@ describe("Turn rows", () => {
     expect(inbox.turns.getSnapshot()).toBeUndefined()
   })
 
-  it("hides a viewed terminal's rows at once, and keeps them hidden until a listing drops them", async () => {
+  it("hides a viewed terminal's entries at once, and keeps them hidden until a listing drops them", async () => {
     const { inbox, streams, entries, ids } = setup(ws(), bothFailed)
     await settle()
     let answered: (() => void) | undefined
@@ -1514,7 +1514,7 @@ describe("Turn rows", () => {
     await vi.advanceTimersByTimeAsync(retryMs)
     expect(streams.inbox.read).toHaveBeenCalledTimes(3)
 
-    // A listing that still holds a row not on its way sends it again.
+    // A listing that still holds an entry not on its way sends it again.
     streams.inbox.read.mockRejectedValueOnce(new Error("down"))
     inbox.readFinishes([{ context: "p/s", terminalId: "02" }])
     await settle()
@@ -1523,7 +1523,7 @@ describe("Turn rows", () => {
     expect(streams.inbox.read.mock.calls.map(([ids]) => ids)).toContainEqual(["update:02:200"])
   })
 
-  it("reads a row that lands later when the terminal is read again", async () => {
+  it("reads an entry that lands later when the terminal is read again", async () => {
     const { inbox, streams, entries } = setup(ws(), { "p/s": { "01": "done" } })
     await settle()
     inbox.readFinishes([finish])
@@ -1540,7 +1540,7 @@ describe("Turn rows", () => {
     expect(inbox.turns.getSnapshot()).toEqual([])
   })
 
-  it("keeps rows hidden under a lead in turns, and out of the items", async () => {
+  it("keeps entries hidden under a lead in turns, and out of the items", async () => {
     const worker: TerminalMetadata = {
       ...agentTerminal(2, { working: false, lastTurn: turn({ at: 200 }) }),
       ledBy: "01",
@@ -1578,7 +1578,7 @@ describe("Turn rows", () => {
     expect(streams.inbox.read).toHaveBeenCalledTimes(2)
   })
 
-  it("shows a row of a terminal without a handle, and reads it once it is resolved", async () => {
+  it("shows an entry of a terminal without a handle, and reads it once it is resolved", async () => {
     const bare: TerminalMetadata = {
       ...agentTerminal(1, { working: false, lastTurn: turn({ reply: "a" }) }),
     }

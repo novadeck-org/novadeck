@@ -1,4 +1,4 @@
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { InboxEntry } from "@novadeck/core/inbox"
 import {
   ClipboardList,
   Flag,
@@ -17,7 +17,7 @@ import {
 import { describe, expect, it } from "../test"
 import { iconOf, tintOf } from "./inbox-icons"
 
-const source: InboxRow["source"] = {
+const source: InboxEntry["source"] = {
   projectId: "p",
   workspaceSessionId: "s",
   terminalId: "t",
@@ -28,7 +28,7 @@ const source: InboxRow["source"] = {
 }
 const base = { id: "i", source, at: 0, stopped: true, seen: false }
 
-const request = (kind: "permission" | "question" | "plan", tool: string): InboxRow => ({
+const request = (kind: "permission" | "question" | "plan", tool: string): InboxEntry => ({
   ...base,
   kind: "request",
   request: {
@@ -43,22 +43,22 @@ const request = (kind: "permission" | "question" | "plan", tool: string): InboxR
     askedAt: 0,
   },
 })
-const ask = (shape: Extract<InboxRow, { kind: "ask" }>["ask"]["shape"]): InboxRow => ({
+const ask = (shape: Extract<InboxEntry, { kind: "ask" }>["ask"]["shape"]): InboxEntry => ({
   ...base,
   kind: "ask",
   ask: { subject: "s", body: "", details: null, hardToUndo: null, shape },
 })
-const noticed = (trouble: Extract<InboxRow, { kind: "trouble" }>["trouble"]): InboxRow => ({
+const noticed = (trouble: Extract<InboxEntry, { kind: "trouble" }>["trouble"]): InboxEntry => ({
   ...base,
   kind: "trouble",
   trouble,
 })
-const update = (type: "done" | "told"): InboxRow => ({
+const update = (type: "done" | "told"): InboxEntry => ({
   ...base,
   kind: "update",
   update: { type, subject: "s", body: "" },
 })
-const held: InboxRow = {
+const held: InboxEntry = {
   ...base,
   kind: "held",
   held: {
@@ -78,8 +78,8 @@ const limit = noticed({
   evidence: [],
 })
 
-describe("An Inbox row's icon and tint", () => {
-  it("is one icon for each kind of row", () => {
+describe("An Inbox entry's icon and tint", () => {
+  it("is one icon for each kind of entry", () => {
     expect(iconOf(request("permission", "Bash"))).toBe(ShieldQuestionMark)
     expect(iconOf(request("plan", "ExitPlanMode"))).toBe(ClipboardList)
     expect(iconOf(request("question", "AskUserQuestion"))).toBe(MessageCircleQuestionMark)
@@ -105,7 +105,7 @@ describe("An Inbox row's icon and tint", () => {
     expect(iconOf(update("told"))).toBe(MessageSquareText)
   })
 
-  it("is tinted by what the row wants of the person, whether or not its agent stopped", () => {
+  it("is tinted by what the entry wants of the person, whether or not its agent stopped", () => {
     expect(tintOf(request("permission", "Bash"))).toBe("attention")
     expect(tintOf({ ...held, stopped: false })).toBe("attention")
     expect(tintOf(ask({ type: "text" }))).toBe("attention")
@@ -117,8 +117,8 @@ describe("An Inbox row's icon and tint", () => {
     expect(tintOf(update("told"))).toBe("ink")
   })
 
-  it("keeps the icon of a resolved row and turns it gray", () => {
-    const resolved: InboxRow = { ...limit, settled: { how: "worked", at: 1 } }
+  it("keeps the icon of a resolved entry and turns it gray", () => {
+    const resolved: InboxEntry = { ...limit, settled: { how: "worked", at: 1 } }
     expect(iconOf(resolved)).toBe(Gauge)
     expect(tintOf(resolved)).toBe("muted")
     expect(tintOf({ ...update("done"), settled: { how: "read", at: 1 } })).toBe("muted")

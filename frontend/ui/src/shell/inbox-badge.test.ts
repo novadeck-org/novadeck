@@ -1,9 +1,9 @@
-import type { InboxContent, InboxRow } from "@novadeck/core/inbox"
+import type { InboxContent, InboxEntry } from "@novadeck/core/inbox"
 import { describe, expect, it } from "vitest"
 
 import { inboxBadge } from "./inbox-badge"
 
-const row = (content: InboxContent, index = 0, stopped = true): InboxRow => ({
+const entry = (content: InboxContent, index = 0, stopped = true): InboxEntry => ({
   ...content,
   id: `row-${index}`,
   source: {
@@ -39,24 +39,24 @@ const held: InboxContent = {
 describe("inboxBadge", () => {
   it("shows nothing while nothing but updates is there", () => {
     expect(inboxBadge([])).toBeUndefined()
-    expect(inboxBadge([row(done)])).toBeUndefined()
+    expect(inboxBadge([entry(done)])).toBeUndefined()
   })
 
   it("counts what waits, and no update, and says so in the bell's name", () => {
-    expect(inboxBadge([row(done), row(held, 1), row(held, 2)])).toEqual({
+    expect(inboxBadge([entry(done), entry(held, 1), entry(held, 2)])).toEqual({
       count: 2,
       label: "Inbox, 2 waiting",
     })
   })
 
   it("counts past nine", () => {
-    const rows = Array.from({ length: 12 }, (_, index) => row(held, index))
-    expect(inboxBadge(rows)).toMatchObject({ count: 12, label: "Inbox, 12 waiting" })
+    const entries = Array.from({ length: 12 }, (_, index) => entry(held, index))
+    expect(inboxBadge(entries)).toMatchObject({ count: 12, label: "Inbox, 12 waiting" })
   })
 
-  it("leaves out what the person snoozed, so a snoozed row alone shows no dot", () => {
-    const snoozed = { ...row(held, 1), snoozed: true as const }
+  it("leaves out what the person snoozed, so a snoozed entry alone shows no dot", () => {
+    const snoozed = { ...entry(held, 1), snoozed: true as const }
     expect(inboxBadge([snoozed])).toBeUndefined()
-    expect(inboxBadge([snoozed, row(held, 2)])).toMatchObject({ count: 1 })
+    expect(inboxBadge([snoozed, entry(held, 2)])).toMatchObject({ count: 1 })
   })
 })

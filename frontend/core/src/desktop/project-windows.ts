@@ -11,7 +11,7 @@ export type ProjectWindowsState = {
   readonly voice: boolean
 }
 
-// A place in a project: the project, and one of its terminals, or an Inbox row of it, when it
+// A place in a project: the project, and one of its terminals, or an Inbox entry of it, when it
 // names one.
 export type ProjectWindowTarget = {
   readonly projectId: string

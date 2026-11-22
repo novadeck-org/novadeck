@@ -12,7 +12,7 @@ export const agentName = z.enum(agentNames)
 export const agentSessionId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/)
 
 // How long the start of an agent's last reply runs at most, in UTF-16 code units: enough
-// for one line of a desktop notice or an Inbox row, and never the whole reply.
+// for one line of a desktop notice or an Inbox entry, and never the whole reply.
 export const replyPreviewLength = 120
 
 // How long a failed turn's error runs at most, and how many files a turn names, each a path

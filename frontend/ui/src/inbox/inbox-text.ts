@@ -1,9 +1,9 @@
 import type { ChatDialog, ChatRequest } from "@novadeck/core/conversation"
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
-import type { InboxRow, InboxSource, SettledHow, Trouble } from "@novadeck/core/inbox"
+import type { InboxEntry, InboxSource, SettledHow, Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsBehind } from "@novadeck/core/messages"
 
-// What the Inbox says about a row, in words: pure, so the rows and the sheet read the
+// What the Inbox says about an entry, in words: pure, so the entries and the sheet read the
 // same sentences, and so their rules read apart from the markup.
 
 const minute = 60_000
@@ -107,77 +107,77 @@ const troubleSubject = (trouble: Trouble, source: InboxSource): string => {
     : "Seems stuck: the same failure again"
 }
 
-// The row's subject, as the person reads it first: what is asked, or what happened.
-export const subjectOf = (row: InboxRow): string => {
-  switch (row.kind) {
+// The entry's subject, as the person reads it first: what is asked, or what happened.
+export const subjectOf = (entry: InboxEntry): string => {
+  switch (entry.kind) {
     case "request":
-      return requestSubject(row.request)
+      return requestSubject(entry.request)
     case "held":
-      return `Release a held message to ${row.held.to.title}?`
+      return `Release a held message to ${entry.held.to.title}?`
     case "ask":
-      return row.ask.subject
+      return entry.ask.subject
     case "trouble":
-      return troubleSubject(row.trouble, row.source)
+      return troubleSubject(entry.trouble, entry.source)
     case "update":
-      return row.update.subject
+      return entry.update.subject
   }
 }
 
 const words = (text: string): number => text.split(/\s+/).filter(Boolean).length
 
-// What the person has to read, in words, for the "N min read" a long row carries.
-const readWords = (row: InboxRow): number => {
-  if (row.kind === "ask") {
-    const { shape } = row.ask
+// What the person has to read, in words, for the "N min read" a long entry carries.
+const readWords = (entry: InboxEntry): number => {
+  if (entry.kind === "ask") {
+    const { shape } = entry.ask
     const options =
       shape.type === "options"
         ? shape.options.flatMap((option) => [option.label, option.summary ?? ""])
         : []
-    return words([row.ask.body, ...options].join(" "))
+    return words([entry.ask.body, ...options].join(" "))
   }
-  if (row.kind === "update") return words(row.update.body)
+  if (entry.kind === "update") return words(entry.update.body)
   return 0
 }
 
-// "N min read" only where a row runs past about 120 words.
-export const readLabel = (row: InboxRow): string | null => {
-  const count = readWords(row)
+// "N min read" only where an entry runs past about 120 words.
+export const readLabel = (entry: InboxEntry): string | null => {
+  const count = readWords(entry)
   return count > 120 ? `${Math.max(1, Math.round(count / 120))} min read` : null
 }
 
 // Where an agent that Novadeck resumes picks up again.
-export const resumesLabel = (row: InboxRow): string | null =>
-  row.kind === "trouble" && row.trouble.type === "limit" && row.trouble.autoResume
-    ? `Resumes at ${clock(row.trouble.resetsAt)}`
+export const resumesLabel = (entry: InboxEntry): string | null =>
+  entry.kind === "trouble" && entry.trouble.type === "limit" && entry.trouble.autoResume
+    ? `Resumes at ${clock(entry.trouble.resetsAt)}`
     : null
 
 // The small line over a sheet's title: who wants what, in words a person would use.
-export const labelOf = (row: InboxRow): string => {
-  switch (row.kind) {
+export const labelOf = (entry: InboxEntry): string => {
+  switch (entry.kind) {
     case "request": {
-      if (row.request.kind === "question") return "Asks you"
-      const action = actionOf(row.request)
+      if (entry.request.kind === "question") return "Asks you"
+      const action = actionOf(entry.request)
       if (action === "run") return "Wants to run a command"
       if (action === "edit") return "Wants to edit a file"
       if (action === "plan") return "Wants to go ahead with a plan"
-      return `Wants to use ${row.request.tool}`
+      return `Wants to use ${entry.request.tool}`
     }
     case "held":
       return "Novadeck held a message"
     case "ask":
-      return row.ask.shape.type === "action" ? "Needs you" : "Asks you"
+      return entry.ask.shape.type === "action" ? "Needs you" : "Asks you"
     case "trouble":
       return "Novadeck noticed"
     case "update":
-      return row.update.type === "done" ? "Done" : "Heads-up"
+      return entry.update.type === "done" ? "Done" : "Heads-up"
   }
 }
 
 // Whether Novadeck itself speaks, which its sheets mark with its own glyph.
-export const fromNovadeck = (row: InboxRow): boolean =>
-  row.kind === "trouble" || row.kind === "held"
+export const fromNovadeck = (entry: InboxEntry): boolean =>
+  entry.kind === "trouble" || entry.kind === "held"
 
-// How a resolved row ended, as its row's second line says it, and as the sheet's tag does.
+// How a resolved entry ended, as its row's second line says it, and as the sheet's tag does.
 export const endedWords: Readonly<Record<SettledHow, string>> = {
   answered: "Answered",
   terminal: "Answered in the terminal",
@@ -193,13 +193,13 @@ export const endedWords: Readonly<Record<SettledHow, string>> = {
   away: "Ended while Novadeck was closed",
 }
 
-// A resolved row's one line, in the sheet where its menu was: what the person did, or why it
+// A resolved entry's one line, in the sheet where its menu was: what the person did, or why it
 // asked nothing more, with the words they answered with.
-export const endedLine = (row: InboxRow): string | null => {
-  const { settled } = row
+export const endedLine = (entry: InboxEntry): string | null => {
+  const { settled } = entry
   if (!settled) return null
-  const who = `@${row.source.handle}`
-  const thing = row.kind === "ask" ? "ask" : "request"
+  const who = `@${entry.source.handle}`
+  const thing = entry.kind === "ask" ? "ask" : "request"
   switch (settled.how) {
     case "answered":
       return settled.answer ? `You answered: ${settled.answer}` : `You answered ${who}'s ${thing}.`
@@ -220,7 +220,7 @@ export const endedLine = (row: InboxRow): string | null => {
     case "read":
       return "Read."
     case "gone":
-      return row.kind === "trouble"
+      return entry.kind === "trouble"
         ? "The messages no longer wait: they were stopped or withdrawn."
         : `Closed in the terminal, by an answer Novadeck didn't see.`
     case "ended":

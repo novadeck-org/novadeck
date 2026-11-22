@@ -1,5 +1,5 @@
 import type { Conversations } from "@novadeck/core/conversation"
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { InboxEntry } from "@novadeck/core/inbox"
 import { itemIdOf, type Item } from "@novadeck/core/items"
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
@@ -742,7 +742,7 @@ const question = {
   body: "The cart route has to match what the storefront sends. I can't tell from the code whether it calls v1 or v2, and I'd rather not guess.",
 } as const
 const leadsAnswer = "The storefront calls v2, on port 8787. v1 is retired."
-const teammateAsk = (number: number, now: number): InboxRow => {
+const teammateAsk = (number: number, now: number): InboxEntry => {
   const job = allJobs[number - 1]!
   return {
     id: teammateAskId,
@@ -878,7 +878,7 @@ export type LaunchCues = {
   // A Codex agent asks, in Codex's own words, to run its tests ("Would you like to run the
   // following command?"): Search index, beside the Claude Code agents' asks above. Its tests
   // are the last of its task: allowed, they run, pass, and it ends its turn with its done
-  // report (a done mark and an Update row) about 2 s later. It and `askReview` (whose reviewer
+  // report (a done mark and an Update entry) about 2 s later. It and `askReview` (whose reviewer
   // it is) each do nothing once the other has run.
   readonly command: () => void
   // An Antigravity agent asks the person to approve its implementation plan, in Antigravity's
@@ -887,19 +887,19 @@ export type LaunchCues = {
   // sheet's plan box reads. It shows the plan without opening the window. Answered, it goes on
   // working on the person's choice, as Antigravity takes it as its next request.
   readonly agyPlan: () => void
-  // One agent's turn ends in an error: a Trouble row, and its line goes red.
+  // One agent's turn ends in an error: a Trouble entry, and its line goes red.
   readonly fail: () => void
-  // One agent ends its turn with a report: a done mark and an Update row.
+  // One agent ends its turn with a report: a done mark and an Update entry.
   readonly finishOne: () => void
   // The lead opens three teammates, which its team wire draws to, and rests while they work.
   // Each starts on the doorbell's notice, and its lead's brief arrives as a message.
   readonly teammates: () => void
   // A teammate asks the person what only its lead knows, and messages the lead the same
-  // question at once. The ask shows as an Inbox row; the idle lead, rung awake, works and
+  // question at once. The ask shows as an Inbox entry; the idle lead, rung awake, works and
   // answers: the answer is sent about 8 s after the cue and lands about 0.8 s later, which is
   // when the teammate acts on it and withdraws its ask: the row leaves the Inbox. The person types nothing.
   readonly teammateAsks: () => void
-  // A teammate ends its turn with its done report (a done mark and an Update row) and sends the
+  // A teammate ends its turn with its done report (a done mark and an Update entry) and sends the
   // same report to its lead, as a message: the lead is rung.
   readonly teammateDone: () => void
   // The order-status agent shows its page in the pane beside its window, then its changes, as

@@ -1,9 +1,9 @@
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { InboxEntry } from "@novadeck/core/inbox"
 
 import { describe, expect, it } from "../test"
 import { toastText } from "./toast-text"
 
-const source: InboxRow["source"] = {
+const source: InboxEntry["source"] = {
   projectId: "p",
   workspaceSessionId: "s",
   terminalId: "t",
@@ -14,7 +14,7 @@ const source: InboxRow["source"] = {
 }
 const base = { id: "i", source, at: 0, stopped: true, seen: false }
 
-const permission = (tool: string, subject: string | null): InboxRow => ({
+const permission = (tool: string, subject: string | null): InboxEntry => ({
   ...base,
   kind: "request",
   request: {
@@ -52,7 +52,7 @@ describe("A toast's words", () => {
     expect(text.subject).toBe("Edit src/a.ts?")
   })
 
-  it("ages as the Inbox's rows do", () => {
+  it("ages as the Inbox's entries do", () => {
     expect(toastText(permission("Bash", "ls"), 3 * 60_000).age).toBe("3m")
   })
 
