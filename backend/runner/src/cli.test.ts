@@ -162,7 +162,7 @@ describe("built runner CLI", () => {
       const pid = Number(/OWNED_SHELL_PID=(\d+)/.exec(text)?.[1])
       expect(pid).toBeGreaterThan(0)
       expect(() => process.kill(pid, 0)).not.toThrow()
-      await runner.close()
+      // The client stays connected through the stop, as a browser left open would.
       expect(await cli.stop()).toEqual({ code: 0, signal: null })
       expect(() => process.kill(pid, 0)).toThrow(expect.objectContaining({ code: "ESRCH" }))
       expect(cli.output()).toContain("Novadeck runner stopping (SIGTERM): saving terminals.")

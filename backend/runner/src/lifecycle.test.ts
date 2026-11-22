@@ -109,6 +109,16 @@ describe("a runner's lifecycle", () => {
     expect(exits).toEqual([1])
     expect(endDeadlineMs).toBeLessThan(10_000)
   })
+
+  it("exits 1 at once when told again, whatever the close is doing", () => {
+    const { said, runner } = fakeRunner()
+    const exits: number[] = []
+    const lifecycle = superviseRunner({ runner, exit: (code) => exits.push(code), log: silent })
+    void lifecycle.end("SIGTERM")
+    lifecycle.abort("SIGTERM")
+    expect(said).toEqual(["persist", "close"])
+    expect(exits).toEqual([1])
+  })
 })
 
 describe("ending on signals", () => {

@@ -1,5 +1,6 @@
 // A standalone runner's transcript key: a file, as a server has no keychain to wrap one. The
-// file holds the base64 of 32 bytes, as `openssl rand -base64 32` prints, and is made at
+// file holds the base64 of 32 bytes, as `openssl rand -base64 32` prints (URL-safe or unpadded
+// too), and is made at
 // 0600 where it is missing. It keeps transcripts out of the database file alone (a copy
 // attached to a report, a backup of just the database) and from the machine's other users; not
 // from root, the runner's own user, or a copy of the whole data folder. A key kept encrypted
@@ -24,32 +25,60 @@ type Files = {
   mode(path: string): Promise<number>
 }
 
+/** Writes `data` to a new file at `path`, flushed to disk; EEXIST where one is. */
+const writeNew = async (path: string, data: string, mode: number): Promise<void> => {
+  const handle = await open(path, "wx", mode)
+  try {
+    await handle.writeFile(data)
+    await handle.sync()
+  } finally {
+    await handle.close()
+  }
+}
+
+/**
+ * Puts `data` at `path` whole, as `Files.create` says; `linkFile` is `link` but for tests of a
+ * volume without hard links.
+ */
+export const createWhole = async (
+  path: string,
+  data: string,
+  mode: number,
+  linkFile: (from: string, to: string) => Promise<void> = link,
+): Promise<void> => {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 })
+  const temporary = `${path}.${randomUUID()}.tmp`
+  try {
+    await writeNew(temporary, data, mode)
+    try {
+      await linkFile(temporary, path)
+    } catch (error) {
+      // A volume without hard links (FAT, some network or FUSE mounts): written in place,
+      // still only where no file is.
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== "EPERM" && code !== "ENOTSUP" && code !== "EOPNOTSUPP" && code !== "ENOSYS")
+        throw error
+      await writeNew(path, data, mode)
+    }
+  } finally {
+    await rm(temporary, { force: true })
+  }
+}
+
 const files: Files = {
   readFile: (path) => readFile(path),
-  async create(path, data, mode) {
-    await mkdir(dirname(path), { recursive: true, mode: 0o700 })
-    const temporary = `${path}.${randomUUID()}.tmp`
-    try {
-      const handle = await open(temporary, "wx", mode)
-      try {
-        await handle.writeFile(data)
-        await handle.sync()
-      } finally {
-        await handle.close()
-      }
-      await link(temporary, path)
-    } finally {
-      await rm(temporary, { force: true })
-    }
-  },
+  create: (path, data, mode) => createWhole(path, data, mode),
   mode: async (path) => (await stat(path)).mode,
 }
 
-/** The key in `text`, or null where it is not the base64 of 32 bytes (a final newline aside). */
+/**
+ * The key in `text`, or null where it is not the base64 of 32 bytes: standard or URL-safe,
+ * padded or not, with space around it, as secret stores write it.
+ */
 const keyIn = (text: string): Uint8Array | null => {
   const trimmed = text.trim()
-  if (!/^[A-Za-z0-9+/]{43}=$/.test(trimmed)) return null
-  const key = Buffer.from(trimmed, "base64")
+  if (!/^[A-Za-z0-9+/_-]{43}=?$/.test(trimmed)) return null
+  const key = Buffer.from(trimmed.replaceAll("-", "+").replaceAll("_", "/"), "base64")
   return key.length === keyBytes ? key : null
 }
 

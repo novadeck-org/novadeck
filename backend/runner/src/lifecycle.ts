@@ -119,7 +119,8 @@ type SignalSource = {
 /**
  * Ends the runner on the platform's ending signals (`endingSignals`): the first ends it
  * gracefully, and another one after `repeatSignalMs` exits at once. Returns what removes
- * the listeners.
+ * the listeners. (Node resets what a process was started with ignored, so `nohup` never
+ * kept a runner alive past SIGHUP; now that hangup saves it first.)
  */
 export const endOnSignals = (
   lifecycle: Pick<Lifecycle, "end" | "abort">,

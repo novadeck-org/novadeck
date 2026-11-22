@@ -5,7 +5,7 @@ import { join } from "node:path"
 import type { Log } from "@novadeck/log"
 
 import { describe, expect, it } from "./test.js"
-import { loadTranscriptKeyFile } from "./transcript-key-file.js"
+import { createWhole, loadTranscriptKeyFile } from "./transcript-key-file.js"
 
 /** A log that keeps each line's event, as `level event`. */
 const recording = () => {
@@ -63,6 +63,47 @@ describe("a standalone runner's transcript key file", () => {
       log: recording().log,
     })
     expect(Buffer.from(loaded ?? []).equals(key)).toBe(true)
+  })
+
+  it("reads a key URL-safe or without its padding, as some secret stores write it", async ({
+    resources,
+  }) => {
+    const directory = await folder(resources)
+    const key = Buffer.from(Array.from({ length: 32 }, (_, index) => 250 - index))
+    const standard = key.toString("base64")
+    expect(standard).toMatch(/[+/]/)
+    for (const [name, text] of [
+      ["url-safe", key.toString("base64url")],
+      ["unpadded", standard.replace(/=$/, "")],
+      ["crlf", `${standard}\r\n`],
+    ] as const) {
+      const path = join(directory, name)
+      // eslint-disable-next-line no-await-in-loop -- one file at a time
+      await writeFile(path, text, { mode: 0o600 })
+      // eslint-disable-next-line no-await-in-loop -- one file at a time
+      const loaded = await loadTranscriptKeyFile({
+        path,
+        platform: process.platform,
+        log: recording().log,
+      })
+      expect(Buffer.from(loaded ?? []).equals(key)).toBe(true)
+    }
+  })
+
+  it("is written in place, still only where none is, on a volume without hard links", async ({
+    resources,
+  }) => {
+    const path = join(await folder(resources), "transcript.key")
+    const unsupported = () =>
+      Promise.reject(Object.assign(new Error("no links here"), { code: "EPERM" }))
+    await createWhole(path, "key\n", 0o600, unsupported)
+    expect(await readFile(path, "utf8")).toBe("key\n")
+    if (posix) expect((await stat(path)).mode & 0o777).toBe(0o600)
+    expect(await readdir(join(path, ".."))).toEqual(["transcript.key"])
+    await expect(createWhole(path, "other\n", 0o600, unsupported)).rejects.toMatchObject({
+      code: "EEXIST",
+    })
+    expect(await readFile(path, "utf8")).toBe("key\n")
   })
 
   it("leaves a file holding no key as it is, and keeps no transcripts", async ({ resources }) => {

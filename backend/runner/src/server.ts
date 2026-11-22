@@ -85,6 +85,8 @@ export const startServer = async (options: ServerOptions = {}): Promise<Server> 
       // The runner first: its last save is made while every shell still runs, before the
       // clients' sessions end, which can take a while.
       const closing = runner.close()
+      // Awaited below; until then a failure must not count as unhandled.
+      closing.catch(() => {})
       try {
         await sockets.close()
       } finally {
