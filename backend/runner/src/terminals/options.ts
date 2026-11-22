@@ -31,11 +31,13 @@ export type OpenPolicy = {
   /** The flags for the agent opened in `cwd`, the folder the call resolved. */
   readonly flags?: (agent: AgentName, cwd: string) => readonly string[]
   /**
-   * The model, and its effort, an agent the call names no model for starts on (the tour's
-   * teammates' cheapest model): the person's own default when none.
+   * The model, and its effort, a new agent the call names neither for starts on in `cwd`, the
+   * folder the call asks for (the tour's teammates' cheapest model): the person's own default
+   * when none. A resume keeps its session's own.
    */
   readonly choice?: (
     agent: AgentName,
+    cwd: string,
   ) => { readonly model: string; readonly effort?: Effort } | undefined
 }
 

@@ -215,10 +215,15 @@ export class Calls {
     const { request } = read
     const policy: OpenPolicy =
       request.agent !== undefined ? this.host.openPolicy(call.terminalId) : {}
-    // A call that names no model starts on the one its policy gives, if any, with that effort.
+    // A new agent the call names neither a model nor an effort for starts on the one its policy
+    // gives for the folder it asks for, if any, with that effort. A resume keeps its session's
+    // model, and an effort alone is refused as for every call (it needs a model).
     const given =
-      request.agent !== undefined && request.model === undefined
-        ? policy.choice?.(request.agent)
+      request.agent !== undefined &&
+      request.model === undefined &&
+      request.effort === undefined &&
+      request.resume === undefined
+        ? policy.choice?.(request.agent, resolvePath(record.summary.cwd, request.cwd ?? "."))
         : undefined
     const choice = given
       ? { model: given.model, ...(given.effort !== undefined && { effort: given.effort }) }

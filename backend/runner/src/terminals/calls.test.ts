@@ -287,6 +287,22 @@ describe("the open call", () => {
     expect(run.asked[0]!.command).toBe("claude --model opus --effort low")
   })
 
+  it("still refuses an effort with no model, whatever the runner's policy gives", async () => {
+    const run = setup()
+    run.give({ model: "opus", effort: "low" })
+    expect(await run.open({ agent: "claude", effort: "max" })).toEqual({
+      ok: false,
+      reason: "Give a model with effort: Claude Code's efforts depend on the model.",
+    })
+  })
+
+  it("starts on the runner's policy model with no effort where it gives none", async () => {
+    const run = setup()
+    run.give({ model: "opus" })
+    await run.open({ agent: "claude" })
+    expect(run.asked[0]!.command).toBe("claude --model opus")
+  })
+
   it("keeps the model the call names over the one the runner's policy gives", async () => {
     const run = setup()
     run.give({ model: "haiku" })
@@ -376,6 +392,13 @@ describe("the open call", () => {
     // The brief goes as a message after: the resumed session isn't started with a prompt.
     expect(run.sent).toEqual([{ to: "fox", text: "Carry on." }])
     expect(run.opened.startedWith).toBeUndefined()
+  })
+
+  it("resumes a session on its own model, not the one the runner's policy gives", async () => {
+    const run = setup()
+    run.give({ model: "opus", effort: "low" })
+    await run.open({ agent: "claude", resume: "s-1" })
+    expect(run.asked[0]!.command).toBe("claude --resume s-1")
   })
 
   it("resumes with the flags the session was launched with, from a saved row or a live one", async () => {
