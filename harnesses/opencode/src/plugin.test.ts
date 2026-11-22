@@ -34,11 +34,17 @@ let dir: string
 let prompted: { id: string; parts: unknown[] }[]
 let sessions: Record<string, { parentID?: string }>
 let versionOf: string
+// Each call the plugin made to opencode's interface API (`client.tui`), the one way, beside the
+// terminal itself, it could change what the person's box holds.
+let interfaceCalls: string[]
 
 const client = () => ({
   _client: { get: async () => ({ data: { healthy: true, version: versionOf } }) },
   session: {
-    get: async ({ path }: { path: { id: string } }) => ({ data: sessions[path.id] ?? {} }),
+    // As opencode answers: the session, or no data for one it doesn't have.
+    get: async ({ path }: { path: { id: string } }) => ({
+      data: sessions[path.id] ? { id: path.id, ...sessions[path.id] } : undefined,
+    }),
     list: async () => ({ data: [] }),
     messages: async () => ({ data: [] }),
     promptAsync: async ({ path, body }: { path: { id: string }; body: { parts: unknown[] } }) => {
@@ -46,6 +52,15 @@ const client = () => ({
       return { data: undefined }
     },
   },
+  tui: new Proxy(
+    {},
+    {
+      get: (_, name) => async () => {
+        interfaceCalls.push(String(name))
+        return { data: true }
+      },
+    },
+  ),
   config: {
     providers: async () => ({
       data: { providers: [{ id: "fake", models: { m: { limit: { context: 1000 } } } }] },
@@ -107,6 +122,7 @@ beforeEach(async () => {
   prompted = []
   sessions = {}
   versionOf = "1.19.6"
+  interfaceCalls = []
 })
 afterEach(async () => {
   process.env = { ...saved }
@@ -268,6 +284,31 @@ describe("Novadeck's opencode plugin", () => {
     expect(told[3]!.payload.continuation).toBe(true)
   })
 
+  // The runner gives a Stop's messages over a draft of the person's, as for every harness: the
+  // draft stays byte for byte only while the delivery types nothing, so a later move to the
+  // interface's prompt (`tui.appendPrompt`, `submitPrompt`) would fail here, not quietly.
+  it("starts the next turn without touching the person's box: no interface call, nothing on the terminal", async () => {
+    const hooks = await start()
+    await emit(hooks, "session.created", { info: { id: "ses_a" } })
+    await emit(hooks, "session.status", { sessionID: "ses_a", status: { type: "busy" } })
+    await answer("Stop", "<novadeck-messages>later</novadeck-messages>")
+    const writes: unknown[] = []
+    const write = process.stdout.write.bind(process.stdout)
+    process.stdout.write = ((chunk: unknown, ...rest: unknown[]) => {
+      writes.push(chunk)
+      return write(chunk as string, ...(rest as []))
+    }) as typeof process.stdout.write
+    try {
+      await emit(hooks, "session.idle", { sessionID: "ses_a" })
+      await settled(3)
+    } finally {
+      process.stdout.write = write
+    }
+    expect(prompted).toHaveLength(1)
+    expect(interfaceCalls).toEqual([])
+    expect(writes).toEqual([])
+  })
+
   it("delivers nothing more where the turn its delivery started ends with nothing new", async () => {
     const hooks = await start()
     await emit(hooks, "session.created", { info: { id: "ses_a" } })
@@ -364,6 +405,54 @@ describe("Novadeck's opencode plugin", () => {
     ])
   })
 
+  it("writes a prompt given while a tool runs after that tool's result, whole, once", async () => {
+    const hooks = await start()
+    await emit(hooks, "session.created", { info: { id: "ses_a" } })
+    await emit(hooks, "message.updated", {
+      info: { id: "m1", sessionID: "ses_a", role: "assistant", time: { created: 1 } },
+    })
+    await emit(hooks, "session.status", { sessionID: "ses_a", status: { type: "busy" } })
+    const tool = (state: Record<string, unknown>) => ({
+      part: {
+        id: "p1",
+        messageID: "m1",
+        sessionID: "ses_a",
+        type: "tool",
+        tool: "bash",
+        callID: "c1",
+        state,
+      },
+    })
+    await emit(hooks, "message.part.updated", tool({ status: "running", input: { command: "ls" } }))
+    // The prompt's message and text part are stored first, its hook comes after (probed
+    // 2026-11-22, 1.19.6): neither writes it, its hook does, once the tool's result is in.
+    await emit(hooks, "message.updated", {
+      info: { id: "m2", sessionID: "ses_a", role: "user", time: { created: 2 } },
+    })
+    await emit(hooks, "message.part.updated", {
+      part: { id: "p2", messageID: "m2", sessionID: "ses_a", type: "text", text: "then this" },
+    })
+    await hooks["chat.message"]!(
+      { sessionID: "ses_a", agent: "build" },
+      {
+        message: { id: "m2", sessionID: "ses_a", time: { created: 2 } },
+        parts: [{ id: "p2", type: "text", text: "then this" }],
+      },
+    )
+    await emit(
+      hooks,
+      "message.part.updated",
+      tool({ status: "completed", input: { command: "ls" }, output: "a" }),
+    )
+    const lines = (await readFile(join(dir, "sessions", "ses_a.jsonl"), "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, any>)
+      .filter((line) => line.type !== "message")
+    expect(lines.map((line) => line.type)).toEqual(["part", "part", "prompt"])
+    expect(lines[2]!.parts[0].text).toBe("then this")
+  })
+
   it("tells a task's child session as a subagent of its root, by the type its call named", async () => {
     const hooks = await start()
     await emit(hooks, "session.created", { info: { id: "ses_a" } })
@@ -393,6 +482,7 @@ describe("Novadeck's opencode plugin", () => {
   })
 
   it("binds the session the shim said opencode resumes, as it starts", async () => {
+    sessions.ses_old = {}
     await start({ NOVADECK_OPENCODE_SESSION: "ses_old" })
     const [bound] = await settled(1)
     expect(bound).toEqual({
@@ -400,12 +490,93 @@ describe("Novadeck's opencode plugin", () => {
       payload: expect.objectContaining({ session_id: "ses_old", source: "resume" }),
     })
   })
+
+  it("binds no session it was given that opencode doesn't have, which it exits at", async () => {
+    const hooks = await start({ NOVADECK_OPENCODE_SESSION: "ses_gone" })
+    // A prompt's report shows the reports so far are through: none was a SessionStart.
+    await hooks["chat.message"]!(
+      { sessionID: "ses_new" },
+      { message: { id: "msg_1", sessionID: "ses_new" }, parts: [{ type: "text", text: "hi" }] },
+    )
+    const told = await settled(2)
+    expect(told.filter(({ payload }) => payload.session_id === "ses_gone")).toEqual([])
+  })
 })
 
 describe("the plugin's files", () => {
   it("load the same module from Novadeck's configuration folder", () => {
     const written = files("linux", { mcp: { command: "/r", args: ["mcp"] } })
-    expect(written.map(({ path }) => path)).toEqual(["novadeck.mjs", "config/plugins/novadeck.js"])
-    expect(written[1]!.content).toContain('from "../../novadeck.mjs"')
+    expect(written.map(({ path }) => path)).toEqual([
+      "novadeck.mjs",
+      "novadeck-tui.mjs",
+      "tui.json",
+      "config/plugins/novadeck.js",
+    ])
+    expect(written[3]!.content).toContain('from "../../novadeck.mjs"')
+  })
+
+  it("name the interface's plugin in the tui.json the shim hands opencode", () => {
+    const written = files("linux", { mcp: { command: "/r", args: ["mcp"] } })
+    expect(JSON.parse(written[2]!.content)).toEqual({ plugin: ["./novadeck-tui.mjs"] })
+  })
+})
+
+describe("the interface's plugin", () => {
+  // The interface's plugin rendered with a hook command that records its input, given a route
+  // that a test moves, as opencode's `api.route.current` is.
+  const run = async (routes: unknown[]): Promise<Record<string, unknown>[]> => {
+    const log = join(dir, "left.jsonl")
+    const script = join(dir, "left.cjs")
+    await writeFile(
+      script,
+      `let i="";process.stdin.on("data",(c)=>i+=c);process.stdin.on("end",()=>require("node:fs").appendFileSync(${JSON.stringify(log)},i+"\\n"))`,
+    )
+    const { tuiPluginSource } = await import("./tui-plugin-source.js")
+    const file = join(dir, "novadeck-tui.mjs")
+    await writeFile(
+      file,
+      tuiPluginSource({
+        hook: `${JSON.stringify(process.execPath)} ${JSON.stringify(script)}`,
+        hookMs: 5000,
+      }),
+    )
+    process.env.NOVADECK_HOOK = "x"
+    const module = (await import(`${pathToFileURL(file).href}?${Date.now()}`)) as {
+      default: { tui: (api: unknown) => Promise<void> }
+    }
+    let current: unknown = routes[0]
+    let dispose: (() => void) | undefined
+    await module.default.tui({
+      route: {
+        get current() {
+          return current
+        },
+      },
+      lifecycle: { onDispose: (stop: () => void) => (dispose = stop) },
+    })
+    for (const route of routes.slice(1)) {
+      current = route
+      // eslint-disable-next-line no-await-in-loop -- Each route change gets its time to be seen.
+      await new Promise((resolve) => setTimeout(resolve, 400))
+    }
+    dispose?.()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    return existsSync(log)
+      ? readFileSync(log, "utf8")
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line) as Record<string, unknown>)
+      : []
+  }
+  const session = (id: string) => ({ name: "session", params: { sessionID: id } })
+
+  it("reports the session a route left for home, once, and nothing at its start", async () => {
+    const told = await run([{ name: "home" }, session("ses_a"), { name: "home" }, session("ses_b")])
+    expect(told).toHaveLength(1)
+    expect(told[0]).toMatchObject({ hook_event_name: "SessionLeft", session_id: "ses_a" })
+  })
+
+  it("says nothing for a move between sessions, a child's view too", async () => {
+    expect(await run([session("ses_a"), session("ses_child"), session("ses_a")])).toEqual([])
   })
 })

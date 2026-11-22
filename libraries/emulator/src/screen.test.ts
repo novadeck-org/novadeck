@@ -145,6 +145,27 @@ describe("a screen read as text", () => {
     screen.dispose()
   })
 
+  it("reads no more of a row than the columns the screen has now, cells a resize hid included", async () => {
+    // A full-screen program's alternate buffer keeps what its rows held past a narrower width.
+    const screen = createScreen({ cols: 20, rows: 3, scrollback: 0 })
+    await written(screen, "\u001b[?1049h\u001b[2Jwide row of text here")
+    screen.resize(10, 3)
+    expect(readScreen(screen).rows[0]).toBe("wide row o")
+    screen.dispose()
+  })
+
+  it("serializes the alternate screen at its new width, so a fresh screen of that size draws it as it was", async () => {
+    const screen = createScreen({ cols: 20, rows: 2, scrollback: 0 })
+    await written(screen, "\u001b[?1049h\u001b[2J\u001b[1;1Hone wide row here\u001b[2;1Hsecond row")
+    screen.resize(10, 2)
+    const data = snapshot(screen, { fits: () => true, mouse: "default" })!
+    const fresh = createScreen({ cols: 10, rows: 2, scrollback: 0 })
+    await written(fresh, data)
+    expect(readScreen(fresh).rows).toEqual(["one wide r", "second row"])
+    screen.dispose()
+    fresh.dispose()
+  })
+
   it("marks a row the terminal wrapped as continuing the one before", async () => {
     const screen = createScreen({ cols: 5, rows: 3, scrollback: 0 })
     await written(screen, "abcdefg")

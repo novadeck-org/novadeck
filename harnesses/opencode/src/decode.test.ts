@@ -215,10 +215,15 @@ describe("how a turn ended, as its Stop says (probed 2026-11-22, 1.19.6)", () =>
 })
 
 describe("a session the plugin binds otherwise", () => {
-  it("resumed is a switch it announced, before its box draws", () => {
+  it("reports its interface's going home as the session it left, which ends there", () => {
+    const [fact] = decoded("SessionLeft", { session_id: root })
+    expect(fact).toMatchObject({ type: "session-left", sessionId: root })
+  })
+
+  it("resumed is a switch it announced, at its prompt as Claude Code's resume is", () => {
     const [fact] = decoded("SessionStart", { session_id: root, source: "resume", cwd })
     expect(fact).toEqual(expect.objectContaining({ evidence: "native-switch" }))
-    expect(fact).not.toHaveProperty("atPrompt")
+    expect(fact).toHaveProperty("atPrompt", true)
   })
 
   it("compacted says so", () => {

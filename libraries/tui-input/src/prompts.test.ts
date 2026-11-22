@@ -822,6 +822,18 @@ describe("shell commands", () => {
     expect(written).toEqual(["!", `${bang}echo hi${end}`, "\r"])
   })
 
+  it("wait, after the Enter, for a program that loses early keys to show the prompt as taken", async () => {
+    const { host, written } = terminal()
+    let looks = 0
+    const waiting: PromptHost = {
+      ...host,
+      admit: (id) => ({ ...host.admit(id), echoed: () => (looks += 1) >= 4 }),
+    }
+    await new Prompts(waiting, host.queue, fast).prompt("t", "Hello there")
+    expect(looks).toBeGreaterThanOrEqual(4)
+    expect(enters(written)).toBe(1)
+  })
+
   it("paste a multi-line command with its line breaks as returns", async () => {
     const { host, written } = terminal({ shell: true, takes: "box" })
     await new Prompts(host, host.queue, fast).prompt("t", "! echo a\r\necho b")

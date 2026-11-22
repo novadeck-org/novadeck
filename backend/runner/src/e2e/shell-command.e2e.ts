@@ -1,5 +1,6 @@
+import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
-import { describe, e2e, expect, supported } from "./fixture.js"
+import { describe, e2e, expect, gated, supported } from "./fixture.js"
 import { asked, gate } from "./model/script.js"
 import { start } from "./scenarios.js"
 
@@ -92,51 +93,59 @@ for (const setup of setups) {
       })
     }
 
-    it("reports a command entered while a turn works once the turn has ended, then drops it", async ({
-      e2e: run,
-    }) => {
-      const held = gate()
-      run.model.use(async (call) => {
-        if (!asked(call, "Hold on")) return undefined
-        await held.opened
-        return { text: "Held." }
-      })
-      const t = await start(run, setup)
-      const raw = (data: string) => run.deck.terminals.write({ terminalId: t.id, data }, "e2e")
-      await t.submit("Hold on")
-      await t.reached("working")
+    // opencode drops a command entered while a turn works: its box empties and it never runs
+    // (probed 2026-11-22, 1.19.6, harnesses/opencode box fixture `shellMid`), so none is reported.
+    gated(
+      it,
+      harnesses[setup.agent].box.shell.midTurn === "drops"
+        ? "its shell mode drops a command entered while a turn works"
+        : undefined,
+    )(
+      "reports a command entered while a turn works once the turn has ended, then drops it",
+      async ({ e2e: run }) => {
+        const held = gate()
+        run.model.use(async (call) => {
+          if (!asked(call, "Hold on")) return undefined
+          await held.opened
+          return { text: "Held." }
+        })
+        const t = await start(run, setup)
+        const raw = (data: string) => run.deck.terminals.write({ terminalId: t.id, data }, "e2e")
+        await t.submit("Hold on")
+        await t.reached("working")
 
-      raw("!")
-      await wait(800)
-      raw(paste(sleeping(longer)))
-      await wait(800)
-      const entered = Date.now()
-      raw("\r")
-      await wait(1000)
-      held.open()
-      await t.until("Held.")
+        raw("!")
+        await wait(800)
+        raw(paste(sleeping(longer)))
+        await wait(800)
+        const entered = Date.now()
+        raw("\r")
+        await wait(1000)
+        held.open()
+        await t.until("Held.")
 
-      // Codex shows it from its Enter; the others from the turn's end, a second or so after.
-      const shell = await t.poll(
-        () => t.summary().shellCommand ?? undefined,
-        "its summary to report the shell command after the turn",
-        longer * 1000,
-      )
-      expect(shell.command).toContain(needleOf(sleeping(longer)))
-      expect(shell.since).toBeGreaterThanOrEqual(entered - 1000)
+        // Codex shows it from its Enter; the others from the turn's end, a second or so after.
+        const shell = await t.poll(
+          () => t.summary().shellCommand ?? undefined,
+          "its summary to report the shell command after the turn",
+          longer * 1000,
+        )
+        expect(shell.command).toContain(needleOf(sleeping(longer)))
+        expect(shell.since).toBeGreaterThanOrEqual(entered - 1000)
 
-      await t.poll(
-        () => (t.summary().shellCommand === null ? true : undefined),
-        "its summary to drop the shell command once the process ended",
-        longer * 1000 + 6000,
-      )
-      // The turn's activity is its own: working through it (Claude Code, which takes a
-      // queued command's output as a turn of its own, stays so a while longer), then idle.
-      await t.poll(
-        () => (t.summary().activity?.state === "idle" ? true : undefined),
-        "its agent to be idle",
-        15_000,
-      )
-    })
+        await t.poll(
+          () => (t.summary().shellCommand === null ? true : undefined),
+          "its summary to drop the shell command once the process ended",
+          longer * 1000 + 6000,
+        )
+        // The turn's activity is its own: working through it (Claude Code, which takes a
+        // queued command's output as a turn of its own, stays so a while longer), then idle.
+        await t.poll(
+          () => (t.summary().activity?.state === "idle" ? true : undefined),
+          "its agent to be idle",
+          15_000,
+        )
+      },
+    )
   })
 }

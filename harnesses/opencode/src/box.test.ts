@@ -1,9 +1,14 @@
+import { execFileSync } from "node:child_process"
+import { mkdtempSync, readFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import { eraseRows, leftoverOf } from "@novadeck/tui-input/box"
+import { leftoverOf } from "@novadeck/tui-input/box"
 import { describe, expect, it } from "vitest"
 
-import { box, shellFooter } from "./box.js"
+import { box, shellCommandOf, shellFooter } from "./box.js"
 
 // Probed 2026-11-22, 1.19.6 (fixtures/input-box.probe.json): the states of its box on the home
 // screen, in a session, with a turn running, and at 60x20.
@@ -26,6 +31,23 @@ describe("opencode's empty box", () => {
   it("reads the home screen's placeholder as empty", () => {
     expect(box.read(screen("homeEmpty"))).toMatchObject({ text: "", mode: "prompt" })
     expect(box.read(screen("homeEmpty60"))).toMatchObject({ text: "", mode: "prompt" })
+  })
+
+  it("reads a placeholder that wraps over two rows on a narrow screen as empty", () => {
+    const base = screen("homeEmpty60")
+    const rows = base.rows.map((row) =>
+      row.includes("Ask anything")
+        ? `${row.slice(0, row.indexOf("Ask"))}Ask anything… "What is the tech stack of`
+        : row,
+    )
+    const at = rows.findIndex((row) => row.includes("Ask anything"))
+    const wrapped = [
+      ...rows.slice(0, at + 1),
+      `${rows[at]!.slice(0, rows[at]!.indexOf("Ask"))}this project?"`,
+      ...rows.slice(at + 1),
+    ]
+    const tall = { ...base, rows: wrapped, bright: wrapped }
+    expect(box.read(tall)).toMatchObject({ text: "", first: at, last: at + 1 })
   })
 
   it("reads the box of a session, and of one with a turn running, as empty", () => {
@@ -93,8 +115,7 @@ describe("opencode's draft", () => {
 
   it("erases it row by row, Ctrl-U then Backspace", () => {
     const found = box.read(screen("typed3"))!
-    expect(box.erase?.(found)).toBe(eraseRows(found))
-    expect(eraseRows(found)).toBe("\x15\x7f\x15\x7f\x15")
+    expect(box.erase?.(found)).toBe("\x03")
   })
 })
 
@@ -198,7 +219,7 @@ describe("opencode's shell mode", () => {
   it("is left by Backspace in the empty box, a command erased first", () => {
     const empty = box.read(screen("sessBang"))!
     expect(box.shell.leave?.(empty)).toBe("\x7f")
-    expect(box.shell.leave?.(box.read(screen("sessBangCmd"))!)).toBe("\x15\x7f")
+    expect(box.shell.leave?.(box.read(screen("sessBangCmd"))!)).toBe("\x03\0\x7f")
   })
 
   it("opens a session from its home screen, and expands a placeholder as the command", () => {
@@ -211,6 +232,31 @@ describe("opencode's shell mode", () => {
   })
 })
 
+describe("opencode's shell command", () => {
+  it("goes as written when it is one line, and as one line that evaluates the lines when it is more", () => {
+    expect(shellCommandOf("  echo hi > f ", "linux")).toBe("echo hi > f")
+    const many = shellCommandOf("echo a\necho b", "linux")!
+    expect(many).not.toContain("\n")
+    expect(shellCommandOf("echo a\necho b", "win32")).toBeUndefined()
+  })
+
+  it("runs every line of one of several, quotes, backslashes and a heredoc included", () => {
+    const dir = mkdtempSync(join(tmpdir(), "oc-shell-"))
+    const script = [
+      "echo 'it''s' > a.txt",
+      "printf 'x\\ty\\n' >> a.txt",
+      "cat <<'E' > b.txt",
+      "  heredoc \\n line",
+      "E",
+      "echo done > c.txt",
+    ].join("\n")
+    execFileSync("sh", ["-c", shellCommandOf(script, "linux")!], { cwd: dir })
+    expect(readFileSync(join(dir, "a.txt"), "utf8")).toBe("its\nx\ty\n")
+    expect(readFileSync(join(dir, "b.txt"), "utf8")).toBe("  heredoc \\n line\n")
+    expect(readFileSync(join(dir, "c.txt"), "utf8")).toBe("done\n")
+  })
+})
+
 describe("opencode's images", () => {
   it("counts the `[Image 1]` placeholders in its box", () => {
     expect(text("sessImage")).toBe("[Image 1]")
@@ -219,7 +265,7 @@ describe("opencode's images", () => {
   })
 
   it("takes images back out with the keys that erase the box's rows", () => {
-    expect(box.images!.discard(screen("sessImage"))).toBe("\x15")
+    expect(box.images!.discard(screen("sessImage"))).toBe("\x03")
     expect(box.images!.alone).toBe(true)
   })
 })
@@ -233,6 +279,20 @@ describe("opencode's interrupt", () => {
 
   it("drops a shell command typed while a turn runs", () => {
     expect(box.shell.midTurn).toBe("drops")
+  })
+})
+
+describe("opencode's sent prompt", () => {
+  it("is taken once its first line stands in the history with the assistant's row after it", () => {
+    expect(box.echoed?.(screen("sessEmpty"), "SLOW one")).toBe(true)
+    expect(box.echoed?.(screen("sessEmpty"), "SLOW one\nand more")).toBe(true)
+    expect(box.echoed?.(screen("sessEmpty"), "Another")).toBe(false)
+    // Typed in the box, not yet sent: not the history.
+    expect(box.echoed?.(screen("sessDraft"), "hi")).toBe(false)
+  })
+
+  it("is taken as queued once its badge stands under it", () => {
+    expect(box.echoed?.(screen("queued"), "second while busy")).toBe(true)
   })
 })
 

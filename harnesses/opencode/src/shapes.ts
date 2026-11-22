@@ -15,7 +15,8 @@ import { lineOf } from "./transcripts.js"
  * - `part:<role>/<type>`, a part of an answer, or of a subagent's prompt, by its author and
  *   opencode's part type;
  * - `prompt:<type>`, a part of the person's prompt;
- * - `tag:<name>`, the tag a prompt's words open with.
+ * - `tag:<name>`, the tag a prompt's words open with;
+ * - `message:aborted`, an answer the person interrupted, its info's `MessageAbortedError`.
  */
 export const lists: ShapeLists = {
   read: [
@@ -33,6 +34,8 @@ export const lists: ShapeLists = {
     // The Inbox reply tag, typed by the doorbell as the person's own prompt.
     "tag:novadeck-reply",
     "tag:novadeck-messages",
+    // Where the person interrupted an answer (Escape twice).
+    "message:aborted",
   ],
   skipped: [
     // An answer's info once it is done: its model, tokens and cost, which hooks tell.
@@ -62,7 +65,14 @@ const verdicts = classify(lists)
 const keysOf = (line: string): string[] => {
   const read = lineOf(line)
   if (!read) return []
-  if (read.type === "message") return ["line:message"]
+  if (read.type === "message")
+    return [
+      "line:message",
+      ...(read.info.role === "assistant" &&
+      (read.info.error as { name?: unknown } | undefined)?.name === "MessageAbortedError"
+        ? ["message:aborted"]
+        : []),
+    ]
   if (read.type === "part")
     return ["line:part", `part:${read.role ?? "unknown"}/${String(read.part.type ?? "untyped")}`]
   return [
@@ -76,7 +86,7 @@ const keysOf = (line: string): string[] => {
 
 /** Whether a shape is inside the conversation: a part of the person's or the agent's message. */
 export const conversational = (key: string): boolean =>
-  key.startsWith("part:") || key.startsWith("prompt:")
+  key.startsWith("part:") || key.startsWith("prompt:") || key === "message:aborted"
 
 /** The shapes one line of the transcript holds; none for a line of anything else. */
 export const shapes = (line: string): readonly Shape[] => verdicts(keysOf(line))

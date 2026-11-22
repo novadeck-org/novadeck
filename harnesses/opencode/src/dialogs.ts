@@ -2,7 +2,7 @@ import type { DialogAdapter } from "@novadeck/harness-core/dialogs"
 
 import { modalTitle } from "./box.js"
 import { permission } from "./permission-dialog.js"
-import { questions } from "./question-dialog.js"
+import { planReview, questions } from "./question-dialog.js"
 
 /**
  * opencode's dialogs, as its TUI draws them and takes keys (probed 2026-11-22, 1.19.6;
@@ -28,7 +28,7 @@ export const dialogs: DialogAdapter = {
       // Its experimental plan mode asks its review (`plan_exit`) through the question dialog; any
       // other plan request is not one this reads.
       case "plan":
-        return request.tool === "plan_exit" ? questions(rows, request) : undefined
+        return request.tool === "plan_exit" ? planReview(rows, request) : undefined
     }
   },
   // Two views hide a waiting dialog, each probed 2026-11-22, 1.19.6:

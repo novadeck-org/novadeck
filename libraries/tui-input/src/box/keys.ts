@@ -23,6 +23,13 @@ export type BoxKeysHost = {
 export type BoxKeysTiming = { readonly pollMs: number; readonly keysMs: number }
 
 /**
+ * Marks, in keys a profile gives, where the next must wait for the program to have taken the ones
+ * before it, a few polls: a Backspace that leaves a shell mode is lost on opencode when it arrives
+ * in the same read as the Ctrl-U that emptied the box (probed 2026-11-22, 1.19.6, in the e2e sandbox).
+ */
+export const pause = "\0"
+
+/**
  * Writes the keys once and gives the screen `reached` holds of on two reads running, within
  * `keysMs`; undefined where it didn't, or the keys couldn't be written. It never presses them
  * again: a harness that changed ends in a refusal, not a run of keys into who knows what.
@@ -34,7 +41,11 @@ export const pressKeys = async (
   reached: (screen: ScreenText) => boolean,
 ): Promise<ScreenText | undefined> => {
   host.admit()
-  if (!host.write(keys)) return undefined
+  for (const [at, part] of keys.split(pause).entries()) {
+    // eslint-disable-next-line no-await-in-loop -- Each part waits for the one before.
+    if (at > 0) await sleep(4 * timing.pollMs)
+    if (!host.write(part)) return undefined
+  }
   const until = Date.now() + timing.keysMs
   let seen = false
   while (Date.now() < until && host.holding()) {

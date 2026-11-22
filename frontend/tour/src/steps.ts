@@ -375,7 +375,9 @@ export const screenCoach = (
       : screen === "hooks"
         ? agent === "codex"
           ? 'Codex asks you to trust Novadeck\'s hooks: pick "Trust all and continue" here, or review them first, and the tour goes on.'
-          : "Novadeck's hooks are off for it, so Novadeck can't follow it. Turn hooks back on in its settings, then start it again here."
+          : agent === "opencode"
+            ? "Novadeck can't load its plugin into opencode here, so it can't follow it: your environment sets both OPENCODE_CONFIG_CONTENT and OPENCODE_CONFIG_DIR, or OPENCODE_PURE. Unset one, then start it again here."
+            : "Novadeck's hooks are off for it, so Novadeck can't follow it. Turn hooks back on in its settings, then start it again here."
         : agent === "claude"
           ? 'Claude Code asks whether to trust the tour\'s folder, which Novadeck just made: pick "Yes, I trust this folder" here (it starts on "No"), and the tour goes on.'
           : agent === "codex"

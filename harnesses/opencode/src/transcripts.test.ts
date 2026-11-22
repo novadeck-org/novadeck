@@ -1,6 +1,7 @@
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { describe, expect, it } from "vitest"
 
+import { shapes } from "./shapes.js"
 import { transcripts, typedEntry } from "./transcripts.js"
 
 type Probe = { readonly transcript: readonly unknown[]; readonly child: readonly unknown[] }
@@ -133,14 +134,14 @@ describe("a tool call as it runs and once it ended", () => {
     JSON.stringify({ type: "part", role: "assistant", ...fields })
 
   it("is the call alone as it starts, which the chat shows running", () => {
-    const items = transcripts.items(line({ part: part({ status: "running" }), call: true }))
-    expect(items.map((item) => item.kind)).toEqual(["tool-call"])
+    const read = transcripts.items(line({ part: part({ status: "running" }), call: true }))
+    expect(read.map((item) => item.kind)).toEqual(["tool-call"])
   })
 
   it("is its result alone once it ended, where its call was written as it started", () => {
     const ended = part({ status: "completed", output: "done", metadata: { exit: 0 } })
-    const items = transcripts.items(line({ part: ended, called: true }))
-    expect(items.map((item) => item.kind)).toEqual(["tool-result"])
+    const read = transcripts.items(line({ part: ended, called: true }))
+    expect(read.map((item) => item.kind)).toEqual(["tool-result"])
     // Without that, as a resumed session's history has it, both.
     expect(transcripts.items(line({ part: ended })).map((item) => item.kind)).toEqual([
       "tool-call",
@@ -180,5 +181,79 @@ describe("a tool call as it runs and once it ended", () => {
     )
     const [call] = transcripts.items(line({ part: invalid }))
     expect(call?.run).toEqual(expect.objectContaining({ kind: "other", title: "frobnicate" }))
+  })
+})
+
+describe("what the plugin's lines say beyond the probe's session (probed 2026-11-22, 1.19.6)", () => {
+  const part = (extra: Record<string, unknown>, line: Record<string, unknown> = {}) =>
+    JSON.stringify({ type: "part", role: "assistant", part: extra, ...line })
+
+  it("notes the person's yes to its plan review, from the result of plan_exit", () => {
+    const line = part({
+      type: "tool",
+      tool: "plan_exit",
+      callID: "c1",
+      state: {
+        status: "completed",
+        input: {},
+        output: "User approved switching to build agent. Wait for further instructions.",
+        time: { start: 1, end: 2 },
+      },
+    })
+    expect(transcripts.items(line).map((item) => item.note?.type)).toEqual([
+      undefined,
+      undefined,
+      "plan-approved",
+    ])
+  })
+
+  it("marks where the person interrupted an answer, and nothing for one that ended", () => {
+    const message = (info: Record<string, unknown>) =>
+      JSON.stringify({ type: "message", info: { id: "msg_1", sessionID: "ses_a", ...info } })
+    const aborted = message({
+      role: "assistant",
+      error: { name: "MessageAbortedError", data: { message: "Aborted" } },
+      time: { created: 1, completed: 5 },
+    })
+    expect(transcripts.items(aborted)).toMatchObject([
+      { role: "user", text: "Interrupted", interrupted: true, at: 5 },
+    ])
+    expect(shapes(aborted).map(({ key }) => key)).toContain("message:aborted")
+    expect(
+      transcripts.items(message({ role: "assistant", time: { created: 1, completed: 5 } })),
+    ).toEqual([])
+    expect(
+      transcripts.items(message({ role: "assistant", error: { name: "APIError" }, time: {} })),
+    ).toEqual([])
+  })
+
+  it("gives a compaction's summary as the note's words", () => {
+    const line = part(
+      { type: "text", text: "The summary.", time: { start: 1, end: 2 } },
+      { summary: true },
+    )
+    expect(transcripts.items(line)).toMatchObject([
+      { role: "note", text: "The summary.", note: { type: "compaction" } },
+    ])
+  })
+
+  it("ends a prompt's words where the person's did, not at the space its box adds after a paste", () => {
+    const line = JSON.stringify({
+      type: "prompt",
+      info: { id: "m", role: "user", sessionID: "ses_a", time: { created: 1 } },
+      parts: [{ type: "text", text: "a\nb ", id: "p", sessionID: "ses_a", messageID: "m" }],
+    })
+    expect(transcripts.items(line).map((item) => item.text)).toEqual(["a\nb"])
+    expect(typedEntry(line)?.text).toBe("a\nb")
+  })
+
+  it("dates a prompt by when the plugin wrote it, which is when its model could read it", () => {
+    const line = JSON.stringify({
+      type: "prompt",
+      at: 9000,
+      info: { id: "m", role: "user", sessionID: "ses_a", time: { created: 1000 } },
+      parts: [{ type: "text", text: "later", id: "p", sessionID: "ses_a", messageID: "m" }],
+    })
+    expect(transcripts.items(line)[0]?.at).toBe(9000)
   })
 })

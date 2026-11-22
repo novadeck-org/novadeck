@@ -49,7 +49,7 @@ const runAt = (
 }
 
 /** The placeholder a harness records for an image of a prompt: `[Image #1]`. */
-const mark = /\[Image #\d+\]/g
+const mark = /\[Image #?\d+\]/g
 
 /**
  * A record item's placeholders of images, wherever they stand (`[Image #1] [Image #2] words`
@@ -143,7 +143,7 @@ export const inBox = (box: string, lines: readonly string[], images = 0): boolea
   // A prompt with images has their placeholders in the box, among the words or ahead of them.
   const shown = images > 0 ? box.replace(mark, "") : box
   // Images alone are there when the box holds that many placeholders.
-  if (words === "") return images > 0 && (box.match(/\[Image #\d+\]/g)?.length ?? 0) >= images
+  if (words === "") return images > 0 && (box.match(/\[Image #?\d+\]/g)?.length ?? 0) >= images
   return compact(shown).includes(words)
 }
 

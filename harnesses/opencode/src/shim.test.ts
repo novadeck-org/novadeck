@@ -33,6 +33,7 @@ const setup = (folder = root, { plugin = true, reexport = true } = {}) => {
   if (plugin) {
     mkdirSync(join(plugins, "config", "plugins"), { recursive: true })
     writeFileSync(join(plugins, "novadeck.mjs"), "export const NovadeckPlugin = async () => ({})\n")
+    writeFileSync(join(plugins, "tui.json"), '{"plugin":["./novadeck-tui.mjs"]}\n')
     if (reexport) writeFileSync(join(plugins, configPlugin), 'export * from "../../novadeck.mjs"\n')
   }
   const shim = join(shell, "bin", "opencode")
@@ -42,7 +43,7 @@ const setup = (folder = root, { plugin = true, reexport = true } = {}) => {
   writeFileSync(
     real,
     `#!/bin/sh
-for v in NOVADECK_OPENCODE_CONFIG OPENCODE_CONFIG_CONTENT OPENCODE_CONFIG_DIR NOVADECK_OPENCODE_SESSION NOVADECK_OPENCODE_CONTINUE NOVADECK_OPENCODE_FORK; do
+for v in NOVADECK_OPENCODE_CONFIG OPENCODE_TUI_CONFIG OPENCODE_CONFIG_CONTENT OPENCODE_CONFIG_DIR NOVADECK_OPENCODE_SESSION NOVADECK_OPENCODE_CONTINUE NOVADECK_OPENCODE_FORK; do
   eval "printf 'ENV %s=%s\\n' $v \\"\\\${$v-<unset>}\\""
 done
 printf 'ARG %s\\n' "$@"
@@ -100,6 +101,16 @@ posixOnly("the POSIX shim", () => {
     })
     expect(ran.env.OPENCODE_CONFIG_DIR).toBe("<unset>")
     expect(ran.args).toEqual(["--model", "p/m"])
+  })
+
+  it("has opencode load the interface's plugin, through the tui.json beside the plugin", () => {
+    const place = setup()
+    expect(run(place, [], inNovadeck).env.OPENCODE_TUI_CONFIG).toBe(join(place.plugins, "tui.json"))
+    // A person's own tui configuration stays, and the interface's plugin isn't loaded then.
+    expect(
+      run(place, [], { ...inNovadeck, OPENCODE_TUI_CONFIG: "/theirs.json" }).env
+        .OPENCODE_TUI_CONFIG,
+    ).toBe("/theirs.json")
   })
 
   it("names a plugin whose folder has a space, which opencode loads as a path", () => {

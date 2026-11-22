@@ -254,6 +254,27 @@ export const createTypist = (
    * for the line shows its end, and started empty, so that is the line. True where the box isn't
    * looked at (no profile option, or `boxCheck` off).
    */
+  /**
+   * Whether a paste that the program collapses to a placeholder (`BoxProfile.collapses`) landed:
+   * an empty box before, nothing but the placeholder after, in its prompt mode with no view over
+   * it. The line is not on the screen then, only what stands for it.
+   */
+  const placeheld = (before: ScreenText, after: ScreenText, text: string): boolean => {
+    const profile = options.profile?.()
+    if (!profile || !boxCheck || profile.collapses?.(text) !== true) return false
+    const was = profile.read(before)
+    const read = profile.read(after)
+    return (
+      was !== undefined &&
+      was.mode === "prompt" &&
+      isEmpty(was) &&
+      read !== undefined &&
+      read.mode === "prompt" &&
+      profile.collapsed(read) &&
+      !profile.overlay(after)
+    )
+  }
+
   const alone = (screen: ScreenText, text: string): boolean => {
     if (!options.profile || !boxCheck) return true
     const profile = options.profile()
@@ -412,7 +433,7 @@ export const createTypist = (
             ? checkPaste(before.bright, after.bright, end, { ticking: rows, still: stillRows })
             : checkPaste(before.rows, after.rows, text, { vanish, ticking: rows, still: stillRows })
           const arrived = checked.accepted || (end !== undefined && checked.reason === "elsewhere")
-          const accepted = arrived && alone(after, text)
+          const accepted = placeheld(before, after, text) || (arrived && alone(after, text))
           if (!accepted && now() >= until) {
             // The rows as the check read them, so a row it lets be names no change.
             const facts = end

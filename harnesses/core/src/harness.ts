@@ -496,14 +496,6 @@ export type MessagingProfile = {
    */
   readonly promptHookOnQueueing?: true
   /**
-   * Whether a Stop's delivery starts a turn of its own rather than continuing the one that
-   * ended, as opencode's plugin prompts it (opencode takes no answer that keeps a turn going):
-   * that turn goes only where the person left the box known empty, as a ring would, so it
-   * never runs over a draft of theirs or a view their keys opened; otherwise the messages
-   * wait for the doorbell, which rings once the screen shows the box empty.
-   */
-  readonly stopStartsTurn?: true
-  /**
    * Which session its messages are for: the one bound (`binding`), or, where its hooks
    * name subagents' sessions alike, the one its status line names (`status-line`).
    */

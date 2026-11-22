@@ -14,6 +14,15 @@ import { own, start } from "./scenarios.js"
 const phases = ["key first", "together", "reply first"] as const
 
 for (const setup of setups) {
+  // A person's Stop: one Escape, or two a moment apart where the first only arms the interrupt.
+  const stop = async (terminal: { press: (keys: string) => void }) => {
+    terminal.press("\x1b")
+    if (setup.stops === 2) {
+      await sleep(400)
+      terminal.press("\x1b")
+    }
+  }
+
   describe.skipIf(!supported)(setup.name, () => {
     const it = e2e(setup)
 
@@ -55,9 +64,9 @@ for (const setup of setups) {
             // retains the live race without assuming a particular winner.
             await sleep(escapeVerdictMs + escapeScreenMs)
             await t1.settled()
-            t1.press("\x1b")
+            await stop(t1)
           } else {
-            t1.press("\x1b")
+            await stop(t1)
             if (phase === "key first")
               // The runner's interruption is provisional until the harness takes the key.
               await t1.until(setup.interrupted("Hold on"))

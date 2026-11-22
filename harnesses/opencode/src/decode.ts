@@ -4,7 +4,9 @@ import {
   folderField,
   planText,
   replied,
+  callId,
   sessionId,
+  versionName,
   sessionStart,
   shortName,
   subjectOf,
@@ -34,7 +36,7 @@ import { folderOf, kindOf, writers } from "./tools.js"
  * `session.idle` fires however the turn ended: its `error` says an Escape (`Aborted`) or a
  * failure, and `rejected` a permission the person refused, which ends the turn with no error
  * of its own (probed 2026-11-22, 1.19.6). A Stop that delivers messages starts the next turn
- * itself, as opencode takes no answer that keeps a turn going (`stopStartsTurn`); that turn's
+ * itself, through opencode's API, as opencode takes no answer that keeps a turn going; that turn's
  * own prompt hook is the plugin's (`continuation`), not the person's, and `Lapsed` says the
  * plugin couldn't start it. Its permission and question
  * dialogs come with ids of their own, and their replies name them: each request is resolved by
@@ -73,13 +75,29 @@ const decodeReport = ({ event, seq, instance, payload }: Report): readonly Harne
           evidence: sessionStart(source),
           ...(source === "compact" && { compacted: true }),
           // Its first prompt makes a session: that prompt was in its box, so it is past any
-          // screen of its own. A resume's comes as it starts, before its box draws.
-          ...((source === "startup" || source === "switch") && { atPrompt: true }),
+          // screen of its own. A resume's comes as it starts, and no screen of its own stands
+          // before its box, so it is at its prompt too (as Claude Code's resume is).
+          ...((source === "startup" || source === "switch" || source === "resume") && {
+            atPrompt: true,
+          }),
           ...(cwd !== undefined && { cwd }),
           ...(transcript !== undefined && { transcript }),
         },
+        // The release it runs, which the plugin read from opencode's health route.
+        ...(versionName(payload.version) !== undefined
+          ? [
+              {
+                type: "telemetry-observed" as const,
+                ...base,
+                version: versionName(payload.version)!,
+              },
+            ]
+          : []),
       ]
     }
+    // Its interface went home (`/new`, `/clear`): the session it left ends, none is new yet.
+    case "SessionLeft":
+      return actor === null ? [{ type: "session-left", ...base }] : []
     case "UserPromptSubmit": {
       // The plugin's own prompt, a Stop's delivery, continues the turn `Continued` told of.
       if (actor !== null || payload.continuation === true) return []
@@ -251,6 +269,18 @@ const decodeReport = ({ event, seq, instance, payload }: Report): readonly Harne
       const input = payload.tool_input
       const path = writers.has(tool) ? absolute(fieldsOf(input)?.filePath) : undefined
       return [
+        // A call's result came: what it asked, if anything, is settled, and the root's own call
+        // is where a lead's message is delivered (the runner leases at an `attention-resolved`).
+        // Its requests go by their own ids, settled by their replies, so this matches none of them.
+        {
+          type: "attention-resolved" as const,
+          ...base,
+          requestId: callId(actor, tool, input),
+          actor,
+          toolName: tool,
+          loose: false,
+          outcome: "allowed" as const,
+        },
         ...(path !== undefined ? [{ type: "file-touched" as const, ...base, actor, path }] : []),
         {
           type: "tool-called",

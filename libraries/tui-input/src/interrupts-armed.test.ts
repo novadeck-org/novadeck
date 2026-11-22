@@ -32,8 +32,11 @@ const terminal = (arms: boolean, works = true) => {
       screenOf({ rows: [armed ? "esc again to interrupt" : "esc interrupt"] }),
     type: (_id, data) => {
       written.push(data)
-      if (data === "\x1b" && !armed && arms) armed = true
-      else if (data === "\x1b") working = false
+      // The host counts a typed Escape as the stop at once, as the runner's activity does.
+      if (data === "\x1b" && !armed && arms) {
+        armed = true
+        working = false
+      } else if (data === "\x1b") working = false
       return true
     },
     write: () => true,

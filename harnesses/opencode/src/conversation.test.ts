@@ -50,10 +50,10 @@ describe("whether an opencode session still exists", () => {
     expect(await conversation(install(), alive)).toBe("unknown")
   })
 
-  it("is unknown for an id that is no session id", async () => {
+  it("is gone for an id of any shape the database has no row for", async () => {
     database()
-    expect(await conversation(install(), "../x")).toBe("unknown")
-    expect(await conversation(install(), "x' OR 1=1 --")).toBe("unknown")
+    expect(await conversation(install(), "../x")).toBe("gone")
+    expect(await conversation(install(), "x' OR 1=1 --")).toBe("gone")
   })
 
   it("follows OPENCODE_DB and XDG_DATA_HOME", async () => {

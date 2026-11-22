@@ -1,5 +1,7 @@
+import { rmSync } from "node:fs"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
+import { DatabaseSync } from "node:sqlite"
 
 import type { Sandbox } from "../keychain.js"
 import { anthropic } from "../model/anthropic.js"
@@ -42,6 +44,30 @@ export const freeModel = async (sandbox: Pick<Sandbox, "env" | "home">): Promise
   await writeFile(join(cache, "models.json"), "{}")
 }
 
+// Its data folder's database, where every conversation is a row of `session`.
+const databaseOf = (sandbox: Pick<Sandbox, "env" | "home">): string =>
+  join(
+    sandbox.env.XDG_DATA_HOME ?? join(sandbox.home, ".local", "share"),
+    "opencode",
+    "opencode.db",
+  )
+
+/** Removes a conversation as a person's cleanup would: its row, which takes its messages with it. */
+export const removeSession = (sandbox: Pick<Sandbox, "env" | "home">, id: string): void => {
+  const database = new DatabaseSync(databaseOf(sandbox))
+  try {
+    database.prepare("DELETE FROM session WHERE id = ?").run(id)
+  } finally {
+    database.close()
+  }
+}
+
+/** Removes its whole database, every conversation with it, where it keeps them in one file. */
+export const removeConversations = (sandbox: Pick<Sandbox, "env" | "home">): void => {
+  for (const suffix of ["", "-wal", "-shm"])
+    rmSync(`${databaseOf(sandbox)}${suffix}`, { force: true })
+}
+
 /**
  * opencode against the fake model: a global configuration in the sandbox's XDG config
  * folder (never `OPENCODE_CONFIG_CONTENT`, which Novadeck's shim sets to load its plugin and
@@ -55,8 +81,9 @@ export const opencode: AgentSetup = {
   agent: "opencode",
   name: "opencode",
   dialect: anthropic,
-  // Its header shows no name: its first screen holds its logo and the box's hint.
-  banner: /Ask anything|opencode/,
+  // Its footer's `ctrl+p commands` hint, on its home screen and in a conversation alike: a
+  // resumed session opens on its conversation, which has no logo or `Ask anything` box.
+  banner: /ctrl\+p/,
   bindsAtReady: false,
   keepsHookText: true,
   // It tries to install its plugin package into each configuration folder it loads from
@@ -81,7 +108,8 @@ export const opencode: AgentSetup = {
     shows: /△ Permission required/,
     yes: /^Allow once$/,
     no: /^Reject$/,
-    deny: "\x1b[C\x1b[C",
+    // Escape rejects it, as Right Right and Enter do (the deck refuses an Enter among keys).
+    deny: "\x1b",
     denied: /^(?![\s\S]*Permission required)[\s\S]*▣ +Build · Fake Sonnet/,
   },
   // Its `question` tool, which takes several options where it says `multiple`.
@@ -133,7 +161,7 @@ export const opencode: AgentSetup = {
         return result(call) === undefined ? undefined : { text: "Planned." }
       }),
     ],
-    approved: /User has approved this plan/,
+    approved: /The plan at .* has been approved/,
   },
   // Its bash tool, running its own non-interactive mode, which a rule of the seed allows. It
   // waits for the command (its `timeout` is optional).
@@ -143,16 +171,29 @@ export const opencode: AgentSetup = {
   },
   // A pasted image file's path becomes `[Image 1]` in the box and an image of the prompt, which
   // the model takes where its entry says it reads images (`modalities`), as the seed does.
-  image: { shows: "[Image 1]", inline: false, alone: true },
+  // The stored prompt keeps the placeholder in its words ("Look at this picture [Image 1]",
+  // probed 2026-11-22, 1.19.6), as Claude Code's `[Image #1]` stays in its record.
+  image: { shows: "[Image 1]", inline: true, alone: true },
   // Its status dialog, which submits nothing to the model.
   idleCommand: "/status",
   // A prompt given mid-turn shows as sent, with a `QUEUED` badge under it, once its hooks ran
   // (probed 2026-11-22, 1.19.6, with a prompt hook slowed to 4 s: nothing showed of the prompt,
   // the box empty, until the hook ended; so no screen says its hooks are running: no `queueing`).
+  // An image's placeholder may lead the line, and its file's row stands under it.
   queued: (prompt) =>
-    new RegExp(`┃ +${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n\\s*┃ +QUEUED`),
+    new RegExp(
+      `┃ +(?:\\[Image \\d+\\] +)?${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^\\n]*\\n(?:[ \\t]*┃(?:[ \\t]+File[ \\t][^\\n]*)?[ \\t]*\\n)*[ \\t]*┃ +QUEUED`,
+    ),
   interrupted: () => /▣ .*· interrupted/,
-  prepare: async (sandbox, model, _installed, seed) => {
+  // A prompt given mid-turn joins the session's messages as it is sent: a Stop leaves it there,
+  // unanswered, and the next prompt's model call reads it before its own (probed 2026-11-22,
+  // 1.19.6: calls `SLOW one`, then `SLOW one`, `QUEUED beta`, `next one`).
+  queuedTaken: "it adds what is queued to the session as it is sent",
+  // Its first Escape arms the interrupt and its second, within ~5 s, stops the turn.
+  stops: 2,
+  // It has no `/permissions`; `/models` opens its model picker, a dialog over the screen.
+  view: "/models",
+  prepare: async (sandbox, model, installed, seed) => {
     const config = join(sandbox.env.XDG_CONFIG_HOME ?? join(sandbox.home, ".config"), "opencode")
     await mkdir(config, { recursive: true, mode: 0o700 })
     await writeFile(
@@ -184,6 +225,45 @@ export const opencode: AgentSetup = {
         },
       }),
     )
+    // Before a plugin loads, it waits for its install of `@opencode-ai/plugin` into each
+    // configuration folder (config/config.ts, `waitForDependencies`), which the refused registry
+    // stalls for a minute in npm's retries: a nested run waits that long for its answer. It skips
+    // a folder whose `node_modules` is there and whose lock holds every package it would add
+    // (core/src/npm.ts, `Npm.install`; probed 2026-11-22, 1.19.6). Novadeck's plugin imports
+    // none of it.
+    const plugin = "@opencode-ai/plugin"
+    await mkdir(join(config, "node_modules"), { recursive: true })
+    await writeFile(
+      join(config, "package.json"),
+      JSON.stringify({ dependencies: { [plugin]: installed.version } }),
+    )
+    await writeFile(
+      join(config, "package-lock.json"),
+      JSON.stringify({
+        lockfileVersion: 3,
+        packages: { "": { dependencies: { [plugin]: installed.version } } },
+      }),
+    )
+    // A person's own prompt or tool hook: opencode runs no hook commands, so a plugin of
+    // theirs, in the global folder's `plugins` (which it loads beside Novadeck's), runs the
+    // script and waits for it, as opencode waits for each plugin's hook before going on.
+    const hooks = [
+      ["chat.message", seed?.promptHook],
+      ["tool.execute.after", seed?.toolHook],
+    ].filter((each): each is [string, string] => each[1] !== undefined)
+    if (hooks.length > 0) {
+      await mkdir(join(config, "plugins"), { recursive: true })
+      const run = (script: string) =>
+        `async () => { await new Promise((done) => spawn("node", [${JSON.stringify(join(sandbox.project, script))}], { stdio: "ignore" }).on("close", done).on("error", done)) }`
+      await writeFile(
+        join(config, "plugins", "own-hooks.js"),
+        `import { spawn } from "node:child_process"
+export const OwnHooks = async () => ({
+${hooks.map(([hook, script]) => `  ${JSON.stringify(hook)}: ${run(script)},`).join("\n")}
+})
+`,
+      )
+    }
     return {
       OPENCODE_DISABLE_MODELS_FETCH: "1",
       OPENCODE_EXPERIMENTAL_PLAN_MODE: "1",

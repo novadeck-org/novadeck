@@ -23,10 +23,10 @@ export const messaging: MessagingProfile = {
   prompt: deliver,
   call: deliver,
   reinjectPerCall: false,
-  // A prompt typed while a turn runs goes into the session as it is sent, and its hook with
-  // it: the running turn takes it on, and one Stop ends both.
-  promptHookOnQueueing: true,
-  stopStartsTurn: true,
+  // A prompt typed while a turn runs goes into the session as it is sent, and its hook runs
+  // with it, but nothing takes it back out: Escape leaves it in the session (probed 2026-11-22,
+  // 1.19.6), so what its hook prints is read by the model's next call, and delivers (this is
+  // not `promptHookOnQueueing`, whose prompts a Stop may take back).
   root: "binding",
   lasting: ["stop", "prompt", "tool"],
   // Its `session.idle` comes however a turn ended, a failed one too, with the error before it.

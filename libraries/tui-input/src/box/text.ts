@@ -8,7 +8,7 @@ export const compact = (text: string): string => text.replace(/\s+/g, "")
 const pictures = /\p{Extended_Pictographic}|\p{Emoji_Modifier}|\u200d|\ufe0f/gu
 
 /** A placeholder a program shows for a pasted image file: `[Image #1]`. */
-const mark = /\[Image #\d+\]/g
+const mark = /\[Image #?\d+\]/g
 
 /**
  * A box's text without the placeholders of images (`[Image #1] words`, or among the words,
@@ -17,7 +17,7 @@ const mark = /\[Image #\d+\]/g
  */
 export const withoutImages = (text: string): string => {
   const bare = text.replace(mark, "")
-  return /^\s*\[Image #\d+\]/.test(text) ? bare.trimStart() : bare
+  return /^\s*\[Image #?\d+\]/.test(text) ? bare.trimStart() : bare
 }
 
 /** How many placeholders of images a box's text holds, wherever they stand. */

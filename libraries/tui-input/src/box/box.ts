@@ -114,6 +114,20 @@ export type BoxProfile = {
    */
   readonly pastesAsKeys?: (platform?: NodeJS.Platform) => boolean
   /**
+   * Whether the screen shows a prompt just sent as taken: its first line echoed in the history,
+   * and what the program draws once it has (opencode's assistant row, or its queued badge). A
+   * program that drops what is typed for a moment after its Enter, while it takes the prompt, is
+   * given none before this says so; the wait is bounded. Omitted where keys are never lost so.
+   */
+  readonly echoed?: (screen: ScreenText, text: string) => boolean
+  /**
+   * Whether a text pasted after a draft is preceded by its blank line as a paste of its own: a
+   * program that drops the line breaks leading a paste it collapses to a placeholder
+   * (opencode's `[Pasted ~4 lines]`) would otherwise join the two. Omitted where the break goes
+   * in the paste itself.
+   */
+  readonly breakApart?: boolean
+  /**
    * How many columns before the end of the text a program draws its cursor there; none where
    * omitted.
    */

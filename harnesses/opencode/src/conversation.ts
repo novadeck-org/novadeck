@@ -6,9 +6,6 @@ import type { Harness, Install } from "@novadeck/harness-core/harness"
 
 import { dirs } from "./home.js"
 
-/** An opencode session id: `ses_` and 26 letters and digits (session/schema.ts, 1.19.6). */
-const sessionId = /^ses_[0-9A-Za-z]{8,64}$/
-
 /**
  * Its database: the file `OPENCODE_DB` names (relative to its data folder), else
  * `<data>/opencode.db` (core/src/database/database.ts:43-53, 1.19.6; a development channel's build
@@ -72,14 +69,14 @@ const all = (path: string): Set<string> | undefined =>
  * A session is a row of its database, and that row decides: `opencode --session <id>` of one that
  * isn't there prints "Error: Session not found: <id>" and exits 1 (cli/cmd/tui.ts:291-300, probed
  * 2026-11-22, 1.19.6), and the database's file being there with no such row is the only `gone`.
- * One `stat` for the file; a row, or none, from one read-only query.
+ * Whatever the id's shape: a query binds it, and no row is no session. One `stat` for the file; a row, or none, from one read-only query.
  */
 export const conversations: Harness["conversations"] = (install): ConversationScan => {
   const path = databasePath(install)
   let ids: Promise<Set<string> | undefined> | undefined
   return {
     conversation: async (session): Promise<Conversation> => {
-      if (path === undefined || !sessionId.test(session)) return "unknown"
+      if (path === undefined) return "unknown"
       if ((await presence(path)) !== "present") return "unknown"
       // A pass over a list reads the ids once, whatever its length.
       ids ??= Promise.resolve().then(() => all(path))
@@ -92,7 +89,7 @@ export const conversations: Harness["conversations"] = (install): ConversationSc
 
 export const conversation: Harness["conversation"] = async (install, session) => {
   const path = databasePath(install)
-  if (path === undefined || !sessionId.test(session)) return "unknown"
+  if (path === undefined) return "unknown"
   if ((await presence(path)) !== "present") return "unknown"
   const found = has(path, session)
   return found === undefined ? "unknown" : found ? "found" : "gone"

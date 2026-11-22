@@ -130,7 +130,11 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
   let version
   try {
     // The SDK a plugin is given has no call for it, but its client reaches the route.
-    const health = await client._client.get({ url: "/global/health" })
+    // Not waited on for long: it may wait for this very plugin to load.
+    const health = await Promise.race([
+      client._client.get({ url: "/global/health" }),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ])
     version = health?.data?.version
   } catch {}
   if (typeof version === "string" && (older(version, config.minimum) || !older(version, config.unknownFrom))) {
@@ -184,10 +188,16 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
   }
   // Each message's author, which its parts don't name: its update comes before theirs.
   const roles = new Map()
+  // The messages that are a compaction's summary, whose words the chat shows as the note's.
+  const summaries = new Set()
   // A tool call is written as it starts running, then its part again once it ended, with
   // called saying the call was written already, so the chat shows a call while it runs.
   const keepPart = (part) => {
     const role = roles.get(part?.messageID) ?? null
+    // A root session's prompt is written whole by its chat.message hook (keepPrompt), which a prompt
+    // given mid-turn reaches after its parts were stored (probed 2026-11-22, 1.19.6: its text
+    // part came first, ahead of the tool's result): its parts are not written on their own.
+    if (role === "user" && parents.get(part.sessionID) === null) return
     if (part?.type === "tool" && part.state?.status === "running") {
       if (written.has(part.id + ":call") || written.has(part.id)) return
       written.add(part.id + ":call")
@@ -196,7 +206,15 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
     }
     if (!settled(part) || written.has(part.id)) return
     written.add(part.id)
-    write(part.sessionID, { type: "part", role, part, ...(written.has(part.id + ":call") && { called: true }) })
+    if (part.type === "text" && role === "assistant") release(part.sessionID)
+    write(part.sessionID, {
+      type: "part",
+      role,
+      part,
+      ...(written.has(part.id + ":call") && { called: true }),
+      ...(summaries.has(part.messageID) && { summary: true }),
+    })
+    if (part.type === "tool") release(part.sessionID)
   }
   // A prompt whole, its words and the files it carries on one line, as the chat shows them
   // together; its parts' own updates come after and are left out.
@@ -205,12 +223,30 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
     written.add(info.id)
     roles.set(info.id, "user")
     for (const part of parts) if (part?.id) written.add(part.id)
-    write(info.sessionID, { type: "prompt", info, parts })
+    // When it was written, which is when the model could read it (a prompt held back: see
+    // waiting), not when it was given.
+    write(info.sessionID, { type: "prompt", info, parts, at: Date.now() })
+  }
+  // A prompt the person gave while a turn ran: opencode puts it into the session at once, but
+  // its model reads it only at its next step, after the tool the turn waits on, which the chat
+  // shows in that order (probed 2026-11-22, 1.19.6: the prompt's message came while the tool
+  // ran, and the next answer's message began before the tool's result was written, so that
+  // message can't say when). It is written after the result of the tool the turn waits on, or
+  // before the next answer's words, or when the turn ends.
+  const waiting = new Map()
+  const release = (id) => {
+    const held = waiting.get(id)
+    if (!held) return
+    waiting.delete(id)
+    for (const { info, parts } of held) keepPrompt(info, parts)
   }
   const keepMessage = (info) => {
     if (info.id && info.role) roles.set(info.id, info.role)
+    if (info.id && info.summary === true) summaries.add(info.id)
     const done = info.role === "user" || info.time?.completed !== undefined || info.error !== undefined
-    const key = info.id + (info.role === "user" ? "" : ":done")
+    // Its own key, apart from the prompt's (keepPrompt): a prompt given mid-turn has its message
+    // update before its chat.message hook, which must still write it.
+    const key = info.id + (info.role === "user" ? ":info" : ":done")
     if (!done || written.has(key)) return
     written.add(key)
     write(info.sessionID, { type: "message", info })
@@ -265,6 +301,7 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
       session_id: id,
       source: source ?? (first ? "startup" : "switch"),
       transcript_path: transcript(id),
+      version,
     })
   }
 
@@ -274,7 +311,16 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
   const started = async () => {
     const given = process.env.NOVADECK_OPENCODE_SESSION
     const fork = process.env.NOVADECK_OPENCODE_FORK === "1"
-    if (given && !fork) return given
+    // Only one that is there: opencode exits at a missing one ("Session not found"), but its
+    // plugins start first, and a bind reported before that exit would claim the resume worked.
+    if (given && !fork) {
+      try {
+        const found = await client.session.get({ path: { id: given } })
+        return found?.data?.id === given ? given : undefined
+      } catch {
+        return undefined
+      }
+    }
     if (process.env.NOVADECK_OPENCODE_CONTINUE !== "1" || fork) return undefined
     try {
       const listed = await client.session.list()
@@ -452,6 +498,7 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
             const id = props.sessionID
             // Once a turn: an Escape makes opencode go idle twice (probed 2026-11-22, 1.19.6).
             if (!id || !busy.delete(id)) return
+            release(id)
             const parent = await parentOf(id)
             const turn = turnOf(id)
             turns.delete(id)
@@ -471,6 +518,9 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
               transcript_path: transcript(id),
               usage: used ? { ...used, window: await windowOf(used.provider, used.model) } : null,
             })
+            // That its Stop's hooks ran, however Novadeck's own fared: the transcript says it too,
+            // so a turn whose report never came still ends.
+            write(id, { type: "stopped", at: Date.now(), error: turn.error?.name ?? null, rejected: turn.rejected })
             const text = delivery(answer)
             if (!text) return
             continuing.add(id)
@@ -520,7 +570,11 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
             text,
             synthetic: true,
           })
-        keepPrompt(output.message, output.parts ?? [])
+        if (busy.has(id) && !own) {
+          const held = waiting.get(id) ?? []
+          held.push({ info: output.message, parts: output.parts ?? [] })
+          waiting.set(id, held)
+        } else keepPrompt(output.message, output.parts ?? [])
       } catch {}
     },
 
@@ -550,7 +604,10 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
           root: await rootOf(input.sessionID),
         })
         const text = delivery(answer)
+        // A built-in tool's result is a string; an MCP tool's is blocks of content (probed
+        // 2026-11-22, 1.19.6: an object with a content array of text blocks), which the model reads.
         if (text && typeof output.output === "string") output.output = output.output + "\n\n" + text
+        else if (text && Array.isArray(output.content)) output.content.push({ type: "text", text })
       } catch {}
     },
   }

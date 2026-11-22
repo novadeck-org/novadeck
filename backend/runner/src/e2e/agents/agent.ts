@@ -301,6 +301,23 @@ export type AgentSetup = {
    */
   readonly steers?: true
   /**
+   * Why a Stop gives back nothing queued behind a running turn, where what is queued is the
+   * agent's already: Codex steers the turn with it, and opencode adds it to the session's
+   * messages as it is sent, where the next turn's model call reads it. Undefined where the
+   * queue waits, as words a Stop gives back to the person.
+   */
+  readonly queuedTaken?: string
+  /**
+   * How many Escapes a person presses to stop a turn: 2 where the first only arms the interrupt
+   * (opencode's `esc again to interrupt`, which lapses in about 5 s), 1 where omitted.
+   */
+  readonly stops?: 2
+  /**
+   * A slash command of the harness that opens a view of its own (the live slice's test types it
+   * and closes the view): `/permissions` where omitted.
+   */
+  readonly view?: string
+  /**
    * Whether prompts queued behind a running turn reach its agent as one message, their
    * texts joined by line breaks, as Antigravity sends them to its model as one input step:
    * its transcript then holds them as one prompt, which the chat shows as it was sent.

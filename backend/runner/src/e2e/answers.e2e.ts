@@ -385,7 +385,7 @@ for (const setup of setups) {
         // what came next; typed once it was done, they arrive.
         await sleep(500)
         t1.press("qq")
-        await t1.until(/(?:^|\n)[❯›>]\s*qq\s*(?:\n|$)/)
+        await t1.until(/(?:^|\n)\s*[❯›>┃]\s*qq\s*(?:\n|$)/)
       },
     )
 

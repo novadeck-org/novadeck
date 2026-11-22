@@ -5,6 +5,7 @@ import { dialogs } from "./dialogs.js"
 import {
   readOn,
   chat,
+  choice,
   colours,
   questionFacts,
   questionsAnswer,
@@ -28,7 +29,7 @@ describe("opencode's question dialog for one question", () => {
   it("reads the question, its options with their descriptions, and the own answer it adds", () => {
     expect(read(rowsOf("qOne"), one).dialog).toEqual({
       type: "questions",
-      chat: null,
+      chat: "prompt",
       questions: [
         {
           id: "1",
@@ -77,9 +78,19 @@ describe("opencode's question dialog for one question", () => {
       questionsAnswer({ question: "1", options: [] }),
       questionsAnswer({ question: "1", options: ["1"], text: "words" }),
       questionsAnswer({ question: "2", options: ["1"] }),
-      chat("let's talk"),
     ])
       expect(found.keys(answer)).toBeUndefined()
+  })
+
+  it("is set aside with Escape, which ends the turn, the words going as the next prompt", () => {
+    for (const name of ["qOne", "qTwoSecond", "qOneOwn"])
+      expect(
+        sent(
+          read(rowsOf(name), name === "qOne" || name === "qOneOwn" ? one : two).keys(
+            chat("let's talk"),
+          ),
+        ),
+      ).toEqual(["\x1b"])
   })
 
   it("is answered once it is gone, or another dialog took its place", () => {
@@ -295,24 +306,25 @@ describe("opencode's plan review", () => {
     },
   }
 
-  it("reads as a question with no own answer, answered by its digits", () => {
+  it("reads as the choices a plan approval is, answered by its digits", () => {
     const found = read(rowsOf("qPlan"), review)
-    expect(found.dialog).toMatchObject({
-      type: "questions",
-      questions: [
-        { header: "Build Agent", text: false, options: [{ label: "Yes" }, { label: "No" }] },
+    expect(found.dialog).toEqual({
+      type: "choices",
+      title: review.input.questions[0]!.question,
+      detail: null,
+      options: [
+        { id: "1", label: "Yes", text: null },
+        { id: "2", label: "No", text: "prompt" },
       ],
     })
-    expect(sent(found.keys(questionsAnswer({ question: "1", options: ["1"] })))).toEqual(["1"])
-    expect(sent(found.keys(questionsAnswer({ question: "1", options: ["2"] })))).toEqual(["2"])
+    expect(sent(found.keys(choice("1")))).toEqual(["1"])
+    expect(sent(found.keys(choice("2")))).toEqual(["2"])
   })
 
-  it("takes no words, and no option beyond its two", () => {
+  it("takes no option beyond its two, nor an answer in words", () => {
     const found = read(rowsOf("qPlan"), review)
-    expect(
-      found.keys(questionsAnswer({ question: "1", options: [], text: "later" })),
-    ).toBeUndefined()
-    expect(found.keys(questionsAnswer({ question: "1", options: ["3"] }))).toBeUndefined()
+    expect(found.keys(choice("3"))).toBeUndefined()
+    expect(found.keys(questionsAnswer({ question: "1", options: ["1"] }))).toBeUndefined()
   })
 
   it("is not read for a question that offers its own answer, nor for another plan request", () => {

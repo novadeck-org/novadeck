@@ -5,7 +5,8 @@ import type { Harness } from "@novadeck/harness-core/harness"
 import { hookCommand, hookSeconds, type Dialect } from "@novadeck/harness-core/hook-command"
 
 import { pluginSource } from "./plugin-source.js"
-import { configPlugin, pluginFile } from "./shim.js"
+import { configPlugin, pluginFile, tuiConfig, tuiPluginFile } from "./shim.js"
+import { tuiPluginSource } from "./tui-plugin-source.js"
 import { minimum, unknownFrom } from "./version.js"
 
 /**
@@ -29,6 +30,7 @@ export const events = [
   "QuestionReplied",
   "Retry",
   "Outdated",
+  "SessionLeft",
 ] as const
 
 /** The file whose presence says Novadeck is connected to opencode (`Harness.marker`). */
@@ -72,6 +74,16 @@ export const files: Harness["files"] = (platform, launchers, machine = {}) => [
       unknownFrom,
     }),
   },
+  // Its interface's plugin, which tells a session left for home (`/new`), and the `tui.json` that
+  // names it, which the shim hands opencode for the launch (`OPENCODE_TUI_CONFIG`).
+  {
+    path: tuiPluginFile,
+    content: tuiPluginSource({
+      hook: hook(platform, "SessionLeft"),
+      hookMs: hookSeconds(platform) * 1000,
+    }),
+  },
+  { path: tuiConfig, content: `{"plugin":["./${tuiPluginFile}"]}\n` },
   // opencode loads a configuration folder's `plugins/*.{js,ts}` alone, never `.mjs`
   // (config/plugin.ts, probed 2026-11-22, 1.19.6).
   {

@@ -318,17 +318,58 @@ export const questions = (
       multiSelect: multi,
       text: custom,
     })),
-    // Nothing sets it aside to talk it over: its Escape dismisses it.
-    chat: null,
+    // Set aside to talk over with Escape, which dismisses it and ends the turn; the person's
+    // words go as the next prompt (probed 2026-11-22, 1.19.6: no model call followed).
+    chat: "prompt",
   }
   return {
     dialog,
-    keys: (answer) => (start ? keysFor(answer, asked) : undefined),
+    keys: (answer) =>
+      answer.type === "chat" ? [{ press: "\x1b" }] : start ? keysFor(answer, asked) : undefined,
     answered: (later) => {
       if (!later.some((row) => anchor.test(row))) return true
       // Still up, whichever tab it shows; another call's dialog, which reads as none of this
       // one's questions, is a new dialog.
       return stateOf(later, asked) === undefined
     },
+  }
+}
+
+/**
+ * Plan mode's review, `plan_exit` (probed 2026-11-22, 1.19.6, fixtures/dialogs.probe.json `qPlan`):
+ * a question dialog of one question, Yes and No, whose call turns the own answer off, read as the
+ * choices a plan approval is elsewhere. Yes switches to the build agent and sends the plan as
+ * approved; No stays in plan mode, so the person's feedback may follow it as the next prompt.
+ */
+export const planReview = (
+  rows: readonly string[],
+  request: RequestFacts,
+): DialogRead | undefined => {
+  const found = questions(rows, request)
+  if (!found || found.dialog.type !== "questions") return refuse("question.planReview.1")
+  const [single] = found.dialog.questions
+  if (found.dialog.questions.length !== 1 || !single || single.multiSelect || single.text)
+    return refuse("question.planReview.2")
+  const dialog: AnswerableDialog = {
+    type: "choices",
+    title: single.question,
+    detail: null,
+    options: single.options.map(({ id, label }, at) => ({
+      id,
+      label,
+      text: at === 0 ? null : ("prompt" as const),
+    })),
+  }
+  return {
+    dialog,
+    keys: (answer) =>
+      answer.type === "choice"
+        ? found.keys({
+            type: "questions",
+            dialog: answer.dialog,
+            answers: [{ question: "1", options: [answer.option] }],
+          })
+        : undefined,
+    answered: found.answered,
   }
 }

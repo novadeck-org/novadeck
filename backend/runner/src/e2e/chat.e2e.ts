@@ -1054,7 +1054,13 @@ for (const setup of setups) {
         }, "its box to read empty")
 
       // A paragraph that wraps, a blank line and a line, short of what a box shows as a placeholder.
-      const words = `${"a paragraph that goes on ".repeat(8).trim()}\n\nits last`
+      // Where the program turns three lines, or a long paragraph, into a placeholder (opencode's
+      // `[Pasted ~3 lines]` from 3 lines or 150 characters: words it never shows, which the chat
+      // can neither take nor put back), a paragraph of two lines that wraps stays short of it.
+      const whole = `${"a paragraph that goes on ".repeat(8).trim()}\n\nits last`
+      const words = harnesses[setup.agent].box.collapses(whole)
+        ? `${"a paragraph that goes on ".repeat(5).trim()}\nits last`
+        : whole
       write(`\x1b[200~${words.replaceAll("\n", "\r")}\x1b[201~`)
       await t1.until("its last")
       expect(await taken()).toBe(words)
@@ -1184,8 +1190,13 @@ for (const setup of setups) {
       await clears(() => true)
 
       // Only the end of it shows.
+      // Three lines a paste, or two where the program shows three as a placeholder (opencode).
+      const part = (at: number) =>
+        harnesses[setup.agent].box.collapses("a\nb\nc")
+          ? `Part ${at} of it\rits next line`
+          : `Part ${at} of it\rits next line\rits last line`
       for (let at = 0; at < 16; at += 1) {
-        write(`\x1b[200~Part ${at} of it\rits next line\rits last line\x1b[201~`)
+        write(`\x1b[200~${part(at)}\x1b[201~`)
         await t1.until(`Part ${at} of it`)
       }
       // Handing it over would lose what doesn't show: it stays, marked as a tail.

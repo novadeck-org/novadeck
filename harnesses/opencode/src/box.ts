@@ -2,8 +2,8 @@ import type { ScreenText } from "@novadeck/emulator/headless"
 import type { SliceProfile } from "@novadeck/harness-core/slices"
 import {
   compact,
-  eraseRows,
-  leaveShell,
+  isEmpty,
+  pause,
   type BoxProfile,
   type InputBox,
   type ProfileImages,
@@ -35,9 +35,11 @@ const menuRow = (row: string | undefined): boolean => /^ *┃ \S.*┃ *$/.test(r
  * What its empty box shows on the home screen: `Ask anything… "Fix broken tests"`, and in its
  * shell mode `Run a command… "pwd"`, drawn in grey, not dim, so the bright cells keep it
  * (probed 2026-11-22, 1.19.6): the cursor at the text's start says it is the placeholder, not
- * a draft that says the same words.
+ * a draft that says the same words. On a narrow screen it wraps over rows, read joined by spaces
+ * (probed 2026-11-22, 1.19.6, 52 columns: `Ask anything… "What is the tech stack of` and
+ * `this project?"`).
  */
-const placeholder = /^(?:Ask anything|Run a command)… ".*"$/
+const placeholder = /^(?:Ask anything|Run a command)… ".*"$/s
 
 type Frame = {
   /** The column its gutter is in. */
@@ -99,8 +101,7 @@ const read = (screen: ScreenText): InputBox | undefined => {
   const mode = shellFooter(screen.rows) ? "shell" : "prompt"
   const { cursor } = screen
   const home = cursor.row === found.first && cursor.column <= found.column + indent.length
-  const text =
-    shown.length === 1 && placeholder.test(shown[0]!) && home ? "" : lit.join("\n").trimEnd()
+  const text = placeholder.test(shown.join(" ")) && home ? "" : lit.join("\n").trimEnd()
   const blanks = compact(text) === "" && found.last > found.first
   return {
     text,
@@ -130,6 +131,15 @@ export const modalTitle = /^ {2,}[A-Z][A-Za-z0-9 ]*[A-Za-z0-9] {3,}esc(?:\/enter
 const overlay = (screen: ScreenText): boolean => screen.rows.some((row) => modalTitle.test(row))
 
 /**
+ * The keys that empty a box that holds text: Ctrl-C (probed 2026-11-22, 1.19.6: it cleared a
+ * draft of two logical lines, one wrapped over two rows, a pasted placeholder and an image at once,
+ * where Ctrl-U took only a row's end: a wrapped line's second row stayed after Ctrl-U, Backspace,
+ * Ctrl-U). On an empty box a first Ctrl-C only warns and a second ends opencode, so it goes over
+ * text seen there only, once.
+ */
+const emptyBox = (): string => "\x03"
+
+/**
  * How many images it shows attached: each is `[Image 1]` in the box's text, at the place it
  * was pasted, as a path to an image file pasted alone becomes (probed 2026-11-22, 1.19.6; a path
  * to a file that isn't there stays text). Enter sends a prompt of images alone, and Ctrl-U takes
@@ -140,8 +150,26 @@ const images: ProfileImages = {
   alone: true,
   discard: (screen) => {
     const box = read(screen)
-    return box && eraseRows(box)
+    return box && emptyBox()
   },
+}
+
+/**
+ * A shell command as its shell mode takes it. Its mode turns each line break of a command into a
+ * literal `\n`, and a backslash may be dropped on the way (probed 2026-11-22, 1.19.6: `touch f1.txt`
+ * and `touch f2.txt` on two lines made a file `f1.txtntouch`; the same lines inside `printf '%b'`
+ * as `\n` did too), so a command of several lines goes as one line with no backslash in it: its
+ * text in base64, which the shell decodes and evaluates, `eval "$(printf %s '<base64>' | base64 -d)"`.
+ * Where its shell is not sh (Windows) none can be given.
+ */
+export const shellCommandOf = (
+  command: string,
+  platform: NodeJS.Platform = process.platform,
+): string | undefined => {
+  const lines = command.replaceAll("\r\n", "\n").replace(/\n+$/, "").split("\n")
+  if (lines.length < 2) return command.trim()
+  if (platform === "win32") return undefined
+  return `eval "$(printf %s '${Buffer.from(lines.join("\n")).toString("base64")}' | base64 -d)"`
 }
 
 /**
@@ -161,7 +189,9 @@ export const box: BoxProfile = {
     expands: true,
     starts: true,
     footer: shellFooter,
-    leave: leaveShell,
+    command: shellCommandOf,
+    // A Backspace in the empty box leaves the mode; a command goes with Ctrl-C first.
+    leave: (held) => (isEmpty(held) ? "\x7f" : `\x03${pause}\x7f`),
     midTurn: "drops",
   },
   // In a session a word reaches `columns - 9`; the centred box of its home screen holds 70.
@@ -170,9 +200,24 @@ export const box: BoxProfile = {
   collapsed: ({ text }) => /^\[Pasted ~\d+ lines?\]$/.test(text.trim()),
   // Ctrl-U takes the whole line the cursor is on, a wrapped one too, and Backspace joins
   // the line before it (probed 2026-11-22, 1.19.6, `typed3` states).
-  clear: eraseRows,
-  erase: eraseRows,
+  clear: emptyBox,
+  erase: emptyBox,
+  // A text pasted over a draft keeps its blank line only as a paste of its own: a collapsed paste
+  // drops the breaks leading it (probed 2026-11-22, 1.19.6: `Before it[Pasted ~4 lines]`).
+  breakApart: true,
   overlay,
+  // Keys typed in the first moments after Enter are lost (probed 2026-11-22, 1.19.6, in the e2e
+  // sandbox: 14 keys typed as its prompt hook began never showed, those 311 ms on did): the prompt
+  // is taken once its first line stands in the history with the assistant's row, or its QUEUED
+  // badge, after it.
+  echoed: (screen, text) => {
+    const found = frameOf(screen.rows)
+    const first = text.split("\n")[0]!.trim().slice(0, 30)
+    if (first === "") return true
+    const above = found ? screen.rows.slice(0, found.top) : screen.rows
+    const at = above.findLastIndex((row) => row.trim().startsWith(`${gutter}  ${first}`))
+    return at >= 0 && above.slice(at + 1).some((row) => /▣ |^ *┃\s+QUEUED\s*$/.test(row))
+  },
   // A first Escape arms the interrupt, the row under the box saying `esc again to interrupt`
   // for about 5 s, and only a second stops the turn (probed 2026-11-22, 1.19.6, `busyEsc1` of
   // fixtures/input-box.probe.json; the arm lapsed after 5 s with no second Escape).

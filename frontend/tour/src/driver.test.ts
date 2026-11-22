@@ -234,6 +234,8 @@ describe("The tour's driver", () => {
       expect(screenCoach("hooks", "codex").note).toMatch(/Trust all and continue/)
       expect(screenCoach("hooks", "claude").note).toMatch(/its settings/)
       expect(screenCoach("hooks", "agy").note).not.toMatch(/\/hooks/)
+      // opencode's hooks are Novadeck's plugin, which only the person's environment keeps out.
+      expect(screenCoach("hooks", "opencode").note).toMatch(/OPENCODE_CONFIG_CONTENT/)
     })
 
     it("says what its step says otherwise", () => {

@@ -152,11 +152,11 @@ for (const setup of setups) {
       queuedHeld.open()
       await sleep(2500)
 
-      expect(stopped.returned).toBe(setup.agent === "codex" ? null : "Queued beta")
+      expect(stopped.returned).toBe(setup.queuedTaken ? null : "Queued beta")
       // Claude Code's box showed the image's placeholder; Antigravity lost the image with the Stop
       // and the runner names it by the words that came back; Codex's steer went to the agent.
       expect(stopped.images ?? []).toEqual(
-        setup.agent === "codex" ? [] : [expect.stringMatching(/shot\.png$/)],
+        setup.queuedTaken ? [] : [expect.stringMatching(/shot\.png$/)],
       )
       expect(t1.summary().activity?.state).not.toBe("working")
 
@@ -217,11 +217,11 @@ for (const setup of setups) {
       await sleep(2500)
 
       // Codex's steer went to the agent: nothing came back.
-      expect(stopped.returned).toBe(setup.agent === "codex" ? null : "Queued  beta")
+      expect(stopped.returned).toBe(setup.queuedTaken ? null : "Queued  beta")
       expect(stopped.images ?? []).toEqual(
-        setup.agent === "codex" ? [] : [expect.stringMatching(/shot\.png$/)],
+        setup.queuedTaken ? [] : [expect.stringMatching(/shot\.png$/)],
       )
-      expect(stopped.at).toEqual(setup.agent === "codex" ? undefined : [7])
+      expect(stopped.at).toEqual(setup.queuedTaken ? undefined : [7])
       expect(t1.summary().activity?.state).not.toBe("working")
 
       // The box is empty: the next prompt goes alone, as a normal turn.
@@ -266,8 +266,8 @@ for (const setup of setups) {
       await sleep(2500)
 
       // Antigravity and Claude Code hand the queued words back; Codex sent them as a
-      // steer, which the second Escape stopped.
-      expect(stopped.returned).toBe(setup.agent === "codex" ? null : "Queued beta")
+      // steer, which the second Escape stopped, and opencode into the session, unanswered.
+      expect(stopped.returned).toBe(setup.queuedTaken ? null : "Queued beta")
       const shown = await t1.screen()
       if (setup.rewind) expect(shown).not.toMatch(setup.rewind.shows)
       expect(shown).not.toContain("Too late.")
@@ -281,7 +281,7 @@ for (const setup of setups) {
       await through(t1, ["working", "settled"], { after: next })
     })
 
-    gated(it, setup.agent === "codex" ? "it steers what is queued into the turn" : undefined)(
+    gated(it, setup.queuedTaken)(
       "stops a turn with a five-line message queued behind it, and gives all five lines back",
       async ({ e2e: run }) => {
         const held = gate()
@@ -426,7 +426,7 @@ for (const setup of setups) {
       await sleep(2500)
       await onStopped?.()
 
-      expect(stopped.returned).toBe(setup.agent === "codex" ? null : "Queued beta\nQueued gamma")
+      expect(stopped.returned).toBe(setup.queuedTaken ? null : "Queued beta\nQueued gamma")
       // Words given back are the person's draft again, and none went: Claude Code's record
       // holds them, written as the queued turn started, which the chat shows no more.
       if (stopped.returned !== null) {
@@ -571,7 +571,7 @@ for (const setup of setups) {
         `Carry on\n\n${`${"and on ".repeat(150)}\n\n`.repeat(3)}done`,
       ],
     ] as const)
-      gated(it, setup.agent === "codex" ? "it steers what is queued into the turn" : undefined)(
+      gated(it, setup.queuedTaken)(
         `leaves a queue taller than the box in it, for nothing to take, and ${what} takes it along`,
         async ({ e2e: run }) => {
           const held = gate()

@@ -11,6 +11,7 @@ import {
   type BoxProfile,
   type InputBox,
 } from "./box/box.js"
+import { pause } from "./box/keys.js"
 import { hasImages, imageCount, sameText, withoutImages } from "./box/text.js"
 import type { InputEntry, InputHold } from "./queue.js"
 
@@ -461,7 +462,7 @@ export class Interrupts {
   ): Promise<void> {
     const { host } = this
     const until = Date.now() + this.armedMs
-    while (host.alive(terminalId) && host.working(terminalId) && Date.now() < until) {
+    while (host.alive(terminalId) && Date.now() < until) {
       // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
       const now = await host.screen(terminalId)
       if (now && armed(now)) {
@@ -534,7 +535,11 @@ export class Interrupts {
       let gone = shown
       for (let attempt = 0; attempt < 3; attempt += 1) {
         if (!holding()) return undefined
-        host.write(terminalId, keys(now, seen))
+        for (const [at, part] of keys(now, seen).split(pause).entries()) {
+          // eslint-disable-next-line no-await-in-loop -- Each part waits for the one before.
+          if (at > 0) await sleep(4 * pollMs)
+          host.write(terminalId, part)
+        }
         // The same keys are written again only once the screen has changed since they were
         // (something of them was taken, and says what is left), or `restoreMs` has passed with
         // no change at all (they were lost): a program slow to take them, as one was on a busy

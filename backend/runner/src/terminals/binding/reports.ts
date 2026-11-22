@@ -302,6 +302,21 @@ export class Reports {
     // could take the prompt as theirs (pinned by the integration test "applies a draft
     // typed while asked before the prompt that clears the request").
     for (const event of events) {
+      // The harness's prompt went to a screen of no session (opencode's `/new`): the session
+      // it had bound ends, and the next one binds with its first prompt.
+      if (event.type === "session-left") {
+        if (this.host.bindings().endBinding(record, event.sessionId)) {
+          changed = true
+          // Its prompt shows, with no session bound: messages wait for the next one.
+          this.host.shown().showPrompt(record, {
+            type: "prompt-shown",
+            agent: event.agent,
+            instance: event.instance,
+            startedAt: event.startedAt,
+          })
+        }
+        continue
+      }
       if (event.type !== "session-observed") {
         this.host.bindings().applyFact(record, event)
         continue

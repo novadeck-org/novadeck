@@ -97,7 +97,10 @@ const shownOn = (rows: readonly string[], screen?: ScreenText): Shown | undefine
   if (!/ctrl\+f (?:fullscreen|minimize)\b/.test(hints) || !hints.endsWith("enter confirm"))
     return refuse("permission.shownOn.3")
   // The rows between: blank ones around the body aside, each kept as drawn.
-  const body = block.lines.slice(at + 2, choice).map((line) => line.trimEnd())
+  // A scroll bar, drawn at a row's far end where the body is taller than the view, is no part of it.
+  const body = block.lines
+    .slice(at + 2, choice)
+    .map((line) => line.replace(/ {2,}[█▐▌▀▄]+$/, "").trimEnd())
   while (body.length > 0 && body[0]!.trim() === "") body.shift()
   while (body.length > 0 && body.at(-1)!.trim() === "") body.pop()
   const selected = selection(screen, block.first + choice)
@@ -124,9 +127,12 @@ const command = (shown: Shown, facts: Facts): Agreed | undefined => {
   const drawn = squash(shown.body.join("\n"))
   const asked = squash(`$ ${wanted}`)
   if (drawn === asked) return { detail: wanted, cut: false }
-  // Its inline view ends where its rows do, with no mark: a start of the command is a cut one.
-  return !shown.fullscreen && drawn.length > 1 && asked.startsWith(drawn)
-    ? { detail: wanted, cut: true }
+  // Both of its views end where their rows do, with no mark (the inline one at 7 rows, the
+  // fullscreen one scrolling under a bar), and a script taller than any screen can't be shown
+  // whole: a start of the command is the command, as `detail` gives it, where nothing else
+  // asks (twin commands alike in their first rows can't be told apart, as on Antigravity).
+  return drawn.length > 1 && asked.startsWith(drawn)
+    ? { detail: wanted, cut: false }
     : refuse("permission.command.2")
 }
 

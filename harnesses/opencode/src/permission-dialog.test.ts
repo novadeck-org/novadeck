@@ -124,26 +124,23 @@ describe("opencode's permission dialog for a command", () => {
   })
 })
 
-describe("opencode's permission dialog for a command its inline view cut", () => {
+describe("opencode's permission dialog for a command taller than its views", () => {
   const lines = Array.from({ length: 30 }, (_, at) => `echo line ${at}`)
   const request = bash(lines.join("\n"))
 
-  it("asks for Ctrl-F, which shows it whole, and reads the whole one", () => {
-    const cut = read(rowsOf("permBashCut"), request)
-    expect(cut.reveal).toBe("\x06")
-    expect(cut.dialog).toMatchObject({ detail: lines.join("\n") })
-    const whole = read(rowsOf("permBashCutFull"), request)
-    expect(whole.reveal).toBeUndefined()
-    expect(sent(whole.keys(choice("once")))).toEqual(["\r"])
+  it("reads the start it shows, inline or fullscreen, as the command, which the chat shows whole", () => {
+    for (const name of ["permBashCut", "permBashCutFull"]) {
+      const found = read(rowsOf(name), request)
+      expect(found.reveal, name).toBeUndefined()
+      expect(found.dialog, name).toMatchObject({ detail: lines.join("\n") })
+      expect(sent(found.keys(choice("once"))), name).toEqual(["\r"])
+    }
   })
 
   it("does not read a start of another command as it", () => {
     const other = bash(["echo line 0", "echo line 1", "rm -rf /"].join("\n"))
     expect(readOn(rowsOf("permBashCut"), other)).toBeUndefined()
-  })
-
-  it("does not vouch for a command its fullscreen view shows only a start of", () => {
-    expect(readOn(rowsOf("permBashFull"), bash("echo approved\necho more"))).toBeUndefined()
+    expect(readOn(rowsOf("permBashFull"), bash("rm -rf /\necho approved"))).toBeUndefined()
   })
 })
 

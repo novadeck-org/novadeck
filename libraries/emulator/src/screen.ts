@@ -74,6 +74,40 @@ const reportParseErrors = (screen: Screen, report: (error: unknown) => void): vo
 }
 
 /**
+ * Makes a resize cut the lines of the alternate screen to the new width. xterm keeps the cells
+ * of a line past a narrower width there, where it does not reflow, so the serializer writes the
+ * line whole and a fresh screen of the new size wraps it (found 2026-11-22 on opencode, which
+ * redraws each row at the new width but leaves what the old one wrote of a row beyond it: a
+ * snapshot of a 52-column screen came back with every row wrapped twice).
+ */
+const trimOnResize = (screen: headless.Terminal): void => {
+  const resize = screen.resize.bind(screen)
+  screen.resize = (cols, rows) => {
+    resize(cols, rows)
+    // xterm's own buffers, which it offers no other way to cut.
+    const core = Reflect.get(screen, "_core") as { buffers?: object } | undefined
+    const alt = core?.buffers
+      ? (Reflect.get(core.buffers, "_alt") as AltBuffer | undefined)
+      : undefined
+    if (!alt) return
+    for (let at = 0; at < alt.lines.length; at += 1) {
+      const line = alt.lines.get(at)
+      if (line && line.length > cols) line.resize(cols, alt.getNullCell())
+    }
+  }
+}
+
+type AltBuffer = {
+  readonly lines: {
+    readonly length: number
+    get(
+      at: number,
+    ): { readonly length: number; resize(cols: number, fill: unknown): void } | undefined
+  }
+  getNullCell(): unknown
+}
+
+/**
  * A headless emulator that counts widths as every emulator here does (see `applyWidths`),
  * and can be serialized. A chunk whose parse throws (a handler, or a listener behind one) is
  * skipped and the sequence it was in is ended, so the output after it draws;
@@ -90,6 +124,7 @@ export const createScreen = (options: {
   const { onParseError, ...size } = options
   const screen = new headless.Terminal({ ...size, allowProposedApi: true })
   applyWidths(screen)
+  trimOnResize(screen)
   const serializer = new SerializeAddon()
   screen.loadAddon(serializer)
   serializers.set(screen, serializer)
@@ -154,7 +189,7 @@ export const readScreen = (screen: Screen): ScreenText => {
     const line = buffer.getLine(buffer.viewportY + row)
     // A row the next one continues is whole to its last column, trailing spaces too.
     const next = buffer.getLine(buffer.viewportY + row + 1)
-    rows.push(line?.translateToString(!next?.isWrapped) ?? "")
+    rows.push(line?.translateToString(!next?.isWrapped, 0, screen.cols) ?? "")
     wrapped.push(line?.isWrapped ?? false)
     continues.push(line ? lastCellFilled(line, screen.cols, cell) : false)
     let bold = ""

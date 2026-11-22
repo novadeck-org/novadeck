@@ -8,6 +8,10 @@ import { cmdLaunch, posixLaunch } from "@novadeck/harness-core/launch-mark"
 /** The file of Novadeck's plugin, in the folder the runner writes it to (`plugins/opencode`). */
 export const pluginFile = "novadeck.mjs"
 
+/** Its interface's plugin, and the `tui.json` naming it, in the same folder. */
+export const tuiPluginFile = "novadeck-tui.mjs"
+export const tuiConfig = "tui.json"
+
 /**
  * The plugin as opencode's `OPENCODE_CONFIG_DIR` finds it, relative to the plugin's folder.
  * opencode auto-loads only `{plugin,plugins}/*.{ts,js}` of a config folder, never `.mjs`
@@ -216,6 +220,11 @@ if [ -n "$novadeck_plugin" ]; then
     export OPENCODE_CONFIG_DIR=$novadeck_plugin/config
   fi
 fi
+# Its interface's plugin, which tells a session left for home (/new): a tui.json for this launch,
+# where the person named none of their own.
+if [ -n "$novadeck_plugin" ] && [ -z "\${OPENCODE_TUI_CONFIG:-}" ] && [ -f "$novadeck_plugin/${tuiConfig}" ]; then
+  export OPENCODE_TUI_CONFIG=$novadeck_plugin/${tuiConfig}
+fi
 ${posixLaunch("opencode")}
 exec "$novadeck_real" "$@"
 `
@@ -312,6 +321,12 @@ if exist "%novadeck_plugin%\\${configPlugin.replaceAll("/", "\\")}" set "OPENCOD
 rem The variant is the agents' own in the configuration the plugin merges over the loaded one,
 rem where one isn't set already, and only from a model and a variant of plain characters.
 :config
+rem Its interface's plugin, which tells a session left for home (/new): a tui.json for this launch,
+rem where the person named none of their own.
+if defined OPENCODE_TUI_CONFIG goto tuiset
+if not defined novadeck_plugin goto tuiset
+if exist "%novadeck_plugin%\\${tuiConfig}" set "OPENCODE_TUI_CONFIG=%novadeck_plugin%\\${tuiConfig}"
+:tuiset
 if not defined novadeck_strip goto launch
 if not defined novadeck_model goto launch
 if not defined novadeck_variant goto launch

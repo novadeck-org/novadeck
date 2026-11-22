@@ -197,8 +197,6 @@ export class HookAnswers {
     const lease =
       time &&
       continues(live.delivery, profile.promptHookOnQueueing === true) &&
-      // A delivery that starts a turn of its own waits for a box the person left empty.
-      (profile.stopStartsTurn !== true || live.delivery.box.empty) &&
       !this.host.deliveries.ridesLine(live.terminalId, background) &&
       this.host.leasing.lease(live, root, {
         kind: "stop",

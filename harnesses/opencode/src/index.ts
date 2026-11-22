@@ -17,6 +17,7 @@ import { connected, connectedFile, files, hook, hookDialect } from "./plugin.js"
 import { conversational, shapes } from "./shapes.js"
 import { commands, hooksTrusted, info, kept, makeCmdShim, posixShim, valued } from "./shim.js"
 import { title } from "./startup.js"
+import { followTranscript } from "./transcript-watch.js"
 import { transcripts } from "./transcripts.js"
 
 /** How long a resume's prompt may show without its session bound before it counts as failed. */
@@ -106,6 +107,7 @@ export const opencode = {
     context: "complete",
   },
   decode: (report) => withLaunch(decode(report), report, launch.kept),
+  watch: followTranscript,
   dialogs,
   commandFields: ["command"],
   // No screen of its own holds it before its prompt, signed in or not (probed 2026-11-22,

@@ -7,6 +7,7 @@ import type { Install } from "@novadeck/harness-core/harness"
 
 import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
+import { removeSession } from "./agents/opencode.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked } from "./model/script.js"
@@ -160,18 +161,18 @@ for (const setup of setups) {
       expect(await settle(missing, never)).not.toBe("worked")
       if (setup.agent === "agy") expect(await settle(missing, never)).toBe("failed")
 
-      // A conversation whose file is gone: the check says so, and a resume does not work. Not
-      // for opencode, whose conversations are rows of one database, with no file to remove.
-      if (setup.agent !== "opencode") {
-        const lost = await make()
+      // A conversation whose file is gone: the check says so, and a resume does not work.
+      const lost = await make()
+      if (setup.agent === "opencode") removeSession(run.sandbox, lost)
+      else {
         const store = /(?:^|\/)(?:projects|sessions|conversations)\//
         for (const path of walk(run.sandbox.home))
           if (store.test(path) && path.includes(lost))
             rmSync(join(run.sandbox.home, path), { recursive: true, force: true })
-        expect(await harness.conversation(install, lost)).toBe("gone")
-        const gone = await open(resume(lost))
-        expect(await settle(gone, lost)).not.toBe("worked")
       }
+      expect(await harness.conversation(install, lost)).toBe("gone")
+      const gone = await open(resume(lost))
+      expect(await settle(gone, lost)).not.toBe("worked")
 
       await Promise.all(
         [...opened].map((terminalId) => run.deck.terminals.close({ terminalId }).catch(() => {})),

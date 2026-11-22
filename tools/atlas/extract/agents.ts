@@ -201,6 +201,7 @@ const titles: Record<string, string> = {
   claude: "Claude Code",
   codex: "Codex",
   agy: "Antigravity",
+  opencode: "opencode",
 }
 
 // Every `harnesses/*` package but the shared core is a harness.
@@ -246,7 +247,7 @@ const hookSummaries: Record<string, string> = {
 export const hookEvents = (
   source: string,
 ): { events: { event: string; conditional: boolean }[]; from: number } => {
-  const list = /^const events = \[([^\]]*)\]/m.exec(source)
+  const list = /^(?:export )?const events = \[([^\]]*)\]/m.exec(source)
   if (list?.[1] !== undefined) {
     return {
       events: [...list[1].matchAll(/"(\w+)"/g)].map(([, event]) => ({

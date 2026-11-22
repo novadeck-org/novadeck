@@ -23,7 +23,13 @@ import { describe } from "./tools.js"
  */
 type Line =
   | { readonly type: "message"; readonly info: Fields }
-  | { readonly type: "prompt"; readonly info: Fields; readonly parts: readonly Fields[] }
+  | {
+      readonly type: "prompt"
+      readonly info: Fields
+      readonly parts: readonly Fields[]
+      /** When the plugin wrote it, where it says: a prompt held back is read after it was given. */
+      readonly at?: number
+    }
   | {
       readonly type: "part"
       readonly role: string | null
@@ -32,6 +38,8 @@ type Line =
       readonly call?: true
       /** A tool part that ended, whose call was written as it started. */
       readonly called?: true
+      /** A part of a compaction's summary message: its text is the compaction's. */
+      readonly summary?: true
     }
 
 /** A transcript line's record, where it is one of the two. */
@@ -48,7 +56,14 @@ export const lineOf = (line: string): Line | undefined => {
       const part = fieldsOf(one)
       return part ? [part] : []
     })
-    return info ? { type: "prompt", info, parts } : undefined
+    return info
+      ? {
+          type: "prompt",
+          info,
+          parts,
+          ...(typeof fields.at === "number" && { at: fields.at }),
+        }
+      : undefined
   }
   if (fields.type === "part") {
     const part = fieldsOf(fields.part)
@@ -60,6 +75,7 @@ export const lineOf = (line: string): Line | undefined => {
           part,
           ...(fields.call === true && { call: true as const }),
           ...(fields.called === true && { called: true as const }),
+          ...(fields.summary === true && { summary: true as const }),
         }
       : undefined
   }
@@ -123,7 +139,7 @@ const toolOutcome = (tool: unknown, state: Fields) => {
 const partItems = (
   role: string | null,
   part: Fields,
-  written: { readonly call?: true; readonly called?: true } = {},
+  written: { readonly call?: true; readonly called?: true; readonly summary?: true } = {},
 ): readonly TranscriptEntry[] => {
   const time = timeOf(part)
   switch (part.type) {
@@ -137,8 +153,13 @@ const partItems = (
           return isDelivery(text)
             ? [entry("user", "text", text, { at: time })]
             : noticeEntries(text, time)
-        return [entry("user", "text", text, { at: time })]
+        // The box puts a space after a pasted text it expands (a five-line paste stored as
+        // "a\nb\nc\nd\ne ", probed 2026-11-22, 1.19.6): the words as typed end without it.
+        return [entry("user", "text", text.trimEnd(), { at: time })]
       }
+      // A compaction's summary is the note's words, not a reply.
+      if (role === "assistant" && written.summary)
+        return [noteEntry({ type: "compaction" }, time, text)]
       if (role === "assistant" && part.synthetic !== true)
         return [entry("assistant", "text", text, { at: time })]
       return []
@@ -167,10 +188,17 @@ const partItems = (
         call,
         outcome: toolOutcome(tool, state),
       })
-      return written.called ? [ended] : [asked, ended]
+      // The person's yes to its plan review: its result says so (tool/plan.ts, 1.19.6, probed
+      // 2026-11-22), as Claude Code's ExitPlanMode result does.
+      const approved =
+        tool === "plan_exit" && /^User approved switching to build agent\b/.test(result)
+          ? [noteEntry({ type: "plan-approved" }, time)]
+          : []
+      return written.called ? [ended, ...approved] : [asked, ended, ...approved]
     }
+    // Its marker, on the user's side; the note is made by the summary's words.
     case "compaction":
-      return [noteEntry({ type: "compaction" }, time)]
+      return []
     default:
       return []
   }
@@ -183,6 +211,21 @@ const partItems = (
  * ends, its snapshots and patches stay out. A prompt says which agent it went to, so leaving
  * or entering its plan agent shows. A subagent's session is a transcript of its own, beside.
  */
+// Where the person interrupted an answer: Escape ends it with `MessageAbortedError` on its info,
+// which the plugin writes as it ends (probed 2026-11-22, 1.19.6), and the chat shows there, as
+// Codex's turn_aborted and Claude Code's "[Request interrupted by user]" read.
+const interruption = (info: Fields): readonly TranscriptEntry[] => {
+  if (info.role !== "assistant" || fieldsOf(info.error)?.name !== "MessageAbortedError") return []
+  const time = fieldsOf(info.time)
+  const at =
+    typeof time?.completed === "number"
+      ? time.completed
+      : typeof time?.created === "number"
+        ? time.created
+        : null
+  return [entry("user", "text", "Interrupted", { at, interrupted: true })]
+}
+
 export const transcripts: TranscriptDecoder = {
   locate: async (reported, sessionId, subagent) => {
     if (subagent === null) return reportedOr(reported, sessionId, async () => undefined)
@@ -197,11 +240,11 @@ export const transcripts: TranscriptDecoder = {
   items: (line) => {
     const read = lineOf(line)
     if (!read) return []
-    if (read.type === "message") return []
+    if (read.type === "message") return interruption(read.info)
     if (read.type === "part") return partItems(read.role, read.part, read)
     const { info, parts } = read
     const created = fieldsOf(info.time)?.created
-    const at = typeof created === "number" ? created : null
+    const at = read.at ?? (typeof created === "number" ? created : null)
     const words = parts.flatMap((part) =>
       partItems("user", { ...part, time: part.time ?? { start: at } }),
     )
@@ -231,6 +274,7 @@ export const typedEntry = (line: string): UserEntry | undefined => {
     )
     .map((part) => part.text as string)
     .join("\n")
+    .trimEnd()
   if (!text) return undefined
   const created = fieldsOf(read.info.time)?.created
   return { text, at: typeof created === "number" ? created : null, id: null }
