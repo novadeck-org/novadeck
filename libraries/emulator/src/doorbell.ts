@@ -728,10 +728,13 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
     stats.verifyMs += performance.now() - t0
   }
 
-  // The most rows a scan reads in full: output dense with "<" (markup, diffs) costs no more.
+  // The most rows a scan of the screen's rows reads in full, as it runs at every write while armed:
+  // output dense with "<" (markup, diffs) costs no more. A scan of the whole buffer, after a
+  // restore, a resize or a return from the alternate screen, reads every row that could start
+  // one: a long session holds more rings than this, and its newest are the ones on screen.
   const maxCandidates = 24
 
-  const scan = (from: number, to: number): void => {
+  const scan = (from: number, to: number, budget: number): void => {
     if (content.rings.size === 0 && content.deliveries.length === 0) return
     // A pager or an editor on the alternate screen: nothing of it is a ring.
     if (buffer().type === "alternate" && !options.alternate?.()) return
@@ -748,7 +751,7 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
       for (const piece of entry.pieces) claimed.add(piece.marker.line)
     }
     let candidates = 0
-    for (let y = a; y <= b && candidates < maxCandidates; y += 1) {
+    for (let y = a; y <= b && candidates < budget; y += 1) {
       stats.rowsScanned += 1
       if (claimed.has(y)) continue
       const line = buf.getLine(y)
@@ -777,10 +780,10 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
 
   const scanViewport = (): void => {
     const buf = buffer()
-    scan(buf.viewportY, buf.viewportY + terminal.rows - 1)
+    scan(buf.viewportY, buf.viewportY + terminal.rows - 1, maxCandidates)
   }
 
-  const scanAll = (): void => scan(0, buffer().length - 1)
+  const scanAll = (): void => scan(0, buffer().length - 1, Infinity)
 
   const dropAll = (): void => {
     for (const entry of entries.values()) remove(entry)
