@@ -16,7 +16,19 @@ const run = promisify(execFile)
 /** Where the contract is kept, as the protocol's test writes it, in a release and here. */
 export const contractPath = "contract/protocol/contract.json"
 
-const usage = "Usage: main.ts [--base <ref>]"
+const usage = "Usage: main.ts [--base <ref>] [--peer <ref>]"
+
+// `--base` and `--peer`, each at most once, with its ref.
+const parsed = (args: readonly string[]): { readonly base?: string; readonly peer?: string } => {
+  const given: { base?: string; peer?: string } = {}
+  for (let at = 0; at < args.length; at += 2) {
+    const [flag, ref] = [args[at], args[at + 1]]
+    const name = flag === "--base" ? "base" : flag === "--peer" ? "peer" : undefined
+    if (name === undefined || !ref || ref.startsWith("--") || name in given) throw new Error(usage)
+    given[name] = ref
+  }
+  return given
+}
 
 /** What the check reads from outside, behind functions so tests run without a repository. */
 export type Sources = {
@@ -127,32 +139,49 @@ const inWindow = async (
 }
 
 /**
- * `node scripts/compatibility/main.ts [--base <ref>]`: compares `contract.json` with the newest
- * release's, and with each older one still in the window (or with `ref`'s alone), and fails
- * when the window doesn't fit what changed (`judgeReleases`). Before any release holds a
- * contract.json, there's nothing to compare. Resolves the exit code.
+ * `node scripts/compatibility/main.ts [--base <ref>] [--peer <ref>]`: compares `contract.json`
+ * with the newest release's, and with each older one still in the window (or with `--base`'s
+ * alone), and fails when the window doesn't fit what changed (`judgeReleases`). Before any
+ * release holds a contract.json, there's nothing to compare.
+ *
+ * `--peer` names a contract the next release ships though no release holds it yet, as a pull
+ * request's base: merged, and not released yet. It's judged too, as the newest release's is,
+ * so a change that fits the releases but leaves the base's peers behind fails here, not at the
+ * release once merged. Resolves the exit code.
  */
 export const main = async (
   args: readonly string[] = process.argv.slice(2),
   sources: Sources = gitSources(),
   log: (line: string) => void = console.log,
 ): Promise<number> => {
-  if (args.length !== 0 && (args.length !== 2 || args[0] !== "--base")) throw new Error(usage)
-  const refs = args[1] === undefined ? await sources.releases() : [args[1]]
+  const { base, peer } = parsed(args)
+  const refs = base === undefined ? await sources.releases() : [base]
   const [newest] = refs
-  if (newest === undefined) {
-    log("No release yet: there is no contract to compare with.")
-    return 0
-  }
   const after = JSON.parse(await sources.current()) as ContractSnapshot
-  const releases = await inWindow(refs, after, sources)
-  if (releases.length === 0) {
-    log(`${newest} has no ${contractPath}: the first release that has one is the baseline.`)
-    return 0
+  const releases = newest === undefined ? [] : await inWindow(refs, after, sources)
+  let failed = false
+  if (releases.length > 0) {
+    const verdict = judgeReleases(releases, after)
+    log(report(releases, after, verdict))
+    failed = verdict.problems.length > 0
+  } else if (newest === undefined) log("No release yet: there is no contract to compare with.")
+  else log(`${newest} has no ${contractPath}: the first release that has one is the baseline.`)
+  if (peer === undefined) return failed ? 1 : 0
+  const held = await sources.released(peer)
+  if (held === undefined) {
+    log(`${peer} has no ${contractPath}: nothing more to compare with.`)
+    return failed ? 1 : 0
   }
-  const verdict = judgeReleases(releases, after)
-  log(report(releases, after, verdict))
-  return verdict.problems.length > 0 ? 1 : 0
+  const pending: Release = { ref: peer, contract: JSON.parse(held) as ContractSnapshot }
+  const [released] = releases
+  if (released && JSON.stringify(released.contract) === JSON.stringify(pending.contract)) {
+    log(`${peer} holds ${released.ref}'s contract: nothing more to compare.`)
+    return failed ? 1 : 0
+  }
+  const verdict = judgeReleases([pending], after)
+  log("")
+  log(report([pending], after, verdict))
+  return failed || verdict.problems.length > 0 ? 1 : 0
 }
 
 if (import.meta.main) {
