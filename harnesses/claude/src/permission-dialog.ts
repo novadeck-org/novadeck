@@ -99,8 +99,16 @@ const shows = (rows: readonly string[], title: number, facts: RequestFacts): str
       }
       // Its header is on screen unless the command only just fits.
       const cutHeader = shown.open < 3 && !rows.slice(0, shown.open).some((row) => rule.test(row))
-      if (!cutHeader && !header(shown.open).includes("Bash command"))
+      // A subagent's request says whose it is on the header's row (`Bash command · from the
+      // general-purpose agent`, 2.1.329), with a tip row under it.
+      if (
+        !cutHeader &&
+        !header(shown.open).some(
+          (row) => row === "Bash command" || row.startsWith("Bash command · from "),
+        )
+      ) {
         return refuse("permission.shows.4")
+      }
       // Nothing but the command between its rules; the detail is the request's own command,
       // as it will run, not the screen's wrapped rows.
       return wraps(quoted(shown.body), command) ? command : refuse("permission.shows.5")

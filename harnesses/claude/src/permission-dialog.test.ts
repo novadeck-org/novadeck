@@ -1598,3 +1598,43 @@ describe("Claude Code's permission dialog from a subagent, with a warning", () =
     ).toBeUndefined()
   })
 })
+
+// The real screen of the same run's short case (2.1.329, 2026-11-23, footer-fix): the header row
+// names the subagent, a tip row follows it, and the warning ("This command requires approval")
+// sits under the command; the footer says how to stop background agents.
+describe("Claude Code's permission dialog for a subagent's short command", () => {
+  const command = 'node -e "console.log(40 + 2)" > answer.txt && cat answer.txt'
+  const rule = "╌".repeat(100)
+  const rows = [
+    "─".repeat(100),
+    " Bash command · from the general-purpose agent",
+    ' Tip: auto mode handles these prompts for you — choose "switch to auto mode" below',
+    " Write 40 + 2 to answer.txt and print it",
+    rule,
+    ` ${command}`,
+    rule,
+    " This command requires approval",
+    "",
+    " Do you want to proceed?",
+    " ❯ 1. Yes",
+    ' 2. Yes, and don’t ask again for: node -e "console.log(40 + 2)"'.replace(" 2.", "   2."),
+    "   3. Yes, and switch to auto mode · auto mode handles these prompts for you",
+    "   4. No",
+    "",
+    " Esc to cancel · Tab to amend · ctrl+x ctrl+k twice to stop background agents",
+  ]
+  const facts: RequestFacts = { kind: "permission", tool: "Bash", input: { command }, cwd: null }
+
+  it("reads it as choices with the command as detail", () => {
+    const found = need(dialogs.read(rows, facts))
+    expect(found.dialog).toMatchObject({ type: "choices", detail: command })
+    expect(found.dialog).toMatchObject({
+      options: expect.arrayContaining([{ id: "4", label: "No", text: null }]),
+    })
+  })
+
+  it("still refuses a header naming another tool", () => {
+    const fetched = rows.map((row) => row.replace("Bash command", "Fetch"))
+    expect(dialogs.read(fetched, facts)).toBeUndefined()
+  })
+})
