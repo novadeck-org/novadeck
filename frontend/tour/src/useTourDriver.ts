@@ -341,7 +341,7 @@ export const useTourDriver = ({
     return () => clearTimeout(timer)
   }, [framing, framingFor, commands])
 
-  // A teammate held at its own agent's screen (a mixed team's folder trust), or an agent asking
+  // A teammate held at its own agent's screen (its own question, as folder trust or sign-in), or an agent asking
   // the person's permission, waits on them in its terminal, which isn't on screen: brought there
   // once per hold, for the coach to point at.
   const held =

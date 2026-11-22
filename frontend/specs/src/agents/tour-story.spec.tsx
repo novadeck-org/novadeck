@@ -36,23 +36,19 @@ const standsStill = async (locator: Locator): Promise<void> => {
 const coachSays = (words: string, timeout = 15_000): Promise<void> =>
   expect.poll(() => coach().query()?.textContent ?? "", { timeout }).toContain(words)
 
-// Starts the tour from the footer's Help menu with Claude Code, and Codex for a mixed team,
-// connected first in Preferences' Agents.
-const startTour = async (): Promise<void> => {
+// Starts the tour from the footer's Help menu with `name` (Claude Code or Codex), connected first
+// in Preferences' Agents: the one agent every part of the story runs on.
+const startTour = async (name = "Claude Code"): Promise<void> => {
   await openWorkspace("/?channel=experimental")
-  await beginTour()
+  await beginTour(name)
 }
 
 // The same, in the workspace already open.
-const beginTour = async (): Promise<void> => {
+const beginTour = async (name = "Claude Code"): Promise<void> => {
   await openPreferencesOn("Agents")
-  for (const name of ["Claude Code", "Codex"]) {
-    const agent = preferencesDialog().getByRole("switch", { name })
-    // eslint-disable-next-line no-await-in-loop -- One switch at a time, as a person flips them.
-    await agent.click()
-    // eslint-disable-next-line no-await-in-loop -- Each connected before the next.
-    await expect.element(agent).toHaveAttribute("aria-checked", "true")
-  }
+  const agent = preferencesDialog().getByRole("switch", { name })
+  await agent.click()
+  await expect.element(agent).toHaveAttribute("aria-checked", "true")
   await closePreferences()
   await takeTourFromHelp()
   await consent().getByRole("button", { name: "Start the tour" }).click()
@@ -81,61 +77,64 @@ describe("The tour's story", () => {
     await expect.poll(() => sidebarPanel("Worktrees").query()).toBeNull()
   })
 
-  it("plays from the agent's start to both fixes merged, the person's terminal and answer included", async () => {
-    await startTour()
-    // It opens in Canvas, on the person's own agent.
-    await coachSays("Your own agent. In a sandbox repo.")
-    await expect.element(view("Canvas")).toBeChecked()
+  it.for(["Claude Code", "Codex"])(
+    "plays from the agent's start to both fixes merged, the person's terminal and answer included, with %s",
+    async (name) => {
+      await startTour(name)
+      // It opens in Canvas, on the person's own agent.
+      await coachSays("Your own agent. In a sandbox repo.")
+      await expect.element(view("Canvas")).toBeChecked()
 
-    // The lead opens a fixer for bug 1, which names itself.
-    await coachSays("It put a fixer on bug 1.")
-    await expect
-      .poll(terminalTabNames, { timeout: 15_000 })
-      .toEqual(expect.arrayContaining(["Tour lead", "Tip fixer"]))
+      // The lead opens a fixer for bug 1, which names itself.
+      await coachSays("It put a fixer on bug 1.")
+      await expect
+        .poll(terminalTabNames, { timeout: 15_000 })
+        .toEqual(expect.arrayContaining(["Tour lead", "Tip fixer"]))
 
-    // The person opens a terminal: the tour starts their agent in it, as the second fixer.
-    await coachSays("Your turn. Open a terminal.", 20_000)
-    await expect.poll(() => coach().query()?.textContent ?? "").toContain("takes bug 2")
-    await expect.element(page.getByText(/^Act 2, The team\./)).toBeInTheDocument()
-    await newTerminalButton().click()
+      // The person opens a terminal: the tour starts their agent in it, as the second fixer.
+      await coachSays("Your turn. Open a terminal.", 20_000)
+      await expect.poll(() => coach().query()?.textContent ?? "").toContain("takes bug 2")
+      await expect.element(page.getByText(/^Act 2, The team\./)).toBeInTheDocument()
+      await newTerminalButton().click()
 
-    // It asks the person in the Inbox, who answers; the tour waits on them.
-    await coachSays("Your call.")
-    await expect.element(page.getByText(/^Act 3, Your call\./)).toBeInTheDocument()
-    await inboxRow(/Whole amounts/).click()
-    const sheet = page.getByRole("dialog", { name: "Money fixer" })
-    // Pressed once the card stands still: a click just after it moved is held back.
-    const pick = sheet.getByRole("button", { name: /Always two decimals/ })
-    await standsStill(pick)
-    await pick.click()
+      // It asks the person in the Inbox, who answers; the tour waits on them.
+      await coachSays("Your call.")
+      await expect.element(page.getByText(/^Act 3, Your call\./)).toBeInTheDocument()
+      await inboxRow(/Whole amounts/).click()
+      const sheet = page.getByRole("dialog", { name: "Money fixer" })
+      // Pressed once the card stands still: a click just after it moved is held back.
+      const pick = sheet.getByRole("button", { name: /Always two decimals/ })
+      await standsStill(pick)
+      await pick.click()
 
-    // Both fix their bug, each in its own worktree.
-    await coachSays("Now they fix it. Each in its own worktree.")
-    await sidebarPanel("Terminals").click()
-    await expect
-      .poll(terminalTabNames, { timeout: 15_000 })
-      .toEqual(expect.arrayContaining(["Tour lead", "Tip fixer", "Money fixer"]))
+      // Both fix their bug, each in its own worktree.
+      await coachSays("Now they fix it. Each in its own worktree.")
+      await sidebarPanel("Terminals").click()
+      await expect
+        .poll(terminalTabNames, { timeout: 15_000 })
+        .toEqual(expect.arrayContaining(["Tour lead", "Tip fixer", "Money fixer"]))
 
-    // The Files panel opens with the file in it, which the person opens: both fixes, merged.
-    await coachSays("Both fixes, merged. Open the file.", 20_000)
-    await expect.element(page.getByText(/^Act 4, The result\./)).toBeInTheDocument()
-    await page.getByRole("treeitem", { name: /^split\.js,/ }).click()
-    await coachSays("Two agents. One file. Merged live.")
-    await expect.element(page.getByText(/\/ 100\) \/ people/).first()).toBeVisible()
-    await expect.element(page.getByText(/toFixed\(2\)/).first()).toBeVisible()
+      // The Files panel opens with the file in it, which the person opens: both fixes, merged.
+      await coachSays("Both fixes, merged. Open the file.", 20_000)
+      await expect.element(page.getByText(/^Act 4, The result\./)).toBeInTheDocument()
+      await page.getByRole("treeitem", { name: /^split\.js,/ }).click()
+      await coachSays("Two agents. One file. Merged live.")
+      await expect.element(page.getByText(/\/ 100\) \/ people/).first()).toBeVisible()
+      await expect.element(page.getByText(/toFixed\(2\)/).first()).toBeVisible()
 
-    // It ends on a card that sends the person to their own project.
-    await expect.element(closing(), { timeout: 15_000 }).toBeVisible()
-    await expect.element(coach()).not.toBeInTheDocument()
-    await expect.poll(() => closing().query()?.textContent ?? "").toContain("That was a sandbox")
-    // The demo has no folder picker to open a project with, so the card offers none.
-    expect(closing().getByRole("button", { name: "Open your project" }).query()).toBeNull()
+      // It ends on a card that sends the person to their own project.
+      await expect.element(closing(), { timeout: 15_000 }).toBeVisible()
+      await expect.element(coach()).not.toBeInTheDocument()
+      await expect.poll(() => closing().query()?.textContent ?? "").toContain("That was a sandbox")
+      // The demo has no folder picker to open a project with, so the card offers none.
+      expect(closing().getByRole("button", { name: "Open your project" }).query()).toBeNull()
 
-    // And offers to remove the Tour project.
-    await closing().getByRole("button", { name: "Remove the Tour project" }).click()
-    await expect.poll(() => workspaceSwitcher().element().textContent ?? "").not.toContain("Tour")
-    expect(closing().getByRole("button", { name: "Remove the Tour project" }).query()).toBeNull()
-    await closing().getByRole("button", { name: "Close" }).click()
-    await expect.element(closing()).not.toBeInTheDocument()
-  })
+      // And offers to remove the Tour project.
+      await closing().getByRole("button", { name: "Remove the Tour project" }).click()
+      await expect.poll(() => workspaceSwitcher().element().textContent ?? "").not.toContain("Tour")
+      expect(closing().getByRole("button", { name: "Remove the Tour project" }).query()).toBeNull()
+      await closing().getByRole("button", { name: "Close" }).click()
+      await expect.element(closing()).not.toBeInTheDocument()
+    },
+  )
 })

@@ -214,7 +214,7 @@ export const coachNow = (
   const { lead } = signals
   if (lead.kind === "screen") return screenCoach(lead.screen, run.agent)
   if (lead.kind === "ended") return endedCoach
-  // A teammate's own screen, as its harness's folder trust in a mixed team: the person answers
+  // A teammate's own screen, as its harness's own question (folder trust, sign-in): the person answers
   // it in that teammate's terminal, which the tour points at.
   const held = signals.teamScreen
   if (held) {

@@ -1995,8 +1995,8 @@ one from an earlier runner.
   own settings. `brief` is always `doorbell`: the lead's script reaches it by `tour.brief`.
   The script is composed for each run, and never names the person: it calls them "you", and
   tells every agent never to use their name, even one it knows. It has the lead open one
-  teammate with `open_agent`, the first fixer, on the first other connected agent whose
-  cheapest model is listed (else the lead's own), at its lowest effort as above, with its task
+  teammate with `open_agent`, the first fixer, on the lead's own harness and its cheapest
+  model, at its lowest effort as above, with its task
   as the message: describe itself, open a worktree on `fix-tip`, fix bug 1 in `split.js` there
   by absolute path, and tell the lead; it tells the person that they start a second fixer for
   bug 2 by opening a terminal, which joins the team (`tour.fixer`), and, once both fixers have

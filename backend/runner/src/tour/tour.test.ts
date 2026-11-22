@@ -312,7 +312,7 @@ describe("the brief's facts", () => {
     expect(opened(text)).toEqual(['agent "claude", model "haiku", effort "low"'])
   })
 
-  it("puts the fixer on another connected harness where one lists its cheapest model", async ({
+  it("keeps the fixer on the lead's harness and its cheapest model, whatever else is connected", async ({
     resources,
   }) => {
     const home = await scratchHome(resources)
@@ -321,26 +321,11 @@ describe("the brief's facts", () => {
       lists: { codex: [luna] },
     })
     await tour.prepare("agy")
-    // Claude Code comes first of the others.
-    expect(opened(brief())).toEqual(['agent "claude", model "haiku", effort "low"'])
+    expect(opened(brief())).toEqual([expect.stringMatching(/^agent "agy", model "/)])
     await tour.prepare("claude")
-    expect(opened(brief())).toEqual(['agent "codex", model "gpt-e2e-luna", effort "low"'])
-  })
-
-  it("takes Codex's luna from its catalog, and keeps the lead's harness where the other can't be told", async ({
-    resources,
-  }) => {
-    const home = await scratchHome(resources)
-    const { tour, brief } = tourIn(home, {
-      connected: ["codex", "claude"],
-      lists: { codex: [luna] },
-    })
-    await tour.prepare("codex")
     expect(opened(brief())).toEqual(['agent "claude", model "haiku", effort "low"'])
-    // A connected harness that lists no models, as Codex before it has signed in.
-    const alone = tourIn(home, { connected: ["claude", "codex"], lists: { codex: [] } })
-    await alone.tour.prepare("claude")
-    expect(opened(alone.brief())).toEqual(['agent "claude", model "haiku", effort "low"'])
+    await tour.prepare("codex")
+    expect(opened(brief())).toEqual(['agent "codex", model "gpt-e2e-luna", effort "low"'])
   })
 
   it("leaves out an effort a model takes none of", async ({ resources }) => {

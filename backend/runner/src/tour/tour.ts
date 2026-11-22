@@ -69,9 +69,6 @@ type Run = {
   adopted?: boolean
 }
 
-// The order a second harness is looked for in, for the designer of a mixed team.
-const agentOrder: readonly AgentName[] = ["claude", "codex", "agy"]
-
 /**
  * Novadeck's tour, on the runner's side: its folder, made afresh for each run, and the line
  * that starts its agent there. The client opens the project and the terminal, as it lays them
@@ -90,8 +87,8 @@ export class Tour {
    * Readies a run of the tour with `agent`: removes any project open at its folder, closing
    * its terminals, so nothing runs there; then empties the folder and writes the brief there;
    * then builds the agent's launch line, on its cheapest model. The brief never names the
-   * person; it names the one teammate the lead opens, on its harness's cheapest model: another
-   * connected harness's where one lists its cheapest, else `agent`'s. The folder is a git repo
+   * person; it names the one teammate the lead opens, on `agent`'s own harness and cheapest
+   * model, so the whole tour runs the one agent the person picked. The folder is a git repo
    * of its own (`commitSandbox`), so git is needed (`requireGit`, asked first of all). An agent Novadeck isn't
    * connected to is a `CONFLICT`, as its tools would be missing; so is a folder that isn't
    * Novadeck's (`checkTourFolder`, asked before any project is removed), and a run asked for
@@ -144,7 +141,7 @@ export class Tour {
           }),
       ),
     )
-    const fixer = await this.fixerFor(agent, models)
+    const fixer = teammate(agent, models)!
     await resetTourFolder(directory, briefFiles)
     await commitSandbox(directory)
     // Before any agent starts: a process that began without the folder can't write in it.
@@ -153,20 +150,6 @@ export class Tour {
     const launch = tourLaunch(agent, { models })
     this.run = { agent, launch }
     return { ...launch, directory, removed }
-  }
-
-  // The first fixer's harness: the first other connected one whose cheapest model is listed,
-  // else the lead's own.
-  private async fixerFor(agent: AgentName, models: readonly Model[]): Promise<Teammate> {
-    for (const other of agentOrder.filter((each) => each !== agent)) {
-      // eslint-disable-next-line no-await-in-loop -- The first that fits is taken.
-      if (!(await this.host.connected(other).catch(() => false))) continue
-      // eslint-disable-next-line no-await-in-loop -- As above.
-      const listed = await this.host.models(other).catch((): readonly Model[] => [])
-      const found = teammate(other, listed)
-      if (found) return found
-    }
-    return teammate(agent, models)!
   }
 
   /**

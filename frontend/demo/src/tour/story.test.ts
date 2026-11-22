@@ -12,7 +12,6 @@ import {
   chosenMoney,
   fixedMoney,
   fixedTip,
-  fixerHarness,
   moneyAsk,
   moneyFixerName,
   moneySubject,
@@ -25,9 +24,7 @@ import {
 const key = { projectId: "p", workspaceSessionId: "s", terminalId: "t" }
 
 describe("the story's pieces", () => {
-  it("runs the first fixer on another connected harness, else on the lead's", () => {
-    expect(fixerHarness("claude", ["claude", "codex"])).toBe("codex")
-    expect(fixerHarness("codex", ["codex"])).toBe("codex")
+  it("starts a teammate on its harness and the lead's model", () => {
     expect(teammateCommand("claude")).toBe("claude --model haiku")
   })
 

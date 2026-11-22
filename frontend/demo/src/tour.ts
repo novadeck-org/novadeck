@@ -94,8 +94,6 @@ export type DemoTour = Tour & {
   readonly askPermission: (ask?: boolean) => void
   // The next run's lead opens its team only once nudged again after it described itself.
   readonly goQuietTeam: (quiet?: boolean) => void
-  // The agents Novadeck is connected to, in the order it lists them.
-  readonly connected: () => readonly AgentName[]
   // Answers the second fixer's ask by its option, as the person would: nothing while none waits.
   readonly answerMoney: (option?: number) => void
   readonly money: (listener: (option: number) => void) => () => void
@@ -164,11 +162,6 @@ export const demoTour = (
     goQuietTeam: (quiet = true) => {
       plan = { ...plan, quietTeam: quiet }
     },
-    connected: () =>
-      agents
-        .getSnapshot()
-        .filter((each) => each.connected)
-        .map((each) => each.agent),
     answerMoney: (option = 0) => events.forEach((each) => each(option)),
     money: (listener) => hear((event) => typeof event === "number" && listener(event)),
     onFixer: (listener) => {

@@ -778,7 +778,7 @@ App:
   Antigravity starts working only once the UI rang `brief`. Then the story
   (`frontend/demo/src/tour/story.ts`, as a runner would report it): the tour's folder is a tiny
   repo with `split.js` and two bugs. The lead opens a first fixer ("Tip fixer", a terminal with
-  `ledBy` = the lead, on another connected harness where there is one), which opens its worktree
+  `ledBy` = the lead, on the lead's own harness), which opens its worktree
   `fix-tip` (a work in the Worktrees panel), edits `split.js` there and tells the lead "Fixed
   bug 1.". The person then opens a terminal (the tour's coach marks New terminal): the UI calls
   `Tour.fixer` for it and the demo takes it as the second fixer ("Money fixer", led by the lead,

@@ -34,12 +34,6 @@ const target = ({ projectId, workspaceSessionId }: TerminalKey) => ({
   workspaceSessionId,
 })
 
-// The harness the lead's first fixer runs on: another connected agent where there is one, else the
-// lead's, so the team is mixed where the person has two agents. The second fixer is the person's
-// own agent, the lead's.
-export const fixerHarness = (lead: AgentName, connected: readonly AgentName[]): AgentName =>
-  connected.find((agent) => agent !== lead) ?? lead
-
 // The command a teammate's terminal runs, as `open_agent` starts an agent: its harness, on the
 // model the tour's lead runs on.
 export const teammateCommand = (harness: AgentName): string =>
@@ -242,7 +236,8 @@ export const playTourStory = ({
   const hire = () => {
     const found = lead()
     if (!found) return
-    const at = fixerHarness(harness, tour.connected())
+    // On the lead's own harness, as the second fixer, the person's own agent, is.
+    const at = harness
     const base = stage.newTerminal({
       target: sessionTarget,
       directory: demoTourFolder,

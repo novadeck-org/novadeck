@@ -11,8 +11,7 @@ import { folder, seedTour, tell } from "./tour-story.js"
 // on the brief's model and effort, which works in a worktree; the person's own terminal is
 // taken as a second fixer (`tour.fixer`), which asks the person and works in a worktree too;
 // both tell the lead, and both fixes show in one preview of split.js. The model is a script
-// (tour-story.ts) that follows the briefs. Only the lead's own harness is connected here, so
-// both fixers run on it; tour.mixed.e2e.ts has the first differ.
+// (tour-story.ts) that follows the briefs. Both fixers run on the lead's own harness.
 
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
