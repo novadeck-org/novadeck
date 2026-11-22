@@ -107,7 +107,7 @@ export const startStep: TourStep = {
   id: "start",
   act: 1,
   enter: [{ kind: "view", view: "canvas" }, { kind: "reveal" }],
-  coach: { look: "lead", line: "Your own agent. It leads the build." },
+  coach: { look: "lead", line: "That's your agent. It runs this job." },
   // It describes itself, as its brief asks; or, where a cheap model skips that, its first turn
   // ends.
   done: ({ lead }) => lead.kind === "agent" && (lead.named || lead.answered),
@@ -123,7 +123,7 @@ export const teamStep: TourStep = {
   enter: [{ kind: "fit-all" }],
   frameTeam: true,
   holdMs: lineMs,
-  coach: { look: "team", line: "It hired a team." },
+  coach: { look: "team", line: "Look. It hired its own help." },
   done: ({ team }) => team.count >= 2 && team.named >= 2,
   wait: "nudge",
 }
@@ -137,7 +137,7 @@ export const runStep: TourStep = {
   enter: [],
   coach: {
     click: ["approve"],
-    line: "They want to run the game. Say yes.",
+    line: "It wants to run the game. Fine. Say yes.",
     note: "An agent asks before its command runs in a new terminal.",
     overWindows: true,
   },
@@ -152,7 +152,7 @@ export const pageStep: TourStep = {
   enter: [{ kind: "reveal" }],
   open: { role: "lead", tab: "page" },
   holdMs: 6_000,
-  coach: { look: "lead-pane", tab: "page", line: "The game, live. Still plain." },
+  coach: { look: "lead-pane", tab: "page", line: "The game. Live. Lights are out." },
   done: ({ shown }) => shown.page !== null,
   wait: "nudge",
 }
@@ -164,8 +164,8 @@ export const shapeStep: TourStep = {
   act: 2,
   enter: [{ kind: "reveal", role: "sculptor" }],
   open: { role: "sculptor", tab: "model" },
-  holdMs: 4_000,
-  coach: { look: "sculptor-pane", tab: "model", line: "The hero so far. A ball and a box." },
+  holdMs: 8_000,
+  coach: { look: "sculptor-pane", tab: "model", line: "Your hero. A ball and a box. …Seriously." },
   done: ({ shown }) => shown.model !== null,
   wait: "nudge",
   nudges: "sculptor",
@@ -195,7 +195,7 @@ export const filesStep: TourStep = {
   enter: [{ kind: "reveal", role: "sculptor", panel: "files" }],
   open: { role: "sculptor", tab: "model" },
   holdMs: 5_000,
-  coach: { look: "files", line: "Every blink is an agent writing." },
+  coach: { look: "files", line: "Every blink? An agent. Writing." },
   done: ({ changed }) => changed.hero && changed.score,
   wait: "nudge",
   // The sculptor is the one writing, until the hero is changed; then the fixer is.
@@ -209,7 +209,7 @@ export const modelStep: TourStep = {
   enter: [{ kind: "reveal", role: "sculptor" }],
   open: { role: "sculptor", tab: "model" },
   holdMs: 5_000,
-  coach: { look: "sculptor-pane", tab: "model", line: "Your hero, in 3D. Spin it." },
+  coach: { look: "sculptor-pane", tab: "model", line: "…There it is. Go on, spin it." },
   done: ({ changed, shown }) => changed.hero && changed.score && shown.model !== null,
   wait: "nudge",
   nudges: "sculptor",
@@ -221,11 +221,11 @@ export const diffStep: TourStep = {
   act: 3,
   enter: [{ kind: "reveal", role: "fixer" }],
   open: { role: "fixer", tab: "changes" },
-  holdMs: 4_000,
+  holdMs: 6_000,
   coach: {
     look: "fixer-pane",
     tab: "changes",
-    line: "It shows what it changed.",
+    line: "What it changed. Line by line.",
     note: "Click a file to see its lines.",
   },
   done: ({ shown }) => shown.changes !== null,
@@ -242,7 +242,7 @@ export const outsiderStep: TourStep = {
   frameTeam: true,
   opensArtist: true,
   holdMs: lineMs,
-  coach: { look: "artist", line: "Another agent. Not on the team." },
+  coach: { look: "artist", line: "New one. Not on the team." },
   done: ({ artist }) => artist?.kind === "agent" && artist.named,
   wait: "nudge",
   nudges: "artist",
@@ -255,11 +255,11 @@ export const talkStep: TourStep = {
   act: 3,
   enter: [{ kind: "reveal", role: "artist" }],
   open: { role: "artist", tab: "messages" },
-  holdMs: 4_000,
+  holdMs: 6_000,
   coach: {
     look: "artist-pane",
     tab: "messages",
-    line: "It found the lead by itself. And asked.",
+    line: "It found the lead by itself. You didn't lift a finger.",
   },
   done: ({ talk }) => talk.toLead && talk.fromLead,
   wait: "nudge",
@@ -274,7 +274,7 @@ export const coverStep: TourStep = {
   enter: [{ kind: "reveal", role: "artist" }],
   open: { role: "artist", tab: "cover" },
   holdMs: 4_000,
-  coach: { look: "artist-pane", tab: "cover", line: "Its cover. For your game." },
+  coach: { look: "artist-pane", tab: "cover", line: "A cover. For your game. …Not bad." },
   done: ({ shown }) => shown.cover !== null,
   wait: "nudge",
   nudges: "artist",
@@ -292,7 +292,7 @@ export const playStep: TourStep = {
   coach: {
     look: "lead-pane",
     tab: "page",
-    line: "Four agents. One game. Play it.",
+    line: "Four agents. One game. Go play.",
     note: "It's live in the pane: click it.",
   },
   done: () => true,
@@ -329,7 +329,7 @@ const stories = {
 // The last step, with the agents the story had: three where there was no artist.
 const playFor = (page: boolean, artist: boolean): TourStep => {
   const base = page ? playStep : modelPlayStep
-  const line = `${artist ? "Four" : "Three"} agents. One game. ${page ? "Play it." : "Yours."}`
+  const line = `${artist ? "Four" : "Three"} agents. One game. ${page ? "Go play." : "Yours."}`
   return { ...base, coach: { ...base.coach, line } }
 }
 

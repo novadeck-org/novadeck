@@ -18,6 +18,7 @@ describe("the seed project's files", () => {
         "index.html",
         "model/hero.gltf",
         "model/shapes.bin",
+        "src/city.js",
         "src/score.js",
         "vendor/phaser/phaser.min.js",
         "vendor/phaser/LICENSE.md",

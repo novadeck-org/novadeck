@@ -2,6 +2,7 @@
 // plain canvas that the game uses as the hero's picture (see play.js and title.js).
 import * as THREE from "three"
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js"
+import { config } from "./config.js"
 
 const size = 256
 
@@ -35,6 +36,10 @@ const drawnHero = async () => {
   const sun = new THREE.DirectionalLight(0xffffff, 2.2)
   sun.position.set(3, 5, 4)
   scene.add(sun)
+  // The city's neon, as a rim light from behind.
+  const rim = new THREE.DirectionalLight(config.accent, 3)
+  rim.position.set(-3, 2, -4)
+  scene.add(rim)
 
   const { scene: model } = await new GLTFLoader().loadAsync("model/hero.gltf")
   // Centre the model and fit it in view, whatever its size.

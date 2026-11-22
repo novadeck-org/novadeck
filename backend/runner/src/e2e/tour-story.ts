@@ -465,7 +465,7 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
           )
         lead.queue.push(
           describing(brief),
-          open(first, "Hello: I'm your own agent, and my team will make this game yours."),
+          open(first),
           open(second),
           using("open_terminal", () => {
             const [command, title] = read(
@@ -475,7 +475,9 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
             ) as [string, string]
             return { command, title }
           }),
-          ends("The team is at work, and the game starts once you approve it."),
+          ends(
+            "I'm your own agent, and my team is at work making this game yours. It starts once you approve the command.",
+          ),
         )
       } else if (fresh(one)) {
         for (const message of deliveries(one)) {

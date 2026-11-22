@@ -159,9 +159,10 @@ and \`show\`: if they're deferred, load them first. ${manners(agent)}
    worktree's folder. Work only there, by absolute path.
 4. Write ${coverFile} in your worktree: the backdrop for that game, with no text and no
    hero in it (the game draws its hero and its name over it). An SVG with viewBox "0 0 960 540":
-   a dark gradient that fills it, then ten to twenty simple shapes (circles, rects, polygons)
-   that set the scene where that hero lives, most of them near the edges, the middle left calm.
-   Under 1500 characters.
+   the neon city at night where that hero lives. A dark gradient for the sky that fills it,
+   then ten to twenty simple shapes (rects for towers, small bright rects, circles and lines for
+   windows, signs and rain) in two or three neon colours, most of them near the edges, the
+   middle left calm. Under 1500 characters.
 5. Call \`show\` with \`file\` {"path": "<that file's absolute path>"} and \`open\` true.
 6. Call \`send\` with \`to\` the lead's handle and \`text\` "The cover is done: ${coverFile} in my worktree."
 7. Say in one short sentence at most that it is done, and stop.
@@ -185,7 +186,7 @@ ${shellRule(agent)} If you were given a task, do only that task.
  */
 export const projectNote = `# Your game
 
-A small browser game that Novadeck's tour started: see README.md for what is where and how to
+A small browser game, set in a neon city at night, that Novadeck's tour started: see README.md for what is where and how to
 run it. Phaser runs the game and three.js draws its hero, a 3D model (model/README.md says how
 to reshape it). Both libraries are files in vendor/, which is large: don't read it.
 
@@ -200,14 +201,16 @@ export const keptLine = `Novadeck's tour is over, and this project is now the pe
 
 // The lead's steps for the dev server, where this computer can run one.
 const servingSteps = ({ command, url }: Serving): string => `
-5. Call \`open_terminal\` with \`command\` "${command}" and \`title\` "Game server". The person
-   is asked to approve it. Say in one sentence that the team is at work and that the game
-   starts once they approve it, then end your turn.
-6. When Novadeck tells you the person approved it, call \`show\` with \`page\`
+4. Call \`open_terminal\` with \`command\` "${command}" and \`title\` "Game server". The person
+   is asked to approve it. Only now greet the person, in two short sentences: you are their
+   own agent and your team is at work making this game theirs; the game starts once they
+   approve the command. Then end your turn.
+5. When Novadeck tells you the person approved it, call \`show\` with \`page\`
    {"url": "${url}"} and \`open\` true, and end your turn. If they declined, carry on without it.`
 
 const noServingSteps = `
-5. Say in one sentence that the team is at work, then end your turn.`
+4. Only now greet the person, in one sentence: you are their own agent, and your team is at
+   work making this game theirs. Then end your turn.`
 
 /** The lead's script for a run, with its teammates' model. */
 export const tourBrief = ({
@@ -216,8 +219,8 @@ export const tourBrief = ({
   lead,
 }: LeadFacts): string => `${tourBriefMark} The person just started the tour to see how Novadeck
 works with agents. This is your task now: you lead the agents in a sandbox repo Novadeck made
-for the tour. It holds a small browser game (README.md) whose hero is a 3D model, for now a
-ball and a box. Your team makes the game the person's own.
+for the tour. It holds a small browser game (README.md), set in a neon city at night, whose
+hero is a 3D model, for now a ball and a box. Your team makes the game the person's own.
 
 ## Rules
 
@@ -225,22 +228,23 @@ ball and a box. Your team makes the game the person's own.
 - Be quick: the person is watching. Say nothing beyond the sentences the steps ask for; don't
   explain, plan or confirm in prose.
 - Novadeck's tools (\`describe\`, \`open_agent\`, \`open_terminal\`, \`open_worktree\`, \`show\`,
-  \`send\`) need no permission of yours to call; if they're deferred, load them first.
+  \`send\`) need no permission of yours to call; if they're deferred, load all six in one go
+  before step 1.
 - Never answer a teammate's question to the person yourself: the person chooses.
 - Never use the person's name, even if you know it: say "you".
-- Do the steps in order, one at a time. Don't skip one and don't add one. Never poll or wait
-  in a loop: messages arrive by themselves, and each wakes you.
+- Do the steps in order. Don't skip one and don't add one. Steps 1 to 4 are one turn: write
+  no sentence and don't end your turn before step 4 is done, as a teammate you opened needs
+  nothing more from you. Never poll or wait in a loop: messages arrive by themselves, and each
+  wakes you.
 
 ## Steps
 
 1. Call \`describe\` with the title "Game lead" and the summary "Leads the team building the game".
-2. Greet the person in one sentence: you are their own agent, and your team will make this
-   game theirs.
-3. Call \`open_agent\` with ${openArguments(mate)}, and as \`message\` exactly this text:
+2. Call \`open_agent\` with ${openArguments(mate)}, and as \`message\` exactly this text:
 
 ${indent(sculptorTask(lead, mate.agent))}
 
-4. Call \`open_agent\` again with ${openArguments(mate)}, and as \`message\` exactly this text:
+3. Call \`open_agent\` again with ${openArguments(mate)}, and as \`message\` exactly this text:
 
 ${indent(fixerTask(lead, mate.agent))}
 ${serving ? servingSteps(serving) : noServingSteps}
@@ -251,11 +255,13 @@ After that, whenever a message arrives, do what fits it, then end your turn:
 
 - Your sculptor tells you who the hero is: call \`open_worktree\` with branch "${branches.lead}", then
   in ${configFile} in that worktree, by its absolute path (never the copy in your own
-  folder), set \`title\` (a short name for a game with that hero, two or three words), \`hero\`
-  (who it is), \`pickup\` (one emoji that hero would collect), and \`background\` and \`accent\`
-  (a dark and a bright colour that fit it, as #rrggbb). Change nothing else.
+  folder), set \`title\` (a short name for a game with that hero in a neon city at night, two
+  or three words), \`hero\` (who it is), \`pickup\` (one emoji that hero would grab in that
+  city), \`background\` (the night sky: one very dark colour) and \`accent\` (the city's neon:
+  one bright colour that fits the hero), both as #rrggbb. Change nothing else.
 - An agent that isn't your teammate asks about the game: answer it with \`send\` to its handle:
-  the game's title, who its hero is, and that its picture belongs in ${coverFile}. If your
+  the game's title, who its hero is, that it is set in a neon city at night, and that its
+  picture belongs in ${coverFile}. If your
   sculptor hasn't told you the hero yet, answer once it has.
 - Anything else, as a teammate's word that it is done: say one short sentence at most.
 `

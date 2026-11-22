@@ -26,6 +26,9 @@ in one edit, and leave the lines above it (`asset`, `buffers`, `bufferViews`, `a
   quaternion.
 - `"scenes"`: `[{"nodes":[0,1,2,...]}]`, listing every node's number, from 0 to the last.
 
+Optional: a part can glow at night when its material has an `emissiveFactor` (three numbers from
+0 to 1), as `{"name":"eye","pbrMetallicRoughness":{...},"emissiveFactor":[0.2,0.9,0.9]}`.
+
 End the file with `}` as it ends now.
 
 What makes a good hero: 6 to 14 parts; it stands on the ground (y = 0) and is about 2 units

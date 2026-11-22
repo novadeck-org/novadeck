@@ -1,7 +1,7 @@
 // A round: the hero follows the pointer and collects what falls. 20 seconds.
+import { drawCity, font } from "./city.js"
 import { config } from "./config.js"
 import { add } from "./score.js"
-
 const roundMs = 20_000
 
 export class Play extends Phaser.Scene {
@@ -11,6 +11,7 @@ export class Play extends Phaser.Scene {
 
   create() {
     const { width, height } = this.scale
+    drawCity(this)
     this.score = 0
     this.last = 0
     this.hero = this.physics.add.image(width / 2, height * 0.8, "hero")
@@ -19,9 +20,13 @@ export class Play extends Phaser.Scene {
     this.pickups = this.physics.add.group()
     this.physics.add.overlap(this.hero, this.pickups, (_hero, pickup) => this.collect(pickup))
 
-    const text = { fontFamily: "system-ui, sans-serif", color: config.accent, fontStyle: "bold" }
-    this.scoreText = this.add.text(20, 14, "Score 0", { ...text, fontSize: 24 })
-    this.timeText = this.add.text(width - 20, 14, "", { ...text, fontSize: 24 }).setOrigin(1, 0)
+    const text = { fontFamily: font, color: config.accent, fontStyle: "bold", fontSize: 24, padding: 12 }
+    this.scoreText = this.add.text(8, 2, "SCORE 0", text).setShadow(0, 0, config.accent, 10, false, true)
+    this.timeText = this.add.text(width - 8, 2, "", text).setOrigin(1, 0)
+    this.timeText.setShadow(0, 0, config.accent, 10, false, true)
+    // The score and the time stay over what falls.
+    this.scoreText.setDepth(1)
+    this.timeText.setDepth(1)
 
     this.time.addEvent({ delay: 450, loop: true, callback: () => this.drop() })
     this.time.delayedCall(roundMs, () => this.scene.start("title", { last: this.score }))
@@ -39,7 +44,7 @@ export class Play extends Phaser.Scene {
   collect(pickup) {
     this.score = add(this.score, this.time.now - this.last)
     this.last = this.time.now
-    this.scoreText.setText("Score " + this.score)
+    this.scoreText.setText("SCORE " + this.score)
     pickup.body.enable = false
     this.tweens.add({
       targets: pickup,
@@ -57,7 +62,7 @@ export class Play extends Phaser.Scene {
     const pointer = this.input.activePointer
     this.hero.x += (pointer.x - this.hero.x) * 0.15
     this.hero.y += (pointer.y - this.hero.y) * 0.15
-    this.timeText.setText("Time " + Math.max(0, Math.ceil((this.ends - time) / 1000)))
+    this.timeText.setText("TIME " + Math.max(0, Math.ceil((this.ends - time) / 1000)))
     for (const pickup of this.pickups.getChildren())
       if (pickup.y > this.scale.height + 40) pickup.destroy()
   }

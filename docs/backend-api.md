@@ -1972,8 +1972,9 @@ one from an earlier runner.
   second for it).
 
 - `tour.prepare({ agent })` readies a run of Novadeck's tour with the person's own agent
-  (`backend/runner/src/tour/`). The tour's project is a small browser game the person can keep:
-  Phaser runs it and three.js draws its hero from a 3D model (`model/hero.gltf`, built of four
+  (`backend/runner/src/tour/`). The tour's project is a small browser game the person can keep, set in a neon city at night
+  (an unlit grey skyline drawn by `src/city.js` from `config.background` and `config.accent`, which
+  the lead sets to night and neon colours): Phaser runs it and three.js draws its hero from a 3D model (`model/hero.gltf`, built of four
   ready shapes in `model/shapes.bin`). Its files are the seed in `backend/runner/assets/tour/seed/`
   (real files; `make-shapes.mjs` beside it regenerates `shapes.bin` and is never written), and
   the two libraries are written beside them as files under `vendor/` (`phaser.min.js` with its
@@ -2032,7 +2033,8 @@ one from an earlier runner.
   own settings. `brief` is always `doorbell`: the lead's script reaches it by `tour.brief`.
   The script is composed for each run, and never names the person: it calls them "you", and
   tells every agent never to use their name, even one it knows. It has the lead describe itself
-  and greet, open two teammates with `open_agent` on the lead's own harness and its cheapest
+  and, in that same turn (it greets the person only once all of it is started, as a sentence
+  in between ends a cheap model's turn), open two teammates with `open_agent` on the lead's own harness and its cheapest
   model, at its lowest effort as above, each with its task as the message (the Sculptor shows
   `model/hero.gltf`, asks the person "Who is your game's hero?", tells the lead the answer and
   reshapes the model in a worktree on `hero`; the Score fixer fixes `src/score.js` and the

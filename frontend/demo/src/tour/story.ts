@@ -378,7 +378,7 @@ export const playTourStory = ({
     later(tourStoryMs.work, () => {
       worktree(mate, branches.lead)
       later(tourStoryMs.work, () => {
-        write(mate, [{ path: configFile, added: 8, removed: 8 }])
+        write(mate, [{ path: configFile, added: 9, removed: 9 }])
         stage.page(key, pageContent(chosen, 2))
         later(tourStoryMs.talk, () => stage.files?.end(mate.handle))
       })

@@ -396,11 +396,11 @@ describe("The tour's story", () => {
       page: 6_000,
       files: 5_000,
       model: 5_000,
-      diff: 4_000,
+      diff: 6_000,
       outsider: 3_000,
-      talk: 4_000,
+      talk: 6_000,
       cover: 4_000,
-      shape: 4_000,
+      shape: 8_000,
       play: 25_000,
     })
   })
@@ -663,7 +663,7 @@ describe("The tour's story", () => {
       expect(held.tab).toEqual({ terminalId: "t1", key: "page" })
       expect(coachNow(held.run!, tourSteps, world())).toMatchObject({
         look: "lead-pane",
-        line: "Four agents. One game. Play it.",
+        line: "Four agents. One game. Go play.",
       })
       expect(nextTick(held.run!, tourSteps, world(), patience)).toBe(25_100)
       expect(tick(held.run!, world(), 6_000).run).toMatchObject({ doneAt: 100 })
@@ -993,7 +993,7 @@ describe("The tour's parts that drop out", () => {
       expect(outcome.run).toMatchObject({ artistDropped: true })
       expect(stepsOfRun(outcome.run!, true)[outcome.run!.step]?.id).toBe("play")
       expect(coachNow(outcome.run!, stepsOfRun(outcome.run!, true), world())?.line).toBe(
-        "Three agents. One game. Play it.",
+        "Three agents. One game. Go play.",
       )
     })
 

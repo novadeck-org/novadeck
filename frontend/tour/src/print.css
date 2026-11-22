@@ -3,10 +3,13 @@
 /* The tour's print, loaded with what draws it (the stage and the closing card), so the app's
    first load carries neither it nor its font.
    While it runs, the tour draws over the workspace in a look of its own, apart from the app's
-   themes, so it reads as an event and not as more of the app: night-panel caption boxes in
-   Bangers caps, and the website's print for the rest (novadeck-website src/styles/global.css:
-   its cyan and magenta, ink on them). Every colour is set here, on `.tour-print`, and none is
-   a theme token, so no theme's or scheme's colour reaches it. */
+   themes, so it reads as an event and not as more of the app. It has two faces, by the root's
+   scheme, both from the owner's comic skits: a night face (below, the default; night-panel
+   caption boxes in Bangers caps, and the website's print for the rest: novadeck-website
+   src/styles/global.css, its cyan and magenta, ink on them) and a day face (the one block near
+   the end, under `:root[data-scheme="light"]`: Nyx's yellow thought box, the skits' cream
+   narration box, ink and yellow buttons). Every colour is set here, and none is a theme token,
+   so no theme's colour reaches it; only the scheme picks the face. */
 .tour-print {
   /* A theme's glow on the page's text (Phosphor's) stays off the print. */
   text-shadow: none;
@@ -377,6 +380,102 @@
   text-decoration: underline;
   opacity: 0.8;
   cursor: pointer;
+}
+
+/* ------------------------------------------------------------------------------------------
+   The day face: the light scheme's own look, from the skits' day side. The caption line is
+   Nyx's yellow thought box (video/src/kit/Captions.tsx, `ThoughtBox`): yellow, ink text, an ink
+   border and a hard ink shadow with no blur, its sizes in em as the skit's are in its font's
+   size; the note under it is the skits' cream, inked narration box (Letterbox.tsx); the buttons
+   are paper and ink, the one to go on filled with the box's yellow. Sizes, tilt, pop-in, glide
+   and placement are the night face's. The cut's wipe stays as it is in both schemes.
+   Marks are drawn inside the workspace's own elements, outside `.tour-print`, so their rules
+   key on the root's scheme and hold their colours themselves.
+   ------------------------------------------------------------------------------------------ */
+:root[data-scheme="light"] .tour-print {
+  --tour-ink: #140b1f;
+  --tour-yellow: #ffe24a;
+  --tour-yellow-deep: #ffd21a;
+  --tour-cream: #fff3c4;
+  --tour-card: #fffdf6;
+  --tour-card-hover: #f0ead3;
+  --tour-focus: oklch(0.5 0.24 341);
+}
+:root[data-scheme="light"] .tour-caption {
+  /* The hard ink shadow of the line replaces the soft one. */
+  filter: none;
+}
+:root[data-scheme="light"] .tour-caption-panel::after,
+:root[data-scheme="light"] .tour-caption-line::before,
+:root[data-scheme="light"] .tour-caption-line::after {
+  display: none;
+}
+:root[data-scheme="light"] .tour-caption-line {
+  padding: 0.2em 0.47em 0.15em;
+  background: var(--tour-yellow);
+  color: var(--tour-ink);
+  border: max(2px, 0.083em) solid var(--tour-ink);
+  box-shadow: 0.147em 0.147em 0 var(--tour-ink);
+  clip-path: none;
+  letter-spacing: 0.06em;
+  text-shadow: none;
+}
+:root[data-scheme="light"] .tour-caption-note {
+  background: var(--tour-cream);
+  color: var(--tour-ink);
+  border-color: var(--tour-ink);
+}
+:root[data-scheme="light"] .tour-button,
+:root[data-scheme="light"] .tour-away {
+  background: var(--tour-card);
+  color: var(--tour-ink);
+  border-color: var(--tour-ink);
+}
+:root[data-scheme="light"] .tour-button:hover {
+  background: var(--tour-card-hover);
+}
+:root[data-scheme="light"] .tour-button-go {
+  background: var(--tour-yellow);
+  border-color: var(--tour-ink);
+  box-shadow: 3px 3px 0 var(--tour-ink);
+}
+:root[data-scheme="light"] .tour-button-go:hover {
+  background: var(--tour-yellow-deep);
+}
+:root[data-scheme="light"] .tour-away {
+  box-shadow: 4px 4px 0 var(--tour-ink);
+}
+:root[data-scheme="light"] .tour-quiet {
+  color: var(--tour-ink);
+  opacity: 1;
+}
+:root[data-scheme="light"] .tour-button:focus-visible,
+:root[data-scheme="light"] .tour-quiet:focus-visible {
+  outline-color: var(--tour-focus);
+}
+:root[data-scheme="light"] .tour-dim {
+  background: rgb(250 247 238 / 0.62);
+}
+/* Look: magenta deep enough to carry on white. Click: an ink line with the yellow as a band
+   inside it, breathing slowly. */
+:root[data-scheme="light"] .tour-mark[data-tour-mark="look"] {
+  border-color: oklch(0.58 0.24 341 / 0.95);
+  box-shadow: inset 0 0 0 4px oklch(0.58 0.24 341 / 0.1);
+}
+:root[data-scheme="light"] .tour-mark[data-tour-mark="click"] {
+  border-color: #140b1f;
+  box-shadow:
+    inset 0 0 0 4px #ffe24a,
+    inset 0 0 0 5px #140b1f;
+  animation-name: tour-click-day;
+}
+@keyframes tour-click-day {
+  50% {
+    border-color: rgb(20 11 31 / 0.5);
+    box-shadow:
+      inset 0 0 0 4px rgb(255 226 74 / 0.4),
+      inset 0 0 0 5px rgb(20 11 31 / 0.4);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

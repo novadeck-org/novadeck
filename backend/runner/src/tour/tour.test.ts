@@ -173,6 +173,7 @@ describe("readying the tour", () => {
         "index.html",
         "model/hero.gltf",
         "model/shapes.bin",
+        "src/city.js",
         "src/score.js",
         "src/config.js",
         "vendor/phaser/phaser.min.js",

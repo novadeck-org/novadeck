@@ -99,18 +99,18 @@ const playToClosing = async (name: string, address?: string): Promise<void> => {
   await startTour(name, address)
 
   // Act 1: the person's own agent, in Canvas.
-  await coachSays("Your own agent. It leads the build.")
+  await coachSays("That's your agent. It runs this job.")
   await expect.element(view("Canvas")).toBeChecked()
   await expect.poll(terminalTabNames, { timeout: 15_000 }).toContain("Game lead")
 
   // Act 2: it hires a team, wired to it, and the camera frames them.
-  await coachSays("It hired a team.")
+  await coachSays("Look. It hired its own help.")
   await expect.element(page.getByText(/^Act 2, The team\./)).toBeInTheDocument()
   await expectLookAtWindows("Sculptor", "Score fixer")
   expect(windowNamed("Game lead")).toBeDefined()
 
   // It asks to run the game, which only the person allows.
-  await coachSays("They want to run the game. Say yes.")
+  await coachSays("It wants to run the game. Fine. Say yes.")
   await expect.element(approval()).toBeVisible()
   const run = approval().getByRole("button", { name: "Run command" })
   await expect.poll(() => clicked()).toEqual([run.element()])
@@ -119,12 +119,12 @@ const playToClosing = async (name: string, address?: string): Promise<void> => {
 
   // A terminal of its own opens, and the lead shows the game: its pane is what to look at.
   await expect.poll(terminalTabNames, { timeout: 15_000 }).toContain("Game server")
-  await coachSays("The game, live. Still plain.")
+  await coachSays("The game. Live. Lights are out.")
   await expectLookAt(() => paneOf("Game lead"))
   await expect.poll(() => topTab(paneOf("Game lead"))).toContain("127.0.0.1")
 
   // The Sculptor's model, as it is so far: a ball and a box.
-  await coachSays("The hero so far. A ball and a box.")
+  await coachSays("Your hero. A ball and a box. …Seriously.")
   await expectLookAt(() => paneOf("Sculptor"))
   await expect.poll(() => topTab(paneOf("Sculptor"))).toContain("hero.gltf")
 
@@ -133,31 +133,31 @@ const playToClosing = async (name: string, address?: string): Promise<void> => {
   await expect.element(page.getByText(/^Act 3, Your call\./)).toBeInTheDocument()
 
   // The Files panel, where every agent's write blinks.
-  await coachSays("Every blink is an agent writing.")
+  await coachSays("Every blink? An agent. Writing.")
   await expect.poll(() => looked().map((each) => each.id)).toEqual(["files-panel"])
   await expect.element(page.getByRole("treeitem", { name: /^hero\.gltf,/ })).toBeVisible()
   await expect.element(page.getByRole("treeitem", { name: /^score\.js,/ })).toBeVisible()
 
   // The Sculptor's pane, its model in 3D, and the Score fixer's, with its changes.
-  await coachSays("Your hero, in 3D. Spin it.")
+  await coachSays("…There it is. Go on, spin it.")
   await expectLookAt(() => paneOf("Sculptor"))
   await expect.poll(() => topTab(paneOf("Sculptor"))).toContain("hero.gltf")
-  await coachSays("It shows what it changed.")
+  await coachSays("What it changed. Line by line.")
   await expectLookAt(() => paneOf("Score fixer"))
   await expect.poll(() => topTab(paneOf("Score fixer"))).toContain("fix-score")
 
   // An agent on no team, which the tour started in a terminal of its own.
-  await coachSays("Another agent. Not on the team.")
+  await coachSays("New one. Not on the team.")
   await expectLookAtWindows("Cover artist")
-  await coachSays("It found the lead by itself. And asked.")
+  await coachSays("It found the lead by itself. You didn't lift a finger.")
   await expectLookAt(() => paneOf("Cover artist"))
   await expect.poll(() => topTab(paneOf("Cover artist"))).toContain("Messages")
-  await coachSays("Its cover. For your game.")
+  await coachSays("A cover. For your game. …Not bad.")
   await expectLookAt(() => paneOf("Cover artist"))
   await expect.poll(() => topTab(paneOf("Cover artist"))).toContain("cover.svg")
 
   // Act 4: the finished game in the lead's pane, and then the closing card.
-  await coachSays("Four agents. One game. Play it.")
+  await coachSays("Four agents. One game. Go play.")
   await expect.element(page.getByText(/^Act 4, The result\./)).toBeInTheDocument()
   await expectLookAt(() => paneOf("Game lead"))
   await expect.element(closing(), { timeout: 60_000 }).toBeVisible()
@@ -179,7 +179,7 @@ describe("The tour's story", () => {
     expect(sidebarPanel("Worktrees").query()).toBeNull()
     await beginTour()
     // The teammates open their worktrees: the panel is there to show them.
-    await coachSays("It hired a team.", 20_000)
+    await coachSays("Look. It hired its own help.", 20_000)
     await expect.poll(() => sidebarPanel("Worktrees").query(), { timeout: 15_000 }).not.toBeNull()
     await sidebarPanel("Worktrees").click()
     await expect.element(page.getByText("fix-score").first()).toBeVisible()
@@ -232,10 +232,10 @@ describe("The tour's story", () => {
     walks,
     async () => {
       await startTour("Claude Code")
-      await coachSays("They want to run the game. Say yes.", 40_000)
+      await coachSays("It wants to run the game. Fine. Say yes.", 40_000)
       await approval().getByRole("button", { name: "Don't run" }).click()
       // Within seconds, with no terminal opened and no page shown, the story goes on without them.
-      await coachSays("The hero so far. A ball and a box.", 40_000)
+      await coachSays("Your hero. A ball and a box. …Seriously.", 40_000)
       expect(terminalTabNames()).not.toContain("Game server")
       await answerHero(/A cat/)
       await coachSays("Four agents. One game. Yours.", 120_000)
@@ -248,10 +248,10 @@ describe("The tour's story", () => {
     walks,
     async () => {
       await startTour("Claude Code", "/?channel=experimental&tourArtist=never&tourPatienceMs=2000")
-      await coachSays("They want to run the game. Say yes.", 40_000)
+      await coachSays("It wants to run the game. Fine. Say yes.", 40_000)
       await approval().getByRole("button", { name: "Run command" }).click()
       await answerHero(/A rocket/)
-      await coachSays("Three agents. One game. Play it.", 120_000)
+      await coachSays("Three agents. One game. Go play.", 120_000)
       await expectLookAt(() => paneOf("Game lead"))
     },
   )
@@ -269,7 +269,7 @@ describe("The tour's story", () => {
 
   it("takes the person's own words as the hero, from the Inbox's sheet", walks, async () => {
     await startTour("Claude Code")
-    await coachSays("They want to run the game. Say yes.", 40_000)
+    await coachSays("It wants to run the game. Fine. Say yes.", 40_000)
     await approval().getByRole("button", { name: "Run command" }).click()
     await coachSays("Your call. Who's the hero?", 40_000)
     await inboxRow(/Who is your game's hero/).click()
@@ -278,7 +278,7 @@ describe("The tour's story", () => {
     await standsStill(own)
     await own.fill("a dragon named Ash")
     await sheet.getByRole("button", { name: /^(Send|Reply)/ }).click()
-    await coachSays("Every blink is an agent writing.", 30_000)
+    await coachSays("Every blink? An agent. Writing.", 30_000)
   })
 
   it(
@@ -286,16 +286,16 @@ describe("The tour's story", () => {
     walks,
     async () => {
       await startTour("Claude Code", "/?channel=experimental&tourPage=none")
-      await coachSays("It hired a team.")
+      await coachSays("Look. It hired its own help.")
       // No command to approve: the next thing asked of the person is the hero.
       await coachSays("Your call. Who's the hero?", 30_000)
       expect(approval().query()).toBeNull()
       expect(terminalTabNames()).not.toContain("Game server")
       await answerHero(/A cat/)
-      await coachSays("Every blink is an agent writing.", 30_000)
-      await coachSays("Your hero, in 3D. Spin it.")
-      await coachSays("Another agent. Not on the team.", 40_000)
-      await coachSays("Its cover. For your game.", 40_000)
+      await coachSays("Every blink? An agent. Writing.", 30_000)
+      await coachSays("…There it is. Go on, spin it.")
+      await coachSays("New one. Not on the team.", 40_000)
+      await coachSays("A cover. For your game. …Not bad.", 40_000)
       // Nothing to play: the model is what is left to look at.
       await coachSays("Four agents. One game. Yours.", 30_000)
       await expectLookAt(() => paneOf("Sculptor"))
@@ -305,22 +305,22 @@ describe("The tour's story", () => {
 
   it("nudges a sculptor gone quiet, which then opens its worktree and asks", walks, async () => {
     await startTour("Claude Code", "/?channel=experimental&tourSculptor=quiet&tourPatienceMs=1500")
-    await coachSays("It hired a team.")
+    await coachSays("Look. It hired its own help.")
     // Silent, it never names itself; the tour rings the lead after its wait, and the team goes on
     // to the game's command, which the person allows.
-    await coachSays("They want to run the game. Say yes.", 40_000)
+    await coachSays("It wants to run the game. Fine. Say yes.", 40_000)
     await approval().getByRole("button", { name: "Run command" }).click()
     await expect.poll(terminalTabNames, { timeout: 20_000 }).toContain("Sculptor")
-    await coachSays("The hero so far. A ball and a box.", 30_000)
+    await coachSays("Your hero. A ball and a box. …Seriously.", 30_000)
   })
 
   it("nudges an artist gone quiet, which then names itself", walks, async () => {
     await startTour("Claude Code", "/?channel=experimental&tourArtist=quiet&tourPatienceMs=1500")
-    await coachSays("They want to run the game. Say yes.", 30_000)
+    await coachSays("It wants to run the game. Fine. Say yes.", 30_000)
     await approval().getByRole("button", { name: "Run command" }).click()
     await answerHero(/A rocket/)
-    await coachSays("Another agent. Not on the team.", 60_000)
+    await coachSays("New one. Not on the team.", 60_000)
     await expect.poll(terminalTabNames, { timeout: 30_000 }).toContain("Cover artist")
-    await coachSays("It found the lead by itself. And asked.", 30_000)
+    await coachSays("It found the lead by itself. You didn't lift a finger.", 30_000)
   })
 })

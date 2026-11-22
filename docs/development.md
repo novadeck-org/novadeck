@@ -779,7 +779,9 @@ App:
   Antigravity starts working only once the UI rang `brief`. Then the story
   (`frontend/demo/src/tour/story.ts`, as a runner would report it; its files, model, page and
   cover are made in `tour/content.ts`, loaded only as a story plays, so the website's bundle
-  doesn't carry them): the tour's folder is a small browser game, as the runner's seed has it.
+  doesn't carry them): the tour's folder is a small browser game set in a neon city at night, as the runner's seed has
+  it (an unlit grey skyline, `src/city.js`; the lead's `accent` and `background` light it up; the demo's
+  canned configs are night colours, and its cover a lit skyline).
   The lead opens two teammates (terminals with `ledBy` = the lead, on the lead's own harness):
   "Sculptor" and "Score fixer". A few seconds later it asks to run the game's server
   (`backend.approvals.pending` holds a `run` approval from the lead: the app's approval dialog,
@@ -813,7 +815,7 @@ App:
   story: no page (as on a computer without Node or Python)" makes the next `Tour.prepare` answer
   `page: false` (no server, no page, the steps for them left out); "Tour story: the artist never
   starts" leaves the artist's terminal with no agent in it, so its steps drop after the tour's wait
-  and the last step says "Three agents. One game. Play it."; "Tour story: keeping fails" makes
+  and the last step says "Three agents. One game. Go play."; "Tour story: keeping fails" makes
   the next `Tour.keep` reject, for the closing card's error line and Try again; "Tour agent: exits
   to its shell" ends the lead's program with its shell back (`agentRan`, an idle shell), for the
   coach "It didn't start."; "Tour agent: stop"
@@ -833,23 +835,25 @@ App:
   own elements, `data-tour-look` where to look (a magenta line) and `data-tour-click` what to
   press (a slowly breathing yellow one), each drawn by a mark a little way out from the element
   (where what clips it leaves room), over all it holds, and, a second after a mark shows,
-  letters one caption box beside them in space no window takes. Its twelve steps: "Your own
-  agent. It leads the build." (the lead describes itself); "It hired a team." (both teammates
-  there and named); "They want to run the game. Say yes." (the approval's Run command is marked,
-  and the step waits on the person); "The game, live. Still plain." (the lead's page tab);
-  "Your call. Who's the hero?" (the Inbox: the asking row, then the sheet's answers, until it is
-  answered); "Every blink is an agent writing." (the Files panel); "Your hero, in 3D. Spin it."
-  (the Sculptor's model tab); "It shows what it changed." (the Score fixer's changes tab);
-  "Another agent. Not on the team." (the driver opens the artist's terminal, once, with the
-  lead's command, and rings `Tour.artist` with retries once its agent shows); "It found the lead
-  by itself. And asked." (the artist's Messages tab); "Its cover. For your game." (its image
-  tab); and "Four agents. One game. Play it." (the lead's page, a while, then the closing card:
+  letters one caption box beside them in space no window takes. Its thirteen steps, the lines
+  in Nyx's voice from the skits (clipped and cocky, each still saying only what the app does):
+  "That's your agent. It runs this job." (the lead describes itself); "Look. It hired its own
+  help." (both teammates there and named); "It wants to run the game. Fine. Say yes." (the
+  approval's Run command is marked, and the step waits on the person); "The game. Live. Lights
+  are out." (the lead's page tab); "Your hero. A ball and a box. …Seriously." (the Sculptor's
+  model tab, before the ask); "Your call. Who's the hero?" (the Inbox: the asking row, then the
+  sheet's answers, until it is answered); "Every blink? An agent. Writing." (the Files panel);
+  "…There it is. Go on, spin it." (the Sculptor's model tab); "What it changed. Line by line."
+  (the Score fixer's changes tab); "New one. Not on the team." (the driver opens the artist's
+  terminal, once, with the lead's command, and rings `Tour.artist` with retries once its agent
+  shows); "It found the lead by itself. You didn't lift a finger." (the artist's Messages tab);
+  "A cover. For your game. …Not bad." (its image tab); and "Four agents. One game. Go play." (the lead's page, a while, then the closing card:
   "It's yours now."). The UI calls `Tour.keep` itself, once, as the story ends; the card's
   Keep building only goes back to the lead in Focus, and a refused keep shows "Novadeck couldn't
   keep the project: ..." with Try again. A run whose lead's command was declined (the approval
   gone for 8 s with no terminal and no page) drops the run and page steps and ends on the model,
   and one whose artist's terminal is closed, ended or never shows an agent within the wait drops
-  the artist's three steps and ends on "Three agents. One game. Play it.". A backend without `Tour.artist` has no artist
+  the artist's three steps and ends on "Three agents. One game. Go play.". A backend without `Tour.artist` has no artist
   steps, and a run with `page: false` leaves out the run and page steps and ends on the model
   ("Four agents. One game. Yours."). While a startup screen holds, the coach says "It wants an
   answer first." with that screen's words under it, "It didn't start." (an agent's program ended, its shell back), or "It's asking your permission." while an

@@ -25,6 +25,7 @@ export const tourEntries: readonly string[] = [
   "model/README.md",
   "model/hero.gltf",
   "model/shapes.bin",
+  "src/city.js",
   "src/config.js",
   "src/hero.js",
   "src/main.js",
@@ -73,22 +74,22 @@ const looks: Readonly<Record<Hero["shape"], Omit<Hero, "name">>> = {
     shape: "rocket",
     title: "Rocket Rescue",
     pickup: "⭐",
-    background: "#0e1330",
-    accent: "#ff7a45",
+    background: "#0d0b1a",
+    accent: "#ff4fd8",
   },
   robot: {
     shape: "robot",
     title: "Robo Rally",
     pickup: "🔩",
-    background: "#16262b",
-    accent: "#3fd0c9",
+    background: "#08121f",
+    accent: "#22e5ee",
   },
   cat: {
     shape: "cat",
     title: "Cat Catch",
     pickup: "🐟",
-    background: "#2a1d33",
-    accent: "#ffb84d",
+    background: "#120a24",
+    accent: "#c6f432",
   },
 }
 
@@ -280,15 +281,21 @@ const svgUri = (svg: string): string =>
 export const pageContent = (hero: Hero | undefined, shown: number): ItemContent => {
   const background = hero?.background ?? "#2b2b33"
   const accent = hero?.accent ?? "#9a9aa6"
+  const lift = hero ? 0.2 : 0.12
+  const city = [0, 1, 2, 3, 4, 5, 6, 7]
+    .map((i) => {
+      const top = 380 + ((i * 97) % 5) * 40
+      return `<rect x="${i * 210 - 30}" y="${top}" width="190" height="${900 - top}" fill="${accent}" opacity="${lift}"/><rect x="${i * 210 + 20}" y="${top + 30}" width="10" height="14" fill="${accent}" opacity="${hero ? 0.9 : 0.35}"/><rect x="${i * 210 + 90}" y="${top + 80}" width="10" height="14" fill="${accent}" opacity="${hero ? 0.9 : 0.35}"/>`
+    })
+    .join("")
   const body = hero
-    ? `<circle cx="1200" cy="200" r="90" fill="${accent}" opacity=".25"/>
-<polygon points="800,380 880,560 720,560" fill="${accent}"/>
+    ? `${city}<polygon points="800,380 880,560 720,560" fill="${accent}"/>
 <text x="800" y="300" font-size="40" text-anchor="middle">${hero.pickup}</text>`
-    : `<circle cx="800" cy="440" r="70" fill="${accent}"/><rect x="740" y="520" width="120" height="70" fill="#6b6b78"/>`
+    : `${city}<circle cx="800" cy="440" r="70" fill="${accent}"/><rect x="740" y="520" width="120" height="70" fill="#6b6b78"/>`
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900"><rect width="1600" height="900" fill="${background}"/>
-<g font-family="Arial, sans-serif" fill="${accent}">${body}
-<text x="800" y="150" font-size="64" font-weight="700" text-anchor="middle">${hero?.title ?? "Untitled Game"}</text>
-<text x="60" y="860" font-size="32">Score: 0</text></g></svg>`
+<g font-family="ui-monospace, Menlo, Consolas, monospace" fill="${accent}">${body}
+<text x="800" y="150" font-size="64" font-weight="700" text-anchor="middle">${(hero?.title ?? "Untitled Game").toUpperCase()}</text>
+<text x="60" y="860" font-size="32">SCORE 0</text></g></svg>`
   return {
     state: "ready",
     stamp: String(shown),
@@ -296,18 +303,14 @@ export const pageContent = (hero: Hero | undefined, shown: number): ItemContent 
   }
 }
 
-// The cover the artist draws for the game: a dark gradient with a few shapes near the edges.
+// The cover the artist draws for the game: a night skyline, its windows lit in the accent.
 export const coverSvg = (hero: Hero): string =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540">
-<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${hero.background}"/><stop offset="1" stop-color="#05060f"/></linearGradient></defs>
+<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${hero.background}"/><stop offset="1" stop-color="${hero.accent}" stop-opacity=".3"/></linearGradient></defs>
 <rect width="960" height="540" fill="url(#g)"/>
-<circle cx="120" cy="90" r="46" fill="${hero.accent}" opacity=".35"/>
-<circle cx="860" cy="130" r="28" fill="${hero.accent}" opacity=".5"/>
-<circle cx="70" cy="420" r="18" fill="${hero.accent}" opacity=".6"/>
-<circle cx="900" cy="440" r="60" fill="${hero.accent}" opacity=".2"/>
-<polygon points="0,540 120,420 240,540" fill="${hero.accent}" opacity=".25"/>
-<polygon points="720,540 840,450 960,540" fill="${hero.accent}" opacity=".3"/>
-<rect x="400" y="500" width="160" height="40" fill="${hero.accent}" opacity=".15"/>
+<circle cx="780" cy="110" r="44" fill="${hero.accent}" opacity=".3"/>
+<g fill="${hero.background}" stroke="${hero.accent}" stroke-opacity=".4"><rect x="30" y="250" width="130" height="300"/><rect x="190" y="170" width="110" height="380"/><rect x="330" y="290" width="150" height="260"/><rect x="510" y="210" width="120" height="340"/><rect x="660" y="300" width="130" height="250"/><rect x="820" y="230" width="120" height="320"/></g>
+<g fill="${hero.accent}"><rect x="60" y="290" width="10" height="14"/><rect x="100" y="340" width="10" height="14"/><rect x="220" y="220" width="10" height="14"/><rect x="260" y="300" width="10" height="14"/><rect x="370" y="340" width="10" height="14"/><rect x="540" y="260" width="10" height="14"/><rect x="580" y="350" width="10" height="14"/><rect x="700" y="350" width="10" height="14"/><rect x="850" y="280" width="10" height="14"/><rect x="890" y="380" width="10" height="14"/><rect x="440" y="400" width="10" height="14"/></g>
 </svg>
 `
 
@@ -344,7 +347,8 @@ export const configMain = [
   '  hero: "a ball and a box",',
   "  // What the hero collects: one emoji.",
   '  pickup: "⭐",',
-  "  // The colours: the background, and the text and frame.",
+  "  // The colours. The background is the night sky; the accent is the city's neon, in its windows,",
+  "  // signs and rain, and in the text.",
   '  background: "#2b2b33",',
   '  accent: "#9a9aa6",',
   "}",
@@ -356,7 +360,8 @@ const configOf = (hero: Hero): string[] => [
   `  hero: "${hero.name}",`,
   "  // What the hero collects: one emoji.",
   `  pickup: "${hero.pickup}",`,
-  "  // The colours: the background, and the text and frame.",
+  "  // The colours. The background is the night sky; the accent is the city's neon, in its windows,",
+  "  // signs and rain, and in the text.",
   `  background: "${hero.background}",`,
   `  accent: "${hero.accent}",`,
 ]
@@ -381,7 +386,7 @@ export const mainOf = (path: string): string[] | undefined =>
 export const hunkOf = (path: string, hero: Hero | undefined): PreviewHunk | undefined => {
   if (path === scoreFile) return { at: 5, removed: 4, lines: scoreFixed.slice(4), applies: true }
   if (path === configFile && hero)
-    return { at: 4, removed: 8, lines: configOf(hero), applies: true }
+    return { at: 4, removed: 9, lines: configOf(hero), applies: true }
   return undefined
 }
 

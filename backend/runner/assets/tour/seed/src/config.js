@@ -6,7 +6,8 @@ export const config = {
   hero: "a ball and a box",
   // What the hero collects: one emoji.
   pickup: "⭐",
-  // The colours: the background, and the text and frame.
+  // The colours. The background is the night sky; the accent is the city's neon, in its windows,
+  // signs and rain, and in the text.
   background: "#2b2b33",
   accent: "#9a9aa6",
 }
