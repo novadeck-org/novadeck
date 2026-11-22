@@ -288,6 +288,71 @@ describe("WebSocket authentication and protocol", () => {
   })
 })
 
+describe("devices with credentials of their own", () => {
+  it("lets two devices in beside the owner, and revoking one ends it alone, telling it why", async ({
+    resources,
+  }) => {
+    const app = await fixture(resources)
+    const owner = await app.connect()
+    const laptop = await owner.client.devices.mint({ name: "Laptop" })
+    const phone = await owner.client.devices.mint({ name: "Phone" })
+    const asDevice = async (credential: string) => {
+      const connected = await app.connect(false)
+      const proved = await connected.client.wire.handshake({
+        protocolVersion: compatibility.revision,
+        token: credential,
+      })
+      return { ...connected, proved }
+    }
+    const first = await asDevice(laptop.credential)
+    const second = await asDevice(phone.credential)
+    // Each is told which device it is; the owner's answer names none.
+    expect(first.proved).toMatchObject({ device: { id: laptop.device.id, name: "Laptop" } })
+    expect(second.proved).toMatchObject({ device: { id: phone.device.id, name: "Phone" } })
+    await expect(
+      (await app.connect(false)).client.wire.handshake({
+        protocolVersion: compatibility.revision,
+        token,
+      }),
+    ).resolves.not.toHaveProperty("device")
+    await expect(owner.client.devices.list()).resolves.toEqual([
+      expect.objectContaining({ id: laptop.device.id, connected: true }),
+      expect.objectContaining({ id: phone.device.id, connected: true }),
+    ])
+    // A device may not add one, and its connection goes on.
+    await expect(first.client.devices.mint({ name: "Tablet" })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    })
+    await expect(first.client.projects.list()).resolves.toEqual([])
+
+    const closed = once(first.socket, "close")
+    await owner.client.devices.revoke({ id: laptop.device.id })
+    await closed
+    // Its next handshake says it was revoked, which a client tells apart from a wrong token.
+    const again = await app.connect(false)
+    await expect(
+      again.client.wire.handshake({
+        protocolVersion: compatibility.revision,
+        token: laptop.credential,
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED", data: { reason: "revoked" } })
+    await expect(
+      (await app.connect(false)).client.wire.handshake({
+        protocolVersion: compatibility.revision,
+        token: `${laptop.credential.slice(0, -1)}${laptop.credential.endsWith("A") ? "B" : "A"}`,
+      }),
+    ).rejects.toSatisfy(
+      (error: { code?: string; data?: unknown }) =>
+        error.code === "UNAUTHORIZED" && error.data === undefined,
+    )
+    // The other device and the owner go on.
+    await expect(second.client.projects.list()).resolves.toEqual([])
+    await expect(owner.client.devices.list()).resolves.toEqual([
+      expect.objectContaining({ id: phone.device.id, connected: true }),
+    ])
+  })
+})
+
 describe("workspace metadata API", () => {
   it("project and session creation, listing, renaming and restart persistence", async ({
     resources,

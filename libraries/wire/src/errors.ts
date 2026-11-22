@@ -11,13 +11,23 @@ export const serverWindow = z.object({
 })
 
 /**
+ * Why a server refused a handshake's token, when it may say: `revoked` for a credential its
+ * owner revoked, which a client tells apart from one the server never knew. Open: a newer
+ * server may give a reason an older client reads as none.
+ */
+export const refusal = z.object({ reason: z.string().min(1).max(64) })
+
+/**
  * The codes the wire defines for both ends, with their HTTP statuses, as an oRPC error map:
  * an app spreads it into its own contract's errors, beside its codes. The wire's server side
  * refuses with the first three; the app throws the others, and `follow` acts on them.
  */
 export const wireErrors = {
-  /** The handshake's token was missing or wrong, or the session never authenticated. */
-  UNAUTHORIZED: { status: 401 },
+  /**
+   * The handshake's token was missing or wrong, or the session never authenticated. Its data,
+   * when the server says, is why (`refusal`).
+   */
+  UNAUTHORIZED: { status: 401, data: refusal.optional() },
   /** Client and server are outside each other's window of revisions (`incompatibility`). */
   INCOMPATIBLE_PROTOCOL: { status: 409, data: serverWindow.optional() },
   /** Too many connections, or too many calls at once on one. */
@@ -90,4 +100,11 @@ export const incompatibility = (error: unknown): Incompatibility | undefined => 
   return data?.behind === "client" || data?.behind === "server"
     ? (data as Incompatibility)
     : undefined
+}
+
+/** Why an `UNAUTHORIZED` from a wire client was refused, when the server said (`refusal`). */
+export const refusalOf = (error: unknown): string | undefined => {
+  if (!hasCode(error, "UNAUTHORIZED")) return undefined
+  const reason = (error.data as { reason?: unknown } | undefined)?.reason
+  return typeof reason === "string" ? reason : undefined
 }

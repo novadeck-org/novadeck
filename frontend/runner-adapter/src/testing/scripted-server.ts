@@ -367,6 +367,11 @@ export const scriptedRunner = ({
       set: api.murmur.set.handler(unplayed("murmur.set")),
       noteOffered: api.murmur.noteOffered.handler(unplayed("murmur.noteOffered")),
     },
+    devices: {
+      mint: api.devices.mint.handler(unplayed("devices.mint")),
+      list: api.devices.list.handler(() => []),
+      revoke: api.devices.revoke.handler(unplayed("devices.revoke")),
+    },
     tour: {
       prepare: api.tour.prepare.handler(unplayed("tour.prepare")),
       brief: api.tour.brief.handler(unplayed("tour.brief")),

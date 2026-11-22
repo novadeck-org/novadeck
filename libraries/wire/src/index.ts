@@ -9,6 +9,7 @@ export {
   hasCode,
   incompatibility,
   normalize,
+  refusalOf,
   WireError,
   wireErrors,
   type Incompatibility,

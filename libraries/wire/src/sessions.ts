@@ -6,6 +6,16 @@ import { wireErrors } from "./errors.js"
 import { wireContract } from "./handshake.js"
 import { until } from "./until.js"
 
+/** A device that proved itself with its own credential, by its id and the name it was given. */
+export type DeviceIdentity = { readonly id: string; readonly name: string }
+
+/**
+ * What a transport makes of a handshake's token: `true` for the owner's (or any, on a trusted
+ * transport), the device whose own credential it is, or a refusal: `false`, or with a reason
+ * the client is told (`refusal`), as `revoked`.
+ */
+export type Verdict = boolean | { readonly device: DeviceIdentity } | { readonly refused: string }
+
 /** One client's connection, as the app's handlers see it in their context. */
 export type Session = {
   /** This connection's id: what the app keys whatever the session holds by. */
@@ -13,6 +23,8 @@ export type Session = {
   /** The client's id, the same on each of its connections, once its handshake gave it. */
   readonly clientId: string | undefined
   readonly authenticated: boolean
+  /** The device it proved itself as; none for the owner, or a trusted transport. */
+  readonly device: DeviceIdentity | undefined
   /** Set once the connection ended or a newer one of its client took over. */
   readonly closed: boolean
 }
@@ -22,8 +34,8 @@ export type SessionContext = { readonly session: Session }
 
 /** What a transport tells the sessions about one of its connections. */
 export type SessionTransport = {
-  /** Whether the handshake's token is good. A trusted transport accepts any, even none. */
-  readonly verify: (token: string | undefined) => boolean
+  /** What the handshake's token proves (`Verdict`). A trusted transport accepts any, even none. */
+  readonly verify: (token: string | undefined) => Verdict
   /** Ends the transport, as when a newer connection of the same client takes over. */
   readonly terminate: () => void
   /** Tells the transport the session authenticated, as to stop its deadline. */
@@ -36,6 +48,7 @@ class SessionRecord implements Session {
   readonly id = randomUUID()
   clientId: string | undefined
   authenticated = false
+  device: DeviceIdentity | undefined
   closed = false
   calls = 0
   // Times it was refused as unproven, which only a peer that isn't the app's client repeats.
@@ -90,6 +103,14 @@ export type Sessions = {
   open(transport: SessionTransport): Session
   /** Ends a session, once: the app is told it closed. */
   close(session: Session): void
+  /**
+   * Ends every session of the device at once, as when its credential is revoked: each is
+   * closed, so whatever it calls is refused, and its transport ended, so its client finds out
+   * at the handshake that follows.
+   */
+  revoke(deviceId: string): void
+  /** Whether a session of the device is open now. */
+  connected(deviceId: string): boolean
   /** Tells the app's `failed` of a failure, such as one a transport met outside any call. */
   failed(path: readonly string[], error: unknown): void
 }
@@ -131,6 +152,8 @@ export const createSessions = (
     throw new Error("The app's router can't serve the wire's procedures")
   const epoch = options.epoch ?? randomUUID()
   const clients = new Map<string, SessionRecord>()
+  // The sessions that proved themselves and are still open.
+  const live = new Set<SessionRecord>()
 
   const record = (session: Session): SessionRecord => {
     if (!(session instanceof SessionRecord)) throw new Error("Not a session of these sessions.")
@@ -142,6 +165,7 @@ export const createSessions = (
     if (own.closed) return
     own.closed = true
     own.ending.abort()
+    live.delete(own)
     release(own)
     options.closed?.(own)
   }
@@ -254,17 +278,33 @@ export const createSessions = (
       handshake: api.wire.handshake.handler(({ input, context, errors }) => {
         const session = record(context.session)
         if (session.closed) throw errors.UNAUTHORIZED()
-        if (!session.transport.verify(input.token)) {
+        const verdict = session.transport.verify(input.token)
+        if (verdict === false || (typeof verdict === "object" && "refused" in verdict)) {
           if (!session.authenticated) unproven(session)
-          throw errors.UNAUTHORIZED()
+          throw typeof verdict === "object"
+            ? errors.UNAUTHORIZED({ data: { reason: verdict.refused } })
+            : errors.UNAUTHORIZED()
         }
         if (input.protocolVersion < oldestClient)
           throw errors.INCOMPATIBLE_PROTOCOL({ data: { revision, oldestClient } })
-        admit?.(session)
+        // A session handshaking again is whoever its latest token proves.
+        const previous = session.device
+        session.device = typeof verdict === "object" ? verdict.device : undefined
+        try {
+          admit?.(session)
+        } catch (error) {
+          session.device = previous
+          throw error
+        }
         session.authenticated = true
+        live.add(session)
         if (input.clientId !== undefined) claim(session, input.clientId)
         session.transport.authenticated()
-        return { epoch, protocolVersion: revision }
+        return {
+          epoch,
+          protocolVersion: revision,
+          ...(session.device !== undefined && { device: session.device }),
+        }
       }),
     },
   })
@@ -274,6 +314,18 @@ export const createSessions = (
     router: { ...os.$context<SessionContext>().use(gate).router(options.router), ...wire },
     open: (transport) => new SessionRecord(transport),
     close,
+    revoke(deviceId) {
+      // Closing one takes it out of `live`: the device's are found first.
+      const revoked = [...live].filter((session) => session.device?.id === deviceId)
+      for (const session of revoked) {
+        close(session)
+        session.transport.terminate()
+      }
+    },
+    connected(deviceId) {
+      for (const session of live) if (session.device?.id === deviceId) return true
+      return false
+    },
     failed,
   }
 }

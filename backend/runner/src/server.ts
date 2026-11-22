@@ -28,7 +28,7 @@ export type { HttpServer as Server } from "./http.js"
 /** Standalone runner: HTTP status plus a token-authenticated WebSocket runner API. */
 export const startServer = async (options: ServerOptions = {}): Promise<HttpServer> => {
   if (options.token === undefined) return startHttpServer(options)
-  const [{ createRunner }, { serveWebSocket }] = await Promise.all([
+  const [{ createRunner }, { serveWebSocket, tokenCheck }] = await Promise.all([
     import("./index.js"),
     import("@novadeck/wire/server"),
   ])
@@ -45,9 +45,12 @@ export const startServer = async (options: ServerOptions = {}): Promise<HttpServ
   })
   let sockets: ReturnType<typeof serveWebSocket>
   try {
+    // The owner's token, then a device's own credential (`devices` in the contract). The
+    // owner's is checked first and always, in constant time, as before devices.
+    const owner = tokenCheck(options.token)
     sockets = serveWebSocket(runner.sessions, {
       path: "/api/rpc",
-      token: options.token,
+      verify: (token) => owner(token) || (runner.device(token) ?? false),
       origins: options.origins ?? ["http://127.0.0.1:5173"],
       maxPayloadBytes: maxWebSocketMessageBytes,
       // Room for a terminal's largest initial snapshot, and the traffic beside it.
