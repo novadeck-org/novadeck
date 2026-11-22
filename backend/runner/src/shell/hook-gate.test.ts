@@ -1,3 +1,5 @@
+import { resolve } from "node:path"
+
 import { describe, expect, it } from "vitest"
 
 import { relayHook } from "./hook.js"
@@ -10,6 +12,8 @@ const hook = (agent: string, event: string, payload: object) => ({
   payload: JSON.stringify({ hook_event_name: event, ...payload }),
 })
 const on = () => true
+// Whole paths as the platform spells them.
+const abs = (path: string) => resolve(path)
 
 describe("a hook the shipping gate answers", () => {
   it("carries the whole raw command, past what a report keeps", () => {
@@ -18,13 +22,13 @@ describe("a hook the shipping gate answers", () => {
       hook("claude", "PreToolUse", {
         tool_name: "Bash",
         tool_input: { command },
-        cwd: "/w",
+        cwd: abs("/w"),
         permission_mode: "auto",
       }),
       undefined,
       on,
     )
-    expect(read?.gate).toEqual({ event: "PreToolUse", command, cwd: "/w", mode: "auto" })
+    expect(read?.gate).toEqual({ event: "PreToolUse", command, cwd: abs("/w"), mode: "auto" })
     expect(read?.deadline).toBeTypeOf("number")
   })
 
@@ -41,7 +45,7 @@ describe("a hook the shipping gate answers", () => {
         hook("codex", "PermissionRequest", {
           tool_name: "Bash",
           tool_input: { command },
-          cwd: "/w",
+          cwd: abs("/w"),
           transcript_path: "/r.jsonl",
         }),
         undefined,
@@ -64,14 +68,14 @@ describe("a hook the shipping gate answers", () => {
         undefined,
         on,
       )?.gate?.cwd
-    expect(folder({ workdir: "/other/repo" }, "/w")).toBe("/other/repo")
-    expect(folder({ workdir: "sub" }, "/w")).toBe("/w/sub")
-    expect(folder({ workdir: "" }, "/w")).toBe("/w")
-    expect(folder({}, "/w")).toBe("/w")
+    expect(folder({ workdir: abs("/other/repo") }, abs("/w"))).toBe(abs("/other/repo"))
+    expect(folder({ workdir: "sub" }, abs("/w"))).toBe(resolve(abs("/w"), "sub"))
+    expect(folder({ workdir: "" }, abs("/w"))).toBe(abs("/w"))
+    expect(folder({}, abs("/w"))).toBe(abs("/w"))
     // An empty or missing session folder is not the runner's own.
     expect(folder({}, "")).toBeUndefined()
     expect(folder({})).toBeUndefined()
     expect(folder({ workdir: "sub" })).toBeUndefined()
-    expect(folder({ workdir: "/abs" })).toBe("/abs")
+    expect(folder({ workdir: abs("/abs") })).toBe(abs("/abs"))
   })
 })

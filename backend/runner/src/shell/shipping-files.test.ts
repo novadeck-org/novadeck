@@ -6,7 +6,8 @@ const paths = shellPaths("/home/u/.novadeck/shell", "linux")
 const files = (machine: object = {}) =>
   new Map(
     shellFiles(paths, "linux", undefined, { worktreesRoot: "/w", ...machine }).map((each) => [
-      each.path,
+      // Joined with the host's separator: read them as slashes on Windows too.
+      each.path.replaceAll("\\", "/"),
       each.content,
     ]),
   )
@@ -18,7 +19,9 @@ describe("the shipping gate's files", () => {
     const off = files()
     expect(files({ shippingGate: undefined })).toEqual(off)
     // relay.json holds only what it always did.
-    expect(off.get(paths.relayConfig)).toBe(`${JSON.stringify(relayConfig, null, 2)}\n`)
+    expect(off.get(paths.relayConfig.replaceAll("\\", "/"))).toBe(
+      `${JSON.stringify(relayConfig, null, 2)}\n`,
+    )
     for (const name of ["statusline.json", "worktrees.json"]) {
       const settings = JSON.parse(at(off, name)) as Record<string, unknown>
       expect(Object.keys(settings)).not.toContain("hooks")
