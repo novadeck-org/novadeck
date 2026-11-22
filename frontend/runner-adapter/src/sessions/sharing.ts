@@ -2,9 +2,9 @@ import type { BackendAction } from "@novadeck/core/port"
 import { savedIds, sharedState } from "@novadeck/core/restore"
 import type { Workspace, WorkspaceSession as UiSession } from "@novadeck/core/types"
 import type { SessionChange, SessionPatch, WorkspaceSession } from "@novadeck/protocol"
-import type { Runner } from "@novadeck/runner-client"
+import { hasCode, type Runner } from "@novadeck/runner-client"
 
-import { reportCaught } from "../streams"
+import { consume, reportCaught } from "../streams"
 import { applyPatch, diffPatch, emptyPatch, fitsContract, restored } from "./patch"
 import type { SavedState, SessionSaves } from "./saves"
 import { decodeSession, encodeSession } from "./state"
@@ -402,22 +402,18 @@ export const createSessionSharing = (options: {
       if (stream || !has("sessions.watch")) return
       const changes = runner.sessions.watch()
       stream = changes
-      void (async () => {
-        try {
-          for await (const change of changes) {
-            if (stream !== changes) return
-            try {
-              if (change.type === "revisions") void caughtUp(change.revisions).catch(reportCaught)
-              else if (change.type === "changed") arrived(change.session)
-              else forgotten(change.sessionId)
-            } catch (error) {
-              reportCaught(error)
-            }
-          }
-        } catch (error) {
-          reportCaught(error)
-        }
-      })()
+      // As the other streams are: an item's trouble is reported, and the stream's own end, as
+      // once the runner closed for good, is quiet.
+      void consume(changes, (change) => {
+        if (stream !== changes) return
+        if (change.type === "revisions")
+          void caughtUp(change.revisions).catch((error: unknown) => {
+            // The feed opens again with the link, and reads again what it missed then.
+            if (!hasCode(error, "DISCONNECTED", "CLOSING")) reportCaught(error)
+          })
+        else if (change.type === "changed") arrived(change.session)
+        else forgotten(change.sessionId)
+      })
     },
     stop: () => {
       const ended = stream

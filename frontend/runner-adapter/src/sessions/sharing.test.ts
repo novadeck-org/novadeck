@@ -3,6 +3,7 @@ import { terminalFixture, workspaceFixture } from "@novadeck/core/testing"
 import type { Workspace } from "@novadeck/core/types"
 import type { SessionChange, SessionPatch } from "@novadeck/protocol"
 import type { Runner } from "@novadeck/runner-client"
+import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
@@ -160,6 +161,8 @@ const sharedWindow = async ({
     server,
     dispatched,
     opens,
+    // The runner's feed ends with `error`, as once the runner closed.
+    feedEnds: (error: unknown) => feed.fail(error),
     moves,
     sends,
     theirs,
@@ -340,5 +343,19 @@ describe("a session shared while changes cross", () => {
     await new Promise((done) => setTimeout(done, 0))
     expect(window.geometry()["03"]).toEqual(at(900))
     window.stop()
+  })
+
+  it("ends quietly when the runner closes, as the other streams do", async () => {
+    const reported = vi.fn<(error: unknown) => void>()
+    vi.stubGlobal("reportError", reported)
+    try {
+      const window = await sharedWindow()
+      window.feedEnds(new WireError("DISCONNECTED", "The connection is closed."))
+      await new Promise((done) => setTimeout(done, 0))
+      expect(reported).not.toHaveBeenCalled()
+      window.stop()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })
