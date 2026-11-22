@@ -184,6 +184,35 @@ describe("a delivery block's layout", () => {
     expect(text(rows.at(-1)!)).toBe("rules for the agent")
   })
 
+  it("starts a first word too wide beside a long handle on the next row, whole", () => {
+    const handle = "x".repeat(36)
+    for (const words of ["漢字漢字 ok", "hi there friend"]) {
+      const rows = layoutBlock([agent(handle, words)], 40, 4, { rules: false })
+      expect(rows.map(text)).toEqual([`@${handle}: `, words])
+      expect(rows.every((row) => width(row) <= 40)).toBe(true)
+    }
+  })
+
+  it("gives the rows equal shares leave to the messages still cut", () => {
+    const rows = layoutBlock([agent("newtz", long), agent("hushz", long)], 30, 12)
+    expect(rows).toHaveLength(12)
+    expect(rows.filter((row) => text(row).endsWith("…"))).toHaveLength(2)
+    expect(rows.findIndex((row) => text(row).startsWith("@hushz"))).toBe(6)
+  })
+
+  it("breaks a long run between characters as drawn, never inside a flag or an emoji", () => {
+    const flags = layoutBlock([agent("newtz", `${"a".repeat(19)}${"🇺🇸".repeat(14)}`)], 24, 6, {
+      rules: false,
+    })
+    const pieces = flags.map(text).map((row) => row.replace(/^@newtz: |^ +/, ""))
+    for (const piece of pieces.slice(1)) expect(piece.startsWith("🇸")).toBe(false)
+    expect(pieces.join("")).toBe(`${"a".repeat(19)}${"🇺🇸".repeat(14)}`)
+    const heart = layoutBlock([agent("newtz", `${"a".repeat(19)}❤️${"b".repeat(30)}`)], 24, 6, {
+      rules: false,
+    })
+    for (const row of heart.map(text)) expect(row.trimStart().startsWith("\uFE0F")).toBe(false)
+  })
+
   it("breaks a word wider than the row where the row ends", () => {
     const rows = layoutBlock([agent("newtz", "x".repeat(100))], 40, 6, { rules: false })
     expect(rows.map(text)).toEqual([

@@ -171,7 +171,11 @@ export const layoutRing = (parts: readonly RingPart[], width: number, extra = 0)
 // indent: narrower, they start at the row's edge instead.
 const leastWrap = 20
 
-// The text of a message as rows of at most `width` cells, broken between words where it can.
+const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" })
+
+// The text of a message as rows of at most `width` cells, broken between words where it can,
+// and inside a word wider than a row between its characters as drawn (a flag, an emoji with
+// its variation selector), never within one.
 const wrapText = (text: string, width: number): string[] => {
   const out: string[] = []
   let row = ""
@@ -187,11 +191,12 @@ const wrapText = (text: string, width: number): string[] => {
     let rest = word
     while (cells(rest) > width) {
       let piece = ""
-      for (const char of rest) {
-        if (cells(piece + char) > width) break
-        piece += char
+      for (const { segment } of graphemes.segment(rest)) {
+        if (cells(piece + segment) > width) break
+        piece += segment
       }
-      if (piece === "") return [...out, rest]
+      // A character wider than the row itself: what is left is cut to it.
+      if (piece === "") return [...out, cut(rest, width)]
       out.push(piece)
       rest = rest.slice(piece.length)
     }
@@ -215,7 +220,11 @@ const wrappedRows = (
   const indent = width - lead >= leastWrap ? lead : 0
   const body = flatten(part.text)
   const first = width - lead
-  const firstRow = wrapText(body, first)[0] ?? ""
+  // A first word too wide for the room beside the sender starts on the next row, unless it
+  // is wider than that row too and the room beside the sender is a fair share of a row.
+  const firstWord = cells(body.split(" ")[0] ?? "")
+  const below = firstWord > first && (firstWord <= width - indent || first < leastWrap)
+  const firstRow = below ? "" : (wrapText(body, first)[0] ?? "")
   const after = body.slice(firstRow.length).trimStart()
   const all = [firstRow, ...(after ? wrapText(after, width - indent) : [])]
   const short = all.length > rows
@@ -223,7 +232,7 @@ const wrappedRows = (
   if (short) {
     // The last row it has takes what it can of the rest, the "…" saying words are left.
     const shown = cut(
-      [texts[rows - 1]!, ...all.slice(rows)].join(" "),
+      [texts[rows - 1]!, ...all.slice(rows)].filter(Boolean).join(" "),
       rows === 1 ? first : width - indent,
     )
     texts[rows - 1] = shown.endsWith(ellipsis) ? shown.slice(0, -1) : shown
@@ -267,10 +276,15 @@ export const layoutBlock = (
   if (rules) tail.push([{ text: cut("rules for the agent", width), tone: dim }])
   const room = rows - tail.length
   if (parts.length > 0 && room >= parts.length) {
-    const given = shares(
-      parts.map((part) => rowsWanted(part, width)),
-      room,
-    )
+    const wanted = parts.map((part) => rowsWanted(part, width))
+    const given = shares(wanted, room)
+    // Equal shares round down: the rows left over go, one each, to the messages still cut.
+    let left = room - given.reduce((sum, each) => sum + each, 0)
+    for (let index = 0; index < given.length && left > 0; index += 1)
+      if (given[index]! < wanted[index]!) {
+        given[index] = given[index]! + 1
+        left -= 1
+      }
     return [
       ...parts.flatMap((part, index) =>
         part.kind === "notice"
