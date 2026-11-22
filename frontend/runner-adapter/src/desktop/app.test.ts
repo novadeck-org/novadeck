@@ -255,10 +255,6 @@ describe("the desktop app's project windows", () => {
         calls.push(["swap", id])
         return id === "p3" ? "swapped" : "nonsense"
       },
-      onProjectWindowFlush: (listener: () => Promise<void>) => {
-        void listener().then(() => calls.push(["flushed"]))
-        return () => {}
-      },
       handOffToProjectWindow: (target: unknown) => void calls.push(["handOff", target]),
       onProjectWindowNavigate: (listener: (target: unknown) => void) => {
         listener({ projectId: "p2", terminalId: "t" })
@@ -282,7 +278,6 @@ describe("the desktop app's project windows", () => {
     await expect(windows.swap("")).resolves.toBe("alone")
     await expect(windows.swap("p3")).resolves.toBe("swapped")
     await expect(windows.swap("p4")).resolves.toBe("alone")
-    windows.onFlush(async () => {})
     windows.handOff({ projectId: "p3", rowId: "r" })
     stop()
     await new Promise((resolve) => setTimeout(resolve, 0))
@@ -298,7 +293,6 @@ describe("the desktop app's project windows", () => {
       ["swap", "p4"],
       ["handOff", { projectId: "p3", rowId: "r" }],
       ["stop"],
-      ["flushed"],
     ])
     expect(windows.extra).toBe(true)
   })

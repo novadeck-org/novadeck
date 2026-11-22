@@ -195,6 +195,18 @@ export class Reports {
     if (this.ignored(report)) return silent
     const record = this.host.records().get(report.terminalId)
     if (!record || record.terminal.exiting || !sameToken(record.token, report.token)) return silent
+    // Antigravity's mode, as its status line says it, so the shipping gate stays silent where it
+    // runs every command unasked (and follows a Shift+Tab switch). Only the bound process's own:
+    // a nested `agy -p` in the terminal names a mode of its own. Silence only ever leaves a
+    // command to Antigravity's own dialog, never past it.
+    if (
+      report.agent === "agy" &&
+      report.event === "StatusLine" &&
+      (record.bound === null ||
+        record.bound === undefined ||
+        record.bound.binding.instance === report.instance)
+    )
+      this.host.shipping()?.statusLine(report.terminalId, report.payload, report.instance)
     // The bound session's transcript, where this report names it and nothing did before.
     const named = harnesses[report.agent].transcriptOf?.(report)
     if (named && record.bound?.binding.agent === report.agent)

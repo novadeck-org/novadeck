@@ -49,8 +49,6 @@ import {
   windowControlsPlaceChannel,
   windowFocusChannel,
   windowFocusRequestChannel,
-  projectWindowFlushChannel,
-  projectWindowFlushedChannel,
   projectWindowHandOffChannel,
   projectWindowNavigateChannel,
   projectWindowOpenChannel,
@@ -548,21 +546,6 @@ describe("the project windows", () => {
     electron.answer = { what: "ever" }
     await expect(electron.exposed.swapProjectWindow!("p3")).resolves.toBe("alone")
     await expect(electron.exposed.swapProjectWindow!("")).resolves.toBe("alone")
-  })
-
-  it("answers the app's ask for its saves once the page's listener has finished, however it ends", async () => {
-    let finish!: () => void
-    electron.exposed.onProjectWindowFlush!(() => new Promise<void>((resolve) => (finish = resolve)))
-    electron.renderer.emit(projectWindowFlushChannel, {}, "ask-1")
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(electron.sent).not.toContain(projectWindowFlushedChannel)
-    finish()
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(electron.messages).toContainEqual([projectWindowFlushedChannel, "ask-1"])
-    electron.exposed.onProjectWindowFlush!(() => Promise.reject(new Error("link down")))
-    electron.renderer.emit(projectWindowFlushChannel, {}, "ask-2")
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(electron.messages).toContainEqual([projectWindowFlushedChannel, "ask-2"])
   })
 
   it("sends nothing for what is not", () => {

@@ -99,8 +99,8 @@ export const sculptorTask = (
   lead: string,
   agent: AgentName,
 ): string => `You are Sculptor, a teammate in Novadeck's tour. ${lead} leads you. This repo is a small
-browser game whose hero is a 3D model, ${heroFile}: for now a ball and a box. Your tools
-include Novadeck's \`describe\`, \`open_worktree\`, \`show\`, \`ask\` and \`send\`: if they're
+browser game whose hero is a 3D model, ${heroFile}: for now a ball and a box.
+Your tools include Novadeck's \`describe\`, \`open_worktree\`, \`show\`, \`ask\` and \`send\`: if they're
 deferred, load them first. ${manners(agent)}
 1. Call \`describe\` with title "Sculptor" and summary "Sculpts the game's hero".
 2. Call \`open_worktree\` with branch "${branches.sculptor}". Its result names the worktree's folder. Work
@@ -236,6 +236,7 @@ hero is a 3D model, for now a ball and a box. Your team makes the game the perso
   \`send\`) need no permission of yours to call; if they're deferred, load all six in one go
   before step 1.
 - Never answer a teammate's question to the person yourself: the person chooses.
+- Call \`show\` only where a step says to: the pane beside you is the person's.
 - Never use the person's name, even if you know it: say "you".
 - Do the steps in order. Don't skip one and don't add one. Your first turn runs from
   \`describe\` to ${firstTurnEnds(serving)}: write no sentence and don't end your turn

@@ -34,14 +34,26 @@ pub struct Config {
     asks: Value,
     env: Vec<String>,
     fallbacks: Value,
+    /// The shipping gate is on (`"gate": true`): the rules it has the shim write are in force.
+    gated: bool,
+    /// A configuration was named and couldn't be read: whether the gate is on isn't known.
+    unreadable: bool,
 }
 
 impl Config {
     pub fn read(path: Option<&Path>) -> Config {
-        path.and_then(|path| std::fs::read_to_string(path).ok())
+        let read = path
+            .and_then(|path| std::fs::read_to_string(path).ok())
             .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-            .map(|value| Config::of(&value))
-            .unwrap_or_default()
+            .map(|value| Config::of(&value));
+        match (read, path) {
+            (Some(config), _) => config,
+            (None, Some(_)) => Config {
+                unreadable: true,
+                ..Config::default()
+            },
+            (None, None) => Config::default(),
+        }
     }
 
     fn of(value: &Value) -> Config {
@@ -54,6 +66,8 @@ impl Config {
                 .filter_map(|name| name.as_str().map(str::to_owned))
                 .collect(),
             fallbacks: value.get("fallbacks").cloned().unwrap_or(Value::Null),
+            gated: value.get("gate").and_then(Value::as_bool) == Some(true),
+            unreadable: false,
         }
     }
 
@@ -71,16 +85,28 @@ impl Config {
     /// own, else the agent's for any event (`*`), else nothing, except that Antigravity's
     /// PreToolUse always prints "ask" (it denies a tool otherwise), even where the
     /// configuration is unreadable or lacks it.
-    fn fallback(&self, agent: &str, event: &str) -> String {
+    ///
+    /// `payload` is what the hook was sent where it was read (its start where it was too big),
+    /// None where it wasn't. Antigravity's PreToolUse prints "ask" whatever the configuration says,
+    /// even a non-empty answer: it denies a tool whose answer names no decision (`{}` included).
+    /// But where the shipping gate is on (or isn't known to be off) and the command is one of
+    /// `SHIPPING_RULES`, which the shim has agy allow, "ask" would run it unasked, so it prints
+    /// a deny, and does the same where it can't tell what the command is.
+    fn fallback(&self, agent: &str, event: &str, payload: Option<&str>) -> String {
+        if agent == "agy" && event == "PreToolUse" {
+            let guarded = (self.gated || self.unreadable) && payload.is_none_or(ships);
+            return if guarded {
+                format!("{}\n", json!({ "decision": "deny", "reason": REFUSED }))
+            } else {
+                "{\"decision\":\"ask\"}\n".to_owned()
+            };
+        }
         let named = self.fallbacks.get(agent);
         let text = named
             .and_then(|each| each.get(event).or_else(|| each.get("*")))
             .and_then(Value::as_str)
             .unwrap_or("");
         if text.is_empty() {
-            if agent == "agy" && event == "PreToolUse" {
-                return "{\"decision\":\"ask\"}\n".to_owned();
-            }
             String::new()
         } else {
             format!("{text}\n")
@@ -104,10 +130,136 @@ impl Config {
     fn limit(&self, agent: &str, event: &str) -> Duration {
         Duration::from_millis(match (agent, event) {
             _ if claude_status_line(agent, event) => 5_000,
+            // Antigravity's PreToolUse comes before every tool, and only a shell command's is
+            // asked of the runner: the others keep a report's short limit (`limit_for`).
+            ("agy", "PreToolUse") => 2_000,
             _ if self.asks(agent, event) => 4_000,
             _ => 2_000,
         })
     }
+
+    /// How long a hook may take once its payload is read: `limit`, but for Antigravity's
+    /// PreToolUse of a `run_command` call listed in `asks`, which the runner answers (the
+    /// shipping gate) and so gets the long limit a Stop does.
+    fn limit_for(&self, agent: &str, event: &str, payload: &str) -> Duration {
+        if agent == "agy"
+            && event == "PreToolUse"
+            && self.asks(agent, event)
+            && runs_command(payload)
+        {
+            return Duration::from_millis(4_000);
+        }
+        self.limit(agent, event)
+    }
+}
+
+/// What a refused shipping command is told where the runner gave no answer.
+const REFUSED: &str = "Novadeck: its runner didn't answer, so this command, which ships work, \
+isn't allowed now. Run it again in a moment, on its own.";
+
+/// The rules the shim has Antigravity allow while the shipping gate is on, which the relay may
+/// never answer "ask" for (`harnesses/agy/src/shim.ts` holds the same list, and a test pins them).
+pub const SHIPPING_RULES: [&str; 2] = ["command(gh pr create)", "command(gh pr merge)"];
+
+/// Whether a command, as one line or several, holds a segment of a `SHIPPING_RULES` shape. Coarse:
+/// by segment (split at `;`, `&`, `|` and line ends, quotes ignored), the program is the rule's
+/// and its other words come in order among the rest, so `cd x && gh -R o/r pr create …` counts and
+/// more is read as shipping than the rules allow, never less.
+fn command_ships(command: &str) -> bool {
+    command.split([';', '&', '|', '\n', '\r']).any(|segment| {
+        let mut words = segment
+            .split_whitespace()
+            .skip_while(|word| word.contains('=') && !word.starts_with('-'));
+        let program = words
+            .next()
+            .map(|word| word.rsplit(['/', '\\']).next().unwrap_or(word));
+        let rest: Vec<&str> = words.collect();
+        SHIPPING_RULES.iter().any(|rule| {
+            let wanted: Vec<&str> = rule
+                .trim_start_matches("command(")
+                .trim_end_matches(')')
+                .split_whitespace()
+                .collect();
+            let [head, tail @ ..] = wanted.as_slice() else {
+                return false;
+            };
+            let mut next = tail.iter().peekable();
+            for word in &rest {
+                if next.peek().is_some_and(|want| *word == **want) {
+                    next.next();
+                }
+            }
+            program == Some(*head) && next.peek().is_none()
+        })
+    })
+}
+
+/// The `CommandLine` an Antigravity payload names, read leniently, where the payload was cut:
+/// the string after its key, up to its end or the cut, and whether it ended (a cut one may hide
+/// any shape).
+fn command_in(text: &str) -> Option<(String, bool)> {
+    let at = text.find("\"CommandLine\"")? + "\"CommandLine\"".len();
+    let rest = text[at..]
+        .trim_start()
+        .strip_prefix(':')?
+        .trim_start()
+        .strip_prefix('"')?;
+    let mut out = String::new();
+    let mut ended = false;
+    let mut chars = rest.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '"' => {
+                ended = true;
+                break;
+            }
+            '\\' => match chars.next() {
+                Some('n') => out.push('\n'),
+                Some('t') => out.push('\t'),
+                Some('u') => {
+                    for _ in 0..4 {
+                        chars.next();
+                    }
+                    out.push(' ');
+                }
+                Some(other) => out.push(other),
+                None => break,
+            },
+            c => out.push(c),
+        }
+    }
+    Some((out, ended))
+}
+
+/// Whether an Antigravity PreToolUse payload is a `run_command` of a shipping shape, or one that
+/// can't be told apart from it: a payload cut before its command, or one that names no tool.
+fn ships(payload: &str) -> bool {
+    match serde_json::from_str::<Value>(payload) {
+        Ok(value) => match value["toolCall"]["name"].as_str() {
+            Some("run_command") => value["toolCall"]["args"]["CommandLine"]
+                .as_str()
+                .is_none_or(command_ships),
+            Some(_) => false,
+            // No tool named: not an Antigravity tool call this relay can read.
+            None => true,
+        },
+        // Cut or not JSON: the command as far as it goes, or unknown, which counts.
+        Err(_) => {
+            command_in(payload).is_none_or(|(command, ended)| !ended || command_ships(&command))
+        }
+    }
+}
+
+/// Whether an Antigravity hook payload is about a `run_command` call.
+fn runs_command(payload: &str) -> bool {
+    serde_json::from_str::<Value>(payload)
+        .ok()
+        .and_then(|value| {
+            value["toolCall"]["name"]
+                .as_str()
+                .map(|name| name == "run_command")
+        })
+        .unwrap_or(false)
 }
 
 /// Whether `agent`'s `event` is Claude Code's status line, which runs the person's own.
@@ -157,15 +309,22 @@ fn print(text: &str) -> bool {
 pub fn run(agent: &str, event: &str, config: &Config) {
     // When the hook started, in wall-clock milliseconds: a later hook reports a larger one.
     let started = epoch_ms().unwrap_or(0.0);
-    let limit = config.limit(agent, event);
-    let deadline = Instant::now() + limit;
-    let fallback = || config.fallback(agent, event);
+    let begun = Instant::now();
+    let deadline = begun + config.limit(agent, event);
     // The agent's payload, read whole even where it goes unused, so the agent never
     // writes into a closed pipe; within the hook's limit, as an agent may leave it open.
-    let Some(payload) = read_payload(deadline) else {
-        return say(&fallback());
+    let Some((payload, whole)) = read_payload(deadline) else {
+        return say(&config.fallback(agent, event, None));
     };
     let payload = String::from_utf8_lossy(&payload).into_owned();
+    let fallback = || config.fallback(agent, event, Some(&payload));
+    // Too big to send: what the fallback prints goes by its start.
+    if !whole {
+        return say(&fallback());
+    }
+    // What the payload says may lengthen the limit (see `limit_for`).
+    let limit = config.limit_for(agent, event, &payload);
+    let deadline = begun + limit;
     // Claude Code's status line shows the person's own wherever it runs: outside a terminal
     // Novadeck can reach as within one.
     let own = claude_status_line(agent, event).then(|| own_status_line(payload.clone(), deadline));
@@ -222,9 +381,10 @@ fn own_status_line(payload: String, deadline: Instant) -> JoinHandle<Option<Stri
     })
 }
 
-/// The agent's payload, or None once it runs past what the hook takes, or past
-/// `deadline`, when what is left goes unread.
-fn read_payload(deadline: Instant) -> Option<Vec<u8>> {
+/// The agent's payload, with whether it was whole: past the most the hook takes, its start
+/// (`PREFIX`) is kept for the fallback. None once it runs past `deadline`, when what is left
+/// goes unread.
+fn read_payload(deadline: Instant) -> Option<(Vec<u8>, bool)> {
     let (sent, received) = std::sync::mpsc::channel();
     thread::spawn(move || {
         let mut payload = Vec::new();
@@ -233,17 +393,20 @@ fn read_payload(deadline: Instant) -> Option<Vec<u8>> {
             .take(MAX_PAYLOAD + 1)
             .read_to_end(&mut payload);
         let whole = read.is_ok() && payload.len() as u64 <= MAX_PAYLOAD;
-        // Past the most it takes: the rest is drained, unkept.
+        // Past the most it takes: the rest is drained, unkept but for its start.
         if !whole {
+            payload.truncate(PREFIX);
             let _ = io::copy(&mut io::stdin().lock(), &mut io::sink());
         }
-        let _ = sent.send(whole.then_some(payload));
+        let _ = sent.send((payload, whole));
     });
     received
         .recv_timeout(deadline.saturating_duration_since(Instant::now()))
         .ok()
-        .flatten()
 }
+
+/// How much of a payload too big to send the fallback reads.
+const PREFIX: usize = 64 * 1024;
 
 /// Sends the hook and reads the runner's one-line answer, keeping the connection for
 /// the acknowledgement.
@@ -301,27 +464,157 @@ mod tests {
     fn prints_what_each_agent_needs_without_novadeck_as_configured() {
         let config = config();
         assert_eq!(
-            config.fallback("agy", "PreToolUse"),
+            config.fallback("agy", "PreToolUse", Some("{}")),
             "{\"decision\":\"ask\"}\n"
         );
-        assert_eq!(config.fallback("agy", "Stop"), "{}\n");
-        assert_eq!(config.fallback("claude", "Stop"), "");
-        assert_eq!(config.fallback("codex", "PreToolUse"), "");
+        assert_eq!(config.fallback("agy", "Stop", None), "{}\n");
+        assert_eq!(config.fallback("claude", "Stop", None), "");
+        assert_eq!(config.fallback("codex", "PreToolUse", None), "");
         // Without its configuration, it prints nothing, but for what keeps Antigravity
         // from denying every tool.
         assert_eq!(
-            Config::default().fallback("agy", "PreToolUse"),
+            Config::default().fallback("agy", "PreToolUse", Some("{}")),
             "{\"decision\":\"ask\"}\n"
         );
-        assert_eq!(Config::default().fallback("agy", "Stop"), "");
+        assert_eq!(Config::default().fallback("agy", "Stop", None), "");
         // Nor does a configuration without Antigravity's entry.
         let without = Config::of(&json!({ "fallbacks": { "claude": { "*": "" } } }));
         assert_eq!(
-            without.fallback("agy", "PreToolUse"),
+            without.fallback("agy", "PreToolUse", Some("{}")),
             "{\"decision\":\"ask\"}\n"
         );
-        assert_eq!(without.fallback("agy", "Stop"), "");
-        assert_eq!(Config::default().fallback("codex", "PreToolUse"), "");
+        assert_eq!(without.fallback("agy", "Stop", None), "");
+        assert_eq!(Config::default().fallback("codex", "PreToolUse", None), "");
+    }
+
+    #[test]
+    fn only_antigravitys_shell_commands_wait_the_long_limit_for_the_runner() {
+        let config = Config::of(&json!({ "asks": { "agy": ["Stop", "PreToolUse"] } }));
+        let run = r#"{"toolCall":{"name":"run_command","args":{"CommandLine":"git push"}}}"#;
+        let read = r#"{"toolCall":{"name":"read_file","args":{}}}"#;
+        let ms = |payload: &str| config.limit_for("agy", "PreToolUse", payload).as_millis();
+        assert_eq!(ms(run), 4_000);
+        assert_eq!(ms(read), 2_000);
+        assert_eq!(ms("not json"), 2_000);
+        // Before its payload is read it is the short one, and without the event in `asks` too.
+        assert_eq!(config.limit("agy", "PreToolUse").as_millis(), 2_000);
+        let unlisted = Config::of(&json!({ "asks": { "agy": ["Stop"] } }));
+        assert_eq!(
+            unlisted.limit_for("agy", "PreToolUse", run).as_millis(),
+            2_000
+        );
+        assert_eq!(config.limit_for("agy", "Stop", run).as_millis(), 4_000);
+    }
+
+    const GUARDED: &str =
+        r#"{"toolCall":{"name":"run_command","args":{"CommandLine":"gh pr create --body x"}}}"#;
+    const SAFE: &str = r#"{"toolCall":{"name":"run_command","args":{"CommandLine":"ls"}}}"#;
+    const ASK: &str = "{\"decision\":\"ask\"}\n";
+
+    fn gated() -> Config {
+        Config::of(&json!({ "gate": true }))
+    }
+
+    fn denied(printed: &str) -> bool {
+        serde_json::from_str::<Value>(printed.trim())
+            .is_ok_and(|value| value["decision"] == "deny" && value["reason"].is_string())
+    }
+
+    #[test]
+    fn reads_the_shapes_as_the_runners_cases_do() {
+        let cases: Value = serde_json::from_str(include_str!("rule-cases.json")).unwrap();
+        for case in cases["cases"].as_array().unwrap() {
+            let command = case["command"].as_str().unwrap();
+            assert_eq!(
+                command_ships(command),
+                case["ships"].as_bool().unwrap(),
+                "{command:?}"
+            );
+        }
+    }
+
+    // The shim writes these rules while the gate is on, and agy runs what a rule covers when the
+    // hook says "ask": where the runner gave no answer the relay must refuse, never ask.
+    #[test]
+    fn refuses_a_shipping_command_where_the_runner_gave_no_answer_while_the_gate_is_on() {
+        let gated = gated();
+        // Every path that gives no answer prints the fallback; the payload is what it was sent.
+        assert!(denied(&gated.fallback("agy", "PreToolUse", Some(GUARDED))));
+        // A payload too big to send, kept by its start: its command, a start that cuts one, and
+        // one cut before the command, which can't be told apart.
+        let big = format!(
+            "{{\"lastUserInput\":\"{}\",{}",
+            "x".repeat(70_000),
+            &GUARDED[1..]
+        );
+        let prefix = &big[..64 * 1024];
+        assert!(denied(&gated.fallback("agy", "PreToolUse", Some(prefix))));
+        let cut = &GUARDED[..GUARDED.len() - 20];
+        assert!(denied(&gated.fallback("agy", "PreToolUse", Some(cut))));
+        // No payload read at all.
+        assert!(denied(&gated.fallback("agy", "PreToolUse", None)));
+        // Any other command, and any other tool, is asked, as ever.
+        assert_eq!(gated.fallback("agy", "PreToolUse", Some(SAFE)), ASK);
+        assert_eq!(
+            gated.fallback(
+                "agy",
+                "PreToolUse",
+                Some(r#"{"toolCall":{"name":"read_file","args":{"Path":"gh pr create"}}}"#)
+            ),
+            ASK
+        );
+        assert_eq!(gated.fallback("claude", "PreToolUse", Some(GUARDED)), "");
+        assert_eq!(gated.fallback("agy", "Stop", Some(GUARDED)), "");
+    }
+
+    #[test]
+    fn asks_as_ever_while_the_gate_is_off_and_refuses_where_it_cant_be_told() {
+        let off = Config::of(&json!({ "asks": {} }));
+        assert_eq!(off.fallback("agy", "PreToolUse", Some(GUARDED)), ASK);
+        assert_eq!(
+            Config::read(None).fallback("agy", "PreToolUse", Some(GUARDED)),
+            ASK
+        );
+        // A configuration named and unreadable: the gate may be on.
+        let missing = Config::read(Some(Path::new("/no/such/relay.json")));
+        assert!(denied(&missing.fallback(
+            "agy",
+            "PreToolUse",
+            Some(GUARDED)
+        )));
+        assert_eq!(missing.fallback("agy", "PreToolUse", Some(SAFE)), ASK);
+    }
+
+    #[test]
+    fn keeps_the_shims_rules_and_its_own_equal() {
+        // harnesses/agy/src/shim.ts's `shippingRules`, which a test there compares to this.
+        assert_eq!(
+            SHIPPING_RULES,
+            ["command(gh pr create)", "command(gh pr merge)"]
+        );
+    }
+
+    // The shipping gate leans on this (architecture/grants.md): where the runner gives Antigravity
+    // no answer to a PreToolUse (no terminal, a payload too big, no connection, a timeout, an
+    // unheard or failed ask), it prints `ask`, so its own dialog waits for the person. Silence
+    // would let a rule or its default run the command unasked, and no configuration may empty it.
+    #[test]
+    fn antigravitys_pre_tool_use_never_falls_back_to_silence() {
+        // Whatever the configuration says, even a non-empty answer, which Antigravity would
+        // take as no decision and deny the tool for, or as a decision of the runner's.
+        for text in ["", "{}", "{\"decision\":\"allow\"}"] {
+            let config =
+                Config::of(&json!({ "fallbacks": { "agy": { "PreToolUse": text, "*": text } } }));
+            assert_eq!(
+                config.fallback("agy", "PreToolUse", Some("{}")),
+                "{\"decision\":\"ask\"}\n"
+            );
+        }
+        // Its other events keep the configuration's.
+        let other = Config::of(&json!({ "fallbacks": { "agy": { "Stop": "{}" } } }));
+        assert_eq!(other.fallback("agy", "Stop", None), "{}\n");
+        // An unheard ask, a runner that answers no stdout, is the same fallback.
+        assert_eq!(Answer::of(r#"{"leaseId":null,"stdout":null}"#).stdout, None);
     }
 
     #[test]
@@ -340,9 +633,13 @@ mod tests {
     #[test]
     fn reads_no_configuration_as_an_empty_one() {
         assert_eq!(Config::read(None), Config::default());
+        // One named and missing is empty too, but for the mark that the gate's state isn't known.
         assert_eq!(
             Config::read(Some(Path::new("/no/such/relay.json"))),
-            Config::default()
+            Config {
+                unreadable: true,
+                ..Config::default()
+            }
         );
     }
 }

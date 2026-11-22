@@ -31,6 +31,8 @@ import { harnesses } from "../harnesses/registry.js"
 import { logs } from "../log.js"
 import { confirmMs, Doorbell, type DoorbellOptions } from "../messaging/doorbell.js"
 import type { Messaging } from "../messaging/messaging.js"
+import { permitAnswersOf, type PermitAnswers } from "../shipping/auto.js"
+import type { Shipping } from "../shipping/service.js"
 import { Answers, waitsOnPerson, type AnswersOptions } from "./answers.js"
 import { bannerDrawn } from "./binding/banners.js"
 import { boxView, BoxStates, shownBox } from "./box-state.js"
@@ -199,6 +201,8 @@ export type TypingHost = {
   /** Whether process `pid` still runs. */
   readonly alive: (pid: string) => boolean
   readonly messaging: () => Messaging
+  /** The shipping gate, where the runner offers it: it answers a permitted command's confirmation. */
+  readonly shipping?: () => Shipping | undefined
 }
 
 /** The end of a Stop that has not begun. */
@@ -221,6 +225,8 @@ export class Typing {
   answers: Answers
   /** The dialogs of requests, as `agents.detail` shows them. */
   readonly dialogs: Dialogs
+  /** Answers Antigravity's confirmation of a command the shipping gate has a permit for. */
+  private readonly permits: PermitAnswers
   /** Whether each prompt given reached its agent's record, as `agents.detail` shows it. */
   readonly receipts: Receipts
   /** The messages a Stop took back, whose prompt hooks may still report. */
@@ -265,6 +271,11 @@ export class Typing {
     this.interrupts = new Interrupts(this.interruptHost(), options.interrupts)
     this.dialogs = new Dialogs(this.dialogsHost(), options.answers)
     this.answers = new Answers(this.answerHost(), this.inputs, options.answers)
+    this.permits = permitAnswersOf({
+      shipping: () => host.shipping?.(),
+      record: (terminalId) => host.live(terminalId),
+      typing: () => this,
+    })
     this.receipts = new Receipts(this.receiptsHost(), {
       slackMs: confirmMs(options.platform),
       ...options.receipts,
@@ -1119,6 +1130,7 @@ export class Typing {
       changed: (terminalId) => {
         const record = this.host.held(terminalId)
         if (record) this.host.detailed(record)
+        this.permits.changed(terminalId)
       },
     }
   }

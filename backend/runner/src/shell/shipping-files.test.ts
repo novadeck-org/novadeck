@@ -1,3 +1,4 @@
+import { shippingRules } from "@novadeck/harness-agy/shim"
 import { describe, expect, it } from "vitest"
 
 import { gatedRelayConfig, relayConfig, shellFiles, shellPaths } from "./scripts.js"
@@ -40,7 +41,10 @@ describe("the shipping gate's files", () => {
     const off = files()
     const on = files({ shippingGate: true })
     const changed = [...on]
-      .filter(([path, content]) => off.get(path) !== content && !path.endsWith("/relay.json"))
+      .filter(
+        ([path, content]) =>
+          off.get(path) !== content && !path.endsWith("/relay.json") && !path.endsWith("/bin/agy"),
+      )
       .map(([path]) => path)
     expect(changed.map((path) => path.split("/plugins/")[1]).toSorted()).toEqual([
       "claude/statusline.json",
@@ -56,8 +60,16 @@ describe("the shipping gate's files", () => {
       hooks: { PreToolUse: { matcher: string }[] }
     }
     expect(codex.hooks.PreToolUse[0]!.matcher).toContain("|Bash|")
+    // Antigravity's shim passes the shipping rules to the relay, only while the gate is on.
+    expect(at(off, "/bin/agy")).not.toContain("command(gh pr")
+    const shim = at(on, "/bin/agy")
+    for (const rule of shippingRules) expect(shim).toContain(`'${rule}' `)
+    expect(shim).toContain(' -- "$@"')
     // The relay gives the gate's events the long limit, only while the gate is on.
     expect(JSON.parse(at(on, "relay.json"))).toEqual(gatedRelayConfig)
+    // …and says the gate is on, which the relay's refusals of the rules' shapes lean on.
+    expect(gatedRelayConfig.gate).toBe(true)
+    expect(Object.keys(relayConfig)).not.toContain("gate")
     expect(gatedRelayConfig.asks.claude).toContain("PreToolUse")
     expect(gatedRelayConfig.asks.codex).toEqual(
       expect.arrayContaining(["PreToolUse", "PermissionRequest"]),

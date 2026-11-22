@@ -2,7 +2,8 @@
  * The person's own allow rules, read and never written (see architecture/grants.md, review
  * point 9): where one covers a command, the harness had no gate there, so the shipping gate
  * adds none. Claude Code's are `permissions.allow` entries of its settings files, Codex's
- * `prefix_rule(... decision="allow")` lines of its rules files.
+ * `prefix_rule(... decision="allow")` lines of its rules files, Antigravity's `command(...)`
+ * entries of its settings file.
  */
 import { readFile, readdir } from "node:fs/promises"
 import { homedir } from "node:os"
@@ -105,4 +106,27 @@ export const covered = (rules: readonly AllowRule[], command: string): boolean =
     segments.length > 0 &&
     segments.every((each) => rules.some((rule) => rule(each.text, each.words)))
   )
+}
+
+/**
+ * Antigravity's `command(git push)`: a command's first words, as the program and subcommand
+ * it names (probed 1.5.14: it covers `git push <args>`, and never a tail or `git push-x`).
+ * Any other entry (`mcp(...)`, a glob) says nothing about a command here.
+ */
+export const agyRule = (entry: string): AllowRule | undefined => {
+  const match = /^command\(([^*()]+)\)$/.exec(entry.trim())
+  const prefix = match?.[1]?.trim().split(/\s+/)
+  if (!prefix || prefix[0] === "") return undefined
+  return (_text, words) => prefix.every((word, at) => words[at] === word)
+}
+
+/** The allow rules Antigravity reads from the person's settings file, read and never written. */
+export const agyRules = async (home = homedir()): Promise<AllowRule[]> => {
+  const file = await readJson(join(home, ".gemini", "antigravity-cli", "settings.json"))
+  const allow = (file as { permissions?: { allow?: unknown } } | undefined)?.permissions?.allow
+  if (!Array.isArray(allow)) return []
+  return allow.flatMap((entry) => {
+    const rule = typeof entry === "string" ? agyRule(entry) : undefined
+    return rule ? [rule] : []
+  })
 }

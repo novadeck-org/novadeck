@@ -162,6 +162,7 @@ export const scriptedRunner = ({
       create: api.projects.create.handler(unplayed("projects.create")),
       rename: api.projects.rename.handler(unplayed("projects.rename")),
       arrange: api.projects.arrange.handler(() => {}),
+      watch: api.projects.watch.handler(idle),
       remove: api.projects.remove.handler(unplayed("projects.remove")),
       folder: api.projects.folder.handler(unplayed("projects.folder")),
       checkout: api.projects.checkout.handler(() => ({ behind: null, moved: 0, head: null })),

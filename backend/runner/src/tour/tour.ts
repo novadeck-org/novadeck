@@ -259,8 +259,9 @@ export class Tour {
   /**
    * What an `open_agent` of `terminalId` is subject to: only the run's lead opens agents in the
    * tour's folder, with the tour's write flags; every other terminal there, its teammates and
-   * the artist, is refused. A terminal elsewhere, and one the runner doesn't have, are left to
-   * the call's own checks.
+   * the artist, is refused. A teammate the lead opens in the folder on its own harness with no
+   * model named starts on the run's teammate model, as the brief asks, never the person's default. A
+   * terminal elsewhere, and one the runner doesn't have, are left to the call's own checks.
    */
   openPolicy(terminalId: string): OpenPolicy {
     let cwd: string
@@ -275,6 +276,11 @@ export class Tour {
     return terminalId === this.run?.lead
       ? {
           flags: (agent, at) => (this.inTour(at) ? tourWrites[agent] : []),
+          choice: (agent, at) => {
+            const mate = this.facts?.mate
+            if (mate?.agent !== agent || !this.inTour(at)) return undefined
+            return { model: mate.model, ...(mate.effort !== undefined && { effort: mate.effort }) }
+          },
         }
       : {
           refusal:

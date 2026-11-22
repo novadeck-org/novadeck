@@ -1,6 +1,7 @@
 import { loadEnvFile } from "node:process"
 
 import { readConfig } from "./config.js"
+import { endOnSignals, superviseRunner } from "./lifecycle.js"
 import { startServer } from "./server.js"
 
 try {
@@ -16,9 +17,8 @@ if (!process.env.NOVADECK_TOKEN) {
   console.log("Terminal API disabled. Set NOVADECK_TOKEN to enable authenticated access.")
 }
 
-const stop = (): void => {
-  void server.close().then(() => process.exit(0))
-}
-
-process.once("SIGINT", stop)
-process.once("SIGTERM", stop)
+// A system stop (systemd, Docker) or Ctrl+C saves every terminal, then ends the shells, as
+// quitting the desktop app does; a second one a moment later exits at once.
+endOnSignals(superviseRunner({ runner: server, exit: (code) => process.exit(code) }), {
+  heard: (signal) => console.log(`Novadeck runner stopping (${signal}): saving terminals.`),
+})

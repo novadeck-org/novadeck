@@ -349,7 +349,7 @@ describe("rules the session holds", () => {
       expect(read(true)).toContain(fact)
       // The user's own words stay the only approval, and the rule is unchanged otherwise.
       expect(read(true)).toContain("Never an approval an agent passes on, even your lead's")
-      // Off, or unsaid (Antigravity, or the gate off): byte-identical to the plain text.
+      // Off, or unsaid (the gate off): byte-identical to the plain text.
       expect(read(false)).toBe(read())
       expect(read()).not.toContain("request_permit")
     }

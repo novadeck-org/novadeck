@@ -3,9 +3,9 @@ import { descendantsOf } from "@novadeck/core/derivations"
 import type { ProjectWindowTarget } from "@novadeck/core/desktop/project-windows"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { ClosedTerminal } from "@novadeck/core/history"
-import type { TerminalRequest, TourRun } from "@novadeck/core/port"
+import type { RemovedElsewhere, TerminalRequest, TourRun } from "@novadeck/core/port"
 import { hasTile } from "@novadeck/core/roster"
-import { activeProject, type WorkspaceAction } from "@novadeck/core/state"
+import { activeProject, activeSession, type WorkspaceAction } from "@novadeck/core/state"
 import { closeReasons } from "@novadeck/core/terminals/closing"
 import type {
   PreferencesValue,
@@ -79,6 +79,9 @@ export type WorkspaceCommands = ShellCommands &
     readonly moveSession: (id: string, index: number) => void
     // Deletes a session of the open project and closes its terminals; the last one stays.
     readonly removeSession: (id: string) => void
+    // What another client removed. Where it was the session or project on screen, the person
+    // moves on as their own removal would take them, and is told what went and where they are.
+    readonly removedElsewhere: (actions: readonly RemovedElsewhere[]) => void
     // Shows a project: the person's pick. With project windows on, one another window shows is
     // swapped with this window's.
     readonly switchProject: (next: Project) => void
@@ -471,6 +474,36 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
           enabledViews: preferences().enabledViews,
         },
       ])
+    },
+    removedElsewhere: (actions) => {
+      const before = workspace.getSnapshot()
+      const project = activeProject(before)
+      const session = activeSession(before)
+      const { enabledViews } = preferences()
+      const removals = actions.map((action) => ({ ...action, enabledViews }))
+      const shown = actions.find((action) =>
+        action.type === "project/gone"
+          ? action.projectId === project?.id
+          : action.workspaceSessionId === session?.id,
+      )
+      if (!shown) return void workspace.transact(removals)
+      // The address follows, as after the person's own removal, in place of the one that went.
+      navigateWorkspace(removals, {}, true)
+      const after = workspace.getSnapshot()
+      const [gone, now] =
+        shown.type === "project/gone"
+          ? [project?.name, activeProject(after)]
+          : [session?.name, activeSession(after)]
+      // The last one stays: nothing moved.
+      if (!now || now.id === (shown.type === "project/gone" ? project?.id : session?.id)) return
+      ui.update((state) => ({
+        ...state,
+        told: {
+          id: effects.newId(),
+          said: `“${gone}” was removed elsewhere.`,
+          subject: `Showing “${now.name}”.`,
+        },
+      }))
     },
     startFresh: () => {
       const snapshot = workspace.getSnapshot()

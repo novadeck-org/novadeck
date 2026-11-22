@@ -41,12 +41,9 @@ export type ProjectWindows = {
   readonly use: (on: boolean) => void
   // Opens a project in a new window, or brings forward the window that shows it.
   readonly open: (projectId: string) => void
-  // Swaps this window's project with the other window's that shows `projectId`, once this page
-  // has sent its saves: the other window sends its own before this resolves, so the page may
-  // read `projectId` then.
+  // Swaps this window's project with the other window's that shows `projectId`. Neither waits
+  // for the other's saves: each window's changes reach the other live through the runner.
   readonly swap: (projectId: string) => Promise<ProjectWindowSwap>
-  // Hears the app ask this window to send its saves, which `listener`'s promise answers.
-  readonly onFlush: (listener: () => Promise<void>) => () => void
   // Brings forward the window that shows the target's project, and tells it to go there; this
   // window is told when no other shows the project.
   readonly handOff: (target: ProjectWindowTarget) => void

@@ -173,11 +173,22 @@ export const agy = {
   // pass-through is installed (`machine.cmdShimDir`), it also puts that first on PATH.
   shims: (platform, machine = {}) =>
     platform !== "win32"
-      ? [{ path: "agy", content: posixShim(machine.worktreesRoot), mode: 0o700 }]
+      ? [
+          {
+            path: "agy",
+            content: posixShim(machine.worktreesRoot, machine.shippingGate === true),
+            mode: 0o700,
+          },
+        ]
       : [
           {
             path: "agy.cmd",
-            content: makeCmdShim({ cmdShimDir: machine.cmdShimDir, root: machine.worktreesRoot }),
+            content: makeCmdShim({
+              cmdShimDir: machine.cmdShimDir,
+              root: machine.worktreesRoot,
+              // Where cmd prints no PreToolUse is registered, so no rule is written either.
+              gate: machine.shippingGate === true && machine.cmdPrints !== true,
+            }),
           },
         ],
   // Its status line tells what no hook does: working or idle, a confirmation waiting on

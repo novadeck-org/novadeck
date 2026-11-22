@@ -669,6 +669,7 @@ export class Terminals {
           void this.reporting.queue(terminalId, () => Promise.resolve(work()), undefined),
         alive,
         messaging: () => this.messaging,
+        shipping: () => this.options.shipping,
       },
     )
     // The pause shows in every terminal's listing; anything else only in the terminal's.

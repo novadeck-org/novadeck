@@ -213,12 +213,24 @@ export class Calls {
     const read = readOpenRequest(call.request)
     if (!read.ok) return read
     const { request } = read
-    const choice = {
-      ...(request.model !== undefined && { model: request.model }),
-      ...(request.effort !== undefined && { effort: request.effort }),
-    }
     const policy: OpenPolicy =
       request.agent !== undefined ? this.host.openPolicy(call.terminalId) : {}
+    // A new agent the call names neither a model nor an effort for starts on the one its policy
+    // gives for the folder it asks for, if any, with that effort. A resume keeps its session's
+    // model, and an effort alone is refused as for every call (it needs a model).
+    const given =
+      request.agent !== undefined &&
+      request.model === undefined &&
+      request.effort === undefined &&
+      request.resume === undefined
+        ? policy.choice?.(request.agent, resolvePath(record.summary.cwd, request.cwd ?? "."))
+        : undefined
+    const choice = given
+      ? { model: given.model, ...(given.effort !== undefined && { effort: given.effort }) }
+      : {
+          ...(request.model !== undefined && { model: request.model }),
+          ...(request.effort !== undefined && { effort: request.effort }),
+        }
     if (request.agent !== undefined) {
       if (policy.refusal) return refused(policy.refusal)
       const unfit = await this.unfitChoice(request.agent, choice)
